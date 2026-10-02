@@ -8,8 +8,8 @@ package daemon
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"sync"
-	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	fleetcatalog "github.com/DataDog/datadog-agent/pkg/fleet/catalog"
@@ -26,8 +26,6 @@ type remoteConfigClient interface {
 	GetInstallerState() *pbgo.ClientUpdater
 	SetInstallerState(state *pbgo.ClientUpdater)
 	GetClientID() string
-	GetConfigs(product string) map[string]state.RawConfig
-	UpdateApplyStatus(cfgPath string, status state.ApplyStatus)
 }
 
 type remoteConfig struct {
@@ -52,22 +50,20 @@ func (rc *remoteConfig) Start(handleConfigsUpdate handleConfigsUpdate, handleCat
 	if rc.client == nil {
 		return
 	}
-	// catalogApplied tracks whether a catalog has ever been applied, so that tasks which
-	// resolve packages against the catalog can wait for one without delaying the
-	// UPDATER_TASK subscription itself. Reporting that subscription to the backend is what
-	// Fleet Automation checks to know the installer is remote-config-active, and it must not
-	// depend on the backend ever actually having assigned a catalog to this client.
-	var catalogApplied atomic.Bool
-	handleTasks := handleUpdaterTaskUpdate(handleRemoteAPIRequest, catalogApplied.Load)
+	subscribeToTask := func() {
+		// only subscribe to tasks once the first catalog has been applied
+		// subscribe in a goroutine to avoid deadlocking the client
+		go rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
+	}
 	rc.client.Subscribe(state.ProductInstallerConfig, handleInstallerConfigUpdate(handleConfigsUpdate))
-	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate, func() {
-		catalogApplied.Store(true)
-		// Tasks deferred while no catalog existed are only redelivered when the task product
-		// itself changes, so the current tasks are replayed once now. In a goroutine: the
-		// client runs this callback while holding the lock GetConfigs takes.
-		go replayTasks(rc.client, handleTasks)
-	}))
-	rc.client.Subscribe(state.ProductUpdaterTask, handleTasks)
+	if runtime.GOOS == "darwin" {
+		// The backend serves no catalog to macOS, which has no version upgrades yet, so waiting for
+		// one would never subscribe to UPDATER_TASK, and config experiments arrive as tasks.
+		// Subscribing here, before the client starts, needs no goroutine.
+		rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
+		subscribeToTask = func() {}
+	}
+	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate, subscribeToTask))
 	rc.client.Start()
 }
 
@@ -205,12 +201,6 @@ const (
 	methodPromoteConfigExperiment = "promote_experiment_config"
 )
 
-// requiresCatalog reports whether a task method resolves its package against the catalog.
-// Config experiments read INSTALLER_CONFIG instead and must not wait for a catalog.
-func requiresCatalog(method string) bool {
-	return method == methodInstallPackage || method == methodStartExperiment
-}
-
 type remoteAPIRequest struct {
 	ID            string          `json:"id"`
 	Package       string          `json:"package_name"`
@@ -248,21 +238,9 @@ type installPackageTaskParams struct {
 
 type handleRemoteAPIRequest func(request remoteAPIRequest) error
 
-// replayTasks runs the task handler on the client's current tasks. It reads them from the client
-// rather than from an earlier delivery, so a task the backend has withdrawn since is not run.
-func replayTasks(c remoteConfigClient, handleTasks func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
-	handleTasks(c.GetConfigs(state.ProductUpdaterTask), c.UpdateApplyStatus)
-}
-
-// handleUpdaterTaskUpdate returns the handler for remote tasks. It is safe for concurrent use: the
-// client delivers tasks from its poll loop while replayTasks may run from another goroutine, and a
-// request is executed at most once either way.
-func handleUpdaterTaskUpdate(h handleRemoteAPIRequest, catalogReady func() bool) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
-	var mu sync.Mutex
+func handleUpdaterTaskUpdate(h handleRemoteAPIRequest) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
 	var executedRequests = make(map[string]struct{})
 	return func(requestConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-		mu.Lock()
-		defer mu.Unlock()
 		requests := map[string]remoteAPIRequest{}
 		for id, requestConfig := range requestConfigs {
 			var request remoteAPIRequest
@@ -270,7 +248,7 @@ func handleUpdaterTaskUpdate(h handleRemoteAPIRequest, catalogReady func() bool)
 			if err != nil {
 				log.Errorf("could not unmarshal request: %s", err)
 				applyStateCallback(id, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-				continue
+				return
 			}
 			requests[id] = request
 		}
@@ -279,21 +257,12 @@ func handleUpdaterTaskUpdate(h handleRemoteAPIRequest, catalogReady func() bool)
 				log.Debugf("request %s already executed", request.ID)
 				continue
 			}
-			if requiresCatalog(request.Method) && catalogReady != nil && !catalogReady() {
-				// No catalog has been applied yet, so this task couldn't resolve its package
-				// against it. Leave it unacknowledged: the current tasks are replayed once the
-				// first catalog has been applied (see replayTasks).
-				log.Debugf("request %s (%s) deferred until a catalog has been applied", request.ID, request.Method)
-				continue
-			}
 			executedRequests[request.ID] = struct{}{}
 			err := h(request)
 			if err != nil {
 				log.Errorf("could not execute request: %s", err)
 				applyStateCallback(configID, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-				// A task error is local to this request. The client only notifies changed
-				// products, so a later callback cannot be relied on to process the rest.
-				continue
+				return
 			}
 			applyStateCallback(configID, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}
