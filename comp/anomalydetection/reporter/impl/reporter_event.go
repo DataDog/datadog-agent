@@ -26,12 +26,12 @@ type retryEntry struct {
 // correlationEmitter helper. The reporter forwards each CorrelatorEvent to the
 // appropriate sender method.
 //
-// CorrelationDetected sends that fail transiently are buffered in retryPending
-// and retried at the start of the next Report call. This preserves the
-// pre-refactor behaviour where seenCorrelations was only marked after a
-// successful send, so transient forwarder/intake failures were automatically
-// retried on the next advance cycle. An entry is evicted after maxRetries
-// consecutive failures; a warning is logged at eviction time.
+// CorrelationDetected sends whose synchronous forwarder enqueue fails are
+// buffered in retryPending and retried at the start of the next Report call.
+// This preserves the pre-refactor behaviour where seenCorrelations was only
+// marked after a successful enqueue. An entry is evicted after maxRetries
+// consecutive failures; a warning is logged at eviction time. Asynchronous
+// intake failures are not surfaced to the reporter.
 //
 // Episode events (EpisodeStarted/EpisodeEnded) remain at-most-once; each
 // transition fires exactly once so there is nothing to retry.
@@ -42,7 +42,7 @@ type EventReporter struct {
 	sender     *eventSender
 	maxRetries int
 	// retryPending holds CorrelationDetected entries whose last send attempt
-	// failed transiently. Retried at the start of each Report call; evicted
+	// failed synchronously. Retried at the start of each Report call; evicted
 	// after maxRetries consecutive failures.
 	retryPending []retryEntry
 }
@@ -68,9 +68,10 @@ func (r *EventReporter) SetStorage(storage observerdef.StorageReader) {
 //   - EpisodeStarted / EpisodeEnded  → sendEpisodeEvent (scorer severity transitions, at-most-once)
 //   - CorrelationDetected            → send (cluster/pattern first-seen, emitter-deduplicated)
 //
-// CorrelationDetected sends that fail are queued in retryPending and retried
-// at the start of the next call. Each entry is evicted after r.maxRetries
-// consecutive failures. Episode events are at-most-once (no retry).
+// CorrelationDetected sends whose synchronous enqueue fails are queued in
+// retryPending and retried at the start of the next call. Each entry is evicted
+// after r.maxRetries consecutive failures. Episode events are at-most-once (no
+// retry). Asynchronous intake failures are not surfaced here.
 func (r *EventReporter) Report(output reporterdef.ReportOutput) bool {
 	emitted := false
 

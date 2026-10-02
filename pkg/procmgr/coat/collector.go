@@ -50,26 +50,31 @@ func (c *Collector) Collect(ctx context.Context) Snapshot {
 	ctx, cancel := clientContext(ctx)
 	defer cancel()
 
+	// The daemon calls run on a tighter budget than the service sweep below them, which is local and
+	// still worth reporting when dd-procmgrd is the thing that failed.
+	daemonCtx, cancelDaemon := daemonPhaseContext(ctx)
+	defer cancelDaemon()
+
 	snapshot := Snapshot{
 		Services: make([]ServiceSnapshot, 0, len(migratableServices)),
 	}
 
 	var processes map[string]ProcessSnapshot
 
-	sess, err := c.client.Connect(ctx)
+	sess, err := c.client.Connect(daemonCtx)
 	if err != nil {
 		logCoatProcmgrErr("coat: dd-procmgrd connect", err)
 		snapshot.Daemon = DaemonSnapshot{}
 		processes = map[string]ProcessSnapshot{}
 	} else {
 		defer func() { _ = sess.Disconnect() }()
-		snapshot.Daemon, err = sess.Status(ctx)
+		snapshot.Daemon, err = sess.Status(daemonCtx)
 		if err != nil {
 			logCoatProcmgrErr("coat: dd-procmgrd status", err)
 			snapshot.Daemon = DaemonSnapshot{}
 			processes = map[string]ProcessSnapshot{}
 		} else {
-			processes, err = sess.List(ctx)
+			processes, err = sess.List(daemonCtx)
 			if err != nil {
 				logCoatProcmgrErr("coat: dd-procmgrd list", err)
 				processes = map[string]ProcessSnapshot{}
@@ -136,6 +141,10 @@ func (c *Collector) collectService(ctx context.Context, service MigratableServic
 	}
 
 	if process, ok := processes[service.ProcmgrProcessName]; ok {
+		// Install marker may be missing for layouts the marker paths don't cover
+		// (e.g. Windows DDOT installed outside the checked roots); procmgr
+		// supervision is as strong an install signal as systemd/SCM below.
+		status.Installed = true
 		status.ProcmgrState = process.State
 		status.ManagementMode = ManagementModeProcmgr
 		return status

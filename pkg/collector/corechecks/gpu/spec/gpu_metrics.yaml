@@ -9,6 +9,14 @@
 #   - tagsets: list of tagset names declared in tags.yaml
 #   - custom_tags (optional): additional dynamic tag names declared in tags.yaml (e.g., memory_location)
 #   - workload_only (optional): true when the metric is only guaranteed while a workload is active
+#   - optional (optional): true when the metric may be unavailable on individual supported devices
+#   - config_required (optional): named Agent configuration features required to emit the metric; all entries are required
+#       - system_probe_ebpf: system-probe GPU monitoring with eBPF probes enabled
+#       - system_probe_prm: system-probe GPU monitoring with the PRM endpoint enabled
+#   - validator (optional):
+#       - range or values: static value validation
+#       - nvidia_smi or calibrated_workload: validate against the named external source in real-GPU integration tests
+#       - value_tolerance: required with an external source; contains one or both of absolute and relative (percent) tolerances
 #   - support:
 #       - unsupported_architectures: [<architecture_name>, ...] (the list of architectures that do not support the metric)
 #       - device_modes: {mig: bool, physical: bool, vgpu: bool} (a map describing whether each device mode supports the metric)
@@ -23,6 +31,10 @@ metrics:
       aggregation: sensor_data
     tagsets:
       - device
+    validator:
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 5
     support:
       unsupported_architectures: []
       device_modes:
@@ -51,6 +63,10 @@ metrics:
       aggregation: sensor_data
     tagsets:
       - device
+    validator:
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 25
     support:
       unsupported_architectures: []
       device_modes:
@@ -338,6 +354,10 @@ metrics:
       aggregation: relative_activity
     tagsets:
       - device
+    validator:
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 5
     support:
       unsupported_architectures:
         - fermi
@@ -400,6 +420,10 @@ metrics:
       aggregation: relative_activity
     tagsets:
       - device
+    validator:
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 5
     support:
       unsupported_architectures:
         - fermi
@@ -556,7 +580,6 @@ metrics:
       unsupported_architectures:
         - pascal
         - volta
-        - turing
       device_modes:
         mig: false
         physical: true
@@ -571,7 +594,6 @@ metrics:
       unsupported_architectures:
         - pascal
         - volta
-        - turing
       device_modes:
         mig: false
         physical: true
@@ -627,6 +649,9 @@ metrics:
       aggregation: sensor_data
     tagsets:
       - device
+    custom_tags:
+      - fan_index
+    optional: true
     support:
       unsupported_architectures: []
       device_modes:
@@ -714,6 +739,10 @@ metrics:
       aggregation: relative_activity
     tagsets:
       - device
+    validator:
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 15
     support:
       unsupported_architectures:
         - fermi
@@ -873,6 +902,11 @@ metrics:
       aggregation: sensor_data
     tagsets:
       - device
+    validator:
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 5
+    optional: true
     support:
       unsupported_architectures:
         - fermi
@@ -1244,8 +1278,6 @@ metrics:
         mig: false
         physical: true
         vgpu: false
-      capabilities_required:
-        nvlink: 4
   nvlink.plr.codes_loss:
     metadata:
       metric_type: gauge
@@ -1254,6 +1286,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1269,6 +1303,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1284,6 +1320,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1299,6 +1337,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1314,6 +1354,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1329,6 +1371,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1344,6 +1388,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1359,6 +1405,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1375,6 +1423,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1955,6 +2005,11 @@ metrics:
       aggregation: absolute_usage
     tagsets:
       - device
+    validator:
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 50000
+        relative: 5
     support:
       unsupported_architectures: []
       device_modes:
@@ -1974,6 +2029,8 @@ metrics:
       - device
       - process
       - container
+    config_required:
+      - system_probe_ebpf
     validator:
       range:
         min: 0
@@ -2209,6 +2266,10 @@ metrics:
       range:
         min: 0
         max: 100
+      nvidia_smi: true
+      calibrated_workload: true
+      value_tolerance:
+        absolute: 15
     support:
       unsupported_architectures: []
       device_modes:
@@ -2277,6 +2338,9 @@ metrics:
       range:
         min: 0
         max: 100
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 5
     support:
       unsupported_architectures: []
       device_modes:

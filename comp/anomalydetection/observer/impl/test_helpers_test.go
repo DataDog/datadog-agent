@@ -28,7 +28,7 @@ func (s *sampleNoSource) GetSampleRate() float64        { return 1 }
 func testContextKeyFor(sample observerdef.MetricView) uint64 {
 	switch sample := sample.(type) {
 	case *metricObs:
-		return testContextKeyForIdentity(sample.name, sample.host, sample.tags)
+		return testContextKeyForCompositeIdentity(sample.name, sample.host, sample.tags)
 	case *tagsTrackingMetric:
 		return testContextKeyForIdentity(sample.name, "", sample.tags)
 	case *sampleNoSource:
@@ -43,6 +43,14 @@ func testContextKeyFor(sample observerdef.MetricView) uint64 {
 
 func testContextKeyForIdentity(name, host string, tags []string) uint64 {
 	return uint64(NewSliceKeyGenerator().Generate(name, host, tags))
+}
+
+func testContextKeyForCompositeIdentity(name, host string, tags tagset.CompositeTags) uint64 {
+	return uint64(NewSliceKeyGenerator().GenerateComposite(name, host, tags))
+}
+
+func testCompositeTags(tags []string) tagset.CompositeTags {
+	return tagset.CompositeTagsFromSlice(tags)
 }
 
 func testStorageKeyForMetric(namespace string, sample observerdef.MetricView) uint64 {
@@ -107,8 +115,8 @@ func (d *dynamicAnomalyDetector) Detect(_ observerdef.StorageReader, dataTime in
 		Anomalies: []observerdef.Anomaly{
 			{
 				Source:       observerdef.SeriesDescriptor{Name: fmt.Sprintf("%s%d", d.prefix, d.currentIndex), Aggregate: observerdef.AggregateAverage},
+				SourceRef:    &observerdef.QueryHandle{Ref: observerdef.SeriesRef(d.currentIndex), Aggregate: observerdef.AggregateAverage},
 				DetectorName: d.Name(),
-				Title:        fmt.Sprintf("anomaly_%d", d.currentIndex),
 				Timestamp:    dataTime,
 			},
 		},
@@ -143,8 +151,8 @@ func (e *sharedTagsExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	tags := log.Tags()
 	return observerdef.LogMetricsExtractorOutput{
 		Metrics: []observerdef.MetricOutput{
-			{Name: "metric.a", Value: 1, Tags: tags},
-			{Name: "metric.b", Value: 1, Tags: tags},
+			{Name: "metric.a", Value: 1, Tags: tagset.CompositeTagsFromSlice(tags)},
+			{Name: "metric.b", Value: 1, Tags: tagset.CompositeTagsFromSlice(tags)},
 		},
 	}
 }
