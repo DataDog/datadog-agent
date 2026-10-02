@@ -365,20 +365,20 @@ func NewComponent(deps Requires) (Provides, error) {
 	}
 
 	// Set up handle function based on recording and analysis configuration.
-	// A configured recorder wraps handles. ObserverRequired enables the live
-	// anomaly-detection pipeline and its default metric/log ingestion paths.
+	// A configured recorder wraps handles. Recording-only mode bypasses analysis
+	// while keeping the recorder in the observation path.
 	observerRequired := anomalydetectionconfig.ObserverRequired(cfg)
+	recorder, recorderEnabled := deps.Recorder.Get()
 	if observerRequired {
 		obsTelemetry.initLogsInFlight()
 		obsTelemetry.setSeriesCount(0)
 	}
 
 	obs.handleFunc = obs.noopHandle
-	if observerRequired {
+	if observerRequired && !(recorderEnabled && anomalydetectionconfig.RecordingOnly(cfg)) {
 		obs.handleFunc = obs.innerHandle
 	}
 
-	recorder, recorderEnabled := deps.Recorder.Get()
 	if recorderEnabled {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
 

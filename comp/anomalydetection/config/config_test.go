@@ -83,6 +83,29 @@ anomaly_detection:
 	}
 }
 
+func TestRecordingOnly(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		yaml string
+		want bool
+	}{
+		{name: "default", yaml: "", want: false},
+		{name: "enabled", yaml: "anomaly_detection:\n  recording:\n    only: true\n", want: true},
+		{name: "disabled", yaml: "anomaly_detection:\n  recording:\n    only: false\n", want: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := compconfig.NewMockFromYAML(t, tt.yaml)
+			assert.Equal(t, tt.want, RecordingOnly(cfg))
+		})
+	}
+}
+
+func TestRecordingOnlyEnvOverride(t *testing.T) {
+	t.Setenv("DD_ANOMALY_DETECTION_RECORDING_ONLY", "true")
+	cfg := compconfig.NewMockFromYAML(t, "anomaly_detection:\n  recording:\n    only: false\n")
+	assert.True(t, RecordingOnly(cfg))
+}
+
 func TestScorerRequired(t *testing.T) {
 	tests := []struct {
 		name string
