@@ -20,11 +20,16 @@ linters:
     - ineffassign               # Detects when assignments to existing variables are not used
     - misspell                  # Finds commonly misspelled English words in comments
     - perfsprint                # replace uses of fmt.Sprintf and fmt.Errorf with better (both in CPU and memory) alternatives
+    - regexphoist               # Hoist constant regexp.MustCompile calls to package-level variables
     - revive                    # Revive is a replacement for golint, a coding style checker
     - staticcheck               # staticcheck is a go vet on steroids, applying a ton of static analysis checks
     - unconvert                 # Remove unnecessary type conversions
     - unused                    # Checks Go code for unused constants, variables, functions and types
   settings:
+    custom:
+      regexphoist:
+        type: module
+        description: regexp.MustCompile with a constant pattern must be a package-level var so it compiles once
     depguard:
       rules:
         main:
@@ -418,6 +423,10 @@ linters:
     - path: _test\.go
       linters:
         - errcheck
+    # Test regexps compile once per run; hoisting them hurts table-driven test readability.
+    - path: _test\.go
+      linters:
+        - regexphoist
     # Disable revive for the privateactionrunner package since its mostly source code copied over from the existing PAR
     - path: "pkg/privateactionrunner/"
       linters:
