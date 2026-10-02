@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -34,17 +35,20 @@ func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Owner-only: RestrictAccessToUser below hands the socket to the Agent's account, which is
-	// the only client that is not root.
+	// Owner-only. On Linux the owner stays root, which the daemon runs as. On macOS the socket
+	// is handed to the Agent's account so it can read the daemon's status, and rootOnlyChanges
+	// keeps every other route for root.
 	if err := os.Chmod(socketPath, 0700); err != nil {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
-	perms, err := filesystem.NewPermission()
-	if err != nil {
-		return nil, err
-	}
-	if err := perms.RestrictAccessToUser(socketPath); err != nil {
-		return nil, fmt.Errorf("error restricting socket access: %v", err)
+	if runtime.GOOS == "darwin" {
+		perms, err := filesystem.NewPermission()
+		if err != nil {
+			return nil, err
+		}
+		if err := perms.RestrictAccessToUser(socketPath); err != nil {
+			return nil, fmt.Errorf("error restricting socket access: %v", err)
+		}
 	}
 	return &localAPIImpl{
 		server:   &http.Server{ConnContext: connContext},
