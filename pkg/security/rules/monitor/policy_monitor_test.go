@@ -199,6 +199,9 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 									Kill: &RuleKillAction{
 										Signal: "SIGKILL",
 									},
+									Hash: &HashAction{
+										Enabled: true,
+									},
 								},
 							},
 						},

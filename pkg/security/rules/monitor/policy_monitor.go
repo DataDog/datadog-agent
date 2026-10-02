@@ -334,13 +334,13 @@ func NewPolicyState(name, source, version, policyType, replacePolicyID string, s
 
 func newRuleAction(def *rules.ActionDefinition, status ActionStatus) RuleAction {
 	ruleAction := RuleAction{Status: status, Filter: def.Filter}
-	switch {
-	case def.Kill != nil:
+	if def.Kill != nil {
 		ruleAction.Kill = &RuleKillAction{
 			Scope:  def.Kill.Scope,
 			Signal: def.Kill.Signal,
 		}
-	case def.Set != nil:
+	}
+	if def.Set != nil {
 		ruleAction.Set = &RuleSetAction{
 			Name:         def.Set.Name,
 			Value:        def.Set.Value,
@@ -358,25 +358,29 @@ func newRuleAction(def *rules.ActionDefinition, status ActionStatus) RuleAction 
 		if def.Set.TTL != nil {
 			ruleAction.Set.TTL = def.Set.TTL.String()
 		}
-	case def.Hash != nil:
+	}
+	if def.Hash != nil {
 		ruleAction.Hash = &HashAction{
 			Enabled:     true,
 			Field:       def.Hash.Field,
 			MaxFileSize: def.Hash.MaxFileSize,
 		}
-	case def.CoreDump != nil:
+	}
+	if def.CoreDump != nil {
 		ruleAction.CoreDump = &CoreDumpAction{
 			Process:       def.CoreDump.Process,
 			Mount:         def.CoreDump.Mount,
 			Dentry:        def.CoreDump.Dentry,
 			NoCompression: def.CoreDump.NoCompression,
 		}
-	case def.Log != nil:
+	}
+	if def.Log != nil {
 		ruleAction.Log = &LogAction{
 			Level:   def.Log.Level,
 			Message: def.Log.Message,
 		}
-	case def.NetworkFilter != nil:
+	}
+	if def.NetworkFilter != nil {
 		ruleAction.NetworkFilter = &NetworkFilterAction{
 			Filter: def.NetworkFilter.BPFFilter,
 			Policy: def.NetworkFilter.Policy,
