@@ -84,6 +84,11 @@ const (
 	FailedDNSRuleID = "failed_dns"
 	// FailedDNSRuleDesc is the rule description for raw packet action events
 	FailedDNSRuleDesc = "Failed DNS"
+
+	// YaraMalwareRuleID is the rule ID for a YARA exec scanner match
+	YaraMalwareRuleID = "yara_malware"
+	// YaraMalwareRuleDesc is the rule description for a YARA exec scanner match
+	YaraMalwareRuleDesc = "YARA rule matched an executed file"
 )
 
 // AgentContainerContext is like model.ContainerContext, but without event based resolvers
@@ -129,6 +134,7 @@ func AllCustomRuleIDs() []string {
 		SysCtlSnapshotRuleID,
 		FailedDNSRuleID,
 		RemediationStatusRuleID,
+		YaraMalwareRuleID,
 	}
 }
 
