@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	model "github.com/DataDog/agent-payload/v5/sbom"
 
 	gopsutil "github.com/shirou/gopsutil/v4/host"
@@ -64,6 +65,7 @@ type processor struct {
 	hostCache             string
 	hostLastFullSBOM      time.Time
 	hostHeartbeatValidity time.Duration
+	hostUsage             *cyclonedx_v1_4.Bom // Latest runtime usage report of the host, merged into the host scans
 }
 
 func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workloadfilter.Component, sender sender.Sender, tagger tagger.Component, cfg config.Component, maxNbItem int, maxRetentionTime time.Duration, hostHeartbeatValidity time.Duration) (*processor, error) {
@@ -324,7 +326,7 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 		if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
 			sbom.Heartbeat = true
 		} else {
-			report := result.Report.ToCycloneDX()
+			report := sbomutil.MergeRuntimeProperties(result.Report.ToCycloneDX(), p.hostUsage)
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
 				Cyclonedx: report,
 			}
@@ -336,6 +338,16 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	}
 
 	p.queue <- sbom
+}
+
+// processHostUsage records usage, the runtime usage report system-probe
+// forwards for the host, for the next host scan to carry. The host SBOM the
+// back end holds predates usage, so that scan goes out in full.
+func (p *processor) processHostUsage(usage *cyclonedx_v1_4.Bom) {
+	log.Debugf("processing host runtime usage report of %d packages", len(usage.GetComponents()))
+
+	p.hostUsage = usage
+	p.hostCache = ""
 }
 
 func (p *processor) triggerHostScan() {

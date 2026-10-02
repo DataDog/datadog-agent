@@ -17,6 +17,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 	"google.golang.org/protobuf/proto"
@@ -35,6 +36,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -1128,4 +1130,109 @@ func mustCompressSBOM(t *testing.T, sbom *workloadmeta.SBOM) *workloadmeta.Compr
 	assert.Nil(t, err)
 
 	return csbom
+}
+
+// hostReport is the report of a host scan: the BOM of the host and the hash of
+// the packages it lists.
+type hostReport struct {
+	id  string
+	bom *cyclonedx_v1_4.Bom
+}
+
+func (r hostReport) ToCycloneDX() *cyclonedx_v1_4.Bom { return r.bom }
+
+func (r hostReport) ID() string { return r.id }
+
+// newHostScan returns a successful scan, taken at createdAt, of a host holding
+// bash.
+func newHostScan(createdAt time.Time) sbom.ScanResult {
+	return sbom.ScanResult{
+		Report: hostReport{
+			id: "sha256:packages",
+			bom: &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{{
+				Name:    "bash",
+				Version: "5.2.26-6.el10",
+				Purl:    pointer.Ptr("pkg:rpm/redhat/bash@5.2.26-6.el10"),
+			}}},
+		},
+		CreatedAt: createdAt,
+		Duration:  time.Second,
+	}
+}
+
+// lastSeenRunning returns the LastSeenRunning property of the named component
+// of bom, or the empty string.
+func lastSeenRunning(bom *cyclonedx_v1_4.Bom, name string) string {
+	for _, comp := range bom.GetComponents() {
+		if comp.GetName() != name {
+			continue
+		}
+		for _, prop := range comp.GetProperties() {
+			if prop.GetName() == sbom.LastAccessProperty {
+				return prop.GetValue()
+			}
+		}
+	}
+	return ""
+}
+
+// TestProcessHostUsage checks that a runtime usage report of the host rides the
+// next host scan, which goes out in full, and that heartbeats resume once the
+// usage holds still. A heartbeat tells the back end that the SBOM it holds is
+// current, and a new report makes that SBOM stale.
+func TestProcessHostUsage(t *testing.T) {
+	usage := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{{
+		Name:    "bash",
+		Version: "5.2.26-6.el10",
+		Properties: []*cyclonedx_v1_4.Property{
+			{Name: sbom.LastAccessProperty, Value: pointer.Ptr("1700000000")},
+			{Name: sbom.HasSetSuidBitProperty, Value: pointer.Ptr("false")},
+			{Name: sbom.RunningAsRootProperty, Value: pointer.Ptr("true")},
+		},
+	}}}
+	scanned := time.Unix(1700000000, 0)
+
+	newHostProcessor := func() *processor {
+		return &processor{
+			queue:                 make(chan *model.SBOMEntity, 4),
+			hostname:              "host",
+			hostHeartbeatValidity: time.Hour,
+		}
+	}
+
+	t.Run("after a scan", func(t *testing.T) {
+		p := newHostProcessor()
+
+		p.processHostScanResult(newHostScan(scanned))
+		entity := <-p.queue
+		require.NotNil(t, entity.GetCyclonedx(), "the first scan goes out in full")
+		assert.Empty(t, lastSeenRunning(entity.GetCyclonedx(), "bash"))
+
+		p.processHostUsage(usage)
+		assert.Empty(t, p.queue, "a report waits for the next scan")
+
+		p.processHostScanResult(newHostScan(scanned.Add(time.Minute)))
+		entity = <-p.queue
+		assert.False(t, entity.GetHeartbeat())
+		require.NotNil(t, entity.GetCyclonedx(), "the scan after a report goes out in full")
+		assert.Equal(t, "1700000000", lastSeenRunning(entity.GetCyclonedx(), "bash"))
+		assert.Equal(t, "sha256:packages", entity.GetHash())
+
+		p.processHostScanResult(newHostScan(scanned.Add(2 * time.Minute)))
+		entity = <-p.queue
+		assert.True(t, entity.GetHeartbeat(), "an unchanged scan after that is a heartbeat")
+		assert.Nil(t, entity.GetCyclonedx())
+	})
+
+	t.Run("before the first scan", func(t *testing.T) {
+		p := newHostProcessor()
+
+		p.processHostUsage(usage)
+		assert.Empty(t, p.queue, "a report waits for the first scan")
+
+		p.processHostScanResult(newHostScan(scanned))
+		entity := <-p.queue
+		require.NotNil(t, entity.GetCyclonedx())
+		assert.Equal(t, "1700000000", lastSeenRunning(entity.GetCyclonedx(), "bash"))
+	})
 }

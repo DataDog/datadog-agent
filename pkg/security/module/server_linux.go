@@ -349,9 +349,15 @@ func (a *SBOMAPIServer) GetSBOMStream(_ *sbompb.SBOMStreamParams, stream sbompb.
 				return fmt.Errorf("failed to marshal SBOM: %w", err)
 			}
 
+			// The report of the host is the one with an empty container ID.
+			kind := string(workloadmeta.KindContainer)
+			if sbom.RequestID == "" {
+				kind = sbompkg.HostKind
+			}
+
 			msg := &sbompb.SBOMMessage{
 				Data: data,
-				Kind: string(workloadmeta.KindContainer),
+				Kind: kind,
 				ID:   sbom.RequestID,
 			}
 
