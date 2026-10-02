@@ -1,4 +1,6 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
 go_library(
     name = "connector_lib",
@@ -139,4 +141,17 @@ go_binary(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "connector_exe",
+    srcs = [":connector"],
+    attributes = pkg_attributes(mode = "0755"),
+    tags = ["manual"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":connector_exe"],
+    tags = ["manual"],
 )
