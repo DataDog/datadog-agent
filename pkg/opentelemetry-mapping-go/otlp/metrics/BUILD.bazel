@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "metrics",
     srcs = [
+        "azure_monitor_app_service.go",
         "config.go",
         "consumer.go",
         "default_mapper.go",
@@ -52,6 +53,7 @@ dd_agent_go_test(
     srcs = [
         "azure_container_apps_test.go",
         "azure_functions_test.go",
+        "azure_monitor_app_service_test.go",
         "consume_host_test.go",
         "consumer_test.go",
         "dimensions_test.go",
