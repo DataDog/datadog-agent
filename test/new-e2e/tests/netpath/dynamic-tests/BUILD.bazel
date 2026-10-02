@@ -4,12 +4,14 @@ dd_agent_go_test(
     name = "dynamic-tests_test",
     srcs = [
         "basic_host_traffic_dynamic_path_test.go",
+        "eudm_host_traffic_dynamic_path_test.go",
         "host_traffic_dynamic_path_test.go",
         "netflow_dynamic_path_test.go",
     ],
     data = [
         "compose/netflow_dynamic_path.yaml",
         "config/basic_host_traffic_dynamic_path.yaml",
+        "config/eudm_host_traffic_dynamic_path.yaml",
         "config/host_traffic_dynamic_path.yaml",
         "config/host_traffic_system_probe.yaml",
         "config/netflow_dynamic_path.yaml",
@@ -19,6 +21,7 @@ dd_agent_go_test(
     embedsrcs = [
         "compose/netflow_dynamic_path.yaml",
         "config/basic_host_traffic_dynamic_path.yaml",
+        "config/eudm_host_traffic_dynamic_path.yaml",
         "config/host_traffic_dynamic_path.yaml",
         "config/host_traffic_system_probe.yaml",
         "config/netflow_dynamic_path.yaml",
