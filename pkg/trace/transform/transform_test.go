@@ -903,6 +903,184 @@ func TestOtelSpanToDDSpan_HTTPAttributeMappings(t *testing.T) {
 	}
 }
 
+// TestOtelSpanToDDSpan_AWSIdentityAttributeMappings verifies that OpenTelemetry
+// attributes carrying AWS resource identity are aliased to the tag names the
+// Datadog tracers and Agent tagger use, while the OpenTelemetry keys are kept.
+func TestOtelSpanToDDSpan_AWSIdentityAttributeMappings(t *testing.T) {
+	cfg := &config.AgentConfig{}
+	cfg.OTLPReceiver = &config.OTLP{}
+	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+
+	const (
+		lambdaARN  = "arn:aws:lambda:us-east-1:123456789012:function:orders"
+		taskARN    = "arn:aws:ecs:us-east-1:123456789012:task/orders-cluster/9c12c017710f40e49227dc5fff6ddf2a"
+		clusterARN = "arn:aws:ecs:us-east-1:123456789012:cluster/orders-cluster"
+		eksARN     = "arn:aws:eks:us-east-1:123456789012:cluster/OrdersCluster"
+	)
+
+	tests := []struct {
+		name         string
+		sattrs       map[string]any
+		rattrs       map[string]any
+		expectedMeta map[string]string
+		absentMeta   []string
+	}{
+		{
+			name: "resource identity attributes are aliased and the otel keys are kept",
+			rattrs: map[string]any{
+				string(semconv127.CloudProviderKey):    semconv127.CloudProviderAWS.Value.AsString(),
+				string(semconv127.CloudAccountIDKey):   "123456789012",
+				string(semconv127.CloudRegionKey):      "us-east-1",
+				string(semconv127.AWSECSTaskARNKey):    taskARN,
+				string(semconv127.AWSECSClusterARNKey): clusterARN,
+				string(semconv127.AWSEKSClusterARNKey): eksARN,
+			},
+			expectedMeta: map[string]string{
+				"aws_account":     "123456789012",
+				"region":          "us-east-1",
+				"task_arn":        taskARN,
+				"cluster_arn":     clusterARN,
+				"eks_cluster_arn": eksARN,
+				// OpenTelemetry keys are preserved.
+				string(semconv127.CloudAccountIDKey):   "123456789012",
+				string(semconv127.CloudRegionKey):      "us-east-1",
+				string(semconv127.AWSECSTaskARNKey):    taskARN,
+				string(semconv127.AWSECSClusterARNKey): clusterARN,
+				string(semconv127.AWSEKSClusterARNKey): eksARN,
+			},
+		},
+		{
+			name: "lambda invoked arn is aliased to function_arn",
+			sattrs: map[string]any{
+				string(semconv127.AWSLambdaInvokedARNKey): lambdaARN,
+			},
+			expectedMeta: map[string]string{
+				"function_arn": lambdaARN,
+				string(semconv127.AWSLambdaInvokedARNKey): lambdaARN,
+			},
+		},
+		{
+			name: "s3 bucket is aliased to bucketname",
+			sattrs: map[string]any{
+				string(semconv127.AWSS3BucketKey): "orders-archive",
+			},
+			expectedMeta: map[string]string{
+				"bucketname":                      "orders-archive",
+				string(semconv127.AWSS3BucketKey): "orders-archive",
+			},
+		},
+		{
+			name: "single dynamodb table name is aliased to tablename",
+			sattrs: map[string]any{
+				string(semconv127.AWSDynamoDBTableNamesKey): []string{"orders"},
+			},
+			expectedMeta: map[string]string{
+				"tablename": "orders",
+			},
+		},
+		{
+			name: "dynamodb table name as a plain string is aliased to tablename",
+			sattrs: map[string]any{
+				string(semconv127.AWSDynamoDBTableNamesKey): "orders",
+			},
+			expectedMeta: map[string]string{
+				"tablename": "orders",
+			},
+		},
+		{
+			name: "multiple dynamodb table names have no single target",
+			sattrs: map[string]any{
+				string(semconv127.AWSDynamoDBTableNamesKey): []string{"orders", "customers"},
+			},
+			absentMeta: []string{"tablename"},
+		},
+		{
+			name: "cloud.account.id is not aws_account for other providers",
+			rattrs: map[string]any{
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderGCP.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): "my-gcp-project",
+				string(semconv127.CloudRegionKey):    "us-central1",
+			},
+			expectedMeta: map[string]string{
+				"region":                             "us-central1",
+				string(semconv127.CloudAccountIDKey): "my-gcp-project",
+			},
+			absentMeta: []string{"aws_account"},
+		},
+		{
+			name: "cloud.account.id is not aws_account without a provider",
+			rattrs: map[string]any{
+				string(semconv127.CloudAccountIDKey): "123456789012",
+			},
+			absentMeta: []string{"aws_account"},
+		},
+		{
+			name: "span attributes take precedence over resource attributes",
+			sattrs: map[string]any{
+				string(semconv127.CloudRegionKey): "eu-west-1",
+			},
+			rattrs: map[string]any{
+				string(semconv127.CloudRegionKey): "us-east-1",
+			},
+			expectedMeta: map[string]string{
+				"region": "eu-west-1",
+			},
+		},
+		{
+			name: "an existing datadog tag is never overwritten",
+			sattrs: map[string]any{
+				"aws_account":                        "999999999999",
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderAWS.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): "123456789012",
+			},
+			expectedMeta: map[string]string{
+				"aws_account": "999999999999",
+			},
+		},
+	}
+
+	putAttrs := func(m pcommon.Map, attrs map[string]any) {
+		for k, v := range attrs {
+			switch val := v.(type) {
+			case string:
+				m.PutStr(k, val)
+			case []string:
+				s := m.PutEmptySlice(k)
+				for _, e := range val {
+					s.AppendEmpty().SetStr(e)
+				}
+			}
+		}
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			span.SetKind(ptrace.SpanKindClient)
+			span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+			span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+			putAttrs(span.Attributes(), tt.sattrs)
+
+			res := pcommon.NewResource()
+			res.Attributes().PutStr("service.name", "test-svc")
+			putAttrs(res.Attributes(), tt.rattrs)
+
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("test-lib")
+
+			ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
+
+			for key, expectedVal := range tt.expectedMeta {
+				assert.Equal(t, expectedVal, ddspan.Meta[key], "expected %s=%s", key, expectedVal)
+			}
+			for _, key := range tt.absentMeta {
+				assert.NotContains(t, ddspan.Meta, key)
+			}
+		})
+	}
+}
+
 // TestOtelSpanToDDSpan_DBAttributeMappings tests full span conversion with database attribute mappings
 // (db.query.text, db.statement preservation, db.namespace → db.name).
 func TestOtelSpanToDDSpan_DBAttributeMappings(t *testing.T) {
