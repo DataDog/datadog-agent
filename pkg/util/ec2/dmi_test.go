@@ -12,6 +12,7 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
+	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 )
 
 func TestIsBoardVendorEC2(t *testing.T) {
@@ -98,6 +99,38 @@ func TestIsRunningOnDMI(t *testing.T) {
 	cfg.SetInTest("ec2_use_dmi", false)
 	setupDMIForEC2(t)
 	assert.False(t, IsRunningOnDMI())
+}
+
+func TestIsRunningOnDMIMetadataSource(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("ec2_use_dmi", true)
+	t.Cleanup(resetPackageVars)
+
+	tests := []struct {
+		name           string
+		hypervisorUUID string
+		boardAssetTag  string
+		boardVendor    string
+		detected       bool
+		expectedSource string
+	}{
+		{"board vendor with instance ID asset tag", "ec2something", "i-myinstance", DMIBoardVendor, true, "DMI"},
+		{"board vendor with EC2 UUID", "ec20b498-1488-4e75-82ba-a6931a9daf36", "", DMIBoardVendor, true, "UUID"},
+		// detected as EC2, but DMI provides neither an instance ID nor an EC2 UUID, so no source is recorded
+		{"board vendor only", "8550b498-1488-4e75-82ba-a6931a9daf36", "", DMIBoardVendor, true, ""},
+		{"EC2 UUID only", "ec20b498-1488-4e75-82ba-a6931a9daf36", "", "", true, "UUID"},
+		{"not EC2", "", "", "", false, ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ec2internal.CurrentMetadataSource = ec2internal.MetadataSourceNone
+			dmi.SetupMock(t, tc.hypervisorUUID, "", tc.boardAssetTag, tc.boardVendor)
+
+			assert.Equal(t, tc.detected, IsRunningOnDMI())
+			assert.Equal(t, tc.expectedSource, ec2internal.GetSourceName())
+		})
+	}
 }
 
 func TestIsEC2UUIDSwapEndian(t *testing.T) {

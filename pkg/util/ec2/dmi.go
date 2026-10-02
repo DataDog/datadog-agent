@@ -31,7 +31,16 @@ func isBoardVendorEC2() bool {
 // querying the metadata endpoint, but only works on hosts where DMI is populated
 // (e.g. it won't detect EC2 sidecar/Fargate setups).
 func IsRunningOnDMI() bool {
-	return isBoardVendorEC2() || isEC2UUID()
+	if isBoardVendorEC2() {
+		if strings.HasPrefix(dmi.GetBoardAssetTag(), "i-") {
+			ec2internal.SetCloudProviderSource(ec2internal.MetadataSourceDMI)
+		} else {
+			isEC2UUID() // will set MetadataSourceUUID if UUID identifies this host as EC2
+		}
+		return true
+	}
+
+	return isEC2UUID() // will set MetadataSourceUUID if UUID identifies this host as EC2
 }
 
 // getInstanceIDFromDMI fetches the instance id for current host from DMI
