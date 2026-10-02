@@ -5,6 +5,7 @@ go_library(
     name = "invalidconfig",
     srcs = [
         "check.go",
+        "conversion.go",
         "issue.go",
         "module.go",
     ],
@@ -30,13 +31,17 @@ go_library(
 
 dd_agent_go_test(
     name = "invalidconfig_test",
-    srcs = ["invalidconfig_test.go"],
+    srcs = [
+        "conversion_test.go",
+        "invalidconfig_test.go",
+    ],
     embed = [":invalidconfig"],
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/hostname/hostnameinterface/mock",
         "//comp/healthplatform/issueregistry/utils/selfident",
+        "//comp/healthplatform/issues",
         "//pkg/config/model",
         "//pkg/config/schema",
         "@com_github_datadog_agent_payload_v5//healthplatform",
