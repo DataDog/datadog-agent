@@ -113,6 +113,11 @@ Key helpers on BaseSuite:
 - `s.EventuallyWithT(fn, timeout, interval)` — retry assertions until they pass;
   use `require` (not `assert`) inside the callback so failures short-circuit the
   current retry iteration instead of accumulating silently
+- `s.Env().WaitForAgentReady(ctx, options...)` — for Kubernetes environments,
+  wait for selected Node Agent, Cluster Agent, Cluster Checks Runner, or auxiliary
+  DaemonSet pods to be ready without duplicating a `Test00UpAndRunning` loop. Call
+  it from `SetupSuite` when readiness is a prerequisite for every test; use
+  `WithAgentReadinessStableFor` when asynchronous Agent subsystems need warm-up time.
 
 ## Agent configuration
 

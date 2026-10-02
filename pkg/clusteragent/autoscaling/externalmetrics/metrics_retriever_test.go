@@ -13,12 +13,16 @@ import (
 	"testing"
 	"time"
 
+	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
 // NewDatadogMetricForTests creates a new internal metric for tests.
@@ -171,6 +175,101 @@ func TestRetrieveMetricsBasic(t *testing.T) {
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
 			fixture.run(t)
+		})
+	}
+}
+
+func TestRetrieveMetricsExcludesInvalidMultiExpressionQueriesRegardlessOfOrder(t *testing.T) {
+	configmock.New(t)
+
+	const invalidQuery = "avg:multi-expression{*},avg:additional-a{*},avg:additional-b{*}"
+	validQueries := []string{"avg:valid-a{*}", "avg:valid-b{*}"}
+
+	tests := []struct {
+		name  string
+		order []string
+	}{
+		{name: "invalid query first", order: []string{"invalid/multi-expression", "valid-a/metric", "valid-b/metric"}},
+		{name: "invalid query middle", order: []string{"valid-a/metric", "invalid/multi-expression", "valid-b/metric"}},
+		{name: "invalid query last", order: []string{"valid-a/metric", "valid-b/metric", "invalid/multi-expression"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			queriesByID := map[string]string{
+				"invalid/multi-expression": invalidQuery,
+				"valid-a/metric":           validQueries[0],
+				"valid-b/metric":           validQueries[1],
+			}
+
+			store := NewDatadogMetricsInternalStore()
+			metricsByID := make(map[string]model.DatadogMetricInternal, len(queriesByID))
+			for id, query := range queriesByID {
+				metric := NewDatadogMetricForTests(id, query, 0, 0)
+				metric.Value = 1
+				metric.Valid = true
+				metric.SetQueries(query)
+				metricsByID[id] = metric
+				store.Set(id, metric, "utest")
+			}
+
+			orderedMetrics := make([]model.DatadogMetricInternal, 0, len(test.order))
+			for _, id := range test.order {
+				orderedMetrics = append(orderedMetrics, metricsByID[id])
+			}
+
+			queried := make(chan string, 1)
+			datadogClientComp := datadogclientmock.New(t).Comp
+			datadogClientComp.SetQueryMetricsFunc(func(_ int64, _ int64, query string) ([]datadog.Series, error) {
+				queried <- query
+				timestamp := float64(time.Now().Add(-time.Second).UnixMilli())
+				return []datadog.Series{
+					{
+						Expression: pointer.Ptr(validQueries[0]),
+						QueryIndex: pointer.Ptr(0),
+						Metric:     pointer.Ptr("valid-a"),
+						Scope:      pointer.Ptr("*"),
+						Points:     []datadog.DataPoint{{&timestamp, pointer.Ptr(10.0)}},
+					},
+					{
+						Expression: pointer.Ptr(validQueries[1]),
+						QueryIndex: pointer.Ptr(1),
+						Metric:     pointer.Ptr("valid-b"),
+						Scope:      pointer.Ptr("*"),
+						Points:     []datadog.DataPoint{{&timestamp, pointer.Ptr(20.0)}},
+					},
+				}, nil
+			})
+
+			processor := autoscalers.NewProcessor(datadogClientComp)
+			metricsRetriever, err := NewMetricsRetriever(0, 300, processor, getIsLeaderFunction(true), &store, false)
+			require.NoError(t, err)
+			metricsRetriever.retrieveMetricsValuesSlice(orderedMetrics)
+
+			select {
+			case query := <-queried:
+				require.Equal(t, validQueries[0]+","+validQueries[1], query)
+			default:
+				require.Fail(t, "expected the valid queries to be sent to Datadog")
+			}
+
+			invalid := store.Get("invalid/multi-expression")
+			require.NotNil(t, invalid)
+			require.False(t, invalid.Valid)
+			require.ErrorContains(t, invalid.Error, "top-level comma")
+			require.Equal(t, 1.0, invalid.Value)
+
+			validA := store.Get("valid-a/metric")
+			require.NotNil(t, validA)
+			require.True(t, validA.Valid)
+			require.NoError(t, validA.Error)
+			require.Equal(t, 10.0, validA.Value)
+
+			validB := store.Get("valid-b/metric")
+			require.NotNil(t, validB)
+			require.True(t, validB.Valid)
+			require.NoError(t, validB.Error)
+			require.Equal(t, 20.0, validB.Value)
 		})
 	}
 }

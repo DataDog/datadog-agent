@@ -1,5 +1,6 @@
 import shutil
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from subprocess import CalledProcessError
 from unittest.mock import patch
@@ -159,3 +160,44 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
         self.assertEqual(len(eg.exception.exceptions), 14)
         for _, kwargs in mock_check_call.call_args_list:
             self.assertFalse(Path(kwargs["env"]["TMPDIR"]).exists())
+
+
+class TestSkipGitMetadataUploadFlags(unittest.TestCase):
+    @patch('tasks.libs.common.junit_upload_core.is_windows', return_value=True)
+    def test_flags_on_windows(self, _is_windows):
+        self.assertEqual(junit.skip_git_metadata_upload_flags(), ["--skip-git-metadata-upload"])
+
+    @patch('tasks.libs.common.junit_upload_core.is_windows', return_value=False)
+    def test_no_flags_on_other_platforms(self, _is_windows):
+        self.assertEqual(junit.skip_git_metadata_upload_flags(), [])
+
+
+class TestUploadJunitxmlsGitMetadataFlag(unittest.TestCase):
+    @patch('tasks.libs.common.junit_upload_core._generate_junitxmls')
+    @patch('tasks.libs.common.junit_upload_core.check_call')
+    @patch('tasks.libs.common.junit_upload_core.which')
+    @patch('tasks.libs.common.junit_upload_core.is_windows', return_value=True)
+    def test_includes_flag_on_windows(self, _is_windows, mock_which, mock_check_call, mock_generate):
+        mock_which.side_effect = lambda cmd: f"/usr/local/bin/{cmd}"
+        mock_generate.return_value = iter([(["--tags", "test:flag"], {})])
+
+        with ThreadPoolExecutor() as executor:
+            junit._upload_junitxmls([Path("agent-devx_base")], executor)
+
+        args = mock_check_call.call_args[0][0]
+        self.assertEqual(args[:4], ["/usr/local/bin/datadog-ci", "junit", "upload", "--skip-git-metadata-upload"])
+
+    @patch('tasks.libs.common.junit_upload_core._generate_junitxmls')
+    @patch('tasks.libs.common.junit_upload_core.check_call')
+    @patch('tasks.libs.common.junit_upload_core.which')
+    @patch('tasks.libs.common.junit_upload_core.is_windows', return_value=False)
+    def test_omits_flag_on_other_platforms(self, _is_windows, mock_which, mock_check_call, mock_generate):
+        mock_which.side_effect = lambda cmd: f"/usr/local/bin/{cmd}"
+        mock_generate.return_value = iter([(["--tags", "test:flag"], {})])
+
+        with ThreadPoolExecutor() as executor:
+            junit._upload_junitxmls([Path("agent-devx_base")], executor)
+
+        args = mock_check_call.call_args[0][0]
+        self.assertEqual(args[:3], ["/usr/local/bin/datadog-ci", "junit", "upload"])
+        self.assertNotIn("--skip-git-metadata-upload", args)

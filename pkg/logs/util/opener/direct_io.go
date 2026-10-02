@@ -1,0 +1,118 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+// Block-alignment rules for Linux O_DIRECT reads. Unexported helpers back the
+// bounded direct-read entry points in open.go.
+
+package opener
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"unsafe"
+
+	internalOpener "github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
+)
+
+const directIOAlignment = 4096
+
+// readDirectRange opens path with O_DIRECT and returns up to the
+// first count bytes.
+func readDirectRange(path string, count int) ([]byte, error) {
+	if count < 0 {
+		return nil, os.ErrInvalid
+	}
+	if count == 0 {
+		return []byte{}, nil
+	}
+
+	file, err := openDirect(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	memoryAlignment, offsetAlignment, err := directIOAlignments(file)
+	if err != nil {
+		return nil, err
+	}
+	return readDirectRangeFromFile(file, count, memoryAlignment, offsetAlignment)
+}
+
+// readDirectRangeNoFollow is readDirectRange without following symbolic links.
+// O_DIRECT must be set at open time, so the descriptor from the symlink-free walk
+// is reopened through /proc, which resolves to the same inode without a path lookup.
+func readDirectRangeNoFollow(path string, count int) ([]byte, error) {
+	file, err := internalOpener.OpenLogFileNoFollow(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return readDirectRange(fmt.Sprintf("/proc/self/fd/%d", file.Fd()), count)
+}
+
+func readDirectRangeFromFile(file *os.File, count, memoryAlignment, offsetAlignment int) ([]byte, error) {
+	if count < 0 {
+		return nil, os.ErrInvalid
+	}
+	if count == 0 {
+		return []byte{}, nil
+	}
+	if memoryAlignment <= 0 {
+		memoryAlignment = directIOAlignment
+	}
+	if offsetAlignment <= 0 {
+		offsetAlignment = directIOAlignment
+	}
+
+	// The read starts at offset 0 (block-aligned), so only the length is rounded up.
+	alignedSize := (count + offsetAlignment - 1) / offsetAlignment * offsetAlignment
+
+	mapping, err := allocDirectIOBuffer(alignedSize + memoryAlignment - 1)
+	if err != nil {
+		return nil, err
+	}
+	defer freeDirectIOBuffer(mapping)
+
+	address := uintptr(unsafe.Pointer(&mapping[0]))
+	padding := int((uintptr(memoryAlignment) - address%uintptr(memoryAlignment)) % uintptr(memoryAlignment))
+	buffer := mapping[padding : padding+alignedSize]
+
+	filled, err := readAligned(file, buffer, memoryAlignment, offsetAlignment)
+	if err != nil {
+		return nil, err
+	}
+
+	if filled > count {
+		filled = count
+	}
+	out := make([]byte, filled)
+	copy(out, buffer[:filled])
+	return out, nil
+}
+
+// readAligned fills buffer with sequential O_DIRECT reads from offset 0. A short
+// read leaves the offset unaligned for the next read, so it stops there (or EOF).
+func readAligned(file *os.File, buffer []byte, memoryAlignment, offsetAlignment int) (int, error) {
+	stride := max(memoryAlignment, offsetAlignment)
+
+	total := 0
+	for total < len(buffer) {
+		read, err := file.Read(buffer[total:])
+		total += read
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return total, nil
+			}
+			return total, err
+		}
+		if read == 0 || total%stride != 0 {
+			return total, nil
+		}
+	}
+	return total, nil
+}

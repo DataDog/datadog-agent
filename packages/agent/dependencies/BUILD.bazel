@@ -46,7 +46,6 @@ pkg_filegroup(
             "//deps/security_agent_policies:all_files",
             "@libpcap//:all_files",
         ],
-        "//packages/agent:linux_heroku": [],
         "//conditions:default": [],
     }) + select({
         "@platforms//os:macos": [
@@ -97,15 +96,6 @@ dd_collect_dependencies(
             "@freetds//:tdsodbc_pkg",
             "@jemalloc//:jemalloc_pkg",
             "@krb5//:installed_libs",
-        ],
-        "//packages/agent:linux_heroku": [
-            "//cmd/agent",
-            "//cmd/privateactionrunner",
-            "//cmd/process-agent",
-            "//cmd/trace-agent",
-            "@curl//:curl_pkg",
-            "@freetds//:tdsodbc_pkg",
-            "@jemalloc//:jemalloc_pkg",
         ],
         "@platforms//os:macos": [
             "//cmd/agent",
