@@ -7,14 +7,18 @@ package queryactionsimpl
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -27,10 +31,15 @@ import (
 // user's DO-enabled instance. Monitor configs replace the user's instance in place; tasks never do,
 // so the user's check and the monitor checks are never restarted because of a task.
 //
-// Lifecycle: a task is scheduled once, when its config first appears in an RC snapshot. It is left
-// alone while it stays in the snapshot and unscheduled when the backend removes its config (the task
-// finished, was cancelled or expired). A task the agent cannot run fails immediately: the agent sends
-// a task-level do-query-results error event and reports RC apply state ERROR.
+// Lifecycle: a task is scheduled at most once, after its config first appears in an RC snapshot. It is
+// left alone while it stays in the snapshot and unscheduled when the backend removes its config (the
+// task finished, was cancelled or expired). A task the agent cannot run fails immediately: the agent
+// sends a task-level do-query-results error event and reports RC apply state ERROR.
+//
+// Tasks against the same database run one at a time, so a burst of tasks never opens a connection
+// each to it. A task waits, with RC apply state UNACKNOWLEDGED, until the task before it is done:
+// its check has completed its run, or its config has left the snapshot. Waiting tasks start oldest
+// first.
 
 // taskConfigIDPattern matches the RC config IDs of one-off tasks: do-<platform>-once-<task_id>.
 var taskConfigIDPattern = regexp.MustCompile(`^do-[a-z]+-once-`)
@@ -51,6 +60,10 @@ const (
 	taskErrorKindNoMatchingInstance = "no_matching_instance"
 	taskErrorKindExpired            = "expired"
 	taskErrorPhaseSchedule          = "schedule"
+
+	// taskCheckPollInterval is how often the collector is asked whether running task checks have
+	// completed their run, which lets the next task for the same database start.
+	taskCheckPollInterval = time.Second
 )
 
 // taskConnectionFields are the instance fields a task check copies from the matched user instance:
@@ -69,11 +82,30 @@ var taskConnectionFields = []string{
 
 var errTaskUnsupportedPlatform = errors.New("one-off tasks are only supported for mysql")
 
+// taskPhase is where a task that the agent can run is in its lifecycle.
+type taskPhase int
+
+const (
+	// taskQueued: waiting for the task before it against the same database to be done.
+	taskQueued taskPhase = iota
+	// taskRunning: its check is scheduled and has not completed its run yet.
+	taskRunning
+	// taskDone: its check has completed its run. It stays scheduled until the config leaves the
+	// snapshot, but no longer holds back the next task for its database.
+	taskDone
+)
+
 // trackedTask is a task config seen in an RC snapshot. checkConfig is nil when the task failed
 // before a check was scheduled.
 type trackedTask struct {
+	path        string
 	status      state.ApplyStatus
 	checkConfig *integration.Config
+	phase       taskPhase
+	// databaseKey identifies the database the task runs against; see taskDatabaseKey.
+	databaseKey     string
+	payload         *DOTaskPayload
+	integrationName string
 }
 
 // taskConfigUpdate is a task config from an RC snapshot, keyed by its config ID.
@@ -113,14 +145,15 @@ func splitTaskUpdates(updates map[string]state.RawConfig) (map[string]state.RawC
 }
 
 // onTaskUpdate reconciles the task configs of an RC snapshot with the tasks already seen, and
-// returns the check configs to schedule (new tasks) and unschedule (tasks whose config is gone).
-// A task already seen is never rescheduled: its check may have run already, and a second schedule
-// would run its statements again.
+// returns the check configs to schedule (tasks that can start) and unschedule (tasks whose config
+// is gone). A task already seen is never rescheduled: its check may have run already, and a second
+// schedule would run its statements again.
 func (c *component) onTaskUpdate(updates map[string]taskConfigUpdate, applyStatus func(string, state.ApplyStatus)) integration.ConfigChanges {
 	changes := integration.ConfigChanges{}
 
 	c.tasksMu.Lock()
 	defer c.tasksMu.Unlock()
+	c.taskApplyStatus = applyStatus
 
 	configIDs := make([]string, 0, len(updates))
 	for configID := range updates {
@@ -131,16 +164,12 @@ func (c *component) onTaskUpdate(updates map[string]taskConfigUpdate, applyStatu
 	for _, configID := range configIDs {
 		update := updates[configID]
 		if tracked, ok := c.tasks[configID]; ok {
-			// Re-report the outcome in case RC reset the config's apply state.
-			applyStatus(update.path, tracked.status)
+			tracked.path = update.path
 			continue
 		}
 		tracked := c.startTask(configID, update.raw)
+		tracked.path = update.path
 		c.tasks[configID] = tracked
-		applyStatus(update.path, tracked.status)
-		if tracked.checkConfig != nil {
-			changes.Schedule = append(changes.Schedule, *tracked.checkConfig)
-		}
 	}
 
 	for configID, tracked := range c.tasks {
@@ -148,18 +177,140 @@ func (c *component) onTaskUpdate(updates map[string]taskConfigUpdate, applyStatu
 			continue
 		}
 		delete(c.tasks, configID)
-		if tracked.checkConfig != nil {
+		if tracked.checkConfig != nil && tracked.phase != taskQueued {
 			changes.Unschedule = append(changes.Unschedule, *tracked.checkConfig)
 			c.log.Infof("Task config %s absent from RC snapshot, unscheduling its check", configID)
 		}
 	}
 
+	c.startQueuedTasks(&changes)
+
+	// Re-report every outcome, in case RC reset a config's apply state.
+	for _, configID := range configIDs {
+		tracked := c.tasks[configID]
+		applyStatus(tracked.path, tracked.status)
+	}
 	return changes
 }
 
-// startTask validates a new task and, when the agent can run it, builds its check config. Every
-// failure is final: the backend doesn't resend a task, so it either fails the task from the error
-// event or lets it expire.
+// startQueuedTasks starts, for every database with no running task, its oldest queued task, and
+// returns the tasks it started or failed. A queued task that expired while waiting fails with an
+// "expired" event instead. Callers hold tasksMu.
+func (c *component) startQueuedTasks(changes *integration.ConfigChanges) []*trackedTask {
+	busy := make(map[string]bool)
+	queued := make([]string, 0)
+	for configID, tracked := range c.tasks {
+		if tracked.checkConfig == nil {
+			continue
+		}
+		switch tracked.phase {
+		case taskRunning:
+			busy[tracked.databaseKey] = true
+		case taskQueued:
+			queued = append(queued, configID)
+		}
+	}
+	sort.Slice(queued, func(i, j int) bool {
+		a, b := c.tasks[queued[i]].payload.Task, c.tasks[queued[j]].payload.Task
+		if a.CreatedAt != b.CreatedAt {
+			return a.CreatedAt < b.CreatedAt
+		}
+		return queued[i] < queued[j]
+	})
+
+	var updated []*trackedTask
+	for _, configID := range queued {
+		tracked := c.tasks[configID]
+		if busy[tracked.databaseKey] {
+			continue
+		}
+		updated = append(updated, tracked)
+		expiresAt := time.Unix(tracked.payload.Task.ExpiresAt, 0)
+		if !c.now().Before(expiresAt) {
+			err := fmt.Errorf("task %s expired at %s while waiting for an earlier task on the same database", tracked.payload.Task.TaskID, expiresAt.UTC().Format(time.RFC3339))
+			c.log.Warnf("Not running task config %s: %v", configID, err)
+			c.sendTaskError(configID, tracked.payload, tracked.integrationName, taskErrorKindExpired, err)
+			failed := failedTask(err)
+			failed.path = tracked.path
+			c.tasks[configID] = failed
+			continue
+		}
+		busy[tracked.databaseKey] = true
+		tracked.phase = taskRunning
+		tracked.status = state.ApplyStatus{State: state.ApplyStateAcknowledged}
+		changes.Schedule = append(changes.Schedule, *tracked.checkConfig)
+		c.log.Infof("Scheduling one-off Data Observability task %s (%d statements)", configID, len(tracked.payload.Task.Statements))
+	}
+	return updated
+}
+
+// pollTaskChecks asks the collector, while a task check is running, whether it has completed its
+// run, so the next task for the same database can start without waiting for the backend to remove
+// the finished task's config.
+func (c *component) pollTaskChecks(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.onTaskChecksPolled()
+		}
+	}
+}
+
+// onTaskChecksPolled marks running task checks that have completed their run as done, and starts
+// the tasks queued behind them.
+func (c *component) onTaskChecksPolled() {
+	c.tasksMu.Lock()
+	running := false
+	for _, tracked := range c.tasks {
+		if tracked.checkConfig != nil && tracked.phase == taskRunning {
+			running = true
+			break
+		}
+	}
+	c.tasksMu.Unlock()
+	if !running {
+		return
+	}
+
+	// Outside tasksMu: this reads collector state.
+	finished := c.finishedTaskChecks()
+
+	c.tasksMu.Lock()
+	for configID := range finished {
+		if tracked, ok := c.tasks[configID]; ok && tracked.checkConfig != nil && tracked.phase == taskRunning {
+			tracked.phase = taskDone
+			c.log.Debugf("Check of task config %s has completed its run", configID)
+		}
+	}
+	changes := integration.ConfigChanges{}
+	updated := c.startQueuedTasks(&changes)
+	applyStatus := c.taskApplyStatus
+	type statusUpdate struct {
+		path   string
+		status state.ApplyStatus
+	}
+	statuses := make([]statusUpdate, 0, len(updated))
+	for _, tracked := range updated {
+		statuses = append(statuses, statusUpdate{path: tracked.path, status: tracked.status})
+	}
+	c.tasksMu.Unlock()
+
+	c.taskChanges.push(changes)
+	// Outside tasksMu, so the RC client's own locking never nests inside ours.
+	if applyStatus != nil {
+		for _, update := range statuses {
+			applyStatus(update.path, update.status)
+		}
+	}
+}
+
+// startTask validates a new task and, when the agent can run it, builds its check config and queues
+// it; startQueuedTasks decides when it starts. Every failure is final: the backend doesn't resend a
+// task, so it either fails the task from the error event or lets it expire.
 //
 // Failure handling:
 //   - malformed payload: apply state ERROR only. The RC schema rejects such payloads at write
@@ -207,11 +358,25 @@ func (c *component) startTask(configID string, raw state.RawConfig) *trackedTask
 		return failedTask(err)
 	}
 
-	c.log.Infof("Scheduling one-off Data Observability task %s (%d statements)", configID, len(payload.Task.Statements))
 	return &trackedTask{
-		status:      state.ApplyStatus{State: state.ApplyStateAcknowledged},
-		checkConfig: &checkConfig,
+		status:          state.ApplyStatus{State: state.ApplyStateUnacknowledged},
+		checkConfig:     &checkConfig,
+		phase:           taskQueued,
+		databaseKey:     taskDatabaseKey(baseCfg.Name, instance),
+		payload:         &payload,
+		integrationName: integrationName,
 	}
+}
+
+// taskDatabaseKey identifies the database server a task connects to, from the matched instance's
+// connection target. Tasks with the same key run one at a time.
+func taskDatabaseKey(integrationName string, instance map[string]any) string {
+	hash := sha256.New()
+	hash.Write([]byte(integrationName))
+	for _, key := range []string{"host", "server", "port", "sock"} {
+		fmt.Fprintf(hash, "\x00%s=%v", key, instance[key])
+	}
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 func failedTask(err error) *trackedTask {
@@ -386,6 +551,45 @@ func (c *component) sendTaskError(configID string, payload *DOTaskPayload, dbTyp
 	if err := forwarder.SendEventPlatformEvent(msg, doQueryResultsEventType); err != nil {
 		c.log.Warnf("Failed to send task error event for %s: %v", configID, err)
 	}
+}
+
+// collectorFinishedTaskChecks returns a function that lists the config IDs of task checks that have
+// completed their run, read from the collector's checks.
+//
+// A check's sender stats only change when a run commits, which a Python check does once its run
+// returns. Every task run sends at least one do-query-results event and internal metric, so a task
+// check with committed output has completed its run. (The runner's check stats can't tell: they
+// skip successful runs of interval-zero checks.)
+func collectorFinishedTaskChecks(coll collector.Component) func() map[string]bool {
+	return func() map[string]bool {
+		finished := make(map[string]bool)
+		for _, ch := range coll.GetChecks() {
+			if !strings.HasPrefix(ch.ConfigSource(), taskCheckSource) {
+				continue
+			}
+			senderStats, err := ch.GetSenderStats()
+			if err != nil || (senderStats.MetricSamples == 0 && senderStats.EventPlatformEvents[doQueryResultsEventType] == 0) {
+				continue
+			}
+			if configID := taskConfigIDOfInstance(ch.InstanceConfig()); configID != "" {
+				finished[configID] = true
+			}
+		}
+		return finished
+	}
+}
+
+// taskConfigIDOfInstance returns the RC config ID in a task check instance's do_task block.
+func taskConfigIDOfInstance(instanceConfig string) string {
+	var instance struct {
+		DoTask struct {
+			ConfigID string `yaml:"config_id"`
+		} `yaml:"do_task"`
+	}
+	if err := yaml.Unmarshal([]byte(instanceConfig), &instance); err != nil {
+		return ""
+	}
+	return instance.DoTask.ConfigID
 }
 
 // taskChangesQueue holds task config changes until autodiscovery consumes them. Unlike the monitor
