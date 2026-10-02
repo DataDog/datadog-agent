@@ -31,6 +31,7 @@ func TestNStatTracerFunctionalLoopbackPID(t *testing.T) {
 	cfg := testNStatConfig()
 	cfg.MaxTrackedConnections = 16384
 	tracer := newNStatTracerWithControl(cfg, control)
+	tracer.includeLoopback = true
 	require.NoError(t, tracer.Start(func(*network.ConnectionStats) {}))
 	defer tracer.Stop()
 

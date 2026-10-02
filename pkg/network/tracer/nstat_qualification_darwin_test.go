@@ -9,7 +9,6 @@ package tracer
 
 import (
 	"bytes"
-	"io"
 	"net"
 	"os"
 	"testing"
@@ -28,32 +27,30 @@ func TestNStatQualificationConnectionsPayload(t *testing.T) {
 	if os.Getenv("RUN_NSTAT_FUNCTIONAL_TEST") != "1" {
 		t.Skip("set RUN_NSTAT_FUNCTIONAL_TEST=1 to exercise the complete /connections model path")
 	}
+	// Loopback connections are never reported, so the client must reach a real
+	// interface; connecting to the host's own address is dropped by some firewalls.
+	address := os.Getenv("NSTAT_PAYLOAD_TARGET")
+	if address == "" {
+		t.Skip("set NSTAT_PAYLOAD_TARGET to a listening TCP host:port reached through a non-loopback interface")
+	}
 
 	cfg := config.New()
 	cfg.DarwinConnectionTracerBackend = config.DarwinConnectionTracerNStat
 	cfg.DarwinConnectionTracerPacketEnabled = false
-	cfg.DarwinConnectionTracerLibprocEnabled = false
 	cfg.DNSInspection = false
 	tr, err := NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 	require.NoError(t, tr.RegisterClient("nstat-qualification"))
 
-	listener, err := net.ListenTCP("tcp4", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	remote, err := net.ResolveTCPAddr("tcp4", address)
 	require.NoError(t, err)
-	defer listener.Close()
-	client, err := net.DialTCP("tcp4", nil, listener.Addr().(*net.TCPAddr))
+	client, err := net.DialTCP("tcp4", nil, remote)
 	require.NoError(t, err)
 	defer client.Close()
-	server, err := listener.AcceptTCP()
-	require.NoError(t, err)
-	defer server.Close()
 
 	payload := []byte("nstat-product-path")
 	_, err = client.Write(payload)
-	require.NoError(t, err)
-	received := make([]byte, len(payload))
-	_, err = io.ReadFull(server, received)
 	require.NoError(t, err)
 
 	localPort := int32(client.LocalAddr().(*net.TCPAddr).Port)
