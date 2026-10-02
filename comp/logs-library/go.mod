@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/logs-library
 go 1.26.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.212
+	github.com/DataDog/agent-payload/v5 v5.0.214-0.20261002101551-a92e5326c913
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.75.4

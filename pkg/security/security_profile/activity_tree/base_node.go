@@ -16,6 +16,11 @@ import (
 type ImageTagTimes struct {
 	FirstSeen time.Time
 	LastSeen  time.Time
+
+	// BaseNamespace is only meaningful for mount nodes: it records whether the mount
+	// belonged to the workload's base mount namespace for this image tag. A mount can
+	// be part of the base namespace in one version and not in another.
+	BaseNamespace bool
 }
 
 // seenEntry pairs an image tag ID with its observation timestamps.
@@ -59,7 +64,8 @@ func (b *NodeBase) RecordWithTimestamps(imageTagID uint64, firstSeen, lastSeen t
 	}
 	for i, entry := range b.seen {
 		if entry.id == imageTagID {
-			b.seen[i].times = ImageTagTimes{FirstSeen: firstSeen, LastSeen: lastSeen}
+			b.seen[i].times.FirstSeen = firstSeen
+			b.seen[i].times.LastSeen = lastSeen
 			return
 		}
 	}
@@ -132,4 +138,34 @@ func (b *NodeBase) EachSeen(fn func(id uint64, times ImageTagTimes)) {
 	for _, entry := range b.seen {
 		fn(entry.id, entry.times)
 	}
+}
+
+// SetBaseNamespace sets the BaseNamespace flag for the given imageTagID if it is present.
+// ID 0 is the null sentinel and is a no-op.
+func (b *NodeBase) SetBaseNamespace(imageTagID uint64, base bool) {
+	if imageTagID == 0 {
+		return
+	}
+	for i := range b.seen {
+		if b.seen[i].id == imageTagID {
+			b.seen[i].times.BaseNamespace = base
+			return
+		}
+	}
+}
+
+// IsBaseNamespace reports whether the given imageTagID saw the node in the base mount namespace.
+func (b *NodeBase) IsBaseNamespace(imageTagID uint64) bool {
+	times, ok := b.GetSeenTimes(imageTagID)
+	return ok && times.BaseNamespace
+}
+
+// IsBaseNamespaceAny reports whether any recorded image tag saw the node in the base mount namespace.
+func (b *NodeBase) IsBaseNamespaceAny() bool {
+	for _, entry := range b.seen {
+		if entry.times.BaseNamespace {
+			return true
+		}
+	}
+	return false
 }

@@ -1,0 +1,2060 @@
+2026-09-10 11:51:43 CEST | SYS-PROBE | INFO | (pkg/util/log/log.go:743 in func1) | /home/marciokovags/dd/datadog-agent/pkg/config/setup/config.go:526 Starting to load the configuration
+2026-09-10 11:51:43 CEST | SYS-PROBE | INFO | (pkg/util/log/log.go:743 in func1) | /home/marciokovags/dd/datadog-agent/pkg/config/setup/config.go:166 Loading proxy settings
+2026-09-10 11:51:43 CEST | SYS-PROBE | WARN | (pkg/util/log/log.go:794 in func1) | /home/marciokovags/dd/datadog-agent/pkg/config/setup/config.go:233 Set('proxy.no_proxy'): converting value from []interface {} to []string to match default type
+2026-09-10 11:51:43 CEST | SYS-PROBE | INFO | (pkg/util/log/log.go:743 in func1) | /home/marciokovags/dd/datadog-agent/pkg/config/setup/config.go:684 Starting to resolve secrets
+2026-09-10 11:51:43 CEST | SYS-PROBE | INFO | (pkg/util/log/log.go:743 in func1) | /home/marciokovags/dd/datadog-agent/pkg/config/setup/config.go:735 Finished resolving secrets
+2026-09-10 11:51:43 CEST | SYS-PROBE | INFO | (pkg/util/log/log.go:748 in func1) | /home/marciokovags/dd/datadog-agent/pkg/config/env/environment_containers.go:173 Agent found cri socket at: /var/run/containerd/containerd.sock
+2026-09-10 11:51:43 CEST | SYS-PROBE | WARN | (pkg/util/log/log.go:794 in func1) | /home/marciokovags/dd/datadog-agent/pkg/config/env/environment_containers.go:196 Set('containerd_namespace'): converting value from []interface {} to []string to match default type
+2026-09-10 11:51:43 CEST | SYS-PROBE | WARN | (pkg/util/log/log.go:794 in func1) | /home/marciokovags/dd/datadog-agent/pkg/config/env/environment_containers.go:197 Set('containerd_namespaces'): converting value from []interface {} to []string to match default type
+2026-09-10 11:51:43 CEST | SYS-PROBE | INFO | (pkg/util/log/log.go:748 in func1) | /home/marciokovags/dd/datadog-agent/pkg/config/env/environment_containers.go:293 Agent did not find PodResources socket at /var/lib/kubelet/pod-resources/kubelet.sock
+2026-09-10 11:51:43 CEST | SYS-PROBE | INFO | (pkg/util/log/log.go:748 in func1) | /home/marciokovags/dd/datadog-agent/pkg/config/env/environment_detection.go:124 3 Features detected from environment: docker,containerd,process
+{
+  "metadata": {
+    "agent_version": "7.85.0-devel+git.101.d3e8ce8",
+    "agent_commit": "d3e8ce8c919",
+    "kernel_version": "7.0.12",
+    "linux_distribution": "Ubuntu 24.04.5 LTS",
+    "arch": "x64",
+    "name": "activity-dump-nUTTaErFBV",
+    "protobuf_version": "v1",
+    "container_id": "aa033f3fd7f3f92ea13c7fdbf5b5463c05972e6974674ea234e393582a472858",
+    "start": 1789029648092693191,
+    "end": 1789029648092693191,
+    "size": 13918,
+    "cgroup_id": "/system.slice/docker-aa033f3fd7f3f92ea13c7fdbf5b5463c05972e6974674ea234e393582a472858.scope/init"
+  },
+  "tree": [
+    {
+      "process": {
+        "pid": 2665353,
+        "tid": 2665353,
+        "ppid": 2665328,
+        "file": {
+          "mode": 33261,
+          "ctime": 1788960898896416100,
+          "mtime": 1788472208000000000,
+          "mount_id": 3526,
+          "inode": 20971600,
+          "path": "/sbin/docker-init",
+          "basename": "docker-init",
+          "filesystem": "ext4",
+          "package_epoch": 0,
+          "package_release": "",
+          "package_src_epoch": 0,
+          "package_src_release": "",
+          "hashes": [
+            "sha1:a16371c31624967f3cc82cd98bef2dffbad1c52e",
+            "sha256:104be88d3f78cb38d41bab2af1a86d984f426293f0e21d5c889f8961607bf659",
+            "ssdeep:12288:HrMBWNgXe2rxkd+HaGBi0NOs0Idu4oayiARHX:wcNgNrP7NOs0cu"
+          ],
+          "hash_state": 1
+        },
+        "comm": "docker-init",
+        "fork_time": 1788960960970000000,
+        "exec_time": 1788960960970000000,
+        "credentials": {
+          "user": "root",
+          "group": "root",
+          "effective_user": "root",
+          "effective_group": "root",
+          "fs_user": "root",
+          "fs_group": "root",
+          "cap_effective": 2199023255551,
+          "cap_permitted": 2199023255551
+        },
+        "args": [
+          "--",
+          "/usr/bin/buildkitd-entrypoint",
+          "--allow-insecure-entitlement=network.host"
+        ],
+        "argv0": "/sbin/docker-init",
+        "envs": [
+          "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOSTNAME",
+          "BUILDKIT_SETUP_CGROUPV2_ROOT",
+          "HOME"
+        ],
+        "is_exec_child": true,
+        "cookie64": 8708815968311619047
+      },
+      "generation_type": 1,
+      "children": [
+        {
+          "process": {
+            "pid": 2819913,
+            "tid": 2819913,
+            "ppid": 2819870,
+            "file": {
+              "mode": 33261,
+              "ctime": 1782204894703045394,
+              "mtime": 1778673752000000000,
+              "mount_id": 5543,
+              "inode": 34511397,
+              "path": "/usr/bin/buildkitd-entrypoint",
+              "basename": "buildkitd-entrypoint",
+              "filesystem": "overlay",
+              "package_epoch": 0,
+              "package_release": "",
+              "package_src_epoch": 0,
+              "package_src_release": "",
+              "hashes": [
+                "sha1:1e98cc64de452007f437a41322e024f9417e04a6",
+                "sha256:2dadedade4e2d7c4ed68200430a2138a383aac5b51e3b03b7120d2afd2306e0e"
+              ],
+              "hash_state": 1
+            },
+            "comm": "buildkitd-entry",
+            "fork_time": 1789031986677986132,
+            "exec_time": 1789031986678766485,
+            "credentials": {
+              "user": "root",
+              "group": "root",
+              "effective_user": "root",
+              "effective_group": "root",
+              "fs_user": "root",
+              "fs_group": "root",
+              "cap_effective": 2199023255551,
+              "cap_permitted": 2199023255551
+            },
+            "args": [
+              "/usr/bin/buildkitd-entrypoint",
+              "--allow-insecure-entitlement=network.host"
+            ],
+            "argv0": "/bin/sh",
+            "envs": [
+              "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOSTNAME",
+              "BUILDKIT_SETUP_CGROUPV2_ROOT",
+              "HOME"
+            ],
+            "cookie64": 17682258024372389652
+          },
+          "generation_type": 1,
+          "children": [
+            {
+              "process": {
+                "pid": 2819914,
+                "tid": 2819914,
+                "ppid": 2819913,
+                "file": {
+                  "mode": 33261,
+                  "ctime": 1782204882274974098,
+                  "mtime": 1765894768000000000,
+                  "mount_id": 5543,
+                  "inode": 34510148,
+                  "path": "/bin/busybox",
+                  "basename": "busybox",
+                  "filesystem": "overlay",
+                  "package_epoch": 0,
+                  "package_release": "",
+                  "package_src_epoch": 0,
+                  "package_src_release": "",
+                  "hashes": [
+                    "sha1:c30d1b8fbc4ccf695ca01a0c39409bea5cccb3f1",
+                    "sha256:dbac288c29ba568459550a2da9e7ae0ded6b1fc728ee9fad3044c44e62d6ac14",
+                    "ssdeep:49152:sp3Nc30Jz2jNkxvl6Ma45Zr7VVin6mhk:C3JSkFIsr7VV"
+                  ],
+                  "hash_state": 1
+                },
+                "comm": "cut",
+                "fork_time": 1789031986679633717,
+                "exec_time": 1789031986680052991,
+                "credentials": {
+                  "user": "root",
+                  "group": "root",
+                  "effective_user": "root",
+                  "effective_group": "root",
+                  "fs_user": "root",
+                  "fs_group": "root",
+                  "cap_effective": 2199023255551,
+                  "cap_permitted": 2199023255551
+                },
+                "args": [
+                  "-d:",
+                  "-f3",
+                  "/proc/self/cgroup"
+                ],
+                "argv0": "cut",
+                "envs": [
+                  "HOSTNAME",
+                  "SHLVL",
+                  "HOME",
+                  "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                  "BUILDKIT_SETUP_CGROUPV2_ROOT",
+                  "PWD"
+                ],
+                "cookie64": 16591171962791258090
+              },
+              "generation_type": 1,
+              "files": [
+                {
+                  "node_base": {},
+                  "name": "proc",
+                  "generation_type": 1,
+                  "children": [
+                    {
+                      "node_base": {},
+                      "name": "*",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "cgroup",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33060,
+                            "ctime": 1789031986679640685,
+                            "mtime": 1789031986679640685,
+                            "mount_id": 5545,
+                            "inode": 46744113,
+                            "path": "/proc/*/cgroup",
+                            "basename": "cgroup",
+                            "filesystem": "proc",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 5
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 3,
+                            "flags": 32768,
+                            "mode": 438
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "node_base": {}
+            },
+            {
+              "process": {
+                "pid": 2665397,
+                "tid": 2665397,
+                "ppid": 2665353,
+                "file": {
+                  "mode": 33261,
+                  "ctime": 1782204894632044989,
+                  "mtime": 1778676651000000000,
+                  "mount_id": 3514,
+                  "inode": 34511382,
+                  "path": "/usr/bin/buildkitd",
+                  "basename": "buildkitd",
+                  "filesystem": "overlay",
+                  "package_epoch": 0,
+                  "package_release": "",
+                  "package_src_epoch": 0,
+                  "package_src_release": "",
+                  "hash_state": 4
+                },
+                "comm": "buildkitd",
+                "fork_time": 1788960961070000000,
+                "exec_time": 1788960961070000000,
+                "credentials": {
+                  "user": "root",
+                  "group": "root",
+                  "effective_user": "root",
+                  "effective_group": "root",
+                  "fs_user": "root",
+                  "fs_group": "root",
+                  "cap_effective": 2199023255551,
+                  "cap_permitted": 2199023255551
+                },
+                "args": [
+                  "--allow-insecure-entitlement=network.host"
+                ],
+                "argv0": "/usr/bin/buildkitd",
+                "envs": [
+                  "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                  "HOSTNAME",
+                  "SHLVL",
+                  "HOME",
+                  "BUILDKIT_SETUP_CGROUPV2_ROOT",
+                  "PWD"
+                ],
+                "is_exec_child": true,
+                "cookie64": 13689813648858732387
+              },
+              "generation_type": 1,
+              "children": [
+                {
+                  "process": {
+                    "pid": 2819946,
+                    "tid": 2819946,
+                    "ppid": 2819913,
+                    "file": {
+                      "mode": 33216,
+                      "ctime": 1789031986707640970,
+                      "mtime": 1789031986707640970,
+                      "mount_id": 5543,
+                      "inode": 34648121,
+                      "path": "/tmp/qemu-check1754440372/check",
+                      "basename": "check",
+                      "filesystem": "overlay",
+                      "package_epoch": 0,
+                      "package_release": "",
+                      "package_src_epoch": 0,
+                      "package_src_release": "",
+                      "hash_state": 2
+                    },
+                    "comm": "check",
+                    "fork_time": 1789031986708563029,
+                    "exec_time": 1789031986708703214,
+                    "credentials": {
+                      "user": "root",
+                      "group": "root",
+                      "effective_user": "root",
+                      "effective_group": "root",
+                      "fs_user": "root",
+                      "fs_group": "root",
+                      "cap_effective": 2199023255551,
+                      "cap_permitted": 2199023255551
+                    },
+                    "args_truncated": true,
+                    "cookie64": 11837694015796220293
+                  },
+                  "generation_type": 1,
+                  "node_base": {}
+                },
+                {
+                  "process": {
+                    "pid": 2819962,
+                    "tid": 2819962,
+                    "ppid": 2819913,
+                    "file": {
+                      "mode": 33261,
+                      "ctime": 1782204884735988292,
+                      "mtime": 1763683983000000000,
+                      "mount_id": 5543,
+                      "inode": 34510798,
+                      "path": "/usr/bin/git",
+                      "basename": "git",
+                      "filesystem": "overlay",
+                      "package_epoch": 0,
+                      "package_release": "",
+                      "package_src_epoch": 0,
+                      "package_src_release": "",
+                      "hashes": [
+                        "sha1:255d0b71b8f173aa8e2af603c082edfb6fbe54f7",
+                        "sha256:2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668",
+                        "ssdeep:98304:/AURKHTRRIvZANzXFoF3kTb/kZF5rWQFqJSzGEmLp:UoVkO4uTqz"
+                      ],
+                      "hash_state": 1
+                    },
+                    "comm": "git",
+                    "fork_time": 1789031986729881657,
+                    "exec_time": 1789031986730065088,
+                    "credentials": {
+                      "user": "root",
+                      "group": "root",
+                      "effective_user": "root",
+                      "effective_group": "root",
+                      "fs_user": "root",
+                      "fs_group": "root",
+                      "cap_effective": 2199023255551,
+                      "cap_permitted": 2199023255551
+                    },
+                    "args": [
+                      "version"
+                    ],
+                    "argv0": "git",
+                    "envs": [
+                      "HOSTNAME",
+                      "SHLVL",
+                      "HOME",
+                      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                      "BUILDKIT_SETUP_CGROUPV2_ROOT",
+                      "PWD"
+                    ],
+                    "cookie64": 2255176409944360847
+                  },
+                  "generation_type": 1,
+                  "files": [
+                    {
+                      "node_base": {},
+                      "name": "dev",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "null",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 8630,
+                            "ctime": 1789031986612870503,
+                            "mtime": 1789031986612786809,
+                            "mount_id": 5546,
+                            "inode": 181,
+                            "path": "/dev/null",
+                            "basename": "null",
+                            "filesystem": "tmpfs",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 3,
+                            "flags": 32770
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "node_base": {}
+                }
+              ],
+              "files": [
+                {
+                  "node_base": {},
+                  "name": "proc",
+                  "generation_type": 1,
+                  "children": [
+                    {
+                      "node_base": {},
+                      "name": "*",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "cgroup",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33060,
+                            "ctime": 1789031986684640736,
+                            "mtime": 1789031986684640736,
+                            "mount_id": 5545,
+                            "inode": 46746569,
+                            "path": "/proc/*/cgroup",
+                            "basename": "cgroup",
+                            "filesystem": "proc",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 5
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 3,
+                            "flags": 524288
+                          }
+                        },
+                        {
+                          "node_base": {},
+                          "name": "mountinfo",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33060,
+                            "ctime": 1789031986684640736,
+                            "mtime": 1789031986684640736,
+                            "mount_id": 5545,
+                            "inode": 46746570,
+                            "path": "/proc/*/mountinfo",
+                            "basename": "mountinfo",
+                            "filesystem": "proc",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 5
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 3,
+                            "flags": 524288
+                          }
+                        },
+                        {
+                          "node_base": {},
+                          "name": "uid_map",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33188,
+                            "ctime": 1789031986702640919,
+                            "mtime": 1789031986702640919,
+                            "mount_id": 5545,
+                            "inode": 46746576,
+                            "path": "/proc/*/uid_map",
+                            "basename": "uid_map",
+                            "filesystem": "proc",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 5
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524288
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "node_base": {},
+                  "name": "tmp",
+                  "generation_type": 1,
+                  "children": [
+                    {
+                      "node_base": {},
+                      "name": "qemu-check973865926",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789033793409230523,
+                            "mtime": 1789033793409230523,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check973865926/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check1107369176",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789031986703640929,
+                            "mtime": 1789031986703640929,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check1107369176/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check323764207",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789031986706640959,
+                            "mtime": 1789031986706640959,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check323764207/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check3413537007",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789031986707640970,
+                            "mtime": 1789031986707640970,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check3413537007/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check3631886534",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789031986709640990,
+                            "mtime": 1789031986709640990,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check3631886534/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check3396219809",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789033793405230453,
+                            "mtime": 1789033793405230453,
+                            "mount_id": 5543,
+                            "inode": 34648124,
+                            "path": "/tmp/qemu-check3396219809/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check3987474314",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789033793406230471,
+                            "mtime": 1789033793406230471,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check3987474314/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check3535574191",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789033793407230488,
+                            "mtime": 1789033793407230488,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check3535574191/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check3607115244",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789031986705640949,
+                            "mtime": 1789031986705640949,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check3607115244/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check3410597084",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789031986708640980,
+                            "mtime": 1789031986708640980,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check3410597084/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check1228783222",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789031986734641244,
+                            "mtime": 1789031986734641244,
+                            "mount_id": 5543,
+                            "inode": 34648124,
+                            "path": "/tmp/qemu-check1228783222/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 14,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check3647220389",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789033793406230471,
+                            "mtime": 1789033793406230471,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check3647220389/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hashes": [
+                              "sha1:fcf49f38283fbb6e78dba2b58b2c4b7637c0eac6",
+                              "sha256:ece4026fcacb01b0ee9b7eee1811b4b45945e414dfbbf4f80443ddf41ed5b4c4"
+                            ],
+                            "hash_state": 1
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check3207461913",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789033793430230888,
+                            "mtime": 1789033793430230888,
+                            "mount_id": 5543,
+                            "inode": 34648124,
+                            "path": "/tmp/qemu-check3207461913/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hashes": [
+                              "sha1:2355f5f9168bb3d9542db526e8f8b3df6ca88518",
+                              "sha256:660c2177f31c387e975cb1c1fc04610f5a0d91dcc97aa691e720217c06186d48",
+                              "ssdeep:3:Bkkk/tMlk159XJ9lsllllrXllxlpX1lat1Hht09ppXLllEOllvXqR4Dl0lE5lBOf:Btk/tMl8FHM/YH4vp1yqDCG4Mvq"
+                            ],
+                            "hash_state": 1
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 14,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check1141968754",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789031986706640959,
+                            "mtime": 1789031986706640959,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check1141968754/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check1754440372",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789031986707640970,
+                            "mtime": 1789031986707640970,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check1754440372/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check2495507166",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789033793404230436,
+                            "mtime": 1789033793404230436,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check2495507166/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hashes": [
+                              "sha1:652eb426810541e8e6f31e0d9bf16906ad1f0874",
+                              "sha256:7bc0215a35ac89e494121f793923f0bd2d792fb1b2534f45e5aea881bc2f1029"
+                            ],
+                            "hash_state": 1
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check318052852",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789033793407230488,
+                            "mtime": 1789033793407230488,
+                            "mount_id": 5543,
+                            "inode": 34621933,
+                            "path": "/tmp/qemu-check318052852/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check1512438030",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789033793408230506,
+                            "mtime": 1789033793408230506,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check1512438030/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check183678534",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789033793409230523,
+                            "mtime": 1789033793409230523,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check183678534/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check132287864",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789031986704640939,
+                            "mtime": 1789031986704640939,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check132287864/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check2593626188",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789031986708640980,
+                            "mtime": 1789031986708640980,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check2593626188/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hash_state": 2
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "node_base": {},
+                      "name": "qemu-check3267806754",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "check",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33216,
+                            "ctime": 1789033793403230419,
+                            "mtime": 1789033793403230419,
+                            "mount_id": 5543,
+                            "inode": 34648121,
+                            "path": "/tmp/qemu-check3267806754/check",
+                            "basename": "check",
+                            "filesystem": "overlay",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hashes": [
+                              "sha1:f1b45e04a200b516f5fe296333b943e2a7d69bb0",
+                              "sha256:2ac940d3144ea22a49f4cc7b0bcc8fe78ce8d197f5382be2d4abac0dce2e96f6"
+                            ],
+                            "hash_state": 1
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524866,
+                            "mode": 448
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "node_base": {},
+                  "name": "dev",
+                  "generation_type": 1,
+                  "children": [
+                    {
+                      "node_base": {},
+                      "name": "null",
+                      "file": {
+                        "user": "root",
+                        "group": "root",
+                        "mode": 8630,
+                        "ctime": 1789031986612870503,
+                        "mtime": 1789031986612786809,
+                        "mount_id": 5546,
+                        "inode": 181,
+                        "path": "/dev/null",
+                        "basename": "null",
+                        "filesystem": "tmpfs",
+                        "package_epoch": 0,
+                        "package_release": "",
+                        "package_src_epoch": 0,
+                        "package_src_release": "",
+                        "hash_state": 2
+                      },
+                      "generation_type": 1,
+                      "open": {
+                        "retval": 7,
+                        "flags": 524289
+                      }
+                    }
+                  ]
+                },
+                {
+                  "node_base": {},
+                  "name": "var",
+                  "generation_type": 1,
+                  "children": [
+                    {
+                      "node_base": {},
+                      "name": "lib",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "buildkit",
+                          "generation_type": 1,
+                          "children": [
+                            {
+                              "node_base": {},
+                              "name": "runc-overlayfs",
+                              "generation_type": 1,
+                              "children": [
+                                {
+                                  "node_base": {},
+                                  "name": "content",
+                                  "generation_type": 1,
+                                  "children": [
+                                    {
+                                      "node_base": {},
+                                      "name": ".fsverity-check-2755967439",
+                                      "generation_type": 1,
+                                      "children": [
+                                        {
+                                          "node_base": {},
+                                          "name": "supported",
+                                          "file": {
+                                            "user": "root",
+                                            "group": "root",
+                                            "mode": 33206,
+                                            "ctime": 1789031986722641122,
+                                            "mtime": 1789031986722641122,
+                                            "mount_id": 5556,
+                                            "inode": 34648121,
+                                            "path": "/var/lib/buildkit/runc-overlayfs/content/.fsverity-check-2755967439/supported",
+                                            "basename": "supported",
+                                            "filesystem": "ext4",
+                                            "package_epoch": 0,
+                                            "package_release": "",
+                                            "package_src_epoch": 0,
+                                            "package_src_release": "",
+                                            "hash_state": 2
+                                          },
+                                          "generation_type": 1,
+                                          "open": {
+                                            "retval": 10,
+                                            "flags": 524866,
+                                            "mode": 438
+                                          }
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "node_base": {},
+                                      "name": ".fsverity-check-217484783",
+                                      "generation_type": 1,
+                                      "children": [
+                                        {
+                                          "node_base": {},
+                                          "name": "supported",
+                                          "file": {
+                                            "user": "root",
+                                            "group": "root",
+                                            "mode": 33206,
+                                            "ctime": 1789033793419230697,
+                                            "mtime": 1789033793419230697,
+                                            "mount_id": 5556,
+                                            "inode": 34648121,
+                                            "path": "/var/lib/buildkit/runc-overlayfs/content/.fsverity-check-217484783/supported",
+                                            "basename": "supported",
+                                            "filesystem": "ext4",
+                                            "package_epoch": 0,
+                                            "package_release": "",
+                                            "package_src_epoch": 0,
+                                            "package_src_release": "",
+                                            "hash_state": 2
+                                          },
+                                          "generation_type": 1,
+                                          "open": {
+                                            "retval": 10,
+                                            "flags": 524866,
+                                            "mode": 438
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "node_base": {},
+                                  "name": "containerdmeta.db",
+                                  "file": {
+                                    "user": "root",
+                                    "group": "root",
+                                    "mode": 33188,
+                                    "ctime": 1788960961634255878,
+                                    "mtime": 1788960961634255878,
+                                    "mount_id": 5556,
+                                    "inode": 34511475,
+                                    "path": "/var/lib/buildkit/runc-overlayfs/containerdmeta.db",
+                                    "basename": "containerdmeta.db",
+                                    "filesystem": "ext4",
+                                    "package_epoch": 0,
+                                    "package_release": "",
+                                    "package_src_epoch": 0,
+                                    "package_src_release": "",
+                                    "hashes": [
+                                      "sha1:b1f33df6487d5b29a503e1f15966c815a6c54cbe",
+                                      "sha256:dc8eefdcc9fb55b753947962d7dc86571747aa341c5e785ba3c2de9b8aa333a0",
+                                      "ssdeep:3072:uykpQ2htytnN04DCpSM0kQIuDoNvl7xfo9Hr:2f"
+                                    ],
+                                    "hash_state": 1
+                                  },
+                                  "generation_type": 1,
+                                  "open": {
+                                    "retval": 11,
+                                    "flags": 524354,
+                                    "mode": 420
+                                  }
+                                },
+                                {
+                                  "node_base": {},
+                                  "name": "metadata_v2.db",
+                                  "file": {
+                                    "user": "root",
+                                    "group": "root",
+                                    "mode": 33152,
+                                    "ctime": 1782205511542195804,
+                                    "mtime": 1782205511542195804,
+                                    "mount_id": 5556,
+                                    "inode": 34511477,
+                                    "path": "/var/lib/buildkit/runc-overlayfs/metadata_v2.db",
+                                    "basename": "metadata_v2.db",
+                                    "filesystem": "ext4",
+                                    "package_epoch": 0,
+                                    "package_release": "",
+                                    "package_src_epoch": 0,
+                                    "package_src_release": "",
+                                    "hashes": [
+                                      "sha1:81b3a7f7c9dbc3cc8dd47cfc9e4d5838c461fa5d",
+                                      "sha256:48205ee43a50fdfc1cb5587543d854cd610219e26fe3638afe88006bcdf7ef89",
+                                      "ssdeep:768:PhJT2piWMyuTDp/1wbCHxrTSlNmz5UkqbbpIXn:PhJTgiWMyuTDpGbU/SlNmzDqXpI"
+                                    ],
+                                    "hash_state": 1
+                                  },
+                                  "generation_type": 1,
+                                  "open": {
+                                    "retval": 12,
+                                    "flags": 524354,
+                                    "mode": 384
+                                  }
+                                },
+                                {
+                                  "node_base": {},
+                                  "name": "snapshots",
+                                  "generation_type": 1,
+                                  "children": [
+                                    {
+                                      "node_base": {},
+                                      "name": "metadata.db",
+                                      "file": {
+                                        "user": "root",
+                                        "group": "root",
+                                        "mode": 33152,
+                                        "ctime": 1784411606288005089,
+                                        "mtime": 1784411606288005089,
+                                        "mount_id": 5556,
+                                        "inode": 34511481,
+                                        "path": "/var/lib/buildkit/runc-overlayfs/snapshots/metadata.db",
+                                        "basename": "metadata.db",
+                                        "filesystem": "ext4",
+                                        "package_epoch": 0,
+                                        "package_release": "",
+                                        "package_src_epoch": 0,
+                                        "package_src_release": "",
+                                        "hashes": [
+                                          "sha1:ad71d3f4b0bc57ff58cad2163e646d23d13387c7",
+                                          "sha256:7a072ad04fb4b4c9ad20f8549e43d72297db8ca73789d6eb57eb4878d2ae022a",
+                                          "ssdeep:192:Ai4chWw0ahx/Rl4hAdjKQHOuWOxAZIge2yZIge:/Xsw0ahx5x1mZaPZa"
+                                        ],
+                                        "hash_state": 1
+                                      },
+                                      "generation_type": 1,
+                                      "open": {
+                                        "retval": 13,
+                                        "flags": 524354,
+                                        "mode": 384
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "node_base": {},
+                              "name": "cache.db",
+                              "file": {
+                                "user": "root",
+                                "group": "root",
+                                "mode": 33152,
+                                "ctime": 1788960960617238460,
+                                "mtime": 1788960960617238460,
+                                "mount_id": 5556,
+                                "inode": 34511479,
+                                "path": "/var/lib/buildkit/cache.db",
+                                "basename": "cache.db",
+                                "filesystem": "ext4",
+                                "package_epoch": 0,
+                                "package_release": "",
+                                "package_src_epoch": 0,
+                                "package_src_release": "",
+                                "hashes": [
+                                  "sha1:1bec248c7e5b7d3c44d5ee42bca3138d1b2d05b7",
+                                  "sha256:2ca53d6a4f79baa8985d2ca6a68c9ad3fdf6f8f2b0ed3ebad7d2139a34950bae",
+                                  "ssdeep:3072:U70ZjUg1mscm6CFj4M7hn1QTYFR6I6CFj4M7hn1QwFR6:"
+                                ],
+                                "hash_state": 1
+                              },
+                              "generation_type": 1,
+                              "open": {
+                                "retval": 14,
+                                "flags": 524354,
+                                "mode": 384
+                              }
+                            },
+                            {
+                              "node_base": {},
+                              "name": "history.db",
+                              "file": {
+                                "user": "root",
+                                "group": "root",
+                                "mode": 33152,
+                                "ctime": 1782205513550072855,
+                                "mtime": 1782205513550072855,
+                                "mount_id": 5556,
+                                "inode": 34511480,
+                                "path": "/var/lib/buildkit/history.db",
+                                "basename": "history.db",
+                                "filesystem": "ext4",
+                                "package_epoch": 0,
+                                "package_release": "",
+                                "package_src_epoch": 0,
+                                "package_src_release": "",
+                                "hashes": [
+                                  "sha1:1d60e813b9db658517d486ebed14eeef3379831d",
+                                  "sha256:42f00b38786502e155499ec3e68834fbf9c68a9c3a3ec4a78e259cf4ebe8bb89",
+                                  "ssdeep:768:t214GDmWxF9IU4GDmWE/nMx4GDmWxF94GDmWERL:t21rDmWtIUrDmWcnMxrDmWNrDmWgL"
+                                ],
+                                "hash_state": 1
+                              },
+                              "generation_type": 1,
+                              "open": {
+                                "retval": 15,
+                                "flags": 524354,
+                                "mode": 384
+                              }
+                            },
+                            {
+                              "node_base": {},
+                              "name": "buildkitd.lock",
+                              "file": {
+                                "user": "root",
+                                "group": "root",
+                                "mode": 33152,
+                                "ctime": 1789031986711641010,
+                                "mtime": 1789031986711641010,
+                                "mount_id": 5556,
+                                "inode": 34471939,
+                                "path": "/var/lib/buildkit/buildkitd.lock",
+                                "basename": "buildkitd.lock",
+                                "filesystem": "ext4",
+                                "package_epoch": 0,
+                                "package_release": "",
+                                "package_src_epoch": 0,
+                                "package_src_release": "",
+                                "hash_state": 5
+                              },
+                              "generation_type": 1,
+                              "open": {
+                                "retval": 4,
+                                "flags": 524352,
+                                "mode": 384
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "node_base": {},
+                  "name": "sys",
+                  "generation_type": 1,
+                  "children": [
+                    {
+                      "node_base": {},
+                      "name": "fs",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "cgroup",
+                          "generation_type": 1,
+                          "children": [
+                            {
+                              "node_base": {},
+                              "name": "init",
+                              "generation_type": 1,
+                              "children": [
+                                {
+                                  "node_base": {},
+                                  "name": "cgroup.procs",
+                                  "file": {
+                                    "user": "root",
+                                    "group": "root",
+                                    "mode": 33188,
+                                    "ctime": 1789031986721641112,
+                                    "mtime": 1789031986721641112,
+                                    "mount_id": 5549,
+                                    "inode": 164312,
+                                    "path": "/sys/fs/cgroup/init/cgroup.procs",
+                                    "basename": "cgroup.procs",
+                                    "filesystem": "cgroup2",
+                                    "package_epoch": 0,
+                                    "package_release": "",
+                                    "package_src_epoch": 0,
+                                    "package_src_release": "",
+                                    "hash_state": 5
+                                  },
+                                  "generation_type": 1,
+                                  "open": {
+                                    "retval": 11,
+                                    "flags": 524865
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "node_base": {},
+                              "name": "cgroup.subtree_control",
+                              "file": {
+                                "user": "root",
+                                "group": "root",
+                                "mode": 33188,
+                                "ctime": 1789031986721641112,
+                                "mtime": 1789031986721641112,
+                                "mount_id": 5549,
+                                "inode": 164228,
+                                "path": "/sys/fs/cgroup/cgroup.subtree_control",
+                                "basename": "cgroup.subtree_control",
+                                "filesystem": "cgroup2",
+                                "package_epoch": 0,
+                                "package_release": "",
+                                "package_src_epoch": 0,
+                                "package_src_release": "",
+                                "hash_state": 5
+                              },
+                              "generation_type": 1,
+                              "open": {
+                                "retval": 10,
+                                "flags": 524865
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "node_base": {
+                "seen": {
+                  "buildx-stable-1": {
+                    "first_seen": 1788960961070000000,
+                    "last_seen": 1789029648092703558
+                  }
+                }
+              }
+            }
+          ],
+          "node_base": {}
+        }
+      ],
+      "node_base": {
+        "seen": {
+          "buildx-stable-1": {
+            "first_seen": 1788960960970000000,
+            "last_seen": 1788960961070000000
+          }
+        }
+      }
+    },
+    {
+      "process": {
+        "pid": 2826892,
+        "tid": 2826892,
+        "ppid": 1,
+        "file": {
+          "mode": 33261,
+          "ctime": 1768832037349903515,
+          "mtime": 1712591648000000000,
+          "mount_id": 33,
+          "inode": 20578330,
+          "path": "/usr/sbin/anacron",
+          "basename": "anacron",
+          "filesystem": "ext4",
+          "package_epoch": 0,
+          "package_release": "",
+          "package_src_epoch": 0,
+          "package_src_release": "",
+          "hashes": [
+            "sha1:9575292c4cd8ad62f445eebab3b64dd0a9e5a039",
+            "sha256:89797efc771366c6010951f778cd09ce492ffdb887bebe71a2903fcf1517491d",
+            "ssdeep:384:WHbslb2OUJSRUXzcjnwfqkA2C6UASJij6t2TnvGLUtmCjT:WHrRqazcj0zA2r2J7QvAUtmC"
+          ],
+          "hash_state": 1
+        },
+        "comm": "anacron",
+        "fork_time": 1789033174695497715,
+        "exec_time": 1789033174694393424,
+        "credentials": {
+          "user": "root",
+          "group": "root",
+          "effective_user": "root",
+          "effective_group": "root",
+          "fs_user": "root",
+          "fs_group": "root",
+          "cap_effective": 2199023255551,
+          "cap_permitted": 2199023255551
+        },
+        "args": [
+          "-u",
+          "cron.daily"
+        ],
+        "argv0": "anacron",
+        "envs": [
+          "ANACRON_ARGS",
+          "LC_TIME",
+          "USER",
+          "HOME",
+          "LC_MONETARY",
+          "SYSTEMD_EXEC_PID",
+          "TRIGGER_TIMER_REALTIME_USEC",
+          "LOGNAME",
+          "JOURNAL_STREAM",
+          "MEMORY_PRESSURE_WATCH",
+          "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/snap/bin",
+          "INVOCATION_ID",
+          "LC_ADDRESS",
+          "LANG",
+          "LC_TELEPHONE",
+          "LC_NAME",
+          "SHELL",
+          "TRIGGER_UNIT",
+          "LC_MEASUREMENT",
+          "LC_IDENTIFICATION",
+          "PWD",
+          "XDG_DATA_DIRS",
+          "TRIGGER_TIMER_MONOTONIC_USEC",
+          "LC_NUMERIC",
+          "ANACRON_RUN_ON_BATTERY_POWER",
+          "LC_PAPER",
+          "MEMORY_PRESSURE_WRITE"
+        ],
+        "cookie64": 14874180362715800657
+      },
+      "generation_type": 1,
+      "files": [
+        {
+          "node_base": {},
+          "name": "usr",
+          "generation_type": 1,
+          "children": [
+            {
+              "node_base": {},
+              "name": "share",
+              "generation_type": 1,
+              "children": [
+                {
+                  "node_base": {},
+                  "name": "zoneinfo",
+                  "generation_type": 1,
+                  "children": [
+                    {
+                      "node_base": {},
+                      "name": "Europe",
+                      "generation_type": 1,
+                      "children": [
+                        {
+                          "node_base": {},
+                          "name": "Paris",
+                          "file": {
+                            "user": "root",
+                            "group": "root",
+                            "mode": 33188,
+                            "ctime": 1785831292405822488,
+                            "mtime": 1784292540000000000,
+                            "mount_id": 33,
+                            "inode": 21240524,
+                            "path": "/usr/share/zoneinfo/Europe/Paris",
+                            "basename": "Paris",
+                            "filesystem": "ext4",
+                            "package_epoch": 0,
+                            "package_release": "",
+                            "package_src_epoch": 0,
+                            "package_src_release": "",
+                            "hashes": [
+                              "sha1:f065dd54ad27c008caa5e96b7fec1e7859fcc003",
+                              "sha256:ab77a1488a2dd4667a4f23072236e0d2845fe208405eec1b4834985629ba7af8"
+                            ],
+                            "hash_state": 1
+                          },
+                          "generation_type": 1,
+                          "open": {
+                            "retval": 4,
+                            "flags": 524288
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "node_base": {},
+          "name": "etc",
+          "generation_type": 1,
+          "children": [
+            {
+              "node_base": {},
+              "name": "anacrontab",
+              "file": {
+                "user": "root",
+                "group": "root",
+                "mode": 33188,
+                "ctime": 1741274989663003789,
+                "mtime": 1648028411000000000,
+                "mount_id": 33,
+                "inode": 4980877,
+                "path": "/etc/anacrontab",
+                "basename": "anacrontab",
+                "filesystem": "ext4",
+                "package_epoch": 0,
+                "package_release": "",
+                "package_src_epoch": 0,
+                "package_src_release": "",
+                "hashes": [
+                  "sha1:dfd2bc4a2f1065ffa6550eb240f2aef3112ea805",
+                  "sha256:1ab5bd403d2173776aa8efd1b0729da3aa32dd4fb7482ffafe8d9547bf61c29e"
+                ],
+                "hash_state": 1
+              },
+              "generation_type": 1,
+              "open": {
+                "retval": 4
+              }
+            }
+          ]
+        },
+        {
+          "node_base": {},
+          "name": "var",
+          "generation_type": 1,
+          "children": [
+            {
+              "node_base": {},
+              "name": "spool",
+              "generation_type": 1,
+              "children": [
+                {
+                  "node_base": {},
+                  "name": "anacron",
+                  "generation_type": 1,
+                  "children": [
+                    {
+                      "node_base": {},
+                      "name": "cron.daily",
+                      "file": {
+                        "user": "root",
+                        "group": "root",
+                        "mode": 33152,
+                        "ctime": 1789032874680227034,
+                        "mtime": 1788942993583950440,
+                        "mount_id": 33,
+                        "inode": 33816991,
+                        "path": "/var/spool/anacron/cron.daily",
+                        "basename": "cron.daily",
+                        "filesystem": "ext4",
+                        "package_epoch": 0,
+                        "package_release": "",
+                        "package_src_epoch": 0,
+                        "package_src_release": "",
+                        "hashes": [
+                          "sha1:1a7999d342a4e355dca449926e6c9130d12cea14",
+                          "sha256:642c6a033e2687839285926258b73aea75968d0056bde0ef8a0ecd33b269e712"
+                        ],
+                        "hash_state": 1
+                      },
+                      "generation_type": 1,
+                      "open": {
+                        "retval": 3,
+                        "flags": 579,
+                        "mode": 384
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "node_base": {}
+    }
+  ],
+  "profile_contexts": {
+    "*": {
+      "first_seen": 471538898069939,
+      "last_seen": 471538898069939,
+      "tags": [
+        "image_name:moby/buildkit",
+        "short_image:buildkit",
+        "image_tag:buildx-stable-1",
+        "image_id:sha256:6db049f808b3e0c0694b3522d85b5a9bee4a0248a1dc67559e05f57cc0f68bdd",
+        "docker_image:moby/buildkit:buildx-stable-1"
+      ]
+    }
+  },
+  "selector": {
+    "image_name": "moby/buildkit",
+    "image_tag": "*"
+  },
+  "mounts": [
+    {
+      "mount_namespace_id": 4026532291,
+      "mounts": [
+        {
+          "node_base": {},
+          "mount_point": "/proc",
+          "mount_root": "/",
+          "filesystem": "proc",
+          "mount_flags": 14
+        },
+        {
+          "node_base": {},
+          "mount_point": "/dev/pts",
+          "mount_root": "/",
+          "filesystem": "devpts",
+          "mount_flags": 10
+        },
+        {
+          "node_base": {},
+          "mount_point": "/sys",
+          "mount_root": "/",
+          "filesystem": "sysfs",
+          "mount_flags": 14
+        },
+        {
+          "node_base": {},
+          "mount_point": "/sys/fs/cgroup",
+          "mount_root": "/system.slice/docker-aa033f3fd7f3f92ea13c7fdbf5b5463c05972e6974674ea234e393582a472858.scope",
+          "filesystem": "cgroup2",
+          "mount_flags": 14
+        },
+        {
+          "node_base": {},
+          "mount_point": "/dev/mqueue",
+          "mount_root": "/",
+          "filesystem": "mqueue",
+          "mount_flags": 14
+        },
+        {
+          "node_base": {},
+          "mount_point": "/dev",
+          "mount_root": "/",
+          "filesystem": "tmpfs",
+          "mount_flags": 2
+        },
+        {
+          "node_base": {},
+          "mount_point": "/dev/shm",
+          "mount_root": "/",
+          "filesystem": "tmpfs",
+          "mount_flags": 14
+        },
+        {
+          "node_base": {},
+          "mount_point": "/etc/hostname",
+          "mount_root": "/var/lib/docker/containers/aa033f3fd7f3f92ea13c7fdbf5b5463c05972e6974674ea234e393582a472858/hostname",
+          "filesystem": "ext4"
+        },
+        {
+          "node_base": {},
+          "mount_point": "/etc/hosts",
+          "mount_root": "/var/lib/docker/containers/aa033f3fd7f3f92ea13c7fdbf5b5463c05972e6974674ea234e393582a472858/hosts",
+          "filesystem": "ext4"
+        },
+        {
+          "node_base": {},
+          "mount_point": "/etc/resolv.conf",
+          "mount_root": "/var/lib/docker/containers/aa033f3fd7f3f92ea13c7fdbf5b5463c05972e6974674ea234e393582a472858/resolv.conf",
+          "filesystem": "ext4"
+        },
+        {
+          "node_base": {},
+          "mount_point": "/var/lib/buildkit",
+          "mount_root": "/var/lib/docker/volumes/buildx_buildkit_hardcore_galileo0_state/_data",
+          "filesystem": "ext4"
+        },
+        {
+          "node_base": {},
+          "mount_point": "/sbin/docker-init",
+          "mount_root": "/usr/libexec/docker/docker-init",
+          "filesystem": "ext4",
+          "mount_flags": 1
+        },
+        {
+          "node_base": {},
+          "mount_point": "/",
+          "mount_root": "/",
+          "filesystem": "overlay"
+        },
+        {
+          "node_base": {},
+          "mount_point": "/var/lib/buildkit/var/lib/docker/volumes/buildx_buildkit_hardcore_galileo0_state/_data/multiple-lowerdir-check894650044/merged",
+          "mount_root": "/",
+          "filesystem": "overlay"
+        },
+        {
+          "node_base": {},
+          "mount_point": "/var/lib/buildkit/var/lib/docker/volumes/buildx_buildkit_hardcore_galileo0_state/_data/multiple-lowerdir-check2763692455/merged",
+          "mount_root": "/",
+          "filesystem": "overlay"
+        }
+      ]
+    }
+  ]
+}

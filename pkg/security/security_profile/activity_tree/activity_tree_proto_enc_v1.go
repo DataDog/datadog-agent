@@ -39,12 +39,11 @@ func MountsToProto(at *ActivityTree) []*adproto.MountNode {
 	out := make([]*adproto.MountNode, 0, len(at.Mounts))
 	for _, mn := range at.Mounts {
 		out = append(out, &adproto.MountNode{
-			NodeBase:      nodeBaseToProto(&mn.NodeBase, at.GetTagFromID),
-			MountPoint:    mn.MountPoint,
-			MountRoot:     mn.MountRoot,
-			Filesystem:    mn.Filesystem,
-			MountFlags:    mn.MountFlags,
-			BaseNamespace: mn.InBaseNamespace,
+			NodeBase:   nodeBaseToProto(&mn.NodeBase, at.GetTagFromID),
+			MountPoint: mn.MountPoint,
+			MountRoot:  mn.MountRoot,
+			Filesystem: mn.Filesystem,
+			MountFlags: mn.MountFlags,
 		})
 	}
 	return out
@@ -508,8 +507,9 @@ func nodeBaseToProto(nb *NodeBase, tagIDToImageTag func(id uint64) string) *adpr
 			return
 		}
 		pnb.Seen[tag] = &adproto.ImageTagTimes{
-			FirstSeen: TimestampToProto(&times.FirstSeen),
-			LastSeen:  TimestampToProto(&times.LastSeen),
+			FirstSeen:     TimestampToProto(&times.FirstSeen),
+			LastSeen:      TimestampToProto(&times.LastSeen),
+			BaseNamespace: times.BaseNamespace,
 		}
 	})
 
