@@ -125,6 +125,10 @@ func TestStreamOrderedMetricsV1MatchesBatchReader(t *testing.T) {
 	batch, err := readAllMetrics(dir)
 	require.NoError(t, err)
 	require.Equal(t, batch, got)
+	for _, metric := range got {
+		require.Empty(t, metric.MetricType)
+		require.Equal(t, observerdef.UnknownType, newParquetMetricView(metric.Name, metric.Value, metric.Tags, metric.Timestamp, metric.MetricType).GetMetricType())
+	}
 }
 
 func TestStreamOrderedMetricsV1ReordersBoundedDisorderAcrossFiles(t *testing.T) {
@@ -234,6 +238,7 @@ func TestStreamOrderedObservationsV2(t *testing.T) {
 		if observation.metric != nil {
 			kinds = append(kinds, "metric")
 			require.Equal(t, []string{"host:host-a", "source:check"}, observation.metric.Tags)
+			require.Equal(t, observerdef.UnknownType, newParquetMetricView(observation.metric.Name, observation.metric.Value, observation.metric.Tags, observation.metric.Timestamp, observation.metric.MetricType).GetMetricType())
 		} else {
 			kinds = append(kinds, "log")
 			require.Equal(t, []string{"host:host-b", "source:logs"}, observation.log.Tags)

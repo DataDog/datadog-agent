@@ -61,6 +61,7 @@ dd_agent_go_test(
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/recorder/def",
         "//comp/core/config",
+        "//pkg/metrics",
         "//pkg/tagset",
         "//pkg/util/fxutil",
         "//pkg/util/option",
