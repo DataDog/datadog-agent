@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
@@ -1023,6 +1024,211 @@ func TestUpdateFromPodAutoscaler(t *testing.T) {
 		pai.UpdateFromPodAutoscaler(dpa)
 		assert.Equal(t, int32(7), pai.UpstreamCR().Status.Horizontal.Target.Replicas, "status-only update must be picked up")
 	})
+}
+
+func TestUpdateFromOpsAnnotations(t *testing.T) {
+	tests := []struct {
+		name                   string
+		annotations            map[string]string
+		expectedPaused         bool
+		expectedFallbackForced bool
+	}{
+		{
+			name:        "no annotations",
+			annotations: nil,
+		},
+		{
+			name:                   "both enabled",
+			annotations:            map[string]string{PauseAnnotationKey: "true", ForceFallbackAnnotationKey: "true"},
+			expectedPaused:         true,
+			expectedFallbackForced: true,
+		},
+		{
+			// "false" means "do not force", which is the same as not setting the annotation.
+			// It must not be read as "disable the fallback", which remains a spec field.
+			name:        "explicit false is equivalent to absent",
+			annotations: map[string]string{PauseAnnotationKey: "false", ForceFallbackAnnotationKey: "false"},
+		},
+		{
+			// A typo must not be able to freeze autoscaling on a workload indefinitely,
+			// so an unparseable value is ignored exactly like an absent one.
+			name:        "unparseable values are treated as not set",
+			annotations: map[string]string{PauseAnnotationKey: "yes-please", ForceFallbackAnnotationKey: "sure"},
+		},
+		{
+			name:           "boolean spellings accepted by strconv",
+			annotations:    map[string]string{PauseAnnotationKey: "1"},
+			expectedPaused: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pai := PodAutoscalerInternal{}
+			pai.UpdateFromOpsAnnotations(tt.annotations)
+
+			assert.Equal(t, tt.expectedPaused, pai.IsPaused())
+			assert.Equal(t, tt.expectedFallbackForced, pai.IsFallbackForced())
+		})
+	}
+}
+
+func TestUpdateFromOpsAnnotationsForceReplicas(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    string
+		expected *int32
+	}{
+		{name: "positive integer", value: "28", expected: pointer.Ptr[int32](28)},
+		{name: "one", value: "1", expected: pointer.Ptr[int32](1)},
+		// Scaling to zero is not something the autoscaler does, so "0" is a mistake rather
+		// than a way to stop a workload.
+		{name: "zero is invalid", value: "0"},
+		{name: "negative is invalid", value: "-3"},
+		{name: "non-numeric is invalid", value: "lots"},
+		{name: "float is invalid", value: "2.5"},
+		{name: "empty is unset", value: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pai := PodAutoscalerInternal{}
+			pai.UpdateFromOpsAnnotations(map[string]string{ForceReplicasAnnotationKey: tt.value})
+
+			replicas, forced := pai.ForcedReplicas()
+			if tt.expected == nil {
+				assert.False(t, forced, "value %q must be ignored", tt.value)
+				return
+			}
+			assert.True(t, forced)
+			assert.Equal(t, *tt.expected, replicas)
+		})
+	}
+}
+
+// TestSetActiveScalingValuesForcedReplicas verifies that the pinned count does not replace the
+// active scaling values: the recommendations keep being tracked, in the status and in the history
+// used by the stabilization windows, so that they are used again as soon as the annotation is removed.
+func TestSetActiveScalingValuesForcedReplicas(t *testing.T) {
+	currentTime := time.Now()
+
+	pai := PodAutoscalerInternal{}
+	pai.UpdateFromOpsAnnotations(map[string]string{ForceReplicasAnnotationKey: "28"})
+	pai.UpdateFromMainValues(ScalingValues{
+		Horizontal: &HorizontalScalingValues{
+			Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+			Timestamp: currentTime,
+			Replicas:  5,
+		},
+	}, 1)
+
+	pai.SetActiveScalingValues(currentTime, pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource), nil)
+
+	require.NotNil(t, pai.ScalingValues().Horizontal)
+	assert.Equal(t, int32(5), pai.ScalingValues().Horizontal.Replicas)
+	require.Len(t, pai.HorizontalLastRecommendations(), 1)
+	assert.Equal(t, int32(5), pai.HorizontalLastRecommendations()[0].Replicas)
+
+	status := pai.BuildStatus(metav1.NewTime(currentTime), nil)
+	require.NotNil(t, status.Horizontal)
+	assert.Equal(t, int32(5), status.Horizontal.Target.Replicas, "the status target is the recommendation, the pin is in the HorizontalScalingLimited condition")
+}
+
+// TestParseForceReplicasAnnotation checks that only a positive integer pins a replica count: any other
+// value is ignored, as if the annotation were absent.
+func TestParseForceReplicasAnnotation(t *testing.T) {
+	for _, tt := range []struct {
+		value    string
+		expected *int32
+	}{
+		{value: "", expected: nil},
+		{value: "28", expected: pointer.Ptr[int32](28)},
+		{value: "abc", expected: nil},
+		{value: "0", expected: nil},
+		{value: "-3", expected: nil},
+		{value: "28 ", expected: nil},
+	} {
+		t.Run(tt.value, func(t *testing.T) {
+			assert.Equal(t, tt.expected, parseForceReplicasAnnotation(tt.value))
+		})
+	}
+}
+
+// TestUpdateFromOpsAnnotationsClearedOnRemoval verifies that removing the annotations resumes the
+// autoscaler, i.e. that the parsed state is not sticky.
+func TestUpdateFromOpsAnnotationsClearedOnRemoval(t *testing.T) {
+	pai := PodAutoscalerInternal{}
+
+	pai.UpdateFromOpsAnnotations(map[string]string{PauseAnnotationKey: "true", ForceFallbackAnnotationKey: "true"})
+	assert.True(t, pai.IsPaused())
+	assert.True(t, pai.IsFallbackForced())
+
+	pai.UpdateFromOpsAnnotations(nil)
+	assert.False(t, pai.IsPaused())
+	assert.False(t, pai.IsFallbackForced())
+}
+
+func TestIsLocalFallbackEnabled(t *testing.T) {
+	disabled := &datadoghq.DatadogFallbackPolicy{Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{Enabled: false}}
+	enabled := &datadoghq.DatadogFallbackPolicy{Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{Enabled: true}}
+
+	for _, tt := range []struct {
+		name     string
+		fallback *datadoghq.DatadogFallbackPolicy
+		forced   bool
+		expected bool
+	}{
+		{name: "no fallback policy", expected: true},
+		{name: "enabled", fallback: enabled, expected: true},
+		{name: "disabled", fallback: disabled, expected: false},
+		// The annotation never overrides the spec.
+		{name: "disabled and forced", fallback: disabled, forced: true, expected: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			pai := FakePodAutoscalerInternal{Spec: &datadoghq.DatadogPodAutoscalerSpec{Fallback: tt.fallback}}.Build()
+			if tt.forced {
+				pai.UpdateFromOpsAnnotations(map[string]string{ForceFallbackAnnotationKey: "true"})
+			}
+			assert.Equal(t, tt.expected, pai.IsLocalFallbackEnabled())
+		})
+	}
+}
+
+// TestBuildStatusLocallyPaused verifies that pausing is reported through the Active condition.
+func TestBuildStatusLocallyPaused(t *testing.T) {
+	findActive := func(status datadoghqcommon.DatadogPodAutoscalerStatus) *datadoghqcommon.DatadogPodAutoscalerCondition {
+		for i := range status.Conditions {
+			if status.Conditions[i].Type == datadoghqcommon.DatadogPodAutoscalerActiveCondition {
+				return &status.Conditions[i]
+			}
+		}
+		return nil
+	}
+
+	pai := NewPodAutoscalerInternal(&datadoghq.DatadogPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{Name: "dpa", Namespace: "default"},
+		Spec:       datadoghq.DatadogPodAutoscalerSpec{Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner},
+	})
+
+	active := findActive(pai.BuildStatus(metav1.Now(), nil))
+	require.NotNil(t, active)
+	assert.Equal(t, corev1.ConditionTrue, active.Status)
+
+	pai.UpdateFromOpsAnnotations(map[string]string{PauseAnnotationKey: "true"})
+	active = findActive(pai.BuildStatus(metav1.Now(), nil))
+	require.NotNil(t, active)
+	assert.Equal(t, corev1.ConditionFalse, active.Status)
+	assert.Equal(t, LocallyPausedReason, active.Reason)
+	assert.Contains(t, active.Message, PauseAnnotationKey)
+
+	// Paused takes precedence over a target scaled to 0: it is the actionable reason.
+	pai.SetCurrentReplicas(0)
+	active = findActive(pai.BuildStatus(metav1.Now(), nil))
+	assert.Equal(t, LocallyPausedReason, active.Reason)
+
+	pai.UpdateFromOpsAnnotations(map[string]string{PauseAnnotationKey: "not-a-bool"})
+	active = findActive(pai.BuildStatus(metav1.Now(), nil))
+	assert.NotEqual(t, LocallyPausedReason, active.Reason, "an unparseable value is ignored")
 }
 
 // TestSetActiveScalingValues_NilSource_ClearsVertical verifies that a nil verticalActiveSource

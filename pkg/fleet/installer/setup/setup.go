@@ -65,6 +65,10 @@ func Setup(ctx context.Context, env *env.Env, flavor string) error {
 	if err != nil {
 		return err
 	}
+	if err := s.CheckAgentFlavor(); err != nil {
+		s.Span.Finish(err)
+		return err
+	}
 	return s.Run()
 }
 

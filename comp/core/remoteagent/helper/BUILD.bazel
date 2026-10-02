@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "helper",
-    srcs = ["serverhelper.go"],
+    srcs = [
+        "serverhelper.go",
+        "telemetry.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagent/helper",
     visibility = ["//visibility:public"],
     deps = [
@@ -11,6 +14,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/ipc/def",
         "//comp/core/log/def",
+        "//comp/core/telemetry/def",
         "//comp/def",
         "//pkg/proto/pbgo/core",
         "//pkg/util/grpc",
@@ -26,12 +30,17 @@ go_library(
 
 dd_agent_go_test(
     name = "helper_test",
-    srcs = ["serverhelper_test.go"],
+    srcs = [
+        "serverhelper_test.go",
+        "telemetry_test.go",
+    ],
     embed = [":helper"],
     deps = [
         "//comp/core/ipc/def",
         "//comp/core/ipc/mock",
         "//comp/core/log/mock",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/mock",
         "//comp/def",
         "//pkg/config/mock",
         "//pkg/proto/pbgo/core",

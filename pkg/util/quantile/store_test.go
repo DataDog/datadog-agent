@@ -220,3 +220,18 @@ func TestCols(t *testing.T) {
 		assert.Equal(t, n, tt.n, "values don't match")
 	}
 }
+
+// TestInsertCountsAboveMaxCount records what a count above Config.MaxCount()
+// costs: the count survives, but the sketch silently outgrows its bin budget.
+func TestInsertCountsAboveMaxCount(t *testing.T) {
+	c := Default()
+	require.Equal(t, defaultBinLimit*math.MaxUint16, c.MaxCount())
+
+	n := c.MaxCount() + 1
+	s := &sparseStore{}
+	s.insertCounts(c, []KeyCount{{k: 42, n: uint(n)}})
+
+	assert.Equal(t, n, s.count)
+	assert.Equal(t, n, s.bins.nSum(), "trimLeft preserves the inserted count")
+	assert.Greater(t, len(s.bins), c.binLimit, "the sketch outgrows its binLimit budget")
+}

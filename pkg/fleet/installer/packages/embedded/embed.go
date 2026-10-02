@@ -89,6 +89,9 @@ var PARExecutorWindowsProcmgrConfig string
 //go:embed tmpl/gen/windows/datadog-agent-par-control.yaml
 var PARControlWindowsProcmgrConfig string
 
+//go:embed tmpl/gen/windows
+var windowsProcmgrConfigs embed.FS
+
 // UnitType is the type of systemd unit.
 type UnitType string
 
@@ -169,6 +172,35 @@ func LaunchdJobs(variant LaunchdVariant) ([]string, error) {
 		labels = append(labels, label)
 	}
 	return labels, nil
+}
+
+// ShippedProcmgrConfigFiles returns the basenames of processes.d YAML files the installer embeds
+// for Linux (tmpl/gen/pm/processes.d) and Windows (tmpl/gen/windows). Used by COAT drift tests
+// so a new shipped config cannot land without migratableServices coverage.
+func ShippedProcmgrConfigFiles() ([]string, error) {
+	seen := map[string]struct{}{}
+	for _, dir := range []struct {
+		fs  embed.FS
+		rel string
+	}{
+		{procmgrUnits, "tmpl/gen/pm/processes.d"},
+		{windowsProcmgrConfigs, "tmpl/gen/windows"},
+	} {
+		entries, err := dir.fs.ReadDir(dir.rel)
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".yaml") {
+				seen[entry.Name()] = struct{}{}
+			}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for name := range seen {
+		out = append(out, name)
+	}
+	return out, nil
 }
 
 func flavorDir(unitType UnitType, ambiantCapabilitiesSupported bool) string {
