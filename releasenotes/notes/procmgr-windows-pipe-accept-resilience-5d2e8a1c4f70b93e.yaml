@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    On Windows, **dd-procmgrd** keeps serving IPC after a failed connection accept.
+    A single accept error used to end the accept loop, which stopped the daemon listening
+    on its named pipe: ``dd-procmgr status``, ``stop`` and ``reload`` then failed until the
+    Agent service was restarted, and the reason was only written to the log once the daemon
+    shut down. The affected pipe instance is now replaced and accepts continue, waiting
+    between attempts up to a ceiling of 5 seconds and logging at error level once the
+    failures stop looking transient.

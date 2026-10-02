@@ -143,16 +143,26 @@ func TestServicedefIsEnabled_procmgrManagedServices(t *testing.T) {
 	}
 }
 
-// The fleet template ships auto_start: true for process-agent, so the SCM service must be
+// The fleet templates ship auto_start: true for these, so the SCM service must be
 // suppressed or both supervisors would run one. The two are only ever correct together.
-func TestProcessServiceIsProcmgrManaged(t *testing.T) {
+func TestServicesAreProcmgrManaged(t *testing.T) {
+	cases := map[string]string{
+		"process":  processProcmgrDefinitionFile,
+		"sysprobe": sysprobeProcmgrDefinitionFile,
+	}
+
 	coreConf := configmock.New(t)
 	sysprobeConf := configmock.NewSystemProbe(t)
+	services := subservices(coreConf, sysprobeConf)
 
-	svc, ok := findService(subservices(coreConf, sysprobeConf), "process")
-	require.True(t, ok)
-	require.Equal(t, processProcmgrDefinitionFile, svc.procmgrDefinitionFile,
-		"dropping process-agent suppression requires flipping auto_start back in the fleet template")
+	for name, defFile := range cases {
+		t.Run(name, func(t *testing.T) {
+			svc, ok := findService(services, name)
+			require.True(t, ok)
+			require.Equal(t, defFile, svc.procmgrDefinitionFile,
+				"dropping %s suppression requires flipping auto_start back in the fleet template", name)
+		})
+	}
 }
 
 // stopDependentServices must not run its stop loop while a startup pass is still in

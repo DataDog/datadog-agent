@@ -265,3 +265,11 @@ func assertPropertyList(t *testing.T, content []byte) {
 	}
 	assert.Equal(t, "plist", root, "definition is not rooted at <plist>")
 }
+
+func TestShippedProcmgrConfigFilesListsEmbeds(t *testing.T) {
+	shipped, err := ShippedProcmgrConfigFiles()
+	require.NoError(t, err)
+	require.NotEmpty(t, shipped)
+	assert.Contains(t, shipped, "datadog-agent-ddot.yaml")
+	assert.Contains(t, shipped, "datadog-agent-par-control.yaml")
+}
