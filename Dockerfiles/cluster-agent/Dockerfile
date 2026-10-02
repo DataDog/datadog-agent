@@ -159,8 +159,8 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
     && chmod u=r,g=r,o= /etc/datadog-agent/private-action-runner/*
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
-COPY --from=nosys-seccomp /tmp/nosys.so /lib/x86_64-linux-gnu/nosys.so
-ENV LD_PRELOAD=/lib/x86_64-linux-gnu/nosys.so
+COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
+ENV LD_PRELOAD=/opt/lib/nosys.so
 
 # Incompatible with the custom metrics API on port 443
 # Set DD_EXTERNAL_METRICS_PROVIDER_PORT to a higher value to run as non-root
