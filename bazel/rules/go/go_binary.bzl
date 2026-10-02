@@ -14,9 +14,6 @@ Version string strategy:
 x_defs values may reference any of the common variables Python-style format
 placeholders, e.g. {"some/pkg.appVersion": "{agent_version}"}.
 
-No RPATH is embedded: binaries that load shipped shared libraries get one at
-install time from rewrite_rpath (see packages/agent/product).
-
 The Go run directory (pkg/util/defaultpaths.runPath) is not set here: it is
 binary-specific, so callers that need it pass their own x_defs.
 
