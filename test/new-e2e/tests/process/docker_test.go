@@ -120,7 +120,6 @@ func (s *dockerTestSuite) TestProcessCheckHostPasswdUsername() {
 	require.NoError(t, err)
 
 	agentOpts := []dockeragentparams.Option{
-		dockeragentparams.WithAgentServiceEnvVariable("HOST_ETC", pulumi.String("/host/etc")),
 		dockeragentparams.WithExtraVolumes(passwdPath + ":/host/etc/passwd:ro"),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", pulumi.String("true")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", pulumi.String("false")),
