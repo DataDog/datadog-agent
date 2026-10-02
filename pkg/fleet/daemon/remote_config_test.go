@@ -388,3 +388,60 @@ func TestTaskHandlerRunsARequestOnceUnderConcurrentDelivery(t *testing.T) {
 
 	assert.EqualValues(t, 1, executed.Load())
 }
+
+// Ordinary handler failures must not prevent unrelated requests from being processed.
+func TestFailedRequestDoesNotAbortTheRestOfTheSet(t *testing.T) {
+	first := requestJSON(t, "first", methodStartExperiment)
+	second := requestJSON(t, "second", methodStartExperiment)
+
+	executed := 0
+	statuses := map[string]state.ApplyStatus{}
+	handler := handleUpdaterTaskUpdate(func(remoteAPIRequest) error {
+		executed++
+		return errors.New("boom")
+	}, alwaysCatalogReady)
+	handler(map[string]state.RawConfig{
+		"first":  {Config: first},
+		"second": {Config: second},
+	}, func(id string, status state.ApplyStatus) {
+		statuses[id] = status
+	})
+
+	assert.Equal(t, 2, executed, "a failed request must not strand another task")
+	require.Len(t, statuses, 2)
+	for id, status := range statuses {
+		assert.Equal(t, state.ApplyStateError, status.State, "request %s", id)
+		assert.Equal(t, "boom", status.Error, "request %s", id)
+	}
+}
+
+func TestMalformedRequestDoesNotAbortValidRequests(t *testing.T) {
+	var executed []string
+	statuses := map[string]state.ApplyStatus{}
+	handler := handleUpdaterTaskUpdate(func(request remoteAPIRequest) error {
+		executed = append(executed, request.ID)
+		return nil
+	}, alwaysCatalogReady)
+	handler(map[string]state.RawConfig{
+		"bad":   {Config: []byte("invalid JSON")},
+		"valid": {Config: requestJSON(t, "valid", methodStartConfigExperiment)},
+	}, func(id string, status state.ApplyStatus) {
+		statuses[id] = status
+	})
+
+	require.Len(t, statuses, 2)
+	assert.Equal(t, state.ApplyStateError, statuses["bad"].State)
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses["valid"].State)
+	assert.Equal(t, []string{"valid"}, executed)
+}
+
+func requestJSON(t *testing.T, id string, method string) []byte {
+	t.Helper()
+	raw, err := json.Marshal(remoteAPIRequest{
+		ID:     id,
+		Method: method,
+		Params: json.RawMessage(`{"version":"7.32.0"}`),
+	})
+	require.NoError(t, err)
+	return raw
+}

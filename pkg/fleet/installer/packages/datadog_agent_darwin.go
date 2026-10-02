@@ -36,6 +36,9 @@ var datadogAgentPackage = hooks{
 	postInstall: postInstallDatadogAgent,
 	preRemove:   preRemoveDatadogAgent,
 
+	preStartExperiment:   preStartExperimentDatadogAgent,
+	prePromoteExperiment: prePromoteExperimentDatadogAgent,
+
 	postStartConfigExperiment:   postStartConfigExperimentDatadogAgent,
 	preStopConfigExperiment:     preStopConfigExperimentDatadogAgent,
 	postPromoteConfigExperiment: postPromoteConfigExperimentDatadogAgent,
@@ -409,6 +412,23 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 		installinfo.RemoveInstallInfo()
 	}
 	return nil
+}
+
+// errVersionExperimentNotSupported is returned for a version experiment: nothing on macOS swaps the
+// running binaries yet, so with no hook to refuse it the installer would switch the experiment
+// pointer, restart nothing, and report the task as done.
+var errVersionExperimentNotSupported = errors.New("version experiments are not supported on macOS")
+
+// preStartExperimentDatadogAgent refuses a version experiment before the installer sets it, so the
+// package repository is left as it was and the task is reported as failed.
+func preStartExperimentDatadogAgent(_ HookContext) error {
+	return errVersionExperimentNotSupported
+}
+
+// prePromoteExperimentDatadogAgent refuses to promote a version experiment, for the same reason
+// preStartExperimentDatadogAgent refuses to start one.
+func prePromoteExperimentDatadogAgent(_ HookContext) error {
+	return errVersionExperimentNotSupported
 }
 
 // postStartConfigExperimentDatadogAgent hands the Agent over to the experiment job set, then
