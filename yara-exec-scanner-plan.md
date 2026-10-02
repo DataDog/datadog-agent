@@ -247,7 +247,7 @@ Likely the longest task. Involve the build and packaging owners early.
   - reads, read errors by reason, too-big
   - scans, matches, scan errors, timeouts, queue drops
 - [x] Gauges: identity cache size, sha set size, queue depth. Distribution: scan duration
-- [ ] Stretch goal, scoped as a separate follow-up: send a custom event to the CWS backend (the consumer needs a way to reach the CWS event sender) — not attempted
+- [x] Stretch goal: send a custom event to the CWS backend — **done**. On a match the reporter dispatches a `yara_malware` custom event (rule ID reserved in `pkg/security/events/custom.go`) via `evm.Probe.DispatchCustomEvent`, using the CWS process-activity serializer plus a `yara` block (sha256, path, script, rules version, matched rules/namespaces/tags). Holds the exec's `*model.ProcessCacheEntry` (GC-managed, not the pooled event) from `Copy()` to report time. Reaches the backend only when CWS is enabled (dispatch is a no-op otherwise); the log line always fires. — not attempted
 
 **Done when:** metrics are visible in a dev-org dashboard during the M1 dry run.
 
