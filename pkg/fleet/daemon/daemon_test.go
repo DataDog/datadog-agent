@@ -585,10 +585,11 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	pm.AssertExpectations(t)
 }
 
-func TestRefreshStateRunningConfigVersionFallback(t *testing.T) {
-	// No experiment running: RunningConfigVersion should track the promoted stable config on disk.
+func TestRefreshStateRunningConfigVersion(t *testing.T) {
+	// No experiment running. The second package has no config on disk.
 	testPackageStates := map[string]repository.State{
-		"datadog-agent": {Stable: "7.50.0"},
+		"datadog-agent":      {Stable: "7.50.0"},
+		"datadog-apm-inject": {Stable: "0.10.0"},
 	}
 	testConfigStates := map[string]repository.State{
 		"datadog-agent": {Stable: "config-stable-1"},
@@ -642,10 +643,21 @@ func TestRefreshStateRunningConfigVersionFallback(t *testing.T) {
 
 	state := i.rcc.GetInstallerState()
 	require.NotNil(t, state)
-	require.Len(t, state.Packages, 1)
-
-	pkg := state.Packages[0]
-	assert.Equal(t, "config-stable-1", pkg.RunningConfigVersion, "RunningConfigVersion should fall back to the on-disk stable config when no experiment is active")
+	require.Len(t, state.Packages, 2)
+	running := map[string]string{}
+	for _, p := range state.Packages {
+		running[p.Package] = p.RunningConfigVersion
+	}
+	if runtime.GOOS == "darwin" {
+		// The macOS daemon outlives config experiments, so it reports what is active on disk.
+		assert.Equal(t, "config-stable-1", running["datadog-agent"])
+		assert.Equal(t, "empty", running["datadog-apm-inject"], "no config on disk falls back to the startup config_id")
+	} else {
+		// Linux and Windows restart the daemon with the experiment's config, so the startup
+		// config_id is accurate; packages other than the Agent report none, as on main.
+		assert.Equal(t, "empty", running["datadog-agent"])
+		assert.Equal(t, "", running["datadog-apm-inject"])
+	}
 
 	pm.AssertExpectations(t)
 }
