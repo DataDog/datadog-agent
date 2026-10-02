@@ -176,6 +176,17 @@ func TestExtractGPUType(t *testing.T) {
 		{deviceName: "Unknown GPU", expected: ""},
 		{deviceName: "Unknown_GPU", expected: ""},
 		{deviceName: "nViDiA a100", expected: "a100"},
+		// AMD Instinct names of libdrm's amdgpu.ids; the "VF" and "HF" suffixes are not part of the type.
+		{deviceName: "AMD Instinct MI350X", expected: "mi350x"},
+		{deviceName: "AMD Instinct MI350X VF", expected: "mi350x"},
+		{deviceName: "AMD Instinct MI300X HF", expected: "mi300x"},
+		{deviceName: "AMD Instinct MI300A", expected: "mi300a"},
+		{deviceName: "AMD Instinct MI250X MI250", expected: "mi250x"},
+		{deviceName: "AMD Radeon Instinct MI25", expected: "mi25"},
+		// Kubernetes node label of the AMD labeller (amd.com/gpu.product-name), same device as above.
+		{deviceName: "AMD_Instinct_MI350X_VF", expected: "mi350x"},
+		{deviceName: "AMD Radeon Pro W7900", expected: ""},
+		{deviceName: "AMD GPU 0x75b0", expected: ""},
 	}
 
 	for _, tt := range tests {
