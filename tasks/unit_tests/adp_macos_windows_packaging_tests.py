@@ -49,18 +49,18 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
 
     def test_system_launchdaemons_are_managed_consistently(self):
         # The agent/sysprobe/data-plane LaunchDaemons are no longer shipped as static plist XML
-        # for postinst to cp into place: postinst installs all four stable jobs (including the
-        # installer daemon) from the same embedded copies a Fleet configuration experiment swaps
-        # between, via a single installer subcommand -- see InstallStableJobs in
-        # pkg/fleet/installer/packages/datadog_agent_darwin.go. Go-side coverage for the rendered
-        # job content itself lives in
+        # for postinst to cp into place: postinst runs `installer postinst datadog-agent dmg`, which
+        # installs all four stable jobs (including the installer daemon) from the same embedded
+        # copies a Fleet configuration experiment swaps between -- see postInstallDatadogAgent and
+        # installStableJobs in pkg/fleet/installer/packages/datadog_agent_darwin.go. Go-side
+        # coverage for the rendered job content itself lives in
         # pkg/fleet/installer/packages/launchd/jobset_test.go's
         # TestTheTwoVariantsDifferInExactlyFourWays.
         preinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/preinst").read_text()
         postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
         uninstall = (REPO_ROOT / "cmd/agent/macos/uninstall_mac_os.sh").read_text()
 
-        self.assertIn("install-stable-jobs", postinst)
+        self.assertIn("postinst datadog-agent dmg", postinst)
 
         labels = [
             "com.datadoghq.agent",
