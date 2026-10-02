@@ -172,6 +172,11 @@ pkg_rpm(
         "datadog-iot-agent",
         "glibc-common < 2.17",
     ],
+    # Host strip cannot process eBPF ELF (.o). Omnibus uses strip_exclude for
+    # the same paths; binaries are already stripped by Bazel.
+    defines = {
+        "__strip": "/bin/true",
+    },
     description = _DESCRIPTION,
     epoch = "1",
     group = "System Environment/Daemons",
