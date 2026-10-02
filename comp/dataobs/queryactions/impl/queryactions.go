@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -22,6 +23,7 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -33,6 +35,10 @@ type Requires struct {
 	Ac       autodiscovery.Component
 	// EventPlatform sends task-level error results for one-off tasks the agent cannot start.
 	EventPlatform eventplatform.Component
+	// Collector reports when a one-off task's check has run, so the next task queued for the same
+	// database can start right away. Without it, a queued task starts when the previous task's
+	// config leaves the RC snapshot.
+	Collector option.Option[collector.Component]
 }
 
 // Provides defines the output of the Data Observability query actions component
@@ -63,6 +69,13 @@ type component struct {
 	taskChanges   *taskChangesQueue
 	eventPlatform eventplatform.Component
 	now           func() time.Time
+	// taskApplyStatus is the apply state callback of the latest RC update, used to report the state
+	// of a queued task that starts between RC updates.
+	taskApplyStatus func(string, state.ApplyStatus)
+	// finishedTaskChecks returns the config IDs of task checks that have completed their run. Nil
+	// when there is no collector.
+	finishedTaskChecks func() map[string]bool
+	stopTaskPolling    context.CancelFunc
 }
 
 // NewComponent creates a new Data Observability query actions component
@@ -78,9 +91,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 		eventPlatform: reqs.EventPlatform,
 		now:           time.Now,
 	}
+	if coll, ok := reqs.Collector.Get(); ok {
+		c.finishedTaskChecks = collectorFinishedTaskChecks(coll)
+	}
 
 	reqs.Lc.Append(compdef.Hook{
 		OnStart: c.start,
+		OnStop:  c.stop,
 	})
 
 	return Provides{Comp: c}, nil
@@ -89,7 +106,19 @@ func NewComponent(reqs Requires) (Provides, error) {
 func (c *component) start(_ context.Context) error {
 	c.ac.AddConfigProvider(c, false, 0)
 	c.ac.AddConfigProvider(&taskProvider{queue: c.taskChanges}, false, 0)
+	if c.finishedTaskChecks != nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		c.stopTaskPolling = cancel
+		go c.pollTaskChecks(ctx, taskCheckPollInterval)
+	}
 	c.log.Info("Data Observability query actions component started")
+	return nil
+}
+
+func (c *component) stop(_ context.Context) error {
+	if c.stopTaskPolling != nil {
+		c.stopTaskPolling()
+	}
 	return nil
 }
 
