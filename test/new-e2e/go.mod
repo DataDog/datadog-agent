@@ -23,7 +23,7 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.65.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20260911191259-12a4825893c4
-	github.com/DataDog/rshell v0.0.29
+	github.com/DataDog/rshell v0.0.30
 	github.com/aws/aws-sdk-go-v2 v1.47.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.5
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.99.0
