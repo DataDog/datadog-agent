@@ -21,7 +21,6 @@ type Cluster struct {
 	Pattern   []Token
 	Count     int
 	Tags      map[string]string
-	Samples   []string
 	// LastSeenUnix is wall-clock time (Unix seconds) of the most recent log
 	// assigned to this cluster (including merges into an existing pattern).
 	LastSeenUnix int64
@@ -33,7 +32,6 @@ type ClusterInfo struct {
 	Signature     string
 	PatternString string
 	Count         int
-	FirstSample   string
 }
 
 // PatternString returns the human-readable pattern for this cluster.
@@ -66,7 +64,6 @@ func (c *Cluster) ToClusterInfo() ClusterInfo {
 		Signature:     c.Signature,
 		PatternString: c.PatternString(),
 		Count:         c.Count,
-		FirstSample:   c.Samples[0],
 	}
 }
 
@@ -99,12 +96,12 @@ func (sc *SignatureClusterer) Process(message string, unixSec int64) (*Cluster, 
 	}
 
 	tokens := sc.tokenizer.Tokenize(message)
-	return sc.ProcessTokens(tokens, message, unixSec)
+	return sc.ProcessTokens(tokens, unixSec)
 }
 
 // ProcessTokens clusters by exact token-list signature. unixSec is Unix
 // seconds recorded on new clusters (must be non-zero; use time.Now().Unix() when unknown).
-func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string, unixSec int64) (*Cluster, bool) {
+func (sc *SignatureClusterer) ProcessTokens(tokens []Token, unixSec int64) (*Cluster, bool) {
 	sig := TokenListSignature(tokens)
 
 	if c, ok := sc.clusters[sig]; ok {
@@ -117,7 +114,6 @@ func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string, unix
 		Signature:    sig,
 		Pattern:      tokens,
 		Count:        1,
-		Samples:      []string{message},
 		ID:           sc.nextID,
 		LastSeenUnix: unixSec,
 	}
@@ -203,12 +199,12 @@ func (pc *PatternClusterer) Process(message string, unixSec int64) (*Cluster, bo
 
 	tokens := pc.tokenizer.Tokenize(message)
 
-	return pc.ProcessTokens(tokens, message, unixSec)
+	return pc.ProcessTokens(tokens, unixSec)
 }
 
 // ProcessTokens records unixSec on new clusters and returns the matched or
 // newly created cluster.
-func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string, unixSec int64) (*Cluster, bool) {
+func (pc *PatternClusterer) ProcessTokens(tokens []Token, unixSec int64) (*Cluster, bool) {
 	sig := TokenListSignature(tokens)
 
 	// Try within same signature group first
@@ -242,7 +238,6 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string, unixSe
 		Signature:    sig,
 		Pattern:      tokens,
 		Count:        1,
-		Samples:      []string{message},
 		ID:           pc.nextID,
 		LastSeenUnix: unixSec,
 	}
