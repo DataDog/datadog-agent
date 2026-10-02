@@ -411,6 +411,10 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 
 	// actions of the rule definition that were not loaded
 	for _, actionDef := range rule.Def.Actions {
+		// a `null` entry in the YAML actions list yields a nil definition
+		if actionDef == nil {
+			continue
+		}
 		if !slices.ContainsFunc(rule.Actions, func(action *rules.Action) bool { return action.Def == actionDef }) {
 			ruleAction := newRuleAction(actionDef, ActionStatusRejected)
 			if err := actionErrors[actionDef]; err != nil {

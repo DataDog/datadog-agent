@@ -515,6 +515,62 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 			},
 		},
 		{
+			// a `null` entry in the YAML actions list yields a nil action definition
+			name: "filtered rule with a null action",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:                     "rule_a",
+								Expression:             `exec.file.path == "/etc/foo/bar"`,
+								AgentVersionConstraint: "< 0.0.1",
+								Actions: []*rules.ActionDefinition{
+									nil,
+									{
+										Kill: &rules.KillDefinition{
+											Signal: "SIGKILL",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusFullyFiltered,
+					Rules: []*RuleState{
+						{
+							ID:                     "rule_a",
+							Expression:             `exec.file.path == "/etc/foo/bar"`,
+							Status:                 "filtered",
+							Message:                "this agent version doesn't support this rule",
+							FilterType:             string(rules.FilterTypeAgentVersion),
+							AgentVersionConstraint: "< 0.0.1",
+							Actions: []RuleAction{
+								{
+									Status: ActionStatusRejected,
+									Kill: &RuleKillAction{
+										Signal: "SIGKILL",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "multiple rules with one agent constraint passing",
 			policies: []*testPolicy{
 				{
