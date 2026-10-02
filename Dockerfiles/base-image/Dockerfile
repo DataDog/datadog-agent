@@ -46,12 +46,6 @@ RUN if [ "$CI" = "true" ]; then \
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-FROM baseimage AS nosys-seccomp
-RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
-COPY nosys-seccomp/nosys.c   /tmp/nosys.c
-COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
-RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
-
 # ------------------------------
 # Final stage
 # ------------------------------
@@ -96,7 +90,7 @@ COPY datadog*.yaml etc/datadog-agent/
 COPY install_info etc/datadog-agent/
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
-COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
+COPY --from=artifacts nosys.so /opt/lib/nosys.so
 ENV LD_PRELOAD=/opt/lib/nosys.so \
     PATH="/opt/datadog-agent/embedded/bin:${PATH}"
 
