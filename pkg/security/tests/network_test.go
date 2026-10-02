@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
 )
 
@@ -415,6 +416,17 @@ func TestRawPacketActionProtocols(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+
+	// ICMP and raw sockets have no flow_pid entry: their packets are only attributed to a process through
+	// the socket cookie (cgroup v2 socket hooks) or the current task
+	kv, err := kernel.NewKernelVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cgroup2MountPoint, _ := utils.GetCgroup2MountPoint()
+	if (cgroup2MountPoint == "" || !kv.HasBpfGetSocketCookieForCgroupSocket()) && !kv.HasBpfGetCurrentPidTgidForSchedCLS() {
+		t.Skip("packets of raw sockets can't be attributed to a process on this kernel")
+	}
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
