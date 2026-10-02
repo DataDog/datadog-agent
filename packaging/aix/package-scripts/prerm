@@ -31,4 +31,6 @@ fi
 # Remove user, home directory, group, and runtime directories.
 rmuser dd-agent 2>/dev/null || true
 rmgroup dd-agent 2>/dev/null || true
-rm -rf /var/log/datadog /var/run/datadog 2>/dev/null || true
+# /var/log/datadog is kept: pre_rm runs during upgrades (base replacement),
+# and deinstalls keep logs like the deb package does (only purge removes them).
+rm -rf /var/run/datadog 2>/dev/null || true
