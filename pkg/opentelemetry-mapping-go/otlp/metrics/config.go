@@ -60,10 +60,27 @@ type translatorConfig struct {
 
 	// withUnits reports whether to set Datadog units on metrics.
 	withUnits bool
+
+	// withAzureMonitorAppServiceMetrics enables the opt-in cloud receiver proof.
+	withAzureMonitorAppServiceMetrics bool
 }
 
 // TranslatorOption is a translator creation option.
 type TranslatorOption func(*translatorConfig) error
+
+// WithAzureMonitorAppServiceMetrics enables an experimental, non-billing Azure
+// App Service activity gauge from azuremonitorreceiver CpuTime Total datapoints.
+// It is disabled by default and emits the distinct metric
+// otel.datadog_exporter.metrics.azuremonitor.app_service.active_instance with
+// canonical instance identity, no host, and the cloud observation timestamp.
+// Raw metrics and app-side running metrics are unchanged. This option does not
+// configure metering or enable an exporter or OTLP intake integration.
+func WithAzureMonitorAppServiceMetrics() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.withAzureMonitorAppServiceMetrics = true
+		return nil
+	}
+}
 
 // WithRemapping specifies that certain OTEL metrics (such as container.* and system.*) need to be
 // remapped to their Datadog counterparts because they will not be available otherwise. This happens
