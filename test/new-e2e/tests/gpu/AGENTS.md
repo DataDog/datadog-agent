@@ -10,6 +10,12 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 - `TestGPUHostSuiteUbuntu2204`: Tests GPU monitoring on Ubuntu 22.04 host
 - `TestGPUHostSuiteUbuntu1804Driver430`: Tests on Ubuntu 18.04 with driver 430
 - `TestGPUHostSuiteUbuntu1804Driver510`: Tests on Ubuntu 18.04 with driver 510
+- `TestAMDGPUHostSuite`: Tests AMD GPU monitoring on a `g4ad.xlarge` host (Radeon Pro V520
+  virtual function) with the in-tree `amdgpu` driver and no system-probe
+  (`amd_test.go`, `amd_provisioner.go`). The driver comes from `linux-modules-extra` and
+  `linux-firmware`, installed with apt at provisioning time: a known external dependency until
+  a pre-baked AMD AMI exists. It covers device metrics only — no ROCm workload runs, so
+  process and container metrics are not exercised.
 
 ### Kubernetes Tests
 - `TestGPUK8sSuiteUbuntu2204`: Tests GPU monitoring in Kubernetes on Ubuntu 22.04
@@ -124,7 +130,8 @@ under Ubuntu x86_64 (`22-04-gpu`, `18-04-gpu-driver-430`, and
 
 ## GPU Instance Type
 
-Tests use `g4dn.xlarge` (the cheapest GPU instance type) with NVIDIA Tesla T4 GPUs.
+NVIDIA tests use `g4dn.xlarge` (the cheapest GPU instance type) with NVIDIA Tesla T4 GPUs.
+The AMD suite uses `g4ad.xlarge`, the cheapest instance with an AMD GPU.
 
 ## Notes
 
