@@ -661,7 +661,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
-	filterList.SetMetricFilterList([]string{"original.blocked.count"}, false)
+	filterList.SetMetricFilterList([]string{"original.blocked.count"}, false, nil)
 
 	demux := InitAndStartAgentDemultiplexer(
 		deps.Log,
@@ -720,7 +720,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	// Reset the mock
 	s.series = []*metrics.Serie{}
 
-	filterList.SetMetricFilterList([]string{"original.blocked.avg"}, false)
+	filterList.SetMetricFilterList([]string{"original.blocked.avg"}, false, nil)
 
 	// Ensure the new filter list has been sent.
 	require.Eventually(func() bool {
@@ -732,14 +732,14 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	demux.Stop()
 
 	// We no longer need to ensure the correct metrics are being blocked after stopping. Just make sure it doesn't deadlock.
-	filterList.SetMetricFilterList([]string{"another.metric"}, false)
+	filterList.SetMetricFilterList([]string{"another.metric"}, false, nil)
 
 	// Wait until the aggregator has been removed whilst stopping demux.
 	require.Eventually(func() bool {
 		return demux.aggregator == nil
 	}, time.Second, time.Millisecond)
 
-	filterList.SetMetricFilterList([]string{"more.metric"}, false)
+	filterList.SetMetricFilterList([]string{"more.metric"}, false, nil)
 }
 
 type DemultiplexerAgentTestDeps struct {
