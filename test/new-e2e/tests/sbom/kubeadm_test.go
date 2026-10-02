@@ -166,6 +166,40 @@ func (s *kubeadmSuite) Test00UpAndRunning() {
 	s.Require().NoError(err, "Not all agents eventually became ready in time.")
 }
 
+// TestContainerImageLayerCreated verifies that no container image payload
+// sends a layer created at the zero time. The base layers of the control plane
+// images record that time, so their payloads carry those layers with no
+// created time.
+func (s *kubeadmSuite) TestContainerImageLayerCreated() {
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		names, err := s.Fakeintake.GetContainerImageNames()
+		require.NoErrorf(c, err, "Failed to query fake intake")
+
+		ok := true
+		unset := map[string]int{}
+		for _, name := range names {
+			images, err := s.Fakeintake.FilterContainerImages(name)
+			require.NoErrorf(c, err, "Failed to query fake intake")
+			for _, img := range images {
+				for _, layer := range img.GetLayers() {
+					history := layer.GetHistory()
+					if history == nil {
+						continue
+					}
+					if history.GetCreated() == nil {
+						unset[name]++
+						continue
+					}
+					ok = assert.Falsef(c, history.GetCreated().AsTime().IsZero(), "%s sends layer %s created at the zero time", name, layer.GetDigest()) && ok
+				}
+			}
+		}
+		if assert.NotEmptyf(c, unset, "No container image payload has a layer without a created time yet") && ok {
+			s.T().Logf("Layers sent with no created time, by image: %v", unset)
+		}
+	}, 8*time.Minute, 15*time.Second, "Failed validating the layer created times of the container image payloads")
+}
+
 // expectedComponent describes a meaningful SBOM component to assert on. When name
 // is set, a component with that exact name must exist; when only purlPrefix is set,
 // any component whose PURL starts with the prefix satisfies the check.
