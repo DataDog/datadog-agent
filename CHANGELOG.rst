@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.84.1:
+
+7.84.1
+======
+
+.. _Release Notes_7.84.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-10-02
+
+- Please refer to the `7.84.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7841>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.84.1_Security Notes:
+
+Security Notes
+--------------
+
+- Update ``golang.org/x/crypto`` to v0.56.0.
+
+
 .. _Release Notes_7.84.0:
 
 7.84.0
