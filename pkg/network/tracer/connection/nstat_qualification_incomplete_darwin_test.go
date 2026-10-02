@@ -28,6 +28,7 @@ func TestNStatQualificationLoopbackTCPErrorsIncomplete(t *testing.T) {
 
 	tracer, err := newNStatTracer(testNStatConfig())
 	require.NoError(t, err)
+	tracer.includeLoopback = true
 	t.Cleanup(tracer.Stop)
 	require.NoError(t, tracer.Start(nil))
 

@@ -238,6 +238,7 @@ func TestNStatTracerInfersFastLoopbackPairWithoutSynStates(t *testing.T) {
 				}
 				t.Run(tc.name+"/"+listenerOrder+"/"+order, func(t *testing.T) {
 					tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+					tracer.includeLoopback = true
 					listener := nstat.Event{
 						Kind:      nstat.EventDescription,
 						SourceRef: 20,
@@ -318,6 +319,7 @@ func TestNStatTracerDirectionEvidencePrecedence(t *testing.T) {
 
 func TestNStatTracerSkipsAmbiguousReversePeerDirection(t *testing.T) {
 	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	tracer.includeLoopback = true
 	for sourceRef, pid := range map[uint64]uint32{31: 4001, 32: 4002} {
 		tracer.processEvent(nstat.Event{
 			Kind:      nstat.EventDescription,
@@ -639,6 +641,57 @@ func TestNStatTracerPublishesAndCountsPIDZero(t *testing.T) {
 	require.Len(t, buffer.Connections(), 1)
 	require.Zero(t, buffer.Connections()[0].Pid)
 	require.Equal(t, before+1, nstatTracerTelemetry.pidZeroPublished.WithValues().Get())
+}
+
+func TestNStatTracerFiltersLoopbackByDefault(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	var closed []*network.ConnectionStats
+	tracer.closeCallback = func(conn *network.ConnectionStats) {
+		closed = append(closed, conn)
+	}
+	filtered := nstatTracerTelemetry.filteredSources.WithValues("loopback")
+	before := filtered.Get()
+
+	udpLoopback := testNStatUDPFlow(1004)
+	udpLoopback.Local.Address = netip.MustParseAddr("127.0.0.1")
+	udpLoopback.Remote = nstat.Endpoint{}
+	loopback := []struct {
+		sourceRef uint64
+		provider  uint32
+		flow      *nstat.Flow
+	}{
+		{40, nstat.ProviderTCPKernel, testNStatLoopbackTCPFlow(1001, "127.0.0.1", 50000, 8080)},
+		{41, nstat.ProviderTCPKernel, testNStatLoopbackTCPFlow(1002, "::1", 50001, 8081)},
+		{42, nstat.ProviderTCPKernel, testNStatLoopbackTCPFlow(1003, "::ffff:127.0.0.1", 50002, 8082)},
+		{43, nstat.ProviderUDPKernel, udpLoopback},
+	}
+	for _, source := range loopback {
+		for range 2 {
+			tracer.processEvent(nstat.Event{
+				Kind:      nstat.EventDescription,
+				SourceRef: source.sourceRef,
+				Provider:  source.provider,
+				Flow:      source.flow,
+			})
+		}
+	}
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 44,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPFlow(1005, tcpStateEstablished),
+	})
+
+	var buffer network.ConnectionBuffer
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.Len(t, buffer.Connections(), 1)
+	require.Equal(t, uint32(1005), buffer.Connections()[0].Pid)
+	require.Equal(t, before+float64(len(loopback)), filtered.Get())
+
+	for _, source := range loopback {
+		tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: source.sourceRef})
+	}
+	require.Empty(t, closed)
 }
 
 func TestNStatTracerAppliesLateAuthoritativeUDPRemote(t *testing.T) {

@@ -48,7 +48,6 @@ const (
 	tcpStateSynReceived = 3
 	tcpStateEstablished = 4
 )
-
 // darwinDirectionEvidence ranks direction signals from weakest to strongest.
 // Stronger evidence may replace weaker evidence, while equal or weaker
 // evidence cannot flip an established direction.
@@ -86,6 +85,7 @@ var nstatTracerTelemetry = struct {
 	runtimeFailures    telemetry.Counter
 	directionConflicts telemetry.Counter
 	pidZeroPublished   telemetry.Counter
+	filteredSources    telemetry.Counter
 	activeSources      telemetry.Gauge
 }{
 	datagrams:          telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "datagrams", nil, "NStat datagrams received"),
@@ -98,6 +98,7 @@ var nstatTracerTelemetry = struct {
 	runtimeFailures:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "runtime_failures", nil, "Fatal NStat runtime failures"),
 	directionConflicts: telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "direction_conflicts", nil, "Conflicting direction evidence observed"),
 	pidZeroPublished:   telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "pid_zero_published", nil, "NStat connections published without a PID"),
+	filteredSources:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "filtered_sources", []string{"reason"}, "Resolved NStat sources not published"),
 	activeSources:      telemetryimpl.GetCompatComponent().NewGauge("network_tracer__nstat", "active_sources", nil, "NStat sources currently tracked"),
 }
 
@@ -133,6 +134,7 @@ type nstatSource struct {
 	listenerKey              darwinTCPListenerKey
 	listenerIndexed          bool
 	packetEnriched           bool
+	loopbackFiltered         bool
 }
 
 type nstatTracer struct {
@@ -144,6 +146,10 @@ type nstatTracer struct {
 	byCookie  map[uint64]*nstatSource
 	tuples    *darwinTupleIndex
 	listeners map[darwinTCPListenerKey]map[uint64]struct{}
+
+	// includeLoopback publishes sources with a loopback endpoint. Production
+	// never sets it; loopback connections are always filtered.
+	includeLoopback bool
 
 	// Sources without any flow description take priority over retries for
 	// partially described sources. Both queues are FIFO so retries cannot
@@ -596,6 +602,13 @@ func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event 
 		if !nstatSourceResolved(source) {
 			return
 		}
+		if !t.includeLoopback && nstatFlowIsLoopback(source.flow) {
+			if !source.loopbackFiltered {
+				source.loopbackFiltered = true
+				nstatTracerTelemetry.filteredSources.Inc("loopback")
+			}
+			return
+		}
 		if !nstatSourceEnabled(t.config, source) {
 			return
 		}
@@ -680,6 +693,10 @@ func nstatSourceEnabled(cfg *config.Config, source *nstatSource) bool {
 	default:
 		return false
 	}
+}
+
+func nstatFlowIsLoopback(flow *nstat.Flow) bool {
+	return flow.Local.Address.Unmap().IsLoopback() || flow.Remote.Address.Unmap().IsLoopback()
 }
 
 func nstatSourceResolved(source *nstatSource) bool {
