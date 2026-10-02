@@ -168,6 +168,13 @@ func (c *Collector) Report(ctx context.Context, opts ScrubOptions) SupportReport
 		}
 	}
 
+	// The OS unit/SCM state does not go through dd-procmgrd, so it is collected whether or not the
+	// calls above succeeded: a unit that is stopped or failed is what a reader needs when the daemon
+	// cannot answer. Status() does not carry it, so without this the field stays empty on every host.
+	serviceStateCtx, cancelServiceState := daemonServiceStateContext(ctx)
+	out.Daemon.ServiceState = detectDaemonServiceState(serviceStateCtx)
+	cancelServiceState()
+
 	for _, service := range migratableServices {
 		out.Services = append(out.Services, c.collectService(ctx, service, processes))
 	}

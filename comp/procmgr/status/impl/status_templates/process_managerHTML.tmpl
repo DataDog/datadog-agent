@@ -1,0 +1,72 @@
+{{- with .processManager }}
+  <div class="stat">
+    <span class="stat_title">Process Manager</span>
+    <span class="stat_data">
+      Socket Path: {{ .SocketPath }}<br>
+      Reachable: {{ .Daemon.Reachable }}<br>
+      Ready: {{ .Daemon.Ready }}<br>
+      {{- if .Daemon.Version }}
+      Version: {{ .Daemon.Version }}<br>
+      {{- end }}
+      {{- if .Daemon.Reachable }}
+      Uptime: {{ .Daemon.UptimeSeconds }}s<br>
+      Running Processes: {{ .Daemon.RunningProcesses }}<br>
+      Total Processes: {{ .Daemon.TotalProcesses }}<br>
+      {{- end }}
+      {{- if .Daemon.ServiceState }}
+      Service State: {{ .Daemon.ServiceState }}<br>
+      {{- end }}
+      {{- if .DaemonError }}
+      Daemon Error: {{ .DaemonError }}<br>
+      {{- end }}
+      {{- if .ProcessesError }}
+      Processes Error: {{ .ProcessesError }}<br>
+      {{- end }}
+
+      <span class="stat_subtitle">Processes</span>
+      <span class="stat_subdata">
+        {{- if .Processes }}
+        {{- range .Processes }}
+          {{ .Name }}: state={{ .State }} pid={{ .PID }} restarts={{ .RestartCount }}
+          {{- if .Profile }} profile={{ .Profile }}{{ end }}
+          {{- if .User }} user={{ .User }}{{ end }}
+          {{- if .LastExitCode }} last_exit_code={{ .LastExitCode }}{{ end }}
+          {{- if .LastSignal }} last_signal={{ .LastSignal }}{{ end }}<br>
+        {{- end }}
+        Tip: Full scrubbed argv is in flare file procmgr/state.json.<br>
+        {{- else }}
+          (none)<br>
+        {{- end }}
+      </span>
+
+      <span class="stat_subtitle">Services</span>
+      <span class="stat_subdata">
+        {{- if .Services }}
+        {{- range .Services }}
+          {{ .ID }}: installed={{ .Installed }} configured={{ .ProcmgrConfigured }} mode={{ .ManagementMode }} procmgr_state={{ .ProcmgrState }}<br>
+        {{- end }}
+        {{- else }}
+          (none)<br>
+        {{- end }}
+      </span>
+
+      {{- if .Warnings }}
+      <span class="stat_subtitle">Warnings</span>
+      <span class="stat_subdata">
+        {{- range .Warnings }}
+          <span class="warning">WARNING: {{ . }}</span><br>
+        {{- end }}
+      </span>
+      {{- end }}
+
+      {{- if .Notes }}
+      <span class="stat_subtitle">Notes</span>
+      <span class="stat_subdata">
+        {{- range .Notes }}
+          {{ . }}<br>
+        {{- end }}
+      </span>
+      {{- end }}
+    </span>
+  </div>
+{{- end }}
