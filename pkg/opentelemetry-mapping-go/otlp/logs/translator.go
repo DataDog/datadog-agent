@@ -116,56 +116,61 @@ func (t *Translator) MapLogsAndRouteRUMEvents(ctx context.Context, ld plog.Logs,
 				logRecord := lsl.At(k)
 				if shouldForwardOTLPRUMToDDRUM {
 					if _, isRum := logRecord.Attributes().Get("session.id"); isRum {
-						rattr := rl.Resource().Attributes()
-						lattr := logRecord.Attributes()
+						if err := func() error {
+							rattr := rl.Resource().Attributes()
+							lattr := logRecord.Attributes()
 
-						// build the Datadog intake URL
-						pathAndParams := rum.BuildIntakeURLPathAndParameters(rattr, lattr)
-						outURLString := rumIntakeURL + pathAndParams
+							// build the Datadog intake URL
+							pathAndParams := rum.BuildIntakeURLPathAndParameters(rattr, lattr)
+							outURLString := rumIntakeURL + pathAndParams
 
-						rumPayload := rum.ConstructRumPayloadFromOTLP(lattr)
-						byts, err := json.Marshal(rumPayload)
-						if err != nil {
-							return []datadogV2.HTTPLogItem{}, fmt.Errorf("failed to marshal RUM payload: %w", err)
+							rumPayload := rum.ConstructRumPayloadFromOTLP(lattr)
+							byts, err := json.Marshal(rumPayload)
+							if err != nil {
+								return fmt.Errorf("failed to marshal RUM payload: %w", err)
+							}
+
+							req, err := http.NewRequest("POST", outURLString, bytes.NewBuffer(byts))
+							if err != nil {
+								return fmt.Errorf("failed to create request: %w", err)
+							}
+
+							// add X-Forwarded-For header containing the request client IP address
+							ip, ok := lattr.Get("client.address")
+							if ok {
+								req.Header.Add("X-Forwarded-For", ip.AsString())
+							}
+
+							req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
+
+							// send the request to the Datadog intake URL
+							resp, err := t.httpClient.Do(req)
+							if err != nil {
+								return fmt.Errorf("failed to send request: %w", err)
+							}
+							if resp != nil && resp.Body != nil {
+								defer func() {
+									if cerr := resp.Body.Close(); cerr != nil {
+										t.set.Logger.Error("failed to close response body: %v", zap.Error(cerr))
+									}
+								}()
+							}
+
+							// read the response body
+							body, err := io.ReadAll(resp.Body)
+							if err != nil {
+								return fmt.Errorf("failed to read response: %w", err)
+							}
+
+							// check the status code of the response
+							if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+								return fmt.Errorf("received non-OK response: status: %s, body: %s", resp.Status, string(body))
+							}
+							t.set.Logger.Info("Response:", zap.String("body", string(body)))
+							return nil
+						}(); err != nil {
+							return []datadogV2.HTTPLogItem{}, err
 						}
-
-						req, err := http.NewRequest("POST", outURLString, bytes.NewBuffer(byts))
-						if err != nil {
-							return []datadogV2.HTTPLogItem{}, fmt.Errorf("failed to create request: %w", err)
-						}
-
-						// add X-Forwarded-For header containing the request client IP address
-						ip, ok := lattr.Get("client.address")
-						if ok {
-							req.Header.Add("X-Forwarded-For", ip.AsString())
-						}
-
-						req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
-
-						// send the request to the Datadog intake URL
-						resp, err := t.httpClient.Do(req)
-						if err != nil {
-							return []datadogV2.HTTPLogItem{}, fmt.Errorf("failed to send request: %w", err)
-						}
-						if resp != nil && resp.Body != nil {
-							defer func() {
-								if cerr := resp.Body.Close(); cerr != nil {
-									t.set.Logger.Error("failed to close response body: %v", zap.Error(cerr))
-								}
-							}()
-						}
-
-						// read the response body
-						body, err := io.ReadAll(resp.Body)
-						if err != nil {
-							return []datadogV2.HTTPLogItem{}, fmt.Errorf("failed to read response: %w", err)
-						}
-
-						// check the status code of the response
-						if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-							return []datadogV2.HTTPLogItem{}, fmt.Errorf("received non-OK response: status: %s, body: %s", resp.Status, string(body))
-						}
-						t.set.Logger.Info("Response:", zap.String("body", string(body)))
 						continue
 					}
 				}

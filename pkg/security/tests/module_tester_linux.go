@@ -1986,49 +1986,54 @@ func (tm *testModule) CheckZombieProcesses() error {
 			continue // not a valid pid
 		}
 
-		statusPath := filepath.Join("/proc", pidStr, "status")
-		statusFile, err := os.Open(statusPath)
-		if err != nil {
-			continue // could not read status file
-		}
-		defer statusFile.Close()
+		if err := func() error {
+			statusPath := filepath.Join("/proc", pidStr, "status")
+			statusFile, err := os.Open(statusPath)
+			if err != nil {
+				return nil // could not read status file
+			}
+			defer statusFile.Close()
 
-		scanner := bufio.NewScanner(statusFile)
-		state := ""
-		for scanner.Scan() {
-			line := scanner.Text()
+			scanner := bufio.NewScanner(statusFile)
+			state := ""
+			for scanner.Scan() {
+				line := scanner.Text()
 
-			if stateStr, ok := strings.CutPrefix(line, "State:"); ok {
-				state = strings.TrimSpace(stateStr)
-			} else if ppidStr, ok := strings.CutPrefix(line, "PPid:"); ok {
-				ppidStr = strings.TrimSpace(ppidStr)
-				ppid, err := strconv.Atoi(ppidStr)
-				if err != nil {
-					return fmt.Errorf("failed to parse PPid for PID %d: %w", pid, err)
-				}
-
-				comm, err := os.ReadFile(filepath.Join("/proc", pidStr, "comm"))
-				if err != nil {
-					if errors.Is(err, syscall.ESRCH) {
-						continue
-					}
-					return fmt.Errorf("failed to read comm for PID %d: %w", pid, err)
-				}
-				commStr := strings.TrimSpace(string(comm))
-
-				if ppid == myPid {
-					// Found a zombie process with our PID as its parent
-					// Try to reap it by calling wait (SIGKILL doesn't work on zombies)
-					_, err := syscall.Wait4(pid, nil, syscall.WNOHANG, nil)
+				if stateStr, ok := strings.CutPrefix(line, "State:"); ok {
+					state = strings.TrimSpace(stateStr)
+				} else if ppidStr, ok := strings.CutPrefix(line, "PPid:"); ok {
+					ppidStr = strings.TrimSpace(ppidStr)
+					ppid, err := strconv.Atoi(ppidStr)
 					if err != nil {
-						return fmt.Errorf("found zombie process with PID %d and PPID %d (state=%s, comm=%s), and failed to stop it: %v", pid, ppid, state, commStr, err)
+						return fmt.Errorf("failed to parse PPid for PID %d: %w", pid, err)
 					}
-					log.Debug("found and stopped zombie process with PID %d and PPID %d (state=%s, comm=%s)", pid, ppid, state, commStr)
+
+					comm, err := os.ReadFile(filepath.Join("/proc", pidStr, "comm"))
+					if err != nil {
+						if errors.Is(err, syscall.ESRCH) {
+							continue
+						}
+						return fmt.Errorf("failed to read comm for PID %d: %w", pid, err)
+					}
+					commStr := strings.TrimSpace(string(comm))
+
+					if ppid == myPid {
+						// Found a zombie process with our PID as its parent
+						// Try to reap it by calling wait (SIGKILL doesn't work on zombies)
+						_, err := syscall.Wait4(pid, nil, syscall.WNOHANG, nil)
+						if err != nil {
+							return fmt.Errorf("found zombie process with PID %d and PPID %d (state=%s, comm=%s), and failed to stop it: %v", pid, ppid, state, commStr, err)
+						}
+						log.Debug("found and stopped zombie process with PID %d and PPID %d (state=%s, comm=%s)", pid, ppid, state, commStr)
+					}
 				}
 			}
-		}
-		if err := scanner.Err(); err != nil && !errors.Is(err, syscall.ESRCH) {
-			return fmt.Errorf("error reading status file for PID %d: %w", pid, err)
+			if err := scanner.Err(); err != nil && !errors.Is(err, syscall.ESRCH) {
+				return fmt.Errorf("error reading status file for PID %d: %w", pid, err)
+			}
+			return nil
+		}(); err != nil {
+			return err
 		}
 	}
 

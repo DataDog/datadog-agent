@@ -83,27 +83,33 @@ func loadPythonCheckClass(moduleName string) (loadedPythonCheckClass, error) {
 	var loadErrors []string
 
 	for _, name := range modules {
-		var checkModule *C.rtloader_pyobject_t
-		var checkClass *C.rtloader_pyobject_t
+		result, found := func() (loadedPythonCheckClass, bool) {
+			var checkModule *C.rtloader_pyobject_t
+			var checkClass *C.rtloader_pyobject_t
 
-		cModuleName := TrackedCString(name)
-		defer C.call_free(unsafe.Pointer(cModuleName))
+			cModuleName := TrackedCString(name)
+			defer C.call_free(unsafe.Pointer(cModuleName))
 
-		if res := C.get_class(rtloader, cModuleName, &checkModule, &checkClass); res != 0 {
-			return loadedPythonCheckClass{
-				module:        checkModule,
-				class:         checkClass,
-				loadedName:    name,
-				loadedAsWheel: strings.HasPrefix(name, wheelNamespace+"."),
-			}, nil
-		}
+			if res := C.get_class(rtloader, cModuleName, &checkModule, &checkClass); res != 0 {
+				return loadedPythonCheckClass{
+					module:        checkModule,
+					class:         checkClass,
+					loadedName:    name,
+					loadedAsWheel: strings.HasPrefix(name, wheelNamespace+"."),
+				}, true
+			}
 
-		if err := getRtLoaderError(); err != nil {
-			log.Debugf("Unable to load python module - %s: %v", name, err)
-			loadErrors = append(loadErrors, fmt.Sprintf("unable to load python module %s: %v", name, err))
-		} else {
-			log.Debugf("Unable to load python module - %s", name)
-			loadErrors = append(loadErrors, "unable to load python module "+name)
+			if err := getRtLoaderError(); err != nil {
+				log.Debugf("Unable to load python module - %s: %v", name, err)
+				loadErrors = append(loadErrors, fmt.Sprintf("unable to load python module %s: %v", name, err))
+			} else {
+				log.Debugf("Unable to load python module - %s", name)
+				loadErrors = append(loadErrors, "unable to load python module "+name)
+			}
+			return loadedPythonCheckClass{}, false
+		}()
+		if found {
+			return result, nil
 		}
 	}
 

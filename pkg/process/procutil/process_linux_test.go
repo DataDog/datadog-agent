@@ -1724,12 +1724,13 @@ func BenchmarkNativeReaddirnames(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		d, err := os.Open(dirPath)
 		assert.NoError(b, err)
-		defer d.Close()
 
 		names, err := d.Readdirnames(-1)
 		assert.NoError(b, err)
 
 		assert.Equal(b, fileCount, len(names))
+
+		d.Close()
 	}
 }
 
@@ -1742,7 +1743,6 @@ func BenchmarkImprovedReaddirnames(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		d, err := os.Open(dirPath)
 		assert.NoError(b, err)
-		defer d.Close()
 
 		buf := make([]byte, 8192)
 		count := 0
@@ -1758,6 +1758,8 @@ func BenchmarkImprovedReaddirnames(b *testing.B) {
 		}
 
 		assert.Equal(b, fileCount, count)
+
+		d.Close()
 	}
 }
 

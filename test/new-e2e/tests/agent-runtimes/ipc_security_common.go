@@ -88,13 +88,15 @@ func assertAgentUseCert(t *assert.CollectT, host *components.RemoteHost, ipcCert
 		{"traceAgentDebug", apmCmdPort},
 		{"processAgent", processCmdPort},
 	} {
-		// Make a request to the server
-		resp, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d", endpoint.Port))
-		require.NoErrorf(t, err, "unable to connect to %v", endpoint.Name)
-		defer resp.Body.Close()
+		func() {
+			// Make a request to the server
+			resp, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d", endpoint.Port))
+			require.NoErrorf(t, err, "unable to connect to %v", endpoint.Name)
+			defer resp.Body.Close()
 
-		require.NotNilf(t, resp.TLS, "connection to %v didn't used TLS", endpoint.Name)
-		require.Lenf(t, resp.TLS.PeerCertificates, 1, "server of %v server multiple certficiate", endpoint.Name)
+			require.NotNilf(t, resp.TLS, "connection to %v didn't used TLS", endpoint.Name)
+			require.Lenf(t, resp.TLS.PeerCertificates, 1, "server of %v server multiple certficiate", endpoint.Name)
+		}()
 	}
 }
 

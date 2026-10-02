@@ -16,17 +16,19 @@ func (m *Module) DiagnosticsStates() map[string]map[string][]string {
 		m.diagnostics.emitted,
 		m.diagnostics.errors,
 	} {
-		t.mu.Lock()
-		defer t.mu.Unlock()
-		t.mu.btree.Ascend(func(item diagnosticItem) bool {
-			m, ok := states[item.key.runtimeID]
-			if !ok {
-				m = make(map[string][]string)
-				states[item.key.runtimeID] = m
-			}
-			m[item.key.probeID] = append(m[item.key.probeID], t.name)
-			return true
-		})
+		func() {
+			t.mu.Lock()
+			defer t.mu.Unlock()
+			t.mu.btree.Ascend(func(item diagnosticItem) bool {
+				m, ok := states[item.key.runtimeID]
+				if !ok {
+					m = make(map[string][]string)
+					states[item.key.runtimeID] = m
+				}
+				m[item.key.probeID] = append(m[item.key.probeID], t.name)
+				return true
+			})
+		}()
 	}
 	return states
 }

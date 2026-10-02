@@ -125,10 +125,10 @@ func (c *Check) CustomQueries() error {
 			}
 		}
 		rows, err := c.dbCustomQueries.Queryx(q.Query)
-		if rows != nil {
-			defer rows.Close()
-		}
 		if err != nil {
+			if rows != nil {
+				rows.Close()
+			}
 			allErrors = concatenateError(allErrors, fmt.Sprintf("failed to fetch rows for the custom query %s %s", metricPrefix, err))
 			continue
 		}

@@ -123,27 +123,29 @@ func main() {
 	// copy object files to temp directory with the correct permissions
 	// loader code expects object files to be owned by root.
 	for _, path := range objectFiles {
-		src, err := os.Open(path)
-		if err != nil {
-			log.Fatalf("failed to open file %q for copying: %v", path, err)
-		}
-		defer src.Close()
+		func() {
+			src, err := os.Open(path)
+			if err != nil {
+				log.Fatalf("failed to open file %q for copying: %v", path, err)
+			}
+			defer src.Close()
 
-		dstPath := filepath.Join(os.TempDir(), filepath.Base(path))
-		if err := os.RemoveAll(dstPath); err != nil {
-			log.Fatalf("failed to remove old file at %q: %v", dstPath, err)
-		}
-		dst, err := os.Create(dstPath)
-		if err != nil {
-			log.Fatalf("failed to open destination file %q for copying: %v", dstPath, err)
-		}
-		defer dst.Close()
+			dstPath := filepath.Join(os.TempDir(), filepath.Base(path))
+			if err := os.RemoveAll(dstPath); err != nil {
+				log.Fatalf("failed to remove old file at %q: %v", dstPath, err)
+			}
+			dst, err := os.Create(dstPath)
+			if err != nil {
+				log.Fatalf("failed to open destination file %q for copying: %v", dstPath, err)
+			}
+			defer dst.Close()
 
-		if _, err := io.Copy(dst, src); err != nil {
-			log.Fatalf("failed to copy file %q to %q: %v", path, dstPath, err)
-		}
+			if _, err := io.Copy(dst, src); err != nil {
+				log.Fatalf("failed to copy file %q to %q: %v", path, dstPath, err)
+			}
 
-		files = append(files, dstPath)
+			files = append(files, dstPath)
+		}()
 	}
 
 	var filterRegexp []*regexp.Regexp

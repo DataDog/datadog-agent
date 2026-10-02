@@ -262,7 +262,7 @@ func (ctx *CWSPtracerCtx) handleClientConnection() {
 			if err := ctx.waitClientToBeReady(); err != nil {
 				return
 			}
-			defer ctx.client.Close()
+			defer ctx.client.Close() //nolint:revive // intentional for now: client lifecycle spans the async reconnect loop; refactor tracked in follow-up
 
 			// unqueue and try to send messages or wait client to be stopped
 			if err := ctx.sendMessagesLoop(); err != nil {

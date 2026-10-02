@@ -579,26 +579,32 @@ func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSide
 	requestURL := "/v3/apps/" + appGUID + "/sidecars"
 	for page := 1; ; page++ {
 		query.Set("page", strconv.Itoa(page))
-		r := c.NewRequest("GET", requestURL+"?"+query.Encode())
-		resp, err := c.DoRequest(r)
-		if err != nil {
-			return nil, fmt.Errorf("Error requesting sidecars for app %s: %s", appGUID, err)
-		}
+		data, err := func() (listSidecarsResponse, error) {
+			var data listSidecarsResponse
+			r := c.NewRequest("GET", requestURL+"?"+query.Encode())
+			resp, err := c.DoRequest(r)
+			if err != nil {
+				return data, fmt.Errorf("Error requesting sidecars for app %s: %s", appGUID, err)
+			}
 
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("Error listing sidecars, response code: %d", resp.StatusCode)
-		}
+			if resp.StatusCode != http.StatusOK {
+				return data, fmt.Errorf("Error listing sidecars, response code: %d", resp.StatusCode)
+			}
 
-		defer resp.Body.Close()
-		resBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("Error reading sidecars response for app %s for page %d: %s", appGUID, page, err)
-		}
+			defer resp.Body.Close()
+			resBody, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return data, fmt.Errorf("Error reading sidecars response for app %s for page %d: %s", appGUID, page, err)
+			}
 
-		var data listSidecarsResponse
-		err = json.Unmarshal(resBody, &data)
+			err = json.Unmarshal(resBody, &data)
+			if err != nil {
+				return data, fmt.Errorf("Error unmarshalling sidecars response for app %s for page %d: %s", appGUID, page, err)
+			}
+			return data, nil
+		}()
 		if err != nil {
-			return nil, fmt.Errorf("Error unmarshalling sidecars response for app %s for page %d: %s", appGUID, page, err)
+			return nil, err
 		}
 
 		sidecars = append(sidecars, data.Resources...)
@@ -659,26 +665,32 @@ func (c *CFClient) ListProcessByAppGUID(query url.Values, appGUID string) ([]cfc
 	requestURL := "/v3/apps/" + appGUID + "/processes"
 	for page := 1; ; page++ {
 		query.Set("page", strconv.Itoa(page))
-		r := c.NewRequest("GET", requestURL+"?"+query.Encode())
-		resp, err := c.DoRequest(r)
-		if err != nil {
-			return nil, fmt.Errorf("Error requesting processes for app: %s", err)
-		}
+		data, err := func() (listProcessesByAppGUIDResponse, error) {
+			var data listProcessesByAppGUIDResponse
+			r := c.NewRequest("GET", requestURL+"?"+query.Encode())
+			resp, err := c.DoRequest(r)
+			if err != nil {
+				return data, fmt.Errorf("Error requesting processes for app: %s", err)
+			}
 
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("Error listing processes, response code: %d", resp.StatusCode)
-		}
+			if resp.StatusCode != http.StatusOK {
+				return data, fmt.Errorf("Error listing processes, response code: %d", resp.StatusCode)
+			}
 
-		defer resp.Body.Close()
-		resBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("Error reading processes response for app %s for page %d: %s", appGUID, page, err)
-		}
+			defer resp.Body.Close()
+			resBody, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return data, fmt.Errorf("Error reading processes response for app %s for page %d: %s", appGUID, page, err)
+			}
 
-		var data listProcessesByAppGUIDResponse
-		err = json.Unmarshal(resBody, &data)
+			err = json.Unmarshal(resBody, &data)
+			if err != nil {
+				return data, fmt.Errorf("Error unmarshalling processes response for app %s for page %d: %s", appGUID, page, err)
+			}
+			return data, nil
+		}()
 		if err != nil {
-			return nil, fmt.Errorf("Error unmarshalling processes response for app %s for page %d: %s", appGUID, page, err)
+			return nil, err
 		}
 
 		processes = append(processes, data.Resources...)

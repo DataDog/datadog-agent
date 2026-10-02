@@ -648,44 +648,55 @@ func validateBaseDependency(wheelPath string, baseVersion *semver.Version) (bool
 
 	for _, file := range reader.File {
 		if strings.HasSuffix(file.Name, "METADATA") {
-			fileReader, err := file.Open()
+			compatible, found, err := readBaseDependency(file, baseVersion)
 			if err != nil {
 				return false, err
 			}
-			defer fileReader.Close()
-			scanner := bufio.NewScanner(fileReader)
-			for scanner.Scan() {
-				line := scanner.Text()
-				if strings.Contains(line, "Requires-Dist: datadog-checks-base") {
-					if baseVersion == nil {
-						// Simply trying to verify that the base package is a dependency
-						return true, nil
-					}
-					matches := versionSpecifiersRe.FindAllStringSubmatch(line, -1)
-
-					if matches == nil {
-						// base check not pinned, so it is compatible with whatever version we pass
-						return true, nil
-					}
-
-					compatible := true
-					for _, groups := range matches {
-						comp := groups[1]
-						version, err := semver.NewVersion(groups[2])
-						if err != nil {
-							return false, fmt.Errorf("unable to parse version specifier %s in %s: %v", groups[0], line, err)
-						}
-						compatible = compatible && validateRequirement(baseVersion, comp, version)
-					}
-					return compatible, nil
-				}
-			}
-			if err := scanner.Err(); err != nil {
-				return false, err
+			if found {
+				return compatible, nil
 			}
 		}
 	}
 	return false, nil
+}
+
+func readBaseDependency(f *zip.File, baseVersion *semver.Version) (bool, bool, error) {
+	fileReader, err := f.Open()
+	if err != nil {
+		return false, false, err
+	}
+	defer fileReader.Close()
+	scanner := bufio.NewScanner(fileReader)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, "Requires-Dist: datadog-checks-base") {
+			if baseVersion == nil {
+				// Simply trying to verify that the base package is a dependency
+				return true, true, nil
+			}
+			matches := versionSpecifiersRe.FindAllStringSubmatch(line, -1)
+
+			if matches == nil {
+				// base check not pinned, so it is compatible with whatever version we pass
+				return true, true, nil
+			}
+
+			compatible := true
+			for _, groups := range matches {
+				comp := groups[1]
+				version, err := semver.NewVersion(groups[2])
+				if err != nil {
+					return false, false, fmt.Errorf("unable to parse version specifier %s in %s: %v", groups[0], line, err)
+				}
+				compatible = compatible && validateRequirement(baseVersion, comp, version)
+			}
+			return compatible, true, nil
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return false, false, err
+	}
+	return false, false, nil
 }
 
 func validateRequirement(version *semver.Version, comp string, versionReq *semver.Version) bool {

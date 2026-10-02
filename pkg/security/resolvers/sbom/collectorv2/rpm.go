@@ -52,60 +52,62 @@ func (s *rpmScanner) ListPackages(_ context.Context, root *os.Root) ([]sbomtypes
 			continue
 		}
 
-		// copy the rpmdb to a temp file because rpmdb.Open() requires a file path
-		tempFilePath, err := writeFileToTemp(root, rpmdbPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to write rpmdb to temp file: %w", err)
-		}
-		defer os.RemoveAll(tempFilePath)
-
-		db, err := rpmdb.Open(tempFilePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open rpmdb at path %s: %w", rpmdbPath, err)
-		}
-		defer db.Close()
-
-		pkgs, err := db.ListPackages()
-		if err != nil {
-			return nil, fmt.Errorf("failed to list packages in rpmdb at path %s: %w", rpmdbPath, err)
-		}
-
-		packages := make([]sbomtypes.PackageWithInstalledFiles, 0, len(pkgs))
-		for _, pkg := range pkgs {
-			files, err := pkg.InstalledFileNames()
+		return func() ([]sbomtypes.PackageWithInstalledFiles, error) {
+			// copy the rpmdb to a temp file because rpmdb.Open() requires a file path
+			tempFilePath, err := writeFileToTemp(root, rpmdbPath)
 			if err != nil {
-				return nil, fmt.Errorf("unable to get installed files: %w", err)
+				return nil, fmt.Errorf("failed to write rpmdb to temp file: %w", err)
+			}
+			defer os.RemoveAll(tempFilePath)
+
+			db, err := rpmdb.Open(tempFilePath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to open rpmdb at path %s: %w", rpmdbPath, err)
+			}
+			defer db.Close()
+
+			pkgs, err := db.ListPackages()
+			if err != nil {
+				return nil, fmt.Errorf("failed to list packages in rpmdb at path %s: %w", rpmdbPath, err)
 			}
 
-			for i, file := range files {
-				files[i] = filepath.ToSlash(file)
-			}
-
-			var srcVer, srcRel string
-			if pkg.SourceRpm != "(none)" && pkg.SourceRpm != "" {
-				// source epoch is not included in SOURCERPM
-				_, srcVer, srcRel, err = splitFileName(pkg.SourceRpm)
+			packages := make([]sbomtypes.PackageWithInstalledFiles, 0, len(pkgs))
+			for _, pkg := range pkgs {
+				files, err := pkg.InstalledFileNames()
 				if err != nil {
-					seclog.Warnf("failed to parse source rpm %s: %v", pkg.SourceRpm, err)
+					return nil, fmt.Errorf("unable to get installed files: %w", err)
 				}
+
+				for i, file := range files {
+					files[i] = filepath.ToSlash(file)
+				}
+
+				var srcVer, srcRel string
+				if pkg.SourceRpm != "(none)" && pkg.SourceRpm != "" {
+					// source epoch is not included in SOURCERPM
+					_, srcVer, srcRel, err = splitFileName(pkg.SourceRpm)
+					if err != nil {
+						seclog.Warnf("failed to parse source rpm %s: %v", pkg.SourceRpm, err)
+					}
+				}
+
+				epoch := pkg.EpochNum()
+
+				packages = append(packages, sbomtypes.PackageWithInstalledFiles{
+					Package: sbomtypes.Package{
+						Name:       pkg.Name,
+						Version:    pkg.Version,
+						Epoch:      epoch,
+						Release:    pkg.Release,
+						SrcVersion: srcVer,
+						SrcEpoch:   epoch,
+						SrcRelease: srcRel,
+					},
+					InstalledFiles: files,
+				})
 			}
-
-			epoch := pkg.EpochNum()
-
-			packages = append(packages, sbomtypes.PackageWithInstalledFiles{
-				Package: sbomtypes.Package{
-					Name:       pkg.Name,
-					Version:    pkg.Version,
-					Epoch:      epoch,
-					Release:    pkg.Release,
-					SrcVersion: srcVer,
-					SrcEpoch:   epoch,
-					SrcRelease: srcRel,
-				},
-				InstalledFiles: files,
-			})
-		}
-		return packages, nil
+			return packages, nil
+		}()
 	}
 
 	return nil, fmt.Errorf("no rpmdb found in any of the known paths: %w", os.ErrNotExist)
