@@ -87,7 +87,9 @@
     E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
     E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
     # Direct passthrough of the pipeline-level RUN_WINDOWS variable to the e2e framework.
+    # The legacy SKIP_WINDOWS alias is also passed through; the framework honors both.
     E2E_RUN_WINDOWS: $RUN_WINDOWS
+    E2E_SKIP_WINDOWS: $SKIP_WINDOWS
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
     E2E_LOGS_PROCESSING_TEST_DEPTH: 1
     FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml

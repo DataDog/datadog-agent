@@ -415,6 +415,11 @@ variables:
   PYTHONUNBUFFERED: 1
 
   RUN_WINDOWS: "true"
+  # Legacy alias of RUN_WINDOWS=false, still honored at its consumption points (windows
+  # include rule, e2e devx rules, quality gates, and the e2e framework via E2E_SKIP_WINDOWS)
+  # for compatibility with triggers that predate the rename. The default makes sure the
+  # variable never expands empty where it is passed through.
+  SKIP_WINDOWS: "false"
 
 #
 # Condition mixins for simplification of rules
@@ -578,12 +583,6 @@ workflow:
         RUN_KMT_TESTS: "true"
         RUN_UNIT_TESTS: "true"
         RUN_WINDOWS: "true"
-    # Backward compatibility: normalize the legacy SKIP_WINDOWS variable so every
-    # consumer (windows include rule, e2e jobs, quality gates) sees a consistent
-    # RUN_WINDOWS value.
-    - if: $SKIP_WINDOWS == "true"
-      variables:
-        RUN_WINDOWS: "false"
     - <<: *if_triggered_pipeline
     - <<: *if_main_branch
       variables:

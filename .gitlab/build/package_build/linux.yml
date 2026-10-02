@@ -72,7 +72,7 @@ datadog-agent-7-x64:
 datadog-agent-7-x64-recorder:
   extends: [.agent_build_common, .agent_build_x86, .agent_recorder_flavor]
   rules:
-    - if: '$CI_COMMIT_BRANCH && ($ANOMALY_DETECTION_RECORDER != null || $RUN_ALL_BUILDS == "true" || $DEPLOY_AGENT == "true")'
+    - if: '$CI_COMMIT_BRANCH && ($ANOMALY_DETECTION_RECORDER != null || $PIPELINE_TYPE == "full" || $PIPELINE_TYPE == "full_deploy" || $DEPLOY_AGENT == "true")'
       when: on_success
     - if: '$CI_COMMIT_BRANCH'
       when: manual

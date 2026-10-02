@@ -1083,7 +1083,17 @@ def read_content(ctx, file_path, git_ref: str | None = None):
 
 
 def get_preset_contexts(required_tests):
-    possible_tests = ["all", "main", "release", "mq", "conductor"]
+    possible_tests = [
+        "all",
+        "main",
+        "release",
+        "mq",
+        "conductor",
+        "installer",
+        "integrations",
+        "pipeline_type",
+        "full_skip_windows",
+    ]
     required_test_list = required_tests.casefold().split(",")
     if set(required_test_list) | set(possible_tests) != set(possible_tests):
         raise Exit(f"Invalid test required: {required_test_list} must contain only values from {possible_tests}", 1)
@@ -1143,6 +1153,24 @@ def get_preset_contexts(required_tests):
         ("RUN_KITCHEN_TESTS", ["false"]),
         ("RUN_E2E_TESTS", ["false"]),
     ]
+    # PIPELINE_TYPE triggers on an ordinary dev branch, exercising the workflow-rule
+    # expansion (light/full/full_deploy) and the windows include PIPELINE_TYPE rule.
+    pipeline_type_contexts = [
+        ("BUCKET_BRANCH", ["dev"]),
+        ("CI_COMMIT_BRANCH", ["my-dev-branch"]),
+        ("CI_PIPELINE_SOURCE", ["trigger"]),
+        ("PIPELINE_TYPE", ["light", "full", "full_deploy"]),
+    ]
+    # PIPELINE_TYPE=full combined with the legacy SKIP_WINDOWS=true, exercising the
+    # first-match behavior of the workflow rules (the full rule must not override the
+    # legacy windows exclusion at the consumption points).
+    full_skip_windows_contexts = [
+        ("BUCKET_BRANCH", ["dev"]),
+        ("CI_COMMIT_BRANCH", ["my-dev-branch"]),
+        ("CI_PIPELINE_SOURCE", ["trigger"]),
+        ("PIPELINE_TYPE", ["full"]),
+        ("SKIP_WINDOWS", ["true"]),
+    ]
     all_contexts = []
     for test in required_test_list:
         if test in ["all", "main"]:
@@ -1157,6 +1185,10 @@ def get_preset_contexts(required_tests):
             generate_contexts(installer_contexts, [], all_contexts)
         if test in ["all", "integrations"]:
             generate_contexts(integrations_core_contexts, [], all_contexts)
+        if test in ["all", "pipeline_type"]:
+            generate_contexts(pipeline_type_contexts, [], all_contexts)
+        if test in ["all", "full_skip_windows"]:
+            generate_contexts(full_skip_windows_contexts, [], all_contexts)
     return all_contexts
 
 

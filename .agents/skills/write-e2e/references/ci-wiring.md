@@ -140,7 +140,7 @@ Some e2e jobs prune themselves from the inside. A job whose `rules` reference `.
 Three consequences for a test author:
 
 - A test the index does not know about is never skipped. The skip list is `indexed tests − impacted tests` (`tasks/libs/dynamic_test/index.py`), so a newly added test always runs.
-- Pruning happens on dev branches only. `main`, release branches, tagged commits, and triggered pipelines run everything, as does setting `RUN_E2E_TESTS=on` or the breakglass secret.
+- Pruning happens on dev branches only. `main`, release branches, tagged commits, and triggered pipelines run everything, as does setting `RUN_E2E_TESTS=true` or the breakglass secret.
 - A failure to load the index is logged and the run falls back to the full suite, so a missing index costs time rather than coverage.
 
 Ask in `#agent-devx-help` when a job needs an artifact or a cloud capability that does not exist yet.

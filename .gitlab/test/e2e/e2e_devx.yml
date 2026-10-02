@@ -118,7 +118,7 @@ generate-flakes-finder-pipeline:
   stage: e2e
   rules:
     - !reference [.except_disable_e2e_tests]
-    - if: $RUN_WINDOWS == "false"
+    - if: $RUN_WINDOWS == "false" || $SKIP_WINDOWS == "true"
       when: never
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
@@ -165,7 +165,7 @@ trigger-flakes-finder:
   needs: [generate-flakes-finder-pipeline]
   rules:
     - !reference [.except_disable_e2e_tests]
-    - if: $RUN_WINDOWS == "false"
+    - if: $RUN_WINDOWS == "false" || $SKIP_WINDOWS == "true"
       when: never
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
@@ -184,7 +184,7 @@ generate-fips-e2e-pipeline:
   stage: e2e
   rules:
     - !reference [.except_disable_e2e_tests]
-    - if: $RUN_WINDOWS == "false"
+    - if: $RUN_WINDOWS == "false" || $SKIP_WINDOWS == "true"
       when: never
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
@@ -237,7 +237,7 @@ trigger-fips-e2e:
   needs: [generate-fips-e2e-pipeline]
   rules:
     - !reference [.except_disable_e2e_tests]
-    - if: $RUN_WINDOWS == "false"
+    - if: $RUN_WINDOWS == "false" || $SKIP_WINDOWS == "true"
       when: never
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
