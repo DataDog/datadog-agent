@@ -195,9 +195,8 @@ rust_test(
         "@platforms//os:windows": {
             "DD_CONFIG_SCHEMA_CORE_YAML": "$(rlocationpath //pkg/config/schema:yaml/core_schema.yaml)",
             "GRACEFUL_SLEEPER_BIN": "$(rlocationpath :graceful-sleeper)",
-            # Console/standard-slot and environment fixtures manipulate
-            # process-global state. Keep those Windows tests serial; production
-            # spawning and signaling no longer share a console lock.
+            # Environment fixtures manipulate process-global state, so keep
+            # the Windows tests serial.
             "RUST_TEST_THREADS": "1",
         },
         "//conditions:default": {

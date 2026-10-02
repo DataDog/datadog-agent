@@ -1418,6 +1418,34 @@ pub mod tests {
         assert_eq!(proc.state(), ProcessState::Stopped);
     }
 
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn test_spawn_writes_stdout_to_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let output = dir.path().join("workload.out");
+        let mut config = test_helpers::make_config(
+            "cmd.exe",
+            vec!["/C".into(), "echo procmgr_file_output".into()],
+        );
+        config.stdout = output.to_string_lossy().into_owned();
+        config.stderr = "null".into();
+        config.restart = RestartPolicy::Never;
+        let mut proc =
+            ManagedProcess::new_config("file-output".into(), test_helpers::test_uuid(), config);
+        let mut exit_rx = spawn_ok(&mut proc);
+        let event = time::timeout(Duration::from_secs(5), exit_rx.recv())
+            .await
+            .unwrap()
+            .expect("workload exit event");
+        assert!(event.status.success());
+        proc.set_last_status(event.status);
+        assert!(
+            std::fs::read_to_string(&output)
+                .unwrap()
+                .contains("procmgr_file_output")
+        );
+    }
+
     #[tokio::test]
     async fn test_spawn_nonexistent_binary() {
         let cfg = test_helpers::make_config("/nonexistent/binary", vec![]);

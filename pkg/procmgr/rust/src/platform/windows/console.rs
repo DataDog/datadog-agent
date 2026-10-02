@@ -4,26 +4,19 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::Result;
-use std::sync::OnceLock;
+#[cfg(test)]
 use windows_sys::Win32::Foundation::{
-    CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, GetLastError, HANDLE,
-    INVALID_HANDLE_VALUE, NO_ERROR, SetLastError,
+    GetLastError, HANDLE, INVALID_HANDLE_VALUE, NO_ERROR, SetLastError,
 };
+#[cfg(test)]
 use windows_sys::Win32::Storage::FileSystem::{FILE_TYPE_UNKNOWN, GetFileType};
 #[cfg(test)]
-use windows_sys::Win32::System::Console::GetConsoleCP;
-use windows_sys::Win32::System::Console::{GetStdHandle, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE};
-use windows_sys::Win32::System::Threading::GetCurrentProcess;
-
-// Test fixtures change process-global console state; production signaling does not.
-#[cfg(test)]
-static CONSOLE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-#[cfg(test)]
-pub(crate) fn console_lock() -> std::sync::MutexGuard<'static, ()> {
-    CONSOLE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
-}
+use windows_sys::Win32::System::Console::{
+    GetConsoleCP, GetStdHandle, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE,
+};
 
 /// True when the handle still refers to something usable.
+#[cfg(test)]
 fn handle_live(handle: HANDLE) -> bool {
     if handle.is_null() || handle == INVALID_HANDLE_VALUE {
         return false;
@@ -33,93 +26,6 @@ fn handle_live(handle: HANDLE) -> bool {
         // handles; only the last-error value tells the two apart.
         SetLastError(NO_ERROR);
         GetFileType(handle) != FILE_TYPE_UNKNOWN || GetLastError() == NO_ERROR
-    }
-}
-
-struct OwnedStdHandle(HANDLE);
-// SAFETY: this immutable owner only duplicates a kernel handle and closes it on drop.
-unsafe impl Send for OwnedStdHandle {}
-unsafe impl Sync for OwnedStdHandle {}
-impl Drop for OwnedStdHandle {
-    fn drop(&mut self) {
-        unsafe {
-            CloseHandle(self.0);
-        }
-    }
-}
-
-/// Pin every usable startup object, including write-only console and character
-/// devices. The daemon never detaches, so console handles remain usable too.
-struct InheritSource(Option<OwnedStdHandle>);
-impl InheritSource {
-    fn capture(kind: u32) -> Self {
-        let source = unsafe { GetStdHandle(kind) };
-        if !handle_live(source) {
-            return Self(None);
-        }
-        let mut duplicate = std::ptr::null_mut();
-        let ok = unsafe {
-            DuplicateHandle(
-                GetCurrentProcess(),
-                source,
-                GetCurrentProcess(),
-                &mut duplicate,
-                0,
-                0,
-                DUPLICATE_SAME_ACCESS,
-            )
-        };
-        if ok == 0 {
-            log::warn!(
-                "DuplicateHandle(startup stdio) failed: {}; using NUL",
-                std::io::Error::last_os_error()
-            );
-            return Self(None);
-        }
-        Self(Some(OwnedStdHandle(duplicate)))
-    }
-
-    fn resolve(&self) -> Option<InheritHandle<'_>> {
-        self.0.as_ref().map(InheritHandle)
-    }
-}
-
-/// A handle an `inherit` spawn may duplicate from, for as long as it is held.
-pub(crate) struct InheritHandle<'a>(&'a OwnedStdHandle);
-impl InheritHandle<'_> {
-    pub(crate) fn raw(&self) -> HANDLE {
-        self.0.0
-    }
-}
-
-/// The supervisor's own stdout and stderr, as they were before anything could touch the
-/// console. These are the only things an `inherit` spawn may resolve against.
-struct StartupStdio {
-    stdout: InheritSource,
-    stderr: InheritSource,
-}
-static STARTUP_STDIO: OnceLock<StartupStdio> = OnceLock::new();
-
-/// Settles how `inherit` resolves for the rest of the process lifetime. Idempotent,
-/// and the first call is the one that counts. Called before service or interactive
-/// execution.
-pub fn capture_startup_stdio() {
-    let _ = startup_stdio();
-}
-
-fn startup_stdio() -> &'static StartupStdio {
-    STARTUP_STDIO.get_or_init(|| StartupStdio {
-        stdout: InheritSource::capture(STD_OUTPUT_HANDLE),
-        stderr: InheritSource::capture(STD_ERROR_HANDLE),
-    })
-}
-
-/// The handle an `inherit` spawn should duplicate for `kind`, if any.
-pub(crate) fn inherit_std_handle(kind: u32) -> Option<InheritHandle<'static>> {
-    match kind {
-        STD_OUTPUT_HANDLE => startup_stdio().stdout.resolve(),
-        STD_ERROR_HANDLE => startup_stdio().stderr.resolve(),
-        _ => None,
     }
 }
 
@@ -225,72 +131,8 @@ pub fn is_crash_exit(status: &std::process::ExitStatus) -> bool {
 }
 
 #[cfg(test)]
-pub(crate) struct StdSlotsGuard([HANDLE; 3]);
-#[cfg(test)]
-impl StdSlotsGuard {
-    pub(crate) fn capture() -> Self {
-        use windows_sys::Win32::System::Console::STD_INPUT_HANDLE;
-        Self(
-            [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE]
-                .map(|kind| unsafe { GetStdHandle(kind) }),
-        )
-    }
-}
-#[cfg(test)]
-impl Drop for StdSlotsGuard {
-    fn drop(&mut self) {
-        use windows_sys::Win32::System::Console::{STD_INPUT_HANDLE, SetStdHandle};
-        for (kind, handle) in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE]
-            .into_iter()
-            .zip(self.0)
-        {
-            assert_ne!(unsafe { SetStdHandle(kind, handle) }, 0);
-        }
-    }
-}
-
-#[cfg(test)]
-pub(crate) struct TestConsole {
-    allocated: bool,
-    slots: Option<StdSlotsGuard>,
-}
-#[cfg(test)]
-impl TestConsole {
-    pub(crate) fn acquire() -> Self {
-        use windows_sys::Win32::System::Console::{AllocConsole, GetConsoleCP};
-        let slots = StdSlotsGuard::capture();
-        let allocated = unsafe { GetConsoleCP() } == 0;
-        if allocated {
-            assert_ne!(unsafe { AllocConsole() }, 0);
-        }
-        Self {
-            allocated,
-            slots: Some(slots),
-        }
-    }
-}
-#[cfg(test)]
-impl Drop for TestConsole {
-    fn drop(&mut self) {
-        if self.allocated {
-            unsafe {
-                windows_sys::Win32::System::Console::FreeConsole();
-            }
-        }
-        drop(self.slots.take());
-    }
-}
-
-#[cfg(test)]
 mod tests {
-    use super::super::wide;
     use super::*;
-    use windows_sys::Win32::Foundation::CompareObjectHandles;
-    use windows_sys::Win32::Storage::FileSystem::{
-        CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_SHARE_READ,
-        FILE_SHARE_WRITE, OPEN_EXISTING,
-    };
-    use windows_sys::Win32::System::Console::SetStdHandle;
 
     /// Lives in the lib target rather than `tests/e2e`, which is Linux-only, so
     /// this is the only place Windows classification gets real CI coverage.
@@ -324,93 +166,6 @@ mod tests {
             assert!(
                 !is_crash_exit(&status),
                 "{code:#X} is an ExitProcess value, not a crash"
-            );
-        }
-    }
-
-    fn open_device(device: &str, access: u32) -> OwnedStdHandle {
-        let name = wide::null_terminated(device);
-        let handle = unsafe {
-            CreateFileW(
-                name.as_ptr(),
-                access,
-                FILE_SHARE_READ | FILE_SHARE_WRITE,
-                std::ptr::null(),
-                OPEN_EXISTING,
-                FILE_ATTRIBUTE_NORMAL,
-                std::ptr::null_mut(),
-            )
-        };
-        assert!(handle_live(handle), "{}", std::io::Error::last_os_error());
-        OwnedStdHandle(handle)
-    }
-
-    fn assert_pinned(handle: HANDLE) {
-        let slots = StdSlotsGuard::capture();
-        assert_ne!(unsafe { SetStdHandle(STD_OUTPUT_HANDLE, handle) }, 0);
-        let source = InheritSource::capture(STD_OUTPUT_HANDLE);
-        let scratch = open_device("NUL", FILE_GENERIC_WRITE);
-        assert_ne!(unsafe { SetStdHandle(STD_OUTPUT_HANDLE, scratch.0) }, 0);
-        let resolved = source.resolve().unwrap();
-        assert_ne!(unsafe { CompareObjectHandles(resolved.raw(), handle) }, 0);
-        assert_eq!(
-            unsafe { CompareObjectHandles(resolved.raw(), scratch.0) },
-            0
-        );
-        drop(slots);
-    }
-
-    #[test]
-    fn console_and_write_only_console_inherit_startup_object() {
-        let _lock = console_lock();
-        let _console = TestConsole::acquire();
-        for access in [FILE_GENERIC_READ | FILE_GENERIC_WRITE, FILE_GENERIC_WRITE] {
-            let handle = open_device("CONOUT$", access);
-            assert_pinned(handle.0);
-        }
-    }
-
-    #[test]
-    fn redirected_pipe_and_file_keep_startup_object() {
-        use std::os::windows::io::AsRawHandle;
-        let _lock = console_lock();
-        let file = tempfile::tempfile().unwrap();
-        assert_pinned(file.as_raw_handle());
-        let mut reader = std::ptr::null_mut();
-        let mut writer = std::ptr::null_mut();
-        assert_ne!(
-            unsafe {
-                windows_sys::Win32::System::Pipes::CreatePipe(
-                    &mut reader,
-                    &mut writer,
-                    std::ptr::null(),
-                    0,
-                )
-            },
-            0
-        );
-        let _reader = OwnedStdHandle(reader);
-        let writer = OwnedStdHandle(writer);
-        assert_pinned(writer.0);
-    }
-
-    #[test]
-    fn write_only_character_device_is_pinned() {
-        let _lock = console_lock();
-        let handle = open_device("NUL", FILE_GENERIC_WRITE);
-        assert_pinned(handle.0);
-    }
-
-    #[test]
-    fn missing_stream_has_no_inheritance_source() {
-        let _lock = console_lock();
-        let _slots = StdSlotsGuard::capture();
-        for handle in [std::ptr::null_mut(), INVALID_HANDLE_VALUE] {
-            assert_ne!(unsafe { SetStdHandle(STD_OUTPUT_HANDLE, handle) }, 0);
-            assert!(
-                InheritSource::capture(STD_OUTPUT_HANDLE)
-                    .resolve()
-                    .is_none()
             );
         }
     }

@@ -14,6 +14,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_APPEND_DATA, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
     FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_ALWAYS, OPEN_EXISTING,
 };
+use windows_sys::Win32::System::Console::GetStdHandle;
 use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
 use crate::spawn::StdioSetting;
@@ -50,20 +51,22 @@ pub(super) fn map_stdio_setting(
     }
 }
 
-/// Inherit duplicates the pinned startup object, never a later standard slot.
-/// Missing startup streams retain the service's NUL fallback.
+/// Inherit duplicates the current standard handle; a service without one
+/// retains the NUL fallback.
 fn map_stdio_inherit(kind: u32) -> Result<MappedStdioHandle> {
-    let Some(source) = super::super::inherit_std_handle(kind) else {
-        return MappedStdioHandle::nul();
-    };
-    map_stdio_source(source.raw())
+    map_stdio_source(unsafe { GetStdHandle(kind) })
 }
 
 fn map_stdio_source(source: HANDLE) -> Result<MappedStdioHandle> {
+    // INVALID_HANDLE_VALUE is also a Win32 pseudo-handle for the current process.
+    // Never let DuplicateHandle turn a missing standard stream into that object.
+    if source.is_null() || source == INVALID_HANDLE_VALUE {
+        return MappedStdioHandle::nul();
+    }
     match duplicate_inheritable_handle(source) {
         Ok(handle) => Ok(MappedStdioHandle(handle)),
         Err(error) => {
-            warn!("startup stream duplication failed: {error}; using NUL");
+            warn!("standard stream duplication failed: {error}; using NUL");
             MappedStdioHandle::nul()
         }
     }
@@ -215,49 +218,6 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
     use windows_sys::Win32::System::Console::STD_OUTPUT_HANDLE;
-
-    /// A spawn resolves `inherit` against the stdio the supervisor had at startup, never
-    /// against whatever the std slot holds now: a replaced slot can refer to an unrelated
-    /// object. This asserts on object identity rather than on the handle value.
-    #[test]
-    fn inherit_ignores_a_std_slot_replaced_after_startup() {
-        use windows_sys::Win32::Foundation::CompareObjectHandles;
-        use windows_sys::Win32::System::Console::{GetStdHandle, SetStdHandle};
-
-        let _console = crate::platform::windows::console_lock();
-        crate::platform::windows::capture_startup_stdio();
-
-        let original = unsafe { GetStdHandle(STD_OUTPUT_HANDLE) };
-        let scratch =
-            open_nul_handle(FILE_GENERIC_READ | FILE_GENERIC_WRITE).expect("open NUL handle");
-        assert_ne!(
-            unsafe { SetStdHandle(STD_OUTPUT_HANDLE, scratch) },
-            0,
-            "SetStdHandle(STD_OUTPUT_HANDLE) failed: {}",
-            std::io::Error::last_os_error()
-        );
-
-        let credential = SpawnCredential::from_account(
-            crate::platform::windows::local_agent_account::AgentAccount::LocalSystem,
-        )
-        .expect("build credential");
-        let mapped = map_stdio_setting(
-            "test-proc",
-            &StdioSetting::Inherit,
-            STD_OUTPUT_HANDLE,
-            &credential,
-        );
-
-        assert_ne!(unsafe { SetStdHandle(STD_OUTPUT_HANDLE, original) }, 0);
-
-        let mapped = mapped.expect("inherit should map to a handle");
-        let took_the_replaced_slot = unsafe { CompareObjectHandles(mapped.raw(), scratch) } != 0;
-        unsafe { CloseHandle(scratch) };
-        assert!(
-            !took_the_replaced_slot,
-            "inherit must not hand the child whatever the std slot points at now"
-        );
-    }
 
     #[test]
     fn unusable_inheritance_source_falls_back_to_nul() {
