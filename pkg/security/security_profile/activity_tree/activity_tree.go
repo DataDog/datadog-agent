@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -36,6 +37,7 @@ const (
 	eventTypeReason NodeDroppedReason = iota
 	invalidRootNodeReason
 	bindFamilyReason
+	connectFamilyReason
 	brokenEventReason
 
 	minNodeDroppedReason   = eventTypeReason
@@ -51,6 +53,8 @@ func (reason NodeDroppedReason) String() string {
 		return "invalid_root_node"
 	case bindFamilyReason:
 		return "bind_family"
+	case connectFamilyReason:
+		return "connect_family"
 	case brokenEventReason:
 		return "broken_event"
 	default:
@@ -68,6 +72,8 @@ func (reason NodeDroppedReason) Tag() string {
 		return "reason:invalid_root_node"
 	case bindFamilyReason:
 		return "reason:bind_family"
+	case connectFamilyReason:
+		return "reason:connect_family"
 	case brokenEventReason:
 		return "reason:broken_event"
 	default:
@@ -82,6 +88,8 @@ var (
 	ErrNotValidRootNode = errors.New("root node not valid")
 	// ErrInvalidBindFamily is returned when a bind event uses an unsupported address family
 	ErrInvalidBindFamily = errors.New("invalid bind address family")
+	// ErrInvalidConnectFamily is returned when a connect event uses an unsupported address family
+	ErrInvalidConnectFamily = errors.New("invalid connect address family")
 	// ErrIMDSMissingCredentials is returned when an IMDS response event has no access key ID
 	ErrIMDSMissingCredentials = errors.New("IMDS response without credentials")
 	// ErrIMDSMissingURL is returned when an IMDS request event has no URL
@@ -330,6 +338,10 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 		at.Stats.DNSNodes += int64(len(node.DNSNames))
 		at.Stats.SocketNodes += int64(len(node.Sockets))
 
+		for _, sock := range node.Sockets {
+			at.Stats.ConnectNodes += int64(len(sock.Connect))
+		}
+
 		for _, f := range node.Files {
 			fnodes = append(fnodes, f)
 		}
@@ -392,6 +404,7 @@ func IsExpectedFilterError(err error) bool {
 		errors.As(err, &pathResolutionNotCriticalErr) ||
 		errors.Is(err, ErrNotValidRootNode) ||
 		errors.Is(err, ErrInvalidBindFamily) ||
+		errors.Is(err, ErrInvalidConnectFamily) ||
 		errors.Is(err, ErrIMDSMissingCredentials) ||
 		errors.Is(err, ErrIMDSMissingURL)
 }
@@ -451,6 +464,14 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 				at.Stats.counts[model.BindEventType].droppedCount[bindFamilyReason].Inc()
 			}
 			return false, fmt.Errorf("%w: %s", ErrInvalidBindFamily, model.AddressFamily(event.Bind.AddrFamily))
+		}
+	case model.ConnectEventType:
+		// ignore non IPv4 / IPv6 connect events for now
+		if event.Connect.AddrFamily != unix.AF_INET && event.Connect.AddrFamily != unix.AF_INET6 {
+			if !dryRun {
+				at.Stats.counts[model.ConnectEventType].droppedCount[connectFamilyReason].Inc()
+			}
+			return false, fmt.Errorf("%w: %s", ErrInvalidConnectFamily, model.AddressFamily(event.Connect.AddrFamily))
 		}
 	case model.IMDSEventType:
 		// ignore IMDS answers without AccessKeyIDS
@@ -540,7 +561,14 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	case model.BindEventType:
 		newEntry, eventNodeBase := node.InsertBindEvent(event, imageTagID, generationType, at.Stats, dryRun)
 		return newEntry, node, eventNodeBase, nil
+	case model.ConnectEventType:
+		newEntry, eventNodeBase := node.InsertConnectEvent(event, imageTagID, generationType, at.Stats, dryRun)
+		return newEntry, node, eventNodeBase, nil
 	case model.SyscallsEventType:
+		if event.Syscalls.EventReason == model.SampleReason {
+			newEntry, eventNodeBase := node.InsertSyscallSample(event, imageTagID, at.SyscallsMask, at.Stats, dryRun)
+			return newEntry, node, eventNodeBase, nil
+		}
 		return node.InsertSyscalls(event, imageTagID, at.SyscallsMask, at.Stats, dryRun), node, nil, nil
 	case model.NetworkFlowMonitorEventType:
 		return node.InsertNetworkFlowMonitorEvent(event, imageTagID, generationType, at.Stats, dryRun), node, nil, nil
@@ -1178,6 +1206,40 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 		}
 	})
 	return syscalls
+}
+
+// SyscallsByImageTagID returns the sorted, deduplicated syscall numbers observed
+// under each image tag ID.
+func (at *ActivityTree) SyscallsByImageTagID() map[uint64][]uint32 {
+	sets := make(map[uint64]map[uint32]struct{})
+
+	at.visit(func(processNode *ProcessNode) {
+		for _, syscallNode := range processNode.Syscalls {
+			if syscallNode.Syscall < 0 || uint64(syscallNode.Syscall) > math.MaxUint32 {
+				continue
+			}
+			syscall := uint32(syscallNode.Syscall)
+			syscallNode.EachSeen(func(imageTagID uint64, _ ImageTagTimes) {
+				set, ok := sets[imageTagID]
+				if !ok {
+					set = make(map[uint32]struct{})
+					sets[imageTagID] = set
+				}
+				set[syscall] = struct{}{}
+			})
+		}
+	})
+
+	out := make(map[uint64][]uint32, len(sets))
+	for imageTagID, set := range sets {
+		syscalls := make([]uint32, 0, len(set))
+		for syscall := range set {
+			syscalls = append(syscalls, syscall)
+		}
+		slices.Sort(syscalls)
+		out[imageTagID] = syscalls
+	}
+	return out
 }
 
 // ImageProcessKey represents a unique key for process cache entries by image name, tag, and filepath

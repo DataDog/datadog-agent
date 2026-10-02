@@ -17,13 +17,12 @@ import (
 // Package contains a validated authored script and the paths needed to execute it.
 type Package struct {
 	Manifest  *Manifest
-	Directory string
 	Command   []string
 	ToolPaths []string
 }
 
 func LoadPackage(fqn string, descriptor Descriptor, artifact LocalArtifact) (*Package, error) {
-	manifest, err := loadManifest(artifact.Directory)
+	manifest, err := loadManifest(artifact.ScriptDirectory())
 	if err != nil {
 		return nil, err
 	}
@@ -32,10 +31,7 @@ func LoadPackage(fqn string, descriptor Descriptor, artifact LocalArtifact) (*Pa
 	}
 
 	manifestCommand := manifest.Command.Entrypoint
-	if !filepath.IsLocal(manifestCommand) {
-		return nil, fmt.Errorf("invalid authored-script command path %q: path must be local to the script directory", manifestCommand)
-	}
-	commandPath, err := resolvePackageFile(artifact.Directory, filepath.Join(scriptDirectory, manifestCommand))
+	commandPath, err := resolvePackageFile(artifact.ScriptDirectory(), manifestCommand)
 	if err != nil {
 		return nil, fmt.Errorf("invalid authored-script command: %w", err)
 	}
@@ -43,10 +39,7 @@ func LoadPackage(fqn string, descriptor Descriptor, artifact LocalArtifact) (*Pa
 
 	toolPaths := make([]string, 0, len(manifest.Dependencies))
 	for _, dependency := range manifest.Dependencies {
-		if !isDependencyName(dependency.Name) {
-			return nil, fmt.Errorf("invalid authored-script dependency name %q: name must be a single path component", dependency.Name)
-		}
-		toolPath, err := resolvePackageFile(artifact.Directory, filepath.Join(scriptDirectory, dependency.Name))
+		toolPath, err := resolvePackageFile(artifact.DependencyDirectory(dependency.Name), dependency.Name)
 		if err != nil {
 			return nil, fmt.Errorf("invalid authored-script dependency %q: %w", dependency.Name, err)
 		}
@@ -55,21 +48,16 @@ func LoadPackage(fqn string, descriptor Descriptor, artifact LocalArtifact) (*Pa
 
 	return &Package{
 		Manifest:  manifest,
-		Directory: artifact.Directory,
 		Command:   command,
 		ToolPaths: toolPaths,
 	}, nil
 }
 
-func isDependencyName(name string) bool {
-	return name != "." && filepath.IsLocal(name) && !strings.ContainsAny(name, `/\\`)
-}
-
 func validatePackageIdentity(fqn string, descriptor Descriptor, manifest *Manifest) error {
-	if descriptor.FQN != fqn {
+	if !strings.EqualFold(descriptor.FQN, fqn) {
 		return fmt.Errorf("authored-script descriptor FQN %q does not match catalog key %q", descriptor.FQN, fqn)
 	}
-	if manifest.FQN != descriptor.FQN {
+	if !strings.EqualFold(manifest.FQN, descriptor.FQN) {
 		return fmt.Errorf("authored-script manifest FQN %q does not match descriptor FQN %q", manifest.FQN, descriptor.FQN)
 	}
 	if manifest.Version != descriptor.Version {

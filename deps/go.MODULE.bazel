@@ -134,7 +134,6 @@ use_repo(
     "com_github_datadog_go_tuf",
     "com_github_datadog_gohai",
     "com_github_datadog_jsonapi",
-    "com_github_datadog_orchestrion",
     "com_github_datadog_rshell",
     "com_github_datadog_sketches_go",
     "com_github_datadog_watermarkpodautoscaler_apis",
@@ -261,6 +260,7 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_sampling",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_attributesprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_cumulativetodeltaprocessor",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_processor_deltatorateprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_filterprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_groupbyattrsprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_k8sattributesprocessor",
@@ -273,9 +273,12 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_filelogreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_fluentforwardreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_hostmetricsreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_httpcheckreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_jaegerreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_k8sclusterreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_k8seventsreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_k8sobjectsreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_kafkareceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_kubeletstatsreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_podmanreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_prometheusreceiver",
@@ -569,6 +572,10 @@ go_deps.module_override(
 )
 
 inject_repo(go_deps, "systemd")
+
+register_toolchains("@go_civisibility_sdk//:go_civisibility_linux_amd64")
+
+use_repo_rule("//bazel/rules/go_civisibility_sdk:repo.bzl", "go_civisibility_sdk")(name = "go_civisibility_sdk")
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 

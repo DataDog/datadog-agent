@@ -13,6 +13,8 @@
         "bind",
         "bpf",
         "brk",
+        "capget",
+        "capset",
         "chmod",
         "clock_getres",
         "clock_gettime",

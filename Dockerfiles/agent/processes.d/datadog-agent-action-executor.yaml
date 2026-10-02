@@ -2,6 +2,10 @@ description: Datadog Private Action Runner - On-Demand Executor
 command: /opt/datadog-agent/embedded/bin/privateactionrunner
 args:
   - run-executor
+  - --executor-socket
+  - /opt/datadog-agent/run/par-executor.sock
+  - --ipc-cert-file
+  - ${DD_IPC_CERT_FILE_PATH}
   - --cfgpath
   - /etc/datadog-agent/datadog.yaml
 auto_start: false

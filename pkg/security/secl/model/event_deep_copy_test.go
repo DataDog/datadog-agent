@@ -352,6 +352,8 @@ func createFullyPopulatedEvent() *Event {
 
 	e.CapabilitiesUsage.Attempted = 0xABCD
 	e.CapabilitiesUsage.Used = 0xEF01
+	e.CapabilitiesUsage.AttemptedHostUserNS = 0x2345
+	e.CapabilitiesUsage.UsedHostUserNS = 0x6789
 
 	e.PrCtl.Option = 15
 	e.PrCtl.NewName = "newname"
