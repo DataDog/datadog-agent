@@ -185,6 +185,11 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     echo "# Existing installation detected"
     datadog-agent version || true
 
+    # Cleared before any job is booted out: the deadline is what a running experiment watcher
+    # acts on and what the next daemon resumes the experiment job set from, and the experiment
+    # it bounds is discarded below.
+    rm -vf "$INSTALL_DIR/run/experiment-deadline"
+
     echo '# Stopping running services'
     launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
     launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
