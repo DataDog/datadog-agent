@@ -85,6 +85,9 @@ func (c *Collector) Collect(ctx context.Context) Snapshot {
 	for _, service := range migratableServices {
 		snapshot.Services = append(snapshot.Services, c.collectService(ctx, service, processes))
 	}
+	// OS unit/SCM state is independent of gRPC reachability: collect it even when Connect fails
+	// so COAT can see a stopped or failed dd-procmgrd unit.
+	snapshot.Daemon.ServiceState = detectDaemonServiceState(ctx)
 	return snapshot
 }
 
