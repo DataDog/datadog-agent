@@ -2639,6 +2639,8 @@ github.com/Pallinder/go-randomdata v1.2.0 h1:DZ41wBchNRb/0GfsePLiSwb0PHZmT67XY00
 github.com/Pallinder/go-randomdata v1.2.0/go.mod h1:yHmJgulpD2Nfrm0cR9tI/+oAgRqCQQixsA8HyRZfV9Y=
 github.com/ProtonMail/go-crypto v1.4.1 h1:9RfcZHqEQUvP8RzecWEUafnZVtEvrBVL9BiF67IQOfM=
 github.com/ProtonMail/go-crypto v1.4.1/go.mod h1:e1OaTyu5SYVrO9gKOEhTc+5UcXtTUa+P3uLudwcgPqo=
+github.com/ProtonMail/go-crypto v1.5.1 h1:pTrLDQHyOT8y3DFYIpijgPBTw/7E2GLMimutvOlceuE=
+github.com/ProtonMail/go-crypto v1.5.1/go.mod h1:/RaSu30DaKO4RY+XdV/ACcCcZkGr7AhUIduq5sjzzCo=
 github.com/ProtonMail/gopenpgp/v3 v3.2.1 h1:ohRlKL5YwyIkN5kk7uBvijiMsyA57mK0yBEJg9xButU=
 github.com/ProtonMail/gopenpgp/v3 v3.2.1/go.mod h1:x7RduTo/0n/2PjTFRoEHApaxye/8PFbhoCquwfYBUGM=
 github.com/SAP/go-hdb v1.10.1 h1:c9dGT5xHZNDwPL3NQcRpnNISn3MchwYaGoMZpCAllUs=
