@@ -770,9 +770,11 @@ int test_connect_af_inet(int argc, char** argv) {
         fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
         fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
         fprintf(stderr, "Arg3: the port number to connect to\n");
-        fprintf(stderr, "Arg4 (optional): the number of times the socket connects (default: 1)\n");
+        fprintf(stderr, "Arg4 (optional, udp only): the number of times the socket connects (default: 1)\n");
         return EXIT_FAILURE;
     }
+
+    char* proto = argv[2];
 
     int count = 1;
     if (argc == 5) {
@@ -781,9 +783,13 @@ int test_connect_af_inet(int argc, char** argv) {
             fprintf(stderr, "Invalid connect count: %s\n", argv[4]);
             return EXIT_FAILURE;
         }
+        // connecting an already connected TCP socket fails with EISCONN
+        if (count > 1 && strcmp(proto, "udp")) {
+            fprintf(stderr, "A connect count is only supported with udp\n");
+            return EXIT_FAILURE;
+        }
     }
 
-    char* proto = argv[2];
     int s;
 
     if (!strcmp(proto, "udp"))
