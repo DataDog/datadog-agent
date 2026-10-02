@@ -12,3 +12,9 @@ features:
     reachability and supervised / migratable service state. The section reuses the
     same ``SupportReport`` path as the flare ``procmgr/state.json`` file, and is
     still shown when the daemon cannot be reached, recording why.
+fixes:
+  - |
+    The flare's ``procmgr/state.json`` now records the ``dd-procmgrd`` unit or service
+    state in its ``service_state`` field. The field was previously always empty, because
+    the state is an OS-level query that the daemon's status response does not carry, so a
+    flare could not show that the supervisor's own unit was stopped or failed.

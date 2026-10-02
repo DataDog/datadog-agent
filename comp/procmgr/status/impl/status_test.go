@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,7 +36,19 @@ func providerWith(report coat.SupportReport, scrub coat.ScrubOptions) statusProv
 	}
 }
 
-func exitCode(code int32) *int32 { return &code }
+func int32Ptr(v int32) *int32 { return &v }
+
+// deadlineRecordingReporter captures the budget the provider hands down, so a test can assert on it
+// without spending it.
+type deadlineRecordingReporter struct {
+	deadline    time.Time
+	hasDeadline bool
+}
+
+func (r *deadlineRecordingReporter) Report(ctx context.Context, _ coat.ScrubOptions) coat.SupportReport {
+	r.deadline, r.hasDeadline = ctx.Deadline()
+	return coat.SupportReport{}
+}
 
 func TestStatusShowsReachableDaemonAndProcess(t *testing.T) {
 	provider := providerWith(coat.SupportReport{
@@ -146,8 +159,8 @@ func TestStatusShowsProcmgrAndSystemdManagementModes(t *testing.T) {
 }
 
 func TestStatusShowsExitAndSignalWhenSet(t *testing.T) {
-	code := exitCode(1)
-	sig := exitCode(9)
+	code := int32Ptr(1)
+	sig := int32Ptr(9)
 	provider := providerWith(coat.SupportReport{
 		Daemon: coat.DaemonSnapshot{Reachable: true, Ready: true},
 		Processes: []coat.ProcessSnapshot{{
@@ -230,6 +243,22 @@ func TestScrubOptionsComeFromAgentConfig(t *testing.T) {
 
 	assert.Equal(t, []string{"passphrase"}, opts.CustomSensitiveWords)
 	assert.True(t, opts.StripArguments)
+}
+
+// Report spends the budget it is given on the dd-procmgrd calls first and reserves part of what is
+// left for the per-service supervisor checks. Too tight a budget here collapses that reserve, and a
+// hung daemon would then make every service report management_mode "none", which reads as "nothing
+// supervises this" rather than "the daemon could not be asked".
+func TestStatusBudgetLeavesRoomForTheServiceSweep(t *testing.T) {
+	recorder := &deadlineRecordingReporter{}
+	provider := statusProvider{reporter: recorder}
+
+	stats := make(map[string]interface{})
+	require.NoError(t, provider.JSON(false, stats))
+
+	require.True(t, recorder.hasDeadline, "collection must be bounded so status cannot hang")
+	assert.Greater(t, time.Until(recorder.deadline), 3*time.Second,
+		"below this the write margin and sweep reserve leave the service mapping no time")
 }
 
 func TestNewComponentProvidesStatusProvider(t *testing.T) {
