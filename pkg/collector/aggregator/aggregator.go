@@ -134,10 +134,24 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 	sender.Event(_event)
 }
 
-// SubmitHistogramBucket is the method exposed to scripts to submit metrics
+// SubmitHistogramBucket is the method exposed to scripts to submit histogram buckets that are
+// each in their own context, usually because the bucket bounds are encoded in the tags.
 //
 //export SubmitHistogramBucket
 func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
+	submitHistogramBucket(checkID, metricName, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue, false)
+}
+
+// SubmitHistogramBucketMulti is the method exposed to scripts to submit histogram buckets that
+// share their context with the other buckets of their histogram, so the tags don't need to
+// encode the bucket bounds.
+//
+//export SubmitHistogramBucketMulti
+func SubmitHistogramBucketMulti(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
+	submitHistogramBucket(checkID, metricName, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue, true)
+}
+
+func submitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool, multipleBuckets bool) {
 	goCheckID := C.GoString(checkID)
 	checkContext, err := GetCheckContext()
 	if err != nil {
@@ -160,7 +174,12 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
 	_flushFirstValue := bool(flushFirstValue)
 
-	sender.OpenmetricsBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
+	if multipleBuckets {
+		// The sender tracks the state of each bucket by context and bounds
+		sender.HistogramBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
+	} else {
+		sender.OpenmetricsBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
+	}
 }
 
 // LogMsg routes a shared library check's log line through the agent logger.
