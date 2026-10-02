@@ -132,15 +132,37 @@ runtime_security_config:
       enabled: {{ .HostSBOMEnabled }}
   activity_dump:
     enabled: false
+{{if .EnableSecurityProfile}}
+    cgroup_differentiate_args: {{ .WorkloadProfileDifferentiateArgs }}
+{{if gt .WorkloadProfilePersistencePeriod 0}}
+    dump_duration: {{ .WorkloadProfilePersistencePeriod }}
+{{end}}
+{{if .WorkloadProfileStorageDir}}
+    local_storage:
+      output_directory: {{ .WorkloadProfileStorageDir }}
+{{end}}
+{{end}}
   security_profile:
     enabled: {{ .EnableSecurityProfile }}
     v2:
       enabled: true
 {{if .EnableSecurityProfile}}
+      profile_reporting_delay:
+        time_based: {{ not .ProfileReportingWaitPersistence }}
+        duration: 0s
+      profiling_startup_delay: {{ .ProfilingStartupDelay }}
+{{if .WorkloadProfileEventTypes}}
+      event_types: {{range .WorkloadProfileEventTypes}}
+      - {{. -}}
+      {{- end}}
+{{end}}
     node_eviction_timeout: {{ .SecurityProfileNodeEvictionTimeout }}
     anomaly_detection:
       enabled: {{ .EnableAnomalyDetection }}
 {{end}}
+  event_sampling:
+    syscalls:
+      enabled: {{ .EventSamplingSyscallsEnabled }}
 
   self_test:
     enabled: {{.EnableSelfTests}}

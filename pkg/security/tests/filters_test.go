@@ -17,6 +17,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -345,6 +346,93 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 	}, testFile); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
+}
+
+// TestFilterOpenSavedByWorkloadProfileSampler checks that an event rejected by the approvers is still forwarded
+// to user space when the workload profile sampler samples it, flagged so that the rule engine doesn't evaluate it,
+// and that the sampler then rejects the same event for the same process.
+func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	// The sampler is only reached in deny mode, when the approvers of the event type reject the event: each rule
+	// needs an approver that the sampled event doesn't match.
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_sampler_open",
+			Expression: `open.file.path == "{{.Root}}/test-sampler-approved"`,
+		},
+		{
+			ID:         "test_rule_sampler_connect",
+			Expression: `connect.addr.family == AF_INET6`,
+		},
+	}
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerInstance, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstance.stop()
+
+	// countSavedEvents runs the syscall tester in the container and counts the forwarded events flagged as saved
+	// from the approvers that match the filter
+	countSavedEvents := func(t *testing.T, eventType model.EventType, filter eventKeyValueFilter, args ...string) int {
+		var count atomic.Int32
+		test.RegisterProbeEventHandler(func(event *model.Event) {
+			if event.GetEventType() != eventType || !event.IsSavedByActivityDumps() {
+				return
+			}
+			if v, _ := event.GetFieldValue(filter.key); v == filter.value {
+				count.Add(1)
+			}
+		})
+		defer test.RegisterProbeEventHandler(nil)
+
+		if out, err := dockerInstance.Command(syscallTester, args, []string{}).CombinedOutput(); err != nil {
+			t.Fatalf("%s: %v", string(out), err)
+		}
+		time.Sleep(2 * time.Second)
+		return int(count.Load())
+	}
+
+	t.Run("open", func(t *testing.T) {
+		testFile, _, err := test.Path("test-sampler-sampled")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		// the same process opens the same file twice: only the first open is sampled
+		count := countSavedEvents(t, model.FileOpenEventType, eventKeyValueFilter{key: "open.file.path", value: testFile}, "open", testFile, testFile)
+		assert.Equal(t, 1, count, "the first open should be saved by the sampler, the second one rejected")
+	})
+
+	t.Run("connect", func(t *testing.T) {
+		// the same process connects twice to the same address: only the first connect is sampled
+		count := countSavedEvents(t, model.ConnectEventType, eventKeyValueFilter{key: "connect.addr.port", value: 4254}, "connect", "AF_INET", "any", "udp", "4254", "2")
+		assert.Equal(t, 1, count, "the first connect should be saved by the sampler, the second one rejected")
+	})
 }
 
 func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
