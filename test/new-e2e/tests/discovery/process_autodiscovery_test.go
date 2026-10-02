@@ -59,10 +59,10 @@ func (s *processAutodiscoverySuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	// Redis and nginx are baked into the Debian/Ubuntu e2e AMI (ami-builder
-	// provision-e2e-apt.sh); redis starts automatically and binds to
-	// localhost:6379 by default.
+	// provision-e2e-apt.sh) but disabled at boot, so the test starts them.
 
-	// Verify Redis is running
+	// Start Redis on its default localhost:6379 and verify it is running
+	s.Env().RemoteHost.MustExecute("sudo systemctl start redis-server")
 	output := s.Env().RemoteHost.MustExecute("redis-cli ping")
 	require.Contains(s.T(), output, "PONG", "Redis server should be running")
 
@@ -79,10 +79,9 @@ http {
 }
 `
 	s.Env().RemoteHost.MustExecute("echo '" + nginxConf + "' | sudo tee /etc/nginx/nginx.conf")
-	// Use restart rather than reload: the generic e2e AMI installs php which pulls in apache2,
-	// occupying port 80 and preventing nginx from auto-starting after apt install. By the time
-	// we get here the config already listens on port 81, so restart succeeds.
-	// TODO: switch back to reload once the discovery tests have a dedicated AMI without php/apache2.
+	// nginx is disabled at boot, so start it (restart also covers a retry on a
+	// reused host). It listens on port 81 because apache2, pulled in by php on the
+	// generic e2e AMI, can hold port 80.
 	s.Env().RemoteHost.MustExecute("sudo nginx -t && sudo systemctl restart nginx")
 
 	// Verify nginx stub_status is accessible, retrying to allow reload to complete

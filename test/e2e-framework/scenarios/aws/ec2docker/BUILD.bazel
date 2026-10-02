@@ -10,7 +10,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common/utils",
-        "//test/e2e-framework/components/command",
         "//test/e2e-framework/components/datadog/agent",
         "//test/e2e-framework/components/datadog/apps/dogstatsd",
         "//test/e2e-framework/components/datadog/apps/redis",
