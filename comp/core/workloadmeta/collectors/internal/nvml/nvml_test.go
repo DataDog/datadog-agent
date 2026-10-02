@@ -262,6 +262,70 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 	}
 }
 
+func TestPullKeepsLostGPU(t *testing.T) {
+	const lostIndex = 0
+	lost := false
+
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithDeviceHandleByIndexCallback(func(index int, device nvml.Device) (nvml.Device, nvml.Return) {
+			if lost && index == lostIndex {
+				return nil, nvml.ERROR_GPU_IS_LOST
+			}
+			return device, nvml.SUCCESS
+		}),
+		testutil.WithDeviceOptions(lostIndex, testutil.WithCustomHook(func(d *testutil.MockDevice) {
+			getVirtualizationMode := d.GetVirtualizationModeFunc
+			d.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) {
+				if lost {
+					return 0, nvml.ERROR_GPU_IS_LOST
+				}
+				return getVirtualizationMode()
+			}
+			getMemoryBusWidth := d.GetMemoryBusWidthFunc
+			d.GetMemoryBusWidthFunc = func() (uint32, nvml.Return) {
+				if lost {
+					return 0, nvml.ERROR_GPU_IS_LOST
+				}
+				return getMemoryBusWidth()
+			}
+			getMaxClockInfo := d.GetMaxClockInfoFunc
+			d.GetMaxClockInfoFunc = func(clockType nvml.ClockType) (uint32, nvml.Return) {
+				if lost {
+					return 0, nvml.ERROR_GPU_IS_LOST
+				}
+				return getMaxClockInfo(clockType)
+			}
+		})),
+	)
+
+	c := newTestCollector(t, wmetaMock)
+	lostUUID := testutil.GPUUUIDs[lostIndex]
+
+	require.NoError(t, c.Pull(context.Background()))
+	gpuCount := len(wmetaMock.ListGPUs())
+	before, err := wmetaMock.GetGPU(lostUUID)
+	require.NoError(t, err)
+	require.NotEmpty(t, before.VirtualizationMode)
+	require.NotZero(t, before.MemoryBusWidth)
+	require.NotZero(t, before.MaxClockRates[workloadmeta.GPUSM])
+
+	lost = true
+	require.NoError(t, c.Pull(context.Background()))
+
+	require.Len(t, wmetaMock.ListGPUs(), gpuCount)
+	after, err := wmetaMock.GetGPU(lostUUID)
+	require.NoError(t, err, "lost GPU must not be removed from workloadmeta")
+	require.Equal(t, before.Name, after.Name)
+	require.Equal(t, before.Index, after.Index)
+	require.Equal(t, before.PCIBusID, after.PCIBusID)
+	require.Equal(t, before.VirtualizationMode, after.VirtualizationMode)
+	require.Equal(t, before.MemoryBusWidth, after.MemoryBusWidth)
+	require.Equal(t, before.FabricClusterUUID, after.FabricClusterUUID)
+	require.Equal(t, before.FabricCliqueID, after.FabricCliqueID)
+	require.Equal(t, before.MaxClockRates, after.MaxClockRates)
+}
+
 func TestProcessEntities(t *testing.T) {
 	processInfo := make(map[string]testutil.MockProcessInfoList)
 

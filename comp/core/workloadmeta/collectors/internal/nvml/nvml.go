@@ -53,6 +53,9 @@ type collector struct {
 	gpuMonitoringEnabled               bool
 	lastCollectionTimestamp            time.Time
 	deviceCache                        ddnvml.DeviceCache
+	// lastPublishedGPUs keeps the last GPU entity published per UUID, so that
+	// lost GPUs keep the attributes that can no longer be queried from NVML.
+	lastPublishedGPUs map[string]*workloadmeta.GPU
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -103,21 +106,36 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeUnknown
 	}
 
-	c.fillNVMLAttributes(&gpuDeviceInfo, device)
-	c.fillProcesses(&gpuDeviceInfo, device)
+	if lost := c.fillNVMLAttributes(&gpuDeviceInfo, device); !lost {
+		c.fillProcesses(&gpuDeviceInfo, device)
+	}
 
 	return &gpuDeviceInfo, nil
 }
 
-// fillNVMLAttributes fills the attributes of the GPU device by querying NVML API
-func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
+// fillNVMLAttributes fills the attributes of the GPU device by querying NVML API.
+// If NVML reports the GPU as lost, it keeps the attributes last published for it
+// and returns true.
+func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) bool {
 	migDevice, isMig := device.(*ddnvml.MIGDevice)
 	physicalDevice := device
 	if isMig {
 		physicalDevice = migDevice.Parent
 	}
 
+	gpuDeviceInfo.PCIBusID = physicalDevice.GetDeviceInfo().PCIBusID
+
 	virtMode, err := physicalDevice.GetVirtualizationMode()
+	if ddnvml.IsGPULost(err) {
+		if prev, ok := c.lastPublishedGPUs[gpuDeviceInfo.EntityID.ID]; ok {
+			gpuDeviceInfo.VirtualizationMode = prev.VirtualizationMode
+			gpuDeviceInfo.MemoryBusWidth = prev.MemoryBusWidth
+			gpuDeviceInfo.FabricClusterUUID = prev.FabricClusterUUID
+			gpuDeviceInfo.FabricCliqueID = prev.FabricCliqueID
+			gpuDeviceInfo.MaxClockRates = prev.MaxClockRates
+		}
+		return true
+	}
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
@@ -134,8 +152,6 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 	} else {
 		gpuDeviceInfo.MemoryBusWidth = memBusWidth
 	}
-
-	gpuDeviceInfo.PCIBusID = physicalDevice.GetDeviceInfo().PCIBusID
 
 	fabricInfo, err := physicalDevice.GetGpuFabricInfo()
 	if err == nil {
@@ -170,6 +186,8 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			log.Infof("vGPU device %s does not support queries for max clock info", gpuDeviceInfo.EntityID.ID)
 		}
 	}
+
+	return false
 }
 
 func fabricClusterUUIDFromNVMLInfo(clusterUUID [16]uint8) string {
@@ -233,6 +251,7 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 		seenPIDsToGPUs:          make(map[int][]string),
 		seenContainerGPUs:       make(map[string]struct{}),
 		publishedContainerGPUs:  make(map[string][]string),
+		lastPublishedGPUs:       make(map[string]*workloadmeta.GPU),
 		store:                   store,
 		lastCollectionTimestamp: time.Now(),
 		gpuMonitoringEnabled:    true,
@@ -331,6 +350,7 @@ func (c *collector) Pull(ctx context.Context) error {
 
 			uuid := dev.GetDeviceInfo().UUID
 			currentUUIDs[uuid] = struct{}{}
+			c.lastPublishedGPUs[uuid] = gpu
 			events = append(events, workloadmeta.CollectorEvent{
 				Source: workloadmeta.SourceNVML,
 				Type:   workloadmeta.EventTypeSet,
@@ -350,6 +370,7 @@ func (c *collector) Pull(ctx context.Context) error {
 				continue
 			}
 
+			delete(c.lastPublishedGPUs, uuid)
 			events = append(events, workloadmeta.CollectorEvent{
 				Source: workloadmeta.SourceNVML,
 				Type:   workloadmeta.EventTypeUnset,
