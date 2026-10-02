@@ -266,7 +266,7 @@ class TestReadiness(unittest.TestCase):
                     eudm._wait_for_capture_apis(read, COMMIT)
                 sleep.assert_not_called()
                 output = "\n".join(call.args[0] for call in printed.call_args_list)
-                self.assertEqual("Optional host_system_info capture is ready" in output, available)
+                self.assertEqual("Host system information will be included automatically" in output, available)
 
     def test_unavailable_stream_fails_without_echoing_response(self):
         def read(role):

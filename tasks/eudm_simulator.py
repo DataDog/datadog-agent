@@ -276,7 +276,7 @@ def _wait_for_capture_apis(read, commit, timeout=120):
                 "and metric check cadences."
             )
             if hardware_available:
-                print("Optional host_system_info capture is ready; its normal collection schedule is hourly.")
+                print("Host system information will be included automatically; collection runs hourly.")
             return
         time.sleep(1)
     raise Exit(
