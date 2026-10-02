@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/libproc"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/nstat"
 )
 
@@ -619,17 +618,27 @@ func TestNStatTracerAppliesLateAuthoritativePID(t *testing.T) {
 		Flow:      testNStatTCPFlow(4321, tcpStateEstablished),
 	})
 
-	resolved, ambiguous, reuseRejected := tracer.reconcileLibprocSnapshot(libproc.Snapshot{
-		Observations: []libproc.Observation{testDarwinLibprocObservation(9876, 1)},
-	}, libprocScanScope{scanStart: tracer.now().Add(time.Second), hostWide: true})
-
-	require.Zero(t, resolved)
-	require.Zero(t, ambiguous)
-	require.Zero(t, reuseRejected)
 	var buffer network.ConnectionBuffer
 	require.NoError(t, tracer.GetConnections(&buffer, nil))
 	require.Len(t, buffer.Connections(), 1)
 	require.Equal(t, uint32(4321), buffer.Connections()[0].Pid)
+}
+
+func TestNStatTracerPublishesAndCountsPIDZero(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	before := nstatTracerTelemetry.pidZeroPublished.WithValues().Get()
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 17,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPFlow(0, tcpStateEstablished),
+	})
+
+	var buffer network.ConnectionBuffer
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.Len(t, buffer.Connections(), 1)
+	require.Zero(t, buffer.Connections()[0].Pid)
+	require.Equal(t, before+1, nstatTracerTelemetry.pidZeroPublished.WithValues().Get())
 }
 
 func TestNStatTracerAppliesLateAuthoritativeUDPRemote(t *testing.T) {

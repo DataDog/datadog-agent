@@ -44,8 +44,6 @@ type DarwinTracerStatus struct {
 	RuntimeFallback bool `json:"runtime_fallback"`
 	// PacketEnrichment is "healthy", "disabled", "degraded", "stopped", or "unavailable".
 	PacketEnrichment string `json:"packet_enrichment"`
-	// LibprocReconciler is "healthy", "disabled", or "unavailable".
-	LibprocReconciler string `json:"libproc_reconciler"`
 	// PacketMatchRate is unique-match / inspected packets when the sidecar is up.
 	PacketMatchRate float64 `json:"packet_match_rate,omitempty"`
 	// LastError is a bounded, single-line primary, fallback, or sidecar diagnostic.
@@ -65,10 +63,9 @@ func GetDarwinTracerStatus(tracer Tracer) DarwinTracerStatus {
 		return nstatStatus()
 	}
 	return DarwinTracerStatus{
-		ActiveBackend:     darwinBackendName(tracer.Type()),
-		SourceHealthy:     true,
-		PacketEnrichment:  darwinSidecarDisabled,
-		LibprocReconciler: darwinSidecarDisabled,
+		ActiveBackend:    darwinBackendName(tracer.Type()),
+		SourceHealthy:    true,
+		PacketEnrichment: darwinSidecarDisabled,
 	}
 }
 
@@ -101,25 +98,11 @@ func boundedDarwinStatusError(err error) string {
 
 func nstatStatus() DarwinTracerStatus {
 	return DarwinTracerStatus{
-		ActiveBackend:     "nstat",
-		ABIRevision:       nstat.ABIRevision,
-		SourceHealthy:     true,
-		PacketEnrichment:  darwinSidecarDisabled,
-		LibprocReconciler: darwinSidecarDisabled,
+		ActiveBackend:    "nstat",
+		ABIRevision:      nstat.ABIRevision,
+		SourceHealthy:    true,
+		PacketEnrichment: darwinSidecarDisabled,
 	}
-}
-
-func darwinSidecarStatus(requested, available bool, err error) string {
-	if !requested {
-		return darwinSidecarDisabled
-	}
-	if err != nil {
-		return darwinSidecarStopped
-	}
-	if !available {
-		return darwinSidecarDisabled
-	}
-	return darwinSidecarHealthy
 }
 
 func darwinPacketEnrichmentStatus(requested, available bool, err error, stats darwinPacketSidecarStats) string {

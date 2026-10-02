@@ -30,7 +30,7 @@ func TestDarwinPacketEnrichmentStatusTransitions(t *testing.T) {
 
 func TestDarwinCompositeReportsDisabledPacketEnrichmentWithoutSidecar(t *testing.T) {
 	primary := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
-	composite := newDarwinCompositeTracerWithComponents(primary, nil, nil)
+	composite := newDarwinCompositeTracerWithComponents(primary, nil)
 	composite.packetRequested = false
 
 	status := composite.darwinStatus()
@@ -43,7 +43,7 @@ func TestDarwinCompositeReportsDisabledPacketEnrichmentWithoutSidecar(t *testing
 func TestDarwinCompositeReportsStoppedPacketEnrichmentOnSidecarFailure(t *testing.T) {
 	primary := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
 	packet := newDarwinPacketSidecar(&fakeDarwinPacketSource{}, primary, 10)
-	composite := newDarwinCompositeTracerWithComponents(primary, packet, nil)
+	composite := newDarwinCompositeTracerWithComponents(primary, packet)
 	composite.handlePacketFailure(errors.New("pcap read error"))
 
 	status := GetDarwinTracerStatus(composite)

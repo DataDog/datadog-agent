@@ -18,24 +18,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/libproc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// darwinCompositeTracer coordinates an authoritative NStat source with
-// optional packet and libproc sidecars. NStat alone owns connection creation,
-// counters, and lifecycle; the sidecars may only enrich an existing NStat
-// connection with packet evidence or otherwise missing process identity.
+// darwinCompositeTracer coordinates an authoritative NStat source with an
+// optional packet sidecar. NStat alone owns connection creation, counters,
+// process identity, and lifecycle; the sidecar may only enrich an existing
+// NStat connection with packet evidence.
 type darwinCompositeTracer struct {
-	primary    *nstatTracer
-	packet     *darwinPacketSidecar
-	reconciler *darwinLibprocReconciler
+	primary *nstatTracer
+	packet  *darwinPacketSidecar
 
-	packetRequested     bool
-	reconcilerRequested bool
-	packetError         error
-	reconcilerError     error
-	lastPacketStatus    string
+	packetRequested  bool
+	packetError      error
+	lastPacketStatus string
 
 	mu                     sync.Mutex
 	started                bool
@@ -53,9 +49,8 @@ func newDarwinCompositeTracer(cfg *config.Config) (*darwinCompositeTracer, error
 	if err != nil {
 		return nil, err
 	}
-	composite := newDarwinCompositeTracerWithComponents(primary, nil, nil)
+	composite := newDarwinCompositeTracerWithComponents(primary, nil)
 	composite.packetRequested = true
-	composite.reconcilerRequested = true
 
 	packetSource, packetErr := filter.NewLibpcapSource(
 		filter.OptSnapLen(darwinPrefixLimit),
@@ -68,25 +63,16 @@ func newDarwinCompositeTracer(cfg *config.Config) (*darwinCompositeTracer, error
 		packetFanout := filter.NewPacketSourceFanout(packetSource)
 		composite.packet = newDarwinPacketSidecar(packetFanout, primary, int(cfg.MaxTrackedConnections))
 	}
-
-	scanner, scannerErr := libproc.NewNativeScanner(libproc.DefaultLimits)
-	if scannerErr != nil {
-		log.Warnf("Darwin NStat libproc reconciliation unavailable: %v", scannerErr)
-	} else {
-		composite.reconciler = newDarwinLibprocReconciler(scanner, primary, darwinLibprocInterval)
-	}
 	return composite, nil
 }
 
 func newDarwinCompositeTracerWithComponents(
 	primary *nstatTracer,
 	packet *darwinPacketSidecar,
-	reconciler *darwinLibprocReconciler,
 ) *darwinCompositeTracer {
 	composite := &darwinCompositeTracer{
-		primary:    primary,
-		packet:     packet,
-		reconciler: reconciler,
+		primary: primary,
+		packet:  packet,
 	}
 	if primary != nil {
 		primary.setRuntimeFailureCallback(composite.handlePrimaryFailure)
@@ -94,9 +80,6 @@ func newDarwinCompositeTracerWithComponents(
 	if packet != nil {
 		composite.packetRequested = true
 		packet.setFailureCallback(composite.handlePacketFailure)
-	}
-	if reconciler != nil {
-		composite.reconcilerRequested = true
 	}
 	return composite
 }
@@ -137,9 +120,6 @@ func (t *darwinCompositeTracer) Start(closeCallback func(*network.ConnectionStat
 	if t.packet != nil {
 		t.packet.start()
 	}
-	if t.reconciler != nil {
-		t.reconciler.start()
-	}
 	return nil
 }
 
@@ -164,9 +144,6 @@ func (t *darwinCompositeTracer) stopSidecars() {
 	t.stopSidecarsOnce.Do(func() {
 		if t.packet != nil {
 			t.packet.stop()
-		}
-		if t.reconciler != nil {
-			t.reconciler.stop()
 		}
 	})
 }
@@ -234,16 +211,11 @@ func (t *darwinCompositeTracer) darwinStatus() DarwinTracerStatus {
 		stats = t.packet.snapshot()
 	}
 	status.PacketEnrichment = darwinPacketEnrichmentStatus(t.packetRequested, t.packet != nil, t.packetError, stats)
-	status.LibprocReconciler = darwinSidecarStatus(t.reconcilerRequested, t.reconciler != nil, t.reconcilerError)
 	if status.PacketEnrichment == darwinSidecarHealthy || status.PacketEnrichment == darwinSidecarDegraded {
 		status.PacketMatchRate = packetMatchRate(stats)
 	}
-	if status.LastError == "" {
-		if t.packetError != nil {
-			status.LastError = boundedDarwinStatusError(t.packetError)
-		} else if t.reconcilerError != nil {
-			status.LastError = boundedDarwinStatusError(t.reconcilerError)
-		}
+	if status.LastError == "" && t.packetError != nil {
+		status.LastError = boundedDarwinStatusError(t.packetError)
 	}
 	t.notePacketStatusLocked(status.PacketEnrichment)
 	return status

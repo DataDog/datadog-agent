@@ -79,7 +79,7 @@ func TestNStatQualificationLoopbackTCPErrorsIncomplete(t *testing.T) {
 func TestNStatQualificationPacketSidecarDeathDoesNotFallback(t *testing.T) {
 	primary := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
 	packet := newDarwinPacketSidecar(&fakeDarwinPacketSource{}, primary, 10)
-	composite := newDarwinCompositeTracerWithComponents(primary, packet, nil)
+	composite := newDarwinCompositeTracerWithComponents(primary, packet)
 	var fallbacks int
 	composite.setRuntimeFailureCallback(func(error) { fallbacks++ })
 	composite.handlePacketFailure(io.ErrClosedPipe)

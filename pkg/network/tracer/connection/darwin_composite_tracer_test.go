@@ -33,7 +33,7 @@ func TestDarwinCompositePrimaryFailureClosesGenerationAndSidecarsOnce(t *testing
 	})
 	packetSource := newBlockingDarwinPacketSource()
 	packet := newDarwinPacketSidecar(packetSource, primary, 10)
-	composite := newDarwinCompositeTracerWithComponents(primary, packet, nil)
+	composite := newDarwinCompositeTracerWithComponents(primary, packet)
 
 	var mu sync.Mutex
 	var closed int
@@ -63,7 +63,7 @@ func TestDarwinCompositePrimaryFailureClosesGenerationAndSidecarsOnce(t *testing
 }
 
 func TestDarwinCompositeRejectsMissingPrimary(t *testing.T) {
-	composite := newDarwinCompositeTracerWithComponents(nil, nil, nil)
+	composite := newDarwinCompositeTracerWithComponents(nil, nil)
 	require.ErrorContains(t, composite.Start(nil), "no authoritative NStat source")
 	composite.Stop()
 }
@@ -81,7 +81,7 @@ func TestDarwinCompositeRemoveCleansPacketStateAfterPrimary(t *testing.T) {
 	conn := buffer.Connections()[0]
 	packet := newDarwinPacketSidecar(&fakeDarwinPacketSource{}, primary, 10)
 	packet.analyzer.process(conn.Cookie, true, false, &layers.TCP{Seq: 1, SYN: true})
-	composite := newDarwinCompositeTracerWithComponents(primary, packet, nil)
+	composite := newDarwinCompositeTracerWithComponents(primary, packet)
 
 	require.NoError(t, composite.Remove(&conn))
 

@@ -34,7 +34,7 @@ import (
 const (
 	nstatQueryInterval       = time.Second
 	nstatPollInterval        = 250 * time.Millisecond
-	nstatPendingRemovalTTL   = 2 * darwinLibprocInterval
+	nstatPendingRemovalTTL   = 5 * time.Second
 	nstatDescriptionRetry    = 100 * time.Millisecond
 	nstatDescriptionBatch    = 8
 	nstatSubscriptionTimeout = 2 * time.Second
@@ -85,6 +85,7 @@ var nstatTracerTelemetry = struct {
 	removals           telemetry.Counter
 	runtimeFailures    telemetry.Counter
 	directionConflicts telemetry.Counter
+	pidZeroPublished   telemetry.Counter
 	activeSources      telemetry.Gauge
 }{
 	datagrams:          telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "datagrams", nil, "NStat datagrams received"),
@@ -96,6 +97,7 @@ var nstatTracerTelemetry = struct {
 	removals:           telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "removals", []string{"resolution"}, "NStat source removals by identity resolution"),
 	runtimeFailures:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "runtime_failures", nil, "Fatal NStat runtime failures"),
 	directionConflicts: telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "direction_conflicts", nil, "Conflicting direction evidence observed"),
+	pidZeroPublished:   telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "pid_zero_published", nil, "NStat connections published without a PID"),
 	activeSources:      telemetryimpl.GetCompatComponent().NewGauge("network_tracer__nstat", "active_sources", nil, "NStat sources currently tracked"),
 }
 
@@ -109,11 +111,10 @@ type nstatControl interface {
 }
 
 type nstatSource struct {
-	provider  uint32
-	flow      *nstat.Flow
-	counts    nstat.Counts
-	conn      *network.ConnectionStats
-	createdAt time.Time
+	provider uint32
+	flow     *nstat.Flow
+	counts   nstat.Counts
+	conn     *network.ConnectionStats
 
 	descriptionRequested     bool
 	nextDescription          time.Time
@@ -132,13 +133,6 @@ type nstatSource struct {
 	listenerKey              darwinTCPListenerKey
 	listenerIndexed          bool
 	packetEnriched           bool
-
-	hostWalkStop      bool
-	hostWalkBits      uint8
-	hostWalkTruncated uint8
-	targetedBits      uint8
-	targetedPID       uint32
-	targetedTransient uint8
 }
 
 type nstatTracer struct {
@@ -173,9 +167,6 @@ type nstatTracer struct {
 	runtimeErr    error
 
 	runtimeFailureCallback func(error)
-
-	libprocTick      uint64
-	lastHostWalkTick uint64
 
 	exit        chan struct{}
 	stopOnce    sync.Once
@@ -564,7 +555,7 @@ func (t *nstatTracer) getSource(sourceRef uint64) *nstatSource {
 			return nil
 		}
 	}
-	source := &nstatSource{createdAt: t.now(), afterEnumeration: t.enumerationComplete}
+	source := &nstatSource{afterEnumeration: t.enumerationComplete}
 	t.sources[sourceRef] = source
 	nstatTracerTelemetry.activeSources.Set(float64(len(t.sources)))
 	return source
@@ -586,17 +577,7 @@ func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event 
 			direction, evidence := source.observeTCPState(event.Flow.TCPState)
 			t.setSourceDirection(source, direction, evidence)
 		}
-		oldPID := uint32(0)
-		oldBits := uint8(0)
-		if source.flow != nil {
-			oldPID = source.flow.PID
-			oldBits = nstatTupleFingerprint(source.flow)
-		}
 		source.flow = mergeNStatFlow(source.flow, event.Flow)
-		if source.flow != nil {
-			resetLibprocCountersOnMoreComplete(source, oldBits)
-			clearLibprocTargetedOnPIDChange(source, oldPID, source.flow.PID)
-		}
 		t.syncTCPListener(sourceRef, source)
 	}
 	if event.Counts != nil {
@@ -786,6 +767,9 @@ func (t *nstatTracer) newConnection(sourceRef uint64, source *nstatSource) *netw
 		conn.Type = network.TCP
 		// TCP error fields start unknown until a unique pcap match.
 		conn.AddTag(network.ConnTagTCPErrorsIncomplete)
+	}
+	if flow.PID == 0 {
+		nstatTracerTelemetry.pidZeroPublished.Inc()
 	}
 	conn.Family = nstatFlowFamily(flow)
 	t.cookieHasher.Hash(conn)
