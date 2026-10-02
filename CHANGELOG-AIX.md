@@ -9,8 +9,6 @@
 ## Unreleased
 <!-- Add entries here for changes not yet in a release. -->
 
-- The install lifecycle scripts (preinst, postinst, unconfig, prerm) now stop/start the services through the `datadog-agent` SRC group (`stopsrc -g` / `startsrc -g`) instead of one subsystem at a time. `preinst` and `prerm` keep individual per-subsystem stops alongside the group stop so upgrades from pre-group installs (which have no SRC group on file yet) still stop every service.
-
 --
 
 ## 7.84.0-devel.git.1552.365acb6-1 (2026-09-29)

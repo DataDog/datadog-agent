@@ -1,7 +1,8 @@
 #!/bin/sh
-# Stop the SRC group; the per-subsystem stops only matter for
-# pre-group installs (no group on file yet) and need no new services.
+# Stop the services
 stopsrc -g datadog-agent 2>/dev/null || true
+# Stop services which existed before the group was created to be safe on updates
+# no need to add new services to this list
 stopsrc -s datadog-agent            2>/dev/null || true
 stopsrc -s datadog-trace-agent      2>/dev/null || true
 stopsrc -s datadog-agent-data-plane 2>/dev/null || true
