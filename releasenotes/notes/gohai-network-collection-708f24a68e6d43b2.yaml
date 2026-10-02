@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Reduce CPU use during host inventory collection on Linux hosts with
+    many network interfaces by collecting interface addresses in one pass.
