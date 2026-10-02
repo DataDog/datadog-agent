@@ -17,6 +17,9 @@ stages:
 variables:
   SMP_ALLOW_FAILURE: "true"
   GIT_DEPTH: 1
+  # Repo-owned minijinja template rendered into the PR comment by
+  # `smp report render`. Shared by every SMP job in this pipeline.
+  REPORT_TEMPLATE: test/regression/report_template.md.j2
 
 .smp_config_only_job_submit:
   - |
@@ -31,10 +34,15 @@ variables:
       echo "smp job submit command failed with code $exit_code"
       datadog-ci tag --level job --tags smp_failure_mode:"job-submission"
       exit $exit_code
-    } 
+    }
 
 .smp_job_submit:
   - |
+    # Run every Agent quality gate at the production 600-second sample window.
+    # The shortened run had no missed_bytes series for quality_gate_logs.
+    # Warmup (default 45s, server-side) still applies.
+    # TEMPORARY CI ITERATION SCOPE -- the allow filter matches name prefixes.
+    # Remove it before merging to restore non-quality-gate experiments too.
     RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
     job submit \
     --baseline-image ${BASELINE_IMAGE} \
@@ -42,13 +50,15 @@ variables:
     --baseline-sha ${BASELINE_SHA} \
     --comparison-sha ${CI_COMMIT_SHA} \
     --target-config-dir ${CONFIG_DIR} \
+    --total-samples 600 \
+    --experiment-name-allow-filter quality_gate_ \
     --submission-metadata submission_metadata \
     --tags ${SMP_TAGS} || {
       exit_code=$?
       echo "smp job submit command failed with code $exit_code"
       datadog-ci tag --level job --tags smp_failure_mode:"job-submission"
       exit $exit_code
-    } 
+    }
 
 # Base template shared by all SMP run jobs.
 # BASELINE_SHA is written to regression_detector.env in before_script so the
@@ -64,14 +74,14 @@ variables:
     expire_in: 1 weeks
     paths:
       - submission_metadata # for provenance, debugging
-      - outputs/report.md # for debugging, also on S3
-      - outputs/regression_signal.json # for debugging, also on S3
-      - outputs/bounds_check_signal.json # for debugging, also on S3
-      - outputs/junit.xml # for debugging, also on S3
-      - outputs/report.json # for debugging, also on S3
-      - outputs/decision_record.md # for posterity, this is appended to final PR comment
+      - outputs/report.md # rendered locally from report.v1.json, includes the CI decision
+      - outputs/junit.xml # rendered locally from report.v1.json, uploaded to CI Visibility
+      - outputs/report.v1.json # native or converted source for every local view
+      - outputs/decision.json # regression, bounds, and Agent job decisions
+      - outputs/pr_report_comment.json # complete payload consumed by the comment job
     when: always
-  # See 'decision_record.md' for the determination of whether this job passes or fails.
+  # smp_ci.py computes the decision; the final marker check applies policy failure
+  # only after Markdown, JUnit, and job tags have been produced.
   # Inlined from .retry_only_infra_failure in .gitlab-ci.yml (not available in child pipelines).
   retry:
     max: 2
@@ -174,7 +184,9 @@ variables:
         datadog-ci tag --level job --tags smp_failure_mode:"job-status"
         exit $exit_code
       }
-    # Now that the job is completed pull the analysis report, output it to stdout.
+    # Now that the job is completed pull the analysis artifacts. `job sync` walks a
+    # fixed list of filenames and only warns on the ones the backend did not
+    # produce, so it stays green as SMP stops rendering views server-side.
     - |
       RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
       job sync \
@@ -185,106 +197,69 @@ variables:
         datadog-ci tag --level job --tags smp_failure_mode:"job-sync"
         exit $exit_code
       }
-    # Replace empty lines in the output with lines containing various unicode
-    # space characters. This avoids
-    # https://gitlab.com/gitlab-org/gitlab/-/issues/217231.
-    - cat outputs/report.md | sed "s/^\$/$(echo -ne '\uFEFF\u00A0\u200B')/g"
+    # All local reporting uses v1. Convert the legacy backend output when needed.
+    - |
+      if [[ ! -s outputs/report.v1.json ]]; then
+        if [[ ! -s outputs/report.json ]]; then
+          echo "outputs/report.json is missing or empty -- cannot render reports"
+          datadog-ci tag --level job --tags smp_failure_mode:"report-conversion"
+          exit 1
+        fi
+        python3 test/regression/temp_upgrade_smp_report_to_v1.py outputs/report.json --force || {
+          exit_code=$?
+          datadog-ci tag --level job --tags smp_failure_mode:"report-conversion"
+          exit "$exit_code"
+        }
+      fi
+    # JUnit stays a direct SMP built-in render, outside the Python wrapper.
+    - |
+      RUST_LOG="${RUST_LOG}" ./smp report render --report outputs/report.v1.json --builtin junit.xml > outputs/junit.xml || {
+        exit_code=$?
+        datadog-ci tag --level job --tags smp_failure_mode:"report-render"
+        exit "$exit_code"
+      }
     # Upload JUnit XML outside of Agent CI's tooling because the `junit_upload`
     # invoke task has additional logic that does not seem to apply well to SMP's
     # JUnit XML. Agent CI seems to use `datadog-agent` as the service name when
     # uploading JUnit XML, so the upload command below respects that convention.
-    - datadog-ci junit upload --service datadog-agent outputs/junit.xml
-    # At this point if the script has not failed the `smp_failure_mode` tag should be none.
-    # Although this may not be necessarily true, failures as a result of violations in optimization goals
-    # bounds checks and quality gates will be signaled by their own tag.
+    - |
+      datadog-ci junit upload --service datadog-agent outputs/junit.xml || {
+        exit_code=$?
+        datadog-ci tag --level job --tags smp_failure_mode:"junit-upload"
+        exit "$exit_code"
+      }
+    # A valid policy failure returns zero so all reporting can finish.
+    # Operational generator failures must stop the job immediately.
+    - |
+      python3 test/regression/smp_ci.py \
+        --smp ./smp \
+        --report outputs/report.v1.json \
+        --commit "$CI_COMMIT_SHA" \
+        --template "${REPORT_TEMPLATE}" \
+        --output-report-md outputs/report.md \
+        --output-decision outputs/decision.json \
+        --output-pr-comment outputs/pr_report_comment.json \
+        --output-failure-mark outputs/smp-failed-flag || {
+          exit_code=$?
+          datadog-ci tag --level job --tags smp_failure_mode:"quality-gate-undecidable"
+          exit "$exit_code"
+        }
+    - cat outputs/report.md
+    # Read decisions outside tag-command substitutions so jq errors cannot be masked.
+    - |
+      if ! SMP_REGRESSIONS=$(jq -er '.regressions | select(. == "passed" or . == "failed")' outputs/decision.json) ||
+         ! SMP_BOUNDS=$(jq -er '.all_bounds_checks | select(. == "passed" or . == "failed")' outputs/decision.json) ||
+         ! SMP_JOB_DECISION=$(jq -er '.job | select(. == "passed" or . == "failed")' outputs/decision.json); then
+        echo "Invalid SMP decision file"
+        datadog-ci tag --level job --tags smp_failure_mode:"quality-gate-undecidable"
+        exit 1
+      fi
+    - datadog-ci tag --level job --tags "smp_optimization_goal:${SMP_REGRESSIONS}"
+    - datadog-ci tag --level job --tags "smp_bounds_check:${SMP_BOUNDS}"
+    - datadog-ci tag --level job --tags "smp_quality_gates:${SMP_JOB_DECISION}"
+    # Policy failures have their own tags; reporting completed without operational errors.
     - datadog-ci tag --level job --tags smp_failure_mode:"none"
-    # Check for failing regression detector for the purpose of tagging.
-    # For consistency we start by tagging with smp_optimization_goal:passed and overwrite to failed if a failure is detected.
-    - datadog-ci tag --level job --tags smp_optimization_goal:"passed"
-    - |
-      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
-        job result \
-        --submission-metadata submission_metadata --signal regression-detector || {
-        exit_code=$?
-        echo "smp regression detector has detected a regression"
-        datadog-ci tag --level job --tags smp_optimization_goal:"failed"
-      }
-    # Check for failing bounds checks for the purpose of tagging.
-    # For consistency we start by tagging with smp_bounds_check:passed and overwrite to failed if a failure is detected.
-    - datadog-ci tag --level job --tags smp_bounds_check:"passed"
-    - |
-      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
-        job result \
-        --submission-metadata submission_metadata --signal bounds-check || {
-        exit_code=$?
-        echo "smp regression detector has detected a failed bounds check"
-        datadog-ci tag --level job --tags smp_bounds_check:"failed"
-      }
-    # Run quality gate check script
-    # In order to determine if the following python script failed we assume quality gates failure here and update accordingly
-    # if we make it through the python script successfully. The consequence of this is that any failure in the python script will
-    # be seen as a quality gates failure.
-    - datadog-ci tag --level job --tags smp_quality_gates:"failed"
-    - |
-      python3 <<'EOF'
-      import json
-      import sys
-
-      try:
-          with open('outputs/report.json') as f:
-              data = json.load(f)
-      except FileNotFoundError:
-          print("Machine readable report not found.")
-          sys.exit(1)
-      except json.JSONDecodeError as e:
-          print(f"Error parsing JSON report: {e}")
-          sys.exit(1)
-
-      experiments = data.get('experiments', {})
-      failed = False
-      decision_record = []
-
-      for exp_name, exp_data in experiments.items():
-          if exp_name.startswith('quality_gate_'):
-              bounds_checks = exp_data.get('bounds_checks', {})
-              for check_name, check_data in bounds_checks.items():
-                  results = check_data.get('results', {})
-                  comparison = results.get('comparison', [])
-                  num_total = len(comparison)
-                  failed_replicates = [
-                      replicate for replicate in comparison if not replicate.get('passed', False)
-                  ]
-                  num_failed = len(failed_replicates)
-                  num_passed = num_total - num_failed
-                  if failed_replicates:
-                      decision_record.append(
-                          f"- **{exp_name}**, bounds check **{check_name}**: {num_passed}/{num_total} replicas passed. Failed {num_failed} which is > 0. Gate **FAILED**."
-                      )
-                      failed = True
-                  else:
-                      decision_record.append(
-                          f"- **{exp_name}**, bounds check **{check_name}**: {num_passed}/{num_total} replicas passed. Gate passed."
-                      )
-
-      with open('outputs/decision_record.md', 'w') as f:
-          # Extra newline since this is appended to another report
-          f.write('\n\n## CI Pass/Fail Decision\n\n')
-          if failed:
-              f.write('❌ **Failed.** Some Quality Gates were violated.\n\n')
-              f.write('\n'.join(decision_record))
-          else:
-              f.write('✅ **Passed.** All Quality Gates passed.\n\n')
-              f.write('\n'.join(decision_record))
-
-      if failed:
-          print("Quality gate failed, see decision record")
-          sys.exit(1)
-      else:
-          print("Quality gate passed.")
-          sys.exit(0)
-      EOF
-    # If we make it here that means quality gates must not have failed.
-    - datadog-ci tag --level job --tags smp_quality_gates:"passed"
+    - if [[ -f outputs/smp-failed-flag ]]; then exit 1; fi
 
 single-machine-performance-regression_detector:
   extends:
@@ -299,37 +274,19 @@ single-machine-performance-regression_detector:
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
-    SMP_VERSION: v0.28.0
+    # TODO: pin a released `smp` version once DataDog/single-machine-performance#4693
+    # (which introduces `smp report render`) has landed and shipped. All three jobs
+    # below must move together, since the report rendering lives in the shared base.
+    SMP_VERSION: dev-pr4916-e24e21f4d
     BOT_LOGIN: bot_login
     BOT_TOKEN: bot_token
     CONFIG_DIR: test/regression
 
-single-machine-performance-metal-runners-regression_detector:
-  extends:
-    - .single-machine-performance-run_regression_detector
-  when: manual
-  allow_failure: true
-  variables:
-    SMP_TEAM_NAME: metal-runners
-    SMP_API_URL: metal-runners_api_url
-    SMP_VERSION: v0.27.0-nightly.20260423T145046Z
-    BOT_LOGIN: bot_login_metal-runners
-    BOT_TOKEN: bot_token_metal-runners
-    CONFIG_DIR: test/regression/ebpf
-
-single-machine-performance-metal-runners-regression_detector_cfg:
-  extends:
-    - .single-machine-performance-run_regression_detector
-  when: manual
-  allow_failure: true
-  variables:
-    SMP_TEAM_NAME: metal-runners
-    SMP_API_URL: metal-runners_api_url
-    SMP_VERSION: v0.27.0-nightly.20260423T145046Z
-    BOT_LOGIN: bot_login_metal-runners
-    BOT_TOKEN: bot_token_metal-runners
-    RUN_CONFIG_ONLY: "true"
-    CONFIG_DIR: test/regression/ebpf/config-only
+# TEMPORARY CI ACCELERATION -- the two metal-runners jobs are removed while
+# the CI reporting flow is reworked; they are manual jobs that do not run in
+# the automatic pipeline, so removing them only trims the child pipeline's
+# definition. Restore them (and the "metal-runners" link profile work described
+# in PLAN.md) before merging.
 
 
 # Shamelessly adapted from golang_deps_commenter job config in
@@ -342,44 +299,19 @@ single-machine-performance-regression_detector-pr-comment:
   tags: ["arch:amd64", "specific:true"]
   needs:
     - job: single-machine-performance-regression_detector
-  artifacts:
-    expire_in: 1 weeks
-    paths:
-      - report_as_json_string.txt # for debugging transform to valid JSON string
-      - pr_comment_payload.json # for debugging PR commenter JSON payload bugs
   variables:
     # Not using the entrypoint script for the pr-commenter image
     FF_KUBERNETES_HONOR_ENTRYPOINT: false
-  allow_failure: true # allow_failure here should have same setting as in job above
+  allow_failure: true # a comment-service failure must not change the detector result
+  when: always # post valid reports even when the detector's final policy gate fails
   script: # ignore error message about no PR, because it happens for dev branches without PRs
-    # Prevent posting empty Regression Detector report if Markdown report is not found or
-    # has zero size.
+    # Check the locally generated payload, not a server-rendered Markdown file.
     - |
-      if [[ ! -s "outputs/report.md" ]]
+      if [[ ! -s "outputs/pr_report_comment.json" ]]
       then
-          echo "ERROR: Regression Detector report not found -- no PR comment posted"
+          echo "ERROR: Regression Detector payload not found -- no PR comment posted"
           exit 1
       fi
-    # We need to transform the Markdown report into a valid JSON string (without
-    # quotes) in order to pass a well-formed payload to the PR commenting
-    # service. Note that on macOS, the "-z" flag is invalid for `sed` (but
-    # should be fine for GNU `sed`). We need to use `sed` to escape newlines
-    # because JSON does not permit (raw) newlines in strings. We use the "-z"
-    # option with `sed` because that option treats its input as
-    # NUL-character-separated (i.e., '\0'-separated, the zero-byte character),
-    # so `sed` does not interpret its input as newline-delimited. We also need
-    # to escape double quotes to distinguish literal quotes in the report from
-    # the double quotes that delimit the value of the "message" field in the
-    # payload.
-    # Appends the Decision Record to final report
-    - cat outputs/report.md outputs/decision_record.md | sed -z 's/\n/\\n/g' | sed -z 's/"/\\"/g' > report_as_json_string.txt
-    - cat report_as_json_string.txt
-    # Transforming the Markdown report to a valid JSON string is easy to foul
-    # up, so to make debugging easier, we store the payload in a variable to
-    # help debugging.
-    - PR_COMMENT_JSON_PAYLOAD='{"org":"DataDog", "repo":"datadog-agent", "commit":"'"${CI_COMMIT_SHA}"'", "header":"Regression Detector", "message":"'"$(cat report_as_json_string.txt)"'"}'
-    - printf "%s\n" "PR comment JSON payload:${PR_COMMENT_JSON_PAYLOAD}"
-    - printf "%s\n" "${PR_COMMENT_JSON_PAYLOAD}" > pr_comment_payload.json
     # Craft an HTTPS request to pr-commenter service to post Markdown report to
     # GitHub, per
     # https://github.com/DataDog/dd-source/tree/7c941f527fb9c44a73433c7dd0a090d92be7deb4/domains/devex/codex/apps/apis/pr-commenter
@@ -390,14 +322,14 @@ single-machine-performance-regression_detector-pr-comment:
           -H "$(authanywhere)" \
           -H "X-DdOrigin: curl" \
           -X PATCH \
-          -d "${PR_COMMENT_JSON_PAYLOAD}")
+          --data-binary @outputs/pr_report_comment.json)
       exitcode=$?
       set -e
       if [ -n "${out}" ]; then
         if [ $exitcode -eq 0 ]; then
-          echo $out
+          echo "$out"
         else
-          echo $out >&2
+          echo "$out" >&2
         fi
       fi
       if [ "${out}" != "${out/invalid request: no pr found for this commit}" ]; then
