@@ -40,6 +40,7 @@ dd_agent_go_test(
         "integration_config_test.go",
         "messages_test.go",
         "parser_test.go",
+        "processing_rules_apply_test.go",
         "processing_rules_test.go",
     ],
     embed = [":config"],

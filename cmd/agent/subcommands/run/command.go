@@ -168,6 +168,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	processagentstatusfx "github.com/DataDog/datadog-agent/comp/process/status/fx"
+	procmgrFlareFx "github.com/DataDog/datadog-agent/comp/procmgr/flare/fx"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
@@ -488,6 +489,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		otelcol.Bundle(),
 		hostProfilerFlareFx.Module(),
+		procmgrFlareFx.Module(),
 		rctelemetryreporterfx.Module(),
 		rcprotocoltestfx.Module(),
 		rcservicefx.Module(),

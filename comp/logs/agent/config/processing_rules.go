@@ -6,6 +6,7 @@
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"regexp"
@@ -111,4 +112,19 @@ func CompileProcessingRules(rules []*ProcessingRule) error {
 		}
 	}
 	return nil
+}
+
+// ApplyMaskSequence applies a compiled mask_sequences rule to content.
+func ApplyMaskSequence(content []byte, rule *ProcessingRule) ([]byte, bool) {
+	if rule.Type != MaskSequences {
+		return content, false
+	}
+
+	prefix, _ := rule.Regex.LiteralPrefix()
+	if prefix != "" && !bytes.Contains(content, []byte(prefix)) {
+		return content, false
+	}
+
+	masked := rule.Regex.ReplaceAll(content, rule.Placeholder)
+	return masked, !bytes.Equal(content, masked)
 }

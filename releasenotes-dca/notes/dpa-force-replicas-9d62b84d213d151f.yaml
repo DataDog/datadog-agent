@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Added the ``autoscaling.datadoghq.com/force-replicas`` annotation on ``DatadogPodAutoscaler``
+    objects to pin the replica count of the target workload during an incident. The count is applied
+    in one step, ignoring ``spec.constraints``, scaling rules and stabilization windows. It is still
+    suppressed by the ``autoscaling.datadoghq.com/pause`` annotation and by the ``Preview`` apply mode.
+    While applied, it is reported by the ``HorizontalScalingLimited`` status condition and the
+    ``datadog.cluster_agent.autoscaling.workload.force_replicas`` gauge.

@@ -49,6 +49,10 @@ env:
   PATH: C:\Windows\System32;C:\Windows
 auto_start: true
 restart: always
+# Start-Sleep receives CTRL_BREAK and keeps sleeping, so every stop of this
+# fixture goes through the force-kill path. Bounded here so a stop costs ten
+# seconds rather than the ninety-second default.
+stop_timeout: 10
 description: E2E test process
 `
 
@@ -137,6 +141,13 @@ func skipUnlessHostPath(t *testing.T, host *components.RemoteHost, path, reason 
 // accepts it, so a restart blip is not treated as steady state.
 const waitProcmgrStableFor = 5 * time.Second
 
+// procmgrHoldFor is how long the cutover assertions must keep seeing the state they want,
+// rather than accepting the first poll that shows it. waitProcmgrStableFor only rejects a
+// restart blip during setup. This is several times the five second sleep system-probe takes
+// before exiting when no module is enabled, so that exit cannot satisfy a check, and it
+// matches the window AssertProcmgrProcessRunning uses.
+const procmgrHoldFor = 20 * time.Second
+
 // waitProcmgrRunning polls dd-procmgr describe until name is Running with the same real PID
 // for waitProcmgrStableFor, so a brief Running blip during a restart is not accepted.
 func waitProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) string {
@@ -172,19 +183,63 @@ func waitProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name str
 	return pid
 }
 
-// requireProcmgrRunningPID polls until name is Running with wantPID, proving the same OS
-// process is still supervised.
-func requireProcmgrRunningPID(t *testing.T, host *components.RemoteHost, cli, name, wantPID string, timeout time.Duration) {
+// requireSupervisedOnlyByProcmgr requires that dd-procmgr is the one thing running name, for
+// procmgrHoldFor: name is Running under dd-procmgr as wantPID, and legacyService, which used to
+// run it, is Stopped or not registered. timeout is the deadline for reaching that hold, not the
+// length of it.
+//
+// Both are read on every tick and share one window, because "only" is a claim about the pair.
+// Given a window each in turn, the workload could restart during the service half and the test
+// would still pass, which is exactly what this rules out: a workload run twice, or not at all.
+//
+// A restart, or a legacy service in any state but Stopped, resets the hold like any other
+// mismatch, so the run keeps polling to the deadline and reports what it last saw. Neither can
+// be undone by waiting, but aborting the moment one appears would mean either a sleep-driven
+// loop of our own or FailNow from the condition, which runs on another goroutine where it only
+// stops the worker and leaves the tick reporting success.
+func requireSupervisedOnlyByProcmgr(t *testing.T, host *components.RemoteHost, cli, name, wantPID, legacyService string, timeout time.Duration) {
 	t.Helper()
 	require.NotEmpty(t, wantPID, "wantPID must be set (capture it with waitProcmgrRunning)")
+
+	serviceQuery := fmt.Sprintf(
+		`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { 'Absent' } else { $s.Status }`,
+		legacyService,
+	)
+
+	var heldSince time.Time
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		out, err := host.Execute(procmgrCmd(cli, "describe "+name))
-		if !assert.NoError(ct, err) {
+		describe, err := host.Execute(procmgrCmd(cli, "describe "+name))
+		if !assert.NoError(ct, err, "dd-procmgr describe %s", name) {
+			heldSince = time.Time{}
 			return
 		}
-		assert.Equal(ct, "Running", fieldValue(out, "State"), "process %s: %s", name, out)
-		assert.Equal(ct, wantPID, fieldValue(out, "PID"),
-			"process %s should still be PID %s (same process that auto-spawned): %s", name, wantPID, out)
+		status, err := host.Execute(serviceQuery)
+		if !assert.NoError(ct, err, "Get-Service %s", legacyService) {
+			heldSince = time.Time{}
+			return
+		}
+
+		state, pid := fieldValue(describe, "State"), fieldValue(describe, "PID")
+		serviceState := strings.TrimSpace(status)
+		runningAsWantPID := assert.Equal(ct, "Running", state, "process %s: %s", name, describe) &&
+			assert.Equal(ct, wantPID, pid,
+				"process %s should still be the auto-spawned PID: %s", name, describe)
+		legacyDown := assert.Contains(ct, []string{"Stopped", "Absent"}, serviceState,
+			"%s must stay down while dd-procmgr supervises %s", legacyService, name)
+		if !runningAsWantPID || !legacyDown {
+			heldSince = time.Time{}
+			return
+		}
+
+		now := time.Now()
+		if heldSince.IsZero() {
+			heldSince = now
+		}
+		// A tick that records no failure is an immediate success, so the hold has to be an
+		// assertion rather than a silent early return.
+		assert.GreaterOrEqual(ct, now.Sub(heldSince), procmgrHoldFor,
+			"%s has held PID %s with %s down for %s, needs %s",
+			name, wantPID, legacyService, now.Sub(heldSince).Round(time.Second), procmgrHoldFor)
 	}, timeout, 3*time.Second)
 }
 
