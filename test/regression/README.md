@@ -1,61 +1,55 @@
 # Regression Detection
 
-The Regression Detector, owned by Single Machine Performance, is a tool that
-detects if there are more-than-random performance changes to a target program --
-here, the Agent -- across a variety of experiments and goals. This directory
-contains the experiments for Agent. A similar one exists in [Vector]. Please do
-add your own experiments, instructions below. If you have any questions do
-contact #single-machine-performance; we'll be glad to help.
+The Regression Detector finds Agent performance changes with controlled experiments. The Single Machine Performance team owns this system.
 
-## Quality Gate Experiments
-Experiments prefixed with `quality_gate_` represent the strongest claims made
-about the Agent and its performance. These are discussed in more detail on
-[this
-page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates)
+Ask `#single-machine-performance` for help with these experiments.
 
-## Adding an Experiment
+## Experiment selection
 
-In order for SMP's tooling to properly read a experiment directory please
-adhere to the following structure. Starting at the root:
+Agent experiments use two lanes. Container experiments use the manifest in `container/selection.yaml`. Metal eBPF experiments use the separate `ebpf/` lane.
 
-* `config.yaml` -- __Required__ Configuration that applies to all experiments.
-* `cases/` -- __Required__ The directory that contains each experiment.
-  Each sub-directory is a separate experiment and the name of the
-  directory is the name of the experiment, for instance
-  `tcp_syslog_to_blackhole`. We call these sub-directories 'cases'.
+The CLI finds each directory under `container/` that contains an `experiment.yaml` file. Intermediate directories only group experiments.
 
-The structure of each case is as follows:
+The manifest maps trigger buckets to experiment path globs. It combines all matching buckets.
 
-* `lading/lading.yaml` -- __Required__ The [lading] configuration inside its own
-  directory.
-* `datadog-agent/` -- __Required__ This is the configuration directory of your
-  program. Will be mounted read-only in the container build from `Dockerfile`
-  above at `/etc/datadog-agent`.
-* `experiment.yaml` -- __Required__ Set any experiment-specific configuration.
-  The "optimization goal" determines what metric the Regression Detector
-  will analyze at the conclusion of the experiment.
+* The `always` bucket runs on every pull request. This selection does not control the nightly schedule.
+* The `codeowners` bucket maps a team slug to experiments. The experiments run when the team owns a changed file.
+* The `labels` bucket maps an exact label to experiments. The experiments run when the pull request has that label.
 
-  Eg:
-  ```yaml
-  optimization_goal: ingress_throughput
-  ```
+Each experiment must match one or more buckets. The resolve lint job rejects an experiment that matches no bucket.
 
-  Supported values of `optimization_goal` are `ingress_throughput` and
-  `egress_throughput`.
+Read [`experiment-selection-guide.md`](experiment-selection-guide.md) for addition and selection procedures.
 
-[Vector]: https://github.com/vectordotdev/vector/tree/master/regression
-[lading]: https://github.com/DataDog/lading
+## Add an experiment
 
-## Local Run
-In order to run a regression experiment locally, you need two CLI utilities
-available:
-- `smp` -- build from source [repo](https://github.com/DataDog/single-machine-performance/)
-- `lading` -- See the notes in the below documentation about architecture,
-  `lading` needs to be compatible with the architecture of the image being run.
+Put each container experiment in a directory below `container/`. You can use intermediate directories to group related experiments.
 
-See full docs [here](https://github.com/DataDog/single-machine-performance/blob/main/smp/README.md#running-replicates-locally)
+Each experiment directory must contain `experiment.yaml` and `lading/lading.yaml`. It must also contain the `datadog-agent/` configuration directory.
 
-An example command may look like this:
+The CLI mounts `datadog-agent/` at `/etc/datadog-agent` in the target container. An optional `README.md` can explain the experiment.
+
+Experiment directory names must be unique across the container lane. The CLI compares names without case differences.
+
+Add the experiment to `container/selection.yaml`. You can also put it below a path that an existing glob matches.
+
+Manifest entries are path globs relative to `container/`. The `*` and `?` patterns stay within one path segment.
+
+The `**` pattern spans path segments. `foo/**` matches experiments inside `foo/`, but it does not match `foo` itself.
+
+Use `**/name` to match an experiment name at any depth. A plain name does not match by name.
+
+The `optimization_goal` field selects the metric for analysis. Supported values include `ingress_throughput` and `egress_throughput`.
+
+## Local run
+
+Use the `smp` and `lading` tools for a local experiment. The Lading binary must support the image architecture.
+
+For full instructions, read the [SMP local replicate documentation][smp-local].
+
+For example:
+
+```bash
+smp local-run --experiment-dir ~/dev/datadog-agent/test/regression/container/ --case quality_gate_logs --target-image datadog/agent-dev:nightly-main-fe13dead-py3
 ```
-smp local-run --experiment-dir ~/dev/datadog-agent/test/regression/ --case uds_dogstatsd_to_api --target-image datadog/agent-dev:nightly-main-fe13dead-py3
-```
+
+[smp-local]: https://github.com/DataDog/single-machine-performance/blob/main/smp/README.md#running-replicates-locally

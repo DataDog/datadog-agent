@@ -1,0 +1,19 @@
+# SMP regression experiment selection policy.
+#
+# The CLI combines all trigger buckets. An experiment runs when any configured trigger matches.
+#
+# The CLI finds each directory under this directory that contains an experiment.yaml file.
+# Entries are path globs relative to test/regression/container.
+#
+# The * and ? patterns stay within one path segment. The ** pattern spans path segments.
+# So, foo/** matches experiments inside foo, but it does not match foo itself.
+# Use **/name to match an experiment name at any depth. A plain name does not match by name.
+#
+# A codeowners key is a team slug. A labels key is an exact PR label.
+# Every experiment must match one or more buckets.
+# The separate test/regression/ebpf lane is not part of this manifest.
+
+always:
+  - quality_gates/**
+  - metrics/**
+  - openmetrics/**
