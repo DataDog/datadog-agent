@@ -1068,9 +1068,6 @@ dd_agent_go_test(
     gotags_sets = [[
         "cel",
         "clusterchecks",
-        "kubeapiserver",
-        "kubelet",
-        "orchestrator",
     ]],
     include_default = False,
     deps = select({
