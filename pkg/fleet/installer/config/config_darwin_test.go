@@ -476,31 +476,24 @@ func TestPromoteExperimentRefusesWhenNothingIsDeployed(t *testing.T) {
 	assertResting(t, dirs)
 }
 
-// TestPromoteRollsBackWhenTheSecondRenameFails is invariant 7's failure half: the live directory is
-// moved aside rather than deleted precisely so that a failed second rename can be undone. Without
-// the rollback the host would be left with no configuration directory at all.
-func TestPromoteRollsBackWhenTheSecondRenameFails(t *testing.T) {
+// TestPromoteLeavesBothDirectoriesWhenTheSwapFails is invariant 7's failure half: the swap is a
+// single exchange, so when it fails neither directory has moved and the experiment is still
+// deployed beside an intact stable configuration.
+func TestPromoteLeavesBothDirectoriesWhenTheSwapFails(t *testing.T) {
 	dirs := newTestDirectories(t)
 	ctx := context.Background()
 	require.NoError(t, dirs.WriteExperiment(ctx, mergePatch("experiment-1", `{"log_level":"debug"}`)))
 
 	boom := errors.New("boom")
-	calls := 0
-	original := rename
-	rename = func(oldPath, newPath string) error {
-		calls++
-		if calls == 2 {
-			return boom
-		}
-		return original(oldPath, newPath)
-	}
-	t.Cleanup(func() { rename = original })
+	original := renameSwap
+	renameSwap = func(string, string) error { return boom }
+	t.Cleanup(func() { renameSwap = original })
 
 	err := dirs.PromoteExperiment(ctx)
 	require.ErrorIs(t, err, boom)
 
 	content, err := os.ReadFile(filepath.Join(dirs.StablePath, "datadog.yaml"))
-	require.NoError(t, err, "the stable configuration was not restored")
+	require.NoError(t, err, "the stable configuration was disturbed")
 	assert.Contains(t, string(content), "warn")
 
 	state, err := dirs.GetState()
@@ -508,6 +501,26 @@ func TestPromoteRollsBackWhenTheSecondRenameFails(t *testing.T) {
 	assert.Equal(t, "stable-1", state.StableDeploymentID)
 	assert.Equal(t, "experiment-1", state.ExperimentDeploymentID, "the experiment must still be deployed")
 	assertNoScratchLeftBehind(t, dirs)
+}
+
+// TestDirSwapExchangesTheDirectories pins the exchange itself: live ends up with the incoming
+// content and the previous live directory is discarded rather than left at the incoming path.
+func TestDirSwapExchangesTheDirectories(t *testing.T) {
+	parent := t.TempDir()
+	live := filepath.Join(parent, "live")
+	incoming := filepath.Join(parent, "incoming")
+	require.NoError(t, os.MkdirAll(live, 0755))
+	require.NoError(t, os.MkdirAll(incoming, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(live, "marker"), []byte("old"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(incoming, "marker"), []byte("new"), 0644))
+
+	require.NoError(t, (dirSwap{live: live, incoming: incoming}).Commit(context.Background()))
+
+	content, err := os.ReadFile(filepath.Join(live, "marker"))
+	require.NoError(t, err)
+	assert.Equal(t, "new", string(content))
+	_, err = os.Lstat(incoming)
+	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestRemoveExperimentDiscardsTheExperiment(t *testing.T) {

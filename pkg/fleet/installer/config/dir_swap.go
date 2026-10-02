@@ -12,15 +12,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // dirSwap exchanges a live directory for one prepared beside it.
 //
-// A promote is two renames in one parent on one filesystem: the live directory is moved aside,
-// the incoming one is moved onto its name, and the one set aside is discarded. Rename is atomic
-// within a filesystem, so a reader either sees the old directory or the new one, never a merge of
-// the two and never a missing path for longer than the second rename takes. If the second rename
-// fails the first is undone, which is why the directory is moved aside rather than deleted.
+// A promote is a single renamex_np(RENAME_SWAP) in one parent on one filesystem: the live and
+// incoming directories trade names atomically, so the live path names the old directory or the
+// new one at every instant, including across a crash or a reboot -- there is no window in which it
+// is missing. The directory left at the incoming path is then the previous live one, and is
+// discarded. Failing to discard it is not fatal: the experiment path is put back to resting right
+// after a promote, which clears whatever directory is still there.
 type dirSwap struct {
 	// live is the directory being replaced, e.g. /opt/datadog-agent/etc.
 	live string
@@ -28,11 +33,13 @@ type dirSwap struct {
 	incoming string
 }
 
-// rename is indirected so a test can force the second rename to fail and assert the rollback.
-var rename = os.Rename
+// renameSwap is indirected so a test can force the exchange to fail.
+var renameSwap = func(from, to string) error {
+	return unix.RenamexNp(from, to, unix.RENAME_SWAP)
+}
 
 // Commit performs the swap. On success incoming no longer exists: it *is* live.
-func (s dirSwap) Commit(_ context.Context) (err error) {
+func (s dirSwap) Commit(_ context.Context) error {
 	parent := filepath.Dir(s.live)
 	if filepath.Dir(s.incoming) != parent {
 		return fmt.Errorf("%s and %s are not in the same directory, so they cannot be swapped by rename", s.live, s.incoming)
@@ -41,28 +48,12 @@ func (s dirSwap) Commit(_ context.Context) (err error) {
 		return fmt.Errorf("could not inspect %s: %w", s.incoming, err)
 	}
 
-	asideDir, err := os.MkdirTemp(parent, ".datadog-config-aside")
-	if err != nil {
-		return fmt.Errorf("could not create the directory to move %s aside: %w", s.live, err)
+	if err := renameSwap(s.incoming, s.live); err != nil {
+		return fmt.Errorf("could not swap %s into place at %s: %w", s.incoming, s.live, err)
 	}
-	aside := filepath.Join(asideDir, filepath.Base(s.live))
-
-	if err := rename(s.live, aside); err != nil {
-		return fmt.Errorf("could not move %s aside: %w", s.live, err)
-	}
-	defer func() {
-		if err == nil {
-			os.RemoveAll(asideDir)
-			return
-		}
-		if rollbackErr := os.Rename(aside, s.live); rollbackErr != nil {
-			err = fmt.Errorf("%w, and %s could not be restored: %w", err, s.live, rollbackErr)
-			return
-		}
-		os.RemoveAll(asideDir)
-	}()
-	if err := rename(s.incoming, s.live); err != nil {
-		return fmt.Errorf("could not move %s into place at %s: %w", s.incoming, s.live, err)
+	// incoming now holds the previous live directory.
+	if err := os.RemoveAll(s.incoming); err != nil {
+		log.Warnf("could not discard the previous %s, left at %s: %v", s.live, s.incoming, err)
 	}
 	return nil
 }
