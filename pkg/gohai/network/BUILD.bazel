@@ -3,19 +3,45 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "network",
-    srcs = ["network.go"],
+    srcs = [
+        "interfaces_linux.go",
+        "interfaces_other.go",
+        "network.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/gohai/network",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/gohai/utils"],
+    deps = [
+        "//pkg/gohai/utils",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@com_github_vishvananda_netlink//:netlink",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_vishvananda_netlink//:netlink",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
     name = "network_test",
-    srcs = ["network_test.go"],
+    srcs = [
+        "interfaces_linux_test.go",
+        "network_collection_test.go",
+        "network_test.go",
+    ],
     embed = [":network"],
     deps = [
         "//pkg/gohai/utils",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@com_github_vishvananda_netlink//:netlink",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_vishvananda_netlink//:netlink",
+        ],
+        "//conditions:default": [],
+    }),
 )
