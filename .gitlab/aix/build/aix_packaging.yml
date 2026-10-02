@@ -55,4 +55,4 @@ deploy_packages_aix-ppc64:
         printf '  %s\n' "${bff_files[@]}" >&2
         exit 1
       fi
-      $S3_CP_CMD --no-overwrite --content-type "application/octet-stream" "${bff_files[0]}" "s3://dd-agent-aix/${BUCKET_BRANCH}/"
+      $S3_CP_CMD --content-type "application/octet-stream" "${bff_files[0]}" "s3://dd-agent-aix/${BUCKET_BRANCH}/"
