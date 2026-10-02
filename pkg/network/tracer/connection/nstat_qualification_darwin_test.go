@@ -376,6 +376,7 @@ func TestNStatQualificationShortLivedFlows(t *testing.T) {
 	control, err := nstat.OpenControl()
 	require.NoError(t, err)
 	tracer := newNStatTracerWithControl(qualificationNStatConfig(), control)
+	tracer.includeLoopback = true
 	closed := &nstatClosedCollector{}
 	require.NoError(t, tracer.Start(closed.add))
 	t.Cleanup(tracer.Stop)
@@ -428,7 +429,6 @@ func TestNStatQualificationRefusedConnection(t *testing.T) {
 	cfg.DarwinConnectionTracerPacketEnabled = true
 	cfg.DarwinConnectionTracerPacketSnaplen = 8192
 	cfg.DarwinConnectionTracerPacketBufferSize = 16 * 1024 * 1024
-	cfg.DarwinConnectionTracerLibprocEnabled = false
 	tracer, err := newDarwinCompositeTracer(cfg)
 	require.NoError(t, err)
 	closed := &nstatClosedCollector{}
@@ -456,6 +456,7 @@ func TestNStatQualificationAbortiveCloseLifecycle(t *testing.T) {
 	control, err := nstat.OpenControl()
 	require.NoError(t, err)
 	tracer := newNStatTracerWithControl(qualificationNStatConfig(), control)
+	tracer.includeLoopback = true
 	closed := &nstatClosedCollector{}
 	require.NoError(t, tracer.Start(closed.add))
 	t.Cleanup(tracer.Stop)
@@ -504,6 +505,7 @@ func TestNStatQualificationSustainedCardinality(t *testing.T) {
 	cfg := qualificationNStatConfig()
 	cfg.MaxTrackedConnections = max(cfg.MaxTrackedConnections, uint32(count*4))
 	tracer := newNStatTracerWithControl(cfg, control)
+	tracer.includeLoopback = true
 	closed := &nstatClosedCollector{}
 	require.NoError(t, tracer.Start(closed.add))
 	t.Cleanup(tracer.Stop)
@@ -683,6 +685,7 @@ func startNStatQualificationTracer(t *testing.T) (*nstatTracer, *nstatClosedColl
 	control, err := nstat.OpenControl()
 	require.NoError(t, err)
 	tracer := newNStatTracerWithControl(qualificationNStatConfig(), control)
+	tracer.includeLoopback = true
 	closed := &nstatClosedCollector{}
 	require.NoError(t, tracer.Start(closed.add))
 	t.Cleanup(tracer.Stop)

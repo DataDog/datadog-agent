@@ -1,17 +1,12 @@
 ---
 features:
   - |
-    Add an opt-in macOS Network Performance Monitoring backend that uses
-    event-driven NStat connection data with optional packet and process
-    enrichment. The existing eBPF-less backend remains the default, and the
-    new backend automatically falls back when NStat is unavailable.
+    Add an opt-in macOS Network Performance Monitoring backend based on NStat,
+    selected with ``network_config.darwin_connection_tracer_backend``. The
+    existing eBPF-less backend remains the default, and the new backend falls
+    back to it when NStat is unavailable. Loopback connections are not
+    reported.
 
-    Empty TCP retransmits and TCP errors are not a healthy signal unless
-    the connection was uniquely matched by packet enrichment. NStat-mode
-    connections may carry the ``tcp_errors_incomplete`` tag when those
-    TCP error fields are unknown.
-
-    NStat-mode connections also include ``interface_name`` and
-    ``interface_type`` tags when the socket is associated with a network
-    interface. ``interface_name`` is the interface name, such as ``en0`` or
-    ``utun3``.
+    TCP connections from the new backend carry the ``tcp_errors_incomplete``
+    tag when packet capture does not cover them. For these connections, TCP
+    retransmits and errors may be missing.
