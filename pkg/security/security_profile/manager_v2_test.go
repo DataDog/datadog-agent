@@ -252,6 +252,22 @@ func TestBaseMountNamespaceFromEvent(t *testing.T) {
 		assert.Equal(t, uint32(100), nsID)
 		assert.True(t, authoritative)
 	})
+
+	t.Run("does not cross the workload boundary into host processes", func(t *testing.T) {
+		systemd := newProc("/usr/lib/systemd/systemd", "systemd", 1, "", 1)
+		containerd := newProc("/usr/bin/containerd", "containerd", 5, "", 2)
+		containerd.Ancestor = systemd
+		shim := newProc("/usr/bin/containerd-shim", "containerd-shim", 10, "", 3)
+		shim.Ancestor = containerd
+		app := newProc("/app/server", "server", 20, "c1", 100)
+		app.Ancestor = shim
+
+		// the host containerd passes isValidRootNode, but it is outside the
+		// workload and its host namespace must not be pinned as the base.
+		nsID, authoritative := baseMountNamespaceFromEvent(eventFor(app))
+		assert.Equal(t, uint32(100), nsID)
+		assert.True(t, authoritative)
+	})
 }
 
 func TestManagerV2_withinProfilingStartupDelay(t *testing.T) {

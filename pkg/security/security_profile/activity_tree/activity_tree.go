@@ -597,9 +597,19 @@ func isContainerRuntimePrefix(basename string) bool {
 // FindRootProcess returns the process this entry would be rooted on in the tree
 // (walking ancestors with GetNextAncestorBinaryOrArgv0 and skipping container
 // runtime processes via isValidRootNode), or nil if there is none.
+//
+// The walk stops at the workload boundary: ancestors outside the entry's
+// container (e.g. the host container runtime) are not eligible as the root.
+// Without this, an ancestry like systemd -> containerd -> containerd-shim ->
+// app could select the host containerd and pin its host mount namespace.
 func FindRootProcess(entry *model.ProcessContext) *model.ProcessContext {
+	containerID := entry.ContainerContext.ContainerID
+
 	var branch []*model.ProcessContext
 	for cur := entry; cur != nil; {
+		if cur.ContainerContext.ContainerID != containerID {
+			break
+		}
 		branch = append(branch, cur)
 		ancestor := GetNextAncestorBinaryOrArgv0(cur)
 		if ancestor == nil {
