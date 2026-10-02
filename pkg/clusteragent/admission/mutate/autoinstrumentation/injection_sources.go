@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"go.uber.org/atomic"
 	corev1 "k8s.io/api/core/v1"
@@ -99,7 +100,7 @@ type policySource struct {
 }
 
 func (s *policySource) configured() bool {
-	return len(s.plans) > 0 && s.matcher != nil
+	return s != nil && len(s.plans) > 0 && s.matcher != nil
 }
 
 func (s *policySource) resolve(pod *corev1.Pod) sourceResult {
@@ -121,13 +122,14 @@ func (s *policySource) resolve(pod *corev1.Pod) sourceResult {
 	return sourceResult{action: sourceInject, plan: &s.plans[idx]}
 }
 
-// remotePolicySource always occupies its priority slot. It atomically
-// loads the latest RC policy source and abstains when RC is not configured.
+// remotePolicySource owns the live RC policies. The mutator holds its read
+// lock across resolution so matching and inject-all fallback see the same policies.
 type remotePolicySource struct {
 	config           *Config
 	wmeta            workloadmeta.Component
 	defaultLibraries []libInfo
 	current          atomic.Pointer[policySource]
+	mu               sync.RWMutex
 }
 
 func (s *remotePolicySource) setPolicies(ps []policies.Policy) error {
@@ -140,27 +142,24 @@ func (s *remotePolicySource) setPolicies(ps []policies.Policy) error {
 	if err != nil {
 		return err
 	}
-	s.current.Store(&policySource{
+	next := &policySource{
 		plans:   plans,
 		matcher: newPolicyMatcher(ps, s.wmeta),
-	})
+	}
+	s.mu.Lock()
+	s.current.Store(next)
+	s.mu.Unlock()
 	return nil
 }
 
 func (s *remotePolicySource) clearPolicies() {
+	s.mu.Lock()
 	s.current.Store(nil)
-}
-
-func (s *remotePolicySource) configured() bool {
-	return s != nil && s.current.Load() != nil
+	s.mu.Unlock()
 }
 
 func (s *remotePolicySource) resolve(pod *corev1.Pod) sourceResult {
-	current := s.current.Load()
-	if current == nil {
-		return sourceResult{action: sourcePass}
-	}
-	return current.resolve(pod)
+	return s.current.Load().resolve(pod)
 }
 
 // injectAllSource is active only when SSI is enabled and neither RC nor
@@ -169,12 +168,12 @@ func (s *remotePolicySource) resolve(pod *corev1.Pod) sourceResult {
 type injectAllSource struct {
 	enabled bool
 	plan    *injectionPlan
-	remote  *remotePolicySource
 	static  *policySource
+	remote  *atomic.Pointer[policySource]
 }
 
 func (s *injectAllSource) resolve(_ *corev1.Pod) sourceResult {
-	if !s.enabled || s.plan == nil || s.remote.configured() || s.static.configured() {
+	if !s.enabled || s.plan == nil || s.remote.Load() != nil || s.static.configured() {
 		return sourceResult{action: sourcePass}
 	}
 	return sourceResult{action: sourceInject, plan: s.plan}

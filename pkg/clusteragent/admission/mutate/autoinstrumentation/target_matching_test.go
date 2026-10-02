@@ -11,7 +11,7 @@ package autoinstrumentation
 // target a pod resolves to for every supported selector shape, configuration
 // first-wins (targets reversed at construction so the last-TRUE-wins matcher
 // preserves config order), and static vs remote-config source precedence. It
-// exercises matching through NewTargetMutator + TargetMutator.getSSIPlan.
+// exercises matching through NewTargetMutator + TargetMutator.resolveTarget.
 
 import (
 	"testing"
@@ -75,8 +75,11 @@ func runMatchCases(t *testing.T, yamlCfg string, cases []matchCase, namespaces .
 			m := newMatchMutator(t, yamlCfg, wmeta)
 			pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: tc.ns, Labels: tc.podLabels}}
 			got := ""
-			if target := m.getSSIPlan(pod); target != nil {
-				got = target.name
+			if resolved := m.resolveTarget(pod); resolved != nil {
+				require.NotNil(t, resolved.plan)
+				require.True(t, resolved.isSSI)
+				require.False(t, resolved.plan.blocked)
+				got = resolved.plan.name
 			}
 			require.Equal(t, tc.want, got)
 		})

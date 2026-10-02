@@ -76,6 +76,14 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 	if err != nil {
 		return nil, err
 	}
+	var gpuTargets []Target
+	if config.gpuTarget != nil {
+		gpuTargets = append(gpuTargets, *config.gpuTarget)
+	}
+	gpuSource, err := newStaticPolicySource(config, gpuTargets, defaultLibraries, wmeta)
+	if err != nil {
+		return nil, err
+	}
 
 	annotationSource := &annotationSource{
 		containerRegistry: config.containerRegistry,
@@ -92,19 +100,11 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		wmeta:            wmeta,
 		defaultLibraries: defaultLibraries,
 	}
-	var gpuTargets []Target
-	if config.gpuTarget != nil {
-		gpuTargets = append(gpuTargets, *config.gpuTarget)
-	}
-	gpuSource, err := newStaticPolicySource(config, gpuTargets, defaultLibraries, wmeta)
-	if err != nil {
-		return nil, err
-	}
 	injectAllSource := &injectAllSource{
 		enabled: config.Instrumentation.Enabled,
 		plan:    &fallback[0],
-		remote:  remoteSource,
 		static:  staticSource,
+		remote:  &remoteSource.current,
 	}
 
 	m := &TargetMutator{
@@ -278,6 +278,11 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 		return nil
 	}
 
+	if m.remoteSource != nil {
+		m.remoteSource.mu.RLock()
+		defer m.remoteSource.mu.RUnlock()
+	}
+
 	var selected sourceResult
 	var selectedBy injectionSourceName
 	selectionDecided := false
@@ -321,28 +326,6 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 		isSSI:      isSSI,
 		selectedBy: selectedBy,
 	}
-}
-
-// getSSIPlan returns the plan selected by SSI sources only. It is used by
-// behavioral matching tests; production mutation uses getTarget.
-func (m *TargetMutator) getSSIPlan(pod *corev1.Pod) *injectionPlan {
-	if _, disabled := m.disabledNamespaces[pod.Namespace]; disabled {
-		return nil
-	}
-	for _, entry := range m.sources {
-		if !entry.determinesSSIMode {
-			continue
-		}
-		result := entry.source.resolve(pod)
-		switch result.action {
-		case sourceInject:
-			return result.plan
-		case sourceDeny:
-			return nil
-		default:
-		}
-	}
-	return nil
 }
 
 func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
