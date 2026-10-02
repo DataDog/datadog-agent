@@ -27,6 +27,9 @@ const (
 	// ForceFallbackAnnotationKey ("true") triggers the local fallback as if recommendations were stale.
 	ForceFallbackAnnotationKey = "autoscaling.datadoghq.com/force-fallback"
 
+	// ForceReplicasAnnotationKey (e.g. "28") pins the replica count, bypassing constraints and rate rules.
+	ForceReplicasAnnotationKey = "autoscaling.datadoghq.com/force-replicas"
+
 	// RecommendationIDAnnotation is the annotation key used to store the recommendation ID
 	RecommendationIDAnnotation = "autoscaling.datadoghq.com/rec-id"
 	// RuntimeRecommendationIDAnnotation is the annotation key used to store a hash of the runtime values

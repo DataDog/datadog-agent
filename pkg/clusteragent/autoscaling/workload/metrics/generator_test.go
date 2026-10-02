@@ -189,9 +189,16 @@ func TestGeneratePodAutoscalerMetricsSingleTimeseriesPerContext(t *testing.T) {
 }
 
 func expectedAdditionalMetricsCount(internal *model.PodAutoscalerInternal) int {
-	// The paused gauge is always emitted, like local.fallback_enabled, so that "not paused"
-	// is an alertable 0 rather than an absent series.
-	return 1 + expectedApplyModeMetricsCount(internal) + expectedControlledResourcesMetricsCount(internal)
+	// The paused gauge is always emitted, like local.fallback_enabled, so that "not paused" (0) is
+	// alertable rather than an absent series. The force_replicas gauge is only emitted while a count
+	// is pinned.
+	count := 1 + expectedApplyModeMetricsCount(internal) + expectedControlledResourcesMetricsCount(internal)
+	if internal != nil {
+		if _, forced := internal.ForcedReplicas(); forced {
+			count++
+		}
+	}
+	return count
 }
 
 func expectedApplyModeMetricsCount(internal *model.PodAutoscalerInternal) int {
@@ -1899,6 +1906,38 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 			if tt.validateMetric != nil {
 				tt.validateMetric(t, metrics)
 			}
+		})
+	}
+}
+
+// TestGeneratePodAutoscalerMetricsForceReplicas checks that the gauge reports the pinned count, and
+// is only emitted while a valid count is pinned.
+func TestGeneratePodAutoscalerMetricsForceReplicas(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		annotations map[string]string
+		expected    float64 // -1: no point emitted
+	}{
+		{name: "not pinned: no point", annotations: map[string]string{}, expected: -1},
+		{name: "invalid value: no point", annotations: map[string]string{model.ForceReplicasAnnotationKey: "abc"}, expected: -1},
+		{name: "pinned reports the replica count", annotations: map[string]string{model.ForceReplicasAnnotationKey: "28"}, expected: 28},
+		{name: "pinned while paused still reports the count", annotations: map[string]string{model.ForceReplicasAnnotationKey: "28", model.PauseAnnotationKey: "true"}, expected: 28},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			internal := model.FakePodAutoscalerInternal{
+				Namespace: "test-ns",
+				Name:      "test-dpa",
+				Spec:      &datadoghq.DatadogPodAutoscalerSpec{},
+			}.Build()
+			internal.UpdateFromOpsAnnotations(tt.annotations)
+
+			gauge := metricsByName(GeneratePodAutoscalerMetrics(&internal), metricPrefix+".force_replicas")
+			if tt.expected < 0 {
+				assert.Empty(t, gauge, "no series for autoscalers without a pinned count")
+				return
+			}
+			require.Len(t, gauge, 1)
+			assert.Equal(t, tt.expected, gauge[0].Value)
 		})
 	}
 }
