@@ -317,7 +317,7 @@ var _ = declareInlineConfig(TestWorkloadProfileStartupDelay)
 func TestWorkloadProfileStartupDelay(t *testing.T) {
 	skipIfNoWorkloadProfileEnv(t)
 
-	const startupDelay = 10 * time.Second
+	const startupDelay = 30 * time.Second
 
 	tagger := NewFakeManualTagger()
 	opts := workloadProfileTestOpts(t.TempDir(), tagger)
