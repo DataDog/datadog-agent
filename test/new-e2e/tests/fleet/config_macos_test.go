@@ -37,7 +37,7 @@ import (
 //
 // Unlike configSuite (Linux/Windows), every state change here goes through Remote Config via
 // fakeintake -- never the installer daemon's local CLI (backend.Backend's runDaemonCommand). That
-// CLI path skips the method gate and verifyState reconciliation that only Remote Config exercises;
+// CLI path skips the verifyState reconciliation that only Remote Config exercises;
 // see priv_notes/TESTING_MACOS_CONFIG_EXPERIMENT.md's Test 5 discussion. Consequently this suite
 // does not embed suite.FleetSuite or use its Backend: FleetSuite's dispatch methods are CLI-only by
 // design, and this suite never calls them.

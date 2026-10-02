@@ -295,6 +295,21 @@ func TestInstallWrappedPackageRejectsAnUnusablePayload(t *testing.T) {
 	})
 }
 
+// TestVersionExperimentsAreRefused pins that a version experiment fails on macOS instead of being
+// reported as done: the installer runs these hooks before it touches the package repository.
+func TestVersionExperimentsAreRefused(t *testing.T) {
+	for _, name := range []string{"preStartExperiment", "prePromoteExperiment"} {
+		t.Run(name, func(t *testing.T) {
+			hook := getHook(agentPackage, name)
+			require.NotNil(t, hook, "the Agent package must register %s on macOS", name)
+
+			err := hook(testHookContext(t))
+
+			require.ErrorIs(t, err, errVersionExperimentNotSupported)
+		})
+	}
+}
+
 func TestInstallStableJobsLoadsTheStableSetIncludingTheInstaller(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := t.TempDir()
