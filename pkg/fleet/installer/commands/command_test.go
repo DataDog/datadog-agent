@@ -234,6 +234,20 @@ installer:
 				"RegistryPassword":     "",
 			},
 		},
+		{
+			name: "yaml url without auth still sets registry override",
+			yaml: `
+installer:
+  registry:
+    url: yaml-registry.example.com
+`,
+			checks: map[string]string{
+				"RegistryAuthOverride": "",
+				"RegistryOverride":     "yaml-registry.example.com",
+				"RegistryUsername":     "",
+				"RegistryPassword":     "",
+			},
+		},
 	}
 
 	for _, tc := range tests {
