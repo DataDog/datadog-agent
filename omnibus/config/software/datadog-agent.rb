@@ -24,8 +24,9 @@ unless do_repackage?
       host_distribution = "--//packages/agent:host_distribution=#{Omnibus::Config.host_distribution()}"
   end
 
+  dependencies_install_target = heroku_target? ? "//packages/heroku:install_dependencies" : "//packages/agent/dependencies:install"
   build do
-      command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:install --destdir=#{install_dir}",
+      command "bazel run #{omnibazel_flags} -- #{dependencies_install_target} --destdir=#{install_dir}",
           :live_stream => Omnibus.logger.live_stream(:info)
   end
   build do
@@ -105,7 +106,8 @@ build do
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
-  command "bazel run #{omnibazel_flags} -- //packages/agent/product:post_build_install --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
+  post_build_install_target = heroku_target? ? "//packages/heroku:post_build_install" : "//packages/agent/product:post_build_install"
+  command "bazel run #{omnibazel_flags} -- #{post_build_install_target} --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
 
   # TODO: dda inv agent.build also builds datadog.yaml. We need to work with the
   # config team to find out if removing that will break their workflow.  If not,

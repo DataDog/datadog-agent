@@ -5,7 +5,7 @@ go 1.26.0
 // every datadog-agent module replaced in the fakeintake go.mod needs to be copied in the Dockerfile
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.211
+	github.com/DataDog/agent-payload/v5 v5.0.213
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/metrics v0.64.0
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
@@ -53,6 +53,7 @@ require (
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/agent/macos => ../../cmd/agent/macos
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ../../comp/anomalydetection/observer/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ../../comp/anomalydetection/recorder/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def => ../../comp/anomalydetection/severityevents/def
@@ -175,6 +176,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../pkg/remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/remoteflags => ../../pkg/remoteflags
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../pkg/serializer

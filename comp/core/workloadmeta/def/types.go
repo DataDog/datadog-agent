@@ -662,8 +662,8 @@ type Container struct {
 	// and that it would be impossible to compute later on
 	CollectorTags   []string
 	Owner           *EntityID
-	SecurityContext *ContainerSecurityContext `proto:"ignore"`
-	ReadinessProbe  *ContainerProbe           `proto:"ignore"`
+	SecurityContext *ContainerSecurityContext
+	ReadinessProbe  *ContainerProbe `proto:"ignore"`
 	Resources       ContainerResources
 	ResizePolicy    ContainerResizePolicy `proto:"ignore"`
 
@@ -789,18 +789,24 @@ func (c Container) String(verbose bool) string {
 	return sb.String()
 }
 
-// PodSecurityContext is the Security Context of a Kubernetes pod
+// PodSecurityContext is the Security Context of a Kubernetes pod. Containers
+// inherit RunAsNonRoot and SeccompProfile from here unless they set their own.
 type PodSecurityContext struct {
-	RunAsUser  int32
-	RunAsGroup int32
-	FsGroup    int32
+	RunAsUser      int32
+	RunAsGroup     int32
+	FsGroup        int32
+	RunAsNonRoot   *bool
+	SeccompProfile *SeccompProfile
 }
 
-// ContainerSecurityContext is the Security Context of a Container
+// ContainerSecurityContext is the Security Context of a Container.
 type ContainerSecurityContext struct {
 	*Capabilities
-	Privileged     bool
-	SeccompProfile *SeccompProfile
+	Privileged               bool
+	SeccompProfile           *SeccompProfile
+	RunAsNonRoot             *bool
+	AllowPrivilegeEscalation *bool
+	ReadOnlyRootFilesystem   *bool
 }
 
 // Capabilities is the capabilities a certain Container security context is capable of
@@ -848,12 +854,12 @@ type KubernetesPod struct {
 	RuntimeClass               string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
-	NamespaceAnnotations       map[string]string   `proto:"ignore"`
-	FinishedAt                 time.Time           `proto:"ignore"`
-	SecurityContext            *PodSecurityContext `proto:"ignore"`
-	Resources                  ContainerResources  `proto:"ignore"`
-	DeletionTimestamp          *time.Time          `proto:"ignore"`
-	ReadyTimestamp             *time.Time          `proto:"ignore"`
+	NamespaceAnnotations       map[string]string `proto:"ignore"`
+	FinishedAt                 time.Time         `proto:"ignore"`
+	SecurityContext            *PodSecurityContext
+	Resources                  ContainerResources `proto:"ignore"`
+	DeletionTimestamp          *time.Time         `proto:"ignore"`
+	ReadyTimestamp             *time.Time         `proto:"ignore"`
 
 	// The following fields are only needed for the kubelet check or KSM check
 	// when configured to emit pod metrics from the node agent. That means only

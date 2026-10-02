@@ -873,7 +873,7 @@ Package observer provides a component for observing data flowing through the age
 
 *Datadog Team*: agent-anomaly-detection
 
-Package recorder provides a middleware component for recording and replaying observer data.
+Package recorder defines middleware and writer contracts for recording observer data.
 
 ### [comp/anomalydetection/reporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/reporter)
 

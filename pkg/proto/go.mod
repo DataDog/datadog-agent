@@ -5,7 +5,7 @@ go 1.26.0
 retract v0.46.0-devel
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.211
+	github.com/DataDog/agent-payload/v5 v5.0.213
 	github.com/google/gofuzz v1.2.0
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/stretchr/testify v1.12.1
@@ -29,6 +29,7 @@ require (
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/agent/macos => ../../cmd/agent/macos
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ../../comp/anomalydetection/observer/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ../../comp/anomalydetection/recorder/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def => ../../comp/anomalydetection/severityevents/def
@@ -150,6 +151,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util => ../../pkg/orchestrator/util
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../pkg/remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/remoteflags => ../../pkg/remoteflags
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../pkg/serializer

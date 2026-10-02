@@ -31,6 +31,9 @@ const (
 	PARHttpAllowlist         = "private_action_runner.http_allowlist"
 	PARHttpAllowImdsEndpoint = "private_action_runner.http_allow_imds_endpoint"
 
+	// Kubernetes action related
+	PARKubernetesAllowedCustomResources = "private_action_runner.kubernetes_allowed_custom_resources"
+
 	// Restricted Shell
 	PARRestrictedShellAllowedPaths             = "private_action_runner.restricted_shell.allowed_paths"
 	PARRestrictedShellAllowedCommands          = "private_action_runner.restricted_shell.allowed_commands"
@@ -38,10 +41,12 @@ const (
 	PARRestrictedShellDisableDetailedTelemetry = "private_action_runner.restricted_shell.disable_detailed_telemetry"
 	PARRestrictedShellPrivilegedEnabled        = "private_action_runner.restricted_shell.privileged.enabled"
 	PARRestrictedShellPrivilegedSocket         = "private_action_runner.restricted_shell.privileged.socket"
-	RShellCommandNamespacePrefix               = "rshell:"
-	RShellCommandAllowAllWildcard              = RShellCommandNamespacePrefix + "*"
-	RShellPathAllowAll                         = "/"
-	RShellPrivilegedSocketDefault              = "/run/datadog/rshell-privileged.sock"
+	// Unset does not narrow elevation; an explicit empty list denies it.
+	PARRestrictedShellPrivilegedElevatableCommands = "private_action_runner.restricted_shell.privileged.elevatable_commands"
+	RShellCommandNamespacePrefix                   = "rshell:"
+	RShellCommandAllowAllWildcard                  = RShellCommandNamespacePrefix + "*"
+	RShellPathAllowAll                             = "/"
+	RShellPrivilegedSocketDefault                  = "/run/datadog/rshell-privileged.sock"
 
 	// Meant for internal usage
 	PAROpmsExtraHeaders = "private_action_runner.opms_extra_headers"

@@ -1,0 +1,1722 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Fri, 2 Oct 2026 14:04:25 +0200
+Subject: [PATCH] Remove unused rcsid strings
+
+These are leftovers from CVS. Git does not expand the keywords, so the
+values have been stale since the migration, and the unused variables
+trigger -Wunused-const-variable warnings.
+---
+ DriverManager/SQLAllocConnect.c      | 2 --
+ DriverManager/SQLAllocEnv.c          | 2 --
+ DriverManager/SQLAllocHandle.c       | 2 --
+ DriverManager/SQLAllocHandleStd.c    | 2 --
+ DriverManager/SQLAllocStmt.c         | 2 --
+ DriverManager/SQLBindCol.c           | 2 --
+ DriverManager/SQLBindParam.c         | 2 --
+ DriverManager/SQLBindParameter.c     | 2 --
+ DriverManager/SQLBrowseConnect.c     | 2 --
+ DriverManager/SQLBrowseConnectW.c    | 2 --
+ DriverManager/SQLBulkOperations.c    | 2 --
+ DriverManager/SQLCancel.c            | 2 --
+ DriverManager/SQLCancelHandle.c      | 2 --
+ DriverManager/SQLCloseCursor.c       | 2 --
+ DriverManager/SQLColAttribute.c      | 2 --
+ DriverManager/SQLColAttributeW.c     | 2 --
+ DriverManager/SQLColAttributes.c     | 2 --
+ DriverManager/SQLColAttributesW.c    | 2 --
+ DriverManager/SQLColumnPrivileges.c  | 2 --
+ DriverManager/SQLColumnPrivilegesW.c | 2 --
+ DriverManager/SQLColumns.c           | 2 --
+ DriverManager/SQLColumnsW.c          | 2 --
+ DriverManager/SQLConnect.c           | 2 --
+ DriverManager/SQLConnectW.c          | 2 --
+ DriverManager/SQLCopyDesc.c          | 2 --
+ DriverManager/SQLDataSources.c       | 2 --
+ DriverManager/SQLDataSourcesW.c      | 2 --
+ DriverManager/SQLDescribeCol.c       | 2 --
+ DriverManager/SQLDescribeColW.c      | 2 --
+ DriverManager/SQLDescribeParam.c     | 2 --
+ DriverManager/SQLDisconnect.c        | 2 --
+ DriverManager/SQLDriverConnect.c     | 2 --
+ DriverManager/SQLDriverConnectW.c    | 2 --
+ DriverManager/SQLDrivers.c           | 2 --
+ DriverManager/SQLDriversW.c          | 2 --
+ DriverManager/SQLEndTran.c           | 2 --
+ DriverManager/SQLError.c             | 2 --
+ DriverManager/SQLErrorW.c            | 2 --
+ DriverManager/SQLExecDirect.c        | 2 --
+ DriverManager/SQLExecDirectW.c       | 2 --
+ DriverManager/SQLExecute.c           | 2 --
+ DriverManager/SQLExtendedFetch.c     | 2 --
+ DriverManager/SQLFetch.c             | 2 --
+ DriverManager/SQLFetchScroll.c       | 2 --
+ DriverManager/SQLForeignKeys.c       | 2 --
+ DriverManager/SQLForeignKeysW.c      | 2 --
+ DriverManager/SQLFreeConnect.c       | 2 --
+ DriverManager/SQLFreeEnv.c           | 2 --
+ DriverManager/SQLFreeHandle.c        | 2 --
+ DriverManager/SQLFreeStmt.c          | 2 --
+ DriverManager/SQLGetConnectAttr.c    | 2 --
+ DriverManager/SQLGetConnectAttrW.c   | 2 --
+ DriverManager/SQLGetConnectOption.c  | 2 --
+ DriverManager/SQLGetConnectOptionW.c | 2 --
+ DriverManager/SQLGetCursorName.c     | 2 --
+ DriverManager/SQLGetCursorNameW.c    | 2 --
+ DriverManager/SQLGetData.c           | 2 --
+ DriverManager/SQLGetDescField.c      | 2 --
+ DriverManager/SQLGetDescFieldW.c     | 2 --
+ DriverManager/SQLGetDescRec.c        | 2 --
+ DriverManager/SQLGetDescRecW.c       | 2 --
+ DriverManager/SQLGetDiagField.c      | 2 --
+ DriverManager/SQLGetDiagFieldW.c     | 2 --
+ DriverManager/SQLGetDiagRec.c        | 2 --
+ DriverManager/SQLGetDiagRecW.c       | 2 --
+ DriverManager/SQLGetEnvAttr.c        | 2 --
+ DriverManager/SQLGetFunctions.c      | 2 --
+ DriverManager/SQLGetInfo.c           | 2 --
+ DriverManager/SQLGetInfoW.c          | 2 --
+ DriverManager/SQLGetStmtAttr.c       | 2 --
+ DriverManager/SQLGetStmtAttrW.c      | 2 --
+ DriverManager/SQLGetStmtOption.c     | 2 --
+ DriverManager/SQLGetTypeInfo.c       | 2 --
+ DriverManager/SQLGetTypeInfoW.c      | 2 --
+ DriverManager/SQLMoreResults.c       | 2 --
+ DriverManager/SQLNativeSql.c         | 2 --
+ DriverManager/SQLNativeSqlW.c        | 2 --
+ DriverManager/SQLNumParams.c         | 2 --
+ DriverManager/SQLNumResultCols.c     | 2 --
+ DriverManager/SQLParamData.c         | 2 --
+ DriverManager/SQLParamOptions.c      | 2 --
+ DriverManager/SQLPrepare.c           | 2 --
+ DriverManager/SQLPrepareW.c          | 2 --
+ DriverManager/SQLPrimaryKeys.c       | 2 --
+ DriverManager/SQLPrimaryKeysW.c      | 2 --
+ DriverManager/SQLProcedureColumns.c  | 2 --
+ DriverManager/SQLProcedureColumnsW.c | 2 --
+ DriverManager/SQLProcedures.c        | 2 --
+ DriverManager/SQLProceduresW.c       | 2 --
+ DriverManager/SQLPutData.c           | 2 --
+ DriverManager/SQLRowCount.c          | 2 --
+ DriverManager/SQLSetConnectAttr.c    | 2 --
+ DriverManager/SQLSetConnectAttrW.c   | 2 --
+ DriverManager/SQLSetConnectOption.c  | 2 --
+ DriverManager/SQLSetConnectOptionW.c | 2 --
+ DriverManager/SQLSetCursorName.c     | 2 --
+ DriverManager/SQLSetCursorNameW.c    | 2 --
+ DriverManager/SQLSetDescField.c      | 2 --
+ DriverManager/SQLSetDescFieldW.c     | 2 --
+ DriverManager/SQLSetDescRec.c        | 2 --
+ DriverManager/SQLSetEnvAttr.c        | 2 --
+ DriverManager/SQLSetParam.c          | 2 --
+ DriverManager/SQLSetPos.c            | 2 --
+ DriverManager/SQLSetScrollOptions.c  | 2 --
+ DriverManager/SQLSetStmtAttr.c       | 2 --
+ DriverManager/SQLSetStmtAttrW.c      | 2 --
+ DriverManager/SQLSetStmtOption.c     | 2 --
+ DriverManager/SQLSetStmtOptionW.c    | 2 --
+ DriverManager/SQLSpecialColumns.c    | 2 --
+ DriverManager/SQLSpecialColumnsW.c   | 2 --
+ DriverManager/SQLStatistics.c        | 2 --
+ DriverManager/SQLStatisticsW.c       | 2 --
+ DriverManager/SQLTablePrivileges.c   | 2 --
+ DriverManager/SQLTablePrivilegesW.c  | 2 --
+ DriverManager/SQLTables.c            | 2 --
+ DriverManager/SQLTablesW.c           | 2 --
+ DriverManager/SQLTransact.c          | 2 --
+ DriverManager/__attribute.c          | 2 --
+ DriverManager/__connection.c         | 2 --
+ DriverManager/__handles.c            | 2 --
+ DriverManager/__info.c               | 2 --
+ DriverManager/__stats.c              | 2 --
+ 122 files changed, 244 deletions(-)
+
+diff --git a/DriverManager/SQLAllocConnect.c b/DriverManager/SQLAllocConnect.c
+index 911528a..0f61134 100755
+--- a/DriverManager/SQLAllocConnect.c
++++ b/DriverManager/SQLAllocConnect.c
+@@ -86,8 +86,6 @@
+ 
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLAllocConnect.c,v $ $Revision: 1.2 $";
+-
+ SQLRETURN SQLAllocConnect( SQLHENV environment_handle,
+            SQLHDBC *connection_handle )
+ {
+diff --git a/DriverManager/SQLAllocEnv.c b/DriverManager/SQLAllocEnv.c
+index ffc2c39..c37b5f0 100755
+--- a/DriverManager/SQLAllocEnv.c
++++ b/DriverManager/SQLAllocEnv.c
+@@ -59,8 +59,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLAllocEnv.c,v $ $Revision: 1.2 $";
+-
+ SQLRETURN SQLAllocEnv( SQLHENV *environment_handle )
+ {
+     return __SQLAllocHandle( SQL_HANDLE_ENV,
+diff --git a/DriverManager/SQLAllocHandle.c b/DriverManager/SQLAllocHandle.c
+index 3042268..e8ae5ce 100644
+--- a/DriverManager/SQLAllocHandle.c
++++ b/DriverManager/SQLAllocHandle.c
+@@ -252,8 +252,6 @@
+ #include <uodbc_stats.h>
+ #endif
+ 
+-static char const rcsid[]= "$RCSfile: SQLAllocHandle.c,v $ $Revision: 1.13 $";
+-
+ /*
+  * connection pooling stuff
+  */
+diff --git a/DriverManager/SQLAllocHandleStd.c b/DriverManager/SQLAllocHandleStd.c
+index 1f24ab2..2fff5ef 100644
+--- a/DriverManager/SQLAllocHandleStd.c
++++ b/DriverManager/SQLAllocHandleStd.c
+@@ -71,8 +71,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLAllocHandleStd.c,v $ $Revision: 1.2 $";
+-
+ SQLRETURN SQLAllocHandleStd(
+     SQLSMALLINT        handle_type,
+     SQLHANDLE          input_handle,
+diff --git a/DriverManager/SQLAllocStmt.c b/DriverManager/SQLAllocStmt.c
+index 2d69d0d..84b009a 100755
+--- a/DriverManager/SQLAllocStmt.c
++++ b/DriverManager/SQLAllocStmt.c
+@@ -63,8 +63,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLAllocStmt.c,v $ $Revision: 1.2 $";
+-
+ SQLRETURN SQLAllocStmt( SQLHDBC connection_handle,
+            SQLHSTMT *statement_handle )
+ {
+diff --git a/DriverManager/SQLBindCol.c b/DriverManager/SQLBindCol.c
+index 7735d16..92eb34a 100644
+--- a/DriverManager/SQLBindCol.c
++++ b/DriverManager/SQLBindCol.c
+@@ -128,8 +128,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLBindCol.c,v $ $Revision: 1.8 $";
+-
+ int check_target_type( int c_type, int connection_mode) 
+ {
+     /*
+diff --git a/DriverManager/SQLBindParam.c b/DriverManager/SQLBindParam.c
+index d8785e0..f804d35 100644
+--- a/DriverManager/SQLBindParam.c
++++ b/DriverManager/SQLBindParam.c
+@@ -132,8 +132,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLBindParam.c,v $ $Revision: 1.9 $";
+-
+ SQLRETURN SQLBindParam( SQLHSTMT statement_handle,
+            SQLUSMALLINT parameter_number,
+            SQLSMALLINT value_type,
+diff --git a/DriverManager/SQLBindParameter.c b/DriverManager/SQLBindParameter.c
+index c853293..9310afc 100644
+--- a/DriverManager/SQLBindParameter.c
++++ b/DriverManager/SQLBindParameter.c
+@@ -153,8 +153,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLBindParameter.c,v $ $Revision: 1.12 $";
+-
+ SQLRETURN SQLBindParameter(
+     SQLHSTMT           statement_handle,
+     SQLUSMALLINT       ipar,
+diff --git a/DriverManager/SQLBrowseConnect.c b/DriverManager/SQLBrowseConnect.c
+index 56b3306..9aae86b 100644
+--- a/DriverManager/SQLBrowseConnect.c
++++ b/DriverManager/SQLBrowseConnect.c
+@@ -174,8 +174,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLBrowseConnect.c,v $ $Revision: 1.15 $";
+-
+ #define BUFFER_LEN      4095
+ 
+ SQLRETURN SQLBrowseConnectA(
+diff --git a/DriverManager/SQLBrowseConnectW.c b/DriverManager/SQLBrowseConnectW.c
+index 21451a1..e70ee72 100644
+--- a/DriverManager/SQLBrowseConnectW.c
++++ b/DriverManager/SQLBrowseConnectW.c
+@@ -120,8 +120,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLBrowseConnectW.c,v $";
+-
+ #define BUFFER_LEN      4095
+ 
+ SQLRETURN SQLBrowseConnectW(
+diff --git a/DriverManager/SQLBulkOperations.c b/DriverManager/SQLBulkOperations.c
+index ec39d6a..e358dbf 100644
+--- a/DriverManager/SQLBulkOperations.c
++++ b/DriverManager/SQLBulkOperations.c
+@@ -104,8 +104,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLBulkOperations.c,v $ $Revision: 1.4 $";
+-
+ SQLRETURN SQLBulkOperations(
+     SQLHSTMT        statement_handle,
+     SQLSMALLINT     operation )
+diff --git a/DriverManager/SQLCancel.c b/DriverManager/SQLCancel.c
+index 956a3ac..c4a2906 100644
+--- a/DriverManager/SQLCancel.c
++++ b/DriverManager/SQLCancel.c
+@@ -100,8 +100,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLCancel.c,v $ $Revision: 1.4 $";
+-
+ SQLRETURN SQLCancel( SQLHSTMT statement_handle )
+ {
+     DMHSTMT statement = (DMHSTMT) statement_handle;
+diff --git a/DriverManager/SQLCancelHandle.c b/DriverManager/SQLCancelHandle.c
+index 652b373..d32c9b3 100644
+--- a/DriverManager/SQLCancelHandle.c
++++ b/DriverManager/SQLCancelHandle.c
+@@ -30,8 +30,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLCancel.c,v $ $Revision: 1.4 $";
+-
+ SQLRETURN SQLCancelHandle( SQLSMALLINT HandleType, SQLHANDLE Handle )
+ {
+     SQLRETURN ret;
+diff --git a/DriverManager/SQLCloseCursor.c b/DriverManager/SQLCloseCursor.c
+index 0dfdb5b..31a7d70 100644
+--- a/DriverManager/SQLCloseCursor.c
++++ b/DriverManager/SQLCloseCursor.c
+@@ -104,8 +104,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLCloseCursor.c,v $ $Revision: 1.5 $";
+-
+ SQLRETURN SQLCloseCursor( SQLHSTMT statement_handle )
+ {
+     DMHSTMT statement = (DMHSTMT) statement_handle;
+diff --git a/DriverManager/SQLColAttribute.c b/DriverManager/SQLColAttribute.c
+index 452ff21..0abf49b 100644
+--- a/DriverManager/SQLColAttribute.c
++++ b/DriverManager/SQLColAttribute.c
+@@ -185,8 +185,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLColAttribute.c,v $ $Revision: 1.19 $";
+-
+ SQLINTEGER map_ca_odbc3_to_2( SQLINTEGER field_identifier )
+ {
+     switch( field_identifier )
+diff --git a/DriverManager/SQLColAttributeW.c b/DriverManager/SQLColAttributeW.c
+index 36fa49e..c6df9ee 100644
+--- a/DriverManager/SQLColAttributeW.c
++++ b/DriverManager/SQLColAttributeW.c
+@@ -104,8 +104,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLColAttributeW.c,v $";
+-
+ SQLRETURN SQLColAttributeW ( SQLHSTMT statement_handle,
+            SQLUSMALLINT column_number,
+            SQLUSMALLINT field_identifier,
+diff --git a/DriverManager/SQLColAttributes.c b/DriverManager/SQLColAttributes.c
+index 4a1a8d6..f1fc8b3 100644
+--- a/DriverManager/SQLColAttributes.c
++++ b/DriverManager/SQLColAttributes.c
+@@ -170,8 +170,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLColAttributes.c,v $ $Revision: 1.15 $";
+-
+ SQLINTEGER  map_ca_odbc2_to_3( SQLINTEGER field_identifier )
+ {
+     switch( field_identifier )
+diff --git a/DriverManager/SQLColAttributesW.c b/DriverManager/SQLColAttributesW.c
+index db278cc..5a9ba38 100644
+--- a/DriverManager/SQLColAttributesW.c
++++ b/DriverManager/SQLColAttributesW.c
+@@ -107,8 +107,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLColAttributesW.c,v $";
+-
+ SQLRETURN SQLColAttributesW( SQLHSTMT statement_handle,
+            SQLUSMALLINT column_number,
+            SQLUSMALLINT field_identifier,
+diff --git a/DriverManager/SQLColumnPrivileges.c b/DriverManager/SQLColumnPrivileges.c
+index b791996..75fd187 100644
+--- a/DriverManager/SQLColumnPrivileges.c
++++ b/DriverManager/SQLColumnPrivileges.c
+@@ -126,8 +126,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLColumnPrivileges.c,v $ $Revision: 1.8 $";
+-
+ SQLRETURN SQLColumnPrivilegesA(
+     SQLHSTMT            statement_handle,
+     SQLCHAR             *catalog_name,
+diff --git a/DriverManager/SQLColumnPrivilegesW.c b/DriverManager/SQLColumnPrivilegesW.c
+index afb3918..fd2537e 100644
+--- a/DriverManager/SQLColumnPrivilegesW.c
++++ b/DriverManager/SQLColumnPrivilegesW.c
+@@ -85,8 +85,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLColumnPrivilegesW.c,v $";
+-
+ SQLRETURN SQLColumnPrivilegesW(
+     SQLHSTMT            statement_handle,
+     SQLWCHAR             *catalog_name,
+diff --git a/DriverManager/SQLColumns.c b/DriverManager/SQLColumns.c
+index 1652ee5..9c621ca 100644
+--- a/DriverManager/SQLColumns.c
++++ b/DriverManager/SQLColumns.c
+@@ -144,8 +144,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLColumns.c,v $ $Revision: 1.8 $";
+-
+ SQLRETURN SQLColumnsA( SQLHSTMT statement_handle,
+            SQLCHAR *catalog_name,
+            SQLSMALLINT name_length1,
+diff --git a/DriverManager/SQLColumnsW.c b/DriverManager/SQLColumnsW.c
+index 1e43e8b..930c6be 100644
+--- a/DriverManager/SQLColumnsW.c
++++ b/DriverManager/SQLColumnsW.c
+@@ -85,8 +85,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLColumnsW.c,v $";
+-
+ SQLRETURN SQLColumnsW( SQLHSTMT statement_handle,
+            SQLWCHAR *catalog_name,
+            SQLSMALLINT name_length1,
+diff --git a/DriverManager/SQLConnect.c b/DriverManager/SQLConnect.c
+index 63caaca..b67b73c 100644
+--- a/DriverManager/SQLConnect.c
++++ b/DriverManager/SQLConnect.c
+@@ -594,8 +594,6 @@
+ #endif
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLConnect.c,v $ $Revision: 1.66 $";
+-
+ #ifdef __OS2__
+ #define CURSOR_LIB	"ODBCCR"
+ #else
+diff --git a/DriverManager/SQLConnectW.c b/DriverManager/SQLConnectW.c
+index 104eddb..d186d89 100644
+--- a/DriverManager/SQLConnectW.c
++++ b/DriverManager/SQLConnectW.c
+@@ -118,8 +118,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLConnectW.c,v $";
+-
+ SQLRETURN SQLConnectW( SQLHDBC connection_handle,
+            SQLWCHAR *server_name,
+            SQLSMALLINT name_length1,
+diff --git a/DriverManager/SQLCopyDesc.c b/DriverManager/SQLCopyDesc.c
+index 1ad772a..5abfed1 100644
+--- a/DriverManager/SQLCopyDesc.c
++++ b/DriverManager/SQLCopyDesc.c
+@@ -118,8 +118,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLCopyDesc.c,v $ $Revision: 1.8 $";
+-
+ struct cdesc
+ {
+     int             field_identifier;
+diff --git a/DriverManager/SQLDataSources.c b/DriverManager/SQLDataSources.c
+index bf17a43..890addf 100644
+--- a/DriverManager/SQLDataSources.c
++++ b/DriverManager/SQLDataSources.c
+@@ -135,8 +135,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLDataSources.c,v $ $Revision: 1.9 $";
+-
+ #define BUFFERSIZE      1024*4
+ 
+ SQLRETURN SQLDataSourcesA( SQLHENV environment_handle,
+diff --git a/DriverManager/SQLDataSourcesW.c b/DriverManager/SQLDataSourcesW.c
+index a93e007..497228c 100644
+--- a/DriverManager/SQLDataSourcesW.c
++++ b/DriverManager/SQLDataSourcesW.c
+@@ -78,8 +78,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLDataSourcesW.c,v $";
+-
+ #define BUFFERSIZE      1024 * 4
+ 
+ SQLRETURN SQLDataSourcesW( SQLHENV environment_handle,
+diff --git a/DriverManager/SQLDescribeCol.c b/DriverManager/SQLDescribeCol.c
+index 0d91186..b536f31 100644
+--- a/DriverManager/SQLDescribeCol.c
++++ b/DriverManager/SQLDescribeCol.c
+@@ -166,8 +166,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLDescribeCol.c,v $ $Revision: 1.13 $";
+-
+ SQLRETURN SQLDescribeColA( SQLHSTMT statement_handle,
+            SQLUSMALLINT column_number,
+            SQLCHAR *column_name,
+diff --git a/DriverManager/SQLDescribeColW.c b/DriverManager/SQLDescribeColW.c
+index 959009a..e7a2589 100644
+--- a/DriverManager/SQLDescribeColW.c
++++ b/DriverManager/SQLDescribeColW.c
+@@ -113,8 +113,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLDescribeColW.c,v $";
+-
+ SQLRETURN SQLDescribeColW( SQLHSTMT statement_handle,
+            SQLUSMALLINT column_number,
+            SQLWCHAR *column_name,
+diff --git a/DriverManager/SQLDescribeParam.c b/DriverManager/SQLDescribeParam.c
+index 43d568f..5689cf5 100644
+--- a/DriverManager/SQLDescribeParam.c
++++ b/DriverManager/SQLDescribeParam.c
+@@ -133,8 +133,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLDescribeParam.c,v $ $Revision: 1.7 $";
+-
+ SQLRETURN SQLDescribeParam(
+     SQLHSTMT           statement_handle,
+     SQLUSMALLINT       ipar,
+diff --git a/DriverManager/SQLDisconnect.c b/DriverManager/SQLDisconnect.c
+index 3233dd9..f7edd4b 100644
+--- a/DriverManager/SQLDisconnect.c
++++ b/DriverManager/SQLDisconnect.c
+@@ -171,8 +171,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLDisconnect.c,v $ $Revision: 1.9 $";
+-
+ extern int pooling_enabled;
+ 
+ SQLRETURN SQLDisconnect( SQLHDBC connection_handle )
+diff --git a/DriverManager/SQLDriverConnect.c b/DriverManager/SQLDriverConnect.c
+index 8272cab..959a164 100644
+--- a/DriverManager/SQLDriverConnect.c
++++ b/DriverManager/SQLDriverConnect.c
+@@ -310,8 +310,6 @@
+ #include <string.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLDriverConnect.c,v $ $Revision: 1.28 $";
+-
+ /*
+  * connection pooling stuff
+  */
+diff --git a/DriverManager/SQLDriverConnectW.c b/DriverManager/SQLDriverConnectW.c
+index 10dd8a7..ff0efc7 100644
+--- a/DriverManager/SQLDriverConnectW.c
++++ b/DriverManager/SQLDriverConnectW.c
+@@ -127,8 +127,6 @@
+ #include <string.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLDriverConnectW.c,v $";
+-
+ int __parse_connection_string_w( struct con_struct *con_str,
+     SQLWCHAR *str, int str_len )
+ {
+diff --git a/DriverManager/SQLDrivers.c b/DriverManager/SQLDrivers.c
+index d62cf25..227cbde 100644
+--- a/DriverManager/SQLDrivers.c
++++ b/DriverManager/SQLDrivers.c
+@@ -170,8 +170,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLDrivers.c,v $ $Revision: 1.13 $";
+-
+ #define BUFFERSIZE  1024
+ 
+ SQLRETURN SQLDriversA(
+diff --git a/DriverManager/SQLDriversW.c b/DriverManager/SQLDriversW.c
+index 7783ced..4623f69 100644
+--- a/DriverManager/SQLDriversW.c
++++ b/DriverManager/SQLDriversW.c
+@@ -107,8 +107,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLDriversW.c,v $";
+-
+ #define BUFFERSIZE  1024
+ 
+ SQLRETURN SQLDriversW(
+diff --git a/DriverManager/SQLEndTran.c b/DriverManager/SQLEndTran.c
+index b7c5643..00c1dda 100644
+--- a/DriverManager/SQLEndTran.c
++++ b/DriverManager/SQLEndTran.c
+@@ -141,8 +141,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLEndTran.c,v $ $Revision: 1.11 $";
+-
+ SQLRETURN SQLEndTran( SQLSMALLINT handle_type,
+         SQLHANDLE handle,
+         SQLSMALLINT completion_type )
+diff --git a/DriverManager/SQLError.c b/DriverManager/SQLError.c
+index 8714037..1b916f8 100644
+--- a/DriverManager/SQLError.c
++++ b/DriverManager/SQLError.c
+@@ -182,8 +182,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLError.c,v $ $Revision: 1.11 $";
+-
+ static SQLRETURN local_extract_sql_error( EHEAD *head,
+         SQLCHAR *sqlstate,
+         SQLINTEGER *native_error,
+diff --git a/DriverManager/SQLErrorW.c b/DriverManager/SQLErrorW.c
+index d108756..653a4d8 100644
+--- a/DriverManager/SQLErrorW.c
++++ b/DriverManager/SQLErrorW.c
+@@ -88,8 +88,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLErrorW.c,v $";
+-
+ SQLRETURN extract_parent_handle_err( int handle_type,
+         SQLHENV environment_handle,
+         SQLHDBC connection_handle,
+diff --git a/DriverManager/SQLExecDirect.c b/DriverManager/SQLExecDirect.c
+index 24622b8..f3c9fc3 100644
+--- a/DriverManager/SQLExecDirect.c
++++ b/DriverManager/SQLExecDirect.c
+@@ -172,8 +172,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLExecDirect.c,v $ $Revision: 1.11 $";
+-
+ SQLRETURN SQLExecDirectA( SQLHSTMT statement_handle,
+            SQLCHAR *statement_text,
+            SQLINTEGER text_length )
+diff --git a/DriverManager/SQLExecDirectW.c b/DriverManager/SQLExecDirectW.c
+index b4cbe61..7420007 100644
+--- a/DriverManager/SQLExecDirectW.c
++++ b/DriverManager/SQLExecDirectW.c
+@@ -89,8 +89,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLExecDirectW.c,v $";
+-
+ SQLRETURN SQLExecDirectW( SQLHSTMT statement_handle,
+            SQLWCHAR *statement_text,
+            SQLINTEGER text_length )
+diff --git a/DriverManager/SQLExecute.c b/DriverManager/SQLExecute.c
+index 0f54626..f1a098a 100644
+--- a/DriverManager/SQLExecute.c
++++ b/DriverManager/SQLExecute.c
+@@ -152,8 +152,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLExecute.c,v $ $Revision: 1.9 $";
+-
+ SQLRETURN SQLExecute( SQLHSTMT statement_handle )
+ {
+     DMHSTMT statement = (DMHSTMT) statement_handle;
+diff --git a/DriverManager/SQLExtendedFetch.c b/DriverManager/SQLExtendedFetch.c
+index a7c6a28..67b733e 100644
+--- a/DriverManager/SQLExtendedFetch.c
++++ b/DriverManager/SQLExtendedFetch.c
+@@ -118,8 +118,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLExtendedFetch.c,v $ $Revision: 1.6 $";
+-
+ SQLRETURN SQLExtendedFetch(
+     SQLHSTMT           statement_handle,
+     SQLUSMALLINT       f_fetch_type,
+diff --git a/DriverManager/SQLFetch.c b/DriverManager/SQLFetch.c
+index 22b0dbe..0053450 100644
+--- a/DriverManager/SQLFetch.c
++++ b/DriverManager/SQLFetch.c
+@@ -127,8 +127,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLFetch.c,v $ $Revision: 1.4 $";
+-
+ SQLRETURN SQLFetch( SQLHSTMT statement_handle )
+ {
+     DMHSTMT statement = (DMHSTMT) statement_handle;
+diff --git a/DriverManager/SQLFetchScroll.c b/DriverManager/SQLFetchScroll.c
+index bd3fc39..094c5a3 100644
+--- a/DriverManager/SQLFetchScroll.c
++++ b/DriverManager/SQLFetchScroll.c
+@@ -118,8 +118,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLFetchScroll.c,v $ $Revision: 1.6 $";
+-
+ SQLRETURN SQLFetchScroll( SQLHSTMT statement_handle,
+            SQLSMALLINT fetch_orientation,
+            SQLLEN fetch_offset )
+diff --git a/DriverManager/SQLForeignKeys.c b/DriverManager/SQLForeignKeys.c
+index 46b0cd8..403c59a 100644
+--- a/DriverManager/SQLForeignKeys.c
++++ b/DriverManager/SQLForeignKeys.c
+@@ -135,8 +135,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLForeignKeys.c,v $ $Revision: 1.7 $";
+-
+ SQLRETURN SQLForeignKeysA(
+     SQLHSTMT           statement_handle,
+     SQLCHAR            *szpk_catalog_name,
+diff --git a/DriverManager/SQLForeignKeysW.c b/DriverManager/SQLForeignKeysW.c
+index 26fd47d..0e64a70 100644
+--- a/DriverManager/SQLForeignKeysW.c
++++ b/DriverManager/SQLForeignKeysW.c
+@@ -85,8 +85,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLForeignKeysW.c,v $";
+-
+ SQLRETURN SQLForeignKeysW(
+     SQLHSTMT           statement_handle,
+     SQLWCHAR            *szpk_catalog_name,
+diff --git a/DriverManager/SQLFreeConnect.c b/DriverManager/SQLFreeConnect.c
+index 24080d2..e964be2 100755
+--- a/DriverManager/SQLFreeConnect.c
++++ b/DriverManager/SQLFreeConnect.c
+@@ -59,8 +59,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLFreeConnect.c,v $ $Revision: 1.2 $";
+-
+ SQLRETURN SQLFreeConnect( SQLHDBC connection_handle )
+ {
+     return __SQLFreeHandle( SQL_HANDLE_DBC,
+diff --git a/DriverManager/SQLFreeEnv.c b/DriverManager/SQLFreeEnv.c
+index 27b4677..e395252 100755
+--- a/DriverManager/SQLFreeEnv.c
++++ b/DriverManager/SQLFreeEnv.c
+@@ -59,8 +59,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLFreeEnv.c,v $ $Revision: 1.2 $";
+-
+ SQLRETURN SQLFreeEnv( SQLHENV environment_handle )
+ {
+     return __SQLFreeHandle( SQL_HANDLE_ENV,
+diff --git a/DriverManager/SQLFreeHandle.c b/DriverManager/SQLFreeHandle.c
+index ec486c7..70f5cc5 100644
+--- a/DriverManager/SQLFreeHandle.c
++++ b/DriverManager/SQLFreeHandle.c
+@@ -180,8 +180,6 @@
+ #include <uodbc_stats.h>
+ #endif
+ 
+-static char const rcsid[]= "$RCSfile: SQLFreeHandle.c,v $ $Revision: 1.12 $";
+-
+ SQLRETURN __SQLFreeHandle( SQLSMALLINT handle_type,
+         SQLHANDLE handle )
+ {
+diff --git a/DriverManager/SQLFreeStmt.c b/DriverManager/SQLFreeStmt.c
+index 05170d9..8c62192 100644
+--- a/DriverManager/SQLFreeStmt.c
++++ b/DriverManager/SQLFreeStmt.c
+@@ -107,8 +107,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLFreeStmt.c,v $ $Revision: 1.6 $";
+-
+ SQLRETURN SQLFreeStmt( SQLHSTMT statement_handle,
+            SQLUSMALLINT option )
+ {
+diff --git a/DriverManager/SQLGetConnectAttr.c b/DriverManager/SQLGetConnectAttr.c
+index 92eef95..e0638d0 100644
+--- a/DriverManager/SQLGetConnectAttr.c
++++ b/DriverManager/SQLGetConnectAttr.c
+@@ -164,8 +164,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetConnectAttr.c,v $ $Revision: 1.15 $";
+-
+ SQLRETURN SQLGetConnectAttrA( SQLHDBC connection_handle,
+            SQLINTEGER attribute,
+            SQLPOINTER value,
+diff --git a/DriverManager/SQLGetConnectAttrW.c b/DriverManager/SQLGetConnectAttrW.c
+index 99d8e75..d873a72 100644
+--- a/DriverManager/SQLGetConnectAttrW.c
++++ b/DriverManager/SQLGetConnectAttrW.c
+@@ -120,8 +120,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetConnectAttrW.c,v $";
+-
+ SQLRETURN SQLGetConnectAttrW( SQLHDBC connection_handle,
+            SQLINTEGER attribute,
+            SQLPOINTER value,
+diff --git a/DriverManager/SQLGetConnectOption.c b/DriverManager/SQLGetConnectOption.c
+index 53b100c..a3d99b3 100644
+--- a/DriverManager/SQLGetConnectOption.c
++++ b/DriverManager/SQLGetConnectOption.c
+@@ -144,8 +144,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetConnectOption.c,v $ $Revision: 1.9 $";
+-
+ SQLRETURN SQLGetConnectOptionA( SQLHDBC connection_handle,
+            SQLUSMALLINT option,
+            SQLPOINTER value )
+diff --git a/DriverManager/SQLGetConnectOptionW.c b/DriverManager/SQLGetConnectOptionW.c
+index 50de4d2..2dc172e 100644
+--- a/DriverManager/SQLGetConnectOptionW.c
++++ b/DriverManager/SQLGetConnectOptionW.c
+@@ -92,8 +92,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetConnectOptionW.c,v $";
+-
+ SQLRETURN SQLGetConnectOptionW( SQLHDBC connection_handle,
+            SQLUSMALLINT option,
+            SQLPOINTER value )
+diff --git a/DriverManager/SQLGetCursorName.c b/DriverManager/SQLGetCursorName.c
+index 508e526..c9cf902 100644
+--- a/DriverManager/SQLGetCursorName.c
++++ b/DriverManager/SQLGetCursorName.c
+@@ -129,8 +129,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetCursorName.c,v $ $Revision: 1.8 $";
+-
+ SQLRETURN SQLGetCursorNameA( SQLHSTMT statement_handle,
+            SQLCHAR *cursor_name,
+            SQLSMALLINT buffer_length,
+diff --git a/DriverManager/SQLGetCursorNameW.c b/DriverManager/SQLGetCursorNameW.c
+index 6c98e96..038ae21 100644
+--- a/DriverManager/SQLGetCursorNameW.c
++++ b/DriverManager/SQLGetCursorNameW.c
+@@ -93,8 +93,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetCursorNameW.c,v $";
+-
+ SQLRETURN SQLGetCursorNameW( SQLHSTMT statement_handle,
+            SQLWCHAR *cursor_name,
+            SQLSMALLINT buffer_length,
+diff --git a/DriverManager/SQLGetData.c b/DriverManager/SQLGetData.c
+index deac047..588b150 100644
+--- a/DriverManager/SQLGetData.c
++++ b/DriverManager/SQLGetData.c
+@@ -182,8 +182,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetData.c,v $ $Revision: 1.15 $";
+-
+ SQLRETURN SQLGetData( SQLHSTMT statement_handle,
+            SQLUSMALLINT column_number,
+            SQLSMALLINT target_type,
+diff --git a/DriverManager/SQLGetDescField.c b/DriverManager/SQLGetDescField.c
+index f59d845..2f8e3f7 100644
+--- a/DriverManager/SQLGetDescField.c
++++ b/DriverManager/SQLGetDescField.c
+@@ -136,8 +136,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetDescField.c,v $ $Revision: 1.10 $";
+-
+ SQLRETURN SQLGetDescFieldA( SQLHDESC descriptor_handle,
+            SQLSMALLINT rec_number, 
+            SQLSMALLINT field_identifier,
+diff --git a/DriverManager/SQLGetDescFieldW.c b/DriverManager/SQLGetDescFieldW.c
+index 9f8e867..83f01c5 100644
+--- a/DriverManager/SQLGetDescFieldW.c
++++ b/DriverManager/SQLGetDescFieldW.c
+@@ -88,8 +88,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetDescFieldW.c,v $";
+-
+ SQLRETURN SQLGetDescFieldW( SQLHDESC descriptor_handle,
+            SQLSMALLINT rec_number, 
+            SQLSMALLINT field_identifier,
+diff --git a/DriverManager/SQLGetDescRec.c b/DriverManager/SQLGetDescRec.c
+index 62b6a99..2e184a9 100644
+--- a/DriverManager/SQLGetDescRec.c
++++ b/DriverManager/SQLGetDescRec.c
+@@ -154,8 +154,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetDescRec.c,v $ $Revision: 1.13 $";
+-
+ SQLRETURN SQLGetDescRecA( SQLHDESC descriptor_handle,
+            SQLSMALLINT rec_number, 
+            SQLCHAR *name,
+diff --git a/DriverManager/SQLGetDescRecW.c b/DriverManager/SQLGetDescRecW.c
+index ee6fc04..1912d31 100644
+--- a/DriverManager/SQLGetDescRecW.c
++++ b/DriverManager/SQLGetDescRecW.c
+@@ -99,8 +99,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetDescRecW.c,v $";
+-
+ SQLRETURN SQLGetDescRecW( SQLHDESC descriptor_handle,
+            SQLSMALLINT rec_number, 
+            SQLWCHAR *name,
+diff --git a/DriverManager/SQLGetDiagField.c b/DriverManager/SQLGetDiagField.c
+index 58a253c..f38a2f6 100644
+--- a/DriverManager/SQLGetDiagField.c
++++ b/DriverManager/SQLGetDiagField.c
+@@ -197,8 +197,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetDiagField.c,v $ $Revision: 1.17 $";
+-
+ #define ODBC30_SUBCLASS        "01S00,01S01,01S02,01S06,01S07,07S01,08S01,21S01,\
+ 21S02,25S01,25S02,25S03,42S01,42S02,42S11,42S12,42S21,42S22,HY095,HY097,HY098,\
+ HY099,HY100,HY101,HY105,HY107,HY109,HY110,HY111,HYT00,HYT01,IM001,IM002,IM003,\
+diff --git a/DriverManager/SQLGetDiagFieldW.c b/DriverManager/SQLGetDiagFieldW.c
+index 42175d3..4ddc2cd 100644
+--- a/DriverManager/SQLGetDiagFieldW.c
++++ b/DriverManager/SQLGetDiagFieldW.c
+@@ -94,8 +94,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetDiagFieldW.c,v $";
+-
+ #define ODBC30_SUBCLASS        "01S00,01S01,01S02,01S06,01S07,07S01,08S01,21S01,\
+ 21S02,25S01,25S02,25S03,42S01,42S02,42S11,42S12,42S21,42S22,HY095,HY097,HY098,\
+ HY099,HY100,HY101,HY105,HY107,HY109,HY110,HY111,HYT00,HYT01,IM001,IM002,IM003,\
+diff --git a/DriverManager/SQLGetDiagRec.c b/DriverManager/SQLGetDiagRec.c
+index 6d93ede..971210b 100644
+--- a/DriverManager/SQLGetDiagRec.c
++++ b/DriverManager/SQLGetDiagRec.c
+@@ -183,8 +183,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetDiagRec.c,v $ $Revision: 1.21 $";
+-
+ int __is_env( EHEAD * head )
+ {
+     int type;
+diff --git a/DriverManager/SQLGetDiagRecW.c b/DriverManager/SQLGetDiagRecW.c
+index 1640047..229e271 100644
+--- a/DriverManager/SQLGetDiagRecW.c
++++ b/DriverManager/SQLGetDiagRecW.c
+@@ -96,8 +96,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetDiagRecW.c,v $";
+-
+ extern int __is_env( EHEAD * head );        /* in SQLGetDiagRec.c */
+ 
+ SQLRETURN extract_parent_handle_rec( DRV_SQLHANDLE handle,
+diff --git a/DriverManager/SQLGetEnvAttr.c b/DriverManager/SQLGetEnvAttr.c
+index a6b50f5..7c1aa45 100644
+--- a/DriverManager/SQLGetEnvAttr.c
++++ b/DriverManager/SQLGetEnvAttr.c
+@@ -111,8 +111,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetEnvAttr.c,v $ $Revision: 1.6 $";
+-
+ SQLRETURN SQLGetEnvAttr( SQLHENV environment_handle,
+            SQLINTEGER attribute,
+            SQLPOINTER value,
+diff --git a/DriverManager/SQLGetFunctions.c b/DriverManager/SQLGetFunctions.c
+index 997f6a4..be7cb37 100644
+--- a/DriverManager/SQLGetFunctions.c
++++ b/DriverManager/SQLGetFunctions.c
+@@ -111,8 +111,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetFunctions.c,v $ $Revision: 1.5 $";
+-
+ SQLRETURN SQLGetFunctions( SQLHDBC connection_handle,
+            SQLUSMALLINT function_id,
+            SQLUSMALLINT *supported )
+diff --git a/DriverManager/SQLGetInfo.c b/DriverManager/SQLGetInfo.c
+index 8e64b62..1da5534 100644
+--- a/DriverManager/SQLGetInfo.c
++++ b/DriverManager/SQLGetInfo.c
+@@ -172,8 +172,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetInfo.c,v $ $Revision: 1.14 $";
+-
+ SQLRETURN SQLGetInfoA( SQLHDBC connection_handle,
+            SQLUSMALLINT info_type,
+            SQLPOINTER info_value,
+diff --git a/DriverManager/SQLGetInfoW.c b/DriverManager/SQLGetInfoW.c
+index fab9ca4..97fe700 100644
+--- a/DriverManager/SQLGetInfoW.c
++++ b/DriverManager/SQLGetInfoW.c
+@@ -109,8 +109,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetInfoW.c,v $";
+-
+ SQLRETURN SQLGetInfoW( SQLHDBC connection_handle,
+            SQLUSMALLINT info_type,
+            SQLPOINTER info_value,
+diff --git a/DriverManager/SQLGetStmtAttr.c b/DriverManager/SQLGetStmtAttr.c
+index a03e1f8..ae44e90 100644
+--- a/DriverManager/SQLGetStmtAttr.c
++++ b/DriverManager/SQLGetStmtAttr.c
+@@ -163,8 +163,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetStmtAttr.c,v $ $Revision: 1.8 $";
+-
+ SQLRETURN SQLGetStmtAttrA( SQLHSTMT statement_handle,
+            SQLINTEGER attribute,
+            SQLPOINTER value,
+diff --git a/DriverManager/SQLGetStmtAttrW.c b/DriverManager/SQLGetStmtAttrW.c
+index a191dd0..98b8b00 100644
+--- a/DriverManager/SQLGetStmtAttrW.c
++++ b/DriverManager/SQLGetStmtAttrW.c
+@@ -75,8 +75,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetStmtAttrW.c,v $";
+-
+ SQLRETURN SQLGetStmtAttrW( SQLHSTMT statement_handle,
+            SQLINTEGER attribute,
+            SQLPOINTER value,
+diff --git a/DriverManager/SQLGetStmtOption.c b/DriverManager/SQLGetStmtOption.c
+index 04fcdc8..b3fd3b1 100644
+--- a/DriverManager/SQLGetStmtOption.c
++++ b/DriverManager/SQLGetStmtOption.c
+@@ -118,8 +118,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetStmtOption.c,v $ $Revision: 1.4 $";
+-
+ SQLRETURN SQLGetStmtOption( SQLHSTMT statement_handle,
+            SQLUSMALLINT option,
+            SQLPOINTER value )
+diff --git a/DriverManager/SQLGetTypeInfo.c b/DriverManager/SQLGetTypeInfo.c
+index 4520592..736deb6 100644
+--- a/DriverManager/SQLGetTypeInfo.c
++++ b/DriverManager/SQLGetTypeInfo.c
+@@ -123,8 +123,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetTypeInfo.c,v $ $Revision: 1.6 $";
+-
+ SQLRETURN SQLGetTypeInfoA( SQLHSTMT statement_handle,
+            SQLSMALLINT data_type )
+ {
+diff --git a/DriverManager/SQLGetTypeInfoW.c b/DriverManager/SQLGetTypeInfoW.c
+index f17f59b..f13da78 100644
+--- a/DriverManager/SQLGetTypeInfoW.c
++++ b/DriverManager/SQLGetTypeInfoW.c
+@@ -76,8 +76,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLGetTypeInfoW.c,v $";
+-
+ SQLRETURN SQLGetTypeInfoW( SQLHSTMT statement_handle,
+            SQLSMALLINT data_type )
+ {
+diff --git a/DriverManager/SQLMoreResults.c b/DriverManager/SQLMoreResults.c
+index 5f390b0..27ca93d 100644
+--- a/DriverManager/SQLMoreResults.c
++++ b/DriverManager/SQLMoreResults.c
+@@ -127,8 +127,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLMoreResults.c,v $ $Revision: 1.8 $";
+-
+ SQLRETURN SQLMoreResults( SQLHSTMT statement_handle )
+ {
+     DMHSTMT statement = (DMHSTMT) statement_handle;
+diff --git a/DriverManager/SQLNativeSql.c b/DriverManager/SQLNativeSql.c
+index f5b970f..ebee1ab 100644
+--- a/DriverManager/SQLNativeSql.c
++++ b/DriverManager/SQLNativeSql.c
+@@ -134,8 +134,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLNativeSql.c,v $ $Revision: 1.9 $";
+-
+ SQLRETURN SQLNativeSqlA(
+     SQLHDBC            hdbc,
+     SQLCHAR            *sz_sql_str_in,
+diff --git a/DriverManager/SQLNativeSqlW.c b/DriverManager/SQLNativeSqlW.c
+index 612791c..2d9a3bb 100644
+--- a/DriverManager/SQLNativeSqlW.c
++++ b/DriverManager/SQLNativeSqlW.c
+@@ -88,8 +88,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLNativeSqlW.c,v $";
+-
+ SQLRETURN SQLNativeSqlW(
+     SQLHDBC            hdbc,
+     SQLWCHAR            *sz_sql_str_in,
+diff --git a/DriverManager/SQLNumParams.c b/DriverManager/SQLNumParams.c
+index 6eff08f..d45217c 100644
+--- a/DriverManager/SQLNumParams.c
++++ b/DriverManager/SQLNumParams.c
+@@ -104,8 +104,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLNumParams.c,v $ $Revision: 1.4 $";
+-
+ SQLRETURN SQLNumParams(
+     SQLHSTMT           statement_handle,
+     SQLSMALLINT        *pcpar )
+diff --git a/DriverManager/SQLNumResultCols.c b/DriverManager/SQLNumResultCols.c
+index c4369c0..2d35ca4 100644
+--- a/DriverManager/SQLNumResultCols.c
++++ b/DriverManager/SQLNumResultCols.c
+@@ -117,8 +117,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLNumResultCols.c,v $ $Revision: 1.5 $";
+-
+ SQLRETURN SQLNumResultCols( SQLHSTMT statement_handle,
+            SQLSMALLINT *column_count )
+ {
+diff --git a/DriverManager/SQLParamData.c b/DriverManager/SQLParamData.c
+index 55b9de6..6137dab 100644
+--- a/DriverManager/SQLParamData.c
++++ b/DriverManager/SQLParamData.c
+@@ -128,8 +128,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLParamData.c,v $ $Revision: 1.7 $";
+-
+ SQLRETURN SQLParamData( SQLHSTMT statement_handle,
+            SQLPOINTER *value )
+ {
+diff --git a/DriverManager/SQLParamOptions.c b/DriverManager/SQLParamOptions.c
+index cffa233..3adf362 100644
+--- a/DriverManager/SQLParamOptions.c
++++ b/DriverManager/SQLParamOptions.c
+@@ -122,8 +122,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLParamOptions.c,v $ $Revision: 1.6 $";
+-
+ /*
+  * This one is strictly ODBC 2
+  */
+diff --git a/DriverManager/SQLPrepare.c b/DriverManager/SQLPrepare.c
+index d3dc361..152d095 100644
+--- a/DriverManager/SQLPrepare.c
++++ b/DriverManager/SQLPrepare.c
+@@ -128,8 +128,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLPrepare.c,v $ $Revision: 1.7 $";
+-
+ SQLRETURN SQLPrepareA( SQLHSTMT statement_handle,
+            SQLCHAR *statement_text,
+            SQLINTEGER text_length )
+diff --git a/DriverManager/SQLPrepareW.c b/DriverManager/SQLPrepareW.c
+index 8e40073..abca87e 100644
+--- a/DriverManager/SQLPrepareW.c
++++ b/DriverManager/SQLPrepareW.c
+@@ -77,8 +77,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLPrepareW.c,v $";
+-
+ SQLRETURN SQLPrepareW( SQLHSTMT statement_handle,
+            SQLWCHAR *statement_text,
+            SQLINTEGER text_length )
+diff --git a/DriverManager/SQLPrimaryKeys.c b/DriverManager/SQLPrimaryKeys.c
+index 1acdf60..efb4991 100644
+--- a/DriverManager/SQLPrimaryKeys.c
++++ b/DriverManager/SQLPrimaryKeys.c
+@@ -135,8 +135,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLPrimaryKeys.c,v $ $Revision: 1.7 $";
+-
+ SQLRETURN SQLPrimaryKeysA(
+     SQLHSTMT           statement_handle,
+     SQLCHAR            *sz_catalog_name,
+diff --git a/DriverManager/SQLPrimaryKeysW.c b/DriverManager/SQLPrimaryKeysW.c
+index 2365d8e..b9cf275 100644
+--- a/DriverManager/SQLPrimaryKeysW.c
++++ b/DriverManager/SQLPrimaryKeysW.c
+@@ -85,8 +85,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLPrimaryKeysW.c,v $";
+-
+ SQLRETURN SQLPrimaryKeysW(
+     SQLHSTMT           statement_handle,
+     SQLWCHAR            *sz_catalog_name,
+diff --git a/DriverManager/SQLProcedureColumns.c b/DriverManager/SQLProcedureColumns.c
+index 00153b3..7fbdb82 100644
+--- a/DriverManager/SQLProcedureColumns.c
++++ b/DriverManager/SQLProcedureColumns.c
+@@ -123,8 +123,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLProcedureColumns.c,v $ $Revision: 1.7 $";
+-
+ SQLRETURN SQLProcedureColumnsA(
+     SQLHSTMT           statement_handle,
+     SQLCHAR            *sz_catalog_name,
+diff --git a/DriverManager/SQLProcedureColumnsW.c b/DriverManager/SQLProcedureColumnsW.c
+index 92c7da9..20a6af4 100644
+--- a/DriverManager/SQLProcedureColumnsW.c
++++ b/DriverManager/SQLProcedureColumnsW.c
+@@ -85,8 +85,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLProcedureColumnsW.c,v $";
+-
+ SQLRETURN SQLProcedureColumnsW(
+     SQLHSTMT           statement_handle,
+     SQLWCHAR            *sz_catalog_name,
+diff --git a/DriverManager/SQLProcedures.c b/DriverManager/SQLProcedures.c
+index fb6b846..6cc37a9 100644
+--- a/DriverManager/SQLProcedures.c
++++ b/DriverManager/SQLProcedures.c
+@@ -123,8 +123,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLProcedures.c,v $ $Revision: 1.7 $";
+-
+ SQLRETURN SQLProceduresA(
+     SQLHSTMT           statement_handle,
+     SQLCHAR            *sz_catalog_name,
+diff --git a/DriverManager/SQLProceduresW.c b/DriverManager/SQLProceduresW.c
+index 4976a85..abf3a95 100644
+--- a/DriverManager/SQLProceduresW.c
++++ b/DriverManager/SQLProceduresW.c
+@@ -85,8 +85,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLProceduresW.c,v $ $Revision: 1.9 $";
+-
+ SQLRETURN SQLProceduresW(
+     SQLHSTMT           statement_handle,
+     SQLWCHAR            *sz_catalog_name,
+diff --git a/DriverManager/SQLPutData.c b/DriverManager/SQLPutData.c
+index 6bcbb2a..fa3b022 100644
+--- a/DriverManager/SQLPutData.c
++++ b/DriverManager/SQLPutData.c
+@@ -107,8 +107,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLPutData.c,v $ $Revision: 1.5 $";
+-
+ SQLRETURN SQLPutData( SQLHSTMT statement_handle,
+            SQLPOINTER data,
+            SQLLEN strlen_or_ind )
+diff --git a/DriverManager/SQLRowCount.c b/DriverManager/SQLRowCount.c
+index fa53158..835e465 100644
+--- a/DriverManager/SQLRowCount.c
++++ b/DriverManager/SQLRowCount.c
+@@ -130,8 +130,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLRowCount.c,v $ $Revision: 1.8 $";
+-
+ SQLRETURN SQLRowCount( SQLHSTMT statement_handle,
+        SQLLEN *rowcount )
+ {
+diff --git a/DriverManager/SQLSetConnectAttr.c b/DriverManager/SQLSetConnectAttr.c
+index 272eea9..99d62a1 100644
+--- a/DriverManager/SQLSetConnectAttr.c
++++ b/DriverManager/SQLSetConnectAttr.c
+@@ -210,8 +210,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetConnectAttr.c,v $ $Revision: 1.17 $";
+-
+ SQLRETURN SQLSetConnectAttrA( SQLHDBC connection_handle,
+            SQLINTEGER attribute,
+            SQLPOINTER value,
+diff --git a/DriverManager/SQLSetConnectAttrW.c b/DriverManager/SQLSetConnectAttrW.c
+index 105dab8..f7b1523 100644
+--- a/DriverManager/SQLSetConnectAttrW.c
++++ b/DriverManager/SQLSetConnectAttrW.c
+@@ -125,8 +125,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetConnectAttrW.c,v $";
+-
+ SQLRETURN SQLSetConnectAttrW( SQLHDBC connection_handle,
+            SQLINTEGER attribute,
+            SQLPOINTER value,
+diff --git a/DriverManager/SQLSetConnectOption.c b/DriverManager/SQLSetConnectOption.c
+index 61daf46..a39d75b 100644
+--- a/DriverManager/SQLSetConnectOption.c
++++ b/DriverManager/SQLSetConnectOption.c
+@@ -195,8 +195,6 @@
+ #endif
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetConnectOption.c,v $ $Revision: 1.12 $";
+-
+ SQLRETURN SQLSetConnectOptionA( SQLHDBC connection_handle,
+            SQLUSMALLINT option,
+            SQLULEN value )
+diff --git a/DriverManager/SQLSetConnectOptionW.c b/DriverManager/SQLSetConnectOptionW.c
+index ba0ea15..4cb5a13 100644
+--- a/DriverManager/SQLSetConnectOptionW.c
++++ b/DriverManager/SQLSetConnectOptionW.c
+@@ -95,8 +95,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetConnectOptionW.c,v $";
+-
+ SQLRETURN SQLSetConnectOptionW( SQLHDBC connection_handle,
+            SQLUSMALLINT option,
+            SQLULEN value )
+diff --git a/DriverManager/SQLSetCursorName.c b/DriverManager/SQLSetCursorName.c
+index 5702d41..60ef22d 100644
+--- a/DriverManager/SQLSetCursorName.c
++++ b/DriverManager/SQLSetCursorName.c
+@@ -116,8 +116,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetCursorName.c,v $ $Revision: 1.6 $";
+-
+ SQLRETURN SQLSetCursorNameA( SQLHSTMT statement_handle,
+            SQLCHAR *cursor_name,
+            SQLSMALLINT name_length )
+diff --git a/DriverManager/SQLSetCursorNameW.c b/DriverManager/SQLSetCursorNameW.c
+index 9944603..2d99000 100644
+--- a/DriverManager/SQLSetCursorNameW.c
++++ b/DriverManager/SQLSetCursorNameW.c
+@@ -78,8 +78,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetCursorNameW.c,v $";
+-
+ SQLRETURN SQLSetCursorNameW( SQLHSTMT statement_handle,
+            SQLWCHAR *cursor_name,
+            SQLSMALLINT name_length )
+diff --git a/DriverManager/SQLSetDescField.c b/DriverManager/SQLSetDescField.c
+index 378cbb9..8d87d1c 100644
+--- a/DriverManager/SQLSetDescField.c
++++ b/DriverManager/SQLSetDescField.c
+@@ -118,8 +118,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetDescField.c,v $ $Revision: 1.7 $";
+-
+ SQLRETURN SQLSetDescFieldA( SQLHDESC descriptor_handle,
+            SQLSMALLINT rec_number, 
+            SQLSMALLINT field_identifier,
+diff --git a/DriverManager/SQLSetDescFieldW.c b/DriverManager/SQLSetDescFieldW.c
+index 0debd5c..cc27273 100644
+--- a/DriverManager/SQLSetDescFieldW.c
++++ b/DriverManager/SQLSetDescFieldW.c
+@@ -83,8 +83,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetDescFieldW.c,v $";
+-
+ SQLRETURN SQLSetDescFieldW( SQLHDESC descriptor_handle,
+            SQLSMALLINT rec_number, 
+            SQLSMALLINT field_identifier,
+diff --git a/DriverManager/SQLSetDescRec.c b/DriverManager/SQLSetDescRec.c
+index cbd4b9a..94e8d58 100644
+--- a/DriverManager/SQLSetDescRec.c
++++ b/DriverManager/SQLSetDescRec.c
+@@ -97,8 +97,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetDescRec.c,v $ $Revision: 1.4 $";
+-
+ SQLRETURN SQLSetDescRec( SQLHDESC descriptor_handle,
+            SQLSMALLINT rec_number, 
+            SQLSMALLINT type,
+diff --git a/DriverManager/SQLSetEnvAttr.c b/DriverManager/SQLSetEnvAttr.c
+index 003ebd7..f299720 100644
+--- a/DriverManager/SQLSetEnvAttr.c
++++ b/DriverManager/SQLSetEnvAttr.c
+@@ -135,8 +135,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetEnvAttr.c,v $ $Revision: 1.9 $";
+-
+ SQLRETURN SQLSetEnvAttr( SQLHENV environment_handle,
+            SQLINTEGER attribute,
+            SQLPOINTER value,
+diff --git a/DriverManager/SQLSetParam.c b/DriverManager/SQLSetParam.c
+index 3c60e0a..b2f6636 100644
+--- a/DriverManager/SQLSetParam.c
++++ b/DriverManager/SQLSetParam.c
+@@ -135,8 +135,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetParam.c,v $ $Revision: 1.7 $";
+-
+ int check_value_type( int c_type, int connection_mode)
+ {
+     /*
+diff --git a/DriverManager/SQLSetPos.c b/DriverManager/SQLSetPos.c
+index 6cfc6d3..2900b85 100644
+--- a/DriverManager/SQLSetPos.c
++++ b/DriverManager/SQLSetPos.c
+@@ -118,8 +118,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetPos.c,v $ $Revision: 1.6 $";
+-
+ SQLRETURN SQLSetPos(
+     SQLHSTMT           statement_handle,
+     SQLSETPOSIROW      irow,
+diff --git a/DriverManager/SQLSetScrollOptions.c b/DriverManager/SQLSetScrollOptions.c
+index 82916ac..5b19793 100644
+--- a/DriverManager/SQLSetScrollOptions.c
++++ b/DriverManager/SQLSetScrollOptions.c
+@@ -139,8 +139,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetScrollOptions.c,v $ $Revision: 1.9 $";
+-
+ SQLRETURN SQLSetScrollOptions(
+     SQLHSTMT           statement_handle,
+     SQLUSMALLINT       f_concurrency,
+diff --git a/DriverManager/SQLSetStmtAttr.c b/DriverManager/SQLSetStmtAttr.c
+index 61407fe..2c54aa7 100644
+--- a/DriverManager/SQLSetStmtAttr.c
++++ b/DriverManager/SQLSetStmtAttr.c
+@@ -210,8 +210,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetStmtAttr.c,v $ $Revision: 1.16 $";
+-
+ SQLRETURN SQLSetStmtAttrA( SQLHSTMT statement_handle,
+            SQLINTEGER attribute,
+            SQLPOINTER value,
+diff --git a/DriverManager/SQLSetStmtAttrW.c b/DriverManager/SQLSetStmtAttrW.c
+index 36889fd..26d219b 100644
+--- a/DriverManager/SQLSetStmtAttrW.c
++++ b/DriverManager/SQLSetStmtAttrW.c
+@@ -91,8 +91,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetStmtAttrW.c,v $";
+-
+ SQLRETURN SQLSetStmtAttrW( SQLHSTMT statement_handle,
+            SQLINTEGER attribute,
+            SQLPOINTER value,
+diff --git a/DriverManager/SQLSetStmtOption.c b/DriverManager/SQLSetStmtOption.c
+index 9e847fb..46a363c 100644
+--- a/DriverManager/SQLSetStmtOption.c
++++ b/DriverManager/SQLSetStmtOption.c
+@@ -149,8 +149,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetStmtOption.c,v $ $Revision: 1.10 $";
+-
+ SQLRETURN SQLSetStmtOptionA( SQLHSTMT statement_handle,
+            SQLUSMALLINT option,
+            SQLULEN value )
+diff --git a/DriverManager/SQLSetStmtOptionW.c b/DriverManager/SQLSetStmtOptionW.c
+index e1eff70..d40f3e3 100644
+--- a/DriverManager/SQLSetStmtOptionW.c
++++ b/DriverManager/SQLSetStmtOptionW.c
+@@ -152,8 +152,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSetStmtOptionW.c,v $ $Revision: 1.6 $";
+-
+ SQLRETURN SQLSetStmtOptionW( SQLHSTMT statement_handle,
+            SQLUSMALLINT option,
+            SQLULEN value )
+diff --git a/DriverManager/SQLSpecialColumns.c b/DriverManager/SQLSpecialColumns.c
+index ea5863b..8be5e28 100644
+--- a/DriverManager/SQLSpecialColumns.c
++++ b/DriverManager/SQLSpecialColumns.c
+@@ -131,8 +131,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSpecialColumns.c,v $ $Revision: 1.7 $";
+-
+ SQLRETURN SQLSpecialColumnsA( SQLHSTMT statement_handle,
+            SQLUSMALLINT identifier_type,
+            SQLCHAR *catalog_name,
+diff --git a/DriverManager/SQLSpecialColumnsW.c b/DriverManager/SQLSpecialColumnsW.c
+index 01937cd..8e86dbd 100644
+--- a/DriverManager/SQLSpecialColumnsW.c
++++ b/DriverManager/SQLSpecialColumnsW.c
+@@ -85,8 +85,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLSpecialColumnsW.c,v $";
+-
+ SQLRETURN SQLSpecialColumnsW( SQLHSTMT statement_handle,
+            SQLUSMALLINT identifier_type,
+            SQLWCHAR *catalog_name,
+diff --git a/DriverManager/SQLStatistics.c b/DriverManager/SQLStatistics.c
+index 28ce481..7efa94e 100644
+--- a/DriverManager/SQLStatistics.c
++++ b/DriverManager/SQLStatistics.c
+@@ -129,8 +129,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLStatistics.c,v $ $Revision: 1.8 $";
+-
+ SQLRETURN SQLStatisticsA( SQLHSTMT statement_handle,
+            SQLCHAR *catalog_name,
+            SQLSMALLINT name_length1,
+diff --git a/DriverManager/SQLStatisticsW.c b/DriverManager/SQLStatisticsW.c
+index eba4aba..892a85c 100644
+--- a/DriverManager/SQLStatisticsW.c
++++ b/DriverManager/SQLStatisticsW.c
+@@ -85,8 +85,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLStatisticsW.c,v $";
+-
+ SQLRETURN SQLStatisticsW( SQLHSTMT statement_handle,
+            SQLWCHAR *catalog_name,
+            SQLSMALLINT name_length1,
+diff --git a/DriverManager/SQLTablePrivileges.c b/DriverManager/SQLTablePrivileges.c
+index bc021e2..b4b7f49 100644
+--- a/DriverManager/SQLTablePrivileges.c
++++ b/DriverManager/SQLTablePrivileges.c
+@@ -129,8 +129,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLTablePrivileges.c,v $ $Revision: 1.9 $";
+-
+ SQLRETURN SQLTablePrivilegesA(
+     SQLHSTMT           statement_handle,
+     SQLCHAR            *sz_catalog_name,
+diff --git a/DriverManager/SQLTablePrivilegesW.c b/DriverManager/SQLTablePrivilegesW.c
+index 7ae27aa..c2ddd74 100644
+--- a/DriverManager/SQLTablePrivilegesW.c
++++ b/DriverManager/SQLTablePrivilegesW.c
+@@ -89,8 +89,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLTablePrivilegesW.c,v $";
+-
+ SQLRETURN SQLTablePrivilegesW(
+     SQLHSTMT           statement_handle,
+     SQLWCHAR            *sz_catalog_name,
+diff --git a/DriverManager/SQLTables.c b/DriverManager/SQLTables.c
+index 1ad1aa8..6b24c70 100644
+--- a/DriverManager/SQLTables.c
++++ b/DriverManager/SQLTables.c
+@@ -133,8 +133,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLTables.c,v $ $Revision: 1.7 $";
+-
+ SQLRETURN SQLTablesA( SQLHSTMT statement_handle,
+            SQLCHAR *catalog_name,
+            SQLSMALLINT name_length1,
+diff --git a/DriverManager/SQLTablesW.c b/DriverManager/SQLTablesW.c
+index 19c3bf7..b023168 100644
+--- a/DriverManager/SQLTablesW.c
++++ b/DriverManager/SQLTablesW.c
+@@ -85,8 +85,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLTablesW.c,v $";
+-
+ SQLRETURN SQLTablesW( SQLHSTMT statement_handle,
+            SQLWCHAR *catalog_name,
+            SQLSMALLINT name_length1,
+diff --git a/DriverManager/SQLTransact.c b/DriverManager/SQLTransact.c
+index 7a9ac4b..bc1a621 100644
+--- a/DriverManager/SQLTransact.c
++++ b/DriverManager/SQLTransact.c
+@@ -145,8 +145,6 @@
+ #include <config.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: SQLTransact.c,v $ $Revision: 1.11 $";
+-
+ SQLRETURN SQLTransact( SQLHENV environment_handle,
+            SQLHDBC connection_handle,
+            SQLUSMALLINT completion_type )
+diff --git a/DriverManager/__attribute.c b/DriverManager/__attribute.c
+index 5de4340..1f6f24f 100644
+--- a/DriverManager/__attribute.c
++++ b/DriverManager/__attribute.c
+@@ -67,8 +67,6 @@
+ #include <string.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: __attribute.c,v $";
+-
+ /*
+  * these are taken directly from odbctest/attr.cpp
+  * so any bugs or additions, should be added there also
+diff --git a/DriverManager/__connection.c b/DriverManager/__connection.c
+index 7003f36..a82fc6e 100755
+--- a/DriverManager/__connection.c
++++ b/DriverManager/__connection.c
+@@ -104,8 +104,6 @@
+  * variable
+  */
+ 
+-static char const rcsid[]= "$RCSfile: __connection.c,v $ $Revision: 1.6 $";
+-
+ /*
+  * search for the library (.so) that the DSN points to
+  */
+diff --git a/DriverManager/__handles.c b/DriverManager/__handles.c
+index 36fd102..e4f73ab 100644
+--- a/DriverManager/__handles.c
++++ b/DriverManager/__handles.c
+@@ -226,8 +226,6 @@
+ #include <uodbc_stats.h>
+ #endif
+ 
+-static char const rcsid[]= "$RCSfile: __handles.c,v $ $Revision: 1.13 $";
+-
+ /*
+  * these are used to enable us to check if a handle is
+  * valid without the danger of a seg-vio.
+diff --git a/DriverManager/__info.c b/DriverManager/__info.c
+index bedfd74..aaf3e06 100644
+--- a/DriverManager/__info.c
++++ b/DriverManager/__info.c
+@@ -472,8 +472,6 @@
+ 
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: __info.c,v $ $Revision: 1.50 $";
+-
+ struct log_structure log_info = { NULL, NULL, 0, 0 };
+ 
+ SQLINTEGER ODBCSharedTraceFlag = 0;
+diff --git a/DriverManager/__stats.c b/DriverManager/__stats.c
+index 3a41486..2a93759 100644
+--- a/DriverManager/__stats.c
++++ b/DriverManager/__stats.c
+@@ -119,8 +119,6 @@
+ #include <uodbc_stats.h>
+ #include "drivermanager.h"
+ 
+-static char const rcsid[]= "$RCSfile: __stats.c,v $ $Revision: 1.4 $";
+-
+ #ifdef COLLECT_STATS
+ #ifdef HAVE_LIBPTHREAD
+ 
+-- 
+2.43.0
+
