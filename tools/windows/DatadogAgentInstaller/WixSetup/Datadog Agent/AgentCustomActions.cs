@@ -582,6 +582,7 @@ namespace WixSetup.Datadog_Agent
                            "DD_APP_KEY=[DD_APP_KEY]," +
                            "DD_PRIVATE_ACTION_RUNNER_ENABLED=[DD_PRIVATE_ACTION_RUNNER_ENABLED]," +
                            "DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST=[DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST]," +
+                           "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=[DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED]," +
                            "FLEET_INSTALL=[FLEET_INSTALL]," +
                            "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]");
 
