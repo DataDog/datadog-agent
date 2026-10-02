@@ -26,6 +26,7 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/nstat"
 	processutil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -90,6 +91,7 @@ var nstatTracerTelemetry = struct {
 	removals           telemetry.Counter
 	runtimeFailures    telemetry.Counter
 	directionConflicts telemetry.Counter
+	directionInferred  telemetry.Counter
 	pidZeroPublished   telemetry.Counter
 	filteredSources    telemetry.Counter
 	unmatchedTuples    telemetry.Counter
@@ -105,6 +107,7 @@ var nstatTracerTelemetry = struct {
 	removals:           telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "removals", []string{"resolution"}, "NStat source removals by identity resolution"),
 	runtimeFailures:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "runtime_failures", nil, "Fatal NStat runtime failures"),
 	directionConflicts: telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "direction_conflicts", nil, "Conflicting direction evidence observed"),
+	directionInferred:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "direction_inferred", []string{"result"}, "TCP directions inferred from ports, and inferences later overridden by direction evidence"),
 	pidZeroPublished:   telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "pid_zero_published", nil, "NStat connections published without a PID"),
 	filteredSources:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "filtered_sources", []string{"reason"}, "Resolved NStat sources not published"),
 	unmatchedTuples:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "unmatched_tuples", []string{"result"}, "Unmatched TCP packets: new tuples tracked, or skipped because the tracking set was full"),
@@ -141,6 +144,7 @@ type nstatSource struct {
 	connectSuccesses         uint32
 	direction                network.ConnectionDirection
 	directionEvidence        darwinDirectionEvidence
+	inferredDirection        network.ConnectionDirection
 	listenerKey              darwinTCPListenerKey
 	listenerIndexed          bool
 	loopbackFiltered         bool
@@ -160,6 +164,9 @@ type nstatTracer struct {
 	// includeLoopback publishes sources with a loopback endpoint. Production
 	// never sets it; loopback connections are always filtered.
 	includeLoopback bool
+
+	ephemeralFirst uint16
+	ephemeralLast  uint16
 
 	// packetCoverage reports whether packet capture observes the interface
 	// with the given index. It is set before Start and nil when no packet
@@ -210,8 +217,11 @@ func newNStatTracer(cfg *config.Config) (*nstatTracer, error) {
 }
 
 func newNStatTracerWithControl(cfg *config.Config, control nstatControl) *nstatTracer {
+	ephemeralFirst, ephemeralLast := ebpfless.EphemeralPortRange()
 	return &nstatTracer{
 		config:               cfg,
+		ephemeralFirst:       ephemeralFirst,
+		ephemeralLast:        ephemeralLast,
 		control:              control,
 		sources:              make(map[uint64]*nstatSource),
 		byCookie:             make(map[uint64]*nstatSource),
@@ -859,6 +869,15 @@ func (t *nstatTracer) applySource(source *nstatSource) {
 		t.setSourceDirection(source, network.INCOMING, directionEvidenceListener)
 	}
 	t.reconcileSourceDirection(source)
+	if source.direction == network.UNKNOWN {
+		// A source first described after its handshake carries no SYN state.
+		// The inference stays out of source.direction so any real evidence wins.
+		conn.Direction = t.inferTCPDirectionFromPorts(conn.SPort, conn.DPort)
+		if conn.Direction != network.UNKNOWN && source.inferredDirection == network.UNKNOWN {
+			source.inferredDirection = conn.Direction
+			nstatTracerTelemetry.directionInferred.Inc("inferred")
+		}
+	}
 	conn.RTT = scaledMicroseconds(counts.AverageRTT, nstatTCPRTTScale)
 	conn.RTTVar = scaledMicroseconds(counts.RTTVariance, nstatTCPRTTVarianceScale)
 	if source.tcpEstablishedAfterStart {
@@ -967,6 +986,10 @@ func (t *nstatTracer) setSourceDirection(
 	if source.direction != network.UNKNOWN && source.direction != direction {
 		nstatTracerTelemetry.directionConflicts.Inc()
 	}
+	if source.direction == network.UNKNOWN && source.inferredDirection != network.UNKNOWN &&
+		source.inferredDirection != direction {
+		nstatTracerTelemetry.directionInferred.Inc("overridden")
+	}
 	source.direction = direction
 	source.directionEvidence = evidence
 	if source.conn != nil {
@@ -994,6 +1017,32 @@ func (t *nstatTracer) reconcileSourceDirection(source *nstatSource) {
 	}
 	if peer.direction != network.UNKNOWN {
 		t.setSourceDirection(source, oppositeConnectionDirection(peer.direction), directionEvidencePeer)
+	}
+}
+
+// inferTCPDirectionFromPorts treats the endpoint with the more server-like
+// port as the server: well-known ports, then registered ports, then
+// ephemeral ports. Equally ranked ports stay UNKNOWN.
+func (t *nstatTracer) inferTCPDirectionFromPorts(localPort, remotePort uint16) network.ConnectionDirection {
+	local, remote := t.tcpPortRank(localPort), t.tcpPortRank(remotePort)
+	switch {
+	case local < remote:
+		return network.INCOMING
+	case local > remote:
+		return network.OUTGOING
+	default:
+		return network.UNKNOWN
+	}
+}
+
+func (t *nstatTracer) tcpPortRank(port uint16) int {
+	switch {
+	case port < 1024:
+		return 0
+	case port >= t.ephemeralFirst && port <= t.ephemeralLast:
+		return 2
+	default:
+		return 1
 	}
 }
 

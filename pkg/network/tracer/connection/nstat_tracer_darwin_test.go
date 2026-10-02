@@ -117,7 +117,7 @@ func TestNStatTracerDoesNotCountPreexistingTCPConnectionAsEstablished(t *testing
 	require.NoError(t, tracer.GetConnections(&buffer, nil))
 	require.Len(t, buffer.Connections(), 1)
 	require.Zero(t, buffer.Connections()[0].Monotonic.TCPEstablished)
-	require.Equal(t, network.UNKNOWN, buffer.Connections()[0].Direction)
+	require.Equal(t, network.OUTGOING, buffer.Connections()[0].Direction)
 	require.Equal(t, directionEvidenceNone, tracer.sources[17].directionEvidence)
 }
 
@@ -324,14 +324,14 @@ func TestNStatTracerSkipsAmbiguousReversePeerDirection(t *testing.T) {
 			Kind:      nstat.EventDescription,
 			SourceRef: sourceRef,
 			Provider:  nstat.ProviderTCPKernel,
-			Flow:      testNStatLoopbackTCPFlow(pid, "127.0.0.1", 8080, 50000),
+			Flow:      testNStatLoopbackTCPFlow(pid, "127.0.0.1", 8080, 9090),
 		})
 	}
 	tracer.processEvent(nstat.Event{
 		Kind:      nstat.EventDescription,
 		SourceRef: 33,
 		Provider:  nstat.ProviderTCPKernel,
-		Flow:      testNStatLoopbackTCPFlow(4003, "127.0.0.1", 50000, 8080),
+		Flow:      testNStatLoopbackTCPFlow(4003, "127.0.0.1", 9090, 8080),
 	})
 	tracer.setSourceDirection(tracer.sources[33], network.OUTGOING, directionEvidenceTCPState)
 	tracer.reconcileSourceDirection(tracer.sources[33])
@@ -339,6 +339,65 @@ func TestNStatTracerSkipsAmbiguousReversePeerDirection(t *testing.T) {
 	require.Equal(t, network.OUTGOING, tracer.sources[33].conn.Direction)
 	require.Equal(t, network.UNKNOWN, tracer.sources[31].conn.Direction)
 	require.Equal(t, network.UNKNOWN, tracer.sources[32].conn.Direction)
+}
+
+func TestNStatTracerInfersTCPDirectionFromPorts(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	tracer.ephemeralFirst, tracer.ephemeralLast = 49152, 65535
+	for _, tc := range []struct {
+		local, remote uint16
+		expected      network.ConnectionDirection
+	}{
+		{50000, 443, network.OUTGOING},
+		{50000, 8080, network.OUTGOING},
+		{40000, 22, network.OUTGOING},
+		{443, 50000, network.INCOMING},
+		{8080, 50000, network.INCOMING},
+		{22, 40000, network.INCOMING},
+		{80, 443, network.UNKNOWN},
+		{8080, 9090, network.UNKNOWN},
+		{50000, 50001, network.UNKNOWN},
+	} {
+		require.Equal(t, tc.expected, tracer.inferTCPDirectionFromPorts(tc.local, tc.remote), "%d -> %d", tc.local, tc.remote)
+	}
+}
+
+func TestNStatTracerLateListenerOverridesPortInference(t *testing.T) {
+	inferred := nstatTracerTelemetry.directionInferred.WithValues("inferred")
+	overridden := nstatTracerTelemetry.directionInferred.WithValues("overridden")
+	inferredBefore, overriddenBefore := inferred.Get(), overridden.Get()
+
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	tracer.ephemeralFirst, tracer.ephemeralLast = 49152, 65535
+	for sourceRef, port := range map[uint64]uint16{51: 50000, 53: 50001} {
+		flow := testNStatTCPFlow(5001, tcpStateEstablished)
+		flow.Local.Port = port
+		tracer.processEvent(nstat.Event{
+			Kind:      nstat.EventDescription,
+			SourceRef: sourceRef,
+			Provider:  nstat.ProviderTCPKernel,
+			Flow:      flow,
+		})
+	}
+	// Repeated updates must not count the same inference again.
+	tracer.applySource(tracer.sources[51])
+	source := tracer.sources[51]
+	require.Equal(t, network.OUTGOING, source.conn.Direction)
+	require.Equal(t, directionEvidenceNone, source.directionEvidence)
+	require.Equal(t, inferredBefore+2, inferred.Get())
+
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 52,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPListenerFlow(5001, "192.0.2.10", 50000),
+	})
+	require.Equal(t, network.INCOMING, source.conn.Direction)
+	require.Equal(t, directionEvidenceListener, source.directionEvidence)
+	require.Equal(t, overriddenBefore+1, overridden.Get())
+
+	tracer.setSourceDirection(tracer.sources[53], network.OUTGOING, directionEvidencePacket)
+	require.Equal(t, overriddenBefore+1, overridden.Get())
 }
 
 func TestNStatTracerClassifiesResetFromNStatAndPacketEvidence(t *testing.T) {
@@ -714,7 +773,7 @@ func TestNStatTracerSeparatesReusedSourceReference(t *testing.T) {
 	require.Len(t, buffer.Connections(), 1)
 	require.Equal(t, uint32(2222), buffer.Connections()[0].Pid)
 	require.NotEqual(t, firstCookie, buffer.Connections()[0].Cookie)
-	require.Equal(t, network.UNKNOWN, buffer.Connections()[0].Direction)
+	require.Equal(t, network.OUTGOING, buffer.Connections()[0].Direction)
 	require.Zero(t, tracer.sources[10].connectAttempts)
 	require.Equal(t, directionEvidenceNone, tracer.sources[10].directionEvidence)
 }
