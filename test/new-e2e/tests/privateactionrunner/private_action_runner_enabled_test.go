@@ -183,11 +183,17 @@ func (s *linuxPrivateActionRunnerSplitSuite) TestPrivilegedRshellEndToEnd() {
 	// Enqueuing work starts the split-mode executor. Re-publish the key while
 	// that cold executor registers its Remote Config subscription.
 	nonElevatedTaskID := s.enqueuePrivilegedRshellTask("cat " + privilegedRshellFixture)
-	deliverSigningKeyAfterSubscription(s.T(), client, strconv.FormatInt(testRunnerOrgID, 10), s.privilegedSigningKey)
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		require.NoError(c, client.RCAddConfig(
+			strconv.FormatInt(testRunnerOrgID, 10),
+			runnerKeysRCProduct,
+			s.privilegedSigningKey.id,
+			s.privilegedSigningKey.id,
+			s.privilegedSigningKey.config,
+		))
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s | grep -F %q",
 			"Successfully updated keys", privateActionRunnerLogFile, s.privilegedSigningKey.id))
-	}, 45*time.Second, time.Second, "PAR should install the task signing key")
+	}, 2*time.Minute, 2*time.Second, "PAR should install the task signing key")
 
 	nonElevated := s.waitForPrivilegedRshellTask(nonElevatedTaskID)
 	s.Require().True(nonElevated.Success, "non-elevated rshell command should complete: %+v", nonElevated)
@@ -217,11 +223,20 @@ func (s *linuxPrivateActionRunnerSplitSuite) TestPrivilegedRshellEndToEnd() {
 		"sudo systemctl is-active "+privilegedRshellSocketUnit,
 	)))
 	reactivatedTaskID := s.enqueuePrivilegedRshellTask("sudo cat " + privilegedRshellFixture)
-	deliverSigningKeyAfterSubscription(s.T(), client, strconv.FormatInt(testRunnerOrgID, 10), s.privilegedSigningKey)
-	reactivated := s.waitForPrivilegedRshellTask(reactivatedTaskID)
-	s.Require().True(reactivated.Success, "reactivated privileged helper failed: %+v", reactivated)
-	s.Require().Zero(rshellExitCode(s.T(), reactivated), "reactivated privileged helper failed: %+v", reactivated)
-	s.Require().Equal(privilegedRshellSecret+"\n", reactivated.Outputs["stdout"])
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		require.NoError(c, client.RCAddConfig(
+			strconv.FormatInt(testRunnerOrgID, 10),
+			runnerKeysRCProduct,
+			s.privilegedSigningKey.id,
+			s.privilegedSigningKey.id,
+			s.privilegedSigningKey.config,
+		))
+		reactivated, err := client.GetPARTaskResult(reactivatedTaskID, 2*time.Second)
+		require.NoError(c, err)
+		require.True(c, reactivated.Success, "reactivated privileged helper failed: %+v", reactivated)
+		require.Zero(c, rshellExitCode(s.T(), reactivated), "reactivated privileged helper failed: %+v", reactivated)
+		require.Equal(c, privilegedRshellSecret+"\n", reactivated.Outputs["stdout"])
+	}, 2*time.Minute, 2*time.Second)
 }
 
 func (s *linuxPrivateActionRunnerSplitSuite) installPrivilegedRshellFixture() {

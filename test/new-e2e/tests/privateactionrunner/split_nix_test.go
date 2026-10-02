@@ -174,13 +174,15 @@ func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
 		"allowedCommands": []string{"rshell:echo"},
 	}))
 	s.waitForProcessState(parExecutorProcess, "Running", 2*time.Minute)
-	// Deliver the key asynchronously while the cold executor registers its subscription.
-	deliverSigningKeyAfterSubscription(s.T(), client, "", s.signingKey1)
-	result, err := client.GetPARTaskResult(taskID, 2*time.Minute)
-	s.Require().NoError(err)
-	s.Require().True(result.Success, "split PAR action failed: %+v", result)
-	s.Require().Equal(0, rshellExitCode(s.T(), result), "unexpected rshell result: %+v", result)
-	s.Require().Contains(result.Outputs["stdout"], "par-split-e2e")
+	// Publish updates until the cold executor's RC subscription receives the key.
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		require.NoError(c, client.RCAddConfig("", runnerKeysRCProduct, s.signingKey1.id, s.signingKey1.id, s.signingKey1.config))
+		result, err := client.GetPARTaskResult(taskID, 2*time.Second)
+		require.NoError(c, err)
+		require.True(c, result.Success, "split PAR action failed: %+v", result)
+		require.Equal(c, 0, rshellExitCode(s.T(), result), "unexpected rshell result: %+v", result)
+		require.Contains(c, result.Outputs["stdout"], "par-split-e2e")
+	}, 2*time.Minute, 2*time.Second)
 
 	s.testCoreAgentUnavailableRecovery()
 	s.testSigningKeyLifecycle()
@@ -223,14 +225,15 @@ func (s *linuxPARSplitSuite) testCoreAgentUnavailableRecovery() {
 		_, statusErr := host.Execute("sudo datadog-agent status")
 		require.NoError(c, statusErr)
 	}, 2*time.Minute, 5*time.Second, "core Agent should recover")
-	// This is a fresh executor; deliver the key as an RC update
-	// after its subscription can reach the resumed Core Agent.
-	deliverSigningKeyAfterSubscription(s.T(), client, "", s.signingKey1)
-
-	result, err := client.GetPARTaskResult(taskID, 2*time.Minute)
-	s.Require().NoError(err)
-	s.Require().True(result.Success, "task queued during Core Agent outage should execute after recovery: %+v", result)
-	s.Require().Contains(result.Outputs["stdout"], "core-agent-recovered")
+	// This is a fresh executor; keep publishing the key until its subscription
+	// can reach the resumed Core Agent and the queued task completes.
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		require.NoError(c, client.RCAddConfig("", runnerKeysRCProduct, s.signingKey1.id, s.signingKey1.id, s.signingKey1.config))
+		result, resultErr := client.GetPARTaskResult(taskID, 2*time.Second)
+		require.NoError(c, resultErr)
+		require.True(c, result.Success, "task queued during Core Agent outage should execute after recovery: %+v", result)
+		require.Contains(c, result.Outputs["stdout"], "core-agent-recovered")
+	}, 2*time.Minute, 2*time.Second)
 }
 
 func (s *linuxPARSplitSuite) testSigningKeyLifecycle() {

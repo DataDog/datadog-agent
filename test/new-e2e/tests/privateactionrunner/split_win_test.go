@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
@@ -104,14 +105,13 @@ func (s *windowsPARSplitLifecycleSuite) TestExecutorStartsForSignedWork() {
 		"allowedCommands": []string{"rshell:echo"},
 	}))
 	s.waitForProcessState(parExecutorProcess, "Running", 2*time.Minute)
-	for range 5 {
-		s.Require().NoError(client.RCAddConfig("", runnerKeysRCProduct, s.signingKey.id, s.signingKey.id, s.signingKey.config))
-		time.Sleep(2 * time.Second)
-	}
-	result, err := client.GetPARTaskResult(taskID, 3*time.Minute)
-	s.Require().NoError(err)
-	s.Require().True(result.Success, "Windows split PAR action failed: %+v", result)
-	s.Require().Contains(result.Outputs["stdout"], "windows-par-split-e2e")
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		require.NoError(c, client.RCAddConfig("", runnerKeysRCProduct, s.signingKey.id, s.signingKey.id, s.signingKey.config))
+		result, err := client.GetPARTaskResult(taskID, 2*time.Second)
+		require.NoError(c, err)
+		require.True(c, result.Success, "Windows split PAR action failed: %+v", result)
+		require.Contains(c, result.Outputs["stdout"], "windows-par-split-e2e")
+	}, 3*time.Minute, 2*time.Second)
 	s.waitForProcessState(parExecutorProcess, "Exited", 2*time.Minute)
 }
 
