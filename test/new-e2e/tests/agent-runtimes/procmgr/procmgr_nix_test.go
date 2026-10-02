@@ -21,6 +21,7 @@ import (
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 const (
@@ -145,6 +146,18 @@ func (s *procmgrLinuxSuite) installRealDDOT() bool {
 	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent-procmgr")
 
 	return true
+}
+
+func (s *procmgrLinuxSuite) TestDDOTAgentServiceRunningTelemetry() {
+	s.requireDDOT()
+	s.waitForRunningProcess("datadog-agent-ddot", ddotExtBinaryPath, 60*time.Second)
+
+	// The COAT reporter refreshes on its own cadence rather than per diagnose call, so the first
+	// snapshot after DDOT is up can predate agent_service_running.
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		output := s.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "agent-full-telemetry"}))
+		assertAgentServiceRunningExclusive(ct, output, "ddot", "procmgr")
+	}, 7*time.Minute, 10*time.Second)
 }
 
 func (s *procmgrLinuxSuite) TestDDOTProcessRunning() {
