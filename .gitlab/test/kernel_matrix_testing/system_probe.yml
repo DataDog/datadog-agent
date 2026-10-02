@@ -175,9 +175,7 @@ kmt_setup_env_sysprobe_x64:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     TEST_COMPONENT: system-probe
     TEST_ARCHIVE_NAME: tests-$ARCH.tar.gz
-    # TODO: temporary bump. Building the connector compiles datadog-api-client-go's
-    # datadogV2 package, which peaks at ~6.7GB since v2.66.0 and OOMs on the default
-    # runner memory. Revert once the connector no longer imports datadogV2.
+    # TODO: temporary bump, compiling datadogV2 (datadog-api-client-go) for the connector OOMs on default memory
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
   artifacts:
