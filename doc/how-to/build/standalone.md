@@ -58,17 +58,17 @@ dda inv print-default-build-tags
 You can give more info about your build context using the `-b`, `-f` and `-p` flags:
 ```bash
 dda inv print-default-build-tags -b otel-agent -p windows
-> otlp,zlib,zstd
+> otlp,zlib
 dda inv print-default-build-tags -f fips
-> bundle_installer,datadog.no_waf,ec2,fargateprocess,goexperiment.systemcrypto,grpcnotrace,jmx,kubeapiserver,kubelet,kvstore,ncm,oracle,orchestrator,otlp,python,requirefips,trivy_no_javadb,zlib,zstd
+> bundle_installer,datadog.no_waf,ec2,fargateprocess,goexperiment.systemcrypto,grpcnotrace,jmx,kubeapiserver,kubelet,kvstore,ncm,oracle,orchestrator,otlp,python,requirefips,trivy_no_javadb,zlib
 ```
 Run `dda inv print-default-build-tags --help` for more details.
 ///
 
 /// example
-To include the `zstd`, `kvstore` and `python` features:
+To include the `zlib`, `kvstore` and `python` features:
 ```bash
-dda inv <target>.build --build-include=zstd,kvstore,python
+dda inv <target>.build --build-include=zlib,kvstore,python
 ```
 
 To exclude some features that would otherwise be enabled:

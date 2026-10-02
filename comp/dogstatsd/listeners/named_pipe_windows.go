@@ -8,6 +8,7 @@ package listeners
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net"
 	"sync"
@@ -158,7 +159,7 @@ func (l *NamedPipeListener) listen() {
 			buffer := l.packetManager.CreateBuffer()
 			go l.listenConnection(conn, buffer)
 
-		case err.Error() == "use of closed network connection":
+		case errors.Is(err, winio.ErrPipeListenerClosed):
 			{
 				// Called when the pipe listener is closed from Stop()
 				log.Debug("dogstatsd-named-pipes: stop listening")
