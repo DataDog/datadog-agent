@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    The orchestrator check can now collect Dynamic Resource Allocation
+    ``ResourceClaim`` and ``ResourceSlice`` objects from the ``resource.k8s.io``
+    API group, on whichever of ``v1``, ``v1beta2`` or ``v1beta1`` the cluster
+    serves. They ride the existing manifest channel, so no new resource type is
+    required on the backend.
+
+    Collection is opt-in: set ``collect_dra_resources: true`` on the
+    orchestrator check instance. The Cluster Agent service account also needs
+    ``get``, ``list`` and ``watch`` on ``resourceclaims`` and
+    ``resourceslices`` in the ``resource.k8s.io`` group.

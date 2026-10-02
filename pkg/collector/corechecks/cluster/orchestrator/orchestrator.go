@@ -70,6 +70,17 @@ type OrchestratorInstance struct {
 	//   - stable.example.com/v1/crontabs
 	CRDCollectors           []string `yaml:"crd_collectors"`
 	ExtraSyncTimeoutSeconds int      `yaml:"extra_sync_timeout_seconds"`
+	// CollectDRAResources adds Dynamic Resource Allocation's ResourceClaim and
+	// ResourceSlice to whatever collectors are otherwise selected.
+	//
+	// A separate flag rather than an entry in Collectors, because naming
+	// anything there replaces the default selection entirely -- so opting into
+	// DRA that way would mean enumerating every other resource as well. Off by
+	// default: the collectors need resource.k8s.io RBAC that ships from
+	// helm-charts and datadog-operator, and activating them without it stalls
+	// informer sync until the cache-sync timeout expires.
+	// collect_dra_resources: true
+	CollectDRAResources bool `yaml:"collect_dra_resources"`
 }
 
 func (c *OrchestratorInstance) parse(data []byte) error {
