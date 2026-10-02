@@ -341,6 +341,61 @@ func TestNStatTracerSkipsAmbiguousReversePeerDirection(t *testing.T) {
 	require.Equal(t, network.UNKNOWN, tracer.sources[32].conn.Direction)
 }
 
+func TestNStatTracerClassifiesResetFromNStatAndPacketEvidence(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		state   uint32
+		counts  *nstat.Counts
+		packets []*layers.TCP
+		errno   uint16
+	}{
+		{
+			name:    "syn_missed_never_established",
+			state:   tcpStateSynSent,
+			counts:  &nstat.Counts{ConnectAttempts: 1},
+			packets: []*layers.TCP{{Seq: 20, ACK: true, RST: true}},
+			errno:   network.TCPFailureErrnoConnRefused,
+		},
+		{
+			name:    "syn_missed_nstat_established",
+			state:   tcpStateEstablished,
+			counts:  &nstat.Counts{ConnectAttempts: 1, ConnectSuccesses: 1},
+			packets: []*layers.TCP{{Seq: 20, ACK: true, RST: true}},
+			errno:   network.TCPFailureErrnoConnReset,
+		},
+		{
+			name:   "packet_handshake_seen",
+			state:  tcpStateSynSent,
+			counts: &nstat.Counts{ConnectAttempts: 1},
+			packets: []*layers.TCP{
+				{Seq: 10, SYN: true},
+				{Seq: 20, SYN: true, ACK: true},
+				{Seq: 21, ACK: true, RST: true},
+			},
+			errno: network.TCPFailureErrnoConnReset,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+			tracer.processEvent(nstat.Event{
+				Kind:      nstat.EventDescription,
+				SourceRef: 51,
+				Provider:  nstat.ProviderTCPKernel,
+				Flow:      testNStatTCPFlow(5151, tc.state),
+				Counts:    tc.counts,
+			})
+			tuple := tracer.sources[51].conn.ConnectionTuple
+			analyzer := newDarwinPacketAnalyzer(8)
+			for i, packet := range tc.packets {
+				outgoing := i == 0 && packet.SYN && !packet.ACK
+				require.True(t, tracer.enrichTCPPacket(tuple, outgoing, false, packet, analyzer).matched)
+			}
+
+			require.Equal(t, map[uint16]uint32{tc.errno: 1}, tracer.sources[51].conn.TCPFailures)
+		})
+	}
+}
+
 func TestNStatTracerClosesFailedAttemptWithoutOverwritingFailure(t *testing.T) {
 	control := newFakeNStatControl()
 	tracer := newNStatTracerWithControl(testNStatConfig(), control)

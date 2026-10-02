@@ -37,20 +37,20 @@ func TestDarwinPacketAnalyzerDerivesOnlyPacketEvidence(t *testing.T) {
 
 	reset := &layers.TCP{Seq: 200, ACK: true, RST: true}
 	analysis = analyzer.process(1, false, false, reset)
-	require.True(t, analysis.failure)
-	require.Equal(t, network.TCPFailureErrnoConnReset, analysis.failureErrno)
+	require.True(t, analysis.reset)
+	require.True(t, analysis.handshakeSeen)
 	analysis = analyzer.process(1, false, false, reset)
-	require.False(t, analysis.failure)
+	require.False(t, analysis.reset)
 }
 
-func TestDarwinPacketAnalyzerClassifiesRefusal(t *testing.T) {
+func TestDarwinPacketAnalyzerReportsResetWithoutHandshake(t *testing.T) {
 	analyzer := newDarwinPacketAnalyzer(10)
 	analyzer.process(2, true, false, &layers.TCP{Seq: 10, SYN: true})
 
 	analysis := analyzer.process(2, false, false, &layers.TCP{Seq: 20, ACK: true, RST: true})
 
-	require.True(t, analysis.failure)
-	require.Equal(t, network.TCPFailureErrnoConnRefused, analysis.failureErrno)
+	require.True(t, analysis.reset)
+	require.False(t, analysis.handshakeSeen)
 }
 
 func TestDarwinPrefixAssemblerReordersAndMergesOverlap(t *testing.T) {

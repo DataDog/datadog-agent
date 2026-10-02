@@ -34,8 +34,8 @@ const (
 type darwinPacketAnalysis struct {
 	direction      network.ConnectionDirection
 	retransmits    uint32
-	failureErrno   uint16
-	failure        bool
+	reset          bool
+	handshakeSeen  bool
 	protocolStack  protocols.Stack
 	tlsTags        tlstags.Tags
 	prefixTruncate bool
@@ -45,7 +45,6 @@ type darwinPacketFlowState struct {
 	direction network.ConnectionDirection
 	sentSeq   ebpfless.SentSeqTracker
 
-	sawSyn           bool
 	sawSynAck        bool
 	established      bool
 	failureLatched   bool
@@ -88,7 +87,6 @@ func (a *darwinPacketAnalyzer) process(cookie uint64, outgoing bool, captureTrun
 	state.captureTruncated = state.captureTruncated || captureTruncated
 
 	if tcp.SYN && !tcp.ACK {
-		state.sawSyn = true
 		if outgoing {
 			state.direction = network.OUTGOING
 		} else {
@@ -113,16 +111,10 @@ func (a *darwinPacketAnalyzer) process(cookie uint64, outgoing bool, captureTrun
 		accepted = state.incomingPrefix.add(tcp.Seq, tcp.Payload)
 	}
 
-	var failureErrno uint16
-	var failure bool
+	var reset bool
 	if tcp.RST && !state.failureLatched {
 		state.failureLatched = true
-		failure = true
-		if state.sawSyn && !state.established {
-			failureErrno = network.TCPFailureErrnoConnRefused
-		} else {
-			failureErrno = network.TCPFailureErrnoConnReset
-		}
+		reset = true
 	}
 
 	if accepted {
@@ -131,8 +123,8 @@ func (a *darwinPacketAnalyzer) process(cookie uint64, outgoing bool, captureTrun
 	return darwinPacketAnalysis{
 		direction:      state.direction,
 		retransmits:    state.retransmits,
-		failureErrno:   failureErrno,
-		failure:        failure,
+		reset:          reset,
+		handshakeSeen:  state.established,
 		protocolStack:  state.protocolStack,
 		tlsTags:        state.tlsTags,
 		prefixTruncate: state.captureTruncated || state.outgoingPrefix.truncated || state.incomingPrefix.truncated,

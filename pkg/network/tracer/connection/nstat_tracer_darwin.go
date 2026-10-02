@@ -1076,11 +1076,11 @@ func (t *nstatTracer) enrichTCPPacket(
 	if analysis.retransmits > conn.Monotonic.Retransmits {
 		conn.Monotonic.Retransmits = analysis.retransmits
 	}
-	if analysis.failure {
+	if analysis.reset {
 		if conn.TCPFailures == nil {
 			conn.TCPFailures = make(map[uint16]uint32)
 		}
-		conn.TCPFailures[analysis.failureErrno]++
+		conn.TCPFailures[nstatResetErrno(source, analysis.handshakeSeen)]++
 	}
 	conn.ProtocolStack.MergeWith(analysis.protocolStack)
 	conn.TLSTags.MergeWith(analysis.tlsTags)
@@ -1105,6 +1105,16 @@ func (t *nstatTracer) closeAndRemoveSource(sourceRef uint64, source *nstatSource
 		conn.Duration = time.Duration(t.now().UnixNano() - int64(conn.Duration))
 	}
 	return conn
+}
+
+// nstatResetErrno classifies a RST as a refused connect only when neither
+// NStat nor packet capture saw the handshake complete. Packet capture alone
+// can miss the SYN, so a missing SYN is not evidence of a refusal.
+func nstatResetErrno(source *nstatSource, handshakeSeen bool) uint16 {
+	if handshakeSeen || source.tcpEstablished || source.connectSuccesses > 0 {
+		return network.TCPFailureErrnoConnReset
+	}
+	return network.TCPFailureErrnoConnRefused
 }
 
 func (t *nstatTracer) markTCPClosed(source *nstatSource) {
