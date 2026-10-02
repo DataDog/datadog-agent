@@ -703,7 +703,9 @@ func waitForNStatBaseline(t *testing.T, tracer *nstatTracer) {
 		sourceCount = len(tracer.sources)
 		undescribed = undescribed[:0]
 		for sourceRef, source := range tracer.sources {
-			if source.flow == nil {
+			// Sources closed before their description arrive stay undescribed
+			// until the pending-removal TTL, which outlasts this wait.
+			if source.flow == nil && !source.removed {
 				undescribed = append(undescribed, sourceRef)
 			}
 		}
