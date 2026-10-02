@@ -8,7 +8,8 @@
 package gops
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 )
 
 // TopRSSProcessGroups returns an ordered slice of the process groups that use the most RSS
@@ -18,9 +19,9 @@ func TopRSSProcessGroups(limit int) (ProcessNameGroups, error) {
 		return nil, err
 	}
 
-	procGroups := ByRSSDesc{GroupByName(procs)}
+	procGroups := GroupByName(procs)
 
-	sort.Sort(procGroups)
+	slices.SortFunc(procGroups, func(a, b *ProcessNameGroup) int { return cmp.Compare(b.RSS(), a.RSS()) })
 
-	return procGroups.ProcessNameGroups[:min(limit, len(procGroups.ProcessNameGroups))], nil
+	return procGroups[:min(limit, len(procGroups))], nil
 }
