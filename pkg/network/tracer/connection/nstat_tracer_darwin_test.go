@@ -494,6 +494,70 @@ func TestNStatTracerClosesFailedAttemptWithoutOverwritingFailure(t *testing.T) {
 	require.Equal(t, map[uint16]uint32{network.TCPFailureErrnoConnRefused: 1}, closed.TCPFailures)
 }
 
+func TestNStatTracerInfersConnectTimeout(t *testing.T) {
+	timedOut := map[uint16]uint32{network.TCPFailureErrnoTimedOut: 1}
+	for _, tc := range []struct {
+		name     string
+		state    uint32
+		counts   nstat.Counts
+		reset    bool
+		removed  bool
+		age      time.Duration
+		failures map[uint16]uint32
+	}{
+		{name: "closed_after_min_age", state: tcpStateSynSent, counts: nstat.Counts{ConnectAttempts: 1}, age: 6 * time.Second, failures: timedOut},
+		{name: "closed_early", state: tcpStateSynSent, counts: nstat.Counts{ConnectAttempts: 1}, age: time.Second},
+		{name: "reset_seen", state: tcpStateSynSent, counts: nstat.Counts{ConnectAttempts: 1}, reset: true, age: 6 * time.Second, failures: map[uint16]uint32{network.TCPFailureErrnoConnRefused: 1}},
+		{name: "removed_after_min_age", state: tcpStateSynSent, counts: nstat.Counts{ConnectAttempts: 1}, removed: true, age: 6 * time.Second, failures: timedOut},
+		{name: "established_then_removed", state: tcpStateEstablished, counts: nstat.Counts{ConnectAttempts: 1, ConnectSuccesses: 1}, removed: true, age: 6 * time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+			now := time.Unix(300, 0)
+			tracer.now = func() time.Time { return now }
+			var closed *network.ConnectionStats
+			tracer.closeCallback = func(conn *network.ConnectionStats) { closed = conn }
+
+			counts := tc.counts
+			tracer.processEvent(nstat.Event{
+				Kind:      nstat.EventDescription,
+				SourceRef: 71,
+				Provider:  nstat.ProviderTCPKernel,
+				Flow:      testNStatTCPFlow(7171, tc.state),
+				Counts:    &counts,
+			})
+			conn := tracer.sources[71].conn
+			if tc.reset {
+				packet := &layers.TCP{Seq: 20, ACK: true, RST: true}
+				require.True(t, tracer.enrichTCPPacket(conn.ConnectionTuple, false, false, packet, newDarwinPacketAnalyzer(8)).matched)
+			}
+
+			now = now.Add(tc.age)
+			if tc.removed {
+				tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: 71})
+				require.NotNil(t, closed)
+				conn = closed
+			} else {
+				tracer.processEvent(nstat.Event{
+					Kind:      nstat.EventUpdate,
+					SourceRef: 71,
+					Provider:  nstat.ProviderTCPKernel,
+					Flow:      testNStatTCPFlow(7171, tcpStateClosed),
+					Counts:    &counts,
+				})
+			}
+
+			require.True(t, conn.IsClosed)
+			require.Equal(t, tc.age, conn.Duration)
+			if tc.failures == nil {
+				require.Empty(t, conn.TCPFailures)
+			} else {
+				require.Equal(t, tc.failures, conn.TCPFailures)
+			}
+		})
+	}
+}
+
 func TestNStatTracerFixesTCPErrorsIncompleteAtCreation(t *testing.T) {
 	for _, tc := range []struct {
 		name       string

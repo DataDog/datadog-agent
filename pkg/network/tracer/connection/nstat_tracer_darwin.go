@@ -44,6 +44,9 @@ const (
 	nstatTCPRTTScale         = 32
 	nstatTCPRTTVarianceScale = 16
 
+	// Real SYN timeouts take tens of seconds (net.inet.tcp.keepinit).
+	nstatConnectTimeoutMinAge = 5 * time.Second
+
 	tcpStateClosed      = 0
 	tcpStateListen      = 1
 	tcpStateSynSent     = 2
@@ -1151,10 +1154,27 @@ func nstatResetErrno(source *nstatSource, handshakeSeen bool) uint16 {
 }
 
 func (t *nstatTracer) markTCPClosed(source *nstatSource) {
+	conn := source.conn
+	age := time.Duration(t.now().UnixNano() - int64(conn.Duration))
+	if nstatConnectTimedOut(source, age) {
+		if conn.TCPFailures == nil {
+			conn.TCPFailures = make(map[uint16]uint32)
+		}
+		conn.TCPFailures[network.TCPFailureErrnoTimedOut] = 1
+	}
 	source.closed = true
-	source.conn.Monotonic.TCPClosed = 1
-	source.conn.IsClosed = true
-	source.conn.Duration = time.Duration(t.now().UnixNano() - int64(source.conn.Duration))
+	conn.Monotonic.TCPClosed = 1
+	conn.IsClosed = true
+	conn.Duration = age
+}
+
+// nstatConnectTimedOut infers ETIMEDOUT for a connect that never succeeded and
+// closed without a reset. The minimum age excludes connects the application
+// cancelled early, such as Happy Eyeballs losers.
+func nstatConnectTimedOut(source *nstatSource, age time.Duration) bool {
+	return source.connectAttempts > 0 && source.connectSuccesses == 0 &&
+		!source.tcpEstablished && len(source.conn.TCPFailures) == 0 &&
+		age >= nstatConnectTimeoutMinAge
 }
 
 func (t *nstatTracer) expirePendingRemovals(now time.Time) {
