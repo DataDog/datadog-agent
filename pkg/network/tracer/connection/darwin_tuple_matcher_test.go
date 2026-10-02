@@ -10,6 +10,7 @@ package connection
 import (
 	"net/netip"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -87,6 +88,46 @@ func TestDarwinTupleIndexMatchesExactOrientation(t *testing.T) {
 	index.remove(duplicate.Cookie)
 	index.remove(server.Cookie)
 	require.False(t, index.matchExact(server.ConnectionTuple).matched)
+}
+
+func TestDarwinUnmatchedTuplesTracksBothOrientations(t *testing.T) {
+	now := time.Unix(100, 0)
+	tuples := newDarwinUnmatchedTuples(2*time.Second, 2)
+	tuple := testDarwinIndexedConnection(1, "192.0.2.10", 50000, "198.51.100.20", 443).ConnectionTuple
+
+	inserted, ok := tuples.record(reverseDarwinTuple(tuple), darwinUnmatchedFlags{syn: true}, now)
+	require.True(t, inserted)
+	require.True(t, ok)
+	inserted, ok = tuples.record(tuple, darwinUnmatchedFlags{rst: true}, now)
+	require.False(t, inserted, "both orientations share one entry")
+	require.True(t, ok)
+
+	flags, ok := tuples.take(tuple, now.Add(time.Second))
+	require.True(t, ok)
+	require.Equal(t, darwinUnmatchedFlags{syn: true, rst: true}, flags)
+	require.Equal(t, "rst", flags.label())
+	_, ok = tuples.take(tuple, now.Add(time.Second))
+	require.False(t, ok, "take removes the entry")
+}
+
+func TestDarwinUnmatchedTuplesExpiresAndBounds(t *testing.T) {
+	now := time.Unix(100, 0)
+	tuples := newDarwinUnmatchedTuples(2*time.Second, 1)
+	first := testDarwinIndexedConnection(1, "192.0.2.10", 50000, "198.51.100.20", 443).ConnectionTuple
+	second := testDarwinIndexedConnection(2, "192.0.2.10", 50001, "198.51.100.20", 443).ConnectionTuple
+
+	_, ok := tuples.record(first, darwinUnmatchedFlags{payload: true}, now)
+	require.True(t, ok)
+	_, ok = tuples.record(second, darwinUnmatchedFlags{}, now)
+	require.False(t, ok, "a new tuple is skipped while the set is full")
+
+	later := now.Add(2 * time.Second)
+	_, ok = tuples.take(first, later)
+	require.False(t, ok, "expired entries are not matched")
+	inserted, ok := tuples.record(second, darwinUnmatchedFlags{}, later)
+	require.True(t, inserted)
+	require.True(t, ok, "expiry frees space")
+	require.Len(t, tuples.order, 1)
 }
 
 func testDarwinIndexedConnection(cookie uint64, source string, sport uint16, dest string, dport uint16) *network.ConnectionStats {

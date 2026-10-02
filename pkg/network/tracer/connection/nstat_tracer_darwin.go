@@ -38,6 +38,8 @@ const (
 	nstatDescriptionRetry    = 100 * time.Millisecond
 	nstatDescriptionBatch    = 8
 	nstatSubscriptionTimeout = 2 * time.Second
+	nstatUnmatchedTTL        = 2 * time.Second
+	nstatUnmatchedLimit      = 4096
 	nstatDatagramBufferSize  = 65535
 	nstatTCPRTTScale         = 32
 	nstatTCPRTTVarianceScale = 16
@@ -87,6 +89,8 @@ var nstatTracerTelemetry = struct {
 	directionConflicts telemetry.Counter
 	pidZeroPublished   telemetry.Counter
 	filteredSources    telemetry.Counter
+	unmatchedTuples    telemetry.Counter
+	latePacketMatches  telemetry.Counter
 	activeSources      telemetry.Gauge
 }{
 	datagrams:          telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "datagrams", nil, "NStat datagrams received"),
@@ -100,6 +104,8 @@ var nstatTracerTelemetry = struct {
 	directionConflicts: telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "direction_conflicts", nil, "Conflicting direction evidence observed"),
 	pidZeroPublished:   telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "pid_zero_published", nil, "NStat connections published without a PID"),
 	filteredSources:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "filtered_sources", []string{"reason"}, "Resolved NStat sources not published"),
+	unmatchedTuples:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "unmatched_tuples", []string{"result"}, "Unmatched TCP packets: new tuples tracked, or skipped because the tracking set was full"),
+	latePacketMatches:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "late_packet_matches", []string{"missed"}, "NStat connections created after packets for their tuple went unmatched"),
 	activeSources:      telemetryimpl.GetCompatComponent().NewGauge("network_tracer__nstat", "active_sources", nil, "NStat sources currently tracked"),
 }
 
@@ -145,6 +151,7 @@ type nstatTracer struct {
 	sources   map[uint64]*nstatSource
 	byCookie  map[uint64]*nstatSource
 	tuples    *darwinTupleIndex
+	unmatched *darwinUnmatchedTuples
 	listeners map[darwinTCPListenerKey]map[uint64]struct{}
 
 	// includeLoopback publishes sources with a loopback endpoint. Production
@@ -206,6 +213,7 @@ func newNStatTracerWithControl(cfg *config.Config, control nstatControl) *nstatT
 		sources:              make(map[uint64]*nstatSource),
 		byCookie:             make(map[uint64]*nstatSource),
 		tuples:               newDarwinTupleIndex(),
+		unmatched:            newDarwinUnmatchedTuples(nstatUnmatchedTTL, nstatUnmatchedLimit),
 		listeners:            make(map[darwinTCPListenerKey]map[uint64]struct{}),
 		descriptionQueued:    make(map[uint64]struct{}),
 		subscriptionContexts: make(map[uint64]struct{}),
@@ -808,6 +816,13 @@ func (t *nstatTracer) newConnection(sourceRef uint64, source *nstatSource) *netw
 	t.cookieHasher.Hash(conn)
 	t.byCookie[conn.Cookie] = source
 	t.tuples.add(conn)
+	if conn.Type == network.TCP {
+		// Sources enumerated at startup are pre-existing connections whose
+		// packets naturally precede their descriptions; only count new ones.
+		if missed, ok := t.unmatched.take(conn.ConnectionTuple, t.now()); ok && source.afterEnumeration {
+			nstatTracerTelemetry.latePacketMatches.Inc(missed.label())
+		}
+	}
 	return conn
 }
 
@@ -1040,6 +1055,9 @@ func (t *nstatTracer) enrichTCPPacket(
 	t.mu.Lock()
 	match := t.tuples.match(packet)
 	if !match.matched || match.ambiguous {
+		if !match.ambiguous {
+			t.recordUnmatchedLocked(packet, tcp)
+		}
 		t.mu.Unlock()
 		return match
 	}
@@ -1105,6 +1123,21 @@ func (t *nstatTracer) closeAndRemoveSource(sourceRef uint64, source *nstatSource
 		conn.Duration = time.Duration(t.now().UnixNano() - int64(conn.Duration))
 	}
 	return conn
+}
+
+func (t *nstatTracer) recordUnmatchedLocked(packet network.ConnectionTuple, tcp *layers.TCP) {
+	flags := darwinUnmatchedFlags{
+		syn:     tcp.SYN && !tcp.ACK,
+		rst:     tcp.RST,
+		payload: len(tcp.Payload) > 0,
+	}
+	inserted, ok := t.unmatched.record(packet, flags, t.now())
+	switch {
+	case !ok:
+		nstatTracerTelemetry.unmatchedTuples.Inc("full")
+	case inserted:
+		nstatTracerTelemetry.unmatchedTuples.Inc("tracked")
+	}
 }
 
 // nstatResetErrno classifies a RST as a refused connect only when neither

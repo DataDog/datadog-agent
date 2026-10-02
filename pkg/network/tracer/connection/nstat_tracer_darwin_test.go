@@ -396,6 +396,58 @@ func TestNStatTracerClassifiesResetFromNStatAndPacketEvidence(t *testing.T) {
 	}
 }
 
+func TestNStatTracerCountsLatePacketMatches(t *testing.T) {
+	late := nstatTracerTelemetry.latePacketMatches
+	tracked := nstatTracerTelemetry.unmatchedTuples.WithValues("tracked")
+	tuple := testDarwinIndexedConnection(0, "192.0.2.10", 50000, "198.51.100.20", 443).ConnectionTuple
+
+	for _, tc := range []struct {
+		name              string
+		afterEnumeration  bool
+		describeAfter     time.Duration
+		packets           []*layers.TCP
+		missed            string
+		expectLateCounted bool
+	}{
+		{name: "syn", afterEnumeration: true, packets: []*layers.TCP{{Seq: 1, SYN: true}}, missed: "syn", expectLateCounted: true},
+		{name: "rst_wins", afterEnumeration: true, packets: []*layers.TCP{{Seq: 1, SYN: true}, {Seq: 2, ACK: true, RST: true}}, missed: "rst", expectLateCounted: true},
+		{name: "expired", afterEnumeration: true, describeAfter: nstatUnmatchedTTL, packets: []*layers.TCP{{Seq: 1, SYN: true}}, missed: "syn"},
+		{name: "enumerated_source", packets: []*layers.TCP{{Seq: 1, SYN: true}}, missed: "syn"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+			now := time.Unix(500, 0)
+			tracer.now = func() time.Time { return now }
+			tracer.enumerationComplete = tc.afterEnumeration
+			analyzer := newDarwinPacketAnalyzer(8)
+
+			trackedBefore := tracked.Get()
+			for _, packet := range tc.packets {
+				require.False(t, tracer.enrichTCPPacket(tuple, true, false, packet, analyzer).matched)
+			}
+			require.Equal(t, trackedBefore+1, tracked.Get())
+
+			lateBefore := late.WithValues(tc.missed).Get()
+			now = now.Add(tc.describeAfter)
+			tracer.processEvent(nstat.Event{
+				Kind:      nstat.EventDescription,
+				SourceRef: 61,
+				Provider:  nstat.ProviderTCPKernel,
+				Flow:      testNStatTCPFlow(6161, tcpStateSynSent),
+			})
+			require.NotNil(t, tracer.sources[61].conn)
+
+			expected := lateBefore
+			if tc.expectLateCounted {
+				expected++
+			}
+			require.Equal(t, expected, late.WithValues(tc.missed).Get())
+			_, pending := tracer.unmatched.take(tuple, now)
+			require.False(t, pending, "creating the connection consumes the entry")
+		})
+	}
+}
+
 func TestNStatTracerClosesFailedAttemptWithoutOverwritingFailure(t *testing.T) {
 	control := newFakeNStatControl()
 	tracer := newNStatTracerWithControl(testNStatConfig(), control)

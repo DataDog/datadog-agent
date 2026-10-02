@@ -9,6 +9,7 @@ package connection
 
 import (
 	"net/netip"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
@@ -146,6 +147,112 @@ func reverseDarwinTuple(tuple network.ConnectionTuple) network.ConnectionTuple {
 	tuple.Source, tuple.Dest = tuple.Dest, tuple.Source
 	tuple.SPort, tuple.DPort = tuple.DPort, tuple.SPort
 	return tuple
+}
+
+// darwinUnmatchedFlags records what an unmatched packet carried.
+type darwinUnmatchedFlags struct {
+	syn     bool
+	rst     bool
+	payload bool
+}
+
+// label names the most significant thing the unmatched packets carried.
+func (f darwinUnmatchedFlags) label() string {
+	switch {
+	case f.rst:
+		return "rst"
+	case f.payload:
+		return "payload"
+	case f.syn:
+		return "syn"
+	default:
+		return "other"
+	}
+}
+
+type darwinUnmatchedEntry struct {
+	firstSeen time.Time
+	flags     darwinUnmatchedFlags
+}
+
+type darwinUnmatchedOrder struct {
+	key       darwinTupleKey
+	firstSeen time.Time
+}
+
+// darwinUnmatchedTuples remembers, for a bounded time and count, tuples whose
+// packets arrived before any NStat connection matched them. It only measures
+// how often a connection shows up after its packets; it keeps no packet data.
+type darwinUnmatchedTuples struct {
+	ttl     time.Duration
+	limit   int
+	entries map[darwinTupleKey]*darwinUnmatchedEntry
+	order   []darwinUnmatchedOrder
+}
+
+func newDarwinUnmatchedTuples(ttl time.Duration, limit int) *darwinUnmatchedTuples {
+	return &darwinUnmatchedTuples{
+		ttl:     ttl,
+		limit:   limit,
+		entries: make(map[darwinTupleKey]*darwinUnmatchedEntry),
+	}
+}
+
+// record notes an unmatched packet. inserted reports that the tuple was new;
+// ok is false when the tuple was new but the set was full.
+func (u *darwinUnmatchedTuples) record(tuple network.ConnectionTuple, flags darwinUnmatchedFlags, now time.Time) (inserted, ok bool) {
+	u.expire(now)
+	key := canonicalDarwinTupleKey(tuple)
+	if entry := u.entries[key]; entry != nil {
+		entry.flags.syn = entry.flags.syn || flags.syn
+		entry.flags.rst = entry.flags.rst || flags.rst
+		entry.flags.payload = entry.flags.payload || flags.payload
+		return false, true
+	}
+	if len(u.order) >= u.limit {
+		return false, false
+	}
+	u.entries[key] = &darwinUnmatchedEntry{firstSeen: now, flags: flags}
+	u.order = append(u.order, darwinUnmatchedOrder{key: key, firstSeen: now})
+	return true, true
+}
+
+// take removes and returns the unexpired entry for tuple, if any.
+func (u *darwinUnmatchedTuples) take(tuple network.ConnectionTuple, now time.Time) (darwinUnmatchedFlags, bool) {
+	u.expire(now)
+	key := canonicalDarwinTupleKey(tuple)
+	entry := u.entries[key]
+	if entry == nil {
+		return darwinUnmatchedFlags{}, false
+	}
+	delete(u.entries, key)
+	return entry.flags, true
+}
+
+func (u *darwinUnmatchedTuples) expire(now time.Time) {
+	expired := 0
+	for _, item := range u.order {
+		if now.Sub(item.firstSeen) < u.ttl {
+			break
+		}
+		if entry := u.entries[item.key]; entry != nil && entry.firstSeen.Equal(item.firstSeen) {
+			delete(u.entries, item.key)
+		}
+		expired++
+	}
+	if expired > 0 {
+		u.order = append(u.order[:0], u.order[expired:]...)
+	}
+}
+
+// canonicalDarwinTupleKey returns the same key for both orientations of a tuple.
+func canonicalDarwinTupleKey(tuple network.ConnectionTuple) darwinTupleKey {
+	forward := makeDarwinTupleKey(tuple)
+	reverse := makeDarwinTupleKey(reverseDarwinTuple(tuple))
+	if c := reverse.source.Compare(forward.source); c < 0 || (c == 0 && reverse.sport < forward.sport) {
+		return reverse
+	}
+	return forward
 }
 
 func normalizeDarwinAddress(addr netip.Addr) netip.Addr {
