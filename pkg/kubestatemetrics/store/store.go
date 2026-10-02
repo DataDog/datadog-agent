@@ -208,30 +208,26 @@ func (s *MetricsStore) Resync() error {
 // FamilyAllow is a metric-family-based filtering function provided by the store clients
 type FamilyAllow func(DDMetricsFam) bool
 
-// GetAllFamilies is family metric filter that allows all metric families
-var GetAllFamilies FamilyAllow = func(DDMetricsFam) bool { return true }
-
 // MetricAllow is a metric-based filtering function provided by the store clients
 type MetricAllow func(DDMetric) bool
 
-// GetAllMetrics is a metric filter that allows all metrics
-var GetAllMetrics MetricAllow = func(DDMetric) bool { return true }
-
 // Push is used to take all the metrics from the store and push them to the check for
 // further processing.
-// FamilyAllow and MetricAllow filtering functions can be used
-// to get a subset of metrics from the store.
+// Passing nil for familyFilter or metricFilter allows all families or metrics,
+// letting Push share the store's slices instead of copying them.
 func (s *MetricsStore) Push(familyFilter FamilyAllow, metricFilter MetricAllow) map[string][]DDMetricsFam {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
+	allowAllFamilies := familyFilter == nil
+	allowAllMetrics := metricFilter == nil
+
 	mRes := make(map[string][]DDMetricsFam)
 
 	// Iterate through all metrics with filters
-	// Preallocate metric slices to avoid growth reallocations
 	for _, metricFamList := range s.metrics {
 		for _, metricFam := range metricFamList {
-			if !familyFilter(metricFam) {
+			if !allowAllFamilies && !familyFilter(metricFam) {
 				continue
 			}
 
@@ -240,23 +236,33 @@ func (s *MetricsStore) Push(familyFilter FamilyAllow, metricFilter MetricAllow) 
 				continue
 			}
 
-			// Preallocate with full capacity to avoid slice growth reallocations
-			resMetric := make([]DDMetric, 0, len(metricFam.ListMetrics))
+			var fam DDMetricsFam
+			if allowAllMetrics {
+				fam = metricFam
+			} else {
+				// Preallocate with full capacity to avoid slice growth reallocations
+				resMetric := make([]DDMetric, 0, len(metricFam.ListMetrics))
 
-			for _, metric := range metricFam.ListMetrics {
-				if !metricFilter(metric) {
+				for _, metric := range metricFam.ListMetrics {
+					if !metricFilter(metric) {
+						continue
+					}
+					resMetric = append(resMetric, metric)
+				}
+
+				// Skip families where all metrics were filtered out
+				if len(resMetric) == 0 {
 					continue
 				}
-				resMetric = append(resMetric, metric)
-			}
 
-			if len(resMetric) > 0 {
-				mRes[metricFam.Name] = append(mRes[metricFam.Name], DDMetricsFam{
+				fam = DDMetricsFam{
 					ListMetrics: resMetric,
 					Type:        metricFam.Type,
 					Name:        metricFam.Name,
-				})
+				}
 			}
+
+			mRes[metricFam.Name] = append(mRes[metricFam.Name], fam)
 		}
 	}
 
