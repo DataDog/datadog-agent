@@ -86,6 +86,7 @@ go_library(
         "//pkg/util/hostinfo",
         "//pkg/util/hostname/validate",
         "//pkg/util/log",
+        "//pkg/util/slices",
         "//pkg/util/system",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_datadog_agent_payload_v5//process",

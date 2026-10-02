@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddslices "github.com/DataDog/datadog-agent/pkg/util/slices"
 )
 
 const (
@@ -346,25 +347,22 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		stats := procsToStats(procs, p.ignoreZombieProcesses)
 
 		if p.realtimeLastProcs != nil {
-			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, start)
-			groupSize := len(chunkedStats)
-			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
-
-			messages := make([]model.MessageBody, 0, groupSize)
-			for i := 0; i < groupSize; i++ {
-				messages = append(messages, &model.CollectorRealTime{
-					HostName:          p.hostInfo.HostName,
-					Stats:             chunkedStats[i],
-					ContainerStats:    chunkedCtrStats[i],
-					GroupId:           groupID,
-					GroupSize:         int32(groupSize),
-					NumCpus:           int32(len(p.hostInfo.SystemInfo.Cpus)),
-					TotalMemory:       p.hostInfo.SystemInfo.TotalMemory,
-					ContainerHostType: p.hostInfo.ContainerHostType,
+			procStats := convertProcessStats(stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, start)
+			if len(procStats) > 0 {
+				containerStats := ddslices.Map(containers, convertToContainerStat)
+				result.Realtime = chunkMessages2(procStats, containerStats, p.maxBatchSize, func(procChunk []*model.ProcessStat, ctrChunk []*model.ContainerStat, groupSize int32) model.MessageBody {
+					return &model.CollectorRealTime{
+						HostName:          p.hostInfo.HostName,
+						Stats:             procChunk,
+						ContainerStats:    ctrChunk,
+						GroupId:           groupID,
+						GroupSize:         groupSize,
+						NumCpus:           int32(len(p.hostInfo.SystemInfo.Cpus)),
+						TotalMemory:       p.hostInfo.SystemInfo.TotalMemory,
+						ContainerHostType: p.hostInfo.ContainerHostType,
+					}
 				})
 			}
-			result.Realtime = messages
 		}
 
 		p.realtimeLastCPUTime = p.lastCPUTime
