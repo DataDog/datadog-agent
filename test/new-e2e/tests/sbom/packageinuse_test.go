@@ -391,7 +391,7 @@ func (s *packageInUseSuite) TestHostPackageInUse() {
 
 			s.hostExec(c, shell, "ls /usr/share/licenses/gzip >/dev/null && sed --version >/dev/null")
 
-			comps := s.newestHostSBOM(c)
+			comps := s.newestHostSBOM(c, time.Time{})
 			sed := findComponent(comps, "sed")
 			require.NotNilf(c, sed, "no sed in the host SBOM")
 			sedTS, _ := lastSeenRunning(sed)
@@ -415,7 +415,7 @@ func (s *packageInUseSuite) TestHostPackageInUse() {
 
 			s.hostExec(c, shell, "gzip --version >/dev/null")
 
-			comps := s.newestHostSBOM(c)
+			comps := s.newestHostSBOM(c, time.Time{})
 			gzip := findComponent(comps, "gzip")
 			require.NotNilf(c, gzip, "no gzip in the host SBOM")
 			ts, present := lastSeenRunning(gzip)
@@ -439,12 +439,67 @@ func (s *packageInUseSuite) TestHostPackageInUse() {
 
 			s.hostExec(c, shell, "su --version >/dev/null")
 
-			utilLinux := findComponent(s.newestHostSBOM(c), "util-linux")
+			utilLinux := findComponent(s.newestHostSBOM(c, time.Time{}), "util-linux")
 			require.NotNilf(c, utilLinux, "no util-linux in the host SBOM")
 			suid := propertyValues(utilLinux.GetProperties(), propHasSetSuidBit)
 			s.T().Logf("PKG-IN-USE[host] util-linux HasSetSuidBit=%v", suid)
 			assert.Equalf(c, []string{"true"}, suid, "util-linux %s, the host ran its setuid su", propHasSetSuidBit)
 		}, 5*time.Minute, 15*time.Second, "the host SBOM never reported the setuid su of util-linux")
+	})
+
+	// A write to the rpm database of the host fires the bundled
+	// need_refresh_sbom / refresh_sbom rules, which scan the host packages
+	// again. The scan keeps the usage of the packages it finds again, gzip
+	// among them. A query of the rpm database, run first, leaves the host
+	// packages as they were scanned.
+	s.Run("refresh", func() {
+		var used int64
+		s.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{CollectT: collect, errors: []error{}}
+			collect = nil //nolint:ineffassign
+
+			s.hostExec(c, shell, "gzip --version >/dev/null")
+
+			gzip := findComponent(s.newestHostSBOM(c, time.Time{}), "gzip")
+			require.NotNilf(c, gzip, "no gzip in the host SBOM")
+			used, _ = lastSeenRunning(gzip)
+			assert.Positivef(c, used, "gzip not reported in use yet")
+		}, 5*time.Minute, 15*time.Second, "the host SBOM never reported gzip in use before the refresh")
+
+		// The rules match a write to an existing file of the package database,
+		// so the probe is created first and then written. The query runs 10s
+		// before the write, longer than the refresh of the host takes to fire,
+		// so a scan logged in between comes from the query.
+		const probe = "/var/lib/rpm/.sbom-refresh-probe"
+		s.T().Cleanup(func() { s.hostExec(s.T(), shell, "rm -f "+probe) })
+		queried := s.hostEpoch(shell)
+		out := s.hostExec(s.T(), shell, "rpm -q gzip >/dev/null && sleep 10 && date +%s && touch "+probe+" && echo probe >> "+probe)
+		n, err := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
+		s.Require().NoErrorf(err, "date printed %q", out)
+		written := time.Unix(n, 0)
+
+		var scanned time.Time
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			scans := s.hostScans(c, queried)
+			s.T().Logf("PKG-IN-USE[host] refresh: host scans %v, query at %d, write at %s", scans, queried, written)
+			require.NotEmptyf(c, scans, "no scan of the host packages yet")
+			scanned = scans[len(scans)-1]
+			require.Falsef(c, scanned.Before(written), "no scan of the host packages since the rpm database write")
+			assert.Falsef(c, scans[0].Before(written), "the rpm query scanned the host packages at %s", scans[0])
+		}, 2*time.Minute, 5*time.Second, "the rpm database write never scanned the host packages alone")
+
+		// The scan forwards the usage of the host, which rides the next host scan
+		// of the core agent: the host SBOM sent two minutes later carries it.
+		s.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{CollectT: collect, errors: []error{}}
+			collect = nil //nolint:ineffassign
+
+			gzip := findComponent(s.newestHostSBOM(c, scanned.Add(2*time.Minute)), "gzip")
+			require.NotNilf(c, gzip, "no gzip in the host SBOM")
+			ts, _ := lastSeenRunning(gzip)
+			s.T().Logf("PKG-IN-USE[host] refresh: gzip LastSeenRunning=%d, %d before the scan", ts, used)
+			assert.GreaterOrEqualf(c, ts, used, "gzip lost the usage recorded before the scan of the host packages")
+		}, 6*time.Minute, 20*time.Second, "the host SBOM never carried gzip after the scan of the host packages")
 	})
 }
 
@@ -454,13 +509,7 @@ func (s *packageInUseSuite) TestHostPackageInUse() {
 func (s *packageInUseSuite) startHostShell() string {
 	ctx := s.T().Context()
 	client := s.Env().KubernetesCluster.Client()
-
-	agents, err := client.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
-	})
-	s.Require().NoError(err, "failed to list the Agent pods")
-	s.Require().NotEmpty(agents.Items, "no Agent pod to take the image from")
-	agent := agents.Items[0]
+	agent := s.nodeAgent(s.T())
 
 	privileged := true
 	pod, err := client.CoreV1().Pods(sbomtargets.Namespace).Create(ctx, &corev1.Pod{
@@ -492,13 +541,48 @@ func (s *packageInUseSuite) startHostShell() string {
 	return pod.Name
 }
 
+// nodeAgent returns the Agent pod of the node.
+func (s *packageInUseSuite) nodeAgent(t require.TestingT) corev1.Pod {
+	agents, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(s.T().Context(), metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+	})
+	require.NoError(t, err, "failed to list the Agent pods")
+	require.NotEmpty(t, agents.Items, "no Agent pod on the node")
+	return agents.Items[0]
+}
+
 // hostExec runs script on the node from shell, as a transient systemd unit
-// started in the mount namespace of init. The unit runs as root in a cgroup of
-// the host, so its processes are host processes.
-func (s *packageInUseSuite) hostExec(t require.TestingT, shell, script string) {
+// started in the mount namespace of init, and returns its output. The unit runs
+// as root in a cgroup of the host, so its processes are host processes.
+func (s *packageInUseSuite) hostExec(t require.TestingT, shell, script string) string {
 	cmd := []string{"nsenter", "-t", "1", "-m", "--", "systemd-run", "--wait", "--pipe", "--quiet", "--collect", "/bin/sh", "-c", script}
-	_, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(sbomtargets.Namespace, shell, hostShellContainer, cmd)
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(sbomtargets.Namespace, shell, hostShellContainer, cmd)
 	require.NoErrorf(t, err, "host exec %q failed: %s", script, stderr)
+	return stdout
+}
+
+// hostScans returns the times, in the order of the log, at which system-probe
+// logged a scan of the host packages since since, a Unix time of the node.
+func (s *packageInUseSuite) hostScans(t require.TestingT, since int64) []time.Time {
+	sinceTime := metav1.NewTime(time.Unix(since, 0))
+	logs, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").GetLogs(s.nodeAgent(t).Name, &corev1.PodLogOptions{
+		Container:  "system-probe",
+		SinceTime:  &sinceTime,
+		Timestamps: true,
+	}).DoRaw(s.T().Context())
+	require.NoError(t, err, "failed to read the system-probe log")
+
+	var scans []time.Time
+	for _, line := range strings.Split(string(logs), "\n") {
+		stamp, msg, _ := strings.Cut(strings.TrimSpace(line), " ")
+		if !strings.Contains(msg, "Generating SBOM for ") || !strings.HasSuffix(msg, "/proc/1/root") {
+			continue
+		}
+		at, err := time.Parse(time.RFC3339Nano, stamp)
+		require.NoErrorf(t, err, "system-probe log line %q", line)
+		scans = append(scans, at)
+	}
+	return scans
 }
 
 // hostEpoch returns the wall clock of the node (Unix seconds), the clock that
@@ -511,13 +595,13 @@ func (s *packageInUseSuite) hostEpoch(shell string) int64 {
 	return n
 }
 
-// newestHostSBOM returns the components of the newest full host SBOM in the
-// fake intake.
-func (s *packageInUseSuite) newestHostSBOM(c *myCollectT) []*cyclonedx_v1_4.Component {
+// newestHostSBOM returns the components of the newest full host SBOM the fake
+// intake collected after after.
+func (s *packageInUseSuite) newestHostSBOM(c *myCollectT, after time.Time) []*cyclonedx_v1_4.Component {
 	ids, err := s.Fakeintake.GetSBOMIDs()
 	require.NoErrorf(c, err, "Failed to query fake intake")
 
-	var newest time.Time
+	newest := after
 	var components []*cyclonedx_v1_4.Component
 	for _, id := range ids {
 		payloads, err := s.Fakeintake.FilterSBOMs(id)
@@ -535,7 +619,7 @@ func (s *packageInUseSuite) newestHostSBOM(c *myCollectT) []*cyclonedx_v1_4.Comp
 			components = p.GetCyclonedx().Components
 		}
 	}
-	require.NotEmptyf(c, components, "no host SBOM with a body in fake intake yet")
+	require.NotEmptyf(c, components, "no host SBOM with a body collected after %s in fake intake yet", after)
 	return components
 }
 
