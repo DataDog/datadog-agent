@@ -197,6 +197,10 @@ func newExecFile(ev *model.Event, p *model.Process, fe *model.FileEvent, now tim
 		Inode:       fe.Inode,
 		CTime:       fe.CTime,
 		SeenAt:      now,
+		// pointer copy only, on the hot path: ev.Exec.Process == &ev.ProcessCacheEntry.Process,
+		// so this is the exec's (not an ancestor's) cache entry, and the same entry for the
+		// interpreter of a #! exec. Nil when the event carries no cache entry.
+		ProcessCacheEntry: ev.ProcessCacheEntry,
 	}
 }
 

@@ -33,8 +33,13 @@ type PipelineOpts struct {
 	// MetricsInterval is the metrics flush interval. Zero means the Metrics default.
 	MetricsInterval time.Duration
 	// ExtraReporter, when set, is called for every report after the structured log line. It must
-	// be safe for concurrent use (e.g. a test recorder, or a future CWS event sender).
+	// be safe for concurrent use (e.g. a test recorder).
 	ExtraReporter Reporter
+	// ExtraReporterFor, when set, is called once at build time with the loaded rules version to
+	// build an extra reporter that needs it (e.g. the CWS BackendReporter). It may return nil,
+	// and is wired after ExtraReporter. The rules version isn't known until the scanner is
+	// loaded, which is why this is a factory rather than a plain reporter.
+	ExtraReporterFor func(rulesVersion string) Reporter
 }
 
 // Pipeline is the whole YARA exec scanner, wired together:
@@ -97,9 +102,18 @@ func newPipeline(cfg *Config, client statsd.ClientInterface, opts PipelineOpts, 
 		return nil, fmt.Errorf("yara: invalid identity_cache_size %d: %w", cfg.IdentityCacheSize, err)
 	}
 
-	var reporter Reporter = NewStructuredReporter(rulesVersion, StructuredReporterOptions{})
+	reporters := []Reporter{NewStructuredReporter(rulesVersion, StructuredReporterOptions{})}
 	if opts.ExtraReporter != nil {
-		reporter = teeReporter{reporter, opts.ExtraReporter}
+		reporters = append(reporters, opts.ExtraReporter)
+	}
+	if opts.ExtraReporterFor != nil {
+		if r := opts.ExtraReporterFor(rulesVersion); r != nil {
+			reporters = append(reporters, r)
+		}
+	}
+	reporter := reporters[0]
+	if len(reporters) > 1 {
+		reporter = teeReporter(reporters)
 	}
 
 	pool, err := NewPool(PoolConfig{
@@ -217,6 +231,16 @@ func (t teeReporter) Report(f ExecFile, sum [32]byte, matches []Match, err error
 func NewExecScanner(evm *eventmonitor.EventMonitor, cfg *Config) (*Pipeline, error) {
 	p, err := NewPipeline(cfg, evm.StatsdClient, PipelineOpts{
 		ContainerPIDs: containerPIDsFromEventMonitor(evm),
+		// Report matches to the CWS backend in addition to the structured log line. The factory
+		// returns nil (log-only) when the probe can't build the serializer; a dispatch when CWS
+		// is disabled is a silent no-op, so the log line always stands on its own.
+		ExtraReporterFor: func(rulesVersion string) Reporter {
+			// typed return so a nil *BackendReporter isn't wrapped into a non-nil interface
+			if r := NewBackendReporter(evm, rulesVersion); r != nil {
+				return r
+			}
+			return nil
+		},
 	})
 	if err != nil {
 		return nil, err
