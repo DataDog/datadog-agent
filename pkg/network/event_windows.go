@@ -137,13 +137,13 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 
 			switch driver.ConnectionStatus(tf.ConnectionStatus) {
 			case driver.ConnectionStatusACKRST:
-				cs.TCPFailures[TCPFailureErrnoConnRefused] = 1
+				cs.TCPFailures[111] = 1 // ECONNREFUSED in posix is 111
 			case driver.ConnectionStatusTimeout:
-				cs.TCPFailures[TCPFailureErrnoTimedOut] = 1
+				cs.TCPFailures[110] = 1 // ETIMEDOUT in posix is 110
 			case driver.ConnectionStatusSentRst:
 				fallthrough
 			case driver.ConnectionStatusRecvRst:
-				cs.TCPFailures[TCPFailureErrnoConnReset] = 1
+				cs.TCPFailures[104] = 1 // ECONNRESET in posix is 104
 			}
 
 		}

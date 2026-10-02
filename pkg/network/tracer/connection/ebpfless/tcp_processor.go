@@ -9,6 +9,7 @@ package ebpfless
 
 import (
 	"fmt"
+	"syscall"
 	"time"
 
 	"github.com/google/gopacket/layers"
@@ -268,15 +269,15 @@ func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connecti
 		return
 	}
 
-	reason := network.TCPFailureErrnoConnReset
+	reason := syscall.ECONNRESET
 	if st.tcpState == connStatAttempted {
-		reason = network.TCPFailureErrnoConnRefused
+		reason = syscall.ECONNREFUSED
 	}
 
 	if conn.TCPFailures == nil {
 		conn.TCPFailures = make(map[uint16]uint32)
 	}
-	conn.TCPFailures[reason]++
+	conn.TCPFailures[uint16(reason)]++
 
 	if st.tcpState != connStatClosed {
 		conn.Monotonic.TCPClosed++
