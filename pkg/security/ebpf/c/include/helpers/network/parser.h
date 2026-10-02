@@ -153,7 +153,7 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
 
             pkt->ns_flow.flow.icmp.type = pkt->l4.icmp6.icmp6_type;
             pkt->ns_flow.flow.icmp.code = pkt->l4.icmp6.icmp6_code;
-            if (pkt->l4.icmp6.icmp6_type == ICMP_ECHO || pkt->l4.icmp6.icmp6_type == ICMP_ECHOREPLY) {
+            if (pkt->l4.icmp6.icmp6_type == ICMPV6_ECHO_REQUEST || pkt->l4.icmp6.icmp6_type == ICMPV6_ECHO_REPLY) {
                 pkt->ns_flow.flow.icmp.id = htons(pkt->l4.icmp6.icmp6_dataun.u_echo.identifier);
             }
         } else {
