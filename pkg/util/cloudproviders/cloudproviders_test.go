@@ -8,7 +8,9 @@ package cloudproviders
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -197,13 +199,24 @@ func TestCloudProviderAliasesSkipsKubeletDependentDetectorsOnCLCRunner(t *testin
 	assert.Equal(t, "other", cloudprovider)
 }
 
+// dmiDetectableProviders lists the cloud providers DetectCloudProviderDMI can positively identify.
+var dmiDetectableProviders = []string{ec2.CloudProviderName, gce.CloudProviderName, azure.CloudProviderName}
+
 // setupDMIProvider mocks DMI so that DetectCloudProviderDMI() returns the given provider (or ""
 // for an inconclusive result, when provider is empty).
 func setupDMIProvider(t *testing.T, provider string) {
+	setupDMIProviderWithUseDMI(t, provider, true)
+}
+
+// setupDMIProviderWithUseDMI mocks the DMI information of a host running on the given provider and
+// turns the `*_use_dmi` settings on or off. With useDMI false the DMI files still describe that
+// provider, but DetectCloudProviderDMI() returns "" anyway, which is how the agent behaves for
+// users who opt out of DMI-based detection.
+func setupDMIProviderWithUseDMI(t *testing.T, provider string, useDMI bool) {
 	cfg := configmock.New(t)
-	cfg.SetInTest("ec2_use_dmi", true)
-	cfg.SetInTest("gce_use_dmi", true)
-	cfg.SetInTest("azure_use_dmi", true)
+	cfg.SetInTest("ec2_use_dmi", useDMI)
+	cfg.SetInTest("gce_use_dmi", useDMI)
+	cfg.SetInTest("azure_use_dmi", useDMI)
 
 	dmi.SetupMock(t, "", "", "", "")
 	dmi.SetupMockProductName(t, "")
@@ -362,6 +375,203 @@ func TestGetPublicIPv4DoesNotFallBackWhenDMIDetectedProviderFails(t *testing.T) 
 	assert.Error(t, err)
 	assert.Equal(t, "", ip)
 	assert.False(t, ec2Called, "should not fall back to probing all providers when the DMI-detected provider's fetch fails")
+}
+
+// TestGetPublicIPv4FallsBackToAllProvidersWhenDMIInconclusive ensures that GetPublicIPv4 keeps
+// probing every provider when DMI can't identify the cloud provider, which is the behaviour every
+// host had before DMI-based detection and the one hosts without usable DMI information still rely
+// on (EC2 sidecar/Fargate setups, or any provider that isn't DMI-detectable).
+func TestGetPublicIPv4FallsBackToAllProvidersWhenDMIInconclusive(t *testing.T) {
+	origProviders := publicIPv4Providers
+	defer func() { publicIPv4Providers = origProviders }()
+
+	t.Run("probes every provider when none can answer", func(t *testing.T) {
+		setupDMIProvider(t, "")
+
+		ec2Called, gceCalled, azureCalled := false, false, false
+		publicIPv4Providers = map[string]func(context.Context) (string, error){
+			ec2.CloudProviderName: func(_ context.Context) (string, error) {
+				ec2Called = true
+				return "", errors.New("ec2 metadata unreachable")
+			},
+			gce.CloudProviderName: func(_ context.Context) (string, error) {
+				gceCalled = true
+				return "", errors.New("gce metadata unreachable")
+			},
+			azure.CloudProviderName: func(_ context.Context) (string, error) {
+				azureCalled = true
+				return "", errors.New("azure metadata unreachable")
+			},
+		}
+
+		ip, err := GetPublicIPv4(context.TODO())
+		assert.Error(t, err)
+		assert.Equal(t, "", ip)
+		assert.True(t, ec2Called, "ec2 should be probed when DMI is inconclusive")
+		assert.True(t, gceCalled, "gce should be probed when DMI is inconclusive")
+		assert.True(t, azureCalled, "azure should be probed when DMI is inconclusive")
+	})
+
+	t.Run("returns the public IP of the provider that answers", func(t *testing.T) {
+		setupDMIProvider(t, "")
+
+		publicIPv4Providers = map[string]func(context.Context) (string, error){
+			ec2.CloudProviderName: func(_ context.Context) (string, error) {
+				return "", errors.New("ec2 metadata unreachable")
+			},
+			gce.CloudProviderName: func(_ context.Context) (string, error) {
+				return "1.2.3.4", nil
+			},
+			azure.CloudProviderName: func(_ context.Context) (string, error) {
+				return "", errors.New("azure metadata unreachable")
+			},
+		}
+
+		ip, err := GetPublicIPv4(context.TODO())
+		require.NoError(t, err)
+		assert.Equal(t, "1.2.3.4", ip)
+	})
+}
+
+// TestGetPublicIPv4WhenDMIDetectedProviderHasNoFetcher covers the case where DMI identifies a
+// provider that isn't in publicIPv4Providers: we report that no public IPv4 was found rather than
+// probing the providers DMI just ruled out.
+func TestGetPublicIPv4WhenDMIDetectedProviderHasNoFetcher(t *testing.T) {
+	origProviders := publicIPv4Providers
+	defer func() { publicIPv4Providers = origProviders }()
+	setupDMIProvider(t, azure.CloudProviderName)
+
+	ec2Called := false
+	publicIPv4Providers = map[string]func(context.Context) (string, error){
+		ec2.CloudProviderName: func(_ context.Context) (string, error) {
+			ec2Called = true
+			return "5.6.7.8", nil
+		},
+	}
+
+	ip, err := GetPublicIPv4(context.TODO())
+	assert.Error(t, err)
+	assert.Equal(t, "", ip)
+	assert.False(t, ec2Called, "providers ruled out by DMI should not be probed")
+}
+
+// TestGetHostAliasesSameOutputWithAndWithoutDMI asserts that turning `*_use_dmi` on doesn't change
+// what GetHostAliases returns on a host that genuinely runs on the DMI-detected provider. On such a
+// host the other providers' metadata endpoints are unreachable, so all the DMI shortcut does is
+// skip probes that were always going to fail: same aliases, same cloud provider, less work.
+func TestGetHostAliasesSameOutputWithAndWithoutDMI(t *testing.T) {
+	origDetectors := hostAliasesDetectors
+	defer func() { hostAliasesDetectors = origDetectors }()
+
+	for _, provider := range dmiDetectableProviders {
+		t.Run(provider, func(t *testing.T) {
+			// run emulates a host running on `provider` and reports what GetHostAliases returned
+			// along with the (sorted) names of the detectors it actually probed.
+			run := func(useDMI bool) ([]string, string, []string) {
+				setupDMIProviderWithUseDMI(t, provider, useDMI)
+
+				var mu sync.Mutex
+				probed := []string{}
+				record := func(name string) {
+					mu.Lock()
+					defer mu.Unlock()
+					probed = append(probed, name)
+				}
+
+				hostAliasesDetectors = map[string]cloudProviderAliasesDetector{
+					"config": {name: "config", callback: func(_ context.Context) ([]string, error) {
+						record("config")
+						return []string{"config-alias"}, nil
+					}},
+					"kubelet": {name: "kubelet", requiresKubelet: true, callback: func(_ context.Context) ([]string, error) {
+						record("kubelet")
+						return []string{"kubelet-alias"}, nil
+					}},
+				}
+				for _, p := range dmiDetectableProviders {
+					hostAliasesDetectors[p] = cloudProviderAliasesDetector{
+						name: p, isCloudEnv: true, dmiDetectable: true,
+						callback: func(_ context.Context) ([]string, error) {
+							record(p)
+							if p != provider {
+								return nil, errors.New(p + " metadata unreachable")
+							}
+							return []string{p + "-alias"}, nil
+						},
+					}
+				}
+
+				aliases, cloudprovider := GetHostAliases(context.TODO())
+				sort.Strings(probed)
+				return aliases, cloudprovider, probed
+			}
+
+			withoutDMIAliases, withoutDMICloud, withoutDMIProbed := run(false)
+			withDMIAliases, withDMICloud, withDMIProbed := run(true)
+
+			assert.Equal(t, withoutDMIAliases, withDMIAliases, "enabling *_use_dmi changed the host aliases returned")
+			assert.Equal(t, withoutDMICloud, withDMICloud, "enabling *_use_dmi changed the detected cloud provider")
+			assert.Equal(t, provider, withDMICloud)
+
+			expectedAliases := []string{"config-alias", "kubelet-alias", provider + "-alias"}
+			sort.Strings(expectedAliases)
+			assert.Equal(t, expectedAliases, withDMIAliases)
+
+			// Same output, strictly less work.
+			expectedWithoutDMI := append([]string{"config", "kubelet"}, dmiDetectableProviders...)
+			sort.Strings(expectedWithoutDMI)
+			assert.Equal(t, expectedWithoutDMI, withoutDMIProbed, "every detector should be probed when *_use_dmi is disabled")
+
+			expectedWithDMI := []string{"config", "kubelet", provider}
+			sort.Strings(expectedWithDMI)
+			assert.Equal(t, expectedWithDMI, withDMIProbed, "only the DMI-detected provider and the non-DMI-detectable detectors should be probed")
+		})
+	}
+}
+
+// TestGetPublicIPv4SameOutputWithAndWithoutDMI is the GetPublicIPv4 counterpart of
+// TestGetHostAliasesSameOutputWithAndWithoutDMI: on a host that genuinely runs on the DMI-detected
+// provider, enabling `*_use_dmi` returns the same IP while probing only that one provider.
+func TestGetPublicIPv4SameOutputWithAndWithoutDMI(t *testing.T) {
+	origProviders := publicIPv4Providers
+	defer func() { publicIPv4Providers = origProviders }()
+
+	for _, provider := range dmiDetectableProviders {
+		t.Run(provider, func(t *testing.T) {
+			run := func(useDMI bool) (string, []string, error) {
+				setupDMIProviderWithUseDMI(t, provider, useDMI)
+
+				probed := []string{}
+				publicIPv4Providers = map[string]func(context.Context) (string, error){}
+				for _, p := range dmiDetectableProviders {
+					publicIPv4Providers[p] = func(_ context.Context) (string, error) {
+						probed = append(probed, p)
+						if p != provider {
+							return "", errors.New(p + " metadata unreachable")
+						}
+						return "1.2.3.4", nil
+					}
+				}
+
+				ip, err := GetPublicIPv4(context.TODO())
+				sort.Strings(probed)
+				return ip, probed, err
+			}
+
+			withoutDMIIP, withoutDMIProbed, withoutDMIErr := run(false)
+			withDMIIP, withDMIProbed, withDMIErr := run(true)
+
+			require.NoError(t, withoutDMIErr)
+			require.NoError(t, withDMIErr)
+			assert.Equal(t, withoutDMIIP, withDMIIP, "enabling *_use_dmi changed the public IPv4 returned")
+			assert.Equal(t, "1.2.3.4", withDMIIP)
+
+			// The fallback loop stops at the first provider that answers, so without DMI we only
+			// know the one that answered was probed; with DMI it must be the only one probed.
+			assert.Contains(t, withoutDMIProbed, provider)
+			assert.Equal(t, []string{provider}, withDMIProbed, "only the DMI-detected provider should be probed")
+		})
+	}
 }
 
 func TestCloudProviderHostCCRID(t *testing.T) {
