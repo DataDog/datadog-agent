@@ -249,14 +249,13 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 			(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
 			s.T().Skip("Ansible doesn't install support Python2 anymore")
 		}
-		// Install ansible then install the agent
-		var ansiblePrefix string
+		// Install the datadog.dd collection with the pre-baked ansible, then install the agent
+		ansiblePrefix := s.ansiblePathPrefix(s.os)
 		collectionVersion := os.Getenv("E2E_DATADOG_DD_COLLECTION_VERSION")
 		if collectionVersion == "" {
 			collectionVersion = "6.5.0"
 		}
 		for i := 0; i < 3; i++ {
-			ansiblePrefix = s.installAnsible(s.os)
 			collectionInstallCmd := fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:%s", ansiblePrefix, collectionVersion)
 			if _, err := s.Env().RemoteHost.Execute(collectionInstallCmd); err == nil {
 				break
@@ -342,34 +341,25 @@ func (s *packageBaseSuite) setupFakeIntake() {
 	s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reload")
 }
 
-func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
-	pathPrefix := ""
+// ansiblePathPrefix returns the directory holding the ansible console scripts
+// pre-baked into the flavor's e2e AMI. AmazonLinux2 and CentOS7 are absent:
+// RunInstallScript skips InstallMethodAnsible for them before this is called.
+func (s *packageBaseSuite) ansiblePathPrefix(flavor e2eos.Descriptor) string {
 	switch flavor.Flavor {
 	case e2eos.Ubuntu, e2eos.Debian:
-		// ansible is baked into the Debian/Ubuntu e2e AMI (ami-builder provision-e2e-apt.sh).
-	case e2eos.Fedora:
-		s.Env().RemoteHost.MustExecute("sudo dnf install -y ansible")
-	case e2eos.CentOS:
-		// Can't install ansible with yum install because the available package on centos is max ansible 2.9, EOL since May 2022
-		s.Env().RemoteHost.MustExecute("sudo yum install -y python3 curl")
-		s.Env().RemoteHost.MustExecute("curl https://bootstrap.pypa.io/pip/3.6/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py")
-		s.Env().RemoteHost.MustExecute("python3 -m pip install ansible")
-		pathPrefix = "/home/centos/.local/bin/"
-	// AmazonLinux is deliberately absent here: RunInstallScript skips InstallMethodAnsible
-	// for AmazonLinux2 before this is ever called, and no flavor list uses AmazonLinux2023.
+		// apt-installed (ami-builder provision-e2e-apt.sh), on the default PATH.
+		return ""
 	case e2eos.RedHat:
-		s.Env().RemoteHost.MustExecute("sudo yum install -y python3.14 python3.14-pip && yes | pip3.14 install ansible")
-		pathPrefix = "/home/ec2-user/.local/bin/"
+		// pip3.14-installed (ami-builder provision-e2e-rhel-centos.sh): RHEL 9's
+		// platform python3 is 3.9, which is EOL.
+		return "/usr/local/bin/"
 	case e2eos.Suse:
-		// ansible is pre-baked into the suse/15-4 AMI (installed via
-		// python3.11 -m pip), whose console scripts land in /usr/local/bin.
-		pathPrefix = "/usr/local/bin/"
+		// python3.11-pip-installed (ami-builder provision-e2e-suse.sh).
+		return "/usr/local/bin/"
 	default:
-		s.Env().RemoteHost.MustExecute("python3 -m ensurepip --upgrade && python3 -m pip install pipx==1.11.1 && python3 -m pipx ensurepath")
-		pathPrefix = "/usr/bin/"
+		s.T().Fatalf("no ansible pre-baked into the %s e2e AMI", flavor)
+		return ""
 	}
-
-	return pathPrefix
 }
 
 func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ...string) string {

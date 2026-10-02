@@ -31,7 +31,6 @@ func TestBasicHostTrafficDynamicPathSuite(t *testing.T) {
 
 func (s *basicHostTrafficDynamicPathSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	s.ensureCurlInstalled()
 	s.startHostTrafficDNSServer()
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()

@@ -74,18 +74,20 @@ func sshdCheck(distro) probe {
 // packageCheck exercises the rpminfo/dpkginfo probe via the telnet package.
 func packageCheck(d distro) probe {
 	rule := rulePrefix + "package_telnet_removed"
+	// telnet is baked into the e2e AMIs (ami-builder provision-e2e-apt.sh and
+	// provision-e2e-rhel-centos.sh), so the "broken" (non-compliant) state is
+	// already the machine's boot state on a fresh host and needs no network
+	// access. The package check only falls back to a network install on an
+	// image that does not bake it yet, or if a retry reuses a host where the
+	// fixed step below already removed the package.
 	if d.family == debian {
-		// telnet is baked into the Debian/Ubuntu e2e AMI (ami-builder
-		// provision-e2e-apt.sh), so the "broken" (non-compliant) state is
-		// already the machine's boot state on a fresh host and needs no
-		// network access. The dpkg check only falls back to a network
-		// install if a retry reuses a host where the fixed step below
-		// already removed the package.
 		return probe{"package", rule,
 			"dpkg -s telnet >/dev/null 2>&1 || (sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y telnet)",
 			"sudo DEBIAN_FRONTEND=noninteractive apt-get remove -y telnet"}
 	}
-	return probe{"package", rule, "sudo dnf install -y telnet", "sudo dnf remove -y telnet"}
+	return probe{"package", rule,
+		"rpm -q telnet >/dev/null 2>&1 || sudo dnf install -y telnet",
+		"sudo dnf remove -y telnet"}
 }
 
 // accountsCheck exercises the textfilecontent54 probe via the login.defs password-warn

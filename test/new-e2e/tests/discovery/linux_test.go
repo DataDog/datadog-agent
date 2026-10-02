@@ -77,7 +77,7 @@ func TestLinuxTestSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(
 			scenec2.WithAgentOptions(agentParams...),
-			// provision.sh installs packages from apt, pip, npm and gem.
+			// provision.sh installs packages from pip, npm and gem.
 			scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess()),
 		))),
 	}

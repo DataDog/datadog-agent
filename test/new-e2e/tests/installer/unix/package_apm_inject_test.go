@@ -738,15 +738,16 @@ __attribute__((constructor)) static void crash(void) {
 }
 `
 
-// installGCC installs the C compiler used by buildCrashyInjectorSO.
-func (s *packageApmInjectSuite) installGCC() {
+// requireGCC checks for the C compiler used by buildCrashyInjectorSO, which
+// ami-builder bakes into the Debian/Ubuntu e2e AMIs.
+func (s *packageApmInjectSuite) requireGCC() {
 	s.T().Helper()
-	host := s.Env().RemoteHost
 	switch s.os.Flavor {
 	case e2eos.Ubuntu, e2eos.Debian:
-		host.MustExecute("sudo apt-get update -qq && sudo apt-get install -y gcc libc6-dev")
+		out, err := s.Env().RemoteHost.Execute("command -v gcc")
+		require.NoErrorf(s.T(), err, "gcc is missing from the %s e2e AMI; bake it in ami-builder rather than installing it at test time.\n%s", s.os, out)
 	default:
-		s.T().Skipf("test does not know how to install gcc on %s", s.os.Flavor)
+		s.T().Skipf("test does not build shared libraries on %s", s.os.Flavor)
 	}
 }
 
@@ -761,7 +762,7 @@ func (s *packageApmInjectSuite) installGCC() {
 // the lib).
 func (s *packageApmInjectSuite) buildCrashyInjectorSO(dst, src string) {
 	s.T().Helper()
-	s.installGCC()
+	s.requireGCC()
 	host := s.Env().RemoteHost
 	host.MustExecute("sudo tee /tmp/crashy.c >/dev/null <<'CRASHY_EOF'\n" + src + "CRASHY_EOF")
 	host.MustExecute("sudo gcc -shared -fPIC -o " + dst + " /tmp/crashy.c")

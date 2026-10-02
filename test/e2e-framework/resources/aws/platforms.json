@@ -1,10 +1,10 @@
 {
     "alma-linux": {
         "arm64": {
-            "9": "ami-0e45a8ceb7f9316a7"
+            "9": "ami-0c186af5b42145b55"
         },
         "x86_64": {
-            "9": "ami-00a43ffa1aad6a150"
+            "9": "ami-0bfe9bf6c99a22612"
         }
     },
     "amazon-linux": {
@@ -43,13 +43,13 @@
     "debian": {
         "arm64": {
             "10": "ami-0cb73d9071600cc97",
-            "12": "ami-0cda6414a2f18029d"
+            "12": "ami-0cea8fd7f6710616d"
         },
         "x86_64": {
             "9": "ami-0f63451e15a8ada36",
             "10": "ami-08c09924e3fb8b8a9",
             "11": "ami-043a734c5b0a19da0",
-            "12": "ami-007dc910bd7f909f6"
+            "12": "ami-0d28a66d4249d03ce"
         }
     },
     "macos": {
@@ -65,7 +65,7 @@
             "8": "ami-0fbdded980e0521d5",
             "86": "ami-031eff1ae75bb87e4",
             "86-fips": "ami-0d0fb96b595c56e03",
-            "9": "ami-00d31312eb07f3f99",
+            "9": "ami-003c78b8b6a2db7b2",
             "9-selinux-npm": "ami-0800c0a6449bf381b",
             "10": "ami-0203774689199737e"
         }
@@ -83,7 +83,7 @@
         "arm64": {
             "18-04": "ami-0e31a6ce9cdc0d9ef",
             "20-04": "ami-069e1d5bc5b0d8f92",
-            "24-04": "ami-0169b43f65f9b7842"
+            "24-04": "ami-0fac163fb86da6fda"
         },
         "x86_64": {
             "16-04": "ami-04bbb3181523aa803",
@@ -91,11 +91,11 @@
             "18-04-gpu-driver-430": "ami-0ae1e734d6994d00b",
             "18-04-gpu-driver-510": "ami-0cfe6ff12b2f5e333",
             "20-04": "ami-044deb00fc648b5c0",
-            "22-04": "ami-0c931e987b09d2ca8",
-            "22-04-e2e": "ami-01b71448b1ddd7b0e",
+            "22-04": "ami-052973d9bfc790caa",
+            "22-04-e2e": "ami-052973d9bfc790caa",
             "22-04-gpu": "ami-07bfc17326c424764",
-            "24-04": "ami-078292274d05748bf",
-            "24-04-e2e": "ami-078292274d05748bf",
+            "24-04": "ami-0a1ec7d2062bdae38",
+            "24-04-e2e": "ami-0a1ec7d2062bdae38",
             "24-04-e2e-kind": "ami-00fb0108a23f0e93b"
         }
     },
