@@ -26,7 +26,11 @@ func TestNStatQualificationLoopbackTCPErrorsIncomplete(t *testing.T) {
 		t.Skipf("set %s=1 to run live NStat qualification", nstatIncompleteQualificationEnv)
 	}
 
-	tracer, err := newNStatTracer(testNStatConfig())
+	// The host's own sockets alone can exceed testNStatConfig's cap, which
+	// would drop the test connection's source.
+	cfg := testNStatConfig()
+	cfg.MaxTrackedConnections = 16384
+	tracer, err := newNStatTracer(cfg)
 	require.NoError(t, err)
 	tracer.includeLoopback = true
 	t.Cleanup(tracer.Stop)
