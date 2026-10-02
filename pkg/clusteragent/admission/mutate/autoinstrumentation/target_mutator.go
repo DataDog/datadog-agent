@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/ssi"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/dd-policy-engine/go/policies"
@@ -54,7 +53,7 @@ type TargetMutator struct {
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups. When on-demand instrumentation is enabled and rcClient is non-nil, the
 // mutator also subscribes to remote-config SSI policies, which override matching static targets.
-func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, rcClient *rcclient.Client, ddiTargets DDITargetProvider) (*TargetMutator, error) {
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, rcClient RemoteConfigClient, ddiTargets DDITargetProvider) (*TargetMutator, error) {
 	defaultLibraries := getAllLatestDefaultLibraries(config.containerRegistry)
 	disabledNamespaces := make(map[string]struct{}, len(config.Instrumentation.DisabledNamespaces))
 	for _, namespace := range config.Instrumentation.DisabledNamespaces {

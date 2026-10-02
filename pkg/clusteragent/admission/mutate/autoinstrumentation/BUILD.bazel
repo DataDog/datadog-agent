@@ -39,7 +39,6 @@ go_library(
         "//pkg/clusteragent/admission/mutate/common",
         "//pkg/clusteragent/admission/mutate/config",
         "//pkg/clusteragent/admission/mutate/tagsfromlabels",
-        "//pkg/config/remote/client",
         "//pkg/config/structure",
         "//pkg/config/utils",
         "//pkg/gpu/config",

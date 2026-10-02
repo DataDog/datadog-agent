@@ -12,11 +12,18 @@ import (
 	"sort"
 	"strconv"
 
-	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/dd-policy-engine/go/policies"
 )
+
+// RemoteConfigClient provides the RC operations needed for SSI policies.
+// Pass nil when remote config is unavailable.
+type RemoteConfigClient interface {
+	GetConfigs(product string) map[string]state.RawConfig
+	UpdateApplyStatus(cfgPath string, status state.ApplyStatus)
+	Subscribe(product string, cb func(map[string]state.RawConfig, func(string, state.ApplyStatus)))
+}
 
 var (
 	apmPolicyIDPattern           = regexp.MustCompile(`^datadog/\d+/[^/]+/([^/]+)/`)
@@ -70,7 +77,7 @@ func isKubernetesRemotePolicyPath(path string) bool {
 // after). It is a no-op when remote config is not available, in which case the
 // mutator keeps matching against its configuration baseline only. The wire
 // format is the dd-wls policies document; targets do not appear on this path.
-func (m *TargetMutator) subscribeRemoteConfig(client *rcclient.Client) {
+func (m *TargetMutator) subscribeRemoteConfig(client RemoteConfigClient) {
 	if client == nil {
 		return
 	}
