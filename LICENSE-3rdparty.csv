@@ -340,6 +340,7 @@ core,github.com/DataDog/rshell/builtins/stat,Apache-2.0,"Copyright 2026-present 
 core,github.com/DataDog/rshell/builtins/strings_cmd,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/systemctl,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/tail,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/tee,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/testcmd,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/tr,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/true,Apache-2.0,"Copyright 2026-present Datadog, Inc"

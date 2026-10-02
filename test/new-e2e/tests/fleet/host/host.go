@@ -266,10 +266,12 @@ const (
 	metricProcmgrDaemonReachable        = "runtime__procmgr_daemon_reachable"
 	metricProcmgrDaemonReady            = "runtime__procmgr_daemon_ready"
 	metricProcmgrProcessRunning         = "runtime__procmgr_process_running"
+	metricProcmgrProcessState           = "runtime__procmgr_process_state"
 	metricAgentServiceInstalled         = "runtime__agent_service_installed"
 	metricAgentServiceProcmgrConfigured = "runtime__agent_service_procmgr_configured"
 	metricAgentServiceManagementMode    = "runtime__agent_service_management_mode"
 	procmgrManagementModeProcmgr        = "procmgr"
+	procmgrProcessStateRunning          = "running"
 )
 
 // AssertProcmgrTelemetry verifies the agent's COAT gauges report serviceID/processName as managed
@@ -288,6 +290,10 @@ func (h *Host) AssertProcmgrTelemetry(t *testing.T, serviceID, processName strin
 		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonReady, nil)
 		assertTelemetryGaugeTrue(c, out, metricProcmgrProcessRunning, map[string]string{
 			"process": processName,
+		})
+		assertTelemetryGaugeTrue(c, out, metricProcmgrProcessState, map[string]string{
+			"process": processName,
+			"state":   procmgrProcessStateRunning,
 		})
 		assertTelemetryGaugeTrue(c, out, metricAgentServiceInstalled, map[string]string{
 			"service": serviceID,

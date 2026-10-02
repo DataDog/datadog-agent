@@ -1,6 +1,6 @@
 {
     "base_branch": "main",
-    "current_milestone": "7.85.0",
+    "current_milestone": "7.86.0",
     "dependencies": {
         "INTEGRATIONS_CORE_VERSION": "1c5574c2eeca508f29ed518c414c16acdf3f7da6",
         "INTEGRATIONS_WHEELS_STORAGE": "stable",

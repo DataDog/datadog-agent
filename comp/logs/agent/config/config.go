@@ -261,13 +261,15 @@ const DefaultUnreliableMountFingerprintMaxBytes = 4096
 
 // UnreliableMountEnabled reports whether the node-wide profile for unreliable
 // mounts is enabled. It selects direct fingerprint reads on Linux, line-checksum
-// defaults, and a separate rotation drain timeout. Other platforms read buffered.
+// defaults, a separate rotation drain timeout, and a sequential handoff after
+// fingerprint-detected rotations. Other platforms read buffered.
 func UnreliableMountEnabled(coreConfig pkgconfigmodel.Reader) bool {
 	return coreConfig.GetBool("logs_config.unreliable_mount.enabled")
 }
 
-// UnreliableMountDrainTimeout is how long a tailer keeps reading a rotated file
-// before closing it when unreliable_mount is enabled. A fresh open can fail while
+// UnreliableMountDrainTimeout is the longest a tailer keeps reading a rotated file
+// before closing it when unreliable_mount is enabled. A sequential-handoff drain
+// ends earlier, once the file has gone 30 seconds without new reads. A fresh open can fail while
 // the existing descriptor still drains, so this is separate from close_timeout.
 // Returns 0 when unreliable_mount is disabled so callers fall back to close_timeout.
 func UnreliableMountDrainTimeout(coreConfig pkgconfigmodel.Reader) time.Duration {
