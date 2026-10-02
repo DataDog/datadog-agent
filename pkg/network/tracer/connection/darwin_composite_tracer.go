@@ -60,6 +60,7 @@ func newDarwinCompositeTracer(cfg *config.Config) (*darwinCompositeTracer, error
 		composite.packetError = packetErr
 		log.Warnf("notable: darwin_packet_enrichment disabled: %v", packetErr)
 	} else {
+		primary.packetCoverage = packetSource.CapturesInterfaceIndex
 		packetFanout := filter.NewPacketSourceFanout(packetSource)
 		composite.packet = newDarwinPacketSidecar(packetFanout, primary, int(cfg.MaxTrackedConnections))
 	}

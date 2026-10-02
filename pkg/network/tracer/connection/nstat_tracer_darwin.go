@@ -48,6 +48,7 @@ const (
 	tcpStateSynReceived = 3
 	tcpStateEstablished = 4
 )
+
 // darwinDirectionEvidence ranks direction signals from weakest to strongest.
 // Stronger evidence may replace weaker evidence, while equal or weaker
 // evidence cannot flip an established direction.
@@ -133,7 +134,6 @@ type nstatSource struct {
 	directionEvidence        darwinDirectionEvidence
 	listenerKey              darwinTCPListenerKey
 	listenerIndexed          bool
-	packetEnriched           bool
 	loopbackFiltered         bool
 }
 
@@ -150,6 +150,11 @@ type nstatTracer struct {
 	// includeLoopback publishes sources with a loopback endpoint. Production
 	// never sets it; loopback connections are always filtered.
 	includeLoopback bool
+
+	// packetCoverage reports whether packet capture observes the interface
+	// with the given index. It is set before Start and nil when no packet
+	// sidecar runs.
+	packetCoverage func(ifIndex uint32) bool
 
 	// Sources without any flow description take priority over retries for
 	// partially described sources. Both queues are FIFO so retries cannot
@@ -790,8 +795,11 @@ func (t *nstatTracer) newConnection(sourceRef uint64, source *nstatSource) *netw
 	}
 	if nstat.IsTCPProvider(source.provider) {
 		conn.Type = network.TCP
-		// TCP error fields start unknown until a unique pcap match.
-		conn.AddTag(network.ConnTagTCPErrorsIncomplete)
+		// Tags are aggregation keys, so completeness is decided once here and
+		// never changed for the lifetime of the connection.
+		if t.packetCoverage == nil || !t.packetCoverage(flow.InterfaceIndex) {
+			conn.AddTag(network.ConnTagTCPErrorsIncomplete)
+		}
 	}
 	if flow.PID == 0 {
 		nstatTracerTelemetry.pidZeroPublished.Inc()
@@ -837,10 +845,6 @@ func (t *nstatTracer) applySource(source *nstatSource) {
 	conn.RTTVar = scaledMicroseconds(counts.RTTVariance, nstatTCPRTTVarianceScale)
 	if source.tcpEstablishedAfterStart {
 		conn.Monotonic.TCPEstablished = 1
-	}
-	if !source.packetEnriched {
-		conn.AddTag(network.ConnTagTCPErrorsIncomplete)
-		conn.SetNStatTXRetransmittedHint(counts.TXRetransmittedBytes)
 	}
 	if !source.closed && flow.TCPState == tcpStateClosed &&
 		source.connectAttempts > 0 && source.connectSuccesses == 0 {
@@ -1065,7 +1069,6 @@ func (t *nstatTracer) enrichTCPPacket(
 		return currentMatch
 	}
 	conn := source.conn
-	t.markPacketEnriched(source)
 	if analysis.direction != network.UNKNOWN {
 		t.setSourceDirection(source, analysis.direction, directionEvidencePacket)
 		t.reconcileSourceDirection(source)
@@ -1083,15 +1086,6 @@ func (t *nstatTracer) enrichTCPPacket(
 	conn.TLSTags.MergeWith(analysis.tlsTags)
 	t.mu.Unlock()
 	return currentMatch
-}
-
-func (t *nstatTracer) markPacketEnriched(source *nstatSource) {
-	source.packetEnriched = true
-	if source.conn == nil {
-		return
-	}
-	source.conn.RemoveTag(network.ConnTagTCPErrorsIncomplete)
-	source.conn.SetNStatTXRetransmittedHint(0)
 }
 
 func (t *nstatTracer) closeAndRemoveSource(sourceRef uint64, source *nstatSource) *network.ConnectionStats {

@@ -35,22 +35,16 @@ const (
 	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
 	ConnectionByteKeyMaxLen = 41
 
-	// ConnTagTCPErrorsIncomplete marks an NStat-owned TCP row whose
-	// Retransmits and TCPFailures were not uniquely backed by packet capture.
-	// Downstream must not treat those fields as "no errors". Later tag
-	// enrichment must merge this tag, not replace ConnectionStats.Tags.
+	// ConnTagTCPErrorsIncomplete marks an NStat-owned TCP row whose interface
+	// was not covered by packet capture when the connection was created, so
+	// Retransmits and TCPFailures are not observed. Downstream must not treat
+	// those fields as "no errors". The tag is fixed for the lifetime of the
+	// connection because the backend aggregates by tags. Later tag enrichment
+	// must merge this tag, not replace ConnectionStats.Tags.
 	ConnTagTCPErrorsIncomplete = "tcp_errors_incomplete"
-
-	// ConnTagNStatTXRetransmitted is a presence-only hint that NStat observed
-	// retransmit bytes while TCP error fields are still incomplete. It must
-	// not overwrite packet-derived Retransmits.
-	ConnTagNStatTXRetransmitted = "nstat_tx_retransmitted"
 )
 
-var (
-	tagTCPErrorsIncomplete  = intern.GetByString(ConnTagTCPErrorsIncomplete)
-	tagNStatTXRetransmitted = intern.GetByString(ConnTagNStatTXRetransmitted)
-)
+var tagTCPErrorsIncomplete = intern.GetByString(ConnTagTCPErrorsIncomplete)
 
 // ConnectionType will be either TCP or UDP
 type ConnectionType uint8
@@ -390,33 +384,6 @@ func (c *ConnectionStats) AddTag(name string) {
 	c.addInternedTag(internedConnTag(name))
 }
 
-// RemoveTag deletes every exact match of name without rewriting the
-// backing array of any shallow-copied ConnectionStats. Missing tags
-// are a no-op and do not allocate.
-func (c *ConnectionStats) RemoveTag(name string) {
-	c.removeInternedTag(internedConnTag(name))
-}
-
-// SetNStatTXRetransmittedHint records that NStat observed retransmit
-// bytes while packet error fields are incomplete. A zero count clears
-// the presence-only tag.
-func (c *ConnectionStats) SetNStatTXRetransmittedHint(bytes uint32) {
-	if c == nil {
-		return
-	}
-	if bytes == 0 {
-		c.removeInternedTag(tagNStatTXRetransmitted)
-		return
-	}
-	c.addInternedTag(tagNStatTXRetransmitted)
-}
-
-// HasNStatTXRetransmitted reports whether the presence-only NStat
-// retransmit hint is set.
-func (c ConnectionStats) HasNStatTXRetransmitted() bool {
-	return c.hasInternedTag(tagNStatTXRetransmitted)
-}
-
 // CloneTags returns a copy of the tag slice so later mutators cannot
 // rewrite a published ConnectionStats.
 func (c ConnectionStats) CloneTags() []*intern.Value {
@@ -432,8 +399,6 @@ func internedConnTag(name string) *intern.Value {
 	switch name {
 	case ConnTagTCPErrorsIncomplete:
 		return tagTCPErrorsIncomplete
-	case ConnTagNStatTXRetransmitted:
-		return tagNStatTXRetransmitted
 	default:
 		return intern.GetByString(name)
 	}
@@ -456,23 +421,6 @@ func (c *ConnectionStats) addInternedTag(tag *intern.Value) {
 		return
 	}
 	c.Tags = append(c.Tags, tag)
-}
-
-func (c *ConnectionStats) removeInternedTag(tag *intern.Value) {
-	if c == nil || len(c.Tags) == 0 || !c.hasInternedTag(tag) {
-		return
-	}
-	filtered := make([]*intern.Value, 0, len(c.Tags)-1)
-	for _, existing := range c.Tags {
-		if existing != tag {
-			filtered = append(filtered, existing)
-		}
-	}
-	if len(filtered) == 0 {
-		c.Tags = nil
-		return
-	}
-	c.Tags = filtered
 }
 
 // ByteKey returns a unique key for this connection represented as a byte slice

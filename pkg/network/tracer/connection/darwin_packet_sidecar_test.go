@@ -24,6 +24,7 @@ import (
 
 func TestDarwinPacketSidecarEnrichesWithoutOwningCountersOrLifecycle(t *testing.T) {
 	primary := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	primary.packetCoverage = func(uint32) bool { return true }
 	primary.processEvent(nstat.Event{
 		Kind:      nstat.EventDescription,
 		SourceRef: 1,
@@ -63,8 +64,6 @@ func TestDarwinPacketSidecarEnrichesWithoutOwningCountersOrLifecycle(t *testing.
 	require.False(t, conn.IsClosed)
 	require.Zero(t, conn.Monotonic.TCPClosed)
 	require.False(t, conn.HasTCPErrorsIncomplete())
-	require.False(t, conn.HasNStatTXRetransmitted())
-	require.True(t, primary.sources[1].packetEnriched)
 
 	conn.TCPFailures[network.TCPFailureErrnoConnReset] = 99
 	buffer.Reset()

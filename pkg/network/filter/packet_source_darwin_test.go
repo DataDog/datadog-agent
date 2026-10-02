@@ -338,6 +338,20 @@ func TestLibpcapSource_BufferPool_DefaultSnapLen(t *testing.T) {
 	ps.putBuffer(buf2)
 }
 
+func TestLibpcapSourceCapturesInterfaceIndex(t *testing.T) {
+	ps := &LibpcapSource{
+		interfaces: map[string]*interfaceHandle{"en0": {ifaceName: "en0", ifaceIndex: 14}},
+		exit:       make(chan struct{}),
+	}
+
+	assert.True(t, ps.CapturesInterfaceIndex(14))
+	assert.False(t, ps.CapturesInterfaceIndex(1), "an interface without a capture handle is not covered")
+	assert.False(t, ps.CapturesInterfaceIndex(0), "an unknown interface index is not covered")
+
+	close(ps.exit)
+	assert.False(t, ps.CapturesInterfaceIndex(14), "a closed source covers nothing")
+}
+
 func TestDarwinPacketInfoLengths(t *testing.T) {
 	info := &DarwinPacketInfo{
 		originalLen: 1500,

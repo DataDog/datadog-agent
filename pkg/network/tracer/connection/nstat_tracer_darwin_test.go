@@ -83,7 +83,6 @@ func TestNStatTracerTCPActiveAndFinalLifecycle(t *testing.T) {
 	require.Equal(t, directionEvidenceTCPState, tracer.sources[7].directionEvidence)
 	require.False(t, active[0].IsClosed)
 	require.True(t, active[0].HasTCPErrorsIncomplete())
-	require.True(t, active[0].HasNStatTXRetransmitted())
 	require.Zero(t, active[0].Monotonic.Retransmits)
 
 	now = now.Add(3 * time.Second)
@@ -388,46 +387,54 @@ func TestNStatTracerClosesFailedAttemptWithoutOverwritingFailure(t *testing.T) {
 	require.Equal(t, map[uint16]uint32{network.TCPFailureErrnoConnRefused: 1}, closed.TCPFailures)
 }
 
-func TestNStatTracerMarksTCPErrorsIncompleteUntilUniquePacketMatch(t *testing.T) {
-	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
-	tracer.processEvent(nstat.Event{
-		Kind:      nstat.EventDescription,
-		SourceRef: 21,
-		Provider:  nstat.ProviderTCPKernel,
-		Flow:      testNStatTCPFlow(4242, tcpStateEstablished),
-		Counts: &nstat.Counts{
-			TXRetransmittedBytes: 9,
-		},
-	})
+func TestNStatTracerFixesTCPErrorsIncompleteAtCreation(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		coverage   func(uint32) bool
+		incomplete bool
+	}{
+		{name: "no_packet_sidecar", coverage: nil, incomplete: true},
+		{name: "interface_not_captured", coverage: func(uint32) bool { return false }, incomplete: true},
+		{name: "interface_captured", coverage: func(index uint32) bool { return index == 14 }, incomplete: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+			tracer.packetCoverage = tc.coverage
+			flow := testNStatTCPFlow(4242, tcpStateEstablished)
+			require.Equal(t, uint32(14), flow.InterfaceIndex)
+			tracer.processEvent(nstat.Event{
+				Kind:      nstat.EventDescription,
+				SourceRef: 21,
+				Provider:  nstat.ProviderTCPKernel,
+				Flow:      flow,
+				Counts:    &nstat.Counts{TXRetransmittedBytes: 9},
+			})
 
-	var buffer network.ConnectionBuffer
-	require.NoError(t, tracer.GetConnections(&buffer, nil))
-	require.Len(t, buffer.Connections(), 1)
-	require.True(t, buffer.Connections()[0].HasTCPErrorsIncomplete())
-	require.Zero(t, buffer.Connections()[0].Monotonic.Retransmits)
-	require.Empty(t, buffer.Connections()[0].TCPFailures)
-	require.True(t, buffer.Connections()[0].HasNStatTXRetransmitted())
-	published := buffer.Connections()[0]
+			var buffer network.ConnectionBuffer
+			require.NoError(t, tracer.GetConnections(&buffer, nil))
+			require.Len(t, buffer.Connections(), 1)
+			require.Equal(t, tc.incomplete, buffer.Connections()[0].HasTCPErrorsIncomplete())
 
-	analyzer := newDarwinPacketAnalyzer(8)
-	match := tracer.enrichTCPPacket(
-		tracer.sources[21].conn.ConnectionTuple,
-		true,
-		false,
-		&layers.TCP{Seq: 1, SYN: true, ACK: true},
-		analyzer,
-	)
-	require.True(t, match.matched)
-	require.False(t, match.ambiguous)
-	require.True(t, tracer.sources[21].packetEnriched)
-	require.True(t, published.HasTCPErrorsIncomplete())
-	require.True(t, published.HasNStatTXRetransmitted())
+			match := tracer.enrichTCPPacket(
+				tracer.sources[21].conn.ConnectionTuple,
+				true,
+				false,
+				&layers.TCP{Seq: 1, SYN: true, ACK: true},
+				newDarwinPacketAnalyzer(8),
+			)
+			require.True(t, match.matched)
+			tracer.processEvent(nstat.Event{
+				Kind:      nstat.EventCounts,
+				SourceRef: 21,
+				Counts:    &nstat.Counts{TXRetransmittedBytes: 18},
+			})
 
-	buffer.Reset()
-	require.NoError(t, tracer.GetConnections(&buffer, nil))
-	require.False(t, buffer.Connections()[0].HasTCPErrorsIncomplete())
-	require.False(t, buffer.Connections()[0].HasNStatTXRetransmitted())
-	require.Zero(t, buffer.Connections()[0].Monotonic.Retransmits)
+			buffer.Reset()
+			require.NoError(t, tracer.GetConnections(&buffer, nil))
+			require.Len(t, buffer.Connections(), 1)
+			require.Equal(t, tc.incomplete, buffer.Connections()[0].HasTCPErrorsIncomplete())
+		})
+	}
 }
 
 func TestNStatTracerKeepsIncompleteTagWhenPacketMatchIsAmbiguous(t *testing.T) {
@@ -456,8 +463,6 @@ func TestNStatTracerKeepsIncompleteTagWhenPacketMatchIsAmbiguous(t *testing.T) {
 	)
 	require.True(t, match.ambiguous)
 	require.False(t, match.matched)
-	require.False(t, tracer.sources[41].packetEnriched)
-	require.False(t, tracer.sources[42].packetEnriched)
 
 	var buffer network.ConnectionBuffer
 	require.NoError(t, tracer.GetConnections(&buffer, nil))
