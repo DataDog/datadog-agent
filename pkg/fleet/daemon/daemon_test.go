@@ -577,7 +577,13 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	assert.Equal(t, "config-stable-1", pkg.StableConfigVersion)
 	assert.Equal(t, "config-exp-1", pkg.ExperimentConfigVersion)
 	assert.Equal(t, version.AgentPackageVersion, pkg.RunningVersion, "RunningVersion should be set to AgentPackageVersion")
-	assert.Equal(t, "config-exp-1", pkg.RunningConfigVersion, "RunningConfigVersion should track the active experiment config, not the stale env.ConfigID snapshot")
+	if runtime.GOOS == "darwin" {
+		// The macOS daemon outlives config experiments, so it reports the experiment active on disk.
+		assert.Equal(t, "config-exp-1", pkg.RunningConfigVersion, "RunningConfigVersion should track the active experiment config, not the stale env.ConfigID snapshot")
+	} else {
+		// Linux and Windows restart the daemon with the experiment's config, so the startup config_id is accurate.
+		assert.Equal(t, "test-config-id-123", pkg.RunningConfigVersion, "RunningConfigVersion should be set to env.ConfigID")
+	}
 	assert.Equal(t, coat.ProcessStateUnknown, pkg.ProcessStates[coat.ServiceIDDDOT], "ddot process state should report unknown without a procmgr collector")
 	assert.Equal(t, state.SecretsPubKey, base64.StdEncoding.EncodeToString(secretsPubKey[:]))
 
