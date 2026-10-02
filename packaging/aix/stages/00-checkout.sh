@@ -65,7 +65,7 @@ fi
 log "Agent source found at $AGENT_SRC"
 log "  go.mod: $(head -1 "$AGENT_SRC"/go.mod)"
 
-# ─── Step 2: Read dependency versions from release.json and MODULE.bazel ───────
+# ─── Step 2: Read dependency versions from release.json ──────────────────────
 
 RELEASE_JSON="$AGENT_SRC/release.json"
 if [ ! -f "$RELEASE_JSON" ]; then
@@ -84,16 +84,11 @@ fi
 
 log "INTEGRATIONS_CORE_VERSION = $INTEGRATIONS_CORE_VERSION"
 
-ADP_MODULE="$AGENT_SRC/deps/agent_data_plane/agent_data_plane.MODULE.bazel"
+# AGENT_DATA_PLANE_VERSION is read from deps/agent_data_plane/agent_data_plane.MODULE.bazel
+# by lib/env.sh (pre-set the variable to override). Only validate it here.
 if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
-    if [ ! -f "$ADP_MODULE" ]; then
-        log "ERROR: $ADP_MODULE not found — is the source tree complete?"
-        exit 1
-    fi
-    AGENT_DATA_PLANE_VERSION=$(sed -n 's/^VERSION = "\(.*\)".*/\1/p' "$ADP_MODULE" | head -1)
-fi
-if [ -z "$AGENT_DATA_PLANE_VERSION" ]; then
-    log "ERROR: Could not read AGENT_DATA_PLANE_VERSION from $ADP_MODULE"
+    log "ERROR: AGENT_DATA_PLANE_VERSION is not set — lib/env.sh could not read it"
+    log "       from deps/agent_data_plane/agent_data_plane.MODULE.bazel."
     exit 1
 fi
 log "AGENT_DATA_PLANE_VERSION = $AGENT_DATA_PLANE_VERSION"

@@ -21,7 +21,10 @@ export PYTHON_VERSION PYTHON_MAJ_MIN
 
 # ── Rust SDK version ──────────────────────────────────────────────────────────
 # IBM Rust SDK for AIX. The SDK is installed at /opt/freeware/lib/RustSDK/<ver>/bin.
-# All stage scripts reference $RUST_VERSION; update only this one line to upgrade.
+# This is the toolchain for the Python-extension build stages (06/07/08); saluki
+# pins its own Rust version in its rust-toolchain.toml, which setup-host.sh
+# installs separately. All stage scripts reference $RUST_VERSION; update only
+# this one line to upgrade.
 RUST_VERSION="1.92"
 export RUST_VERSION
 
@@ -47,6 +50,19 @@ fi
 AGENT_SRC=$_dir
 unset _dir
 export AGENT_SRC
+
+# ── Agent Data Plane (saluki) version ────────────────────────────────────────
+# Pinned in deps/agent_data_plane/agent_data_plane.MODULE.bazel. Used by
+# 00-checkout.sh to clone saluki at this tag, and by setup-host.sh to install
+# the Rust SDK version saluki pins. Pre-set the variable to override.
+if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
+    _adp_module="$AGENT_SRC/deps/agent_data_plane/agent_data_plane.MODULE.bazel"
+    if [ -f "$_adp_module" ]; then
+        AGENT_DATA_PLANE_VERSION=$(sed -n 's/^VERSION = "\(.*\)".*/\1/p' "$_adp_module" | head -1)
+    fi
+fi
+unset _adp_module
+export AGENT_DATA_PLANE_VERSION
 
 # DESTDIR approach (critical — read before modifying):
 #   EMBEDDED     = final install path baked into all binaries at configure time

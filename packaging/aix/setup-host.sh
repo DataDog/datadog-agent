@@ -93,7 +93,8 @@ log "Installing Python deps"
 /opt/freeware/bin/python3.12 -m pip install --no-input --no-deps "pydantic==2.11.7"
 
 # Source env.sh now that invoke is installed: it provides BUILD_DIR,
-# RUST_VERSION, PATH, CC/CXX, and the gcc/g++ symlinks needed below.
+# RUST_VERSION, AGENT_DATA_PLANE_VERSION, PATH, CC/CXX, and the gcc/g++
+# symlinks needed below.
 # shellcheck source=/dev/null
 . "$AGENT_SRC/packaging/aix/lib/env.sh"
 
@@ -112,16 +113,43 @@ else
         /opt/go/bin/go install gotest.tools/gotestsum )
 fi
 
-# ── Step 5b: Rust SDK (build/packaging) ──────────────────────────────────────
-# AIX 7.3 ships the IBM Open XL C/C++ Runtime the SDK requires.
-if [ -x "/opt/freeware/lib/RustSDK/${RUST_VERSION}/bin/cargo" ]; then
-    log "Rust ${RUST_VERSION} already installed"
-else
-    log "Installing Rust ${RUST_VERSION}"
-    "$DNF" -y --allowerasing install \
-        "rust${RUST_VERSION}" "cargo${RUST_VERSION}" "rust${RUST_VERSION}-std-static" \
-        "rust${RUST_VERSION}-community-license"
+# ── Step 5b: Rust SDKs (build/packaging) ─────────────────────────────────────
+# AIX 7.3 ships the IBM Open XL C/C++ Runtime the SDKs require.
+# Two toolchains are needed:
+#   - $RUST_VERSION (pinned in lib/env.sh): builds the Rust Python extensions
+#     in stages 06/07/08.
+#   - $SALUKI_RUST_VERSION: the toolchain saluki pins for its agent-data-plane
+#     AIX build (stage 05). Read from saluki's rust-toolchain.toml at the
+#     pinned tag so bumping the saluki pin bumps the toolchain too.
+install_rust_sdk() {
+    if [ -x "/opt/freeware/lib/RustSDK/$1/bin/cargo" ]; then
+        log "Rust $1 already installed"
+    else
+        log "Installing Rust $1"
+        "$DNF" -y --allowerasing install \
+            "rust$1" "cargo$1" "rust$1-std-static" "rust$1-community-license"
+    fi
+}
+
+install_rust_sdk "$RUST_VERSION"
+
+if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
+    echo "ERROR: AGENT_DATA_PLANE_VERSION is not set — lib/env.sh could not read it" >&2
+    echo "       from deps/agent_data_plane/agent_data_plane.MODULE.bazel." >&2
+    exit 1
 fi
+SALUKI_RUST_TOOLCHAIN_URL="https://raw.githubusercontent.com/DataDog/saluki/${AGENT_DATA_PLANE_VERSION}/rust-toolchain.toml"
+SALUKI_RUST_CHANNEL=$(curl -fsSL "$SALUKI_RUST_TOOLCHAIN_URL" | sed -n 's/^channel *= *"\([^"]*\)".*/\1/p' | head -1)
+# IBM ships the Rust SDK per major.minor (e.g. 1.96), not the full semver
+# channel saluki pins.
+SALUKI_RUST_VERSION=$(printf '%s' "$SALUKI_RUST_CHANNEL" | sed -n 's/^\([0-9]*\.[0-9]*\).*/\1/p')
+if [ -z "$SALUKI_RUST_VERSION" ]; then
+    echo "ERROR: could not read the Rust channel pinned by saluki ${AGENT_DATA_PLANE_VERSION}" >&2
+    echo "       from $SALUKI_RUST_TOOLCHAIN_URL" >&2
+    exit 1
+fi
+log "saluki ${AGENT_DATA_PLANE_VERSION} pins Rust ${SALUKI_RUST_CHANNEL} — installing IBM Rust SDK ${SALUKI_RUST_VERSION}"
+install_rust_sdk "$SALUKI_RUST_VERSION"
 
 # ── Step 5c: IBM MQ Client (build/packaging) ──────────────────────────────────
 # Required by the packaging build (pymqi for the ibm_mq check). It's an
@@ -172,6 +200,7 @@ verify "python3.12" "/opt/freeware/bin/python3.12 --version" "3.12"             
 verify "invoke"     "/opt/freeware/bin/python3.12 -m invoke --version" "Invoke"   || _rc=1
 verify "gotestsum"  "$BUILD_DIR/bin/gotestsum --version 2>&1 | head -1" "gotestsum"   || _rc=1
 verify "cargo"      "/opt/freeware/lib/RustSDK/${RUST_VERSION}/bin/cargo --version" "cargo" || _rc=1
+verify "cargo-adp"  "/opt/freeware/lib/RustSDK/${SALUKI_RUST_VERSION}/bin/cargo --version" "cargo ${SALUKI_RUST_VERSION}" || _rc=1
 verify "mqm"        "lslpp -Lq mqm.base.runtime" "mqm.base.runtime"                     || _rc=1
 
 [ "$_rc" -eq 0 ] || { echo "ERROR: tool verification failed" >&2; exit 1; }
