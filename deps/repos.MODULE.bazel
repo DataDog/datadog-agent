@@ -285,10 +285,10 @@ http_archive(
     patches = [
         "//deps:unixodbc/0001-Remove-unused-rcsid-strings.patch",
     ],
-    sha256 = "52833eac3d681c8b0c9a5a65f2ebd745b3a964f208fc748f977e44015a31b207",
-    strip_prefix = "unixODBC-2.3.9",
+    sha256 = "4e2814de3e01fc30b0b9f75e83bb5aba91ab0384ee951286504bb70205524771",
+    strip_prefix = "unixODBC-2.3.14",
     urls = [
-        "https://www.unixodbc.org/unixODBC-2.3.9.tar.gz",
+        "https://www.unixodbc.org/unixODBC-2.3.14.tar.gz",
     ],
 )
 
