@@ -5,8 +5,8 @@ module github.com/DataDog/datadog-agent/pkg/gohai
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.85.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.85.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.85.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.85.0-rc.2
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/shirou/gopsutil/v4 v4.26.8
 	github.com/stretchr/testify v1.12.1
@@ -14,9 +14,9 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.85.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.85.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.85.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.85.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.85.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.85.0-rc.2 // indirect
 	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 // indirect
