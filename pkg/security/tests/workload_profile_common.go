@@ -34,14 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
 
-const (
-	// dedicatedWorkloadProfileNodeEnv is set by the KMT job dedicated to the workload profile tests
-	dedicatedWorkloadProfileNodeEnv = "DEDICATED_WORKLOAD_PROFILE_NODE"
-
-	// workloadProfileSettleDelay leaves the time for an event to go through the tag resolution and the profile
-	// insertion before the anomalies it triggered are collected
-	workloadProfileSettleDelay = 3 * time.Second
-)
+// dedicatedWorkloadProfileNodeEnv is set by the KMT job dedicated to the workload profile tests
+const dedicatedWorkloadProfileNodeEnv = "DEDICATED_WORKLOAD_PROFILE_NODE"
 
 // IsDedicatedNodeForWorkloadProfile returns true when the tests run on the node dedicated to the workload profile tests
 func IsDedicatedNodeForWorkloadProfile() bool {
@@ -187,8 +181,48 @@ type workloadProfileAnomaly struct {
 	json      string
 }
 
-// collectAnomalies runs action and returns the anomaly detection events sent until settle has elapsed
-func collectAnomalies(t *testing.T, test *testModule, action func() error, settle time.Duration) []workloadProfileAnomaly {
+var sentinelCounter atomic.Uint64
+
+// runUntilSentinel runs action, then executes a sentinel command in the container and returns once the sentinel
+// exec event has been dispatched. Events are dispatched in order and the workload profile manager processes each
+// event, and sends the anomaly it triggers, before the event reaches the probe event handlers: once the sentinel
+// is seen, every event of the action and every anomaly it triggered has already been delivered.
+// onProbeEvent, if not nil, is called for each dispatched event until the sentinel.
+func runUntilSentinel(t *testing.T, test *testModule, dockerInstance *dockerCmdWrapper, action func() error, onProbeEvent func(event *model.Event)) {
+	t.Helper()
+
+	token := fmt.Sprintf("test-sentinel-%d", sentinelCounter.Add(1))
+	seen := make(chan struct{})
+	var once sync.Once
+	test.RegisterProbeEventHandler(func(event *model.Event) {
+		if onProbeEvent != nil {
+			onProbeEvent(event)
+		}
+		if event.GetEventType() != model.ExecEventType {
+			return
+		}
+		if args, _ := event.GetFieldValue("exec.args"); args == token {
+			once.Do(func() { close(seen) })
+		}
+	})
+	defer test.RegisterProbeEventHandler(nil)
+
+	if err := action(); err != nil {
+		t.Fatal(err)
+	}
+
+	if out, err := dockerInstance.Command("echo", []string{token}, []string{}).CombinedOutput(); err != nil {
+		t.Fatalf("couldn't run the sentinel: %v (%s)", err, string(out))
+	}
+	select {
+	case <-seen:
+	case <-time.After(getEventTimeout):
+		t.Fatalf("the sentinel exec event %s wasn't received within %s", token, getEventTimeout)
+	}
+}
+
+// collectAnomalies runs action in the container and returns the anomaly detection events it triggered
+func collectAnomalies(t *testing.T, test *testModule, action func() error, dockerInstance *dockerCmdWrapper) []workloadProfileAnomaly {
 	t.Helper()
 
 	var (
@@ -210,10 +244,7 @@ func collectAnomalies(t *testing.T, test *testModule, action func() error, settl
 	})
 	defer test.RegisterCustomSendEventHandler(nil)
 
-	if err := action(); err != nil {
-		t.Fatal(err)
-	}
-	time.Sleep(settle)
+	runUntilSentinel(t, test, dockerInstance, action, nil)
 
 	lock.Lock()
 	defer lock.Unlock()

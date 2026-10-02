@@ -145,7 +145,7 @@ func TestWorkloadProfileDifferentiateArgs(t *testing.T) {
 	anomalies := collectAnomalies(t, test, func() error {
 		_ = run(dockerInstance, "sleep", "1")()
 		return run(dockerInstance, "sleep", "2")()
-	}, workloadProfileSettleDelay)
+	}, dockerInstance)
 	assert.True(t, execAnomalyWithArg(anomalies, "1"), "the first set of arguments should trigger an anomaly")
 	assert.True(t, execAnomalyWithArg(anomalies, "2"), "the second set of arguments should trigger an anomaly")
 
@@ -164,10 +164,10 @@ func TestWorkloadProfileDifferentiateArgs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	anomalies = collectAnomalies(t, test, run(dockerInstance, "sleep", "1"), workloadProfileSettleDelay)
+	anomalies = collectAnomalies(t, test, run(dockerInstance, "sleep", "1"), dockerInstance)
 	assert.False(t, execAnomalyWithArg(anomalies, "1"), "known arguments shouldn't trigger an anomaly")
 
-	anomalies = collectAnomalies(t, test, run(dockerInstance, "sleep", "3"), workloadProfileSettleDelay)
+	anomalies = collectAnomalies(t, test, run(dockerInstance, "sleep", "3"), dockerInstance)
 	assert.True(t, execAnomalyWithArg(anomalies, "3"), "new arguments should trigger an anomaly")
 }
 
@@ -197,19 +197,19 @@ func TestWorkloadProfileAnomalyDetection(t *testing.T) {
 			anomalies := collectAnomalies(t, test, func() error {
 				et.trigger(t, dockerInstance, "known")
 				return nil
-			}, workloadProfileSettleDelay)
+			}, dockerInstance)
 			assert.True(t, et.hasAnomalyFor(anomalies, "known"), "the first %s activity should trigger an anomaly as soon as the profile starts", et.name)
 
 			anomalies = collectAnomalies(t, test, func() error {
 				et.trigger(t, dockerInstance, "known")
 				return nil
-			}, workloadProfileSettleDelay)
+			}, dockerInstance)
 			assert.False(t, et.hasAnomalyFor(anomalies, "known"), "a known %s activity shouldn't trigger an anomaly", et.name)
 
 			anomalies = collectAnomalies(t, test, func() error {
 				et.trigger(t, dockerInstance, "new")
 				return nil
-			}, workloadProfileSettleDelay)
+			}, dockerInstance)
 			assert.True(t, et.hasAnomalyFor(anomalies, "new"), "a new %s activity should trigger an anomaly", et.name)
 		})
 	}
@@ -272,7 +272,7 @@ func TestWorkloadProfileWaitFirstPersistence(t *testing.T) {
 			et.trigger(t, dockerInstance, "known")
 		}
 		return nil
-	}, time.Second)
+	}, dockerInstance)
 	if p := m.GetProfile(selector); p == nil {
 		t.Fatalf("no profile for %s", image)
 	} else if p.HasAlreadyBeenSent() {
@@ -300,13 +300,13 @@ func TestWorkloadProfileWaitFirstPersistence(t *testing.T) {
 			anomalies := collectAnomalies(t, test, func() error {
 				et.trigger(t, dockerInstance, "known")
 				return nil
-			}, workloadProfileSettleDelay)
+			}, dockerInstance)
 			assert.False(t, et.hasAnomalyFor(anomalies, "known"), "a %s activity learned before the first persistence shouldn't trigger an anomaly", et.name)
 
 			anomalies = collectAnomalies(t, test, func() error {
 				et.trigger(t, dockerInstance, "new")
 				return nil
-			}, workloadProfileSettleDelay)
+			}, dockerInstance)
 			assert.True(t, et.hasAnomalyFor(anomalies, "new"), "a new %s activity should trigger an anomaly after the first persistence", et.name)
 		})
 	}
@@ -352,7 +352,7 @@ func TestWorkloadProfileStartupDelay(t *testing.T) {
 	anomalies := collectAnomalies(t, test, func() error {
 		exec.trigger(t, dockerInstance, "known")
 		return nil
-	}, time.Second)
+	}, dockerInstance)
 	assert.Positive(t, m.ProfilingStartupDelayRemaining(), "the startup delay ran out while the activity was running")
 	assert.False(t, exec.hasAnomalyFor(anomalies, "known"), "no anomaly should be sent during the profiling startup delay")
 	if p := getWorkloadProfile(t, test, selector); p != nil {
@@ -365,7 +365,7 @@ func TestWorkloadProfileStartupDelay(t *testing.T) {
 	anomalies = collectAnomalies(t, test, func() error {
 		exec.trigger(t, dockerInstance, "new")
 		return nil
-	}, workloadProfileSettleDelay)
+	}, dockerInstance)
 	assert.True(t, exec.hasAnomalyFor(anomalies, "new"), "a new activity should trigger an anomaly after the profiling startup delay")
 	if _, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
 		return exec.hasNode(p, "new")
@@ -376,7 +376,7 @@ func TestWorkloadProfileStartupDelay(t *testing.T) {
 	anomalies = collectAnomalies(t, test, func() error {
 		exec.trigger(t, dockerInstance, "known")
 		return nil
-	}, workloadProfileSettleDelay)
+	}, dockerInstance)
 	assert.True(t, exec.hasAnomalyFor(anomalies, "known"), "the activity of the profiling startup delay wasn't learned, it should trigger an anomaly")
 }
 
@@ -426,7 +426,7 @@ func TestWorkloadProfileAnomalyDetectionVariables(t *testing.T) {
 	anomalies := collectAnomalies(t, test, func() error {
 		exec.trigger(t, dockerInstance, "new")
 		return nil
-	}, workloadProfileSettleDelay)
+	}, dockerInstance)
 
 	var found bool
 	for _, anomaly := range anomalies {
@@ -464,7 +464,7 @@ func TestWorkloadProfileImageTags(t *testing.T) {
 			anomalies := collectAnomalies(t, test, func() error {
 				et.trigger(t, v1Instance, "known")
 				return nil
-			}, workloadProfileSettleDelay)
+			}, v1Instance)
 			assert.True(t, et.hasAnomalyFor(anomalies, "known"), "the first %s activity of the image should trigger an anomaly", et.name)
 
 			// a second tag of the same image shares the profile: what the first tag learned is known
@@ -472,7 +472,7 @@ func TestWorkloadProfileImageTags(t *testing.T) {
 			anomalies = collectAnomalies(t, test, func() error {
 				et.trigger(t, v2Instance, "known")
 				return nil
-			}, workloadProfileSettleDelay)
+			}, v2Instance)
 			assert.False(t, et.hasAnomalyFor(anomalies, "known"), "a %s activity learned under another tag shouldn't trigger an anomaly", et.name)
 
 			p, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
@@ -487,7 +487,7 @@ func TestWorkloadProfileImageTags(t *testing.T) {
 			anomalies = collectAnomalies(t, test, func() error {
 				et.trigger(t, v2Instance, "new")
 				return nil
-			}, workloadProfileSettleDelay)
+			}, v2Instance)
 			assert.True(t, et.hasAnomalyFor(anomalies, "new"), "a new %s activity should trigger an anomaly under the second tag", et.name)
 		})
 	}
@@ -531,13 +531,13 @@ func TestWorkloadProfileSyscalls(t *testing.T) {
 
 	dockerInstance, _ := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "v1")
 
-	anomalies := collectAnomalies(t, test, run(dockerInstance, "sleep", "1"), workloadProfileSettleDelay)
+	anomalies := collectAnomalies(t, test, run(dockerInstance, "sleep", "1"), dockerInstance)
 	assert.NotEmpty(t, syscallAnomalies(anomalies), "the syscalls of the first run should trigger anomalies")
 
-	anomalies = collectAnomalies(t, test, run(dockerInstance, "sleep", "1"), workloadProfileSettleDelay)
+	anomalies = collectAnomalies(t, test, run(dockerInstance, "sleep", "1"), dockerInstance)
 	assert.Empty(t, syscallAnomalies(anomalies), "known syscalls shouldn't trigger an anomaly")
 
-	anomalies = collectAnomalies(t, test, run(dockerInstance, "chroot", "/tmp"), workloadProfileSettleDelay)
+	anomalies = collectAnomalies(t, test, run(dockerInstance, "chroot", "/tmp"), dockerInstance)
 	var chroot bool
 	for _, anomaly := range syscallAnomalies(anomalies) {
 		chroot = chroot || strings.Contains(anomaly.json, `"chroot"`)
@@ -595,7 +595,7 @@ func TestWorkloadProfileNodeEviction(t *testing.T) {
 			anomalies := collectAnomalies(t, test, func() error {
 				et.trigger(t, dockerInstance, "known")
 				return nil
-			}, workloadProfileSettleDelay)
+			}, dockerInstance)
 			assert.True(t, et.hasAnomalyFor(anomalies, "known"), "an evicted %s activity should trigger an anomaly again", et.name)
 		})
 	}
@@ -664,7 +664,7 @@ func TestWorkloadProfilePersistence(t *testing.T) {
 			anomalies := collectAnomalies(t, test, func() error {
 				et.trigger(t, dockerInstance, "known")
 				return nil
-			}, workloadProfileSettleDelay)
+			}, dockerInstance)
 			assert.False(t, et.hasAnomalyFor(anomalies, "known"), "a %s activity learned before the restart shouldn't trigger an anomaly", et.name)
 
 			p, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
@@ -678,7 +678,7 @@ func TestWorkloadProfilePersistence(t *testing.T) {
 			anomalies = collectAnomalies(t, test, func() error {
 				et.trigger(t, dockerInstance, "new")
 				return nil
-			}, workloadProfileSettleDelay)
+			}, dockerInstance)
 			assert.True(t, et.hasAnomalyFor(anomalies, "new"), "a new %s activity should trigger an anomaly after the restart", et.name)
 		})
 	}

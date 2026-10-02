@@ -399,7 +399,12 @@ func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
 	// from the approvers that match the filter
 	countSavedEvents := func(t *testing.T, eventType model.EventType, filter eventKeyValueFilter, args ...string) int {
 		var count atomic.Int32
-		test.RegisterProbeEventHandler(func(event *model.Event) {
+		runUntilSentinel(t, test, dockerInstance, func() error {
+			if out, err := dockerInstance.Command(syscallTester, args, []string{}).CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", string(out), err)
+			}
+			return nil
+		}, func(event *model.Event) {
 			if event.GetEventType() != eventType || !event.IsSavedByActivityDumps() {
 				return
 			}
@@ -407,12 +412,6 @@ func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
 				count.Add(1)
 			}
 		})
-		defer test.RegisterProbeEventHandler(nil)
-
-		if out, err := dockerInstance.Command(syscallTester, args, []string{}).CombinedOutput(); err != nil {
-			t.Fatalf("%s: %v", string(out), err)
-		}
-		time.Sleep(2 * time.Second)
 		return int(count.Load())
 	}
 
