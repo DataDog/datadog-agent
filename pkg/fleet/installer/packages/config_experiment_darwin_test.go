@@ -574,3 +574,38 @@ func TestResumeLeavesARestingHostAlone(t *testing.T) {
 	assert.Empty(t, *calls, "resume touched launchd on a host with no experiment")
 	assert.Empty(t, experimentDeploymentID(t, dirs))
 }
+
+// TestWatcherExitsWhenTheExperimentIsAlreadyOver covers a watcher that starts after a deliberate
+// stop or promote already cleared the deadline: there is nothing to supervise, so it must exit
+// without touching any job.
+func TestWatcherExitsWhenTheExperimentIsAlreadyOver(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	stubConfigExperimentDirs(t)
+
+	require.NoError(t, watchExperiment(context.Background()))
+	assert.Empty(t, *calls, "a watcher with no experiment to supervise touched launchd")
+}
+
+// TestRevertIsANoopForANewerExperiment covers a watcher left over from an earlier experiment: its
+// late events must not revert the experiment that has since rewritten the deadline.
+func TestRevertIsANoopForANewerExperiment(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	path := stubDeadlinePath(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+
+	deadline := launchd.Deadline{Path: path}
+	require.NoError(t, deadline.Write(time.Hour))
+	stale, err := deadline.Read()
+	require.NoError(t, err)
+	require.NoError(t, deadline.Write(time.Hour))
+
+	reverted, err := revertExperimentIfStillPending(context.Background(), deadline, stale, "stale exit")
+	require.NoError(t, err)
+	assert.False(t, reverted)
+	assert.Empty(t, *calls, "a stale watcher touched launchd")
+	assert.Equal(t, "experiment-1", experimentDeploymentID(t, dirs))
+}
