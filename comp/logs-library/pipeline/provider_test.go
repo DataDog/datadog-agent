@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sender/foldspace"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -338,4 +339,46 @@ func TestPipelineChannelDistribution(t *testing.T) {
 			assert.Empty(t, p.pipelines)
 		})
 	}
+}
+
+func TestFoldspaceFactoryPick(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("logs_config.foldspace.enabled", true)
+	cfg.SetInTest("logs_config.foldspace.max_inflight_payloads", 16)
+	cfg.SetInTest("logs_config.foldspace.pipeline_depth", 8)
+	cfg.SetInTest("logs_config.message_channel_size", 10)
+
+	orig := newFoldspaceCore
+	newFoldspaceCore = func(dest *foldspace.DestinationConfig) (foldspace.Core, error) {
+		classes := make([]foldspace.SenderClass, len(dest.Senders))
+		for i, s := range dest.Senders {
+			classes[i] = s.Class
+		}
+		return foldspace.NewFakeCore(foldspace.FakeCoreConfig{Classes: classes}), nil
+	}
+	defer func() { newFoldspaceCore = orig }()
+
+	main := config.NewMockEndpointWithOptions(map[string]interface{}{"host": "localhost", "port": 443, "use_ssl": false})
+	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{main}, map[string]interface{}{"use_http": true})
+	endpoints.Main = main
+
+	providerImpl := NewProvider(
+		1,
+		&sender.NoopSink{},
+		&diagnostic.BufferedMessageReceiver{},
+		nil,
+		endpoints,
+		&client.DestinationsContext{},
+		statusinterface.NewStatusProviderMock(),
+		nil,
+		cfg,
+		compressionfx.NewMockCompressor(),
+		false,
+		false,
+		secretsnoopimpl.NewComponent().Comp,
+	)
+	p := providerImpl.(*provider)
+	require.NotNil(t, p.foldspaceDriver)
+	_, ok := p.sender.(*foldspace.Driver)
+	assert.True(t, ok)
 }
