@@ -12,7 +12,6 @@ go_library(
         "//comp/healthplatform/issueregistry/def",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
-        "//pkg/util/fxutil",
     ],
 )
 

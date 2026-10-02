@@ -12,7 +12,6 @@ import (
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Requires defines the dependencies for the registry component.
@@ -29,7 +28,11 @@ type registryImpl struct {
 // NewComponent creates the issue registry from the injected issue modules.
 func NewComponent(reqs Requires) registrydef.Component {
 	r := issuesmod.NewRegistry()
-	for _, m := range fxutil.GetAndFilterGroup(reqs.Modules) {
+	for _, m := range reqs.Modules {
+		// Disabled/opted-out modules contribute a nil group member.
+		if m == nil {
+			continue
+		}
 		if _, dup := r.GetTemplate(m.IssueName()); dup {
 			reqs.Log.Warnf("duplicate health platform issue module for %q; ignoring", m.IssueName())
 			continue
