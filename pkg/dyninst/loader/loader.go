@@ -177,9 +177,17 @@ var canUseMultiAttach = sync.OnceValue(func() bool {
 	return v >= kernel.VersionCode(6, 10, 0)
 })
 
-// stripRelocations removes the relocation metadata from the instructions.
-// These are not needed for pt_regs as long as we're not trying to build
-// cross-architecture programs (which we're not).
+// stripRelocations removes the CO-RE relocation metadata from the
+// instructions, so the object loads without kernel BTF.
+//
+// This is safe only because every relocation in our object is a pt_regs
+// register offset, and we only ever read the registers whose offsets the
+// architecture's user-space ABI fixes: x0-x30, sp and pc on arm64 (struct
+// user_pt_regs, the prefix of struct pt_regs), and the ptrace layout on
+// x86-64. The kernel-internal tail of arm64's struct pt_regs does move
+// between versions, so reading it would need either real CO-RE or, better,
+// not reading it at all - see pkg/dyninst/ebpf/regs.h.
+// TestRelocationAreOnlyPtRegs enforces that invariant on the built object.
 func stripRelocations(spec *ebpf.CollectionSpec) {
 	for _, p := range spec.Programs {
 		for i := range p.Instructions {

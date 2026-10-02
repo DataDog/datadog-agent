@@ -3,8 +3,9 @@
 
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
+#include "regs.h"
 
-static inline uint64_t calculate_cfa(struct pt_regs* regs, bool frameless) {
+static inline uint64_t calculate_cfa(const dwarf_regs_t* regs, bool frameless) {
   // Stack layout is slightly different in Go between arm64 and x86_64.
   // Established based on following documentation and machine code reads:
   // https://tip.golang.org/src/cmd/compile/abi-internal#architecture-specifics
@@ -161,19 +162,19 @@ static inline uint64_t calculate_cfa(struct pt_regs* regs, bool frameless) {
 
 #if defined(bpf_target_arm64)
   if (frameless) {
-    return regs->DWARF_BP_REG + 8;
+    return dwarf_regs_fp(regs) + 8;
   } else {
     uint64_t bp;
-    if (bpf_probe_read_user(&bp, sizeof(bp), (void*)(regs->DWARF_SP_REG - 8)) != 0) {
+    if (bpf_probe_read_user(&bp, sizeof(bp), (void*)(dwarf_regs_sp(regs) - 8)) != 0) {
       return 0;
     }
     return bp + 8;
   }
 #elif defined(bpf_target_x86)
   if (frameless) {
-    return regs->DWARF_SP_REG + 8;
+    return dwarf_regs_sp(regs) + 8;
   } else {
-    return regs->DWARF_BP_REG + 16;
+    return dwarf_regs_fp(regs) + 16;
   }
 #else
 #error "Unsupported architecture"

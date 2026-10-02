@@ -3200,7 +3200,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     uint8_t regnum = sm_read_program_uint8(sm);
     uint8_t byte_size = sm_read_program_uint8(sm);
     buf_offset_t output_offset = sm->offset + sm_read_program_uint32(sm);
-    struct pt_regs* regs = ctx->regs;
+    const dwarf_regs_t* regs = ctx->regs;
     if (!regs) {
       LOG(2, "enqueue: missing regs");
       // Zero the data and move along. In the future when we track availability
@@ -3209,61 +3209,12 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       // garbage pointers in any subsequent enqueue logic (because we don't
       // chase zero values).
     } else {
-      switch (regnum) {
-      // We need to switch over the regnum, as DWARF_REGISTER macro for amd64 requires
-      // paramter to be a literal number.
-      case 0:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(0);
-        break;
-      case 1:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(1);
-        break;
-      case 2:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(2);
-        break;
-      case 3:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(3);
-        break;
-      case 4:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(4);
-        break;
-      case 5:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(5);
-        break;
-      case 6:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(6);
-        break;
-      case 7:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(7);
-        break;
-      case 8:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(8);
-        break;
-      case 9:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(9);
-        break;
-      case 10:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(10);
-        break;
-      case 11:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(11);
-        break;
-      case 12:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(12);
-        break;
-      case 13:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(13);
-        break;
-      case 14:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(14);
-        break;
-      case 15:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(15);
-        break;
-      default:
+      uint64_t value;
+      if (!dwarf_regs_read(regs, regnum, &value)) {
         LOG(2, "unknown register: %d", regnum);
         return 1;
       }
+      *(volatile uint64_t*)(&sm->value_0) = value;
     }
     switch (byte_size) {
     case 1:
@@ -3696,28 +3647,11 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       // from call context into sm->saved_dict_ptr by event.c.
       dict_ptr = sm->saved_dict_ptr;
     } else {
-      // Entry probe: read from the register value saved in PT_REGS.
-      struct pt_regs* regs = ctx->regs;
+      // Entry probe: read the register out of the snapshot taken from the
+      // probe's context.
+      const dwarf_regs_t* regs = ctx->regs;
       if (regs) {
-        switch (dict_register) {
-        case 0: dict_ptr = regs->DWARF_REGISTER(0); break;
-        case 1: dict_ptr = regs->DWARF_REGISTER(1); break;
-        case 2: dict_ptr = regs->DWARF_REGISTER(2); break;
-        case 3: dict_ptr = regs->DWARF_REGISTER(3); break;
-        case 4: dict_ptr = regs->DWARF_REGISTER(4); break;
-        case 5: dict_ptr = regs->DWARF_REGISTER(5); break;
-        case 6: dict_ptr = regs->DWARF_REGISTER(6); break;
-        case 7: dict_ptr = regs->DWARF_REGISTER(7); break;
-        case 8: dict_ptr = regs->DWARF_REGISTER(8); break;
-        case 9: dict_ptr = regs->DWARF_REGISTER(9); break;
-        case 10: dict_ptr = regs->DWARF_REGISTER(10); break;
-        case 11: dict_ptr = regs->DWARF_REGISTER(11); break;
-        case 12: dict_ptr = regs->DWARF_REGISTER(12); break;
-        case 13: dict_ptr = regs->DWARF_REGISTER(13); break;
-        case 14: dict_ptr = regs->DWARF_REGISTER(14); break;
-        case 15: dict_ptr = regs->DWARF_REGISTER(15); break;
-        default: break;
-        }
+        (void)dwarf_regs_read(regs, dict_register, &dict_ptr);
       }
     }
     // Always stash for entry path: event.c reads this after the stack
@@ -4999,9 +4933,10 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     // helper so sm_loop's stack frame stays small enough that the
     // verifier accepts sm_loop -> sm_run -> probe_run's worst-case
     // call chain. The helper takes gp by value (rather than the full
-    // pt_regs*) so its signature uses verifier-friendly scalar types.
-    struct pt_regs* regs = ctx->regs;
-    uint64_t gp = regs ? regs->DWARF_REGISTER(0) : 0;
+    // register snapshot) so its signature uses verifier-friendly scalar
+    // types.
+    const dwarf_regs_t* regs = ctx->regs;
+    uint64_t gp = regs ? regs->regs[0] : 0;
     if (!sm_panic_unwind_prepare(gp, buf)) {
       sm->condition_failed = true;
       return 1;

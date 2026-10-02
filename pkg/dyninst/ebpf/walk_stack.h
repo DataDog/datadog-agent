@@ -5,6 +5,7 @@
 #include "bpf_helpers.h"
 #include "debug.h"
 #include "framing.h"
+#include "regs.h"
 #include "scratch.h"
 #include "stack_machine.h"
 #include "types.h"
@@ -20,7 +21,7 @@ struct {
   __uint(max_entries, 512);
   // The key is the pid of the thread.
   __type(key, uint32_t);
-  __type(value, struct pt_regs);
+  __type(value, dwarf_regs_t);
 } thread_regs SEC(".maps");
 
 struct {

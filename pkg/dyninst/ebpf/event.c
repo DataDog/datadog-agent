@@ -91,7 +91,7 @@ notify_panic_unwound_lost(uint32_t prog_id, const di_event_header_t* header) {
 }
 
 static inline __attribute__((always_inline)) void
-probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs) {
+probe_run(uint64_t start_ns, const probe_params_t* params, const struct pt_regs* ctx) {
   LOG(4, "probe_run: %d %d %llx", params->probe_id, params->stack_machine_pc);
   global_ctx_t global_ctx;
   global_ctx.stack_machine = stack_machine_ctx_load(params);
@@ -102,6 +102,12 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
   if (!global_ctx.stack_walk) {
     return;
   }
+  // Snapshot the registers we need out of the probe's context, once. Nothing
+  // below this line reads the context: its tail is kernel-internal and its
+  // size varies between kernel versions, so touching it would make the
+  // program unloadable. See regs.h.
+  dwarf_regs_from_ctx(&global_ctx.stack_walk->regs, ctx);
+  const dwarf_regs_t* regs = &global_ctx.stack_walk->regs;
   global_ctx.regs = NULL;
   // Continuation state lives in stack_machine_t (a per-CPU map value) so
   // it does not bloat probe_run_with_cookie's stack frame. stack_machine_ctx_load
@@ -128,12 +134,12 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
   };
 #if defined(bpf_target_x86)
   if (params->frameless) {
-    read_g_fields(regs->DWARF_REGISTER_14, regs->DWARF_SP_REG, &header->goid, &header->stack_byte_depth);
+    read_g_fields(dwarf_regs_g(regs), dwarf_regs_sp(regs), &header->goid, &header->stack_byte_depth);
   } else {
-    read_g_fields(regs->DWARF_REGISTER_14, regs->DWARF_BP_REG, &header->goid, &header->stack_byte_depth);
+    read_g_fields(dwarf_regs_g(regs), dwarf_regs_fp(regs), &header->goid, &header->stack_byte_depth);
   }
 #elif defined(bpf_target_arm64)
-  read_g_fields(regs->DWARF_REGISTER(28), regs->DWARF_SP_REG, &header->goid, &header->stack_byte_depth);
+  read_g_fields(dwarf_regs_g(regs), dwarf_regs_sp(regs), &header->goid, &header->stack_byte_depth);
 #else
 #error "Unsupported architecture"
 #endif
@@ -200,29 +206,28 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
   __maybe_unused int process_steps = 0;
   __maybe_unused int chase_steps = 0;
   uint64_t stack_hash = 0;
-  global_ctx.stack_walk->regs = *regs;
-  global_ctx.stack_walk->stack.pcs.pcs[0] = regs->DWARF_PC_REG + params->top_pc_offset;
+  global_ctx.stack_walk->stack.pcs.pcs[0] = dwarf_regs_pc(regs) + params->top_pc_offset;
   LOG(5, "wrote event pairing expectation %d %lld %d %d %llx",
       header->event_pairing_expectation, header->goid, header->stack_byte_depth,
       params->probe_id, global_ctx.stack_walk->stack.pcs.pcs[0]);
 #if defined(bpf_target_x86)
-  global_ctx.stack_walk->stack.fps[0] = regs->DWARF_BP_REG;
+  global_ctx.stack_walk->stack.fps[0] = dwarf_regs_fp(regs);
   if (params->frameless) {
     // Call instruction saves return address on the stack.
     if (bpf_probe_read_user(&global_ctx.stack_walk->stack.pcs.pcs[1],
                             sizeof(global_ctx.stack_walk->stack.pcs.pcs[1]),
-                            (void*)(regs->sp))) {
+                            (void*)(dwarf_regs_sp(regs)))) {
       return;
     }
-    global_ctx.stack_walk->stack.fps[1] = regs->DWARF_BP_REG;
+    global_ctx.stack_walk->stack.fps[1] = dwarf_regs_fp(regs);
     global_ctx.stack_walk->idx_shift = 1;
   }
 #elif defined(bpf_target_arm64)
-  global_ctx.stack_walk->stack.fps[0] = regs->DWARF_SP_REG - 8;
+  global_ctx.stack_walk->stack.fps[0] = dwarf_regs_sp(regs) - 8;
   if (params->frameless) {
     // Call instruction saves return address in the link register.
-    global_ctx.stack_walk->stack.pcs.pcs[1] = regs->DWARF_REGISTER(30);
-    global_ctx.stack_walk->stack.fps[1] = regs->DWARF_SP_REG - 8;
+    global_ctx.stack_walk->stack.pcs.pcs[1] = regs->regs[DWARF_REGNO_LR];
+    global_ctx.stack_walk->stack.fps[1] = dwarf_regs_sp(regs) - 8;
     global_ctx.stack_walk->idx_shift = 1;
   }
 #else
@@ -253,7 +258,7 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       .stack_idx = 0,
   };
   frame_data.cfa = calculate_cfa(global_ctx.regs, params->frameless);
-  LOG(5, "cfa: %llx %d %llx %llx", frame_data.cfa, params->frameless, regs->DWARF_BP_REG, regs->DWARF_SP_REG);
+  LOG(5, "cfa: %llx %d %llx %llx", frame_data.cfa, params->frameless, dwarf_regs_fp(regs), dwarf_regs_sp(regs));
   if (params->stack_machine_pc != 0) {
     process_steps = stack_machine_process_frame(&global_ctx, &frame_data,
                                                 params->stack_machine_pc);
@@ -474,10 +479,10 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
 }
 
 SEC("uprobe")
-int probe_run_with_cookie(struct pt_regs* regs) {
+int probe_run_with_cookie(struct pt_regs* ctx) {
   uint64_t start_ns = bpf_ktime_get_ns();
 
-  const uint64_t cookie = bpf_get_attach_cookie(regs);
+  const uint64_t cookie = bpf_get_attach_cookie(ctx);
   if (cookie >= num_probe_params) {
     return 0;
   }
@@ -496,7 +501,7 @@ int probe_run_with_cookie(struct pt_regs* regs) {
   if (params->throttle_mode == THROTTLE_AT_START && should_throttle(params->throttler_idx, start_ns)) {
     __sync_fetch_and_add(&stats->throttled_cnt, 1);
   } else {
-    probe_run(start_ns, params, regs);
+    probe_run(start_ns, params, ctx);
   }
 
   __sync_fetch_and_add(&stats->cpu_ns, bpf_ktime_get_ns() - start_ns);
