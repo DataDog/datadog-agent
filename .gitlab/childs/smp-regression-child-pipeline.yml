@@ -48,7 +48,29 @@ variables:
       echo "smp job submit command failed with code $exit_code"
       datadog-ci tag --level job --tags smp_failure_mode:"job-submission"
       exit $exit_code
-    } 
+    }
+
+# This template submits the container job from the selection manifest.
+# The PR context sets SMP_INVOLVED and SMP_LABELS.
+.smp_manifest_job_submit:
+  - |
+    RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+    job submit-regression \
+    --manifest ${CONFIG_DIR}/selection.yaml \
+    --target-config-dir ${CONFIG_DIR} \
+    ${SMP_INVOLVED:+--involved-team "${SMP_INVOLVED}"} \
+    ${SMP_LABELS:+--label "${SMP_LABELS}"} \
+    --baseline-image ${BASELINE_IMAGE} \
+    --comparison-image ${COMPARISON_IMAGE} \
+    --baseline-sha ${BASELINE_SHA} \
+    --comparison-sha ${CI_COMMIT_SHA} \
+    --submission-metadata submission_metadata \
+    --tags ${SMP_TAGS} || {
+      exit_code=$?
+      echo "smp job submit-regression command failed with code $exit_code"
+      datadog-ci tag --level job --tags smp_failure_mode:"job-submission"
+      exit $exit_code
+    }
 
 # Base template shared by all SMP run jobs.
 # BASELINE_SHA is written to regression_detector.env in before_script so the
@@ -152,8 +174,22 @@ variables:
     - echo "Tags passed through SMP are ${SMP_TAGS}"
     - RUST_LOG="info,aws_config::profile::credentials=error"
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
+    # Get PR selection inputs only for the container job.
+    # Empty inputs select only the always bucket.
+    - |
+      if [ "${SELECT_EXPERIMENTS}" == "true" ]; then
+        SMP_GH_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr || true)
+        export GITHUB_TOKEN="${SMP_GH_TOKEN}"
+        dda inv owners.smp-pr-context --branch "${CI_COMMIT_BRANCH}" --labels-out pr_labels.txt --involved-teams-out involved_teams.txt </dev/null \
+          || { echo "owners.smp-pr-context failed; submitting the always bucket only."; : > pr_labels.txt; : > involved_teams.txt; }
+        SMP_LABELS=$(cat pr_labels.txt 2>/dev/null || true)
+        SMP_INVOLVED=$(cat involved_teams.txt 2>/dev/null || true)
+        echo "Selection inputs: labels=[${SMP_LABELS}] involved_teams=[${SMP_INVOLVED}]"
+      fi
     - if [ "$RUN_CONFIG_ONLY" == "true" ]; then
     - !reference [.smp_config_only_job_submit]
+    - elif [ "$SELECT_EXPERIMENTS" == "true" ]; then
+    - !reference [.smp_manifest_job_submit]
     - else
     - !reference [.smp_job_submit]
     - fi
@@ -289,6 +325,10 @@ variables:
 single-machine-performance-regression_detector:
   extends:
     - .single-machine-performance-run_regression_detector
+  # Child pipelines do not inherit the parent token configuration.
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   # allow_failure is driven by SMP_ALLOW_FAILURE so the parent trigger can
   # decide per-context without changing this shared child job.
   rules:
@@ -299,10 +339,11 @@ single-machine-performance-regression_detector:
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
-    SMP_VERSION: v0.28.0
+    SMP_VERSION: <RELEASED_SMP_VERSION>
     BOT_LOGIN: bot_login
     BOT_TOKEN: bot_token
-    CONFIG_DIR: test/regression
+    CONFIG_DIR: test/regression/container
+    SELECT_EXPERIMENTS: "true"
 
 single-machine-performance-metal-runners-regression_detector:
   extends:
