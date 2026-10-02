@@ -11,7 +11,9 @@
 // To add a new issue module:
 // 1. Create a new sub-package (e.g., issues/myissue/)
 // 2. Implement the Module interface
-// 3. Call RegisterModuleFactory in your package's init() function
+// 3. Add Module() providing an issues.Module field tagged group:"healthplatform_issue" through fxutil.ProvideComponentConstructor.
+// 4. Add the package's Module() to bundle.go.
+// 5. Return an empty Provides (nil member) to opt out; config is available in the constructor.
 //
 // Health-check IssueIDs must be unique per host, since a downstream aggregator
 // keys recommendations on (org, IssueID) alone. A module whose check can run
@@ -21,56 +23,9 @@
 package issues
 
 import (
-	"sync"
-
 	"github.com/DataDog/agent-payload/v5/healthplatform"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
-	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
-
-// ModuleDeps carries the dependencies available to every issue module.
-// SysProbeConfig is optional: it is nil in commands that don't bundle system-probe config.
-type ModuleDeps struct {
-	Config         config.Component
-	SysProbeConfig sysprobeconfig.Component
-	Hostname       hostnameinterface.Component
-	// SelfIdent scopes issue ids by this agent's DaemonSet uid when
-	// resolvable, so cluster-distributed template issues collapse across
-	// every node agent instead of reporting once per host.
-	SelfIdent *selfident.SelfIdent
-}
-
-// ModuleFactory is a function that creates a new Module instance
-type ModuleFactory func(deps ModuleDeps) Module
-
-var (
-	moduleFactories   []ModuleFactory
-	moduleFactoriesMu sync.Mutex
-)
-
-// RegisterModuleFactory registers a module factory function.
-// This should be called from the module's init() function.
-func RegisterModuleFactory(factory ModuleFactory) {
-	moduleFactoriesMu.Lock()
-	defer moduleFactoriesMu.Unlock()
-	moduleFactories = append(moduleFactories, factory)
-}
-
-// GetAllModules creates and returns all registered modules.
-// Each call creates new module instances.
-func GetAllModules(deps ModuleDeps) []Module {
-	moduleFactoriesMu.Lock()
-	defer moduleFactoriesMu.Unlock()
-
-	modules := make([]Module, 0, len(moduleFactories))
-	for _, factory := range moduleFactories {
-		modules = append(modules, factory(deps))
-	}
-	return modules
-}
 
 // Template is the remediation side of a Module: it knows its issue name and
 // can build a complete Issue from context.

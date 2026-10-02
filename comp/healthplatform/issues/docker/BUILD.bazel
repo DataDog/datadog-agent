@@ -17,8 +17,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname/hostnameinterface/def",
+        "//comp/def",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
+        "//pkg/util/fxutil",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@org_golang_google_protobuf//types/known/structpb",
     ] + select({
@@ -44,7 +46,6 @@ dd_agent_go_test(
     embed = [":docker"],
     deps = [
         "//comp/core/hostname/hostnameinterface/mock",
-        "//comp/healthplatform/issues",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

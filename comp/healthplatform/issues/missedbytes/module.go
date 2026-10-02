@@ -10,8 +10,11 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -26,8 +29,22 @@ const (
 // checkSource must be unique: bundle.go only warns when Schedule rejects a dupe.
 const checkSource = "logs-missed-bytes"
 
-func init() {
-	issues.RegisterModuleFactory(NewModule)
+// Requires defines the dependencies for the issue module.
+type Requires struct {
+	compdef.In
+	Config   config.Component
+	Hostname hostnameinterface.Component
+}
+
+// Provides defines the issue modules contributed to the registry.
+type Provides struct {
+	compdef.Out
+	Module issues.Module `group:"healthplatform_issue"`
+}
+
+// Module provides the issue modules to the health platform registry.
+func Module() fxutil.Module {
+	return fxutil.Component(fxutil.ProvideComponentConstructor(newModule))
 }
 
 type missedBytesModule struct {
@@ -35,9 +52,8 @@ type missedBytesModule struct {
 	checker *checker
 }
 
-// NewModule creates the missed-bytes issue module.
-func NewModule(deps issues.ModuleDeps) issues.Module {
-	return &missedBytesModule{cfg: deps.Config, checker: newChecker(deps.Hostname)}
+func newModule(reqs Requires) Provides {
+	return Provides{Module: &missedBytesModule{cfg: reqs.Config, checker: newChecker(reqs.Hostname)}}
 }
 
 func (m *missedBytesModule) IssueName() string {

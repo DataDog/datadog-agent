@@ -26,9 +26,7 @@ import (
 // the same config path, which is exactly the aggregation collapse this scoping
 // exists to prevent (see the package doc).
 //
-// selfIdent may be nil: ModuleDeps is a plain struct, so a caller that leaves
-// the field unset (tests do) would otherwise panic only on Kubernetes builds —
-// the no-op SelfIdent never dereferences its receiver, the real one does.
+// A nil selfIdent from direct callers, including tests, must retain per-host scoping on every build.
 func IssueDiscriminator(selfIdent *selfident.SelfIdent, hostID string) string {
 	if selfIdent != nil {
 		if discriminator := selfIdent.IssueDiscriminator(); discriminator != "" {

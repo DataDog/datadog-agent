@@ -7,14 +7,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface/def",
-        "//comp/core/sysprobeconfig/def",
-        "//comp/core/workloadmeta/def",
+        "//comp/core/log/def",
+        "//comp/def",
         "//comp/healthplatform/issueregistry/def",
-        "//comp/healthplatform/issueregistry/utils/selfident",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
+        "//pkg/util/fxutil",
     ],
 )
 
@@ -23,7 +21,7 @@ dd_agent_go_test(
     srcs = ["registry_test.go"],
     embed = [":impl"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/log/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

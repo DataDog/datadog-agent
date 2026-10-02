@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 )
 
 func joinStepText(steps []*healthplatform.RemediationStep) string {
@@ -113,7 +112,7 @@ func TestBuildIssue_Extra(t *testing.T) {
 }
 
 func TestNewModule(t *testing.T) {
-	m := NewModule(issues.ModuleDeps{})
+	m := &dockerPermissionsModule{template: NewDockerPermissionIssue(), checker: newChecker(nil)}
 	assert.Equal(t, PermissionIssueName, m.IssueName())
 	assert.Equal(t, PermissionIssueType, m.IssueType())
 
@@ -242,7 +241,7 @@ func TestBuildIssue_SocketUnavailable_Extra(t *testing.T) {
 }
 
 func TestNewSocketUnavailableModule(t *testing.T) {
-	m := NewSocketUnavailableModule(issues.ModuleDeps{})
+	m := &dockerSocketUnavailableModule{template: NewDockerSocketUnavailableIssue()}
 	assert.Equal(t, SocketUnavailableIssueName, m.IssueName())
 	assert.Equal(t, SocketUnavailableIssueType, m.IssueType())
 

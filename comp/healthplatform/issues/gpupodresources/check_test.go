@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 )
 
 func newTestChecker(t *testing.T, probe func(context.Context) error) *checker {
@@ -82,7 +81,7 @@ func TestModuleGate(t *testing.T) {
 		"gpu.enabled": true,
 	})
 	host, _ := hostnamemock.NewMock("node-a")
-	module := NewModule(issues.ModuleDeps{Config: cfg, Hostname: host}).(*gpuPodResourcesModule)
+	module := &gpuPodResourcesModule{cfg: cfg, checker: newChecker(cfg, host, nil)}
 	module.checker.probe = func(context.Context) error { return errors.New("unavailable") }
 
 	reports, err := module.BuiltInPeriodicHealthCheck().Fn()
