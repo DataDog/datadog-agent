@@ -26,7 +26,6 @@ go_library(
 dd_agent_go_test(
     name = "transaction_test",
     srcs = [
-        "bytes_payload_capture_test.go",
         "delivery_tracker_test.go",
         "intake_offset_test.go",
         "transaction_test.go",

@@ -38,7 +38,7 @@ func TestCaptureDemultiplexerSharesManagerAndAdvertisesRunningMetrics(t *testing
 	}()
 	require.Eventually(t, func() bool { return len(manager.Status().Capabilities) == 1 }, time.Second, 10*time.Millisecond)
 	require.Equal(t, telemetrycapture.Capability{Stream: telemetrycapture.Metrics, Cadence: time.Hour}, manager.Status().Capabilities[0])
-	c := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "demultiplexer-session"}
+	c := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "demultiplexer-session"}
 	_, err := manager.Prepare(telemetrycapture.PrepareRequest{Control: c, Streams: []telemetrycapture.Stream{telemetrycapture.Metrics}})
 	require.NoError(t, err)
 	_, err = manager.Activate(c)

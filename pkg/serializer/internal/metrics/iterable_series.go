@@ -24,20 +24,20 @@ import (
 // IterableSeries is a serializer for metrics.IterableSeries
 type IterableSeries struct {
 	source  metrics.SerieSource
-	capture marshaler.PayloadCapture
+	capture marshaler.SeriesCapture
 }
 
 // CreateIterableSeries creates a new instance of *IterableSeries
 func CreateIterableSeries(source metrics.SerieSource) *IterableSeries {
-	capture, _ := source.(marshaler.PayloadCapture)
+	capture, _ := source.(marshaler.SeriesCapture)
 	return &IterableSeries{
 		source:  source,
 		capture: capture,
 	}
 }
 
-// CaptureObserver exposes optional payload membership to the v1 builder.
-func (series *IterableSeries) CaptureObserver() marshaler.PayloadCapture { return series.capture }
+// CaptureObserver lets the v1 builder accept the current semantic observation.
+func (series *IterableSeries) CaptureObserver() marshaler.SeriesCapture { return series.capture }
 
 // MoveNext moves to the next item.
 // This function skips the series when `NoIndex` is set at true as `NoIndex` is only supported by `MarshalSplitCompress`.
@@ -142,7 +142,7 @@ func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Compon
 				return err
 			}
 			sw = pb
-			pb.captureMembership.Observer = series.capture
+			pb.capture = series.capture
 			pb.requireAll = requireAll
 			pbs = append(pbs, sw)
 		}
@@ -200,18 +200,18 @@ func (series *IterableSeries) NewPayloadsBuilder(
 		maxUncompressedSize: config.GetInt("serializer_max_series_uncompressed_payload_size"),
 		maxPointsPerPayload: config.GetInt("serializer_max_series_points_per_payload"),
 
-		pipelineConfig:    pipelineConfig,
-		pipelineContext:   pipelineContext,
-		captureMembership: marshaler.CaptureMembership{Observer: series.capture},
+		pipelineConfig:  pipelineConfig,
+		pipelineContext: pipelineContext,
+		capture:         series.capture,
 	}, nil
 }
 
 // PayloadsBuilder represents an in-progress serialization of a series into potentially multiple payloads.
 type PayloadsBuilder struct {
-	captureMembership marshaler.CaptureMembership
-	requireAll        bool
-	bufferContext     *marshaler.BufferContext
-	strategy          compression.Component
+	capture       marshaler.SeriesCapture
+	requireAll    bool
+	bufferContext *marshaler.BufferContext
+	strategy      compression.Component
 
 	compressor *stream.Compressor
 	buf        *bytes.Buffer
@@ -295,7 +295,9 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 		}
 		pb.pointsThisPayload += len(serie.Points)
 		pb.seriesThisPayload++
-		pb.captureMembership.Accepted()
+		if pb.capture != nil {
+			pb.capture.AcceptCurrent()
+		}
 		return nil
 	}
 
@@ -503,7 +505,6 @@ func (pb *PayloadsBuilder) finishPayload() error {
 
 	if pb.seriesThisPayload > 0 {
 		bytesPayload := transaction.NewBytesPayload(payload, pb.pointsThisPayload)
-		pb.captureMembership.Finished(bytesPayload)
 		pb.pipelineContext.addPayload(bytesPayload)
 	}
 

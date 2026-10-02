@@ -28,7 +28,6 @@ dd_agent_go_test(
         "//cmd/eudm-simulator/internal/overlay",
         "//cmd/eudm-simulator/internal/schema",
         "//cmd/eudm-simulator/internal/telemetry",
-        "//comp/forwarder/eventplatform/def",
         "//comp/serializer/logscompression/impl",
         "//comp/softwareinventory/impl",
         "//pkg/config/model",

@@ -66,7 +66,7 @@ func (p *liveInventoryInput) CopyCaptureInventory() *telemetrycapture.Inventory 
 
 func (f *liveTestForwarder) SubmitMetadata(payloads transaction.BytesPayloads, headers http.Header) error {
 	for _, p := range payloads {
-		if err := f.record(p, endpoints.V1MetadataEndpoint.Route, "inventory-v1", "primary", headers); err != nil {
+		if err := f.record(p, endpoints.V1MetadataEndpoint.Route, headers); err != nil {
 			return err
 		}
 	}
@@ -78,7 +78,7 @@ func inventoryManager(t *testing.T, stream telemetrycapture.Stream) (*telemetryc
 	m := telemetrycapture.NewManager("core-agent", "fixture", "fixture")
 	t.Cleanup(m.Close)
 	require.NoError(t, m.Register(telemetrycapture.Capability{Stream: stream, Cadence: 10 * time.Minute}))
-	c := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "inventory-test-session"}
+	c := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "inventory-test-session"}
 	_, err := m.Prepare(telemetrycapture.PrepareRequest{Control: c, Streams: []telemetrycapture.Stream{stream}})
 	require.NoError(t, err)
 	_, err = m.Activate(c)
@@ -100,7 +100,6 @@ func TestLiveInventoryPreservesDeliveryAndCapturesOnlyOwnedProjection(t *testing
 			require.NoError(t, s.SendMetadata(p))
 			require.Equal(t, baseline, f.wire)
 			require.Equal(t, 1, p.copies)
-			require.Nil(t, f.payloads[0].Capture())
 			batch, err := m.Read(telemetrycapture.ReadRequest{Control: c})
 			require.NoError(t, err)
 			defer batch.Release()
@@ -108,8 +107,6 @@ func TestLiveInventoryPreservesDeliveryAndCapturesOnlyOwnedProjection(t *testing
 			r := batch.Records[0]
 			require.Equal(t, p.at, r.CollectedAt)
 			require.Equal(t, p.cadence, r.Cadence)
-			require.Equal(t, "inventory-v1", r.Payload.Routes[0].Protocol)
-			require.Equal(t, "/api/v1/metadata", r.Payload.Routes[0].Endpoint)
 			encoded, err := json.Marshal(r)
 			require.NoError(t, err)
 			require.NotContains(t, string(encoded), "secret-sentinel")
@@ -123,7 +120,7 @@ func TestLiveInventoryPreservesDeliveryAndCapturesOnlyOwnedProjection(t *testing
 
 func TestLiveInventoryCaptureFailuresPreserveSubmission(t *testing.T) {
 	for _, stream := range []telemetrycapture.Stream{telemetrycapture.AgentInventory, telemetrycapture.HostSystemInfo} {
-		for _, mode := range []string{"oversize", "panic", "missing-route", "invalid-schedule", "submission-error", "ambiguous"} {
+		for _, mode := range []string{"oversize", "panic", "invalid-schedule", "submission-error", "ambiguous"} {
 			t.Run(string(stream)+"/"+mode, func(t *testing.T) {
 				s, f := liveSerializer(t, 2)
 				m, _ := inventoryManager(t, stream)
@@ -134,8 +131,6 @@ func TestLiveInventoryCaptureFailuresPreserveSubmission(t *testing.T) {
 					p.oversize = true
 				case "panic":
 					p.panicCopy = true
-				case "missing-route":
-					f.omitRoute = true
 				case "invalid-schedule":
 					p.at = time.Time{}
 				case "submission-error":
@@ -150,7 +145,6 @@ func TestLiveInventoryCaptureFailuresPreserveSubmission(t *testing.T) {
 					require.NoError(t, err)
 				}
 				require.Len(t, f.wire, 1)
-				require.Nil(t, f.payloads[0].Capture())
 				require.Equal(t, telemetrycapture.Failed, m.Status().State)
 				if mode == "oversize" {
 					require.Zero(t, p.copies)

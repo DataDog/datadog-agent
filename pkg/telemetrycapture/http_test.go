@@ -44,7 +44,7 @@ func request(t *testing.T, handler http.Handler, method, path, body string, auth
 	return w
 }
 
-const validControlJSON = `{"protocol_version":1,"session_id":"test-session-00000001"}`
+const validControlJSON = `{"protocol_version":2,"session_id":"test-session-00000001"}`
 
 func TestHandlerReportsOwnedMetricSchedulesOnEveryResponse(t *testing.T) {
 	m := testManager(t, Metrics, Software)
@@ -62,7 +62,7 @@ func TestHandlerReportsOwnedMetricSchedulesOnEveryResponse(t *testing.T) {
 	}
 	for _, operation := range []struct{ method, path, body string }{
 		{http.MethodGet, "/capabilities", ""},
-		{http.MethodPost, "/prepare", `{"protocol_version":1,"session_id":"test-session-00000001","streams":["metrics"]}`},
+		{http.MethodPost, "/prepare", `{"protocol_version":2,"session_id":"test-session-00000001","streams":["metrics"]}`},
 		{http.MethodPost, "/activate", validControlJSON},
 		{http.MethodPost, "/heartbeat", validControlJSON},
 		{http.MethodGet, "/status", ""},
@@ -154,9 +154,9 @@ func TestControlValidationDoesNotEchoInput(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, body := range []string{
-		`{"protocol_version":2,"session_id":"secret-native-host"}`,
-		`{"protocol_version":1,"session_id":"secret-native-host","secret-native-host":true}`,
-		`{"protocol_version":1,"session_id":"secret/native/host"}`,
+		`{"protocol_version":3,"session_id":"secret-native-host"}`,
+		`{"protocol_version":2,"session_id":"secret-native-host","secret-native-host":true}`,
+		`{"protocol_version":2,"session_id":"secret/native/host"}`,
 		`{"secret-native-host":`,
 		validControlJSON + ` {"secret-native-host":true}`,
 		`{"session_id":"` + strings.Repeat("secret-native-host", 4096) + `"}`,
@@ -175,7 +175,7 @@ func TestHTTPReadAckAndStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, operation := range []struct{ path, body string }{
-		{"/prepare", `{"protocol_version":1,"session_id":"test-session-00000001","streams":["software"]}`},
+		{"/prepare", `{"protocol_version":2,"session_id":"test-session-00000001","streams":["software"]}`},
 		{"/activate", validControlJSON},
 		{"/heartbeat", validControlJSON},
 	} {
@@ -205,7 +205,7 @@ func TestHTTPReadAckAndStop(t *testing.T) {
 	if !reflect.DeepEqual(batch.Records[0].Payload, softwarePayload()) {
 		t.Fatal("record changed in IPC")
 	}
-	w = request(t, handler, http.MethodPost, "/records", `{"protocol_version":1,"session_id":"test-session-00000001","cursor":1}`, true)
+	w = request(t, handler, http.MethodPost, "/records", `{"protocol_version":2,"session_id":"test-session-00000001","cursor":1}`, true)
 	if w.Code != http.StatusOK || m.Status().State != Stopped {
 		t.Fatal("final ack not recorded")
 	}
@@ -270,9 +270,8 @@ func TestBoundedWireEncodingMatchesJSON(t *testing.T) {
 		{Inventory: &Inventory{Hostname: oddString, Timestamp: now.UnixNano(), Host: &HostInventoryMetadata{CPUModel: large, CPUFrequency: 1234.5, MemoryTotalKb: 16384000}}},
 		{Inventory: &Inventory{Hostname: oddString, UUID: large, Timestamp: now.UnixNano(), SystemInfo: &HostSystemInfoMetadata{SerialNumber: large, Identifier: oddString, ModelName: "model"}}},
 		{Chunks: []Chunk{{Body: []byte(large), Headers: map[string]string{"test": oddString}}}},
-		{Routes: []Route{{PayloadID: 12, Ordinals: []uint64{1, 4, 7}, Endpoint: "/api/v2/series", Protocol: "v2", Destination: "primary", EnqueuedAt: now}}},
 	} {
-		batch := &Batch{Status: Status{ProtocolVersion: 1}, Records: []*Record{{ProtocolVersion: 1, SessionID: testControl.SessionID, CollectedAt: now, Payload: payload}}}
+		batch := &Batch{Status: Status{ProtocolVersion: ProtocolVersion}, Records: []*Record{{ProtocolVersion: ProtocolVersion, SessionID: testControl.SessionID, CollectedAt: now, Payload: payload}}}
 		var actual bytes.Buffer
 		if err := writeBatch(&actual, batch); err != nil {
 			t.Fatal(err)

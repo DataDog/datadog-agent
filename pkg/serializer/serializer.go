@@ -361,10 +361,6 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 func (s *Serializer) SendMetadata(m marshaler.JSONMarshaler) (resultErr error) {
 	if capture := beginLiveInventory(s.LiveCapture, m); capture != nil {
 		defer func() { capture.finish(resultErr) }()
-		return s.sendMetadata(m, func(payloads transaction.BytesPayloads, headers http.Header) error {
-			capture.attach(payloads)
-			return s.Forwarder.SubmitMetadata(payloads, headers)
-		})
 	}
 	return s.sendMetadata(m, s.Forwarder.SubmitMetadata)
 }
@@ -373,10 +369,6 @@ func (s *Serializer) SendMetadata(m marshaler.JSONMarshaler) (resultErr error) {
 func (s *Serializer) SendHostMetadata(m marshaler.JSONMarshaler) (resultErr error) {
 	if capture := beginLiveMetadata(s.LiveCapture, m); capture != nil {
 		defer func() { capture.finish(resultErr) }()
-		return s.sendMetadata(m, func(payloads transaction.BytesPayloads, headers http.Header) error {
-			capture.attach(payloads)
-			return s.Forwarder.SubmitHostMetadata(payloads, headers)
-		})
 	}
 	return s.sendMetadata(m, s.Forwarder.SubmitHostMetadata)
 }

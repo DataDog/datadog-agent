@@ -113,7 +113,7 @@ func TestSoftwareCaptureReadinessCadenceAndStop(t *testing.T) {
 			is := f.sut().WaitForPayload()
 			require.Equal(t, []telemetrycapture.Capability{{Stream: telemetrycapture.Software, Cadence: time.Duration(max(interval, 10)) * time.Minute}}, manager.Status().Capabilities)
 			require.Equal(t, is.interval, manager.Status().Capabilities[0].Cadence)
-			control := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "software-capture-session"}
+			control := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "software-capture-session"}
 			_, err := manager.Prepare(telemetrycapture.PrepareRequest{Control: control, Streams: []telemetrycapture.Stream{telemetrycapture.Software}})
 			require.NoError(t, err)
 			_, err = manager.Activate(control)

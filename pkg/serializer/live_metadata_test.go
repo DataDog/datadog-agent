@@ -51,7 +51,7 @@ type unsupportedMetadata struct{ marshaler.JSONMarshaler }
 
 func (f *liveTestForwarder) SubmitHostMetadata(payloads transaction.BytesPayloads, headers http.Header) error {
 	for _, p := range payloads {
-		if err := f.record(p, endpoints.HostMetadataEndpoint.Route, "metadata-v2", "primary", headers); err != nil {
+		if err := f.record(p, endpoints.HostMetadataEndpoint.Route, headers); err != nil {
 			return err
 		}
 	}
@@ -63,7 +63,7 @@ func metadataManager(t *testing.T) (*telemetrycapture.Manager, telemetrycapture.
 	m := telemetrycapture.NewManager("core-agent", "producer-version", "producer-commit")
 	t.Cleanup(m.Close)
 	require.NoError(t, m.Register(telemetrycapture.Capability{Stream: telemetrycapture.Metadata, Cadence: 30 * time.Minute}))
-	c := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "metadata-session-test"}
+	c := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "metadata-session-test"}
 	_, err := m.Prepare(telemetrycapture.PrepareRequest{Control: c, Streams: []telemetrycapture.Stream{telemetrycapture.Metadata}})
 	require.NoError(t, err)
 	_, err = m.Activate(c)
@@ -86,7 +86,6 @@ func TestLiveMetadataDeliveryKeepsCredentialsOutsideCapture(t *testing.T) {
 	raw, err := s.Strategy.Decompress(f.payloads[0].GetContent())
 	require.NoError(t, err)
 	require.Contains(t, string(raw), "native-credential")
-	require.Nil(t, f.payloads[0].Capture())
 	batch, err := m.Read(telemetrycapture.ReadRequest{Control: c})
 	require.NoError(t, err)
 	defer batch.Release()
@@ -95,8 +94,6 @@ func TestLiveMetadataDeliveryKeepsCredentialsOutsideCapture(t *testing.T) {
 	require.Equal(t, p.at, record.CollectedAt)
 	require.Equal(t, p.cadence, record.Cadence)
 	require.Equal(t, "producer-version", record.Payload.Metadata.AgentVersion)
-	require.Len(t, record.Payload.Routes, 1)
-	require.Equal(t, "metadata-v2", record.Payload.Routes[0].Protocol)
 	require.Empty(t, record.Payload.Chunks, "raw metadata transactions must never be retained")
 	encoded, err := json.Marshal(record)
 	require.NoError(t, err)
@@ -104,7 +101,7 @@ func TestLiveMetadataDeliveryKeepsCredentialsOutsideCapture(t *testing.T) {
 }
 
 func TestLiveMetadataFailureDoesNotChangeDelivery(t *testing.T) {
-	for _, mode := range []string{"unsupported", "panic", "missing-route", "overflow", "invalid-schedule"} {
+	for _, mode := range []string{"unsupported", "panic", "overflow", "invalid-schedule"} {
 		t.Run(mode, func(t *testing.T) {
 			s, f := liveSerializer(t, 2)
 			m, _ := metadataManager(t)
@@ -116,8 +113,6 @@ func TestLiveMetadataFailureDoesNotChangeDelivery(t *testing.T) {
 				input = unsupportedMetadata{p}
 			case "panic":
 				p.panicCopy = true
-			case "missing-route":
-				f.omitRoute = true
 			case "invalid-schedule":
 				p.at = time.Time{}
 			case "overflow":
@@ -134,7 +129,6 @@ func TestLiveMetadataFailureDoesNotChangeDelivery(t *testing.T) {
 			require.NoError(t, s.SendHostMetadata(input))
 			require.Len(t, f.wire, 1)
 			require.Equal(t, telemetrycapture.Failed, m.Status().State)
-			require.Nil(t, f.payloads[0].Capture())
 		})
 	}
 	t.Run("production error", func(t *testing.T) {
@@ -184,7 +178,7 @@ func TestLiveMetadataOldProjectionCannotAffectSuccessor(t *testing.T) {
 			stopped, err := m.Stop(context.Background(), old)
 			require.NoError(t, err)
 			require.Equal(t, telemetrycapture.Stopped, stopped.State)
-			next := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "metadata-successor-session"}
+			next := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "metadata-successor-session"}
 			_, err = m.Prepare(telemetrycapture.PrepareRequest{Control: next, Streams: []telemetrycapture.Stream{telemetrycapture.Metadata}})
 			require.NoError(t, err)
 			_, err = m.Activate(next)

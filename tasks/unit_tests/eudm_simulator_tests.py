@@ -235,7 +235,7 @@ class TestReadiness(unittest.TestCase):
                 {"family": "battery", "cadence": 300_000_000_000},
             ]
         return {
-            "protocol_version": 1,
+            "protocol_version": 2,
             "producer": {"role": role, "commit": commit, "instance_id": "opaque"},
             "capabilities": capabilities,
         }
@@ -289,6 +289,18 @@ class TestReadiness(unittest.TestCase):
         with patch.object(eudm.time, "monotonic", side_effect=[0, 0, 2]), patch.object(eudm.time, "sleep"):
             with self.assertRaisesRegex(Exit, "readiness timed out"):
                 eudm._wait_for_capture_apis(read, COMMIT, timeout=1)
+
+    def test_previous_capture_protocol_requires_reinstallation(self):
+        def read(role):
+            value = self.status(role)
+            value["protocol_version"] = 1
+            return value
+
+        with patch.object(eudm.time, "monotonic", side_effect=[0, 0, 2]), patch.object(eudm.time, "sleep"):
+            with self.assertRaises(Exit) as raised:
+                eudm._wait_for_capture_apis(read, COMMIT, timeout=1)
+        self.assertIn("core-agent", str(raised.exception))
+        self.assertIn("process-agent", str(raised.exception))
 
     def test_legacy_producers_without_inventory_are_not_ready(self):
         def read(role):

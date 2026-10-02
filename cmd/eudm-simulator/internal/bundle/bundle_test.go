@@ -46,7 +46,7 @@ func fixture(t *testing.T, platform string) (string, *Loaded) {
 		}
 		producer := producers[role]
 		if producer == nil {
-			producer = &Producer{Role: role, InstanceID: "fixture-" + role, Version: "7.85.0", Commit: strings.Repeat("b", 40), ProtocolVersion: 1, StopOffset: time.Minute, Stopped: true}
+			producer = &Producer{Role: role, InstanceID: "fixture-" + role, Version: "7.85.0", Commit: strings.Repeat("b", 40), ProtocolVersion: telemetrycapture.ProtocolVersion, StopOffset: time.Minute, Stopped: true}
 			producers[role] = producer
 		}
 		producer.Streams = append(producer.Streams, stream)
@@ -59,19 +59,7 @@ func fixture(t *testing.T, platform string) (string, *Loaded) {
 			producer.FinalSequence++
 			producer.AcknowledgedSequence++
 			ref := SampleRef{Stream: stream, Offset: time.Duration(i) * 15 * time.Second, ProducerID: producer.InstanceID, CycleID: producer.FinalSequence, Sequence: producer.FinalSequence, ChunkCount: 1}
-			path := fixtureWirePath(stream)
-			if stream == schema.Metrics || stream == schema.HostMetadata || stream == schema.AgentInventory || stream == schema.HostInventory {
-				protocol := "v3"
-				ordinals := []uint64{1}
-				if stream == schema.HostMetadata {
-					protocol = "metadata-v1"
-				}
-				if stream == schema.AgentInventory || stream == schema.HostInventory {
-					protocol, ordinals = "inventory-v1", nil
-				}
-				ref.Routes = []RoutingEvidence{{PayloadID: 1, Ordinals: ordinals, Endpoint: path, Protocol: protocol, Destination: "primary/1", EnqueueOffset: ref.Offset}}
-			}
-			err := w.Append(ref, fixtureSample(t, stream, platform), []WireReference{{Path: path, Body: []byte(`{"host":"capture-host"}`)}})
+			err := w.Append(ref, fixtureSample(t, stream, platform))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -91,25 +79,6 @@ func fixture(t *testing.T, platform string) (string, *Loaded) {
 		t.Fatal(err)
 	}
 	return dir, loaded
-}
-
-func fixtureWirePath(stream schema.Stream) string {
-	switch stream {
-	case schema.Metrics:
-		return "/api/intake/metrics/v3/series"
-	case schema.HostMetadata:
-		return "/intake/"
-	case schema.AgentInventory, schema.HostInventory:
-		return "/api/v1/metadata"
-	case schema.Processes:
-		return "/api/v1/collector"
-	case schema.Connections:
-		return "/api/v1/connections"
-	case schema.Software:
-		return "/api/v2/softinv"
-	default:
-		return ""
-	}
 }
 
 func fixtureConnection() *model.Connection {
@@ -187,7 +156,6 @@ func TestRejectTamperedOrIncompatibleBundles(t *testing.T) {
 		}},
 		{"invalid cadence", func(m *Manifest) { m.Cadences[schema.Metrics] = 0 }},
 		{"invalid offset", func(m *Manifest) { m.Samples[0].Offset = -1 }},
-		{"missing wire", func(m *Manifest) { m.Samples[0].WireFiles = nil }},
 		{"invented metric", func(m *Manifest) { m.Profile.MetricNames = append(m.Profile.MetricNames, "system.wlan.rssi") }},
 		{"omitted metric", func(m *Manifest) { m.Profile.MetricNames = nil }},
 		{"invented process", func(m *Manifest) { m.Profile.ProcessNames = []string{"SentinelAgent.exe"} }},

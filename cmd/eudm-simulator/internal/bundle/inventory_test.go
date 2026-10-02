@@ -23,17 +23,15 @@ func TestInventoryBundleRequiresRecaptureAndCompleteEvidence(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(`{"schema_version":2}`), 0600); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := Load(dir, strings.Repeat("a", 40)); err == nil || !strings.Contains(err.Error(), "recapture") || !strings.Contains(err.Error(), "agent_inventory") {
+		if _, err := Load(dir, strings.Repeat("a", 40)); err == nil || !strings.Contains(err.Error(), "recapture") {
 			t.Fatalf("schema 2 did not explain required recapture: %v", err)
 		}
 	})
 	for _, stream := range []schema.Stream{schema.AgentInventory, schema.HostInventory} {
-		for _, missing := range []string{"stream", "cadence", "owner", "route", "protocol", "wire endpoint", "metric membership"} {
+		for _, missing := range []string{"stream", "cadence", "owner"} {
 			t.Run(string(stream)+"/"+missing, func(t *testing.T) {
 				dir, loaded := fixture(t, "macos")
 				m := &loaded.Manifest
-				index := slices.IndexFunc(m.Samples, func(ref SampleRef) bool { return ref.Stream == stream })
-				ref := &m.Samples[index]
 				switch missing {
 				case "stream":
 					m.Profile.Streams = slices.DeleteFunc(m.Profile.Streams, func(s schema.Stream) bool { return s == stream })
@@ -41,14 +39,7 @@ func TestInventoryBundleRequiresRecaptureAndCompleteEvidence(t *testing.T) {
 					delete(m.Cadences, stream)
 				case "owner":
 					m.Producers[0].Streams = slices.DeleteFunc(m.Producers[0].Streams, func(s schema.Stream) bool { return s == stream })
-				case "route":
-					ref.Routes = nil
-				case "protocol":
-					ref.Routes[0].Protocol = "metadata-v1"
-				case "wire endpoint":
-					writeBundleFile(t, dir, loaded, ref.WireFiles[0], WireReference{Path: "/intake/", Body: []byte(`{}`)})
-				case "metric membership":
-					ref.Routes[0].Ordinals = []uint64{1}
+
 				}
 				writeManifest(t, dir, *m)
 				if _, err := Load(dir, strings.Repeat("a", 40)); err == nil {

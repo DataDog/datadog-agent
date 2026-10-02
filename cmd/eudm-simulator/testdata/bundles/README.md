@@ -2,10 +2,10 @@
 
 `macos/` and `windows/` contain small synthetic capture bundles for automated
 tests. Their typed inputs are constructed in
-[fixtures_test.go](../../integration/fixtures_test.go) and submitted through the
-real Agent serializers, process submission path, and event-platform delivery
-pipeline with an in-memory recording transport. No live device collection or
-staging request is involved.
+[fixtures_test.go](../../integration/fixtures_test.go) and written directly as typed samples. Replay tests submit their contents
+through real Agent serializers, process submission, and event-platform delivery
+with an in-memory recording transport. No live collection or staging request
+is involved.
 
 These fixtures exercise bundle compatibility, sanitization contracts, portable
 replay from one baseline per run, process/software overlays, macOS and Windows
@@ -13,11 +13,11 @@ connection evidence, wireless correlation, and delivery accounting. They do not 
 installed-Agent capture on either platform, direct Windows connection capture,
 staging device enrichment, monitor behavior, or Command Center/Bits acceptance.
 
-Both schema-4 fixtures use the deliberate test-only `capture_tool.commit`
+Both schema-5 fixtures use the deliberate test-only `capture_tool.commit`
 `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` and version `7.85.0-fixture`. Their
 synthetic producers use commit `bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb`,
-protocol version 1, and the same fixture version. Producer process identities,
-activation/stop acknowledgements, sequences, cycles, and routes are constructed
+protocol version 2, and the same fixture version. Producer process identities,
+activation/stop acknowledgements, sequences and cycles are constructed
 test facts; no service was contacted to obtain them.
 A normal revision-stamped simulator binary rejects them as incompatible; use
 real operator-managed captures for staging. Do not edit their manifests to
@@ -28,13 +28,11 @@ Each bundle includes:
 - `manifest.json`, with the capture-tool build, participating producers,
   acknowledged boundaries and final sequences, profile inventories, explicit
   producer/cycle/chunk identities, relative sample offsets, stream and metric-family cadences,
-  sanitized routing evidence, schema/sanitizer versions, and file digests.
+  schema/sanitizer versions and file digests.
 - `COMPLETE`, containing the manifest digest.
 - Sanitized typed `sample-*.json` files. Metric envelopes retain Agent source
   identifiers and fractional relative timestamps.
-- `sample-*-wire-*.json` references recorded after Agent serialization. The
-  reference bodies are encoded as JSON byte strings and retain their normal
-  compression and payload format; credentials are excluded.
+
 
 The macOS fixture declares an arm64 profile and the Windows fixture declares an
 amd64 profile. Both include metrics, legacy host metadata, Agent inventory, host
@@ -74,11 +72,10 @@ The generator writes `eudm-bundles/macos` and `eudm-bundles/windows` under
 `TEST_UNDECLARED_OUTPUTS_DIR`; Bazel preserves these in the test's undeclared
 output artifacts. An absolute `EUDM_FIXTURE_OUTPUT` overrides that location for
 local generation. The writer always refuses existing platform directories.
-Each synthetic cycle is serialized and its recorder drained independently, so
-wire references cannot carry over from an earlier cycle.
+The generator writes only typed samples. Serialization coverage belongs to
+the portable replay tests; no duplicate request files are stored in bundles.
 
-Review regenerated typed samples, decoded wire payloads, inventories, and
-digests together. Replace only the synthetic `macos/` and `windows/` files;
+Review regenerated typed samples, inventories, and digests together. Replace only the synthetic `macos/` and `windows/` files;
 keep this README and real capture artifacts. Run the simulator suite afterward:
 
 ```sh
@@ -92,7 +89,7 @@ Real Windows and macOS captures remain outside the repository as
 operator-managed artifacts. Their run reports record their actual digests,
 capture-tool revision, and producing builds. Replay requires the exact
 capture-tool revision; compatible producer revisions may differ under protocol
-version 1. Schema-1, schema-2, and schema-3 bundles require recapture; they cannot
-supply the current inventory and metric-family cadence evidence. Follow the
+version 2. Earlier bundle schemas require recapture with compatible producers.
+The loader does not migrate or relabel historical captures. Follow the
 [simulator runbook](../../../../doc/how-to/test/eudm-simulator.md) for authenticated
 live capture and the deferred staging proofs.

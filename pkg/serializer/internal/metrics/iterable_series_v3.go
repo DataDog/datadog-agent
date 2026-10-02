@@ -126,12 +126,12 @@ const (
 )
 
 type payloadsBuilderV3 struct {
-	captureMembership marshaler.CaptureMembership
-	requireAll        bool
-	compression       compression.Component
-	compressor        stream.ColumnCompressor
-	txn               *stream.ColumnTransaction
-	dict              *dictionaryBuilder
+	capture     marshaler.SeriesCapture
+	requireAll  bool
+	compression compression.Component
+	compressor  stream.ColumnCompressor
+	txn         *stream.ColumnTransaction
+	dict        *dictionaryBuilder
 
 	deltaNameRef           deltaEncoder
 	deltaTagsRef           deltaEncoder
@@ -290,7 +290,6 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 		}
 
 		bytesPayload := transaction.NewBytesPayload(payload, pb.pointsThisPayload)
-		pb.captureMembership.Finished(bytesPayload)
 		pb.pipelineContext.addPayload(bytesPayload)
 	}
 
@@ -392,7 +391,9 @@ func (pb *payloadsBuilderV3) finishTxn(numPoints int) error {
 		return nil
 	case nil:
 		pb.pointsThisPayload += numPoints
-		pb.captureMembership.Accepted()
+		if pb.capture != nil {
+			pb.capture.AcceptCurrent()
+		}
 		return nil
 	default:
 		return err

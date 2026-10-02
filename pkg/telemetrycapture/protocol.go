@@ -11,12 +11,12 @@ import "time"
 
 const (
 	// ProtocolVersion identifies the producer/coordinator IPC contract.
-	ProtocolVersion = 1
+	ProtocolVersion = 2
 	// MaxRecords includes unfinished observations and unacknowledged records.
 	MaxRecords = 256
 	// MaxBytes is the capture-owned memory budget in each producer.
 	MaxBytes int64 = 128 << 20
-	// MaxItemBytes bounds one complete logical observation, including its routes.
+	// MaxItemBytes bounds one complete logical observation.
 	MaxItemBytes int64 = 64 << 20
 	// LeaseDuration disarms sessions whose coordinator has disappeared.
 	LeaseDuration = 30 * time.Second
@@ -109,17 +109,6 @@ type Status struct {
 	Drops           uint64       `json:"drops"`
 }
 
-// Route describes an initial forwarding decision. No URL authority, query,
-// credential, or transport retry data belongs in this structure.
-type Route struct {
-	PayloadID   uint64    `json:"payload_id"`
-	Ordinals    []uint64  `json:"ordinals,omitempty"`
-	Endpoint    string    `json:"endpoint"`
-	Protocol    string    `json:"protocol"`
-	Destination string    `json:"destination"`
-	EnqueuedAt  time.Time `json:"enqueued_at"`
-}
-
 // Point preserves fractional timestamps independently of the wire protocol.
 type Point struct {
 	Timestamp float64 `json:"timestamp"`
@@ -128,7 +117,6 @@ type Point struct {
 
 // Series is an owned semantic copy, made before serializer-side mutation.
 type Series struct {
-	Ordinal  uint64   `json:"ordinal"`
 	Name     string   `json:"name"`
 	Source   uint32   `json:"source"`
 	Type     int32    `json:"type"`
@@ -179,7 +167,6 @@ type Payload struct {
 	Metadata  *HostMetadata `json:"metadata,omitempty"`
 	Software  *Message      `json:"software,omitempty"`
 	Chunks    []Chunk       `json:"chunks,omitempty"`
-	Routes    []Route       `json:"routes,omitempty"`
 }
 
 // Record is immutable after admission. A cycle can contain multiple chunks,

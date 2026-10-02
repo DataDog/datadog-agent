@@ -8,7 +8,6 @@
 package integration
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -19,11 +18,8 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle"
-	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/capture"
-	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/output"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/telemetry"
-	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	softwareimpl "github.com/DataDog/datadog-agent/comp/softwareinventory/impl"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -31,7 +27,7 @@ import (
 	tc "github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
-// Synthetic inputs, serialized by real Agent delivery packages. This fixture
+// Synthetic typed inputs, replayed through real Agent delivery in tests. This fixture
 // commit deliberately cannot be used by a revision-stamped staging binary.
 const fixtureCommit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
@@ -52,14 +48,6 @@ func TestGenerateCaptureFixtures(t *testing.T) {
 }
 func generateFixture(t *testing.T, platform, outputDirectory string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	defer cancel()
-	recorder := output.NewRecorder()
-	p, err := output.New(ctx, nil, "synthetic-fixture-no-credential", recorder, output.Options{MetricProtocol: "v2", MetadataProtocol: "metadata-v1"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer p.Close()
 	directory := filepath.Join(outputDirectory, platform)
 	if err := os.MkdirAll(filepath.Dir(directory), 0700); err != nil {
 		t.Fatal(err)
@@ -96,40 +84,15 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 			return "core-agent"
 		}
 	}
-	save := func(stream schema.Stream, offset time.Duration, value any, send func() error) {
+	save := func(stream schema.Stream, offset time.Duration, value any) {
 		t.Helper()
-		if err := send(); err != nil {
-			t.Fatal(err)
-		}
-		if err := p.Wait(ctx); err != nil {
-			t.Fatal(err)
-		}
-		refs := recorder.Drain()
-		if len(refs) == 0 {
-			t.Fatal("synthetic cycle produced no wire evidence")
-		}
 		role := owner(stream)
 		sequences[role]++
 		if !slices.Contains(producerStreams[role], stream) {
 			producerStreams[role] = append(producerStreams[role], stream)
 		}
 		ref := bundle.SampleRef{Stream: stream, Offset: offset, ProducerID: "synthetic-" + role, CycleID: sequences[role], Sequence: sequences[role], ChunkCount: 1}
-		if stream == schema.Metrics || stream == schema.HostMetadata || stream == schema.AgentInventory || stream == schema.HostInventory || stream == schema.HostSystemInfo {
-			var ordinals []uint64
-			if metric, ok := value.(*telemetry.MetricSample); ok {
-				for i := range metric.Series {
-					ordinals = append(ordinals, uint64(i+1))
-				}
-			}
-			for i, wire := range refs {
-				protocol := map[string]string{"/api/v1/series": "v1", "/api/v2/series": "v2", "/api/intake/metrics/v3/series": "v3", "/api/intake/metrics/v3beta/series": "v3beta", "/intake/": "metadata-v1", "/api/v2/host_metadata": "metadata-v2", "/api/v1/metadata": "inventory-v1"}[wire.Path]
-				if protocol == "" {
-					t.Fatal("unexpected synthetic wire endpoint")
-				}
-				ref.Routes = append(ref.Routes, bundle.RoutingEvidence{PayloadID: uint64(i + 1), Ordinals: ordinals, Endpoint: wire.Path, Protocol: protocol, Destination: "primary", EnqueueOffset: offset})
-			}
-		}
-		if err := w.Append(ref, value, refs); err != nil {
+		if err := w.Append(ref, value); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -180,7 +143,7 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		save(schema.Metrics, offset, envelope, func() error { return p.Serializer.SendIterableSeries(capture.NewSeriesSource(series)) })
+		save(schema.Metrics, offset, envelope)
 	}
 	process := func(pid int32, name string, cpu float32, rss uint64) *model.Process {
 		exe := "/capture/bin/" + name
@@ -195,7 +158,7 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 		if platform == "windows" {
 			proc.Processes = append(proc.Processes, process(200, "SentinelAgent.exe", 4, 200<<20))
 		}
-		save(schema.Processes, offset, proc, func() error { return p.Process(ctx, time.Unix(int64(offset.Seconds()), 0), proc) })
+		save(schema.Processes, offset, proc)
 		conn := &model.CollectorConnections{HostName: "capture-host", NetworkId: proc.NetworkId, GroupId: int32(cycle + 1), GroupSize: 1, Connections: []*model.Connection{{Pid: 300, Laddr: &model.Addr{Ip: "10.0.0.1", Port: 50000}, Raddr: &model.Addr{Ip: "10.0.0.2", Port: 443}, Type: model.ConnectionType_tcp, Rtt: 20000, RttVar: 2000, LastBytesSent: 1000, LastBytesReceived: 2000}}}
 		// Backend routing distinguishes an EUDM-only macOS sender from the
 		// synthetic Windows sender that also has NPM enabled. A nil config
@@ -204,15 +167,15 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 		if cycle == 0 {
 			profile.ConnectionSelectors = []string{telemetry.ConnectionSelector(conn.Connections[0])}
 		}
-		save(schema.Connections, offset, conn, func() error { return p.Connections(ctx, time.Unix(int64(offset.Seconds()), 0), conn) })
+		save(schema.Connections, offset, conn)
 	}
 	host := &telemetry.HostMetadata{Hostname: "capture-host", UUID: "00000000-0000-4000-8000-000000000001", AgentVersion: "7.85.0-fixture", AgentFlavor: "agent", OS: hostOS, HostTags: map[string][]string{"system": {"infra_mode:end_user_device"}}}
-	save(schema.HostMetadata, 0, host, func() error { return p.Serializer.SendHostMetadata(host) })
+	save(schema.HostMetadata, 0, host)
 	agentInventory := &tc.Inventory{Hostname: host.Hostname, UUID: host.UUID, Timestamp: int64(250 * time.Millisecond), Agent: &tc.AgentInventoryMetadata{
 		AgentVersion: host.AgentVersion, PackageVersion: "7.85.0-fixture", Flavor: "agent", InfrastructureMode: "end_user_device", AgentStartupTimeMS: -60000,
 		FeatureProcessEnabled: true, FeatureNetworksEnabled: true,
 	}}
-	save(schema.AgentInventory, 0, agentInventory, func() error { return p.Serializer.SendMetadata(agentInventory) })
+	save(schema.AgentInventory, 0, agentInventory)
 	inventoryOS := osname
 	if platform == "windows" {
 		inventoryOS = "Microsoft Windows 11 Pro"
@@ -222,7 +185,7 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 		MemoryTotalKb: 16 << 20, KernelName: osname, OS: inventoryOS, OSVersion: "15.6", AgentVersion: host.AgentVersion,
 		IPAddress: "10.0.0.1", MacAddress: "02:00:00:00:00:02",
 	}}
-	save(schema.HostInventory, 0, hostInventory, func() error { return p.Serializer.SendMetadata(hostInventory) })
+	save(schema.HostInventory, 0, hostInventory)
 	systemInfo := &tc.Inventory{Hostname: host.Hostname, UUID: host.UUID, Timestamp: int64(5250 * time.Millisecond), SystemInfo: &tc.HostSystemInfoMetadata{
 		Manufacturer: "Apple Inc.", ModelNumber: "Mac16,5", SerialNumber: "serial_number-" + strings.Repeat("5", 32),
 		ModelName: "device_model-" + strings.Repeat("6", 32), ChassisType: "Laptop", Identifier: "Mac16,5",
@@ -232,7 +195,7 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 		systemInfo.SystemInfo.ModelNumber = "device_model-" + strings.Repeat("7", 32)
 		systemInfo.SystemInfo.Identifier = "device_model-" + strings.Repeat("8", 32)
 	}
-	save(schema.HostSystemInfo, 5*time.Second, systemInfo, func() error { return p.Serializer.SendMetadata(systemInfo) })
+	save(schema.HostSystemInfo, 5*time.Second, systemInfo)
 	kind := "app"
 	if platform == "windows" {
 		kind = "desktop"
@@ -241,13 +204,7 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 	if platform == "windows" {
 		sw.Metadata.Software = append(sw.Metadata.Software, software.Entry{DisplayName: "SentinelOne", Version: "23.4.2", Source: "desktop", Status: "installed"})
 	}
-	save(schema.Software, 0, sw, func() error {
-		body, err := sw.MarshalJSON()
-		if err != nil {
-			return err
-		}
-		return p.Event(ctx, eventplatform.EventTypeSoftwareInventory, body, time.Unix(0, 0))
-	})
+	save(schema.Software, 0, sw)
 	sort.Strings(profile.ProcessNames)
 	sort.Strings(profile.SoftwareNames)
 	var producers []bundle.Producer
@@ -255,7 +212,7 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 		if sequences[role] == 0 {
 			continue
 		}
-		producers = append(producers, bundle.Producer{Role: role, InstanceID: "synthetic-" + role, Version: "7.85.0-fixture", Commit: strings.Repeat("b", 40), ProtocolVersion: 1, Streams: producerStreams[role], StopOffset: captureDuration, FinalSequence: sequences[role], AcknowledgedSequence: sequences[role], Stopped: true})
+		producers = append(producers, bundle.Producer{Role: role, InstanceID: "synthetic-" + role, Version: "7.85.0-fixture", Commit: strings.Repeat("b", 40), ProtocolVersion: tc.ProtocolVersion, Streams: producerStreams[role], StopOffset: captureDuration, FinalSequence: sequences[role], AcknowledgedSequence: sequences[role], Stopped: true})
 	}
 	if err := w.SetProducers(producers); err != nil {
 		t.Fatal(err)

@@ -5,47 +5,13 @@
 
 package transaction
 
-import (
-	"sync/atomic"
-	"time"
-)
-
-// CaptureObserver receives initial routing decisions only. Implementations must
-// not block delivery and must copy any metadata they retain before returning.
-type CaptureObserver interface {
-	ObserveRoute(payloadID uint64, ordinals []uint64, endpoint, protocol, destination string, enqueuedAt time.Time)
-}
-
-// CaptureMetadata correlates an owned semantic observation with its serialized
-// payload. It is local-only: it is never a header, body, or retry-storage field.
-// The metadata and its ordinals must remain immutable while attached.
-type CaptureMetadata struct {
-	SessionID string
-	CycleID   uint64
-	PayloadID uint64
-	Ordinals  []uint64
-	Observer  CaptureObserver
-}
-
 // BytesPayload is a payload stored as bytes.
 // It contains metadata about the payload.
 type BytesPayload struct {
 	content     []byte
 	pointCount  int
 	Destination Destination
-	capture     atomic.Pointer[CaptureMetadata]
 }
-
-// SetCapture attaches local correlation data for the synchronous submission.
-// The owner must ClearCapture when that submission returns, so queued retries
-// cannot retain the observation's state.
-func (p *BytesPayload) SetCapture(metadata *CaptureMetadata) { p.capture.Store(metadata) }
-
-// Capture returns immutable local correlation data, or nil when disarmed.
-func (p *BytesPayload) Capture() *CaptureMetadata { return p.capture.Load() }
-
-// ClearCapture detaches local observation state without changing the payload.
-func (p *BytesPayload) ClearCapture() { p.capture.Store(nil) }
 
 // NewBytesPayload creates a new instance of BytesPayload.
 func NewBytesPayload(payload []byte, pointCount int) *BytesPayload {

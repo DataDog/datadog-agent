@@ -216,7 +216,7 @@ def _capture_api_reader(installed):
 
 
 def _valid_metric_schedules(capability):
-    """Match protocol-1 fixed check families and positive nanosecond durations."""
+    """Match protocol-2 fixed check families and positive nanosecond durations."""
     schedules = capability.get("metric_schedules")
     if not isinstance(schedules, list) or not 1 <= len(schedules) <= len(_CAPTURE_METRIC_FAMILIES):
         return False
@@ -253,7 +253,7 @@ def _wait_for_capture_apis(read, commit, timeout=120):
                 status = read(role)
                 producer = status.get("producer", {})
                 if (
-                    status.get("protocol_version") != 1
+                    status.get("protocol_version") != 2
                     or producer.get("role") != role
                     or producer.get("commit") != commit
                     or not producer.get("instance_id")
@@ -272,7 +272,7 @@ def _wait_for_capture_apis(read, commit, timeout=120):
                 missing.add(role)
         if not missing:
             print(
-                "Installed core and Process Agent expose capture protocol 1 with all required macOS streams "
+                "Installed core and Process Agent expose capture protocol 2 with all required macOS streams "
                 "and metric check cadences."
             )
             if hardware_available:

@@ -218,22 +218,6 @@ func (b *Loaded) validateTyped() error {
 				names["software_names"][software.DisplayName] = true
 			}
 		}
-		wirePaths := map[string]bool{}
-		for _, name := range ref.WireFiles {
-			var wire WireReference
-			if err := DecodeJSON(b.Files[name], &wire); err != nil || validateWire(ref, wire) != nil {
-				return fmt.Errorf("sample %q contains an invalid Agent wire reference", ref.File)
-			}
-			if wireHost := wire.Headers.Get("X-Dd-Hostname"); wireHost != "" && wireHost != hostname {
-				return errors.New("wire reference contains an inconsistent host identity")
-			}
-			wirePaths[wire.Path] = true
-		}
-		for _, route := range ref.Routes {
-			if !wirePaths[route.Endpoint] {
-				return errors.New("observed wire protocol lacks regenerated evidence")
-			}
-		}
 		b.Samples[ref.File] = sample
 	}
 	for _, group := range groups {

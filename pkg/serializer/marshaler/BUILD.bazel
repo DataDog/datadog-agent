@@ -12,7 +12,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/serializer/marshaler",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/forwarder/defaultforwarder/transaction",
         "@com_github_json_iterator_go//:go",
     ],
 )

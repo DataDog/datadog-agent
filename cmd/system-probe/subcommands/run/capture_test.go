@@ -31,7 +31,7 @@ func TestCaptureManagerDaemonLifecycle(t *testing.T) {
 	require.NotEmpty(t, status.Producer.InstanceID)
 	require.Empty(t, status.Capabilities)
 	require.NoError(t, manager.Register(telemetrycapture.Capability{Stream: telemetrycapture.Connections, Cadence: time.Minute, ConnectionOwner: "system-probe"}))
-	control := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "lifecycle-session-1234"}
+	control := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "lifecycle-session-1234"}
 	_, err := manager.Prepare(telemetrycapture.PrepareRequest{Control: control, Streams: []telemetrycapture.Stream{telemetrycapture.Connections}})
 	require.NoError(t, err)
 	_, err = manager.Activate(control)

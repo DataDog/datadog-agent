@@ -9,7 +9,6 @@ go_library(
         "bundle.go",
         "provenance.go",
         "typed.go",
-        "wire.go",
         "writer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle",

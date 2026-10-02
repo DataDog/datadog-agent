@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/output"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	tc "github.com/DataDog/datadog-agent/pkg/telemetrycapture"
@@ -45,7 +45,7 @@ func TestInstalledClientUsesIPCTrustAuthenticationAndAcknowledgement(t *testing.
 	server := auth.NewMockServer(mux)
 	address, _ := url.Parse(server.URL)
 	host, port, _ := net.SplitHostPort(address.Host)
-	cfg := output.NewConfig()
+	cfg := config.NewMock(t)
 	cfg.Set("cmd_host", host, configmodel.SourceAgentRuntime)
 	cfg.Set("cmd_port", port, configmodel.SourceAgentRuntime)
 	clients, closeClients, err := installedClients(cfg, auth, false)
@@ -59,7 +59,7 @@ func TestInstalledClientUsesIPCTrustAuthenticationAndAcknowledgement(t *testing.
 	if err != nil || status.Producer != manager.Status().Producer {
 		t.Fatalf("IPC capabilities: %v", err)
 	}
-	control := tc.Control{ProtocolVersion: 1, SessionID: "http-client-session-0001"}
+	control := tc.Control{ProtocolVersion: tc.ProtocolVersion, SessionID: "http-client-session-0001"}
 	if _, err := client.Prepare(ctx, tc.PrepareRequest{Control: control, Streams: []tc.Stream{tc.Software}}); err != nil {
 		t.Fatal(err)
 	}

@@ -84,7 +84,7 @@ func TestCaptureRoutesReadinessProtocolAndAcknowledgements(t *testing.T) {
 		}
 	}
 
-	control := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "system-probe-session-123"}
+	control := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "system-probe-session-123"}
 	prepare := telemetrycapture.PrepareRequest{Control: control, Streams: []telemetrycapture.Stream{telemetrycapture.Connections}}
 	var status telemetrycapture.Status
 	request("capabilities", nil, http.StatusOK, &status)
@@ -93,7 +93,7 @@ func TestCaptureRoutesReadinessProtocolAndAcknowledgements(t *testing.T) {
 	request("prepare", prepare, http.StatusConflict, nil)
 	require.NoError(t, manager.Register(telemetrycapture.Capability{Stream: telemetrycapture.Connections, Cadence: 30 * time.Second, ConnectionOwner: "system-probe"}))
 	for _, operation := range []string{"prepare", "activate", "heartbeat", "records", "stop"} {
-		value := map[string]any{"protocol_version": 2, "session_id": control.SessionID}
+		value := map[string]any{"protocol_version": 1, "session_id": control.SessionID}
 		if operation == "prepare" {
 			value["streams"] = []string{"connections"}
 		}

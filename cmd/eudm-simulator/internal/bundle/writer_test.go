@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
 type cancelWhenFileExistsContext struct {
@@ -41,15 +41,7 @@ func writerFromFixture(t *testing.T) (*Writer, *Loaded) {
 		t.Fatal(err)
 	}
 	for _, ref := range source.Manifest.Samples {
-		var wires []WireReference
-		for _, name := range ref.WireFiles {
-			var wire WireReference
-			if err := json.Unmarshal(source.Files[name], &wire); err != nil {
-				t.Fatal(err)
-			}
-			wires = append(wires, wire)
-		}
-		if err := w.Append(ref, json.RawMessage(source.Files[ref.File]), wires); err != nil {
+		if err := w.Append(ref, json.RawMessage(source.Files[ref.File])); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -138,14 +130,12 @@ func TestWriterRequiresExclusivePrivateOutput(t *testing.T) {
 	if err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0700) {
 		t.Fatal("capture directory is not private")
 	}
-	ref := SampleRef{Stream: schema.Metrics, ProducerID: "writer-core-agent", CycleID: 1, Sequence: 1, ChunkCount: 1,
-		Routes: []RoutingEvidence{{PayloadID: 1, Ordinals: []uint64{1}, Endpoint: fixtureWirePath(schema.Metrics), Protocol: "v3", Destination: "primary/1"}}}
-	if err := w.Append(ref, fixtureSample(t, schema.Metrics, "macos"), []WireReference{{Path: fixtureWirePath(schema.Metrics), Headers: http.Header{"Authorization": {"Bearer credential"}, "Content-Type": {"application/x-protobuf"}}, Body: []byte("sanitized")}}); err != nil {
+	ref := SampleRef{Stream: schema.Metrics, ProducerID: "writer-core-agent", CycleID: 1, Sequence: 1, ChunkCount: 1}
+	if err := w.Append(ref, fixtureSample(t, schema.Metrics, "macos")); err != nil {
 		t.Fatal(err)
 	}
-	ref.Routes[0].Ordinals[0] = 999
-	if w.manifest.Samples[0].Routes[0].Ordinals[0] != 1 {
-		t.Fatal("writer borrowed mutable routing evidence")
+	if len(w.manifest.Files) != 1 {
+		t.Fatal("writer persisted more than the typed sample")
 	}
 	for name := range w.manifest.Files {
 		info, err := os.Stat(filepath.Join(dir, name))
@@ -153,17 +143,7 @@ func TestWriterRequiresExclusivePrivateOutput(t *testing.T) {
 			t.Fatal("capture file is not private")
 		}
 	}
-	data, err := os.ReadFile(filepath.Join(dir, w.manifest.Samples[0].WireFiles[0]))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var wire WireReference
-	if err := json.Unmarshal(data, &wire); err != nil {
-		t.Fatal(err)
-	}
-	if wire.Headers.Get("Authorization") != "" || strings.Contains(string(data), "credential") || wire.Headers.Get("Content-Type") == "" {
-		t.Fatal("writer did not preserve the credential-free header allowlist")
-	}
+
 }
 
 func TestWriterCannotCompleteWithoutStoppedAcknowledgements(t *testing.T) {
@@ -172,7 +152,7 @@ func TestWriterCannotCompleteWithoutStoppedAcknowledgements(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	producer := Producer{Role: "core-agent", InstanceID: "writer-core-agent", Version: "7.85.0", Commit: strings.Repeat("b", 40), ProtocolVersion: 1,
+	producer := Producer{Role: "core-agent", InstanceID: "writer-core-agent", Version: "7.85.0", Commit: strings.Repeat("b", 40), ProtocolVersion: telemetrycapture.ProtocolVersion,
 		Streams: []schema.Stream{schema.Metrics}, StopOffset: time.Minute, FinalSequence: 1, AcknowledgedSequence: 1}
 	if err := w.SetProducers([]Producer{producer}); err != nil {
 		t.Fatal(err)

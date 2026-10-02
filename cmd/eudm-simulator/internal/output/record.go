@@ -14,8 +14,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-
-	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle"
 )
 
 const recorderMaxBytes = 128 << 20
@@ -27,13 +25,21 @@ const recorderReferenceOverhead = 512
 
 var recordedHeaders = [...]string{"Content-Type", "Content-Encoding", "DD-Agent-Payload", "X-Dd-Hostname", "X-Dd-Processagentversion", "X-Dd-Request-Id", "X-DD-Agent-Timestamp", "X-DD-Agent-Start-Time", "X-DD-Payload-Source", "X-DD-Processes-Enabled", "X-DD-Service-Discovery-Enabled"}
 
+// RecordedRequest holds an outgoing request for offline replay tests.
+// The recorder excludes authorization and other sensitive headers.
+type RecordedRequest struct {
+	Path    string
+	Headers http.Header
+	Body    []byte
+}
+
 // Recorder is an HTTP transport with no network capability. It must only be
 // installed behind a pipeline receiving already sanitized payloads. It never
 // retains credentials, URLs with query strings, or the
-// original request. The simulator uses the same Agent serializers in both modes.
+// original request. Replay tests use ordinary Agent serializers and forwarders.
 type Recorder struct {
 	mu       sync.Mutex
-	requests []bundle.WireReference
+	requests []RecordedRequest
 	bytes    int
 	changed  chan struct{}
 }
@@ -46,7 +52,7 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, errors.New("read sanitized recording request")
 	}
 	if len(data) >= 64<<20 {
-		return nil, errors.New("serialized reference exceeds recording size limit")
+		return nil, errors.New("serialized request exceeds recording size limit")
 	}
 	size := recorderReferenceOverhead + cap(data) + len(req.URL.Path)
 	for _, key := range recordedHeaders {
@@ -65,7 +71,7 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 			headers.Set(key, strings.Clone(value))
 		}
 	}
-	r.requests = append(r.requests, bundle.WireReference{Path: strings.Clone(req.URL.Path), Headers: headers, Body: data})
+	r.requests = append(r.requests, RecordedRequest{Path: strings.Clone(req.URL.Path), Headers: headers, Body: data})
 	r.bytes += size
 	close(r.changed)
 	r.changed = make(chan struct{})
@@ -75,7 +81,7 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 
 // Drain transfers owned references after Pipeline.Wait has acknowledged all
 // sends for the current logical cycle. No prior cycle remains retained.
-func (r *Recorder) Drain() []bundle.WireReference {
+func (r *Recorder) Drain() []RecordedRequest {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	result := r.requests
@@ -85,13 +91,13 @@ func (r *Recorder) Drain() []bundle.WireReference {
 
 // Wait returns recorded references after at least count requests have arrived.
 // Final transaction acceptance is tracked independently by the delivery layer.
-func (r *Recorder) Wait(ctx context.Context, count int) ([]bundle.WireReference, error) {
+func (r *Recorder) Wait(ctx context.Context, count int) ([]RecordedRequest, error) {
 	for {
 		r.mu.Lock()
 		if len(r.requests) >= count {
-			result := make([]bundle.WireReference, len(r.requests))
+			result := make([]RecordedRequest, len(r.requests))
 			for i, v := range r.requests {
-				result[i] = bundle.WireReference{Path: v.Path, Headers: v.Headers.Clone(), Body: bytes.Clone(v.Body)}
+				result[i] = RecordedRequest{Path: v.Path, Headers: v.Headers.Clone(), Body: bytes.Clone(v.Body)}
 			}
 			r.mu.Unlock()
 			return result, nil

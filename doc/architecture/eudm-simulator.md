@@ -52,7 +52,7 @@ The project began with an external `eudsim` prototype. Its useful scenario conce
 | Require captured evidence and hardware capacity | Variation can change declared values; it cannot demonstrate behavior or capabilities absent from the reference device. Broader coverage requires another capture. |
 | Use normal intake and enrichment | Direct resource registration would hide the backend relationship under evaluation. The former REDAPL bypass is intentionally absent. |
 | Generate AP evidence using Agent NDM types | An endpoint capture cannot supply an AP's resource inventory or radio counters. The AP side is synthetic, with explicit identity correlation to captured client evidence. |
-| Bind replay to the capture-tool commit | Typed structures and serializers may change as the feature branch moves. Replay requires the exact `capture_tool.commit`; producing Agent commits are independently recorded and may differ when they support capture protocol 1. |
+| Bind replay to the capture-tool commit | Typed structures and serializers may change as the feature branch moves. Replay requires the exact `capture_tool.commit`; producing Agent commits are independently recorded and may differ when they support capture protocol 2. |
 
 The target is repeatable evidence for unchanged products, not emulation of actual application installations, CPU load, network faults, or radio hardware. Production destinations, Linux endpoint simulation, notable events, and direct backend-store writes remain outside the project.
 
@@ -73,10 +73,8 @@ flowchart LR
     N --> T
     A[Capture command] <-->|Authenticated local sessions| T
     A --> S[One sanitizer]
-    S --> W[Isolated Agent serializers and non-networking recorder]
-    S --> B[Schema-4 bundle]
-    W --> B
-    B --> V[Digest, provenance, and evidence preflight]
+    S --> B[Schema-5 typed samples]
+    B --> V[Digest, completeness, and profile preflight]
     V --> E[Portable replay: schedule, clone, and overlay]
     AP[Generated access-point evidence] --> R[Common Agent delivery pipeline]
     E --> R
@@ -90,14 +88,14 @@ Capture retains metric cycles throughout the session and requires two observed c
 
 Observation reserves bounded memory before making an owned copy. Each producer permits 256 records, 128 MiB total, and 64 MiB per logical item, including unfinished assemblies and unacknowledged reads. Overflow or an oversized item fails capture without blocking or changing production submission. The disabled path performs an atomic session check. Tees perform no encoding, sanitization, logging, disk access, or network I/O.
 
-Preparation, activation, reads, heartbeat, and stop use one opaque session ID and protocol version 1. Activation acknowledgements must be within five seconds. A 30-second lease renewed every five seconds disarms abandoned sessions. The coordinator also caps cycle history at 65,536 entries per producer and fails capture if that bound is exhausted. Stop closes admission, waits for reserved copies, and requires acknowledgement of every accepted sequence before returning the final stopped state. Cancellation or writer failure attempts cleanup with a separate bounded context; incomplete sessions cannot produce a valid `COMPLETE` marker.
+Preparation, activation, reads, heartbeat, and stop use one opaque session ID and protocol version 2. Activation acknowledgements must be within five seconds. A 30-second lease renewed every five seconds disarms abandoned sessions. The coordinator also caps cycle history at 65,536 entries per producer and fails capture if that bound is exhausted. Stop closes admission, waits for reserved copies, and requires acknowledgement of every accepted sequence before returning the final stopped state. Cancellation or writer failure attempts cleanup with a separate bounded context; incomplete sessions cannot produce a valid `COMPLETE` marker.
 
 Normal destinations, retries, forwarding, collection schedules, and service lifecycles stay unchanged. Capture reads installed configuration only to locate APIs and existing authentication artifacts. It does not change `infrastructure_mode`, `network_config.direct_send`, enabled checks, or intervals. Windows direct connections are copied at the sender queue boundary; portable replay never initializes that sender.
 
 | Evidence | Capture boundary and representation | Replay delivery |
 | --- | --- | --- |
-| Host resource, battery, WLAN, and network-throughput metrics | Selected semantics copied as the serializer consumes the original iterator; actual payload membership joined to initial forwarding routes; separate observed family cadences | `serializer.Serializer.SendIterableSeries` |
-| Host/device metadata | Owned semantic projection excluding API keys, resources, and unrelated cloud/container/configuration data before enqueueing; actual provider cadence | `serializer.Serializer.SendHostMetadata` |
+| Host resource, battery, WLAN, and network-throughput metrics | Selected semantics copied as the serializer consumes the original iterator and retained once accepted by serialization; separate observed family cadences | `serializer.Serializer.SendIterableSeries` |
+| Host/device metadata | Owned semantic projection excluding API keys, resources, and unrelated cloud/container/configuration data before enqueueing; actual provider cadence and successful normal submission | `serializer.Serializer.SendHostMetadata` |
 | Agent and host inventories | Fixed semantic allowlists copied from normal inventory submissions; credentials, configuration and unrelated inventory tables excluded | `serializer.Serializer.SendMetadata` through `/api/v1/metadata` |
 | Optional host system information | One observed `host_system_info_metadata` envelope from an advertised provider, retaining manufacturer/model/chassis fields and a pseudonymous serial at its effective hourly cadence | The same inventory metadata route |
 | Processes | Complete ordered encoded group after production queue polling and configured-drop filtering | Tracked process submitter with Agent encoding, headers, weighted queues, and forwarders |
@@ -105,7 +103,7 @@ Normal destinations, retries, forwarding, collection schedules, and service life
 | Software inventory | Complete software event before aggregation; other event types ignored | Blocking event-platform delivery for software inventory during replay |
 | AP metrics and resource metadata | Generated by the scenario model; not captured from an endpoint | Metric serializer plus `EventTypeNetworkDevicesMetadata` event-platform delivery |
 
-Retries do not create capture cycles. Additional destinations and shadow/failover routes add evidence to the original metric cycle. Local correlation identifiers never enter backend headers, bodies, or serialized retry storage. Captured groups are decoded and checked for size, order, and group identity off the production path.
+Retries and destination fanout do not create additional capture cycles. A small serializer callback retains selected metrics only after successful encoding, without recording per-payload membership or routes. Metadata and inventory projections are retained after successful normal submission. Captured groups are decoded and checked for size, order, and group identity off the production path.
 
 The implementation extends NDM with `WirelessInterfaceMetadata` and `BatchPayloadsWithWirelessInterfaces`. Existing callers retain the `BatchPayloads` entry point. Each client's emitted BSSID matches its AP wireless-interface resource, while each endpoint has a unique client MAC.
 
@@ -120,7 +118,7 @@ remain private to each simulated device. Its singleton sample repeats at the
 observed provider cadence, normally one hour. A bundle without this advertised
 stream cannot supply or synthesize those additional hardware fields.
 
-One command-owned sanitizer projects observed samples onto known fields before persistence or reserialization, preserving pseudonyms across streams. Hostnames, UUIDs, usernames, paths, arguments, serials, addresses, MAC/BSSID values, SSIDs, network identifiers, and product identities become stable placeholders. Unknown sensitive fields and cloud/container identities are discarded. Authorization headers are excluded from wire references. The isolated recording transport has no networking capability. The running Agents continue sending their original output to their configured backends. Raw observations remain in memory and never enter logs, flares, or status responses.
+One command-owned sanitizer projects observed samples onto known fields before persistence, preserving pseudonyms across streams. Hostnames, UUIDs, usernames, paths, arguments, serials, addresses, MAC/BSSID values, SSIDs, network identifiers, and product identities become stable placeholders. Unknown sensitive fields and cloud/container identities are discarded. No outgoing request bodies or headers are persisted. Replay tests use an isolated recording transport to inspect serialized output in memory. The running Agents continue sending their original output to their configured backends. Raw observations remain in memory and never enter logs, flares, or status responses.
 
 Connection DNS evidence retains associations with captured endpoint addresses, using stable pseudonymous names ending in `.invalid`. Replay rewrites both endpoint addresses and their DNS lookup keys together, preserving the association across device identities. Unrelated DNS query statistics and application payloads are excluded. Software keeps recognized native source/status values and safe version strings. An observed nonempty version outside the safe syntax becomes a stable opaque `software_version` pseudonym; an originally empty version stays empty. This preserves version identity without inventing a release number or dropping an otherwise eligible installed-software row.
 
@@ -134,14 +132,15 @@ A complete bundle directory contains:
 
 | File | Purpose |
 | --- | --- |
-| `manifest.json` | Schema 4; capture-tool version/commit; session and producer inventory; acknowledged boundaries and final sequences; profile, explicit cycles/chunks, relative offsets, stream cadences, `metric_cadences_ns` keyed by check family, sanitized routes, and file digests |
+| `manifest.json` | Schema 5; capture-tool version/commit; session and producer inventory; acknowledged boundaries and final sequences; profile, explicit cycles/chunks, relative offsets, stream cadences, `metric_cadences_ns` keyed by check family, and file digests |
 | `sample-000000.json`, … | Sanitized typed samples; chunks from one explicit producer/cycle retain their order and share a relative offset |
-| `sample-000000-wire-000.json`, … | Sanitized Agent-serialized request references, with allowlisted headers and encoded body bytes |
 | `COMPLETE` | Digest of the completed manifest; written only after coverage, complete groups, final sequence consumption, and every producer stop acknowledgement succeed without drops or failures |
 
-The loader verifies the completion marker, all declared file digests, typed samples, profile inventories, supported versions, independent producer builds, metric-family coverage, and the exact capture-tool/replay commit. Schema-1, schema-2, and schema-3 bundles require recapture; migration cannot invent producer acknowledgements, observed inventories, or missing metric-family timing evidence. It rejects invalid or incomplete bundles and unsafe file layouts. Scenario preflight then checks every captured cycle against the requested overlays and resource bounds. A union of names in the profile is insufficient if a required process or connection is absent from a later cycle.
+The loader verifies the completion marker, all declared file digests, typed samples, profile inventories, supported versions, independent producer builds, metric-family coverage, and the exact capture-tool/replay commit. Earlier bundle schemas require recapture with protocol-2 producers; the loader does not migrate or relabel historical captures. It rejects invalid or incomplete bundles and unsafe file layouts. Scenario preflight then checks every captured cycle against the requested overlays and resource bounds. A union of names in the profile is insufficient if a required process or connection is absent from a later cycle.
 
-Wire references are regenerated from sanitized samples through the observed protocols, one logical cycle at a time. Original endpoint authorities, raw headers, and credentials are never persisted. Sanitized initial route evidence is separate from the regenerated bodies. Typed metrics retain exact source enums and fractional timestamps even when a wire format cannot represent them. Replay decodes typed samples, rewrites them, and serializes again. Do not edit bundle files, checksums, or the commit to make them pass validation. Copy complete directories without changing their bytes. Real captures remain operator-managed artifacts; only small synthetic fixtures belong in the repository.
+Capture writes one sanitized typed representation of each retained sample. It does not construct delivery pipelines, regenerate wire requests, or record endpoint/protocol/destination proofs. Typed metrics retain exact source enums and fractional timestamps. Replay clones these samples, rewrites identities and timestamps, applies overlays, and serializes through the Agent delivery packages. Serialization and privacy checks on outgoing bodies remain in replay tests using a non-networking recorder; they are not part of the bundle contract.
+
+Do not edit bundle files, checksums, or the commit to make them pass validation. Copy complete directories without changing their bytes. Real captures remain operator-managed artifacts; only small synthetic fixtures belong in the repository.
 
 Scenario YAML declares behavior and local expectations; a version-2 local JSON report records what delivery actually completed, its scenario digest, single `bundle_digest`, seed, fresh run ID, and actual start. The runner creates its metadata in memory after loading and validating the inputs. There is no saved plan or bundle-assignment table; cohort counts and ordinals come from the loaded scenario. Optional `validate` performs the input checks without sending telemetry, and `run` repeats them automatically. API keys belong only in the replay environment. Bundle hashes detect corruption and compatibility mismatches; they are not a signature or a source-authentication mechanism.
 

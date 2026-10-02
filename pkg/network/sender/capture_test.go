@@ -41,7 +41,7 @@ func TestDirectSenderObservesGroupsWithoutChangingForwarding(t *testing.T) {
 			manager := telemetrycapture.NewManager("system-probe", "fixture", "fixture")
 			defer manager.Close()
 			require.NoError(t, manager.Register(telemetrycapture.Capability{Stream: telemetrycapture.Connections, Cadence: 30 * time.Second, ConnectionOwner: "direct"}))
-			control := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "direct-sender-session"}
+			control := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "direct-sender-session"}
 			if mode != "disabled" {
 				_, err := manager.Prepare(telemetrycapture.PrepareRequest{Control: control, Streams: []telemetrycapture.Stream{telemetrycapture.Connections}})
 				require.NoError(t, err)
@@ -119,7 +119,7 @@ func TestDirectSenderEmptyCollectionAndEncodingLoss(t *testing.T) {
 	manager := telemetrycapture.NewManager("system-probe", "fixture", "fixture")
 	defer manager.Close()
 	require.NoError(t, manager.Register(telemetrycapture.Capability{Stream: telemetrycapture.Connections, Cadence: time.Second, ConnectionOwner: "direct"}))
-	control := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "empty-direct-connection-session"}
+	control := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "empty-direct-connection-session"}
 	_, err := manager.Prepare(telemetrycapture.PrepareRequest{Control: control, Streams: []telemetrycapture.Stream{telemetrycapture.Connections}})
 	require.NoError(t, err)
 	_, err = manager.Activate(control)

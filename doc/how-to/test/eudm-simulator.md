@@ -23,8 +23,11 @@ processes. Full host-enrichment acceptance remains **INCOMPLETE — LEGACY HOST
 ENRICHMENT**: EUDM still showed blank OS/hardware fields and `noagent`, while
 Fleet showed the correct Agent version. See the [live verification record](#inventory-discovery-fix-2026-10-01).
 The earlier schema-2 run omitted the separate Agent inventory payload required
-for discovery. Current schema 4 retains those inventories and adds schedules and
-coverage for every running supported metric check family, including battery.
+for discovery. Schema 4 added schedules and coverage for every running supported metric check
+family, including battery. Current schema 5 keeps those streams and schedules
+but stores typed samples only, without regenerated requests or routing proofs.
+It requires producer capture protocol 2. The historical live results below
+predate this simplification; they are not a new live acceptance result.
 macOS also captures connections when Process Agent advertises them. Reinstall the updated producers and
 recapture; an older bundle cannot supply the missing evidence.
 The Windows VPN proof remains
@@ -77,7 +80,7 @@ and system-probe services with the normal network driver.
 
 Capture and replay binaries must have the same exact stamped commit, recorded as
 `capture_tool.commit`. Producing Agents may use different commits, but must
-support capture protocol 1 and advertise metric check schedules. Installation and its restart happen before the
+support capture protocol 2 and advertise metric check schedules. Installation and its restart happen before the
 observation window; capture itself never starts, restarts, or replaces services.
 
 Use a healthy device with the applications, hardware, and wireless interfaces
@@ -158,21 +161,20 @@ requires every final sequence to be consumed and every stopped acknowledgement
 to arrive without failures or drops. An interrupted or failed directory without
 a valid `COMPLETE` cannot be replayed; retry into a new directory.
 
-Only sanitized typed samples and regenerated Agent wire references are persisted.
-Schema-3 `manifest.json` records `capture_tool`, session and producer identities,
-producer versions/commits and protocol, acknowledged boundaries, final sequences,
-explicit cycles and chunk order, sanitized routing labels, profile, cadences,
-and file digests. Host metadata and Agent inventory retain the producing Agent
-version. Inventory copies use fixed allowlists and contain no Agent configuration
-or credentials. Inventory collection and Agent startup timestamps are stored
-relative to capture start, then rebased to the replay clock. Metrics
-retain source enums and fractional relative timestamps in typed samples even
-when their observed wire format cannot represent them. The original request
-bodies, endpoint authorities, credentials, and raw headers are never persisted.
+Only sanitized typed samples are persisted. Schema-5 `manifest.json` records
+`capture_tool`, session and producer identities, producer versions/commits and
+protocol, acknowledged boundaries, final sequences, explicit cycles and chunk
+order, profile, cadences, and file digests. Host metadata and Agent inventory
+retain the producing Agent version. Inventory copies use fixed allowlists and
+contain no Agent configuration or credentials. Collection and Agent startup
+timestamps are stored relative to capture start, then rebased to the replay
+clock. Metrics retain source enums and fractional relative timestamps.
+Capture does not regenerate requests or retain destination/serialization proofs;
+replay tests inspect outgoing Agent payloads with an in-memory recorder.
 
 `COMPLETE` contains the manifest digest. Copy the whole directory unchanged to
-the replay host. Schema-1 and schema-2 captures must be recaptured; editing a
-manifest cannot supply missing producer acknowledgements or observed inventories.
+the replay host. Earlier schemas require reinstallation of compatible producers
+and recapture; do not edit manifests to relabel older captures.
 Keep real bundles outside the repository; checked-in fixtures remain synthetic.
 
 ## Windows walkthrough
@@ -199,7 +201,7 @@ $env:DD_SITE = 'datad0g.com'
 if ($LASTEXITCODE -ne 0) { throw 'Capture failed; inspect missing-stream error' }
 ```
 
-If the local branch does not exist, use `git switch --track origin/focus/create-eudm-simulator` on the first checkout. Use a new bundle directory for a new capture. To reuse an existing compatible bundle, skip the `capture` command; never overwrite an earlier capture. Build capture/replay binaries at the same commit; installed producers must support protocol 1 and record their own build identities. Use separate runs and matching baselines for Windows and macOS scenarios.
+If the local branch does not exist, use `git switch --track origin/focus/create-eudm-simulator` on the first checkout. Use a new bundle directory for a new capture. To reuse an existing compatible bundle, skip the `capture` command; never overwrite an earlier capture. Build capture/replay binaries at the same commit; installed producers must support protocol 2 and record their own build identities. Use separate runs and matching baselines for Windows and macOS scenarios.
 
 Before the next block, obtain the intended staging organization's API key through your credential workflow and expose it as `DD_API_KEY` in this process. To check the scenario without sending telemetry, optionally run `& $eudm validate --scenario $scenario --bundle $bundle`; this needs no API key.
 
@@ -504,7 +506,7 @@ on both capture devices, and recapture the baselines before the next runs.
 | Build dependencies or Windows native libraries missing | Use the repository's configured platform build environment. Native Windows build is an outstanding acceptance step; record the exact build failure rather than claiming the macOS result covers it. |
 | Capture deadline reports missing connections | Verify the advertised connection owner, driver/network collection, configured local API address, and active TCP traffic. Use capture `--cfgpath` for API/authentication locations; direct-send configuration stays unchanged. |
 | Capture has no `COMPLETE` marker | It did not finish required coverage. Preserve its error for diagnosis and recapture into a new directory; do not manufacture a completion marker. |
-| Capture-tool commit mismatch | Rebuild capture and replay binaries from one exact commit and recapture. Producer commits may differ when protocol 1 is supported. |
+| Capture-tool commit mismatch | Rebuild capture and replay binaries from one exact commit and recapture. Producer commits may differ when protocol 2 is supported. |
 | Legacy schema-1 or schema-2 bundle | Reinstall compatible producers and recapture to observe Agent and host inventories; do not relabel an old manifest. |
 | Capture reports missing Agent/host inventory capability | Install the updated core Agent and verify normal inventory collection is enabled; neither cached inventory endpoints nor host tags substitute for an observed inventory. |
 | Capture API unavailable or incompatible | Install compatible producing builds before the session and verify enabled streams. Capture cannot add the APIs to an older running service. |
@@ -528,6 +530,39 @@ on both capture devices, and recapture the baselines before the next runs.
 Use `capture --help`, `validate --help`, or `run --help` for the installed binary's flags. There is no resume, acceleration, standalone bundle-only validation, or automatic cleanup command. A retry is a new run with a new opaque identity. Select artifacts and product evidence by that identity so failed and concurrent runs do not contaminate the evaluation.
 
 ## Recorded local verification
+
+### Typed bundle simplification, 2026-10-02
+
+Schema 5 stores sanitized typed samples without regenerated wire files or
+per-payload routing proofs. Capture protocol 2 removes metric ordinal and route
+metadata. Successful-encoding callbacks still exclude filtered or oversized
+series, and replay tests continue decoding the actual outgoing payloads.
+The bounded queues, authentication, leases, complete groups, device streams,
+metric-family cadences, and bundle integrity checks remain.
+
+Local macOS verification passed:
+
+- `dda inv test --targets=./cmd/eudm-simulator/... --build-exclude=python --race`:
+  440 test entries, with the opt-in real-device privacy audit and fixture generator
+  skipped. Fixture generation was run separately for both synthetic platforms.
+- Capture-focused API and lifecycle tests passed with `--test-run-name=Capture
+  --race --build-exclude=python` across core Agent, Process Agent, system-probe,
+  metadata, software, aggregator, and process packages: 79 test entries.
+- Focused session, serializer, stream, and forwarder race suites passed, including
+  filtering, overflow, overlapping destination filters, and unchanged delivery.
+- `dda inv invoke-unit-tests.run --tests=eudm_simulator --directory=tasks/unit_tests`:
+  all 24 installer tests passed, including rejection of older capture protocols.
+- `dda inv eudm-simulator.install --prepare-only`: core Agent, Process Agent, and
+  simulator builds and runtime checks passed without changing installed services.
+- Go lint for the simulator and changed producer/forwarder packages, and
+  `dda inv linter.python`, passed.
+
+Both checked-in fixtures now contain 30 typed samples and no wire files; their
+digests and replay tests passed. Their intentionally synthetic commits remain.
+No new installed-Agent capture or staging replay was performed for schema 5.
+Install compatible producers and recapture before using this format; the older
+live results below do not establish acceptance of protocol 2. Windows live
+verification remains deferred.
 
 ### Device-panel follow-up, 2026-10-01
 

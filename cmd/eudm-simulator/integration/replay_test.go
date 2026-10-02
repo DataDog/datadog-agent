@@ -511,7 +511,7 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, forbidden := range []string{"capture-host", scenario.Meta.Name, "private-primary-cohort", "private-comparison-cohort", "expectation", "affected_cohorts"} {
+		for _, forbidden := range []string{"capture-host", "synthetic-integration-no-credential", scenario.Meta.Name, "private-primary-cohort", "private-comparison-cohort", "expectation", "affected_cohorts"} {
 			if strings.Contains(string(encoded), forbidden) {
 				t.Fatalf("local or captured identity leaked into %s: %s", ref.Path, forbidden)
 			}
@@ -769,7 +769,7 @@ func TestWirelessEvidenceThroughAgentNDMBatchesAndMetricDelivery(t *testing.T) {
 	}
 }
 
-func eventBody(t *testing.T, ref bundle.WireReference) []byte {
+func eventBody(t *testing.T, ref output.RecordedRequest) []byte {
 	t.Helper()
 	encoding := ref.Headers.Get("Content-Encoding")
 	if encoding == "" || encoding == "identity" {

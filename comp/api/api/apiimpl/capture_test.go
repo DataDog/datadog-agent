@@ -129,7 +129,7 @@ func TestCaptureRoutesAuthenticateAndDrain(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, code)
 		require.NotContains(t, string(data), "capture-core-api-session")
 	}
-	control := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "capture-core-api-session"}
+	control := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "capture-core-api-session"}
 	code, _ := request("POST", "prepare", telemetrycapture.PrepareRequest{Control: control, Streams: []telemetrycapture.Stream{telemetrycapture.Software}}, true)
 	require.Equal(t, http.StatusOK, code)
 	code, _ = request("POST", "activate", control, true)

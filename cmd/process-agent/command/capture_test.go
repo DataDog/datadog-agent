@@ -30,7 +30,7 @@ func TestCaptureManagerSharedAndClosedWithDaemon(t *testing.T) {
 	require.Equal(t, version.FullCommit, identity.Commit)
 	require.Empty(t, first.Status().Capabilities, "daemon construction is not producer readiness")
 	require.NoError(t, first.Register(telemetrycapture.Capability{Stream: telemetrycapture.Processes, Cadence: time.Second}))
-	control := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "daemon-lifecycle-session"}
+	control := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "daemon-lifecycle-session"}
 	_, err := first.Prepare(telemetrycapture.PrepareRequest{Control: control, Streams: []telemetrycapture.Stream{telemetrycapture.Processes}})
 	require.NoError(t, err)
 	_, err = first.Activate(control)

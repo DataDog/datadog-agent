@@ -7,7 +7,6 @@ package bundle
 
 import (
 	"encoding/json"
-	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -34,7 +33,7 @@ func TestRejectIncompleteOrUnsafeProvenance(t *testing.T) {
 		{"unknown producer role", func(m *Manifest) { m.Producers[0].Role = "capture-tool" }},
 		{"duplicate producer role", func(m *Manifest) { m.Producers[1].Role = m.Producers[0].Role }},
 		{"duplicate producer identity", func(m *Manifest) { m.Producers[1].InstanceID = m.Producers[0].InstanceID }},
-		{"incompatible producer", func(m *Manifest) { m.Producers[0].ProtocolVersion = 2 }},
+		{"incompatible producer", func(m *Manifest) { m.Producers[0].ProtocolVersion++ }},
 		{"invalid producer commit", func(m *Manifest) { m.Producers[0].Commit = "short" }},
 		{"metadata build mismatch", func(m *Manifest) { m.Producers[0].Version = "7.84.0" }},
 		{"missing stop", func(m *Manifest) { m.Producers[0].Stopped = false }},
@@ -57,20 +56,6 @@ func TestRejectIncompleteOrUnsafeProvenance(t *testing.T) {
 		{"missing chunk count", func(m *Manifest) { m.Samples[0].ChunkCount = 0 }},
 		{"invalid singleton index", func(m *Manifest) { m.Samples[0].ChunkIndex = 1 }},
 		{"chunked metrics", func(m *Manifest) { m.Samples[0].ChunkCount = 2 }},
-		{"missing route", func(m *Manifest) { m.Samples[0].Routes = nil }},
-		{"route authority", func(m *Manifest) { m.Samples[0].Routes[0].Endpoint = "https://native.example/api/v1/series" }},
-		{"route query", func(m *Manifest) { m.Samples[0].Routes[0].Endpoint += "?api_key=secret" }},
-		{"route raw destination", func(m *Manifest) { m.Samples[0].Routes[0].Destination = "native.example" }},
-		{"route protocol mismatch", func(m *Manifest) { m.Samples[0].Routes[0].Protocol = "v1" }},
-		{"route time beyond capture", func(m *Manifest) { m.Samples[0].Routes[0].EnqueueOffset = m.Duration + 1 }},
-		{"missing membership", func(m *Manifest) { m.Samples[0].Routes[0].Ordinals = nil }},
-		{"invalid membership", func(m *Manifest) { m.Samples[0].Routes[0].Ordinals = []uint64{1, 1} }},
-		{"duplicate initial route", func(m *Manifest) { m.Samples[0].Routes = append(m.Samples[0].Routes, m.Samples[0].Routes[0]) }},
-		{"fanout membership mismatch", func(m *Manifest) {
-			route := m.Samples[0].Routes[0]
-			route.Destination, route.Ordinals = "additional-1/1", []uint64{2}
-			m.Samples[0].Routes = append(m.Samples[0].Routes, route)
-		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			dir, loaded := fixture(t, "macos")
@@ -86,45 +71,6 @@ func TestRejectIncompleteOrUnsafeProvenance(t *testing.T) {
 func TestDistinctCyclesNotTimestampEqualityDetermineCoverage(t *testing.T) {
 	dir, loaded := fixture(t, "macos")
 	loaded.Manifest.Samples[1].Offset = loaded.Manifest.Samples[0].Offset
-	loaded.Manifest.Samples[1].Routes[0].EnqueueOffset = loaded.Manifest.Samples[0].Offset
-	writeManifest(t, dir, loaded.Manifest)
-	if _, err := Load(dir, strings.Repeat("a", 40)); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestMetricCycleRetainsPrimaryAndShadowProtocols(t *testing.T) {
-	ref := SampleRef{Stream: schema.Metrics, Routes: []RoutingEvidence{
-		{PayloadID: 1, Ordinals: []uint64{1, 3}, Endpoint: "/api/v2/series", Protocol: "v2", Destination: "primary/1"},
-		{PayloadID: 2, Ordinals: []uint64{3}, Endpoint: "/api/intake/metrics/v3beta/series", Protocol: "v3beta", Destination: "additional-1/1"},
-	}}
-	if err := validateRoutes(ref, time.Minute); err != nil {
-		t.Fatal(err)
-	}
-	ref.Routes[1].PayloadID = 1
-	if err := validateRoutes(ref, time.Minute); err == nil {
-		t.Fatal("one payload cannot fan out with different protocols")
-	}
-}
-
-func TestEachObservedProtocolRequiresRegeneratedWire(t *testing.T) {
-	dir, loaded := fixture(t, "macos")
-	ref := &loaded.Manifest.Samples[0]
-	ref.Routes = append(ref.Routes, RoutingEvidence{PayloadID: 2, Ordinals: []uint64{1}, Endpoint: "/api/intake/metrics/v3beta/series", Protocol: "v3beta", Destination: "additional-1/1"})
-	writeManifest(t, dir, loaded.Manifest)
-	if _, err := Load(dir, strings.Repeat("a", 40)); err == nil {
-		t.Fatal("missing shadow-protocol evidence was accepted")
-	}
-	name := "shadow-wire.json"
-	wire, err := json.Marshal(WireReference{Path: ref.Routes[1].Endpoint, Body: []byte("sanitized-shadow-wire-fixture")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, name), wire, 0600); err != nil {
-		t.Fatal(err)
-	}
-	ref.WireFiles = append(ref.WireFiles, name)
-	loaded.Manifest.Files[name] = schema.Digest(wire)
 	writeManifest(t, dir, loaded.Manifest)
 	if _, err := Load(dir, strings.Repeat("a", 40)); err != nil {
 		t.Fatal(err)
@@ -174,9 +120,6 @@ func TestWindowsRequiresConnectionCoverage(t *testing.T) {
 			return false
 		}
 		delete(m.Files, ref.File)
-		for _, name := range ref.WireFiles {
-			delete(m.Files, name)
-		}
 		return true
 	})
 	writeManifest(t, dir, *m)
@@ -206,13 +149,8 @@ func fixtureProcessGroup(t *testing.T) (string, *Loaded, int) {
 	value := fixtureSample(t, schema.Processes, "macos").(*model.CollectorProc)
 	value.GroupId, value.GroupSize = 51, 2
 	second := *first
-	second.ChunkIndex, second.File, second.WireFiles = 1, "extra-process.json", []string{"extra-process-wire.json"}
+	second.ChunkIndex, second.File = 1, "extra-process.json"
 	writeBundleFile(t, dir, loaded, second.File, value)
-	var wire WireReference
-	if err := json.Unmarshal(loaded.Files[first.WireFiles[0]], &wire); err != nil {
-		t.Fatal(err)
-	}
-	writeBundleFile(t, dir, loaded, second.WireFiles[0], wire)
 	value.Processes = nil // A metadata-only chunk is valid within this nonempty group.
 	writeBundleFile(t, dir, loaded, first.File, value)
 	loaded.Manifest.Samples = slices.Insert(loaded.Manifest.Samples, index+1, second)
@@ -267,29 +205,6 @@ func TestRejectInvalidTypedGroups(t *testing.T) {
 			writeManifest(t, dir, loaded.Manifest)
 			if _, err := Load(dir, strings.Repeat("a", 40)); err == nil {
 				t.Fatal("accepted invalid typed group")
-			}
-		})
-	}
-}
-
-func TestRejectUnsafeWireEvidenceWithValidDigests(t *testing.T) {
-	for _, test := range []struct {
-		name string
-		wire WireReference
-	}{
-		{"authority", WireReference{Path: "https://native.example/api/v1/series", Body: []byte("safe")}},
-		{"query", WireReference{Path: "/api/intake/metrics/v3/series?api_key=secret", Body: []byte("safe")}},
-		{"wrong protocol path", WireReference{Path: "/api/v1/series", Body: []byte("safe")}},
-		{"authorization", WireReference{Path: fixtureWirePath(schema.Metrics), Headers: http.Header{"Authorization": {"Bearer secret"}}, Body: []byte("safe")}},
-		{"header newline", WireReference{Path: fixtureWirePath(schema.Metrics), Headers: http.Header{"Content-Type": {"text/plain\r\nAuthorization: secret"}}, Body: []byte("safe")}},
-		{"native host", WireReference{Path: fixtureWirePath(schema.Metrics), Headers: http.Header{"X-Dd-Hostname": {"native-host"}}, Body: []byte("safe")}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			dir, loaded := fixture(t, "macos")
-			writeBundleFile(t, dir, loaded, loaded.Manifest.Samples[0].WireFiles[0], test.wire)
-			writeManifest(t, dir, loaded.Manifest)
-			if _, err := Load(dir, strings.Repeat("a", 40)); err == nil {
-				t.Fatal("accepted unsafe wire reference")
 			}
 		})
 	}

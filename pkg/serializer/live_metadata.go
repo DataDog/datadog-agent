@@ -6,11 +6,8 @@
 package serializer
 
 import (
-	"strings"
 	"time"
-	"unsafe"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
@@ -29,8 +26,6 @@ type liveMetadataCapture struct {
 	reservation *telemetrycapture.Reservation
 	projection  *telemetrycapture.HostMetadata
 	inventory   *telemetrycapture.Inventory
-	payload     *transaction.BytesPayload
-	routes      []telemetrycapture.Route
 }
 
 func beginLiveMetadata(manager *telemetrycapture.Manager, payload marshaler.JSONMarshaler) (capture *liveMetadataCapture) {
@@ -65,58 +60,17 @@ func beginLiveMetadata(manager *telemetrycapture.Manager, payload marshaler.JSON
 	return &liveMetadataCapture{manager: manager, reservation: reservation, projection: owned}
 }
 
-func (c *liveMetadataCapture) attach(payloads transaction.BytesPayloads) {
-	defer c.recoverFailure()
-	if len(payloads) != 1 || payloads[0] == nil || !c.reservation.Grow(512) {
-		_ = c.manager.Fail(c.reservation.Control())
-		return
-	}
-	c.payload = payloads[0]
-	c.payload.SetCapture(&transaction.CaptureMetadata{
-		SessionID: c.reservation.Control().SessionID, CycleID: c.reservation.CycleID(),
-		PayloadID: 1, Ordinals: []uint64{1}, Observer: c,
-	})
-}
-
-func (c *liveMetadataCapture) ObserveRoute(payloadID uint64, ordinals []uint64, endpoint, protocol, destination string, enqueuedAt time.Time) {
-	defer func() {
-		if recover() != nil {
-			_ = c.manager.Fail(c.reservation.Control())
-		}
-	}()
-	if payloadID != 1 || len(ordinals) != 1 || ordinals[0] != 1 ||
-		!strings.HasPrefix(endpoint, "/") || strings.ContainsAny(endpoint, "?#") || protocol == "" || destination == "" {
-		_ = c.manager.Fail(c.reservation.Control())
-		return
-	}
-	if c.inventory != nil && (endpoint != "/api/v1/metadata" || protocol != "inventory-v1") {
-		_ = c.manager.Fail(c.reservation.Control())
-		return
-	}
-	bytes := 4*int64(unsafe.Sizeof(telemetrycapture.Route{})) + int64(len(endpoint)+len(protocol)+len(destination))
-	if !c.reservation.Grow(bytes) {
-		return
-	}
-	c.routes = append(c.routes, telemetrycapture.Route{
-		PayloadID: 1, Endpoint: strings.Clone(endpoint), Protocol: strings.Clone(protocol),
-		Destination: strings.Clone(destination), EnqueuedAt: enqueuedAt,
-	})
-}
-
 func (c *liveMetadataCapture) finish(deliveryErr error) {
 	defer c.recoverFailure()
 	defer func() {
-		if c.payload != nil {
-			c.payload.ClearCapture()
-		}
-		c.payload, c.projection, c.inventory, c.routes = nil, nil, nil, nil
+		c.projection, c.inventory = nil, nil
 		c.reservation.Discard()
 	}()
-	if deliveryErr != nil || len(c.routes) == 0 {
+	if deliveryErr != nil {
 		_ = c.manager.Fail(c.reservation.Control())
 		return
 	}
-	_ = c.reservation.Commit(telemetrycapture.Payload{Metadata: c.projection, Inventory: c.inventory, Routes: c.routes})
+	_ = c.reservation.Commit(telemetrycapture.Payload{Metadata: c.projection, Inventory: c.inventory})
 }
 
 func (c *liveMetadataCapture) recoverFailure() {

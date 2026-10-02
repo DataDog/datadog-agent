@@ -268,7 +268,7 @@ func assertTransactionEqual(a *assert.Assertions, tr1 *transaction.HTTPTransacti
 
 	a.NotNil(tr1.Payload)
 	a.NotNil(tr2.Payload)
-	a.Equal(tr1.Payload, tr2.Payload)
+	a.Equal(*tr1.Payload, *tr2.Payload)
 
 	// Ignore monotonic clock
 	a.Equal(tr1.CreatedAt.Format(time.RFC3339), tr2.CreatedAt.Format(time.RFC3339))

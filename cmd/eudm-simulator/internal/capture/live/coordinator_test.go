@@ -157,7 +157,7 @@ func (c *managerClient) emit(stream tc.Stream, at time.Time) {
 func testPayload(stream tc.Stream) tc.Payload {
 	switch stream {
 	case tc.Metrics:
-		return tc.Payload{Series: []tc.Series{{Name: "system.cpu.user", Ordinal: 1, Host: "test-host", Points: []tc.Point{{Timestamp: 1, Value: 2}}}}}
+		return tc.Payload{Series: []tc.Series{{Name: "system.cpu.user", Host: "test-host", Points: []tc.Point{{Timestamp: 1, Value: 2}}}}}
 	case tc.Metadata:
 		return tc.Payload{Metadata: &tc.HostMetadata{Hostname: "test-host", AgentVersion: "7.85.0"}}
 	case tc.AgentInventory:
@@ -498,7 +498,7 @@ func TestCoordinatorPanicsFailClosedAndDisarmProducers(t *testing.T) {
 func TestCoordinatorBoundsCycleHistory(t *testing.T) {
 	_, producers, sink := newCoordinatorFixture(t, "macos")
 	client := producers[0]
-	control := tc.Control{ProtocolVersion: 1, SessionID: "bounded-history-session"}
+	control := tc.Control{ProtocolVersion: tc.ProtocolVersion, SessionID: "bounded-history-session"}
 	_, err := client.Prepare(context.Background(), tc.PrepareRequest{Control: control, Streams: []tc.Stream{tc.Metrics}})
 	if err != nil {
 		t.Fatal(err)

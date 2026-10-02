@@ -23,7 +23,7 @@ func captureGroupManager(t *testing.T, stream telemetrycapture.Stream) (*telemet
 	m := telemetrycapture.NewManager("fixture-producer", "fixture", "fixture")
 	t.Cleanup(m.Close)
 	require.NoError(t, m.Register(telemetrycapture.Capability{Stream: stream, Cadence: time.Second}))
-	c := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "complete-groups-session"}
+	c := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "complete-groups-session"}
 	_, err := m.Prepare(telemetrycapture.PrepareRequest{Control: c, Streams: []telemetrycapture.Stream{stream}})
 	require.NoError(t, err)
 	_, err = m.Activate(c)

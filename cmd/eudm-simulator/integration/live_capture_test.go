@@ -80,7 +80,7 @@ func TestLiveCaptureProducerHelper(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	recorder := output.NewRecorder()
-	pipeline, err := output.New(ctx, nil, "synthetic-delivery-key", recorder, output.Options{MetricProtocol: "v1"})
+	pipeline, err := output.New(ctx, nil, "synthetic-delivery-key", recorder, output.Options{})
 	if err != nil {
 		t.Fatal("cannot construct synthetic delivery pipeline")
 	}
@@ -220,7 +220,7 @@ func TestLiveCaptureProducerHelper(t *testing.T) {
 
 func syntheticQueuedPayload(stream tc.Stream) tc.Payload {
 	if stream == tc.Metrics {
-		return tc.Payload{Series: []tc.Series{{Name: "system.cpu.user", Ordinal: 1, Host: "synthetic-device", Points: []tc.Point{{Timestamp: 1, Value: 5}}}}}
+		return tc.Payload{Series: []tc.Series{{Name: "system.cpu.user", Host: "synthetic-device", Points: []tc.Point{{Timestamp: 1, Value: 5}}}}}
 	}
 	if stream == tc.AgentInventory || stream == tc.HostInventory || stream == tc.HostSystemInfo {
 		return tc.Payload{Inventory: syntheticInventory(stream)}
@@ -436,7 +436,7 @@ func (p *syntheticInventorySubmission) CaptureInventorySchedule() (time.Time, ti
 	return time.Now(), syntheticInventoryCadence(p.stream)
 }
 func (p *syntheticInventorySubmission) CaptureInventorySize() int64 {
-	return tc.InventorySize(p.inventory)
+	return tc.PayloadSize(tc.Payload{Inventory: p.inventory})
 }
 func (p *syntheticInventorySubmission) CopyCaptureInventory() *tc.Inventory {
 	return tc.CloneInventory(p.inventory)
@@ -479,13 +479,8 @@ func TestLiveCaptureInventoryAcrossProcessBoundary(t *testing.T) {
 				t.Fatal("inventory submission did not yield exactly one capture cycle")
 			}
 			record := batch.Records[0]
-			if record.Stream != stream || record.Payload.Inventory == nil || record.Cadence != syntheticInventoryCadence(stream) || len(record.Payload.Routes) == 0 {
-				t.Fatal("inventory capture lost its envelope, schedule or observed route")
-			}
-			for _, route := range record.Payload.Routes {
-				if route.Endpoint != "/api/v1/metadata" || route.Protocol != "inventory-v1" {
-					t.Fatal("inventory capture observed an unexpected delivery route")
-				}
+			if record.Stream != stream || record.Payload.Inventory == nil || record.Cadence != syntheticInventoryCadence(stream) {
+				t.Fatal("inventory capture lost its envelope or schedule")
 			}
 			encoded, err := json.Marshal(record)
 			if err != nil || bytes.Contains(encoded, []byte("synthetic-private-inventory-config")) || bytes.Contains(encoded, []byte("configuration")) {

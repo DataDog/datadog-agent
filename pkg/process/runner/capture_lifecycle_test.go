@@ -66,7 +66,7 @@ func TestCaptureReadinessExcludesUnavailableAndDroppedChecks(t *testing.T) {
 				return
 			}
 			require.Equal(t, []telemetrycapture.Capability{{Stream: telemetrycapture.Connections, Cadence: 31 * time.Second, ConnectionOwner: "process"}}, manager.Status().Capabilities)
-			control := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "process-readiness-session"}
+			control := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "process-readiness-session"}
 			_, err := manager.Prepare(telemetrycapture.PrepareRequest{Control: control, Streams: []telemetrycapture.Stream{telemetrycapture.Connections}})
 			require.NoError(t, err)
 			_, err = manager.Activate(control)
@@ -86,7 +86,7 @@ func TestCaptureSubmitterStopDisarmsAndIgnoresLateHealth(t *testing.T) {
 	s.SetCaptureCheckRunning(checks.ProcessCheckName, true)
 	s.SetCaptureCheckHealthy(checks.ProcessCheckName, true)
 	require.Len(t, manager.Status().Capabilities, 1)
-	control := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "process-stop-session"}
+	control := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "process-stop-session"}
 	_, err := manager.Prepare(telemetrycapture.PrepareRequest{Control: control, Streams: []telemetrycapture.Stream{telemetrycapture.Processes}})
 	require.NoError(t, err)
 	_, err = manager.Activate(control)

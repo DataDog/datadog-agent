@@ -23,28 +23,26 @@ import (
 )
 
 const (
-	SchemaVersion    = 4
+	SchemaVersion    = 5
 	SanitizerVersion = 1
 	maxManifestBytes = 4 << 20
 	maxFileBytes     = 64 << 20
 )
 
-// SampleRef links a sanitized typed sample to its serialized wire references.
+// SampleRef identifies a sanitized sample and its collection cycle.
 type SampleRef struct {
-	Stream     schema.Stream     `json:"stream"`
-	Offset     time.Duration     `json:"offset_ns"`
-	ProducerID string            `json:"producer_id"`
-	CycleID    uint64            `json:"cycle_id"`
-	Sequence   uint64            `json:"sequence"`
-	ChunkIndex int               `json:"chunk_index"`
-	ChunkCount int               `json:"chunk_count"`
-	Routes     []RoutingEvidence `json:"routes,omitempty"`
-	File       string            `json:"file"`
-	WireFiles  []string          `json:"wire_files"`
+	Stream     schema.Stream `json:"stream"`
+	Offset     time.Duration `json:"offset_ns"`
+	ProducerID string        `json:"producer_id"`
+	CycleID    uint64        `json:"cycle_id"`
+	Sequence   uint64        `json:"sequence"`
+	ChunkIndex int           `json:"chunk_index"`
+	ChunkCount int           `json:"chunk_count"`
+	File       string        `json:"file"`
 }
 
-// BuildIdentity binds portable replay to the tool that sanitized and serialized
-// the bundle. Installed producer builds are validated independently.
+// BuildIdentity binds portable replay to the tool that sanitized the bundle.
+// Installed producer builds are validated independently.
 type BuildIdentity struct {
 	Version string `json:"version"`
 	Commit  string `json:"commit"`
@@ -65,17 +63,6 @@ type Producer struct {
 	Stopped              bool            `json:"stopped"`
 	Failures             uint64          `json:"failures"`
 	Drops                uint64          `json:"drops"`
-}
-
-// RoutingEvidence contains fixed endpoint/protocol/destination labels, never
-// backend authorities, credentials, raw headers, or original wire bodies.
-type RoutingEvidence struct {
-	PayloadID     uint64        `json:"payload_id"`
-	Ordinals      []uint64      `json:"ordinals,omitempty"`
-	Endpoint      string        `json:"endpoint"`
-	Protocol      string        `json:"protocol"`
-	Destination   string        `json:"destination"`
-	EnqueueOffset time.Duration `json:"enqueue_offset_ns"`
 }
 
 // Manifest is written last, after all sanitized output is persisted.
@@ -157,7 +144,7 @@ func Load(directory, captureToolCommit string) (*Loaded, error) {
 	}
 	b := &Loaded{Digest: schema.Digest(data), Files: map[string][]byte{}}
 	// Read the version before strict decoding so older bundles receive the
-	// explicit instruction to recapture complete metric check coverage.
+	// explicit instruction to recapture with the current format.
 	var version struct {
 		SchemaVersion int `json:"schema_version"`
 	}
@@ -165,7 +152,7 @@ func Load(directory, captureToolCommit string) (*Loaded, error) {
 		return nil, errors.New("decode bundle manifest")
 	}
 	if version.SchemaVersion != SchemaVersion {
-		return nil, errors.New("unsupported bundle schema; recapture with scheduled metric family coverage, agent_inventory, and host_inventory evidence")
+		return nil, errors.New("unsupported bundle schema; recapture with this version of the simulator")
 	}
 	if err := DecodeJSON(data, &b.Manifest); err != nil {
 		return nil, fmt.Errorf("decode bundle manifest: %w", err)
@@ -213,15 +200,7 @@ func Load(directory, captureToolCommit string) (*Loaded, error) {
 			return nil, fmt.Errorf("missing or duplicate typed sample %q", sample.File)
 		}
 		used[sample.File] = true
-		if len(sample.WireFiles) == 0 {
-			return nil, fmt.Errorf("sample %q lacks serialized references", sample.File)
-		}
-		for _, wire := range sample.WireFiles {
-			if _, ok := b.Files[wire]; !ok || used[wire] {
-				return nil, fmt.Errorf("missing or duplicate wire reference %q", wire)
-			}
-			used[wire] = true
-		}
+
 	}
 	if len(used) != len(b.Files) {
 		return nil, errors.New("bundle contains unreferenced files")

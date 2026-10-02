@@ -93,9 +93,6 @@ func (r *Reservation) Control() Control {
 	return Control{ProtocolVersion: ProtocolVersion, SessionID: r.session.id}
 }
 
-// CycleID is local correlation metadata, never backend payload data.
-func (r *Reservation) CycleID() uint64 { return r.record.CycleID }
-
 // Grow reserves additional memory for an admitted logical item. Stop waits for
 // this already admitted item; it prevents Begin from admitting another one.
 func (r *Reservation) Grow(bytes int64) bool {
@@ -374,10 +371,6 @@ func PayloadSize(p Payload) int64 {
 		for k, v := range c.Headers {
 			n += 256 + int64(len(k)+len(v))
 		}
-	}
-	n += int64(cap(p.Routes)) * int64(unsafe.Sizeof(Route{}))
-	for _, r := range p.Routes {
-		n += int64(cap(r.Ordinals))*8 + int64(len(r.Endpoint)+len(r.Protocol)+len(r.Destination))
 	}
 	return n
 }

@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "sanitizer_version": 1,
   "capture_tool": {
     "version": "7.85.0-fixture",
@@ -12,7 +12,7 @@
       "instance_id": "synthetic-core-agent",
       "version": "7.85.0-fixture",
       "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "protocol_version": 1,
+      "protocol_version": 2,
       "streams": [
         "metrics",
         "host_metadata",
@@ -34,7 +34,7 @@
       "instance_id": "synthetic-process-agent",
       "version": "7.85.0-fixture",
       "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "protocol_version": 1,
+      "protocol_version": 2,
       "streams": [
         "processes"
       ],
@@ -51,7 +51,7 @@
       "instance_id": "synthetic-system-probe",
       "version": "7.85.0-fixture",
       "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "protocol_version": 1,
+      "protocol_version": 2,
       "streams": [
         "connections"
       ],
@@ -141,41 +141,7 @@
       "sequence": 1,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17,
-            18,
-            19,
-            20
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 0
-        }
-      ],
-      "file": "sample-000000.json",
-      "wire_files": [
-        "sample-000000-wire-000.json"
-      ]
+      "file": "sample-000000.json"
     },
     {
       "stream": "metrics",
@@ -185,37 +151,7 @@
       "sequence": 2,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 15000000000
-        }
-      ],
-      "file": "sample-000001.json",
-      "wire_files": [
-        "sample-000001-wire-000.json"
-      ]
+      "file": "sample-000001.json"
     },
     {
       "stream": "metrics",
@@ -225,37 +161,7 @@
       "sequence": 3,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 30000000000
-        }
-      ],
-      "file": "sample-000002.json",
-      "wire_files": [
-        "sample-000002-wire-000.json"
-      ]
+      "file": "sample-000002.json"
     },
     {
       "stream": "metrics",
@@ -265,37 +171,7 @@
       "sequence": 4,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 45000000000
-        }
-      ],
-      "file": "sample-000003.json",
-      "wire_files": [
-        "sample-000003-wire-000.json"
-      ]
+      "file": "sample-000003.json"
     },
     {
       "stream": "metrics",
@@ -305,37 +181,7 @@
       "sequence": 5,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 60000000000
-        }
-      ],
-      "file": "sample-000004.json",
-      "wire_files": [
-        "sample-000004-wire-000.json"
-      ]
+      "file": "sample-000004.json"
     },
     {
       "stream": "metrics",
@@ -345,37 +191,7 @@
       "sequence": 6,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 75000000000
-        }
-      ],
-      "file": "sample-000005.json",
-      "wire_files": [
-        "sample-000005-wire-000.json"
-      ]
+      "file": "sample-000005.json"
     },
     {
       "stream": "metrics",
@@ -385,37 +201,7 @@
       "sequence": 7,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 90000000000
-        }
-      ],
-      "file": "sample-000006.json",
-      "wire_files": [
-        "sample-000006-wire-000.json"
-      ]
+      "file": "sample-000006.json"
     },
     {
       "stream": "metrics",
@@ -425,37 +211,7 @@
       "sequence": 8,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 105000000000
-        }
-      ],
-      "file": "sample-000007.json",
-      "wire_files": [
-        "sample-000007-wire-000.json"
-      ]
+      "file": "sample-000007.json"
     },
     {
       "stream": "metrics",
@@ -465,37 +221,7 @@
       "sequence": 9,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 120000000000
-        }
-      ],
-      "file": "sample-000008.json",
-      "wire_files": [
-        "sample-000008-wire-000.json"
-      ]
+      "file": "sample-000008.json"
     },
     {
       "stream": "metrics",
@@ -505,37 +231,7 @@
       "sequence": 10,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 135000000000
-        }
-      ],
-      "file": "sample-000009.json",
-      "wire_files": [
-        "sample-000009-wire-000.json"
-      ]
+      "file": "sample-000009.json"
     },
     {
       "stream": "metrics",
@@ -545,37 +241,7 @@
       "sequence": 11,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 150000000000
-        }
-      ],
-      "file": "sample-000010.json",
-      "wire_files": [
-        "sample-000010-wire-000.json"
-      ]
+      "file": "sample-000010.json"
     },
     {
       "stream": "metrics",
@@ -585,37 +251,7 @@
       "sequence": 12,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 165000000000
-        }
-      ],
-      "file": "sample-000011.json",
-      "wire_files": [
-        "sample-000011-wire-000.json"
-      ]
+      "file": "sample-000011.json"
     },
     {
       "stream": "metrics",
@@ -625,37 +261,7 @@
       "sequence": 13,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 180000000000
-        }
-      ],
-      "file": "sample-000012.json",
-      "wire_files": [
-        "sample-000012-wire-000.json"
-      ]
+      "file": "sample-000012.json"
     },
     {
       "stream": "metrics",
@@ -665,37 +271,7 @@
       "sequence": 14,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 195000000000
-        }
-      ],
-      "file": "sample-000013.json",
-      "wire_files": [
-        "sample-000013-wire-000.json"
-      ]
+      "file": "sample-000013.json"
     },
     {
       "stream": "metrics",
@@ -705,37 +281,7 @@
       "sequence": 15,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 210000000000
-        }
-      ],
-      "file": "sample-000014.json",
-      "wire_files": [
-        "sample-000014-wire-000.json"
-      ]
+      "file": "sample-000014.json"
     },
     {
       "stream": "metrics",
@@ -745,37 +291,7 @@
       "sequence": 16,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 225000000000
-        }
-      ],
-      "file": "sample-000015.json",
-      "wire_files": [
-        "sample-000015-wire-000.json"
-      ]
+      "file": "sample-000015.json"
     },
     {
       "stream": "metrics",
@@ -785,37 +301,7 @@
       "sequence": 17,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 240000000000
-        }
-      ],
-      "file": "sample-000016.json",
-      "wire_files": [
-        "sample-000016-wire-000.json"
-      ]
+      "file": "sample-000016.json"
     },
     {
       "stream": "metrics",
@@ -825,37 +311,7 @@
       "sequence": 18,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 255000000000
-        }
-      ],
-      "file": "sample-000017.json",
-      "wire_files": [
-        "sample-000017-wire-000.json"
-      ]
+      "file": "sample-000017.json"
     },
     {
       "stream": "metrics",
@@ -865,37 +321,7 @@
       "sequence": 19,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 270000000000
-        }
-      ],
-      "file": "sample-000018.json",
-      "wire_files": [
-        "sample-000018-wire-000.json"
-      ]
+      "file": "sample-000018.json"
     },
     {
       "stream": "metrics",
@@ -905,37 +331,7 @@
       "sequence": 20,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 285000000000
-        }
-      ],
-      "file": "sample-000019.json",
-      "wire_files": [
-        "sample-000019-wire-000.json"
-      ]
+      "file": "sample-000019.json"
     },
     {
       "stream": "metrics",
@@ -945,41 +341,7 @@
       "sequence": 21,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "ordinals": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17,
-            18,
-            19,
-            20
-          ],
-          "endpoint": "/api/v2/series",
-          "protocol": "v2",
-          "destination": "primary",
-          "enqueue_offset_ns": 300000000000
-        }
-      ],
-      "file": "sample-000020.json",
-      "wire_files": [
-        "sample-000020-wire-000.json"
-      ]
+      "file": "sample-000020.json"
     },
     {
       "stream": "processes",
@@ -989,10 +351,7 @@
       "sequence": 1,
       "chunk_index": 0,
       "chunk_count": 1,
-      "file": "sample-000021.json",
-      "wire_files": [
-        "sample-000021-wire-000.json"
-      ]
+      "file": "sample-000021.json"
     },
     {
       "stream": "connections",
@@ -1002,10 +361,7 @@
       "sequence": 1,
       "chunk_index": 0,
       "chunk_count": 1,
-      "file": "sample-000022.json",
-      "wire_files": [
-        "sample-000022-wire-000.json"
-      ]
+      "file": "sample-000022.json"
     },
     {
       "stream": "processes",
@@ -1015,10 +371,7 @@
       "sequence": 2,
       "chunk_index": 0,
       "chunk_count": 1,
-      "file": "sample-000023.json",
-      "wire_files": [
-        "sample-000023-wire-000.json"
-      ]
+      "file": "sample-000023.json"
     },
     {
       "stream": "connections",
@@ -1028,10 +381,7 @@
       "sequence": 2,
       "chunk_index": 0,
       "chunk_count": 1,
-      "file": "sample-000024.json",
-      "wire_files": [
-        "sample-000024-wire-000.json"
-      ]
+      "file": "sample-000024.json"
     },
     {
       "stream": "host_metadata",
@@ -1041,19 +391,7 @@
       "sequence": 22,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "endpoint": "/intake/",
-          "protocol": "metadata-v1",
-          "destination": "primary",
-          "enqueue_offset_ns": 0
-        }
-      ],
-      "file": "sample-000025.json",
-      "wire_files": [
-        "sample-000025-wire-000.json"
-      ]
+      "file": "sample-000025.json"
     },
     {
       "stream": "agent_inventory",
@@ -1063,19 +401,7 @@
       "sequence": 23,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "endpoint": "/api/v1/metadata",
-          "protocol": "inventory-v1",
-          "destination": "primary",
-          "enqueue_offset_ns": 0
-        }
-      ],
-      "file": "sample-000026.json",
-      "wire_files": [
-        "sample-000026-wire-000.json"
-      ]
+      "file": "sample-000026.json"
     },
     {
       "stream": "host_inventory",
@@ -1085,19 +411,7 @@
       "sequence": 24,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "endpoint": "/api/v1/metadata",
-          "protocol": "inventory-v1",
-          "destination": "primary",
-          "enqueue_offset_ns": 0
-        }
-      ],
-      "file": "sample-000027.json",
-      "wire_files": [
-        "sample-000027-wire-000.json"
-      ]
+      "file": "sample-000027.json"
     },
     {
       "stream": "host_system_info",
@@ -1107,19 +421,7 @@
       "sequence": 25,
       "chunk_index": 0,
       "chunk_count": 1,
-      "routes": [
-        {
-          "payload_id": 1,
-          "endpoint": "/api/v1/metadata",
-          "protocol": "inventory-v1",
-          "destination": "primary",
-          "enqueue_offset_ns": 5000000000
-        }
-      ],
-      "file": "sample-000028.json",
-      "wire_files": [
-        "sample-000028-wire-000.json"
-      ]
+      "file": "sample-000028.json"
     },
     {
       "stream": "software",
@@ -1129,72 +431,39 @@
       "sequence": 26,
       "chunk_index": 0,
       "chunk_count": 1,
-      "file": "sample-000029.json",
-      "wire_files": [
-        "sample-000029-wire-000.json"
-      ]
+      "file": "sample-000029.json"
     }
   ],
   "files": {
-    "sample-000000-wire-000.json": "4f3ddf5336df329d8fff21d7b0a9f86a1eb12a6110b85b1f304ef6e0e4501e00",
     "sample-000000.json": "bf3bf613b7856f290857af0820615d7f8f49b3c73232afcf02187ab7fec749b8",
-    "sample-000001-wire-000.json": "1ed3e78f55f8bc379b5ed2c3bfae36581481a8c93df19c404b4bd0490e3ece23",
     "sample-000001.json": "dc8f362b5ca75701e60701d9318a4cf2b9661f47eec376ea090b6955a4932c9e",
-    "sample-000002-wire-000.json": "7eaeb0a8d88f89c765dc9f27a406f0aacf1e4354bc578782bbc123dd6132bd1d",
     "sample-000002.json": "d4637ff3b308613ed4fb4771d6f06271802151b7d194e54e845ceee829bb271b",
-    "sample-000003-wire-000.json": "c42e1c50dae37493618278e953017273a6dcf60f460575ca75344ff35a238ad1",
     "sample-000003.json": "4dfe2717e059ecc7dce1f113f568946008383d84dda496ba92f6fea73ee39bbf",
-    "sample-000004-wire-000.json": "2b8b30adc4c6c76d274caa58e6cbf38ab7859bc32635eec77c62088f99d23c11",
     "sample-000004.json": "ba0aefc6e14b97f0c04ae1edfcc3fb7e36b017b902c781a6cb984f47c663aadc",
-    "sample-000005-wire-000.json": "5251c2e6f352cc6a40a71652dd26471338067ddd5fa803789de114ec706d0d4a",
     "sample-000005.json": "5eb73a26df44ac3f5448a43a5045c7e5d69ac6c06d57f66c37614a3eccff2398",
-    "sample-000006-wire-000.json": "24b335e2ec4d6a68cb25db78dc2476cc3388f180fb3c153575befa097cba0c6c",
     "sample-000006.json": "eef11aee7b6a1b8fa405f07be64cf1e62976d1efea72016e9abedcae49e33679",
-    "sample-000007-wire-000.json": "aa6943493a9292d1cd4188d9e2e3fbf18abcdcf1b9fc634f22d39b1f21399562",
     "sample-000007.json": "e2cb5441454e396c2df872d87d6fb29169f2b57d86f80e14752e04497b425362",
-    "sample-000008-wire-000.json": "3fc38087c9a7f0c01d1505822d33a129e99b725f02cc04e036a6407c9d3c52d0",
     "sample-000008.json": "6b3a81b280a4ace8461f1c1c0e241f8edce8bba8eb40905085112255bb0dc4e6",
-    "sample-000009-wire-000.json": "537779516eef4df66920c13906d079bc361597a18788476c7af3a71da694fc61",
     "sample-000009.json": "130be8d9934819e65da37ada156451e91d0caf4ddfeb45c7a7121effc38dc750",
-    "sample-000010-wire-000.json": "8d9fabcafc746b28749fcc0f98c39a2451ebcdd141a5db04511d9c552e3a57b4",
     "sample-000010.json": "f6e3d68c3babe2d003ec9514c364e0438b4cd7ae9f50299c25a6fe854f2f7a8e",
-    "sample-000011-wire-000.json": "d6364aed11243ba8b08c3822a63dfa423b46372d39f2a5fbdaa3365659e69463",
     "sample-000011.json": "cf282d9562c7aa4ed63ed3643879ee11d74e8ef75156d4fd4ed03a49503eadc4",
-    "sample-000012-wire-000.json": "387556206d554b950ed2afce8f43511fc41729ec7db85dece51c6332380dbf31",
     "sample-000012.json": "9b346f87cb197db6814d4b71e4900451171d07d5ece1c355b2fca0487ee4c641",
-    "sample-000013-wire-000.json": "b6f031b67b2f5a764c607eb1e4e8b02286e1a3e01bf130a694edc382ffe532b1",
     "sample-000013.json": "d6db4a9ddff7c4546581221e32c73b081b645c58cdac533c0ea550f1f95c45e8",
-    "sample-000014-wire-000.json": "4f2350dde86267dd7478ff4fcc253b470dc88103da9a948b6b1ade8e638eaf8c",
     "sample-000014.json": "b8c1d94f67f6ec1789004b54c58daae7e88681ee9217df9a757442a11d46f9fd",
-    "sample-000015-wire-000.json": "cf3178897393af6711a9511e4237a3a340bbac8256f552aede0c5ad49f09b361",
     "sample-000015.json": "d9317be48022adf350407f7803dc3001f40369b84476b8d66635267facc77831",
-    "sample-000016-wire-000.json": "3f78691cddda0e4fefd868540715e5056026585c69ec10a2b7fbbab32f3a488d",
     "sample-000016.json": "322af396a6bfce00747e25d5a685e1e4c567fd6ef9181e2028a11a78a749157d",
-    "sample-000017-wire-000.json": "f79aa155890c2d9a0055ed03604e4b76aff330afdbb8b3d5e650d0c637026fe2",
     "sample-000017.json": "f78fe8abed9b364fa874a8fa769898f242f52920f3b821c7ea9b48d7a6461d1c",
-    "sample-000018-wire-000.json": "a49926e384484d493b3e2e54804d760c2d03574ec9e4831fd97d13c5635949db",
     "sample-000018.json": "f885ea869f973ad188b7ece4239e4b5f1ee888ab04e8efcdd0f9f995c8943766",
-    "sample-000019-wire-000.json": "20cceddd887459dabf1ff08d1752c69b6000b90136411cacc52f26fc88012709",
     "sample-000019.json": "303ac8ff786e443bb8c0aac5450c6b7c83ddbab09b3e11e30f2f8040f7e4308d",
-    "sample-000020-wire-000.json": "e3df4a9fb890eb0355d35243641673d773ad6e688c1b0b08587752bdf0800200",
     "sample-000020.json": "9373700e0f69dacf0712d3c2e8c5c490f8a01e96f849a0df69736827cf8b3f80",
-    "sample-000021-wire-000.json": "11d2b40bc27d0322992c9a845e1f11a6cf1e3f1f20a80c48b960415288a3b172",
     "sample-000021.json": "1a41b320a7ee8496cbc737587a9d7ccf78880f3552d152a8f0a4bca1bf58e83b",
-    "sample-000022-wire-000.json": "740959562db2919e6ae8ccb7941ae03f07dc07c38d4605d73078f2765242645a",
     "sample-000022.json": "422df92b0abd1849b59e4461fc1b6f48c09bb5cc6df8eac42a1857cd64f2c537",
-    "sample-000023-wire-000.json": "47a629507bd8be9dd1108f5911f94564d4e5ce24481825b9eec261bdbd91eb55",
     "sample-000023.json": "0d29d60c18039fe7b274886b8d25ddf066e80510d1f09f075f77058bf8fe3fe0",
-    "sample-000024-wire-000.json": "645246857a97e474b2dff413de0b05d6451269c6aca9b1a7b3975e24261d3699",
     "sample-000024.json": "f512716c5a66f26c2f16fb2b7767237757d89237bd78a0fbf6ddd527018f97d8",
-    "sample-000025-wire-000.json": "3dede19959cfd6323aae964eb8959a48703e089e21b26c52d8d77270b902d9ac",
     "sample-000025.json": "d4629f4ff8269c8083603d58c66e7ca4f1fd51de598326151afe24390170954f",
-    "sample-000026-wire-000.json": "7686595a7bd8ac30e5f4c80a6dc21cc2a03ab001b595e1e02940f1644d6079b5",
     "sample-000026.json": "b3af922ead3cf4b1890691865b83a0cd2d785d4c5f643c945557697cb3bdf954",
-    "sample-000027-wire-000.json": "6e9a0ecba5ebba4207675b64efc76b7e2789edf76d1e7f88ce2536fc041158b5",
     "sample-000027.json": "c310ff06e12113aa066010c6bf9d20d5163fbe5a86ca1b42d71410a40c4e91b8",
-    "sample-000028-wire-000.json": "ab682e7c94986128629ee80b04589fcfa821e290f0c5a81366834a8905f14210",
     "sample-000028.json": "27baf4d3375eafd6f26c2321c5237e406c3258a7789c9d50106989467e447b54",
-    "sample-000029-wire-000.json": "1aeb3e0c3bad5d90cfa61272076e432941c0924e9fe78214464bbe6d20ebe4c4",
     "sample-000029.json": "fc07d296dbd8038f355563d9327854751d370acd605b999d73d17dad06474bd7"
   },
   "complete": true

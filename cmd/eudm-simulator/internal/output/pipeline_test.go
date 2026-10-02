@@ -61,6 +61,7 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 				osName = "darwin"
 			}
 			cadences := map[schema.Stream]time.Duration{}
+			var requests [][]RecordedRequest
 			sequences := map[string]uint64{}
 			producerStreams := map[string][]schema.Stream{}
 			owner := func(stream schema.Stream) string {
@@ -83,7 +84,7 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 				}
 				refs := recorder.Drain()
 				if len(refs) == 0 {
-					t.Fatal("completed cycle produced no wire evidence")
+					t.Fatal("completed cycle produced no delivery requests")
 				}
 				role := owner(stream)
 				sequences[role]++
@@ -91,26 +92,10 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 					producerStreams[role] = append(producerStreams[role], stream)
 				}
 				ref := bundle.SampleRef{Stream: stream, Offset: offset, ProducerID: "synthetic-" + role, CycleID: sequences[role], Sequence: sequences[role], ChunkCount: 1}
-				if stream == schema.Metrics || stream == schema.HostMetadata || stream == schema.AgentInventory || stream == schema.HostInventory {
-					protocol := ""
-
-					var ordinals []uint64
-					if metric, ok := value.(*telemetry.MetricSample); ok {
-						for i := range metric.Series {
-							ordinals = append(ordinals, uint64(i+1))
-						}
-					}
-					for i, wire := range refs {
-						protocol = map[string]string{"/api/v1/series": "v1", "/api/v2/series": "v2", "/api/intake/metrics/v3/series": "v3", "/api/intake/metrics/v3beta/series": "v3beta", "/intake/": "metadata-v1", "/api/v2/host_metadata": "metadata-v2", "/api/v1/metadata": "inventory-v1"}[wire.Path]
-						if protocol == "" {
-							t.Fatal("unexpected synthetic wire endpoint")
-						}
-						ref.Routes = append(ref.Routes, bundle.RoutingEvidence{PayloadID: uint64(i + 1), Ordinals: ordinals, Endpoint: wire.Path, Protocol: protocol, Destination: "primary", EnqueueOffset: offset})
-					}
-				}
-				if err := w.Append(ref, value, refs); err != nil {
+				if err := w.Append(ref, value); err != nil {
 					t.Fatal(err)
 				}
+				requests = append(requests, refs)
 				cadences[stream] = 15 * time.Second
 			}
 			for i := 0; i < 2; i++ {
@@ -164,7 +149,7 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 				if role == "core-agent" {
 					producerVersion = host.(*capture.HostMetadata).AgentVersion
 				}
-				producers = append(producers, bundle.Producer{Role: role, InstanceID: "synthetic-" + role, Version: producerVersion, Commit: strings.Repeat("b", 40), ProtocolVersion: 1, Streams: producerStreams[role], StopOffset: time.Minute, FinalSequence: sequences[role], AcknowledgedSequence: sequences[role], Stopped: true})
+				producers = append(producers, bundle.Producer{Role: role, InstanceID: "synthetic-" + role, Version: producerVersion, Commit: strings.Repeat("b", 40), ProtocolVersion: telemetrycapture.ProtocolVersion, Streams: producerStreams[role], StopOffset: time.Minute, FinalSequence: sequences[role], AcknowledgedSequence: sequences[role], Stopped: true})
 			}
 			if err := w.SetProducers(producers); err != nil {
 				t.Fatal(err)
@@ -178,21 +163,17 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 					t.Fatalf("raw identity persisted in %s", name)
 				}
 			}
-			// Wire files encode bytes as base64, and Agent bodies may themselves
-			// be compressed. Inspect the decoded wire content as well as the JSON
-			// files so neither layer can conceal a raw capture identity.
-			for _, sample := range loaded.Manifest.Samples {
-				for _, name := range sample.WireFiles {
-					var reference bundle.WireReference
-					if err := json.Unmarshal(loaded.Files[name], &reference); err != nil {
-						t.Fatal(err)
-					}
+			// Inspect requests recorded during delivery independently of bundle
+			// persistence. Compressed bodies must not conceal native identities.
+			for i, sample := range loaded.Manifest.Samples {
+				for _, reference := range requests[i] {
+					name := sample.File
 					headers, err := json.Marshal(reference.Headers)
 					if err != nil {
 						t.Fatal(err)
 					}
 					if strings.Contains(string(headers), "UNIQUE-CAPTURE-SECRET") {
-						t.Fatalf("raw identity persisted in wire headers %s", name)
+						t.Fatalf("raw identity submitted in request headers %s", name)
 					}
 					var decoded []byte
 					switch sample.Stream {
@@ -235,7 +216,7 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 						}
 					}
 					if strings.Contains(string(decoded), "UNIQUE-CAPTURE-SECRET") {
-						t.Fatalf("raw identity persisted in decoded wire body %s", name)
+						t.Fatalf("raw identity submitted in decoded request body %s", name)
 					}
 				}
 			}

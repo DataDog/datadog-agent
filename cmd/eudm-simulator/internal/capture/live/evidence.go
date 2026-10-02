@@ -12,35 +12,23 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/capture"
-	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/output"
-	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/safety"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/telemetry"
-	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	softwareimpl "github.com/DataDog/datadog-agent/comp/softwareinventory/impl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processapi "github.com/DataDog/datadog-agent/pkg/process/util/api"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	tc "github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
-type evidencePipeline struct {
-	pipeline *output.Pipeline
-	recorder *output.Recorder
-}
-
-// Evidence serially sanitizes and persists complete observed cycles. Only
-// sanitized data reaches its non-networking Agent delivery pipelines.
+// Evidence sanitizes complete observed cycles and writes typed samples.
+// The coordinator validates IPC provenance before handing records to the sink.
 type Evidence struct {
 	directory      string
 	tool           bundle.BuildIdentity
@@ -48,10 +36,7 @@ type Evidence struct {
 	session        Session
 	sanitizer      *capture.Sanitizer
 	writer         *bundle.Writer
-	pipelines      map[string]evidencePipeline
 	participants   map[string]Participant
-	sequences      map[string]uint64
-	cycles         map[string]map[uint64]bool
 	offsets        map[schema.Stream][]time.Duration
 	cadences       map[schema.Stream]time.Duration
 	metricCadences map[string]time.Duration
@@ -74,13 +59,10 @@ func (e *Evidence) Start(ctx context.Context, session Session) error {
 		return err
 	}
 	e.participants = map[string]Participant{}
-	e.sequences = map[string]uint64{}
-	e.cycles = map[string]map[uint64]bool{}
 	e.offsets = map[schema.Stream][]time.Duration{}
 	e.cadences = map[schema.Stream]time.Duration{}
 	e.metricCadences = map[string]time.Duration{}
 	e.metricOffsets = map[string][]time.Duration{}
-	e.pipelines = map[string]evidencePipeline{}
 	owners := map[tc.Stream]bool{}
 	for _, participant := range session.Participants {
 		status := participant.Status
@@ -114,7 +96,6 @@ func (e *Evidence) Start(ctx context.Context, session Session) error {
 			}
 		}
 		e.participants[status.Producer.InstanceID] = participant
-		e.cycles[status.Producer.InstanceID] = map[uint64]bool{}
 	}
 	var err error
 	e.sanitizer, err = capture.NewSanitizer()
@@ -152,30 +133,6 @@ func evidenceStream(stream tc.Stream) schema.Stream {
 	}
 }
 
-func (e *Evidence) pipeline(ctx context.Context, protocol string) (evidencePipeline, error) {
-	if existing, ok := e.pipelines[protocol]; ok {
-		return existing, nil
-	}
-	destinations, err := (safety.Config{Site: safety.Site}).Resolve(func(string) string { return "" })
-	if err != nil {
-		return evidencePipeline{}, err
-	}
-	options := output.Options{MetricProtocol: "v2", QueueCapacity: 1}
-	if strings.HasPrefix(protocol, "metadata-") {
-		options.MetadataProtocol = protocol
-	} else if protocol != "group" && protocol != "software" && protocol != "inventory-v1" {
-		options.MetricProtocol = protocol
-	}
-	recorder := output.NewRecorder()
-	pipeline, err := output.New(ctx, destinations, "recording-only-no-credential", recorder, options)
-	if err != nil {
-		return evidencePipeline{}, errors.New("cannot initialize observed wire protocol")
-	}
-	result := evidencePipeline{pipeline, recorder}
-	e.pipelines[protocol] = result
-	return result, nil
-}
-
 func (e *Evidence) Accept(ctx context.Context, record tc.Record) (err error) {
 	defer func() {
 		if err != nil {
@@ -190,40 +147,28 @@ func (e *Evidence) Accept(ctx context.Context, record tc.Record) (err error) {
 	}
 	participant, ok := e.participants[record.Producer.InstanceID]
 	if !ok || participant.Status.Producer != record.Producer || record.ProtocolVersion != tc.ProtocolVersion || record.SessionID != e.session.ID ||
-		!slices.Contains(participant.Streams, record.Stream) || record.Sequence <= e.sequences[record.Producer.InstanceID] || record.CycleID == 0 || e.cycles[record.Producer.InstanceID][record.CycleID] ||
+		!slices.Contains(participant.Streams, record.Stream) ||
 		record.CollectedAt.IsZero() || record.ObservedAt.Before(record.CollectedAt) || record.Cadence <= 0 {
 		return errors.New("invalid evidence record provenance")
 	}
-	if len(e.cycles[record.Producer.InstanceID]) >= maxSessionCycles {
-		return errors.New("capture cycle history exceeds memory limit")
-	}
-	e.sequences[record.Producer.InstanceID] = record.Sequence
-	e.cycles[record.Producer.InstanceID][record.CycleID] = true
 	if record.CollectedAt.Before(participant.Status.ActivatedAt) {
 		return nil
 	}
 	stream := evidenceStream(record.Stream)
 	ref := bundle.SampleRef{Stream: stream, ProducerID: record.Producer.InstanceID, CycleID: record.CycleID, Sequence: record.Sequence,
 		Offset: record.CollectedAt.Sub(e.session.Origin), ChunkCount: 1}
-	for _, route := range record.Payload.Routes {
-		ref.Routes = append(ref.Routes, bundle.RoutingEvidence{PayloadID: route.PayloadID, Ordinals: slices.Clone(route.Ordinals),
-			Endpoint: route.Endpoint, Protocol: route.Protocol, Destination: route.Destination, EnqueueOffset: route.EnqueuedAt.Sub(e.session.Origin)})
-	}
-	if err := bundle.ValidateRoutes(ref, time.Duration(1<<63-1)); err != nil {
-		return err
-	}
 	var nonempty bool
 	switch record.Stream {
 	case tc.Metrics:
-		nonempty, err = e.metrics(ctx, record, ref)
+		nonempty, err = e.metrics(record, ref)
 	case tc.Metadata:
-		nonempty, err = e.metadata(ctx, record, ref)
+		nonempty, err = e.metadata(record, ref)
 	case tc.AgentInventory, tc.HostInventory, tc.HostSystemInfo:
-		nonempty, err = e.inventory(ctx, record, ref)
+		nonempty, err = e.inventory(record, ref)
 	case tc.Software:
-		nonempty, err = e.software(ctx, record, ref)
+		nonempty, err = e.software(record, ref)
 	case tc.Processes, tc.Connections:
-		nonempty, err = e.group(ctx, record, ref)
+		nonempty, err = e.group(record, ref)
 	default:
 		err = errors.New("unsupported evidence stream")
 	}
@@ -237,7 +182,7 @@ func (e *Evidence) Accept(ctx context.Context, record tc.Record) (err error) {
 	return nil
 }
 
-func (e *Evidence) metrics(ctx context.Context, record tc.Record, ref bundle.SampleRef) (bool, error) {
+func (e *Evidence) metrics(record tc.Record, ref bundle.SampleRef) (bool, error) {
 	if record.Payload.Metadata != nil || record.Payload.Inventory != nil || record.Payload.Software != nil || len(record.Payload.Chunks) != 0 {
 		return false, errors.New("invalid metric evidence shape")
 	}
@@ -245,15 +190,10 @@ func (e *Evidence) metrics(ctx context.Context, record tc.Record, ref bundle.Sam
 		return false, nil
 	}
 	var native []*metrics.Serie
-	ordinals := map[uint64]int{}
 	for _, serie := range record.Payload.Series {
-		if serie.Ordinal == 0 || !tc.MetricAllowed(serie.Name) || uint32(metrics.MetricSource(serie.Source)) != serie.Source {
+		if !tc.MetricAllowed(serie.Name) || uint32(metrics.MetricSource(serie.Source)) != serie.Source {
 			return false, errors.New("invalid metric semantic evidence")
 		}
-		if _, exists := ordinals[serie.Ordinal]; exists {
-			return false, errors.New("duplicate metric ordinal")
-		}
-		ordinals[serie.Ordinal] = len(native)
 		value := &metrics.Serie{Name: serie.Name, Source: metrics.MetricSource(serie.Source), MType: metrics.APIMetricType(serie.Type), Interval: serie.Interval,
 			Host: serie.Host, Device: serie.Device, Tags: tagset.CompositeTagsFromSlice(serie.Tags)}
 		for _, point := range serie.Points {
@@ -270,61 +210,10 @@ func (e *Evidence) metrics(ctx context.Context, record tc.Record, ref bundle.Sam
 	if err != nil {
 		return false, errors.New("invalid sanitized metric evidence")
 	}
-	// Each protocol can cover a different filtered subset of the same cycle.
-	memberships := map[string]map[uint64]bool{}
-	observed := map[uint64]bool{}
-	for _, route := range ref.Routes {
-		if memberships[route.Protocol] == nil {
-			memberships[route.Protocol] = map[uint64]bool{}
-		}
-		for _, ordinal := range route.Ordinals {
-			if _, exists := ordinals[ordinal]; !exists {
-				return false, errors.New("metric route references absent semantics")
-			}
-			memberships[route.Protocol][ordinal], observed[ordinal] = true, true
-		}
-	}
-	if len(observed) != len(ordinals) {
-		return false, errors.New("metric semantics lack forwarding evidence")
-	}
 	if !e.retainCycle(ref.Stream, ref.Offset) {
 		return false, nil
 	}
-	var references []bundle.WireReference
-	protocols := make([]string, 0, len(memberships))
-	for protocol := range memberships {
-		protocols = append(protocols, protocol)
-	}
-	sort.Strings(protocols)
-	for _, protocol := range protocols {
-		pipeline, err := e.pipeline(ctx, protocol)
-		if err != nil {
-			return false, err
-		}
-		var selected []*metrics.Serie
-		for i, serie := range record.Payload.Series {
-			if memberships[protocol][serie.Ordinal] {
-				selected = append(selected, clean[i])
-			}
-		}
-		// Reconstruct an owned iterator: Agent serialization may append tags.
-		subset, err := telemetry.NewMetricSample(selected)
-		if err != nil {
-			return false, err
-		}
-		owned, err := subset.AgentSeries()
-		if err != nil {
-			return false, err
-		}
-		if err := pipeline.pipeline.Serializer.SendIterableSeries(capture.NewSeriesSource(owned)); err != nil {
-			return false, errors.New("cannot regenerate metric wire evidence")
-		}
-		if err := pipeline.pipeline.Wait(ctx); err != nil {
-			return false, errors.New("metric wire evidence did not complete")
-		}
-		references = append(references, pipeline.recorder.Drain()...)
-	}
-	if err := e.writer.Append(ref, typed, references); err != nil {
+	if err := e.writer.Append(ref, typed); err != nil {
 		return false, err
 	}
 	families := map[string]bool{}
@@ -356,7 +245,7 @@ func metadataProjection(in *tc.HostMetadata) *capture.HostMetadata {
 	return result
 }
 
-func (e *Evidence) metadata(ctx context.Context, record tc.Record, ref bundle.SampleRef) (bool, error) {
+func (e *Evidence) metadata(record tc.Record, ref bundle.SampleRef) (bool, error) {
 	if record.Payload.Metadata == nil || record.Payload.Metadata.Hostname == "" || len(record.Payload.Series) != 0 || len(record.Payload.Chunks) != 0 || record.Payload.Inventory != nil || record.Payload.Software != nil || record.Payload.Metadata.AgentVersion != record.Producer.Version {
 		return false, errors.New("invalid host metadata projection")
 	}
@@ -370,32 +259,13 @@ func (e *Evidence) metadata(ctx context.Context, record tc.Record, ref bundle.Sa
 	if !e.retainCycle(ref.Stream, ref.Offset) {
 		return false, nil
 	}
-	protocols := map[string]bool{}
-	var references []bundle.WireReference
-	for _, route := range ref.Routes {
-		if protocols[route.Protocol] {
-			continue
-		}
-		protocols[route.Protocol] = true
-		pipeline, err := e.pipeline(ctx, route.Protocol)
-		if err != nil {
-			return false, err
-		}
-		if err := pipeline.pipeline.Serializer.SendHostMetadata(clean); err != nil {
-			return false, errors.New("cannot regenerate host metadata wire evidence")
-		}
-		if err := pipeline.pipeline.Wait(ctx); err != nil {
-			return false, errors.New("host metadata wire evidence did not complete")
-		}
-		references = append(references, pipeline.recorder.Drain()...)
-	}
-	if err := e.writer.Append(ref, clean, references); err != nil {
+	if err := e.writer.Append(ref, clean); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func (e *Evidence) inventory(ctx context.Context, record tc.Record, ref bundle.SampleRef) (bool, error) {
+func (e *Evidence) inventory(record tc.Record, ref bundle.SampleRef) (bool, error) {
 	in := record.Payload.Inventory
 	if in == nil || record.Payload.Metadata != nil || record.Payload.Software != nil || len(record.Payload.Series) != 0 || len(record.Payload.Chunks) != 0 ||
 		in.Timestamp < record.CollectedAt.UnixNano() || in.Timestamp > record.ObservedAt.UnixNano() ||
@@ -414,23 +284,13 @@ func (e *Evidence) inventory(ctx context.Context, record tc.Record, ref bundle.S
 	if !e.retainCycle(ref.Stream, ref.Offset) {
 		return false, nil
 	}
-	pipeline, err := e.pipeline(ctx, "inventory-v1")
-	if err != nil {
-		return false, err
-	}
-	if err := pipeline.pipeline.Serializer.SendMetadata(clean); err != nil {
-		return false, errors.New("cannot regenerate inventory wire evidence")
-	}
-	if err := pipeline.pipeline.Wait(ctx); err != nil {
-		return false, errors.New("inventory wire evidence did not complete")
-	}
-	if err := e.writer.Append(ref, clean, pipeline.recorder.Drain()); err != nil {
+	if err := e.writer.Append(ref, clean); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func (e *Evidence) software(ctx context.Context, record tc.Record, ref bundle.SampleRef) (bool, error) {
+func (e *Evidence) software(record tc.Record, ref bundle.SampleRef) (bool, error) {
 	message := record.Payload.Software
 	if message == nil || record.Payload.Metadata != nil || record.Payload.Inventory != nil || len(record.Payload.Series) != 0 || len(record.Payload.Chunks) != 0 ||
 		message.Timestamp != record.CollectedAt.UnixNano() {
@@ -450,21 +310,7 @@ func (e *Evidence) software(ctx context.Context, record tc.Record, ref bundle.Sa
 	if !e.retainCycle(ref.Stream, ref.Offset) {
 		return false, nil
 	}
-	body, err := clean.MarshalJSON()
-	if err != nil {
-		return false, errors.New("cannot encode sanitized software snapshot")
-	}
-	pipeline, err := e.pipeline(ctx, "software")
-	if err != nil {
-		return false, err
-	}
-	if err := pipeline.pipeline.Event(ctx, eventplatform.EventTypeSoftwareInventory, body, time.Unix(0, ref.Offset.Nanoseconds())); err != nil {
-		return false, errors.New("cannot regenerate software wire evidence")
-	}
-	if err := pipeline.pipeline.Wait(ctx); err != nil {
-		return false, errors.New("software wire evidence did not complete")
-	}
-	if err := e.writer.Append(ref, clean, pipeline.recorder.Drain()); err != nil {
+	if err := e.writer.Append(ref, clean); err != nil {
 		return false, err
 	}
 	for _, entry := range clean.Metadata.Software {
@@ -473,7 +319,7 @@ func (e *Evidence) software(ctx context.Context, record tc.Record, ref bundle.Sa
 	return true, nil
 }
 
-func (e *Evidence) group(ctx context.Context, record tc.Record, ref bundle.SampleRef) (bool, error) {
+func (e *Evidence) group(record tc.Record, ref bundle.SampleRef) (bool, error) {
 	if record.Payload.Metadata != nil || record.Payload.Inventory != nil || record.Payload.Software != nil || len(record.Payload.Series) != 0 {
 		return false, errors.New("invalid group evidence shape")
 	}
@@ -529,47 +375,10 @@ func (e *Evidence) group(ctx context.Context, record tc.Record, ref bundle.Sampl
 	if !retain {
 		return false, nil
 	}
-	check := checks.ProcessCheckName
-	if record.Stream == tc.Connections {
-		check = checks.ConnectionsCheckName
-	}
-	pipeline, err := e.pipeline(ctx, "group")
-	if err != nil {
-		return false, err
-	}
-	if err := pipeline.pipeline.Group(ctx, time.Unix(0, ref.Offset.Nanoseconds()), check, "capture-host", clean); err != nil {
-		return false, errors.New("cannot regenerate complete group wire evidence")
-	}
-	if err := pipeline.pipeline.Wait(ctx); err != nil {
-		return false, errors.New("group wire evidence did not complete")
-	}
-	references := pipeline.recorder.Drain()
-	if len(references) != len(clean) {
-		return false, errors.New("regenerated group has incomplete wire evidence")
-	}
-	ordered := make([]bundle.WireReference, len(clean))
-	seen := make([]bool, len(clean))
-	for _, reference := range references {
-		id, err := strconv.ParseUint(reference.Headers.Get(headers.RequestIDHeader), 10, 64)
-		index := int(id & ((1 << 14) - 1))
-		if err != nil || index >= len(clean) || seen[index] {
-			return false, errors.New("regenerated wire chunk order is invalid")
-		}
-		decoded, err := model.DecodeMessage(reference.Body)
-		if err != nil {
-			return false, errors.New("regenerated wire group cannot be decoded")
-		}
-		expected, _ := json.Marshal(clean[index])
-		actual, _ := json.Marshal(decoded.Body)
-		if string(expected) != string(actual) {
-			return false, errors.New("regenerated group differs from sanitized sample")
-		}
-		ordered[index], seen[index] = reference, true
-	}
 	ref.ChunkCount = len(clean)
 	for i, body := range clean {
 		ref.ChunkIndex = i
-		if err := e.writer.Append(ref, body, []bundle.WireReference{ordered[i]}); err != nil {
+		if err := e.writer.Append(ref, body); err != nil {
 			return false, err
 		}
 		switch value := body.(type) {
@@ -691,7 +500,7 @@ func (e *Evidence) Finish(ctx context.Context, statuses []tc.Status, ended time.
 		participant, ok := e.participants[status.Producer.InstanceID]
 		if !ok || seen[status.Producer.InstanceID] || status.Producer != participant.Status.Producer || status.ProtocolVersion != tc.ProtocolVersion ||
 			status.SessionID != e.session.ID || status.State != tc.Stopped || !status.ActivatedAt.Equal(participant.Status.ActivatedAt) ||
-			status.StoppedAt.Before(status.ActivatedAt) || status.StoppedAt.After(ended) || status.FinalSequence != status.Acknowledged || status.FinalSequence < e.sequences[status.Producer.InstanceID] || status.Failures != 0 || status.Drops != 0 {
+			status.StoppedAt.Before(status.ActivatedAt) || status.StoppedAt.After(ended) || status.FinalSequence != status.Acknowledged || status.Failures != 0 || status.Drops != 0 {
 			return errors.New("invalid evidence producer stopped acknowledgement")
 		}
 		seen[status.Producer.InstanceID] = true
@@ -719,20 +528,13 @@ func (e *Evidence) Finish(ctx context.Context, statuses []tc.Status, ended time.
 	return err
 }
 
-// Close releases all ephemeral pipeline, recorder and sanitizer state. It does
+// Close releases the sanitizer and session state. It does
 // not write a completion marker and is safe after cancellation or failure.
 func (e *Evidence) Close() {
 	if e.closed {
 		return
 	}
 	e.closed = true
-	for _, pipeline := range e.pipelines {
-		pipeline.pipeline.Close()
-		pipeline.recorder.Drain()
-	}
-	e.pipelines = nil
 	e.sanitizer = nil
-	e.cycles = nil
-	e.sequences = nil
 	e.participants = nil
 }

@@ -66,7 +66,7 @@ func TestLateMetadataCollectionCannotRestoreStoppedCaptureReadiness(t *testing.T
 	require.Len(t, lifecycle.hooks, 1)
 	h.collect(context.Background())
 	require.Len(t, manager.Status().Capabilities, 1)
-	control := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "metadata-shutdown-session"}
+	control := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "metadata-shutdown-session"}
 	_, err := manager.Prepare(telemetrycapture.PrepareRequest{Control: control, Streams: []telemetrycapture.Stream{telemetrycapture.Metadata}})
 	require.NoError(t, err)
 	_, err = manager.Activate(control)

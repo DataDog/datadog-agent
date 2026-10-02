@@ -47,14 +47,13 @@ func (s *liveTestSource) Count() uint64           { return uint64(len(s.values))
 
 type liveTestForwarder struct {
 	forwarder.Forwarder
-	mu        sync.Mutex
-	payloads  []*transaction.BytesPayload
-	wire      []string
-	omitRoute bool
-	err       error
+	mu       sync.Mutex
+	payloads []*transaction.BytesPayload
+	wire     []string
+	err      error
 }
 
-func (f *liveTestForwarder) record(p *transaction.BytesPayload, endpoint, protocol, destination string, headers http.Header) error {
+func (f *liveTestForwarder) record(p *transaction.BytesPayload, endpoint string, headers http.Header) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.payloads = append(f.payloads, p)
@@ -64,16 +63,13 @@ func (f *liveTestForwarder) record(p *transaction.BytesPayload, endpoint, protoc
 			panic("capture metadata escaped into headers")
 		}
 	}
-	if capture := p.Capture(); capture != nil && !f.omitRoute {
-		capture.Observer.ObserveRoute(capture.PayloadID, capture.Ordinals, endpoint, protocol, destination, time.Now())
-	}
 	return f.err
 }
 
 func (f *liveTestForwarder) SubmitV1Series(payloads transaction.BytesPayloads, headers http.Header) error {
-	for i := range f.GetDomainResolvers() {
+	for range f.GetDomainResolvers() {
 		for _, p := range payloads {
-			if err := f.record(p, endpoints.V1SeriesEndpoint.Route, "v1", "destination-"+strconv.Itoa(i), headers); err != nil {
+			if err := f.record(p, endpoints.V1SeriesEndpoint.Route, headers); err != nil {
 				return err
 			}
 		}
@@ -82,11 +78,7 @@ func (f *liveTestForwarder) SubmitV1Series(payloads transaction.BytesPayloads, h
 }
 
 func (f *liveTestForwarder) SubmitTransaction(tx *transaction.HTTPTransaction) error {
-	protocol := "v2"
-	if tx.Endpoint == endpoints.V3SeriesEndpoint {
-		protocol = "v3"
-	}
-	return f.record(tx.Payload, tx.Endpoint.Route, protocol, "destination", tx.Headers)
+	return f.record(tx.Payload, tx.Endpoint.Route, tx.Headers)
 }
 
 func liveManager(t *testing.T) (*telemetrycapture.Manager, telemetrycapture.Control) {
@@ -94,7 +86,7 @@ func liveManager(t *testing.T) (*telemetrycapture.Manager, telemetrycapture.Cont
 	m := telemetrycapture.NewManager("core-agent", "fixture", "fixture")
 	t.Cleanup(m.Close)
 	require.NoError(t, m.Register(telemetrycapture.Capability{Stream: telemetrycapture.Metrics, Cadence: 15 * time.Second}))
-	control := telemetrycapture.Control{ProtocolVersion: 1, SessionID: "metric-capture-session"}
+	control := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "metric-capture-session"}
 	_, err := m.Prepare(telemetrycapture.PrepareRequest{Control: control, Streams: []telemetrycapture.Stream{telemetrycapture.Metrics}})
 	require.NoError(t, err)
 	_, err = m.Activate(control)
@@ -149,9 +141,6 @@ func TestLiveMetricCapturePreservesDelivery(t *testing.T) {
 			require.NoError(t, s.SendIterableSeries(input))
 			require.Equal(t, len(input.values)+1, input.calls)
 			require.ElementsMatch(t, wire, f.wire)
-			for _, p := range f.payloads {
-				require.Nil(t, p.Capture(), "retry retained local capture state")
-			}
 			batch, err := m.Read(telemetrycapture.ReadRequest{Control: control})
 			require.NoError(t, err)
 			defer batch.Release()
@@ -162,15 +151,6 @@ func TestLiveMetricCapturePreservesDelivery(t *testing.T) {
 			require.Equal(t, 1234567890.125, record.Payload.Series[0].Points[0].Timestamp)
 			require.Contains(t, record.Payload.Series[0].Tags, "device:native-device", "copy must precede mutation")
 			require.Empty(t, record.Payload.Series[0].Device)
-			require.GreaterOrEqual(t, len(record.Payload.Routes), 4, "split payloads and extra destination must have routes")
-			membership := map[uint64]bool{}
-			for _, route := range record.Payload.Routes {
-				require.Equal(t, "v"+strconv.Itoa(version), route.Protocol)
-				for _, ordinal := range route.Ordinals {
-					membership[ordinal] = true
-				}
-			}
-			require.Equal(t, map[uint64]bool{1: true, 3: true, 4: true}, membership)
 			input.values[0].Points[0].Value = -1
 			require.Equal(t, 7.5, record.Payload.Series[0].Points[0].Value)
 		})
@@ -223,19 +203,6 @@ func TestLiveNetworkMetricCapturePreservesRatesAndDelivery(t *testing.T) {
 				require.Equal(t, float64(i)+0.25, series.Points[0].Value)
 			}
 		})
-	}
-}
-
-func TestLiveMetricCaptureMissingRouteFailsOnlyCapture(t *testing.T) {
-	s, f := liveSerializer(t, 2)
-	f.omitRoute = true
-	m, _ := liveManager(t)
-	s.LiveCapture = m
-	require.NoError(t, s.SendIterableSeries(liveInput()))
-	require.NotEmpty(t, f.wire)
-	require.Equal(t, telemetrycapture.Failed, m.Status().State)
-	for _, p := range f.payloads {
-		require.Nil(t, p.Capture())
 	}
 }
 
@@ -323,12 +290,12 @@ func TestLiveMetricCaptureV1ExcludesNoIndex(t *testing.T) {
 	defer batch.Release()
 	require.Len(t, batch.Records, 1)
 	require.Len(t, batch.Records[0].Payload.Series, 2)
-	for _, route := range batch.Records[0].Payload.Routes {
-		require.NotContains(t, route.Ordinals, uint64(1))
+	for _, series := range batch.Records[0].Payload.Series {
+		require.NotEqual(t, "system.cpu.user", series.Name)
 	}
 }
 
-func TestLiveMetricCapturePipelineFilters(t *testing.T) {
+func TestLiveMetricCapturePipelineFiltersAndDeduplicates(t *testing.T) {
 	for _, version := range []int{2, 3} {
 		t.Run(strconv.Itoa(version), func(t *testing.T) {
 			s, f := liveSerializer(t, version)
@@ -342,6 +309,10 @@ func TestLiveMetricCapturePipelineFilters(t *testing.T) {
 			}
 			pipelines := metricsserializer.PipelineSet{}
 			pipelines.Add(metricsserializer.PipelineConfig{Filter: metricsserializer.NewMapFilter(allowlist), V3: version == 3}, metricsserializer.PipelineDestination{Resolver: f.GetDomainResolvers()[0], Endpoint: endpoint})
+			// A distinct filter creates a second encoding pipeline accepting the
+			// same source item. Capture must preserve its single semantic copy.
+			pipelines.Add(metricsserializer.PipelineConfig{Filter: metricsserializer.NewMapFilter(allowlist), V3: version == 3}, metricsserializer.PipelineDestination{Resolver: f.GetDomainResolvers()[0], Endpoint: endpoint})
+			require.Len(t, pipelines, 2)
 			serializer := metricsserializer.CreateIterableSeries(capture)
 			err := serializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines)
 			require.NoError(t, err)
@@ -355,16 +326,6 @@ func TestLiveMetricCapturePipelineFilters(t *testing.T) {
 			require.Len(t, batch.Records, 1)
 			require.Len(t, batch.Records[0].Payload.Series, 1)
 			require.Equal(t, "system.mem.total", batch.Records[0].Payload.Series[0].Name)
-			require.Equal(t, []uint64{3}, batch.Records[0].Payload.Routes[0].Ordinals)
 		})
 	}
-}
-
-func TestLiveCaptureLocalMetadataCannotChangeWireBytes(t *testing.T) {
-	p := transaction.NewBytesPayload([]byte("original backend body"), 1)
-	before := bytes.Clone(p.GetContent())
-	p.SetCapture(&transaction.CaptureMetadata{SessionID: "local-session", CycleID: 1, PayloadID: 1, Ordinals: []uint64{1}})
-	require.Equal(t, before, p.GetContent())
-	p.ClearCapture()
-	require.Equal(t, before, p.GetContent())
 }
