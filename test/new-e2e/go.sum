@@ -25,8 +25,8 @@ github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7Oputl
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/DataDog/agent-payload/v5 v5.0.213 h1:c+sSA2qAaw1BrQd9cQcDIuVbFDz95rC9CA98A0mc76A=
 github.com/DataDog/agent-payload/v5 v5.0.213/go.mod h1:z6tbYIJQWWQa3ozmZdit7jR3ROOKhgs/va4tNLu80mI=
-github.com/DataDog/datadog-api-client-go/v2 v2.65.0 h1:OBrsv4NJXJZO7YbVBeNZqb/OJ5iDG0My6vXYh2jDshA=
-github.com/DataDog/datadog-api-client-go/v2 v2.65.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
+github.com/DataDog/datadog-api-client-go/v2 v2.66.0 h1:YBeIlj4Gdvs1B4l026a3I0a+qGGmiYzncas/WL4MJJA=
+github.com/DataDog/datadog-api-client-go/v2 v2.66.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/datadog-go/v5 v5.9.1 h1:jOxw/TaxGWok8RIxbpqn2p3RzSnQr/m3Q6TgaHqqOU0=
 github.com/DataDog/datadog-go/v5 v5.9.1/go.mod h1:2SBt8zJu6r7sRQHZFMQ8oCukWTKj0ymwulmNgQzJ1JM=
 github.com/DataDog/datadog-operator/api v0.0.0-20260911191259-12a4825893c4 h1:dW+QcJJaqnR3PFQARGG9BJkSer1Vx5UpMRW6pIayXN0=

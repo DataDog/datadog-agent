@@ -20,7 +20,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.78.3
 	github.com/DataDog/datadog-agent/test/e2e-framework v0.0.6-0.20251107170748-5d4ea60490c6
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
-	github.com/DataDog/datadog-api-client-go/v2 v2.65.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.66.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20260911191259-12a4825893c4
 	github.com/DataDog/rshell v0.0.30
