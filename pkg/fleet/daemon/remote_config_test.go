@@ -8,9 +8,9 @@ package daemon
 import (
 	"encoding/json"
 	"errors"
-	"sync"
-	"sync/atomic"
+	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -66,8 +66,6 @@ var (
 	}
 	testRemoteAPIRequestJSON, _ = json.Marshal(testRemoteAPIRequest)
 )
-
-func alwaysCatalogReady() bool { return true }
 
 type callbackMock struct {
 	mock.Mock
@@ -176,7 +174,7 @@ func TestCatalogUpdateFirstCatalogAppliedCallback(t *testing.T) {
 
 func TestRemoteAPIRequest(t *testing.T) {
 	callback := &callbackMock{}
-	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest, alwaysCatalogReady)
+	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest)
 	callback.On("handleRemoteAPIRequest", testRemoteAPIRequest).Return(nil)
 	callback.On("applyStateCallback", "test", state.ApplyStatus{State: state.ApplyStateAcknowledged}).Return()
 
@@ -189,7 +187,7 @@ func TestRemoteAPIRequest(t *testing.T) {
 
 func TestRemoteAPIRequestBadConfig(t *testing.T) {
 	callback := &callbackMock{}
-	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest, alwaysCatalogReady)
+	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest)
 	callback.On("applyStateCallback", "test", mock.MatchedBy(func(s state.ApplyStatus) bool {
 		return s.State == state.ApplyStateError
 	})).Return()
@@ -203,7 +201,7 @@ func TestRemoteAPIRequestBadConfig(t *testing.T) {
 
 func TestRemoteAPIRequestError(t *testing.T) {
 	callback := &callbackMock{}
-	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest, alwaysCatalogReady)
+	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest)
 	err := errors.New("test error")
 	callback.On("handleRemoteAPIRequest", mock.Anything).Return(err)
 	callback.On("applyStateCallback", "test", state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()}).Return()
@@ -217,7 +215,7 @@ func TestRemoteAPIRequestError(t *testing.T) {
 
 func TestRemoteAPIRequestIgnoresAlreadyExecutedRequests(t *testing.T) {
 	callback := &callbackMock{}
-	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest, alwaysCatalogReady)
+	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest)
 	callback.On("handleRemoteAPIRequest", testRemoteAPIRequest).Return(nil)
 	callback.On("applyStateCallback", "test1", state.ApplyStatus{State: state.ApplyStateAcknowledged}).Times(1).Return()
 
@@ -232,216 +230,27 @@ func TestRemoteAPIRequestIgnoresAlreadyExecutedRequests(t *testing.T) {
 	callback.AssertExpectations(t)
 }
 
-// TestRemoteAPIRequestWaitsForCatalog pins the property the UPDATER_TASK/UPDATER_CATALOG_DD
-// decoupling relies on: subscribing to tasks no longer waits for a catalog, but executing one
-// still does. A task delivered before any catalog has been applied must be left unacknowledged,
-// not executed or errored, so it runs when the tasks are replayed once a catalog exists.
-func TestRemoteAPIRequestWaitsForCatalog(t *testing.T) {
-	callback := &callbackMock{}
-	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest, func() bool { return false })
+// TestStartSubscribesToTasks pins when the daemon subscribes to UPDATER_TASK. macOS subscribes
+// immediately: the backend serves it no catalog, and config experiments arrive as tasks. Elsewhere
+// the subscription waits for the first catalog, as it always has.
+func TestStartSubscribesToTasks(t *testing.T) {
+	c := newTestRemoteConfigClient(t)
+	rc := &remoteConfig{client: c}
+	rc.Start(
+		func(map[string]installerConfig) error { return nil },
+		func(catalog) error { return nil },
+		func(remoteAPIRequest) error { return nil },
+	)
 
-	handler(map[string]state.RawConfig{
-		"test": {Config: testRemoteAPIRequestJSON},
-	}, callback.applyStateCallback)
-
-	callback.AssertNotCalled(t, "handleRemoteAPIRequest", mock.Anything)
-	callback.AssertNotCalled(t, "applyStateCallback", mock.Anything, mock.Anything)
-}
-
-// TestRemoteAPIRequestConfigExperimentDoesNotWaitForCatalog pins that the catalog gate is scoped
-// to the methods that resolve a package against the catalog. Config experiments read
-// INSTALLER_CONFIG, so they must run even when the backend has never assigned a catalog.
-func TestRemoteAPIRequestConfigExperimentDoesNotWaitForCatalog(t *testing.T) {
-	for _, method := range []string{methodStartConfigExperiment, methodStopConfigExperiment, methodPromoteConfigExperiment} {
-		t.Run(method, func(t *testing.T) {
-			request := remoteAPIRequest{
-				ID:     "test",
-				Method: method,
-				Params: json.RawMessage(`{"version":"abcd-efghi-jklm"}`),
-			}
-			requestJSON, err := json.Marshal(request)
-			require.NoError(t, err)
-
-			callback := &callbackMock{}
-			handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest, func() bool { return false })
-			callback.On("handleRemoteAPIRequest", request).Return(nil)
-			callback.On("applyStateCallback", "test", state.ApplyStatus{State: state.ApplyStateAcknowledged}).Return()
-
-			handler(map[string]state.RawConfig{
-				"test": {Config: requestJSON},
-			}, callback.applyStateCallback)
-
-			callback.AssertExpectations(t)
-		})
+	if runtime.GOOS == "darwin" {
+		require.True(t, c.subscribedToRequests(), "macOS should subscribe to tasks without a catalog")
+		c.SubmitCatalog(testAgentCatalog)
+		c.Lock()
+		defer c.Unlock()
+		assert.Len(t, c.listeners[state.ProductUpdaterTask], 1, "a catalog must not add a second task subscription")
+		return
 	}
-}
-
-// TestRemoteAPIRequestDeferredUntilCatalog pins that a task deferred for lack of a catalog is
-// not marked as executed, so it runs once a catalog has been applied and it is redelivered.
-func TestRemoteAPIRequestDeferredUntilCatalog(t *testing.T) {
-	installRequest := remoteAPIRequest{
-		ID:     "install",
-		Method: methodInstallPackage,
-		Params: json.RawMessage(`{"version":"7.32.0"}`),
-	}
-	installRequestJSON, err := json.Marshal(installRequest)
-	require.NoError(t, err)
-
-	var catalogReady bool
-	callback := &callbackMock{}
-	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest, func() bool { return catalogReady })
-
-	for _, cfg := range []state.RawConfig{{Config: testRemoteAPIRequestJSON}, {Config: installRequestJSON}} {
-		handler(map[string]state.RawConfig{"test": cfg}, callback.applyStateCallback)
-	}
-	callback.AssertNotCalled(t, "handleRemoteAPIRequest", mock.Anything)
-	callback.AssertNotCalled(t, "applyStateCallback", mock.Anything, mock.Anything)
-
-	catalogReady = true
-	callback.On("handleRemoteAPIRequest", testRemoteAPIRequest).Return(nil).Once()
-	callback.On("applyStateCallback", "test", state.ApplyStatus{State: state.ApplyStateAcknowledged}).Return().Once()
-	handler(map[string]state.RawConfig{
-		"test": {Config: testRemoteAPIRequestJSON},
-	}, callback.applyStateCallback)
-
-	callback.AssertExpectations(t)
-}
-
-// fakeTaskClient is a remoteConfigClient whose current tasks are set by the test.
-type fakeTaskClient struct {
-	remoteConfigClient
-	tasks    map[string]state.RawConfig
-	statuses map[string]state.ApplyStatus
-}
-
-func (c *fakeTaskClient) GetConfigs(product string) map[string]state.RawConfig {
-	if product != state.ProductUpdaterTask {
-		return nil
-	}
-	return c.tasks
-}
-
-func (c *fakeTaskClient) UpdateApplyStatus(cfgPath string, status state.ApplyStatus) {
-	c.statuses[cfgPath] = status
-}
-
-// TestReplayTasksRunsATaskDeferredBeforeTheCatalog covers what replayTasks is for: the client
-// only notifies a product that changed, so a task deferred while no catalog existed would never be
-// delivered again unless the tasks are replayed once the first catalog is applied.
-func TestReplayTasksRunsATaskDeferredBeforeTheCatalog(t *testing.T) {
-	var catalogReady atomic.Bool
-	var executed atomic.Int32
-	handler := handleUpdaterTaskUpdate(func(remoteAPIRequest) error {
-		executed.Add(1)
-		return nil
-	}, catalogReady.Load)
-	tasks := map[string]state.RawConfig{"test": {Config: testRemoteAPIRequestJSON}}
-	client := &fakeTaskClient{tasks: tasks, statuses: map[string]state.ApplyStatus{}}
-
-	handler(tasks, client.UpdateApplyStatus)
-	require.Zero(t, executed.Load(), "the task ran before any catalog was applied")
-
-	catalogReady.Store(true)
-	replayTasks(client, handler)
-
-	assert.EqualValues(t, 1, executed.Load())
-	assert.Equal(t, state.ApplyStateAcknowledged, client.statuses["test"].State)
-}
-
-// TestReplayTasksSkipsAWithdrawnTask pins that the replay reads the client's current tasks: a task
-// the backend withdrew after it was deferred must not run.
-func TestReplayTasksSkipsAWithdrawnTask(t *testing.T) {
-	var catalogReady atomic.Bool
-	var executed atomic.Int32
-	handler := handleUpdaterTaskUpdate(func(remoteAPIRequest) error {
-		executed.Add(1)
-		return nil
-	}, catalogReady.Load)
-	client := &fakeTaskClient{tasks: map[string]state.RawConfig{}, statuses: map[string]state.ApplyStatus{}}
-
-	handler(map[string]state.RawConfig{"test": {Config: testRemoteAPIRequestJSON}}, client.UpdateApplyStatus)
-	catalogReady.Store(true)
-	replayTasks(client, handler)
-
-	assert.Zero(t, executed.Load())
-}
-
-// TestTaskHandlerRunsARequestOnceUnderConcurrentDelivery covers the replay racing a regular
-// delivery of the same tasks: the request runs exactly once.
-func TestTaskHandlerRunsARequestOnceUnderConcurrentDelivery(t *testing.T) {
-	var executed atomic.Int32
-	handler := handleUpdaterTaskUpdate(func(remoteAPIRequest) error {
-		executed.Add(1)
-		return nil
-	}, alwaysCatalogReady)
-	tasks := map[string]state.RawConfig{"test": {Config: testRemoteAPIRequestJSON}}
-
-	var wg sync.WaitGroup
-	for range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			handler(tasks, func(string, state.ApplyStatus) {})
-		}()
-	}
-	wg.Wait()
-
-	assert.EqualValues(t, 1, executed.Load())
-}
-
-// Ordinary handler failures must not prevent unrelated requests from being processed.
-func TestFailedRequestDoesNotAbortTheRestOfTheSet(t *testing.T) {
-	first := requestJSON(t, "first", methodStartExperiment)
-	second := requestJSON(t, "second", methodStartExperiment)
-
-	executed := 0
-	statuses := map[string]state.ApplyStatus{}
-	handler := handleUpdaterTaskUpdate(func(remoteAPIRequest) error {
-		executed++
-		return errors.New("boom")
-	}, alwaysCatalogReady)
-	handler(map[string]state.RawConfig{
-		"first":  {Config: first},
-		"second": {Config: second},
-	}, func(id string, status state.ApplyStatus) {
-		statuses[id] = status
-	})
-
-	assert.Equal(t, 2, executed, "a failed request must not strand another task")
-	require.Len(t, statuses, 2)
-	for id, status := range statuses {
-		assert.Equal(t, state.ApplyStateError, status.State, "request %s", id)
-		assert.Equal(t, "boom", status.Error, "request %s", id)
-	}
-}
-
-func TestMalformedRequestDoesNotAbortValidRequests(t *testing.T) {
-	var executed []string
-	statuses := map[string]state.ApplyStatus{}
-	handler := handleUpdaterTaskUpdate(func(request remoteAPIRequest) error {
-		executed = append(executed, request.ID)
-		return nil
-	}, alwaysCatalogReady)
-	handler(map[string]state.RawConfig{
-		"bad":   {Config: []byte("invalid JSON")},
-		"valid": {Config: requestJSON(t, "valid", methodStartConfigExperiment)},
-	}, func(id string, status state.ApplyStatus) {
-		statuses[id] = status
-	})
-
-	require.Len(t, statuses, 2)
-	assert.Equal(t, state.ApplyStateError, statuses["bad"].State)
-	assert.Equal(t, state.ApplyStateAcknowledged, statuses["valid"].State)
-	assert.Equal(t, []string{"valid"}, executed)
-}
-
-func requestJSON(t *testing.T, id string, method string) []byte {
-	t.Helper()
-	raw, err := json.Marshal(remoteAPIRequest{
-		ID:     id,
-		Method: method,
-		Params: json.RawMessage(`{"version":"7.32.0"}`),
-	})
-	require.NoError(t, err)
-	return raw
+	require.False(t, c.subscribedToRequests(), "tasks must wait for the first catalog")
+	c.SubmitCatalog(testAgentCatalog)
+	require.Eventually(t, c.subscribedToRequests, time.Second, 10*time.Millisecond)
 }
