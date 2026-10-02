@@ -1,0 +1,49 @@
+# REQUIRED OPERATOR INPUT: replace every REPLACE_WITH_CAPTURED_VPN_CONNECTION_SELECTOR
+# with the exact selector of a known VPN-path TCP connection from your sanitized
+# Windows capture profile. No endpoint is guessed and plan rejects this placeholder.
+# This scenario is externally gated on the unchanged private network-performance
+# monitor producing its Command Center issue; explorer visibility alone is insufficient.
+version: 1
+scenario:
+  name: vpn-degradation-windows
+  description: Captured VPN-path connections degrade while host workloads and physical WLAN stay healthy.
+expectation:
+  affected_cohorts: [vpn-path]
+  conclusion: vpn_path
+monitor_window: 10m
+visibility_delay: 5m
+fleet:
+  - group: vpn-path
+    count: 3
+    os: windows
+    tags: [dept:sales, site:remote]
+    baseline_variance: 0.05
+  - group: comparison
+    count: 3
+    os: windows
+    tags: [dept:sales, site:remote]
+phases:
+  - name: healthy
+    duration: 20m
+  - name: onset
+    duration: 5m
+    connections:
+      vpn-path:
+        - selector: REPLACE_WITH_CAPTURED_VPN_CONNECTION_SELECTOR
+          rtt_ms: {ramp: {from: 30, to: 600}}
+          rtt_variance_ms: {ramp: {from: 5, to: 180}}
+          retransmits: {ramp: {from: 0, to: 30}}
+          tcp_failures:
+            110: {ramp: {from: 0, to: 8}}
+  - name: sustained
+    duration: 20m
+    connections:
+      vpn-path:
+        - selector: REPLACE_WITH_CAPTURED_VPN_CONNECTION_SELECTOR
+          rtt_ms: {steady: 600}
+          rtt_variance_ms: {steady: 180}
+          retransmits: {steady: 30}
+          tcp_failures:
+            110: {steady: 8}
+  - name: recovery
+    duration: 15m

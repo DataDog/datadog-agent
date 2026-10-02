@@ -7,15 +7,22 @@ package client
 
 import (
 	"context"
+	"net/http"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // A DestinationsContext manages senders and allows us to "unclog" the pipeline
 // when trying to stop it and failing to send messages.
 type DestinationsContext struct {
-	context context.Context
-	cancel  context.CancelFunc
-	mutex   sync.Mutex
+	// Transport and OnDelivery are optional and immutable after Start. Explicit
+	// capture/replay tools use them for recording and final delivery accounting.
+	Transport  http.RoundTripper
+	OnDelivery func(*message.Payload, string, error)
+	context    context.Context
+	cancel     context.CancelFunc
+	mutex      sync.Mutex
 }
 
 // NewDestinationsContext returns an initialized DestinationsContext

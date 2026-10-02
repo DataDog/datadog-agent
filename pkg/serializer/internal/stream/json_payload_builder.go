@@ -105,6 +105,9 @@ const (
 
 	// FailOnErrItemTooBig returns the error and stop when ErrItemTooBig is encountered
 	FailOnErrItemTooBig
+
+	// FailOnAnyError rejects incomplete finite payloads, including item encoding errors.
+	FailOnAnyError
 )
 
 // BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
@@ -175,6 +178,9 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		jsonStream.Reset(nil)
 		err := m.WriteCurrentItem(jsonStream)
 		if err != nil {
+			if policy == FailOnAnyError {
+				return nil, err
+			}
 			b.logger.Warnf("error marshalling an item, skipping: %s", err)
 			ok = m.MoveNext()
 			expvarsWriteItemErrors.Add(1)
@@ -211,11 +217,14 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			tlmTotalItems.Inc()
 			continue
 		case errors.Is(err, ErrItemTooBig):
-			if policy == FailOnErrItemTooBig {
+			if policy == FailOnErrItemTooBig || policy == FailOnAnyError {
 				return nil, ErrItemTooBig
 			}
 			fallthrough
 		default:
+			if policy == FailOnAnyError {
+				return nil, err
+			}
 			// Unexpected error, drop the item
 			b.logger.Warnf("Dropping an item, %s: %s", m.DescribeCurrentItem(), err)
 			ok = m.MoveNext()

@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "schema",
+    srcs = [
+        "contracts.go",
+        "network.go",
+        "plan.go",
+        "schema.go",
+        "validate.go",
+        "validate_network.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema",
+    visibility = ["//cmd/eudm-simulator:__subpackages__"],
+    deps = [
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
+
+dd_agent_go_test(
+    name = "schema_test",
+    srcs = [
+        "contracts_test.go",
+    ],
+    embed = [":schema"],
+)

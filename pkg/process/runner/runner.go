@@ -6,6 +6,7 @@
 package runner
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -29,9 +30,11 @@ import (
 )
 
 type checkResult struct {
-	name        string
-	payloads    []checkPayload
-	sizeInBytes int64
+	deliveryContext context.Context
+	deliveryResult  chan error
+	name            string
+	payloads        []checkPayload
+	sizeInBytes     int64
 }
 
 func (cr *checkResult) Weight() int64 {

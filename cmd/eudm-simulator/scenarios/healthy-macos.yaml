@@ -1,0 +1,15 @@
+version: 1
+scenario:
+  name: healthy-macos
+  description: Healthy macOS endpoints replay all captured evidence without incident overlays.
+expectation:
+  affected_cohorts: []
+  conclusion: healthy
+fleet:
+  - group: endpoints
+    count: 3
+    os: macos
+    tags: [dept:engineering, site:remote]
+phases:
+  - name: healthy
+    duration: 20m

@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "impl",
     srcs = [
+        "capture.go",
         "inventorysoftware.go",
         "mock.go",
         "payload.go",

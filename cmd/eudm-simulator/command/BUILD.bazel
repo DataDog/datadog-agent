@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "command",
+    srcs = [
+        "command.go",
+        "native_darwin.go",
+        "native_unsupported.go",
+        "native_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/command",
+    visibility = ["//cmd/eudm-simulator:__subpackages__"],
+    deps = [
+        "//cmd/eudm-simulator/internal/bundle",
+        "//cmd/eudm-simulator/internal/engine",
+        "//cmd/eudm-simulator/internal/safety",
+        "//cmd/eudm-simulator/internal/schema",
+        "//pkg/version",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)
+
+dd_agent_go_test(
+    name = "command_test",
+    srcs = ["command_test.go"],
+    data = ["//cmd/eudm-simulator:replay_testdata"],
+    embed = [":command"],
+    deps = [
+        "//cmd/eudm-simulator/internal/bundle",
+        "//pkg/version",
+        "@rules_go//go/runfiles",
+    ],
+)

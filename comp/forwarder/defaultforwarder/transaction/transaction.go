@@ -263,6 +263,9 @@ type HTTPTransaction struct {
 	// CompletionHandler will be called with a transaction after it has been successfully sent
 	// This field is not restored when a transaction is deserialized from the disk (the default value is used).
 	CompletionHandler HTTPCompletionHandler
+	// DeliveryFailure reports queue removal to an optional in-memory tracker.
+	// Tracked callers disable disk persistence because callbacks are not durable.
+	DeliveryFailure func(error)
 
 	Priority Priority
 
@@ -315,6 +318,7 @@ func NewHTTPTransaction() *HTTPTransaction {
 
 // SetDefaultHandlers sets the default handlers for AttemptHandler and CompletionHandler
 func (t *HTTPTransaction) SetDefaultHandlers() {
+	t.DeliveryFailure = nil
 	t.AttemptHandler = defaultAttemptHandler
 	t.CompletionHandler = defaultCompletionHandler
 }

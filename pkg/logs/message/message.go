@@ -75,6 +75,10 @@ type Message struct {
 //
 //nolint:revive // exported: ignore package name struct conflict
 type MessageMetadata struct {
+	// DeliveryCallback is optional local accounting installed by explicit
+	// capture/replay callers. It follows metadata copies through batching and
+	// is never serialized into a telemetry payload.
+	DeliveryCallback   func(error) `json:"-"`
 	Hostname           string
 	Origin             *Origin
 	Status             string

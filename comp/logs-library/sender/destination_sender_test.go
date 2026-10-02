@@ -75,6 +75,14 @@ func TestDestinationSender(t *testing.T) {
 	}()
 }
 
+func TestDestinationQueueRejectionReportsDeliveryFailure(t *testing.T) {
+	_, destSender := newDestinationSenderWithBufferSize(t, 0)
+	var reported error
+	payload := &message.Payload{MessageMetas: []*message.MessageMetadata{{DeliveryCallback: func(err error) { reported = err }}}}
+	assert.False(t, destSender.NonBlockingSend(payload))
+	assert.ErrorContains(t, reported, "queue capacity exhausted")
+}
+
 func TestDestinationSenderCanBeCanceled(t *testing.T) {
 	dest, destSender := newDestinationSenderWithBufferSize(t, 0)
 

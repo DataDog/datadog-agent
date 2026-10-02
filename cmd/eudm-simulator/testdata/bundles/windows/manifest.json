@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "sanitizer_version": 1,
+  "agent_version": "7.85.0-fixture",
+  "agent_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "profile": {
+    "os": "windows",
+    "architecture": "amd64",
+    "memory_bytes": 17179869184,
+    "streams": [
+      "metrics",
+      "host_metadata",
+      "processes",
+      "software",
+      "connections"
+    ],
+    "metric_names": [
+      "system.cpu.idle",
+      "system.cpu.num_cores",
+      "system.cpu.system",
+      "system.cpu.user",
+      "system.mem.free",
+      "system.mem.pct_usable",
+      "system.mem.total",
+      "system.mem.usable",
+      "system.mem.used",
+      "system.wlan.noise",
+      "system.wlan.rssi",
+      "system.wlan.rxrate",
+      "system.wlan.status",
+      "system.wlan.txrate"
+    ],
+    "process_names": [
+      "SentinelAgent.exe",
+      "chrome.exe",
+      "process-11111111111111111111111111111111"
+    ],
+    "software_names": [
+      "Google Chrome",
+      "OS",
+      "SentinelOne"
+    ],
+    "connection_selectors": [
+      "300:10.0.0.1:50000\u003e10.0.0.2:443"
+    ]
+  },
+  "duration_ns": 30000000000,
+  "cadences_ns": {
+    "connections": 10000000000,
+    "host_metadata": 300000000000,
+    "metrics": 15000000000,
+    "processes": 10000000000,
+    "software": 600000000000
+  },
+  "samples": [
+    {
+      "stream": "metrics",
+      "offset_ns": 0,
+      "file": "sample-000000.json",
+      "wire_files": [
+        "sample-000000-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 15000000000,
+      "file": "sample-000001.json",
+      "wire_files": [
+        "sample-000001-wire-000.json"
+      ]
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 0,
+      "file": "sample-000002.json",
+      "wire_files": [
+        "sample-000002-wire-000.json"
+      ]
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 0,
+      "file": "sample-000003.json",
+      "wire_files": [
+        "sample-000003-wire-000.json"
+      ]
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 10000000000,
+      "file": "sample-000004.json",
+      "wire_files": [
+        "sample-000004-wire-000.json"
+      ]
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 10000000000,
+      "file": "sample-000005.json",
+      "wire_files": [
+        "sample-000005-wire-000.json"
+      ]
+    },
+    {
+      "stream": "host_metadata",
+      "offset_ns": 0,
+      "file": "sample-000006.json",
+      "wire_files": [
+        "sample-000006-wire-000.json"
+      ]
+    },
+    {
+      "stream": "software",
+      "offset_ns": 0,
+      "file": "sample-000007.json",
+      "wire_files": [
+        "sample-000007-wire-000.json"
+      ]
+    }
+  ],
+  "files": {
+    "sample-000000-wire-000.json": "0d5596688c2a54caceb726a7c97ec03f12912ed71fe8d42e9bbb9bffce6a8e3a",
+    "sample-000000.json": "628a3ace8bf17b09aa04ee8c61f336870157222bf546a96f5b0926ced1a84559",
+    "sample-000001-wire-000.json": "1b94b2f4659f3cd7852e1851a6c641a3c6548b3b5a8449f792768345cdc500a0",
+    "sample-000001.json": "bcf2bc537c46059629b7556bb243433949992890c473f6aa72aab8739d993ae9",
+    "sample-000002-wire-000.json": "a21ba614a6f2bf0f1371fb189936d1c4f976528a6931e055120e242ae36fddc1",
+    "sample-000002.json": "1a41b320a7ee8496cbc737587a9d7ccf78880f3552d152a8f0a4bca1bf58e83b",
+    "sample-000003-wire-000.json": "75a4ed098dead6714758a55a2a5f50210d2faeb7f0c3d5b3cd9c3dd13fda6e16",
+    "sample-000003.json": "60dad252ae6e61b92eeca3fcac53f0003b5bc2d7728cc6ed7f93693504904147",
+    "sample-000004-wire-000.json": "a275fd53a313cabf875bac776083c1c5e944c9470e8bd4a1906013e85f7a869d",
+    "sample-000004.json": "0d29d60c18039fe7b274886b8d25ddf066e80510d1f09f075f77058bf8fe3fe0",
+    "sample-000005-wire-000.json": "45147b6cfb4fb857f47136ec68436e9cd11ca7533dd05adf617ce3d37a11520f",
+    "sample-000005.json": "e2615269739e6e53e29ed35548133efff5194f1bb8998071b2b8293f2f40cd04",
+    "sample-000006-wire-000.json": "e578d8dba01211906ed77bdd0c556355a8f793827e020e20a1937733a6523fa2",
+    "sample-000006.json": "d4629f4ff8269c8083603d58c66e7ca4f1fd51de598326151afe24390170954f",
+    "sample-000007-wire-000.json": "47b2a7194f949b7181b41256fc901ff18c110c456478e95255ee101ba387c513",
+    "sample-000007.json": "fc07d296dbd8038f355563d9327854751d370acd605b999d73d17dad06474bd7"
+  },
+  "complete": true
+}

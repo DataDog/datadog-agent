@@ -168,13 +168,17 @@ func newDestination(endpoint config.Endpoint,
 	metrics.DestinationLogsDropped.Set(endpoint.Host, &expvar.Int{})
 
 	workerPool := newDefaultWorkerPool(minConcurrency, maxConcurrency, destMeta)
+	var transport http.RoundTripper
+	if destinationsContext != nil {
+		transport = destinationsContext.Transport
+	}
 
 	return &Destination{
 		host:                endpoint.Host,
 		url:                 buildURL(endpoint),
 		endpoint:            endpoint,
 		contentType:         contentType,
-		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(cfg, timeoutOverride)),
+		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, destinationHTTPClientFactory(cfg, timeoutOverride, transport)),
 		destinationsContext: destinationsContext,
 		workerPool:          workerPool,
 		wg:                  sync.WaitGroup{},
@@ -261,7 +265,10 @@ func (d *Destination) sendConcurrent(payload *message.Payload, output chan *mess
 }
 
 // Send sends a payload over HTTP,
-func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) destinationResult {
+func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) (final destinationResult) {
+	if observer := d.destinationsContext.OnDelivery; observer != nil {
+		defer func() { observer(payload, d.url, final.err) }()
+	}
 	for {
 		d.retryLock.Lock()
 		nbErrors := d.nbErrors
@@ -421,6 +428,9 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	} else if resp.StatusCode > http.StatusBadRequest {
 		return client.NewRetryableError(errServer)
 	}
+	if d.destinationsContext.OnDelivery != nil && (resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices) {
+		return fmt.Errorf("tracked event delivery rejected with HTTP %d", resp.StatusCode)
+	}
 	d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag(), d.instanceID)
 	return nil
 }
@@ -445,6 +455,19 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 	d.lastRetryError = nil
 
 	return false
+}
+
+func destinationHTTPClientFactory(cfg pkgconfigmodel.Reader, timeoutOverride time.Duration, transport http.RoundTripper) func() *http.Client {
+	factory := httpClientFactory(cfg, timeoutOverride)
+	if transport == nil {
+		return factory
+	}
+	return func() *http.Client {
+		c := factory()
+		c.Transport = transport
+		c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+		return c
+	}
 }
 
 func httpClientFactory(cfg pkgconfigmodel.Reader, timeoutOverride time.Duration) func() *http.Client {

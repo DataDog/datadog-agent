@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "telemetry",
+    srcs = [
+        "metrics.go",
+        "samples.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/telemetry",
+    visibility = ["//cmd/eudm-simulator:__subpackages__"],
+    deps = [
+        "//cmd/eudm-simulator/internal/schema",
+        "//comp/softwareinventory/impl",
+        "//pkg/metrics",
+        "//pkg/tagset",
+        "@com_github_datadog_agent_payload_v5//process",
+    ],
+)
+
+dd_agent_go_test(
+    name = "telemetry_test",
+    srcs = ["metrics_test.go"],
+    embed = [":telemetry"],
+    deps = [
+        "//cmd/eudm-simulator/internal/schema",
+        "//pkg/metrics",
+        "//pkg/tagset",
+    ],
+)

@@ -1,0 +1,75 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+// Package output connects sanitized telemetry to Agent delivery packages.
+package output
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"sync"
+
+	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle"
+)
+
+// Recorder is an HTTP transport with no network capability. It must only be
+// installed behind a pipeline whose native transformers have already sanitized
+// every payload. It never retains credentials, URLs with query strings, or the
+// original request. The simulator uses the same Agent serializers in both modes.
+type Recorder struct {
+	mu       sync.Mutex
+	requests []bundle.WireReference
+	changed  chan struct{}
+}
+
+func NewRecorder() *Recorder { return &Recorder{changed: make(chan struct{})} }
+
+func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
+	data, err := io.ReadAll(io.LimitReader(req.Body, 64<<20))
+	if err != nil {
+		return nil, errors.New("read sanitized recording request")
+	}
+	if len(data) >= 64<<20 {
+		return nil, errors.New("serialized reference exceeds recording size limit")
+	}
+	headers := http.Header{}
+	for _, key := range []string{"Content-Type", "Content-Encoding", "DD-Agent-Payload", "X-Dd-Hostname", "X-Dd-Processagentversion", "X-Dd-Request-Id", "X-DD-Agent-Timestamp", "X-DD-Agent-Start-Time", "X-DD-Payload-Source", "X-DD-Processes-Enabled", "X-DD-Service-Discovery-Enabled"} {
+		if value := req.Header.Get(key); value != "" {
+			headers.Set(key, value)
+		}
+	}
+	r.mu.Lock()
+	r.requests = append(r.requests, bundle.WireReference{Path: req.URL.Path, Headers: headers, Body: data})
+	close(r.changed)
+	r.changed = make(chan struct{})
+	r.mu.Unlock()
+	return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(bytes.NewBufferString("{}")), Request: req}, nil
+}
+
+// Wait returns recorded references after at least count requests have arrived.
+// Final transaction acceptance is tracked independently by the delivery layer.
+func (r *Recorder) Wait(ctx context.Context, count int) ([]bundle.WireReference, error) {
+	for {
+		r.mu.Lock()
+		if len(r.requests) >= count {
+			result := make([]bundle.WireReference, len(r.requests))
+			for i, v := range r.requests {
+				result[i] = bundle.WireReference{Path: v.Path, Headers: v.Headers.Clone(), Body: bytes.Clone(v.Body)}
+			}
+			r.mu.Unlock()
+			return result, nil
+		}
+		changed := r.changed
+		r.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-changed:
+		}
+	}
+}

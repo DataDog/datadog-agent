@@ -266,6 +266,7 @@ func (s *defaultEventPlatformForwarder) Stop() {
 }
 
 type passthroughPipeline struct {
+	deliveryDestinations  int
 	sender                *sender.Sender
 	strategy              sender.Strategy
 	in                    chan *message.Message
@@ -417,6 +418,7 @@ func newHTTPPassthroughPipeline(
 		endpoints.Main.CompressionKind,
 		endpoints.Main.CompressionLevel)
 	return &passthroughPipeline{
+		deliveryDestinations:  len(endpoints.GetReliableEndpoints()) + len(endpoints.GetUnReliableEndpoints()),
 		sender:                senderImpl,
 		strategy:              strategy,
 		in:                    inputChan,

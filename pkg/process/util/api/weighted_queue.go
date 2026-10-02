@@ -7,6 +7,8 @@ package api
 
 import (
 	"container/list"
+	"context"
+	"errors"
 	"sync"
 )
 
@@ -106,8 +108,38 @@ func (q *WeightedQueue) Poll() (WeightedItem, bool) {
 	item := e.Value.(WeightedItem)
 	q.queue.Remove(e)
 	q.currentWeight -= item.Weight()
+	q.cv.Broadcast()
 
 	return item, true
+}
+
+// AddBlocking adds without evicting existing items. It is used by finite
+// capture/replay producers that must account for every declared payload.
+func (q *WeightedQueue) AddBlocking(ctx context.Context, item WeightedItem) error {
+	if item.Weight() < 0 || item.Weight() > q.maxWeight || q.maxSize <= 0 {
+		return errors.New("payload cannot fit in weighted queue")
+	}
+	stop := context.AfterFunc(ctx, func() {
+		q.mu.Lock()
+		q.cv.Broadcast()
+		q.mu.Unlock()
+	})
+	defer stop()
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for !q.stop && ctx.Err() == nil && (q.queue.Len() >= q.maxSize || q.currentWeight > q.maxWeight-item.Weight()) {
+		q.cv.Wait()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if q.stop {
+		return errors.New("weighted queue stopped")
+	}
+	q.queue.PushBack(item)
+	q.currentWeight += item.Weight()
+	q.cv.Broadcast()
+	return nil
 }
 
 // Add adds the item to the queue.
@@ -173,7 +205,7 @@ func (q *WeightedQueue) Add(item WeightedItem) {
 	q.queue.PushBack(item)
 
 	// Send a signal that data is available
-	q.cv.Signal()
+	q.cv.Broadcast()
 }
 
 // Stop stops the WeightedQueue instance.  Any calls to Poll concurrent with or

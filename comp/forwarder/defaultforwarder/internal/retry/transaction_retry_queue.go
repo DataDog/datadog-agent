@@ -108,6 +108,7 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 				// Assuming all payloads failed during serialization
 				pointCountDroppped := 0
 				for _, payload := range payloads {
+					transaction.ReportDeliveryFailure(payload, errors.New("retry storage rejected payload"))
 					pointCountDroppped += payload.GetPointCount()
 				}
 				tc.onDropPoints(pointCountDroppped)
@@ -127,6 +128,7 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 		transactions := tc.extractTransactionsFromMemory(payloadSizeInBytesToDrop)
 		pointCountDroppped := 0
 		for _, tr := range transactions {
+			transaction.ReportDeliveryFailure(tr, errors.New("forwarder retry queue capacity exhausted"))
 			pointCountDroppped += tr.GetPointCount()
 		}
 		tc.onDropPoints(pointCountDroppped)

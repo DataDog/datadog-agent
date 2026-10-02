@@ -82,6 +82,7 @@ func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) ([]software.En
 // This struct holds the state and dependencies needed to collect and manage
 // software inventory data from the Windows system.
 type softwareInventory struct {
+	capture CaptureTransformer
 	// true if the component was enabled in the configuration
 	enabled bool
 	// log provides logging capabilities for the component
@@ -108,6 +109,8 @@ type softwareInventory struct {
 // This struct defines all the required dependencies that must be provided
 // when creating a new inventory software component instance.
 type Requires struct {
+	// CaptureTransformer receives the complete snapshot before serialization.
+	CaptureTransformer CaptureTransformer `optional:"true"`
 	// Log provides logging capabilities for the component
 	Log log.Component
 	// Config provides access to the agent configuration
@@ -155,6 +158,7 @@ func newWithClient(reqs Requires, client sysProbeClient, sleepFunc func(time.Dur
 	}
 
 	is := &softwareInventory{
+		capture:        reqs.CaptureTransformer,
 		enabled:        reqs.Config.GetBool("software_inventory.enabled"),
 		log:            reqs.Log,
 		sysProbeClient: client,
@@ -277,6 +281,13 @@ func (is *softwareInventory) sendPayload() error {
 	if payload == nil {
 		// No cached inventory available, skip sending payload
 		return nil
+	}
+	if is.capture != nil {
+		transformed, err := is.capture(payload.(*Payload))
+		if err != nil {
+			return err
+		}
+		payload = transformed
 	}
 
 	jsonPayload, err := payload.MarshalJSON()

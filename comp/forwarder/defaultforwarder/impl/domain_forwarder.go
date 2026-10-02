@@ -341,6 +341,7 @@ func (f *domainForwarder) State() uint32 {
 
 func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) {
 	if !f.shouldSendHTTPTransaction(t) {
+		transaction.ReportDeliveryFailure(t, errors.New("forwarder rejected delivery route"))
 		return
 	}
 

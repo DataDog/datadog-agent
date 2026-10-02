@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "safety",
+    srcs = ["staging.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/safety",
+    visibility = ["//cmd/eudm-simulator:__subpackages__"],
+)
+
+dd_agent_go_test(
+    name = "safety_test",
+    srcs = [
+        "staging_test.go",
+    ],
+    embed = [":safety"],
+)

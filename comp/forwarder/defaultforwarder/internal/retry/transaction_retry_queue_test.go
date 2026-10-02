@@ -8,6 +8,7 @@
 package retry
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -20,6 +21,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
+
+func TestRetryEvictionReportsTrackedFailure(t *testing.T) {
+	tracker := transaction.NewDeliveryTracker()
+	first := createTransactionWithPayloadSize(10)
+	tracker.Track(first)
+	queue := NewTransactionRetryQueue(nil, 10, 0.5, NewTransactionRetryQueueTelemetry("tracked"), NewPointCountTelemetryMock())
+	_, err := queue.Add(first)
+	require.NoError(t, err)
+	dropped, err := queue.Add(createTransactionWithPayloadSize(10))
+	require.NoError(t, err)
+	require.Equal(t, 1, dropped)
+	require.Error(t, tracker.Wait(context.Background()))
+}
 
 // only used for testing
 // GetCurrentMemSizeInBytes gets the current memory usage in bytes

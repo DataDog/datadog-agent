@@ -64,6 +64,32 @@ func decodeSerieResourceTypes(t *testing.T, buf []byte) [][]string {
 	return result
 }
 
+func TestStrictSeriesBuildersRejectDrops(t *testing.T) {
+	for _, v3 := range []bool{false, true} {
+		for _, strict := range []bool{false, true} {
+			for _, tooManyPoints := range []bool{false, true} {
+				cfg := configmock.New(t)
+				serie := &metrics.Serie{Name: "system.cpu.user", Host: "device", MType: metrics.APIGaugeType, Points: []metrics.Point{{Ts: 1, Value: 2}, {Ts: 2, Value: 3}}}
+				if tooManyPoints {
+					cfg.SetInTest("serializer_max_series_points_per_payload", 1)
+				} else {
+					cfg.SetInTest("serializer_max_series_payload_size", 1000)
+					cfg.SetInTest("serializer_max_series_uncompressed_payload_size", 1000)
+					serie.Name = strings.Repeat("x", 2000)
+				}
+				series := CreateIterableSeries(CreateSerieSource(metrics.Series{serie}))
+				pipelines := PipelineSet{PipelineConfig{Filter: AllowAllFilter{}, V3: v3}: &PipelineContext{}}
+				err := series.MarshalSplitCompressPipelines(cfg, noopimpl.New(), pipelines, strict)
+				if strict {
+					require.Error(t, err, "v3=%t points=%t", v3, tooManyPoints)
+				} else {
+					require.NoError(t, err, "v3=%t points=%t", v3, tooManyPoints)
+				}
+			}
+		}
+	}
+}
+
 func TestPayloadsBuilderHostlessSerieHasNoHostResource(t *testing.T) {
 	r := require.New(t)
 

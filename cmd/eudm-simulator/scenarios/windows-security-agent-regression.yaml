@@ -1,0 +1,48 @@
+# Capture a healthy SentinelAgent.exe and SentinelOne software entry first.
+# Recovery restores the captured healthy process and software version together.
+version: 1
+scenario:
+  name: windows-security-agent-regression
+  description: A SentinelOne update increases security-agent resource use on three of eight Windows endpoints.
+expectation:
+  affected_cohorts: [rollout]
+  conclusion: process_software_version
+monitor_window: 10m
+visibility_delay: 5m
+fleet:
+  - group: rollout
+    count: 3
+    os: windows
+    tags: [dept:sales, site:remote]
+    baseline_variance: 0.05
+  - group: comparison
+    count: 5
+    os: windows
+    tags: [dept:sales, site:remote]
+phases:
+  - name: healthy
+    duration: 20m
+  - name: onset
+    duration: 5m
+    software_inventory:
+      rollout:
+        - name: SentinelOne
+          version: "24.2.3.471"
+    processes:
+      rollout:
+        - name: SentinelAgent.exe
+          cpu: {ramp: {from: 3, to: 49}}
+          memory: {ramp: {from: 420, to: 980}}
+  - name: sustained
+    duration: 20m
+    software_inventory:
+      rollout:
+        - name: SentinelOne
+          version: "24.2.3.471"
+    processes:
+      rollout:
+        - name: SentinelAgent.exe
+          cpu: {steady: 49}
+          memory: {steady: 980}
+  - name: recovery
+    duration: 15m

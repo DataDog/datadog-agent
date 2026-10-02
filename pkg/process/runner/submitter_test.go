@@ -8,7 +8,10 @@
 package runner
 
 import (
+	"context"
+	"net/http"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,15 +31,79 @@ import (
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
 	forwardersimpl "github.com/DataDog/datadog-agent/comp/process/forwarders/fx"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+func TestSubmitForHostAccountsForEveryChunkAndDestination(t *testing.T) {
+	for _, rejectSecondDestination := range []bool{false, true} {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		queue := api.NewWeightedQueue(1, 1<<20)
+		var chunks int
+		s := &CheckSubmitter{
+			log: logmock.New(t), exit: make(chan struct{}),
+			resultsQueue: map[string]*api.WeightedQueue{checks.ProcessCheckName: queue},
+			submitFuncs: map[string]submitFunc{checks.ProcessCheckName: func(_ transaction.BytesPayloads, headers http.Header) (chan forwarder.Response, error) {
+				chunks++
+				if headers.Get("X-Dd-Hostname") != "device" {
+					t.Error("wrong multi-host header")
+				}
+				responses := make(chan forwarder.Response, 2)
+				responses <- forwarder.Response{StatusCode: 200}
+				status := 200
+				if rejectSecondDestination {
+					status = 403
+				}
+				responses <- forwarder.Response{StatusCode: status}
+				close(responses)
+				return responses, nil
+			}},
+		}
+		var consumer sync.WaitGroup
+		consumer.Add(1)
+		go func() { defer consumer.Done(); s.consumePayloads(queue) }()
+		payload := &types.Payload{Message: []model.MessageBody{
+			&model.CollectorProc{HostName: "device", GroupSize: 2},
+			&model.CollectorProc{HostName: "device", GroupSize: 2},
+		}}
+		err := s.SubmitForHost(ctx, time.Unix(1000, 0), checks.ProcessCheckName, "device", payload)
+		queue.Stop()
+		consumer.Wait()
+		if rejectSecondDestination {
+			assert.Error(t, err)
+			assert.Equal(t, 1, chunks)
+		} else {
+			assert.NoError(t, err)
+			assert.Equal(t, 2, chunks)
+		}
+	}
+}
+
+func TestSubmitForHostRejectsMismatchesAndQueueCapacity(t *testing.T) {
+	s := &CheckSubmitter{
+		log: logmock.New(t), exit: make(chan struct{}),
+		resultsQueue: map[string]*api.WeightedQueue{checks.ProcessCheckName: api.NewWeightedQueue(1, 0)},
+	}
+	for _, payload := range []*types.Payload{
+		nil,
+		{Message: []model.MessageBody{&model.CollectorProc{HostName: "other"}}},
+		{Message: []model.MessageBody{&model.CollectorConnections{HostName: "device"}}},
+		{Message: []model.MessageBody{&model.CollectorProc{HostName: "device"}}},
+	} {
+		assert.Error(t, s.SubmitForHost(context.Background(), time.Now(), checks.ProcessCheckName, "device", payload))
+	}
+}
 
 func TestNewCollectorQueueSize(t *testing.T) {
 	tests := []struct {

@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "overlay",
+    srcs = [
+        "overlay.go",
+        "pattern.go",
+        "process.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/overlay",
+    visibility = ["//cmd/eudm-simulator:__subpackages__"],
+    deps = [
+        "//cmd/eudm-simulator/internal/schema",
+        "//cmd/eudm-simulator/internal/telemetry",
+        "@com_github_datadog_agent_payload_v5//process",
+    ],
+)
+
+dd_agent_go_test(
+    name = "overlay_test",
+    srcs = [
+        "overlay_test.go",
+        "pattern_test.go",
+    ],
+    embed = [":overlay"],
+    deps = [
+        "//cmd/eudm-simulator/internal/schema",
+        "//cmd/eudm-simulator/internal/telemetry",
+        "//comp/softwareinventory/impl",
+        "//pkg/inventory/software",
+        "//pkg/metrics",
+        "@com_github_datadog_agent_payload_v5//process",
+    ],
+)

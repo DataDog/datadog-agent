@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "sanitizer_version": 1,
+  "agent_version": "7.85.0-fixture",
+  "agent_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "profile": {
+    "os": "macos",
+    "architecture": "arm64",
+    "memory_bytes": 17179869184,
+    "streams": [
+      "metrics",
+      "host_metadata",
+      "processes",
+      "software"
+    ],
+    "metric_names": [
+      "system.cpu.idle",
+      "system.cpu.num_cores",
+      "system.cpu.system",
+      "system.cpu.user",
+      "system.mem.free",
+      "system.mem.pct_usable",
+      "system.mem.total",
+      "system.mem.usable",
+      "system.mem.used",
+      "system.wlan.noise",
+      "system.wlan.rssi",
+      "system.wlan.rxrate",
+      "system.wlan.status",
+      "system.wlan.txrate"
+    ],
+    "process_names": [
+      "Google Chrome",
+      "process-11111111111111111111111111111111"
+    ],
+    "software_names": [
+      "Google Chrome",
+      "OS"
+    ],
+    "connection_selectors": null
+  },
+  "duration_ns": 30000000000,
+  "cadences_ns": {
+    "host_metadata": 300000000000,
+    "metrics": 15000000000,
+    "processes": 10000000000,
+    "software": 600000000000
+  },
+  "samples": [
+    {
+      "stream": "metrics",
+      "offset_ns": 0,
+      "file": "sample-000000.json",
+      "wire_files": [
+        "sample-000000-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 15000000000,
+      "file": "sample-000001.json",
+      "wire_files": [
+        "sample-000001-wire-000.json"
+      ]
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 0,
+      "file": "sample-000002.json",
+      "wire_files": [
+        "sample-000002-wire-000.json"
+      ]
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 10000000000,
+      "file": "sample-000003.json",
+      "wire_files": [
+        "sample-000003-wire-000.json"
+      ]
+    },
+    {
+      "stream": "host_metadata",
+      "offset_ns": 0,
+      "file": "sample-000004.json",
+      "wire_files": [
+        "sample-000004-wire-000.json"
+      ]
+    },
+    {
+      "stream": "software",
+      "offset_ns": 0,
+      "file": "sample-000005.json",
+      "wire_files": [
+        "sample-000005-wire-000.json"
+      ]
+    }
+  ],
+  "files": {
+    "sample-000000-wire-000.json": "0d5596688c2a54caceb726a7c97ec03f12912ed71fe8d42e9bbb9bffce6a8e3a",
+    "sample-000000.json": "628a3ace8bf17b09aa04ee8c61f336870157222bf546a96f5b0926ced1a84559",
+    "sample-000001-wire-000.json": "1b94b2f4659f3cd7852e1851a6c641a3c6548b3b5a8449f792768345cdc500a0",
+    "sample-000001.json": "bcf2bc537c46059629b7556bb243433949992890c473f6aa72aab8739d993ae9",
+    "sample-000002-wire-000.json": "8c69fe81c82ca2547565d8f1ca66644f99fea879dd7dd9912cb796f358418e40",
+    "sample-000002.json": "d083647ef961c6bb70fee6d9933dd48d0fa78f02ba47edc045a35d7d4228888d",
+    "sample-000003-wire-000.json": "0e75a9caabdc1064eb93a369331b65346abe5aea88a677fb82a0d383a00d385d",
+    "sample-000003.json": "91fdc2fee23e22affbe37b8f454a7f8d12140346f682bd4104c48b396c590315",
+    "sample-000004-wire-000.json": "459d71cda6eaea9c1ded32ad69af16a95d80394f3e79ba5cb410461884b1d412",
+    "sample-000004.json": "ca77445517d52b92d4ff38295d96a7a9cc02faa7b352921637c0cf2e25d542d0",
+    "sample-000005-wire-000.json": "d2123f9b37f68c40d9be792f4a81e89063f1629f0044a5e39e347397873791b7",
+    "sample-000005.json": "90055fba126cddfac8704e03443bf7c8e464a644be4d20d88ccf17985b495600"
+  },
+  "complete": true
+}

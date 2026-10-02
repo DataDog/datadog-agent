@@ -101,6 +101,13 @@ type MetricSerializer interface {
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
 type Serializer struct {
+	// RequireCompleteDelivery makes finite producers fail when an item cannot
+	// be encoded. Normal Agents retain their existing best-effort behavior.
+	// Set this before any producer starts.
+	RequireCompleteDelivery bool
+	// capture is installed only by an explicit capture invocation, before use.
+	// The transformer must return an independently owned, sanitized copy.
+	capture               CaptureTransformer
 	Forwarder             forwarder.Forwarder
 	orchestratorForwarder orchestratorForwarder.Component
 	config                config.Component
@@ -130,7 +137,7 @@ type Serializer struct {
 }
 
 // NewSerializer returns a new Serializer initialized
-func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Compressor, config config.Component, logger log.Component, hostName string) *Serializer {
+func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Compressor, config config.Component, logger log.Component, hostName string, capture ...CaptureTransformer) *Serializer {
 	s := &Serializer{
 		Forwarder:                           forwarder,
 		orchestratorForwarder:               orchestratorForwarder,
@@ -151,6 +158,10 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestr
 	}
 
 	initExtraHeaders(s)
+	if len(capture) > 0 {
+		s.capture = capture[0]
+		s.RequireCompleteDelivery = capture[0] != nil
+	}
 
 	if !s.enableEvents {
 		logger.Warn("event payloads are disabled: all events will be dropped")
@@ -244,7 +255,17 @@ func (s *Serializer) AreSeriesEnabled() bool {
 
 // SendIterableSeries serializes a list of series and sends the payload to the forwarder
 func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
+	if s.capture != nil {
+		var err error
+		serieSource, err = s.capture.Series(serieSource)
+		if err != nil {
+			return err
+		}
+	}
 	if !s.AreSeriesEnabled() {
+		if s.RequireCompleteDelivery {
+			return errors.New("required series payloads are disabled")
+		}
 		s.logger.Debug("series payloads are disabled: dropping it")
 		return nil
 	}
@@ -257,7 +278,11 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	var err error
 
 	if useV1API {
-		seriesBytesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
+		policy := stream.DropItemOnErrItemTooBig
+		if s.RequireCompleteDelivery {
+			policy = stream.FailOnAnyError
+		}
+		seriesBytesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, policy)
 		if err != nil {
 			return fmt.Errorf("dropping series payload: %s", err)
 		}
@@ -265,7 +290,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	}
 
 	pipelines := s.buildPipelines(metricsKindSeries)
-	err = seriesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines)
+	err = seriesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines, s.RequireCompleteDelivery)
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
@@ -344,6 +369,13 @@ func (s *Serializer) SendMetadata(m marshaler.JSONMarshaler) error {
 
 // SendHostMetadata serializes a metadata payload and sends it to the forwarder
 func (s *Serializer) SendHostMetadata(m marshaler.JSONMarshaler) error {
+	if s.capture != nil {
+		var err error
+		m, err = s.capture.HostMetadata(m)
+		if err != nil {
+			return err
+		}
+	}
 	return s.sendMetadata(m, s.Forwarder.SubmitHostMetadata)
 }
 

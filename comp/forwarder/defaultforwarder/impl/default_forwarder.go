@@ -102,6 +102,9 @@ func HasFeature(features, flag Features) bool { return defaultforwarderdef.HasFe
 
 // Options contain the configuration options for the DefaultForwarder
 type Options struct {
+	DeliveryTracker *transaction.DeliveryTracker
+	// DeliveryContext bounds tracked process responses after normal retries.
+	DeliveryContext                context.Context
 	NumberOfWorkers                int
 	RetryQueuePayloadsTotalMaxSize int
 	DisableAPIKeyChecking          bool
@@ -111,6 +114,12 @@ type Options struct {
 	ConnectionResetInterval        time.Duration
 	Secrets                        secrets.Component
 	transport                      http.RoundTripper // for testing
+}
+
+// SetTransport installs an in-memory recording transport before constructing a
+// forwarder. Normal Agents leave the transport unset.
+func (o *Options) SetTransport(transport http.RoundTripper) {
+	o.transport = transport
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -259,8 +268,10 @@ func (o *Options) SetEnabledFeatures(features []Features) {
 
 // DefaultForwarder is the default implementation of the defaultforwarderdef.Forwarder.
 type DefaultForwarder struct {
-	config config.Component
-	log    log.Component
+	deliveryTracker *transaction.DeliveryTracker
+	deliveryContext context.Context
+	config          config.Component
+	log             log.Component
 
 	// NumberOfWorkers Number of concurrent HTTP request made by the DefaultForwarder (default 4).
 	NumberOfWorkers int
@@ -282,6 +293,8 @@ type DefaultForwarder struct {
 func NewDefaultForwarder(config config.Component, log log.Component, options *Options) *DefaultForwarder {
 	agentName := getAgentName(options)
 	f := &DefaultForwarder{
+		deliveryTracker:  options.DeliveryTracker,
+		deliveryContext:  options.DeliveryContext,
 		config:           config,
 		log:              log,
 		NumberOfWorkers:  options.NumberOfWorkers,
@@ -564,6 +577,9 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	for _, t := range transactions {
 		forwarder := f.domainForwarders[t.Domain]
 
+		if f.deliveryTracker != nil {
+			f.deliveryTracker.Track(t)
+		}
 		forwarder.sendHTTPTransactions(t)
 
 		if f.queueDurationCapacity != nil {
@@ -785,8 +801,20 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 	}
 
 	go func() {
+		if expectedResponses == 0 {
+			close(results)
+			return
+		}
+		var cancelled <-chan struct{}
+		if f.deliveryContext != nil {
+			cancelled = f.deliveryContext.Done()
+		}
 		receivedResponses := 0
 		for {
+			var timeout <-chan time.Time
+			if cancelled == nil {
+				timeout = time.After(defaultResponseTimeout)
+			}
 			select {
 			case r := <-internalResults:
 				results <- r
@@ -795,7 +823,10 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 					close(results)
 					return
 				}
-			case <-time.After(defaultResponseTimeout):
+			case <-cancelled:
+				close(results)
+				return
+			case <-timeout:
 				f.log.Errorf("timed out waiting for responses, received %d/%d", receivedResponses, expectedResponses)
 				close(results)
 				return

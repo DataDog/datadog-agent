@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "engine",
+    srcs = [
+        "clock.go",
+        "delivery.go",
+        "engine.go",
+        "preflight.go",
+        "timeline.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/engine",
+    visibility = ["//cmd/eudm-simulator:__subpackages__"],
+    deps = [
+        "//cmd/eudm-simulator/internal/accesspoint",
+        "//cmd/eudm-simulator/internal/bundle",
+        "//cmd/eudm-simulator/internal/capture",
+        "//cmd/eudm-simulator/internal/identity",
+        "//cmd/eudm-simulator/internal/output",
+        "//cmd/eudm-simulator/internal/overlay",
+        "//cmd/eudm-simulator/internal/report",
+        "//cmd/eudm-simulator/internal/safety",
+        "//cmd/eudm-simulator/internal/schema",
+        "//cmd/eudm-simulator/internal/telemetry",
+        "//comp/forwarder/eventplatform/def",
+        "//comp/process/types",
+        "//pkg/metrics",
+        "//pkg/networkdevice/metadata",
+        "//pkg/process/checks",
+        "@com_github_datadog_agent_payload_v5//process",
+    ],
+)
+
+dd_agent_go_test(
+    name = "engine_test",
+    srcs = [
+        "engine_test.go",
+        "timeline_test.go",
+    ],
+    data = ["//cmd/eudm-simulator:replay_testdata"],
+    embed = [":engine"],
+    deps = [
+        "//cmd/eudm-simulator/internal/accesspoint",
+        "//cmd/eudm-simulator/internal/bundle",
+        "//cmd/eudm-simulator/internal/report",
+        "//cmd/eudm-simulator/internal/schema",
+        "//cmd/eudm-simulator/internal/telemetry",
+        "//pkg/metrics",
+        "//pkg/networkdevice/metadata",
+        "//pkg/tagset",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@rules_go//go/runfiles",
+    ],
+)
