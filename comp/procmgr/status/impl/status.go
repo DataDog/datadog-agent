@@ -32,10 +32,16 @@ const (
 	stripProcArgumentsSetting   = "process_config.strip_proc_arguments"
 )
 
-// statusCollectionBudget is how long status may spend asking dd-procmgrd about itself.
-// It is deliberately shorter than the flare's 8s budget: status must stay snappy, and a
-// partial report with errors is still useful content.
-const statusCollectionBudget = 2 * time.Second
+// statusCollectionBudget is how long status may spend collecting the report. It is shorter than the
+// flare's 8s budget because status has to stay snappy, and a partial report with errors in it is
+// still worth rendering.
+//
+// It cannot go much lower. Report holds back a write margin and then reserves part of what is left
+// for the per-service supervisor checks, which are the only part of the report that does not go
+// through dd-procmgrd. Below about 3s that reserve collapses, and a hung daemon would consume the
+// whole budget before the sweep runs, making every service report management_mode "none": claiming
+// nothing supervises them rather than admitting the daemon could not be asked.
+const statusCollectionBudget = 4 * time.Second
 
 // Requires specifies the dependencies of the constructor.
 type Requires struct {
