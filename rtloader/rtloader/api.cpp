@@ -13,11 +13,11 @@
 // clang-format off
 // handler stuff
 
-#ifdef HAS_BACKTRACE_LIB
+#    ifdef HAS_BACKTRACE_LIB
 #  include <execinfo.h>
 #else
 #  warning "<execinfo.h> not found, C backtrace will not be available"
-#endif
+#    endif
 #include <csignal>
 #include <cstring>
 #include <sys/mman.h>
@@ -28,7 +28,7 @@
 // macOS and AIX name the anonymous mapping flag differently
 #if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
 #    define MAP_ANONYMOUS MAP_ANON
-#endif
+#    endif
 
 // logging to cerr
 #include <errno.h>
@@ -450,6 +450,15 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable_coredump, const i
         sigemptyset(&sa.sa_mask);
         sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
         sa.sa_sigaction = signalHandler;
+
+#    ifdef HAS_BACKTRACE_LIB
+        // glibc's backtrace() dlopen()s libgcc_s.so.1 on first use. Doing that
+        // from the signal handler would take the loader and malloc locks while
+        // the faulting thread may hold them, so run backtrace() once here, in
+        // a sane context, to force the library to be loaded up front.
+        void *warmup[1];
+        backtrace(warmup, 1);
+#    endif
 
         // Gather stacktrace on segfault and save the old handler
         int err = sigaction(SIGSEGV, &sa, &old_sigsegv_handler);
