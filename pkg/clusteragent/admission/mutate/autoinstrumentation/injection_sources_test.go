@@ -32,6 +32,17 @@ func injectPlanResult(name string) sourceResult {
 	return sourceResult{action: sourceInject, plan: &injectionPlan{name: name}}
 }
 
+func findInjectionSource(t *testing.T, mutator *TargetMutator, name injectionSourceName) injectionSource {
+	t.Helper()
+	for _, entry := range mutator.sources {
+		if entry.name == name {
+			return entry.source
+		}
+	}
+	require.FailNow(t, "injection source not found", "name: %s", name)
+	return nil
+}
+
 func TestTargetMutatorSourcePrecedence(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -152,7 +163,7 @@ apm_config:
 		injectionSourceInjectAll,
 	}
 	require.Equal(t, wantSources, sourceNames(mutator))
-	require.Equal(t, sourcePass, mutator.injectAllSource.resolve(&corev1.Pod{}).action)
+	require.Equal(t, sourcePass, findInjectionSource(t, mutator, injectionSourceInjectAll).resolve(&corev1.Pod{}).action)
 
 	require.NoError(t, mutator.SetRemotePolicies([]policies.Policy{{
 		Name:    "remote",
@@ -168,16 +179,16 @@ apm_config:
 `
 	injectAllMutator := newMatchMutator(t, injectAllConfig, newMatchTestWmeta(t))
 	require.Equal(t, wantSources, sourceNames(injectAllMutator))
-	require.Equal(t, sourcePass, injectAllMutator.remoteSource.resolve(&corev1.Pod{}).action)
-	require.Equal(t, sourcePass, injectAllMutator.staticSource.resolve(&corev1.Pod{}).action)
-	require.Equal(t, sourceInject, injectAllMutator.injectAllSource.resolve(&corev1.Pod{}).action)
+	require.Equal(t, sourcePass, findInjectionSource(t, injectAllMutator, injectionSourceRemoteConfig).resolve(&corev1.Pod{}).action)
+	require.Equal(t, sourcePass, findInjectionSource(t, injectAllMutator, injectionSourceStatic).resolve(&corev1.Pod{}).action)
+	require.Equal(t, sourceInject, findInjectionSource(t, injectAllMutator, injectionSourceInjectAll).resolve(&corev1.Pod{}).action)
 
 	require.NoError(t, injectAllMutator.SetRemotePolicies([]policies.Policy{{
 		Name:    "remote",
 		Rules:   policies.AlwaysTrue(),
 		Outcome: policies.Outcome{Inject: true, InjectSet: true},
 	}}))
-	require.Equal(t, sourcePass, injectAllMutator.injectAllSource.resolve(&corev1.Pod{}).action)
+	require.Equal(t, sourcePass, findInjectionSource(t, injectAllMutator, injectionSourceInjectAll).resolve(&corev1.Pod{}).action)
 	injectAllMutator.ClearRemotePolicies()
-	require.Equal(t, sourceInject, injectAllMutator.injectAllSource.resolve(&corev1.Pod{}).action)
+	require.Equal(t, sourceInject, findInjectionSource(t, injectAllMutator, injectionSourceInjectAll).resolve(&corev1.Pod{}).action)
 }

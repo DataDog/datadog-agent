@@ -48,12 +48,7 @@ type TargetMutator struct {
 	profilingClientLibraryMutator containerMutator
 	disabledNamespaces            map[string]struct{}
 	sources                       []injectionSourceEntry
-	annotationSource              *annotationSource
-	ddiSource                     *ddiSource
 	remoteSource                  *remotePolicySource
-	gpuSource                     *policySource
-	staticSource                  *policySource
-	injectAllSource               *injectAllSource
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
@@ -117,12 +112,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		securityClientLibraryMutator:  config.securityClientLibraryMutator,
 		profilingClientLibraryMutator: config.profilingClientLibraryMutator,
 		disabledNamespaces:            disabledNamespaces,
-		annotationSource:              annotationSource,
-		ddiSource:                     ddiSource,
 		remoteSource:                  remoteSource,
-		gpuSource:                     gpuSource,
-		staticSource:                  staticSource,
-		injectAllSource:               injectAllSource,
 		// This is the single declaration of source precedence. Sources remain
 		// in the list and decide for themselves to pass or inject.
 		sources: []injectionSourceEntry{
