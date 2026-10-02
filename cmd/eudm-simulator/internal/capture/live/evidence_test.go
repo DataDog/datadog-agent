@@ -10,7 +10,6 @@ package live
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -30,7 +29,7 @@ import (
 	tc "github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
-const evidenceSecret = "UNIQUE-NATIVE-IDENTITY-OR-CREDENTIAL"
+const evidenceHost = "engineer-laptop"
 
 type evidenceFixture struct {
 	e         *Evidence
@@ -97,34 +96,37 @@ func (f *evidenceFixture) record(t *testing.T, stream tc.Stream, offset time.Dur
 	switch stream {
 	case tc.Metrics:
 		r.Payload.Series = []tc.Series{{Name: "system.cpu.user", Source: uint32(metrics.MetricSourceCPU), Type: int32(metrics.APIGaugeType), Interval: 15,
-			Host: evidenceSecret, Device: evidenceSecret, Tags: []string{"interface:" + evidenceSecret, "secret:" + evidenceSecret, "core:cpu0"},
+			Host: evidenceHost, Device: evidenceHost, Unit: "percent", SourceTypeName: "system", NoIndex: true, Resources: []tc.Resource{{Type: "host", Name: evidenceHost}}, Tags: []string{"interface:" + evidenceHost, "team:engineering", "core:cpu0"},
 			Points: []tc.Point{{Timestamp: float64(at.Add(-125*time.Millisecond).UnixNano()) / 1e9, Value: 5.25}, {Timestamp: float64(at.Add(375*time.Millisecond).UnixNano()) / 1e9, Value: 6.5}}}}
 	case tc.Metadata:
 		osname := "windows"
 		if f.e.profile.OS == "macos" {
 			osname = "darwin"
 		}
-		r.Payload.Metadata = &tc.HostMetadata{AgentVersion: producer.Version, UUID: evidenceSecret, Hostname: evidenceSecret, OS: osname, AgentFlavor: "agent", CPUCores: 8, Machine: "amd64", Platform: osname,
-			NetworkID: evidenceSecret, Gohai: map[string]map[string]string{"platform": {"hostname": evidenceSecret, "hardware_uuid": evidenceSecret, "serial_number": evidenceSecret, "machine": "amd64"}, "network": {"ipaddress": "192.0.2.21", "macaddress": "00:01:02:03:04:05"}}}
+		r.Payload.Metadata = &tc.HostMetadata{PythonVersion: "3.13.1", PythonRuntimeVersion: "3.13.1-final", Processor: "Intel64", PublicIPv4: "203.0.113.10",
+			Meta:          &tc.HostIdentityMetadata{Hostname: evidenceHost, SocketHostname: evidenceHost, HostAliases: []string{"workstation-alias"}},
+			ContainerMeta: map[string]string{"cri_name": "containerd"}, Proxy: &tc.HostProxyMetadata{ProxyBehaviorChanged: true},
+			Logs: &tc.HostLogsMetadata{Transport: "HTTP", AutoMultilineEnabled: true}, OTLPEnabled: true, FIPSMode: true, AgentVersion: producer.Version, UUID: evidenceHost, Hostname: evidenceHost, OS: osname, AgentFlavor: "agent", CPUCores: 8, Machine: "amd64", Platform: osname,
+			NetworkID: evidenceHost, Gohai: `{"platform":{"hostname":"engineer-laptop","hardware_uuid":"engineer-laptop","serial_number":"DEVICE12345","machine":"amd64"},"network":{"ipaddress":"192.0.2.21","macaddress":"00:01:02:03:04:05","interfaces":[{"name":"en0","ipv4":["192.0.2.21"]}]},"filesystem":[{"name":"/dev/disk3s1","size":1000000}]}`}
 	case tc.AgentInventory:
-		r.Payload.Inventory = &tc.Inventory{Hostname: evidenceSecret, UUID: evidenceSecret, Timestamp: at.UnixNano(), Agent: &tc.AgentInventoryMetadata{
+		r.Payload.Inventory = &tc.Inventory{Hostname: evidenceHost, UUID: evidenceHost, Timestamp: at.UnixNano(), Agent: &tc.AgentInventoryMetadata{
 			AgentVersion: producer.Version, PackageVersion: producer.Version, Flavor: "agent", InfrastructureMode: "end_user_device",
 			AgentStartupTimeMS: f.session.Origin.Add(-time.Hour).UnixMilli(), FeatureProcessEnabled: true, FeatureNetworksEnabled: f.e.profile.OS == "windows",
 		}}
 	case tc.HostSystemInfo:
 		r.Cadence = time.Hour
-		r.Payload.Inventory = &tc.Inventory{Hostname: evidenceSecret, UUID: evidenceSecret, Timestamp: at.UnixNano(), SystemInfo: &tc.HostSystemInfoMetadata{Manufacturer: "Apple Inc.", ModelName: "MacBook Pro", ModelNumber: "Mac16,6", SerialNumber: evidenceSecret, Identifier: "Mac16,6", ChassisType: "Laptop"}}
+		r.Payload.Inventory = &tc.Inventory{Hostname: evidenceHost, UUID: evidenceHost, Timestamp: at.UnixNano(), SystemInfo: &tc.HostSystemInfoMetadata{Manufacturer: "Apple Inc.", ModelName: "MacBook Pro", ModelNumber: "Mac16,6", SerialNumber: evidenceHost, Identifier: "Mac16,6", ChassisType: "Laptop"}}
 	case tc.HostInventory:
 		osname := "Windows"
 		if f.e.profile.OS == "macos" {
 			osname = "Darwin"
 		}
-		r.Payload.Inventory = &tc.Inventory{Hostname: evidenceSecret, UUID: evidenceSecret, Timestamp: at.UnixNano(), Host: &tc.HostInventoryMetadata{
+		r.Payload.Inventory = &tc.Inventory{Hostname: evidenceHost, UUID: evidenceHost, Timestamp: at.UnixNano(), Host: &tc.HostInventoryMetadata{
 			AgentVersion: producer.Version, OS: osname, KernelName: osname, CPUArchitecture: "amd64", CPUCores: 8, CPULogicalProcessors: 8,
-			MemoryTotalKb: 8 << 20, CPUModel: evidenceSecret, CPUVendor: evidenceSecret, IPAddress: "192.0.2.21", MacAddress: "00:01:02:03:04:05",
+			MemoryTotalKb: 8 << 20, CPUModel: evidenceHost, CPUVendor: evidenceHost, IPAddress: "192.0.2.21", MacAddress: "00:01:02:03:04:05",
 		}}
 	case tc.Software:
-		native := &softwareimpl.Payload{Hostname: evidenceSecret, Metadata: softwareimpl.HostSoftware{Software: []software.Entry{{DisplayName: "Google Chrome", Version: "125.0.1", Publisher: evidenceSecret, Source: "os", ProductCode: evidenceSecret, UserSID: evidenceSecret, InstallPaths: []string{evidenceSecret}}, {DisplayName: evidenceSecret, Version: "1.2.3", Source: "os"}}}}
+		native := &softwareimpl.Payload{Hostname: evidenceHost, Metadata: softwareimpl.HostSoftware{Software: []software.Entry{{DisplayName: "Google Chrome", Version: "125.0.1", Publisher: evidenceHost, Source: "os", ProductCode: evidenceHost, UserSID: evidenceHost, InstallPaths: []string{evidenceHost}}, {DisplayName: evidenceHost, Version: "1.2.3", Source: "os"}}}}
 		body, err := native.MarshalJSON()
 		if err != nil {
 			t.Fatal(err)
@@ -138,13 +140,13 @@ func (f *evidenceFixture) record(t *testing.T, stream tc.Stream, offset time.Dur
 				if f.e.profile.OS == "macos" {
 					osname = "darwin"
 				}
-				body := &model.CollectorProc{HostName: evidenceSecret, GroupId: 27, GroupSize: 2, Info: &model.SystemInfo{TotalMemory: 8 << 30, Uuid: evidenceSecret, Os: &model.OSInfo{Name: osname}}}
+				body := &model.CollectorProc{Hints: &model.CollectorProc_HintMask{HintMask: 1}, HostName: evidenceHost, GroupId: 27, GroupSize: 2, Info: &model.SystemInfo{TotalMemory: 8 << 30, Uuid: evidenceHost, Os: &model.OSInfo{Name: osname}}}
 				if i == 1 {
-					body.Processes = []*model.Process{{Pid: 42, CreateTime: f.session.Origin.Add(-5 * time.Second).UnixMilli(), Command: &model.Command{Comm: evidenceSecret, Exe: evidenceSecret, Args: []string{evidenceSecret}}, User: &model.ProcessUser{Name: evidenceSecret}}}
+					body.Processes = []*model.Process{{Pid: 42, CreateTime: f.session.Origin.Add(-5 * time.Second).UnixMilli(), Command: &model.Command{Comm: evidenceHost, Exe: evidenceHost, Args: []string{evidenceHost}}, User: &model.ProcessUser{Name: evidenceHost}}}
 				}
 				message = body
 			} else {
-				body := &model.CollectorConnections{HostName: evidenceSecret, GroupId: 28, GroupSize: 2}
+				body := &model.CollectorConnections{HostName: evidenceHost, GroupId: 28, GroupSize: 2}
 				if i == 1 {
 					body.Connections = []*model.Connection{{Pid: 42, Laddr: &model.Addr{Ip: "192.0.2.21", Port: 1234}, Raddr: &model.Addr{Ip: "192.0.2.22", Port: 443}, Rtt: 1250}}
 				}
@@ -154,7 +156,7 @@ func (f *evidenceFixture) record(t *testing.T, stream tc.Stream, offset time.Dur
 			if err != nil {
 				t.Fatal(err)
 			}
-			r.Payload.Chunks = append(r.Payload.Chunks, tc.Chunk{Body: body, Headers: map[string]string{headers.HostHeader: evidenceSecret, headers.RequestIDHeader: strconv.Itoa((27 << 14) + i)}})
+			r.Payload.Chunks = append(r.Payload.Chunks, tc.Chunk{Body: body, Headers: map[string]string{headers.HostHeader: evidenceHost, headers.RequestIDHeader: strconv.Itoa((27 << 14) + i)}})
 		}
 	}
 	return r
@@ -179,7 +181,7 @@ func (f *evidenceFixture) stops() []tc.Status {
 	return statuses
 }
 
-func TestEvidencePersistsSanitizedSemanticSamples(t *testing.T) {
+func TestEvidencePersistsNativeSemanticSamples(t *testing.T) {
 	f := newEvidenceFixture(t, "windows")
 	ctx := context.Background()
 	for _, offset := range []time.Duration{time.Second, 16 * time.Second} {
@@ -229,20 +231,34 @@ func TestEvidencePersistsSanitizedSemanticSamples(t *testing.T) {
 		if sample.Metrics != nil {
 			serie := sample.Metrics[0]
 			if serie.Name != "system.cpu.user" || serie.Source != metrics.MetricSourceCPU || serie.MType != metrics.APIGaugeType || serie.Interval != 15 ||
+				serie.Unit != "percent" || serie.SourceTypeName != "system" || !serie.NoIndex || len(serie.Resources) != 1 || serie.Resources[0].Name != evidenceHost ||
 				len(serie.Points) != 2 || serie.Points[0].Ts != ref.Offset.Seconds()-0.125 || serie.Points[1].Ts != ref.Offset.Seconds()+0.375 ||
 				serie.Points[0].Value != 5.25 || serie.Points[1].Value != 6.5 {
-				t.Fatal("typed metric lost its name, source, type, interval, values or fractional relative times")
+				t.Fatal("typed metric lost its native fields or fractional relative times")
 			}
 		}
-		if sample.HostMetadata != nil && sample.HostMetadata.AgentVersion != "7.82.1-producer" {
-			t.Fatal("capture tool replaced producer version")
+		if sample.HostMetadata != nil && (sample.HostMetadata.AgentVersion != "7.82.1-producer" || sample.HostMetadata.Hostname != evidenceHost || sample.HostMetadata.UUID != evidenceHost) {
+			t.Fatal("capture tool replaced producer identity or version")
 		}
-		if sample.Software != nil && (ref.Offset != 2375*time.Millisecond || sample.Software.Metadata.Software[0].DisplayName != "Google Chrome") {
+		if host := sample.HostMetadata; host != nil {
+			if host.PythonVersion != "3.13.1" || host.Network["public-ipv4"] != "203.0.113.10" || string(host.SystemStats["processor"]) != `"Intel64"` ||
+				string(host.Meta["host_aliases"]) != `["workstation-alias"]` || host.Logs == nil || host.Logs.Transport != "HTTP" || !host.OTLP["enabled"] || !host.FIPSMode ||
+				host.ContainerMeta["cri_name"] != "containerd" || host.Proxy == nil || !host.Proxy.ProxyBehaviorChanged {
+				t.Fatal("legacy host projection discarded observed fields")
+			}
+			if !strings.Contains(host.Gohai, `"interfaces":[{"name":"en0","ipv4":["192.0.2.21"]}]`) || !strings.Contains(host.Gohai, `"filesystem":[{"name":"/dev/disk3s1","size":1000000}]`) {
+				t.Fatal("gohai projection changed nested native fields")
+			}
+		}
+		if sample.Software != nil && (ref.Offset != 2375*time.Millisecond || sample.Software.Hostname != evidenceHost || sample.Software.Metadata.Software[0].DisplayName != "Google Chrome" || sample.Software.Metadata.Software[1].DisplayName != evidenceHost) {
 			t.Fatal("software message lost its fractional relative timestamp or known application")
+		}
+		if sample.Processes != nil && (sample.Processes.Hints == nil || sample.Processes.GetHintMask() != 1) {
+			t.Fatal("native process hints lost")
 		}
 		if sample.Processes != nil && len(sample.Processes.Processes) > 0 {
 			processPID = sample.Processes.Processes[0].Pid
-			if sample.Processes.Processes[0].CreateTime != -5000 {
+			if sample.Processes.Processes[0].CreateTime != -5000 || sample.Processes.Processes[0].Command.Args[0] != evidenceHost || sample.Processes.Processes[0].User.Name != evidenceHost {
 				t.Fatal("process creation time lost")
 			}
 		}
@@ -254,20 +270,20 @@ func TestEvidencePersistsSanitizedSemanticSamples(t *testing.T) {
 		}
 	}
 	if processPID == 0 || processPID != connectionPID {
-		t.Fatal("sanitizer did not preserve cross-stream process identity")
+		t.Fatal("native cross-stream process identity changed")
 	}
-	manifest, _ := json.Marshal(loaded.Manifest)
-	if bytes.Contains(manifest, []byte(evidenceSecret)) {
-		t.Fatal("native identity persisted in manifest")
+	if processPID != 42 {
+		t.Fatal("capture replaced the native process ID")
 	}
 	if len(loaded.Files) != len(loaded.Manifest.Samples) {
 		t.Fatal("capture persisted files beyond its typed samples")
 	}
 	for _, data := range loaded.Files {
-		if bytes.Contains(data, []byte(evidenceSecret)) {
-			t.Fatal("native identity persisted in typed file")
+		if !bytes.Contains(data, []byte(evidenceHost)) {
+			t.Fatal("native hostname missing from captured sample")
 		}
 	}
+
 }
 
 func TestEvidenceValidatesGroupsAfterCoverageAndIgnoresEmptyGroups(t *testing.T) {
@@ -298,50 +314,6 @@ func TestEvidenceValidatesGroupsAfterCoverageAndIgnoresEmptyGroups(t *testing.T)
 	late.Payload.Chunks = late.Payload.Chunks[:1]
 	if err := f.e.Accept(ctx, late); err == nil {
 		t.Fatal("covered stream bypassed later group validation")
-	}
-}
-
-func TestEvidenceDiscardedGroupsDoNotRetainNewIdentities(t *testing.T) {
-	f := newEvidenceFixture(t, "windows")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	for _, stream := range []tc.Stream{tc.Processes, tc.Connections} {
-		for _, offset := range []time.Duration{time.Second, 16 * time.Second} {
-			f.accept(ctx, t, f.record(t, stream, offset))
-		}
-		omitted := f.record(t, stream, 32*time.Second)
-		for i := range omitted.Payload.Chunks {
-			message, err := model.DecodeMessage(omitted.Payload.Chunks[i].Body)
-			if err != nil {
-				t.Fatal(err)
-			}
-			switch body := message.Body.(type) {
-			case *model.CollectorProc:
-				for _, process := range body.Processes {
-					process.Pid = 123456
-				}
-			case *model.CollectorConnections:
-				for _, connection := range body.Connections {
-					connection.Pid = 123457
-				}
-			}
-			omitted.Payload.Chunks[i].Body, err = processapi.EncodePayload(message.Body)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-		f.accept(ctx, t, omitted)
-	}
-	// A control sanitizer that has only seen the retained PID must allocate the
-	// same next placeholder. Discarded process/connection identities consume no
-	// entries in the live session's cross-stream mapping.
-	control := newEvidenceFixture(t, "windows")
-	control.e.sanitizer.Process(&model.CollectorProc{Processes: []*model.Process{{Pid: 42}}})
-	probe := &model.CollectorProc{Processes: []*model.Process{{Pid: 999999}}}
-	want := control.e.sanitizer.Process(probe).Processes[0].Pid
-	got := f.e.sanitizer.Process(probe).Processes[0].Pid
-	if got != want {
-		t.Fatal("discarded cycles retained new native identities")
 	}
 }
 

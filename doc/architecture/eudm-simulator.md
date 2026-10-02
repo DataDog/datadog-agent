@@ -52,7 +52,7 @@ The project began with an external `eudsim` prototype. Its useful scenario conce
 | Require captured evidence and hardware capacity | Variation can change declared values; it cannot demonstrate behavior or capabilities absent from the reference device. Broader coverage requires another capture. |
 | Use normal intake and enrichment | Direct resource registration would hide the backend relationship under evaluation. The former REDAPL bypass is intentionally absent. |
 | Generate AP evidence using Agent NDM types | An endpoint capture cannot supply an AP's resource inventory or radio counters. The AP side is synthetic, with explicit identity correlation to captured client evidence. |
-| Bind replay to the capture-tool commit | Typed structures and serializers may change as the feature branch moves. Replay requires the exact `capture_tool.commit`; producing Agent commits are independently recorded and may differ when they support capture protocol 2. |
+| Bind replay to the capture-tool commit | Typed structures and serializers may change as the feature branch moves. Replay requires the exact `capture_tool.commit`; producing Agent commits are independently recorded and may differ when they support capture protocol 3. |
 
 The target is repeatable evidence for unchanged products, not emulation of actual application installations, CPU load, network faults, or radio hardware. Production destinations, Linux endpoint simulation, notable events, and direct backend-store writes remain outside the project.
 
@@ -72,8 +72,8 @@ flowchart LR
     P --> T
     N --> T
     A[Capture command] <-->|Authenticated local sessions| T
-    A --> S[One sanitizer]
-    S --> B[Schema-5 typed samples]
+    A --> S[Normalize collection times]
+    S --> B[Schema-6 typed samples]
     B --> V[Digest, completeness, and profile preflight]
     V --> E[Portable replay: schedule, clone, and overlay]
     AP[Generated access-point evidence] --> R[Common Agent delivery pipeline]
@@ -97,7 +97,7 @@ Normal destinations, retries, forwarding, collection schedules, and service life
 | Host resource, battery, WLAN, and network-throughput metrics | Selected semantics copied as the serializer consumes the original iterator and retained once accepted by serialization; separate observed family cadences | `serializer.Serializer.SendIterableSeries` |
 | Host/device metadata | Owned semantic projection excluding API keys, resources, and unrelated cloud/container/configuration data before enqueueing; actual provider cadence and successful normal submission | `serializer.Serializer.SendHostMetadata` |
 | Agent and host inventories | Fixed semantic allowlists copied from normal inventory submissions; credentials, configuration and unrelated inventory tables excluded | `serializer.Serializer.SendMetadata` through `/api/v1/metadata` |
-| Optional host system information | One observed `host_system_info_metadata` envelope from an advertised provider, retaining manufacturer/model/chassis fields and a pseudonymous serial at its effective hourly cadence | The same inventory metadata route |
+| Optional host system information | One observed `host_system_info_metadata` envelope from an advertised provider, retaining manufacturer/model/chassis fields and its native serial at its effective hourly cadence | The same inventory metadata route |
 | Processes | Complete ordered encoded group after production queue polling and configured-drop filtering | Tracked process submitter with Agent encoding, headers, weighted queues, and forwarders |
 | Connections | Complete ordered group from the direct Windows system-probe sender, or an advertised Process Agent owner on Windows or macOS | The same portable tracked submitter |
 | Software inventory | Complete software event before aggregation; other event types ignored | Blocking event-platform delivery for software inventory during replay |
@@ -107,22 +107,39 @@ Retries and destination fanout do not create additional capture cycles. A small 
 
 The implementation extends NDM with `WirelessInterfaceMetadata` and `BatchPayloadsWithWirelessInterfaces`. Existing callers retain the `BatchPayloads` entry point. Each client's emitted BSSID matches its AP wireless-interface resource, while each endpoint has a unique client MAC.
 
-## Sanitization and artifacts
+## Fidelity and artifacts
 
 Inventory capture retains the producing Agent version and observed infrastructure mode. Agent inventory supplies the `agent_metadata` envelope used for Agent discovery; host inventory supplies the separate `host_metadata` envelope used for hardware and operating-system enrichment. The legacy host-metadata payload and its `infra_mode:end_user_device` tag do not replace either inventory. Replay rewrites their hostname and UUID with the same identity map used by all other streams and rebases inventory timestamps and Agent startup time. It sends these envelopes through normal Agent delivery, without direct resource registration.
 
-The optional `host_system_info` stream carries the separate native hardware-model
-envelope. Known public manufacturers and model identifiers remain useful for
-device enrichment; other identifiers become shared model pseudonyms, and serials
-remain private to each simulated device. Its singleton sample repeats at the
-observed provider cadence, normally one hour. A bundle without this advertised
-stream cannot supply or synthesize those additional hardware fields.
+The optional `host_system_info` stream carries the native hardware-model envelope.
+Manufacturer, model, chassis, and serial fields are preserved in the bundle.
+Replay changes device serials consistently while retaining shared model labels.
+Its singleton sample repeats at the observed provider cadence, normally one hour.
+A bundle without this advertised stream cannot synthesize those hardware fields.
 
-One command-owned sanitizer projects observed samples onto known fields before persistence, preserving pseudonyms across streams. Hostnames, UUIDs, usernames, paths, arguments, serials, addresses, MAC/BSSID values, SSIDs, network identifiers, and product identities become stable placeholders. Unknown sensitive fields and cloud/container identities are discarded. No outgoing request bodies or headers are persisted. Replay tests use an isolated recording transport to inspect serialized output in memory. The running Agents continue sending their original output to their configured backends. Raw observations remain in memory and never enter logs, flares, or status responses.
+Capture preserves the Agent's emitted telemetry: process names, command details,
+users, resource counters, software names/publishers/versions/product codes,
+installation dates and paths, network domains and statistics, metric dimensions,
+and hardware labels. Existing Agent command-line scrubbing has already happened
+before the process tee. The coordinator clones observations and normalizes
+collection, process-creation, and Agent-startup times; it does not anonymize them.
+Software installation dates remain historical facts unless a scenario overrides them.
 
-Connection DNS evidence retains associations with captured endpoint addresses, using stable pseudonymous names ending in `.invalid`. Replay rewrites both endpoint addresses and their DNS lookup keys together, preserving the association across device identities. Unrelated DNS query statistics and application payloads are excluded. Software keeps recognized native source/status values and safe version strings. An observed nonempty version outside the safe syntax becomes a stable opaque `software_version` pseudonym; an originally empty version stays empty. This preserves version identity without inventing a release number or dropping an otherwise eligible installed-software row.
+Replay creates a distinct device hostname, UUID, serial, and local network
+identity, keeping references consistent across streams. Remote destination IPs
+and DNS names remain native, including complete DNS domain tables and statistics.
+SSID names remain native or explicitly configured; declared simulated AP radios
+receive distinct BSSIDs. Application/product identities are shared unchanged
+across cloned devices. Explicit scenario overlays supply the intended differences.
 
-Connection samples also retain an owned projection of the observed
+Transport credentials and authentication headers stay outside capture. Metadata projections
+exclude the legacy API key, configuration blobs, and remote-management identity
+fields; they retain supported non-secret enrichment. Real bundles contain native
+telemetry and should be handled as telemetry exports, not anonymous fixtures.
+Only synthetic bundles belong in the repository. Normal Agent delivery continues,
+and observations never enter capture status, logs, or flares.
+
+Connection samples also retain the observed
 `AgentConfiguration` feature booleans, including whether the configuration was
 present. These flags select the backend's EUDM or general network index. Native
 macOS EUDM connections can have EUDM enabled while NPM is disabled; capture and
@@ -132,13 +149,13 @@ A complete bundle directory contains:
 
 | File | Purpose |
 | --- | --- |
-| `manifest.json` | Schema 5; capture-tool version/commit; session and producer inventory; acknowledged boundaries and final sequences; profile, explicit cycles/chunks, relative offsets, stream cadences, `metric_cadences_ns` keyed by check family, and file digests |
-| `sample-000000.json`, … | Sanitized typed samples; chunks from one explicit producer/cycle retain their order and share a relative offset |
+| `manifest.json` | Schema 6; capture-tool version/commit; session and producer inventory; acknowledged boundaries and final sequences; profile, explicit cycles/chunks, relative offsets, stream cadences, `metric_cadences_ns` keyed by check family, and file digests |
+| `sample-000000.json`, … | Captured typed samples; chunks from one explicit producer/cycle retain their order and share a relative offset |
 | `COMPLETE` | Digest of the completed manifest; written only after coverage, complete groups, final sequence consumption, and every producer stop acknowledgement succeed without drops or failures |
 
-The loader verifies the completion marker, all declared file digests, typed samples, profile inventories, supported versions, independent producer builds, metric-family coverage, and the exact capture-tool/replay commit. Earlier bundle schemas require recapture with protocol-2 producers; the loader does not migrate or relabel historical captures. It rejects invalid or incomplete bundles and unsafe file layouts. Scenario preflight then checks every captured cycle against the requested overlays and resource bounds. A union of names in the profile is insufficient if a required process or connection is absent from a later cycle.
+The loader verifies the completion marker, all declared file digests, typed samples, profile inventories, supported versions, independent producer builds, metric-family coverage, and the exact capture-tool/replay commit. Earlier bundle schemas require recapture with protocol-3 producers; the loader does not migrate or relabel historical captures. It rejects invalid or incomplete bundles and unsafe file layouts. Scenario preflight then checks every captured cycle against the requested overlays and resource bounds. A union of names in the profile is insufficient if a required process or connection is absent from a later cycle.
 
-Capture writes one sanitized typed representation of each retained sample. It does not construct delivery pipelines, regenerate wire requests, or record endpoint/protocol/destination proofs. Typed metrics retain exact source enums and fractional timestamps. Replay clones these samples, rewrites identities and timestamps, applies overlays, and serializes through the Agent delivery packages. Serialization and privacy checks on outgoing bodies remain in replay tests using a non-networking recorder; they are not part of the bundle contract.
+Capture writes one typed representation of each retained sample. It does not construct delivery pipelines, regenerate wire requests, or record endpoint/protocol/destination proofs. Typed metrics retain exact source enums and fractional timestamps. Replay clones these samples, rewrites identities and timestamps, applies overlays, and serializes through the Agent delivery packages. Serialization, fidelity, and credential checks on outgoing bodies remain in replay tests using a non-networking recorder; they are not part of the bundle contract.
 
 Do not edit bundle files, checksums, or the commit to make them pass validation. Copy complete directories without changing their bytes. Real captures remain operator-managed artifacts; only small synthetic fixtures belong in the repository.
 
@@ -170,11 +187,11 @@ The report path defaults to `eudm-run-<run_id>.json` in the current directory, c
 | --- | --- |
 | Command lifecycle and build task | <<<repo("cmd/eudm-simulator/command")>>>; <<<repo("tasks/eudm_simulator.py")>>> |
 | Contracts, endpoint safety, and bundle loading | <<<repo("cmd/eudm-simulator/internal/schema")>>>; <<<repo("cmd/eudm-simulator/internal/safety")>>>; <<<repo("cmd/eudm-simulator/internal/bundle")>>> |
-| Live coordination and per-stream sanitizers | <<<repo("cmd/eudm-simulator/internal/capture")>>> |
+| Live coordination and time normalization | <<<repo("cmd/eudm-simulator/internal/capture")>>> |
 | Typed samples, timing, overlays, and identity | <<<repo("cmd/eudm-simulator/internal/telemetry")>>>; <<<repo("cmd/eudm-simulator/internal/engine")>>>; <<<repo("cmd/eudm-simulator/internal/overlay")>>>; <<<repo("cmd/eudm-simulator/internal/identity")>>> |
 | Delivery adapters and local accounting | <<<repo("cmd/eudm-simulator/internal/output")>>>; <<<repo("cmd/eudm-simulator/internal/report")>>> |
 | AP resources and batching | <<<repo("cmd/eudm-simulator/internal/accesspoint")>>>; <<<repo("pkg/networkdevice/metadata")>>> |
 | Shared Agent changes | <<<repo("pkg/telemetrycapture")>>>; <<<repo("pkg/serializer/live_capture.go")>>>; <<<repo("pkg/process/runner/submitter_tracked.go")>>>; <<<repo("comp/forwarder/defaultforwarder/transaction/delivery_tracker.go")>>>; <<<repo("comp/forwarder/eventplatform/impl/isolated.go")>>>; <<<repo("comp/softwareinventory/impl/inventorysoftware.go")>>> |
 | Integration fixtures and acceptance probes | <<<repo("cmd/eudm-simulator/integration")>>>; <<<repo("cmd/eudm-simulator/testdata")>>> |
 
-Adding an evidence stream requires an observation boundary in its running producer, a bounded owned projection, authenticated readiness, a sanitization allowlist, typed persistence and validation, identity rewriting, a common delivery adapter, and complete ledger accounting. Extend privacy tests with unique secrets in all new identity locations and decode actual Agent payloads in integration tests. Adding a scenario requires captured evidence, a healthy comparison, phase/capacity validation, and a complete-fleet test; larger fleets must repeat the constrained-queue load checks. A recording test cannot substitute for a missing staging relationship.
+Adding an evidence stream requires an observation boundary in its running producer, a bounded owned projection, authenticated readiness, a credential-free projection, typed persistence and validation, identity rewriting, a common delivery adapter, and complete ledger accounting. Test native-field fidelity and credential exclusion, and decode actual Agent payloads in integration tests. Adding a scenario requires captured evidence, a healthy comparison, phase/capacity validation, and a complete-fleet test; larger fleets must repeat the constrained-queue load checks. A recording test cannot substitute for a missing staging relationship.

@@ -51,10 +51,10 @@ const captureTimeout = 35 * time.Minute
 
 // MakeCommand constructs the standalone feature-branch command.
 func MakeCommand(runtime Runtime) *cobra.Command {
-	root := &cobra.Command{Use: "eudm-simulator", Short: "Capture sanitized EUDM baselines and replay staging scenarios", SilenceUsage: true, SilenceErrors: true}
+	root := &cobra.Command{Use: "eudm-simulator", Short: "Capture Agent telemetry and replay staging scenarios", SilenceUsage: true, SilenceErrors: true}
 	var request CaptureRequest
 	var timeout time.Duration
-	capture := &cobra.Command{Use: "capture", Short: "Capture sanitized output from running Agent services", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+	capture := &cobra.Command{Use: "capture", Short: "Capture output from running Agent services", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		if request.Directory == "" {
 			return errors.New("capture requires --output")
 		}
@@ -72,7 +72,7 @@ func MakeCommand(runtime Runtime) *cobra.Command {
 		return runtime.Capture(ctx, request)
 	}}
 	capture.Flags().DurationVar(&timeout, "timeout", captureTimeout, "Maximum wait for normal collection (up to 2h; hourly hardware inventory may need 70m)")
-	capture.Flags().StringVar(&request.Directory, "output", "", "New sanitized bundle directory")
+	capture.Flags().StringVar(&request.Directory, "output", "", "New telemetry bundle directory")
 	capture.Flags().StringVar(&request.ConfigPath, "cfgpath", "", "Installed Agent configuration file or directory (capture APIs and authentication only)")
 	root.AddCommand(capture)
 	for _, action := range []string{"validate", "run"} {

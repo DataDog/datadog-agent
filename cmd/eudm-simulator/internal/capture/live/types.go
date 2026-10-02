@@ -53,14 +53,14 @@ type Participant struct {
 }
 
 // Session identifies a single cross-process capture. Origin is the earliest
-// acknowledged activation boundary, shared by all sanitized relative times.
+// acknowledged activation boundary, shared by all normalized relative times.
 type Session struct {
 	ID           string
 	Origin       time.Time
 	Participants []Participant
 }
 
-// Sink owns the single sanitizer and sanitized output writer. Accept is always
+// Sink owns the single normalizer and normalized output writer. Accept is always
 // serial: one complete logical cycle is handled before the next is delivered.
 type Sink interface {
 	Start(context.Context, Session) error

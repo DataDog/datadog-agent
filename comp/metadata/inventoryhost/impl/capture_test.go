@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCaptureInventoryHostOmitsOpaqueIdentitiesAndOwnsFields(t *testing.T) {
+func TestCaptureInventoryHostPreservesNativeTelemetryAndOwnsFields(t *testing.T) {
 	p := &Payload{Hostname: "native-host", UUID: "native-uuid", Timestamp: 123456789, Metadata: &hostMetadata{
 		CPUCores: 4, CPULogicalProcessors: 8, CPUModel: "Example CPU", CPUFrequency: 2200.5, MemoryTotalKb: 12345678,
 		OS: "Darwin", OsVersion: "26.0", KernelName: "Darwin", KernelRelease: "25.0.0", CPUArchitecture: "arm64", AgentVersion: "7.85.0",
@@ -32,7 +32,9 @@ func TestCaptureInventoryHostOmitsOpaqueIdentitiesAndOwnsFields(t *testing.T) {
 	require.Equal(t, before, after)
 	encoded, err := json.Marshal(owned)
 	require.NoError(t, err)
-	require.NotContains(t, string(encoded), "private-sentinel")
+	require.JSONEq(t, string(before), string(encoded), "every native host inventory field must survive capture")
+	require.Equal(t, p.Metadata.Interfaces, owned.Host.Interfaces)
+	require.False(t, unsafe.StringData(p.Metadata.Interfaces) == unsafe.StringData(owned.Host.Interfaces))
 	p.Metadata.CPUModel, p.Hostname = "changed", "changed"
 	require.Equal(t, "Example CPU", owned.Host.CPUModel)
 	require.Equal(t, "native-host", owned.Hostname)

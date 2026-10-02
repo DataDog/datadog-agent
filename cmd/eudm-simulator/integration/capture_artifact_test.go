@@ -12,9 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"os"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -22,7 +20,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.yaml.in/yaml/v3"
 )
@@ -31,7 +28,7 @@ import (
 // prove service continuity, backend delivery, or capture failure isolation.
 // Inputs are JSON arrays of absolute paths, never credentials in environment
 // values. Configuration and token contents remain in this process's memory.
-func TestCaptureArtifactPrivacyAudit(t *testing.T) {
+func TestCaptureArtifactCredentialAudit(t *testing.T) {
 	directory := os.Getenv("EUDM_CAPTURE_BUNDLE")
 	if directory == "" {
 		t.Skip("set EUDM_CAPTURE_BUNDLE to a complete capture from this device")
@@ -50,69 +47,28 @@ func TestCaptureArtifactPrivacyAudit(t *testing.T) {
 		platform = "macos"
 	}
 	if loaded.Manifest.Profile.OS != platform {
-		t.Fatal("artifact privacy audit must run on the captured platform")
-	}
-	var identities []string
-	host, err := os.Hostname()
-	if err != nil {
-		t.Fatal("cannot obtain hostname for privacy check")
-	}
-	identities = append(identities, host)
-	current, err := user.Current()
-	if err != nil {
-		t.Fatal("cannot obtain user for privacy check")
-	}
-	identities = append(identities, current.Username, current.HomeDir)
-	if invoking := os.Getenv("SUDO_USER"); invoking != "" {
-		original, err := user.Lookup(invoking)
-		if err != nil {
-			t.Fatal("cannot obtain invoking user for privacy check")
-		}
-		identities = append(identities, original.Username, original.HomeDir)
-	}
-	system, err := checks.CollectSystemInfo()
-	if err != nil {
-		t.Fatal("cannot obtain native system identity for privacy check")
-	}
-	identities = append(identities, system.Uuid)
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		t.Fatal("cannot obtain interfaces for privacy check")
-	}
-	for _, iface := range interfaces {
-		identities = append(identities, iface.HardwareAddr.String())
-		addresses, err := iface.Addrs()
-		if err != nil {
-			t.Fatal("cannot obtain interface addresses for privacy check")
-		}
-		for _, addr := range addresses {
-			ip, _, err := net.ParseCIDR(addr.String())
-			if err == nil && !ip.IsUnspecified() {
-				identities = append(identities, ip.String())
-			}
-		}
+		t.Fatal("artifact credential audit must run on the captured platform")
 	}
 
 	credentials, unresolved, err := readAuditCredentials(auditInputPaths(t, "EUDM_AUDIT_CONFIG_FILES"), auditInputPaths(t, "EUDM_AUDIT_TOKEN_FILES"))
 	if err != nil {
 		t.Fatal("cannot read explicit credential audit inputs")
 	}
-	identities = append(identities, credentials...)
 	check := func(data []byte) {
 		t.Helper()
-		if auditSensitiveContent(data, identities) {
-			t.Fatal("native identity or credential found in persisted capture content")
+		if auditSensitiveContent(data, credentials) {
+			t.Fatal("credential found in persisted capture content")
 		}
 	}
 	auditBundleSamples(t, loaded, check)
 	if unresolved {
 		t.Fatal("credential audit incomplete: secret-backend resolved values were unavailable; no secret backend was executed")
 	}
-	t.Log("typed sample validation, complete groups, native identity scans, and explicit credential scans passed")
+	t.Log("typed sample validation, complete groups, and explicit credential scans passed")
 }
 
 // Inspect JSON values, including nested Gohai JSON, rather than mistaking a
-// normal field named "root" for the invoking username.
+// normal field name for a credential value.
 func auditSensitiveContent(data []byte, identities []string) bool {
 	scan := func(data []byte) bool {
 		lower := bytes.ToLower(data)
@@ -298,7 +254,7 @@ func TestArtifactSensitiveContentScansValues(t *testing.T) {
 		{"\x08\x00synthetic-secret\xff", true},
 	} {
 		if auditSensitiveContent([]byte(test.body), []string{"root", "synthetic-secret"}) != test.want {
-			t.Fatal("privacy scan confused JSON field names or missed decoded values")
+			t.Fatal("credential scan confused JSON field names or missed decoded values")
 		}
 	}
 }

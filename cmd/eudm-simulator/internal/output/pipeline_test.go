@@ -31,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
-func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
+func TestPortableNativeBundleRoundTripThroughAgentDelivery(t *testing.T) {
 	for _, platform := range []string{"windows", "macos"} {
 		t.Run(platform, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -46,10 +46,7 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer p.Close()
-			sanitizer, err := capture.NewSanitizer()
-			if err != nil {
-				t.Fatal(err)
-			}
+			normalizer := capture.NewNormalizer()
 			commit := strings.Repeat("a", 40)
 			w, err := bundle.NewWriter(filepath.Join(t.TempDir(), "bundle"), bundle.Manifest{CaptureTool: bundle.BuildIdentity{Version: "7.85.0", Commit: commit}, SessionID: "synthetic-output-session", MetricCadences: map[string]time.Duration{"cpu": 15 * time.Second}})
 			if err != nil {
@@ -100,7 +97,7 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 			}
 			for i := 0; i < 2; i++ {
 				offset := time.Duration(i) * 15 * time.Second
-				source, err := sanitizer.Series(capture.NewSeriesSource([]*metrics.Serie{{Name: "system.cpu.user", Host: "UNIQUE-CAPTURE-SECRET", MType: metrics.APIGaugeType, Points: []metrics.Point{{Ts: float64(i * 15), Value: 5}}}}))
+				source, err := normalizer.Series(capture.NewSeriesSource([]*metrics.Serie{{Name: "system.cpu.user", Host: "fixture-native-host", MType: metrics.APIGaugeType, Points: []metrics.Point{{Ts: float64(i * 15), Value: 5}}}}))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -109,27 +106,27 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 					t.Fatal(err)
 				}
 				save(schema.Metrics, offset, metricSample, func() error { return p.Serializer.SendIterableSeries(source) })
-				proc := sanitizer.Process(&model.CollectorProc{HostName: "UNIQUE-CAPTURE-SECRET", GroupSize: 1, Info: &model.SystemInfo{TotalMemory: 8 << 30, Os: &model.OSInfo{Name: osName}}, Processes: []*model.Process{{Pid: 42, Command: &model.Command{Comm: "Google Chrome", Args: []string{"UNIQUE-CAPTURE-SECRET"}}, Cpu: &model.CPUStat{TotalPct: 3}}}})
+				proc := normalizer.Process(&model.CollectorProc{HostName: "fixture-native-host", GroupSize: 1, Info: &model.SystemInfo{TotalMemory: 8 << 30, Os: &model.OSInfo{Name: osName}}, Processes: []*model.Process{{Pid: 42, Command: &model.Command{Comm: "Google Chrome", Args: []string{"fixture-native-host"}}, Cpu: &model.CPUStat{TotalPct: 3}}}})
 				save(schema.Processes, offset, proc, func() error { return p.Process(ctx, time.Unix(int64(i*15), 0), proc) })
 				if platform == "windows" {
-					conn := sanitizer.Connections(&model.CollectorConnections{HostName: "UNIQUE-CAPTURE-SECRET", GroupSize: 1, Connections: []*model.Connection{{Pid: 42, Laddr: &model.Addr{Ip: "UNIQUE-CAPTURE-SECRET"}, Raddr: &model.Addr{Ip: "UNIQUE-CAPTURE-SECRET", Port: 443}, Rtt: 30000}}})
+					conn := normalizer.Connections(&model.CollectorConnections{HostName: "fixture-native-host", GroupSize: 1, Connections: []*model.Connection{{Pid: 42, Laddr: &model.Addr{Ip: "192.0.2.10"}, Raddr: &model.Addr{Ip: "203.0.113.80", Port: 443}, Rtt: 30000}}})
 					if i == 0 {
 						profile.ConnectionSelectors = []string{telemetry.ConnectionSelector(conn.Connections[0])}
 					}
 					save(schema.Connections, offset, conn, func() error { return p.Connections(ctx, time.Unix(int64(i*15), 0), conn) })
 				}
 			}
-			host, err := sanitizer.HostMetadata(&capture.HostMetadata{Hostname: "UNIQUE-CAPTURE-SECRET", AgentVersion: "7.85.0", OS: osName, UUID: "UNIQUE-CAPTURE-SECRET"})
+			host, err := normalizer.HostMetadata(&capture.HostMetadata{Hostname: "fixture-native-host", AgentVersion: "7.85.0", OS: osName, UUID: "fixture-native-host"})
 			if err != nil {
 				t.Fatal(err)
 			}
 			save(schema.HostMetadata, 0, host, func() error { return p.Serializer.SendHostMetadata(host) })
-			sanitizedHost := host.(*capture.HostMetadata)
-			agentInventory := &telemetrycapture.Inventory{Hostname: sanitizedHost.Hostname, UUID: sanitizedHost.UUID, Agent: &telemetrycapture.AgentInventoryMetadata{AgentVersion: sanitizedHost.AgentVersion, Flavor: "agent", InfrastructureMode: "end_user_device", AgentStartupTimeMS: -3000}}
+			capturedHost := host.(*capture.HostMetadata)
+			agentInventory := &telemetrycapture.Inventory{Hostname: capturedHost.Hostname, UUID: capturedHost.UUID, Agent: &telemetrycapture.AgentInventoryMetadata{AgentVersion: capturedHost.AgentVersion, Flavor: "agent", InfrastructureMode: "end_user_device", AgentStartupTimeMS: -3000}}
 			save(schema.AgentInventory, 0, agentInventory, func() error { return p.Serializer.SendMetadata(agentInventory) })
-			hostInventory := &telemetrycapture.Inventory{Hostname: sanitizedHost.Hostname, UUID: sanitizedHost.UUID, Host: &telemetrycapture.HostInventoryMetadata{AgentVersion: sanitizedHost.AgentVersion, OS: osName, CPUCores: 4, CPULogicalProcessors: 8, MemoryTotalKb: (8 << 30) / 1024}}
+			hostInventory := &telemetrycapture.Inventory{Hostname: capturedHost.Hostname, UUID: capturedHost.UUID, Host: &telemetrycapture.HostInventoryMetadata{AgentVersion: capturedHost.AgentVersion, OS: osName, CPUCores: 4, CPULogicalProcessors: 8, MemoryTotalKb: (8 << 30) / 1024}}
 			save(schema.HostInventory, 0, hostInventory, func() error { return p.Serializer.SendMetadata(hostInventory) })
-			snapshot := &softwareimpl.Payload{Hostname: "capture-host", Metadata: softwareimpl.HostSoftware{Software: sanitizer.Software([]software.Entry{{DisplayName: "Google Chrome", Version: "125.0.1", UserSID: "UNIQUE-CAPTURE-SECRET", ProductCode: "UNIQUE-CAPTURE-SECRET", InstallPaths: []string{"UNIQUE-CAPTURE-SECRET"}}})}}
+			snapshot := &softwareimpl.Payload{Hostname: "fixture-native-host", Metadata: softwareimpl.HostSoftware{Software: normalizer.Software([]software.Entry{{DisplayName: "Google Chrome", Version: "125.0.1", UserSID: "fixture-native-host", ProductCode: "fixture-native-host", InstallPaths: []string{"fixture-native-host"}}})}}
 			save(schema.Software, 0, snapshot, func() error {
 				body, err := snapshot.MarshalJSON()
 				if err != nil {
@@ -159,12 +156,12 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 				t.Fatal(err)
 			}
 			for name, data := range loaded.Files {
-				if strings.Contains(string(data), "UNIQUE-CAPTURE-SECRET") {
-					t.Fatalf("raw identity persisted in %s", name)
+				if !strings.Contains(string(data), "fixture-native-host") || strings.Contains(string(data), "recording-only-no-credential") {
+					t.Fatalf("native telemetry lost or credential persisted in %s", name)
 				}
 			}
 			// Inspect requests recorded during delivery independently of bundle
-			// persistence. Compressed bodies must not conceal native identities.
+			// persistence. Authentication credentials must not enter bodies or recorded headers.
 			for i, sample := range loaded.Manifest.Samples {
 				for _, reference := range requests[i] {
 					name := sample.File
@@ -172,8 +169,8 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if strings.Contains(string(headers), "UNIQUE-CAPTURE-SECRET") {
-						t.Fatalf("raw identity submitted in request headers %s", name)
+					if strings.Contains(string(headers), "recording-only-no-credential") {
+						t.Fatalf("credential retained in request headers %s", name)
 					}
 					var decoded []byte
 					switch sample.Stream {
@@ -215,8 +212,8 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 							t.Fatalf("inventory wire differs from its typed sample: %v", err)
 						}
 					}
-					if strings.Contains(string(decoded), "UNIQUE-CAPTURE-SECRET") {
-						t.Fatalf("raw identity submitted in decoded request body %s", name)
+					if strings.Contains(string(decoded), "recording-only-no-credential") {
+						t.Fatalf("credential submitted in decoded request body %s", name)
 					}
 				}
 			}
@@ -224,8 +221,8 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if strings.Contains(string(data), "UNIQUE-CAPTURE-SECRET") {
-				t.Fatal("raw identity persisted in manifest")
+			if strings.Contains(string(data), "recording-only-no-credential") {
+				t.Fatal("credential persisted in manifest")
 			}
 		})
 	}

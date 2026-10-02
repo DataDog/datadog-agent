@@ -16,7 +16,7 @@ import (
 )
 
 func TestMetricRoundTripRetainsAgentOriginAndRelativeTime(t *testing.T) {
-	input := []*metrics.Serie{{Name: "system.wlan.rssi", Host: "capture-host", Device: "device-1", Source: metrics.MetricSourceWlan, MType: metrics.APIGaugeType, Interval: 15, Tags: tagset.CompositeTagsFromSlice([]string{"bssid:02:00:00:00:00:01"}), Points: []metrics.Point{{Ts: -0.125, Value: -54.5}, {Ts: 15.3125, Value: -53}}}}
+	input := []*metrics.Serie{{Name: "system.wlan.rssi", Host: "capture-host", Device: "device-1", Source: metrics.MetricSourceWlan, MType: metrics.APIGaugeType, Interval: 15, Unit: "dBm", SourceTypeName: "System", NoIndex: true, Resources: []metrics.Resource{{Type: "host", Name: "native-host"}}, Tags: tagset.CompositeTagsFromSlice([]string{"bssid:02:00:00:00:00:01"}), Points: []metrics.Point{{Ts: -0.125, Value: -54.5}, {Ts: 15.3125, Value: -53}}}}
 	envelope, err := NewMetricSample(input)
 	if err != nil {
 		t.Fatal(err)
@@ -35,6 +35,11 @@ func TestMetricRoundTripRetainsAgentOriginAndRelativeTime(t *testing.T) {
 	// The envelope and reconstructed Agent types own their data independently.
 	input[0].Points[0].Value = 99
 	input[0].Source = metrics.MetricSourceCPU
+	input[0].Resources[0].Name = "mutated"
+	decoded.Metrics[0].Resources[0].Type = "mutated"
+	if envelope.Series[0].Resources[0].Name != "native-host" || envelope.Series[0].Resources[0].Type != "host" {
+		t.Fatal("metric resources alias mutable source or replay data")
+	}
 	decoded.Metrics[0].Points[1].Value = 100
 	if envelope.Series[0].Points[0].Value != -54.5 || envelope.Series[0].Points[1].Value != -53 || *envelope.Series[0].Source != metrics.MetricSourceWlan {
 		t.Fatal("metric envelope aliases mutable source or replay data")

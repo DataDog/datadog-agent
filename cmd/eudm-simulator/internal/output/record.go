@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package output connects sanitized telemetry to Agent delivery packages.
+// Package output connects captured telemetry to Agent delivery packages.
 package output
 
 import (
@@ -34,7 +34,7 @@ type RecordedRequest struct {
 }
 
 // Recorder is an HTTP transport with no network capability. It must only be
-// installed behind a pipeline receiving already sanitized payloads. It never
+// installed behind a pipeline receiving telemetry with device identities prepared for replay. It never
 // retains credentials, URLs with query strings, or the
 // original request. Replay tests use ordinary Agent serializers and forwarders.
 type Recorder struct {
@@ -49,7 +49,7 @@ func NewRecorder() *Recorder { return &Recorder{changed: make(chan struct{})} }
 func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	data, err := io.ReadAll(io.LimitReader(req.Body, 64<<20))
 	if err != nil {
-		return nil, errors.New("read sanitized recording request")
+		return nil, errors.New("read captured recording request")
 	}
 	if len(data) >= 64<<20 {
 		return nil, errors.New("serialized request exceeds recording size limit")
@@ -63,7 +63,7 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	r.mu.Lock()
 	if len(r.requests) >= recorderMaxBytes/recorderReferenceOverhead || size > recorderMaxBytes-r.bytes {
 		r.mu.Unlock()
-		return nil, errors.New("sanitized recording cycle exceeds memory limit")
+		return nil, errors.New("captured recording cycle exceeds memory limit")
 	}
 	headers := http.Header{}
 	for _, key := range recordedHeaders {

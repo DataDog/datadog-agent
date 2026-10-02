@@ -20,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/accesspoint"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/report"
@@ -173,20 +172,16 @@ func normalizedSample(sample *telemetry.Sample, stream schema.Stream, start time
 		}
 		return json.Marshal(value)
 	case schema.Processes:
-		data, err := json.Marshal(sample.Processes)
-		if err != nil {
-			return nil, err
+		value := *sample.Processes
+		value.Processes = slices.Clone(sample.Processes.Processes)
+		for i, process := range value.Processes {
+			owned := *process
+			owned.CreateTime -= start.UnixMilli()
+			value.Processes[i] = &owned
 		}
-		var value model.CollectorProc
-		if err := json.Unmarshal(data, &value); err != nil {
-			return nil, err
-		}
-		for _, process := range value.Processes {
-			process.CreateTime -= start.UnixMilli()
-		}
-		return json.Marshal(&value)
+		return telemetry.Encode(&value)
 	case schema.Connections:
-		return json.Marshal(sample.Connections)
+		return telemetry.Encode(sample.Connections)
 	case schema.HostMetadata:
 		return json.Marshal(sample.HostMetadata)
 	case schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo:
@@ -637,7 +632,7 @@ func TestSemanticPreflightRejectsUnproducibleFleetBeforeDelivery(t *testing.T) {
 			delete(r.Scenario.Phases[0].NetworkMetrics, r.Scenario.NetworkDevices.AccessPoints[0].Name)
 		}},
 		{"invalid-nested-host-metadata", "healthy-macos", "invalid gohai", func(t *testing.T, r Request) {
-			rewriteFixtureSamples(t, r, schema.HostMetadata, func(s *telemetry.Sample, _ int) { s.HostMetadata.Gohai = `{"cpu":"value"}` })
+			rewriteFixtureSamples(t, r, schema.HostMetadata, func(s *telemetry.Sample, _ int) { s.HostMetadata.Gohai = `{"cpu":` })
 		}},
 		{"missing-wireless-identity", "wifi-degradation-macos", "wireless identity tags", func(t *testing.T, r Request) {
 			rewriteFixtureSamples(t, r, schema.Metrics, func(s *telemetry.Sample, _ int) {

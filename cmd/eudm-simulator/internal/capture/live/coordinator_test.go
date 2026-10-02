@@ -196,7 +196,7 @@ func (s *countingSink) Accept(ctx context.Context, record tc.Record) error {
 		panic("private panic sentinel")
 	}
 	if s.failAccept {
-		return errors.New("test sanitizer failed")
+		return errors.New("test normalizer failed")
 	}
 	if s.acceptDelay > 0 {
 		if err := pause(ctx, s.acceptDelay); err != nil {
@@ -406,7 +406,7 @@ func TestCoordinatorSelectsExactlyOneWindowsConnectionOwner(t *testing.T) {
 }
 
 func TestCoordinatorFailureDisarmsEveryAttemptedProducer(t *testing.T) {
-	for _, kind := range []string{"lost prepare acknowledgement", "partial activation", "activation skew", "writer failure", "sanitizer failure", "sequence gap", "wrong producer", "repeated cycle", "missing stop acknowledgement", "missing final stopped acknowledgement", "reader disconnected", "heartbeat failure"} {
+	for _, kind := range []string{"lost prepare acknowledgement", "partial activation", "activation skew", "writer failure", "normalizer failure", "sequence gap", "wrong producer", "repeated cycle", "missing stop acknowledgement", "missing final stopped acknowledgement", "reader disconnected", "heartbeat failure"} {
 		t.Run(kind, func(t *testing.T) {
 			clients, producers, sink := newCoordinatorFixture(t, "macos")
 			switch kind {
@@ -418,7 +418,7 @@ func TestCoordinatorFailureDisarmsEveryAttemptedProducer(t *testing.T) {
 				producers[0].activationSkew = -6 * time.Second
 			case "writer failure":
 				sink.failStart = true
-			case "sanitizer failure":
+			case "normalizer failure":
 				sink.failAccept = true
 			case "sequence gap":
 				producers[0].alterFirstRead = func(b *Batch) { b.Records[0].Sequence++ }

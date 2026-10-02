@@ -116,7 +116,7 @@ func TestWirelessResourcesAndClientsAcrossBatchBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, forbidden := range []string{"private-", s.Meta.Name, "affected", "wireless_access_points"} {
+	for _, forbidden := range []string{"private-serial", "private-location", "private-ethernet", "private-radio", s.Meta.Name, "affected", "wireless_access_points"} {
 		if strings.Contains(string(encoded), forbidden) {
 			t.Fatalf("metadata disclosed local identity or expectation %q", forbidden)
 		}
@@ -127,7 +127,7 @@ func TestWirelessResourcesAndClientsAcrossBatchBoundary(t *testing.T) {
 	}
 	a, _ := m.Wireless(s.Fleet[0])
 	b, _ := other.Wireless(s.Fleet[0])
-	if a.BSSID == b.BSSID || a.SSID == b.SSID || reflect.DeepEqual(payloads, other.Metadata(at, 100)) {
+	if a.BSSID == b.BSSID || a.SSID != "private-ssid" || b.SSID != a.SSID || reflect.DeepEqual(payloads, other.Metadata(at, 100)) {
 		t.Fatal("concurrent runs share radio identities")
 	}
 }

@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "dns.go",
         "identity.go",
+        "local.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/identity",
     visibility = ["//cmd/eudm-simulator:__subpackages__"],

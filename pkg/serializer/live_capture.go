@@ -56,20 +56,29 @@ func (c *liveSeriesCapture) copyCurrent(v *metrics.Serie) {
 	defer c.recoverFailure()
 	// Charge temporary slice growth as well as the owned copy before cloning.
 	// A substring can retain a larger production buffer, so clone strings too.
-	bytes := 4*int64(unsafe.Sizeof(telemetrycapture.Series{})) + int64(len(v.Name)+len(v.Host)+len(v.Device))
+	bytes := 4*int64(unsafe.Sizeof(telemetrycapture.Series{})) + int64(len(v.Name)+len(v.Host)+len(v.Device)+len(v.Unit)+len(v.SourceTypeName))
 	bytes += int64(v.Tags.Len())*int64(unsafe.Sizeof("")) + int64(len(v.Points))*int64(unsafe.Sizeof(telemetrycapture.Point{}))
 	v.Tags.ForEach(func(tag string) { bytes += int64(len(tag)) })
+	bytes += int64(len(v.Resources)) * int64(unsafe.Sizeof(telemetrycapture.Resource{}))
+	for _, resource := range v.Resources {
+		bytes += int64(len(resource.Type) + len(resource.Name))
+	}
 	if !c.reservation.Grow(bytes) {
 		return
 	}
 	owned := &telemetrycapture.Series{
 		Name: strings.Clone(v.Name), Source: uint32(v.Source),
-		Type: int32(v.MType), Interval: v.Interval, Host: strings.Clone(v.Host), Device: strings.Clone(v.Device),
+		Unit: strings.Clone(v.Unit), SourceTypeName: strings.Clone(v.SourceTypeName), NoIndex: v.NoIndex,
+		Resources: make([]telemetrycapture.Resource, len(v.Resources)),
+		Type:      int32(v.MType), Interval: v.Interval, Host: strings.Clone(v.Host), Device: strings.Clone(v.Device),
 		Tags: make([]string, 0, v.Tags.Len()), Points: make([]telemetrycapture.Point, len(v.Points)),
 	}
 	v.Tags.ForEach(func(tag string) { owned.Tags = append(owned.Tags, strings.Clone(tag)) })
 	for i, p := range v.Points {
 		owned.Points[i] = telemetrycapture.Point{Timestamp: p.Ts, Value: p.Value}
+	}
+	for i, resource := range v.Resources {
+		owned.Resources[i] = telemetrycapture.Resource{Type: strings.Clone(resource.Type), Name: strings.Clone(resource.Name)}
 	}
 	c.pending = owned
 }

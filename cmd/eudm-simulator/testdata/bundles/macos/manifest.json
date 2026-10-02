@@ -1,6 +1,5 @@
 {
-  "schema_version": 5,
-  "sanitizer_version": 1,
+  "schema_version": 6,
   "capture_tool": {
     "version": "7.85.0-fixture",
     "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -12,7 +11,7 @@
       "instance_id": "synthetic-core-agent",
       "version": "7.85.0-fixture",
       "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "protocol_version": 2,
+      "protocol_version": 3,
       "streams": [
         "metrics",
         "host_metadata",
@@ -34,7 +33,7 @@
       "instance_id": "synthetic-process-agent",
       "version": "7.85.0-fixture",
       "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "protocol_version": 2,
+      "protocol_version": 3,
       "streams": [
         "processes",
         "connections"
@@ -85,15 +84,16 @@
       "system.wlan.txrate"
     ],
     "process_names": [
-      "Google Chrome",
-      "process-11111111111111111111111111111111"
+      "AcmeSync",
+      "Google Chrome"
     ],
     "software_names": [
+      "Acme Workspace",
       "Google Chrome",
       "OS"
     ],
     "connection_selectors": [
-      "300:10.0.0.1:50000\u003e10.0.0.2:443"
+      "300:10.0.0.1:50000\u003e203.0.113.80:443"
     ]
   },
   "duration_ns": 301000000000,
@@ -417,36 +417,36 @@
     }
   ],
   "files": {
-    "sample-000000.json": "bf3bf613b7856f290857af0820615d7f8f49b3c73232afcf02187ab7fec749b8",
-    "sample-000001.json": "dc8f362b5ca75701e60701d9318a4cf2b9661f47eec376ea090b6955a4932c9e",
-    "sample-000002.json": "d4637ff3b308613ed4fb4771d6f06271802151b7d194e54e845ceee829bb271b",
-    "sample-000003.json": "4dfe2717e059ecc7dce1f113f568946008383d84dda496ba92f6fea73ee39bbf",
-    "sample-000004.json": "ba0aefc6e14b97f0c04ae1edfcc3fb7e36b017b902c781a6cb984f47c663aadc",
-    "sample-000005.json": "5eb73a26df44ac3f5448a43a5045c7e5d69ac6c06d57f66c37614a3eccff2398",
-    "sample-000006.json": "eef11aee7b6a1b8fa405f07be64cf1e62976d1efea72016e9abedcae49e33679",
-    "sample-000007.json": "e2cb5441454e396c2df872d87d6fb29169f2b57d86f80e14752e04497b425362",
-    "sample-000008.json": "6b3a81b280a4ace8461f1c1c0e241f8edce8bba8eb40905085112255bb0dc4e6",
-    "sample-000009.json": "130be8d9934819e65da37ada156451e91d0caf4ddfeb45c7a7121effc38dc750",
-    "sample-000010.json": "f6e3d68c3babe2d003ec9514c364e0438b4cd7ae9f50299c25a6fe854f2f7a8e",
-    "sample-000011.json": "cf282d9562c7aa4ed63ed3643879ee11d74e8ef75156d4fd4ed03a49503eadc4",
-    "sample-000012.json": "9b346f87cb197db6814d4b71e4900451171d07d5ece1c355b2fca0487ee4c641",
-    "sample-000013.json": "d6db4a9ddff7c4546581221e32c73b081b645c58cdac533c0ea550f1f95c45e8",
-    "sample-000014.json": "b8c1d94f67f6ec1789004b54c58daae7e88681ee9217df9a757442a11d46f9fd",
-    "sample-000015.json": "d9317be48022adf350407f7803dc3001f40369b84476b8d66635267facc77831",
-    "sample-000016.json": "322af396a6bfce00747e25d5a685e1e4c567fd6ef9181e2028a11a78a749157d",
-    "sample-000017.json": "f78fe8abed9b364fa874a8fa769898f242f52920f3b821c7ea9b48d7a6461d1c",
-    "sample-000018.json": "f885ea869f973ad188b7ece4239e4b5f1ee888ab04e8efcdd0f9f995c8943766",
-    "sample-000019.json": "303ac8ff786e443bb8c0aac5450c6b7c83ddbab09b3e11e30f2f8040f7e4308d",
-    "sample-000020.json": "9373700e0f69dacf0712d3c2e8c5c490f8a01e96f849a0df69736827cf8b3f80",
-    "sample-000021.json": "d083647ef961c6bb70fee6d9933dd48d0fa78f02ba47edc045a35d7d4228888d",
-    "sample-000022.json": "9a73d8bd0636bad22190ee1f4f168713b7f8e6d6e59f01a5971140fd5e4c5b43",
-    "sample-000023.json": "91fdc2fee23e22affbe37b8f454a7f8d12140346f682bd4104c48b396c590315",
-    "sample-000024.json": "bfbc327ed61192bb62a89d483aeb064e4021d50aa08133604f5dc343d9f487e8",
-    "sample-000025.json": "ca77445517d52b92d4ff38295d96a7a9cc02faa7b352921637c0cf2e25d542d0",
-    "sample-000026.json": "b3af922ead3cf4b1890691865b83a0cd2d785d4c5f643c945557697cb3bdf954",
-    "sample-000027.json": "4f8b0660bbb94145c5c6000d575219cb5ec7077c84089a28473d60d313c0f77f",
-    "sample-000028.json": "765cc26dde8c625c5f6dc4c735bfe62bad7a61761650083522af73a553cbcaed",
-    "sample-000029.json": "90055fba126cddfac8704e03443bf7c8e464a644be4d20d88ccf17985b495600"
+    "sample-000000.json": "cd624b4cbd1722d04e3eea757680d3d0fdb23dccde65404482f40c5d6b52d3c3",
+    "sample-000001.json": "e8378ae57cd91aad919b3bc4ec5309c6fdad8698a678e30d169facd7c45c7500",
+    "sample-000002.json": "2b2093b0971d7d04907df16e57276a3ab74f75efa7d42e8a9434413198148d3f",
+    "sample-000003.json": "f416583bccbe6d902aacbf31f8ed7ebb9e52c5e17e2144d7a471e1eadc4aa60e",
+    "sample-000004.json": "4d8d6e46e7b4dc50a511661bb7ba04671dee4c2a190490465a790f3e6115c334",
+    "sample-000005.json": "858a9af52d4a99adb6223bb201bd508021ec7c9d91e8926e043066e44bd44306",
+    "sample-000006.json": "ce981dcca77f650ceea50333abd8152c85641e890b86177616f8b9de1e6d8c69",
+    "sample-000007.json": "631b68fa430f7594469a116242529e0e2b3001b1b029c15493ea01c8c1cccfb3",
+    "sample-000008.json": "0daf3c5ab5754fa140f59daf9cb1315c7ed4c62c8130a675c5e6e3165af6e0fc",
+    "sample-000009.json": "d17e2308200d8d3d497784f4507bdf2bff04cf1a472be6131a69a888ea2f3b88",
+    "sample-000010.json": "89c0b2ccc2b4d18453e4437ac82d6a1c5e6667cc082410a15453189ec103be7f",
+    "sample-000011.json": "2fad350aa296e60a81e0840328392977c9f289b02735a62856160d50d049f2de",
+    "sample-000012.json": "5a6ab7ba40d0d2ef7ecc6b6578038be3734616946c013976786fdcba3c5230a2",
+    "sample-000013.json": "7c53fc4a2817e3dd2bc7008845dd239bd3c70f2e6fe6291df78183432c98ed18",
+    "sample-000014.json": "06c5f91a69a6ee7db6ff7d2359b5abd6fd9d16a25ba86a3d8d084f6c3b85a7d8",
+    "sample-000015.json": "a0ccb8bb07378f2e5bf23e6059bb2a6213e883250a56752b223081edde7d3dfd",
+    "sample-000016.json": "8ec0d9def4932fc2a88b833e171e3563d9b0e84a691de6cb3d651286423ee4a6",
+    "sample-000017.json": "0a7e9d270892925f12c0e0997b6e1bb515c1a91d8c66da8023c7a9c1017ca03e",
+    "sample-000018.json": "51b5f7f81fefc30cd671d50d2b1b3121d8812869f9283708b8d90fb903289643",
+    "sample-000019.json": "4d7d1dde66c4d1a25cb9eabada3a30e5baac2a299b558dc1f9310e7a5e8bcfc8",
+    "sample-000020.json": "dd943f0fb58575525b0960a9063d20f1b3466a8b4e8a37ec1b4e10b44070510c",
+    "sample-000021.json": "35b83718ff855d1df9849f1d046bf08efc44d5bf0208455333000e61ff9c68fb",
+    "sample-000022.json": "2a23c00fe14106ac560a67f3286facc2177167acdd55ac3ef9512bbb164d37c7",
+    "sample-000023.json": "42b6c00e73d2d8deb755d8133600a3a7908133d7759156bb94018a286ce6c5f6",
+    "sample-000024.json": "a1c8d6b3e6a9b26788199553e09093002a946884ff3ccb4779936e2ee03bb7d4",
+    "sample-000025.json": "8d3e38079259e937b8e3a10336cb65b689bd9fdaafe269e628e36c333c8d9d02",
+    "sample-000026.json": "48092a0d3d20766a5c929ea6b025975398b057d07a1bd8a7f8afda0a4a0414c4",
+    "sample-000027.json": "f7cebeb1c6f7334482f03996e7d27afc2bfa52eb0695a2366700ae419599acaf",
+    "sample-000028.json": "9b5ab938848b93850af26a483ff0ca7b2c2553f9d4d031f5035c143f49530c7d",
+    "sample-000029.json": "ebddbc41b7db38728038c126bb55f84cfec5e7c0439d709d95d06f1dd47626ca"
   },
   "complete": true
 }

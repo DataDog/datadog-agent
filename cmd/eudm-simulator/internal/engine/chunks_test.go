@@ -37,7 +37,7 @@ func TestReplayPreservesEmptyChunksWithinCompleteGroups(t *testing.T) {
 	}
 	add := func(stream schema.Stream, chunk, count int, value any) {
 		t.Helper()
-		data, err := json.Marshal(value)
+		data, err := telemetry.Encode(value)
 		if err != nil {
 			t.Fatal(err)
 		}

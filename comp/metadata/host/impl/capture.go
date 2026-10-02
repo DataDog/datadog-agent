@@ -8,6 +8,7 @@
 package hostimpl
 
 import (
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
@@ -26,22 +27,14 @@ func (p *Payload) CaptureMetadataSchedule() (time.Time, time.Duration) {
 // CaptureMetadataSize measures only the credential-free projection, without
 // encoding or allocating a copy of the original payload.
 func (p *Payload) CaptureMetadataSize() int64 {
-	return utils.CaptureMetadataSize(&p.CommonPayload, &p.Payload) + utils.CaptureGohaiSize(p.captureGohaiFields())
+	return utils.CaptureMetadataSize(&p.CommonPayload, &p.Payload) + int64(len(p.GohaiPayload))
 }
 
 // CopyCaptureMetadata is called only after reserving its entire owned size.
 func (p *Payload) CopyCaptureMetadata() *telemetrycapture.HostMetadata {
 	projection := utils.CopyCaptureMetadata(&p.CommonPayload, &p.Payload)
-	projection.Gohai = utils.CopyCaptureGohai(p.captureGohaiFields())
+	// Gohai has already encoded its hardware facts during normal collection.
+	// Own that complete value without parsing or encoding on the producer path.
+	projection.Gohai = strings.Clone(p.GohaiPayload)
 	return projection
-}
-
-func (p *Payload) captureGohaiFields() utils.GohaiFields {
-	if p.nativeGohai == nil || p.nativeGohai.Gohai == nil {
-		return utils.GohaiFields{}
-	}
-	return utils.GohaiFields{
-		CPU: p.nativeGohai.Gohai.CPU, Memory: p.nativeGohai.Gohai.Memory,
-		Platform: p.nativeGohai.Gohai.Platform, Network: p.nativeGohai.Gohai.Network,
-	}
 }

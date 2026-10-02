@@ -344,20 +344,40 @@ func PayloadSize(p Payload) int64 {
 	n += InventorySize(p.Inventory)
 	n += int64(cap(p.Series)) * int64(unsafe.Sizeof(Series{}))
 	for _, s := range p.Series {
-		n += int64(len(s.Name)+len(s.Host)+len(s.Device)) + stringSliceSize(s.Tags)
+		n += int64(len(s.Name)+len(s.Host)+len(s.Device)+len(s.Unit)+len(s.SourceTypeName)) + stringSliceSize(s.Tags)
 		n += int64(cap(s.Points)) * int64(unsafe.Sizeof(Point{}))
+		n += int64(cap(s.Resources)) * int64(unsafe.Sizeof(Resource{}))
+		for _, resource := range s.Resources {
+			n += int64(len(resource.Type) + len(resource.Name))
+		}
 	}
 	if h := p.Metadata; h != nil {
 		n += int64(unsafe.Sizeof(*h))
-		n += int64(len(h.AgentVersion) + len(h.UUID) + len(h.Hostname) + len(h.OS) + len(h.AgentFlavor) + len(h.Machine) + len(h.Platform) + len(h.MacVersion) + len(h.MacMachine) + len(h.NetworkID))
-		n += 256
-		for section, fields := range h.Gohai {
-			n += 256 + int64(len(section))
-			for key, value := range fields {
-				n += 256 + int64(len(key)+len(value))
+		n += int64(len(h.AgentVersion) + len(h.UUID) + len(h.Hostname) + len(h.OS) + len(h.AgentFlavor) + len(h.Machine) + len(h.Platform) + len(h.MacVersion) + len(h.MacMachine) + len(h.NetworkID) + len(h.PythonVersion) + len(h.PythonRuntimeVersion) + len(h.Processor) + len(h.PublicIPv4))
+		n += int64(len(h.Gohai))
+		n += stringSliceSize(h.Windows) + stringSliceSize(h.MacReleaseInfo) + stringSliceSize(h.UnixVersion) + stringSliceSize(h.FreeBSDVersion) + 256
+		if meta := h.Meta; meta != nil {
+			n += int64(unsafe.Sizeof(*meta)) + stringSliceSize(meta.Timezones) + stringSliceSize(meta.HostAliases)
+			n += int64(len(meta.SocketHostname) + len(meta.SocketFqdn) + len(meta.EC2Hostname) + len(meta.Hostname) + len(meta.InstanceID) + len(meta.AgentHostname) + len(meta.ClusterName) + len(meta.LegacyResolutionHostname) + len(meta.CanonicalCloudResourceID))
+		}
+		if install := h.InstallMethod; install != nil {
+			n += int64(unsafe.Sizeof(*install)) + int64(len(install.ToolVersion))
+			for _, value := range []*string{install.Tool, install.InstallerVersion} {
+				if value != nil {
+					n += int64(unsafe.Sizeof(*value)) + int64(len(*value))
+				}
 			}
 		}
-		n += stringSliceSize(h.Windows) + 256
+		n += 256
+		for key, value := range h.ContainerMeta {
+			n += 256 + int64(len(key)+len(value))
+		}
+		if h.Proxy != nil {
+			n += int64(unsafe.Sizeof(*h.Proxy))
+		}
+		if logs := h.Logs; logs != nil {
+			n += int64(unsafe.Sizeof(*logs)) + int64(len(logs.Transport))
+		}
 		for key, tags := range h.HostTags {
 			n += 256 + int64(len(key)) + stringSliceSize(tags)
 		}

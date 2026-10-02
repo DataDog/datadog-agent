@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
@@ -205,16 +204,7 @@ func (b *Loaded) validateTyped() error {
 			if err := checkHost(sample.Software.Hostname); err != nil {
 				return err
 			}
-			allowed := []string{"", "os"}
-			if profile.OS == "windows" {
-				allowed = append(allowed, "desktop", "msstore", "msi", "driver")
-			} else {
-				allowed = append(allowed, "app", "system_app", "homebrew", "pkg", "macports", "mas", "kext", "sysext")
-			}
 			for _, software := range sample.Software.Metadata.Software {
-				if !slices.Contains(allowed, software.Source) {
-					return errors.New("software entry type is unsupported on captured platform")
-				}
 				names["software_names"][software.DisplayName] = true
 			}
 		}

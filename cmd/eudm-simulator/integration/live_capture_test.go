@@ -483,7 +483,7 @@ func TestLiveCaptureInventoryAcrossProcessBoundary(t *testing.T) {
 				t.Fatal("inventory capture lost its envelope or schedule")
 			}
 			encoded, err := json.Marshal(record)
-			if err != nil || bytes.Contains(encoded, []byte("synthetic-private-inventory-config")) || bytes.Contains(encoded, []byte("configuration")) {
+			if err != nil || bytes.Contains(encoded, []byte("synthetic-private-inventory-config")) || bytes.Contains(encoded, []byte(`"configuration":`)) {
 				t.Fatal("inventory capture exposed production configuration")
 			}
 			producer.stopAndDrain(t, control, 1)

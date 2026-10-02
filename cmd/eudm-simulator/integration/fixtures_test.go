@@ -62,8 +62,11 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 	if platform == "windows" {
 		osname, hostOS, arch, chrome = "windows", "win32", "amd64", "chrome.exe"
 	}
-	background := "process-" + strings.Repeat("1", 32)
-	profile := schema.Profile{OS: platform, Architecture: arch, MemoryBytes: 16 << 30, Streams: []schema.Stream{schema.Metrics, schema.HostMetadata, schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo, schema.Processes, schema.Connections, schema.Software}, ProcessNames: []string{chrome, background}, SoftwareNames: []string{"Google Chrome", "OS"}}
+	background := "AcmeSync"
+	if platform == "windows" {
+		background += ".exe"
+	}
+	profile := schema.Profile{OS: platform, Architecture: arch, MemoryBytes: 16 << 30, Streams: []schema.Stream{schema.Metrics, schema.HostMetadata, schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo, schema.Processes, schema.Connections, schema.Software}, ProcessNames: []string{chrome, background}, SoftwareNames: []string{"Google Chrome", "OS", "Acme Workspace"}}
 	if platform == "windows" {
 		profile.ProcessNames = append(profile.ProcessNames, "SentinelAgent.exe")
 		profile.SoftwareNames = append(profile.SoftwareNames, "SentinelOne")
@@ -129,11 +132,11 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 				source = metrics.MetricSourceMemory
 			case "wlan":
 				source = metrics.MetricSourceWlan
-				tags = append(tags, "bssid:02:00:00:00:00:01", "mac_address:02:00:00:00:00:02", "ssid:ssid-fixture", "interface:interface-"+strings.Repeat("2", 32))
+				tags = append(tags, "bssid:02:00:00:00:00:01", "mac_address:02:00:00:00:00:02", "ssid:Example Office", "interface:en0")
 			case "network":
 				source = metrics.MetricSourceNetwork
 				metricType = metrics.APIRateType
-				tags = append(tags, "device:interface-"+strings.Repeat("2", 32))
+				tags = append(tags, "device:en0")
 			case "battery":
 				source = metrics.MetricSourceBattery
 			}
@@ -146,20 +149,31 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 		save(schema.Metrics, offset, envelope)
 	}
 	process := func(pid int32, name string, cpu float32, rss uint64) *model.Process {
-		exe := "/capture/bin/" + name
+		exe := "/Applications/" + name + ".app/Contents/MacOS/" + name
 		if platform == "windows" {
-			exe = `C:\capture\bin\` + name
+			exe = `C:\Program Files\Acme\` + name
 		}
-		return &model.Process{Pid: pid, CreateTime: -60000, Command: &model.Command{Comm: name, Exe: exe, Args: []string{exe}}, User: &model.ProcessUser{Name: "user-" + strings.Repeat("3", 32)}, Cpu: &model.CPUStat{TotalPct: cpu, UserPct: cpu * .75, SystemPct: cpu * .25, NumThreads: 2}, Memory: &model.MemoryStat{Rss: rss, Vms: 2 * rss}}
+		return &model.Process{Pid: pid, CreateTime: -60000, Command: &model.Command{Comm: name, Exe: exe, Args: []string{exe, "--profile=work"}}, User: &model.ProcessUser{Name: "fixture-user"}, Cpu: &model.CPUStat{TotalPct: cpu, UserPct: cpu * .75, SystemPct: cpu * .25, NumThreads: 2}, Memory: &model.MemoryStat{Rss: rss, Vms: 2 * rss}, IoStat: &model.IOStat{ReadRate: 5, WriteRate: 9}, Tags: []string{"team:desktop", "interactive"}}
 	}
 	for cycle := 0; cycle < 2; cycle++ {
 		offset := time.Duration(cycle) * 10 * time.Second
 		proc := &model.CollectorProc{HostName: "capture-host", NetworkId: "network-" + strings.Repeat("4", 32), GroupId: int32(cycle + 1), GroupSize: 1, Info: &model.SystemInfo{Uuid: "00000000-0000-4000-8000-000000000001", Os: &model.OSInfo{Name: osname, Version: "15.6"}, TotalMemory: 16 << 30, Cpus: []*model.CPUInfo{{Cores: 4}}}, Processes: []*model.Process{process(100, chrome, 8, 300<<20), process(300, background, 3, 100<<20)}}
+		proc.Hints = &model.CollectorProc_HintMask{HintMask: 1}
 		if platform == "windows" {
 			proc.Processes = append(proc.Processes, process(200, "SentinelAgent.exe", 4, 200<<20))
 		}
 		save(schema.Processes, offset, proc)
-		conn := &model.CollectorConnections{HostName: "capture-host", NetworkId: proc.NetworkId, GroupId: int32(cycle + 1), GroupSize: 1, Connections: []*model.Connection{{Pid: 300, Laddr: &model.Addr{Ip: "10.0.0.1", Port: 50000}, Raddr: &model.Addr{Ip: "10.0.0.2", Port: 443}, Type: model.ConnectionType_tcp, Rtt: 20000, RttVar: 2000, LastBytesSent: 1000, LastBytesReceived: 2000}}}
+		conn := &model.CollectorConnections{HostName: "capture-host", NetworkId: proc.NetworkId, GroupId: int32(cycle + 1), GroupSize: 1, Connections: []*model.Connection{{Pid: 300, Laddr: &model.Addr{Ip: "10.0.0.1", Port: 50000}, Raddr: &model.Addr{Ip: "203.0.113.80", Port: 443}, Type: model.ConnectionType_tcp, Rtt: 20000, RttVar: 2000, LastBytesSent: 1000, LastBytesReceived: 2000}}}
+		dns := model.NewV2DNSEncoder()
+		domains, offsets, err := dns.EncodeDomainDatabase([]string{"api.acme.example"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		lookups, err := dns.EncodeMapped(map[string]*model.DNSDatabaseEntry{"203.0.113.80": {NameOffsets: []int32{0}}}, offsets)
+		if err != nil {
+			t.Fatal(err)
+		}
+		conn.EncodedDomainDatabase, conn.EncodedDnsLookups = domains, lookups
 		// Backend routing distinguishes an EUDM-only macOS sender from the
 		// synthetic Windows sender that also has NPM enabled. A nil config
 		// defaults to NPM in intake, so preserve the explicit false flag.
@@ -169,7 +183,7 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 		}
 		save(schema.Connections, offset, conn)
 	}
-	host := &telemetry.HostMetadata{Hostname: "capture-host", UUID: "00000000-0000-4000-8000-000000000001", AgentVersion: "7.85.0-fixture", AgentFlavor: "agent", OS: hostOS, HostTags: map[string][]string{"system": {"infra_mode:end_user_device"}}}
+	host := &telemetry.HostMetadata{Hostname: "capture-host", UUID: "00000000-0000-4000-8000-000000000001", AgentVersion: "7.85.0-fixture", AgentFlavor: "agent", OS: hostOS, HostTags: map[string][]string{"system": {"infra_mode:end_user_device"}, "gcp": {"team:desktop", "interactive"}}}
 	save(schema.HostMetadata, 0, host)
 	agentInventory := &tc.Inventory{Hostname: host.Hostname, UUID: host.UUID, Timestamp: int64(250 * time.Millisecond), Agent: &tc.AgentInventoryMetadata{
 		AgentVersion: host.AgentVersion, PackageVersion: "7.85.0-fixture", Flavor: "agent", InfrastructureMode: "end_user_device", AgentStartupTimeMS: -60000,
@@ -187,13 +201,14 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 	}}
 	save(schema.HostInventory, 0, hostInventory)
 	systemInfo := &tc.Inventory{Hostname: host.Hostname, UUID: host.UUID, Timestamp: int64(5250 * time.Millisecond), SystemInfo: &tc.HostSystemInfoMetadata{
-		Manufacturer: "Apple Inc.", ModelNumber: "Mac16,5", SerialNumber: "serial_number-" + strings.Repeat("5", 32),
-		ModelName: "device_model-" + strings.Repeat("6", 32), ChassisType: "Laptop", Identifier: "Mac16,5",
+		Manufacturer: "Apple Inc.", ModelNumber: "Mac16,5", SerialNumber: "FIXTURE-SERIAL-001",
+		ModelName: "MacBook Pro", ChassisType: "Laptop", Identifier: "Mac16,5",
 	}}
 	if platform == "windows" {
 		systemInfo.SystemInfo.Manufacturer = "Lenovo"
-		systemInfo.SystemInfo.ModelNumber = "device_model-" + strings.Repeat("7", 32)
-		systemInfo.SystemInfo.Identifier = "device_model-" + strings.Repeat("8", 32)
+		systemInfo.SystemInfo.ModelNumber = "21HM"
+		systemInfo.SystemInfo.ModelName = "ThinkPad X1 Carbon Gen 11"
+		systemInfo.SystemInfo.Identifier = "21HMCTO1WW"
 	}
 	save(schema.HostSystemInfo, 5*time.Second, systemInfo)
 	kind := "app"
@@ -201,6 +216,11 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 		kind = "desktop"
 	}
 	sw := &softwareimpl.Payload{Hostname: "capture-host", Metadata: softwareimpl.HostSoftware{Software: []software.Entry{{DisplayName: "Google Chrome", Version: "137.0.7151.69", Source: kind, Status: "installed"}, {DisplayName: "OS", Version: "15.6", Source: "os", Status: "installed"}}}}
+	productCode, installPath := "com.acme.workspace", "/Applications/Acme Workspace.app"
+	if platform == "windows" {
+		productCode, installPath = "{28DA55C3-E174-49F3-8411-441CFABEF0D2}", `C:\Program Files\Acme\Workspace`
+	}
+	sw.Metadata.Software = append(sw.Metadata.Software, software.Entry{DisplayName: "Acme Workspace", Publisher: "Acme Software Ltd.", Version: "2025.10-beta+build.7", Source: kind, Status: "installed", ProductCode: productCode, InstallDate: "2025-06-12T10:30:00Z", InstallPaths: []string{installPath}})
 	if platform == "windows" {
 		sw.Metadata.Software = append(sw.Metadata.Software, software.Entry{DisplayName: "SentinelOne", Version: "23.4.2", Source: "desktop", Status: "installed"})
 	}

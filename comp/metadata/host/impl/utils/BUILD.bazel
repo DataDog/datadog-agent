@@ -8,7 +8,6 @@ go_library(
     srcs = [
         "capture.go",
         "common.go",
-        "gohai_capture.go",
         "host.go",
         "host_nix.go",
         "host_windows.go",
@@ -99,7 +98,6 @@ dd_agent_go_test(
     srcs = [
         "capture_test.go",
         "common_test.go",
-        "gohai_capture_test.go",
         "host_nix_test.go",
         "host_test.go",
         "host_windows_test.go",

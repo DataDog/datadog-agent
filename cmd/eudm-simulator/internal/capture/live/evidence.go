@@ -27,14 +27,14 @@ import (
 	tc "github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
-// Evidence sanitizes complete observed cycles and writes typed samples.
+// Evidence normalizes complete observed cycles and writes typed samples.
 // The coordinator validates IPC provenance before handing records to the sink.
 type Evidence struct {
 	directory      string
 	tool           bundle.BuildIdentity
 	profile        schema.Profile
 	session        Session
-	sanitizer      *capture.Sanitizer
+	normalizer     *capture.Normalizer
 	writer         *bundle.Writer
 	participants   map[string]Participant
 	offsets        map[schema.Stream][]time.Duration
@@ -97,11 +97,8 @@ func (e *Evidence) Start(ctx context.Context, session Session) error {
 		}
 		e.participants[status.Producer.InstanceID] = participant
 	}
+	e.normalizer = capture.NewNormalizer()
 	var err error
-	e.sanitizer, err = capture.NewSanitizer()
-	if err != nil {
-		return errors.New("cannot initialize capture sanitizer")
-	}
 	e.writer, err = bundle.NewWriter(e.directory, bundle.Manifest{CaptureTool: e.tool, SessionID: session.ID, MetricCadences: e.metricCadences})
 	if err != nil {
 		return err
@@ -195,20 +192,24 @@ func (e *Evidence) metrics(record tc.Record, ref bundle.SampleRef) (bool, error)
 			return false, errors.New("invalid metric semantic evidence")
 		}
 		value := &metrics.Serie{Name: serie.Name, Source: metrics.MetricSource(serie.Source), MType: metrics.APIMetricType(serie.Type), Interval: serie.Interval,
-			Host: serie.Host, Device: serie.Device, Tags: tagset.CompositeTagsFromSlice(serie.Tags)}
+			Host: serie.Host, Device: serie.Device, Tags: tagset.CompositeTagsFromSlice(serie.Tags),
+			Unit: serie.Unit, SourceTypeName: serie.SourceTypeName, NoIndex: serie.NoIndex}
+		for _, resource := range serie.Resources {
+			value.Resources = append(value.Resources, metrics.Resource{Type: resource.Type, Name: resource.Name})
+		}
 		for _, point := range serie.Points {
 			value.Points = append(value.Points, metrics.Point{Ts: point.Timestamp - float64(e.session.Origin.UnixNano())/1e9, Value: point.Value})
 		}
 		native = append(native, value)
 	}
-	source, err := e.sanitizer.Series(capture.NewSeriesSource(native))
+	source, err := e.normalizer.Series(capture.NewSeriesSource(native))
 	if err != nil {
-		return false, errors.New("cannot sanitize metric evidence")
+		return false, errors.New("cannot normalize metric evidence")
 	}
 	clean := source.(*capture.SeriesSource).Series
 	typed, err := telemetry.NewMetricSample(clean)
 	if err != nil {
-		return false, errors.New("invalid sanitized metric evidence")
+		return false, errors.New("invalid normalized metric evidence")
 	}
 	if !e.retainCycle(ref.Stream, ref.Offset) {
 		return false, nil
@@ -233,15 +234,22 @@ func (e *Evidence) metrics(record tc.Record, ref bundle.SampleRef) (bool, error)
 
 func metadataProjection(in *tc.HostMetadata) *capture.HostMetadata {
 	result := &capture.HostMetadata{AgentVersion: in.AgentVersion, UUID: in.UUID, Hostname: in.Hostname, OS: in.OS, AgentFlavor: in.AgentFlavor,
+		PythonVersion: in.PythonVersion, InstallMethod: in.InstallMethod, Logs: in.Logs, OTLP: map[string]bool{"enabled": in.OTLPEnabled},
+		FIPSMode: in.FIPSMode, FIPSProxyEnabled: in.FIPSProxyEnabled, ContainerMeta: in.ContainerMeta, Proxy: in.Proxy,
 		HostTags: in.HostTags, Network: map[string]string{"network-id": in.NetworkID}, SystemStats: map[string]json.RawMessage{}}
+	if in.PublicIPv4 != "" {
+		result.Network["public-ipv4"] = in.PublicIPv4
+	}
 	for key, value := range map[string]any{"cpuCores": in.CPUCores, "machine": in.Machine, "platform": in.Platform,
-		"macV": []any{in.MacVersion, [3]string{}, in.MacMachine}, "winV": in.Windows} {
+		"pythonV": in.PythonRuntimeVersion, "processor": in.Processor,
+		"macV": []any{in.MacVersion, in.MacReleaseInfo, in.MacMachine}, "winV": in.Windows, "nixV": in.UnixVersion, "fbsdV": in.FreeBSDVersion} {
 		result.SystemStats[key], _ = json.Marshal(value)
 	}
-	if len(in.Gohai) != 0 {
-		data, _ := json.Marshal(in.Gohai)
-		result.Gohai = string(data)
+	if in.Meta != nil {
+		data, _ := json.Marshal(in.Meta)
+		_ = json.Unmarshal(data, &result.Meta)
 	}
+	result.Gohai = in.Gohai
 	return result
 }
 
@@ -249,9 +257,9 @@ func (e *Evidence) metadata(record tc.Record, ref bundle.SampleRef) (bool, error
 	if record.Payload.Metadata == nil || record.Payload.Metadata.Hostname == "" || len(record.Payload.Series) != 0 || len(record.Payload.Chunks) != 0 || record.Payload.Inventory != nil || record.Payload.Software != nil || record.Payload.Metadata.AgentVersion != record.Producer.Version {
 		return false, errors.New("invalid host metadata projection")
 	}
-	clean, err := e.sanitizer.HostMetadata(metadataProjection(record.Payload.Metadata))
+	clean, err := e.normalizer.HostMetadata(metadataProjection(record.Payload.Metadata))
 	if err != nil {
-		return false, errors.New("cannot sanitize host metadata")
+		return false, errors.New("cannot normalize host metadata")
 	}
 	if err := e.validateSample(ref.Stream, clean); err != nil {
 		return false, err
@@ -274,7 +282,7 @@ func (e *Evidence) inventory(record tc.Record, ref bundle.SampleRef) (bool, erro
 		(record.Stream == tc.HostSystemInfo && (in.SystemInfo == nil || in.Agent != nil || in.Host != nil)) {
 		return false, errors.New("invalid inventory projection or collection boundary")
 	}
-	clean, err := e.sanitizer.Inventory(in, e.session.Origin)
+	clean, err := e.normalizer.Inventory(in, e.session.Origin)
 	if err != nil {
 		return false, err
 	}
@@ -303,7 +311,7 @@ func (e *Evidence) software(record tc.Record, ref bundle.SampleRef) (bool, error
 	if len(native.Metadata.Software) == 0 {
 		return false, nil
 	}
-	clean := &softwareimpl.Payload{Hostname: "capture-host", Metadata: softwareimpl.HostSoftware{Software: e.sanitizer.Software(native.Metadata.Software)}}
+	clean := &softwareimpl.Payload{Hostname: native.Hostname, Metadata: softwareimpl.HostSoftware{Software: e.normalizer.Software(native.Metadata.Software)}}
 	if err := e.validateSample(ref.Stream, clean); err != nil {
 		return false, err
 	}
@@ -328,21 +336,12 @@ func (e *Evidence) group(record tc.Record, ref bundle.SampleRef) (bool, error) {
 		return false, err
 	}
 	retain := e.retainCycle(ref.Stream, ref.Offset)
-	sanitizer := e.sanitizer
-	if !retain {
-		// Omitted cycles still undergo complete semantic validation, but their
-		// identities must not grow the session's cross-stream PID mapping.
-		sanitizer, err = capture.NewSanitizer()
-		if err != nil {
-			return false, errors.New("cannot initialize discarded group validation")
-		}
-	}
 	clean := make([]model.MessageBody, 0, len(messages))
 	total := 0
 	for _, message := range messages {
 		switch value := message.(type) {
 		case *model.CollectorProc:
-			body := sanitizer.Process(value)
+			body := e.normalizer.Process(value)
 			if body.Info == nil || body.Info.TotalMemory <= 0 {
 				return false, errors.New("process group lacks system information")
 			}
@@ -356,9 +355,9 @@ func (e *Evidence) group(record tc.Record, ref bundle.SampleRef) (bool, error) {
 			total += len(body.Processes)
 			clean = append(clean, body)
 		case *model.CollectorConnections:
-			body := sanitizer.Connections(value)
+			body := e.normalizer.Connections(value)
 			if body == nil {
-				return false, errors.New("cannot sanitize connection DNS evidence")
+				return false, errors.New("invalid connection DNS framing")
 			}
 			total += len(body.Connections)
 			clean = append(clean, body)
@@ -405,9 +404,9 @@ func appendUnique(values []string, value string) []string {
 }
 
 func (e *Evidence) validateSample(stream schema.Stream, value any) error {
-	data, err := json.Marshal(value)
+	data, err := telemetry.Encode(value)
 	if err != nil {
-		return errors.New("invalid sanitized evidence sample")
+		return errors.New("invalid normalized evidence sample")
 	}
 	decode := telemetry.Decode
 	if stream == schema.Processes || stream == schema.Connections {
@@ -415,7 +414,7 @@ func (e *Evidence) validateSample(stream schema.Stream, value any) error {
 	}
 	sample, err := decode(stream, data)
 	if err != nil {
-		return errors.New("invalid sanitized evidence sample")
+		return errors.New("invalid normalized evidence sample")
 	}
 	osname := ""
 	if sample.HostMetadata != nil {
@@ -528,13 +527,13 @@ func (e *Evidence) Finish(ctx context.Context, statuses []tc.Status, ended time.
 	return err
 }
 
-// Close releases the sanitizer and session state. It does
+// Close releases the normalizer and session state. It does
 // not write a completion marker and is safe after cancellation or failure.
 func (e *Evidence) Close() {
 	if e.closed {
 		return
 	}
 	e.closed = true
-	e.sanitizer = nil
+	e.normalizer = nil
 	e.participants = nil
 }

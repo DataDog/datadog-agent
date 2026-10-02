@@ -6,7 +6,6 @@
 package telemetry
 
 import (
-	"encoding/json"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -22,7 +21,7 @@ func TestEmptyGroupChunksKeepSingletonValidationStrict(t *testing.T) {
 		{schema.Connections, &model.CollectorConnections{HostName: "capture-host", GroupSize: 2}},
 	} {
 		t.Run(string(test.stream), func(t *testing.T) {
-			data, err := json.Marshal(test.value)
+			data, err := Encode(test.value)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -51,5 +50,18 @@ func TestGroupChunkStillValidatesRequiredShape(t *testing.T) {
 		if _, err := DecodeGroupChunk(test.stream, []byte(test.data)); err == nil {
 			t.Fatal("invalid grouped sample was accepted")
 		}
+	}
+}
+
+func TestHostMetadataPreservesNativeHardwareJSONShape(t *testing.T) {
+	const hardware = `{"network":{"interfaces":[{"name":"en0","ipv4":["192.0.2.4"]}]},"filesystem":[{"name":"/dev/disk3s1","size":9007199254740993}]}`
+	value := &HostMetadata{Hostname: "native-host", AgentVersion: "7.85.0", OS: "darwin", Gohai: hardware}
+	data, err := Encode(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := Decode(schema.HostMetadata, data)
+	if err != nil || decoded.HostMetadata.Gohai != hardware {
+		t.Fatalf("native hardware JSON shape or precision changed: %v", err)
 	}
 }

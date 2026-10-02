@@ -118,7 +118,7 @@ func liveSerializer(t *testing.T, version int) (*Serializer, *liveTestForwarder)
 
 func liveInput() *liveTestSource {
 	return &liveTestSource{index: -1, values: []*metrics.Serie{
-		{Name: "system.cpu.user", Host: "native-host", Source: metrics.MetricSource(123), MType: metrics.APIGaugeType, Interval: 15, Tags: tagset.NewCompositeTags([]string{"device:native-device", "native:tag"}, nil), Points: []metrics.Point{{Ts: 1234567890.125, Value: 7.5}}},
+		{Name: "system.cpu.user", Host: "native-host", Source: metrics.MetricSource(123), Unit: "percent", SourceTypeName: "System", Resources: []metrics.Resource{{Type: "device", Name: "native-resource"}}, MType: metrics.APIGaugeType, Interval: 15, Tags: tagset.NewCompositeTags([]string{"device:native-device", "native:tag"}, nil), Points: []metrics.Point{{Ts: 1234567890.125, Value: 7.5}}},
 		{Name: "uncaptured.metric", Host: "native-host", MType: metrics.APIGaugeType, Points: []metrics.Point{{Ts: 1234567890, Value: 8}}},
 		{Name: "system.mem.total", Host: "native-host", MType: metrics.APIGaugeType, Points: []metrics.Point{{Ts: 1234567890.25, Value: 42}}},
 		{Name: "system.uptime", Host: "native-host", MType: metrics.APIGaugeType, Points: []metrics.Point{{Ts: 1234567890.5, Value: 99}}},
@@ -151,6 +151,11 @@ func TestLiveMetricCapturePreservesDelivery(t *testing.T) {
 			require.Equal(t, 1234567890.125, record.Payload.Series[0].Points[0].Timestamp)
 			require.Contains(t, record.Payload.Series[0].Tags, "device:native-device", "copy must precede mutation")
 			require.Empty(t, record.Payload.Series[0].Device)
+			require.Equal(t, "percent", record.Payload.Series[0].Unit)
+			require.Equal(t, "System", record.Payload.Series[0].SourceTypeName)
+			require.Equal(t, []telemetrycapture.Resource{{Type: "device", Name: "native-resource"}}, record.Payload.Series[0].Resources)
+			input.values[0].Resources[0].Name = "changed"
+			require.Equal(t, "native-resource", record.Payload.Series[0].Resources[0].Name)
 			input.values[0].Points[0].Value = -1
 			require.Equal(t, 7.5, record.Payload.Series[0].Points[0].Value)
 		})
@@ -326,6 +331,24 @@ func TestLiveMetricCapturePipelineFiltersAndDeduplicates(t *testing.T) {
 			require.Len(t, batch.Records, 1)
 			require.Len(t, batch.Records[0].Payload.Series, 1)
 			require.Equal(t, "system.mem.total", batch.Records[0].Payload.Series[0].Name)
+		})
+	}
+}
+
+func TestLiveMetricCapturePreservesNoIndexInSupportingProtocols(t *testing.T) {
+	for _, version := range []int{2, 3} {
+		t.Run(strconv.Itoa(version), func(t *testing.T) {
+			s, _ := liveSerializer(t, version)
+			m, control := liveManager(t)
+			s.LiveCapture = m
+			input := liveInput()
+			input.values[0].NoIndex = true
+			require.NoError(t, s.SendIterableSeries(input))
+			batch, err := m.Read(telemetrycapture.ReadRequest{Control: control})
+			require.NoError(t, err)
+			defer batch.Release()
+			require.Len(t, batch.Records, 1)
+			require.True(t, batch.Records[0].Payload.Series[0].NoIndex)
 		})
 	}
 }

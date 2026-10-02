@@ -21,9 +21,6 @@ import (
 type Payload struct {
 	captureCollectedAt time.Time
 	captureCadence     time.Duration
-	// nativeGohai keeps the original semantic fields for an owned capture
-	// projection; it is never marshaled into the production or capture envelope.
-	nativeGohai *gohai.Payload
 	utils.CommonPayload
 	utils.Payload
 
@@ -57,7 +54,6 @@ func (h *host) getPayload(ctx context.Context) *Payload {
 			h.log.Errorf("Could not serialize gohai payload: %s", err)
 		} else {
 			p.GohaiPayload = string(gohaiPayload)
-			p.nativeGohai = native
 		}
 	}
 	return p

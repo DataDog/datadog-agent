@@ -1,5 +1,5 @@
 # REQUIRED OPERATOR INPUT: replace every REPLACE_WITH_CAPTURED_VPN_CONNECTION_SELECTOR
-# with the exact selector of a known VPN-path TCP connection from your sanitized
+# with the exact selector of a known VPN-path TCP connection from your captured
 # Windows capture profile. No endpoint is guessed and plan rejects this placeholder.
 # This scenario is externally gated on the unchanged private network-performance
 # monitor producing its Command Center issue; explorer visibility alone is insufficient.

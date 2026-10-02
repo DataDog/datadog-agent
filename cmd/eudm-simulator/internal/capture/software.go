@@ -7,57 +7,16 @@ package capture
 
 import (
 	"slices"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 )
 
-// Software copies the complete snapshot, including applications not named by
-// a scenario. Fields not explicitly included here are deliberately discarded.
-func (s *Sanitizer) Software(entries []software.Entry) []software.Entry {
-	result := make([]software.Entry, 0, len(entries))
-	for _, entry := range entries {
-		name := entry.DisplayName
-		if !slices.Contains([]string{"Google Chrome", "SentinelOne", "Sentinel Agent", "OS"}, name) {
-			name = s.token("software", name)
-		}
-		publisher := entry.Publisher
-		if !slices.Contains([]string{"Google LLC", "Google, Inc.", "SentinelOne", "Apple Inc.", "Microsoft Corporation"}, publisher) {
-			publisher = s.token("publisher", publisher)
-		}
-		source := entry.Source
-		if !slices.Contains([]string{"desktop", "msstore", "msi", "app", "system_app", "homebrew", "pkg", "macports", "mas", "os", "driver", "kext", "sysext"}, source) {
-			source = ""
-		}
-		status := entry.Status
-		if !slices.Contains([]string{
-			"installed", "absent", "pending_install", "pending_removal", "uninstalling", "failed", "broken",
-			"inactive", "imaged", "unknown", "installed (dependency)", "inactive (dependency)", "imaged (dependency)",
-		}, status) {
-			status = ""
-		}
-		version := safeVersion(entry.Version)
-		if source == "os" {
-			version = safeOSVersion(entry.Version)
-		}
-		if version == "" && entry.Version != "" {
-			// The software backend requires a nonempty version. Keep opaque
-			// observed versions distinct without persisting arbitrary strings or
-			// making them look like an actual release number.
-			version = s.token("software_version", entry.Version)
-		}
-		clean := software.Entry{DisplayName: name, Version: version, Source: source, Publisher: publisher, Status: status, Is64Bit: entry.Is64Bit, ProductCode: s.token("product", entry.ProductCode), UserSID: s.token("user", entry.UserSID)}
-		for _, path := range entry.InstallPaths {
-			prefix := "/capture/software/"
-			windowsPath := strings.TrimPrefix(strings.ReplaceAll(path, "/", `\`), `\\?\`)
-			if len(windowsPath) >= 3 && ((windowsPath[0] >= 'A' && windowsPath[0] <= 'Z') || (windowsPath[0] >= 'a' && windowsPath[0] <= 'z')) && windowsPath[1:3] == `:\` {
-				prefix = `C:\capture\software\`
-			} else if strings.HasPrefix(windowsPath, `\\`) || strings.HasPrefix(windowsPath, `UNC\`) {
-				prefix = `\\capture-server\software\`
-			}
-			clean.InstallPaths = append(clean.InstallPaths, prefix+s.token("path", path))
-		}
-		result = append(result, clean)
+// Software owns the complete snapshot without changing names, versions,
+// publishers, paths, deployment states, or historical installation dates.
+func (*Normalizer) Software(entries []software.Entry) []software.Entry {
+	owned := slices.Clone(entries)
+	for i := range owned {
+		owned[i].InstallPaths = slices.Clone(entries[i].InstallPaths)
 	}
-	return result
+	return owned
 }

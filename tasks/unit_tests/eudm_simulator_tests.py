@@ -235,7 +235,7 @@ class TestReadiness(unittest.TestCase):
                 {"family": "battery", "cadence": 300_000_000_000},
             ]
         return {
-            "protocol_version": 2,
+            "protocol_version": 3,
             "producer": {"role": role, "commit": commit, "instance_id": "opaque"},
             "capabilities": capabilities,
         }
@@ -293,7 +293,7 @@ class TestReadiness(unittest.TestCase):
     def test_previous_capture_protocol_requires_reinstallation(self):
         def read(role):
             value = self.status(role)
-            value["protocol_version"] = 1
+            value["protocol_version"] = 2
             return value
 
         with patch.object(eudm.time, "monotonic", side_effect=[0, 0, 2]), patch.object(eudm.time, "sleep"):

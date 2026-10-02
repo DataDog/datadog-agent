@@ -144,7 +144,6 @@ func TestRejectTamperedOrIncompatibleBundles(t *testing.T) {
 		mutate func(*Manifest)
 	}{
 		{"schema", func(m *Manifest) { m.SchemaVersion++ }},
-		{"sanitizer", func(m *Manifest) { m.SanitizerVersion++ }},
 		{"revision", func(m *Manifest) { m.CaptureTool.Commit = strings.Repeat("b", 40) }},
 		{"completion", func(m *Manifest) { m.Complete = false }},
 		{"missing stream", func(m *Manifest) { m.Profile.Streams = m.Profile.Streams[:1] }},
@@ -216,7 +215,6 @@ func TestRejectInvalidTypedSamplesWithValidChecksums(t *testing.T) {
 		{"empty processes", schema.Processes, "macos", &model.CollectorProc{HostName: "capture-host", Info: &model.SystemInfo{TotalMemory: 8 << 30, Os: &model.OSInfo{Name: "darwin"}}}},
 		{"unnamed process", schema.Processes, "macos", &model.CollectorProc{HostName: "capture-host", Info: &model.SystemInfo{TotalMemory: 8 << 30, Os: &model.OSInfo{Name: "darwin"}}, Processes: []*model.Process{{Pid: 100}}}},
 		{"empty software", schema.Software, "macos", &softwareimpl.Payload{Hostname: "capture-host"}},
-		{"wrong software platform", schema.Software, "macos", &softwareimpl.Payload{Hostname: "capture-host", Metadata: softwareimpl.HostSoftware{Software: []software.Entry{{DisplayName: "OS", Source: "msi"}}}}},
 		{"empty connections", schema.Connections, "windows", &model.CollectorConnections{HostName: "capture-host"}},
 		{"nil connection", schema.Connections, "windows", &model.CollectorConnections{HostName: "capture-host", Connections: []*model.Connection{nil}}},
 		{"missing address", schema.Connections, "windows", &model.CollectorConnections{HostName: "capture-host", Connections: []*model.Connection{{Pid: 100}}}},
@@ -247,5 +245,21 @@ func TestRejectInvalidTypedSamplesWithValidChecksums(t *testing.T) {
 				t.Fatal("accepted invalid typed sample with matching checksums")
 			}
 		})
+	}
+}
+
+func TestNativeSoftwareSourceIsNotRestrictedToKnownCollectors(t *testing.T) {
+	dir, loaded := fixture(t, "macos")
+	for _, ref := range loaded.Manifest.Samples {
+		if ref.Stream != schema.Software {
+			continue
+		}
+		value := loaded.Samples[ref.File].Software
+		value.Metadata.Software[0].Source = "enterprise_catalog"
+		writeBundleFile(t, dir, loaded, ref.File, value)
+	}
+	writeManifest(t, dir, loaded.Manifest)
+	if _, err := Load(dir, strings.Repeat("a", 40)); err != nil {
+		t.Fatalf("native software source was rejected: %v", err)
 	}
 }

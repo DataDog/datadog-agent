@@ -20,6 +20,21 @@ func (*Payload) CaptureInventoryStream() telemetrycapture.Stream {
 func (p *Payload) captureMetadata() telemetrycapture.HostInventoryMetadata {
 	h := p.Metadata
 	return telemetrycapture.HostInventoryMetadata{
+		KernelVersion:                h.KernelVersion,
+		Interfaces:                   h.Interfaces,
+		CloudProvider:                h.CloudProvider,
+		CloudProviderSource:          h.CloudProviderSource,
+		CloudProviderAccountID:       h.CloudProviderAccountID,
+		CloudProviderHostID:          h.CloudProviderHostID,
+		CanonicalCloudResourceID:     h.CanonicalCloudResourceID,
+		InstanceType:                 h.InstanceType,
+		HypervisorGuestUUID:          h.HypervisorGuestUUID,
+		DmiProductUUID:               h.DmiProductUUID,
+		DmiBoardAssetTag:             h.DmiBoardAssetTag,
+		DmiBoardVendor:               h.DmiBoardVendor,
+		LinuxPackageSigningEnabled:   h.LinuxPackageSigningEnabled,
+		RPMGlobalRepoGPGCheckEnabled: h.RPMGlobalRepoGPGCheckEnabled,
+
 		CPUCores: h.CPUCores, CPULogicalProcessors: h.CPULogicalProcessors, CPUVendor: h.CPUVendor,
 		CPUModel: h.CPUModel, CPUModelID: h.CPUModelID, CPUFamily: h.CPUFamily, CPUStepping: h.CPUStepping,
 		CPUFrequency: h.CPUFrequency, CPUCacheSize: h.CPUCacheSize,
@@ -38,8 +53,8 @@ func (p *Payload) CaptureInventorySize() int64 {
 	return 256 + telemetrycapture.InventorySize(&telemetrycapture.Inventory{Hostname: p.Hostname, UUID: p.UUID, Host: &h})
 }
 
-// CopyCaptureInventory excludes cloud identities, DMI asset identifiers,
-// kernel build strings, and the opaque network-interface dump before copying.
+// CopyCaptureInventory preserves native host telemetry; device identities
+// are normalized by the coordinator rather than discarded here.
 func (p *Payload) CopyCaptureInventory() *telemetrycapture.Inventory {
 	if p.Metadata == nil {
 		return nil

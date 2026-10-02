@@ -189,7 +189,7 @@ func TestRepeatedInventoryAndMetricFamiliesKeepNativeCadences(t *testing.T) {
 						t.Fatal("repeating inventory falsely restarted the simulated Agent")
 					}
 					if info := inventory.SystemInfo; info != nil {
-						if info.SerialNumber == "" || info.SerialNumber == "serial_number-"+strings.Repeat("5", 32) || info.SerialNumber != cycles[0].SystemInfo.SerialNumber {
+						if info.SerialNumber == "" || info.SerialNumber == "FIXTURE-SERIAL-001" || info.SerialNumber != cycles[0].SystemInfo.SerialNumber {
 							t.Fatal("repeated system information lost its stable device serial")
 						}
 					}
@@ -302,6 +302,9 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 			var host string
 			switch body := message.Body.(type) {
 			case *model.CollectorProc:
+				if body.GetHintMask() != 1 {
+					t.Fatal("native process hints were lost")
+				}
 				host = body.HostName
 				d := device(host)
 				d.processes = append(d.processes, at)
@@ -309,7 +312,7 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 				if d.os == "windows" {
 					wantOS, wantChrome = "windows", "chrome.exe"
 				}
-				if body.Info == nil || body.Info.Os == nil || body.Info.Os.Name != wantOS || body.Info.Uuid != d.id.UUID || body.NetworkId != d.id.NetworkID || body.GroupSize != 1 {
+				if body.Info == nil || body.Info.Os == nil || body.Info.Os.Name != wantOS || body.Info.Uuid != d.id.UUID || body.NetworkId != "network-"+strings.Repeat("4", 32) || body.GroupSize != 1 {
 					t.Fatal("process OS, UUID, network or chunk identity changed")
 				}
 				foundChrome := false
@@ -317,6 +320,12 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 					d.processPIDs[process.Pid] = true
 					if process.CreateTime != start.Add(-time.Minute).UnixMilli() || !slices.Contains(process.Tags, d.id.RunTag) {
 						t.Fatal("process time or opaque run identity changed")
+					}
+					if process.User.GetName() != "fixture-user" || process.IoStat.GetReadRate() != 5 || process.IoStat.GetWriteRate() != 9 || !slices.Contains(process.Tags, "team:desktop") || !slices.Contains(process.Tags, "interactive") || !slices.Contains(process.Command.Args, "--profile=work") {
+						t.Fatal("native process user, I/O, tags, or arguments changed")
+					}
+					if process.Command.Comm != wantChrome && process.Command.Comm != "SentinelAgent.exe" && process.Command.Comm != "AcmeSync" && process.Command.Comm != "AcmeSync.exe" {
+						t.Fatal("native background process name changed")
 					}
 					if process.Command.Comm == wantChrome {
 						foundChrome = true
@@ -332,7 +341,7 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 				host = body.HostName
 				d := device(host)
 				d.connections = append(d.connections, at)
-				if body.NetworkId != d.id.NetworkID || body.GroupSize != 1 || len(body.Connections) != 1 {
+				if body.NetworkId != "network-"+strings.Repeat("4", 32) || body.GroupSize != 1 || len(body.Connections) != 1 {
 					t.Fatal("portable connection identity or evidence changed")
 				}
 				if config := body.AgentConfiguration; config == nil || !config.EudmEnabled || config.NpmEnabled != (d.os == "windows") {
@@ -340,8 +349,15 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 				}
 				connection := body.Connections[0]
 				d.connectionPID = append(d.connectionPID, connection.Pid)
-				if connection.Rtt != 20000 || connection.LastBytesSent != 1000 || connection.Laddr.HostName != host {
+				if connection.Rtt != 20000 || connection.LastBytesSent != 1000 || connection.Laddr.HostName != "" {
 					t.Fatal("captured connection baseline or local host relationship changed")
+				}
+				if connection.Raddr.Ip != "203.0.113.80" || connection.Laddr.Ip == "10.0.0.1" {
+					t.Fatal("remote destination changed or local device address was not isolated")
+				}
+				var domains []string
+				if err := body.IterateDNS(connection.Raddr, func(_, _ int, name string) bool { domains = append(domains, name); return true }); err != nil || !slices.Equal(domains, []string{"api.acme.example"}) {
+					t.Fatal("native DNS name or endpoint association changed")
 				}
 			default:
 				t.Fatalf("unexpected process message %T", message.Body)
@@ -411,6 +427,9 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 			if payload.OS != wantOS || payload.UUID != d.id.UUID || !slices.Contains(payload.HostTags["system"], d.id.RunTag) {
 				t.Fatal("host enrichment metadata does not represent the simulated device")
 			}
+			if !slices.Contains(payload.HostTags["gcp"], "team:desktop") || !slices.Contains(payload.HostTags["gcp"], "interactive") {
+				t.Fatal("native host tag buckets were discarded")
+			}
 			inspected = &payload
 		case "/api/v1/metadata":
 			decoded, err := pipeline.Serializer.Strategy.Decompress(ref.Body)
@@ -462,12 +481,19 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 				if payload.Timestamp != start.Add(5250*time.Millisecond).UnixNano() || info.Manufacturer != manufacturer || info.ChassisType != "Laptop" {
 					t.Fatal("host system information lost its observed timing or hardware fields")
 				}
-				if info.SerialNumber == "" || info.SerialNumber == "serial_number-"+strings.Repeat("5", 32) || systemInfoSerials[info.SerialNumber] {
+				if info.SerialNumber == "" || info.SerialNumber == "FIXTURE-SERIAL-001" || systemInfoSerials[info.SerialNumber] {
 					t.Fatal("host system information serial was not isolated per simulated device")
 				}
 				systemInfoSerials[info.SerialNumber] = true
-				if info.ModelName == "" || info.ModelName == "device_model-"+strings.Repeat("6", 32) || (systemInfoModel != "" && info.ModelName != systemInfoModel) {
-					t.Fatal("host system information lost its shared run-scoped hardware model")
+				if info.ModelName == "" || (systemInfoModel != "" && info.ModelName != systemInfoModel) {
+					t.Fatal("host system information lost its observed shared hardware model")
+				}
+				modelName := "MacBook Pro"
+				if d.os == "windows" {
+					modelName = "ThinkPad X1 Carbon Gen 11"
+				}
+				if info.ModelName != modelName {
+					t.Fatal("native hardware model name changed")
 				}
 				systemInfoModel = info.ModelName
 				if d.os == "macos" && (info.ModelNumber != "Mac16,5" || info.Identifier != "Mac16,5") {
@@ -501,6 +527,22 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 				d.software++
 				if len(payload.Metadata.Software) < 2 || payload.Metadata.Software[0].DisplayName != "Google Chrome" || payload.Metadata.Software[0].Version != "137.0.7151.69" {
 					t.Fatal("complete software snapshot or captured Chrome version lost")
+				}
+				productCode, installPath := "com.acme.workspace", "/Applications/Acme Workspace.app"
+				if d.os == "windows" {
+					productCode, installPath = "{28DA55C3-E174-49F3-8411-441CFABEF0D2}", `C:\Program Files\Acme\Workspace`
+				}
+				found := false
+				for _, app := range payload.Metadata.Software {
+					if app.DisplayName == "Acme Workspace" {
+						found = true
+						if app.Publisher != "Acme Software Ltd." || app.Version != "2025.10-beta+build.7" || app.ProductCode != productCode || app.InstallDate != "2025-06-12T10:30:00Z" || !slices.Equal(app.InstallPaths, []string{installPath}) {
+							t.Fatal("native application identification or installation details changed")
+						}
+					}
+				}
+				if !found {
+					t.Fatal("application outside the former allowlist was lost")
 				}
 			}
 			inspected = payloads
@@ -665,8 +707,8 @@ func TestWirelessEvidenceThroughAgentNDMBatchesAndMetricDelivery(t *testing.T) {
 				}
 				addresses = append(addresses, payload.IPAddresses...)
 			}
-			if strings.Contains(string(data), "private-") || strings.Contains(string(data), "wireless_access_points") {
-				t.Fatal("local AP declaration or expectation leaked into NDM evidence")
+			if !strings.Contains(string(data), "private-network") || strings.Contains(string(data), "wireless_access_points") {
+				t.Fatal("configured SSID was lost or scenario expectations entered NDM telemetry")
 			}
 		case "/api/v2/series":
 			data, err := pipeline.Serializer.Strategy.Decompress(ref.Body)

@@ -12,33 +12,47 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
+var captureContainerKeys = [...]string{"cri_name", "cri_version", "docker_version", "docker_swarm", "kubelet_version"}
+
 // CaptureMetadataSize conservatively charges the fields CopyCaptureMetadata
-// allocates. APIKey and unrelated cloud/container/configuration data are never
-// read by either helper, including when computing the reservation size.
+// allocates. APIKey and arbitrary configuration/container fields are never read
+// by either helper, including when computing the reservation size.
 func CaptureMetadataSize(common *CommonPayload, p *Payload) int64 {
-	n := int64(2048 + len(common.AgentVersion) + len(common.UUID) + len(common.InternalHostname) + len(p.Os) + len(p.AgentFlavor))
+	n := int64(8192 + len(common.AgentVersion) + len(common.UUID) + len(common.InternalHostname) + len(p.Os) + len(p.AgentFlavor) + len(p.PythonVersion))
 	if stats := p.SystemStats; stats != nil {
-		n += int64(len(stats.Machine) + len(stats.Platform))
-		for _, value := range stats.Macver {
-			if v, ok := any(value).(string); ok {
-				n += int64(len(v))
-			}
-		}
-		for _, value := range stats.Winver {
-			if v, ok := any(value).(string); ok {
-				n += int64(len(v))
+		n += int64(len(stats.Machine) + len(stats.Platform) + len(stats.Pythonv) + len(stats.Processor))
+		for _, tuple := range []osVersion{stats.Macver, stats.Winver, stats.Nixver, stats.Fbsdver} {
+			for _, value := range tuple {
+				switch value := any(value).(type) {
+				case string:
+					n += int64(len(value))
+				case [3]string:
+					for _, part := range value {
+						n += int64(len(part))
+					}
+				}
 			}
 		}
 	}
 	if network := p.NetworkMeta; network != nil {
-		n += int64(len(network.ID))
+		n += int64(len(network.ID) + len(network.PublicIPv4))
 	}
 	if tags := p.HostTags; tags != nil {
-		n += int64(len(tags.System)) * int64(unsafe.Sizeof(""))
-		for _, tag := range tags.System {
-			n += int64(len(tag))
+		for _, values := range [][]string{tags.System, tags.GoogleCloudPlatform} {
+			n += 256 + int64(len(values))*int64(unsafe.Sizeof(""))
+			for _, tag := range values {
+				n += int64(len(tag))
+			}
 		}
 	}
+	// These conversions borrow named scalar structures without allocating or
+	// inspecting credentials. Their strings and slices are copied only later.
+	borrowed := &telemetrycapture.HostMetadata{Meta: (*telemetrycapture.HostIdentityMetadata)(p.Meta), InstallMethod: (*telemetrycapture.HostInstallMethod)(p.InstallMethod), Logs: (*telemetrycapture.HostLogsMetadata)(p.LogsMeta)}
+	n += telemetrycapture.PayloadSize(telemetrycapture.Payload{Metadata: borrowed})
+	for _, key := range captureContainerKeys {
+		n += 256 + int64(len(key)+len(p.ContainerMeta[key]))
+	}
+
 	return n
 }
 
@@ -48,12 +62,18 @@ func CopyCaptureMetadata(common *CommonPayload, p *Payload) *telemetrycapture.Ho
 	result := &telemetrycapture.HostMetadata{
 		AgentVersion: strings.Clone(common.AgentVersion), UUID: strings.Clone(common.UUID),
 		Hostname: strings.Clone(common.InternalHostname), OS: strings.Clone(p.Os), AgentFlavor: strings.Clone(p.AgentFlavor),
+		PythonVersion: strings.Clone(p.PythonVersion), FIPSMode: p.FipsMode, FIPSProxyEnabled: p.FipsProxyEnabled,
 	}
 	if stats := p.SystemStats; stats != nil {
 		result.CPUCores, result.Machine, result.Platform = int(stats.CPUCores), strings.Clone(stats.Machine), strings.Clone(stats.Platform)
+		result.PythonRuntimeVersion, result.Processor = strings.Clone(stats.Pythonv), strings.Clone(stats.Processor)
+		result.UnixVersion, result.FreeBSDVersion = copyVersionStrings(stats.Nixver), copyVersionStrings(stats.Fbsdver)
 		// The legacy tuple differs between platforms; consume only the fields
-		// used by the sanitizer, leaving the old Python tuple/config data behind.
+		// used by native host metadata, including the release-info tuple.
 		for i, value := range stats.Macver {
+			if tuple, ok := any(value).([3]string); ok && i == 1 {
+				result.MacReleaseInfo = copyStrings(tuple[:])
+			}
 			if v, ok := any(value).(string); ok {
 				switch i {
 				case 0:
@@ -64,26 +84,76 @@ func CopyCaptureMetadata(common *CommonPayload, p *Payload) *telemetrycapture.Ho
 			}
 		}
 		if p.Os == "win32" || p.Os == "windows" {
-			result.Windows = make([]string, 2)
-			for i, value := range stats.Winver {
-				if i >= len(result.Windows) {
-					break
-				}
-				if v, ok := any(value).(string); ok {
-					result.Windows[i] = strings.Clone(v)
-				}
-			}
+			result.Windows = copyVersionStrings(stats.Winver)
 		}
 	}
 	if network := p.NetworkMeta; network != nil {
-		result.NetworkID = strings.Clone(network.ID)
+		result.NetworkID, result.PublicIPv4 = strings.Clone(network.ID), strings.Clone(network.PublicIPv4)
 	}
 	if tags := p.HostTags; tags != nil {
-		owned := make([]string, len(tags.System))
-		for i, tag := range tags.System {
-			owned[i] = strings.Clone(tag)
+		result.HostTags = map[string][]string{"system": copyStrings(tags.System)}
+		if tags.GoogleCloudPlatform != nil {
+			result.HostTags["google cloud platform"] = copyStrings(tags.GoogleCloudPlatform)
 		}
-		result.HostTags = map[string][]string{"system": owned}
 	}
+	if p.Meta != nil {
+		m := (*telemetrycapture.HostIdentityMetadata)(p.Meta)
+		result.Meta = &telemetrycapture.HostIdentityMetadata{
+			SocketHostname: strings.Clone(m.SocketHostname), SocketFqdn: strings.Clone(m.SocketFqdn), EC2Hostname: strings.Clone(m.EC2Hostname), Hostname: strings.Clone(m.Hostname),
+			HostAliases: copyStrings(m.HostAliases), Timezones: copyStrings(m.Timezones), InstanceID: strings.Clone(m.InstanceID), AgentHostname: strings.Clone(m.AgentHostname),
+			ClusterName: strings.Clone(m.ClusterName), LegacyResolutionHostname: strings.Clone(m.LegacyResolutionHostname), HostnameResolutionVersion: m.HostnameResolutionVersion, CanonicalCloudResourceID: strings.Clone(m.CanonicalCloudResourceID),
+		}
+	}
+	if p.InstallMethod != nil {
+		result.InstallMethod = &telemetrycapture.HostInstallMethod{Tool: copyStringPointer(p.InstallMethod.Tool), ToolVersion: strings.Clone(p.InstallMethod.ToolVersion), InstallerVersion: copyStringPointer(p.InstallMethod.InstallerVersion)}
+	}
+	if p.LogsMeta != nil {
+		result.Logs = &telemetrycapture.HostLogsMetadata{Transport: strings.Clone(p.LogsMeta.Transport), AutoMultilineEnabled: p.LogsMeta.AutoMultilineEnabled}
+	}
+	if p.ProxyMeta != nil {
+		proxy := telemetrycapture.HostProxyMetadata(*p.ProxyMeta)
+		result.Proxy = &proxy
+	}
+	for _, key := range captureContainerKeys {
+		if value, ok := p.ContainerMeta[key]; ok {
+			if result.ContainerMeta == nil {
+				result.ContainerMeta = make(map[string]string)
+			}
+			result.ContainerMeta[strings.Clone(key)] = strings.Clone(value)
+		}
+	}
+	if p.OtlpMeta != nil {
+		result.OTLPEnabled = p.OtlpMeta.Enabled
+	}
+
 	return result
+}
+
+func copyStringPointer(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	owned := strings.Clone(*value)
+	return &owned
+}
+
+func copyStrings(values []string) []string {
+	if values == nil {
+		return nil
+	}
+	owned := make([]string, len(values))
+	for i, value := range values {
+		owned[i] = strings.Clone(value)
+	}
+	return owned
+}
+
+func copyVersionStrings(version osVersion) []string {
+	owned := make([]string, len(version))
+	for i, value := range version {
+		if text, ok := any(value).(string); ok {
+			owned[i] = strings.Clone(text)
+		}
+	}
+	return owned
 }

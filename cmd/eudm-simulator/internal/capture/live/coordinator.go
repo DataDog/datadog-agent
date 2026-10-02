@@ -125,7 +125,7 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, opti
 		return errors.New("capture activation spread exceeds five seconds")
 	}
 	if err := sink.Start(work, session); err != nil {
-		return errors.New("cannot initialize sanitized capture evidence")
+		return errors.New("cannot initialize normalized capture evidence")
 	}
 	for {
 		if err := contextFailure(work, heartbeatError, sink, session); err != nil {
@@ -190,7 +190,7 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, opti
 		return err
 	}
 	if err := sink.Finish(work, stopped, time.Now()); err != nil {
-		return errors.New("cannot finalize sanitized capture evidence")
+		return errors.New("cannot finalize normalized capture evidence")
 	}
 	return nil
 }
@@ -320,7 +320,7 @@ func readRound(ctx context.Context, producers []*producer, control tc.Control, s
 				}
 			} else {
 				if err := sink.Accept(ctx, *record); err != nil {
-					return false, errors.New("cannot sanitize or persist captured output")
+					return false, errors.New("cannot normalize or persist captured output")
 				}
 			}
 			p.cursor = record.Sequence

@@ -10,8 +10,6 @@ import (
 	"math"
 	"net"
 	"net/netip"
-	"regexp"
-	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
@@ -31,7 +29,7 @@ func validateInventory(stream schema.Stream, value *telemetrycapture.Inventory) 
 	}
 	if stream == schema.HostSystemInfo {
 		h := value.SystemInfo
-		if h == nil || value.Agent != nil || value.Host != nil || (h.Manufacturer == "" && h.ModelName == "" && h.ModelNumber == "" && h.Identifier == "") || !slices.Contains([]string{"", "Laptop", "Desktop", "Virtual Machine", "Other"}, h.ChassisType) {
+		if h == nil || value.Agent != nil || value.Host != nil || (h.Manufacturer == "" && h.ModelName == "" && h.ModelNumber == "" && h.Identifier == "") {
 			return errors.New("system information lacks a unique observed hardware projection")
 		}
 		return nil
@@ -62,15 +60,14 @@ func validateInventory(stream schema.Stream, value *telemetrycapture.Inventory) 
 	return nil
 }
 
-var windowsPlatformPattern = regexp.MustCompile(`^(?:Microsoft )?Windows (?:10|11|Server (?:2016|2019|2022|2025))(?: (?:Home(?: Single Language)?|Pro(?: for Workstations| Education)?|Professional|Enterprise(?: (?:LTSC|LTSB)(?: 20[0-9]{2})?)?|Education|Standard|Datacenter|Essentials|IoT Enterprise(?: LTSC)?))?(?: N)?(?: Evaluation)?$`)
-
 // InventoryPlatform normalizes the native platform spelling without inventing
 // platform evidence that the inventory producer did not observe.
 func InventoryPlatform(value string) string {
-	if windowsPlatformPattern.MatchString(value) {
+	value = strings.ToLower(value)
+	if strings.HasPrefix(value, "windows ") || strings.HasPrefix(value, "microsoft windows ") {
 		return "windows"
 	}
-	switch strings.ToLower(value) {
+	switch value {
 	case "darwin", "macos":
 		return "macos"
 	case "windows", "win32":

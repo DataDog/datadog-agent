@@ -140,7 +140,7 @@ func TestRecorderAcceptsCompleteLargeProcessGroup(t *testing.T) {
 	}
 }
 
-func TestSanitizedMetricReachesRealForwarderRecordingTransport(t *testing.T) {
+func TestNativeMetricReachesRealForwarderWithoutRecordingCredentials(t *testing.T) {
 	cfg := configmock.New(t)
 	logger := logmock.New(t)
 	cfg.SetInTest("site", "datad0g.com")
@@ -158,11 +158,8 @@ func TestSanitizedMetricReachesRealForwarderRecordingTransport(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Stop()
-	sanitizer, err := capture.NewSanitizer()
-	if err != nil {
-		t.Fatal(err)
-	}
-	source, err := sanitizer.Series(capture.NewSeriesSource([]*metrics.Serie{{Name: "system.cpu.user", Host: "UNIQUE-RAW-HOST", MType: metrics.APIGaugeType, Points: []metrics.Point{{Ts: 1, Value: 5}}}}))
+	normalizer := capture.NewNormalizer()
+	source, err := normalizer.Series(capture.NewSeriesSource([]*metrics.Serie{{Name: "system.cpu.user", Host: "UNIQUE-RAW-HOST", MType: metrics.APIGaugeType, Points: []metrics.Point{{Ts: 1, Value: 5}}}}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,8 +184,8 @@ func TestSanitizedMetricReachesRealForwarderRecordingTransport(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if bytes.Contains(body, []byte("UNIQUE-RAW-HOST")) || !bytes.Contains(body, []byte("capture-host")) {
-			t.Fatal("serializer did not receive sanitized host identity")
+		if !bytes.Contains(body, []byte("UNIQUE-RAW-HOST")) || bytes.Contains(body, []byte(cfg.GetString("api_key"))) {
+			t.Fatal("native metric changed or a credential entered the payload")
 		}
 		for _, values := range ref.Headers {
 			for _, value := range values {

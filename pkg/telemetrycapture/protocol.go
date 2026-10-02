@@ -11,7 +11,7 @@ import "time"
 
 const (
 	// ProtocolVersion identifies the producer/coordinator IPC contract.
-	ProtocolVersion = 2
+	ProtocolVersion = 3
 	// MaxRecords includes unfinished observations and unacknowledged records.
 	MaxRecords = 256
 	// MaxBytes is the capture-owned memory budget in each producer.
@@ -115,35 +115,61 @@ type Point struct {
 	Value     float64 `json:"value"`
 }
 
+// Resource preserves one native metric resource association.
+type Resource struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
+}
+
 // Series is an owned semantic copy, made before serializer-side mutation.
 type Series struct {
-	Name     string   `json:"name"`
-	Source   uint32   `json:"source"`
-	Type     int32    `json:"type"`
-	Interval int64    `json:"interval"`
-	Host     string   `json:"host"`
-	Device   string   `json:"device"`
-	Tags     []string `json:"tags"`
-	Points   []Point  `json:"points"`
+	Unit           string     `json:"unit,omitempty"`
+	SourceTypeName string     `json:"source_type_name,omitempty"`
+	NoIndex        bool       `json:"no_index,omitempty"`
+	Resources      []Resource `json:"resources,omitempty"`
+	Name           string     `json:"name"`
+	Source         uint32     `json:"source"`
+	Type           int32      `json:"type"`
+	Interval       int64      `json:"interval"`
+	Host           string     `json:"host"`
+	Device         string     `json:"device"`
+	Tags           []string   `json:"tags"`
+	Points         []Point    `json:"points"`
 }
 
 // HostMetadata is a credential-free projection. It deliberately has no field
-// for API keys, resources, configuration, or cloud/container metadata.
+// for API keys, arbitrary resources, or configuration. Device identity fields
+// are retained for the coordinator to remap coherently.
 type HostMetadata struct {
-	AgentVersion string                       `json:"agent_version"`
-	UUID         string                       `json:"uuid"`
-	Hostname     string                       `json:"hostname"`
-	OS           string                       `json:"os"`
-	AgentFlavor  string                       `json:"agent_flavor"`
-	CPUCores     int                          `json:"cpu_cores"`
-	Machine      string                       `json:"machine"`
-	Platform     string                       `json:"platform"`
-	MacVersion   string                       `json:"mac_version"`
-	MacMachine   string                       `json:"mac_machine"`
-	Windows      []string                     `json:"windows"`
-	NetworkID    string                       `json:"network_id"`
-	HostTags     map[string][]string          `json:"host_tags"`
-	Gohai        map[string]map[string]string `json:"gohai"`
+	ContainerMeta        map[string]string     `json:"container_meta,omitempty"`
+	Proxy                *HostProxyMetadata    `json:"proxy,omitempty"`
+	PythonVersion        string                `json:"python_version,omitempty"`
+	PythonRuntimeVersion string                `json:"python_runtime_version,omitempty"`
+	Processor            string                `json:"processor,omitempty"`
+	MacReleaseInfo       []string              `json:"mac_release_info,omitempty"`
+	UnixVersion          []string              `json:"unix_version,omitempty"`
+	FreeBSDVersion       []string              `json:"freebsd_version,omitempty"`
+	PublicIPv4           string                `json:"public_ipv4,omitempty"`
+	Meta                 *HostIdentityMetadata `json:"meta,omitempty"`
+	InstallMethod        *HostInstallMethod    `json:"install_method,omitempty"`
+	Logs                 *HostLogsMetadata     `json:"logs,omitempty"`
+	OTLPEnabled          bool                  `json:"otlp_enabled"`
+	FIPSMode             bool                  `json:"fips_mode"`
+	FIPSProxyEnabled     bool                  `json:"fips_proxy_enabled"`
+	AgentVersion         string                `json:"agent_version"`
+	UUID                 string                `json:"uuid"`
+	Hostname             string                `json:"hostname"`
+	OS                   string                `json:"os"`
+	AgentFlavor          string                `json:"agent_flavor"`
+	CPUCores             int                   `json:"cpu_cores"`
+	Machine              string                `json:"machine"`
+	Platform             string                `json:"platform"`
+	MacVersion           string                `json:"mac_version"`
+	MacMachine           string                `json:"mac_machine"`
+	Windows              []string              `json:"windows"`
+	NetworkID            string                `json:"network_id"`
+	HostTags             map[string][]string   `json:"host_tags"`
+	Gohai                string                `json:"gohai"`
 }
 
 // Message holds an owned, complete software event before batch aggregation.
@@ -182,4 +208,40 @@ type Record struct {
 	ObservedAt      time.Time     `json:"observed_at"`
 	Cadence         time.Duration `json:"cadence"`
 	Payload         Payload       `json:"payload"`
+}
+
+// HostIdentityMetadata preserves native device identity and hostname provenance.
+type HostIdentityMetadata struct {
+	SocketHostname            string   `json:"socket-hostname"`
+	Timezones                 []string `json:"timezones"`
+	SocketFqdn                string   `json:"socket-fqdn"`
+	EC2Hostname               string   `json:"ec2-hostname"`
+	Hostname                  string   `json:"hostname"`
+	HostAliases               []string `json:"host_aliases"`
+	InstanceID                string   `json:"instance-id"`
+	AgentHostname             string   `json:"agent-hostname,omitempty"`
+	ClusterName               string   `json:"cluster-name,omitempty"`
+	LegacyResolutionHostname  string   `json:"legacy-resolution-hostname,omitempty"`
+	HostnameResolutionVersion int      `json:"hostname-resolution-version,omitempty"`
+	CanonicalCloudResourceID  string   `json:"ccrid,omitempty"`
+}
+
+// HostInstallMethod preserves the native installation metadata.
+type HostInstallMethod struct {
+	Tool             *string `json:"tool"`
+	ToolVersion      string  `json:"tool_version"`
+	InstallerVersion *string `json:"installer_version"`
+}
+
+// HostLogsMetadata describes the native logs transport capability.
+type HostLogsMetadata struct {
+	Transport            string `json:"transport"`
+	AutoMultilineEnabled bool   `json:"auto_multi_line_detection_enabled"`
+}
+
+// HostProxyMetadata preserves behavior flags, never proxy URLs or credentials.
+type HostProxyMetadata struct {
+	NoProxyNonexactMatch              bool `json:"no-proxy-nonexact-match"`
+	ProxyBehaviorChanged              bool `json:"proxy-behavior-changed"`
+	NoProxyNonexactMatchExplicitlySet bool `json:"no-proxy-nonexact-match-explicitly-set"`
 }

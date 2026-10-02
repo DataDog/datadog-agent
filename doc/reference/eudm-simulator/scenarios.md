@@ -71,16 +71,16 @@ All names referenced by process, software, metric, and connection overlays must 
 | `tags` | Operator-supplied `key:value` tags; use synthetic, neutral values |
 | `total_ram_gb` | An exact captured-capacity constraint, using GiB; `0`/omitted preserves the captured profile. It does not resize a device. |
 | `baseline_variance` | A value from `0` to `1`, default `0`; bounds deterministic variation of explicitly overlaid values |
-| `ssid`, `bssid` | Association inputs that become run-scoped emitted identities; require captured WLAN metrics and identity tags |
+| `ssid`, `bssid` | Literal association overrides; require captured WLAN metrics and identity tags |
 | `access_point`, `radio` | Associate clients to a declared AP and radio; `radio` defaults to that AP's first radio. `access_point` and literal `bssid` are mutually exclusive. |
 
 The runner assigns device ordinals in fleet declaration order. Changing that order changes identities and variation. Increasing worker count does not change membership or normalized values. Every run has a fresh opaque run ID even when its seed is unchanged. Set the seed with `run --seed`; its default is `1`.
 
 `baseline_variance` does not randomize unspecified captured background telemetry. A phase's `jitter_scale` multiplies the configured spread, capped at `1`; omitted or `0` means `1`, so set `baseline_variance: 0` to disable endpoint variation. The independent key includes seed, cohort, device ordinal, phase, stream, sample ordinal, and field.
 
-Reserved tags include scenario/expectation/cohort labels and generated host, network, wireless, and NDM identity keys. See `validateTag` in <<<repo("cmd/eudm-simulator/internal/schema/contracts.go")>>> for the full list. The emitted selector is `eudm_run_id:<opaque-id>` and the NDM namespace is `eudm-<opaque-id>`. Declared SSIDs/BSSIDs and AP addresses are inputs to identity rewriting, not literal product selectors; use the report and emitted resources for queries.
+Reserved tags include scenario/expectation/cohort labels and generated host, network, wireless, and NDM identity keys. See `validateTag` in <<<repo("cmd/eudm-simulator/internal/schema/contracts.go")>>> for the full list. The emitted selector is `eudm_run_id:<opaque-id>` and the NDM namespace is `eudm-<opaque-id>`. SSIDs and cohort BSSIDs stay literal. Declared AP radios and AP addresses receive run-scoped identities; use the report and emitted resources to query those resources.
 
-Scenario YAML is operator-authored input, not observed Agent data passed through the capture sanitizer. Keep real credentials, usernames, private addresses, and sensitive command arguments out of it. Neutral tags should provide realistic comparison dimensions without naming the intended root cause.
+Scenario YAML supplies explicit overrides to captured telemetry. Its values are sent as authored; keep transport credentials out of it. Neutral tags should provide realistic comparison dimensions without naming the intended root cause.
 
 ## Patterns and endpoint overlays
 
@@ -107,9 +107,9 @@ Phase `metrics`, `processes`, `software_inventory`, and `connections` are maps k
 
 Each process entry requires `name`, `cpu`, and `memory`. Names match captured process names exactly. CPU is the total whole-host percentage assigned to all matching PIDs, from 0 to 100. Memory is total RSS in MiB, distributed over those PIDs according to captured shares. The runner converts CPU to Agent process units and reconciles the delta into host user/system/idle CPU and used/free/usable memory metrics. Do not independently overlay those host metrics in the same phase and cohort.
 
-Optional `user`, `exe`, and `args` alter existing process fields; omitted fields preserve the sanitized capture. Supply only synthetic values. `args` is the full argument vector, including argument zero, which is set to the executable when arguments exist. The `SentinelAgent.exe` path follows the active SentinelOne version, including the version directory.
+Optional `user`, `exe`, and `args` alter existing process fields; omitted fields preserve the native capture. `args` is the full argument vector, including argument zero, which is set to the executable when arguments exist. The `SentinelAgent.exe` path follows the active SentinelOne version, including the version directory.
 
-Software entries match existing display names, set `version`, and optionally change nonempty `publisher`, `software_type`, `deployment_status`, `deployment_time`, `product_code`, and `user`. A phase entry takes precedence over a top-level entry of the same name. Entries update the existing application rather than adding duplicates. `is_64_bit: true` sets the field; false/omitted preserves the capture rather than forcing a 32-bit application. Identity rewriting still applies to product/user/path fields. Capture sanitization removes installation dates; supply an explicit synthetic `deployment_time` if the scenario needs one. There is no default installation date derived from the run start.
+Software entries match existing display names, set `version`, and optionally change nonempty `publisher`, `software_type`, `deployment_status`, `deployment_time`, `product_code`, and `user`. A phase entry takes precedence over a top-level entry of the same name. Entries update the existing application rather than adding duplicates. `is_64_bit: true` sets the field; false/omitted preserves the capture rather than forcing a 32-bit application. Product codes, users, paths, and historical installation dates remain native unless explicitly overridden. There is no default installation date derived from the run start.
 
 Start from the shipped Chrome or SentinelOne declaration. Confirm that the process stays present throughout the capture, the matching software version is healthy, and resource headroom supports the incident values plus variation. A declaration cannot invent a missing installation.
 
@@ -123,7 +123,7 @@ Copy the shipped VPN file locally and replace every `REPLACE_WITH_CAPTURED_VPN_C
 
 | Connection field | Units/behavior |
 | --- | --- |
-| `selector` | Exact sanitized captured connection selector; the selected connection must be TCP |
+| `selector` | Exact captured connection selector; the selected connection must be TCP |
 | `rtt_ms`, `rtt_variance_ms` | Milliseconds; multiplied by 1000 and rounded into Agent microsecond fields |
 | `retransmits` | Nonnegative count per sampled connection; rounded into the Agent counter field |
 | `tcp_failures` | Map of standardized error code to count pattern; supported keys are `104`, `110`, `111`, `125`; `110` is timeout |

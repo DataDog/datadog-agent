@@ -125,10 +125,13 @@ func prepare(request Request) (*prepared, error) {
 			return nil, errors.New("verified bundle bytes changed before replay")
 		}
 	}
+	baseline := make([]*telemetry.Sample, 0, len(b.Manifest.Samples))
 	for _, ref := range b.Manifest.Samples {
-		if _, err := decodeCapturedSample(b, ref); err != nil {
+		sample, err := decodeCapturedSample(b, ref)
+		if err != nil {
 			return nil, fmt.Errorf("invalid captured %s sample: %w", ref.Stream, err)
 		}
+		baseline = append(baseline, sample)
 	}
 	aps, err := accesspoint.New(request.Scenario, request.Plan.RunID, request.Plan.Seed)
 	if err != nil {
@@ -163,7 +166,7 @@ func prepare(request Request) (*prepared, error) {
 			return nil, err
 		}
 		for j := 0; j < group.Count; j++ {
-			id := identity.New(request.Plan.RunID, request.Plan.Seed, group.Group, ordinal)
+			id := identity.New(request.Plan.RunID, request.Plan.Seed, group.Group, ordinal, baseline...)
 			d := &device{group: group, ordinal: ordinal, id: id, capture: b, timelines: timelines, wireless: wireless}
 			p.devices = append(p.devices, d)
 			p.report.AddDevice(ordinal, id.Hostname, group.Group, b.Digest, streams)

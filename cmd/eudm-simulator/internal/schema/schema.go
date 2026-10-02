@@ -59,7 +59,7 @@ type SoftwareItem struct {
 	SoftwareType     string `yaml:"software_type"`          // macOS: "app"/"homebrew"/"pkg"; Windows: "desktop"/"msstore"
 	DeploymentStatus string `yaml:"deployment_status"`      // empty preserves captured status
 	Is64Bit          bool   `yaml:"is_64_bit"`              // true sets the flag; false preserves capture
-	DeploymentTime   string `yaml:"deployment_time"`        // explicit installation date; empty preserves sanitized capture
+	DeploymentTime   string `yaml:"deployment_time"`        // explicit installation date; empty preserves captured capture
 	ProductCode      string `yaml:"product_code,omitempty"` // e.g. "{GUID}"; empty preserves capture before identity rewriting
 	User             string `yaml:"user,omitempty"`         // Windows per-user SID or account; empty preserves capture
 }

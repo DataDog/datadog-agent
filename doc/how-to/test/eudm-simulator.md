@@ -24,15 +24,22 @@ ENRICHMENT**: EUDM still showed blank OS/hardware fields and `noagent`, while
 Fleet showed the correct Agent version. See the [live verification record](#inventory-discovery-fix-2026-10-01).
 The earlier schema-2 run omitted the separate Agent inventory payload required
 for discovery. Schema 4 added schedules and coverage for every running supported metric check
-family, including battery. Current schema 5 keeps those streams and schedules
-but stores typed samples only, without regenerated requests or routing proofs.
-It requires producer capture protocol 2. The historical live results below
+family, including battery. Current schema 6 keeps those streams and schedules and preserves native telemetry
+values instead of anonymizing them. It stores typed samples only, without
+regenerated requests or routing proofs, and requires producer capture protocol 3. The historical live results below
 predate this simplification; they are not a new live acceptance result.
 macOS also captures connections when Process Agent advertises them. Reinstall the updated producers and
 recapture; an older bundle cannot supply the missing evidence.
 The Windows VPN proof remains
 **NOT RUN — DEFERRED**. Unit tests, recording transports, synthetic fixtures,
 and successful delivery do not establish either backend relationship.
+
+Real bundles retain native application/process names, users, paths, domains,
+versions, and hardware details. Treat them as telemetry exports and keep them
+outside the repository. Capture excludes credentials and Agent configuration
+blobs. Replay changes device identities and observation times while preserving
+remote destinations and product identities; explicit scenario overlays determine
+other changes. Existing anonymized bundles cannot recover their original values.
 
 ## Build and capture separately
 
@@ -80,7 +87,7 @@ and system-probe services with the normal network driver.
 
 Capture and replay binaries must have the same exact stamped commit, recorded as
 `capture_tool.commit`. Producing Agents may use different commits, but must
-support capture protocol 2 and advertise metric check schedules. Installation and its restart happen before the
+support capture protocol 3 and advertise metric check schedules. Installation and its restart happen before the
 observation window; capture itself never starts, restarts, or replaces services.
 
 Use a healthy device with the applications, hardware, and wireless interfaces
@@ -138,7 +145,7 @@ producer schedule. Covered non-metric streams retain only their minimum cycles
 while later records continue through validation and acknowledgement.
 
 A running `host_system_info` provider adds the manufacturer, model, device type,
-and pseudonymous serial-number payload. It normally runs hourly, so use
+and native serial-number payload. It normally runs hourly, so use
 `--timeout 70m` to cover that wait. The default remains 35 minutes; an override
 must be positive and at most two hours. Capture never forces hardware collection.
 Replay must last beyond the first captured hardware offset; a short scenario
@@ -154,14 +161,14 @@ connections. Capture another suitable device to expand the available profile.
 
 Each selected producer acknowledges preparation and activation. Activation spread
 must be at most five seconds. Producers use bounded queues and a 30-second lease,
-renewed every five seconds. Capture overflow, coordinator loss, or sanitization
+renewed every five seconds. Capture overflow, coordinator loss, or normalization
 failure leaves normal submission running. On completion or failure, the command
 attempts stop and drain using an independent bounded cleanup context. Success
 requires every final sequence to be consumed and every stopped acknowledgement
 to arrive without failures or drops. An interrupted or failed directory without
 a valid `COMPLETE` cannot be replayed; retry into a new directory.
 
-Only sanitized typed samples are persisted. Schema-5 `manifest.json` records
+Native typed samples are persisted. Schema-6 `manifest.json` records
 `capture_tool`, session and producer identities, producer versions/commits and
 protocol, acknowledged boundaries, final sequences, explicit cycles and chunk
 order, profile, cadences, and file digests. Host metadata and Agent inventory
@@ -201,7 +208,7 @@ $env:DD_SITE = 'datad0g.com'
 if ($LASTEXITCODE -ne 0) { throw 'Capture failed; inspect missing-stream error' }
 ```
 
-If the local branch does not exist, use `git switch --track origin/focus/create-eudm-simulator` on the first checkout. Use a new bundle directory for a new capture. To reuse an existing compatible bundle, skip the `capture` command; never overwrite an earlier capture. Build capture/replay binaries at the same commit; installed producers must support protocol 2 and record their own build identities. Use separate runs and matching baselines for Windows and macOS scenarios.
+If the local branch does not exist, use `git switch --track origin/focus/create-eudm-simulator` on the first checkout. Use a new bundle directory for a new capture. To reuse an existing compatible bundle, skip the `capture` command; never overwrite an earlier capture. Build capture/replay binaries at the same commit; installed producers must support protocol 3 and record their own build identities. Use separate runs and matching baselines for Windows and macOS scenarios.
 
 Before the next block, obtain the intended staging organization's API key through your credential workflow and expose it as `DD_API_KEY` in this process. To check the scenario without sending telemetry, optionally run `& $eudm validate --scenario $scenario --bundle $bundle`; this needs no API key.
 
@@ -418,9 +425,9 @@ and Bits investigation.
 
 Create a local connection probe from the Windows baseline after inspecting the
 verified manifest's `profile.connection_selectors` and its corresponding
-sanitized records. The selector must identify a captured VPN-path connection;
+captured records. The selector must identify a captured VPN-path connection;
 do not substitute an invented endpoint or assume every connection is a VPN
-connection. Captured sanitized selectors alone do not prove VPN attribution:
+connection. Captured selectors alone do not prove VPN attribution:
 retain the capture operator's confirmation without recording the real private
 addresses in the probe.
 
@@ -506,7 +513,7 @@ on both capture devices, and recapture the baselines before the next runs.
 | Build dependencies or Windows native libraries missing | Use the repository's configured platform build environment. Native Windows build is an outstanding acceptance step; record the exact build failure rather than claiming the macOS result covers it. |
 | Capture deadline reports missing connections | Verify the advertised connection owner, driver/network collection, configured local API address, and active TCP traffic. Use capture `--cfgpath` for API/authentication locations; direct-send configuration stays unchanged. |
 | Capture has no `COMPLETE` marker | It did not finish required coverage. Preserve its error for diagnosis and recapture into a new directory; do not manufacture a completion marker. |
-| Capture-tool commit mismatch | Rebuild capture and replay binaries from one exact commit and recapture. Producer commits may differ when protocol 2 is supported. |
+| Capture-tool commit mismatch | Rebuild capture and replay binaries from one exact commit and recapture. Producer commits may differ when protocol 3 is supported. |
 | Legacy schema-1 or schema-2 bundle | Reinstall compatible producers and recapture to observe Agent and host inventories; do not relabel an old manifest. |
 | Capture reports missing Agent/host inventory capability | Install the updated core Agent and verify normal inventory collection is enabled; neither cached inventory endpoints nor host tags substitute for an observed inventory. |
 | Capture API unavailable or incompatible | Install compatible producing builds before the session and verify enabled streams. Capture cannot add the APIs to an older running service. |
@@ -530,6 +537,40 @@ on both capture devices, and recapture the baselines before the next runs.
 Use `capture --help`, `validate --help`, or `run --help` for the installed binary's flags. There is no resume, acceleration, standalone bundle-only validation, or automatic cleanup command. A retry is a new run with a new opaque identity. Select artifacts and product evidence by that identity so failed and concurrent runs do not contaminate the evaluation.
 
 ## Recorded local verification
+
+### Native telemetry fidelity, 2026-10-02
+
+Schema 6 removes capture anonymization. Protocol-3 producers preserve native
+metric dimensions and non-secret metadata, including the complete existing
+Gohai payload. Capture retains process/application names, users, paths,
+publishers, versions, product codes, historical installation dates, DNS names,
+and full process/connection fields. Replay remaps device identities and local
+references while keeping remote destinations and descriptive values intact.
+Protobuf-aware sample JSON retains process hint oneofs and integer precision.
+
+The complete simulator race suite passed: 415 test entries, with the live
+artifact audit and opt-in fixture generator skipped. The synthetic fixture
+generator was run separately; both schema-6 bundles have 30 samples, protocol-3
+producer inventories, valid digests, and the deliberate fixture commit. Replay
+tests decoded Agent output and verified native Acme application/publisher/version/
+product/path/date values, process names/arguments/users/I/O/hints, hardware labels,
+and DNS associations alongside distinct device identities and credential exclusion.
+
+Commands used:
+
+```sh
+dda inv test --targets=./cmd/eudm-simulator/... --build-exclude=python --race
+dda inv test --targets=./pkg/telemetrycapture,./pkg/serializer,./comp/metadata/host/impl,./comp/metadata/inventoryagent/impl,./comp/metadata/inventoryhost/impl,./comp/process/apiserver/impl --build-exclude=python --race
+dda run i python -m unittest tasks.unit_tests.eudm_simulator_tests
+dda inv eudm-simulator.install --prepare-only
+```
+
+The 24 installer tests, focused Go/Python lint, and core Agent/Process Agent/
+simulator builds and installed-runtime compatibility checks passed. The build
+used `--prepare-only`; installed services were not changed. Fresh protocol-3 live
+capture and staging UI verification remain **NOT RUN**. Older anonymized bundles
+cannot restore the original values and require recapture. Windows live acceptance
+remains deferred. Earlier records below describe earlier schemas only.
 
 ### Typed bundle simplification, 2026-10-02
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package bundle reads revision-bound sanitized capture directories.
+// Package bundle reads revision-bound telemetry capture directories.
 package bundle
 
 import (
@@ -23,13 +23,12 @@ import (
 )
 
 const (
-	SchemaVersion    = 5
-	SanitizerVersion = 1
+	SchemaVersion    = 6
 	maxManifestBytes = 4 << 20
 	maxFileBytes     = 64 << 20
 )
 
-// SampleRef identifies a sanitized sample and its collection cycle.
+// SampleRef identifies a captured sample and its collection cycle.
 type SampleRef struct {
 	Stream     schema.Stream `json:"stream"`
 	Offset     time.Duration `json:"offset_ns"`
@@ -41,7 +40,7 @@ type SampleRef struct {
 	File       string        `json:"file"`
 }
 
-// BuildIdentity binds portable replay to the tool that sanitized the bundle.
+// BuildIdentity binds portable replay to the tool that captured the bundle.
 // Installed producer builds are validated independently.
 type BuildIdentity struct {
 	Version string `json:"version"`
@@ -65,20 +64,19 @@ type Producer struct {
 	Drops                uint64          `json:"drops"`
 }
 
-// Manifest is written last, after all sanitized output is persisted.
+// Manifest is written last, after all captured output is persisted.
 type Manifest struct {
-	SchemaVersion    int                             `json:"schema_version"`
-	SanitizerVersion int                             `json:"sanitizer_version"`
-	CaptureTool      BuildIdentity                   `json:"capture_tool"`
-	SessionID        string                          `json:"session_id"`
-	Producers        []Producer                      `json:"producers"`
-	Profile          schema.Profile                  `json:"profile"`
-	Duration         time.Duration                   `json:"duration_ns"`
-	Cadences         map[schema.Stream]time.Duration `json:"cadences_ns"`
-	MetricCadences   map[string]time.Duration        `json:"metric_cadences_ns"`
-	Samples          []SampleRef                     `json:"samples"`
-	Files            map[string]string               `json:"files"`
-	Complete         bool                            `json:"complete"`
+	SchemaVersion  int                             `json:"schema_version"`
+	CaptureTool    BuildIdentity                   `json:"capture_tool"`
+	SessionID      string                          `json:"session_id"`
+	Producers      []Producer                      `json:"producers"`
+	Profile        schema.Profile                  `json:"profile"`
+	Duration       time.Duration                   `json:"duration_ns"`
+	Cadences       map[schema.Stream]time.Duration `json:"cadences_ns"`
+	MetricCadences map[string]time.Duration        `json:"metric_cadences_ns"`
+	Samples        []SampleRef                     `json:"samples"`
+	Files          map[string]string               `json:"files"`
+	Complete       bool                            `json:"complete"`
 }
 
 // Loaded owns verified sample bytes, so replay never reopens mutable files.
@@ -158,8 +156,8 @@ func Load(directory, captureToolCommit string) (*Loaded, error) {
 		return nil, fmt.Errorf("decode bundle manifest: %w", err)
 	}
 	m := &b.Manifest
-	if m.SchemaVersion != SchemaVersion || m.SanitizerVersion != SanitizerVersion {
-		return nil, errors.New("unsupported bundle schema or sanitizer version; recapture")
+	if m.SchemaVersion != SchemaVersion {
+		return nil, errors.New("unsupported bundle schema; recapture")
 	}
 	if !validCommit(captureToolCommit) || m.CaptureTool.Commit != captureToolCommit {
 		return nil, errors.New("bundle capture-tool commit mismatch; recapture using this exact replay revision")

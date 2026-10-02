@@ -21,16 +21,20 @@ type MetricSample struct {
 	Series []MetricSeries `json:"series"`
 }
 
-// MetricSeries is the capture allowlist, independent of metrics.Serie's wire JSON.
+// MetricSeries preserves semantic fields independently of metrics.Serie's wire JSON.
 type MetricSeries struct {
-	Name     string                `json:"metric"`
-	Host     string                `json:"host"`
-	Device   string                `json:"device,omitempty"`
-	Tags     []string              `json:"tags"`
-	Type     string                `json:"type"`
-	Interval int64                 `json:"interval"`
-	Source   *metrics.MetricSource `json:"source"`
-	Points   []MetricPoint         `json:"points"`
+	Unit           string                `json:"unit,omitempty"`
+	SourceTypeName string                `json:"source_type_name,omitempty"`
+	NoIndex        bool                  `json:"no_index,omitempty"`
+	Resources      []metrics.Resource    `json:"resources,omitempty"`
+	Name           string                `json:"metric"`
+	Host           string                `json:"host"`
+	Device         string                `json:"device,omitempty"`
+	Tags           []string              `json:"tags"`
+	Type           string                `json:"type"`
+	Interval       int64                 `json:"interval"`
+	Source         *metrics.MetricSource `json:"source"`
+	Points         []MetricPoint         `json:"points"`
 }
 
 // MetricPoint retains a fractional timestamp relative to capture start.
@@ -39,7 +43,7 @@ type MetricPoint struct {
 	Value     float64 `json:"value"`
 }
 
-// NewMetricSample takes an owned copy of the sanitized Agent series.
+// NewMetricSample takes an owned copy of the captured Agent series.
 func NewMetricSample(series []*metrics.Serie) (*MetricSample, error) {
 	sample := &MetricSample{Series: make([]MetricSeries, 0, len(series))}
 	for _, serie := range series {
@@ -47,7 +51,7 @@ func NewMetricSample(series []*metrics.Serie) (*MetricSample, error) {
 			return nil, errors.New("metric sample contains a nil series")
 		}
 		source := serie.Source
-		value := MetricSeries{Name: serie.Name, Host: serie.Host, Device: serie.Device, Tags: slices.Clone(serie.Tags.UnsafeToReadOnlySliceString()), Type: serie.MType.String(), Interval: serie.Interval, Source: &source}
+		value := MetricSeries{Name: serie.Name, Host: serie.Host, Device: serie.Device, Unit: serie.Unit, SourceTypeName: serie.SourceTypeName, NoIndex: serie.NoIndex, Resources: slices.Clone(serie.Resources), Tags: slices.Clone(serie.Tags.UnsafeToReadOnlySliceString()), Type: serie.MType.String(), Interval: serie.Interval, Source: &source}
 		for _, point := range serie.Points {
 			value.Points = append(value.Points, MetricPoint{Timestamp: point.Ts, Value: point.Value})
 		}
@@ -83,7 +87,7 @@ func (s *MetricSample) AgentSeries() ([]*metrics.Serie, error) {
 		default:
 			return nil, errors.New("metric series has an unsupported type")
 		}
-		value := &metrics.Serie{Name: serie.Name, Host: serie.Host, Device: serie.Device, Tags: tagset.CompositeTagsFromSlice(slices.Clone(serie.Tags)), MType: mtype, Interval: serie.Interval, Source: *serie.Source}
+		value := &metrics.Serie{Name: serie.Name, Host: serie.Host, Device: serie.Device, Unit: serie.Unit, SourceTypeName: serie.SourceTypeName, NoIndex: serie.NoIndex, Resources: slices.Clone(serie.Resources), Tags: tagset.CompositeTagsFromSlice(slices.Clone(serie.Tags)), MType: mtype, Interval: serie.Interval, Source: *serie.Source}
 		for _, point := range serie.Points {
 			if math.IsNaN(point.Timestamp) || math.IsInf(point.Timestamp, 0) || math.IsNaN(point.Value) || math.IsInf(point.Value, 0) {
 				return nil, errors.New("metric point must be finite")

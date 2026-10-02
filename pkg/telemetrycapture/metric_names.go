@@ -26,7 +26,7 @@ var metricNames = map[string]bool{
 	"system.net.tcp.retrans_packs": true, "system.net.tcp.sent_packs": true, "system.net.tcp.rcv_packs": true,
 }
 
-// MetricAllowed preserves the capture metric scope shared by producers and sanitization.
+// MetricAllowed preserves the metric scope shared by producers and capture normalization.
 func MetricAllowed(name string) bool { return metricNames[name] }
 
 // MetricCheckFamily accepts only fixed check names; it never exposes a check

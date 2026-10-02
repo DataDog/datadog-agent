@@ -46,7 +46,7 @@ const (
 	Software       Stream = "software"
 )
 
-// ConnectionOverlay selects only records with the given sanitized capture ID.
+// ConnectionOverlay selects only records with the given captured capture ID.
 // The bundle, rather than a host OS guess, determines whether evidence exists.
 type ConnectionOverlay struct {
 	Selector                string             `yaml:"selector"`

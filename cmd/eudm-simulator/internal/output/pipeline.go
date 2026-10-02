@@ -84,7 +84,7 @@ func NewConfig() config.Component {
 	return &isolatedConfig{BuildableConfig: cfg, start: time.Now()}
 }
 
-// Hostname implements the standard component using an already sanitized or
+// Hostname implements the standard component using an already captured or
 // replay-assigned identity, without resolving metadata from the local host.
 type Hostname string
 
@@ -250,7 +250,7 @@ func (p *Pipeline) Connections(ctx context.Context, at time.Time, body *model.Co
 	return p.Submitter.SubmitForHost(ctx, at, checks.ConnectionsCheckName, body.HostName, &types.Payload{Message: []model.MessageBody{body}})
 }
 
-// Group submits an entire sanitized collection through one ordinary queue
+// Group submits an entire captured collection through one ordinary queue
 // entry, retaining the request-ID chunk indices used for ordered delivery.
 func (p *Pipeline) Group(ctx context.Context, at time.Time, check, host string, bodies []model.MessageBody) error {
 	return p.Submitter.SubmitForHost(ctx, at, check, host, &types.Payload{Message: bodies})

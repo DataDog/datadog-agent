@@ -6,7 +6,6 @@
 package bundle
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,6 +15,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
+	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/telemetry"
 )
 
 func TestRejectIncompleteOrUnsafeProvenance(t *testing.T) {
@@ -130,7 +130,7 @@ func TestWindowsRequiresConnectionCoverage(t *testing.T) {
 
 func writeBundleFile(t *testing.T, dir string, loaded *Loaded, name string, value any) {
 	t.Helper()
-	data, err := json.Marshal(value)
+	data, err := telemetry.Encode(value)
 	if err != nil {
 		t.Fatal(err)
 	}

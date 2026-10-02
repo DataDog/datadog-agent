@@ -21,18 +21,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
-// HostMetadata is the portable sanitized subset of the Agent host metadata body.
+// HostMetadata retains native host telemetry without the legacy API key or
+// configuration/management credentials. Device identities are rewritten at replay.
 type HostMetadata struct {
-	AgentVersion string                     `json:"agentVersion"`
-	UUID         string                     `json:"uuid"`
-	Hostname     string                     `json:"internalHostname"`
-	OS           string                     `json:"os"`
-	AgentFlavor  string                     `json:"agent-flavor"`
-	SystemStats  map[string]json.RawMessage `json:"systemStats,omitempty"`
-	Meta         map[string]json.RawMessage `json:"meta"`
-	Network      map[string]string          `json:"network,omitempty"`
-	HostTags     map[string][]string        `json:"host-tags"`
-	Gohai        string                     `json:"gohai,omitempty"`
+	AgentVersion     string                              `json:"agentVersion"`
+	UUID             string                              `json:"uuid"`
+	Hostname         string                              `json:"internalHostname"`
+	OS               string                              `json:"os"`
+	AgentFlavor      string                              `json:"agent-flavor"`
+	PythonVersion    string                              `json:"python"`
+	InstallMethod    *telemetrycapture.HostInstallMethod `json:"install-method,omitempty"`
+	Logs             *telemetrycapture.HostLogsMetadata  `json:"logs,omitempty"`
+	OTLP             map[string]bool                     `json:"otlp,omitempty"`
+	FIPSMode         bool                                `json:"fips_mode"`
+	FIPSProxyEnabled bool                                `json:"fips_proxy_enabled"`
+	ContainerMeta    map[string]string                   `json:"container-meta,omitempty"`
+	Proxy            *telemetrycapture.HostProxyMetadata `json:"proxy-info,omitempty"`
+	SystemStats      map[string]json.RawMessage          `json:"systemStats,omitempty"`
+	Meta             map[string]json.RawMessage          `json:"meta"`
+	Network          map[string]string                   `json:"network,omitempty"`
+	HostTags         map[string][]string                 `json:"host-tags"`
+	Gohai            string                              `json:"gohai,omitempty"`
 }
 
 // MarshalJSON satisfies the Agent host metadata serialization boundary.
@@ -89,7 +98,7 @@ func decodeSample(stream schema.Stream, data []byte, allowEmptyChunk bool) (*Sam
 			return nil, errors.New("host metadata lacks host, version, or supported operating system")
 		}
 		if value.Gohai != "" {
-			var nested map[string]map[string]any
+			var nested map[string]json.RawMessage
 			if err := decode([]byte(value.Gohai), &nested); err != nil || nested == nil {
 				return nil, errors.New("host metadata contains invalid gohai JSON")
 			}
@@ -106,7 +115,7 @@ func decodeSample(stream schema.Stream, data []byte, allowEmptyChunk bool) (*Sam
 		sample.Inventory = &value
 	case schema.Processes:
 		var value model.CollectorProc
-		if err := decode(data, &value); err != nil {
+		if err := decodeProto(data, &value); err != nil {
 			return nil, err
 		}
 		if value.HostName == "" || value.Info == nil || value.Info.TotalMemory <= 0 || value.Info.Os == nil || !slices.Contains([]string{"darwin", "windows"}, value.Info.Os.Name) || (!allowEmptyChunk && len(value.Processes) == 0) {
@@ -120,7 +129,7 @@ func decodeSample(stream schema.Stream, data []byte, allowEmptyChunk bool) (*Sam
 		sample.Processes = &value
 	case schema.Connections:
 		var value model.CollectorConnections
-		if err := decode(data, &value); err != nil {
+		if err := decodeProto(data, &value); err != nil {
 			return nil, err
 		}
 		if value.HostName == "" || (!allowEmptyChunk && len(value.Connections) == 0) {
@@ -157,7 +166,7 @@ func decodeSample(stream schema.Stream, data []byte, allowEmptyChunk bool) (*Sam
 	return sample, nil
 }
 
-// ConnectionSelector identifies the sanitized record that an overlay can address.
+// ConnectionSelector identifies the captured record that an overlay can address.
 func ConnectionSelector(conn *model.Connection) string {
 	return fmt.Sprintf("%d:%s:%d>%s:%d", conn.Pid, conn.GetLaddr().GetIp(), conn.GetLaddr().GetPort(), conn.GetRaddr().GetIp(), conn.GetRaddr().GetPort())
 }

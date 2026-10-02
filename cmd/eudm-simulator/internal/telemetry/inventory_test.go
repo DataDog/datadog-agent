@@ -79,20 +79,20 @@ func TestInventoryDecodeRejectsConfigurationAndRemovedIdentifiers(t *testing.T) 
 }
 
 func TestInventoryPlatformAcceptsNativeWindowsDescriptions(t *testing.T) {
-	for _, value := range []string{"Microsoft Windows 11 Pro", "Microsoft Windows 10 Enterprise", "Windows Server 2025 Datacenter", "Darwin", "macOS"} {
+	for _, value := range []string{"Microsoft Windows 11 Pro", "Microsoft Windows 10 Enterprise", "Windows Server 2025 Datacenter", "Microsoft Windows 11 Pro Insider Preview", "Windows 12 Enterprise", "Darwin", "macOS"} {
 		if InventoryPlatform(value) == "" {
 			t.Fatalf("rejected native operating system %q", value)
 		}
 	}
-	for _, value := range []string{"Windows customer-owned-device", "Microsoft Windows 11 Pro private-host", "linux"} {
+	for _, value := range []string{"Linux", "Not Windows 11", "Windowsill"} {
 		if InventoryPlatform(value) != "" {
-			t.Fatalf("accepted unsupported or unbounded description %q", value)
+			t.Fatalf("accepted unsupported platform %q", value)
 		}
 	}
 }
 
 func TestSystemInfoInventoryDecode(t *testing.T) {
-	value := &telemetrycapture.Inventory{Hostname: "capture-host", UUID: "capture-uuid", Timestamp: 1, SystemInfo: &telemetrycapture.HostSystemInfoMetadata{Manufacturer: "Apple Inc.", ChassisType: "Laptop"}}
+	value := &telemetrycapture.Inventory{Hostname: "capture-host", UUID: "capture-uuid", Timestamp: 1, SystemInfo: &telemetrycapture.HostSystemInfoMetadata{Manufacturer: "Framework", ChassisType: "Notebook"}}
 	for _, stream := range []schema.Stream{schema.HostSystemInfo, schema.HostInventory, schema.AgentInventory} {
 		data, _ := json.Marshal(value)
 		_, err := Decode(stream, data)
