@@ -80,6 +80,19 @@ Every metric carries the following base tags.
   alerting on this metric staying `1` for an extended period is the intended way to catch a
   pause that was set during an incident and never reverted.
 
+#### `datadog.cluster_agent.autoscaling.workload.force_replicas`
+- **Type:** Gauge
+- **Tags:** base tags
+- **Description:** The replica count pinned by the
+  `autoscaling.datadoghq.com/force-replicas` annotation. Only emitted while a valid count is
+  pinned: autoscalers without the annotation, or with an invalid value, send no series. A
+  pinned count overrides recommendations from every source and is deliberately **not**
+  clamped by `spec.constraints`, nor subject to the scale-up/scale-down rate rules or
+  stabilization, so this gauge can legitimately report a value outside the configured min/max.
+  While it is applied, the `HorizontalScalingLimited` status condition reports it. Nothing expires
+  it, so alerting on this series persisting is the intended way to catch an override that was
+  set during an incident and never reverted.
+
 ---
 
 ### Horizontal scaling — received recommendations
