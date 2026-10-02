@@ -11,7 +11,17 @@ use windows_sys::Win32::Foundation::{
 };
 use windows_sys::Win32::Storage::FileSystem::{FILE_TYPE_UNKNOWN, GetFileType};
 use windows_sys::Win32::System::Console::{GetStdHandle, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE};
+#[cfg(test)]
+use windows_sys::Win32::System::Console::GetConsoleCP;
 use windows_sys::Win32::System::Threading::GetCurrentProcess;
+
+// Test fixtures change process-global console state; production signaling does not.
+#[cfg(test)]
+static CONSOLE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+#[cfg(test)]
+pub(crate) fn console_lock() -> std::sync::MutexGuard<'static, ()> {
+    CONSOLE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
 
 /// True when the handle still refers to something usable.
 fn handle_live(handle: HANDLE) -> bool {
@@ -69,7 +79,10 @@ static STARTUP_STDIO: OnceLock<StartupStdio> = OnceLock::new();
 /// Settles how `inherit` resolves for the rest of the process lifetime. Idempotent,
 /// and the first call is the one that counts. Called before service or interactive
 /// execution.
-pub fn capture_startup_stdio() { let _ = startup_stdio(); }
+pub fn capture_startup_stdio() {
+    let _ = startup_stdio();
+}
+
 fn startup_stdio() -> &'static StartupStdio {
     STARTUP_STDIO.get_or_init(|| StartupStdio {
         stdout: InheritSource::capture(STD_OUTPUT_HANDLE),
@@ -84,6 +97,41 @@ pub(crate) fn inherit_std_handle(kind: u32) -> Option<InheritHandle<'static>> {
         STD_ERROR_HANDLE => startup_stdio().stderr.resolve(),
         _ => None,
     }
+}
+
+/// True when the process is attached to a console.
+///
+/// `GetConsoleWindow` is also NULL for a windowless console. `GetConsoleCP` returns
+/// 0 only when the process has no console at all, which is the service case.
+#[cfg(test)]
+fn has_console() -> bool {
+    unsafe { GetConsoleCP() != 0 }
+}
+
+/// Snapshot the caller's console and standard slots for signaling tests.
+#[cfg(test)]
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct CallerConsoleState {
+    pub(crate) has_console: bool,
+    std_handles: [usize; 3],
+    live: [bool; 3],
+    members: Vec<u32>,
+}
+
+#[cfg(test)]
+pub(crate) fn caller_console_state() -> CallerConsoleState {
+    use windows_sys::Win32::System::Console::{GetConsoleProcessList, STD_INPUT_HANDLE};
+    let handles = [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE].map(|kind| unsafe { GetStdHandle(kind) });
+    let has_console = has_console();
+    let mut members = vec![0; 256];
+    let count = if has_console { unsafe { GetConsoleProcessList(members.as_mut_ptr(), members.len() as u32) } } else { 0 };
+    if count as usize > members.len() {
+        members.resize(count as usize, 0);
+        unsafe { GetConsoleProcessList(members.as_mut_ptr(), count); }
+    }
+    members.truncate(count as usize);
+    members.sort_unstable();
+    CallerConsoleState { has_console, std_handles: handles.map(|h| h as usize), live: handles.map(handle_live), members }
 }
 
 pub fn send_force_kill(pid: u32) -> Result<()> {
@@ -140,42 +188,6 @@ pub fn is_crash_exit(status: &std::process::ExitStatus) -> bool {
     })
 }
 
-// These guards and console changes exist only in the serial Windows test
-// process. Production shutdown never touches a console or a standard slot.
-#[cfg(test)]
-static CONSOLE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-#[cfg(test)]
-pub(crate) fn console_lock() -> std::sync::MutexGuard<'static, ()> {
-    CONSOLE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
-}
-
-#[cfg(test)]
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) struct CallerConsoleState {
-    pub(crate) has_console: bool,
-    std_handles: [usize; 3],
-    live: [bool; 3],
-    members: Vec<u32>,
-}
-
-#[cfg(test)]
-pub(crate) fn caller_console_state() -> CallerConsoleState {
-    use windows_sys::Win32::System::Console::{GetConsoleCP, GetConsoleProcessList, STD_INPUT_HANDLE};
-    let handles = [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE].map(|kind| unsafe { GetStdHandle(kind) });
-    // GetConsoleWindow is also NULL for a windowless console. GetConsoleCP returns
-    // 0 only when the process has no console at all, which is the service case.
-    let has_console = unsafe { GetConsoleCP() } != 0;
-    let mut members = vec![0; 256];
-    let count = if has_console { unsafe { GetConsoleProcessList(members.as_mut_ptr(), members.len() as u32) } } else { 0 };
-    if count as usize > members.len() {
-        members.resize(count as usize, 0);
-        unsafe { GetConsoleProcessList(members.as_mut_ptr(), count); }
-    }
-    members.truncate(count as usize);
-    members.sort_unstable();
-    CallerConsoleState { has_console, std_handles: handles.map(|h| h as usize), live: handles.map(handle_live), members }
-}
-
 #[cfg(test)]
 pub(crate) struct StdSlotsGuard([HANDLE; 3]);
 #[cfg(test)]
@@ -228,6 +240,42 @@ mod tests {
         FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
     };
     use windows_sys::Win32::System::Console::SetStdHandle;
+
+    /// Lives in the lib target rather than `tests/e2e`, which is Linux-only, so
+    /// this is the only place Windows classification gets real CI coverage.
+    #[test]
+    fn is_crash_exit_accepts_fatal_exception_codes() {
+        use std::os::windows::process::ExitStatusExt;
+
+        for code in [
+            0xC0000005u32, // ACCESS_VIOLATION
+            0xC00000FD,    // STACK_OVERFLOW
+            0xC0000374,    // heap corruption
+            0xC0000409,    // stack buffer overrun
+            0x80000003,    // BREAKPOINT, below ERROR severity but still fatal
+            0x80000004,    // SINGLE_STEP, likewise
+            0x40000015,    // FATAL_APP_EXIT, from the CRT's abort()
+        ] {
+            let status = std::process::ExitStatus::from_raw(code);
+            assert!(
+                is_crash_exit(&status),
+                "{code:#X} should be classified as a crash"
+            );
+        }
+    }
+
+    #[test]
+    fn is_crash_exit_rejects_ordinary_exit_codes() {
+        use std::os::windows::process::ExitStatusExt;
+
+        for code in [0u32, 1, 2, 42, 0x7FFFFFFF] {
+            let status = std::process::ExitStatus::from_raw(code);
+            assert!(
+                !is_crash_exit(&status),
+                "{code:#X} is an ExitProcess value, not a crash"
+            );
+        }
+    }
 
     fn open_device(device: &str, access: u32) -> OwnedStdHandle {
         let name = wide::null_terminated(device);
@@ -287,42 +335,6 @@ mod tests {
         for handle in [std::ptr::null_mut(), INVALID_HANDLE_VALUE] {
             assert_ne!(unsafe { SetStdHandle(STD_OUTPUT_HANDLE, handle) }, 0);
             assert!(InheritSource::capture(STD_OUTPUT_HANDLE).resolve().is_none());
-        }
-    }
-
-    /// Lives in the lib target rather than `tests/e2e`, which is Linux-only, so
-    /// this is the only place Windows classification gets real CI coverage.
-    #[test]
-    fn is_crash_exit_accepts_fatal_exception_codes() {
-        use std::os::windows::process::ExitStatusExt;
-
-        for code in [
-            0xC0000005u32, // ACCESS_VIOLATION
-            0xC00000FD,    // STACK_OVERFLOW
-            0xC0000374,    // heap corruption
-            0xC0000409,    // stack buffer overrun
-            0x80000003,    // BREAKPOINT, below ERROR severity but still fatal
-            0x80000004,    // SINGLE_STEP, likewise
-            0x40000015,    // FATAL_APP_EXIT, from the CRT's abort()
-        ] {
-            let status = std::process::ExitStatus::from_raw(code);
-            assert!(
-                is_crash_exit(&status),
-                "{code:#X} should be classified as a crash"
-            );
-        }
-    }
-
-    #[test]
-    fn is_crash_exit_rejects_ordinary_exit_codes() {
-        use std::os::windows::process::ExitStatusExt;
-
-        for code in [0u32, 1, 2, 42, 0x7FFFFFFF] {
-            let status = std::process::ExitStatus::from_raw(code);
-            assert!(
-                !is_crash_exit(&status),
-                "{code:#X} is an ExitProcess value, not a crash"
-            );
         }
     }
 }
