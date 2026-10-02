@@ -333,11 +333,13 @@ func (d *daemonImpl) SetConfigCatalog(configs map[string]installerConfig) {
 func (d *daemonImpl) Start(_ context.Context) error {
 	// Recover any configuration experiment left running unsupervised by a prior process of
 	// this daemon that did not shut down cleanly (crash, kill, reboot), before anything else
-	// runs. A no-op on platforms or packages with no such experiment to recover. It runs before
-	// the first state refresh because it may resume or revert the experiment, and until it does,
-	// the configuration on disk is not the one the Agent is running.
-	if err := d.installer(d.env).ResumeConfigExperiments(d.ctx); err != nil {
-		log.Errorf("Daemon: could not resume configuration experiments: %v", err)
+	// runs. Only macOS has such experiments to recover. It runs before the first state refresh
+	// because it may resume or revert the experiment, and until it does, the configuration on
+	// disk is not the one the Agent is running.
+	if runtime.GOOS == "darwin" {
+		if err := d.installer(d.env).ResumeConfigExperiments(d.ctx); err != nil {
+			log.Errorf("Daemon: could not resume configuration experiments: %v", err)
+		}
 	}
 	d.refreshState(d.ctx)
 

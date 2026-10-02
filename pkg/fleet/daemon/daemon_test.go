@@ -755,10 +755,12 @@ func TestDecryptSecrets(t *testing.T) {
 	})
 }
 
-// TestStartResumesConfigExperimentsBeforeTheFirstStateRefresh pins the startup order: resuming may
-// revert or re-establish a configuration experiment, so refreshing first would report whatever was
-// left on disk by the previous daemon rather than the configuration the Agent is running.
-func TestStartResumesConfigExperimentsBeforeTheFirstStateRefresh(t *testing.T) {
+// TestStartResumesConfigExperimentsOnlyOnMacOS pins the startup resume. On macOS it runs before the
+// first state refresh: resuming may revert or re-establish a configuration experiment, so
+// refreshing first would report whatever the previous daemon left on disk rather than the
+// configuration the Agent is running. Elsewhere it is skipped, since no other platform has an
+// experiment to resume and the call would only spawn the installer to do nothing.
+func TestStartResumesConfigExperimentsOnlyOnMacOS(t *testing.T) {
 	var mu sync.Mutex
 	var order []string
 	record := func(call string) func(mock.Arguments) {
@@ -776,6 +778,25 @@ func TestStartResumesConfigExperimentsBeforeTheFirstStateRefresh(t *testing.T) {
 		States:       map[string]repository.State{},
 		ConfigStates: map[string]repository.State{},
 	}, nil)
+
+	startTestDaemon(t, pm)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if runtime.GOOS == "darwin" {
+		require.GreaterOrEqual(t, len(order), 2)
+		assert.Equal(t, []string{"resume", "refresh"}, order[:2])
+		return
+	}
+	require.NotEmpty(t, order)
+	assert.NotContains(t, order, "resume")
+	assert.Equal(t, "refresh", order[0])
+}
+
+// startTestDaemon starts a daemon over pm with a test remote config client and stops it when the
+// test ends.
+func startTestDaemon(t *testing.T, pm *testPackageManager) {
+	t.Helper()
 	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
 	require.NoError(t, err)
 	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
@@ -792,10 +813,5 @@ func TestStartResumesConfigExperimentsBeforeTheFirstStateRefresh(t *testing.T) {
 		secretsPrivKey,
 	)
 	require.NoError(t, daemon.Start(context.Background()))
-	defer daemon.Stop(context.Background())
-
-	mu.Lock()
-	defer mu.Unlock()
-	require.GreaterOrEqual(t, len(order), 2)
-	assert.Equal(t, []string{"resume", "refresh"}, order[:2])
+	t.Cleanup(func() { daemon.Stop(context.Background()) })
 }
