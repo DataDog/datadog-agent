@@ -68,6 +68,12 @@ datadog-agent-7-x64:
   extends: [.agent_build_common, .agent_build_x86, .agent_base_flavor]
   rules:
     - when: on_success
+  variables:
+    # Links the native foldspace log sender. Read by
+    # omnibus/config/software/datadog-agent.rb, which vendors a library only
+    # for linux; the flag is a no-op on every other build in this file, since
+    # nothing else sets it.
+    DD_FOLDSPACE_BUILD: "true"
 
 datadog-agent-7-x64-recorder:
   extends: [.agent_build_common, .agent_build_x86, .agent_recorder_flavor]
@@ -84,6 +90,8 @@ datadog-agent-7-arm64:
   extends: [.agent_build_common, .agent_build_arm64, .agent_base_flavor]
   rules:
     - when: on_success
+  variables:
+    DD_FOLDSPACE_BUILD: "true"
 
 datadog-agent-7-arm64-recorder:
   extends: [.agent_build_common, .agent_build_arm64, .agent_recorder_flavor]
