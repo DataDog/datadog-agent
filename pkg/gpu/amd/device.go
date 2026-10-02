@@ -85,6 +85,10 @@ type Device struct {
 	kfdGPUIDs []uint64
 	// renderMinors are the DRM render node minors of the device's KFD nodes.
 	renderMinors []int
+	// kfdTopologyIncomplete marks a KFD topology with a GPU node that could not
+	// be mapped to a physical GPU, for any reason. Like KFDAccessDenied, it
+	// affects all discovered GPUs and withholds process sums.
+	kfdTopologyIncomplete bool
 }
 
 // Discover returns the AMD GPUs found under sysRoot (normally /sys), sorted
@@ -141,12 +145,13 @@ func Discover(sysRoot string) ([]*Device, error) {
 	}
 
 	if len(devices) > 0 {
-		kfd, denied, err := readKFDTopology(sysRoot, seen)
+		kfd, denied, complete, err := readKFDTopology(sysRoot, seen)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("KFD topology: %w", err))
 		}
 		for _, dev := range devices {
 			dev.KFDAccessDenied = denied > 0
+			dev.kfdTopologyIncomplete = !complete
 			if gpu, ok := kfd[dev.PCIBusID]; ok {
 				dev.Architecture = gpu.gfxTarget
 				dev.kfdGPUIDs = gpu.gpuIDs

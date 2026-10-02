@@ -158,6 +158,43 @@ func TestReadProcessMemoryDoesNotReportPartialKFDTopology(t *testing.T) {
 	assert.Equal(t, expected, usage)
 }
 
+// A node removed during the scan is not a permission denial, but its gpu_id is
+// just as unmapped: sums over the surviving partitions would be truncated.
+func TestReadProcessMemoryDoesNotReportUnmappedKFDNode(t *testing.T) {
+	fs := NewFakeSysfs(t)
+	fs.AddCard("card0", fs.AddPCIDevice("0000:27:00.0", "amdgpu", MI300XAttributes("")))
+	fs.AddCard("card1", fs.AddPCIDevice("0000:41:00.0", "amdgpu", MI300XAttributes("")))
+	fs.AddKFDNode(1, 4101, 0, 0x2700, 90402)
+	fs.AddKFDNode(2, 4102, 0, 0x2701, 90402)
+	fs.AddKFDNode(3, 5100, 0, 0x4100, 90010)
+	fs.AddKFDProcess(100, 4101, 10)
+	fs.AddKFDProcess(100, 4102, 20)
+	fs.AddKFDProcess(200, 4102, 40)
+	require.NoError(t, os.Remove(filepath.Join(fs.Root, "class/kfd/kfd/topology/nodes/2/properties")))
+
+	devices, err := Discover(fs.Root)
+	require.NoError(t, err)
+	require.Len(t, devices, 2)
+	assert.False(t, devices[0].KFDAccessDenied)
+	assert.Empty(t, KFDAccessDeniedWarning(devices))
+
+	usage, complete, err := ReadProcessMemory(fs.Root, devices)
+	require.NoError(t, err)
+	assert.False(t, complete)
+	assert.Empty(t, usage)
+	assert.Equal(t, "gfx942", devices[0].Architecture)
+	assert.Equal(t, "gfx90a", devices[1].Architecture)
+
+	// An invalid PCI location leaves the node unmapped too.
+	fs.WriteFiles(filepath.Join(fs.Root, "class/kfd/kfd/topology/nodes/2"), map[string]string{
+		"properties": "gfx_target_version 90402\n",
+	})
+	devices, _ = Discover(fs.Root)
+	_, complete, err = ReadProcessMemory(fs.Root, devices)
+	require.NoError(t, err)
+	assert.False(t, complete)
+}
+
 func TestDiscoverKFDClocksAndBusWidth(t *testing.T) {
 	fs := NewFakeSysfs(t)
 	fs.AddCard("card0", fs.AddPCIDevice("0000:27:00.0", "amdgpu", MI300XAttributes("00c0ffee00c0ffee")))

@@ -35,7 +35,12 @@ dd_agent_go_test(
         "realhw_test.go",
         "topology_test.go",
     ],
-    data = glob(["testdata/**"]),
+    data = glob([
+        "testdata/mi350x_vf/*",
+        "testdata/mi350x_vf/device/*",
+        "testdata/mi350x_vf/hwmon/*",
+        "testdata/mi350x_vf/kfd/*",
+    ]),
     embed = [":amd"],
     deps = select({
         "@rules_go//go/platform:android": [

@@ -53,14 +53,19 @@ type kfdGPU struct {
 // kernel (kfd_devcgroup_check_permission) refuses to show a GPU's node unless
 // the container's device cgroup allows the GPU's render node, which is a
 // deployment property rather than a failure to retry or report on every call.
-func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[string]*kfdGPU, denied int, err error) {
+//
+// complete is false when any GPU node could not be mapped to a physical GPU,
+// whatever the cause (denied, unreadable, removed during the scan, or with an
+// invalid PCI location): the gpu_id of such a node may belong to any GPU, so
+// process sums over the mapped gpu_id would be truncated.
+func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[string]*kfdGPU, denied int, complete bool, err error) {
 	nodesDir := filepath.Join(sysRoot, "class", "kfd", "kfd", "topology", "nodes")
 	entries, err := os.ReadDir(nodesDir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, 0, nil
+			return nil, 0, true, nil
 		}
-		return nil, 0, fmt.Errorf("list %s: %w", nodesDir, err)
+		return nil, 0, false, fmt.Errorf("list %s: %w", nodesDir, err)
 	}
 
 	// Most slots have one physical GPU. Multiple PCI functions require the
@@ -110,6 +115,7 @@ func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[s
 		location, hasLocation := props["location_id"]
 		domain, hasDomain := props["domain"]
 		if !hasLocation || !hasDomain || location > 0xffff || domain > 0xffffffff {
+			topologyComplete = false
 			errs = append(errs, fmt.Errorf("%s: missing or invalid PCI location_id/domain", nodeDir))
 			continue
 		}
@@ -126,6 +132,7 @@ func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[s
 					continue
 				}
 				if !strings.HasPrefix(address, slot) {
+					topologyComplete = false
 					errs = append(errs, fmt.Errorf("%s: DRM PCI address disagrees with KFD location", nodeDir))
 					continue
 				}
@@ -133,6 +140,7 @@ func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[s
 			}
 		}
 		if pciBusID == "" {
+			topologyComplete = false
 			errs = append(errs, fmt.Errorf("%s: cannot disambiguate physical PCI function from KFD partition", nodeDir))
 			continue
 		}
@@ -175,7 +183,7 @@ func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[s
 			gpu.busWidthBits = 0
 		}
 	}
-	return gpus, denied, errors.Join(errs...)
+	return gpus, denied, topologyComplete, errors.Join(errs...)
 }
 
 // readKFDProperties parses a KFD node properties file ("name value" lines).
@@ -293,14 +301,15 @@ type processMemoryKey struct {
 // attributes for process-device entries even when that GPU is unused (see
 // kfd_procfs_add_sysfs_files in drivers/gpu/drm/amd/amdkfd/kfd_process.c).
 // Processes using only system memory are not identified by this VRAM reader.
-// complete distinguishes an empty snapshot from unavailable attribution. A denied
-// topology node has unknown ownership, so no physical-GPU sums are returned until
-// the topology is fully readable. Available results from other read errors are
+// complete distinguishes an empty snapshot from unavailable attribution. A KFD
+// node that could not be mapped (denied, unreadable or removed during discovery)
+// has unknown ownership, so no physical-GPU sums are returned until the topology
+// is fully mapped. Available results from other read errors are
 // returned with complete=false and an error.
 func ReadProcessMemory(sysRoot string, devices []*Device) ([]ProcessMemory, bool, error) {
 	var gpuIDToUUID map[uint64]string
 	for _, dev := range devices {
-		if dev.KFDAccessDenied {
+		if dev.KFDAccessDenied || dev.kfdTopologyIncomplete {
 			return nil, false, nil
 		}
 		if len(dev.kfdGPUIDs) > 0 && gpuIDToUUID == nil {

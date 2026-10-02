@@ -51,3 +51,6 @@ features:
     with a complete, unpartitioned KFD topology, the memory bus width.
     GPU metrics carry ``gpu_uuid``; devices with duplicate serial identifiers
     use distinct PCI-based UUIDs rather than merging their metrics.
+    Hosts with AMD GPUs bound to the ``amdgpu`` driver now also get the
+    ``gpu_host:true`` host tag, which was previously only set on hosts with
+    NVIDIA GPUs.
