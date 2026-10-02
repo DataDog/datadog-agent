@@ -10,9 +10,9 @@ use windows_sys::Win32::Foundation::{
     INVALID_HANDLE_VALUE, NO_ERROR, SetLastError,
 };
 use windows_sys::Win32::Storage::FileSystem::{FILE_TYPE_UNKNOWN, GetFileType};
-use windows_sys::Win32::System::Console::{GetStdHandle, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE};
 #[cfg(test)]
 use windows_sys::Win32::System::Console::GetConsoleCP;
+use windows_sys::Win32::System::Console::{GetStdHandle, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE};
 use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
 // Test fixtures change process-global console state; production signaling does not.
@@ -25,7 +25,9 @@ pub(crate) fn console_lock() -> std::sync::MutexGuard<'static, ()> {
 
 /// True when the handle still refers to something usable.
 fn handle_live(handle: HANDLE) -> bool {
-    if handle.is_null() || handle == INVALID_HANDLE_VALUE { return false; }
+    if handle.is_null() || handle == INVALID_HANDLE_VALUE {
+        return false;
+    }
     unsafe {
         // GetFileType reports UNKNOWN both for genuinely unknown types and for dead
         // handles; only the last-error value tells the two apart.
@@ -39,7 +41,11 @@ struct OwnedStdHandle(HANDLE);
 unsafe impl Send for OwnedStdHandle {}
 unsafe impl Sync for OwnedStdHandle {}
 impl Drop for OwnedStdHandle {
-    fn drop(&mut self) { unsafe { CloseHandle(self.0); } }
+    fn drop(&mut self) {
+        unsafe {
+            CloseHandle(self.0);
+        }
+    }
 }
 
 /// Pin every usable startup object, including write-only console and character
@@ -48,24 +54,42 @@ struct InheritSource(Option<OwnedStdHandle>);
 impl InheritSource {
     fn capture(kind: u32) -> Self {
         let source = unsafe { GetStdHandle(kind) };
-        if !handle_live(source) { return Self(None); }
+        if !handle_live(source) {
+            return Self(None);
+        }
         let mut duplicate = std::ptr::null_mut();
-        let ok = unsafe { DuplicateHandle(GetCurrentProcess(), source, GetCurrentProcess(),
-            &mut duplicate, 0, 0, DUPLICATE_SAME_ACCESS) };
+        let ok = unsafe {
+            DuplicateHandle(
+                GetCurrentProcess(),
+                source,
+                GetCurrentProcess(),
+                &mut duplicate,
+                0,
+                0,
+                DUPLICATE_SAME_ACCESS,
+            )
+        };
         if ok == 0 {
-            log::warn!("DuplicateHandle(startup stdio) failed: {}; using NUL", std::io::Error::last_os_error());
+            log::warn!(
+                "DuplicateHandle(startup stdio) failed: {}; using NUL",
+                std::io::Error::last_os_error()
+            );
             return Self(None);
         }
         Self(Some(OwnedStdHandle(duplicate)))
     }
 
-    fn resolve(&self) -> Option<InheritHandle<'_>> { self.0.as_ref().map(InheritHandle) }
+    fn resolve(&self) -> Option<InheritHandle<'_>> {
+        self.0.as_ref().map(InheritHandle)
+    }
 }
 
 /// A handle an `inherit` spawn may duplicate from, for as long as it is held.
 pub(crate) struct InheritHandle<'a>(&'a OwnedStdHandle);
 impl InheritHandle<'_> {
-    pub(crate) fn raw(&self) -> HANDLE { self.0.0 }
+    pub(crate) fn raw(&self) -> HANDLE {
+        self.0.0
+    }
 }
 
 /// The supervisor's own stdout and stderr, as they were before anything could touch the
@@ -121,17 +145,29 @@ pub(crate) struct CallerConsoleState {
 #[cfg(test)]
 pub(crate) fn caller_console_state() -> CallerConsoleState {
     use windows_sys::Win32::System::Console::{GetConsoleProcessList, STD_INPUT_HANDLE};
-    let handles = [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE].map(|kind| unsafe { GetStdHandle(kind) });
+    let handles = [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE]
+        .map(|kind| unsafe { GetStdHandle(kind) });
     let has_console = has_console();
     let mut members = vec![0; 256];
-    let count = if has_console { unsafe { GetConsoleProcessList(members.as_mut_ptr(), members.len() as u32) } } else { 0 };
+    let count = if has_console {
+        unsafe { GetConsoleProcessList(members.as_mut_ptr(), members.len() as u32) }
+    } else {
+        0
+    };
     if count as usize > members.len() {
         members.resize(count as usize, 0);
-        unsafe { GetConsoleProcessList(members.as_mut_ptr(), count); }
+        unsafe {
+            GetConsoleProcessList(members.as_mut_ptr(), count);
+        }
     }
     members.truncate(count as usize);
     members.sort_unstable();
-    CallerConsoleState { has_console, std_handles: handles.map(|h| h as usize), live: handles.map(handle_live), members }
+    CallerConsoleState {
+        has_console,
+        std_handles: handles.map(|h| h as usize),
+        live: handles.map(handle_live),
+        members,
+    }
 }
 
 pub fn send_force_kill(pid: u32) -> Result<()> {
@@ -194,14 +230,20 @@ pub(crate) struct StdSlotsGuard([HANDLE; 3]);
 impl StdSlotsGuard {
     pub(crate) fn capture() -> Self {
         use windows_sys::Win32::System::Console::STD_INPUT_HANDLE;
-        Self([STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE].map(|kind| unsafe { GetStdHandle(kind) }))
+        Self(
+            [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE]
+                .map(|kind| unsafe { GetStdHandle(kind) }),
+        )
     }
 }
 #[cfg(test)]
 impl Drop for StdSlotsGuard {
     fn drop(&mut self) {
         use windows_sys::Win32::System::Console::{STD_INPUT_HANDLE, SetStdHandle};
-        for (kind, handle) in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE].into_iter().zip(self.0) {
+        for (kind, handle) in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE]
+            .into_iter()
+            .zip(self.0)
+        {
             assert_ne!(unsafe { SetStdHandle(kind, handle) }, 0);
         }
     }
@@ -218,26 +260,35 @@ impl TestConsole {
         use windows_sys::Win32::System::Console::{AllocConsole, GetConsoleCP};
         let slots = StdSlotsGuard::capture();
         let allocated = unsafe { GetConsoleCP() } == 0;
-        if allocated { assert_ne!(unsafe { AllocConsole() }, 0); }
-        Self { allocated, slots: Some(slots) }
+        if allocated {
+            assert_ne!(unsafe { AllocConsole() }, 0);
+        }
+        Self {
+            allocated,
+            slots: Some(slots),
+        }
     }
 }
 #[cfg(test)]
 impl Drop for TestConsole {
     fn drop(&mut self) {
-        if self.allocated { unsafe { windows_sys::Win32::System::Console::FreeConsole(); } }
+        if self.allocated {
+            unsafe {
+                windows_sys::Win32::System::Console::FreeConsole();
+            }
+        }
         drop(self.slots.take());
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::wide;
+    use super::*;
     use windows_sys::Win32::Foundation::CompareObjectHandles;
     use windows_sys::Win32::Storage::FileSystem::{
-        CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
-        FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+        CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_SHARE_READ,
+        FILE_SHARE_WRITE, OPEN_EXISTING,
     };
     use windows_sys::Win32::System::Console::SetStdHandle;
 
@@ -279,8 +330,17 @@ mod tests {
 
     fn open_device(device: &str, access: u32) -> OwnedStdHandle {
         let name = wide::null_terminated(device);
-        let handle = unsafe { CreateFileW(name.as_ptr(), access, FILE_SHARE_READ | FILE_SHARE_WRITE,
-            std::ptr::null(), OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, std::ptr::null_mut()) };
+        let handle = unsafe {
+            CreateFileW(
+                name.as_ptr(),
+                access,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                std::ptr::null(),
+                OPEN_EXISTING,
+                FILE_ATTRIBUTE_NORMAL,
+                std::ptr::null_mut(),
+            )
+        };
         assert!(handle_live(handle), "{}", std::io::Error::last_os_error());
         OwnedStdHandle(handle)
     }
@@ -293,7 +353,10 @@ mod tests {
         assert_ne!(unsafe { SetStdHandle(STD_OUTPUT_HANDLE, scratch.0) }, 0);
         let resolved = source.resolve().unwrap();
         assert_ne!(unsafe { CompareObjectHandles(resolved.raw(), handle) }, 0);
-        assert_eq!(unsafe { CompareObjectHandles(resolved.raw(), scratch.0) }, 0);
+        assert_eq!(
+            unsafe { CompareObjectHandles(resolved.raw(), scratch.0) },
+            0
+        );
         drop(slots);
     }
 
@@ -315,7 +378,17 @@ mod tests {
         assert_pinned(file.as_raw_handle());
         let mut reader = std::ptr::null_mut();
         let mut writer = std::ptr::null_mut();
-        assert_ne!(unsafe { windows_sys::Win32::System::Pipes::CreatePipe(&mut reader, &mut writer, std::ptr::null(), 0) }, 0);
+        assert_ne!(
+            unsafe {
+                windows_sys::Win32::System::Pipes::CreatePipe(
+                    &mut reader,
+                    &mut writer,
+                    std::ptr::null(),
+                    0,
+                )
+            },
+            0
+        );
         let _reader = OwnedStdHandle(reader);
         let writer = OwnedStdHandle(writer);
         assert_pinned(writer.0);
@@ -334,7 +407,11 @@ mod tests {
         let _slots = StdSlotsGuard::capture();
         for handle in [std::ptr::null_mut(), INVALID_HANDLE_VALUE] {
             assert_ne!(unsafe { SetStdHandle(STD_OUTPUT_HANDLE, handle) }, 0);
-            assert!(InheritSource::capture(STD_OUTPUT_HANDLE).resolve().is_none());
+            assert!(
+                InheritSource::capture(STD_OUTPUT_HANDLE)
+                    .resolve()
+                    .is_none()
+            );
         }
     }
 }

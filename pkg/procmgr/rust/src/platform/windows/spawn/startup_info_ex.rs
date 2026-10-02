@@ -37,9 +37,8 @@ impl StartupInfoEx {
         stderr: HANDLE,
         job: HANDLE,
     ) -> Result<Self> {
-        let mut startup = Self::with_handles_and_job(
-            dedup_stdio_handles(stdin, stdout, stderr), job,
-        )?;
+        let mut startup =
+            Self::with_handles_and_job(dedup_stdio_handles(stdin, stdout, stderr), job)?;
         startup.siex.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
         startup.siex.StartupInfo.hStdInput = stdin;
         startup.siex.StartupInfo.hStdOutput = stdout;

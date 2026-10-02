@@ -245,7 +245,8 @@ mod tests {
     async fn retained_identity_survives_exit_watcher() {
         let mut child = std::process::Command::new("cmd.exe")
             .args(["/C", "exit 0"])
-            .spawn().unwrap();
+            .spawn()
+            .unwrap();
         let pid = child.id();
         let mut watcher = ProcessHandle::from_borrowed(pid, child.as_raw_handle()).unwrap();
         let retained = watcher.retain_for_shutdown().unwrap();
@@ -254,8 +255,10 @@ mod tests {
         child.wait().unwrap();
         drop(child);
         assert_eq!(unsafe { GetProcessId(retained.raw()) }, pid);
-        assert!(matches!(wait_for_process_exit_ms(retained.raw(), 0).unwrap(),
-            ProcessWaitOutcome::Exited(0)));
+        assert!(matches!(
+            wait_for_process_exit_ms(retained.raw(), 0).unwrap(),
+            ProcessWaitOutcome::Exited(0)
+        ));
         let restricted = retained.duplicate_for_helper().unwrap();
         assert_eq!(unsafe { GetProcessId(restricted.get()) }, pid);
         // The helper cannot terminate the original process through its handle.

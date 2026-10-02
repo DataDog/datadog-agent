@@ -261,8 +261,18 @@ mod tests {
 
     #[test]
     fn unusable_inheritance_source_falls_back_to_nul() {
-        assert!(!map_stdio_source(std::ptr::null_mut()).unwrap().raw().is_null());
-        assert!(!map_stdio_source(INVALID_HANDLE_VALUE).unwrap().raw().is_null());
+        assert!(
+            !map_stdio_source(std::ptr::null_mut())
+                .unwrap()
+                .raw()
+                .is_null()
+        );
+        assert!(
+            !map_stdio_source(INVALID_HANDLE_VALUE)
+                .unwrap()
+                .raw()
+                .is_null()
+        );
     }
 
     #[test]

@@ -89,7 +89,12 @@ mod tests {
         assert_eq!(proc.state(), ProcessState::Stopped);
         #[cfg(windows)]
         assert!(
-            exit_rx.recv().await.expect("graceful workload exit").status.success(),
+            exit_rx
+                .recv()
+                .await
+                .expect("graceful workload exit")
+                .status
+                .success(),
             "CTRL_BREAK should exit cleanly, not by job force-kill"
         );
         #[cfg(not(windows))]

@@ -137,7 +137,9 @@ impl ProcessKiller {
         #[cfg(windows)]
         if let Some(identity) = &self.identity {
             warn!("[{name}] falling back to retained-handle termination");
-            if let Err(e) = identity.terminate() { warn!("[{name}] retained-handle termination failed: {e}"); }
+            if let Err(e) = identity.terminate() {
+                warn!("[{name}] retained-handle termination failed: {e}");
+            }
         }
 
         #[cfg(not(windows))]
@@ -147,7 +149,6 @@ impl ProcessKiller {
             warn!("[{name}] force kill failed: {e}");
         }
     }
-
 }
 
 /// The waiting half of a stop, self-contained so that it can be awaited without
@@ -204,7 +205,10 @@ impl StopWait {
         // Even when signaling fails, allow 2 seconds for an already-exited
         // child's watcher to finish before attempting force termination.
         let grace = timeout.unwrap_or(ManagedProcess::UNDELIVERED_STOP_GRACE);
-        if time::timeout(grace.saturating_sub(started.elapsed()), &mut handle).await.is_ok() {
+        if time::timeout(grace.saturating_sub(started.elapsed()), &mut handle)
+            .await
+            .is_ok()
+        {
             return;
         }
 
@@ -685,7 +689,10 @@ impl ManagedProcess {
     #[cfg(windows)]
     fn graceful_stop(&mut self) -> bool {
         let (Some(target), Some(job)) = (&self.shutdown_identity, &self.job_object) else {
-            warn!("[{}] cannot launch signaling helper: missing retained identity or job", self.name);
+            warn!(
+                "[{}] cannot launch signaling helper: missing retained identity or job",
+                self.name
+            );
             return false;
         };
         match platform::send_graceful_stop(target, job) {
@@ -861,16 +868,31 @@ pub mod tests {
     }
 
     #[cfg(windows)]
-    fn injected_stop(job: platform::JobObject, outcome: platform::SignalOutcome, timeout: Duration) -> StopWait {
+    fn injected_stop(
+        job: platform::JobObject,
+        outcome: platform::SignalOutcome,
+        timeout: Duration,
+    ) -> StopWait {
         let faults = job.faults.clone();
         let handle = tokio::spawn(async move {
-            while faults.terminate_calls.load(std::sync::atomic::Ordering::SeqCst) == 0 {
+            while faults
+                .terminate_calls
+                .load(std::sync::atomic::Ordering::SeqCst)
+                == 0
+            {
                 time::sleep(Duration::from_millis(5)).await;
             }
         });
-        StopWait { name: "injected-stop".into(), handle, timeout: Some(timeout),
-            killer: ProcessKiller { job_object: Some(job), identity: None },
-            helper: Some(platform::SignalingHelper::test_report(outcome)) }
+        StopWait {
+            name: "injected-stop".into(),
+            handle,
+            timeout: Some(timeout),
+            killer: ProcessKiller {
+                job_object: Some(job),
+                identity: None,
+            },
+            helper: Some(platform::SignalingHelper::test_report(outcome)),
+        }
     }
 
     #[cfg(windows)]
@@ -885,17 +907,21 @@ pub mod tests {
             OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
         };
 
-        let mut config = test_helpers::make_config("cmd.exe", vec![
-            "/C".into(),
-            "ping -n 3 127.0.0.1 >nul & start /b ping -n 301 127.0.0.1 >nul".into(),
-        ]);
-        config.restart = RestartPolicy::Never;
-        let mut proc = ManagedProcess::new_config(
-            "normal-exit".into(), test_helpers::test_uuid(), config,
+        let mut config = test_helpers::make_config(
+            "cmd.exe",
+            vec![
+                "/C".into(),
+                "ping -n 3 127.0.0.1 >nul & start /b ping -n 301 127.0.0.1 >nul".into(),
+            ],
         );
+        config.restart = RestartPolicy::Never;
+        let mut proc =
+            ManagedProcess::new_config("normal-exit".into(), test_helpers::test_uuid(), config);
         let mut exit_rx = spawn_ok(&mut proc);
         let event = time::timeout(Duration::from_secs(10), exit_rx.recv())
-            .await.unwrap().expect("main-process exit event");
+            .await
+            .unwrap()
+            .expect("main-process exit event");
         assert!(event.status.success());
 
         // Inspect the still-open job only in the test. Holding process handles
@@ -909,24 +935,42 @@ pub mod tests {
         let job = proc.job_object.as_ref().unwrap();
         let weak_faults = Arc::downgrade(&job.faults);
         let mut ids: ProcessIds = unsafe { std::mem::zeroed() };
-        assert_ne!(unsafe {
-            QueryInformationJobObject(
-                job.raw_handle(), JobObjectBasicProcessIdList,
-                (&mut ids as *mut ProcessIds).cast(), std::mem::size_of_val(&ids) as u32,
-                std::ptr::null_mut(),
-            )
-        }, 0);
-        assert!(ids.count > 0 && ids.count as usize <= ids.ids.len(), "expected surviving descendants");
-        let descendants: Vec<_> = ids.ids[..ids.count as usize].iter()
+        assert_ne!(
+            unsafe {
+                QueryInformationJobObject(
+                    job.raw_handle(),
+                    JobObjectBasicProcessIdList,
+                    (&mut ids as *mut ProcessIds).cast(),
+                    std::mem::size_of_val(&ids) as u32,
+                    std::ptr::null_mut(),
+                )
+            },
+            0
+        );
+        assert!(
+            ids.count > 0 && ids.count as usize <= ids.ids.len(),
+            "expected surviving descendants"
+        );
+        let descendants: Vec<_> = ids.ids[..ids.count as usize]
+            .iter()
             .filter(|&&pid| pid as u32 != event.pid)
             .map(|&pid| {
-                let handle = unsafe { OpenProcess(PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, 0, pid as u32) };
+                let handle = unsafe {
+                    OpenProcess(
+                        PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION,
+                        0,
+                        pid as u32,
+                    )
+                };
                 assert!(!handle.is_null());
                 let handle = unsafe { OwnedProcessHandle::from_raw(handle) };
-                assert!(matches!(platform::wait_for_process_exit_ms(handle.get(), 0).unwrap(),
-                    platform::ProcessWaitOutcome::TimedOut));
+                assert!(matches!(
+                    platform::wait_for_process_exit_ms(handle.get(), 0).unwrap(),
+                    platform::ProcessWaitOutcome::TimedOut
+                ));
                 handle
-            }).collect();
+            })
+            .collect();
         assert!(!descendants.is_empty());
 
         proc.set_last_status(event.status);
@@ -934,14 +978,21 @@ pub mod tests {
         assert!(proc.pid().is_none());
         assert!(proc.job_object.is_none());
         assert!(proc.shutdown_identity.is_none());
-        assert!(weak_faults.upgrade().is_none(), "normal exit must drop the owned job");
+        assert!(
+            weak_faults.upgrade().is_none(),
+            "normal exit must drop the owned job"
+        );
         assert!(proc.handle_restart().is_none());
         let deadline = Instant::now() + Duration::from_secs(5);
         for descendant in descendants {
-            while matches!(platform::wait_for_process_exit_ms(descendant.get(), 0).unwrap(),
-                platform::ProcessWaitOutcome::TimedOut)
-            {
-                assert!(Instant::now() < deadline, "job close did not terminate descendant");
+            while matches!(
+                platform::wait_for_process_exit_ms(descendant.get(), 0).unwrap(),
+                platform::ProcessWaitOutcome::TimedOut
+            ) {
+                assert!(
+                    Instant::now() < deadline,
+                    "job close did not terminate descendant"
+                );
                 time::sleep(Duration::from_millis(10)).await;
             }
         }
@@ -951,18 +1002,28 @@ pub mod tests {
     #[tokio::test]
     async fn graceful_stop_creates_helper_before_wait_stage() {
         let mut proc = ManagedProcess::new_config(
-            "schedule-graceful-stop".into(), test_helpers::test_uuid(),
+            "schedule-graceful-stop".into(),
+            test_helpers::test_uuid(),
             test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
         let _exit_rx = spawn_ok(&mut proc);
         let timeout = proc.stop_timeout();
         proc.request_stop();
         assert_eq!(proc.state(), ProcessState::Stopping);
-        assert!(proc.signal_helper.is_some(), "graceful stop must create the helper synchronously");
-        assert!(!proc.graceful_stop_failed, "successful creation is not a delivery result");
+        assert!(
+            proc.signal_helper.is_some(),
+            "graceful stop must create the helper synchronously"
+        );
+        assert!(
+            !proc.graceful_stop_failed,
+            "successful creation is not a delivery result"
+        );
         let wait = proc.take_stop_wait().unwrap();
         assert_eq!(wait.timeout, Some(timeout));
-        assert!(proc.signal_helper.is_none(), "the waiting stage owns the helper report");
+        assert!(
+            proc.signal_helper.is_none(),
+            "the waiting stage owns the helper report"
+        );
         wait.run().await;
         proc.finish_stop();
         assert_eq!(proc.state(), ProcessState::Stopped);
@@ -972,13 +1033,17 @@ pub mod tests {
     fn repeated_stop_request_preserves_original_delivery_result() {
         for failed in [false, true] {
             let mut proc = ManagedProcess::new_config(
-                "repeated-stop".into(), test_helpers::test_uuid(),
+                "repeated-stop".into(),
+                test_helpers::test_uuid(),
                 test_helpers::graceful_stop_test_config(),
             );
             proc.force_running_for_test();
             assert!(proc.mark_stop_requested());
             proc.graceful_stop_failed = failed;
-            assert!(!proc.mark_stop_requested(), "a second request must be rejected on every platform");
+            assert!(
+                !proc.mark_stop_requested(),
+                "a second request must be rejected on every platform"
+            );
             // With no PID/Windows resources, retrying would overwrite a
             // successful first delivery with failure instead of preserving it.
             proc.request_stop();
@@ -991,7 +1056,8 @@ pub mod tests {
     #[test]
     fn graceful_stop_rejects_missing_resources() {
         let mut proc = ManagedProcess::new_config(
-            "missing-graceful-stop-resources".into(), test_helpers::test_uuid(),
+            "missing-graceful-stop-resources".into(),
+            test_helpers::test_uuid(),
             test_helpers::graceful_stop_test_config(),
         );
         assert!(!proc.graceful_stop());
@@ -1019,7 +1085,10 @@ pub mod tests {
     #[tokio::test]
     async fn shared_wait_delivery_failure_uses_existing_undelivered_allowance() {
         use std::sync::{Arc, atomic::Ordering};
-        for outcome in [platform::SignalOutcome::Failed, platform::SignalOutcome::AlreadyExited] {
+        for outcome in [
+            platform::SignalOutcome::Failed,
+            platform::SignalOutcome::AlreadyExited,
+        ] {
             let job = platform::JobObject::new().unwrap();
             let faults = Arc::clone(&job.faults);
             let stop = injected_stop(job, outcome, Duration::from_millis(30));
@@ -1037,26 +1106,41 @@ pub mod tests {
         let job = platform::JobObject::new().unwrap();
         let faults = Arc::clone(&job.faults);
         let stop = StopWait {
-            name: "main-exit".into(), handle: tokio::spawn(async {}),
+            name: "main-exit".into(),
+            handle: tokio::spawn(async {}),
             timeout: Some(Duration::from_secs(90)),
-            killer: ProcessKiller { job_object: Some(job), identity: None },
+            killer: ProcessKiller {
+                job_object: Some(job),
+                identity: None,
+            },
             helper: Some(platform::SignalingHelper::test_unreported()),
         };
-        time::timeout(Duration::from_secs(1), stop.run()).await.unwrap();
-        assert_eq!(faults.terminate_calls.load(Ordering::SeqCst), 0,
-            "main exit must rely on kill-on-close without explicit job termination");
+        time::timeout(Duration::from_secs(1), stop.run())
+            .await
+            .unwrap();
+        assert_eq!(
+            faults.terminate_calls.load(Ordering::SeqCst),
+            0,
+            "main exit must rely on kill-on-close without explicit job termination"
+        );
     }
 
     #[cfg(windows)]
     #[tokio::test]
     async fn main_exit_during_stop_keeps_existing_exit_classification() {
         let (cmd, args) = test_helpers::true_cmd();
-        let mut proc = ManagedProcess::new_config("main-exit-stop".into(),
-            test_helpers::test_uuid(), test_helpers::make_config(cmd, args));
+        let mut proc = ManagedProcess::new_config(
+            "main-exit-stop".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
         let mut exit_rx = spawn_ok(&mut proc);
         proc.request_stop();
         let wait = proc.take_stop_wait().unwrap();
-        let event = time::timeout(Duration::from_secs(5), exit_rx.recv()).await.unwrap().unwrap();
+        let event = time::timeout(Duration::from_secs(5), exit_rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
         proc.set_last_status(event.status);
         assert_eq!(proc.state(), ProcessState::Stopped);
         assert!(proc.pid().is_none());

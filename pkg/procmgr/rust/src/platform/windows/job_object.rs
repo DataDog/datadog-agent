@@ -10,7 +10,6 @@ use windows_sys::Win32::System::JobObjects::{
     JobObjectExtendedLimitInformation, SetInformationJobObject, TerminateJobObject,
 };
 
-
 pub struct JobObject {
     handle: HANDLE,
     #[cfg(test)]
@@ -26,7 +25,10 @@ pub(crate) struct TestFaults {
 #[cfg(test)]
 impl Default for TestFaults {
     fn default() -> Self {
-        Self { terminate_error: false.into(), terminate_calls: 0.into() }
+        Self {
+            terminate_error: false.into(),
+            terminate_calls: 0.into(),
+        }
     }
 }
 
@@ -50,7 +52,11 @@ impl JobObject {
                 return Err(err);
             }
 
-            Ok(Self { handle, #[cfg(test)] faults: TestFaults::default().into() })
+            Ok(Self {
+                handle,
+                #[cfg(test)]
+                faults: TestFaults::default().into(),
+            })
         }
     }
 
@@ -60,10 +66,17 @@ impl JobObject {
 
     pub fn terminate(&self) -> Result<()> {
         #[cfg(test)]
-        self.faults.terminate_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.faults
+            .terminate_calls
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         #[cfg(test)]
-        anyhow::ensure!(!self.faults.terminate_error.load(std::sync::atomic::Ordering::SeqCst),
-            "injected job termination failure");
+        anyhow::ensure!(
+            !self
+                .faults
+                .terminate_error
+                .load(std::sync::atomic::Ordering::SeqCst),
+            "injected job termination failure"
+        );
         unsafe {
             let ok = TerminateJobObject(self.handle, 1);
             if ok == 0 {
