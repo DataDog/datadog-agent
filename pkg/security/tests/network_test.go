@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
 )
 
@@ -403,6 +404,131 @@ func TestRawPacketAction(t *testing.T) {
 		}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 	})
+}
+
+var _ = declare(TestRawPacketActionProtocols, testOpts{networkRawPacketEnabled: true})
+
+func TestRawPacketActionProtocols(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping raw packet action test in docker")
+	}
+
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+
+	// ICMP and raw sockets have no flow_pid entry: their packets are only attributed to a process through
+	// the socket cookie (cgroup v2 socket hooks) or the current task
+	kv, err := kernel.NewKernelVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cgroup2MountPoint, _ := utils.GetCgroup2MountPoint()
+	if (cgroup2MountPoint == "" || !kv.HasBpfGetSocketCookieForCgroupSocket()) && !kv.HasBpfGetCurrentPidTgidForSchedCLS() {
+		t.Skip("packets of raw sockets can't be attributed to a process on this kernel")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_raw_packet_drop_protocols",
+			Expression: `open.file.path == "{{.Root}}/test-raw-packet-drop-protocols"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					NetworkFilter: &rules.NetworkFilterDefinition{
+						BPFFilter: "host 127.0.0.1 or host ::1",
+						Scope:     "process",
+						Policy:    rules.NetworkFilterPolicyDrop,
+					},
+				},
+			},
+		},
+		{
+			// activate the network probes, including the cgroup socket hooks used to resolve the pid of packets
+			ID:         "test_dns_to_activate_network_probes",
+			Expression: `dns.question.name == "never.match.example.com"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testFile, _, err := test.Path("test-raw-packet-drop-protocols")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	// icmp4 is the control, icmp6 and udp6-dstopts (IPv6 extension header) used to bypass the drop action
+	kinds := []string{"icmp4", "icmp6", "udp6-dstopts"}
+	var probeArgs []string
+	for _, kind := range kinds {
+		probeArgs = append(probeArgs, "network-probe", kind, ";")
+	}
+
+	out, err := exec.Command(syscallTester, probeArgs...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("network probes failed: %s: %v", out, err)
+	}
+	for _, kind := range kinds {
+		if !strings.Contains(string(out), kind+": delivered") {
+			t.Skipf("%s not delivered without network filter: %s", kind, out)
+		}
+	}
+
+	var (
+		cmd    *exec.Cmd
+		stdin  io.WriteCloser
+		output strings.Builder
+	)
+	// the drop action is installed before the event is sent, so the probes only run once it is in place
+	err = test.GetEventSent(t, func() error {
+		args := append([]string{"open", testFile, ";", "getchar", ";"}, probeArgs...)
+		cmd = exec.Command(syscallTester, args...)
+		cmd.Stdout = &output
+		cmd.Stderr = &output
+		if stdin, err = cmd.StdinPipe(); err != nil {
+			return err
+		}
+		return cmd.Start()
+	}, func(rule *rules.Rule, event *model.Event) bool {
+		assertTriggeredRule(t, rule, "test_rule_raw_packet_drop_protocols")
+
+		if assert.Len(t, event.ActionReports, 1, "expected one action report") {
+			report, ok := event.ActionReports[0].(*probe.RawPacketActionReport)
+			if assert.True(t, ok, "expected a raw packet action report") {
+				report.RLock()
+				assert.Equal(t, probe.RawPacketActionStatusPerformed, report.Status, "drop action not performed")
+				report.RUnlock()
+			}
+		}
+		return true
+	}, 10*time.Second, "test_rule_raw_packet_drop_protocols")
+
+	if cmd == nil || cmd.Process == nil {
+		t.Fatal("syscall tester not started")
+	}
+	if err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatal(err)
+	}
+
+	stdin.Close()
+	if err := cmd.Wait(); err != nil {
+		t.Fatalf("network probes failed: %s: %v", output.String(), err)
+	}
+
+	for _, kind := range kinds {
+		assert.Contains(t, output.String(), kind+": blocked")
+	}
 }
 
 var _ = declare(TestRawPacketDropMetricAccuracyWithReload, testOpts{networkRawPacketEnabled: true})

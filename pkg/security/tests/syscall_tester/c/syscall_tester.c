@@ -21,6 +21,11 @@
 #include <signal.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netinet/ip6.h>
+#include <netinet/ip_icmp.h>
+#include <netinet/icmp6.h>
 #include <net/if.h>
 #include <netdb.h>
 #include <linux/un.h>
@@ -1973,6 +1978,166 @@ void *udp_client_thread(void *arg) {
     return NULL;
 }
 
+#define NETWORK_PROBE_ECHO_ID 0x4242
+
+static u_int16_t icmp_checksum(void *data, int len) {
+    u_int32_t sum = 0;
+    u_int16_t *p = data;
+
+    for (; len > 1; len -= 2) {
+        sum += *p++;
+    }
+    if (len == 1) {
+        sum += *(u_int8_t *)p;
+    }
+    sum = (sum >> 16) + (sum & 0xffff);
+    sum += (sum >> 16);
+
+    return ~sum;
+}
+
+static int set_recv_timeout(int fd) {
+    struct timeval tv = { .tv_sec = 1 };
+    return setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+}
+
+// network_probe_icmp_echo sends an ICMP echo request to the loopback address and returns 1 if the reply is received
+static int network_probe_icmp_echo(int family) {
+    int fd = socket(family, SOCK_RAW, family == AF_INET ? IPPROTO_ICMP : IPPROTO_ICMPV6);
+    if (fd < 0 || set_recv_timeout(fd) < 0) {
+        return -1;
+    }
+
+    struct sockaddr_storage addr = {};
+    socklen_t addr_len;
+    char req[64] = {};
+    if (family == AF_INET) {
+        struct sockaddr_in *sin = (struct sockaddr_in *)&addr;
+        sin->sin_family = AF_INET;
+        sin->sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        addr_len = sizeof(*sin);
+
+        struct icmphdr *icmp = (struct icmphdr *)req;
+        icmp->type = ICMP_ECHO;
+        icmp->un.echo.id = htons(NETWORK_PROBE_ECHO_ID);
+        icmp->un.echo.sequence = htons(1);
+        icmp->checksum = icmp_checksum(req, sizeof(req));
+    } else {
+        struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)&addr;
+        sin6->sin6_family = AF_INET6;
+        sin6->sin6_addr = in6addr_loopback;
+        addr_len = sizeof(*sin6);
+
+        // the checksum of ICMPv6 raw sockets is computed by the kernel
+        struct icmp6_hdr *icmp6 = (struct icmp6_hdr *)req;
+        icmp6->icmp6_type = ICMP6_ECHO_REQUEST;
+        icmp6->icmp6_id = htons(NETWORK_PROBE_ECHO_ID);
+        icmp6->icmp6_seq = htons(1);
+    }
+
+    if (sendto(fd, req, sizeof(req), 0, (struct sockaddr *)&addr, addr_len) < 0) {
+        int ret = errno == ENOBUFS || errno == EPERM ? 0 : -1;
+        close(fd);
+        return ret;
+    }
+
+    // raw sockets also receive the echo requests looped back, skip them
+    char buf[1500];
+    for (int i = 0; i < 16; i++) {
+        ssize_t n = recv(fd, buf, sizeof(buf), 0);
+        if (n < 0) {
+            break;
+        }
+
+        if (family == AF_INET) {
+            struct iphdr *ip = (struct iphdr *)buf;
+            size_t ip_len = ip->ihl * 4;
+            struct icmphdr *icmp = (struct icmphdr *)(buf + ip_len);
+            if ((size_t)n >= ip_len + sizeof(*icmp) && icmp->type == ICMP_ECHOREPLY && icmp->un.echo.id == htons(NETWORK_PROBE_ECHO_ID)) {
+                close(fd);
+                return 1;
+            }
+        } else {
+            struct icmp6_hdr *icmp6 = (struct icmp6_hdr *)buf;
+            if ((size_t)n >= sizeof(*icmp6) && icmp6->icmp6_type == ICMP6_ECHO_REPLY && icmp6->icmp6_id == htons(NETWORK_PROBE_ECHO_ID)) {
+                close(fd);
+                return 1;
+            }
+        }
+    }
+
+    close(fd);
+    return 0;
+}
+
+// network_probe_udp6_dstopts sends an UDP datagram with an IPv6 Destination Options extension header
+// to the loopback address and returns 1 if it is received
+static int network_probe_udp6_dstopts() {
+    int ret = -1;
+    struct sockaddr_in6 addr = { .sin6_family = AF_INET6, .sin6_addr = in6addr_loopback };
+    socklen_t addr_len = sizeof(addr);
+
+    int rfd = socket(AF_INET6, SOCK_DGRAM, 0);
+    int sfd = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (rfd < 0 || sfd < 0 || set_recv_timeout(rfd) < 0) {
+        goto out;
+    }
+
+    if (bind(rfd, (struct sockaddr *)&addr, addr_len) < 0 || getsockname(rfd, (struct sockaddr *)&addr, &addr_len) < 0) {
+        goto out;
+    }
+
+    // a single PadN option filling the 8 bytes of the header
+    unsigned char dstopts[8] = { 0, 0, IP6OPT_PADN, 4, 0, 0, 0, 0 };
+    if (setsockopt(sfd, IPPROTO_IPV6, IPV6_DSTOPTS, dstopts, sizeof(dstopts)) < 0) {
+        goto out;
+    }
+
+    if (sendto(sfd, "DATA", 4, 0, (struct sockaddr *)&addr, addr_len) < 0) {
+        ret = errno == ENOBUFS || errno == EPERM ? 0 : -1;
+        goto out;
+    }
+
+    char buf[16];
+    ret = recv(rfd, buf, sizeof(buf), 0) > 0 ? 1 : 0;
+
+out:
+    if (rfd >= 0) {
+        close(rfd);
+    }
+    if (sfd >= 0) {
+        close(sfd);
+    }
+    return ret;
+}
+
+int test_network_probe(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: network-probe <icmp4|icmp6|udp6-dstopts>\n");
+        return EXIT_FAILURE;
+    }
+
+    int ret;
+    if (strcmp(argv[1], "icmp4") == 0) {
+        ret = network_probe_icmp_echo(AF_INET);
+    } else if (strcmp(argv[1], "icmp6") == 0) {
+        ret = network_probe_icmp_echo(AF_INET6);
+    } else if (strcmp(argv[1], "udp6-dstopts") == 0) {
+        ret = network_probe_udp6_dstopts();
+    } else {
+        fprintf(stderr, "Unknown network probe: %s\n", argv[1]);
+        return EXIT_FAILURE;
+    }
+
+    if (ret < 0) {
+        printf("%s: error: %s\n", argv[1], strerror(errno));
+    } else {
+        printf("%s: %s\n", argv[1], ret ? "delivered" : "blocked");
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int test_udploop(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "Usage: udploop <port>\n");
@@ -2367,6 +2532,8 @@ int main(int argc, char **argv) {
             exit_code = test_slow_write(sub_argc, sub_argv);
         } else if (strcmp(cmd, "network_flow_send_udp4") == 0) {
             exit_code = test_network_flow_send_udp4(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "network-probe") == 0) {
+            exit_code = test_network_probe(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chmod-error") == 0) {
             exit_code = test_chmod_error(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chmod") == 0) {
