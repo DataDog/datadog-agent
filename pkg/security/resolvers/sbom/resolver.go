@@ -57,6 +57,9 @@ const (
 	// re-arming when no image SBOM will ever be produced (for example when
 	// container image SBOM collection is disabled and the image stays pending).
 	maxForwardWait = 30 * time.Minute
+	// hostRescanInterval is the period of the scans of the host packages, the
+	// default period of the host scans of the core agent.
+	hostRescanInterval = time.Hour
 )
 
 // pendingFileEvent holds the minimal information needed to re-process a file
@@ -104,6 +107,37 @@ func newData(report []sbomtypes.PackageWithInstalledFiles, usrMerged bool) *Data
 		files:    newFileQuerier(report, packages, usrMerged),
 		packages: packages,
 	}
+}
+
+// holds reports whether d holds the packages report lists, and those alone, in
+// any order.
+func (d *Data) holds(report []sbomtypes.PackageWithInstalledFiles) bool {
+	if len(report) != len(d.packages) {
+		return false
+	}
+
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	builds := make(map[sbomtypes.Package]int, len(d.packages))
+	for _, pkg := range d.packages {
+		builds[packageBuild(pkg)]++
+	}
+	for _, pkg := range report {
+		b := packageBuild(pkg.Package)
+		if builds[b] == 0 {
+			return false
+		}
+		builds[b]--
+	}
+	return true
+}
+
+// packageBuild returns pkg stripped of its usage, which leaves the fields
+// naming the build of the package.
+func packageBuild(pkg sbomtypes.Package) sbomtypes.Package {
+	pkg.LastAccess, pkg.SuidBit, pkg.AccessedByRoot = time.Time{}, false, false
+	return pkg
 }
 
 // keepUsage copies onto the packages of d the usage recorded in prev on the
@@ -232,6 +266,10 @@ type Resolver struct {
 	hostRootDevice uint64
 	hostRootInode  uint64
 	hostSBOM       *SBOM
+	// hostScanLock serializes the scans of the host packages, the hourly ones
+	// and those a package database write triggers. A scan reads the databases
+	// before it swaps the index, so the scan that read them last swaps last.
+	hostScanLock sync.Mutex
 	// walkProcesses calls its argument on every process the probe knows of.
 	walkProcesses func(func(*model.ProcessCacheEntry))
 
@@ -314,6 +352,12 @@ func (r *Resolver) Start(ctx context.Context) error {
 		if err := r.scanHost(); err != nil {
 			return err
 		}
+
+		rescan := time.NewTicker(hostRescanInterval)
+		go func() {
+			defer rescan.Stop()
+			r.rescanHost(ctx, rescan.C)
+		}()
 	}
 
 	go func() {
@@ -400,13 +444,33 @@ func (r *Resolver) refreshScan(sbom *SBOM) {
 	r.triggerScan(sbom)
 }
 
-// scanHost indexes the packages installed on the host into the host SBOM and
-// forwards the result. A package the previous index held under the same name
-// keeps the usage recorded on it, so a daemon seen running before the scan
-// still counts, and so does a daemon its upgrade restarted, whose start was
-// recorded on the build the upgrade replaced. The host resolves against the
-// previous index until the scan is over.
+// rescanHost scans the host packages again on every tick until ctx is done, so
+// the host index follows the packages installed after it was built. With CWS
+// on, a write to the package databases rescans the host at once as well. Usage
+// enrichment alone relies on these rescans.
+func (r *Resolver) rescanHost(ctx context.Context, tick <-chan time.Time) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick:
+			if err := r.scanHost(); err != nil {
+				seclog.Warnf("Failed to rescan the host packages: %v", err)
+			}
+		}
+	}
+}
+
+// scanHost indexes the packages installed on the host into the host SBOM, and
+// forwards the result when the packages changed. A package the previous index
+// held under the same name keeps the usage recorded on it, so a daemon seen
+// running before the scan still counts, and so does a daemon its upgrade
+// restarted, whose start was recorded on the build the upgrade replaced. The
+// host resolves against the previous index until the scan is over.
 func (r *Resolver) scanHost() error {
+	r.hostScanLock.Lock()
+	defer r.hostScanLock.Unlock()
+
 	// The host packages are read through the root of init, as those of a
 	// container are read through the root of one of its processes.
 	hostRoot := utils.ProcRootPath(1)
@@ -425,18 +489,24 @@ func (r *Resolver) scanHost() error {
 		return errors.New("no package found on the host")
 	}
 	previous := r.hostSBOM.data
+	// A change of packages alone is forwarded: a report makes the next host
+	// scan of the core agent go out in full, and the hourly rescan of an
+	// unchanged host keeps its heartbeats.
+	changed := !rescan || !previous.holds(report)
 	r.hostSBOM.usrMerged = isUsrMerged(hostRoot)
 	r.hostSBOM.setReport(report)
 	r.hostSBOM.data.keepUsage(previous)
 	r.hostSBOM.state.Store(computedState)
-	r.triggerForwarding(r.hostSBOM)
+	if changed {
+		r.triggerForwarding(r.hostSBOM)
+	}
 	r.hostSBOM.Unlock()
 
 	// A package manager runs the scripts of a package before it exits, so
 	// the daemon of a new package may start before the scan, when its files
 	// have no entry in the index. The processes running on the host are then
 	// recorded against the new index. At start the probe replays them all.
-	if rescan && r.walkProcesses != nil {
+	if rescan && changed && r.walkProcesses != nil {
 		r.walkProcesses(func(entry *model.ProcessCacheEntry) {
 			if entry.ContainerContext.ContainerID == "" && entry.ExitTime.IsZero() {
 				r.ResolvePackage(&entry.ProcessContext, &entry.FileEvent)

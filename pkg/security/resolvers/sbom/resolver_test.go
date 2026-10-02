@@ -863,3 +863,107 @@ func TestScanHostKeepsIndexOnEmptyScan(t *testing.T) {
 		t.Errorf("the scan replaced the index with an empty one")
 	}
 }
+
+// TestRescanHostOnTick checks that the host packages are scanned again on every
+// tick until the context is done. Usage enrichment alone relies on these scans
+// to keep the host index current.
+func TestRescanHostOnTick(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	r.sbomGenerations = atomic.NewUint64(0)
+	r.failedSBOMGenerations = atomic.NewUint64(0)
+	r.sbomCollector = &rootRecorder{report: []sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
+		InstalledFiles: []string{"/usr/bin/gzip"},
+	}}}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	tick := make(chan time.Time)
+	done := make(chan struct{})
+	go func() {
+		r.rescanHost(ctx, tick)
+		close(done)
+	}()
+
+	// The second tick goes through once the scan of the first is over.
+	tick <- time.Now()
+	tick <- time.Now()
+	cancel()
+	<-done
+
+	if n := r.sbomGenerations.Load(); n != 2 {
+		t.Errorf("%d scans of the host packages, want 2", n)
+	}
+	if pkgs := r.hostSBOM.data.packages; len(pkgs) != 1 || pkgs[0].Name != "gzip" {
+		t.Errorf("host packages = %+v, want gzip, from the new scans", pkgs)
+	}
+}
+
+// blockingScanner is a package scanner that signals each scan it starts and
+// finishes it, finding gzip, once release is closed.
+type blockingScanner struct {
+	started chan struct{}
+	release chan struct{}
+}
+
+func (s *blockingScanner) ScanInstalledPackages(context.Context, string) ([]sbomtypes.PackageWithInstalledFiles, error) {
+	s.started <- struct{}{}
+	<-s.release
+	return []sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
+		InstalledFiles: []string{"/usr/bin/gzip"},
+	}}, nil
+}
+
+// TestScanHostHoldsScanLock checks that a scan of the host packages holds the
+// scan lock from the read of the package databases to the swap of the index,
+// so that of an hourly rescan and a rescan a database write triggers, the one
+// that read the databases last swaps its index last.
+func TestScanHostHoldsScanLock(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	r.sbomGenerations = atomic.NewUint64(0)
+	r.failedSBOMGenerations = atomic.NewUint64(0)
+	scanner := &blockingScanner{started: make(chan struct{}), release: make(chan struct{})}
+	r.sbomCollector = scanner
+
+	done := make(chan error)
+	go func() {
+		done <- r.scanHost()
+	}()
+	<-scanner.started
+
+	if r.hostScanLock.TryLock() {
+		r.hostScanLock.Unlock()
+		t.Errorf("the scan lock was free while the scan read the package databases")
+	}
+
+	close(scanner.release)
+	if err := <-done; err != nil {
+		t.Fatalf("scanHost: %v", err)
+	}
+	if !r.hostScanLock.TryLock() {
+		t.Fatalf("the scan kept the scan lock")
+	}
+	r.hostScanLock.Unlock()
+}
+
+// TestScanHostForwardsChangesAlone checks that a rescan of the host packages
+// that finds the packages of the index forwards nothing. A forwarded report
+// makes the next host scan of the core agent go out in full, so the hourly
+// rescan of an unchanged host would end its heartbeats.
+func TestScanHostForwardsChangesAlone(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	r.sbomGenerations = atomic.NewUint64(0)
+	r.failedSBOMGenerations = atomic.NewUint64(0)
+	r.sbomCollector = &rootRecorder{report: []sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "util-linux", Version: "2.40.4"},
+		InstalledFiles: []string{"/usr/bin/su", "/usr/share/doc/util-linux"},
+	}}}
+
+	if err := r.scanHost(); err != nil {
+		t.Fatalf("scanHost: %v", err)
+	}
+
+	if r.hostSBOM.forwarder != nil {
+		t.Errorf("the rescan of unchanged packages triggered forwarding")
+	}
+}
