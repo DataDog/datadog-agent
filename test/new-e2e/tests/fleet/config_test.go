@@ -731,3 +731,24 @@ func (s *configSuite) assertCollectorConfigPath(experiment bool) {
 			"the running collector should read %s", want)
 	}, 2*time.Minute, 5*time.Second)
 }
+
+// TestInstallerSocketIsRootOnly pins pkg/fleet/daemon/local_api_unix.go on Linux: the installer
+// daemon runs as root and its local API carries no per-caller authorization there, so its socket
+// must stay owned by root. Handing it to dd-agent, as macOS does for its read-only status route,
+// would let anything running as the Agent's account install, remove and reconfigure packages.
+func (s *configSuite) TestInstallerSocketIsRootOnly() {
+	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
+		s.T().Skip("the unix socket ownership model only applies to Linux here; Windows uses a named pipe")
+	}
+
+	s.Agent.MustInstall(agent.WithRemoteUpdates())
+	defer s.Agent.MustUninstall()
+
+	const socketPath = "/opt/datadog-packages/run/installer.sock"
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		perms, err := s.Host.GetFilePermissions(socketPath)
+		require.NoError(c, err, "the installer daemon should have created its socket")
+		assert.Equal(c, "root", perms.Owner, "the installer socket must stay owned by root")
+		assert.Equal(c, "700", perms.Mode, "the installer socket must be owner-only")
+	}, 2*time.Minute, 5*time.Second)
+}
