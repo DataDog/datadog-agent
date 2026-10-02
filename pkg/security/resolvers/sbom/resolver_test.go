@@ -14,11 +14,15 @@ import (
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // TestRefreshScanResetsStateForRescan checks that refreshing a workload clears
@@ -341,9 +345,11 @@ func TestSharedDataConcurrentForwardingAndResolve(t *testing.T) {
 
 	sbomB := NewSBOM("container-b", nil, "image:tag")
 	sbomB.data = data
+	sbomB.status = workloadmeta.Success
 	sbomB.state.Store(computedState)
 
 	r := newPendingFileEventsResolver(t)
+	r.Notifier = utils.NewNotifier[Event, *sbompkg.ScanResult]()
 
 	var wg sync.WaitGroup
 
@@ -358,21 +364,100 @@ func TestSharedDataConcurrentForwardingAndResolve(t *testing.T) {
 		}
 	})
 
-	// Reader: simulate triggerForwarding.func1 snapshotting packages on sbomB
-	// (reads the shared Data via copy()).
+	// Reader: forward snapshots the packages of sbomB (reads the shared Data
+	// via copy()).
 	wg.Go(func() {
 		for range 2000 {
-			sbomB.Lock()
-			if sbomB.data != nil && len(sbomB.data.packages) > 0 {
-				sbomB.data.mu.RLock()
-				packages := make([]sbomtypes.Package, len(sbomB.data.packages))
-				copy(packages, sbomB.data.packages)
-				sbomB.data.mu.RUnlock()
-				_ = packages
-			}
-			sbomB.Unlock()
+			r.forward(sbomB)
 		}
 	})
 
 	wg.Wait()
+}
+
+// TestStopLeavesBusyDebouncers checks that stopping an SBOM returns while its
+// debouncers are busy. Their callbacks take the locks the callers of stop hold,
+// so waiting for them deadlocked the resolver. A debouncer started after stop
+// returns stands for a busy one.
+func TestStopLeavesBusyDebouncers(t *testing.T) {
+	refresher := debouncer.New(time.Hour, func() {})
+	forwarder := debouncer.New(time.Hour, func() {})
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	sbom.refresher = refresher
+	sbom.forwarder = forwarder
+
+	stopped := make(chan struct{})
+	go func() {
+		sbom.stop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+	case <-time.After(10 * time.Second):
+		t.Fatal("stop waited for its busy debouncers")
+	}
+
+	// The debouncers take the Stops that stop left pending, and end.
+	refresher.Start()
+	forwarder.Start()
+}
+
+// TestForwardSkipsStoppedSBOM checks that forward returns at once for a stopped
+// SBOM, as a callback still running after stop may call it.
+func TestForwardSkipsStoppedSBOM(t *testing.T) {
+	r := &Resolver{Notifier: utils.NewNotifier[Event, *sbompkg.ScanResult]()}
+
+	forwarded := false
+	if err := r.RegisterListener(SBOMComputed, func(*sbompkg.ScanResult) {
+		forwarded = true
+	}); err != nil {
+		t.Fatalf("RegisterListener: %v", err)
+	}
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	sbom.setReport([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "bash"},
+		InstalledFiles: []string{"/usr/bin/bash"},
+	}})
+	sbom.status = workloadmeta.Success
+	sbom.stop()
+
+	if r.forward(sbom) {
+		t.Errorf("the forward of a stopped SBOM asks for a retry")
+	}
+	if forwarded {
+		t.Errorf("a stopped SBOM was forwarded")
+	}
+}
+
+// TestRefreshScanKeepsStoppedSBOM checks that a refresh still running after its
+// workload was deleted keeps the SBOM stopped and out of the scan queue, and
+// keeps the cached data of the image for its other containers.
+func TestRefreshScanKeepsStoppedSBOM(t *testing.T) {
+	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r := &Resolver{
+		dataCache: dataCache,
+		scanChan:  make(chan *SBOM, 10),
+	}
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	sbom.stop()
+	dataCache.Add("image:tag", &Data{})
+
+	r.refreshScan(sbom)
+
+	if got := sbom.state.Load(); got != stoppedState {
+		t.Errorf("state = %d, want stoppedState (%d)", got, stoppedState)
+	}
+	if len(r.scanChan) != 0 {
+		t.Errorf("the deleted workload was queued for a scan")
+	}
+	if _, ok := dataCache.Get("image:tag"); !ok {
+		t.Errorf("the deleted workload dropped the cached data of its image")
+	}
 }
