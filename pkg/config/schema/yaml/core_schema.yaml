@@ -1703,7 +1703,7 @@ properties:
     description: Network Path configuration
     tags:
     - full-agent-only:true
-    - platform_only:windows,linux
+    - platform_only:windows,linux,darwin
     - template_section:CoreAgent
     properties:
       connections_monitoring:
@@ -1731,6 +1731,25 @@ properties:
               eligible Cloud Network Monitoring paths. Requires Cloud Network Monitoring and
               system-probe traceroute. Standard connection-monitoring Dynamic Tests take precedence
               when both options are enabled.
+          eudm_basic_tests_enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            visibility: public
+            description: Enables basic Network Path Dynamic Tests for end-user devices. In
+              end_user_device infrastructure mode, the Agent tests up to 20 eligible paths
+              after the first five minutes and in each subsequent hour. Set to false to
+              disable these tests. This setting has no effect in other infrastructure modes.
+          eudm_basic_candidate_limit:
+            node_type: setting
+            type: integer
+            default: 80
+            minimum: 20
+            maximum: 512
+            visibility: public
+            description: Maximum number of eligible paths considered when selecting the 20
+              basic Network Path Dynamic Tests on an end-user device. Must be between 20
+              and 512. This setting has no effect in other infrastructure modes.
       collector:
         node_type: section
         type: object
@@ -1825,6 +1844,13 @@ properties:
 
                 # Include specific domain
                 # - match_domain: 'api.datadoghq.com'
+                #   type: include
+
+                # To select dynamic paths only from chosen domains, exclude all domains first,
+                # then add includes. The last matching filter wins.
+                # - match_domain: '*'
+                #   type: exclude
+                # - match_domain: 'api.example.com'
                 #   type: include
           traceroute_queries:
             node_type: setting
@@ -3057,6 +3083,15 @@ properties:
       How frequently should the Agent check for new/updated integration configuration files (in seconds).
       This value must be >= 1 (i.e. 1 second).
       WARNING: Only files containing checks configuration are supported (logs configuration are not supported).
+    tags:
+    - template_section:CoreAgent
+  autoconf_config_files_num_workers:
+    node_type: setting
+    type: integer
+    default: 1
+    description: |-
+      Number of goroutines used to read and parse integration configuration files
+      concurrently when scanning a configuration directory. This value must be >= 1.
     tags:
     - template_section:CoreAgent
   config_providers:
@@ -5434,12 +5469,12 @@ properties:
             node_type: setting
             type: boolean
             default: false
-            comment: Parquet recording of raw ingested signals for offline analysis
-              and replay.
+            comment: Recording of raw ingested signals for offline analysis
+              when a writer backend is registered.
           flush_interval:
             node_type: setting
-            type: integer
-            default: 60
+            type: string
+            default: 60s
           output_dir:
             node_type: setting
             type: string
@@ -8489,6 +8524,27 @@ properties:
     node_type: setting
     type: boolean
     default: false
+  metric_filterlist_prefix:
+    node_type: setting
+    type: array
+    default: []
+    env_parser: json
+    items:
+      type: object
+    comment: |-
+      Drops every metric name starting with one of the given prefixes, in addition to
+      metric_filterlist. Every entry is always a prefix -- no trailing `*` is needed or
+      recognized here, unlike the per-entry `*` metric_filterlist once supported. An empty
+      prefix ("") matches every metric name.
+
+      Each entry is an object with a `prefix` field and two optional exception fields,
+      `except_exact` (a list of exact metric names to keep) and `except_prefix` (a list of
+      prefixes to keep). Exceptions apply across all entries in this list: a metric excepted
+      by one entry is kept even if another prefix entry also matches it. Exact or prefix
+      matches from metric_filterlist still drop the metric.
+
+      A prefix does not need to end on a segment boundary: `sys` matches both `system.cpu` and
+      `sys.cpu`.
   metric_tag_filterlist:
     node_type: setting
     type: array
@@ -9043,6 +9099,18 @@ properties:
             - datadoghq.com
             items:
               type: string
+          max_compressed_payload_size:
+            node_type: setting
+            type: integer
+            default: 0
+          max_uncompressed_payload_size:
+            node_type: setting
+            type: integer
+            default: 0
+          max_points_per_payload:
+            node_type: setting
+            type: integer
+            default: 0
   serializer_max_payload_size:
     node_type: setting
     type: integer

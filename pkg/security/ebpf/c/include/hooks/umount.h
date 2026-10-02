@@ -21,16 +21,19 @@ int hook_security_sb_umount(ctx_t *ctx) {
 }
 
 int __attribute__((always_inline)) sys_umount_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_UMOUNT);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UMOUNT);
     if (!syscall) {
         return 0;
     }
 
     if (retval) {
+        pop_syscall(EVENT_UMOUNT);
         return 0;
     }
 
     int mount_id = get_vfsmount_mount_id(syscall->umount.vfs);
+
+    pop_syscall(EVENT_UMOUNT);
 
     struct umount_event_t *event = SPAN_FILL_EVENT(struct umount_event_t, EVENT_UMOUNT);
     if (!event) {
