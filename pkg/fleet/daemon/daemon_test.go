@@ -261,12 +261,21 @@ type testInstaller struct {
 	bm  *testBoostrapper
 }
 
+// expectResumeOnStart registers the startup resume where Start makes it. Only macOS resumes
+// configuration experiments on start; elsewhere no expectation is registered, so a call fails the
+// test as unexpected.
+func expectResumeOnStart(pm *testPackageManager) {
+	if runtime.GOOS == "darwin" {
+		pm.On("ResumeConfigExperiments", mock.Anything).Return(nil)
+	}
+}
+
 func newTestInstaller(t *testing.T) *testInstaller {
 	bm := &testBoostrapper{}
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	pm.On("ResumeConfigExperiments", mock.Anything).Return(nil)
+	expectResumeOnStart(pm)
 	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
 		States:       map[string]repository.State{},
 		ConfigStates: map[string]repository.State{},
@@ -512,7 +521,7 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	pm.On("ResumeConfigExperiments", mock.Anything).Return(nil)
+	expectResumeOnStart(pm)
 	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
 		States:       testPackageStates,
 		ConfigStates: testConfigStates,
@@ -589,7 +598,7 @@ func TestRefreshStateRunningConfigVersion(t *testing.T) {
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	pm.On("ResumeConfigExperiments", mock.Anything).Return(nil)
+	expectResumeOnStart(pm)
 	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
 		States:       testPackageStates,
 		ConfigStates: testConfigStates,
