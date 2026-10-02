@@ -503,6 +503,7 @@ func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	defer m.profilesLock.Unlock()
 	for selector, prof := range m.profiles {
 		if removed, remainingInstances := m.unlinkWorkloadFromProfile(prof, cgce); removed {
+			prof.RemoveBaseMountNamespace(cgce.GetCGroupInode())
 			if remainingInstances == 0 {
 				// Queue for delayed removal
 				m.pendingProfileRemovalsLock.Lock()
@@ -1066,12 +1067,11 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	// Link this workload to the profile (tracks in profile.Instances)
 	workload := m.getOrCreateWorkload(event, selector, workloadID)
 	m.linkWorkloadToProfile(secprof, workload)
+	m.seedMountsForWorkload(secprof, workload, event)
 
 	// Check if profile has reached max size. V2 uses its own knob evaluated against the
 	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
 	// semantics for ActivityDump/legacy Manager paths.
-	// TODO: we should handle this in a better way
-
 	if secprof.ComputeHeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
 		secprof.Disable()
 		seclog.Infof("Activity dump of %s was stopped because it reached the maximum allowed size of %d.", secprof.GetSelectorStr(), int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()))
@@ -1182,6 +1182,71 @@ func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.
 	prof.Instances = append(prof.Instances, workload)
 
 	m.resolveAndSaveSecurityContext(prof, workload.GCroupCacheEntry.GetContainerID())
+}
+
+// baseMountNamespaceFromEvent returns the mount namespace to treat as the workload's base,
+// and whether that value is authoritative. It is authoritative when it comes from the
+// process the tree would root the workload on; otherwise it falls back to the event's own
+// namespace, which is only a guess because the event may come from a process that setns'd.
+func baseMountNamespaceFromEvent(event *model.Event) (uint32, bool) {
+	pc := event.ProcessContext
+	if pc == nil {
+		return 0, false
+	}
+
+	if root := activity_tree.FindRootProcess(pc); root != nil && root.Process.MntNS != 0 {
+		return root.Process.MntNS, true
+	}
+
+	return pc.Process.MntNS, false
+}
+
+// seedMountsForWorkload seeds a profile's mount table with the workload's
+// pre-existing mounts from its base mount namespace. Later changes come from
+// live mount events.
+func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *tags.Workload, event *model.Event) {
+	if workload == nil {
+		return
+	}
+
+	nsID, authoritative := baseMountNamespaceFromEvent(event)
+	if nsID == 0 || !secprof.PinBaseMountNamespace(workload.GCroupCacheEntry.GetCGroupInode(), nsID, authoritative) {
+		return
+	}
+
+	var mounts []model.Mount
+	m.resolvers.MountResolver.IterateNamespace(nsID, func(mnt *model.Mount) {
+		mounts = append(mounts, *mnt)
+	})
+
+	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+	if imageTag == "" {
+		imageTag = "latest"
+	}
+
+	pid := event.ProcessContext.Process.Pid
+	maxSize := int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize())
+	now := time.Now()
+	for i := range mounts {
+		mnt := &mounts[i]
+
+		// mount paths are resolved lazily, so a cached entry may have an empty Path.
+		// Resolve it here (the iterator lock is released) and skip mounts we cannot
+		// resolve rather than recording an empty mount point.
+		mountPoint := mnt.Path
+		if resolved, _, _, err := m.resolvers.MountResolver.ResolveMountPath(mnt.MountID, pid); err == nil && resolved != "" {
+			mountPoint = resolved
+		}
+		if mountPoint == "" {
+			continue
+		}
+		mnt.Path = mountPoint
+
+		secprof.InsertMount(mnt, imageTag, activity_tree.Snapshot, now)
+		if secprof.ComputeHeapSize() >= maxSize {
+			break
+		}
+	}
 }
 
 // unlinkWorkloadFromProfile removes a workload from a profile's Instances

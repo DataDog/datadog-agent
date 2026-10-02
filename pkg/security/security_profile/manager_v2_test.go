@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
@@ -202,6 +203,70 @@ func TestManagerV2_shouldSendAnomalyDetection(t *testing.T) {
 		p := profile.New()
 		require.True(t, p.Metadata.Start.IsZero())
 		assert.True(t, timeBased(time.Hour).shouldSendAnomalyDetection(p, time.Now()))
+	})
+}
+
+func TestBaseMountNamespaceFromEvent(t *testing.T) {
+	newProc := func(path, basename string, inode uint64, containerID string, mntns uint32) *model.ProcessCacheEntry {
+		e := model.NewProcessCacheEntry()
+		e.Process.FileEvent.PathnameStr = path
+		e.Process.FileEvent.BasenameStr = basename
+		e.Process.FileEvent.Inode = inode
+		e.Process.FileEvent.MountID = 1 // non-zero so the file is not treated as fileless
+		e.Process.ContainerContext.ContainerID = containerutils.ContainerID(containerID)
+		e.Process.MntNS = mntns
+		return e
+	}
+
+	eventFor := func(leaf *model.ProcessCacheEntry) *model.Event {
+		ev := &model.Event{}
+		ev.BaseEvent.ProcessContext = &leaf.ProcessContext
+		return ev
+	}
+
+	t.Run("nil process context yields zero", func(t *testing.T) {
+		nsID, authoritative := baseMountNamespaceFromEvent(&model.Event{})
+		assert.Equal(t, uint32(0), nsID)
+		assert.False(t, authoritative)
+	})
+
+	t.Run("falls back to the event process namespace when there is no valid root", func(t *testing.T) {
+		p := newProc("/app/server", "server", 20, "c1", 4242)
+		nsID, authoritative := baseMountNamespaceFromEvent(eventFor(p))
+		assert.Equal(t, uint32(4242), nsID)
+		// the branch is truncated, so the namespace is a guess and must stay revisable
+		assert.False(t, authoritative)
+	})
+
+	t.Run("skips the container runtime and anchors on the workload root", func(t *testing.T) {
+		shell := newProc("/bin/bash", "bash", 5, "", 1)
+		runc := newProc("/usr/bin/runc", "runc", 10, "c1", 50)
+		runc.Ancestor = shell
+		app := newProc("/app/server", "server", 20, "c1", 100)
+		app.Ancestor = runc
+		// a sampled descendant that has setns'd into another namespace
+		child := newProc("/app/child", "child", 30, "c1", 999)
+		child.Ancestor = app
+
+		nsID, authoritative := baseMountNamespaceFromEvent(eventFor(child))
+		assert.Equal(t, uint32(100), nsID)
+		assert.True(t, authoritative)
+	})
+
+	t.Run("does not cross the workload boundary into host processes", func(t *testing.T) {
+		systemd := newProc("/usr/lib/systemd/systemd", "systemd", 1, "", 1)
+		containerd := newProc("/usr/bin/containerd", "containerd", 5, "", 2)
+		containerd.Ancestor = systemd
+		shim := newProc("/usr/bin/containerd-shim", "containerd-shim", 10, "", 3)
+		shim.Ancestor = containerd
+		app := newProc("/app/server", "server", 20, "c1", 100)
+		app.Ancestor = shim
+
+		// the host containerd passes isValidRootNode, but it is outside the
+		// workload and its host namespace must not be pinned as the base.
+		nsID, authoritative := baseMountNamespaceFromEvent(eventFor(app))
+		assert.Equal(t, uint32(100), nsID)
+		assert.True(t, authoritative)
 	})
 }
 
