@@ -14,13 +14,13 @@ import (
 
 var listAddresses = netlink.AddrList
 
-func loadInterfaceAddresses(ifaces []net.Interface) (map[int]interfaceAddresses, error) {
+func loadInterfaces(ifaces []net.Interface) ([]networkInterface, error) {
 	addrs, err := listAddresses(nil, netlink.FAMILY_ALL)
 	if err != nil {
 		return nil, err
 	}
 
-	addresses := make(map[int]interfaceAddresses, len(ifaces))
+	addresses := make(map[int][]net.Addr, len(ifaces))
 	for _, addr := range addrs {
 		ipnet := addr.IPNet
 		if ipnet == nil || ipnet.IP == nil {
@@ -30,9 +30,11 @@ func loadInterfaceAddresses(ifaces []net.Interface) (map[int]interfaceAddresses,
 			// Interface.Addrs uses the original prefix with the local IP.
 			ipnet = &net.IPNet{IP: ipnet.IP, Mask: addr.Peer.Mask}
 		}
-		entry := addresses[addr.LinkIndex]
-		entry.addrs = append(entry.addrs, ipnet)
-		addresses[addr.LinkIndex] = entry
+		addresses[addr.LinkIndex] = append(addresses[addr.LinkIndex], ipnet)
 	}
-	return addresses, nil
+	result := make([]networkInterface, len(ifaces))
+	for i := range ifaces {
+		result[i] = &realNetworkInterface{iface: ifaces[i], addrs: addresses[ifaces[i].Index]}
+	}
+	return result, nil
 }
