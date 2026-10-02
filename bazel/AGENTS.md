@@ -746,7 +746,10 @@ host's. Follow the `backend_windows_schema_gen` pattern: a `go_cross_binary` of
 the generator for `windows_amd64`, a native `run_binary` and a Wine `run_binary`,
 and an `alias` that selects between them on `@platforms//os:windows`. `wine_run`
 only supports Linux x86_64 and aarch64 (4K pages), so on macOS the Wine target
-is skipped as incompatible.
+is skipped as incompatible. Wine is for local regeneration only (it is flaky
+under box64 on CI): tag the Wine target, the alias and its `write_source_file`
+`manual`, and check the committed output with a `diff_test` against the native
+target, which only runs on Windows.
 
 ## Depsets and rule performance
 
