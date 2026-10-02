@@ -24,6 +24,7 @@
 /.agents/skills/*                               @DataDog/agent-devx
 /.agents/skills/allium/                         @DataDog/single-machine-performance
 /.agents/skills/agent-supply-chain-newsletter/  @DataDog/agent-devx
+/.agents/skills/anomalydetection-run-gensim-scenario-on-vm/ @DataDog/agent-anomaly-detection
 /.agents/skills/auto-jira/                      @DataDog/agent-devx
 /.agents/skills/create-component/               @DataDog/agent-runtimes
 /.agents/skills/create-core-check/              @DataDog/agent-runtimes
