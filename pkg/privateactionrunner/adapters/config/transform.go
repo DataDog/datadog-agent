@@ -8,6 +8,7 @@ package config
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -70,6 +72,9 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	if v := config.GetInt32(setup.PARHttpTimeoutSeconds); v != 0 {
 		httpTimeout = time.Duration(v) * time.Second
 	}
+	agentHTTPClient := &http.Client{
+		Transport: httputils.CreateHTTPTransport(config),
+	}
 
 	return &Config{
 		MaxBackoff:                         maxBackoff,
@@ -92,6 +97,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		HeartbeatInterval:                  heartbeatInterval,
 		Version:                            version.AgentVersion,
 		MetricsClient:                      metricsClient,
+		AgentHTTPClient:                    agentHTTPClient,
 		ActionsAllowlist:                   makeActionsAllowlist(config),
 		Allowlist:                          config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:                  config.GetBool(setup.PARHttpAllowImdsEndpoint),

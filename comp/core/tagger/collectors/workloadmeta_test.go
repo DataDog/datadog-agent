@@ -4965,7 +4965,6 @@ func TestRefreshGlobalTags(t *testing.T) {
 	clusterIDCacheKey := cache.BuildAgentKey("orchestratorClusterID")
 	cache.Cache.Delete(clusterIDCacheKey)
 	t.Cleanup(func() { cache.Cache.Delete(clusterIDCacheKey) })
-	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "")
 
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("tags", []string{"some:tag"})
@@ -4978,7 +4977,8 @@ func TestRefreshGlobalTags(t *testing.T) {
 	assert.False(t, hasOrchClusterIDTag(firstEvent, "87654321-4321-4321-4321-210987654321"))
 	assert.Contains(t, firstEvent.LowCardTags, "some:tag")
 
-	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "87654321-4321-4321-4321-210987654321")
+	// The Cluster Agent gets the cluster ID from Kubernetes, which is not available here.
+	cache.Cache.Set(clusterIDCacheKey, "87654321-4321-4321-4321-210987654321", cache.NoExpiration)
 	collector.collectStaticGlobalTags(context.Background(), mockConfig)
 
 	secondTagInfos := <-collectorCh
