@@ -337,31 +337,105 @@ static struct sigaction old_sigsegv_handler;
 
   This crash handler intercepts crashes triggered in C-land, printing the stacktrace
   at the time of the crash to stderr - logging cannot be assumed to be working at this
-  point and hence the use of stderr. After collecting the C stack trace, this handler
-  chains to the previously installed signal handler (typically the Go runtime's handler)
-  to allow it to perform its own crash handling and generate a goroutine dump.
+  point and hence the use of stderr. The handler only uses async-signal-safe
+  functions (write(2) with hand-formatted strings): the heap may be corrupted and
+  libc locks may be held by the faulting thread, so raw addresses are printed and
+  are meant to be symbolized offline from the core dump. After printing the trace,
+  this handler chains to the previously installed signal handler (typically the Go
+  runtime's handler) to allow it to perform its own crash handling and generate a
+  goroutine dump.
 */
 #    define STACKTRACE_SIZE 500
+
+// Async-signal-safe output helpers: no iostreams (locks), no stdio formatting
+// (locale/locks), no malloc (backtrace_symbols allocates its result).
+static size_t safe_append(char *dst, const char *s)
+{
+    size_t len = strlen(s);
+    memcpy(dst, s, len);
+    return len;
+}
+
+static size_t safe_append_uint(char *dst, size_t value)
+{
+    static const char digits[] = "0123456789";
+    char tmp[20];
+    size_t n = 0;
+    do {
+        tmp[n++] = digits[value % 10];
+        value /= 10;
+    } while (value != 0);
+    size_t len = 0;
+    while (n > 0) {
+        dst[len++] = tmp[--n];
+    }
+    return len;
+}
+
+static size_t safe_append_hex(char *dst, uintptr_t value)
+{
+    static const char digits[] = "0123456789abcdef";
+    char tmp[2 * sizeof(uintptr_t)];
+    size_t n = 0;
+    do {
+        tmp[n++] = digits[value & 0xf];
+        value >>= 4;
+    } while (value != 0);
+    size_t len = 0;
+    dst[len++] = '0';
+    dst[len++] = 'x';
+    while (n > 0) {
+        dst[len++] = tmp[--n];
+    }
+    return len;
+}
+
+static void safe_write(const char *buf, size_t len)
+{
+    // write(2) is async-signal-safe; loop over partial writes and EINTR.
+    while (len > 0) {
+        ssize_t written = write(STDERR_FILENO, buf, len);
+        if (written < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return;
+        }
+        if (written == 0) {
+            return;
+        }
+        buf += written;
+        len -= (size_t)written;
+    }
+}
+
+static void safe_writeln(const char *s)
+{
+    safe_write(s, strlen(s));
+    safe_write("\n", 1);
+}
+
 void signalHandler(int sig, siginfo_t *info, void *context)
 {
 #    ifdef HAS_BACKTRACE_LIB
     void *buffer[STACKTRACE_SIZE];
-    char **symbols;
-
     size_t nptrs = backtrace(buffer, STACKTRACE_SIZE);
 #    endif
-    std::cerr << "HANDLER CAUGHT signal Error: signal " << sig << std::endl;
-#    ifdef HAS_BACKTRACE_LIB
-    symbols = backtrace_symbols(buffer, nptrs);
-    if (symbols == NULL) {
-        std::cerr << "Error getting backtrace symbols" << std::endl;
-    } else {
-        std::cerr << "C-LAND STACKTRACE: " << std::endl;
-        for (size_t i = 0; i < nptrs; i++) {
-            std::cerr << symbols[i] << std::endl;
-        }
 
-        _free(symbols);
+    char header[64];
+    size_t len = safe_append(header, "HANDLER CAUGHT signal ");
+    len += safe_append_uint(header + len, (size_t)sig);
+    header[len++] = '\n';
+    safe_write(header, len);
+
+#    ifdef HAS_BACKTRACE_LIB
+    safe_writeln("C-LAND STACKTRACE (raw addresses; symbolize offline):");
+    for (size_t i = 0; i < nptrs; i++) {
+        char line[2 + 2 + 2 * sizeof(uintptr_t) + 2];
+        size_t n = safe_append(line, "  ");
+        n += safe_append_hex(line + n, (uintptr_t)buffer[i]);
+        line[n++] = '\n';
+        safe_write(line, n);
     }
 #    endif
 
@@ -377,7 +451,7 @@ void signalHandler(int sig, siginfo_t *info, void *context)
             old_sigsegv_handler.sa_handler(sig);
         } else {
             // No previous handler or it was default/ignore, so just abort
-            std::cerr << "Received SIGSEGV and no handler to chain to. Aborting. \n";
+            safe_writeln("Received SIGSEGV and no handler to chain to. Aborting.");
             kill(getpid(), SIGABRT);
         }
     }
