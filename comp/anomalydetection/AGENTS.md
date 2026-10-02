@@ -212,7 +212,9 @@ See `reporter/reporter.allium` for the payload contract.
   When migrating legacy switches, define compatibility and precedence, then test
   no consumer, each consumer alone, multiple consumers, and explicit overrides.
 
-Keys are declared in the config schema (`pkg/config/schema/yaml/`).
+Keys below are in the main config schema unless noted. Recorder settings target
+non-production `anomalydetection_recorder` builds: `recording.only` stays out of
+the schema, while the existing recorder keys remain there pending removal.
 
 | Key | Default | Purpose |
 |-----|---------|---------|
@@ -222,6 +224,7 @@ Keys are declared in the config schema (`pkg/config/schema/yaml/`).
 | `anomaly_detection.metrics.enabled` | `true` | External metric ingestion at handles |
 | `anomaly_detection.metrics.processing_rules` | `[]` | Ordered metric filter rules (source/name/tags) |
 | `anomaly_detection.recording.enabled` | `false` | Enables Parquet recording in tagged Agent builds |
+| `anomaly_detection.recording.only` | `false` | With an active recorder, record metrics and logs without analysis |
 | `anomaly_detection.recording.flush_interval` | `60s` | Duration passed to the writer backend; `0s` uses `60s` |
 | `anomaly_detection.recording.retention` | `24h` | Duration passed to the writer backend |
 | `anomaly_detection.logs.enabled` | `true` | Parent gate for all log sources |
