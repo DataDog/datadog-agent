@@ -1100,11 +1100,39 @@ func TestRealNetworkInterfaceMethods(t *testing.T) {
 	assert.Equal(t, net.FlagUp|net.FlagBroadcast, realIface.GetFlags())
 	assert.Equal(t, "00:11:22:33:44:55", realIface.GetHardwareAddr().String())
 
-	realIface.addresses = interfaceAddresses{addrs: []net.Addr{createIPNetAddr("192.0.2.10/24")}}
+	realIface.addrs = []net.Addr{createIPNetAddr("192.0.2.10/24")}
 	addrs, err := realIface.Addrs()
 	require.NoError(t, err)
 	require.Len(t, addrs, 1)
 	assert.Equal(t, "192.0.2.10/24", addrs[0].String())
+}
+
+func TestCollectInfoLoadsInterfacesOnce(t *testing.T) {
+	original := getInterfaces
+	t.Cleanup(func() { getInterfaces = original })
+	calls := 0
+	ifaces := []networkInterface{
+		createMockInterface("eth0", net.FlagUp, "00:11:22:33:44:55",
+			[]net.Addr{createIPNetAddr("192.0.2.10/24")}),
+	}
+	getInterfaces = func() ([]networkInterface, error) {
+		calls++
+		return ifaces, nil
+	}
+
+	info, err := CollectInfo()
+	require.NoError(t, err)
+	require.Equal(t, "192.0.2.10", info.IPAddress)
+	require.Equal(t, 1, calls)
+}
+
+func BenchmarkCollectInfo(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := CollectInfo(); err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 // Helpers

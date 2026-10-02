@@ -32,20 +32,16 @@ type networkInterface interface {
 
 // realNetworkInterface wraps net.Interface to implement networkInterface
 type realNetworkInterface struct {
-	iface     net.Interface
-	addresses interfaceAddresses
-}
-
-type interfaceAddresses struct {
-	addrs []net.Addr
-	err   error
+	iface    net.Interface
+	addrs    []net.Addr
+	addrsErr error
 }
 
 func (r *realNetworkInterface) GetName() string                   { return r.iface.Name }
 func (r *realNetworkInterface) GetFlags() net.Flags               { return r.iface.Flags }
 func (r *realNetworkInterface) GetHardwareAddr() net.HardwareAddr { return r.iface.HardwareAddr }
 func (r *realNetworkInterface) Addrs() ([]net.Addr, error) {
-	return r.addresses.addrs, r.addresses.err
+	return r.addrs, r.addrsErr
 }
 
 // interfacesProvider is a function type that returns network interfaces.
@@ -58,15 +54,7 @@ func defaultGetInterfaces() ([]networkInterface, error) {
 	if err != nil {
 		return nil, err
 	}
-	addresses, err := loadInterfaceAddresses(ifaces)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]networkInterface, len(ifaces))
-	for i := range ifaces {
-		result[i] = &realNetworkInterface{iface: ifaces[i], addresses: addresses[ifaces[i].Index]}
-	}
-	return result, nil
+	return loadInterfaces(ifaces)
 }
 
 // getInterfaces can be replaced in tests for mocking.
