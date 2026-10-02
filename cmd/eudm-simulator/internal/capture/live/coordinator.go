@@ -139,7 +139,9 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, dura
 		return errors.New("capture activation spread exceeds five seconds")
 	}
 	if err := sink.Start(work, session); err != nil {
-		return errors.New("cannot initialize normalized capture evidence")
+		// Startup errors describe local output and validated session structure;
+		// no captured payload has reached the sink yet.
+		return fmt.Errorf("cannot initialize capture bundle: %w", err)
 	}
 	options.progress.armed(session.Origin)
 	options.progress.phase("recording", "")

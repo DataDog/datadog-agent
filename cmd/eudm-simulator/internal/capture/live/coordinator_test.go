@@ -463,6 +463,8 @@ func TestCoordinatorFailureDisarmsEveryAttemptedProducer(t *testing.T) {
 			}
 			if err := runTestCapture(t, "macos", clients, sink); err == nil {
 				t.Fatal("invalid capture completed")
+			} else if kind == "writer failure" && !strings.Contains(err.Error(), "test writer unavailable") {
+				t.Fatalf("writer startup error lost its cause: %v", err)
 			}
 			if sink.finished {
 				t.Fatal("failed capture finalized evidence")

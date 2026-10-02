@@ -89,3 +89,49 @@ func TestCaptureReadOnlyIPCDoesNotCreateMissingArtifacts(t *testing.T) {
 		t.Fatal("capture created authentication artifacts or output before readiness")
 	}
 }
+
+func TestCaptureRejectsExistingOutputBeforeReadingConfiguration(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		t.Skip("installed capture platform restriction")
+	}
+	previous := version.FullCommit
+	version.FullCommit = strings.Repeat("a", 40)
+	t.Cleanup(func() { version.FullCommit = previous })
+	for _, kind := range []string{"completed bundle", "file", "dangling symlink"} {
+		t.Run(kind, func(t *testing.T) {
+			directory := t.TempDir()
+			output := filepath.Join(directory, "capture")
+			preserved := output
+			if kind == "dangling symlink" {
+				if err := os.Symlink(filepath.Join(directory, "missing"), output); err != nil {
+					t.Skipf("cannot create symlink: %v", err)
+				}
+			} else {
+				if kind == "completed bundle" {
+					if err := os.Mkdir(output, 0700); err != nil {
+						t.Fatal(err)
+					}
+					preserved = filepath.Join(output, "COMPLETE")
+				}
+				if err := os.WriteFile(preserved, []byte("existing-content"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var progress bytes.Buffer
+			err := RunInstalled(context.Background(), output, filepath.Join(directory, "missing.yaml"), time.Minute, &progress)
+			if err == nil || !strings.Contains(err.Error(), "already exists; choose a new --output directory") {
+				t.Fatalf("existing output was not rejected before configuration: %v", err)
+			}
+			if strings.Contains(progress.String(), "waiting for producers") {
+				t.Fatal("existing output reached producer discovery")
+			}
+			if kind == "dangling symlink" {
+				if target, err := os.Readlink(output); err != nil || target != filepath.Join(directory, "missing") {
+					t.Fatal("capture changed the existing symlink")
+				}
+			} else if contents, err := os.ReadFile(preserved); err != nil || string(contents) != "existing-content" {
+				t.Fatal("capture changed existing output")
+			}
+		})
+	}
+}

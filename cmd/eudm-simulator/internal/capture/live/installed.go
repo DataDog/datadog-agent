@@ -8,6 +8,7 @@ package live
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -181,6 +182,13 @@ func RunInstalled(ctx context.Context, directory, cfgpath string, duration time.
 	}
 	if len(version.FullCommit) != 40 || strings.Trim(version.FullCommit, "0123456789abcdef") != "" {
 		return errors.New("capture requires a revision-stamped build; use dda inv eudm-simulator.build")
+	}
+	// Check before contacting producers. The writer still creates the directory
+	// exclusively, protecting against a path appearing after this preflight.
+	if _, err := os.Lstat(directory); err == nil {
+		return fmt.Errorf("capture output %q already exists; choose a new --output directory; existing captures are never overwritten", directory)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("cannot inspect capture output directory: %w", err)
 	}
 	// Configuration and IPC helpers can log paths and artifact fingerprints.
 	// Capture emits only its own progress summaries and control-plane errors.

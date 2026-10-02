@@ -557,7 +557,7 @@ on both capture devices, and recapture the baselines before the next runs.
 | Cohort OS does not match the baseline | Every cohort uses the same capture and must match its OS. Use separate Windows and macOS scenarios and runs. |
 | WLAN status exists, but Wi-Fi validation fails | Wi-Fi scenarios require signal/noise/TX/RX metrics and wireless identity tags. Status and error counters alone do not supply that evidence. |
 | Resource-capacity or declared RAM mismatch | Lower overlay values/variation or capture the required hardware profile. `total_ram_gb` constrains the capture; it does not create RAM. |
-| File already exists | Capture directories and reports are exclusive outputs. Choose a new name, or omit `--report` to use the new run ID's default filename. Compatible completed bundles can still be reused as input. |
+| Capture output already exists / file already exists | Capture directories and reports are exclusive outputs. Capture rejects an existing output path before contacting producers; choose a new `--output` directory. For replay reports, choose a new name or omit `--report` to use the new run ID's default filename. Compatible completed bundles can still be reused as input. |
 | Missing/production site or inherited endpoint rejected | Set `DD_SITE=datad0g.com` and remove any unsupported endpoint environment variable identified by the command. All routes and redirected destinations must remain staging. |
 | Missing key, permanent rejection, or retries exhausted | Check the staging organization/key and endpoint access. Preserve the failure report. Do not count partially delivered devices as success; start a new run after fixing the cause. |
 | Report is still `running` after process death | It is the last progress snapshot, not a successful completion record. Check `progress.updated_at`; there is no resume command. Keep the artifact; another `run` invocation creates a new identity and report. |
@@ -593,6 +593,14 @@ and failure status with a deliberately nonexistent configuration path, without
 creating a bundle or contacting producers. Gazelle and buildifier passed.
 No new live session, staging replay, or service restart was performed for this
 change. Already-running captures keep their original output behavior.
+
+An existing-output follow-up now rejects occupied paths before contacting
+producers and preserves bundle startup error causes. Its capture race suite
+passed (80 test entries), with no lint issues. The completed 35-minute schema-7
+bundle at `/private/tmp/eudm-macos-full-window` passed the macOS host-enrichment
+scenario's `validate` command using its matching saved executable
+`bin/eudm-simulator/eudm-simulator-before-progress`. This was local validation;
+no staging replay was started.
 
 ### October 2, 2026: complete recording windows and startup hardware request
 
