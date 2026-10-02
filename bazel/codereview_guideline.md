@@ -55,9 +55,9 @@ runfiles library or `$(rlocationpath :target)` in `genrule`/test `args`.
 `MODULE.bazel.lock` must remain committed; never delete or `.gitignore` it. Do **not** flag a PR solely because
 it touches `MODULE.bazel` or a module extension without a lockfile diff — many edits leave the lock unchanged
 (comments, `use_repo` tidy, `register_toolchains`, reproducible extensions, non-resolution layout). CI enforces
-freshness via `--lockfile_mode=error`. Only flag if the lockfile is removed/ignored, or if resolved deps clearly
-changed (`bazel_dep` version, override, non-reproducible extension inputs) and the lock was left obviously stale
-without re-running `bazel mod deps`.
+freshness via `bazel mod deps --lockfile_mode=refresh` + `git diff --exit-code` (not `--lockfile_mode=error`).
+Only flag if the lockfile is removed/ignored, or if resolved deps clearly changed (`bazel_dep` version, override,
+non-reproducible extension inputs) and the lock was left obviously stale without re-running `bazel mod deps`.
 
 ## No WORKSPACE patterns
 
