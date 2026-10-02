@@ -243,7 +243,7 @@ func TestEmitNvmlMetrics(t *testing.T) {
 	metricTime := time.Now()
 	metricTimestamp := float64(metricTime.UnixNano()) / float64(time.Second)
 	require.NoError(t, check.deviceCache.Refresh())
-	require.NoError(t, check.emitMetrics(mockSender, gpuToContainersMap, metricTime))
+	require.NoError(t, check.emitMetrics(mockSender, gpuToContainersMap, nil, metricTime))
 
 	// Verify metrics for each device
 	for i, deviceUUID := range []string{device1UUID, device2UUID} {
@@ -545,7 +545,7 @@ func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
 	}
 
 	require.NoError(t, check.deviceCache.Refresh())
-	require.NoError(t, check.emitMetrics(mockSender, nil, time.Now()))
+	require.NoError(t, check.emitMetrics(mockSender, nil, nil, time.Now()))
 	require.Equal(t, int32(collectorCount), started.Load())
 }
 
@@ -620,7 +620,7 @@ func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *
 	require.NoError(t, check.deviceCache.Refresh())
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- check.emitMetrics(mockSender, nil, time.Now())
+		errCh <- check.emitMetrics(mockSender, nil, nil, time.Now())
 	}()
 
 	select {
@@ -699,8 +699,8 @@ func TestEmitSampleDoesNotAliasDeviceTags(t *testing.T) {
 	secondMetric := nvidia.NewMetric("utilization", 2, ddmetrics.GaugeType, 0, []string{"source:second"}, nil)
 
 	now := time.Now()
-	require.NoError(t, check.emitSample(firstMetric, mockSender, now, nil, deviceTags))
-	require.NoError(t, check.emitSample(secondMetric, mockSender, now, nil, deviceTags))
+	require.NoError(t, check.emitSample(firstMetric, mockSender, now, nil, nil, deviceTags))
+	require.NoError(t, check.emitSample(secondMetric, mockSender, now, nil, nil, deviceTags))
 
 	require.Len(t, mockSender.Mock.Calls, 2)
 
@@ -728,7 +728,7 @@ func TestEmitSampleHistogramBucket(t *testing.T) {
 	sample := nvidia.NewHistogramSample(metricName, int64(value), [2]float64{lowerBound, upperBound}, true, false, 0, []string{portTag}, nil)
 	mockSender.On("HistogramBucket", "gpu."+metricName, int64(value), lowerBound, upperBound, true, "", mockMatchesTags([]string{gpuTag, portTag}), false).Return()
 
-	err := check.emitSample(sample, mockSender, time.Now(), nil, []string{gpuTag})
+	err := check.emitSample(sample, mockSender, time.Now(), nil, nil, []string{gpuTag})
 	require.NoError(t, err)
 
 	mockSender.AssertExpectations(t)
@@ -757,7 +757,7 @@ func TestEmitSampleEventUsesOccurrenceTimeAndEnrichedTags(t *testing.T) {
 		nil,
 	)
 
-	require.NoError(t, check.emitSample(sample, mockSender, time.Unix(456, 0), nil, []string{"gpu_uuid:GPU-1"}))
+	require.NoError(t, check.emitSample(sample, mockSender, time.Unix(456, 0), nil, nil, []string{"gpu_uuid:GPU-1"}))
 	require.Len(t, mockSender.Mock.Calls, 1)
 
 	emitted, ok := mockSender.Mock.Calls[0].Arguments.Get(0).(event.Event)
@@ -792,7 +792,7 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 	// First run: minimal GPU tags (just uuid fallback)
 	metricTime1 := time.Now()
 	metricTimestamp1 := float64(metricTime1.UnixNano()) / float64(time.Second)
-	require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, metricTime1))
+	require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, nil, metricTime1))
 
 	expectedTags1 := []string{"gpu_uuid:" + deviceUUID}
 	mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.test_metric", 42.0, "", mockMatchesTags(expectedTags1), metricTimestamp1)
@@ -806,7 +806,7 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 
 	metricTime2 := time.Now()
 	metricTimestamp2 := float64(metricTime2.UnixNano()) / float64(time.Second)
-	require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, metricTime2))
+	require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, nil, metricTime2))
 
 	mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.test_metric", 42.0, "", mockMatchesTags(gpuTags1), metricTimestamp2)
 
@@ -819,7 +819,7 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 
 	metricTime3 := time.Now()
 	metricTimestamp3 := float64(metricTime3.UnixNano()) / float64(time.Second)
-	require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, metricTime3))
+	require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, nil, metricTime3))
 	mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.test_metric", 42.0, "", mockMatchesTags(gpuTags2), metricTimestamp3)
 }
 
@@ -852,7 +852,7 @@ func TestStrictIntervalMetricsEmitOnTheirOwnCadence(t *testing.T) {
 	for run := range 7 {
 		mockSender.ResetCalls()
 		runTime := start.Add(time.Duration(run) * 5 * time.Second)
-		require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, runTime))
+		require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, nil, runTime))
 
 		runTimestamp := float64(runTime.UnixNano()) / float64(time.Second)
 		mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.regular_metric", 2.0, "", mock.Anything, runTimestamp)
@@ -912,7 +912,7 @@ func TestLostGPUStillReportsDeviceTotal(t *testing.T) {
 	runCheck := func(runTime time.Time) float64 {
 		mockSender.ResetCalls()
 		require.NoError(t, check.deviceCache.Refresh())
-		require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, runTime))
+		require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, nil, runTime))
 		return float64(runTime.UnixNano()) / float64(time.Second)
 	}
 
@@ -1054,6 +1054,104 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 	require.NoError(t, check.Run())
 
 	mockSender.AssertExpectations(t)
+}
+
+// mockMatchesTagSet matches tag lists with the same set of tags, ignoring duplicates, which are
+// removed by the aggregator.
+func mockMatchesTagSet(expectedTags []string) interface{} {
+	expected := slices.Compact(slices.Sorted(slices.Values(expectedTags)))
+	return mock.MatchedBy(func(tags []string) bool {
+		return slices.Equal(slices.Compact(slices.Sorted(slices.Values(tags))), expected)
+	})
+}
+
+func TestRunEmitsSharedProcessTags(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
+
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(1))
+
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, senderManager, nil)
+	mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
+
+	deviceUUID := testutil.GPUUUIDs[0]
+	deviceTags := []string{"gpu_uuid:" + deviceUUID, "gpu_vendor:nvidia"}
+	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, deviceUUID), "foo", deviceTags, nil, nil, nil)
+
+	pids := []int32{1000, 1001}
+	wmetaMock.Set(&workloadmeta.GPU{
+		EntityID:   workloadmeta.EntityID{ID: deviceUUID, Kind: workloadmeta.KindGPU},
+		ActivePIDs: []int{int(pids[0]), int(pids[1])},
+	})
+
+	// Two processes in different containers of the same namespace and service. Only the first container
+	// is assigned to the GPU, e.g. because the second one shares it without requesting it.
+	containerTags := make(map[int32][]string)
+	for i, pid := range pids {
+		containerID := fmt.Sprintf("container%d", i)
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{ID: containerID, Kind: workloadmeta.KindContainer},
+		}
+		if i == 0 {
+			container.ResolvedAllocatedResources = []workloadmeta.ContainerAllocatedResource{{Name: "nvidia.com/gpu", ID: deviceUUID}}
+		}
+		wmetaMock.Set(container)
+		containerTags[pid] = []string{"container_id:" + containerID, "kube_namespace:ns"}
+		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, containerID), "foo", containerTags[pid], nil, nil, nil)
+
+		pidStr := strconv.Itoa(int(pid))
+		wmetaMock.Set(&workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{ID: pidStr, Kind: workloadmeta.KindProcess},
+			Owner:    &container.EntityID,
+			Pid:      pid,
+			NsPid:    pid,
+		})
+		// GPU tags of the process entity must not leak into the metrics
+		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.Process, pidStr), "foo", []string{"service:svc", "gpu_uuid:other-gpu"}, nil, nil, nil)
+	}
+
+	processWorkloadID := workloadmeta.EntityID{ID: strconv.Itoa(int(pids[0])), Kind: workloadmeta.KindProcess}
+	check.collectors = []nvidia.Collector{&mockCollector{
+		name:       "mockCollector",
+		deviceUUID: deviceUUID,
+		samples: []nvidia.Sample{
+			nvidia.NewMetric("no_workload_metric", 1, ddmetrics.GaugeType, 0, nil, nil),
+			nvidia.NewMetric("workload_metric", 2, ddmetrics.GaugeType, 0, nil, []workloadmeta.EntityID{processWorkloadID}),
+		},
+	}}
+
+	// Device-level metrics get the assigned container tags plus the tags shared by all processes
+	noWorkloadTags := slices.Concat(deviceTags, containerTags[pids[0]], []string{"kube_namespace:ns", "service:svc"})
+	mockSender.On("GaugeWithTimestamp", "gpu.no_workload_metric", 1.0, "", mockMatchesTagSet(noWorkloadTags), mock.Anything).Return()
+
+	// Per-process metrics get the full process tags
+	workloadTags := slices.Concat(deviceTags, []string{"pid:1000", "nspid:1000", "service:svc"}, containerTags[pids[0]])
+	mockSender.On("GaugeWithTimestamp", "gpu.workload_metric", 2.0, "", mockMatchesTagSet(workloadTags), mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	require.NoError(t, check.Run())
+
+	mockSender.AssertExpectations(t)
+}
+
+func TestGetGPUToProcessesMap(t *testing.T) {
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	check := &Check{wmeta: wmetaMock}
+
+	assert.Empty(t, check.getGPUToProcessesMap())
+
+	physicalUUID := testutil.GPUUUIDs[0]
+	migUUID := testutil.MIGChildrenUUIDs[testutil.DefaultMIGParentDeviceIdx][0]
+	idleUUID := testutil.GPUUUIDs[1]
+	wmetaMock.Set(&workloadmeta.GPU{EntityID: workloadmeta.EntityID{ID: physicalUUID, Kind: workloadmeta.KindGPU}, ActivePIDs: []int{10, 20}})
+	wmetaMock.Set(&workloadmeta.GPU{EntityID: workloadmeta.EntityID{ID: migUUID, Kind: workloadmeta.KindGPU}, ActivePIDs: []int{30}})
+	wmetaMock.Set(&workloadmeta.GPU{EntityID: workloadmeta.EntityID{ID: idleUUID, Kind: workloadmeta.KindGPU}})
+
+	assert.Equal(t, map[string][]int32{
+		physicalUUID: {10, 20},
+		migUUID:      {30},
+	}, check.getGPUToProcessesMap())
 }
 
 // TestMemoryLimitTagStabilityOnIdleSample reproduces a non-determinism bug:

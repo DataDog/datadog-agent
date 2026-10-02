@@ -239,6 +239,7 @@ func TestGetWorkloadTags(t *testing.T) {
 
 	expectedContainerTags := []string{"service:my-service", "env:prod"}
 	expectedProcessTags := []string{"pid:123", "nspid:123"}
+	expectedProcessTagsWithTagger := append(slices.Clone(expectedProcessTags), expectedContainerTags...)
 	errorCacheTags := []string{"old:tag"}
 
 	workloadSetup := []struct {
@@ -284,7 +285,7 @@ func TestGetWorkloadTags(t *testing.T) {
 			setTaggerTags:     expectedContainerTags,
 			expected: map[workloadmeta.EntityID][]string{
 				containerWorkloadID: expectedContainerTags,
-				processWorkloadID:   expectedProcessTags,
+				processWorkloadID:   expectedProcessTagsWithTagger,
 			},
 			expectedUpdatedCachedTags: true,
 			expectedCacheEntryStale:   false,
@@ -299,7 +300,7 @@ func TestGetWorkloadTags(t *testing.T) {
 			setTaggerTags:     expectedContainerTags,
 			expected: map[workloadmeta.EntityID][]string{
 				containerWorkloadID: expectedContainerTags,
-				processWorkloadID:   expectedProcessTags,
+				processWorkloadID:   expectedProcessTagsWithTagger,
 			},
 			expectedUpdatedCachedTags: true,
 			expectedCacheEntryStale:   false,
@@ -1035,6 +1036,163 @@ func TestGetWorkloadTagsRecoversFromInitialError(t *testing.T) {
 	tags, err = cache.GetOrCreateWorkloadTags(workloadID)
 	require.NoError(t, err)
 	assert.Equal(t, expectedTags, tags)
+}
+
+func TestBuildProcessTagsIncludesTaggerProcessTags(t *testing.T) {
+	cache, mocks := setupWorkloadTagCache(t)
+
+	pid := int32(1234)
+	nspid := int32(5678)
+	processWorkloadID := newProcessWorkloadID(pid)
+	mocks.workloadMeta.Set(&workloadmeta.Process{
+		EntityID: processWorkloadID,
+		NsPid:    nspid,
+	})
+
+	mocks.containerProvider.EXPECT().
+		GetPidToCid(time.Duration(0)).
+		Return(map[int]string{})
+
+	setWorkloadTags(t, mocks.tagger, processWorkloadID, []string{"service:my-service", "env:prod", "gpu_uuid:gpu-1", "gpu_vendor:nvidia"}, nil, nil)
+
+	tags, err := cache.buildProcessTags(processWorkloadID.ID)
+	require.NoError(t, err)
+
+	expectedTags := []string{
+		fmt.Sprintf("pid:%d", pid),
+		fmt.Sprintf("nspid:%d", nspid),
+		"service:my-service",
+		"env:prod",
+	}
+	assert.ElementsMatch(t, expectedTags, tags)
+}
+
+// setProcessInContainer registers a process owned by the given container in workloadmeta
+func setProcessInContainer(t *testing.T, mocks workloadTagCacheTestMocks, pid int32, containerID string) {
+	t.Helper()
+	mocks.workloadMeta.Set(&workloadmeta.Process{
+		EntityID: newProcessWorkloadID(pid),
+		NsPid:    pid,
+		Owner:    &workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+	})
+}
+
+func setupSharedProcessTagsTest(t *testing.T) (*WorkloadTagCache, workloadTagCacheTestMocks) {
+	cache, mocks := setupWorkloadTagCache(t)
+
+	// Empty procfs and container provider, so that processes not in workloadmeta are not found
+	kernel.WithFakeProcFS(t, kernel.CreateFakeProcFS(t, nil))
+	mocks.containerProvider.EXPECT().
+		GetPidToCid(time.Duration(0)).
+		Return(map[int]string{}).
+		AnyTimes()
+
+	for _, containerID := range []string{"container-1", "container-2"} {
+		workloadID := newContainerWorkloadID(containerID)
+		setWorkloadInWorkloadMeta(t, mocks.workloadMeta, workloadID, workloadmeta.ContainerRuntimeContainerd)
+		setWorkloadTags(t, mocks.tagger, workloadID, []string{"pod_name:pod-" + containerID, "kube_namespace:ns"}, nil, nil)
+	}
+
+	setProcessInContainer(t, mocks, 100, "container-1")
+	setProcessInContainer(t, mocks, 101, "container-1")
+	setProcessInContainer(t, mocks, 102, "container-2")
+
+	return cache, mocks
+}
+
+func TestGetOrCreateSharedProcessTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		pids     []int32
+		expected []string
+	}{
+		{
+			name:     "no processes",
+			pids:     nil,
+			expected: nil,
+		},
+		{
+			name:     "single process does not include pid and nspid",
+			pids:     []int32{100},
+			expected: []string{"kube_namespace:ns", "pod_name:pod-container-1"},
+		},
+		{
+			name:     "processes in the same container share all tags",
+			pids:     []int32{100, 101},
+			expected: []string{"kube_namespace:ns", "pod_name:pod-container-1"},
+		},
+		{
+			name:     "processes in different containers only share common tags",
+			pids:     []int32{100, 102},
+			expected: []string{"kube_namespace:ns"},
+		},
+		{
+			name:     "processes not found are ignored",
+			pids:     []int32{100, 999},
+			expected: []string{"kube_namespace:ns", "pod_name:pod-container-1"},
+		},
+		{
+			name:     "all processes not found",
+			pids:     []int32{998, 999},
+			expected: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cache, _ := setupSharedProcessTagsTest(t)
+
+			tags, err := cache.GetOrCreateSharedProcessTags(tt.pids)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, tags)
+		})
+	}
+}
+
+func TestGetOrCreateSharedProcessTagsCaching(t *testing.T) {
+	cache, mocks := setupSharedProcessTagsTest(t)
+	expectedTags := []string{"kube_namespace:ns", "pod_name:pod-container-1"}
+
+	tags, err := cache.GetOrCreateSharedProcessTags([]int32{100, 101})
+	require.NoError(t, err)
+	assert.Equal(t, expectedTags, tags)
+
+	// Changes in the tagger are not seen until the cache is marked stale, regardless of the PID order
+	setWorkloadTags(t, mocks.tagger, newContainerWorkloadID("container-1"), []string{"pod_name:new-pod", "kube_namespace:ns"}, nil, nil)
+
+	tags, err = cache.GetOrCreateSharedProcessTags([]int32{101, 100})
+	require.NoError(t, err)
+	assert.Equal(t, expectedTags, tags)
+	assert.Len(t, cache.sharedProcessTags, 1)
+
+	cache.MarkStale()
+
+	tags, err = cache.GetOrCreateSharedProcessTags([]int32{100, 101})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"kube_namespace:ns", "pod_name:new-pod"}, tags)
+}
+
+func TestGetOrCreateSharedProcessTagsEviction(t *testing.T) {
+	cache, _ := setupSharedProcessTagsTest(t)
+
+	_, err := cache.GetOrCreateSharedProcessTags([]int32{100, 101})
+	require.NoError(t, err)
+	_, err = cache.GetOrCreateSharedProcessTags([]int32{100, 102})
+	require.NoError(t, err)
+	require.Len(t, cache.sharedProcessTags, 2)
+
+	// First run: both entries become stale but are kept
+	cache.MarkStale()
+	require.Len(t, cache.sharedProcessTags, 2)
+
+	// Only one of the PID sets is used during this run
+	_, err = cache.GetOrCreateSharedProcessTags([]int32{100, 101})
+	require.NoError(t, err)
+
+	// Second run: the unused entry is removed
+	cache.MarkStale()
+	require.Len(t, cache.sharedProcessTags, 1)
+	assert.Contains(t, cache.sharedProcessTags, sharedProcessTagsKey([]int32{100, 101}))
 }
 
 type createdWorkload struct {
