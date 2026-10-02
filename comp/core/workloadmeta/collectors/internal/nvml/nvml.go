@@ -106,7 +106,8 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeUnknown
 	}
 
-	if lost := c.fillNVMLAttributes(&gpuDeviceInfo, device); !lost {
+	c.fillNVMLAttributes(&gpuDeviceInfo, device)
+	if !gpuDeviceInfo.Lost {
 		c.fillProcesses(&gpuDeviceInfo, device)
 	}
 
@@ -114,9 +115,9 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 }
 
 // fillNVMLAttributes fills the attributes of the GPU device by querying NVML API.
-// If NVML reports the GPU as lost, it keeps the attributes last published for it
-// and returns true.
-func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) bool {
+// If NVML reports the GPU as lost, it marks it as such and keeps the attributes
+// last published for it.
+func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
 	migDevice, isMig := device.(*ddnvml.MIGDevice)
 	physicalDevice := device
 	if isMig {
@@ -127,6 +128,7 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 
 	virtMode, err := physicalDevice.GetVirtualizationMode()
 	if ddnvml.IsGPULost(err) {
+		gpuDeviceInfo.Lost = true
 		if prev, ok := c.lastPublishedGPUs[gpuDeviceInfo.EntityID.ID]; ok {
 			gpuDeviceInfo.VirtualizationMode = prev.VirtualizationMode
 			gpuDeviceInfo.MemoryBusWidth = prev.MemoryBusWidth
@@ -134,7 +136,7 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			gpuDeviceInfo.FabricCliqueID = prev.FabricCliqueID
 			gpuDeviceInfo.MaxClockRates = prev.MaxClockRates
 		}
-		return true
+		return
 	}
 	if err != nil {
 		if logLimiter.ShouldLog() {
@@ -186,8 +188,6 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			log.Infof("vGPU device %s does not support queries for max clock info", gpuDeviceInfo.EntityID.ID)
 		}
 	}
-
-	return false
 }
 
 func fabricClusterUUIDFromNVMLInfo(clusterUUID [16]uint8) string {

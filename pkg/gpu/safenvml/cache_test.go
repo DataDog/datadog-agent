@@ -131,21 +131,25 @@ func TestDeviceCacheKeepsGPULostDevice(t *testing.T) {
 	require.NotEmpty(t, original.GetDeviceInfo().PCIBusID)
 
 	lost.Store(true)
-	require.NoError(t, cache.Refresh())
+	// Refresh twice while lost, so the device is also kept when the previous
+	// refresh already reused it.
+	for refresh := 2; refresh <= 3; refresh++ {
+		require.NoError(t, cache.Refresh())
 
-	kept, err := cache.GetByUUID(testutil.GPUUUIDs[1])
-	require.NoError(t, err)
-	require.Same(t, original, kept)
-	require.Equal(t, original.GetDeviceInfo().PCIBusID, kept.GetDeviceInfo().PCIBusID)
-	byIndex, err := cache.GetByIndex(1)
-	require.NoError(t, err)
-	require.Same(t, original, byIndex)
-	count, err := cache.Count()
-	require.NoError(t, err)
-	require.Equal(t, len(testutil.GPUUUIDs), count)
+		kept, err := cache.GetByUUID(testutil.GPUUUIDs[1])
+		require.NoError(t, err, "refresh %d", refresh)
+		require.Same(t, original, kept, "refresh %d", refresh)
+		require.Equal(t, original.GetDeviceInfo().PCIBusID, kept.GetDeviceInfo().PCIBusID, "refresh %d", refresh)
+		byIndex, err := cache.GetByIndex(1)
+		require.NoError(t, err, "refresh %d", refresh)
+		require.Same(t, original, byIndex, "refresh %d", refresh)
+		count, err := cache.Count()
+		require.NoError(t, err, "refresh %d", refresh)
+		require.Equal(t, len(testutil.GPUUUIDs), count, "refresh %d", refresh)
 
-	_, err = cache.GetByUUID(testutil.GPUUUIDs[0])
-	require.NoError(t, err)
+		_, err = cache.GetByUUID(testutil.GPUUUIDs[0])
+		require.NoError(t, err, "refresh %d", refresh)
+	}
 }
 
 func TestDeviceCacheDropsDeviceOnNonLostError(t *testing.T) {

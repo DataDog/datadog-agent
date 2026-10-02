@@ -306,24 +306,30 @@ func TestPullKeepsLostGPU(t *testing.T) {
 	gpuCount := len(wmetaMock.ListGPUs())
 	before, err := wmetaMock.GetGPU(lostUUID)
 	require.NoError(t, err)
+	require.False(t, before.Lost)
 	require.NotEmpty(t, before.VirtualizationMode)
 	require.NotZero(t, before.MemoryBusWidth)
 	require.NotZero(t, before.MaxClockRates[workloadmeta.GPUSM])
 
 	lost = true
-	require.NoError(t, c.Pull(context.Background()))
+	// Pull twice while lost, so the attributes are also kept when copied from
+	// an entity that was already published as lost.
+	for pull := 2; pull <= 3; pull++ {
+		require.NoError(t, c.Pull(context.Background()))
 
-	require.Len(t, wmetaMock.ListGPUs(), gpuCount)
-	after, err := wmetaMock.GetGPU(lostUUID)
-	require.NoError(t, err, "lost GPU must not be removed from workloadmeta")
-	require.Equal(t, before.Name, after.Name)
-	require.Equal(t, before.Index, after.Index)
-	require.Equal(t, before.PCIBusID, after.PCIBusID)
-	require.Equal(t, before.VirtualizationMode, after.VirtualizationMode)
-	require.Equal(t, before.MemoryBusWidth, after.MemoryBusWidth)
-	require.Equal(t, before.FabricClusterUUID, after.FabricClusterUUID)
-	require.Equal(t, before.FabricCliqueID, after.FabricCliqueID)
-	require.Equal(t, before.MaxClockRates, after.MaxClockRates)
+		require.Len(t, wmetaMock.ListGPUs(), gpuCount, "pull %d", pull)
+		after, err := wmetaMock.GetGPU(lostUUID)
+		require.NoError(t, err, "lost GPU must not be removed from workloadmeta on pull %d", pull)
+		require.True(t, after.Lost, "pull %d", pull)
+		require.Equal(t, before.Name, after.Name, "pull %d", pull)
+		require.Equal(t, before.Index, after.Index, "pull %d", pull)
+		require.Equal(t, before.PCIBusID, after.PCIBusID, "pull %d", pull)
+		require.Equal(t, before.VirtualizationMode, after.VirtualizationMode, "pull %d", pull)
+		require.Equal(t, before.MemoryBusWidth, after.MemoryBusWidth, "pull %d", pull)
+		require.Equal(t, before.FabricClusterUUID, after.FabricClusterUUID, "pull %d", pull)
+		require.Equal(t, before.FabricCliqueID, after.FabricCliqueID, "pull %d", pull)
+		require.Equal(t, before.MaxClockRates, after.MaxClockRates, "pull %d", pull)
+	}
 }
 
 func TestProcessEntities(t *testing.T) {
