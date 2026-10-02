@@ -3,16 +3,16 @@ module github.com/DataDog/datadog-agent/pkg/remoteflags
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.85.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.85.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.85.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/config/model v0.85.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.85.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.85.0-rc.2
 	github.com/stretchr/testify v1.12.1
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.85.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.85.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.85.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.85.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.85.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.85.0-rc.2 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.11.1 // indirect
