@@ -14,9 +14,9 @@ import (
 	"github.com/safchain/baloum/pkg/baloum"
 )
 
-func TestActivityDumpRateLimiterBasic(t *testing.T) {
+func TestSamplerRateLimiterBasic(t *testing.T) {
 	var ctx baloum.StdContext
-	code, err := newVM(t).RunProgram(&ctx, "test/ad_ratelimiter")
+	code, err := newVM(t).RunProgram(&ctx, "test/sampler_ratelimiter")
 	if err != nil || code != 1 {
 		t.Errorf("unexpected error: %v, %d", err, code)
 	}
