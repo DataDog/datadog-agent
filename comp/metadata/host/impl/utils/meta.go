@@ -65,6 +65,14 @@ func getMeta(ctx context.Context, conf model.Reader, hostnameComp hostnameinterf
 	if conf.GetBool("hostname_force_config_as_canonical") && hostnameData.FromConfiguration() {
 		agentHostname = hostnameData.Hostname
 	}
+	// EUDM hosts always canonicalize on the device serial number once it is
+	// successfully collected; no separate opt-in flag is needed since the
+	// provider itself only succeeds when infrastructure_mode is
+	// end_user_device. While the serial number is unavailable, the hostname
+	// falls back to fqdn/os and is intentionally left uncanonicalized.
+	if hostnameData.FromEUDMSerialNumber() {
+		agentHostname = hostnameData.Hostname
+	}
 
 	ccrid := ""
 	hostAliases, cloudname := cloudproviders.GetHostAliases(ctx)

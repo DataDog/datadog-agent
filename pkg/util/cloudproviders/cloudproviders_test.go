@@ -173,6 +173,28 @@ func TestGetValidHostAliasesWithConfig(t *testing.T) {
 	assert.EqualValues(t, []string{"foo"}, val)
 }
 
+func TestGetEUDMDeviceAliasesGateOff(t *testing.T) {
+	configmock.New(t)
+
+	val, err := getEUDMDeviceAliases(context.TODO())
+	require.NoError(t, err)
+	assert.Empty(t, val)
+}
+
+func TestGetEUDMDeviceAliasesGateOn(t *testing.T) {
+	config := configmock.New(t)
+	config.SetInTest("infrastructure_mode", "end_user_device")
+
+	// The agent UUID/EC2 instance id availability is environment-dependent
+	// (e.g. absent in some sandboxes), so only assert the gate doesn't error
+	// and never returns an invalid hostname.
+	val, err := getEUDMDeviceAliases(context.TODO())
+	require.NoError(t, err)
+	for _, alias := range val {
+		assert.NotEmpty(t, alias)
+	}
+}
+
 func TestCloudProviderInstanceType(t *testing.T) {
 	origDetectors := hostInstanceTypeDetectors
 	defer func() { hostInstanceTypeDetectors = origDetectors }()
