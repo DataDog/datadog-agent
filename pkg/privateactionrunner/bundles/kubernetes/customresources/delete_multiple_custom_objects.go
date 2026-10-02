@@ -8,17 +8,15 @@ package com_datadoghq_kubernetes_customresources
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteMultipleCustomObjectsHandler struct{}
+type DeleteMultipleCustomObjectsHandler struct{ policy resourcePolicy }
 
-func NewDeleteMultipleCustomObjectsHandler() *DeleteMultipleCustomObjectsHandler {
-	return &DeleteMultipleCustomObjectsHandler{}
+func NewDeleteMultipleCustomObjectsHandler(policy resourcePolicy) *DeleteMultipleCustomObjectsHandler {
+	return &DeleteMultipleCustomObjectsHandler{policy: policy}
 }
 
 type DeleteMultipleCustomObjectsInputs struct {
@@ -42,15 +40,14 @@ func (h *DeleteMultipleCustomObjectsHandler) Run(
 		return nil, err
 	}
 
-	client, err := support.DynamicKubeClient(credential)
+	gvr, err := h.policy.groupVersionResource(inputs.Group, inputs.Version, inputs.Plural)
 	if err != nil {
 		return nil, err
 	}
 
-	gvr := schema.GroupVersionResource{
-		Group:    inputs.Group,
-		Version:  inputs.Version,
-		Resource: inputs.Plural,
+	client, err := support.DynamicKubeClient(credential)
+	if err != nil {
+		return nil, err
 	}
 
 	err = client.Resource(gvr).Namespace(inputs.Namespace).DeleteCollection(ctx, support.MetaDelete(inputs.DeleteFields), support.MetaList(inputs.ListFields))

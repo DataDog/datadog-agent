@@ -8,18 +8,16 @@ package com_datadoghq_kubernetes_customresources
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-type CreateCustomObjectHandler struct{}
+type CreateCustomObjectHandler struct{ policy resourcePolicy }
 
-func NewCreateCustomObjectHandler() *CreateCustomObjectHandler {
-	return &CreateCustomObjectHandler{}
+func NewCreateCustomObjectHandler(policy resourcePolicy) *CreateCustomObjectHandler {
+	return &CreateCustomObjectHandler{policy: policy}
 }
 
 type CreateCustomObjectInputs struct {
@@ -43,15 +41,14 @@ func (h *CreateCustomObjectHandler) Run(
 		return nil, err
 	}
 
-	client, err := support.DynamicKubeClient(credential)
+	gvr, err := h.policy.groupVersionResource(inputs.Group, inputs.Version, inputs.Plural)
 	if err != nil {
 		return nil, err
 	}
 
-	gvr := schema.GroupVersionResource{
-		Group:    inputs.Group,
-		Version:  inputs.Version,
-		Resource: inputs.Plural,
+	client, err := support.DynamicKubeClient(credential)
+	if err != nil {
+		return nil, err
 	}
 
 	resp, err := client.Resource(gvr).Namespace(inputs.Namespace).Create(ctx, &unstructured.Unstructured{Object: inputs.Body}, support.MetaCreate(inputs.CreateFields))

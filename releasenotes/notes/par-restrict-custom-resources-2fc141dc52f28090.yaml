@@ -1,0 +1,9 @@
+---
+security:
+  - |
+    Restrict Private Action Runner Kubernetes custom resource actions from
+    accessing core and native Kubernetes APIs by default. Existing workflows
+    using non-native custom resource groups remain compatible. Operators can
+    configure the new
+    ``private_action_runner.kubernetes_allowed_custom_resources`` setting
+    to restrict access to an exact list of resources.
