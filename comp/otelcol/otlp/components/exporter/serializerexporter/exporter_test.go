@@ -508,7 +508,7 @@ func TestRunningMetricForPayloadContents(t *testing.T) {
 			}
 
 			rec := &metricRecorder{}
-			exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector)
+			exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector, false)
 			require.NoError(t, err)
 
 			md := pmetric.NewMetrics()
@@ -578,7 +578,7 @@ func TestDDOTRunningMetricForPayloadContents(t *testing.T) {
 			}
 
 			rec := &metricRecorder{}
-			exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ddot)
+			exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ddot, true)
 			require.NoError(t, err)
 
 			md := pmetric.NewMetrics()
@@ -619,7 +619,7 @@ func TestAzureAppServiceRunningMetric(t *testing.T) {
 	}
 
 	rec := &metricRecorder{}
-	exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector)
+	exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector, false)
 	require.NoError(t, err)
 
 	md := pmetric.NewMetrics()
@@ -671,7 +671,7 @@ func newCollectorRunningMetricTestExporter(t *testing.T) (*Exporter, *metricReco
 		}
 	}
 	rec := &metricRecorder{}
-	exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector)
+	exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector, false)
 	require.NoError(t, err)
 	return exp, rec
 }

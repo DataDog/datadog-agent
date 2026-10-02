@@ -326,3 +326,22 @@ func TestAddRunningMetric_AzureContainerApps_IncompleteIdentityWithoutHostEmitsN
 
 	assert.Empty(t, c.series)
 }
+
+// Missing replica alone must also be treated as an incomplete identity (not
+// just missing name/subscriptionID/resourceGroup), per
+// https://datadoghq.atlassian.net/wiki/x/VglyrgE.
+func TestAddRunningMetric_AzureContainerApps_MissingReplicaFallsBackToHost(t *testing.T) {
+	c := newTestSerializerConsumer(ddot, true)
+	c.ConsumeHost("otel-host")
+	c.sawMetric = true
+
+	c.addRunningMetric("agent-hostname", workloadIdentity{aca: &acaIdentity{
+		name:           "my-app",
+		subscriptionID: "sub-123",
+		resourceGroup:  "my-rg",
+	}})
+
+	require.Len(t, c.series, 1)
+	assert.Equal(t, "otel.ddot_collector.metrics.running", c.series[0].Name)
+	assert.Equal(t, "agent-hostname", c.series[0].Host)
+}

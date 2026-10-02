@@ -448,11 +448,12 @@ func ddotFargateRunningMetric(taskARN string, timestamp float64, tags []string) 
 // hostname, since Azure Container Apps replicas have no host identity. Tag keys match
 // the ones used by the community DD exporter's
 // otel.datadog_exporter.metrics.running.azurecontainerapps metric.
-// It returns nil unless name, subscriptionID and resourceGroup are all present, matching
-// the DD exporter's behavior of never emitting this billing metric for a
-// partially-identified resource.
+// It returns nil unless name, subscriptionID, resourceGroup, and replica are all
+// present, matching the DD exporter's behavior of never emitting this billing
+// metric for a partially-identified resource (see
+// https://datadoghq.atlassian.net/wiki/x/VglyrgE).
 func ddotAzureContainerAppsRunningMetric(aca *acaIdentity, timestamp float64, tags []string) *metrics.Serie {
-	if aca.name == "" || aca.subscriptionID == "" || aca.resourceGroup == "" {
+	if aca.name == "" || aca.subscriptionID == "" || aca.resourceGroup == "" || aca.replica == "" {
 		return nil
 	}
 
@@ -460,10 +461,8 @@ func ddotAzureContainerAppsRunningMetric(aca *acaIdentity, timestamp float64, ta
 		"name:" + aca.name,
 		"subscription_id:" + aca.subscriptionID,
 		"resource_group:" + aca.resourceGroup,
+		"replica:" + aca.replica,
 	}, tags...)
-	if aca.replica != "" {
-		allTags = append(allTags, "replica:"+aca.replica)
-	}
 
 	return &metrics.Serie{
 		Name:   "otel.ddot_collector.metrics.running.azurecontainerapps",
