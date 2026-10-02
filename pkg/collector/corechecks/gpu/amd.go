@@ -161,6 +161,7 @@ func (c *Check) collectAMDSamples() []collectorSamplesCollection {
 	// Charge the shared process scan to the first device, like its errors.
 	start := time.Now()
 	usage, _, usageErr := amd.ReadProcessMemory(c.amdSysRoot, c.amdDevices)
+	occupancy, occupancyErr := c.sampleAMDOccupancy()
 	processesByDevice := make(map[string][]amd.ProcessMemory, len(c.amdDevices))
 	for _, u := range usage {
 		processesByDevice[u.DeviceUUID] = append(processesByDevice[u.DeviceUUID], u)
@@ -173,17 +174,64 @@ func (c *Check) collectAMDSamples() []collectorSamplesCollection {
 			// Report the process read error once, on the first device.
 			err = errors.Join(err, fmt.Errorf("read AMD GPU processes: %w", usageErr))
 		}
+		if i == 0 && occupancyErr != nil {
+			err = errors.Join(err, fmt.Errorf("read AMD GPU occupancy: %w", occupancyErr))
+		}
 		results[i] = collectorSamplesCollection{
 			name:          amdCollectorName,
 			deviceUUID:    dev.UUID,
 			telemetryTags: amdTelemetryTags(dev),
-			samples:       append(amdSamples(m), amdProcessSamples(m, processesByDevice[dev.UUID])...),
+			samples:       append(append(amdSamples(m), amdOccupancySamples(dev, occupancy)...), amdProcessSamples(m, processesByDevice[dev.UUID])...),
 			err:           err,
 			duration:      time.Since(start),
 		}
 		start = time.Now()
 	}
 	return results
+}
+
+const (
+	// amdOccupancySnapshots cu_occupancy snapshots, amdOccupancySnapshotInterval
+	// apart, are averaged on each run: the kernel reports the waves in flight
+	// at the time of the read, not over an interval.
+	amdOccupancySnapshots        = 10
+	amdOccupancySnapshotInterval = 50 * time.Millisecond
+)
+
+// sampleAMDOccupancy returns the average number of compute units occupied on
+// each AMD device over a short burst of snapshots. A device absent from the
+// map had no waves in flight. The map is nil when attribution is incomplete,
+// so that a partial sum is not reported as low occupancy.
+func (c *Check) sampleAMDOccupancy() (map[string]float64, error) {
+	sum := make(map[string]float64)
+	for i := range amdOccupancySnapshots {
+		if i > 0 {
+			c.amdSleep(amdOccupancySnapshotInterval)
+		}
+		occupied, complete, err := amd.ReadCUOccupancy(c.amdSysRoot, c.amdDevices)
+		if !complete {
+			return nil, err
+		}
+		for uuid, cus := range occupied {
+			sum[uuid] += float64(cus)
+		}
+	}
+	for uuid := range sum {
+		sum[uuid] /= amdOccupancySnapshots
+	}
+	return sum, nil
+}
+
+// amdOccupancySamples returns gpu.sm_occupancy: the percentage of the compute
+// units of the device occupied by waves in flight. Unlike NVIDIA GPM, which
+// averages active warps over the interval, this averages a burst of snapshots,
+// and the kernel rounds each process up to whole compute units.
+func amdOccupancySamples(dev *amd.Device, occupancy map[string]float64) []nvidia.Sample {
+	if occupancy == nil || dev.ComputeUnits == 0 {
+		return nil
+	}
+	percent := min(100, 100*occupancy[dev.UUID]/float64(dev.ComputeUnits))
+	return []nvidia.Sample{&nvidia.Metric{Name: "sm_occupancy", Value: percent, Type: metrics.GaugeType}}
 }
 
 // amdProcessSamples returns the per-process memory metrics of a device and,

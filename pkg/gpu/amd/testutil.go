@@ -180,6 +180,16 @@ func (f *FakeSysfs) AddKFDProcess(pid int, gpuID, vramBytes uint64) {
 	})
 }
 
+// AddKFDProcessOccupancy records that pid occupies cus compute units on the KFD
+// node gpuID (/sys/class/kfd/kfd/proc/<pid>/stats_<gpuID>/cu_occupancy).
+func (f *FakeSysfs) AddKFDProcessOccupancy(pid int, gpuID, cus uint64) {
+	f.t.Helper()
+	f.WriteFiles(filepath.Join(f.Root, "class", "kfd", "kfd", "proc", strconv.Itoa(pid), "stats_"+strconv.FormatUint(gpuID, 10)), map[string]string{
+		"cu_occupancy": strconv.FormatUint(cus, 10) + "\n",
+		"evicted_ms":   "0\n",
+	})
+}
+
 // SetKFDRenderMinor adds drm_render_minor to the properties of a KFD node
 // created with AddKFDNode.
 func (f *FakeSysfs) SetKFDRenderMinor(node, minor int) {

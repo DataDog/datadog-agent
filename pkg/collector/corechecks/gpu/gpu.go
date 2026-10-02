@@ -79,6 +79,7 @@ type Check struct {
 	amdSysRoot          string                           // amdSysRoot is the sysfs root used to discover AMD GPUs
 	amdDevices          []*amd.Device                    // amdDevices are the AMD GPUs found on the last run, minus excluded ones
 	amdDeviceTags       map[string][]string              // amdDeviceTags maps AMD device UUIDs to their device tags
+	amdSleep            func(time.Duration)              // amdSleep waits between AMD occupancy snapshots; tests replace it
 }
 
 type checkTelemetry struct {
@@ -182,6 +183,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	if c.amdSysRoot == "" {
 		// Tests set the root before Configure; otherwise honor HOST_SYS and /host/sys in containers.
 		c.amdSysRoot = kernel.SysFSRoot()
+	}
+	if c.amdSleep == nil {
+		c.amdSleep = time.Sleep
 	}
 
 	if c.containerProvider == nil {

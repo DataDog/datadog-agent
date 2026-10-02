@@ -37,6 +37,7 @@ type kfdGPU struct {
 	renderMinors []int    // DRM render node minors (renderD<minor>) of the KFD nodes
 
 	nodes             int    // KFD nodes (partitions) of the GPU
+	computeUnits      uint32 // compute units over all nodes (simd_count / simd_per_cu)
 	maxEngineClockMHz uint32 // max_engine_clk_fcompute, the highest over the nodes
 	maxMemoryClockMHz uint32 // mem_clk_max of the video memory banks
 	vramBanks         int    // video memory banks over all nodes
@@ -159,6 +160,9 @@ func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[s
 		}
 		gpu.nodes++
 		gpu.maxEngineClockMHz = max(gpu.maxEngineClockMHz, uint32OrZero(props["max_engine_clk_fcompute"]))
+		if simdPerCU := props["simd_per_cu"]; simdPerCU > 0 {
+			gpu.computeUnits += uint32OrZero(props["simd_count"] / simdPerCU)
+		}
 		banks, complete, err := readKFDVRAMBanks(nodeDir)
 		gpu.banksComplete = gpu.banksComplete && complete
 		if err != nil {

@@ -84,6 +84,7 @@ func newAMDCheckWithTagger(t *testing.T, fakeTagger tagger.Component, sysRoot st
 	}
 	check.containerProvider = newMockContainerProvider(t, pidToContainerID)
 	check.amdSysRoot = sysRoot
+	check.amdSleep = func(time.Duration) {}
 	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	t.Cleanup(func() { check.Cancel() })
 
@@ -690,4 +691,33 @@ func TestAMDKubernetesAllocationsTagDeviceMetrics(t *testing.T) {
 	require.Len(t, containersByUUID, 2)
 	assert.ElementsMatch(t, []string{"whole"}, containersByUUID[testAMDUUID])
 	assert.ElementsMatch(t, []string{"part1", "part2"}, containersByUUID["amd-0000-d1-00-0"])
+}
+
+func TestAMDSMOccupancyFromCUOccupancy(t *testing.T) {
+	withoutNVML(t)
+	fs := amd.NewFakeSysfs(t)
+	devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", amd.MI300XAttributes("00c0ffee00c0ffee"))
+	fs.AddCard("card0", devDir)
+	fs.AddKFDNode(1, 4101, 0, 0xc100, 90402)
+	fs.SetKFDProperty(1, "simd_count", 1216) // 304 compute units
+	fs.SetKFDProperty(1, "simd_per_cu", 4)
+	fs.AddKFDProcessOccupancy(100, 4101, 76)
+	fs.AddKFDProcessOccupancy(200, 4101, 38)
+
+	check, mockSender := newAMDCheck(t, fs.Root, nil)
+	require.NoError(t, check.Run())
+
+	occupancy := emittedGauges(mockSender)["gpu.sm_occupancy"]
+	require.Len(t, occupancy, 1)
+	assert.InDelta(t, 100*float64(76+38)/304, occupancy[0].Arguments.Get(1), 1e-9)
+	assert.Contains(t, occupancy[0].Arguments.Get(3).([]string), "gpu_uuid:"+testAMDUUID)
+}
+
+// Without the KFD topology the compute unit count is unknown, so no occupancy
+// is reported rather than a misleading 0.
+func TestAMDSMOccupancyRequiresComputeUnits(t *testing.T) {
+	withoutNVML(t)
+	check, mockSender := newAMDCheck(t, fakeAMDHost(t), nil)
+	require.NoError(t, check.Run())
+	assert.Empty(t, emittedGauges(mockSender)["gpu.sm_occupancy"])
 }

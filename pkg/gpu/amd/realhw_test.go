@@ -82,6 +82,7 @@ func TestRealMI350XVirtualFunction(t *testing.T) {
 	assert.Equal(t, uint32(2200), dev.MaxEngineClockMHz, "max_engine_clk_fcompute")
 	assert.Equal(t, uint32(2000), dev.MaxMemoryClockMHz, "mem_clk_max of the VRAM bank")
 	assert.Equal(t, uint32(8192), dev.MemoryBusWidthBits, "width of the VRAM bank (HBM3E)")
+	assert.Equal(t, uint32(256), dev.ComputeUnits, "simd_count 1024 / simd_per_cu 4")
 
 	metrics, err := dev.ReadMetrics()
 	require.NoError(t, err)

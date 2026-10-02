@@ -73,6 +73,9 @@ type Device struct {
 	// MemoryBusWidthBits is the width of the video memory bus in bits, from the
 	// KFD topology. It is 0 when unknown, and for compute-partitioned GPUs.
 	MemoryBusWidthBits uint32
+	// ComputeUnits is the number of compute units over all KFD nodes
+	// (partitions) of the device, 0 if unknown.
+	ComputeUnits uint32
 	// KFDAccessDenied marks process topology made incomplete by a denied KFD
 	// node. A denied node's PCI owner is unknown, so all discovered GPUs are
 	// conservatively affected. Readable architecture and device data remain
@@ -159,6 +162,7 @@ func Discover(sysRoot string) ([]*Device, error) {
 				dev.MaxEngineClockMHz = gpu.maxEngineClockMHz
 				dev.MaxMemoryClockMHz = gpu.maxMemoryClockMHz
 				dev.MemoryBusWidthBits = gpu.busWidthBits
+				dev.ComputeUnits = gpu.computeUnits
 			}
 		}
 	}
