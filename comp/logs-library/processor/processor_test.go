@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
@@ -369,7 +370,7 @@ func TestFailoverConfigUpdateDoesNotBlock(t *testing.T) {
 	}
 
 	// Only the latest failover config is pending
-	assert.Len(t, p.configChan, 1)
+	require.Len(t, p.configChan, 1)
 	conf := <-p.configChan
 	assert.True(t, conf.isFailoverActive)
 	assert.Equal(t, map[string]struct{}{"web": {}, "api": {}}, conf.failoverServiceAllowlist)
