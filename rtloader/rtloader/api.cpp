@@ -20,9 +20,15 @@
 #endif
 #include <csignal>
 #include <cstring>
+#include <sys/mman.h>
 #include <sys/resource.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+// macOS and AIX name the anonymous mapping flag differently
+#if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
+#    define MAP_ANONYMOUS MAP_ANON
+#endif
 
 // logging to cerr
 #include <errno.h>
@@ -403,18 +409,33 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable_coredump, const i
     }
 
     if (enable_stacktrace) {
-        // Establish an alternate stack, as go stacks are too shallow and might crash
-        const size_t alt_stack_size = SIGSTKSZ;
+        // Establish an alternate stack, as go stacks are too shallow and might crash.
+        // SIGSTKSZ (8 KiB on Linux) is far too small for this handler: it puts a
+        // 4000-byte backtrace buffer on the stack, runs the unwinder and then the
+        // previously installed handler (the Go runtime's, which prints a full
+        // goroutine dump) on what is left of it. Use a dedicated mmap'd region
+        // instead of a heap block: it is large enough for the whole chain, and if
+        // it is ever exhausted the overflow hits a guard page (a crash at the
+        // fault) rather than silently corrupting malloc memory.
+        static constexpr size_t ALT_STACK_SIZE = 64 * 1024;
         static void *alt_stack = nullptr;
 
         __sync_synchronize();
         if (alt_stack == nullptr) {
+            void *mem
+                = mmap(nullptr, ALT_STACK_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
+            if (mem == MAP_FAILED) {
+                std::ostringstream err_msg;
+                err_msg << "unable to allocate alternate stack: " << strerror(errno);
+                *error = strdupe(err_msg.str().c_str());
+                return 0;
+            }
             // Note: this memory is never freed, but it is necessary for the duration of the program
-            alt_stack = _malloc(alt_stack_size);
+            alt_stack = mem;
             stack_t new_stack;
             memset(&new_stack, 0, sizeof(new_stack));
             new_stack.ss_sp = (decltype(new_stack.ss_sp))alt_stack;
-            new_stack.ss_size = alt_stack_size;
+            new_stack.ss_size = ALT_STACK_SIZE;
             new_stack.ss_flags = 0;
             int ret = sigaltstack(&new_stack, nullptr);
             if (ret != 0) {
