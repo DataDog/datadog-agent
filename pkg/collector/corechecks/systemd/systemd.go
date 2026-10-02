@@ -448,7 +448,7 @@ func sendServicePropertyAsGauge(sender sender.Sender, properties map[string]inte
 	return nil
 }
 
-// computeUptime returns uptime in microseconds
+// computeUptime returns uptime in seconds
 func computeUptime(activeState string, activeEnterTimestampMicroSec uint64, unitNow int64) int64 {
 	if activeState != unitActiveState {
 		return 0
