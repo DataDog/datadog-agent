@@ -4,8 +4,6 @@ load("//tasks:build_tags.bzl", "AGENT_HEROKU_TAGS", "AGENT_TAGS", "COMMON_TAGS")
 
 package(default_package_metadata = ["//:package_metadata"])
 
-exports_files(["macos/uninstall_mac_os.sh"])
-
 go_library(
     name = "agent_lib",
     srcs = [
