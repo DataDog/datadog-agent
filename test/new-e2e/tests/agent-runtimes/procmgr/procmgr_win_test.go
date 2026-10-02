@@ -141,6 +141,13 @@ func skipUnlessHostPath(t *testing.T, host *components.RemoteHost, path, reason 
 // accepts it, so a restart blip is not treated as steady state.
 const waitProcmgrStableFor = 5 * time.Second
 
+// procmgrHoldFor is how long the cutover assertions must keep seeing the state they want,
+// rather than accepting the first poll that shows it. waitProcmgrStableFor only rejects a
+// restart blip during setup. This is several times the five second sleep system-probe takes
+// before exiting when no module is enabled, so that exit cannot satisfy a check, and it
+// matches the window AssertProcmgrProcessRunning uses.
+const procmgrHoldFor = 20 * time.Second
+
 // waitProcmgrRunning polls dd-procmgr describe until name is Running with the same real PID
 // for waitProcmgrStableFor, so a brief Running blip during a restart is not accepted.
 func waitProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) string {
@@ -176,19 +183,168 @@ func waitProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name str
 	return pid
 }
 
-// requireProcmgrRunningPID polls until name is Running with wantPID, proving the same OS
-// process is still supervised.
-func requireProcmgrRunningPID(t *testing.T, host *components.RemoteHost, cli, name, wantPID string, timeout time.Duration) {
+// respawnProcmgrRunning stops and starts a process, then waits for the replacement to be
+// Running.
+//
+// The CLI call itself is not required to succeed. A dd-procmgr RPC can fail at the
+// transport level while the daemon carries the spawn out anyway, and retrying `start`
+// then reports the process as already running. What a caller needs is the end state, so
+// that is what is asserted; the command's own error is only logged, where it shows up in
+// the failure output if the process does not come back.
+//
+// Running alone is not that end state: a respawn that fails before the stop lands leaves
+// the old process running, which the child of a config or environment change the caller
+// just made would not reflect. The PID has to move for the spawn path to have run.
+func respawnProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) {
 	t.Helper()
-	require.NotEmpty(t, wantPID, "wantPID must be set (capture it with waitProcmgrRunning)")
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+	replaced, err := procmgrPIDToReplace(host, cli, name)
+	require.NoError(t, err)
+	if _, err := host.Execute(procmgrRespawn(cli, name)); err != nil {
+		t.Logf("respawn of %s reported: %v", name, err)
+	}
+	pid := waitProcmgrRunning(t, host, cli, name, timeout)
+	// A process that was not running has no PID to replace, which any real PID satisfies.
+	require.NotEqual(t, replaced, pid,
+		"%s is still PID %s, the process the respawn was meant to replace", name, replaced)
+}
+
+// restoreProcmgrRunning is respawnProcmgrRunning for a cleanup: it reports a process that
+// never comes back without ever calling FailNow, which a cleanup must not do.
+func restoreProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) {
+	t.Helper()
+	replaced, err := procmgrPIDToReplace(host, cli, name)
+	if err != nil {
+		t.Errorf("failed to read the PID %s is restarting from: %v", name, err)
+	}
+	if _, err := host.Execute(procmgrRespawn(cli, name)); err != nil {
+		t.Logf("respawn of %s reported: %v", name, err)
+	}
+	assertProcmgrReplaced(t, host, cli, name, replaced, timeout)
+}
+
+// procmgrDescribeRetryFor is how long procmgrPIDToReplace keeps retrying a describe that
+// cannot be read, which is a transport failure rather than an answer.
+const procmgrDescribeRetryFor = 30 * time.Second
+
+// procmgrPIDToReplace reads the PID a respawn is about to replace, or "" when the process
+// is not running and so has none.
+//
+// An unreadable describe is retried rather than reported as "", since "" turns the caller's
+// replacement check back into a Running check, and a Running check is satisfied by the very
+// process the respawn was meant to replace. Only a describe that never becomes readable is
+// an error, and that is a broken host rather than a transient RPC failure.
+func procmgrPIDToReplace(host *components.RemoteHost, cli, name string) (string, error) {
+	deadline := time.Now().Add(procmgrDescribeRetryFor)
+	for {
+		var reason error
+		out, err := host.Execute(procmgrCmd(cli, "describe "+name))
+		switch {
+		case err != nil:
+			reason = err
+		case fieldValue(out, "State") != "Running":
+			return "", nil
+		default:
+			pid := fieldValue(out, "PID")
+			if pid != "" && pid != "-" {
+				return pid, nil
+			}
+			reason = fmt.Errorf("no PID for a Running process: %s", out)
+		}
+		if time.Now().After(deadline) {
+			return "", fmt.Errorf("describe %s stayed unreadable for %s: %w", name, procmgrDescribeRetryFor, reason)
+		}
+		time.Sleep(3 * time.Second)
+	}
+}
+
+// assertProcmgrRunning waits for a process to be Running without ever calling FailNow,
+// which a cleanup must not do. A cleanup that only issues the commands and reports
+// success leaves the next test, which may run on this same host, to discover that the
+// process never came back.
+func assertProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) {
+	t.Helper()
+	assertProcmgrReplaced(t, host, cli, name, "", timeout)
+}
+
+// assertProcmgrReplaced is assertProcmgrRunning for a respawn: replacedPID is the process
+// the respawn was meant to replace, so seeing it again means the spawn path never ran and
+// the child still carries whatever the test installed. Pass "" when nothing was running
+// beforehand, which leaves no PID to rule out and asserts Running alone.
+func assertProcmgrReplaced(t *testing.T, host *components.RemoteHost, cli, name, replacedPID string, timeout time.Duration) {
+	t.Helper()
+	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
 		out, err := host.Execute(procmgrCmd(cli, "describe "+name))
 		if !assert.NoError(ct, err) {
 			return
 		}
-		assert.Equal(ct, "Running", fieldValue(out, "State"), "process %s: %s", name, out)
-		assert.Equal(ct, wantPID, fieldValue(out, "PID"),
-			"process %s should still be PID %s (same process that auto-spawned): %s", name, wantPID, out)
+		if !assert.Equal(ct, "Running", fieldValue(out, "State"),
+			"%s should be Running again after cleanup: %s", name, out) {
+			return
+		}
+		if replacedPID != "" {
+			assert.NotEqual(ct, replacedPID, fieldValue(out, "PID"),
+				"%s is still PID %s, the process the cleanup was meant to replace: %s", name, replacedPID, out)
+		}
+	}, timeout, 3*time.Second)
+}
+
+// requireSupervisedOnlyByProcmgr requires that dd-procmgr is the one thing running name, for
+// procmgrHoldFor: name is Running under dd-procmgr as wantPID, and legacyService, which used to
+// run it, is Stopped or not registered. timeout is the deadline for reaching that hold, not the
+// length of it.
+//
+// Both are read on every tick and share one window, because "only" is a claim about the pair.
+// Given a window each in turn, the workload could restart during the service half and the test
+// would still pass, which is exactly what this rules out: a workload run twice, or not at all.
+//
+// A restart, or a legacy service in any state but Stopped, resets the hold like any other
+// mismatch, so the run keeps polling to the deadline and reports what it last saw. Neither can
+// be undone by waiting, but aborting the moment one appears would mean either a sleep-driven
+// loop of our own or FailNow from the condition, which runs on another goroutine where it only
+// stops the worker and leaves the tick reporting success.
+func requireSupervisedOnlyByProcmgr(t *testing.T, host *components.RemoteHost, cli, name, wantPID, legacyService string, timeout time.Duration) {
+	t.Helper()
+	require.NotEmpty(t, wantPID, "wantPID must be set (capture it with waitProcmgrRunning)")
+
+	serviceQuery := fmt.Sprintf(
+		`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { 'Absent' } else { $s.Status }`,
+		legacyService,
+	)
+
+	var heldSince time.Time
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		describe, err := host.Execute(procmgrCmd(cli, "describe "+name))
+		if !assert.NoError(ct, err, "dd-procmgr describe %s", name) {
+			heldSince = time.Time{}
+			return
+		}
+		status, err := host.Execute(serviceQuery)
+		if !assert.NoError(ct, err, "Get-Service %s", legacyService) {
+			heldSince = time.Time{}
+			return
+		}
+
+		state, pid := fieldValue(describe, "State"), fieldValue(describe, "PID")
+		serviceState := strings.TrimSpace(status)
+		runningAsWantPID := assert.Equal(ct, "Running", state, "process %s: %s", name, describe) &&
+			assert.Equal(ct, wantPID, pid,
+				"process %s should still be the auto-spawned PID: %s", name, describe)
+		legacyDown := assert.Contains(ct, []string{"Stopped", "Absent"}, serviceState,
+			"%s must stay down while dd-procmgr supervises %s", legacyService, name)
+		if !runningAsWantPID || !legacyDown {
+			heldSince = time.Time{}
+			return
+		}
+
+		now := time.Now()
+		if heldSince.IsZero() {
+			heldSince = now
+		}
+		// A tick that records no failure is an immediate success, so the hold has to be an
+		// assertion rather than a silent early return.
+		assert.GreaterOrEqual(ct, now.Sub(heldSince), procmgrHoldFor,
+			"%s has held PID %s with %s down for %s, needs %s",
+			name, wantPID, legacyService, now.Sub(heldSince).Round(time.Second), procmgrHoldFor)
 	}, timeout, 3*time.Second)
 }
 

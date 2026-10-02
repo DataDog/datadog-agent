@@ -238,6 +238,32 @@ func TestFromDDConfig(t *testing.T) {
 	}
 }
 
+func TestFromDDConfigKubernetesAllowedCustomResources(t *testing.T) {
+	t.Run("unset selects compatibility mode", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Nil(t, cfg.KubernetesAllowedCustomResources)
+	})
+
+	t.Run("configured list selects exact-match mode", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(setup.PARKubernetesAllowedCustomResources, []string{"cert-manager.io/v1/certificates"})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"cert-manager.io/v1/certificates"}, cfg.KubernetesAllowedCustomResources)
+	})
+
+	t.Run("configured empty list selects deny-all mode", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(setup.PARKubernetesAllowedCustomResources, []string{})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.KubernetesAllowedCustomResources)
+		assert.Empty(t, cfg.KubernetesAllowedCustomResources)
+	})
+}
+
 func TestFromDDConfigMetricsClient(t *testing.T) {
 	providedClient := &statsd.NoOpClient{}
 	tests := []struct {

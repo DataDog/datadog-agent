@@ -659,17 +659,13 @@ profiles:
       - name: dogstatsd.uds_origin_detection_error
         preserve_tags:
           - transport
-      # Inputs: checks that run but warn or submit nothing, and workloadmeta
-      # collectors (kubelet, container runtimes) failing to pull.
+      # Inputs: checks that run but warn or submit nothing.
       - name: checks.warnings
         preserve_tags:
           - check_name
       - name: checks.metrics_samples
         preserve_tags:
           - check_name
-      - name: workloadmeta.pull_errors
-        preserve_tags:
-          - collector_id
   schedule:
     start_after: 30
     iterations: 0

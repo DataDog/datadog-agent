@@ -40,6 +40,7 @@
 /.agents/skills/cws-btfhub-sync                 @DataDog/agent-security
 /.agents/skills/cws-iouring-coverage/           @DataDog/agent-security
 /.agents/skills/explain-lading-config           @DataDog/single-machine-performance
+/.agents/skills/gpu-live-metric-validation/     @DataDog/gpu-monitoring-agent
 /.agents/skills/injector-dev                    @Datadog/container-platform
 /.agents/skills/quality-gate-size-analysis/     @DataDog/agent-build
 /.agents/skills/review-pr-comments/             @DataDog/agent-devx
@@ -564,6 +565,7 @@
 /pkg/api/security/cert/cert_getter_dca.go                             @DataDog/agent-runtimes @DataDog/container-platform
 /pkg/aggregator/                                                      @DataDog/agent-metric-pipelines
 /pkg/collector/                                                       @DataDog/agent-runtimes
+/pkg/collector/metriclookback                                         @DataDog/q-branch
 /pkg/commonchecks/                                                    @DataDog/agent-runtimes
 /pkg/cli/                                                             @DataDog/fleet-remediation
 /pkg/cli/subcommands/check                                            @DataDog/agent-runtimes @DataDog/agent-integrations
