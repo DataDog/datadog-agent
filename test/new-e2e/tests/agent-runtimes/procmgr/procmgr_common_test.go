@@ -324,35 +324,6 @@ func assertTableRow(t assert.TestingT, output, rowName string, expected map[stri
 	assert.Fail(t, fmt.Sprintf("row %q not found in table output:\n%s", rowName, output))
 }
 
-// telemetryGaugeIsTrue reports whether "show-metadata agent-full-telemetry" carries metric set to 1
-// with every label in labels. That payload is unfiltered, so a gauge the reporter emitted at 0 is
-// present as a line valued 0 and is correctly reported as not set here.
-func telemetryGaugeIsTrue(output, metric string, labels map[string]string) bool {
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, metric) {
-			continue
-		}
-
-		fields := strings.Fields(line)
-		if len(fields) < 2 || (fields[len(fields)-1] != "1" && fields[len(fields)-1] != "1.0") {
-			continue
-		}
-
-		allLabelsMatch := true
-		for key, value := range labels {
-			if !strings.Contains(line, key+`="`+value+`"`) {
-				allLabelsMatch = false
-				break
-			}
-		}
-		if allLabelsMatch {
-			return true
-		}
-	}
-	return false
-}
-
 type tableColumn struct {
 	name  string
 	start int

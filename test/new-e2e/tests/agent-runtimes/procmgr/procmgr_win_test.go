@@ -561,6 +561,32 @@ func (s *procmgrWindowsSuite) TestADPCOATTelemetry() {
 	}, 7*time.Minute, 10*time.Second)
 }
 
+func telemetryGaugeIsTrue(output, metric string, labels map[string]string) bool {
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, metric) {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 2 || (fields[len(fields)-1] != "1" && fields[len(fields)-1] != "1.0") {
+			continue
+		}
+
+		allLabelsMatch := true
+		for key, value := range labels {
+			if !strings.Contains(line, key+`="`+value+`"`) {
+				allLabelsMatch = false
+				break
+			}
+		}
+		if allLabelsMatch {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *procmgrWindowsSuite) TestADPRestartAfterKill() {
 	s.requireCLI()
 	originalPID := s.waitWindowsADPRunning(90 * time.Second)
