@@ -41,9 +41,22 @@ else
           echo "end of modified files" >&2
         fi
         rc=0
-        "#{bazel}" "$1" --announce_rc "${@:2}" || rc=$?
-        echo "skyframe summary after: $*" >&2
-        "#{bazel}" dump --skyframe=summary >&2 || true
+        if [ "$1" = "run" ]; then
+          script="$(mktemp "#{shim_dir}/run_XXXXXX.sh")"
+          "#{bazel}" run --script_path="$script" "${@:2}" || rc=$?
+          echo "skyframe summary after build phase: $*" >&2
+          "#{bazel}" dump --skyframe=summary >&2 || true
+          if [ "$rc" -eq 0 ]; then
+            bash "$script" || rc=$?
+            echo "skyframe summary after run phase: $*" >&2
+            "#{bazel}" dump --skyframe=summary >&2 || true
+          fi
+          rm -f "$script"
+        else
+          "#{bazel}" "$@" || rc=$?
+          echo "skyframe summary after: $*" >&2
+          "#{bazel}" dump --skyframe=summary >&2 || true
+        fi
         touch "$marker"
         exit $rc
       fi
