@@ -83,14 +83,6 @@ mkssys -s datadog-agent-data-plane -G datadog-agent \
 rmitab datadog-agent 2>/dev/null || true
 mkitab "datadog-agent:2:once:startsrc -g datadog-agent >/dev/console 2>&1"
 
-# Start (or restart) the agent if datadog.yaml exists.
-# On a fresh install this starts the agent for the first time.
-# On an upgrade the preinst stopped the services; this brings them back up.
-# Skipped when DD_INSTALL_ONLY is set
-if [ -f /etc/datadog-agent/datadog.yaml ] && [ -z "$DD_INSTALL_ONLY" ]; then
-    startsrc -g datadog-agent 2>/dev/null || true
-fi
-
 # Convenience symlink so operators can run `datadog-agent` without the full
 # path, matching the Linux packages' /usr/bin/datadog-agent symlink. Not part
 # of the package file manifest (see unconfig for removal) since /usr/bin is

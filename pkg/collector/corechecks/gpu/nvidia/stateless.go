@@ -213,6 +213,25 @@ func shouldSkipLegacyEccMetric(device ddnvml.Device, errorType nvml.MemoryErrorT
 	return memoryLocation == nvml.MEMORY_LOCATION_SRAM || (errorType == nvml.MEMORY_ERROR_TYPE_UNCORRECTED && memoryLocation == nvml.MEMORY_LOCATION_L2_CACHE)
 }
 
+// retiredPagesSample reports the number of GPU memory pages the driver has retired,
+// or will retire on the next driver reload, for a given retirement cause.
+// Only the number of retired pages is reported, not their addresses.
+func retiredPagesSample(device ddnvml.Device, cause nvml.PageRetirementCause, causeName string) ([]Sample, uint64, error) {
+	count, err := device.GetRetiredPagesCount(cause)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return []Sample{
+		&Metric{
+			baseSample: baseSample{tags: []string{"cause:" + causeName}},
+			Name:       "retired_pages",
+			Value:      float64(count),
+			Type:       metrics.GaugeType,
+		},
+	}, 0, nil
+}
+
 func sramEccErrorStatusSample(device ddnvml.Device) ([]Sample, uint64, error) {
 	// SRAM ECC error status is only supported on Ampere and later. Some of the metrics
 	// overlap with the legacy ECC metrics, so we need to check the architecture and return an error
@@ -879,6 +898,16 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				})
 			}
 		}
+	}
+
+	// Create APIs for retired memory pages, one per retirement cause.
+	for cause, causeName := range pageRetirementCauseToName {
+		apis = append(apis, apiCallInfo{
+			Name: "retired_pages." + causeName,
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+				return retiredPagesSample(device, cause, causeName)
+			},
+		})
 	}
 
 	return apis
