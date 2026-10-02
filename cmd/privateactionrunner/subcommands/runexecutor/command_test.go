@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauthnoop "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
-	par "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

@@ -12,13 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 func TestNewKeysManagerProvidesRCListener(t *testing.T) {
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-		privateactionrunner.Enabled: true,
+		par.Enabled: true,
 	})
 
 	provides := newKeysManager(cfg)

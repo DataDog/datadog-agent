@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	helmactionsimpl "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/impl"
-	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
@@ -35,7 +35,7 @@ func Module() fxutil.Module {
 		// action runner is disabled, so a disabled PAR (or a unit test) never blocks
 		// on apiserver reachability.
 		uberfx.Provide(func(cfg config.Component) (*apiserver.APIClient, error) {
-			if !cfg.GetBool(privateactionrunner.Enabled) {
+			if !cfg.GetBool(par.Enabled) {
 				return nil, nil
 			}
 			return apiserver.WaitForAPIClient(context.Background())

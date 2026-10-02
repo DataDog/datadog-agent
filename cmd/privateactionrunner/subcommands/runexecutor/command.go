@@ -49,7 +49,7 @@ type cliParams struct {
 func (p *cliParams) configParams() config.Params {
 	options := []func(*config.Params){config.WithExtraConfFiles(p.ExtraConfFilePath)}
 	if p.executorSocket != "" {
-		options = append(options, config.WithCLIOverride(privateactionrunner.ExecutorSocketPath, p.executorSocket))
+		options = append(options, config.WithCLIOverride(par.ExecutorSocketPath, p.executorSocket))
 	}
 	if p.ipcCertFile != "" {
 		options = append(options, config.WithCLIOverride("ipc_cert_file_path", p.ipcCertFile))

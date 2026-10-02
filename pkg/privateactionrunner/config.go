@@ -27,6 +27,8 @@ const (
 	IdleTimeoutSeconds    = "private_action_runner.idle_timeout_seconds"
 	ActionsAllowlist      = "private_action_runner.actions_allowlist"
 	DefaultActionsEnabled = "private_action_runner.default_actions_enabled"
+	ExecutorSocketPath    = "private_action_runner.executor.socket_path"
+	SplitEnabled          = "private_action_runner.split_enabled"
 
 	// HTTP Action related
 	HTTPTimeoutSeconds    = "private_action_runner.http_timeout_seconds"

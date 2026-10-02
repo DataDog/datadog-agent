@@ -26,6 +26,7 @@ go_library(
         "//pkg/config/utils",
         "//pkg/fips",
         "//pkg/fleet/installer/telemetry",
+        "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/parversion",
         "//pkg/privateactionrunner/adapters/rcclient",

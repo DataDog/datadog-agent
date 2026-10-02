@@ -13,6 +13,7 @@ import (
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerimpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -54,7 +55,7 @@ type keysManagerProvides struct {
 func newKeysManager(cfg config.Component) keysManagerProvides {
 	manager, callback := taskverifier.NewKeyManagerWithCallback()
 	var listener rctypes.RCListener
-	if callback != nil && cfg.GetBool(privateactionrunner.Enabled) {
+	if callback != nil && cfg.GetBool(par.Enabled) {
 		listener = rctypes.RCListener{
 			state.ProductActionPlatformRunnerKeys: callback,
 		}

@@ -11,6 +11,7 @@ go_library(
         "//comp/privateactionrunner/def",
         "//comp/privateactionrunner/impl",
         "//comp/remote-config/rcclient/types",
+        "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/task-verifier",
         "//pkg/remoteconfig/state",
         "//pkg/util/fxutil",
@@ -24,7 +25,7 @@ dd_agent_go_test(
     embed = [":fx"],
     deps = [
         "//comp/core/config",
-        "//comp/privateactionrunner/def",
+        "//pkg/privateactionrunner",
         "//pkg/remoteconfig/state",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
