@@ -25,15 +25,12 @@ build do
     block do
         # Push all the pieces built with Bazel.
 
-        command "bazel run #{omnibazel_flags} -- //packages/install_dir:install --destdir=#{install_dir}",
-            :live_stream => Omnibus.logger.live_stream(:info)
+        command "bazel run #{omnibazel_flags} -- //packages/install_dir:install --destdir=#{install_dir}"
 
         if linux_target?
-            command "bazel run #{omnibazel_flags} -- //packages/agent/linux:license_files_install --destdir=#{install_dir}",
-                :live_stream => Omnibus.logger.live_stream(:info)
+            command "bazel run #{omnibazel_flags} -- //packages/agent/linux:license_files_install --destdir=#{install_dir}"
         elsif osx_target?
-            command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:license_files_install --destdir=#{install_dir}",
-                :live_stream => Omnibus.logger.live_stream(:info)
+            command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:license_files_install --destdir=#{install_dir}"
         end
 
         # Conf files

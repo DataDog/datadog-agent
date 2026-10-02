@@ -48,8 +48,7 @@ build do
     end
     # Bazel places the yaml example, init scripts, service file, and creates
     # /etc/datadog-dogstatsd/ and /var/log/datadog/.
-    command "bazel run #{omnibazel_flags} -- #{install_target} --destdir=/",
-      :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} -- #{install_target} --destdir=/"
     mkdir "#{install_dir}/run"
     mkdir "#{install_dir}/scripts"
     project.extra_package_file '/etc/init/datadog-dogstatsd.conf'

@@ -14,8 +14,7 @@ build do
     if debian_target?
       # building into / is not acceptable. We'll continue to to that for now,
       # but the replacement has to build to a build output tree.
-      command "bazel run #{omnibazel_flags} -- //packages/debian/etc:install --verbose --destdir=#{destdir}",
-        :live_stream => Omnibus.logger.live_stream(:info)
+      command "bazel run #{omnibazel_flags} -- //packages/debian/etc:install --verbose --destdir=#{destdir}"
 
       # sysvinit support for debian only for now
       mkdir "/etc/init.d"
@@ -27,8 +26,7 @@ build do
       project.extra_package_file '/etc/init.d/datadog-agent-data-plane'
       project.extra_package_file '/etc/init.d/datadog-agent-action'
     elsif redhat_target? || suse_target?
-      command "bazel run #{omnibazel_flags} -- //packages/redhat/etc:install --verbose --destdir=#{destdir}",
-        :live_stream => Omnibus.logger.live_stream(:info)
+      command "bazel run #{omnibazel_flags} -- //packages/redhat/etc:install --verbose --destdir=#{destdir}"
     end
     project.extra_package_file '/etc/init/datadog-agent.conf'
     project.extra_package_file '/etc/init/datadog-agent-process.conf'
