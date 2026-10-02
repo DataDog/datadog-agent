@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // ExecFile is what the consumer's Copy() extracts from an exec event. It is built on the
@@ -36,6 +37,12 @@ type ExecFile struct {
 	IsScript bool
 	// SeenAt is when the consumer received the event
 	SeenAt time.Time
+	// ProcessCacheEntry is the exec's process cache entry, captured by Copy() as a plain pointer
+	// (no retain/release: the entry is not pooled and is kept alive by the GC as long as this
+	// pointer lives). It lets a report rebuild the CWS process-activity schema for a match long
+	// after the model.Event has been returned to the probe's event pool. It may be nil (e.g. the
+	// stand-in engine, or an event without a cache entry), and reporters must degrade gracefully.
+	ProcessCacheEntry *model.ProcessCacheEntry
 }
 
 // Identity returns the identity key of the file
