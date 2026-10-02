@@ -9,13 +9,16 @@ package collectorimpl
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	tmock "github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector/impl/internal/middleware"
@@ -31,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -98,6 +102,56 @@ type oneTimeTestCheck struct {
 }
 
 func (c *oneTimeTestCheck) Interval() time.Duration { return 0 }
+
+// runInCollectorBubble runs f against a started collector inside a synctest
+// bubble, so synctest.Wait settles worker goroutines and their cleanup.
+func runInCollectorBubble(t *testing.T, f func(t *testing.T, c *collectorImpl)) {
+	synctest.Test(t, func(t *testing.T) {
+		suite := &CollectorTestSuite{}
+		suite.SetT(t)
+		suite.SetupTest()
+		defer suite.TearDownTest()
+		synctest.Wait()
+		f(t, suite.c)
+	})
+}
+
+func TestCompletedOneTimeChecksDoNotGrowWorkerPool(t *testing.T) {
+	runInCollectorBubble(t, func(t *testing.T, c *collectorImpl) {
+		baseline := expvars.GetWorkerCount()
+		for i := 0; i < 50; i++ {
+			ch := &oneTimeTestCheck{TestCheck: NewCheckUnique(checkid.ID(fmt.Sprintf("one-shot:%d", i)), "TestCheck")}
+			// Returning immediately lets the check finish before RunCheck returns.
+			close(ch.stop)
+			id, err := c.RunCheck(ch)
+			require.NoError(t, err)
+			synctest.Wait()
+			require.Equal(t, baseline, expvars.GetWorkerCount())
+			require.Zero(t, c.checkInstances)
+			// The worker must exit without waiting for the check to be unscheduled.
+			require.Contains(t, c.checks, id)
+			require.NoError(t, c.StopCheck(id))
+		}
+	})
+}
+
+func TestRunningOneTimeCheckHoldsOneExtraWorker(t *testing.T) {
+	runInCollectorBubble(t, func(t *testing.T, c *collectorImpl) {
+		baseline := expvars.GetWorkerCount()
+		ch := &oneTimeTestCheck{TestCheck: NewCheckUnique("long-running:1", "TestCheck")}
+		id, err := c.RunCheck(ch)
+		require.NoError(t, err)
+		<-ch.started
+		synctest.Wait()
+		// The pool keeps its full size while one worker is busy with the check.
+		require.Equal(t, baseline+1, expvars.GetWorkerCount())
+		require.Zero(t, c.checkInstances)
+
+		require.NoError(t, c.StopCheck(id))
+		synctest.Wait()
+		require.Equal(t, baseline, expvars.GetWorkerCount())
+	})
+}
 
 // ChecksList is a sort.Interface so we can use the Sort function
 type ChecksList []checkid.ID
