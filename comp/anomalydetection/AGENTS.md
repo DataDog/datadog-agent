@@ -212,9 +212,7 @@ See `reporter/reporter.allium` for the payload contract.
   When migrating legacy switches, define compatibility and precedence, then test
   no consumer, each consumer alone, multiple consumers, and explicit overrides.
 
-Keys below are in the main config schema unless noted. Recorder settings target
-non-production `anomalydetection_recorder` builds: `recording.only` stays out of
-the schema, while the existing recorder keys remain there pending removal.
+Keys below are declared in the main config schema (`pkg/config/schema/yaml/`).
 
 | Key | Default | Purpose |
 |-----|---------|---------|

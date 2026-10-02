@@ -100,6 +100,12 @@ func TestRecordingOnly(t *testing.T) {
 	}
 }
 
+func TestRecordingOnlyEnvOverride(t *testing.T) {
+	t.Setenv("DD_ANOMALY_DETECTION_RECORDING_ONLY", "true")
+	cfg := compconfig.NewMockFromYAML(t, "anomaly_detection:\n  recording:\n    only: false\n")
+	assert.True(t, RecordingOnly(cfg))
+}
+
 func TestScorerRequired(t *testing.T) {
 	tests := []struct {
 		name string
