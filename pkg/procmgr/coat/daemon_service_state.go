@@ -51,8 +51,13 @@ func daemonServiceStateIsActive(current, state string) bool {
 }
 
 // selectDaemonServiceState picks exactly one mapped state from candidate unit/service
-// query results, preferring a running unit, then a sole transitional unit, then the
-// first loaded candidate in stable → exp → legacy → legacy-exp order.
+// query results, preferring a running unit, then a sole transitional unit, then a failed
+// unit, then the first loaded candidate in stable → exp → legacy → legacy-exp order.
+//
+// A failure outranks the flavor order because both units stay installed during a fleet
+// experiment: stable is loaded but inactive while exp runs. Falling straight through to
+// stable would report an exp unit that failed as a quiet "stopped", which reads as nothing
+// being run rather than as the daemon breaking.
 func selectDaemonServiceState(results []daemonServiceCandidateResult) string {
 	if len(results) == 0 {
 		return ProcessStateNotInstalled
@@ -78,6 +83,12 @@ func selectDaemonServiceState(results []daemonServiceCandidateResult) string {
 	}
 	if transitional != nil {
 		return transitional.state
+	}
+
+	for _, r := range results {
+		if r.state == ProcessStateFailed {
+			return ProcessStateFailed
+		}
 	}
 
 	for _, kind := range []daemonServiceCandidateKind{

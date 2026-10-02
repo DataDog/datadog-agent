@@ -167,10 +167,38 @@ func TestSelectDaemonServiceState(t *testing.T) {
 			name: "prefer stable loaded when all terminal",
 			results: []daemonServiceCandidateResult{
 				{daemonCandidateStable, ProcessStateStopped},
+				{daemonCandidateExp, ProcessStateUnknown},
+				{daemonCandidateLegacy, ProcessStateUnknown},
+			},
+			want: ProcessStateStopped,
+		},
+		{
+			// A fleet experiment leaves stable loaded but inactive while exp runs, so taking
+			// stable first would report a failed exp daemon as a quiet "stopped".
+			name: "failed exp is not masked by the stopped stable unit",
+			results: []daemonServiceCandidateResult{
+				{daemonCandidateStable, ProcessStateStopped},
 				{daemonCandidateExp, ProcessStateFailed},
 				{daemonCandidateLegacy, ProcessStateStopped},
 			},
-			want: ProcessStateStopped,
+			want: ProcessStateFailed,
+		},
+		{
+			name: "failed stable is not masked by the stopped exp unit",
+			results: []daemonServiceCandidateResult{
+				{daemonCandidateStable, ProcessStateFailed},
+				{daemonCandidateExp, ProcessStateStopped},
+			},
+			want: ProcessStateFailed,
+		},
+		{
+			// Failure outranks the flavor order, not a unit that is actually up.
+			name: "running exp wins over failed stable",
+			results: []daemonServiceCandidateResult{
+				{daemonCandidateStable, ProcessStateFailed},
+				{daemonCandidateExp, ProcessStateRunning},
+			},
+			want: ProcessStateRunning,
 		},
 		{
 			name: "prefer exp when stable missing",
@@ -187,7 +215,7 @@ func TestSelectDaemonServiceState(t *testing.T) {
 				{daemonCandidateStable, ProcessStateNotInstalled},
 				{daemonCandidateExp, ProcessStateNotInstalled},
 				{daemonCandidateLegacy, ProcessStateStopped},
-				{daemonCandidateLegacyExp, ProcessStateFailed},
+				{daemonCandidateLegacyExp, ProcessStateUnknown},
 			},
 			want: ProcessStateStopped,
 		},
