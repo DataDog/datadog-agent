@@ -24,6 +24,12 @@
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
+# TEMPORARY DEBUG: normally defined in .gitlab/deploy/conditions.yml, which is currently
+# excluded (include block commented out below). Inlined here because the workflow rules
+# reference it. Remove when restoring the includes.
+.if_deploy_installer: &if_deploy_installer
+  if: $DEPLOY_INSTALLER == "true" || $DDR_WORKFLOW_ID != null
+
 # Windows-specific Go source files, pkg/, and cmd/ (26 paths), need to be split because Gitlab has a limit to 50 paths in a single rule
 .windows_path:
   &windows_path # Windows-specific Go source files (by filename convention)
@@ -136,43 +142,47 @@
   - Cargo.toml
   - Cargo.lock
 
-include:
-  - local: .adms/**/*.yaml
-  - local: .gitlab/.pre/**.yml
-  - local: .gitlab/build/**.yml
-  - local: .gitlab/deploy/**.yml
-  - local: .gitlab/test/**.yml
-  - local: .gitlab/.post/**.yml
-  # AIX jobs
-  - local: .gitlab/aix/**.yml
-  # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
-  - local: .gitlab/windows/**.yml
-    rules:
-      - if: $SKIP_WINDOWS == "true"
-        when: never
-      - <<: *if_main_branch
-      - <<: *if_release_branch
-      - <<: *if_triggered_pipeline
-      - <<: *if_light_pipeline
-      - <<: *if_deploy
-      - <<: *if_run_all_e2e_tests
-      # - !reference [.except_skip_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
-      - changes:
-          paths: *windows_path
-          compare_to: main
-      - changes:
-          paths: *windows_path_2
-          compare_to: main
-      - changes:
-          paths: *windows_path_3
-          compare_to: main
-      - changes:
-          paths: *windows_path_4
-          compare_to: main
-      - changes:
-          paths: *bazel_paths
-          compare_to: main
-      - when: never
+# TEMPORARY DEBUG CONFIGURATION (branch kfairise/default-true-macos-feature-flag):
+# all includes are disabled so the pipeline contains ONLY the two macOS feature flag debug jobs
+# defined at the bottom of this file. Restore the include block below (and remove the debug
+# jobs) before merging.
+# include:
+#   - local: .adms/**/*.yaml
+#   - local: .gitlab/.pre/**.yml
+#   - local: .gitlab/build/**.yml
+#   - local: .gitlab/deploy/**.yml
+#   - local: .gitlab/test/**.yml
+#   - local: .gitlab/.post/**.yml
+#   # AIX jobs
+#   - local: .gitlab/aix/**.yml
+#   # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
+#   - local: .gitlab/windows/**.yml
+#     rules:
+#       - if: $SKIP_WINDOWS == "true"
+#         when: never
+#       - <<: *if_main_branch
+#       - <<: *if_release_branch
+#       - <<: *if_triggered_pipeline
+#       - <<: *if_light_pipeline
+#       - <<: *if_deploy
+#       - <<: *if_run_all_e2e_tests
+#       # - !reference [.except_skip_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
+#       - changes:
+#           paths: *windows_path
+#           compare_to: main
+#       - changes:
+#           paths: *windows_path_2
+#           compare_to: main
+#       - changes:
+#           paths: *windows_path_3
+#           compare_to: main
+#       - changes:
+#           paths: *windows_path_4
+#           compare_to: main
+#       - changes:
+#           paths: *bazel_paths
+#           compare_to: main
+#       - when: never
 
 default:
   retry:
@@ -1509,3 +1519,66 @@ workflow:
       - scheduler_failure
       - stale_schedule
       - data_integrity_failure
+
+# ------------------------------------------------------------------------------
+# TEMPORARY DEBUG JOBS (branch kfairise/default-true-macos-feature-flag)
+# Only these two jobs run: every include above is commented out.
+# They replicate new-e2e-agent-platform-install-script-macos-x64's conditions to observe
+# how the ci-datadog-agent-e2e-macos-pools feature flag is evaluated with/without NOT_NIGHTLY.
+# Remove this block (and restore the include section) before merging.
+# ------------------------------------------------------------------------------
+
+.macos-flag-debug-script:
+  script:
+    - |
+      echo "=== Pipeline context ==="
+      echo "CI_PIPELINE_SOURCE=[$CI_PIPELINE_SOURCE]"
+      echo "CI_COMMIT_BRANCH=[$CI_COMMIT_BRANCH] (default: [$CI_DEFAULT_BRANCH])"
+      echo "DEPLOY_AGENT=[$DEPLOY_AGENT]"
+      echo "DDR_WORKFLOW_ID=[$DDR_WORKFLOW_ID]"
+      echo "NOT_NIGHTLY=[$NOT_NIGHTLY]"
+    - |
+      echo "=== dda self feature evaluation (exact command used in before_script) ==="
+      echo "E2E_MACOS_POOL_ENABLED (quoted): [$E2E_MACOS_POOL_ENABLED]"
+      printf '%s' "$E2E_MACOS_POOL_ENABLED" | od -c | head -2
+      echo "--- raw re-run with exit code ---"
+      raw="$(dda self feature ci-datadog-agent-e2e-macos-pools --default false)"; rc=$?
+      echo "exit code: $rc, raw output (quoted): [$raw]"
+    - echo "=== dda self feature --json (source of the value) ==="
+    - dda self feature ci-datadog-agent-e2e-macos-pools --default false --json 2>&1 || echo "(--json evaluation failed or unsupported)"
+    - |
+      echo "=== Skip logic decision (same condition as the real job) ==="
+      if [ "$NOT_NIGHTLY" = "true" ] && [ "$E2E_MACOS_POOL_ENABLED" = "false" ]; then
+        echo "RESULT: WOULD SKIP the macOS e2e install job"
+      else
+        echo "RESULT: WOULD RUN the macOS e2e install job"
+        echo "  NOT_NIGHTLY = 'true'? $([ "$NOT_NIGHTLY" = "true" ] && echo yes || echo no)"
+        echo "  E2E_MACOS_POOL_ENABLED = 'false'? $([ "$E2E_MACOS_POOL_ENABLED" = "false" ] && echo yes || echo no)"
+      fi
+
+macos-flag-debug-not-nightly:
+  # Simulates the non-nightly main pipeline case where NOT_NIGHTLY is set
+  stage: e2e_install_packages
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64"]
+  variables:
+    NOT_NIGHTLY: "true" # Set at job level so it is also present when run manually on a branch
+  before_script:
+    - export E2E_MACOS_POOL_ENABLED=$(dda self feature ci-datadog-agent-e2e-macos-pools --default false)
+  script:
+    - !reference [.macos-flag-debug-script, script]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "kfairise/default-true-macos-feature-flag"
+
+macos-flag-debug-no-not-nightly:
+  # Simulates the case where the main-branch rule never matched (e.g. .on_deploy matched first)
+  # so NOT_NIGHTLY is unset
+  stage: e2e_install_packages
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64"]
+  before_script:
+    - export E2E_MACOS_POOL_ENABLED=$(dda self feature ci-datadog-agent-e2e-macos-pools --default false)
+  script:
+    - !reference [.macos-flag-debug-script, script]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "kfairise/default-true-macos-feature-flag"
