@@ -75,7 +75,7 @@ type Registry struct {
 // kubeactions bundle is only available inside the cluster agent, so it is not
 // registered here.
 func NewRegistry(configuration *config.Config, rcClient rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, _ helmactions.Component, _ kubeactions.Component) (*Registry, error) {
-	authoredScripts, err := com_datadoghq_authoredscripts.NewAuthoredScripts(rcClient)
+	authoredScripts, err := com_datadoghq_authoredscripts.NewAuthoredScripts(rcClient, configuration.AgentHTTPClient)
 	if err != nil {
 		return nil, fmt.Errorf("could not create authored-script bundle: %w", err)
 	}

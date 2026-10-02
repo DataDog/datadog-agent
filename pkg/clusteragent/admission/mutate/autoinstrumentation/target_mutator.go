@@ -276,6 +276,7 @@ func buildInternalTargetsFromPolicies(config *Config, ps []policies.Policy, defa
 			json:            createPolicyJSON(p),
 			usesDefaultLibs: usesDefaultLibs,
 			fromPolicy:      true,
+			blocked:         !p.Outcome.Inject,
 		}
 	}
 
@@ -332,6 +333,11 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	// matched the pod — not from a namespace-level eligibility approximation.
 	target, ssi := m.resolveTargetAndSSI(pod)
 	if target == nil {
+		return false, nil
+	}
+	if target.blocked {
+		annotation.Set(pod, annotation.AppliedPolicy, target.json)
+		annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusBlocked)
 		return false, nil
 	}
 	extracted := m.core.initExtractedLibInfo(pod, ssi).withLibs(target.libVersions)
@@ -428,23 +434,31 @@ type targetInternal struct {
 	// remote-config policy rather than a configuration target. It selects which
 	// annotation/env var carries the applied information.
 	fromPolicy bool
+	// blocked is true when this target comes from a remote-config policy that
+	// denies injection. The pod is annotated but not mutated otherwise.
+	blocked bool
 }
 
 // getTarget determines which target to use for a given pod, including the tracing libraries to inject.
 // Precedence is annotation, DatadogInstrumentation, static config, remote config, then inject-all.
 func (m *TargetMutator) getTarget(pod *corev1.Pod) *targetInternal {
 	target, _ := m.resolveTargetAndSSI(pod)
+	if target != nil && target.blocked {
+		return nil
+	}
 	return target
 }
 
 // resolveTargetAndSSI selects what to inject and whether the pod is in SSI mode.
+// The returned target is blocked when a remote-config policy denies injection.
 func (m *TargetMutator) resolveTargetAndSSI(pod *corev1.Pod) (*targetInternal, bool) {
 	matched := m.getMatchingTarget(pod)
+	ssi := matched != nil && !matched.blocked
 	result := m.getTargetFromAnnotation(pod)
 	if !result.shouldContinue {
-		return result.target, matched != nil
+		return result.target, ssi
 	}
-	return matched, matched != nil
+	return matched, ssi
 }
 
 type filterResult struct {
@@ -557,7 +571,8 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *filterResult {
 }
 
 // getMatchingTarget evaluates each configuration source in priority order. A
-// matched deny returns nil and does not fall through to a lower-priority source.
+// matched remote deny returns a blocked target and does not fall through to a
+// lower-priority source.
 func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 	if _, ok := m.disabledNamespaces[pod.Namespace]; ok {
 		return nil
@@ -568,12 +583,12 @@ func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 		return result.target
 	}
 
-	static, staticMatched := applyMatch(&m.staticPolicies, pod)
+	static := applyMatch(&m.staticPolicies, pod)
 	remotePolicies := m.remotePolicies.Load()
-	if t, matched := applyMatch(remotePolicies, pod); matched {
+	if t := applyMatch(remotePolicies, pod); t != nil {
 		return t
 	}
-	if staticMatched {
+	if static != nil {
 		return static
 	}
 	if m.ssiEnabled && !hasTargets(&m.staticPolicies) && remotePolicies == nil {
@@ -586,25 +601,24 @@ func hasTargets(set *policySet) bool {
 	return set != nil && len(set.targets) > 0
 }
 
-// applyMatch returns the injection target for a policy set. matched is true
-// when a policy evaluated to TRUE (even if that policy denies injection).
-func applyMatch(set *policySet, pod *corev1.Pod) (*targetInternal, bool) {
+// applyMatch returns the target of the last matching policy in a set, or nil.
+// The target is blocked when the policy denies injection.
+func applyMatch(set *policySet, pod *corev1.Pod) *targetInternal {
 	if set == nil || set.matcher == nil {
-		return nil, false
+		return nil
 	}
 
 	idx := set.matcher.matchIndex(pod)
 	if idx < 0 || idx >= len(set.targets) {
-		return nil, false
+		return nil
 	}
 
-	if !set.matcher.policies[idx].Outcome.Inject {
+	if set.targets[idx].blocked {
 		log.Debugf("Pod %q matched policy %q which denies injection", mutatecommon.PodString(pod), set.targets[idx].name)
-		return nil, true
+	} else {
+		log.Debugf("Pod %q matched target %q", mutatecommon.PodString(pod), set.targets[idx].name)
 	}
-
-	log.Debugf("Pod %q matched target %q", mutatecommon.PodString(pod), set.targets[idx].name)
-	return &set.targets[idx], true
+	return &set.targets[idx]
 }
 
 // createDefaultTarget translates enabledNamespaces/libVersions into a target.
@@ -641,18 +655,21 @@ func createJSON(t Target) string {
 
 // createPolicyJSON creates the compact annotation payload for a policy-driven
 // match. It intentionally omits the rule tree and keeps only the policy
-// identity (name, version) and the tracer versions that were injected.
+// identity (name, version), the tracer versions that were injected, and
+// whether the policy blocked injection.
 func createPolicyJSON(p policies.Policy) string {
 	payload := struct {
 		Name           string            `json:"name,omitempty"`
 		ID             string            `json:"id,omitempty"`
 		Version        int64             `json:"version,omitempty"`
 		TracerVersions map[string]string `json:"ddTraceVersions,omitempty"`
+		Blocked        bool              `json:"blocked,omitempty"`
 	}{
 		Name:           p.Name,
 		ID:             p.ID,
 		Version:        p.Version,
 		TracerVersions: p.Outcome.TracerVersions,
+		Blocked:        !p.Outcome.Inject,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {

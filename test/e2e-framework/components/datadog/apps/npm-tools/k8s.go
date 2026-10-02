@@ -41,6 +41,17 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 
 	opts = append(opts, utils.PulumiDependsOn(ns))
 
+	var imagePullSecrets corev1.LocalObjectReferenceArray
+	if e.ImagePullRegistry() != "" {
+		imgPullSecret, err := utils.NewImagePullSecret(e, namespace, opts...)
+		if err != nil {
+			return nil, err
+		}
+		imagePullSecrets = append(imagePullSecrets, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecret.Metadata.Name(),
+		})
+	}
+
 	if _, err := appsv1.NewDeployment(e.Ctx(), "curl-dig", &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("curl-dig"),
@@ -63,10 +74,11 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
+					ImagePullSecrets: imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						corev1.ContainerArgs{
 							Name:  pulumi.String("curl-dig"),
-							Image: pulumi.String("ghcr.io/datadog/apps-npm-tools:" + apps.Version),
+							Image: pulumi.String(apps.Image(e, "apps-npm-tools")),
 							Args: pulumi.StringArray{
 								pulumi.String("sh"),
 								pulumi.String("-c"),
