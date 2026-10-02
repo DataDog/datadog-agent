@@ -102,7 +102,7 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 		return nil, fmt.Errorf("failed to apply the Pod merge patch: %v", err)
 	}
 
-	patch, err := jsondiff.CompareJSON(rawPod, preserved)
+	patch, err := jsondiff.CompareJSON(rawPod, preserved) // TODO: Try to generate the patch at the MutationFunc
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare the JSON patch: %v", err)
 	}
