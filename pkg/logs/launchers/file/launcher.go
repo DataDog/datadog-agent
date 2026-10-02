@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
@@ -421,6 +422,13 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 // scan. A file that is not fingerprinted still gets its effective config so the
 // status page can display it.
 func (s *Launcher) resolveFingerprint(file *tailer.File) (*types.Fingerprint, bool) {
+	// Computing a fingerprint is itself an open on the path, so the sequential
+	// handoff barrier has to come before it.
+	if s.drainingOnPath(file) {
+		log.Debugf("Waiting for the rotated tailer on %s to finish before reopening it", file.Path)
+		return nil, false
+	}
+
 	if !s.fingerprinter.ShouldFileFingerprint(file) {
 		fpConfig := s.fingerprinter.GetEffectiveConfigForFile(file)
 		if fpConfig == nil {
@@ -437,6 +445,31 @@ func (s *Launcher) resolveFingerprint(file *tailer.File) (*types.Fingerprint, bo
 	// Fingerprint is usable again: clear any skip note opened on a previous scan.
 	s.resolveFingerprintSkip(file)
 	return fingerprint, true
+}
+
+// sequentialHandoffActive reports whether a fingerprint-detected rotation hands the
+// path over (StopAfterFileRotationForHandoff) rather than draining alongside the
+// replacement. The barrier itself keys on Tailer.IsHandoffDrain, not on this. The
+// unreliable-mount profile is the configuration for mounts that reuse handles
+// across a rotation.
+//
+// This deliberately asks whether the profile is enabled, not whether direct reads
+// are honoured on this platform: O_DIRECT is Linux-only, but gating the handoff on
+// that would give the same configuration different rotation semantics per platform.
+func (s *Launcher) sequentialHandoffActive() bool {
+	return config.UnreliableMountEnabled(pkgconfigsetup.Datadog())
+}
+
+// drainingOnPath reports whether a rotated tailer on this file's path is still
+// draining for a sequential handoff. Tailer.Identifier() is "file:"+path, so two
+// tailers on one path -- for example a dead and a fresh container -- compare equal
+// here, which is what the barrier needs. Tailers rotated through the parallel
+// restart path do not block.
+func (s *Launcher) drainingOnPath(file *tailer.File) bool {
+	id := file.Identifier()
+	return slices.ContainsFunc(s.rotatedTailers, func(t *tailer.Tailer) bool {
+		return t.IsHandoffDrain() && t.Identifier() == id && !t.IsFinished()
+	})
 }
 
 // cleanUpRotatedTailers removes any rotated tailers that have stopped from the list
@@ -507,7 +540,8 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 
 		fingerprint, ok := s.resolveFingerprint(file)
 		if !ok {
-			// resolveFingerprint already recorded the skip in the agent log and status. A scan
+			// resolveFingerprint already recorded the skip in the agent log and status, or is
+			// waiting for a rotated tailer on the same path to finish. A scan
 			// running right now was handed a copy of activeSources that predates this source, so its result will
 			// not mention this file; without this, that result expires the skip we just
 			// opened and we report giving up on a file we are still retrying, then open a
@@ -664,7 +698,11 @@ func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 
 func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *tailer.File) bool {
 	log.Info("Log rotation happened to ", file.Path)
-	oldTailer.StopAfterFileRotation()
+	if s.sequentialHandoffActive() {
+		oldTailer.StopAfterFileRotationForHandoff()
+	} else {
+		oldTailer.StopAfterFileRotation()
+	}
 
 	// Remove the draining tailer from the active map; it will keep draining via rotatedTailers.
 	s.tailers.Remove(oldTailer)

@@ -8,6 +8,7 @@
 package privatebundles
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -96,7 +97,7 @@ func TestRegistryGetBundle(t *testing.T) {
 
 func TestNewRegistryWiresAuthoredScriptCatalog(t *testing.T) {
 	rcClient := &testRCClient{}
-	registry, err := NewRegistry(&config.Config{}, rcClient, nil, nil, nil, nil, nil, nil)
+	registry, err := NewRegistry(&config.Config{AgentHTTPClient: http.DefaultClient}, rcClient, nil, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, rcClient.handler)
 
