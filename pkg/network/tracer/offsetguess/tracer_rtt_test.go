@@ -26,9 +26,9 @@ import (
 // for the RTT stages against synthetic tcp_sock memory, mirroring the eBPF
 // side of offset-guess.c (aligned reads at the candidate offsets).
 //
-// On kernels <= 6.9 (without the tcp_sock cacheline reorg), srtt_us and
+// On kernels without the tcp_sock cacheline reorg, srtt_us and
 // mdev_us are adjacent u32s. RTT-scale false positives (e.g. rtt_min,
-// rcv_rtt_est ~20 bytes before srtt_us on aarch64) can match the lossy
+// rcv_rtt_est ~20 bytes before srtt_us in some layouts) can match the lossy
 // Rtt>>3 == tcpi_rtt comparison, so the guessed offset_rtt can lock onto the
 // wrong field. The state machine must reject such a pair (non-adjacent
 // rtt/rtt_var) and resume guessing instead of accepting it.
@@ -45,8 +45,8 @@ func TestCheckAndUpdateCurrentOffsetRTT(t *testing.T) {
 
 		// struct tcp_sock layout of the kernels where offset guessing runs:
 		// srtt_us followed by the adjacent mdev_us, and another RTT-scaled
-		// field 20 bytes before srtt_us (see the aarch64 false positives
-		// behind the TestOffsetGuess flake).
+		// field 20 bytes before srtt_us (this reproduces the layout behind
+		// the TestOffsetGuess flake, observed on aarch64).
 		srttOff uint64 = 1600
 		mdevOff uint64 = srttOff + 4
 		fpOff   uint64 = srttOff - 20
