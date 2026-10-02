@@ -10,6 +10,8 @@
 package monitor
 
 import (
+	"encoding/json"
+	"math"
 	"os"
 	"runtime"
 	"testing"
@@ -20,6 +22,7 @@ import (
 
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -2076,6 +2079,63 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 			assert.True(t, gocmp.Equal(tc.expectedPolicyStates, policyStates), gocmp.Diff(tc.expectedPolicyStates, policyStates))
 		})
 	}
+}
+
+func TestRulesetLoadedEventUnserializableSetValues(t *testing.T) {
+	policy := &testPolicy{
+		info: rules.PolicyInfo{
+			Name:   "Policy A",
+			Source: "test",
+		},
+		def: rules.PolicyDef{
+			Rules: []*rules.RuleDefinition{
+				{
+					ID:         "rule_a",
+					Expression: `exec.file.path == "/etc/foo/bar"`,
+					Actions: []*rules.ActionDefinition{
+						{
+							Set: &rules.SetDefinition{
+								Name:  "nan_value",
+								Value: math.NaN(),
+							},
+						},
+						{
+							Set: &rules.SetDefinition{
+								Name:  "map_value",
+								Value: map[interface{}]interface{}{1: "a"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(map[eval.EventType]bool{"*": true})
+	rs := rules.NewRuleSet(&model.Model{}, func() eval.Event { return &model.Event{} }, ruleOpts, evalOpts)
+	loader := rules.NewPolicyLoader(newTestPolicyProvider(policy))
+	filteredRules, errs := rs.LoadPolicies(loader, rules.PolicyLoaderOpts{})
+
+	evt := RulesetLoadedEvent{Policies: NewPoliciesState(rs, filteredRules, errs, false)}
+	data, err := evt.ToJSON()
+	require.NoError(t, err)
+
+	var decoded RulesetLoadedEvent
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	require.Len(t, decoded.Policies, 1)
+	require.Len(t, decoded.Policies[0].Rules, 1)
+
+	rule := decoded.Policies[0].Rules[0]
+	assert.Equal(t, "loaded", rule.Status)
+	require.Len(t, rule.Actions, 2)
+	for _, action := range rule.Actions {
+		assert.Equal(t, ActionStatusRejected, action.Status)
+		assert.NotEmpty(t, action.Message)
+		require.NotNil(t, action.Set)
+		assert.IsType(t, "", action.Set.Value)
+	}
+	assert.Equal(t, "NaN", rule.Actions[0].Set.Value)
+	assert.Equal(t, "map[1:a]", rule.Actions[1].Set.Value)
 }
 
 type testPolicyProvider struct {

@@ -10,6 +10,7 @@ package monitor
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -332,6 +333,16 @@ func NewPolicyState(name, source, version, policyType, replacePolicyID string, s
 	}
 }
 
+// jsonSafeValue returns a JSON serializable representation of a value. Values of rejected
+// actions weren't validated and may not be serializable, which
+// would prevent the whole report from being sent.
+func jsonSafeValue(value interface{}) interface{} {
+	if _, err := json.Marshal(value); err != nil {
+		return fmt.Sprintf("%v", value)
+	}
+	return value
+}
+
 func newRuleAction(def *rules.ActionDefinition, status ActionStatus) RuleAction {
 	ruleAction := RuleAction{Status: status, Filter: def.Filter}
 	if def.Kill != nil {
@@ -343,8 +354,8 @@ func newRuleAction(def *rules.ActionDefinition, status ActionStatus) RuleAction 
 	if def.Set != nil {
 		ruleAction.Set = &RuleSetAction{
 			Name:         def.Set.Name,
-			Value:        def.Set.Value,
-			DefaultValue: def.Set.DefaultValue,
+			Value:        jsonSafeValue(def.Set.Value),        // interface so we need to check that it is json safe
+			DefaultValue: jsonSafeValue(def.Set.DefaultValue), // interface so we need to check that it is json safe
 			Field:        def.Set.Field,
 			Capture:      def.Set.Capture,
 			Expression:   def.Set.Expression,
