@@ -3,24 +3,25 @@ module github.com/DataDog/datadog-agent/test/new-e2e
 go 1.26.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.209
+	github.com/DataDog/agent-payload/v5 v5.0.213
+	github.com/DataDog/datadog-agent/cmd/agent/macos v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.84.1
-	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.84.1
-	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.84.1
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-devel
+	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.78.0
 	github.com/DataDog/datadog-agent/pkg/metrics v0.84.1
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.84.1
 	github.com/DataDog/datadog-agent/pkg/proto v0.84.1
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.84.1
-	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.84.1
+	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/trace v0.84.1
-	github.com/DataDog/datadog-agent/pkg/util/flavor v0.84.1
+	github.com/DataDog/datadog-agent/pkg/util/flavor v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/option v0.84.1
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.84.1
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.84.1
 	github.com/DataDog/datadog-agent/pkg/version v0.84.1
-	github.com/DataDog/datadog-agent/test/e2e-framework v0.84.1
+	github.com/DataDog/datadog-agent/test/e2e-framework v0.0.6-0.20251107170748-5d4ea60490c6
 	github.com/DataDog/datadog-agent/test/fakeintake v0.84.1
-	github.com/DataDog/datadog-api-client-go/v2 v2.64.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.66.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/dd-trace-go/v2 v2.9.2
 	github.com/DataDog/orchestrion v1.12.2
@@ -407,6 +408,7 @@ require (
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/agent/macos => ../../cmd/agent/macos
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ../../comp/anomalydetection/observer/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ../../comp/anomalydetection/recorder/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def => ../../comp/anomalydetection/severityevents/def
