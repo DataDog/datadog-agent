@@ -34,6 +34,11 @@
 #if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
 #    define MAP_ANONYMOUS MAP_ANON
 #    endif
+// MAP_STACK is a hint accepted by Linux and FreeBSD only; other platforms
+// (macOS, AIX) do not define it at all, so fall back to no flag.
+#if !defined(MAP_STACK)
+#    define MAP_STACK 0
+#endif
 
 // logging to cerr
 #include <errno.h>
@@ -330,11 +335,9 @@ void clear_error(rtloader_t *rtloader)
 
 #ifndef WIN32
 
-// Storage for the previous signal handler and alternate stack, and for the
-// alternate stack installed by handle_crashes (signalHandler checks the
-// latter to find out whether the faulting thread runs on our stack).
+// Storage for the previous signal handler and for the alternate stack
+// installed by handle_crashes.
 static struct sigaction old_sigsegv_handler;
-static stack_t old_alt_stack;
 static void *installed_alt_stack = nullptr;
 
 #    if defined(__linux__)
@@ -402,11 +405,10 @@ static bool fault_in_main_executable(const ucontext_t *uc)
   are meant to be symbolized offline from the core dump. After printing the trace,
   this handler re-delivers the fault to the previously installed signal handler
   (typically the Go runtime's handler) instead of calling it directly: it restores
-  the previous handler and alternate stack and returns, so the faulting instruction
-  re-executes and the kernel delivers the fault to the previous handler with a
-  fresh stack, letting it perform its own crash handling and generate a goroutine
-  dump. Signals that cannot re-occur (raised with kill/tgkill) are chained to the
-  previous handler by direct call.
+  the previous handler and returns, so the faulting instruction re-executes and
+  the kernel delivers the fault to the previous handler with a fresh delivery,
+  letting it perform its own crash handling and generate a goroutine dump. Signals that cannot re-occur (raised with
+  kill/tgkill) are chained to the previous handler by direct call.
 */
 #    define STACKTRACE_SIZE 500
 
@@ -516,25 +518,19 @@ void signalHandler(int sig, siginfo_t *info, void *context)
     // previous handler on the remains of this alternate stack. Restoring the
     // previous handler and returning lets the faulting instruction re-execute,
     // so the kernel delivers the fault to the previous handler with a fresh
-    // delivery (and a fresh stack). This only works for hardware faults - they
-    // re-occur when the handler returns - and it leaves the C collector
-    // uninstalled: from then on, SIGSEGV is handled by the previous handler alone.
+    // delivery. The alternate stack stays installed for the re-delivered fault:
+    // it cannot be swapped out while we are running on it (sigaltstack returns
+    // EPERM), and it is sized for the previous handler's needs. This only works
+    // for hardware faults - they re-occur when the handler returns - and it
+    // leaves the C collector uninstalled: from then on, SIGSEGV is handled by
+    // the previous handler alone.
     const bool old_handler_is_ign
         = (old_sigsegv_handler.sa_flags & SA_SIGINFO) == 0 && old_sigsegv_handler.sa_handler == SIG_IGN;
     if (info != nullptr && info->si_code > 0 && !old_handler_is_ign) {
-        // Put the previous alternate stack back on this thread if it is running
-        // on the one installed by handle_crashes (only the installing thread
-        // uses it) and that thread had one before; ours is large enough for the
-        // previous handler otherwise, so keep it in that case.
-        stack_t cur;
-        if (installed_alt_stack != nullptr && sigaltstack(nullptr, &cur) == 0 && cur.ss_sp == installed_alt_stack
-            && !(old_alt_stack.ss_flags & SS_DISABLE) && sigaltstack(&old_alt_stack, nullptr) != 0) {
-            safe_writeln("unable to restore the previous alternate stack, chaining directly");
-        } else if (sigaction(SIGSEGV, &old_sigsegv_handler, nullptr) == 0) {
+        if (sigaction(SIGSEGV, &old_sigsegv_handler, nullptr) == 0) {
             return; // the fault re-occurs and is delivered to the previous handler
-        } else {
-            safe_writeln("unable to restore the previous handler, chaining directly");
         }
+        safe_writeln("unable to restore the previous handler, chaining directly");
     }
 
     // Fallback for signals that do not re-occur (raised with kill/tgkill):
@@ -587,36 +583,46 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable_coredump, const i
         // 4000-byte backtrace buffer on the stack, runs the unwinder and then the
         // previously installed handler (the Go runtime's, which prints a full
         // goroutine dump) on what is left of it. Use a dedicated mmap'd region
-        // instead of a heap block: it is large enough for the whole chain, and if
-        // it is ever exhausted the overflow hits a guard page (a crash at the
-        // fault) rather than silently corrupting malloc memory.
+        // instead of a heap block, sized for the whole chain, with a PROT_NONE
+        // guard page below it: MAP_STACK is only a hint on Linux and creates no
+        // guard page of its own, so add one explicitly. If the stack is ever
+        // exhausted, the overflow faults on the guard page instead of silently
+        // corrupting whatever is mapped next to it.
         static constexpr size_t ALT_STACK_SIZE = 64 * 1024;
 
         __sync_synchronize();
         if (installed_alt_stack == nullptr) {
+            const long page_size = sysconf(_SC_PAGESIZE);
+            if (page_size <= 0) {
+                std::ostringstream err_msg;
+                err_msg << "unable to determine the page size: " << strerror(errno);
+                *error = strdupe(err_msg.str().c_str());
+                return 0;
+            }
+            // One PROT_NONE page below the usable stack region
+            const size_t total_size = ALT_STACK_SIZE + (size_t)page_size;
             void *mem
-                = mmap(nullptr, ALT_STACK_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
+                = mmap(nullptr, total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
             if (mem == MAP_FAILED) {
                 std::ostringstream err_msg;
                 err_msg << "unable to allocate alternate stack: " << strerror(errno);
                 *error = strdupe(err_msg.str().c_str());
                 return 0;
             }
+            if (mprotect(mem, (size_t)page_size, PROT_NONE) != 0) {
+                std::ostringstream err_msg;
+                err_msg << "unable to set up the alternate stack guard page: " << strerror(errno);
+                *error = strdupe(err_msg.str().c_str());
+                munmap(mem, total_size);
+                return 0;
+            }
             // Note: this memory is never freed, but it is necessary for the duration of the program
-            installed_alt_stack = mem;
+            installed_alt_stack = (char *)mem + page_size;
             stack_t new_stack;
             memset(&new_stack, 0, sizeof(new_stack));
             new_stack.ss_sp = (decltype(new_stack.ss_sp))installed_alt_stack;
             new_stack.ss_size = ALT_STACK_SIZE;
             new_stack.ss_flags = 0;
-            // Save the calling thread's current alternate stack (if any) so
-            // signalHandler can restore it before re-delivering a fault.
-            if (sigaltstack(nullptr, &old_alt_stack) != 0) {
-                std::ostringstream err_msg;
-                err_msg << "unable to query the current alternate stack: " << strerror(errno);
-                *error = strdupe(err_msg.str().c_str());
-                return 0;
-            }
             int ret = sigaltstack(&new_stack, nullptr);
             if (ret != 0) {
                 std::ostringstream err_msg;
