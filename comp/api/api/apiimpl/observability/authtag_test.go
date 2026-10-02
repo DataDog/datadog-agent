@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package apiimpl
+package observability
 
 import (
 	"crypto/tls"
@@ -52,16 +52,7 @@ func TestAuthTagGetter(t *testing.T) {
 			expectedTag:       "token",
 		},
 		{
-			name:            "insecure server & insecure client",
-			serverTLSConfig: nil,
-			clientTLSConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-			authTagShouldFail: true,
-			expectedTag:       "token",
-		},
-		{
-			name:            "secure server & secure client with different certificate",
+			name:            "secure server & insecure client",
 			serverTLSConfig: ipcComp.GetTLSServerConfig(),
 			clientTLSConfig: func() *tls.Config {
 				server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -77,11 +68,20 @@ func TestAuthTagGetter(t *testing.T) {
 			authTagShouldFail: false,
 			expectedTag:       "token",
 		},
+		{
+			name:            "insecure server & insecure client",
+			serverTLSConfig: nil,
+			clientTLSConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+			authTagShouldFail: true,
+			expectedTag:       "token",
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			authTagGetter, err := authTagGetter(tc.serverTLSConfig)
+			authTagGetter, err := AuthTagGetter(tc.serverTLSConfig)
 			if tc.authTagShouldFail {
 				require.Error(t, err)
 				return
@@ -113,4 +113,10 @@ func TestAuthTagGetter(t *testing.T) {
 			resp.Body.Close()
 		})
 	}
+}
+
+func TestNoTLSAuthTagGetter(t *testing.T) {
+	getter := NoTLSAuthTagGetter()
+	require.NotNil(t, getter)
+	assert.Equal(t, "no_tls", getter(nil))
 }
