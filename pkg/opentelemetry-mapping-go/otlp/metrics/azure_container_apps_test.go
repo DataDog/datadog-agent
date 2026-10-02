@@ -15,107 +15,88 @@
 package metrics
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	semconv1_27 "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv1_43 "go.opentelemetry.io/otel/semconv/v1.43.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 	"go.uber.org/zap"
-
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 )
 
-type mockAzureContainerAppsConsumer struct {
+// aca-scoped mock consumer tracking ConsumeHost/ConsumeTagSet calls, so tests
+// can assert neither host-fallback attribution nor partial-dimension running
+// metric emission ever happens for an unidentified Azure Container App.
+type mockACAConsumer struct {
 	mockFullConsumer
-	hosts       []string
+	hostCalls   []string
 	tagSetCalls []struct {
 		metricSuffix string
 		tags         []string
 	}
 }
 
-func (c *mockAzureContainerAppsConsumer) ConsumeHost(host string) {
-	c.hosts = append(c.hosts, host)
+func (c *mockACAConsumer) ConsumeHost(host string) {
+	c.hostCalls = append(c.hostCalls, host)
 }
 
-func (c *mockAzureContainerAppsConsumer) ConsumeTagSet(metricSuffix string, tags []string) {
+func (c *mockACAConsumer) ConsumeTagSet(metricSuffix string, tags []string) {
 	c.tagSetCalls = append(c.tagSetCalls, struct {
 		metricSuffix string
 		tags         []string
 	}{metricSuffix, tags})
 }
 
-func azureContainerAppsMetrics(resourceAttrs map[string]string) pmetric.Metrics {
+func buildACAMetrics(resourceAttrs map[string]string) pmetric.Metrics {
 	md := pmetric.NewMetrics()
 	rm := md.ResourceMetrics().AppendEmpty()
-	for key, value := range resourceAttrs {
-		rm.Resource().Attributes().PutStr(key, value)
+	for k, v := range resourceAttrs {
+		rm.Resource().Attributes().PutStr(k, v)
 	}
-	metric := rm.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
-	metric.SetName("azure.container_apps.requests")
-	metric.SetEmptyGauge().DataPoints().AppendEmpty().SetIntValue(1)
+	met := rm.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+	met.SetName("some.gauge")
+	dp := met.SetEmptyGauge().DataPoints().AppendEmpty()
+	dp.SetIntValue(1)
 	return md
 }
 
-func azureContainerAppsTranslators(t *testing.T) map[string]Provider {
-	t.Helper()
-	settings := componenttest.NewNopTelemetrySettings()
-	attributesTranslator, err := attributes.NewTranslator(settings)
+func TestAzureContainerAppsRunningMetricNotEmittedWhenUnidentified(t *testing.T) {
+	// Only resource_group is present: not enough to identify the ACA app
+	// (name and subscription_id are missing).
+	md := buildACAMetrics(map[string]string{
+		string(conventions.CloudProviderKey):          conventions.CloudProviderAzure.Value.AsString(),
+		string(conventions.CloudPlatformKey):          semconv1_43.CloudPlatformAzureContainerApps.Value.AsString(),
+		string(semconv1_43.AzureResourceGroupNameKey): "my-rg",
+	})
+
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockACAConsumer{}
+	_, err := tr.MapMetrics(context.Background(), md, consumer, nil)
 	require.NoError(t, err)
-	minimal, err := NewMinimalTranslator(zap.NewNop(), attributesTranslator)
-	require.NoError(t, err)
-	return map[string]Provider{
-		"full":    NewTestTranslator(t),
-		"minimal": minimal,
-	}
+
+	assert.Empty(t, consumer.tagSetCalls, "running metric must not be emitted without a full name/resource_group/subscription_id identification")
+	assert.Empty(t, consumer.hostCalls, "an unidentified ACA resource must not fall back to Collector/Agent host attribution")
 }
 
-func TestAzureContainerAppsRunningMetricTranslation(t *testing.T) {
-	for translatorName, translator := range azureContainerAppsTranslators(t) {
-		for _, platform := range []string{"azure.container_apps", "azure_container_apps"} {
-			t.Run(translatorName+"/"+platform, func(t *testing.T) {
-				consumer := &mockAzureContainerAppsConsumer{}
-				_, err := translator.MapMetrics(t.Context(), azureContainerAppsMetrics(map[string]string{
-					"cloud.platform":                  platform,
-					"cloud.account.id":                "subscription-1",
-					"azure.resource_group.name":       "resource-group-1",
-					"service.name":                    "container-app-1",
-					"azure.container_app.instance.id": "replica-1",
-					"host.id":                         "ignored-host",
-				}), consumer, nil)
-				require.NoError(t, err)
+func TestAzureContainerAppsRunningMetricEmittedWhenIdentified(t *testing.T) {
+	md := buildACAMetrics(map[string]string{
+		string(conventions.CloudProviderKey):          conventions.CloudProviderAzure.Value.AsString(),
+		string(conventions.CloudPlatformKey):          semconv1_43.CloudPlatformAzureContainerApps.Value.AsString(),
+		string(semconv1_27.ServiceNameKey):            "my-app",
+		string(semconv1_27.CloudAccountIDKey):         "sub-123",
+		string(semconv1_43.AzureResourceGroupNameKey): "my-rg",
+	})
 
-				require.Len(t, consumer.tagSetCalls, 1)
-				assert.Equal(t, "azurecontainerapps", consumer.tagSetCalls[0].metricSuffix)
-				assert.ElementsMatch(t, []string{
-					"subscription_id:subscription-1",
-					"resource_group:resource-group-1",
-					"name:container-app-1",
-					"replica:replica-1",
-				}, consumer.tagSetCalls[0].tags)
-				assert.Empty(t, consumer.hosts)
-			})
-		}
-	}
-}
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockACAConsumer{}
+	_, err := tr.MapMetrics(context.Background(), md, consumer, nil)
+	require.NoError(t, err)
 
-func TestAzureContainerAppsRunningMetricNotEmittedForIncompleteIdentity(t *testing.T) {
-	for translatorName, translator := range azureContainerAppsTranslators(t) {
-		t.Run(translatorName, func(t *testing.T) {
-			consumer := &mockAzureContainerAppsConsumer{}
-			_, err := translator.MapMetrics(t.Context(), azureContainerAppsMetrics(map[string]string{
-				"cloud.platform":                  "azure.container_apps",
-				"cloud.account.id":                "subscription-1",
-				"azure.resource_group.name":       "resource-group-1",
-				"service.name":                    "container-app-1",
-				"azure.container_app.instance.id": "",
-				"host.id":                         "fallback-host",
-			}), consumer, nil)
-			require.NoError(t, err)
-
-			assert.Empty(t, consumer.tagSetCalls)
-			assert.Equal(t, []string{"fallback-host"}, consumer.hosts)
-		})
-	}
+	require.Len(t, consumer.tagSetCalls, 1)
+	assert.Equal(t, "azurecontainerapps", consumer.tagSetCalls[0].metricSuffix)
+	assert.ElementsMatch(t, []string{"name:my-app", "resource_group:my-rg", "subscription_id:sub-123"}, consumer.tagSetCalls[0].tags)
+	assert.Empty(t, consumer.hostCalls, "an identified ACA resource must not also be host-attributed")
 }

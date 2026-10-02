@@ -25,6 +25,7 @@ import (
 	semconv1_12 "go.opentelemetry.io/otel/semconv/v1.12.0"
 	semconv1_17 "go.opentelemetry.io/otel/semconv/v1.17.0"
 	semconv1_27 "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv1_43 "go.opentelemetry.io/otel/semconv/v1.43.0"
 	semconv1_6_1 "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
@@ -90,6 +91,16 @@ var (
 		string(semconv1_27.K8SNamespaceNameKey):   "kube_namespace",
 		string(semconv1_27.K8SPodNameKey):         "pod_name",
 		string(semconv1_27.K8SNodeNameKey):        "kube_node",
+	}
+
+	// AzureContainerAppsMappings is intentionally separate from ContainerMappings
+	// to avoid adding these broad attributes (e.g. service.name -> name) as
+	// tags on non-ACA workloads.
+	AzureContainerAppsMappings = map[string]string{
+		AttributeAzureContainerAppInstanceID:          "replica",
+		string(semconv1_27.ServiceNameKey):            "name",
+		string(semconv1_27.CloudAccountIDKey):         "subscription_id",
+		string(semconv1_43.AzureResourceGroupNameKey): "resource_group",
 	}
 
 	containerDDTags = (func() map[string]struct{} {
