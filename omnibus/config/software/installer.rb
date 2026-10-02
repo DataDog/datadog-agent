@@ -58,7 +58,7 @@ build do
     end
 
     # Build both packages and dump them where gitlab will upload them.
-    command "bazel build #{omnibazel_flags} //packages/installer/linux:whole_distro_tar_deb", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel build #{omnibazel_flags} //packages/installer/linux:whole_distro_tar_deb", :live_stream => Omnibus.logger.live_stream(:info)
     # There are no convenience symlinks, so we need to do some path manipulations to get the absolute path.
     command "bazel cquery #{omnibazel_flags} --output=files //packages/installer/linux:whole_distro_tar_deb | sed -e 's@bazel-out/@@' >/tmp/installer_linux_tar_deb_file.txt"
     command "tar tvf $(bazel info output_path)/$(cat /tmp/installer_linux_tar_deb_file.txt)", :live_stream => Omnibus.logger.live_stream(:info)

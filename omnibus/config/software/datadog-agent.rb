@@ -119,7 +119,7 @@ build do
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
 
-  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{conf_dir}\"", env: env,
+  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{conf_dir}\"",
     :live_stream => Omnibus.logger.live_stream(:info)
 
   # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
@@ -208,11 +208,11 @@ build do
     end
 
     if linux_target?
-      command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/rshell:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/rshell:install -- --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
     end
 
     if linux_target? || windows_target?
-      command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/par-control:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/par-control:install -- --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
     end
   end
 
@@ -232,7 +232,7 @@ build do
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
 
-    command "bazel run #{omnibazel_flags} #{host_distribution} //packages/agent/product:install_system_probe -- --destdir=\"#{conf_dir}\"", env: env
+    command "bazel run #{omnibazel_flags} #{host_distribution} //packages/agent/product:install_system_probe -- --destdir=\"#{conf_dir}\""
   end
 
   # System-probe eBPF files
@@ -260,12 +260,12 @@ build do
 
   # sd-agent (service discovery agent)
   if linux_target? and !heroku_target?
-    command "bazel run #{omnibazel_flags} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # dd-procmgrd (process manager daemon)
   if (linux_target? || windows_target?) && !heroku_target?
-    command "bazel run #{omnibazel_flags} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # Security agent
@@ -301,7 +301,7 @@ build do
   if osx_target?
     command "bazel run #{omnibazel_flags} -- //packages/macos/app:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
 
-    command "bazel run #{omnibazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
