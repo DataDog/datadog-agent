@@ -34,6 +34,7 @@ else
       if [ "${1:-}" = "run" ] || [ "${1:-}" = "build" ]; then
         echo "skyframe summary before: $*" >&2
         "#{bazel}" dump --skyframe=summary >&2 || true
+        "#{bazel}" dump --skyframe=count >&2 || true
         "#{bazel}" info used-heap-size-after-gc max-heap-size gc-count gc-time >&2 || true
         if [ -f "$marker" ]; then
           echo "files modified in repo since previous bazel call finished:" >&2
@@ -46,16 +47,19 @@ else
           "#{bazel}" run --script_path="$script" "${@:2}" || rc=$?
           echo "skyframe summary after build phase: $*" >&2
           "#{bazel}" dump --skyframe=summary >&2 || true
+          "#{bazel}" dump --skyframe=count >&2 || true
           if [ "$rc" -eq 0 ]; then
             bash "$script" || rc=$?
             echo "skyframe summary after run phase: $*" >&2
             "#{bazel}" dump --skyframe=summary >&2 || true
+            "#{bazel}" dump --skyframe=count >&2 || true
           fi
           rm -f "$script"
         else
           "#{bazel}" "$@" || rc=$?
           echo "skyframe summary after: $*" >&2
           "#{bazel}" dump --skyframe=summary >&2 || true
+          "#{bazel}" dump --skyframe=count >&2 || true
         fi
         touch "$marker"
         exit $rc
