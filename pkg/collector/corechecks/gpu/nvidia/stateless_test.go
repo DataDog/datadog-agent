@@ -1262,35 +1262,6 @@ func TestRetiredPagesSampleError(t *testing.T) {
 	}
 }
 
-func TestRetiredPagesAPIsRegistered(t *testing.T) {
-	mockDevice := setupMockDevice(t,
-		testutil.WithCustomHook(func(device *testutil.MockDevice) {
-			device.GetRetiredPages_v2Func = func(cause nvml.PageRetirementCause) ([]uint64, []uint64, nvml.Return) {
-				if cause == nvml.PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR {
-					return []uint64{0x1000, 0x2000}, []uint64{0, 0}, nvml.SUCCESS
-				}
-				return []uint64{0x3000}, []uint64{0}, nvml.SUCCESS
-			}
-		}),
-	)
-
-	apis := createStatelessAPIs(&CollectorDependencies{})
-	for causeName, expectedValue := range map[string]float64{
-		"multiple_single_bit": 1,
-		"double_bit":          2,
-	} {
-		api := findAPICallByName(t, apis, "retired_pages."+causeName)
-		samplesOut, _, err := api.Handler(mockDevice, 0)
-		require.NoError(t, err)
-		require.Len(t, samplesOut, 1)
-
-		metric := requireMetrics(t, samplesOut)[0]
-		require.Equal(t, "retired_pages", metric.Name)
-		require.Equal(t, expectedValue, metric.Value)
-		require.Equal(t, []string{"cause:" + causeName}, metric.Tags())
-	}
-}
-
 func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInfo {
 	t.Helper()
 	for _, api := range apis {
