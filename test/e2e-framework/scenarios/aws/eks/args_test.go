@@ -50,6 +50,34 @@ func TestNewParamsAutoModeRejectsNodeGroups(t *testing.T) {
 	}
 }
 
+func TestNewParamsAutoModeRejectsWithoutInternetAccess(t *testing.T) {
+	// Both option orders must fail: the check runs after every option is applied.
+	for _, options := range [][]Option{
+		{WithAutoMode(), WithoutInternetAccess()},
+		{WithoutInternetAccess(), WithAutoMode()},
+	} {
+		params, err := NewParams(options...)
+		require.Error(t, err)
+		assert.Nil(t, params)
+		assert.Contains(t, err.Error(), "WithoutInternetAccess")
+	}
+}
+
+func TestNewParamsAutoModeWithInternetAccessOverride(t *testing.T) {
+	// WithInternetAccess clears an earlier WithoutInternetAccess, so there is no conflict.
+	params, err := NewParams(WithoutInternetAccess(), WithInternetAccess(), WithAutoMode())
+	require.NoError(t, err)
+	assert.True(t, params.AutoMode)
+	assert.False(t, params.WithoutInternetAccess)
+}
+
+func TestNewParamsWithoutInternetAccessOutsideAutoMode(t *testing.T) {
+	params, err := NewParams(WithoutInternetAccess(), WithLinuxNodeGroup())
+	require.NoError(t, err)
+	assert.True(t, params.WithoutInternetAccess)
+	assert.True(t, params.LinuxNodeGroup)
+}
+
 func TestNewParamsAutoModeAlone(t *testing.T) {
 	params, err := NewParams(WithAutoMode())
 	require.NoError(t, err)

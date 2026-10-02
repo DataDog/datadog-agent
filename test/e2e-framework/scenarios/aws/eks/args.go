@@ -6,6 +6,7 @@
 package eks
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -58,6 +59,17 @@ func NewParams(options ...Option) (*Params, error) {
 			return nil, fmt.Errorf(
 				"WithAutoMode is incompatible with managed node groups, remove %s: EKS Auto Mode provisions nodes itself",
 				strings.Join(conflicting, ", "),
+			)
+		}
+
+		// Blocking internet egress relies on attaching a per-stack security group to the
+		// node group launch templates and the pod ENIs, neither of which exists under Auto
+		// Mode: its nodes are managed by AWS and would keep internet access while the
+		// caller believes it is blocked.
+		if params.WithoutInternetAccess {
+			return nil, errors.New(
+				"WithAutoMode is incompatible with WithoutInternetAccess: EKS Auto Mode nodes are managed by AWS, " +
+					"so the no-internet security group cannot be attached to them",
 			)
 		}
 	}
