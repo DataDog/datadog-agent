@@ -884,7 +884,8 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 	apis = append(apis, apiCallInfo{
 		Name: "device_unavailable",
 		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-			if _, ok := device.(*ddnvml.PhysicalDevice); !ok {
+			physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
+			if !ok || physicalDevice.HasMIGFeatureEnabled {
 				return nil, 0, errUnsupportedDevice
 			}
 

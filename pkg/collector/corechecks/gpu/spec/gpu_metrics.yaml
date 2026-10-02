@@ -904,7 +904,7 @@ metrics:
     support:
       unsupported_architectures: []
       device_modes:
-        mig: true
+        mig: false
         physical: true
         vgpu: true
   device.needs_recovery:
