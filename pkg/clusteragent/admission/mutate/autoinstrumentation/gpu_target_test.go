@@ -211,18 +211,23 @@ gpu:
 	m := newMatchMutator(t, cfg, newMatchTestWmeta(t))
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "ml", Labels: gpuPodLabels}}
 
-	target := m.getMatchingTarget(pod)
+	resolved := m.resolveTarget(pod)
 
+	require.NotNil(t, resolved)
+	require.Equal(t, injectionSourceGPU, resolved.selectedBy)
+	require.True(t, resolved.isSSI)
+	target := resolved.plan
 	require.NotNil(t, target)
-	require.Len(t, target.libVersions, 1)
-	assert.Equal(t, c, target.libVersions[0].lang)
-	assert.Equal(t, "0", target.libVersions[0].tag)
+	require.False(t, target.blocked)
+	require.Len(t, target.libraries, 1)
+	assert.Equal(t, c, target.libraries[0].lang)
+	assert.Equal(t, "0", target.libraries[0].tag)
 	assert.Equal(t, []corev1.EnvVar{
 		{Name: "DD_INJECT_NATIVE", Value: "always"},
 		{Name: "DD_TRACE_HOOK_MODULES", Value: "gpu"},
 		fieldRefEnvVar(trainingRunIDEnvVar, "metadata.annotations['example/job-id']"),
 		fieldRefEnvVar(trainingGroupIDEnvVar, "metadata.annotations['example/task-name']"),
-	}, target.envVars)
+	}, target.tracerEnvVars)
 }
 
 func TestGPUTargetInjectionEnvIdentifiers(t *testing.T) {
