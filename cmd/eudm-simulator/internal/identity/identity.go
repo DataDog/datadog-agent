@@ -127,7 +127,7 @@ func (m *Map) replaceTokens(value string) string {
 		scope := m.scope
 		// Application and hardware model labels describe shared profiles.
 		switch kind {
-		case "process", "software", "publisher", "cpu_model", "device_model":
+		case "process", "software", "software_version", "publisher", "cpu_model", "cpu_vendor", "device_model", "hardware_vendor", "domain":
 			scope = m.runID
 		}
 		return token(scope, kind, value)
@@ -199,6 +199,23 @@ func (m *Map) Apply(sample *telemetry.Sample, group schema.GroupDef, wireless *W
 		serie.Device = m.replaceTokens(serie.Device)
 		serie.Tags = tagset.CompositeTagsFromSlice(m.tags(serie.Tags.UnsafeToReadOnlySliceString(), group, wireless))
 	}
+	if inventory := sample.Inventory; inventory != nil {
+		inventory.Hostname, inventory.UUID = m.Hostname, m.UUID
+		if h := inventory.SystemInfo; h != nil {
+			h.Manufacturer, h.ModelNumber = m.replaceTokens(h.Manufacturer), m.replaceTokens(h.ModelNumber)
+			h.ModelName, h.Identifier = m.replaceTokens(h.ModelName), m.replaceTokens(h.Identifier)
+			if h.SerialNumber != "" {
+				h.SerialNumber = m.token("serial", h.SerialNumber)
+			}
+		}
+		if h := inventory.Host; h != nil {
+			h.IPAddress, h.IPv6Address = ip(m.scope, h.IPAddress), ip(m.scope, h.IPv6Address)
+			if h.MacAddress != "" {
+				h.MacAddress = m.ClientMAC
+			}
+			h.CPUVendor, h.CPUModel = m.replaceTokens(h.CPUVendor), m.replaceTokens(h.CPUModel)
+		}
+	}
 	if h := sample.HostMetadata; h != nil {
 		h.Hostname, h.UUID = m.Hostname, m.UUID
 		encoded, _ := json.Marshal(m.Hostname)
@@ -227,6 +244,8 @@ func (m *Map) Apply(sample *telemetry.Sample, group schema.GroupDef, wireless *W
 						fields[key] = m.Hostname
 					case "hardware_uuid":
 						fields[key] = m.UUID
+					case "model_name", "vendor_id":
+						fields[key] = m.replaceTokens(text)
 					case "serial_number":
 						fields[key] = m.token("serial", text)
 					case "macaddress":
@@ -265,6 +284,9 @@ func (m *Map) Apply(sample *telemetry.Sample, group schema.GroupDef, wireless *W
 	}
 	if c := sample.Connections; c != nil {
 		c.HostName, c.NetworkId = m.Hostname, m.NetworkID
+		if err := m.connectionsDNS(c); err != nil {
+			return err
+		}
 		for _, connection := range c.Connections {
 			connection.Pid = m.pid(connection.Pid)
 			if connection.Laddr != nil {
@@ -289,6 +311,7 @@ func (m *Map) Apply(sample *telemetry.Sample, group schema.GroupDef, wireless *W
 		for i := range software.Metadata.Software {
 			entry := &software.Metadata.Software[i]
 			entry.DisplayName, entry.Publisher = m.replaceTokens(entry.DisplayName), m.replaceTokens(entry.Publisher)
+			entry.Version = m.replaceTokens(entry.Version)
 			entry.UserSID = m.replaceTokens(entry.UserSID)
 			if entry.ProductCode != "" {
 				if group.OS == "windows" {

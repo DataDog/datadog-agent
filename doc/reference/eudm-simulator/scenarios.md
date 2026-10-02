@@ -80,7 +80,7 @@ The runner assigns device ordinals in fleet declaration order. Changing that ord
 
 Reserved tags include scenario/expectation/cohort labels and generated host, network, wireless, and NDM identity keys. See `validateTag` in <<<repo("cmd/eudm-simulator/internal/schema/contracts.go")>>> for the full list. The emitted selector is `eudm_run_id:<opaque-id>` and the NDM namespace is `eudm-<opaque-id>`. Declared SSIDs/BSSIDs and AP addresses are inputs to identity rewriting, not literal product selectors; use the report and emitted resources for queries.
 
-Scenario YAML is operator-authored input, not native capture data passed through the capture sanitizer. Keep real credentials, usernames, private addresses, and sensitive command arguments out of it. Neutral tags should provide realistic comparison dimensions without naming the intended root cause.
+Scenario YAML is operator-authored input, not observed Agent data passed through the capture sanitizer. Keep real credentials, usernames, private addresses, and sensitive command arguments out of it. Neutral tags should provide realistic comparison dimensions without naming the intended root cause.
 
 ## Patterns and endpoint overlays
 
@@ -109,7 +109,7 @@ Each process entry requires `name`, `cpu`, and `memory`. Names match captured pr
 
 Optional `user`, `exe`, and `args` alter existing process fields; omitted fields preserve the sanitized capture. Supply only synthetic values. `args` is the full argument vector, including argument zero, which is set to the executable when arguments exist. The `SentinelAgent.exe` path follows the active SentinelOne version, including the version directory.
 
-Software entries match existing display names, set `version`, and optionally change nonempty `publisher`, `software_type`, `deployment_status`, `deployment_time`, `product_code`, and `user`. A phase entry takes precedence over a top-level entry of the same name. Entries update the existing application rather than adding duplicates. `is_64_bit: true` sets the field; false/omitted preserves the capture rather than forcing a 32-bit application. Identity rewriting still applies to product/user/path fields. Native capture removes installation dates; supply an explicit synthetic `deployment_time` if the scenario needs one. There is no default installation date derived from the run start.
+Software entries match existing display names, set `version`, and optionally change nonempty `publisher`, `software_type`, `deployment_status`, `deployment_time`, `product_code`, and `user`. A phase entry takes precedence over a top-level entry of the same name. Entries update the existing application rather than adding duplicates. `is_64_bit: true` sets the field; false/omitted preserves the capture rather than forcing a 32-bit application. Identity rewriting still applies to product/user/path fields. Capture sanitization removes installation dates; supply an explicit synthetic `deployment_time` if the scenario needs one. There is no default installation date derived from the run start.
 
 Start from the shipped Chrome or SentinelOne declaration. Confirm that the process stays present throughout the capture, the matching software version is healthy, and resource headroom supports the incident values plus variation. A declaration cannot invent a missing installation.
 

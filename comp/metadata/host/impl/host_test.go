@@ -26,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 	resourcesmock "github.com/DataDog/datadog-agent/comp/metadata/resources/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -258,4 +260,55 @@ func TestStatusHeaderProvider(t *testing.T) {
 			test.assertFunc(t)
 		})
 	}
+}
+
+// Capture reads the interval chosen by the existing provider backoff, including
+// early collection intervals. Reading its diagnostic endpoint is not a cycle.
+type cadenceSerializer struct {
+	serializer.MetricSerializer
+	payload *Payload
+	calls   int
+}
+
+func (s *cadenceSerializer) SendHostMetadata(p marshaler.JSONMarshaler) error {
+	s.payload = p.(*Payload)
+	s.calls++
+	return nil
+}
+
+func TestCaptureScheduleUsesActualProviderInterval(t *testing.T) {
+	sent := &cadenceSerializer{}
+	ret := NewComponent(makeRequires(fxutil.Test[testDeps](t,
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			cfg := config.NewMock(t)
+			cfg.SetInTest("enable_gohai", false)
+			cfg.SetInTest("cloud_provider_metadata", []string{})
+			return cfg
+		}),
+		resourcesmock.MockModule(), fx.Replace(resourcesmock.MockParams{Data: nil}),
+		fx.Provide(func() serializer.MetricSerializer { return sent }), hostnameimpl.MockModule(),
+	)))
+	h := ret.Comp.(*host)
+	manager := telemetrycapture.NewManager("core-agent", "fixture", "fixture")
+	defer manager.Close()
+	h.captureManager = manager
+	assert.Empty(t, manager.Status().Capabilities)
+	_ = h.getPayload(context.Background())
+	assert.Empty(t, manager.Status().Capabilities, "diagnostic reads are not readiness")
+	for i := 0; i < 2; i++ {
+		before := time.Now()
+		interval := h.collect(context.Background())
+		observed, cadence := sent.payload.CaptureMetadataSchedule()
+		assert.Equal(t, interval, cadence)
+		assert.Equal(t, []telemetrycapture.Capability{{Stream: telemetrycapture.Metadata, Cadence: interval}}, manager.Status().Capabilities)
+		assert.False(t, observed.Before(before))
+		assert.False(t, observed.After(time.Now()))
+	}
+	assert.Equal(t, 2, sent.calls)
+	diagnostic := h.getPayload(context.Background())
+	at, cadence := diagnostic.CaptureMetadataSchedule()
+	assert.True(t, at.IsZero())
+	assert.Zero(t, cadence)
+	assert.Equal(t, 2, sent.calls)
 }

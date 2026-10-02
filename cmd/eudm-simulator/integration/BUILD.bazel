@@ -3,12 +3,21 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 dd_agent_go_test(
     name = "integration_test",
     srcs = [
+        "capture_artifact_test.go",
         "fixtures_test.go",
-        "native_capture_test.go",
+        "live_capture_test.go",
         "replay_test.go",
     ],
     data = ["//cmd/eudm-simulator:replay_testdata"],
-    gotags_sets = [["zlib"]],
+    # Retain the zlib fixture-generation target alongside the complete audit.
+    gotags_sets = [
+        # keep
+        ["zlib"],
+        [
+            "zlib",
+            "zstd",
+        ],
+    ],
     deps = [
         "//cmd/eudm-simulator/internal/accesspoint",
         "//cmd/eudm-simulator/internal/bundle",
@@ -26,23 +35,26 @@ dd_agent_go_test(
         "//pkg/inventory/software",
         "//pkg/metrics",
         "//pkg/networkdevice/metadata",
+        "//pkg/process/checks",
+        "//pkg/process/util/api",
         "//pkg/process/util/api/headers",
         "//pkg/tagset",
+        "//pkg/telemetrycapture",
         "@com_github_datadog_agent_payload_v5//gogen",
         "@com_github_datadog_agent_payload_v5//process",
         "@rules_go//go/runfiles",
     ] + select({
         "@rules_go//go/platform:darwin": [
-            "//pkg/process/checks",
             "//pkg/version",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:ios": [
-            "//pkg/process/checks",
             "//pkg/version",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:windows": [
-            "//pkg/process/checks",
             "//pkg/version",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "//conditions:default": [],
     }),

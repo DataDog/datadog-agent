@@ -18,12 +18,14 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	hostsysteminfo "github.com/DataDog/datadog-agent/comp/metadata/hostsysteminfo/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
@@ -49,6 +51,7 @@ type hostSystemInfo struct {
 }
 
 type Payload struct {
+	util.InventoryCaptureTiming
 	Hostname  string                  `json:"hostname"`
 	Timestamp int64                   `json:"timestamp"`
 	Metadata  *hostSystemInfoMetadata `json:"host_system_info_metadata"`
@@ -61,10 +64,12 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 }
 
 type Requires struct {
-	Log        log.Component
-	Config     config.Component
-	Serializer serializer.MetricSerializer
-	Hostname   hostnameinterface.Component
+	Lc             compdef.Lifecycle
+	CaptureManager *telemetrycapture.Manager `optional:"true"`
+	Log            log.Component
+	Config         config.Component
+	Serializer     serializer.MetricSerializer
+	Hostname       hostnameinterface.Component
 }
 
 type Provides struct {
@@ -94,6 +99,10 @@ func NewComponent(deps Requires) Provides {
 	isEndUserDevice := infraMode == "end_user_device"
 	isSupportedOS := runtime.GOOS == "windows" || runtime.GOOS == "darwin"
 	hh.InventoryPayload.Enabled = hh.InventoryPayload.Enabled && isEndUserDevice && isSupportedOS
+	hh.ConfigureCapture(deps.CaptureManager, telemetrycapture.HostSystemInfo)
+	if deps.CaptureManager != nil && deps.Lc != nil {
+		deps.Lc.Append(compdef.Hook{OnStop: func(context.Context) error { hh.StopCapture(); return nil }})
+	}
 
 	var provider runnerdef.Provider
 	if hh.InventoryPayload.Enabled {

@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -34,6 +36,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -46,6 +49,7 @@ import (
 
 // Requires defines the component's dependencies.
 type Requires struct {
+	CaptureManager        *telemetrycapture.Manager `optional:"true"`
 	Params                eventplatform.Params
 	Config                configcomp.Component
 	Lc                    compdef.Lifecycle
@@ -90,9 +94,17 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 }
 
 type defaultEventPlatformForwarder struct {
+	captureManager  *telemetrycapture.Manager
+	softwareCadence atomic.Int64
 	purgeMx         sync.Mutex
 	pipelines       map[string]*passthroughPipeline
 	destinationsCtx *client.DestinationsContext
+}
+
+// SetSoftwareCaptureCadence carries the running producer's effective interval.
+// It changes only observation metadata, never the collection schedule.
+func (s *defaultEventPlatformForwarder) SetSoftwareCaptureCadence(cadence time.Duration) {
+	s.softwareCadence.Store(int64(cadence))
 }
 
 // SendEventPlatformEvent sends messages to the event platform intake.
@@ -102,16 +114,66 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	if !ok {
 		return fmt.Errorf("unknown eventType=%s", eventType)
 	}
+	reservation, captured := s.prepareSoftwareCapture(e, eventType)
+	if reservation != nil {
+		defer reservation.Discard()
+	}
 
 	// Stream to console if debug mode is enabled
 	p.eventPlatformReceiver.HandleMessage(e, []byte{}, eventType)
 
 	select {
 	case p.in <- e:
+		if reservation != nil {
+			reservation.Commit(captured)
+		}
 		return nil
 	default:
+		if reservation != nil {
+			_ = s.captureManager.Fail(reservation.Control())
+		}
 		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. Channel capacity is %d. consider increasing batch_max_concurrent_send", eventType, cap(p.in))
 	}
+}
+
+// prepareSoftwareCapture copies a complete software message before ownership
+// passes to batching. Commit follows successful production queue admission;
+// failed admission cannot become evidence of delivered output.
+func (s *defaultEventPlatformForwarder) prepareSoftwareCapture(e *message.Message, eventType string) (reservation *telemetrycapture.Reservation, payload telemetrycapture.Payload) {
+	if eventType != eventplatform.EventTypeSoftwareInventory || !s.captureManager.Enabled() {
+		return nil, payload
+	}
+	collectedAt := time.Now()
+	if e != nil && e.IngestionTimestamp > 0 {
+		collectedAt = time.Unix(0, e.IngestionTimestamp)
+	}
+	reservation = s.captureManager.Begin(telemetrycapture.Software, collectedAt, time.Duration(s.softwareCadence.Load()), 256)
+	if reservation == nil {
+		return nil, payload
+	}
+	defer func() {
+		if recover() != nil {
+			_ = s.captureManager.Fail(reservation.Control())
+			reservation.Discard()
+			reservation, payload = nil, telemetrycapture.Payload{}
+		}
+	}()
+	// Software producers submit complete serialized snapshots. Structured log
+	// rendering and invalid message-state diagnostics do not belong in this tee.
+	if e == nil || e.IngestionTimestamp <= 0 || (e.State != message.StateUnstructured && e.State != message.StateRendered && e.State != message.StateEncoded) {
+		_ = s.captureManager.Fail(reservation.Control())
+		reservation.Discard()
+		return nil, payload
+	}
+	body := e.GetContent()
+	if !reservation.Grow(int64(len(body))) {
+		reservation.Discard()
+		return nil, payload
+	}
+	owned := make([]byte, len(body))
+	copy(owned, body)
+	payload.Software = &telemetrycapture.Message{Body: owned, Timestamp: e.IngestionTimestamp}
+	return reservation, payload
 }
 
 // Diagnose enumerates known epforwarder pipelines and endpoints to test each of them connectivity
@@ -500,6 +562,7 @@ func newEventPlatformForwarder(reqs Requires) eventplatform.Component {
 		forwarder = newDefaultEventPlatformForwarder(reqs.Config, func(desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (*passthroughPipeline, error) {
 			return newHTTPPassthroughPipeline(reqs.Config, reqs.EventPlatformReceiver, reqs.Compression, desc, destinationsContext, pipelineID, hostnameStr, reqs.Secrets)
 		})
+		forwarder.captureManager = reqs.CaptureManager
 	}
 	if forwarder == nil {
 		return option.NonePtr[eventplatform.Forwarder]()

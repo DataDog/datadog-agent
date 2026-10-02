@@ -32,6 +32,7 @@ go_library(
         "//comp/remote-config/rcclient/def",
         "//comp/serializer/logscompression/def",
         "//pkg/system-probe/config/types",
+        "//pkg/telemetrycapture",
         "//pkg/util/log",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@org_uber_go_fx//:fx",

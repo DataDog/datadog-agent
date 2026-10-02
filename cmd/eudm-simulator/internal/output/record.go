@@ -12,18 +12,29 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle"
 )
 
+const recorderMaxBytes = 128 << 20
+
+// This includes the reference, spare slice capacity, and header map. Header
+// entries and their strings are charged separately. The derived count bound
+// permits an entire process group, whose request IDs have 14-bit chunk indices.
+const recorderReferenceOverhead = 512
+
+var recordedHeaders = [...]string{"Content-Type", "Content-Encoding", "DD-Agent-Payload", "X-Dd-Hostname", "X-Dd-Processagentversion", "X-Dd-Request-Id", "X-DD-Agent-Timestamp", "X-DD-Agent-Start-Time", "X-DD-Payload-Source", "X-DD-Processes-Enabled", "X-DD-Service-Discovery-Enabled"}
+
 // Recorder is an HTTP transport with no network capability. It must only be
-// installed behind a pipeline whose native transformers have already sanitized
-// every payload. It never retains credentials, URLs with query strings, or the
+// installed behind a pipeline receiving already sanitized payloads. It never
+// retains credentials, URLs with query strings, or the
 // original request. The simulator uses the same Agent serializers in both modes.
 type Recorder struct {
 	mu       sync.Mutex
 	requests []bundle.WireReference
+	bytes    int
 	changed  chan struct{}
 }
 
@@ -37,18 +48,39 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	if len(data) >= 64<<20 {
 		return nil, errors.New("serialized reference exceeds recording size limit")
 	}
-	headers := http.Header{}
-	for _, key := range []string{"Content-Type", "Content-Encoding", "DD-Agent-Payload", "X-Dd-Hostname", "X-Dd-Processagentversion", "X-Dd-Request-Id", "X-DD-Agent-Timestamp", "X-DD-Agent-Start-Time", "X-DD-Payload-Source", "X-DD-Processes-Enabled", "X-DD-Service-Discovery-Enabled"} {
+	size := recorderReferenceOverhead + cap(data) + len(req.URL.Path)
+	for _, key := range recordedHeaders {
 		if value := req.Header.Get(key); value != "" {
-			headers.Set(key, value)
+			size += 256 + len(key) + len(value)
 		}
 	}
 	r.mu.Lock()
-	r.requests = append(r.requests, bundle.WireReference{Path: req.URL.Path, Headers: headers, Body: data})
+	if len(r.requests) >= recorderMaxBytes/recorderReferenceOverhead || size > recorderMaxBytes-r.bytes {
+		r.mu.Unlock()
+		return nil, errors.New("sanitized recording cycle exceeds memory limit")
+	}
+	headers := http.Header{}
+	for _, key := range recordedHeaders {
+		if value := req.Header.Get(key); value != "" {
+			headers.Set(key, strings.Clone(value))
+		}
+	}
+	r.requests = append(r.requests, bundle.WireReference{Path: strings.Clone(req.URL.Path), Headers: headers, Body: data})
+	r.bytes += size
 	close(r.changed)
 	r.changed = make(chan struct{})
 	r.mu.Unlock()
 	return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(bytes.NewBufferString("{}")), Request: req}, nil
+}
+
+// Drain transfers owned references after Pipeline.Wait has acknowledged all
+// sends for the current logical cycle. No prior cycle remains retained.
+func (r *Recorder) Drain() []bundle.WireReference {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	result := r.requests
+	r.requests, r.bytes = nil, 0
+	return result
 }
 
 // Wait returns recorded references after at least count requests have arrived.

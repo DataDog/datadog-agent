@@ -6,7 +6,9 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "serializer",
     srcs = [
-        "capture.go",
+        "live_capture.go",
+        "live_inventory.go",
+        "live_metadata.go",
         "metrics.go",
         "serializer.go",
     ],
@@ -30,6 +32,7 @@ go_library(
         "//pkg/serializer/marshaler",
         "//pkg/serializer/split",
         "//pkg/serializer/types",
+        "//pkg/telemetrycapture",
         "//pkg/util/compression",
         "//pkg/version",
         "@com_github_google_uuid//:uuid",
@@ -39,6 +42,9 @@ go_library(
 dd_agent_go_test(
     name = "serializer_test",
     srcs = [
+        "live_capture_test.go",
+        "live_inventory_test.go",
+        "live_metadata_test.go",
         "metrics_test.go",
         "serializer_test.go",
         "series_benchmark_test.go",
@@ -68,6 +74,7 @@ dd_agent_go_test(
         "//pkg/serializer/internal/stream",
         "//pkg/serializer/marshaler",
         "//pkg/tagset",
+        "//pkg/telemetrycapture",
         "//pkg/util/compression",
         "//pkg/util/compression/impl-zlib",
         "//pkg/util/testutil",

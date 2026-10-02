@@ -2106,6 +2106,33 @@ func TestDirectBulkSet(t *testing.T) {
 	assert.Zero(t, notified, "notifications should not fire")
 }
 
+func TestDirectBulkSetPreservesInfrastructureMode(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	const processKey = "process_config.process_collection.enabled"
+	const softwareKey = "software_inventory.enabled"
+	cfg.SetDefault(processKey, false)
+	cfg.SetDefault(softwareKey, false)
+	cfg.BuildSchema()
+
+	cfg.DirectBulkSet([]model.DirectSetting{
+		{Key: processKey, Value: true, Source: model.SourceInfraMode},
+		{Key: softwareKey, Value: true, Source: model.SourceInfraMode},
+		{Key: softwareKey, Value: false, Source: model.SourceFile},
+	}, false)
+	require.True(t, cfg.GetBool(processKey), "streamed EUDM process collection must override the default")
+	require.Equal(t, model.SourceInfraMode, cfg.GetSource(processKey))
+	require.False(t, cfg.GetBool(softwareKey), "explicit user configuration must override EUDM defaults")
+	require.Equal(t, model.SourceFile, cfg.GetSource(softwareKey))
+
+	cfg.Set(processKey, false, model.SourceFile)
+	require.False(t, cfg.GetBool(processKey))
+	cfg.UnsetForSource(processKey, model.SourceFile)
+	require.True(t, cfg.GetBool(processKey), "rebuilding after removal must restore the infra-mode layer")
+	cfg.BuildSchema()
+	require.True(t, cfg.GetBool(processKey), "schema rebuild must retain infra-mode values")
+	require.Equal(t, model.SourceInfraMode, cfg.GetSource(processKey))
+}
+
 func TestDeprecation(t *testing.T) {
 	testCases := []struct {
 		caseName     string

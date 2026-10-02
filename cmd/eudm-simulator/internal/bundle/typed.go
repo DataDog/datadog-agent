@@ -14,7 +14,30 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/telemetry"
+	tc "github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
+
+type typedGroupEvidence struct {
+	id      int32
+	records int
+}
+
+func checkGroup(groups map[cycleKey]*typedGroupEvidence, ref SampleRef, id, size int32, records int) error {
+	if int(size) != ref.ChunkCount {
+		return errors.New("typed group size differs from capture cycle evidence")
+	}
+	key := cycleKey{producer: ref.ProducerID, cycle: ref.CycleID}
+	group := groups[key]
+	if group == nil {
+		group = &typedGroupEvidence{id: id}
+		groups[key] = group
+	}
+	if group.id != id {
+		return errors.New("typed group identifiers differ within a capture cycle")
+	}
+	group.records += records
+	return nil
+}
 
 // validateTyped reconciles the manifest's evidence claims with actual decoded
 // samples. Digests alone prove integrity, not the presence of usable telemetry.
@@ -24,7 +47,30 @@ func (b *Loaded) validateTyped() error {
 		"metric_names": {}, "process_names": {}, "software_names": {}, "connection_selectors": {},
 	}
 	profile := b.Manifest.Profile
-	var hostname string
+	producerVersions := map[string]string{}
+	for _, producer := range b.Manifest.Producers {
+		producerVersions[producer.InstanceID] = producer.Version
+	}
+	groups := map[cycleKey]*typedGroupEvidence{}
+	var hostname, uuid string
+	var logicalCPUs uint64
+	checkUUID := func(value string) error {
+		if value == "" {
+			return nil // Legacy host metadata may omit this optional field.
+		}
+		if uuid != "" && value != uuid {
+			return errors.New("capture inventories contain inconsistent UUID identities")
+		}
+		uuid = value
+		return nil
+	}
+	checkLogicalCPUs := func(value uint64) error {
+		if value == 0 || (logicalCPUs != 0 && logicalCPUs != value) {
+			return errors.New("host metadata and inventory disagree about logical CPU resources")
+		}
+		logicalCPUs = value
+		return nil
+	}
 	checkHost := func(value string) error {
 		if hostname != "" && value != hostname {
 			return errors.New("capture samples contain inconsistent host identities")
@@ -43,7 +89,11 @@ func (b *Loaded) validateTyped() error {
 		}
 	}
 	for _, ref := range b.Manifest.Samples {
-		sample, err := telemetry.Decode(ref.Stream, b.Files[ref.File])
+		decode := telemetry.Decode
+		if ref.ChunkCount > 1 {
+			decode = telemetry.DecodeGroupChunk
+		}
+		sample, err := decode(ref.Stream, b.Files[ref.File])
 		if err != nil {
 			return fmt.Errorf("sample %q (%s): %w", ref.File, ref.Stream, err)
 		}
@@ -57,8 +107,20 @@ func (b *Loaded) validateTyped() error {
 			}
 		case schema.HostMetadata:
 			value := sample.HostMetadata
+			if value.AgentVersion != producerVersions[ref.ProducerID] {
+				return errors.New("host metadata version differs from its producing Agent build")
+			}
 			if err := checkHost(value.Hostname); err != nil {
 				return err
+			}
+			if err := checkUUID(value.UUID); err != nil {
+				return err
+			}
+			if raw, present := value.SystemStats["cpuCores"]; present {
+				var cores uint64
+				if json.Unmarshal(raw, &cores) != nil || checkLogicalCPUs(cores) != nil {
+					return errors.New("invalid or inconsistent host metadata logical CPU count")
+				}
 			}
 			if platform(value.OS) != profile.OS {
 				return errors.New("host metadata operating system differs from capture profile")
@@ -78,8 +140,47 @@ func (b *Loaded) validateTyped() error {
 					return errors.New("host metadata architecture differs from capture profile")
 				}
 			}
+		case schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo:
+			value := sample.Inventory
+			if err := checkHost(value.Hostname); err != nil {
+				return err
+			}
+			if err := checkUUID(value.UUID); err != nil {
+				return err
+			}
+			if value.Timestamp > int64(b.Manifest.Duration) {
+				return errors.New("inventory timestamp lies outside the capture duration")
+			}
+			if value.Agent != nil {
+				if value.Agent.AgentVersion != producerVersions[ref.ProducerID] {
+					return errors.New("Agent inventory version differs from its producing Agent build")
+				}
+			} else if value.Host != nil {
+				host := value.Host
+				if host.AgentVersion != producerVersions[ref.ProducerID] || telemetry.InventoryPlatform(host.OS) != profile.OS || host.MemoryTotalKb != profile.MemoryBytes/1024 {
+					return errors.New("host inventory build, platform, or memory differs from captured evidence")
+				}
+				if err := checkLogicalCPUs(host.CPULogicalProcessors); err != nil {
+					return err
+				}
+				if host.CPUArchitecture != "" {
+					architecture := strings.ToLower(host.CPUArchitecture)
+					switch architecture {
+					case "x86_64", "x64":
+						architecture = "amd64"
+					case "aarch64":
+						architecture = "arm64"
+					}
+					if architecture != profile.Architecture {
+						return errors.New("host inventory architecture differs from capture profile")
+					}
+				}
+			}
 		case schema.Processes:
 			value := sample.Processes
+			if err := checkGroup(groups, ref, value.GroupId, value.GroupSize, len(value.Processes)); err != nil {
+				return err
+			}
 			if err := checkHost(value.HostName); err != nil {
 				return err
 			}
@@ -90,8 +191,9 @@ func (b *Loaded) validateTyped() error {
 				names["process_names"][process.Command.Comm] = true
 			}
 		case schema.Connections:
-			if profile.OS != "windows" {
-				return errors.New("connections require a Windows capture")
+			value := sample.Connections
+			if err := checkGroup(groups, ref, value.GroupId, value.GroupSize, len(value.Connections)); err != nil {
+				return err
 			}
 			if err := checkHost(sample.Connections.HostName); err != nil {
 				return err
@@ -107,7 +209,7 @@ func (b *Loaded) validateTyped() error {
 			if profile.OS == "windows" {
 				allowed = append(allowed, "desktop", "msstore", "msi", "driver")
 			} else {
-				allowed = append(allowed, "app", "homebrew", "pkg", "macports", "mas", "kext", "sysext")
+				allowed = append(allowed, "app", "system_app", "homebrew", "pkg", "macports", "mas", "kext", "sysext")
 			}
 			for _, software := range sample.Software.Metadata.Software {
 				if !slices.Contains(allowed, software.Source) {
@@ -116,13 +218,28 @@ func (b *Loaded) validateTyped() error {
 				names["software_names"][software.DisplayName] = true
 			}
 		}
+		wirePaths := map[string]bool{}
 		for _, name := range ref.WireFiles {
 			var wire WireReference
-			if err := DecodeJSON(b.Files[name], &wire); err != nil || len(wire.Body) == 0 || !strings.HasPrefix(wire.Path, "/") || strings.HasPrefix(wire.Path, "//") {
+			if err := DecodeJSON(b.Files[name], &wire); err != nil || validateWire(ref, wire) != nil {
 				return fmt.Errorf("sample %q contains an invalid Agent wire reference", ref.File)
+			}
+			if wireHost := wire.Headers.Get("X-Dd-Hostname"); wireHost != "" && wireHost != hostname {
+				return errors.New("wire reference contains an inconsistent host identity")
+			}
+			wirePaths[wire.Path] = true
+		}
+		for _, route := range ref.Routes {
+			if !wirePaths[route.Endpoint] {
+				return errors.New("observed wire protocol lacks regenerated evidence")
 			}
 		}
 		b.Samples[ref.File] = sample
+	}
+	for _, group := range groups {
+		if group.records == 0 {
+			return errors.New("complete captured group contains no records")
+		}
 	}
 	for field, declared := range map[string][]string{
 		"metric_names": profile.MetricNames, "process_names": profile.ProcessNames,
@@ -137,6 +254,39 @@ func (b *Loaded) validateTyped() error {
 		}
 		if len(seen) != len(names[field]) {
 			return fmt.Errorf("capture profile %s omits observed typed samples", field)
+		}
+	}
+	return nil
+}
+
+// validateMetricCoverage rejects complete-looking bundles that omit slow checks.
+func (b *Loaded) validateMetricCoverage() error {
+	cadences := b.Manifest.MetricCadences
+	if len(cadences) == 0 || len(cadences) > 7 {
+		return errors.New("missing or invalid metric family schedule; recapture")
+	}
+	cycles := map[string]map[cycleKey]bool{}
+	for family, cadence := range cadences {
+		if tc.MetricCheckFamily(family) == "" || cadence <= 0 {
+			return errors.New("invalid metric family cadence")
+		}
+		cycles[family] = map[cycleKey]bool{}
+	}
+	for _, ref := range b.Manifest.Samples {
+		if ref.Stream != schema.Metrics {
+			continue
+		}
+		for _, serie := range b.Samples[ref.File].Metrics {
+			family := tc.MetricFamily(serie.Name)
+			if cycles[family] == nil {
+				return errors.New("metric evidence lacks a scheduled family cadence")
+			}
+			cycles[family][cycleKey{producer: ref.ProducerID, cycle: ref.CycleID}] = true
+		}
+	}
+	for family, observed := range cycles {
+		if len(observed) < 2 {
+			return fmt.Errorf("metric family %s lacks two observed cycles; recapture", family)
 		}
 	}
 	return nil

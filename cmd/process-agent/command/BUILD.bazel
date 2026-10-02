@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "command",
     srcs = [
+        "capture.go",
         "command.go",
         "deprecated.go",
         "main.go",
@@ -72,6 +73,7 @@ go_library(
         "//pkg/process/util",
         "//pkg/process/util/containers",
         "//pkg/process/util/coreagent",
+        "//pkg/telemetrycapture",
         "//pkg/util/cli",
         "//pkg/util/coredump",
         "//pkg/util/defaultpaths",
@@ -97,7 +99,17 @@ go_library(
 
 dd_agent_go_test(
     name = "command_test",
-    srcs = ["deprecated_test.go"],
+    srcs = [
+        "capture_test.go",
+        "deprecated_test.go",
+    ],
     embed = [":command"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "//pkg/telemetrycapture",
+        "//pkg/version",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+        "@org_uber_go_fx//fxtest",
+    ],
 )

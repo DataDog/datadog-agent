@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -145,7 +146,8 @@ func New(
 	syscfg := deps.Sysprobeconfig
 	ctx, cancel := context.WithCancel(ctx)
 	ds := directSender{
-		tracer: tr,
+		captureManager: deps.CaptureManager,
+		tracer:         tr,
 
 		hostTagProvider: hosttags.NewHostTagProviderWithDuration(syscfg.GetDuration("system_probe_config.expected_tags_duration")),
 		agentCfg:        marshal.NewAgentConfiguration(syscfg, deps.Config),
@@ -179,12 +181,16 @@ func New(
 	}
 
 	ds.start()
+	if ds.captureManager != nil {
+		_ = ds.captureManager.Register(telemetrycapture.Capability{Stream: telemetrycapture.Connections, Cadence: checkInterval, ConnectionOwner: "direct"})
+	}
 	return &ds, nil
 }
 
 type directSender struct {
-	tracer  ConnectionsSource
-	groupID atomic.Int32
+	captureManager *telemetrycapture.Manager
+	tracer         ConnectionsSource
+	groupID        atomic.Int32
 
 	hostTagProvider *hosttags.HostTagProvider
 	agentCfg        *model.AgentConfiguration
@@ -240,6 +246,9 @@ func (d *directSender) start() {
 
 // Stop stops the direct sender
 func (d *directSender) Stop() {
+	if d.captureManager != nil {
+		d.captureManager.Unregister(telemetrycapture.Connections)
+	}
 	d.cancelFunc()
 	d.log.Info("direct sender stopped")
 }
@@ -251,6 +260,7 @@ func (d *directSender) submitLoop() {
 			return
 		}
 		allBatches := item.(result)
+		d.observeCaptureGroup(allBatches)
 		for _, p := range allBatches.payloads {
 			forwarderPayload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p.body})
 			responses, err := d.forwarder.SubmitConnectionChecks(forwarderPayload, p.headers)
@@ -263,6 +273,26 @@ func (d *directSender) submitLoop() {
 		senderTelemetry.queueSize.Set(float64(d.resultsQueue.Len()))
 		senderTelemetry.queueBytes.Set(float64(d.resultsQueue.Weight()))
 	}
+}
+
+// observeCaptureGroup distinguishes an empty collection from chunks lost during
+// normal best-effort encoding. Neither case changes production submission.
+func (d *directSender) observeCaptureGroup(group result) {
+	if !d.captureManager.Enabled() {
+		return
+	}
+	if int(group.expectedChunks) != len(group.payloads) {
+		if control, selected := d.captureManager.Selected(telemetrycapture.Connections); selected {
+			_ = d.captureManager.Fail(control)
+		}
+		return
+	}
+	if len(group.payloads) == 0 {
+		return
+	}
+	api.ObserveCaptureGroup(d.captureManager, telemetrycapture.Connections, group.collectedAt, d.checkInterval, len(group.payloads), func(i int) ([]byte, http.Header) {
+		return group.payloads[i].body, group.payloads[i].headers
+	})
 }
 
 var networkProtocolToModel = map[network.ConnectionType]model.ConnectionType{
@@ -331,7 +361,7 @@ func (d *directSender) collect() {
 
 	groupID := d.groupID.Add(1)
 
-	allBatches := result{payloads: make([]payload, 0, d.batchCount(conns))}
+	allBatches := result{collectedAt: start, expectedChunks: d.batchCount(conns), payloads: make([]payload, 0, d.batchCount(conns))}
 	messageIndex := 0
 	for body := range d.batches(conns, groupID) {
 		extraHeaders := d.staticHeaders.Clone()

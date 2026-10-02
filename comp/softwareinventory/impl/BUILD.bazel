@@ -34,6 +34,7 @@ go_library(
         "//pkg/system-probe/api/client",
         "//pkg/system-probe/config",
         "//pkg/system-probe/config/types",
+        "//pkg/telemetrycapture",
         "//pkg/util/http",
         "@com_github_stretchr_testify//mock",
     ],
@@ -42,6 +43,7 @@ go_library(
 dd_agent_go_test(
     name = "impl_test",
     srcs = [
+        "capture_test.go",
         "inventorysoftware_test.go",
         "payload_test.go",
         "race_reproduction_test.go",
@@ -57,8 +59,10 @@ dd_agent_go_test(
         "//pkg/inventory/software",
         "//pkg/logs/message",
         "//pkg/serializer/mocks",
+        "//pkg/system-probe/api/client",
         "//pkg/system-probe/config",
         "//pkg/system-probe/config/types",
+        "//pkg/telemetrycapture",
         "//pkg/util/option",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",

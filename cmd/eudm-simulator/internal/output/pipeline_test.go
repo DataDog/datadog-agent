@@ -11,6 +11,8 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +28,7 @@ import (
 	softwareimpl "github.com/DataDog/datadog-agent/comp/softwareinventory/impl"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
 func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
@@ -48,17 +51,28 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 				t.Fatal(err)
 			}
 			commit := strings.Repeat("a", 40)
-			w, err := bundle.NewWriter(filepath.Join(t.TempDir(), "bundle"), bundle.Manifest{AgentCommit: commit, AgentVersion: "7.85.0"})
+			w, err := bundle.NewWriter(filepath.Join(t.TempDir(), "bundle"), bundle.Manifest{CaptureTool: bundle.BuildIdentity{Version: "7.85.0", Commit: commit}, SessionID: "synthetic-output-session", MetricCadences: map[string]time.Duration{"cpu": 15 * time.Second}})
 			if err != nil {
 				t.Fatal(err)
 			}
-			profile := schema.Profile{OS: platform, Architecture: "arm64", MemoryBytes: 8 << 30, MetricNames: []string{"system.cpu.user"}, ProcessNames: []string{"Google Chrome"}, SoftwareNames: []string{"Google Chrome"}, Streams: []schema.Stream{schema.Metrics, schema.HostMetadata, schema.Processes, schema.Software}}
+			profile := schema.Profile{OS: platform, Architecture: "arm64", MemoryBytes: 8 << 30, MetricNames: []string{"system.cpu.user"}, ProcessNames: []string{"Google Chrome"}, SoftwareNames: []string{"Google Chrome"}, Streams: []schema.Stream{schema.Metrics, schema.HostMetadata, schema.Processes, schema.Software, schema.AgentInventory, schema.HostInventory}}
 			osName := "windows"
 			if platform == "macos" {
 				osName = "darwin"
 			}
 			cadences := map[schema.Stream]time.Duration{}
-			previous := 0
+			sequences := map[string]uint64{}
+			producerStreams := map[string][]schema.Stream{}
+			owner := func(stream schema.Stream) string {
+				switch stream {
+				case schema.Processes:
+					return "process-agent"
+				case schema.Connections:
+					return "system-probe"
+				default:
+					return "core-agent"
+				}
+			}
 			save := func(stream schema.Stream, offset time.Duration, value any, send func() error) {
 				t.Helper()
 				if err := send(); err != nil {
@@ -67,14 +81,36 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 				if err := p.Wait(ctx); err != nil {
 					t.Fatal(err)
 				}
-				refs, err := recorder.Wait(ctx, previous+1)
-				if err != nil {
+				refs := recorder.Drain()
+				if len(refs) == 0 {
+					t.Fatal("completed cycle produced no wire evidence")
+				}
+				role := owner(stream)
+				sequences[role]++
+				if !slices.Contains(producerStreams[role], stream) {
+					producerStreams[role] = append(producerStreams[role], stream)
+				}
+				ref := bundle.SampleRef{Stream: stream, Offset: offset, ProducerID: "synthetic-" + role, CycleID: sequences[role], Sequence: sequences[role], ChunkCount: 1}
+				if stream == schema.Metrics || stream == schema.HostMetadata || stream == schema.AgentInventory || stream == schema.HostInventory {
+					protocol := ""
+
+					var ordinals []uint64
+					if metric, ok := value.(*telemetry.MetricSample); ok {
+						for i := range metric.Series {
+							ordinals = append(ordinals, uint64(i+1))
+						}
+					}
+					for i, wire := range refs {
+						protocol = map[string]string{"/api/v1/series": "v1", "/api/v2/series": "v2", "/api/intake/metrics/v3/series": "v3", "/api/intake/metrics/v3beta/series": "v3beta", "/intake/": "metadata-v1", "/api/v2/host_metadata": "metadata-v2", "/api/v1/metadata": "inventory-v1"}[wire.Path]
+						if protocol == "" {
+							t.Fatal("unexpected synthetic wire endpoint")
+						}
+						ref.Routes = append(ref.Routes, bundle.RoutingEvidence{PayloadID: uint64(i + 1), Ordinals: ordinals, Endpoint: wire.Path, Protocol: protocol, Destination: "primary", EnqueueOffset: offset})
+					}
+				}
+				if err := w.Append(ref, value, refs); err != nil {
 					t.Fatal(err)
 				}
-				if err := w.Append(stream, offset, value, refs[previous:]); err != nil {
-					t.Fatal(err)
-				}
-				previous = len(refs)
 				cadences[stream] = 15 * time.Second
 			}
 			for i := 0; i < 2; i++ {
@@ -103,6 +139,11 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 				t.Fatal(err)
 			}
 			save(schema.HostMetadata, 0, host, func() error { return p.Serializer.SendHostMetadata(host) })
+			sanitizedHost := host.(*capture.HostMetadata)
+			agentInventory := &telemetrycapture.Inventory{Hostname: sanitizedHost.Hostname, UUID: sanitizedHost.UUID, Agent: &telemetrycapture.AgentInventoryMetadata{AgentVersion: sanitizedHost.AgentVersion, Flavor: "agent", InfrastructureMode: "end_user_device", AgentStartupTimeMS: -3000}}
+			save(schema.AgentInventory, 0, agentInventory, func() error { return p.Serializer.SendMetadata(agentInventory) })
+			hostInventory := &telemetrycapture.Inventory{Hostname: sanitizedHost.Hostname, UUID: sanitizedHost.UUID, Host: &telemetrycapture.HostInventoryMetadata{AgentVersion: sanitizedHost.AgentVersion, OS: osName, CPUCores: 4, CPULogicalProcessors: 8, MemoryTotalKb: (8 << 30) / 1024}}
+			save(schema.HostInventory, 0, hostInventory, func() error { return p.Serializer.SendMetadata(hostInventory) })
 			snapshot := &softwareimpl.Payload{Hostname: "capture-host", Metadata: softwareimpl.HostSoftware{Software: sanitizer.Software([]software.Entry{{DisplayName: "Google Chrome", Version: "125.0.1", UserSID: "UNIQUE-CAPTURE-SECRET", ProductCode: "UNIQUE-CAPTURE-SECRET", InstallPaths: []string{"UNIQUE-CAPTURE-SECRET"}}})}}
 			save(schema.Software, 0, snapshot, func() error {
 				body, err := snapshot.MarshalJSON()
@@ -113,6 +154,20 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 			})
 			if platform == "windows" {
 				profile.Streams = append(profile.Streams, schema.Connections)
+			}
+			var producers []bundle.Producer
+			for _, role := range []string{"core-agent", "process-agent", "system-probe"} {
+				if sequences[role] == 0 {
+					continue
+				}
+				producerVersion := "7.85.0-fixture"
+				if role == "core-agent" {
+					producerVersion = host.(*capture.HostMetadata).AgentVersion
+				}
+				producers = append(producers, bundle.Producer{Role: role, InstanceID: "synthetic-" + role, Version: producerVersion, Commit: strings.Repeat("b", 40), ProtocolVersion: 1, Streams: producerStreams[role], StopOffset: time.Minute, FinalSequence: sequences[role], AcknowledgedSequence: sequences[role], Stopped: true})
+			}
+			if err := w.SetProducers(producers); err != nil {
+				t.Fatal(err)
 			}
 			loaded, err := w.Complete(time.Minute, profile, cadences)
 			if err != nil {
@@ -147,7 +202,7 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 							t.Fatalf("decode Agent process message %s: %v", name, decodeErr)
 						}
 						decoded, err = json.Marshal(payload.Body)
-					case schema.Metrics, schema.HostMetadata:
+					case schema.Metrics, schema.HostMetadata, schema.AgentInventory, schema.HostInventory:
 						if reference.Headers.Get("Content-Encoding") != p.Serializer.Strategy.ContentEncoding() {
 							t.Fatalf("unexpected serializer encoding in %s", name)
 						}
@@ -172,6 +227,12 @@ func TestPortableSanitizedBundleRoundTripThroughAgentDelivery(t *testing.T) {
 					}
 					if err != nil {
 						t.Fatalf("decode Agent wire content %s: %v", name, err)
+					}
+					if sample.Stream == schema.AgentInventory || sample.Stream == schema.HostInventory {
+						var inventory telemetrycapture.Inventory
+						if err := json.Unmarshal(decoded, &inventory); err != nil || !reflect.DeepEqual(&inventory, loaded.Samples[sample.File].Inventory) {
+							t.Fatalf("inventory wire differs from its typed sample: %v", err)
+						}
 					}
 					if strings.Contains(string(decoded), "UNIQUE-CAPTURE-SECRET") {
 						t.Fatalf("raw identity persisted in decoded wire body %s", name)

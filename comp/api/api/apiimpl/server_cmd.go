@@ -40,6 +40,10 @@ func (server *apiServer) startCMDServer(
 	agentMux := http.NewServeMux()
 
 	cmdMux := http.NewServeMux()
+	if err := server.mountCapture(cmdMux); err != nil {
+		_ = cmdListener.Close()
+		return err
+	}
 	cmdMux.Handle(
 		"/agent/",
 		server.ipc.HTTPMiddleware(observability.MountWithPrefix("/agent",

@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
-    srcs = ["hostsysteminfo.go"],
+    srcs = [
+        "capture.go",
+        "hostsysteminfo.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/hostsysteminfo/impl",
     visibility = ["//visibility:public"],
     deps = [
@@ -12,12 +15,14 @@ go_library(
         "//comp/core/flare/types",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
+        "//comp/def",
         "//comp/metadata/hostsysteminfo/def",
         "//comp/metadata/internal/util",
         "//comp/metadata/runner/def",
         "//pkg/inventory/systeminfo",
         "//pkg/serializer",
         "//pkg/serializer/marshaler",
+        "//pkg/telemetrycapture",
         "//pkg/util/http",
         "//pkg/util/uuid",
     ],
@@ -26,6 +31,7 @@ go_library(
 dd_agent_go_test(
     name = "impl_test",
     srcs = [
+        "capture_test.go",
         "hostsysteminfo_helper_test.go",
         "hostsysteminfo_nix_test.go",
         "hostsysteminfo_supported_test.go",
@@ -36,7 +42,11 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/mock",
+        "//comp/def",
         "//pkg/serializer/mocks",
+        "//pkg/telemetrycapture",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
     ] + select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//assert",
@@ -46,7 +56,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:darwin": [
             "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:dragonfly": [
             "@com_github_stretchr_testify//assert",
@@ -59,7 +68,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:ios": [
             "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:js": [
             "@com_github_stretchr_testify//assert",
@@ -87,7 +95,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

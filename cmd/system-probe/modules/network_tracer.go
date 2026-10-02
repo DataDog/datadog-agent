@@ -58,6 +58,7 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 	var connsSender sender.Sender
 	if ncfg.DirectSend {
 		connsSender, err = sender.New(ctx, t, sender.Dependencies{
+			CaptureManager: deps.CaptureManager,
 			Config:         deps.CoreConfig,
 			Logger:         deps.Log,
 			Sysprobeconfig: deps.SysprobeConfig,

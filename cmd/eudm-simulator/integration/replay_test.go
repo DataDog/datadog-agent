@@ -33,8 +33,10 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	softwareimpl "github.com/DataDog/datadog-agent/comp/softwareinventory/impl"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	tc "github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	"github.com/bazelbuild/rules_go/go/runfiles"
 )
 
@@ -113,6 +115,108 @@ func TestSharedBaselineReplayThroughAgentPayloadDelivery(t *testing.T) {
 	}
 }
 
+// Long replay exercises inventory scheduling from the checked-in bundle with a
+// recording delivery boundary. The test above separately checks Agent encoding
+// and forwarding; this clock can advance without waiting through real minutes.
+type inventoryCycleRecorder struct {
+	mu          sync.Mutex
+	samples     map[schema.Stream][]*tc.Inventory
+	metricTimes map[string][]float64
+}
+
+func (d *inventoryCycleRecorder) Send(_ context.Context, _ time.Time, stream schema.Stream, samples []*telemetry.Sample) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for _, sample := range samples {
+		if sample.Inventory != nil {
+			d.samples[stream] = append(d.samples[stream], tc.CloneInventory(sample.Inventory))
+		}
+		for _, serie := range sample.Metrics {
+			for _, point := range serie.Points {
+				d.metricTimes[serie.Name] = append(d.metricTimes[serie.Name], point.Ts)
+			}
+		}
+	}
+	return nil
+}
+
+func (*inventoryCycleRecorder) NetworkMetrics(context.Context, []*metrics.Serie) error { return nil }
+func (*inventoryCycleRecorder) NetworkMetadata(context.Context, []metadata.NetworkDevicesMetadata) error {
+	return nil
+}
+func (*inventoryCycleRecorder) Wait(context.Context) error { return nil }
+
+func TestRepeatedInventoryAndMetricFamiliesKeepNativeCadences(t *testing.T) {
+	for _, platform := range []string{"macos", "windows"} {
+		t.Run(platform, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			captured := replayFixture(t, platform)
+			start := time.Date(2026, 10, 1, 12, 0, 0, 375000000, time.UTC)
+			const duration = 65 * time.Minute
+			scenario := &schema.Scenario{
+				Version: schema.Version, Meta: schema.ScenarioMeta{Name: "inventory-repeat-validation"},
+				Expectation: schema.Expectation{Conclusion: schema.Healthy},
+				Fleet:       []schema.GroupDef{{Group: "inventory-repeat-device", OS: platform, Count: 1}},
+				Phases:      []schema.Phase{{Name: "healthy", Duration: schema.Duration{Duration: duration}}},
+			}
+			plan, err := schema.NewPlan(scenario, schema.Digest([]byte("repeated-inventory")), fixtureCommit, 7, start, captured.Ref())
+			if err != nil {
+				t.Fatal(err)
+			}
+			recorder := &inventoryCycleRecorder{samples: map[schema.Stream][]*tc.Inventory{}, metricTimes: map[string][]float64{}}
+			result, err := engine.Run(ctx, engine.Request{Scenario: scenario, Plan: plan, Bundle: captured}, engine.Options{Workers: 1, QueueCapacity: 2, Clock: &replayClock{now: start}, Delivery: recorder})
+			if err != nil || !result.Complete() {
+				t.Fatal("repeated inventory replay did not complete", err)
+			}
+			id := identity.New(plan.RunID, plan.Seed, scenario.Fleet[0].Group, 0)
+			for _, stream := range []schema.Stream{schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo} {
+				cadence, firstOffset, count := 10*time.Minute, 250*time.Millisecond, 7
+				if stream == schema.HostInventory {
+					firstOffset = 500 * time.Millisecond
+				} else if stream == schema.HostSystemInfo {
+					cadence, firstOffset, count = time.Hour, 5250*time.Millisecond, 2
+				}
+				cycles := recorder.samples[stream]
+				if len(cycles) != count {
+					t.Fatalf("%s must repeat at its captured %s cadence: got %d cycles", stream, cadence, len(cycles))
+				}
+				for i, inventory := range cycles {
+					if inventory.Hostname != id.Hostname || inventory.UUID != id.UUID || inventory.Timestamp != start.Add(time.Duration(i)*cadence+firstOffset).UnixNano() {
+						t.Fatal("repeated inventory identity or collection time diverged")
+					}
+					if inventory.Agent != nil && inventory.Agent.AgentStartupTimeMS != start.Add(-time.Minute).UnixMilli() {
+						t.Fatal("repeating inventory falsely restarted the simulated Agent")
+					}
+					if info := inventory.SystemInfo; info != nil {
+						if info.SerialNumber == "" || info.SerialNumber == "serial_number-"+strings.Repeat("5", 32) || info.SerialNumber != cycles[0].SystemInfo.SerialNumber {
+							t.Fatal("repeated system information lost its stable device serial")
+						}
+					}
+				}
+			}
+			for _, name := range captured.Manifest.Profile.MetricNames {
+				cadence := 15 * time.Second
+				if tc.MetricFamily(name) == "battery" {
+					cadence = 5 * time.Minute
+				}
+				if captured.Manifest.MetricCadences[tc.MetricFamily(name)] != cadence {
+					t.Fatalf("synthetic metric %s lost its declared family cadence", name)
+				}
+				var expected []float64
+				for offset := time.Duration(0); offset < duration; offset += cadence {
+					expected = append(expected, float64(start.Unix())+float64(start.Nanosecond())/1e9+offset.Seconds())
+				}
+				actual := recorder.metricTimes[name]
+				slices.Sort(actual)
+				if !slices.Equal(actual, expected) {
+					t.Fatalf("metric %s did not replay at its native %s cadence: got %d points, wanted %d", name, cadence, len(actual), len(expected))
+				}
+			}
+		})
+	}
+}
+
 func testSharedBaselineReplay(t *testing.T, platform string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -151,15 +255,17 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 		t.Fatal(err)
 	}
 	type deviceEvidence struct {
-		id              *identity.Map
-		os              string
-		metricNames     []string
-		metrics         map[string][]int64
-		processes       []int64
-		connections     []int64
-		processPIDs     map[int32]bool
-		connectionPID   []int32
-		hosts, software int
+		id                            *identity.Map
+		os                            string
+		metricNames                   []string
+		metrics                       map[string][]int64
+		processes                     []int64
+		connections                   []int64
+		processPIDs                   map[int32]bool
+		connectionPID                 []int32
+		hosts, software               int
+		agentInventory, hostInventory int
+		hostSystemInfo                int
 	}
 	devices := map[string]*deviceEvidence{}
 	ordinal := 0
@@ -179,6 +285,8 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 		return got
 	}
 	requestHosts := map[string]string{}
+	systemInfoSerials := map[string]bool{}
+	var systemInfoModel string
 	for _, ref := range references {
 		var inspected any
 		switch ref.Path {
@@ -224,8 +332,11 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 				host = body.HostName
 				d := device(host)
 				d.connections = append(d.connections, at)
-				if d.os != "windows" || body.NetworkId != d.id.NetworkID || body.GroupSize != 1 || len(body.Connections) != 1 {
-					t.Fatal("portable Windows connection identity or evidence changed")
+				if body.NetworkId != d.id.NetworkID || body.GroupSize != 1 || len(body.Connections) != 1 {
+					t.Fatal("portable connection identity or evidence changed")
+				}
+				if config := body.AgentConfiguration; config == nil || !config.EudmEnabled || config.NpmEnabled != (d.os == "windows") {
+					t.Fatal("connection product-routing flags changed between the captured sample and Agent delivery")
 				}
 				connection := body.Connections[0]
 				d.connectionPID = append(d.connectionPID, connection.Pid)
@@ -267,6 +378,13 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 				if !slices.Contains(serie.Tags, d.id.RunTag) || serie.Metadata.GetOrigin().GetOriginService() == 0 {
 					t.Fatal("metric run tag or captured Agent origin lost")
 				}
+				metricType := metrics.APIGaugeType
+				if tc.MetricFamily(serie.Metric) == "network" {
+					metricType = metrics.APIRateType
+				}
+				if int32(serie.Type) != metricType.SeriesAPIV2Enum() || serie.Interval != int64(capture.Manifest.MetricCadences[tc.MetricFamily(serie.Metric)]/time.Second) {
+					t.Fatal("native metric type or check interval changed during delivery")
+				}
 				for _, point := range serie.Points {
 					d.metrics[serie.Metric] = append(d.metrics[serie.Metric], point.Timestamp)
 					if (serie.Metric == "system.cpu.user" && point.Value != 5) || (serie.Metric == "system.wlan.rssi" && point.Value != -55) {
@@ -292,6 +410,74 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 			}
 			if payload.OS != wantOS || payload.UUID != d.id.UUID || !slices.Contains(payload.HostTags["system"], d.id.RunTag) {
 				t.Fatal("host enrichment metadata does not represent the simulated device")
+			}
+			inspected = &payload
+		case "/api/v1/metadata":
+			decoded, err := pipeline.Serializer.Strategy.Decompress(ref.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload tc.Inventory
+			if err := json.Unmarshal(decoded, &payload); err != nil {
+				t.Fatal(err)
+			}
+			d := device(payload.Hostname)
+			envelopes := 0
+			for _, present := range []bool{payload.Agent != nil, payload.Host != nil, payload.SystemInfo != nil} {
+				if present {
+					envelopes++
+				}
+			}
+			if payload.UUID != d.id.UUID || envelopes != 1 {
+				t.Fatal("inventory identity or envelope does not represent the simulated device")
+			}
+			if agent := payload.Agent; agent != nil {
+				d.agentInventory++
+				if agent.InfrastructureMode != "end_user_device" || agent.AgentVersion != "7.85.0-fixture" || agent.Flavor != "agent" || !agent.FeatureProcessEnabled || !agent.FeatureNetworksEnabled {
+					t.Fatal("Agent inventory discovery fields or producing version changed")
+				}
+				if payload.Timestamp != start.Add(250*time.Millisecond).UnixNano() || agent.AgentStartupTimeMS != start.Add(-time.Minute).UnixMilli() {
+					t.Fatal("Agent inventory collection or startup time was not rebased from the captured offsets")
+				}
+			} else if payload.Host != nil {
+				d.hostInventory++
+				host := payload.Host
+				arch, osname := "arm64", "darwin"
+				if d.os == "windows" {
+					arch, osname = "amd64", "Microsoft Windows 11 Pro"
+				}
+				if host.AgentVersion != "7.85.0-fixture" || host.CPUArchitecture != arch || host.OS != osname || host.CPULogicalProcessors != 4 || host.MemoryTotalKb != 16<<20 {
+					t.Fatal("host inventory hardware, platform or producing version changed")
+				}
+				if payload.Timestamp != start.Add(500*time.Millisecond).UnixNano() || host.IPAddress == "10.0.0.1" || host.MacAddress == "02:00:00:00:00:02" {
+					t.Fatal("host inventory timestamp or network identity was not rewritten")
+				}
+			} else {
+				d.hostSystemInfo++
+				info := payload.SystemInfo
+				manufacturer := "Apple Inc."
+				if d.os == "windows" {
+					manufacturer = "Lenovo"
+				}
+				if payload.Timestamp != start.Add(5250*time.Millisecond).UnixNano() || info.Manufacturer != manufacturer || info.ChassisType != "Laptop" {
+					t.Fatal("host system information lost its observed timing or hardware fields")
+				}
+				if info.SerialNumber == "" || info.SerialNumber == "serial_number-"+strings.Repeat("5", 32) || systemInfoSerials[info.SerialNumber] {
+					t.Fatal("host system information serial was not isolated per simulated device")
+				}
+				systemInfoSerials[info.SerialNumber] = true
+				if info.ModelName == "" || info.ModelName == "device_model-"+strings.Repeat("6", 32) || (systemInfoModel != "" && info.ModelName != systemInfoModel) {
+					t.Fatal("host system information lost its shared run-scoped hardware model")
+				}
+				systemInfoModel = info.ModelName
+				if d.os == "macos" && (info.ModelNumber != "Mac16,5" || info.Identifier != "Mac16,5") {
+					t.Fatal("safe observed Mac model identifiers changed")
+				}
+			}
+			for _, forbidden := range []string{"api_key", "apiKey", "auth_token", "agent_config", "full_configuration", "synthetic-integration-no-credential"} {
+				if strings.Contains(string(decoded), forbidden) {
+					t.Fatal("credential or configuration data appeared in inventory delivery")
+				}
 			}
 			inspected = &payload
 		case "/api/v2/softinv":
@@ -331,13 +517,16 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 			}
 		}
 	}
-	wantMetrics := []int64{start.Unix(), start.Add(15 * time.Second).Unix(), start.Add(30 * time.Second).Unix()}
 	wantProcesses := []int64{start.Unix(), start.Add(10 * time.Second).Unix(), start.Add(20 * time.Second).Unix(), start.Add(30 * time.Second).Unix()}
 	for host, evidence := range devices {
-		if evidence.hosts != 1 || evidence.software != 1 || len(evidence.metrics) != len(evidence.metricNames) {
-			t.Fatalf("partial declared device %s: metadata=%d software=%d metric names=%d", host, evidence.hosts, evidence.software, len(evidence.metrics))
+		if evidence.hosts != 1 || evidence.agentInventory != 1 || evidence.hostInventory != 1 || evidence.hostSystemInfo != 1 || evidence.software != 1 || len(evidence.metrics) != len(evidence.metricNames) {
+			t.Fatalf("partial declared device %s: metadata=%d agent inventory=%d host inventory=%d system information=%d software=%d metric names=%d", host, evidence.hosts, evidence.agentInventory, evidence.hostInventory, evidence.hostSystemInfo, evidence.software, len(evidence.metrics))
 		}
 		for _, metric := range evidence.metricNames {
+			wantMetrics := []int64{start.Unix(), start.Add(15 * time.Second).Unix(), start.Add(30 * time.Second).Unix()}
+			if tc.MetricFamily(metric) == "battery" {
+				wantMetrics = []int64{start.Unix()}
+			}
 			times := evidence.metrics[metric]
 			slices.Sort(times)
 			if !slices.Equal(times, wantMetrics) {
@@ -346,7 +535,7 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 		}
 		slices.Sort(evidence.processes)
 		slices.Sort(evidence.connections)
-		if !slices.Equal(evidence.processes, wantProcesses) || (evidence.os == "windows" && !slices.Equal(evidence.connections, wantProcesses)) || (evidence.os == "macos" && len(evidence.connections) != 0) {
+		if !slices.Equal(evidence.processes, wantProcesses) || !slices.Equal(evidence.connections, wantProcesses) {
 			t.Fatalf("process/connection cadence or platform coverage mismatch for %s", host)
 		}
 		for _, pid := range evidence.connectionPID {

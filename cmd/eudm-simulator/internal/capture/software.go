@@ -26,16 +26,25 @@ func (s *Sanitizer) Software(entries []software.Entry) []software.Entry {
 			publisher = s.token("publisher", publisher)
 		}
 		source := entry.Source
-		if !slices.Contains([]string{"desktop", "msstore", "msi", "app", "homebrew", "pkg", "macports", "mas", "os", "driver", "kext", "sysext"}, source) {
+		if !slices.Contains([]string{"desktop", "msstore", "msi", "app", "system_app", "homebrew", "pkg", "macports", "mas", "os", "driver", "kext", "sysext"}, source) {
 			source = ""
 		}
 		status := entry.Status
-		if !slices.Contains([]string{"installed", "absent", "pending_install", "pending_removal", "uninstalling", "failed", "broken"}, status) {
+		if !slices.Contains([]string{
+			"installed", "absent", "pending_install", "pending_removal", "uninstalling", "failed", "broken",
+			"inactive", "imaged", "unknown", "installed (dependency)", "inactive (dependency)", "imaged (dependency)",
+		}, status) {
 			status = ""
 		}
 		version := safeVersion(entry.Version)
 		if source == "os" {
 			version = safeOSVersion(entry.Version)
+		}
+		if version == "" && entry.Version != "" {
+			// The software backend requires a nonempty version. Keep opaque
+			// observed versions distinct without persisting arbitrary strings or
+			// making them look like an actual release number.
+			version = s.token("software_version", entry.Version)
 		}
 		clean := software.Entry{DisplayName: name, Version: version, Source: source, Publisher: publisher, Status: status, Is64Bit: entry.Is64Bit, ProductCode: s.token("product", entry.ProductCode), UserSID: s.token("user", entry.UserSID)}
 		for _, path := range entry.InstallPaths {

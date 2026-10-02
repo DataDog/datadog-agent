@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "telemetrycapture",
+    srcs = [
+        "http.go",
+        "inventory.go",
+        "manager.go",
+        "metric_names.go",
+        "protocol.go",
+        "queue.go",
+        "wire.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/telemetrycapture",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "telemetrycapture_test",
+    srcs = [
+        "http_test.go",
+        "inventory_test.go",
+        "manager_test.go",
+    ],
+    embed = [":telemetrycapture"],
+)

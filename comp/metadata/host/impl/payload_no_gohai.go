@@ -9,6 +9,7 @@ package hostimpl
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -16,6 +17,8 @@ import (
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
+	captureCollectedAt time.Time
+	captureCadence     time.Duration
 	utils.CommonPayload
 	utils.Payload
 	// Notice: ResourcesPayload requires gohai so it can't be included

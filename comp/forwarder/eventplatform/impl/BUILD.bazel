@@ -46,6 +46,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/config/setup/constants",
         "//pkg/logs/message",
+        "//pkg/telemetrycapture",
         "//pkg/util/compression",
         "//pkg/util/ecs/metadata",
         "//pkg/util/log",
@@ -58,7 +59,10 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["epforwarder_test.go"],
+    srcs = [
+        "epforwarder_test.go",
+        "software_capture_test.go",
+    ],
     embed = [":impl"],
     deps = [
         "//comp/core/config",
@@ -70,7 +74,10 @@ dd_agent_go_test(
         "//comp/logs/agent/config",
         "//comp/serializer/logscompression/def",
         "//comp/serializer/logscompression/fx-mock",
+        "//pkg/logs/message",
+        "//pkg/telemetrycapture",
         "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
     ],
 )

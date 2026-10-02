@@ -143,6 +143,12 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	}
 
 	var payloads transaction.BytesPayloads
+	var membership marshaler.CaptureMembership
+	if provider, ok := m.(interface {
+		CaptureObserver() marshaler.PayloadCapture
+	}); ok {
+		membership.Observer = provider.CaptureObserver()
+	}
 	expvarsTotalCalls.Add(1)
 	tlmTotalCalls.Inc()
 	start := time.Now()
@@ -198,7 +204,9 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			if err != nil {
 				return payloads, err
 			}
-			payloads = append(payloads, transaction.NewBytesPayload(payload, pointCount))
+			bytesPayload := transaction.NewBytesPayload(payload, pointCount)
+			membership.Finished(bytesPayload)
+			payloads = append(payloads, bytesPayload)
 			pointCount = 0
 			input.Reset()
 			output.Reset()
@@ -212,6 +220,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		case err == nil:
 			// All good, continue to next item
 			pointCount += m.GetCurrentItemPointCount()
+			membership.Accepted()
 			ok = m.MoveNext()
 			expvarsTotalItems.Add(1)
 			tlmTotalItems.Inc()
@@ -239,7 +248,9 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	if err != nil {
 		return payloads, err
 	}
-	payloads = append(payloads, transaction.NewBytesPayload(payload, pointCount))
+	bytesPayload := transaction.NewBytesPayload(payload, pointCount)
+	membership.Finished(bytesPayload)
+	payloads = append(payloads, bytesPayload)
 
 	if !b.shareAndLockBuffers {
 		b.inputSizeHint = input.Cap()

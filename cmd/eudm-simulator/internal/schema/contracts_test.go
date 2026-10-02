@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"math"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ func healthy(t *testing.T) *Scenario {
 }
 
 func baselineRef(platform string) BundleRef {
-	return BundleRef{Digest: Digest([]byte(platform)), AgentCommit: strings.Repeat("a", 40), Profile: Profile{OS: platform, Architecture: "arm64", Streams: []Stream{Metrics, HostMetadata, Processes, Software}, MetricNames: []string{"system.cpu.user"}, ProcessNames: []string{"Chrome"}, SoftwareNames: []string{"Google Chrome"}}}
+	return BundleRef{Digest: Digest([]byte(platform)), CaptureToolCommit: strings.Repeat("a", 40), Profile: Profile{OS: platform, Architecture: "arm64", Streams: []Stream{Metrics, HostMetadata, AgentInventory, HostInventory, Processes, Software}, MetricNames: []string{"system.cpu.user"}, ProcessNames: []string{"Chrome"}, SoftwareNames: []string{"Google Chrome"}}}
 }
 
 func TestSingleBaselinePlanRoundTrip(t *testing.T) {
@@ -55,6 +56,15 @@ func TestSingleBaselinePlanRoundTrip(t *testing.T) {
 	}
 	if strings.Contains(string(data), `"bundles"`) || strings.Contains(string(data), `"assignments"`) {
 		t.Fatal("plan retained the removed cohort assignment contract")
+	}
+	var contract struct {
+		Bundle map[string]json.RawMessage `json:"bundle"`
+	}
+	if err := json.Unmarshal(data, &contract); err != nil {
+		t.Fatal(err)
+	}
+	if contract.Bundle["capture_tool_commit"] == nil || contract.Bundle["agent_commit"] != nil {
+		t.Fatal("bundle revision must identify the capture tool, independently of producers")
 	}
 	var restored RunPlan
 	if err := json.Unmarshal(data, &restored); err != nil {
@@ -77,7 +87,7 @@ func TestPlanRejectsMissingAndIncompatibleEvidence(t *testing.T) {
 		{"OS mismatch", func(_ *Scenario, r *BundleRef) { r.Profile.OS = "windows" }},
 		{"incompatible second group", func(s *Scenario, _ *BundleRef) { s.Fleet[1].OS = "windows" }},
 		{"missing stream", func(_ *Scenario, r *BundleRef) { r.Profile.Streams = []Stream{Metrics} }},
-		{"wrong commit", func(_ *Scenario, r *BundleRef) { r.AgentCommit = strings.Repeat("b", 40) }},
+		{"wrong capture tool commit", func(_ *Scenario, r *BundleRef) { r.CaptureToolCommit = strings.Repeat("b", 40) }},
 		{"invented hardware", func(s *Scenario, _ *BundleRef) { s.Fleet[0].TotalRAMGB = 128 }},
 		{"invented metric", func(s *Scenario, _ *BundleRef) {
 			s.Phases[0].Metrics = map[string]map[string]Pattern{"mac": {"system.wlan.rssi": {Steady: &SteadyPattern{Value: -55}}}}
@@ -100,6 +110,27 @@ func TestPlanRejectsMissingAndIncompatibleEvidence(t *testing.T) {
 				t.Fatal("accepted invalid evidence")
 			}
 		})
+	}
+}
+
+func TestPlanRequiresBothDeviceRegistrationInventories(t *testing.T) {
+	for _, stream := range []Stream{AgentInventory, HostInventory} {
+		s, ref := healthy(t), baselineRef("macos")
+		s.Fleet[1].OS = "macos"
+		ref.Profile.Streams = slices.DeleteFunc(ref.Profile.Streams, func(s Stream) bool { return s == stream })
+		if _, err := NewPlan(s, Digest([]byte(healthyYAML)), strings.Repeat("a", 40), 1, time.Now(), ref); err == nil || !strings.Contains(err.Error(), string(stream)) {
+			t.Fatalf("accepted baseline without %s: %v", stream, err)
+		}
+	}
+	s, ref := healthy(t), baselineRef("macos")
+	s.Fleet[1].OS = "macos"
+	p, err := NewPlan(s, Digest([]byte(healthyYAML)), strings.Repeat("a", 40), 1, time.Now(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Version = 3
+	if err := p.Validate(s, Digest([]byte(healthyYAML)), strings.Repeat("a", 40)); err == nil {
+		t.Fatal("accepted old plan lacking required inventory contract")
 	}
 }
 
@@ -183,8 +214,8 @@ func TestPersistedPlanTampering(t *testing.T) {
 	for _, mutate := range []func(*RunPlan){
 		func(p *RunPlan) { p.Version++ }, func(p *RunPlan) { p.ScenarioDigest = Digest([]byte("changed")) },
 		func(p *RunPlan) { p.RunID = "healthy-mixed" }, func(p *RunPlan) { p.Start = time.Time{} },
-		func(p *RunPlan) { p.Version = 1 }, func(p *RunPlan) { p.Bundle = BundleRef{} },
-		func(p *RunPlan) { p.Bundle.AgentCommit = strings.Repeat("b", 40) },
+		func(p *RunPlan) { p.Version = 1 }, func(p *RunPlan) { p.Version = 2 }, func(p *RunPlan) { p.Bundle = BundleRef{} },
+		func(p *RunPlan) { p.Bundle.CaptureToolCommit = strings.Repeat("b", 40) },
 		func(p *RunPlan) { p.Bundle.Digest = "invalid" },
 		func(p *RunPlan) { p.Bundle.Profile.Streams = nil },
 	} {

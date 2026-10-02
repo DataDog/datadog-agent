@@ -108,6 +108,38 @@ func TestApplySnapshotAfterStreamReset(t *testing.T) {
 	})
 }
 
+func TestSnapshotPreservesEndUserDeviceProcessCollection(t *testing.T) {
+	configstreambootstrap.ResetGlobalConfig(t)
+	c := newTestConsumer(t)
+	c.params = configstreamconsumer.NewParams("process-agent", "")
+	c.lastSeqID.Store(seqIDUnset)
+	cfg := configstreambootstrap.Config()
+	const key = "process_config.process_collection.enabled"
+	snapshot := func(sequence int32, enabled bool, source pkgconfigmodel.Source) *pb.ConfigEvent {
+		return &pb.ConfigEvent{Event: &pb.ConfigEvent_Snapshot{Snapshot: &pb.ConfigSnapshot{
+			SequenceId: sequence,
+			Settings: []*pb.ConfigSetting{
+				{Key: "infrastructure_mode", Value: structpb.NewStringValue("end_user_device"), Source: string(pkgconfigmodel.SourceFile)},
+				{Key: "process_config.enabled", Value: structpb.NewStringValue("false"), Source: string(pkgconfigmodel.SourceDefault)},
+				{Key: key, Value: structpb.NewBoolValue(enabled), Source: string(source)},
+			},
+		}}}
+	}
+	require.NoError(t, c.handleConfigEvent(snapshot(1, true, pkgconfigmodel.SourceInfraMode)))
+	require.True(t, c.IsActive())
+	require.Equal(t, "end_user_device", cfg.GetString("infrastructure_mode"))
+	require.True(t, cfg.GetBool(key), "process-agent must retain the core's infra-mode enablement")
+	require.Equal(t, pkgconfigmodel.SourceInfraMode, cfg.GetSource(key))
+	require.False(t, cfg.GetBool("process_config.enabled"), "deprecated default is not an explicit opt-out")
+
+	require.NoError(t, c.handleConfigEvent(snapshot(2, false, pkgconfigmodel.SourceFile)))
+	require.False(t, cfg.GetBool(key), "a user opt-out must remain authoritative")
+	require.Equal(t, pkgconfigmodel.SourceFile, cfg.GetSource(key))
+	require.NoError(t, c.handleConfigEvent(snapshot(3, true, pkgconfigmodel.SourceInfraMode)))
+	require.True(t, cfg.GetBool(key), "removing the opt-out restores EUDM enablement")
+	require.Equal(t, pkgconfigmodel.SourceInfraMode, cfg.GetSource(key))
+}
+
 func TestOnlySnapshotsSignalReadiness(t *testing.T) {
 	event := func(seqID int32) *pb.ConfigEvent {
 		return &pb.ConfigEvent{Event: &pb.ConfigEvent_Update{Update: &pb.ConfigUpdate{

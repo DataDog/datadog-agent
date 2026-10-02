@@ -1,4 +1,6 @@
-# Staging proof declaration only; no staging result has been recorded.
+# Prior device discovery was verified; schema-4 panel evidence needs a fresh live run.
+# Allow the first hourly hardware observation to occur before this probe ends.
+# See doc/how-to/test/eudm-simulator.md for the recorded results.
 version: 1
 scenario:
   name: host-enrichment-macos
@@ -12,4 +14,4 @@ fleet:
     os: macos
 phases:
   - name: healthy
-    duration: 35m
+    duration: 70m

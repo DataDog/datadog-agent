@@ -25,16 +25,17 @@ import (
 	"sync"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/telemetry"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
 // Sanitizer has an ephemeral per-capture HMAC key. Neither raw identities nor
 // the key are persisted. The same identity gets the same placeholder in every
-// stream, even when collectors call the transformer concurrently.
+// stream. The live coordinator owns one sanitizer for the entire session.
 type Sanitizer struct {
 	key  [32]byte
 	mu   sync.Mutex
@@ -110,7 +111,8 @@ func (s *Sanitizer) ip(value string) string {
 }
 
 var (
-	versionPattern = regexp.MustCompile(`^[0-9]{1,8}(?:\.[0-9]{1,8}){0,5}$`)
+	versionPattern      = regexp.MustCompile(`^[0-9]{1,8}(?:\.[0-9]{1,8}){0,5}$`)
+	agentVersionPattern = regexp.MustCompile(`^[0-9][a-zA-Z0-9.+_-]{0,127}$`)
 	// The native macOS inventory includes Apple's build, for example 15.6
 	// (24G84). It is structured version evidence, not arbitrary release text.
 	macOSVersionPattern    = regexp.MustCompile(`^[0-9]{1,4}(?:\.[0-9]{1,4}){0,3} \([0-9]{1,3}[A-Z][0-9]{1,6}[a-z]?\)$`)
@@ -215,29 +217,12 @@ func (s *SeriesSource) MoveNext() bool          { s.index++; return s.index < le
 func (s *SeriesSource) Current() *metrics.Serie { return s.Series[s.index] }
 func (s *SeriesSource) Count() uint64           { return uint64(len(s.Series)) }
 
-var metricNames = map[string]bool{
-	"system.cpu.user": true, "system.cpu.system": true, "system.cpu.idle": true, "system.cpu.iowait": true, "system.cpu.num_cores": true,
-	"system.cpu.interrupt": true, "system.cpu.context_switches": true, "system.cpu.stolen": true, "system.cpu.guest": true,
-	"system.cpu.user.total": true, "system.cpu.nice.total": true, "system.cpu.system.total": true, "system.cpu.idle.total": true,
-	"system.cpu.iowait.total": true, "system.cpu.irq.total": true, "system.cpu.softirq.total": true, "system.cpu.steal.total": true, "system.cpu.guest.total": true, "system.cpu.guestnice.total": true,
-	"system.mem.total": true, "system.mem.used": true, "system.mem.free": true, "system.mem.usable": true, "system.mem.pct_usable": true,
-	"system.mem.cached": true, "system.mem.committed": true, "system.mem.paged": true, "system.mem.nonpaged": true,
-	"system.mem.pagefile.total": true, "system.mem.pagefile.used": true, "system.mem.pagefile.free": true, "system.mem.pagefile.pct_free": true,
-	"system.paging.total": true, "system.paging.used": true, "system.paging.free": true, "system.paging.pct_free": true,
-	"system.swap.total": true, "system.swap.used": true, "system.swap.free": true, "system.swap.pct_free": true, "system.swap.swap_in": true, "system.swap.swap_out": true,
-	"system.disk.total": true, "system.disk.used": true, "system.disk.free": true, "system.disk.utilized": true, "system.uptime": true,
-	"system.wlan.rssi": true, "system.wlan.noise": true, "system.wlan.txrate": true, "system.wlan.rxrate": true,
-	"system.wlan.status": true, "system.wlan.roaming_events": true, "system.wlan.channel_swap_events": true, "system.wlan.check.errors": true,
-	"system.battery.maximum_capacity_pct": true, "system.battery.current_charge_pct": true, "system.battery.cycle_count": true, "system.battery.charge_rate": true,
-	"system.net.packets_in.drop": true, "system.net.packets_out.drop": true, "system.net.packets_in.error": true, "system.net.packets_out.error": true, "system.net.tcp.retrans_segs": true,
-}
-
 // Series consumes the full source and returns only allowlisted metric fields.
 func (s *Sanitizer) Series(source metrics.SerieSource) (metrics.SerieSource, error) {
 	var result []*metrics.Serie
 	for source.MoveNext() {
 		v := source.Current()
-		if v == nil || !metricNames[v.Name] {
+		if v == nil || !telemetrycapture.MetricAllowed(v.Name) {
 			continue
 		}
 		var tags []string
@@ -323,7 +308,10 @@ func (s *Sanitizer) HostMetadata(native marshaler.JSONMarshaler) (marshaler.JSON
 	if json.Unmarshal(data, &input) != nil {
 		return nil, errors.New("invalid native host metadata")
 	}
-	result := &HostMetadata{AgentVersion: version.AgentVersion, UUID: s.uuid(input.UUID), Hostname: "capture-host", HostTags: map[string][]string{"system": s.hostTags(input.HostTags["system"])}, Meta: map[string]json.RawMessage{"socket-hostname": json.RawMessage(`"capture-host"`), "hostname": json.RawMessage(`"capture-host"`)}}
+	result := &HostMetadata{AgentVersion: input.AgentVersion, UUID: s.uuid(input.UUID), Hostname: "capture-host", HostTags: map[string][]string{"system": s.hostTags(input.HostTags["system"])}, Meta: map[string]json.RawMessage{"socket-hostname": json.RawMessage(`"capture-host"`), "hostname": json.RawMessage(`"capture-host"`)}}
+	if !agentVersionPattern.MatchString(result.AgentVersion) {
+		result.AgentVersion = ""
+	}
 	if slices.Contains([]string{"darwin", "windows", "win32"}, input.OS) {
 		result.OS = input.OS
 	}
@@ -424,11 +412,33 @@ func (s *Sanitizer) HostMetadata(native marshaler.JSONMarshaler) (marshaler.JSON
 						if str, ok := v.(string); ok && safeVersion(str) != "" {
 							values[key] = str
 						}
+					case "model_name":
+						if str, ok := v.(string); ok && section == "cpu" {
+							if appleCPUModelPattern.MatchString(strings.ReplaceAll(str, " ", "_")) {
+								values[key] = str
+							} else {
+								values[key] = s.token("cpu_model", str)
+							}
+						}
+					case "vendor_id":
+						if str, ok := v.(string); ok && section == "cpu" {
+							if slices.Contains([]string{"Apple", "ARM", "GenuineIntel", "AuthenticAMD", "Intel", "AMD"}, str) {
+								values[key] = str
+							} else {
+								values[key] = s.token("cpu_vendor", str)
+							}
+						}
+					case "model", "stepping":
+						if str, ok := v.(string); ok && section == "cpu" {
+							values[key] = safeVersion(str)
+						}
 					case "family":
 						if section == "platform" {
 							if str, ok := v.(string); ok && safeOSFamily(str) != "" {
 								values[key] = str
 							}
+						} else if str, ok := v.(string); ok && section == "cpu" {
+							values[key] = safeVersion(str)
 						}
 					}
 				}
@@ -494,10 +504,28 @@ func (s *Sanitizer) Process(in *model.CollectorProc) *model.CollectorProc {
 	return out
 }
 
-// Connections retains TCP evidence while dropping DNS, HTTP, database,
-// container, cloud, route and unknown auxiliary metadata.
-func (s *Sanitizer) Connections(in *model.CollectorConnections) *model.CollectorConnections {
-	out := &model.CollectorConnections{HostName: "capture-host", NetworkId: s.token("network", in.NetworkId), GroupId: in.GroupId, GroupSize: in.GroupSize}
+// Connections retains TCP counters and pseudonymous endpoint DNS associations.
+// It drops DNS query statistics, HTTP, database, container, cloud, route and
+// unknown auxiliary metadata. Invalid or oversized DNS evidence returns nil,
+// causing capture validation to fail before any partial item is persisted.
+func (s *Sanitizer) Connections(in *model.CollectorConnections) (out *model.CollectorConnections) {
+	defer func() {
+		if recover() != nil {
+			out = nil
+		}
+	}()
+	out = &model.CollectorConnections{HostName: "capture-host", NetworkId: s.token("network", in.NetworkId), GroupId: in.GroupId, GroupSize: in.GroupSize}
+	if config := in.AgentConfiguration; config != nil {
+		// These finite feature flags select backend storage and routing. Preserve
+		// an absent configuration separately from present, disabled features:
+		// the backend treats absence as a legacy Agent with NPM enabled.
+		out.AgentConfiguration = &model.AgentConfiguration{
+			NpmEnabled: config.NpmEnabled, UsmEnabled: config.UsmEnabled,
+			DsmEnabled: config.DsmEnabled, CcmEnabled: config.CcmEnabled,
+			CsmEnabled: config.CsmEnabled, EudmEnabled: config.EudmEnabled,
+			DiscoveryServiceMapEnabled: config.DiscoveryServiceMapEnabled,
+		}
+	}
 	addr := func(v *model.Addr) *model.Addr {
 		if v == nil {
 			return nil
@@ -509,6 +537,88 @@ func (s *Sanitizer) Connections(in *model.CollectorConnections) *model.Collector
 			continue
 		}
 		out.Connections = append(out.Connections, &model.Connection{Pid: s.pid(c.Pid), Laddr: addr(c.Laddr), Raddr: addr(c.Raddr), Family: c.Family, Type: c.Type, Direction: c.Direction, LastBytesSent: c.LastBytesSent, LastBytesReceived: c.LastBytesReceived, LastPacketsSent: c.LastPacketsSent, LastPacketsReceived: c.LastPacketsReceived, LastRetransmits: c.LastRetransmits, Rtt: c.Rtt, RttVar: c.RttVar, IntraHost: c.IntraHost, LastTcpEstablished: c.LastTcpEstablished, LastTcpClosed: c.LastTcpClosed, TcpFailuresByErrCode: maps.Clone(c.TcpFailuresByErrCode), SystemProbeConn: c.SystemProbeConn})
+	}
+	if len(in.EncodedDNS) == 0 && len(in.EncodedDnsLookups) == 0 {
+		return out
+	}
+	if len(in.EncodedDNS) == 0 && len(in.EncodedDomainDatabase) == 0 {
+		return nil
+	}
+	if len(in.EncodedDNS) == 0 && telemetry.ValidateConnectionDNSV2(in.EncodedDomainDatabase, in.EncodedDnsLookups) != nil {
+		return nil
+	}
+	dnsSource := *in
+	if len(dnsSource.EncodedDNS) == 0 {
+		dnsSource.EncodedDNS = nil
+	}
+	// Only decode addresses present in this chunk. The byte budget on raw groups
+	// does not bound expansion of compact DNS tables into pseudonymous names, so
+	// also bound addresses and associations before allocating their copies.
+	const maxDNSItems = 65536
+	seenIPs := make(map[string]bool)
+	domainIndices := make(map[string]int32)
+	var domains []string
+	lookups := make(map[string]*model.DNSDatabaseEntry)
+	associations := 0
+	for _, connection := range in.Connections {
+		if connection == nil {
+			continue
+		}
+		for _, endpoint := range []*model.Addr{connection.Laddr, connection.Raddr} {
+			if endpoint == nil || endpoint.Ip == "" || seenIPs[endpoint.Ip] {
+				continue
+			}
+			if len(seenIPs) == maxDNSItems {
+				return nil
+			}
+			seenIPs[endpoint.Ip] = true
+			entry := &model.DNSDatabaseEntry{}
+			invalid := false
+			err := dnsSource.IterateDNS(endpoint, func(_, total int, name string) bool {
+				if name == "" || total > maxDNSItems || associations == maxDNSItems {
+					invalid = true
+					return false
+				}
+				associations++
+				name = strings.TrimSuffix(strings.ToLower(name), ".")
+				if name == "" {
+					invalid = true
+					return false
+				}
+				domain := s.token("domain", name) + ".invalid"
+				index, exists := domainIndices[domain]
+				if !exists {
+					index = int32(len(domains))
+					domainIndices[domain] = index
+					domains = append(domains, domain)
+				}
+				entry.NameOffsets = append(entry.NameOffsets, index)
+				return true
+			})
+			if err != nil || invalid {
+				return nil
+			}
+			if len(entry.NameOffsets) != 0 {
+				address := s.ip(endpoint.Ip)
+				if existing := lookups[address]; existing != nil {
+					existing.NameOffsets = append(existing.NameOffsets, entry.NameOffsets...)
+				} else {
+					lookups[address] = entry
+				}
+			}
+		}
+	}
+	if len(domains) != 0 {
+		encoder := model.NewV2DNSEncoder()
+		encoded, offsets, err := encoder.EncodeDomainDatabase(domains)
+		if err != nil {
+			return nil
+		}
+		out.EncodedDomainDatabase = encoded
+		out.EncodedDnsLookups, err = encoder.EncodeMapped(lookups, offsets)
+		if err != nil {
+			return nil
+		}
 	}
 	return out
 }

@@ -10,6 +10,7 @@ package hostimpl
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -18,6 +19,11 @@ import (
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
+	captureCollectedAt time.Time
+	captureCadence     time.Duration
+	// nativeGohai keeps the original semantic fields for an owned capture
+	// projection; it is never marshaled into the production or capture envelope.
+	nativeGohai *gohai.Payload
 	utils.CommonPayload
 	utils.Payload
 
@@ -45,11 +51,13 @@ func (h *host) getPayload(ctx context.Context) *Payload {
 	}
 
 	if h.config.GetBool("enable_gohai") {
-		gohaiPayload, err := gohai.GetPayloadAsString(h.hostname, h.config.GetBool("metadata_ip_resolution_from_hostname"), env.IsContainerized(), h.config.GetString("kubernetes_kubelet_host"))
+		native := gohai.GetPayload(h.hostname, h.config.GetBool("metadata_ip_resolution_from_hostname"), env.IsContainerized(), h.config.GetString("kubernetes_kubelet_host"))
+		gohaiPayload, err := json.Marshal(native.Gohai)
 		if err != nil {
 			h.log.Errorf("Could not serialize gohai payload: %s", err)
 		} else {
-			p.GohaiPayload = gohaiPayload
+			p.GohaiPayload = string(gohaiPayload)
+			p.nativeGohai = native
 		}
 	}
 	return p

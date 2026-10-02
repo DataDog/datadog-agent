@@ -15,9 +15,11 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -28,6 +30,8 @@ func Module() fxutil.Module {
 }
 
 type apiServer struct {
+	captureManager    *telemetrycapture.Manager
+	collector         collector.Component
 	cfg               config.Component
 	ipc               ipc.Component
 	cmdAddr           net.Addr
@@ -41,6 +45,8 @@ type apiServer struct {
 
 type dependencies struct {
 	fx.In
+	CaptureManager *telemetrycapture.Manager `optional:"true"`
+	Collector      collector.Component       `optional:"true"`
 
 	Lc                fx.Lifecycle
 	IPC               ipc.Component
@@ -55,6 +61,8 @@ var _ api.Component = (*apiServer)(nil)
 func newAPIServer(deps dependencies) api.Component {
 
 	server := apiServer{
+		captureManager:    deps.CaptureManager,
+		collector:         deps.Collector,
 		ipc:               deps.IPC,
 		cfg:               deps.Cfg,
 		telemetry:         deps.Telemetry,

@@ -1,4 +1,4 @@
-# EUDM simulator: native capture, portable replay, and staging acceptance
+# EUDM simulator: live Agent capture, portable replay, and staging acceptance
 
 `eudm-simulator` is a feature-branch command built from the Agent repository. It
 is not included in production packages or installers. Capture runs on a real
@@ -17,89 +17,169 @@ and a local delivery report. Each run uses one
 baseline bundle for every cohort, with scenario overlays applied to its copies.
 All cohorts must match the baseline's Windows or macOS platform.
 
-Both required staging proofs below remain **NOT RUN — DEFERRED**. Local replay
-and scenario implementation proceeded with the operator's explicit approval to
-defer these external proofs. They remain acceptance requirements. Unit tests,
-recording transports, synthetic fixtures, and successful local validation do
-not establish either backend relationship. No staging telemetry has been sent
-during this implementation session.
+The schema-3 macOS replay was verified on 2026-10-01: both simulated devices
+appeared in Fleet and EUDM, and EUDM showed healthy status, metrics, and simulated
+processes. Full host-enrichment acceptance remains **INCOMPLETE — LEGACY HOST
+ENRICHMENT**: EUDM still showed blank OS/hardware fields and `noagent`, while
+Fleet showed the correct Agent version. See the [live verification record](#inventory-discovery-fix-2026-10-01).
+The earlier schema-2 run omitted the separate Agent inventory payload required
+for discovery. Current schema 4 retains those inventories and adds schedules and
+coverage for every running supported metric check family, including battery.
+macOS also captures connections when Process Agent advertises them. Reinstall the updated producers and
+recapture; an older bundle cannot supply the missing evidence.
+The Windows VPN proof remains
+**NOT RUN — DEFERRED**. Unit tests, recording transports, synthetic fixtures,
+and successful delivery do not establish either backend relationship.
 
 ## Build and capture separately
 
-Set up the repository [development tools](../../setup/required.md) first. Windows builds require the Agent Windows build environment described in the [platform setup guide](../../setup/manual.md); a plain PowerShell shell with Go installed is not an established build environment. The simulator build excludes embedded Python by default. Build for the target platform, then run capture on the real device whose telemetry you need, not inside WSL or a Linux container. Native Windows build and capture still need to be verified on this branch.
+Set up the repository [development tools](../../setup/required.md) and the target
+[platform build environment](../../setup/manual.md). Live capture needs installed
+Agents containing this feature branch's capture hooks. Building only the simulator
+does not add them to a released Agent.
 
-Build on each capture device using the same feature-branch Agent revision:
+On a macOS capture device with an existing standard Agent installation at
+`/opt/datadog-agent`, run from the feature-branch checkout as your normal user:
+
+```sh
+dda inv eudm-simulator.install
+```
+
+This host-only task builds the simulator, core Agent, and Process Agent with Bazel
+and stamps their full source revision. It stages and signs the binaries, checks
+them against the installed embedded runtime, then requests `sudo` to replace the
+two producer binaries and restart `com.datadoghq.agent`. Core starts its Process
+Agent child. The task preserves configuration, authentication artifacts, Python
+libraries, system-probe, and other installed binaries. It then waits up to two
+minutes for authenticated capture APIs from the new builds and all required
+macOS streams, including Agent and host inventories. Missing streams or startup failures produce an error; setup does
+not change collection settings to resolve them. The modified binaries remain
+installed. No Docker or main-branch package release is involved.
+
+Use `dda inv eudm-simulator.install --prepare-only` to build and check runtime
+compatibility without requesting administrator access or changing services.
+`--race` enables the race detector in the three binaries. The task reads checkout
+revision metadata without invoking Git; for an exported source tree, supply its
+actual revision with `--commit=<40-character-commit>`. The stamp identifies the
+source revision, not whether the working tree has uncommitted edits.
+
+The simulator is written to `bin/eudm-simulator/eudm-simulator`. On a replay-only
+host, or when compatible services are already installed, build just the simulator:
 
 ```sh
 dda inv eudm-simulator.build
 ```
 
-The binary is `bin/eudm-simulator/eudm-simulator` on macOS and
-`bin/eudm-simulator/eudm-simulator.exe` on Windows. The build stamps the Agent
-commit into the binary. A capture from another commit is rejected even if its
-schema still matches. Linux is not a capture platform or a simulated device
-platform; portable replay on Linux also requires a successful common build.
+The Windows binary is `bin/eudm-simulator/eudm-simulator.exe`. The installation task
+currently supports macOS only. Windows setup and live verification are deferred;
+Windows direct connection capture also needs compatible core Agent, Process Agent,
+and system-probe services with the normal network driver.
 
-Use a healthy device with the actual applications, hardware, and wireless
-interfaces needed for the intended scenario. A bundle represents that device's
-profile. To cover different hardware or previously absent application/process
-evidence, make another capture. The validator rejects overlays for metrics,
-processes, software entries, or connection selectors absent from the bundle.
+Capture and replay binaries must have the same exact stamped commit, recorded as
+`capture_tool.commit`. Producing Agents may use different commits, but must
+support capture protocol 1 and advertise metric check schedules. Installation and its restart happen before the
+observation window; capture itself never starts, restarts, or replaces services.
 
-Windows connection capture requires a matching running system-probe with network
-collection enabled and `network_config.direct_send: false`. The simulator uses
-the default system-probe address; its isolated configuration does not load the
-operator's live Agent configuration. macOS capture has no connection stream.
+Use a healthy device with the applications, hardware, and wireless interfaces
+needed for the scenario. The installed services must already produce the required
+metrics, legacy host metadata, Agent and host inventories, process collections,
+and complete software snapshots. For EUDM replay, the captured Agent inventory
+must report `infrastructure_mode: end_user_device`; capture does not change that
+setting or infer it from a host tag.
+Windows additionally requires two nonempty connection cycles. The command waits
+for advertised readiness from running producers; constructing a component is
+not readiness. macOS includes the Process Agent connection stream when advertised
+and requires two nonempty cycles from that selected producer; without a running
+connection producer, macOS capture cannot provide the Network Traffic panel. Windows platform
+verification is currently deferred by the operator.
 
 On macOS, for example:
 
 ```sh
 ./bin/eudm-simulator/eudm-simulator capture \
+  --cfgpath /opt/datadog-agent/etc/datadog.yaml \
+  --timeout 70m \
   --output /private/tmp/eudm-macos-baseline
 ```
 
 On Windows, from PowerShell:
 
 ```powershell
-.\bin\eudm-simulator\eudm-simulator.exe capture --output C:\Temp\eudm-windows-baseline
+.\bin\eudm-simulator\eudm-simulator.exe capture --cfgpath C:\ProgramData\Datadog\datadog.yaml --output C:\Temp\eudm-windows-baseline
 ```
 
-The parent directory must exist and the output directory must be new. Allow the
-35-minute internal timeout for this one-time operation, including the roughly
-30-minute long-term host-metadata cadence. Capture can finish earlier when host metadata
-and a complete software snapshot are present and multiple distinct collection
-cycles of metrics, processes, and, on Windows, connections are recorded. A
-deadline failure names the missing streams. An interrupted or failed directory
-without a valid completion marker cannot be replayed; start a new capture in a
-new directory.
+`--cfgpath` is capture-only and accepts an installed configuration file or its
+directory. If omitted, the normal platform configuration location is used. Only
+local API addresses and authentication artifact paths are read. Existing IPC
+tokens and certificates are loaded read-only; run with permission to read them.
+The command creates no credentials, listeners, collectors, services, or intake
+destinations. Replay does not read installed configuration.
 
-Initial metadata can be available immediately with a shorter next collection
-interval. The manifest records the provider's returned schedule for singleton
-streams and observed spacing for repeated streams. Capture completion checks
-required stream coverage; scenario validation additionally checks the particular
-metric, process, software, and connection evidence each overlay needs.
+Normal backend delivery continues throughout capture. The command does not
+change checks, schedules, forwarding, retries, `infrastructure_mode`, or
+`network_config.direct_send`. On Windows, it selects system-probe when direct
+sending is active; otherwise it uses the Process Agent connection owner only
+when that producer advertises readiness. The Windows live acceptance gate must
+exercise direct sending. Do not disable it to make capture work.
 
-Capture runs in `infrastructure_mode: end_user_device`. CPU, memory, and supported
-WLAN core checks feed the metric boundary; native process collection and Windows
-connections feed the process submission boundary. Sanitizers transform copies
-before serialization. An in-memory recording transport replaces intake
-networking, so this command does not need a staging API key or contact staging
-during capture.
+The output parent must exist and the output directory must be new. Capture has
+a 35-minute timeout and stops after two nonempty observations of each advertised
+metric check family, two process cycles, two cycles from any selected connection
+producer, one legacy host-metadata sample, one Agent inventory, one host inventory,
+and one complete software snapshot. A battery check running every five minutes
+must be observed twice; two fast serializer flushes do not satisfy that coverage.
+All metric flushes during capture are retained. Replay gives each family its own
+timeline using the observed gaps and advertised check interval. Other repeated
+streams use distinct observed cycles; singleton streams retain their actual
+producer schedule. Covered non-metric streams retain only their minimum cycles
+while later records continue through validation and acknowledgement.
 
-Only sanitized typed samples and their Agent-serialized wire references are
-persisted. `manifest.json` records the captured profile, stream inventory,
-relative offsets, cadences, duration, Agent version/commit, schema/sanitizer
-versions, and file digests. Metric envelopes retain Agent origin information and
-fractional relative timestamps. `COMPLETE` contains the manifest digest. Copy the whole
-directory to the replay host without modifying it. Keep real captures as
-operator-managed evaluation artifacts; repository fixtures should remain small
-and fully sanitized.
+A running `host_system_info` provider adds the manufacturer, model, device type,
+and pseudonymous serial-number payload. It normally runs hourly, so use
+`--timeout 70m` to cover that wait. The default remains 35 minutes; an override
+must be positive and at most two hours. Capture never forces hardware collection.
+Replay must last beyond the first captured hardware offset; a short scenario
+that cannot reach it fails validation. The macOS host-enrichment probe now runs
+70 minutes to cover this hourly stream; the historical 35-minute runs below
+used the earlier probe.
+
+Metadata, inventory, or software schedules can exceed the timeout. In that case,
+the command reports missing coverage and effective cadences. It does not force collection,
+seed from cached endpoints, or change configuration. A profile describes observed
+evidence; overlays cannot introduce absent metrics, processes, software, or
+connections. Capture another suitable device to expand the available profile.
+
+Each selected producer acknowledges preparation and activation. Activation spread
+must be at most five seconds. Producers use bounded queues and a 30-second lease,
+renewed every five seconds. Capture overflow, coordinator loss, or sanitization
+failure leaves normal submission running. On completion or failure, the command
+attempts stop and drain using an independent bounded cleanup context. Success
+requires every final sequence to be consumed and every stopped acknowledgement
+to arrive without failures or drops. An interrupted or failed directory without
+a valid `COMPLETE` cannot be replayed; retry into a new directory.
+
+Only sanitized typed samples and regenerated Agent wire references are persisted.
+Schema-3 `manifest.json` records `capture_tool`, session and producer identities,
+producer versions/commits and protocol, acknowledged boundaries, final sequences,
+explicit cycles and chunk order, sanitized routing labels, profile, cadences,
+and file digests. Host metadata and Agent inventory retain the producing Agent
+version. Inventory copies use fixed allowlists and contain no Agent configuration
+or credentials. Inventory collection and Agent startup timestamps are stored
+relative to capture start, then rebased to the replay clock. Metrics
+retain source enums and fractional relative timestamps in typed samples even
+when their observed wire format cannot represent them. The original request
+bodies, endpoint authorities, credentials, and raw headers are never persisted.
+
+`COMPLETE` contains the manifest digest. Copy the whole directory unchanged to
+the replay host. Schema-1 and schema-2 captures must be recaptured; editing a
+manifest cannot supply missing producer acknowledgements or observed inventories.
+Keep real bundles outside the repository; checked-in fixtures remain synthetic.
 
 ## Windows walkthrough
 
-Run these PowerShell commands from the repository root after preparing the Windows build environment. They use the two-device host-enrichment probe first, so application-specific overlays do not obscure missing baseline evidence. Capture is offline; the `run` step validates its inputs and sends staging telemetry.
+Run these PowerShell commands from the repository root after preparing the Windows build environment. They use the two-device host-enrichment probe first, so application-specific overlays do not obscure missing baseline evidence. Capture observes running services while their normal delivery continues; `run` sends additional staging replay telemetry.
 
-Windows capture requires a separately running, matching system-probe with network collection and its required Windows driver available. In that service's configuration, enable `network_config.enabled: true` and set `network_config.direct_send: false`. The simulator reads connections from the default system-probe endpoint; it does not install/start that service or load a custom endpoint from the operator's `datadog.yaml`. A healthy Windows capture still requires two nonempty connection cycles, so generate ordinary healthy TCP traffic during collection. Use the existing Agent/system-probe setup procedures for that device.
+Windows live verification is deferred. For a later run, prepare compatible core Agent, Process Agent, and system-probe services through the existing installation procedure. Their normal configuration must already enable required streams and direct connection sending. The command reads configured API locations and authenticates with existing IPC artifacts. Keep ordinary healthy TCP traffic present so two nonempty connection cycles can be observed; record backend delivery and service identities across the session.
 
 ```powershell
 git fetch origin
@@ -119,7 +199,7 @@ $env:DD_SITE = 'datad0g.com'
 if ($LASTEXITCODE -ne 0) { throw 'Capture failed; inspect missing-stream error' }
 ```
 
-If the local branch does not exist, use `git switch --track origin/focus/create-eudm-simulator` on the first checkout. Use a new bundle directory for a new capture. To reuse an existing compatible bundle, skip the `capture` command; never overwrite an earlier capture. Build every participating capture/replay binary at the same commit. Use separate runs and matching baselines for Windows and macOS scenarios.
+If the local branch does not exist, use `git switch --track origin/focus/create-eudm-simulator` on the first checkout. Use a new bundle directory for a new capture. To reuse an existing compatible bundle, skip the `capture` command; never overwrite an earlier capture. Build capture/replay binaries at the same commit; installed producers must support protocol 1 and record their own build identities. Use separate runs and matching baselines for Windows and macOS scenarios.
 
 Before the next block, obtain the intended staging organization's API key through your credential workflow and expose it as `DD_API_KEY` in this process. To check the scenario without sending telemetry, optionally run `& $eudm validate --scenario $scenario --bundle $bundle`; this needs no API key.
 
@@ -134,7 +214,7 @@ After validation and setup, the probe runs for 35 minutes, with up to five furth
 ## Configure the environment and optionally validate
 
 The simulator reads its site from `DD_SITE` and its replay credentials from
-`DD_API_KEY`. It does not read a configuration file. Set the site before
+`DD_API_KEY`. Replay does not read installed Agent configuration. Set the site before
 validation or replay:
 
 ```sh
@@ -211,6 +291,11 @@ replay directly:
 `--seed` controls deterministic variation and defaults to `1`. The report
 defaults to `eudm-run-<run_id>.json` in the current directory; the command prints
 the path. Use `--report /path/to/new-report.json` to choose another location.
+At startup and every 30 seconds, it prints elapsed/planned time, the current
+phase, confirmed delivery cycles by stream, and failed-cycle counts. After the
+scenario duration, it shows `waiting for delivery/retries` while outstanding
+delivery finishes. It prints final counts, success/failure, and the report path
+before exiting.
 Each invocation creates a fresh run ID even when the scenario, bundle, and seed
 are unchanged. Its phase clock starts after validation and setup.
 
@@ -225,10 +310,13 @@ Agent retry behavior continues until that deadline; permanent failures cancel th
 Staging runs use wall-clock time; no accelerated-time flag is provided.
 
 The command reserves the report path before starting forwarders and refuses to
-overwrite an existing report. It writes an initial `running` report and a final
-report on termination; it does not continuously persist progress. A hard kill
-can leave `running` behind, while graceful interruption attempts final failure
-accounting. Its version-2 final report contains the scenario digest, one
+overwrite an existing report. It updates the `running` report every 30 seconds
+and writes a final report on termination. Each update atomically replaces the
+previous snapshot. The optional `progress` object records its observation time,
+elapsed/planned durations, phase, and activity; delivery counts remain in the
+ledger. These are monitoring snapshots, not resumable checkpoints. A hard kill
+can leave `running` behind with the last snapshot, while graceful interruption
+attempts final failure accounting. Its version-2 final report contains the scenario digest, one
 `bundle_digest`, seed, Agent commit, replay OS, run-relative phase timings, the
 complete device/stream ledger, AP/NDM accounting, and errors. Ledger counts represent
 scheduled collection cycles; a cycle is delivered only after all of its chunks
@@ -281,12 +369,14 @@ acceptance work.
 
 ## Required proof 1: normal EUDM host enrichment
 
-Status: **NOT RUN — DEFERRED**.
+Status: **INCOMPLETE — LEGACY HOST ENRICHMENT**. Schema-3 macOS device visibility
+is verified in Fleet and EUDM; OS/hardware enrichment remains incomplete. See
+the recorded macOS attempts below. Windows remains deferred.
 
 Prerequisites are a completed real-device bundle from the command's exact Agent
 commit; an identified staging organization
 and API key; and access to that organization's EUDM device, process, software,
-metric, and host metadata views. A recording fixture cannot substitute for the
+metric, Agent inventory, host inventory, and host metadata views. A recording fixture cannot substitute for the
 real-device capture.
 
 1. Select the matching two-device host-enrichment probe. Adjust its
@@ -296,11 +386,19 @@ real-device capture.
    distinct cloned identities. Save the complete delivery report and the opaque
    run selector.
 3. Confirm that normal host enrichment creates **two complete EUDM devices**.
-   Record each product identifier and verify that its metric, host metadata,
-   process, and software evidence belongs to the same cloned identity. Include
+   Record each product identifier and verify that its metric, legacy host metadata,
+   Agent inventory, host inventory, process, and software evidence belongs to the same cloned identity. Include
    Windows connection evidence when using the Windows probe.
 4. Check that the original capture device and earlier or concurrent run
    identities were not selected by the queries.
+
+Use a complete hostname when searching for one device. Fleet prefix searches
+need a trailing `*`, for example `eudm-<run_id>*`. Intake acceptance and Fleet
+registration can precede the EUDM Devices list: the backend source's discovery
+worker runs every 30 minutes, and the Devices API serves its stored list when
+that list is populated. Allow for discovery and queue processing after the first
+inventory submissions; record actual visibility times rather than treating
+successful HTTP delivery as proof that discovery has completed.
 
 If the two identities do not become complete devices, record the missing backend
 relationship as an acceptance blocker. Do not add REDAPL registration or a direct
@@ -344,23 +442,44 @@ backend cannot produce that path, record the dependency as an acceptance blocker
 ## Proof record and later acceptance
 
 Record real results here or in an operator-managed artifact linked from here.
-The following record is deliberately unpopulated:
+The historical schema-2 macOS attempt below established delivery, but not device visibility. The schema-3 follow-up is recorded under [Inventory discovery fix](#inventory-discovery-fix-2026-10-01):
 
 | Evidence | Host enrichment | Windows VPN monitor |
 | --- | --- | --- |
-| Status | NOT RUN — DEFERRED | NOT RUN — DEFERRED |
-| Agent commit | Not recorded | Not recorded |
-| Bundle digest | Not recorded | Not recorded |
-| Scenario digest and run ID | Not recorded | Not recorded |
-| Replay host OS/architecture | Not recorded | Not recorded |
-| Staging organization | Not established | Not established |
+| Status | INCOMPLETE — MISSING AGENT INVENTORY (macOS) | NOT RUN — DEFERRED |
+| Agent commit | `57fd27a769f691651f743cebfdf6fba0f30a4d6b` | Not recorded |
+| Bundle digest | `386e4879dd98cb3a784c6dd6f7e1b5d9640f93a8c1cc63ce390b49c936bef731` | Not recorded |
+| Scenario digest and run ID | `6938b0e6f51caaf6985c1c53d89c45fa3f9e388a27cdf332c49a6535be1d46f1`; `b764f461e6884369df6d9337e6154978` | Not recorded |
+| Replay host OS/architecture | darwin; architecture not recorded in report | Not recorded |
+| Staging organization | Operator checked `ddeudm.datad0g.com`; numeric organization ID not verified | Not established |
 | Monitor ID, exact query, evaluation window | Not applicable | Not established |
-| Start/end and observed visibility delay | Not recorded | Not recorded |
-| Opaque product selectors | Not recorded | Not recorded |
-| Observed device/product identifiers | Not recorded | Not recorded |
+| Start/end and observed visibility delay | 2026-10-01 14:38:48.555676–15:13:49.300870 UTC; device visibility not established | Not recorded |
+| Opaque product selectors | `eudm_run_id:b764f461e6884369df6d9337e6154978` | Not recorded |
+| Observed device/product identifiers | Operator saw metrics, but no Fleet or EUDM device entries | Not recorded |
 | Command Center issue and Bits result | Not applicable | Not recorded |
-| Final delivery report | Not produced | Not produced |
-| External dependency or permission blocker | Pending prerequisites | Pending prerequisites |
+| Final delivery report | Operator-local `eudm-run-b764f461e6884369df6d9337e6154978.json`, status `succeeded` | Not produced |
+| Implementation gap or external blocker | Schema-2 replay omitted Agent inventory; staging inventory rows not directly inspected | Pending prerequisites |
+
+The 35-minute macOS probe delivered all expected cycles for each of its two
+devices: 2 host metadata, 140 metrics, 210 process, and 4 software cycles, with
+zero delivery failures. These counts mean HTTP acceptance, not device discovery.
+The operator checked `/fleet` and `/end-user-devices/devices` in the staging
+organization above. The investigation browser redirected to login, so the actual
+inventory rows and deployed backend feature flags were not independently queried.
+
+Source inspection found a concrete omission: that replay called `SendHostMetadata`
+for the legacy `/intake/` payload, but never sent the separate `agent_metadata`
+inventory envelope via `SendMetadata` to `/api/v1/metadata`. Normal Agent
+`inventoryagent` populates the `datadog_agent` inventory, including
+`infrastructure_mode`. Both EUDM identity queries in the local backend source
+(`domains/eudm/shared/libs/go/device_querier/ddsql_list_identities.go`) require
+an Agent inventory row with `infrastructure_mode = 'end_user_device'`.
+Fleet also starts from Agent inventory identities. The existing
+`infra_mode:end_user_device` host tag cannot substitute for that inventory field.
+The schema-3 implementation addresses this omission through normal Agent and host
+inventory delivery. This historical schema-2 result is unchanged: it establishes
+delivery but fails product visibility. Repeat live capture and the product proof
+with the new inventory streams before marking host enrichment accepted.
 
 Local implementation and automated checks may continue while these external
 proofs are deferred. Native Windows capture, replay on another host OS, and each
@@ -383,9 +502,14 @@ on both capture devices, and recapture the baselines before the next runs.
 | Symptom | Meaning and next step |
 | --- | --- |
 | Build dependencies or Windows native libraries missing | Use the repository's configured platform build environment. Native Windows build is an outstanding acceptance step; record the exact build failure rather than claiming the macOS result covers it. |
-| Capture deadline reports missing connections | Verify the matching Windows system-probe, driver/network collection, default endpoint, and active TCP traffic. Configure system-probe itself; the simulator does not read a configuration file. |
+| Capture deadline reports missing connections | Verify the advertised connection owner, driver/network collection, configured local API address, and active TCP traffic. Use capture `--cfgpath` for API/authentication locations; direct-send configuration stays unchanged. |
 | Capture has no `COMPLETE` marker | It did not finish required coverage. Preserve its error for diagnosis and recapture into a new directory; do not manufacture a completion marker. |
-| Agent commit mismatch | Rebuild all participating binaries from one exact commit and recapture. A documentation-only commit also changes the stamped revision on the next build. |
+| Capture-tool commit mismatch | Rebuild capture and replay binaries from one exact commit and recapture. Producer commits may differ when protocol 1 is supported. |
+| Legacy schema-1 or schema-2 bundle | Reinstall compatible producers and recapture to observe Agent and host inventories; do not relabel an old manifest. |
+| Capture reports missing Agent/host inventory capability | Install the updated core Agent and verify normal inventory collection is enabled; neither cached inventory endpoints nor host tags substitute for an observed inventory. |
+| Capture API unavailable or incompatible | Install compatible producing builds before the session and verify enabled streams. Capture cannot add the APIs to an older running service. |
+| IPC authentication failure | Check read access to existing token/certificate artifacts and capture `--cfgpath`; the command will not create credentials. |
+| Capture timed out waiting for coverage | Inspect missing streams and effective cadences. Long configured intervals may exceed 35 minutes; do not force collection or substitute cache data. |
 | Digest/checksum mismatch or unsafe file layout | Copy the whole original bundle as regular files without modifying bytes. Do not edit JSON, normalize line endings, substitute symlinks, or recalculate checksums to hide corruption. |
 | Missing application/process/metric/selector, or absent from a later cycle | The bundle does not support the overlay. Keep the needed process/connection active while recapturing, or select another healthy device. Inventory presence in the manifest alone is not sufficient. |
 | Cohort OS does not match the baseline | Every cohort uses the same capture and must match its OS. Use separate Windows and macOS scenarios and runs. |
@@ -394,16 +518,580 @@ on both capture devices, and recapture the baselines before the next runs.
 | File already exists | Capture directories and reports are exclusive outputs. Choose a new name, or omit `--report` to use the new run ID's default filename. Compatible completed bundles can still be reused as input. |
 | Missing/production site or inherited endpoint rejected | Set `DD_SITE=datad0g.com` and remove any unsupported endpoint environment variable identified by the command. All routes and redirected destinations must remain staging. |
 | Missing key, permanent rejection, or retries exhausted | Check the staging organization/key and endpoint access. Preserve the failure report. Do not count partially delivered devices as success; start a new run after fixing the cause. |
-| Report is still `running` after process death | It is not a successful completion record. Reports are not live checkpoints and there is no resume command. Keep the artifact; another `run` invocation creates a new identity and report. |
+| Report is still `running` after process death | It is the last progress snapshot, not a successful completion record. Check `progress.updated_at`; there is no resume command. Keep the artifact; another `run` invocation creates a new identity and report. |
 | `expected` exceeds `delivered` but `failed` is small | Cancellation can leave cycles unsent. `failed` counts failed attempted cycles, not every missing cycle; compare all counts and final status. |
 | AP evidence stays degraded during recovery | Endpoint overlays reset to captured values, but omitted AP metrics carry forward. Explicitly restore AP values in the recovery phase. |
 | Delivery succeeded, but devices/issue/Bits result are missing | Follow the staging proof gates above and record the backend/monitor/permission dependency. HTTP acceptance is not product acceptance. |
+| Traffic table is populated, but network summary percentages are blank | The EUDM summary reads a closed 30-minute bucket with an additional 30-minute delay. A new replay may need up to an hour to enter that window; inspect the live traffic table separately. |
+| Battery/traffic appear before CPU, IP, or hardware fields | Replay preserves captured stream offsets. Legacy host metadata supplies CPU/IP enrichment; advertised hourly host-system-info supplies manufacturer/model/serial. Check each stream's delivered count and allow for downstream enrichment. |
 
 Use `capture --help`, `validate --help`, or `run --help` for the installed binary's flags. There is no resume, acceleration, standalone bundle-only validation, or automatic cleanup command. A retry is a new run with a new opaque identity. Select artifacts and product evidence by that identity so failed and concurrent runs do not contaminate the evaluation.
 
 ## Recorded local verification
 
-These dated results precede removal of per-cohort bundle assignments and the
+### Device-panel follow-up, 2026-10-01
+
+Schema 4 adds required two-cycle coverage for each advertised metric check family,
+including the five-minute battery check, and keeps each family's replay cadence
+independent. It includes ready macOS Process Agent connections, network byte and
+packet rate metrics, referenced DNS associations as `.invalid` pseudonyms, the
+legacy Gohai CPU model/vendor fields, and advertised hourly host-system-info
+inventory. Software sanitization preserves native finite types/statuses and
+uses stable opaque versions instead of erasing nonempty unsupported versions.
+Older bundles require recapture; their missing observations cannot be repaired.
+
+At approximately 19:43 UTC, the previous schema-3 run's EUDM detail response
+showed `7.85.0-localbuild`, macOS, kernel, CPU counts, and memory. A normal
+Infrastructure host-table query also contained those fields. Thus their earlier
+blank state was downstream delay, not evidence of failed legacy metadata delivery.
+CPU model/vendor remained absent, matching the capture projection omission.
+Manufacturer/model/type/serial use a separate `host_system_info` table, now
+included when its native provider advertises readiness.
+
+The previous run's software wire matched the Agent payload and worker schema,
+with 271 nonempty name/version entries. The Applications query returned
+zero matches even over the complete 18:36–19:12 UTC replay window; the same staging
+organization had software records for other devices. A later query covering
+18:36–20:45 UTC also returned zero. User-supplied staging logs show all four
+snapshots reached the worker and resolved both simulated hostnames, followed by
+`softinv-reducer` `PARSE_FAILURE` for both devices. That failure occurs while
+decoding the backend's structured event, before software-entry filtering; the
+reducer omits the underlying decoder exception from its error log. The exact
+encoding failure remains unresolved. HTTP 202, decoded Agent wire equivalence,
+and unit tests are insufficient to mark Applications verified. The available
+Datadog connector queried production worker logs, so its zero matches are not
+staging evidence; browser access to staging worker logs was denied by corporate
+SSO, and the user supplied the relevant evidence.
+
+Startup Performance uses a separate naturally emitted boot event. A running
+macOS Agent sends it only when a new boot is detected; this capture does not
+restart the device, invent a boot, or treat cached boot history as live evidence.
+
+The complete simulator and five affected producer suites passed with race
+detection (23 targets in total after correcting the engine fixture expectation
+for its five-second hardware offset). All 22 installer Python tests passed.
+Checked-in macOS and Windows schema-4 fixtures each contain 30 typed samples,
+including two slow battery observations and a hardware snapshot; their wire
+evidence and digests were regenerated and verified.
+
+`dda inv eudm-simulator.install --prepare-only` successfully built the core Agent,
+Process Agent, and simulator and passed their runtime checks. The rebuilt
+simulator advertises `capture --timeout`; the installer recommends `70m`.
+The user then ran `dda inv eudm-simulator.install` successfully, supplying the
+interactive administrator password required on this device.
+
+The fresh installed-Agent capture and staging verification are recorded below.
+Windows live verification remains deferred.
+
+After installation, the first schema-4 live attempt captured all seven metric
+families, including repeated battery samples, both macOS connection groups, and
+319 software entries with nonempty names and versions. While waiting for hourly
+hardware inventory, source-level verification found that connection sanitization
+dropped `AgentConfiguration`. The backend interprets an absent configuration as
+legacy NPM, routing traffic to its general network index; native macOS EUDM
+requires the retained `EudmEnabled=true`, `NpmEnabled=false` combination. The
+simulator now copies the seven finite boolean configuration fields. The native
+Agent inventory's `feature_networks_enabled=false` remains accurate and unchanged.
+
+That attempt was canceled at 20:35:07 UTC, after 876.442 seconds, to rebuild the
+simulator and recapture. Both producers acknowledged every accepted record and
+stopped with zero failures or drops. Agent process IDs, producer instances, and
+configuration digests were unchanged; normal forwarding increased by 124
+successes with no errors, drops, or retries. No `COMPLETE` was produced. Private
+evidence is `/private/tmp/eudm-panel-live-pb0zbpic/live-result.json`. The routing
+regression passed race-enabled capture, live-coordinator, identity, and full
+integration suites. Both platform fixtures retain routing flags through identity
+rewriting and actual Agent protobuf delivery.
+
+The corrected macOS capture completed at 21:15:09 UTC after 2183.274 seconds
+(36 minutes 23 seconds). Its 171 typed samples include 146 metric cycles with
+seven battery observations, two complete process and connection groups, software,
+Agent/host inventories, legacy metadata with a CPU model, and all six hardware
+fields. The producers activated 21 microseconds apart and stopped with all 158
+core and 289 Process Agent records acknowledged, with zero failures or drops.
+Service process IDs, producer instances, and configuration digests stayed
+unchanged. Normal forwarding recorded 318 additional successes and no errors,
+drops, or retries. The native-identity/credential audit and every decoded wire
+comparison passed. Evidence is under `/private/tmp/eudm-panel-live-nnbpkpza`;
+the complete bundle digest is
+`675ebfcb583f8b782738a53be9cf4f47e41397cd651632f3a13ff06840487834`.
+
+The 70-minute two-device staging probe started at 21:17:45 UTC with run ID
+`2354c8d9cc2c46cb224ccb753210eaef`. A one-device comparison started at 21:17:53 UTC
+with run ID `3e817f0b62ce08fb70d4910f62dcd0fd`, using the same complete bundle and
+duration. The comparison isolates whether multi-host software batching relates
+to the reducer failure; the worker supports arrays, so batching is not yet an
+established cause. A tool-daemon restart closed their inherited console pipes,
+and both exited with SIGPIPE before sending software or inventory. Their partial
+reports are retained and do not count as successful runs. Installed services and
+the completed capture were unaffected.
+
+Replacement runs started at 21:21:43 and 21:21:47 UTC, respectively, with IDs
+`9cf6909b21fbdcc18cacadf0b98599bc` and `f4d48356728b2d3b38ec76ac58773e85`.
+Their console output goes to private files so it survives tool-session loss.
+By 21:31 UTC, the two-device probe's rendered EUDM panel showed battery charge
+100%, 99 cycles, and 96% maximum capacity. Network Overview showed 100 connection
+rows with sanitized domains, sent/received volumes, and latency. Applications
+showed 296 entries with versions and native software types, as did the one-device
+comparison. All 319 captured entries have names and versions; the reducer keys
+software by name, publisher, product code, architecture, type, and user, excluding
+version. Those keys produce exactly 296 distinct identities, accounting for all
+23 duplicate entries without unexplained loss. By 21:41 UTC both main-probe
+devices appeared in the EUDM list, and the second device's panel showed the same
+application count, battery values, and populated network traffic. At 21:42 UTC
+Fleet listed both devices with Agent version `7.85.0-localbuild`. This demonstrates
+working downstream ingestion for the new snapshot, but does not establish the
+cause of the older run's reducer parse failures. At that checkpoint, CPU/hardware
+visibility and final replay completion were still pending.
+
+All three hardware snapshots were accepted at 21:58 UTC. When the backend's
+delayed network-summary window opened at 22:00 UTC, the detail API returned
+packet totals, retransmit percentages around 0.22%, and zero connection-establishment
+failures. The rendered panel displayed 0.2% and 0%, respectively. Host metadata
+had been accepted at 21:47 UTC; CPU/IP/OS and hardware fields remained pending
+backend enrichment at this checkpoint. By 22:05 UTC the main probe's first
+device exposed Agent version, macOS, Apple M4 Max CPU, pseudonymized IP, Apple
+manufacturer, laptop type, and pseudonymized model and serial fields in the
+detail API. Both main-probe devices had those fields by 22:10 UTC, and the
+rendered panel also showed CPU core counts and memory. The one-device comparison
+also exposed hardware fields while its legacy host enrichment was still pending.
+Backend caches refresh independently;
+simultaneous delivery does not imply simultaneous detail visibility.
+
+The capture and main replay commands were:
+
+```sh
+./bin/eudm-simulator/eudm-simulator capture \
+  --cfgpath /opt/datadog-agent/etc/datadog.yaml --timeout 70m \
+  --output /private/tmp/eudm-panel-live-nnbpkpza/bundle
+
+./bin/eudm-simulator/eudm-simulator run \
+  --scenario cmd/eudm-simulator/testdata/probes/host-enrichment-macos.yaml \
+  --bundle /private/tmp/eudm-panel-live-nnbpkpza/bundle \
+  --report /private/tmp/eudm-panel-live-nnbpkpza/replay-recovered-report.json
+```
+
+Replay received `DD_SITE=datad0g.com` and the authorized staging API key through
+its environment; the key was neither printed nor persisted. Those output paths
+are existing evidence: choose new output/report paths when repeating the commands.
+The comparison used a private copy of the same scenario with one device.
+
+Both replacement runs completed successfully at approximately 22:31:44 and
+22:31:48 UTC, after 4200.976 and 4200.904 seconds. The main run delivered all
+4556 expected cycles; the comparison delivered all 2278. Every stream's
+delivered count matched its expected count, both processes exited zero, and
+neither report contained an error or failed cycle. Completion evidence is
+`replay-completion-check.json` in the private evidence directory.
+
+The final 22:30 UTC detail check confirmed Agent version, OS, CPU, IP, hardware,
+battery, and network summary values on both main-probe devices. A fresh rendered
+panel check after the last software snapshot still showed 296 applications and
+100 connection rows. The comparison's applications, battery, hardware, and
+network data were also verified, but its legacy CPU/OS/IP fields still showed a
+stale `noagent` identity despite both metadata submissions being accepted.
+Source-level metadata caches and identity refresh intervals allow substantial
+delay; the precise live cause of that comparison's lag remains unverified.
+Do not confuse successful transport with complete product enrichment.
+
+The macOS battery, network, applications, and hardware gap fixes are therefore
+verified on the main two-device probe. The earlier run's reducer parse-failure
+cause remains unresolved; no backend fix or global staging-health claim follows
+from these successful new snapshots. Windows live verification remains deferred.
+
+- [Verified EUDM devices](https://ddeudm.datad0g.com/end-user-devices/devices?query=eudm-9cf6909b21fbdcc18cacadf0b98599bc)
+- [Verified Fleet entries](https://ddeudm.datad0g.com/fleet?query=eudm-9cf6909b21fbdcc18cacadf0b98599bc%2A)
+
+### Inventory discovery fix, 2026-10-01
+
+All 18 simulator test targets passed with the race detector after regeneration
+of the schema-3 macOS and Windows fixtures. Five focused producer targets also
+passed: telemetry capture, serializer, shared inventory provider, Agent inventory,
+and host inventory. The installer task's 17 Python tests passed.
+
+```sh
+bazel test //cmd/eudm-simulator/... --config=gorace --nostamp \
+  --workspace_status_command=/usr/bin/true --lockfile_mode=error \
+  --noverbose_failures --test_output=errors
+
+bazel test //pkg/telemetrycapture:telemetrycapture_test \
+  //pkg/serializer:serializer_test_zlib_zstd \
+  //comp/metadata/internal/util:util_test \
+  //comp/metadata/inventoryagent/impl:impl_test \
+  //comp/metadata/inventoryhost/impl:impl_test \
+  --config=gorace --nostamp --workspace_status_command=/usr/bin/true \
+  --lockfile_mode=error --noverbose_failures --test_output=errors
+
+dda inv invoke-unit-tests.run --tests=eudm_simulator --directory=tasks/unit_tests
+```
+
+Coverage includes unchanged production bodies with capture enabled, credentials
+and configuration excluded before IPC, inventory readiness and shutdown races,
+capture overflow isolation across separate processes, matching typed/wire
+inventory fields, native Windows OS descriptions, and four inventory cycles in
+a 35-minute simulated timeline with a stable Agent startup time. Schema-2 input
+is rejected with a recapture instruction. These automated proofs are separate
+from the live capture and staging observations below.
+
+`dda inv eudm-simulator.install --prepare-only` built all three stamped binaries,
+passed embedded-runtime compatibility checks, and updated the local simulator
+binary. Its help command ran successfully, and validation of the earlier real
+schema-2 macOS bundle returned the required recapture error. The operator then
+ran `dda inv eudm-simulator.install` successfully. The installed core Agent now
+advertises metrics, metadata, Agent inventory, host inventory, and software;
+Process Agent advertises processes. Both expose capture protocol 1.
+
+The fresh installed-Agent macOS capture ran from `2026-10-01T18:22:26Z` for
+808.460 seconds (13 minutes 28 seconds), using producer and capture-tool commit
+`57fd27a769f691651f743cebfdf6fba0f30a4d6b`, version `7.85.0-localbuild`.
+It completed with two metric cycles, two complete process groups (nine chunks
+each), and one sample each of host metadata, Agent inventory, host inventory,
+and software. The two activation acknowledgements were 12 microseconds apart.
+Both producers stopped and acknowledged their final sequences (core 57,
+Process Agent 81), with zero capture failures or drops. Service PIDs, process
+instance identities, installed configuration, and effective configuration
+digests stayed unchanged. Normal core forwarding recorded 116 additional
+successful transactions and zero errors, drops, or retries.
+
+The schema-3 bundle is outside the repository at
+`/private/tmp/eudm-inventory-live-czy_byfo/bundle`, with completion digest
+`954c0ae86789bfaacaebd4485fc0905ebd4b89bfe3a7894953702a886ff875f3`.
+`TestCaptureArtifactPrivacyAudit` passed on the source laptop, including every
+decoded wire body compared with its typed sample and in-memory scans for
+native identities and explicit installed configuration/token credentials.
+The two-device staging scenario validated successfully against this bundle.
+
+```sh
+./bin/eudm-simulator/eudm-simulator capture \
+  --cfgpath /opt/datadog-agent/etc/datadog.yaml \
+  --output /private/tmp/eudm-inventory-live-czy_byfo/bundle
+
+EUDM_CAPTURE_BUNDLE=/private/tmp/eudm-inventory-live-czy_byfo/bundle \
+EUDM_AUDIT_CONFIG_FILES='["/opt/datadog-agent/etc/datadog.yaml"]' \
+EUDM_AUDIT_TOKEN_FILES='["/opt/datadog-agent/etc/auth_token"]' \
+./bazel-bin/cmd/eudm-simulator/integration/integration_test_zlib_zstd_/integration_test_zlib_zstd \
+  -test.run='^TestCaptureArtifactPrivacyAudit$' -test.v
+
+DD_SITE=datad0g.com ./bin/eudm-simulator/eudm-simulator validate \
+  --scenario cmd/eudm-simulator/testdata/probes/host-enrichment-macos.yaml \
+  --bundle /private/tmp/eudm-inventory-live-czy_byfo/bundle
+```
+
+The staging replay started at `2026-10-01T18:36:56.824133Z`, run ID
+`70cfd07fb6505e6b71477534b7a3bd31`. The operator confirmed that the installed
+Agent credential belongs to the same staging organization. A local helper read
+it into the replay child's environment only; no credential was printed or
+written to evidence. Replay completed successfully at
+`2026-10-01T19:11:56.863690Z`, after 2100.085 seconds of command wall time.
+Each device delivered all expected cycles: 4 Agent inventories, 4 host
+inventories, 1 legacy host metadata, 140 metric, 210 process, and 4 software
+cycles. All 726 cycles across the two devices were accepted, with zero failed
+cycles and no report errors. The final report is
+`/private/tmp/eudm-inventory-live-czy_byfo/replay-report.json`; capture continuity,
+artifact audit, execution timing, and visibility evidence are beside it.
+
+Both devices appeared in Fleet by approximately `18:43Z`, with Agent version
+`7.85.0-localbuild`. At `19:04:34Z` (about 28 minutes into replay), EUDM listed
+both as healthy, with last-seen metric timestamps of `19:02:20Z`. Their product
+identifiers are `eudm-70cfd07fb6505e6b71477534b7a3bd31-0` and
+`eudm-70cfd07fb6505e6b71477534b7a3bd31-1`, with resource IDs `52776600800228`
+and `52776600800229`. The detail page showed CPU/memory usage and pseudonymized
+processes for the same identity. The earlier run still had no matching Fleet
+or EUDM entries. The scoped views contain only the two new simulated devices:
+
+- [Fleet](https://ddeudm.datad0g.com/fleet?query=eudm-70cfd07fb6505e6b71477534b7a3bd31%2A)
+- [EUDM Devices](https://ddeudm.datad0g.com/end-user-devices/devices?query=eudm-70cfd07fb6505e6b71477534b7a3bd31)
+
+This establishes device discovery, not complete host enrichment. EUDM's list
+and detail responses still reported `agent_version: noagent` and empty OS,
+kernel, and CPU-model fields after successful legacy metadata delivery at
+13 minutes 28 seconds. The captured legacy payload contains Agent version,
+OS, and kernel evidence; the separate host inventory also contains CPU model
+and memory. Backend source inspection found that the EUDM legacy identity query
+uses `host`, while inventory ingestion produces a distinct `host_agent` record.
+Host enrichment deduplicates work for roughly 15 minutes and caches nonempty
+legacy metadata responses for about an hour, both with jitter. These are
+possible delays, not a verified diagnosis of deployed state. Separately, the
+legacy capture projection omits Gohai CPU `model_name`, so CPU-model enrichment
+through that path needs follow-up even after caches refresh. A direct read-only browser
+DDSQL request returned HTTP 403, so the underlying host/Agent table join was
+not directly inspected. No backend configuration, registration bypass, or
+credential-bearing payload modification was performed. Software product-view
+enrichment and complete host enrichment remain unverified.
+
+```sh
+# DD_API_KEY is supplied through the environment, never a command argument.
+DD_SITE=datad0g.com ./bin/eudm-simulator/eudm-simulator run \
+  --scenario cmd/eudm-simulator/testdata/probes/host-enrichment-macos.yaml \
+  --bundle /private/tmp/eudm-inventory-live-czy_byfo/bundle \
+  --report /private/tmp/eudm-inventory-live-czy_byfo/replay-report.json
+```
+
+### Command-armed capture verification, 2026-09-30
+
+MacOS race suites passed for bounded session lifecycle, authenticated producer
+APIs, metric routing and semantics, credential-free metadata projection, software
+observation, complete process groups, live coordination, sanitized evidence for
+all supported metric protocols, and schema-2 bundle validation. These automated
+results do not establish live installed-Agent acceptance.
+
+The full simulator race selection passed after correcting a recorder budget
+regression found by the large replay integration test. The recorder now budgets
+retained bytes, including headers and bookkeeping, without treating wire chunks
+as separate producer records. A 257-chunk group passed through the real process
+delivery pipeline. Portable 60-device macOS and Windows fixture replay passed
+with the existing delivery and decoded-payload assertions; the Windows fixture
+run executes on macOS and does not verify Windows binaries or direct sending.
+
+```sh
+dda inv test-new --module=. --targets=./cmd/eudm-simulator --race \
+  --bazel-args='--nostamp --workspace_status_command=/usr/bin/true --lockfile_mode=error --noverbose_failures'
+```
+
+After the recorder correction, the affected output, live-capture, and integration
+targets were rerun with `--race`; all passed. The other full-suite targets had
+already passed. This session used the repository's Bazel-backed task because Git
+commands were prohibited; the traditional `dda inv test` task invokes Git for
+version stamping. No Docker environment was used for these macOS checks.
+
+Separate-process race tests also passed on macOS. Independent synthetic core and
+process producers exercised authenticated session APIs, unchanged production
+payload digests with disabled/active/failed/stopped capture, queue overflow,
+worker failure, pending copies across stop, stale callbacks, ordered process
+chunks, and actual 30-second lease expiry after coordinator loss. These helpers
+use a non-networking recorder and do not establish installed-Agent/backend
+acceptance. The opt-in `TestCaptureArtifactPrivacyAudit` is likewise an artifact
+check only.
+
+All four affected macOS binary targets built successfully with race detection:
+
+```sh
+bazel build --config=gorace --nostamp \
+  --workspace_status_command=/usr/bin/true --lockfile_mode=error \
+  --noverbose_failures //cmd/eudm-simulator:eudm-simulator \
+  //cmd/agent:agent //cmd/process-agent:process-agent \
+  //cmd/system-probe:system-probe
+```
+
+The simulator's `capture --help` and the Agent, Process Agent, and system-probe
+version commands ran successfully. These unstamped build checks prove macOS
+compilation and CLI startup; they are not live capture acceptance.
+
+The final four macOS binaries were also linked with `version.FullCommit` set to
+the checkout revision `57fd27a769f691651f743cebfdf6fba0f30a4d6b`, read directly from
+repository metadata without invoking Git. The build used the same targets and
+flags above, plus
+`--@rules_go//go/config:gc_linkopts=-X=github.com/DataDog/datadog-agent/pkg/version.FullCommit=57fd27a769f691651f743cebfdf6fba0f30a4d6b`.
+This is a working-tree implementation checkpoint, not an assertion that pending
+changes were committed. Future capture and replay builds must use their actual
+revision; do not copy this linker value into later builds.
+
+The final simulator attempted authenticated capture against the installed
+macOS services using:
+
+```sh
+"$EUDM_CAPTURE_BINARY" capture \
+  --cfgpath /opt/datadog-agent/etc/datadog.yaml \
+  --output /private/tmp/eudm-live-macos-js1y2t_y/bundle
+```
+
+`EUDM_CAPTURE_BINARY` selected the exact final Bazel artifact. The installed
+Agent reports version 7.83.3, commit `8c639c9258`. The command exited with status
+1 after 1.077 seconds: **capture producer API incompatible; install a compatible
+producer build**. No session activated, no output bundle directory or `COMPLETE`
+was created, and the before/after process identity and participating configuration
+checks were unchanged. The telemetry-free result is outside the repository at
+`/private/tmp/eudm-live-macos-js1y2t_y/preflight-result.json`; the verified binary
+paths are in `/private/tmp/eudm-capture-verified-binaries.json` on that build host.
+
+The reproducible macOS setup task is now `dda inv eudm-simulator.install`.
+Its CLI help, 16 focused task tests, Python formatting/lint checks, and actual
+`--prepare-only` build/runtime preparation with and without `--race` passed on this laptop. The
+focused tests cover preparation without privilege requests, build/runtime errors
+before installation, replacement ordering, failed administrator access, existing
+IPC settings, source revision resolution, and readiness failure reporting.
+
+```sh
+dda inv eudm-simulator.install --help
+dda inv invoke-unit-tests.run --tests=eudm_simulator --directory=tasks/unit_tests
+dda run i ruff check tasks/eudm_simulator.py tasks/unit_tests/eudm_simulator_tests.py
+dda inv eudm-simulator.install --prepare-only --race
+dda inv eudm-simulator.install --prepare-only
+```
+
+The artifact audit also gained independent typed/wire comparisons for all metric
+formats, zstd decoding, and explicit in-memory credential-file inputs. Focused
+race tests passed against synthetic macOS/Windows fixtures.
+
+The operator then ran `dda inv eudm-simulator.install`. Installation and restart
+succeeded; both new producer APIs responded with protocol 1. Readiness correctly
+failed for `process-agent/processes`: core retained EUDM process enablement, but
+Process Agent's configuration snapshot resolved it to false. The configuration
+tree's full merge omitted its infrastructure-mode layer. Adding that layer in its
+existing priority position fixed the regression without changing installed YAML.
+New configuration-tree and consumer regressions failed before the fix; both full
+race suites passed afterward. The corrected binaries were rebuilt and passed
+`dda inv eudm-simulator.install --prepare-only`. The operator then reran
+`dda inv eudm-simulator.install`; all required macOS streams passed readiness.
+
+```sh
+bazel test --config=gorace --nostamp \
+  --workspace_status_command=/usr/bin/true --lockfile_mode=error \
+  --noverbose_failures //pkg/config/nodetreemodel:nodetreemodel_test \
+  //comp/core/configstreamconsumer/impl:impl_test
+dda inv eudm-simulator.install --prepare-only
+```
+
+A live core-Agent coordinator-loss check passed against the installed capture
+hooks. An authenticated metrics session accepted two records, then failed after
+30.114 seconds without a heartbeat. An unauthenticated capabilities request was
+rejected. Across that window, core/Process Agent PIDs and the configuration digest
+were unchanged; normal forwarding recorded four additional successful transactions,
+zero errors, and zero drops. The telemetry-free evidence is outside the repository
+at `/private/tmp/eudm-live-macos-lease-ejbmlj9_/result.json`. The command was:
+
+```sh
+/opt/datadog-agent/embedded/bin/python3 /private/tmp/eudm-live-lease-check.py
+```
+
+### Installed macOS capture, 2026-09-30 EDT / 2026-10-01 UTC
+
+The first complete capture from the corrected, already-running services passed
+on macOS arm64. Core Agent, Process Agent, and capture tool report
+`7.85.0-localbuild`, revision `57fd27a769f691651f743cebfdf6fba0f30a4d6b`,
+with capture protocol 1. The command exited successfully after 476.227 seconds:
+
+```sh
+./bin/eudm-simulator/eudm-simulator capture \
+  --cfgpath /opt/datadog-agent/etc/datadog.yaml \
+  --output /private/tmp/eudm-live-macos-6n7ut2p8/bundle
+```
+
+The bundle contains two metric cycles, two process groups of ten ordered chunks
+each, one host-metadata sample, and one complete software snapshot. Its 24 typed
+samples each have matching regenerated wire evidence. Observed metric delivery
+used v3. Recorded cadences are approximately 15 seconds for metrics, 10.037
+seconds for processes, 900 seconds for metadata, and 600 seconds for software.
+Metadata records the provider's actual next backoff interval. Collection was not
+forced and service configuration was not changed.
+
+Both activation acknowledgements were within two microseconds of each other,
+at `03:06:09.844843Z` and `03:06:09.844845Z`. Process Agent stopped at
+`03:14:05.963139Z`; core stopped at `03:14:05.963289Z`. Final sequences 47 and
+34 were fully acknowledged, with zero capture failures or drops. Both service
+PIDs, producer instances, installed configuration digest, and effective
+configuration digests were unchanged. Normal core forwarding recorded 65
+additional successful transactions and zero errors, drops, or retries.
+
+The private bundle directory uses mode 0700 and files use 0600. Its completion
+digest is `96988b01efe35617bd958d8a711267a5ef7f703ec1a3391b5c9569eb01827e91`.
+The control-plane evidence is at
+`/private/tmp/eudm-live-macos-6n7ut2p8/live-result.json` on the capture laptop.
+No real bundles or native identities were added to the repository.
+
+The real artifact audit passed: provenance, complete groups, every independently
+decoded wire body compared with its typed sample, and scans against native
+hostname, username/home, system UUID, interface addresses/MACs, and explicit
+configuration/token credentials held only in memory. The live run exposed an
+audit comparison bug: all metric serializers move `device:` tags into the wire
+device field. The audit now models that representation without changing the
+typed sample. New device-tag cases failed before the correction and passed with
+race detection across v1, v2, v3, and v3beta. The complete artifact helper
+selection also passed.
+
+The audit was built with the same explicit revision and run directly on the
+source laptop. Bazel's test environment could not collect its native system
+identity, including with local execution; direct execution of the built test
+binary succeeded with the native environment. The successful commands were:
+
+```sh
+bazel test //cmd/eudm-simulator/integration:integration_test_zlib_zstd \
+  --config=gorace --nostamp --workspace_status_command=/usr/bin/true \
+  --lockfile_mode=error --noverbose_failures \
+  --@rules_go//go/config:gc_linkopts=-X=github.com/DataDog/datadog-agent/pkg/version.FullCommit=57fd27a769f691651f743cebfdf6fba0f30a4d6b \
+  '--test_arg=-test.run=^TestArtifact' --nocache_test_results
+
+EUDM_CAPTURE_BUNDLE=/private/tmp/eudm-live-macos-6n7ut2p8/bundle \
+EUDM_AUDIT_CONFIG_FILES='["/opt/datadog-agent/etc/datadog.yaml"]' \
+EUDM_AUDIT_TOKEN_FILES='["/opt/datadog-agent/etc/auth_token"]' \
+./bazel-bin/cmd/eudm-simulator/integration/integration_test_zlib_zstd_/integration_test_zlib_zstd \
+  -test.run='^TestCaptureArtifactPrivacyAudit$' -test.v
+
+DD_SITE=datad0g.com ./bin/eudm-simulator/eudm-simulator validate \
+  --scenario cmd/eudm-simulator/testdata/probes/host-enrichment-macos.yaml \
+  --bundle /private/tmp/eudm-live-macos-6n7ut2p8/bundle
+```
+
+The two-device host-enrichment probe validated successfully without replaying it.
+An additional live failure test started the real capture command, waited for
+both producer sessions to activate, then killed only that capture child.
+Both sessions disarmed after lease expiry, observed 30.182 seconds after the
+kill. The failed bundle had no `COMPLETE`; Agent PIDs, producer instances, and
+configuration stayed unchanged. Normal forwarding added six successful
+transactions, with zero errors/drops and zero additional process submission
+errors. Its private evidence is
+`/private/tmp/eudm-live-macos-loss-r58qsrzt/result.json`. The wrapper command was:
+
+```sh
+/opt/datadog-agent/embedded/bin/python3 /private/tmp/eudm-live-coordinator-loss-check.py
+```
+
+A second complete capture verified recovery after that failed session and closed
+the first run's coarse backend-sampling gap. It used the same services and
+command, with output `/private/tmp/eudm-live-macos-_ndlct2v/bundle`, and completed
+in 293.258 seconds. Both producers activated within ten microseconds at
+`03:19:18.530097Z` / `03:19:18.530107Z` and stopped at
+`03:24:11.686482Z` / `03:24:11.686517Z`. All 29 process and 21 core sequences
+were acknowledged with zero failures/drops. The same required coverage produced
+24 typed samples and 24 matching wire references. Metadata's next interval had
+advanced normally to 1800 seconds; software remained 600 seconds. Both PIDs,
+producer instances, disk/effective configuration digests remained unchanged;
+core forwarding added 39 successes with zero errors/drops/retries.
+
+Two-second samples of the running Agents' normal delivery counters showed
+17 additional v3 metric successes and 250 process successes strictly within the
+active window, software HTTP 202 acceptance, and host-metadata intake acceptance.
+Software acceptance increased between
+`03:24:07.587395Z` and `03:24:09.597401Z`, before stop. Metadata
+was enqueued at `03:24:11.627180Z`, before stop. Its success counter
+increased from five to six between `03:24:11.602979Z` and
+`03:24:13.613016Z`, within 1.927 seconds after stop; capture does not wait for
+normal asynchronous backend acknowledgements. Monitored errors, drops, retries,
+and retry backlogs remained zero. The private numeric evidence is
+`/private/tmp/eudm-delivery-counters-f8x8_8p7/counters.jsonl`, with the summarized
+boundaries and deltas in `delivery-result.json` beside it. The monitor completed
+145 samples with zero read failures, then stopped.
+
+The second bundle also passed the same source-device artifact audit and scenario
+validation, using its path in the commands above. Its completion digest is
+`386e4879dd98cb3a784c6dd6f7e1b5d9640f93a8c1cc63ce390b49c936bef731`;
+control-plane evidence is
+`/private/tmp/eudm-live-macos-_ndlct2v/live-result.json`.
+The macOS live capture gate is **PASSED**. No Agent restart, configuration change,
+forced collection, or additional replay destination was used during these tests.
+
+Windows build and live direct-connection capture remain **DEFERRED by operator
+request**. Step 9's combined platform acceptance remains incomplete until that
+gate is exercised. The separate staging host-enrichment and VPN-monitor proofs
+remain deferred; local HTTP acceptance and artifact validation do not establish
+those product results.
+
+### Replay progress verification, 2026-10-01
+
+Race-enabled command, report, engine, and integration suites passed after adding
+30-second terminal/report updates. Coverage includes confirmed-cycle accounting
+under backpressure, progress during final delivery waits, snapshot ownership,
+observer cancellation/joining, atomic reports with concurrent readers, and final
+success/failure output. Portable macOS/Windows fixture replay also passed.
+The simulator was rebuilt at the existing checkout revision and the updated
+local binary validated the completed macOS bundle above. No additional staging
+replay or Agent service restart was performed for this change; already-started
+replays continue using their original binary and reporting behavior.
+
+### Historical isolated-capture verification
+
+These dated results describe the retired isolated collector stack and are not
+proof of the command-armed live path. Its schema-1 bundle requires recapture.
+They also precede removal of per-cohort bundle assignments and the
 `plan` command. The mixed-platform runs and saved plans below describe the
 earlier implementation. Current runs use one baseline for all cohorts and
 validate and start directly, without a plan file.
@@ -462,16 +1150,16 @@ The recorded native bundle includes `system.wlan.check.errors` and
 supply the Wi-Fi degradation scenario; capture again on a device exposing healthy
 physical WLAN measurements before that acceptance run.
 
-To repeat the artifact privacy check on its original capture device:
+The old artifact-only privacy check cannot establish the new live gate. For live
+acceptance, retain producing builds, platform, invocation, coverage, activation
+and stop acknowledgements, original backend delivery, unchanged service process
+identities/configuration, and capture failure isolation. Decode every regenerated
+wire format, compare its representable fields with the typed sample, and compare
+native identities and credentials in memory without printing them. Keep real
+bundles outside the repository. Missing platform or backend evidence leaves the
+gate unverified. Replay from another host OS and staging product acceptance also
+remain unverified.
 
-```sh
-EUDM_CAPTURE_BUNDLE=/path/to/complete-bundle \
-  dda inv test --targets=./cmd/eudm-simulator/integration --build-exclude=python
-```
-
-Native Windows capture, replay from another host operating system, and staging
-product acceptance remain unverified. Windows/macOS recording fixtures pass
-through the same common delivery build; this is not native Windows acceptance.
 The small fixtures under `cmd/eudm-simulator/testdata/bundles/` contain synthetic
 typed inputs serialized by the real Agent pipeline. Their deliberate test commit
 prevents use by a normal revision-stamped staging binary. See their

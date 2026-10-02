@@ -4,6 +4,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "telemetry",
     srcs = [
+        "dns.go",
+        "inventory.go",
         "metrics.go",
         "samples.go",
     ],
@@ -14,17 +16,25 @@ go_library(
         "//comp/softwareinventory/impl",
         "//pkg/metrics",
         "//pkg/tagset",
+        "//pkg/telemetrycapture",
         "@com_github_datadog_agent_payload_v5//process",
     ],
 )
 
 dd_agent_go_test(
     name = "telemetry_test",
-    srcs = ["metrics_test.go"],
+    srcs = [
+        "dns_test.go",
+        "inventory_test.go",
+        "metrics_test.go",
+        "samples_test.go",
+    ],
     embed = [":telemetry"],
     deps = [
         "//cmd/eudm-simulator/internal/schema",
         "//pkg/metrics",
         "//pkg/tagset",
+        "//pkg/telemetrycapture",
+        "@com_github_datadog_agent_payload_v5//process",
     ],
 )

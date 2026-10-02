@@ -31,13 +31,6 @@ func (s *CheckSubmitter) SubmitForHost(ctx context.Context, start time.Time, nam
 		return fmt.Errorf("required %s payloads are disabled", name)
 	}
 	messages := payload.Message
-	if s.capture != nil {
-		var err error
-		messages, err = s.capture(name, messages)
-		if err != nil {
-			return err
-		}
-	}
 	for _, body := range messages {
 		switch m := body.(type) {
 		case *model.CollectorProc:

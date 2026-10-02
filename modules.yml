@@ -284,6 +284,8 @@ modules:
     used_by_otel: true
   pkg/tagset:
     used_by_otel: true
+  pkg/telemetrycapture:
+    used_by_otel: true
   pkg/template:
     should_replace_internal_modules: false
     should_test_condition: never

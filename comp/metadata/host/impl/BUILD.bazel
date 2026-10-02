@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "impl",
     srcs = [
+        "capture.go",
         "host.go",
         "payload.go",
         "payload_no_gohai.go",
@@ -31,6 +32,7 @@ go_library(
         "//pkg/config/utils",
         "//pkg/gohai",
         "//pkg/serializer",
+        "//pkg/telemetrycapture",
         "//pkg/util/hostinfo",
         "//pkg/util/http",
         "//pkg/util/scrubber",
@@ -57,7 +59,11 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["host_test.go"],
+    srcs = [
+        "capture_gohai_test.go",
+        "capture_lifecycle_test.go",
+        "host_test.go",
+    ],
     embed = [":impl"],
     deps = [
         "//comp/core/config",
@@ -66,11 +72,41 @@ dd_agent_go_test(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/def",
         "//comp/metadata/resources/def",
         "//comp/metadata/resources/mock",
         "//pkg/serializer",
+        "//pkg/serializer/marshaler",
+        "//pkg/telemetrycapture",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
-    ],
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//comp/metadata/host/impl/utils",
+            "//pkg/gohai",
+        ],
+        "@rules_go//go/platform:android": [
+            "//comp/metadata/host/impl/utils",
+            "//pkg/gohai",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//comp/metadata/host/impl/utils",
+            "//pkg/gohai",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/metadata/host/impl/utils",
+            "//pkg/gohai",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/metadata/host/impl/utils",
+            "//pkg/gohai",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//comp/metadata/host/impl/utils",
+            "//pkg/gohai",
+        ],
+        "//conditions:default": [],
+    }),
 )

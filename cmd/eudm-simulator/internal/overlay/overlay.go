@@ -37,7 +37,7 @@ func Apply(ctx Context, sample *telemetry.Sample) error {
 		return applySoftware(ctx, sample)
 	case schema.Connections:
 		return applyConnections(ctx, sample, phase.Connections[ctx.Group.Group])
-	case schema.HostMetadata:
+	case schema.HostMetadata, schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo:
 		return nil
 	default:
 		return fmt.Errorf("unsupported overlay stream %q", ctx.Stream)

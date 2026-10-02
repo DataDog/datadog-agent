@@ -48,6 +48,7 @@ go_library(
         "//pkg/metrics",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
+        "//pkg/telemetrycapture",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@org_uber_go_fx//:fx",

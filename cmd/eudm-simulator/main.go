@@ -14,7 +14,7 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/command"
-	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/capture/native"
+	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/capture/live"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/engine"
 )
 
@@ -22,9 +22,9 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	runtime := command.Runtime{Capture: func(ctx context.Context, request command.CaptureRequest) error {
-		return native.Run(ctx, request.Directory)
+		return live.RunInstalled(ctx, request.Directory, request.ConfigPath)
 	}, Replay: func(ctx context.Context, request command.ReplayRequest) error {
-		return engine.Execute(ctx, engine.Request{Scenario: request.Scenario, Plan: request.Plan, Bundle: request.Bundle}, engine.ExecutionOptions{ReportPath: request.ReportPath, APIKey: os.Getenv("DD_API_KEY"), Destinations: request.Destinations})
+		return engine.Execute(ctx, engine.Request{Scenario: request.Scenario, Plan: request.Plan, Bundle: request.Bundle}, engine.ExecutionOptions{ReportPath: request.ReportPath, APIKey: os.Getenv("DD_API_KEY"), Destinations: request.Destinations, Progress: request.Progress})
 	}}
 	if err := command.MakeCommand(runtime).ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -78,5 +79,28 @@ func TestLocalReportContainsPortableEvidenceAndRefusesOverwrite(t *testing.T) {
 	}
 	if got.Phases[1].StartOffset != 20*time.Minute || got.Phases[1].Duration != time.Minute || got.Selectors["telemetry"] != "eudm_run_id:"+r.RunID || strings.Contains(got.Selectors["telemetry"], "affected") {
 		t.Fatal("phase timing or opaque product selector changed")
+	}
+}
+
+func TestSnapshotOwnsMutableReportState(t *testing.T) {
+	r := fixture()
+	r.NetworkStreams["ndm_metadata"] = &Counts{Expected: 4}
+	r.Progress = &Progress{UpdatedAt: r.Start, Activity: "replaying"}
+	snapshot := r.Snapshot()
+	before, err := json.Marshal(snapshot)
+	if err != nil || !reflect.DeepEqual(r, snapshot) {
+		t.Fatal("snapshot lost report state")
+	}
+	r.Ledger[0].Streams[schema.Metrics].Delivered++
+	r.Ledger[0].Streams[schema.Software] = &Counts{Expected: 1}
+	r.NetworkStreams["ndm_metadata"].Delivered++
+	r.Phases[0].Name = "changed"
+	r.Expectation.AffectedCohorts[0] = "changed"
+	r.Selectors["telemetry"] = "changed"
+	r.Errors = append(r.Errors, "changed")
+	r.Progress.Activity = "succeeded"
+	after, err := json.Marshal(snapshot)
+	if err != nil || string(before) != string(after) {
+		t.Fatal("retained snapshot changed as delivery advanced")
 	}
 }

@@ -176,6 +176,7 @@ func tryExecSPLite(sysConfig sysprobeconfig.Component, _ pid.Component, pidParam
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
+		fx.Provide(newCaptureManager),
 		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile())),
 		config.Module(),
 		delegatedauthnoopfx.Module(),

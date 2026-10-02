@@ -17,13 +17,13 @@ import (
 
 // BundleRef records content identity, never a replay-host-specific path.
 type BundleRef struct {
-	Digest      string  `json:"digest"`
-	AgentCommit string  `json:"agent_commit"`
-	Profile     Profile `json:"profile"`
+	Digest            string  `json:"digest"`
+	CaptureToolCommit string  `json:"capture_tool_commit"`
+	Profile           Profile `json:"profile"`
 }
 
 // RunPlanVersion identifies the in-memory single-baseline execution contract.
-const RunPlanVersion = 2
+const RunPlanVersion = 5
 
 // RunPlan holds in-memory execution metadata. Each run creates it directly from
 // the scenario and baseline; Execute establishes Start after startup completes.
@@ -73,8 +73,8 @@ func (p *RunPlan) Validate(s *Scenario, scenarioDigest, commit string) error {
 	if !runIDPattern.MatchString(p.RunID) || p.Start.IsZero() {
 		return errors.New("run plan requires an opaque run ID and absolute start time")
 	}
-	if !digestPattern.MatchString(p.Bundle.Digest) || p.Bundle.AgentCommit != commit {
-		return errors.New("bundle digest or Agent commit mismatch; recapture with this Agent revision")
+	if !digestPattern.MatchString(p.Bundle.Digest) || p.Bundle.CaptureToolCommit != commit {
+		return errors.New("bundle digest or capture tool commit mismatch; recapture with this replay revision")
 	}
 	for _, group := range s.Fleet {
 		if err := s.ValidateEvidence(group, p.Bundle.Profile); err != nil {

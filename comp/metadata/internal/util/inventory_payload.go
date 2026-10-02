@@ -67,6 +67,7 @@ import (
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -97,7 +98,11 @@ type PayloadGetter func() marshaler.JSONMarshaler
 // instance_config) must pre-scrub those strings with scrubber.ScrubYamlString before storing them,
 // because ScrubJSON operates on JSON key names and cannot reach inside opaque string values.
 type InventoryPayload struct {
-	m sync.Mutex
+	m              sync.Mutex
+	captureMu      sync.Mutex
+	captureManager *telemetrycapture.Manager
+	captureStream  telemetrycapture.Stream
+	captureStopped bool
 
 	conf          config.Component
 	log           log.Component
@@ -192,6 +197,7 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	i.m.Lock()
 	defer i.m.Unlock()
 	if i.serializer == nil {
+		i.captureReady(false)
 		i.log.Tracef("serializer is nil, skipping submission")
 		return i.MinInterval
 	}
@@ -217,11 +223,20 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	p := i.getPayload()
 	// If the payload is nil, we don't want to send it to the backend.
 	if p == nil {
+		i.captureReady(false)
 		i.log.Debugf("inventory payload is nil, skipping submission")
 		return i.MinInterval
 	}
+	if scheduled, ok := p.(interface {
+		SetCaptureInventorySchedule(time.Time, time.Duration)
+	}); ok {
+		scheduled.SetCaptureInventorySchedule(i.LastCollect, i.captureCadence())
+	}
 	if err := i.serializer.SendMetadata(p); err != nil {
+		i.captureReady(false)
 		i.log.Errorf("unable to submit inventories payload, %s", err)
+	} else {
+		i.captureReady(true)
 	}
 	return i.MinInterval
 }

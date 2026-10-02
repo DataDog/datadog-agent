@@ -7,11 +7,16 @@
 
 package sender
 
-import "net/http"
+import (
+	"net/http"
+	"time"
+)
 
 type result struct {
-	payloads []payload
-	size     int64
+	collectedAt    time.Time
+	expectedChunks int32
+	payloads       []payload
+	size           int64
 }
 
 type payload struct {

@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "run",
     srcs = [
+        "capture.go",
         "command.go",
         "command_windows.go",
         "splite.go",
@@ -71,6 +72,7 @@ go_library(
         "//pkg/runtime",
         "//pkg/system-probe/api/module",
         "//pkg/system-probe/utils",
+        "//pkg/telemetrycapture",
         "//pkg/util/coredump",
         "//pkg/util/fxutil",
         "//pkg/util/log",
@@ -97,6 +99,7 @@ go_library(
 dd_agent_go_test(
     name = "run_test",
     srcs = [
+        "capture_test.go",
         "command_test.go",
         "command_windows_test.go",
         "splite_test.go",
@@ -110,8 +113,11 @@ dd_agent_go_test(
         "//comp/core/ipc/def",
         "//comp/core/ipc/fx",
         "//pkg/configstreambootstrap",
+        "//pkg/telemetrycapture",
         "//pkg/util/fxutil",
+        "//pkg/version",
         "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:android": [
             "//comp/core/log/mock",
@@ -119,7 +125,6 @@ dd_agent_go_test(
             "//comp/core/sysprobeconfig/mock",
             "//pkg/discovery/module/splite",
             "@com_github_stretchr_testify//assert",
-            "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/log/mock",
@@ -127,7 +132,6 @@ dd_agent_go_test(
             "//comp/core/sysprobeconfig/mock",
             "//pkg/discovery/module/splite",
             "@com_github_stretchr_testify//assert",
-            "@org_uber_go_fx//:fx",
         ],
         "//conditions:default": [],
     }),

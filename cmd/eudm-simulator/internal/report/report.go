@@ -9,6 +9,7 @@ package report
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"time"
@@ -41,6 +42,15 @@ type Phase struct {
 	Duration    time.Duration `json:"duration_ns"`
 }
 
+// Progress describes the last observation, including time spent draining delivery.
+type Progress struct {
+	UpdatedAt time.Time     `json:"updated_at"`
+	Elapsed   time.Duration `json:"elapsed_ns"`
+	Duration  time.Duration `json:"duration_ns"`
+	Phase     string        `json:"phase"`
+	Activity  string        `json:"activity"`
+}
+
 // Report is local-only. The engine owns synchronization and count updates.
 type Report struct {
 	Version         int                       `json:"version"`
@@ -61,6 +71,40 @@ type Report struct {
 	NetworkDevices  []string                  `json:"network_devices"`
 	Selectors       map[string]string         `json:"selectors"`
 	Errors          []string                  `json:"errors"`
+	Progress        *Progress                 `json:"progress,omitempty"`
+}
+
+// Snapshot copies a report while its owner holds the delivery-accounting lock.
+// The returned report can be persisted or retained after that lock is released.
+func (r *Report) Snapshot() *Report {
+	copy := *r
+	copy.Phases = slices.Clone(r.Phases)
+	copy.Expectation.AffectedCohorts = slices.Clone(r.Expectation.AffectedCohorts)
+	copy.NetworkDevices = slices.Clone(r.NetworkDevices)
+	copy.Selectors = maps.Clone(r.Selectors)
+	copy.Errors = slices.Clone(r.Errors)
+	cloneCounts := func(source map[schema.Stream]*Counts) map[schema.Stream]*Counts {
+		result := make(map[schema.Stream]*Counts, len(source))
+		for stream, counts := range source {
+			if counts != nil {
+				value := *counts
+				result[stream] = &value
+			} else {
+				result[stream] = nil
+			}
+		}
+		return result
+	}
+	copy.Ledger = slices.Clone(r.Ledger)
+	for i := range copy.Ledger {
+		copy.Ledger[i].Streams = cloneCounts(r.Ledger[i].Streams)
+	}
+	copy.NetworkStreams = cloneCounts(r.NetworkStreams)
+	if r.Progress != nil {
+		value := *r.Progress
+		copy.Progress = &value
+	}
+	return &copy
 }
 
 // New copies the inputs required to explain and select one run.

@@ -28,6 +28,7 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -41,6 +42,7 @@ func Module(params Params) fxutil.Module {
 // Dependencies defines the dependencies required by the demultiplexer component.
 type Dependencies struct {
 	compdef.In
+	CaptureManager               *telemetrycapture.Manager `optional:"true"`
 	Lc                           compdef.Lifecycle
 	Config                       config.Component
 	Log                          log.Component
@@ -86,6 +88,7 @@ func NewComponent(deps Dependencies) (Provides, error) {
 		}
 	}
 	options := createAgentDemultiplexerOptions(deps.Config, deps.Params, deps.DogStatsDLookbackFactory, deps.FinalDogStatsDSerieObservers, deps.ClientDropDetector)
+	options.CaptureManager = deps.CaptureManager
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,

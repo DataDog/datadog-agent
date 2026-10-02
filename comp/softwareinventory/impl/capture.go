@@ -5,6 +5,46 @@
 
 package softwareinventoryimpl
 
-// CaptureTransformer is installed only for an explicit native capture. It must
-// return an independent sanitized snapshot and must not mutate cached inventory.
-type CaptureTransformer func(*Payload) (*Payload, error)
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
+)
+
+// captureReady advertises a successful running collector and an available output.
+// GetCheck may return after cancellation. Readiness and shutdown share a lock so
+// that late collection completion cannot resurrect a stopped producer.
+func (is *softwareInventory) captureReady(ctx context.Context) {
+	if is.captureManager == nil {
+		return
+	}
+	is.captureMu.Lock()
+	defer is.captureMu.Unlock()
+	if is.captureStopped || !is.enabled || ctx.Err() != nil {
+		return
+	}
+	if _, ok := is.eventPlatform.Get(); ok {
+		_ = is.captureManager.Register(telemetrycapture.Capability{Stream: telemetrycapture.Software, Cadence: is.interval})
+	} else {
+		is.captureManager.Unregister(telemetrycapture.Software)
+	}
+}
+
+func (is *softwareInventory) captureUnavailable() {
+	if is.captureManager == nil {
+		return
+	}
+	is.captureMu.Lock()
+	defer is.captureMu.Unlock()
+	is.captureManager.Unregister(telemetrycapture.Software)
+}
+
+func (is *softwareInventory) stopCapture() {
+	if is.captureManager == nil {
+		return
+	}
+	is.captureMu.Lock()
+	defer is.captureMu.Unlock()
+	is.captureStopped = true
+	is.captureManager.Unregister(telemetrycapture.Software)
+}

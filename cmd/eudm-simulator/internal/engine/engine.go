@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"runtime"
 	"slices"
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
 const (
@@ -35,7 +37,7 @@ const (
 	ndmBatchSize                 = 100
 )
 
-var streamOrder = []schema.Stream{schema.Metrics, schema.HostMetadata, schema.Processes, schema.Connections, schema.Software}
+var streamOrder = []schema.Stream{schema.Metrics, schema.HostMetadata, schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo, schema.Processes, schema.Connections, schema.Software}
 
 type Request struct {
 	Scenario *schema.Scenario
@@ -56,6 +58,11 @@ type Options struct {
 	Workers, QueueCapacity int
 	Clock                  Clock
 	Delivery               Delivery
+	// Progress receives owned, serialized observations at startup and every 30s.
+	// Returning an error cancels replay while retaining partial delivery counts.
+	Progress func(*report.Report) error
+	// Tests supply ticks explicitly; production uses the fixed wall-clock interval.
+	progressTicks <-chan time.Time
 }
 
 type device struct {
@@ -63,7 +70,7 @@ type device struct {
 	ordinal   int
 	id        *identity.Map
 	capture   *bundle.Loaded
-	timelines map[schema.Stream]*timeline
+	timelines map[schema.Stream][]*timeline
 	wireless  *identity.Wireless
 }
 type prepared struct {
@@ -76,6 +83,31 @@ type prepared struct {
 
 // Validate performs full fleet preparation without starting delivery or a clock.
 func Validate(request Request) error { _, err := prepare(request); return err }
+
+// decodeCapturedSample returns an owned sample for preflight or mutation. The
+// bundle loader has already verified complete, nonempty logical groups; an
+// individual chunk in those groups may legitimately contain only metadata.
+func decodeCapturedSample(b *bundle.Loaded, ref bundle.SampleRef) (*telemetry.Sample, error) {
+	if ref.ChunkCount > 1 {
+		return telemetry.DecodeGroupChunk(ref.Stream, b.Files[ref.File])
+	}
+	return telemetry.Decode(ref.Stream, b.Files[ref.File])
+}
+
+// Decode always owns the sample before a family filter or overlay mutates it.
+func decodeTimelineSample(b *bundle.Loaded, ref bundle.SampleRef, family string) (*telemetry.Sample, error) {
+	sample, err := decodeCapturedSample(b, ref)
+	if err != nil || family == "" {
+		return sample, err
+	}
+	sample.Metrics = slices.DeleteFunc(sample.Metrics, func(serie *metrics.Serie) bool {
+		return telemetrycapture.MetricFamily(serie.Name) != family
+	})
+	if len(sample.Metrics) == 0 {
+		return nil, errors.New("captured metric cycle lacks its scheduled family")
+	}
+	return sample, nil
+}
 
 func prepare(request Request) (*prepared, error) {
 	if request.Scenario == nil || request.Plan == nil {
@@ -94,7 +126,7 @@ func prepare(request Request) (*prepared, error) {
 		}
 	}
 	for _, ref := range b.Manifest.Samples {
-		if _, err := telemetry.Decode(ref.Stream, b.Files[ref.File]); err != nil {
+		if _, err := decodeCapturedSample(b, ref); err != nil {
 			return nil, fmt.Errorf("invalid captured %s sample: %w", ref.Stream, err)
 		}
 	}
@@ -105,11 +137,11 @@ func prepare(request Request) (*prepared, error) {
 	p := &prepared{request: request, duration: durationOf(request.Scenario), accessPoints: aps, report: report.New(request.Plan, request.Scenario, runtime.GOOS)}
 	ordinal := 0
 	for _, group := range request.Scenario.Fleet {
-		timelines := map[schema.Stream]*timeline{}
+		timelines := map[schema.Stream][]*timeline{}
 		var streams []schema.Stream
 		for _, stream := range streamOrder {
 			if slices.Contains(b.Manifest.Profile.Streams, stream) {
-				timeline, err := makeTimeline(b, stream, p.duration)
+				timeline, err := makeTimelines(b, stream, p.duration)
 				if err != nil {
 					return nil, fmt.Errorf("cohort %q: %w", group.Group, err)
 				}
@@ -136,7 +168,15 @@ func prepare(request Request) (*prepared, error) {
 			p.devices = append(p.devices, d)
 			p.report.AddDevice(ordinal, id.Hostname, group.Group, b.Digest, streams)
 			for _, stream := range streams {
-				p.report.Ledger[ordinal].Streams[stream].Expected = uint64(timelines[stream].count)
+				counts := p.report.Ledger[ordinal].Streams[stream]
+				for _, timeline := range timelines[stream] {
+					// Metrics count completed family collections, including families
+					// originally observed in the same serializer flush.
+					if math.MaxUint64-counts.Expected < uint64(timeline.count) {
+						return nil, errors.New("expected delivery count overflows")
+					}
+					counts.Expected += uint64(timeline.count)
+				}
 			}
 			ordinal++
 		}
@@ -174,7 +214,7 @@ func validateRegressionVersions(s *schema.Scenario, g schema.GroupDef, b *bundle
 				if ref.Stream != schema.Software {
 					continue
 				}
-				sample, err := telemetry.Decode(ref.Stream, b.Files[ref.File])
+				sample, err := decodeCapturedSample(b, ref)
 				if err != nil {
 					return err
 				}
@@ -190,11 +230,12 @@ func validateRegressionVersions(s *schema.Scenario, g schema.GroupDef, b *bundle
 }
 
 type job struct {
-	device  *device
-	stream  schema.Stream
-	ordinal int64
-	offset  time.Duration
-	rank    int
+	device   *device
+	timeline *timeline
+	stream   schema.Stream
+	ordinal  int64
+	offset   time.Duration
+	rank     int
 }
 type schedule []job
 
@@ -206,7 +247,13 @@ func (s schedule) Less(i, j int) bool {
 	if s[i].rank != s[j].rank {
 		return s[i].rank < s[j].rank
 	}
-	return s[i].stream < s[j].stream
+	if s[i].stream != s[j].stream {
+		return s[i].stream < s[j].stream
+	}
+	if s[i].timeline != nil && s[j].timeline != nil {
+		return s[i].timeline.family < s[j].timeline.family
+	}
+	return false
 }
 func (s schedule) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s *schedule) Push(v any)   { *s = append(*s, v.(job)) }
@@ -235,9 +282,9 @@ func (p *prepared) run(parent context.Context, options Options) (*report.Report,
 	pending := schedule{}
 	for _, d := range p.devices {
 		for _, stream := range streamOrder {
-			if t := d.timelines[stream]; t != nil {
+			for _, t := range d.timelines[stream] {
 				_, offset := t.at(0)
-				heap.Push(&pending, job{device: d, stream: stream, offset: offset, rank: d.ordinal})
+				heap.Push(&pending, job{device: d, timeline: t, stream: stream, offset: offset, rank: d.ordinal})
 			}
 		}
 	}
@@ -258,6 +305,7 @@ func (p *prepared) run(parent context.Context, options Options) (*report.Report,
 		}
 		mu.Unlock()
 	}
+	stopProgress := observeProgress(ctx, r, &mu, options, fail)
 	for i := 0; i < options.Workers; i++ {
 		wg.Add(1)
 		go func() {
@@ -300,7 +348,7 @@ func (p *prepared) run(parent context.Context, options Options) (*report.Report,
 		next := work
 		next.ordinal++
 		if work.device != nil {
-			t := work.device.timelines[work.stream]
+			t := work.timeline
 			if next.ordinal < t.count {
 				_, next.offset = t.at(next.ordinal)
 				heap.Push(&pending, next)
@@ -328,6 +376,7 @@ func (p *prepared) run(parent context.Context, options Options) (*report.Report,
 			fail(err)
 		}
 	}
+	stopProgress()
 	if firstError == nil && parent.Err() != nil {
 		fail(parent.Err())
 	}
@@ -337,9 +386,11 @@ func (p *prepared) run(parent context.Context, options Options) (*report.Report,
 	}
 	if firstError != nil {
 		r.Status = "failed"
+		r.Progress = progressAt(r, r.End)
 		return r, firstError
 	}
 	r.Status = "succeeded"
+	r.Progress = progressAt(r, r.End)
 	return r, nil
 }
 
@@ -357,11 +408,11 @@ func (p *prepared) deliver(ctx context.Context, out Delivery, work job) error {
 		return out.NetworkMetrics(ctx, series)
 	}
 	d := work.device
-	c, _ := d.timelines[work.stream].at(work.ordinal)
-	processCycle, processOrdinal := d.timelines[schema.Processes].nearest(work.offset)
+	c, _ := work.timeline.at(work.ordinal)
+	processCycle, processOrdinal := d.timelines[schema.Processes][0].nearest(work.offset)
 	var baseline []*model.CollectorProc
 	for _, ref := range processCycle.refs {
-		decoded, err := telemetry.Decode(schema.Processes, d.capture.Files[ref.File])
+		decoded, err := decodeCapturedSample(d.capture, ref)
 		if err != nil {
 			return err
 		}
@@ -370,7 +421,7 @@ func (p *prepared) deliver(ctx context.Context, out Delivery, work job) error {
 	context := overlay.Context{Scenario: p.request.Scenario, Group: d.group, Seed: p.request.Plan.Seed, DeviceOrdinal: d.ordinal, PhaseIndex: phase, Elapsed: elapsed, Stream: work.stream, SampleOrdinal: work.ordinal, ProcessSampleOrdinal: processOrdinal, BaselineProcesses: baseline}
 	samples := make([]*telemetry.Sample, 0, len(c.refs))
 	for _, ref := range c.refs {
-		sample, err := telemetry.Decode(ref.Stream, d.capture.Files[ref.File])
+		sample, err := decodeTimelineSample(d.capture, ref, work.timeline.family)
 		if err != nil {
 			return err
 		}
@@ -387,6 +438,13 @@ func (p *prepared) deliver(ctx context.Context, out Delivery, work job) error {
 }
 
 func rebase(sample *telemetry.Sample, start time.Time, shift time.Duration, cycle int64, chunks int) {
+	if inventory := sample.Inventory; inventory != nil {
+		delta := start.UnixNano() + int64(shift)
+		inventory.Timestamp += delta
+		if inventory.Agent != nil {
+			inventory.Agent.AgentStartupTimeMS += start.UnixMilli()
+		}
+	}
 	for _, series := range sample.Metrics {
 		for i := range series.Points {
 			series.Points[i].Ts += float64(start.UnixNano())/1e9 + shift.Seconds()

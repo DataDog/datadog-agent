@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -101,16 +102,17 @@ type MetricSerializer interface {
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
 type Serializer struct {
+	// LiveCapture is the daemon-owned manager shared by all its tees and API.
+	// Set it and its effective flush cadence before starting producer goroutines.
+	LiveCapture        *telemetrycapture.Manager
+	LiveCaptureCadence time.Duration
 	// RequireCompleteDelivery makes finite producers fail when an item cannot
 	// be encoded. Normal Agents retain their existing best-effort behavior.
 	// Set this before any producer starts.
 	RequireCompleteDelivery bool
-	// capture is installed only by an explicit capture invocation, before use.
-	// The transformer must return an independently owned, sanitized copy.
-	capture               CaptureTransformer
-	Forwarder             forwarder.Forwarder
-	orchestratorForwarder orchestratorForwarder.Component
-	config                config.Component
+	Forwarder               forwarder.Forwarder
+	orchestratorForwarder   orchestratorForwarder.Component
+	config                  config.Component
 
 	Strategy                            compression.Compressor
 	seriesJSONPayloadBuilder            *stream.JSONPayloadBuilder
@@ -137,7 +139,7 @@ type Serializer struct {
 }
 
 // NewSerializer returns a new Serializer initialized
-func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Compressor, config config.Component, logger log.Component, hostName string, capture ...CaptureTransformer) *Serializer {
+func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Compressor, config config.Component, logger log.Component, hostName string) *Serializer {
 	s := &Serializer{
 		Forwarder:                           forwarder,
 		orchestratorForwarder:               orchestratorForwarder,
@@ -158,10 +160,6 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestr
 	}
 
 	initExtraHeaders(s)
-	if len(capture) > 0 {
-		s.capture = capture[0]
-		s.RequireCompleteDelivery = capture[0] != nil
-	}
 
 	if !s.enableEvents {
 		logger.Warn("event payloads are disabled: all events will be dropped")
@@ -254,14 +252,7 @@ func (s *Serializer) AreSeriesEnabled() bool {
 }
 
 // SendIterableSeries serializes a list of series and sends the payload to the forwarder
-func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
-	if s.capture != nil {
-		var err error
-		serieSource, err = s.capture.Series(serieSource)
-		if err != nil {
-			return err
-		}
-	}
+func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) (resultErr error) {
 	if !s.AreSeriesEnabled() {
 		if s.RequireCompleteDelivery {
 			return errors.New("required series payloads are disabled")
@@ -270,6 +261,10 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 		return nil
 	}
 
+	if capture := beginLiveSeries(s.LiveCapture, s.LiveCaptureCadence, serieSource); capture != nil {
+		serieSource = capture
+		defer func() { capture.finish(resultErr) }()
+	}
 	seriesSerializer := metricsserializer.CreateIterableSeries(serieSource)
 	useV1API := !s.config.GetBool("use_v2_api.series")
 
@@ -363,18 +358,25 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder
-func (s *Serializer) SendMetadata(m marshaler.JSONMarshaler) error {
+func (s *Serializer) SendMetadata(m marshaler.JSONMarshaler) (resultErr error) {
+	if capture := beginLiveInventory(s.LiveCapture, m); capture != nil {
+		defer func() { capture.finish(resultErr) }()
+		return s.sendMetadata(m, func(payloads transaction.BytesPayloads, headers http.Header) error {
+			capture.attach(payloads)
+			return s.Forwarder.SubmitMetadata(payloads, headers)
+		})
+	}
 	return s.sendMetadata(m, s.Forwarder.SubmitMetadata)
 }
 
 // SendHostMetadata serializes a metadata payload and sends it to the forwarder
-func (s *Serializer) SendHostMetadata(m marshaler.JSONMarshaler) error {
-	if s.capture != nil {
-		var err error
-		m, err = s.capture.HostMetadata(m)
-		if err != nil {
-			return err
-		}
+func (s *Serializer) SendHostMetadata(m marshaler.JSONMarshaler) (resultErr error) {
+	if capture := beginLiveMetadata(s.LiveCapture, m); capture != nil {
+		defer func() { capture.finish(resultErr) }()
+		return s.sendMetadata(m, func(payloads transaction.BytesPayloads, headers http.Header) error {
+			capture.attach(payloads)
+			return s.Forwarder.SubmitHostMetadata(payloads, headers)
+		})
 	}
 	return s.sendMetadata(m, s.Forwarder.SubmitHostMetadata)
 }

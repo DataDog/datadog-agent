@@ -11,6 +11,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	tc "github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
 // Synthetic inputs, serialized by real Agent delivery packages. This fixture
@@ -37,25 +39,34 @@ func TestGenerateCaptureFixtures(t *testing.T) {
 	if os.Getenv("EUDM_GENERATE_FIXTURES") != "1" {
 		t.Skip("explicit fixture generation only")
 	}
+	outputDirectory := os.Getenv("EUDM_FIXTURE_OUTPUT")
+	if outputDirectory == "" && os.Getenv("TEST_UNDECLARED_OUTPUTS_DIR") != "" {
+		outputDirectory = filepath.Join(os.Getenv("TEST_UNDECLARED_OUTPUTS_DIR"), "eudm-bundles")
+	}
+	if outputDirectory == "" || !filepath.IsAbs(outputDirectory) {
+		t.Fatal("fixture generation requires an absolute EUDM_FIXTURE_OUTPUT or Bazel undeclared-output directory")
+	}
 	for _, platform := range []string{"macos", "windows"} {
-		t.Run(platform, func(t *testing.T) { generateFixture(t, platform) })
+		t.Run(platform, func(t *testing.T) { generateFixture(t, platform, outputDirectory) })
 	}
 }
-func generateFixture(t *testing.T, platform string) {
+func generateFixture(t *testing.T, platform, outputDirectory string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	recorder := output.NewRecorder()
-	p, err := output.New(ctx, nil, "synthetic-fixture-no-credential", recorder)
+	p, err := output.New(ctx, nil, "synthetic-fixture-no-credential", recorder, output.Options{MetricProtocol: "v2", MetadataProtocol: "metadata-v1"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer p.Close()
-	directory := filepath.Join("..", "testdata", "bundles", platform)
+	directory := filepath.Join(outputDirectory, platform)
 	if err := os.MkdirAll(filepath.Dir(directory), 0700); err != nil {
 		t.Fatal(err)
 	}
-	w, err := bundle.NewWriter(directory, bundle.Manifest{AgentVersion: "7.85.0-fixture", AgentCommit: fixtureCommit})
+	metricCadences := map[string]time.Duration{"cpu": 15 * time.Second, "memory": 15 * time.Second, "wlan": 15 * time.Second, "network": 15 * time.Second, "battery": 5 * time.Minute}
+	const captureDuration = 5*time.Minute + time.Second
+	w, err := bundle.NewWriter(directory, bundle.Manifest{CaptureTool: bundle.BuildIdentity{Version: "7.85.0-fixture", Commit: fixtureCommit}, SessionID: "synthetic-fixture-session", MetricCadences: metricCadences})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,14 +75,27 @@ func generateFixture(t *testing.T, platform string) {
 		osname, hostOS, arch, chrome = "windows", "win32", "amd64", "chrome.exe"
 	}
 	background := "process-" + strings.Repeat("1", 32)
-	profile := schema.Profile{OS: platform, Architecture: arch, MemoryBytes: 16 << 30, Streams: []schema.Stream{schema.Metrics, schema.HostMetadata, schema.Processes, schema.Software}, ProcessNames: []string{chrome, background}, SoftwareNames: []string{"Google Chrome", "OS"}}
+	profile := schema.Profile{OS: platform, Architecture: arch, MemoryBytes: 16 << 30, Streams: []schema.Stream{schema.Metrics, schema.HostMetadata, schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo, schema.Processes, schema.Connections, schema.Software}, ProcessNames: []string{chrome, background}, SoftwareNames: []string{"Google Chrome", "OS"}}
 	if platform == "windows" {
-		profile.Streams = append(profile.Streams, schema.Connections)
 		profile.ProcessNames = append(profile.ProcessNames, "SentinelAgent.exe")
 		profile.SoftwareNames = append(profile.SoftwareNames, "SentinelOne")
 	}
-	cadences := map[schema.Stream]time.Duration{schema.Metrics: 15 * time.Second, schema.Processes: 10 * time.Second, schema.HostMetadata: 5 * time.Minute, schema.Software: 10 * time.Minute}
-	previous := 0
+	cadences := map[schema.Stream]time.Duration{schema.Metrics: 15 * time.Second, schema.Processes: 10 * time.Second, schema.Connections: 10 * time.Second, schema.HostMetadata: 5 * time.Minute, schema.AgentInventory: 10 * time.Minute, schema.HostInventory: 10 * time.Minute, schema.HostSystemInfo: time.Hour, schema.Software: 10 * time.Minute}
+	sequences := map[string]uint64{}
+	producerStreams := map[string][]schema.Stream{}
+	owner := func(stream schema.Stream) string {
+		switch stream {
+		case schema.Processes:
+			return "process-agent"
+		case schema.Connections:
+			if platform == "windows" {
+				return "system-probe"
+			}
+			return "process-agent"
+		default:
+			return "core-agent"
+		}
+	}
 	save := func(stream schema.Stream, offset time.Duration, value any, send func() error) {
 		t.Helper()
 		if err := send(); err != nil {
@@ -80,34 +104,77 @@ func generateFixture(t *testing.T, platform string) {
 		if err := p.Wait(ctx); err != nil {
 			t.Fatal(err)
 		}
-		refs, err := recorder.Wait(ctx, previous+1)
-		if err != nil {
+		refs := recorder.Drain()
+		if len(refs) == 0 {
+			t.Fatal("synthetic cycle produced no wire evidence")
+		}
+		role := owner(stream)
+		sequences[role]++
+		if !slices.Contains(producerStreams[role], stream) {
+			producerStreams[role] = append(producerStreams[role], stream)
+		}
+		ref := bundle.SampleRef{Stream: stream, Offset: offset, ProducerID: "synthetic-" + role, CycleID: sequences[role], Sequence: sequences[role], ChunkCount: 1}
+		if stream == schema.Metrics || stream == schema.HostMetadata || stream == schema.AgentInventory || stream == schema.HostInventory || stream == schema.HostSystemInfo {
+			var ordinals []uint64
+			if metric, ok := value.(*telemetry.MetricSample); ok {
+				for i := range metric.Series {
+					ordinals = append(ordinals, uint64(i+1))
+				}
+			}
+			for i, wire := range refs {
+				protocol := map[string]string{"/api/v1/series": "v1", "/api/v2/series": "v2", "/api/intake/metrics/v3/series": "v3", "/api/intake/metrics/v3beta/series": "v3beta", "/intake/": "metadata-v1", "/api/v2/host_metadata": "metadata-v2", "/api/v1/metadata": "inventory-v1"}[wire.Path]
+				if protocol == "" {
+					t.Fatal("unexpected synthetic wire endpoint")
+				}
+				ref.Routes = append(ref.Routes, bundle.RoutingEvidence{PayloadID: uint64(i + 1), Ordinals: ordinals, Endpoint: wire.Path, Protocol: protocol, Destination: "primary", EnqueueOffset: offset})
+			}
+		}
+		if err := w.Append(ref, value, refs); err != nil {
 			t.Fatal(err)
 		}
-		if err := w.Append(stream, offset, value, refs[previous:]); err != nil {
-			t.Fatal(err)
-		}
-		previous = len(refs)
 	}
-	values := map[string]float64{"system.cpu.user": 5, "system.cpu.system": 2, "system.cpu.idle": 93, "system.cpu.num_cores": 4, "system.mem.total": 16384, "system.mem.used": 4096, "system.mem.free": 12288, "system.mem.usable": 12288, "system.mem.pct_usable": 0.75, "system.wlan.rssi": -55, "system.wlan.noise": -95, "system.wlan.txrate": 600, "system.wlan.rxrate": 600, "system.wlan.status": 1}
+	values := map[string]float64{
+		"system.cpu.user": 5, "system.cpu.system": 2, "system.cpu.idle": 93, "system.cpu.num_cores": 4,
+		"system.mem.total": 16384, "system.mem.used": 4096, "system.mem.free": 12288, "system.mem.usable": 12288, "system.mem.pct_usable": 0.75,
+		"system.wlan.rssi": -55, "system.wlan.noise": -95, "system.wlan.txrate": 600, "system.wlan.rxrate": 600, "system.wlan.status": 1,
+		"system.net.bytes_sent": 1024, "system.net.bytes_rcvd": 4096,
+		"system.battery.maximum_capacity_pct": 96, "system.battery.current_charge_pct": 75, "system.battery.cycle_count": 120, "system.battery.charge_rate": -4,
+	}
 	for name := range values {
+		if metricCadences[tc.MetricFamily(name)] <= 0 {
+			t.Fatalf("synthetic metric %s has no supported family cadence", name)
+		}
 		profile.MetricNames = append(profile.MetricNames, name)
 	}
 	sort.Strings(profile.MetricNames)
-	for cycle := 0; cycle < 2; cycle++ {
-		offset := time.Duration(cycle) * 15 * time.Second
+	// A native five-minute battery check can share a serializer flush with
+	// faster families. Keep every fast cycle and the two distinct battery
+	// observations so replay cannot infer battery cadence from CPU flushes.
+	for offset := time.Duration(0); offset < captureDuration; offset += 15 * time.Second {
 		var series []*metrics.Serie
 		for _, name := range profile.MetricNames {
-			source := metrics.MetricSourceCPU
-			tags := []string{"infra_mode:end_user_device"}
-			if strings.HasPrefix(name, "system.mem.") {
-				source = metrics.MetricSourceMemory
+			family := tc.MetricFamily(name)
+			cadence := metricCadences[family]
+			if offset%cadence != 0 {
+				continue
 			}
-			if strings.HasPrefix(name, "system.wlan.") {
+			source := metrics.MetricSourceCPU
+			metricType := metrics.APIGaugeType
+			tags := []string{"infra_mode:end_user_device"}
+			switch family {
+			case "memory":
+				source = metrics.MetricSourceMemory
+			case "wlan":
 				source = metrics.MetricSourceWlan
 				tags = append(tags, "bssid:02:00:00:00:00:01", "mac_address:02:00:00:00:00:02", "ssid:ssid-fixture", "interface:interface-"+strings.Repeat("2", 32))
+			case "network":
+				source = metrics.MetricSourceNetwork
+				metricType = metrics.APIRateType
+				tags = append(tags, "device:interface-"+strings.Repeat("2", 32))
+			case "battery":
+				source = metrics.MetricSourceBattery
 			}
-			series = append(series, &metrics.Serie{Name: name, Host: "capture-host", MType: metrics.APIGaugeType, Source: source, Interval: 15, Tags: tagset.CompositeTagsFromSlice(tags), Points: []metrics.Point{{Ts: offset.Seconds(), Value: values[name]}}})
+			series = append(series, &metrics.Serie{Name: name, Host: "capture-host", MType: metricType, Source: source, Interval: int64(cadence / time.Second), Tags: tagset.CompositeTagsFromSlice(tags), Points: []metrics.Point{{Ts: offset.Seconds(), Value: values[name]}}})
 		}
 		envelope, err := telemetry.NewMetricSample(series)
 		if err != nil {
@@ -129,17 +196,43 @@ func generateFixture(t *testing.T, platform string) {
 			proc.Processes = append(proc.Processes, process(200, "SentinelAgent.exe", 4, 200<<20))
 		}
 		save(schema.Processes, offset, proc, func() error { return p.Process(ctx, time.Unix(int64(offset.Seconds()), 0), proc) })
-		if platform == "windows" {
-			conn := &model.CollectorConnections{HostName: "capture-host", NetworkId: proc.NetworkId, GroupId: int32(cycle + 1), GroupSize: 1, Connections: []*model.Connection{{Pid: 300, Laddr: &model.Addr{Ip: "10.0.0.1", Port: 50000}, Raddr: &model.Addr{Ip: "10.0.0.2", Port: 443}, Type: model.ConnectionType_tcp, Rtt: 20000, RttVar: 2000, LastBytesSent: 1000, LastBytesReceived: 2000}}}
-			if cycle == 0 {
-				profile.ConnectionSelectors = []string{telemetry.ConnectionSelector(conn.Connections[0])}
-			}
-			cadences[schema.Connections] = 10 * time.Second
-			save(schema.Connections, offset, conn, func() error { return p.Connections(ctx, time.Unix(int64(offset.Seconds()), 0), conn) })
+		conn := &model.CollectorConnections{HostName: "capture-host", NetworkId: proc.NetworkId, GroupId: int32(cycle + 1), GroupSize: 1, Connections: []*model.Connection{{Pid: 300, Laddr: &model.Addr{Ip: "10.0.0.1", Port: 50000}, Raddr: &model.Addr{Ip: "10.0.0.2", Port: 443}, Type: model.ConnectionType_tcp, Rtt: 20000, RttVar: 2000, LastBytesSent: 1000, LastBytesReceived: 2000}}}
+		// Backend routing distinguishes an EUDM-only macOS sender from the
+		// synthetic Windows sender that also has NPM enabled. A nil config
+		// defaults to NPM in intake, so preserve the explicit false flag.
+		conn.AgentConfiguration = &model.AgentConfiguration{EudmEnabled: true, NpmEnabled: platform == "windows"}
+		if cycle == 0 {
+			profile.ConnectionSelectors = []string{telemetry.ConnectionSelector(conn.Connections[0])}
 		}
+		save(schema.Connections, offset, conn, func() error { return p.Connections(ctx, time.Unix(int64(offset.Seconds()), 0), conn) })
 	}
 	host := &telemetry.HostMetadata{Hostname: "capture-host", UUID: "00000000-0000-4000-8000-000000000001", AgentVersion: "7.85.0-fixture", AgentFlavor: "agent", OS: hostOS, HostTags: map[string][]string{"system": {"infra_mode:end_user_device"}}}
 	save(schema.HostMetadata, 0, host, func() error { return p.Serializer.SendHostMetadata(host) })
+	agentInventory := &tc.Inventory{Hostname: host.Hostname, UUID: host.UUID, Timestamp: int64(250 * time.Millisecond), Agent: &tc.AgentInventoryMetadata{
+		AgentVersion: host.AgentVersion, PackageVersion: "7.85.0-fixture", Flavor: "agent", InfrastructureMode: "end_user_device", AgentStartupTimeMS: -60000,
+		FeatureProcessEnabled: true, FeatureNetworksEnabled: true,
+	}}
+	save(schema.AgentInventory, 0, agentInventory, func() error { return p.Serializer.SendMetadata(agentInventory) })
+	inventoryOS := osname
+	if platform == "windows" {
+		inventoryOS = "Microsoft Windows 11 Pro"
+	}
+	hostInventory := &tc.Inventory{Hostname: host.Hostname, UUID: host.UUID, Timestamp: int64(500 * time.Millisecond), Host: &tc.HostInventoryMetadata{
+		CPUCores: 4, CPULogicalProcessors: 4, CPUArchitecture: arch, CPUVendor: "fixture-vendor", CPUModel: "fixture-model",
+		MemoryTotalKb: 16 << 20, KernelName: osname, OS: inventoryOS, OSVersion: "15.6", AgentVersion: host.AgentVersion,
+		IPAddress: "10.0.0.1", MacAddress: "02:00:00:00:00:02",
+	}}
+	save(schema.HostInventory, 0, hostInventory, func() error { return p.Serializer.SendMetadata(hostInventory) })
+	systemInfo := &tc.Inventory{Hostname: host.Hostname, UUID: host.UUID, Timestamp: int64(5250 * time.Millisecond), SystemInfo: &tc.HostSystemInfoMetadata{
+		Manufacturer: "Apple Inc.", ModelNumber: "Mac16,5", SerialNumber: "serial_number-" + strings.Repeat("5", 32),
+		ModelName: "device_model-" + strings.Repeat("6", 32), ChassisType: "Laptop", Identifier: "Mac16,5",
+	}}
+	if platform == "windows" {
+		systemInfo.SystemInfo.Manufacturer = "Lenovo"
+		systemInfo.SystemInfo.ModelNumber = "device_model-" + strings.Repeat("7", 32)
+		systemInfo.SystemInfo.Identifier = "device_model-" + strings.Repeat("8", 32)
+	}
+	save(schema.HostSystemInfo, 5*time.Second, systemInfo, func() error { return p.Serializer.SendMetadata(systemInfo) })
 	kind := "app"
 	if platform == "windows" {
 		kind = "desktop"
@@ -157,7 +250,17 @@ func generateFixture(t *testing.T, platform string) {
 	})
 	sort.Strings(profile.ProcessNames)
 	sort.Strings(profile.SoftwareNames)
-	if _, err := w.Complete(30*time.Second, profile, cadences); err != nil {
+	var producers []bundle.Producer
+	for _, role := range []string{"core-agent", "process-agent", "system-probe"} {
+		if sequences[role] == 0 {
+			continue
+		}
+		producers = append(producers, bundle.Producer{Role: role, InstanceID: "synthetic-" + role, Version: "7.85.0-fixture", Commit: strings.Repeat("b", 40), ProtocolVersion: 1, Streams: producerStreams[role], StopOffset: captureDuration, FinalSequence: sequences[role], AcknowledgedSequence: sequences[role], Stopped: true})
+	}
+	if err := w.SetProducers(producers); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Complete(captureDuration, profile, cadences); err != nil {
 		t.Fatal(err)
 	}
 }

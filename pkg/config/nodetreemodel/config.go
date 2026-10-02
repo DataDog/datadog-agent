@@ -650,6 +650,7 @@ func (c *ntmConfig) layerList() []*nodeImpl {
 	return []*nodeImpl{
 		c.defaults,
 		c.unknown,
+		c.infraMode,
 		c.file,
 		c.envs,
 		c.fleetPolicies,

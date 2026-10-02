@@ -33,6 +33,8 @@ type checkResult struct {
 	deliveryContext context.Context
 	deliveryResult  chan error
 	name            string
+	collectedAt     time.Time
+	cadence         time.Duration
 	payloads        []checkPayload
 	sizeInBytes     int64
 }
@@ -155,6 +157,7 @@ func (l *CheckRunner) runCheck(c checks.Check) {
 	status.UpdateLastCollectTime(start)
 
 	result, err := c.Run(l.nextGroupID, nil)
+	l.setCaptureCheckHealthy(c.Name(), err == nil)
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
@@ -188,6 +191,9 @@ func (l *CheckRunner) runCheckWithRealTime(c checks.Check, options *checks.RunOp
 	status.UpdateLastCollectTime(start)
 
 	result, err := c.Run(l.nextGroupID, options)
+	if options.RunStandard {
+		l.setCaptureCheckHealthy(c.Name(), err == nil)
+	}
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
@@ -281,9 +287,11 @@ func (l *CheckRunner) Run() error {
 			return fmt.Errorf("error starting check %s: %s", c.Name(), err)
 		}
 
+		l.setCaptureCheckRunning(c.Name(), true)
 		l.wg.Add(1)
 		go func() {
 			defer l.wg.Done()
+			defer l.setCaptureCheckRunning(c.Name(), false)
 			runner()
 		}()
 	}
@@ -362,7 +370,7 @@ func (l *CheckRunner) runnerForCheck(c checks.Check) (func(), error) {
 		rtInterval = defaultRTInterval
 	}
 
-	return checks.NewRunnerWithRealTime(
+	run, err := checks.NewRunnerWithRealTime(
 		checks.RunnerConfig{
 			CheckInterval:  interval,
 			RtInterval:     rtInterval,
@@ -376,16 +384,22 @@ func (l *CheckRunner) runnerForCheck(c checks.Check) (func(), error) {
 			},
 		},
 	)
+	if err == nil {
+		l.setCaptureCadence(c.Name(), interval)
+	}
+	return run, err
 }
 
 func (l *CheckRunner) basicRunner(c checks.Check) func() {
 	return func() {
+		interval := checks.GetInterval(l.config, c.Name())
+		l.setCaptureCadence(c.Name(), interval)
 		// Run the check the first time to prime the caches.
 		if !c.Realtime() {
 			l.runCheck(c)
 		}
 
-		ticker := time.NewTicker(checks.GetInterval(l.config, c.Name()))
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -407,6 +421,24 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 				}
 			}
 		}
+	}
+}
+
+func (l *CheckRunner) setCaptureCadence(name string, interval time.Duration) {
+	if observer, ok := l.Submitter.(interface{ SetCaptureCadence(string, time.Duration) }); ok {
+		observer.SetCaptureCadence(name, interval)
+	}
+}
+
+func (l *CheckRunner) setCaptureCheckRunning(name string, running bool) {
+	if observer, ok := l.Submitter.(interface{ SetCaptureCheckRunning(string, bool) }); ok {
+		observer.SetCaptureCheckRunning(name, running)
+	}
+}
+
+func (l *CheckRunner) setCaptureCheckHealthy(name string, healthy bool) {
+	if observer, ok := l.Submitter.(interface{ SetCaptureCheckHealthy(string, bool) }); ok {
+		observer.SetCaptureCheckHealthy(name, healthy)
 	}
 }
 
@@ -465,6 +497,9 @@ func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) Stop() {
+	for _, check := range l.enabledChecks {
+		l.setCaptureCheckRunning(check.Name(), false)
+	}
 	close(l.stop)
 	l.wg.Wait()
 

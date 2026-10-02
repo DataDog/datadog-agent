@@ -141,6 +141,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		hostnameimpl.Module(),
 
 		// Provide process agent bundle so fx knows where to find components
+		fx.Provide(newCaptureManager),
 		process.Bundle(),
 
 		eventplatformreceiverimpl.Module(),

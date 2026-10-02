@@ -18,13 +18,18 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//comp/def",
         "//comp/process/apiserver/def",
+        "//pkg/telemetrycapture",
         "//pkg/util/system",
     ],
 )
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["apiserver_test.go"],
+    srcs = [
+        "apiserver_test.go",
+        "capture_test.go",
+    ],
+    embed = [":impl"],
     deps = [
         "//comp/core/config",
         "//comp/core/ipc/def",
@@ -43,6 +48,7 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/fx",
         "//comp/process/apiserver/def",
         "//comp/process/apiserver/fx",
+        "//pkg/telemetrycapture",
         "//pkg/util/fxutil",
         "//pkg/util/log",
         "@com_github_stretchr_testify//assert",

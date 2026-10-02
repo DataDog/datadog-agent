@@ -15,6 +15,7 @@ import (
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
 // Sender sends data directly to the backend for CNM/USM data
@@ -24,6 +25,7 @@ type Sender interface {
 
 // Dependencies are all the component dependencies of the direct sender
 type Dependencies struct {
+	CaptureManager *telemetrycapture.Manager
 	Config         config.Component
 	Logger         log.Component
 	Sysprobeconfig sysprobeconfig.Component

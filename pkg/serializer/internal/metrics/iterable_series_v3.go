@@ -20,6 +20,7 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 )
@@ -125,11 +126,12 @@ const (
 )
 
 type payloadsBuilderV3 struct {
-	requireAll  bool
-	compression compression.Component
-	compressor  stream.ColumnCompressor
-	txn         *stream.ColumnTransaction
-	dict        *dictionaryBuilder
+	captureMembership marshaler.CaptureMembership
+	requireAll        bool
+	compression       compression.Component
+	compressor        stream.ColumnCompressor
+	txn               *stream.ColumnTransaction
+	dict              *dictionaryBuilder
 
 	deltaNameRef           deltaEncoder
 	deltaTagsRef           deltaEncoder
@@ -287,7 +289,9 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 			payload = append(payload, compressedBytes...)
 		}
 
-		pb.pipelineContext.addPayload(transaction.NewBytesPayload(payload, pb.pointsThisPayload))
+		bytesPayload := transaction.NewBytesPayload(payload, pb.pointsThisPayload)
+		pb.captureMembership.Finished(bytesPayload)
+		pb.pipelineContext.addPayload(bytesPayload)
 	}
 
 	pb.updateValuesStats()
@@ -388,6 +392,7 @@ func (pb *payloadsBuilderV3) finishTxn(numPoints int) error {
 		return nil
 	case nil:
 		pb.pointsThisPayload += numPoints
+		pb.captureMembership.Accepted()
 		return nil
 	default:
 		return err

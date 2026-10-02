@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -48,19 +49,18 @@ var _ Submitter = &CheckSubmitter{}
 
 type submitFunc func(transaction.BytesPayloads, http.Header) (chan forwarder.Response, error)
 
-// CaptureTransformer optionally replaces complete native messages with sanitized
-// copies before encoding. Implementations report failures out of band to cancel
-// capture, and return only errors that contain no raw telemetry.
-type CaptureTransformer func(string, []model.MessageBody) ([]model.MessageBody, error)
-
 //nolint:revive // TODO(PROC) Fix revive linter
 type CheckSubmitter struct {
-	capture        CaptureTransformer
-	log            log.Component
-	queues         []*api.WeightedQueue
-	resultsQueue   map[string]*api.WeightedQueue
-	submitFuncs    map[string]submitFunc
-	realtimeUpdate map[string]bool
+	// CaptureManager is the process-owned manager, assigned before Start.
+	CaptureManager *telemetrycapture.Manager
+	// A pointer keeps the host-local encoder view safe to copy in SubmitForHost.
+	captureCadences  *sync.Map
+	captureLifecycle *captureLifecycle
+	log              log.Component
+	queues           []*api.WeightedQueue
+	resultsQueue     map[string]*api.WeightedQueue
+	submitFuncs      map[string]submitFunc
+	realtimeUpdate   map[string]bool
 
 	// Endpoints for logging purposes
 	processAPIEndpoints []apicfg.Endpoint
@@ -94,7 +94,7 @@ type CheckSubmitter struct {
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
-func NewSubmitter(config config.Component, log log.Component, forwarders forwarders.Component, statsd statsd.ClientInterface, hostname string, sysprobeconfig sysprobeconfig.Component, capture ...CaptureTransformer) (*CheckSubmitter, error) {
+func NewSubmitter(config config.Component, log log.Component, forwarders forwarders.Component, statsd statsd.ClientInterface, hostname string, sysprobeconfig sysprobeconfig.Component) (*CheckSubmitter, error) {
 	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
 		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, pkgconfigsetup.DefaultProcessQueueBytes)
@@ -136,13 +136,11 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 	processFwd := forwarders.GetProcessForwarder()
 	rtProcessFwd := forwarders.GetRTProcessForwarder()
 
-	var transformer CaptureTransformer
-	if len(capture) > 0 {
-		transformer = capture[0]
-	}
+	cadences := &sync.Map{}
 	return &CheckSubmitter{
-		capture: transformer,
-		log:     log,
+		captureCadences:  cadences,
+		captureLifecycle: &captureLifecycle{checks: make(map[string]captureCheckState), registered: make(map[telemetrycapture.Stream]bool)},
+		log:              log,
 		queues: []*api.WeightedQueue{
 			processResults,
 			rtProcessResults,
@@ -207,16 +205,26 @@ func printStartMessage(log log.Component, hostname string, processAPIEndpoints [
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Payload) {
-	if s.capture != nil {
-		transformed, err := s.capture(name, messages.Message)
-		if err != nil {
-			s.log.Errorf("Capture transformation failed: %s", err)
-			return
-		}
-		messages = &types.Payload{Message: transformed}
-	}
 	results := s.resultsQueue[name]
 	s.messagesToResultsQueue(start, name, messages.Message, results)
+}
+
+// SetCaptureCadence records the interval selected by the running check's
+// scheduler, including its validation of real-time interval overrides.
+func (s *CheckSubmitter) SetCaptureCadence(name string, interval time.Duration) {
+	if s.captureCadences != nil && (name == checks.ProcessCheckName || name == checks.ConnectionsCheckName) {
+		s.captureCadences.Store(name, interval)
+		s.updateCaptureCheck(name, func(*captureCheckState) {})
+	}
+}
+
+func (s *CheckSubmitter) captureCadence(name string) time.Duration {
+	if s.captureCadences != nil {
+		if interval, ok := s.captureCadences.Load(name); ok {
+			return interval.(time.Duration)
+		}
+	}
+	return 0
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -270,11 +278,13 @@ func (s *CheckSubmitter) Start() error {
 		}
 	}()
 
+	s.setCaptureSubmitterRunning(true)
 	return nil
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func (s *CheckSubmitter) Stop() {
+	s.setCaptureSubmitterRunning(false)
 	close(s.exit)
 
 	for _, q := range s.queues {
@@ -301,6 +311,13 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 			return
 		}
 		result := item.(*checkResult)
+		if s.shouldDropPayload(result.name) {
+			if result.deliveryResult != nil {
+				result.deliveryResult <- fmt.Errorf("required %s payloads are disabled", result.name)
+			}
+			continue
+		}
+		s.observeCaptureResult(result)
 		if result.deliveryResult != nil {
 			result.deliveryResult <- s.deliverTracked(result)
 			continue
@@ -312,10 +329,6 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 				err              error
 				updateRTStatus   bool
 			)
-
-			if s.shouldDropPayload(result.name) {
-				continue
-			}
 
 			submitFn, ok := s.submitFuncs[result.name]
 			updateRTStatus = s.realtimeUpdate[result.name]
@@ -337,6 +350,24 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 			}
 		}
 	}
+}
+
+func (s *CheckSubmitter) observeCaptureResult(result *checkResult) {
+	if s.CaptureManager == nil || !s.CaptureManager.Enabled() {
+		return
+	}
+	var stream telemetrycapture.Stream
+	switch result.name {
+	case checks.ProcessCheckName:
+		stream = telemetrycapture.Processes
+	case checks.ConnectionsCheckName:
+		stream = telemetrycapture.Connections
+	default:
+		return
+	}
+	api.ObserveCaptureGroup(s.CaptureManager, stream, result.collectedAt, result.cadence, len(result.payloads), func(i int) ([]byte, http.Header) {
+		return result.payloads[i].body, result.payloads[i].headers
+	})
 }
 
 func (s *CheckSubmitter) logQueuesSize() {
@@ -414,6 +445,8 @@ func (s *CheckSubmitter) messagesToCheckResult(start time.Time, name string, mes
 
 	return &checkResult{
 		name:        name,
+		collectedAt: start,
+		cadence:     s.captureCadence(name),
 		payloads:    payloads,
 		sizeInBytes: int64(sizeInBytes),
 	}

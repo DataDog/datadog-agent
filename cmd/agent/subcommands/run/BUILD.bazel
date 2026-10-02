@@ -13,6 +13,7 @@ exports_files(
 go_library(
     name = "run",
     srcs = [
+        "capture.go",
         "command.go",
         "command_darwin.go",
         "command_notwin.go",
@@ -203,6 +204,7 @@ go_library(
         "//pkg/status/httpproxy",
         "//pkg/status/jmx",
         "//pkg/status/systemprobe",
+        "//pkg/telemetrycapture",
         "//pkg/util/common",
         "//pkg/util/coredump",
         "//pkg/util/defaultpaths",
@@ -307,6 +309,7 @@ go_library(
 dd_agent_go_test(
     name = "run_test",
     srcs = [
+        "capture_test.go",
         "command_test.go",
         "command_windows_test.go",
         "dependent_services_windows_test.go",
@@ -316,8 +319,11 @@ dd_agent_go_test(
         "//cmd/agent/command",
         "//comp/core",
         "//comp/core/pid/impl",
+        "//pkg/telemetrycapture",
         "//pkg/util/fxutil",
+        "//pkg/version",
         "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/config/mock",

@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "runner",
     srcs = [
+        "capture_lifecycle.go",
         "runner.go",
         "submitter.go",
         "submitter_tracked.go",
@@ -28,6 +29,7 @@ go_library(
         "//pkg/process/util/api/headers",
         "//pkg/system-probe/config",
         "//pkg/system-probe/config/types",
+        "//pkg/telemetrycapture",
         "//pkg/util/flavor",
         "//pkg/util/log",
         "//pkg/version",
@@ -41,9 +43,11 @@ go_library(
 dd_agent_go_test(
     name = "runner_test",
     srcs = [
+        "capture_lifecycle_test.go",
         "collector_api_test.go",
         "endpoints_test.go",
         "runner_test.go",
+        "submitter_capture_test.go",
         "submitter_test.go",
     ],
     embed = [":runner"],
@@ -77,6 +81,7 @@ dd_agent_go_test(
         "//pkg/process/util/api",
         "//pkg/process/util/api/config",
         "//pkg/process/util/api/headers",
+        "//pkg/telemetrycapture",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/version",

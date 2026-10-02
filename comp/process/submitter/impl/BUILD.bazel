@@ -21,6 +21,7 @@ go_library(
         "//comp/process/types",
         "//pkg/process/runner",
         "//pkg/process/runner/mocks",
+        "//pkg/telemetrycapture",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//mock",
     ],
@@ -28,7 +29,10 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["submitter_test.go"],
+    srcs = [
+        "capture_test.go",
+        "submitter_test.go",
+    ],
     embed = [":impl"],
     deps = [
         "//comp/core",
@@ -37,8 +41,10 @@ dd_agent_go_test(
         "//comp/process/forwarders/mock",
         "//comp/process/hostinfo/mock",
         "//comp/process/submitter/def",
+        "//pkg/telemetrycapture",
         "//pkg/util/fxutil",
         "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
     ],
 )

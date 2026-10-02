@@ -19,7 +19,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//cmd/eudm-simulator/command",
-        "//cmd/eudm-simulator/internal/capture/native",
+        "//cmd/eudm-simulator/internal/capture/live",
         "//cmd/eudm-simulator/internal/engine",
     ],
 )

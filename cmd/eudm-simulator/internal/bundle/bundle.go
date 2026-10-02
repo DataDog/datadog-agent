@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	SchemaVersion    = 1
+	SchemaVersion    = 4
 	SanitizerVersion = 1
 	maxManifestBytes = 4 << 20
 	maxFileBytes     = 64 << 20
@@ -31,21 +31,64 @@ const (
 
 // SampleRef links a sanitized typed sample to its serialized wire references.
 type SampleRef struct {
-	Stream    schema.Stream `json:"stream"`
-	Offset    time.Duration `json:"offset_ns"`
-	File      string        `json:"file"`
-	WireFiles []string      `json:"wire_files"`
+	Stream     schema.Stream     `json:"stream"`
+	Offset     time.Duration     `json:"offset_ns"`
+	ProducerID string            `json:"producer_id"`
+	CycleID    uint64            `json:"cycle_id"`
+	Sequence   uint64            `json:"sequence"`
+	ChunkIndex int               `json:"chunk_index"`
+	ChunkCount int               `json:"chunk_count"`
+	Routes     []RoutingEvidence `json:"routes,omitempty"`
+	File       string            `json:"file"`
+	WireFiles  []string          `json:"wire_files"`
+}
+
+// BuildIdentity binds portable replay to the tool that sanitized and serialized
+// the bundle. Installed producer builds are validated independently.
+type BuildIdentity struct {
+	Version string `json:"version"`
+	Commit  string `json:"commit"`
+}
+
+// Producer records the acknowledged boundaries of one participating process.
+type Producer struct {
+	Role                 string          `json:"role"`
+	InstanceID           string          `json:"instance_id"`
+	Version              string          `json:"version"`
+	Commit               string          `json:"commit"`
+	ProtocolVersion      int             `json:"protocol_version"`
+	Streams              []schema.Stream `json:"streams"`
+	StartOffset          time.Duration   `json:"start_offset_ns"`
+	StopOffset           time.Duration   `json:"stop_offset_ns"`
+	FinalSequence        uint64          `json:"final_sequence"`
+	AcknowledgedSequence uint64          `json:"acknowledged_sequence"`
+	Stopped              bool            `json:"stopped"`
+	Failures             uint64          `json:"failures"`
+	Drops                uint64          `json:"drops"`
+}
+
+// RoutingEvidence contains fixed endpoint/protocol/destination labels, never
+// backend authorities, credentials, raw headers, or original wire bodies.
+type RoutingEvidence struct {
+	PayloadID     uint64        `json:"payload_id"`
+	Ordinals      []uint64      `json:"ordinals,omitempty"`
+	Endpoint      string        `json:"endpoint"`
+	Protocol      string        `json:"protocol"`
+	Destination   string        `json:"destination"`
+	EnqueueOffset time.Duration `json:"enqueue_offset_ns"`
 }
 
 // Manifest is written last, after all sanitized output is persisted.
 type Manifest struct {
 	SchemaVersion    int                             `json:"schema_version"`
 	SanitizerVersion int                             `json:"sanitizer_version"`
-	AgentVersion     string                          `json:"agent_version"`
-	AgentCommit      string                          `json:"agent_commit"`
+	CaptureTool      BuildIdentity                   `json:"capture_tool"`
+	SessionID        string                          `json:"session_id"`
+	Producers        []Producer                      `json:"producers"`
 	Profile          schema.Profile                  `json:"profile"`
 	Duration         time.Duration                   `json:"duration_ns"`
 	Cadences         map[schema.Stream]time.Duration `json:"cadences_ns"`
+	MetricCadences   map[string]time.Duration        `json:"metric_cadences_ns"`
 	Samples          []SampleRef                     `json:"samples"`
 	Files            map[string]string               `json:"files"`
 	Complete         bool                            `json:"complete"`
@@ -61,7 +104,7 @@ type Loaded struct {
 
 // Ref returns the portable content identity used by run plans.
 func (b *Loaded) Ref() schema.BundleRef {
-	return schema.BundleRef{Digest: b.Digest, AgentCommit: b.Manifest.AgentCommit, Profile: b.Manifest.Profile}
+	return schema.BundleRef{Digest: b.Digest, CaptureToolCommit: b.Manifest.CaptureTool.Commit, Profile: b.Manifest.Profile}
 }
 
 // DecodeJSON rejects unknown fields and concatenated JSON documents.
@@ -80,7 +123,7 @@ func DecodeJSON(data []byte, out any) error {
 
 // Load verifies the complete bundle, including every declared digest, before
 // returning any samples. The replay host's operating system is irrelevant.
-func Load(directory, agentCommit string) (*Loaded, error) {
+func Load(directory, captureToolCommit string) (*Loaded, error) {
 	root, err := os.OpenRoot(directory)
 	if err != nil {
 		return nil, fmt.Errorf("open capture bundle: %w", err)
@@ -113,6 +156,17 @@ func Load(directory, agentCommit string) (*Loaded, error) {
 		return nil, fmt.Errorf("read bundle manifest: %w", err)
 	}
 	b := &Loaded{Digest: schema.Digest(data), Files: map[string][]byte{}}
+	// Read the version before strict decoding so older bundles receive the
+	// explicit instruction to recapture complete metric check coverage.
+	var version struct {
+		SchemaVersion int `json:"schema_version"`
+	}
+	if err := json.Unmarshal(data, &version); err != nil {
+		return nil, errors.New("decode bundle manifest")
+	}
+	if version.SchemaVersion != SchemaVersion {
+		return nil, errors.New("unsupported bundle schema; recapture with scheduled metric family coverage, agent_inventory, and host_inventory evidence")
+	}
 	if err := DecodeJSON(data, &b.Manifest); err != nil {
 		return nil, fmt.Errorf("decode bundle manifest: %w", err)
 	}
@@ -120,14 +174,14 @@ func Load(directory, agentCommit string) (*Loaded, error) {
 	if m.SchemaVersion != SchemaVersion || m.SanitizerVersion != SanitizerVersion {
 		return nil, errors.New("unsupported bundle schema or sanitizer version; recapture")
 	}
-	if len(agentCommit) != 40 || m.AgentCommit != agentCommit {
-		return nil, errors.New("bundle Agent commit mismatch; recapture using this exact Agent revision")
+	if !validCommit(captureToolCommit) || m.CaptureTool.Commit != captureToolCommit {
+		return nil, errors.New("bundle capture-tool commit mismatch; recapture using this exact replay revision")
 	}
 	marker, err := read("COMPLETE", 65)
 	if err != nil || !m.Complete || string(marker) != b.Digest+"\n" {
 		return nil, errors.New("capture bundle is incomplete or completion digest does not match")
 	}
-	if m.Duration <= 0 || m.AgentVersion == "" || (m.Profile.OS != "windows" && m.Profile.OS != "macos") || (m.Profile.Architecture != "amd64" && m.Profile.Architecture != "arm64") {
+	if m.Duration <= 0 || (m.Profile.OS != "windows" && m.Profile.OS != "macos") || (m.Profile.Architecture != "amd64" && m.Profile.Architecture != "arm64") {
 		return nil, errors.New("invalid capture profile or duration")
 	}
 	if len(m.Samples) == 0 || len(m.Files) == 0 {
@@ -146,17 +200,15 @@ func Load(directory, agentCommit string) (*Loaded, error) {
 		}
 		b.Files[name] = data
 	}
-	counts := map[schema.Stream]int{}
-	last := map[schema.Stream]time.Duration{}
+	counts, err := m.validateProvenance()
+	if err != nil {
+		return nil, err
+	}
 	used := map[string]bool{}
 	for _, sample := range m.Samples {
-		if !slices.Contains(m.Profile.Streams, sample.Stream) || sample.Offset < 0 || sample.Offset > m.Duration || sample.Offset < last[sample.Stream] {
+		if !slices.Contains(m.Profile.Streams, sample.Stream) || sample.Offset < 0 || sample.Offset > m.Duration {
 			return nil, errors.New("invalid stream or sample offset")
 		}
-		if counts[sample.Stream] == 0 || last[sample.Stream] != sample.Offset {
-			counts[sample.Stream]++
-		}
-		last[sample.Stream] = sample.Offset
 		if _, ok := b.Files[sample.File]; !ok || used[sample.File] {
 			return nil, fmt.Errorf("missing or duplicate typed sample %q", sample.File)
 		}
@@ -184,26 +236,29 @@ func Load(directory, agentCommit string) (*Loaded, error) {
 		switch stream {
 		case schema.Metrics, schema.Processes, schema.Connections:
 			requiredCount = 2
-		case schema.HostMetadata, schema.Software:
+		case schema.HostMetadata, schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo, schema.Software:
 		default:
 			return nil, fmt.Errorf("unsupported capture stream %q", stream)
 		}
 		if counts[stream] < requiredCount || m.Cadences[stream] <= 0 {
 			return nil, fmt.Errorf("stream %s lacks complete coverage or cadence", stream)
 		}
-		if stream == schema.Connections && m.Profile.OS != "windows" {
-			return nil, fmt.Errorf("connections are unsupported for captured platform %s", m.Profile.OS)
-		}
 	}
-	for _, stream := range []schema.Stream{schema.Metrics, schema.HostMetadata, schema.Processes, schema.Software} {
+	for _, stream := range []schema.Stream{schema.Metrics, schema.HostMetadata, schema.AgentInventory, schema.HostInventory, schema.Processes, schema.Software} {
 		if !streams[stream] {
 			return nil, fmt.Errorf("incomplete bundle: missing %s", stream)
 		}
+	}
+	if m.Profile.OS == "windows" && !streams[schema.Connections] {
+		return nil, errors.New("incomplete Windows bundle: missing connections")
 	}
 	if len(m.Cadences) != len(streams) {
 		return nil, errors.New("capture cadence inventory differs from stream inventory")
 	}
 	if err := b.validateTyped(); err != nil {
+		return nil, err
+	}
+	if err := b.validateMetricCoverage(); err != nil {
 		return nil, err
 	}
 	return b, nil

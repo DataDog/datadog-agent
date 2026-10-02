@@ -416,6 +416,7 @@ func run(log log.Component,
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
+		fx.Provide(newCaptureManager),
 		flare.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
 			defaultpaths.GetDefaultPyChecksPath(),

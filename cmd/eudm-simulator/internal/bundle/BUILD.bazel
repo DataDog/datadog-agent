@@ -7,7 +7,9 @@ go_library(
     name = "bundle",
     srcs = [
         "bundle.go",
+        "provenance.go",
         "typed.go",
+        "wire.go",
         "writer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle",
@@ -15,12 +17,18 @@ go_library(
     deps = [
         "//cmd/eudm-simulator/internal/schema",
         "//cmd/eudm-simulator/internal/telemetry",
+        "//pkg/telemetrycapture",
     ],
 )
 
 dd_agent_go_test(
     name = "bundle_test",
-    srcs = ["bundle_test.go"],
+    srcs = [
+        "bundle_test.go",
+        "inventory_test.go",
+        "provenance_test.go",
+        "writer_test.go",
+    ],
     embed = [":bundle"],
     deps = [
         "//cmd/eudm-simulator/internal/schema",
@@ -28,6 +36,7 @@ dd_agent_go_test(
         "//comp/softwareinventory/impl",
         "//pkg/inventory/software",
         "//pkg/metrics",
+        "//pkg/telemetrycapture",
         "@com_github_datadog_agent_payload_v5//process",
     ],
 )

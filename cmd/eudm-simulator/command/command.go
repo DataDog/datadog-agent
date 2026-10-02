@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -24,7 +25,8 @@ import (
 
 // CaptureRequest never carries delivery credentials or staging destinations.
 type CaptureRequest struct {
-	Directory string
+	Directory  string
+	ConfigPath string
 }
 
 // ReplayRequest owns all verified bytes before delivery can start.
@@ -34,9 +36,10 @@ type ReplayRequest struct {
 	Bundle       *bundle.Loaded
 	Destinations map[safety.Destination][]string
 	ReportPath   string
+	Progress     io.Writer
 }
 
-// Runtime separates native capture from the portable replay lifecycle. A replay
+// Runtime separates live capture from the portable replay lifecycle. A replay
 // invocation cannot call Capture: only the capture subcommand has that callback.
 type Runtime struct {
 	Capture func(context.Context, CaptureRequest) error
@@ -50,21 +53,27 @@ const captureTimeout = 35 * time.Minute
 func MakeCommand(runtime Runtime) *cobra.Command {
 	root := &cobra.Command{Use: "eudm-simulator", Short: "Capture sanitized EUDM baselines and replay staging scenarios", SilenceUsage: true, SilenceErrors: true}
 	var request CaptureRequest
-	capture := &cobra.Command{Use: "capture", Short: "Capture a native baseline without contacting staging", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+	var timeout time.Duration
+	capture := &cobra.Command{Use: "capture", Short: "Capture sanitized output from running Agent services", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		if request.Directory == "" {
 			return errors.New("capture requires --output")
 		}
-		if err := nativeCaptureSupported(); err != nil {
+		if err := captureSupported(); err != nil {
 			return err
 		}
 		if runtime.Capture == nil {
-			return errors.New("native capture service is unavailable in this build")
+			return errors.New("live capture coordinator is unavailable in this build")
 		}
-		ctx, cancel := context.WithTimeout(cmd.Context(), captureTimeout)
+		if timeout <= 0 || timeout > 2*time.Hour {
+			return errors.New("capture --timeout must be positive and at most 2h")
+		}
+		ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
 		defer cancel()
 		return runtime.Capture(ctx, request)
 	}}
+	capture.Flags().DurationVar(&timeout, "timeout", captureTimeout, "Maximum wait for normal collection (up to 2h; hourly hardware inventory may need 70m)")
 	capture.Flags().StringVar(&request.Directory, "output", "", "New sanitized bundle directory")
+	capture.Flags().StringVar(&request.ConfigPath, "cfgpath", "", "Installed Agent configuration file or directory (capture APIs and authentication only)")
 	root.AddCommand(capture)
 	for _, action := range []string{"validate", "run"} {
 		root.AddCommand(replayCommand(action, runtime))
@@ -131,7 +140,13 @@ func replayCommand(action string, runtime Runtime) *cobra.Command {
 			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Run report: %s\n", reportPath); err != nil {
 				return err
 			}
-			return runtime.Replay(cmd.Context(), ReplayRequest{Scenario: &scenario, Plan: plan, Bundle: loaded, Destinations: destinations, ReportPath: reportPath})
+			runErr := runtime.Replay(cmd.Context(), ReplayRequest{Scenario: &scenario, Plan: plan, Bundle: loaded, Destinations: destinations, ReportPath: reportPath, Progress: cmd.OutOrStdout()})
+			status := "succeeded"
+			if runErr != nil {
+				status = "failed"
+			}
+			_, outputErr := fmt.Fprintf(cmd.OutOrStdout(), "Run %s. Report: %s\n", status, reportPath)
+			return errors.Join(runErr, outputErr)
 		}
 		return errors.New("unsupported action")
 	}

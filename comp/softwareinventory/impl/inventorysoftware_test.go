@@ -48,7 +48,14 @@ type callCounter interface {
 
 type mockEventPlatform struct {
 	mock.Mock
-	mu sync.Mutex
+	mu              sync.Mutex
+	softwareCadence time.Duration
+}
+
+func (m *mockEventPlatform) SetSoftwareCaptureCadence(cadence time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.softwareCadence = cadence
 }
 
 func (m *mockEventPlatform) SendEventPlatformEvent(msg *message.Message, eventType string) error {
@@ -273,24 +280,20 @@ func TestSendPayloadSetsIngestionTimestamp(t *testing.T) {
 		"IngestionTimestamp must be set to a valid non-zero value (nanoseconds since epoch)")
 }
 
-func TestCaptureTransformsCompleteSnapshotBeforeEventSerialization(t *testing.T) {
+func TestSendPayloadPreservesCompleteSnapshot(t *testing.T) {
 	raw := []software.Entry{
 		{DisplayName: "Google Chrome", ProductCode: "UNIQUE-CAPTURE-SECRET", InstallPaths: []string{"UNIQUE-CAPTURE-SECRET"}},
 		{DisplayName: "Background software", UserSID: "UNIQUE-CAPTURE-SECRET"},
 	}
 	f := newFixtureWithData(t, false, nil)
-	f.reqs.CaptureTransformer = func(payload *Payload) (*Payload, error) {
-		require.Len(t, payload.Metadata.Software, 2)
-		require.Equal(t, "UNIQUE-CAPTURE-SECRET", payload.Metadata.Software[1].UserSID)
-		return &Payload{Hostname: "capture-host", Metadata: HostSoftware{Software: []software.Entry{{DisplayName: "Google Chrome"}, {DisplayName: "software-placeholder"}}}}, nil
-	}
 	f.eventPlatformMock.ExpectedCalls = nil
 	f.eventPlatformMock.On("SendEventPlatformEvent", mock.Anything, eventplatform.EventTypeSoftwareInventory).Run(func(args mock.Arguments) {
 		content := args.Get(0).(*message.Message).GetContent()
-		require.NotContains(t, string(content), "UNIQUE-CAPTURE-SECRET")
+		require.Contains(t, string(content), "UNIQUE-CAPTURE-SECRET")
 		var payload Payload
 		require.NoError(t, json.Unmarshal(content, &payload))
-		require.Equal(t, "capture-host", payload.Hostname)
+		require.Equal(t, "Background software", payload.Metadata.Software[1].DisplayName)
+		require.Equal(t, "UNIQUE-CAPTURE-SECRET", payload.Metadata.Software[1].UserSID)
 		require.Len(t, payload.Metadata.Software, 2)
 	}).Return(nil).Once()
 	sut := f.sut()
@@ -299,7 +302,18 @@ func TestCaptureTransformsCompleteSnapshotBeforeEventSerialization(t *testing.T)
 	require.Equal(t, "UNIQUE-CAPTURE-SECRET", raw[0].InstallPaths[0])
 	require.Equal(t, "UNIQUE-CAPTURE-SECRET", raw[1].UserSID)
 	f.eventPlatformMock.AssertExpectations(t)
-	sut.capture = func(*Payload) (*Payload, error) { return nil, errors.New("capture transform failed") }
-	require.EqualError(t, sut.sendPayload(), "capture transform failed")
 	f.eventPlatformMock.AssertNumberOfCalls(t, "SendEventPlatformEvent", 1)
+}
+
+func TestSoftwareCaptureUsesEffectiveCadence(t *testing.T) {
+	for _, interval := range []int{1, 10, 43} {
+		f := newFixtureWithData(t, true, []software.Entry{})
+		f.reqs.Config.SetInTest("software_inventory.interval", interval)
+		sut := f.sut().WaitForPayload()
+		f.eventPlatformMock.mu.Lock()
+		cadence := f.eventPlatformMock.softwareCadence
+		f.eventPlatformMock.mu.Unlock()
+		require.Equal(t, time.Duration(max(interval, 10))*time.Minute, cadence)
+		require.Equal(t, sut.interval, cadence)
+	}
 }

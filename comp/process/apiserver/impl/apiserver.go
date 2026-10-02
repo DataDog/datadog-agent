@@ -27,6 +27,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	apiserver "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
@@ -39,15 +40,16 @@ type apiserverImpl struct {
 type dependencies struct {
 	compdef.In
 
-	Lc           compdef.Lifecycle
-	Config       config.Component
-	Log          logComp.Component
-	IPC          ipc.Component
-	WorkloadMeta workloadmeta.Component
-	Status       status.Component
-	Settings     settings.Component
-	Tagger       tagger.Component
-	Secrets      secrets.Component
+	Lc             compdef.Lifecycle
+	Config         config.Component
+	Log            logComp.Component
+	IPC            ipc.Component
+	WorkloadMeta   workloadmeta.Component
+	Status         status.Component
+	Settings       settings.Component
+	Tagger         tagger.Component
+	Secrets        secrets.Component
+	CaptureManager *telemetrycapture.Manager `optional:"true"`
 }
 
 // NewComponent creates a new apiserver component.
@@ -62,6 +64,9 @@ func NewComponent(deps dependencies) (apiserver.Component, error) {
 		Tagger:       deps.Tagger,
 		Secrets:      deps.Secrets,
 	}, r) // Set up routes
+	if err := mountCaptureHandlers(r, deps.CaptureManager, deps.IPC.HTTPMiddleware); err != nil {
+		return nil, err
+	}
 
 	addr, err := getProcessAPIAddressPort(deps.Config, deps.Log)
 	if err != nil {
@@ -107,6 +112,18 @@ func NewComponent(deps dependencies) (apiserver.Component, error) {
 	})
 
 	return s, nil
+}
+
+func mountCaptureHandlers(mux *http.ServeMux, manager *telemetrycapture.Manager, authenticate func(http.Handler) http.Handler) error {
+	if manager == nil {
+		return nil
+	}
+	handler, err := manager.Handler(authenticate)
+	if err != nil {
+		return err
+	}
+	mux.Handle("/eudm-capture/", http.StripPrefix("/eudm-capture", handler))
+	return nil
 }
 
 const defaultProcessCmdPort = 6162

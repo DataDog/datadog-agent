@@ -36,11 +36,14 @@ type Expectation struct {
 type Stream string
 
 const (
-	Metrics      Stream = "metrics"
-	HostMetadata Stream = "host_metadata"
-	Processes    Stream = "processes"
-	Connections  Stream = "connections"
-	Software     Stream = "software"
+	Metrics        Stream = "metrics"
+	HostMetadata   Stream = "host_metadata"
+	AgentInventory Stream = "agent_inventory"
+	HostInventory  Stream = "host_inventory"
+	HostSystemInfo Stream = "host_system_info"
+	Processes      Stream = "processes"
+	Connections    Stream = "connections"
+	Software       Stream = "software"
 )
 
 // ConnectionOverlay selects only records with the given sanitized capture ID.
@@ -55,7 +58,7 @@ type ConnectionOverlay struct {
 
 // RequiredStreams returns streams that must exist before any device is sent.
 func (s *Scenario) RequiredStreams(cohort string) []Stream {
-	streams := []Stream{Metrics, HostMetadata, Processes, Software}
+	streams := []Stream{Metrics, HostMetadata, AgentInventory, HostInventory, Processes, Software}
 	for _, phase := range s.Phases {
 		if len(phase.Connections[cohort]) > 0 {
 			return append(streams, Connections)

@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "agentrestart_darwin.go",
         "agentrestart_others.go",
+        "capture.go",
         "config.go",
         "server.go",
     ],
@@ -22,6 +23,7 @@ go_library(
         "//pkg/system-probe/api/server",
         "//pkg/system-probe/config/types",
         "//pkg/system-probe/utils",
+        "//pkg/telemetrycapture",
         "//pkg/util/log",
     ],
 )
@@ -31,9 +33,15 @@ dd_agent_go_test(
     srcs = [
         "agentrestart_darwin_test.go",
         "agentrestart_others_test.go",
+        "capture_test.go",
     ],
     embed = [":api"],
-    deps = select({
+    deps = [
+        "//comp/core/ipc/mock",
+        "//pkg/system-probe/api/module",
+        "//pkg/telemetrycapture",
+        "@com_github_stretchr_testify//require",
+    ] + select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//assert",
         ],

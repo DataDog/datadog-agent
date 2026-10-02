@@ -278,10 +278,12 @@ type DefaultForwarder struct {
 
 	domainForwarders map[string]*domainForwarder
 	domainResolvers  map[string]pkgresolver.DomainResolver
-	localForwarder   *domainForwarder // domain forward used for communication with the local cluster-agent
-	healthChecker    *forwarderHealth
-	internalState    *atomic.Uint32
-	m                sync.Mutex // To control Start/Stop races
+	// Labels contain only routing roles and ordinals, never destination URLs.
+	captureDestinations map[pkgresolver.DomainResolver]string
+	localForwarder      *domainForwarder // domain forward used for communication with the local cluster-agent
+	healthChecker       *forwarderHealth
+	internalState       *atomic.Uint32
+	m                   sync.Mutex // To control Start/Stop races
 
 	agentName                       string
 	queueDurationCapacity           *retry.QueueDurationCapacity
@@ -293,14 +295,15 @@ type DefaultForwarder struct {
 func NewDefaultForwarder(config config.Component, log log.Component, options *Options) *DefaultForwarder {
 	agentName := getAgentName(options)
 	f := &DefaultForwarder{
-		deliveryTracker:  options.DeliveryTracker,
-		deliveryContext:  options.DeliveryContext,
-		config:           config,
-		log:              log,
-		NumberOfWorkers:  options.NumberOfWorkers,
-		domainForwarders: map[string]*domainForwarder{},
-		domainResolvers:  map[string]pkgresolver.DomainResolver{},
-		internalState:    atomic.NewUint32(Stopped),
+		deliveryTracker:     options.DeliveryTracker,
+		deliveryContext:     options.DeliveryContext,
+		config:              config,
+		log:                 log,
+		NumberOfWorkers:     options.NumberOfWorkers,
+		domainForwarders:    map[string]*domainForwarder{},
+		domainResolvers:     map[string]pkgresolver.DomainResolver{},
+		captureDestinations: captureDestinationLabels(config, options.DomainResolvers),
+		internalState:       atomic.NewUint32(Stopped),
 		healthChecker: &forwarderHealth{
 			log:                   log,
 			config:                config,
@@ -580,6 +583,7 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 		if f.deliveryTracker != nil {
 			f.deliveryTracker.Track(t)
 		}
+		f.observeCaptureRoute(t, now)
 		forwarder.sendHTTPTransactions(t)
 
 		if f.queueDurationCapacity != nil {
@@ -608,6 +612,78 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	}
 
 	return nil
+}
+
+// captureDestinationLabels assigns stable process-local labels at construction.
+// Sorting determines ordinals only; neither the sorted domains nor API keys are
+// made available to the observer.
+func captureDestinationLabels(config config.Component, resolvers map[string]pkgresolver.DomainResolver) map[pkgresolver.DomainResolver]string {
+	labels := make(map[pkgresolver.DomainResolver]string, len(resolvers))
+	counts := make(map[string]int)
+	primary := utils.GetInfraEndpoint(config)
+	for _, domain := range slices.Sorted(maps.Keys(resolvers)) {
+		resolver := resolvers[domain]
+		role := "additional"
+		switch {
+		case resolver.IsLocal():
+			role = "local"
+		case resolver.IsMRF():
+			role = "failover"
+		case resolver.GetConfigName() == primary:
+			role = "primary"
+		}
+		counts[role]++
+		label := role
+		if role != "primary" || counts[role] != 1 {
+			label += "-" + strconv.Itoa(counts[role])
+		}
+		labels[resolver] = label
+	}
+	return labels
+}
+
+// observeCaptureRoute runs only at the initial queue boundary. Retry workers
+// never call it. Recovering an observer panic preserves normal submission.
+func (f *DefaultForwarder) observeCaptureRoute(t *transaction.HTTPTransaction, enqueuedAt time.Time) {
+	if t.Payload == nil {
+		return
+	}
+	metadata := t.Payload.Capture()
+	if metadata == nil || metadata.Observer == nil {
+		return
+	}
+	defer func() { _ = recover() }()
+
+	// Only known routes are exported. In particular, a custom route containing a
+	// URL authority, query string, or credential cannot reach the observer.
+	endpoint, protocol := "", ""
+	switch t.Endpoint {
+	case endpoints.V1SeriesEndpoint:
+		endpoint, protocol = endpoints.V1SeriesEndpoint.Route, "v1"
+	case endpoints.SeriesEndpoint:
+		endpoint, protocol = endpoints.SeriesEndpoint.Route, "v2"
+	case endpoints.V3SeriesEndpoint:
+		endpoint, protocol = endpoints.V3SeriesEndpoint.Route, "v3"
+	case endpoints.V3BetaSeriesEndpoint:
+		endpoint, protocol = endpoints.V3BetaSeriesEndpoint.Route, "v3beta"
+	case endpoints.V1IntakeEndpoint:
+		endpoint, protocol = endpoints.V1IntakeEndpoint.Route, "metadata-v1"
+	case endpoints.HostMetadataEndpoint:
+		endpoint, protocol = endpoints.HostMetadataEndpoint.Route, "metadata-v2"
+	case endpoints.V1MetadataEndpoint:
+		endpoint, protocol = endpoints.V1MetadataEndpoint.Route, "inventory-v1"
+	}
+	resolver, _ := t.Resolver.(pkgresolver.DomainResolver)
+	destination := f.captureDestinations[resolver]
+	if destination != "" {
+		if resolver.IsMetricToVector() && t.Domain != resolver.GetBaseDomain() {
+			destination = "vector/" + destination
+		}
+		destination += "/" + strconv.FormatUint(uint64(t.APIKeyIndex)+1, 10)
+	}
+	// An empty field signals unsupported correlation and fails capture in the
+	// adapter, while the original transaction continues unchanged.
+	metadata.Observer.ObserveRoute(metadata.PayloadID, metadata.Ordinals, endpoint, protocol, destination, enqueuedAt)
 }
 
 func (f *DefaultForwarder) sendHTTPTransactionsDirect(ctx context.Context, transactions []*transaction.HTTPTransaction) error {

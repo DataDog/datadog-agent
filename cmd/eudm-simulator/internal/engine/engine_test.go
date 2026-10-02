@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	"github.com/bazelbuild/rules_go/go/runfiles"
 )
 
@@ -188,6 +189,15 @@ func normalizedSample(sample *telemetry.Sample, stream schema.Stream, start time
 		return json.Marshal(sample.Connections)
 	case schema.HostMetadata:
 		return json.Marshal(sample.HostMetadata)
+	case schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo:
+		value := *sample.Inventory
+		value.Timestamp -= start.UnixNano()
+		if value.Agent != nil {
+			agent := *value.Agent
+			agent.AgentStartupTimeMS -= start.UnixMilli()
+			value.Agent = &agent
+		}
+		return json.Marshal(&value)
 	case schema.Software:
 		return json.Marshal(sample.Software)
 	default:
@@ -205,6 +215,8 @@ func sampleHost(sample *telemetry.Sample, stream schema.Stream) string {
 		return sample.Connections.HostName
 	case schema.HostMetadata:
 		return sample.HostMetadata.Hostname
+	case schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo:
+		return sample.Inventory.Hostname
 	case schema.Software:
 		return sample.Software.Hostname
 	default:
@@ -333,11 +345,18 @@ func assertCompleteCadences(t *testing.T, request Request, result *report.Report
 			t.Fatal("device did not use the shared baseline")
 		}
 		for stream, cadence := range capture.Manifest.Cadences {
-			// Committed fixtures contain uniformly spaced cycles starting at zero.
+			// Fixtures use uniform non-metric cadences; hardware arrives at 5s.
 			// Assert actual timestamps, not just counters reported by the engine.
 			var expected []time.Duration
-			for at := time.Duration(0); at < duration; at += cadence {
+			first := time.Duration(0)
+			if stream == schema.HostSystemInfo {
+				first = 5 * time.Second
+			}
+			for at := first; at < duration; at += cadence {
 				expected = append(expected, at)
+			}
+			if stream == schema.Metrics {
+				expected = expectedMetricOffsets(t, capture, duration)
 			}
 			actual := seen[device.Hostname][stream]
 			slices.Sort(actual)
@@ -358,6 +377,49 @@ func assertCompleteCadences(t *testing.T, request Request, result *report.Report
 			}
 		}
 	}
+}
+
+// Derive expectations directly from the typed evidence, independently of the
+// scheduler. Each original producer/cycle contributes once to each family.
+func expectedMetricOffsets(t *testing.T, b *bundle.Loaded, duration time.Duration) []time.Duration {
+	t.Helper()
+	families := map[string]map[string]time.Duration{}
+	for _, ref := range b.Manifest.Samples {
+		if ref.Stream != schema.Metrics {
+			continue
+		}
+		sample, err := telemetry.Decode(ref.Stream, b.Files[ref.File])
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, serie := range sample.Metrics {
+			family := telemetrycapture.MetricFamily(serie.Name)
+			if families[family] == nil {
+				families[family] = map[string]time.Duration{}
+			}
+			families[family][fmt.Sprintf("%s/%d", ref.ProducerID, ref.CycleID)] = ref.Offset
+		}
+	}
+	var expected []time.Duration
+	for family, cycles := range families {
+		var offsets []time.Duration
+		for _, offset := range cycles {
+			offsets = append(offsets, offset)
+		}
+		slices.Sort(offsets)
+		cadence := b.Manifest.MetricCadences[family]
+		if cadence <= 0 {
+			t.Fatal("fixture lacks a metric family cadence")
+		}
+		period := offsets[len(offsets)-1] - offsets[0] + cadence
+		for _, offset := range offsets {
+			for at := offset; at < duration; at += period {
+				expected = append(expected, at)
+			}
+		}
+	}
+	slices.Sort(expected)
+	return expected
 }
 
 func TestEveryShippedFleetRunsAtNativeCadence(t *testing.T) {

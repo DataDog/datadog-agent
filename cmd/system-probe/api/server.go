@@ -34,6 +34,10 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 	}
 
 	mux := http.NewServeMux()
+	if err := setupCaptureHandlers(mux, deps); err != nil {
+		_ = conn.Close()
+		return err
+	}
 
 	err = module.Register(cfg, mux, modules.All(), rcclient, deps)
 	if err != nil {

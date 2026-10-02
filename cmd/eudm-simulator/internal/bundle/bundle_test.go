@@ -19,40 +19,97 @@ import (
 	softwareimpl "github.com/DataDog/datadog-agent/comp/softwareinventory/impl"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
 func fixture(t *testing.T, platform string) (string, *Loaded) {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), "bundle")
 	commit := strings.Repeat("a", 40)
-	w, err := NewWriter(dir, Manifest{AgentVersion: "7.85.0", AgentCommit: commit})
+	w, err := NewWriter(dir, Manifest{CaptureTool: BuildIdentity{Version: "7.85.0", Commit: commit}, SessionID: "fixture-capture-session", MetricCadences: map[string]time.Duration{"cpu": 15 * time.Second}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile := schema.Profile{OS: platform, Architecture: "arm64", MemoryBytes: 8 << 30, Streams: []schema.Stream{schema.Metrics, schema.HostMetadata, schema.Processes, schema.Software}, MetricNames: []string{"system.cpu.user"}, ProcessNames: []string{"Google Chrome"}, SoftwareNames: []string{"OS"}}
+	profile := schema.Profile{OS: platform, Architecture: "arm64", MemoryBytes: 8 << 30, Streams: []schema.Stream{schema.Metrics, schema.HostMetadata, schema.Processes, schema.Software, schema.AgentInventory, schema.HostInventory}, MetricNames: []string{"system.cpu.user"}, ProcessNames: []string{"Google Chrome"}, SoftwareNames: []string{"OS"}}
 	if platform == "windows" {
 		profile.Streams = append(profile.Streams, schema.Connections)
 		profile.ConnectionSelectors = []string{telemetry.ConnectionSelector(fixtureConnection())}
 	}
 	cadences := map[schema.Stream]time.Duration{}
+	producers := map[string]*Producer{}
 	for _, stream := range profile.Streams {
+		role := "core-agent"
+		if stream == schema.Processes {
+			role = "process-agent"
+		} else if stream == schema.Connections {
+			role = "system-probe"
+		}
+		producer := producers[role]
+		if producer == nil {
+			producer = &Producer{Role: role, InstanceID: "fixture-" + role, Version: "7.85.0", Commit: strings.Repeat("b", 40), ProtocolVersion: 1, StopOffset: time.Minute, Stopped: true}
+			producers[role] = producer
+		}
+		producer.Streams = append(producer.Streams, stream)
 		cadences[stream] = 15 * time.Second
 		cycles := 1
 		if stream == schema.Metrics || stream == schema.Processes || stream == schema.Connections {
 			cycles = 2
 		}
 		for i := 0; i < cycles; i++ {
-			err := w.Append(stream, time.Duration(i)*15*time.Second, fixtureSample(t, stream, platform), []WireReference{{Path: "/api/v1/test", Body: []byte(`{"host":"capture-host"}`)}})
+			producer.FinalSequence++
+			producer.AcknowledgedSequence++
+			ref := SampleRef{Stream: stream, Offset: time.Duration(i) * 15 * time.Second, ProducerID: producer.InstanceID, CycleID: producer.FinalSequence, Sequence: producer.FinalSequence, ChunkCount: 1}
+			path := fixtureWirePath(stream)
+			if stream == schema.Metrics || stream == schema.HostMetadata || stream == schema.AgentInventory || stream == schema.HostInventory {
+				protocol := "v3"
+				ordinals := []uint64{1}
+				if stream == schema.HostMetadata {
+					protocol = "metadata-v1"
+				}
+				if stream == schema.AgentInventory || stream == schema.HostInventory {
+					protocol, ordinals = "inventory-v1", nil
+				}
+				ref.Routes = []RoutingEvidence{{PayloadID: 1, Ordinals: ordinals, Endpoint: path, Protocol: protocol, Destination: "primary/1", EnqueueOffset: ref.Offset}}
+			}
+			err := w.Append(ref, fixtureSample(t, stream, platform), []WireReference{{Path: path, Body: []byte(`{"host":"capture-host"}`)}})
 			if err != nil {
 				t.Fatal(err)
 			}
 		}
+	}
+	var inventory []Producer
+	for _, role := range []string{"core-agent", "process-agent", "system-probe"} {
+		if producer := producers[role]; producer != nil {
+			inventory = append(inventory, *producer)
+		}
+	}
+	if err := w.SetProducers(inventory); err != nil {
+		t.Fatal(err)
 	}
 	loaded, err := w.Complete(time.Minute, profile, cadences)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return dir, loaded
+}
+
+func fixtureWirePath(stream schema.Stream) string {
+	switch stream {
+	case schema.Metrics:
+		return "/api/intake/metrics/v3/series"
+	case schema.HostMetadata:
+		return "/intake/"
+	case schema.AgentInventory, schema.HostInventory:
+		return "/api/v1/metadata"
+	case schema.Processes:
+		return "/api/v1/collector"
+	case schema.Connections:
+		return "/api/v1/connections"
+	case schema.Software:
+		return "/api/v2/softinv"
+	default:
+		return ""
+	}
 }
 
 func fixtureConnection() *model.Connection {
@@ -76,13 +133,17 @@ func fixtureSample(t *testing.T, stream schema.Stream, platform string) any {
 		if platform == "windows" {
 			osname = "win32"
 		}
-		return &telemetry.HostMetadata{Hostname: "capture-host", AgentVersion: "7.85.0", OS: osname}
+		return &telemetry.HostMetadata{Hostname: "capture-host", UUID: "capture-uuid", AgentVersion: "7.85.0", OS: osname, SystemStats: map[string]json.RawMessage{"cpuCores": json.RawMessage(`8`)}}
+	case schema.AgentInventory:
+		return &telemetrycapture.Inventory{Hostname: "capture-host", UUID: "capture-uuid", Agent: &telemetrycapture.AgentInventoryMetadata{AgentVersion: "7.85.0", Flavor: "agent", InfrastructureMode: "end_user_device", AgentStartupTimeMS: -3000}}
+	case schema.HostInventory:
+		return &telemetrycapture.Inventory{Hostname: "capture-host", UUID: "capture-uuid", Host: &telemetrycapture.HostInventoryMetadata{AgentVersion: "7.85.0", OS: osname, CPUCores: 4, CPULogicalProcessors: 8, MemoryTotalKb: (8 << 30) / 1024}}
 	case schema.Processes:
-		return &model.CollectorProc{HostName: "capture-host", Info: &model.SystemInfo{TotalMemory: 8 << 30, Os: &model.OSInfo{Name: osname}}, Processes: []*model.Process{{Pid: 100, Command: &model.Command{Comm: "Google Chrome"}, CreateTime: -3000}}}
+		return &model.CollectorProc{HostName: "capture-host", GroupSize: 1, Info: &model.SystemInfo{TotalMemory: 8 << 30, Os: &model.OSInfo{Name: osname}}, Processes: []*model.Process{{Pid: 100, Command: &model.Command{Comm: "Google Chrome"}, CreateTime: -3000}}}
 	case schema.Software:
 		return &softwareimpl.Payload{Hostname: "capture-host", Metadata: softwareimpl.HostSoftware{Software: []software.Entry{{DisplayName: "OS", Source: "os"}}}}
 	case schema.Connections:
-		return &model.CollectorConnections{HostName: "capture-host", Connections: []*model.Connection{fixtureConnection()}}
+		return &model.CollectorConnections{HostName: "capture-host", GroupSize: 1, Connections: []*model.Connection{fixtureConnection()}}
 	default:
 		t.Fatalf("unsupported test stream %s", stream)
 		return nil
@@ -115,7 +176,7 @@ func TestRejectTamperedOrIncompatibleBundles(t *testing.T) {
 	}{
 		{"schema", func(m *Manifest) { m.SchemaVersion++ }},
 		{"sanitizer", func(m *Manifest) { m.SanitizerVersion++ }},
-		{"revision", func(m *Manifest) { m.AgentCommit = strings.Repeat("b", 40) }},
+		{"revision", func(m *Manifest) { m.CaptureTool.Commit = strings.Repeat("b", 40) }},
 		{"completion", func(m *Manifest) { m.Complete = false }},
 		{"missing stream", func(m *Manifest) { m.Profile.Streams = m.Profile.Streams[:1] }},
 		{"checksum", func(m *Manifest) {

@@ -1,8 +1,53 @@
 {
-  "schema_version": 1,
+  "schema_version": 4,
   "sanitizer_version": 1,
-  "agent_version": "7.85.0-fixture",
-  "agent_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "capture_tool": {
+    "version": "7.85.0-fixture",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "session_id": "synthetic-fixture-session",
+  "producers": [
+    {
+      "role": "core-agent",
+      "instance_id": "synthetic-core-agent",
+      "version": "7.85.0-fixture",
+      "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "protocol_version": 1,
+      "streams": [
+        "metrics",
+        "host_metadata",
+        "agent_inventory",
+        "host_inventory",
+        "host_system_info",
+        "software"
+      ],
+      "start_offset_ns": 0,
+      "stop_offset_ns": 301000000000,
+      "final_sequence": 26,
+      "acknowledged_sequence": 26,
+      "stopped": true,
+      "failures": 0,
+      "drops": 0
+    },
+    {
+      "role": "process-agent",
+      "instance_id": "synthetic-process-agent",
+      "version": "7.85.0-fixture",
+      "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "protocol_version": 1,
+      "streams": [
+        "processes",
+        "connections"
+      ],
+      "start_offset_ns": 0,
+      "stop_offset_ns": 301000000000,
+      "final_sequence": 4,
+      "acknowledged_sequence": 4,
+      "stopped": true,
+      "failures": 0,
+      "drops": 0
+    }
+  ],
   "profile": {
     "os": "macos",
     "architecture": "arm64",
@@ -10,10 +55,18 @@
     "streams": [
       "metrics",
       "host_metadata",
+      "agent_inventory",
+      "host_inventory",
+      "host_system_info",
       "processes",
+      "connections",
       "software"
     ],
     "metric_names": [
+      "system.battery.charge_rate",
+      "system.battery.current_charge_pct",
+      "system.battery.cycle_count",
+      "system.battery.maximum_capacity_pct",
       "system.cpu.idle",
       "system.cpu.num_cores",
       "system.cpu.system",
@@ -23,6 +76,8 @@
       "system.mem.total",
       "system.mem.usable",
       "system.mem.used",
+      "system.net.bytes_rcvd",
+      "system.net.bytes_sent",
       "system.wlan.noise",
       "system.wlan.rssi",
       "system.wlan.rxrate",
@@ -37,19 +92,68 @@
       "Google Chrome",
       "OS"
     ],
-    "connection_selectors": null
+    "connection_selectors": [
+      "300:10.0.0.1:50000\u003e10.0.0.2:443"
+    ]
   },
-  "duration_ns": 30000000000,
+  "duration_ns": 301000000000,
   "cadences_ns": {
+    "agent_inventory": 600000000000,
+    "connections": 10000000000,
+    "host_inventory": 600000000000,
     "host_metadata": 300000000000,
+    "host_system_info": 3600000000000,
     "metrics": 15000000000,
     "processes": 10000000000,
     "software": 600000000000
+  },
+  "metric_cadences_ns": {
+    "battery": 300000000000,
+    "cpu": 15000000000,
+    "memory": 15000000000,
+    "network": 15000000000,
+    "wlan": 15000000000
   },
   "samples": [
     {
       "stream": "metrics",
       "offset_ns": 0,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 1,
+      "sequence": 1,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 0
+        }
+      ],
       "file": "sample-000000.json",
       "wire_files": [
         "sample-000000-wire-000.json"
@@ -58,57 +162,1022 @@
     {
       "stream": "metrics",
       "offset_ns": 15000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 2,
+      "sequence": 2,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 15000000000
+        }
+      ],
       "file": "sample-000001.json",
       "wire_files": [
         "sample-000001-wire-000.json"
       ]
     },
     {
-      "stream": "processes",
-      "offset_ns": 0,
+      "stream": "metrics",
+      "offset_ns": 30000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 3,
+      "sequence": 3,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 30000000000
+        }
+      ],
       "file": "sample-000002.json",
       "wire_files": [
         "sample-000002-wire-000.json"
       ]
     },
     {
-      "stream": "processes",
-      "offset_ns": 10000000000,
+      "stream": "metrics",
+      "offset_ns": 45000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 4,
+      "sequence": 4,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 45000000000
+        }
+      ],
       "file": "sample-000003.json",
       "wire_files": [
         "sample-000003-wire-000.json"
       ]
     },
     {
-      "stream": "host_metadata",
-      "offset_ns": 0,
+      "stream": "metrics",
+      "offset_ns": 60000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 5,
+      "sequence": 5,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 60000000000
+        }
+      ],
       "file": "sample-000004.json",
       "wire_files": [
         "sample-000004-wire-000.json"
       ]
     },
     {
-      "stream": "software",
-      "offset_ns": 0,
+      "stream": "metrics",
+      "offset_ns": 75000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 6,
+      "sequence": 6,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 75000000000
+        }
+      ],
       "file": "sample-000005.json",
       "wire_files": [
         "sample-000005-wire-000.json"
       ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 90000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 7,
+      "sequence": 7,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 90000000000
+        }
+      ],
+      "file": "sample-000006.json",
+      "wire_files": [
+        "sample-000006-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 105000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 8,
+      "sequence": 8,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 105000000000
+        }
+      ],
+      "file": "sample-000007.json",
+      "wire_files": [
+        "sample-000007-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 120000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 9,
+      "sequence": 9,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 120000000000
+        }
+      ],
+      "file": "sample-000008.json",
+      "wire_files": [
+        "sample-000008-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 135000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 10,
+      "sequence": 10,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 135000000000
+        }
+      ],
+      "file": "sample-000009.json",
+      "wire_files": [
+        "sample-000009-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 150000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 11,
+      "sequence": 11,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 150000000000
+        }
+      ],
+      "file": "sample-000010.json",
+      "wire_files": [
+        "sample-000010-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 165000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 12,
+      "sequence": 12,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 165000000000
+        }
+      ],
+      "file": "sample-000011.json",
+      "wire_files": [
+        "sample-000011-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 180000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 13,
+      "sequence": 13,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 180000000000
+        }
+      ],
+      "file": "sample-000012.json",
+      "wire_files": [
+        "sample-000012-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 195000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 14,
+      "sequence": 14,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 195000000000
+        }
+      ],
+      "file": "sample-000013.json",
+      "wire_files": [
+        "sample-000013-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 210000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 15,
+      "sequence": 15,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 210000000000
+        }
+      ],
+      "file": "sample-000014.json",
+      "wire_files": [
+        "sample-000014-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 225000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 16,
+      "sequence": 16,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 225000000000
+        }
+      ],
+      "file": "sample-000015.json",
+      "wire_files": [
+        "sample-000015-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 240000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 17,
+      "sequence": 17,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 240000000000
+        }
+      ],
+      "file": "sample-000016.json",
+      "wire_files": [
+        "sample-000016-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 255000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 18,
+      "sequence": 18,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 255000000000
+        }
+      ],
+      "file": "sample-000017.json",
+      "wire_files": [
+        "sample-000017-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 270000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 19,
+      "sequence": 19,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 270000000000
+        }
+      ],
+      "file": "sample-000018.json",
+      "wire_files": [
+        "sample-000018-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 285000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 20,
+      "sequence": 20,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 285000000000
+        }
+      ],
+      "file": "sample-000019.json",
+      "wire_files": [
+        "sample-000019-wire-000.json"
+      ]
+    },
+    {
+      "stream": "metrics",
+      "offset_ns": 300000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 21,
+      "sequence": 21,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "endpoint": "/api/v2/series",
+          "protocol": "v2",
+          "destination": "primary",
+          "enqueue_offset_ns": 300000000000
+        }
+      ],
+      "file": "sample-000020.json",
+      "wire_files": [
+        "sample-000020-wire-000.json"
+      ]
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 0,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 1,
+      "sequence": 1,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000021.json",
+      "wire_files": [
+        "sample-000021-wire-000.json"
+      ]
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 0,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 2,
+      "sequence": 2,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000022.json",
+      "wire_files": [
+        "sample-000022-wire-000.json"
+      ]
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 10000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 3,
+      "sequence": 3,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000023.json",
+      "wire_files": [
+        "sample-000023-wire-000.json"
+      ]
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 10000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 4,
+      "sequence": 4,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000024.json",
+      "wire_files": [
+        "sample-000024-wire-000.json"
+      ]
+    },
+    {
+      "stream": "host_metadata",
+      "offset_ns": 0,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 22,
+      "sequence": 22,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "endpoint": "/intake/",
+          "protocol": "metadata-v1",
+          "destination": "primary",
+          "enqueue_offset_ns": 0
+        }
+      ],
+      "file": "sample-000025.json",
+      "wire_files": [
+        "sample-000025-wire-000.json"
+      ]
+    },
+    {
+      "stream": "agent_inventory",
+      "offset_ns": 0,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 23,
+      "sequence": 23,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "endpoint": "/api/v1/metadata",
+          "protocol": "inventory-v1",
+          "destination": "primary",
+          "enqueue_offset_ns": 0
+        }
+      ],
+      "file": "sample-000026.json",
+      "wire_files": [
+        "sample-000026-wire-000.json"
+      ]
+    },
+    {
+      "stream": "host_inventory",
+      "offset_ns": 0,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 24,
+      "sequence": 24,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "endpoint": "/api/v1/metadata",
+          "protocol": "inventory-v1",
+          "destination": "primary",
+          "enqueue_offset_ns": 0
+        }
+      ],
+      "file": "sample-000027.json",
+      "wire_files": [
+        "sample-000027-wire-000.json"
+      ]
+    },
+    {
+      "stream": "host_system_info",
+      "offset_ns": 5000000000,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 25,
+      "sequence": 25,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "routes": [
+        {
+          "payload_id": 1,
+          "endpoint": "/api/v1/metadata",
+          "protocol": "inventory-v1",
+          "destination": "primary",
+          "enqueue_offset_ns": 5000000000
+        }
+      ],
+      "file": "sample-000028.json",
+      "wire_files": [
+        "sample-000028-wire-000.json"
+      ]
+    },
+    {
+      "stream": "software",
+      "offset_ns": 0,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 26,
+      "sequence": 26,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000029.json",
+      "wire_files": [
+        "sample-000029-wire-000.json"
+      ]
     }
   ],
   "files": {
-    "sample-000000-wire-000.json": "0d5596688c2a54caceb726a7c97ec03f12912ed71fe8d42e9bbb9bffce6a8e3a",
-    "sample-000000.json": "628a3ace8bf17b09aa04ee8c61f336870157222bf546a96f5b0926ced1a84559",
-    "sample-000001-wire-000.json": "1b94b2f4659f3cd7852e1851a6c641a3c6548b3b5a8449f792768345cdc500a0",
-    "sample-000001.json": "bcf2bc537c46059629b7556bb243433949992890c473f6aa72aab8739d993ae9",
-    "sample-000002-wire-000.json": "8c69fe81c82ca2547565d8f1ca66644f99fea879dd7dd9912cb796f358418e40",
-    "sample-000002.json": "d083647ef961c6bb70fee6d9933dd48d0fa78f02ba47edc045a35d7d4228888d",
-    "sample-000003-wire-000.json": "0e75a9caabdc1064eb93a369331b65346abe5aea88a677fb82a0d383a00d385d",
-    "sample-000003.json": "91fdc2fee23e22affbe37b8f454a7f8d12140346f682bd4104c48b396c590315",
-    "sample-000004-wire-000.json": "459d71cda6eaea9c1ded32ad69af16a95d80394f3e79ba5cb410461884b1d412",
-    "sample-000004.json": "ca77445517d52b92d4ff38295d96a7a9cc02faa7b352921637c0cf2e25d542d0",
-    "sample-000005-wire-000.json": "d2123f9b37f68c40d9be792f4a81e89063f1629f0044a5e39e347397873791b7",
-    "sample-000005.json": "90055fba126cddfac8704e03443bf7c8e464a644be4d20d88ccf17985b495600"
+    "sample-000000-wire-000.json": "4f3ddf5336df329d8fff21d7b0a9f86a1eb12a6110b85b1f304ef6e0e4501e00",
+    "sample-000000.json": "bf3bf613b7856f290857af0820615d7f8f49b3c73232afcf02187ab7fec749b8",
+    "sample-000001-wire-000.json": "1ed3e78f55f8bc379b5ed2c3bfae36581481a8c93df19c404b4bd0490e3ece23",
+    "sample-000001.json": "dc8f362b5ca75701e60701d9318a4cf2b9661f47eec376ea090b6955a4932c9e",
+    "sample-000002-wire-000.json": "7eaeb0a8d88f89c765dc9f27a406f0aacf1e4354bc578782bbc123dd6132bd1d",
+    "sample-000002.json": "d4637ff3b308613ed4fb4771d6f06271802151b7d194e54e845ceee829bb271b",
+    "sample-000003-wire-000.json": "c42e1c50dae37493618278e953017273a6dcf60f460575ca75344ff35a238ad1",
+    "sample-000003.json": "4dfe2717e059ecc7dce1f113f568946008383d84dda496ba92f6fea73ee39bbf",
+    "sample-000004-wire-000.json": "2b8b30adc4c6c76d274caa58e6cbf38ab7859bc32635eec77c62088f99d23c11",
+    "sample-000004.json": "ba0aefc6e14b97f0c04ae1edfcc3fb7e36b017b902c781a6cb984f47c663aadc",
+    "sample-000005-wire-000.json": "5251c2e6f352cc6a40a71652dd26471338067ddd5fa803789de114ec706d0d4a",
+    "sample-000005.json": "5eb73a26df44ac3f5448a43a5045c7e5d69ac6c06d57f66c37614a3eccff2398",
+    "sample-000006-wire-000.json": "24b335e2ec4d6a68cb25db78dc2476cc3388f180fb3c153575befa097cba0c6c",
+    "sample-000006.json": "eef11aee7b6a1b8fa405f07be64cf1e62976d1efea72016e9abedcae49e33679",
+    "sample-000007-wire-000.json": "aa6943493a9292d1cd4188d9e2e3fbf18abcdcf1b9fc634f22d39b1f21399562",
+    "sample-000007.json": "e2cb5441454e396c2df872d87d6fb29169f2b57d86f80e14752e04497b425362",
+    "sample-000008-wire-000.json": "3fc38087c9a7f0c01d1505822d33a129e99b725f02cc04e036a6407c9d3c52d0",
+    "sample-000008.json": "6b3a81b280a4ace8461f1c1c0e241f8edce8bba8eb40905085112255bb0dc4e6",
+    "sample-000009-wire-000.json": "537779516eef4df66920c13906d079bc361597a18788476c7af3a71da694fc61",
+    "sample-000009.json": "130be8d9934819e65da37ada156451e91d0caf4ddfeb45c7a7121effc38dc750",
+    "sample-000010-wire-000.json": "8d9fabcafc746b28749fcc0f98c39a2451ebcdd141a5db04511d9c552e3a57b4",
+    "sample-000010.json": "f6e3d68c3babe2d003ec9514c364e0438b4cd7ae9f50299c25a6fe854f2f7a8e",
+    "sample-000011-wire-000.json": "d6364aed11243ba8b08c3822a63dfa423b46372d39f2a5fbdaa3365659e69463",
+    "sample-000011.json": "cf282d9562c7aa4ed63ed3643879ee11d74e8ef75156d4fd4ed03a49503eadc4",
+    "sample-000012-wire-000.json": "387556206d554b950ed2afce8f43511fc41729ec7db85dece51c6332380dbf31",
+    "sample-000012.json": "9b346f87cb197db6814d4b71e4900451171d07d5ece1c355b2fca0487ee4c641",
+    "sample-000013-wire-000.json": "b6f031b67b2f5a764c607eb1e4e8b02286e1a3e01bf130a694edc382ffe532b1",
+    "sample-000013.json": "d6db4a9ddff7c4546581221e32c73b081b645c58cdac533c0ea550f1f95c45e8",
+    "sample-000014-wire-000.json": "4f2350dde86267dd7478ff4fcc253b470dc88103da9a948b6b1ade8e638eaf8c",
+    "sample-000014.json": "b8c1d94f67f6ec1789004b54c58daae7e88681ee9217df9a757442a11d46f9fd",
+    "sample-000015-wire-000.json": "cf3178897393af6711a9511e4237a3a340bbac8256f552aede0c5ad49f09b361",
+    "sample-000015.json": "d9317be48022adf350407f7803dc3001f40369b84476b8d66635267facc77831",
+    "sample-000016-wire-000.json": "3f78691cddda0e4fefd868540715e5056026585c69ec10a2b7fbbab32f3a488d",
+    "sample-000016.json": "322af396a6bfce00747e25d5a685e1e4c567fd6ef9181e2028a11a78a749157d",
+    "sample-000017-wire-000.json": "f79aa155890c2d9a0055ed03604e4b76aff330afdbb8b3d5e650d0c637026fe2",
+    "sample-000017.json": "f78fe8abed9b364fa874a8fa769898f242f52920f3b821c7ea9b48d7a6461d1c",
+    "sample-000018-wire-000.json": "a49926e384484d493b3e2e54804d760c2d03574ec9e4831fd97d13c5635949db",
+    "sample-000018.json": "f885ea869f973ad188b7ece4239e4b5f1ee888ab04e8efcdd0f9f995c8943766",
+    "sample-000019-wire-000.json": "20cceddd887459dabf1ff08d1752c69b6000b90136411cacc52f26fc88012709",
+    "sample-000019.json": "303ac8ff786e443bb8c0aac5450c6b7c83ddbab09b3e11e30f2f8040f7e4308d",
+    "sample-000020-wire-000.json": "e3df4a9fb890eb0355d35243641673d773ad6e688c1b0b08587752bdf0800200",
+    "sample-000020.json": "9373700e0f69dacf0712d3c2e8c5c490f8a01e96f849a0df69736827cf8b3f80",
+    "sample-000021-wire-000.json": "68fd4cd5e5fd01ba6a82e67bfc0b1c33799d75006e1e8a36a24ddd1402380d85",
+    "sample-000021.json": "d083647ef961c6bb70fee6d9933dd48d0fa78f02ba47edc045a35d7d4228888d",
+    "sample-000022-wire-000.json": "1cb6e28d4ae37e78e5fb141cd077f692ac7a3575f7044d164aaa67fabe301358",
+    "sample-000022.json": "9a73d8bd0636bad22190ee1f4f168713b7f8e6d6e59f01a5971140fd5e4c5b43",
+    "sample-000023-wire-000.json": "9ee7a66deb6d4cf085e48aded547e28a31dd8888db83b00c370479fd954ba3d6",
+    "sample-000023.json": "91fdc2fee23e22affbe37b8f454a7f8d12140346f682bd4104c48b396c590315",
+    "sample-000024-wire-000.json": "a0063797b0eb185085228b924c817fec19272d58938516b8eaa547c411cccf3f",
+    "sample-000024.json": "bfbc327ed61192bb62a89d483aeb064e4021d50aa08133604f5dc343d9f487e8",
+    "sample-000025-wire-000.json": "ed10ef0c0084b48d8f43a8a940f8bb503133884ee55f640b87c20678832f9222",
+    "sample-000025.json": "ca77445517d52b92d4ff38295d96a7a9cc02faa7b352921637c0cf2e25d542d0",
+    "sample-000026-wire-000.json": "7686595a7bd8ac30e5f4c80a6dc21cc2a03ab001b595e1e02940f1644d6079b5",
+    "sample-000026.json": "b3af922ead3cf4b1890691865b83a0cd2d785d4c5f643c945557697cb3bdf954",
+    "sample-000027-wire-000.json": "4b081c9e7593f1913d641d8bc4ca42de8a98382cc1f534107adb5740b0cb256e",
+    "sample-000027.json": "4f8b0660bbb94145c5c6000d575219cb5ec7077c84089a28473d60d313c0f77f",
+    "sample-000028-wire-000.json": "636d2e255a2078d5bf5ddd3bdc4547b7264b8f03c759d6495d2673424a7ee5f8",
+    "sample-000028.json": "765cc26dde8c625c5f6dc4c735bfe62bad7a61761650083522af73a553cbcaed",
+    "sample-000029-wire-000.json": "f031c736cfa68d2d0e88924272fdc28efbdee0bf0eafd1c06f2dded277675beb",
+    "sample-000029.json": "90055fba126cddfac8704e03443bf7c8e464a644be4d20d88ccf17985b495600"
   },
   "complete": true
 }

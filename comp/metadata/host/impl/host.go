@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v7"
@@ -29,6 +30,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -46,10 +48,13 @@ const maxAcceptedInterval = 14400 // 4h
 const providerName = "host"
 
 type host struct {
-	log          log.Component
-	config       config.Component
-	resources    resources.Component
-	hostnameComp hostnameinterface.Component
+	captureMu      sync.Mutex
+	captureStopped bool
+	captureManager *telemetrycapture.Manager
+	log            log.Component
+	config         config.Component
+	resources      resources.Component
+	hostnameComp   hostnameinterface.Component
 
 	hostname      string
 	serializer    serializer.MetricSerializer
@@ -59,6 +64,8 @@ type host struct {
 // Requires defines the dependencies for the host metadata component
 type Requires struct {
 	compdef.In
+	Lc             compdef.Lifecycle
+	CaptureManager *telemetrycapture.Manager `optional:"true"`
 
 	Log        log.Component
 	Config     config.Component
@@ -126,13 +133,20 @@ func NewComponent(deps Requires) Provides {
 	bo.Reset()
 
 	h := host{
-		log:           deps.Log,
-		config:        deps.Config,
-		resources:     deps.Resources,
-		hostnameComp:  deps.Hostname,
-		hostname:      hname,
-		serializer:    deps.Serializer,
-		backoffPolicy: bo,
+		captureManager: deps.CaptureManager,
+		log:            deps.Log,
+		config:         deps.Config,
+		resources:      deps.Resources,
+		hostnameComp:   deps.Hostname,
+		hostname:       hname,
+		serializer:     deps.Serializer,
+		backoffPolicy:  bo,
+	}
+	if deps.CaptureManager != nil && deps.Lc != nil {
+		deps.Lc.Append(compdef.Hook{OnStop: func(context.Context) error {
+			h.stopCaptureReadiness()
+			return nil
+		}})
 	}
 	return Provides{
 		Comp:             &h,
@@ -148,11 +162,21 @@ func NewComponent(deps Requires) Provides {
 }
 
 func (h *host) collect(ctx context.Context) time.Duration {
+	collectedAt := time.Now()
 	payload := h.getPayload(ctx)
 
 	nextInterval := h.backoffPolicy.NextBackOff()
 	if nextInterval <= 0 || nextInterval > h.backoffPolicy.MaxInterval {
 		nextInterval = h.backoffPolicy.MaxInterval
+	}
+	payload.captureCollectedAt = collectedAt
+	payload.captureCadence = nextInterval
+	if h.captureManager != nil {
+		h.captureMu.Lock()
+		if !h.captureStopped {
+			_ = h.captureManager.Register(telemetrycapture.Capability{Stream: telemetrycapture.Metadata, Cadence: nextInterval})
+		}
+		h.captureMu.Unlock()
 	}
 
 	// Debug log to show the actual interval that will be used
@@ -163,6 +187,15 @@ func (h *host) collect(ctx context.Context) time.Duration {
 	}
 
 	return nextInterval
+}
+
+func (h *host) stopCaptureReadiness() {
+	h.captureMu.Lock()
+	defer h.captureMu.Unlock()
+	h.captureStopped = true
+	if h.captureManager != nil {
+		h.captureManager.Unregister(telemetrycapture.Metadata)
+	}
 }
 
 func (h *host) GetPayloadAsJSON(ctx context.Context) ([]byte, error) {

@@ -3,13 +3,17 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "identity",
-    srcs = ["identity.go"],
+    srcs = [
+        "dns.go",
+        "identity.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/identity",
     visibility = ["//cmd/eudm-simulator:__subpackages__"],
     deps = [
         "//cmd/eudm-simulator/internal/schema",
         "//cmd/eudm-simulator/internal/telemetry",
         "//pkg/tagset",
+        "@com_github_datadog_agent_payload_v5//process",
     ],
 )
 
@@ -24,6 +28,7 @@ dd_agent_go_test(
         "//pkg/inventory/software",
         "//pkg/metrics",
         "//pkg/tagset",
+        "//pkg/telemetrycapture",
         "@com_github_datadog_agent_payload_v5//process",
     ],
 )

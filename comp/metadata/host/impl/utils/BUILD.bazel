@@ -6,7 +6,9 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "utils",
     srcs = [
+        "capture.go",
         "common.go",
+        "gohai_capture.go",
         "host.go",
         "host_nix.go",
         "host_windows.go",
@@ -23,6 +25,7 @@ go_library(
         "//pkg/config/utils",
         "//pkg/fips",
         "//pkg/logs/status",
+        "//pkg/telemetrycapture",
         "//pkg/util/cache",
         "//pkg/util/cloudproviders",
         "//pkg/util/cloudproviders/network",
@@ -94,7 +97,9 @@ go_library(
 dd_agent_go_test(
     name = "utils_test",
     srcs = [
+        "capture_test.go",
         "common_test.go",
+        "gohai_capture_test.go",
         "host_nix_test.go",
         "host_test.go",
         "host_windows_test.go",
@@ -104,10 +109,12 @@ dd_agent_go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
+        "//comp/metadata/host/impl/hosttags",
         "//pkg/collector/python",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/logs/status",
+        "//pkg/telemetrycapture",
         "//pkg/util/cache",
         "//pkg/util/cloudproviders/network",
         "//pkg/util/flavor",

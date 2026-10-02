@@ -12,11 +12,13 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	tc "github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
 const secret = "UNIQUE-CAPTURE-SECRET-8675309"
@@ -83,6 +85,10 @@ func TestProcessConnectionAndSoftwareAllowlists(t *testing.T) {
 		t.Fatal("lost scenario baseline values")
 	}
 	conn := &model.CollectorConnections{HostName: secret, NetworkId: secret, EncodedTags: []byte(secret), EncodedDNS: []byte(secret), Domains: []string{secret}, EcsTask: secret, ResolvedHostsByName: map[string]*model.Host{secret: {}}, Connections: []*model.Connection{{Pid: 912, Laddr: &model.Addr{Ip: secret, ContainerId: secret, HostName: secret}, Raddr: &model.Addr{Ip: secret, Port: 443}, RemoteNetworkId: secret, RemoteEcsTask: secret, HttpAggregations: []byte(secret), DatabaseAggregations: []byte(secret), Rtt: 32000, RttVar: 500, LastRetransmits: 2, TcpFailuresByErrCode: map[uint32]uint32{110: 1}}}}
+	conn.EncodedDNS, err = model.NewV1DNSEncoder().Encode(map[string]*model.DNSEntry{secret: {Names: []string{secret}}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	cleanConn := s.Connections(conn)
 	noSecret(t, cleanConn)
 	if cleanConn.Connections[0].Pid != cleanProc.Processes[0].Pid || cleanConn.NetworkId != cleanProc.NetworkId {
@@ -104,6 +110,161 @@ func TestProcessConnectionAndSoftwareAllowlists(t *testing.T) {
 	after, _ := json.Marshal(proc)
 	if !bytes.Equal(before, after) {
 		t.Fatal("mutated native process")
+	}
+}
+
+func TestConnectionCapturePreservesOwnedRoutingConfiguration(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		config *model.AgentConfiguration
+	}{
+		{name: "legacy absent configuration"},
+		{name: "explicitly disabled", config: &model.AgentConfiguration{}},
+		{name: "EUDM without NPM", config: &model.AgentConfiguration{EudmEnabled: true}},
+		{name: "NPM takes precedence", config: &model.AgentConfiguration{NpmEnabled: true, EudmEnabled: true}},
+		{name: "other observed features", config: &model.AgentConfiguration{UsmEnabled: true, DsmEnabled: true, CcmEnabled: true, CsmEnabled: true, DiscoveryServiceMapEnabled: true}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s, err := NewSanitizer()
+			if err != nil {
+				t.Fatal(err)
+			}
+			input := &model.CollectorConnections{
+				HostName: secret, GroupId: 7, GroupSize: 1, AgentConfiguration: test.config,
+				Connections: []*model.Connection{{Pid: 42, Laddr: &model.Addr{Ip: "192.0.2.1"}, Raddr: &model.Addr{Ip: "198.51.100.2", Port: 443}, LastBytesSent: 8123}},
+			}
+			before, err := input.Marshal()
+			if err != nil {
+				t.Fatal(err)
+			}
+			clean := s.Connections(input)
+			if clean == nil || !reflect.DeepEqual(clean.AgentConfiguration, test.config) {
+				t.Fatal("capture changed the observed backend routing configuration")
+			}
+			noSecret(t, clean)
+			// Typed samples and regenerated connection protobufs must both retain
+			// the flags, including presence of an all-false configuration.
+			typed, err := json.Marshal(clean)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var restored model.CollectorConnections
+			if err := json.Unmarshal(typed, &restored); err != nil {
+				t.Fatal(err)
+			}
+			wire, err := restored.Marshal()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var decoded model.CollectorConnections
+			if err := decoded.Unmarshal(wire); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(decoded.AgentConfiguration, test.config) || decoded.Connections[0].LastBytesSent != 8123 {
+				t.Fatal("typed or wire serialization changed routing or traffic evidence")
+			}
+			if test.config != nil {
+				if clean.AgentConfiguration == test.config {
+					t.Fatal("capture retained the producer's configuration pointer")
+				}
+				clean.AgentConfiguration.NpmEnabled = !clean.AgentConfiguration.NpmEnabled
+				clean.AgentConfiguration.EudmEnabled = !clean.AgentConfiguration.EudmEnabled
+			}
+			after, err := input.Marshal()
+			if err != nil || !bytes.Equal(before, after) {
+				t.Fatal("capture configuration aliases or mutates the producer payload")
+			}
+		})
+	}
+}
+
+func TestConnectionDNSPreservesReferencedAliasesPrivately(t *testing.T) {
+	s, err := NewSanitizer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, version := range []string{"v1", "v2"} {
+		t.Run(version, func(t *testing.T) {
+			input := &model.CollectorConnections{HostName: secret, GroupId: 5, GroupSize: 1,
+				Connections: []*model.Connection{{Pid: 42, Laddr: &model.Addr{Ip: "192.0.2.1", Port: 5555}, Raddr: &model.Addr{Ip: "198.51.100.2", Port: 443}, LastBytesSent: 8123, LastPacketsSent: 55}},
+			}
+			domains := []string{secret + ".example", "alias." + secret + ".example", "unreferenced." + secret + ".example"}
+			if version == "v1" {
+				input.EncodedDNS, err = model.NewV1DNSEncoder().Encode(map[string]*model.DNSEntry{
+					"198.51.100.2": {Names: domains[:2]}, "203.0.113.3": {Names: domains[2:]},
+				})
+			} else {
+				encoder := model.NewV2DNSEncoder()
+				var offsets []int32
+				input.EncodedDomainDatabase, offsets, err = encoder.EncodeDomainDatabase(domains)
+				if err == nil {
+					input.EncodedDnsLookups, err = encoder.EncodeMapped(map[string]*model.DNSDatabaseEntry{
+						"198.51.100.2": {NameOffsets: []int32{0, 1}}, "203.0.113.3": {NameOffsets: []int32{2}},
+					}, offsets)
+				}
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			before, _ := json.Marshal(input)
+			clean := s.Connections(input)
+			if clean == nil {
+				t.Fatal("valid DNS evidence rejected")
+			}
+			noSecret(t, clean)
+			var resolved []string
+			if err := clean.IterateDNS(clean.Connections[0].Raddr, func(_, _ int, name string) bool { resolved = append(resolved, name); return true }); err != nil {
+				t.Fatal(err)
+			}
+			want := []string{s.token("domain", strings.ToLower(domains[0])) + ".invalid", s.token("domain", strings.ToLower(domains[1])) + ".invalid"}
+			if !slices.Equal(resolved, want) {
+				t.Fatal("pseudonymous endpoint aliases lost")
+			}
+			all, err := clean.GetDNSNames()
+			if err != nil || !slices.Equal(all, want) {
+				t.Fatal("unreferenced domains retained or aliases lost")
+			}
+			if bytes.Contains(clean.EncodedDomainDatabase, []byte(secret)) || bytes.Contains(clean.EncodedDnsLookups, []byte("198.51.100.2")) {
+				t.Fatal("raw DNS identity survived encoding")
+			}
+			if clean.Connections[0].LastBytesSent != 8123 || clean.Connections[0].LastPacketsSent != 55 {
+				t.Fatal("DNS projection changed traffic counters")
+			}
+			clean.EncodedDomainDatabase[0] = 0
+			after, _ := json.Marshal(input)
+			if !bytes.Equal(before, after) {
+				t.Fatal("DNS projection aliases or mutates producer data")
+			}
+		})
+	}
+}
+
+func TestConnectionDNSRejectsMalformedAndExcessiveAssociations(t *testing.T) {
+	s, err := NewSanitizer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := &model.CollectorConnections{Connections: []*model.Connection{{Laddr: &model.Addr{Ip: "192.0.2.1"}, Raddr: &model.Addr{Ip: "198.51.100.2"}}}, EncodedDNS: []byte{255}}
+	if s.Connections(input) != nil {
+		t.Fatal("malformed DNS produced a partial sanitized record")
+	}
+	input.EncodedDNS = nil
+	input.EncodedDomainDatabase = []byte{1, 0, 1, 'a'}
+	input.EncodedDnsLookups = []byte{2, 1}
+	if s.Connections(input) != nil {
+		t.Fatal("truncated V2 DNS was silently ignored")
+	}
+	input.EncodedDomainDatabase, input.EncodedDnsLookups = nil, nil
+	names := make([]string, 65537)
+	for i := range names {
+		names[i] = "private.example"
+	}
+	input.EncodedDNS, err = model.NewV1DNSEncoder().Encode(map[string]*model.DNSEntry{"198.51.100.2": {Names: names}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Connections(input) != nil {
+		t.Fatal("DNS expansion exceeded its capture memory bound")
 	}
 }
 
@@ -415,5 +576,103 @@ func TestHardwareUUIDMatchesHostAndProcessIdentity(t *testing.T) {
 	}
 	if gohai["platform"]["serial_number"] == process.Info.Uuid {
 		t.Fatal("serial number and UUID identities were conflated")
+	}
+}
+
+func TestHostMetadataPreservesProducingAgentVersion(t *testing.T) {
+	sanitizer, err := NewSanitizer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	clean, err := sanitizer.HostMetadata(&HostMetadata{AgentVersion: "7.82.1-producer", Hostname: secret, OS: "darwin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if clean.(*HostMetadata).AgentVersion != "7.82.1-producer" {
+		t.Fatal("capture tool replaced the producing Agent version")
+	}
+}
+
+func TestHostMetadataHardwareMatchesInventorySanitization(t *testing.T) {
+	sanitizer, err := NewSanitizer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name, model, vendor, modelID, family, stepping string
+	}{
+		{name: "apple", model: "Apple M4 Max", vendor: "Apple", modelID: "4", family: "6", stepping: "3"},
+		{name: "intel", model: "Intel Core i7", vendor: "GenuineIntel", modelID: "154", family: "6", stepping: "4"},
+		{name: "sensitive", model: secret, vendor: secret, modelID: secret, family: secret, stepping: secret},
+		{name: "empty"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cpu := map[string]string{"model_name": test.model, "vendor_id": test.vendor, "model": test.modelID, "family": test.family, "stepping": test.stepping}
+			encoded, err := json.Marshal(map[string]any{"cpu": cpu})
+			if err != nil {
+				t.Fatal(err)
+			}
+			native := &HostMetadata{Gohai: string(encoded)}
+			clean, err := sanitizer.HostMetadata(native)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if native.Gohai != string(encoded) {
+				t.Fatal("sanitizing hardware mutated the observed metadata")
+			}
+			var gohai map[string]map[string]string
+			if err := json.Unmarshal([]byte(clean.(*HostMetadata).Gohai), &gohai); err != nil {
+				t.Fatal(err)
+			}
+			origin := time.Unix(100, 0)
+			inventory, err := sanitizer.Inventory(&tc.Inventory{
+				Hostname: "native-host", UUID: "native-uuid", Timestamp: origin.Add(time.Second).UnixNano(),
+				Host: &tc.HostInventoryMetadata{AgentVersion: "7.85.0-localbuild", OS: "Darwin", MemoryTotalKb: 1024,
+					CPUModel: test.model, CPUVendor: test.vendor, CPUModelID: test.modelID, CPUFamily: test.family, CPUStepping: test.stepping},
+			}, origin)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := map[string]string{"model_name": inventory.Host.CPUModel, "vendor_id": inventory.Host.CPUVendor, "model": inventory.Host.CPUModelID, "family": inventory.Host.CPUFamily, "stepping": inventory.Host.CPUStepping}
+			if !reflect.DeepEqual(gohai["cpu"], want) {
+				t.Fatal("legacy and inventory hardware fields diverged")
+			}
+			if test.name == "apple" && gohai["cpu"]["model_name"] != test.model {
+				t.Fatal("known hardware model was discarded")
+			}
+			if test.name == "sensitive" && (!strings.HasPrefix(gohai["cpu"]["model_name"], "cpu_model-") || !strings.HasPrefix(gohai["cpu"]["vendor_id"], "cpu_vendor-")) {
+				t.Fatal("opaque hardware fields were not pseudonymized")
+			}
+			noSecret(t, clean)
+			noSecret(t, inventory)
+		})
+	}
+}
+
+func TestHostMetadataHardwareRequiresObservedCPUStrings(t *testing.T) {
+	sanitizer, err := NewSanitizer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, raw := range []string{
+		`{"cpu":{"cpu_cores":"8"}}`,
+		`{"cpu":{"model_name":42,"vendor_id":{},"model":[],"family":true,"stepping":null}}`,
+		`{"memory":{"model_name":"Apple M4","vendor_id":"Apple","model":"4","family":"6","stepping":"3"}}`,
+	} {
+		clean, err := sanitizer.HostMetadata(&HostMetadata{Gohai: raw})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var gohai map[string]map[string]any
+		if err := json.Unmarshal([]byte(clean.(*HostMetadata).Gohai), &gohai); err != nil {
+			t.Fatal(err)
+		}
+		for _, section := range gohai {
+			for _, key := range []string{"model_name", "vendor_id", "model", "family", "stepping"} {
+				if _, exists := section[key]; exists {
+					t.Fatalf("created unobserved CPU string field %s", key)
+				}
+			}
+		}
 	}
 }

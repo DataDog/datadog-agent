@@ -8,6 +8,7 @@ go_library(
         "delivery.go",
         "engine.go",
         "preflight.go",
+        "progress.go",
         "timeline.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/engine",
@@ -28,6 +29,7 @@ go_library(
         "//pkg/metrics",
         "//pkg/networkdevice/metadata",
         "//pkg/process/checks",
+        "//pkg/telemetrycapture",
         "@com_github_datadog_agent_payload_v5//process",
     ],
 )
@@ -35,7 +37,11 @@ go_library(
 dd_agent_go_test(
     name = "engine_test",
     srcs = [
+        "chunks_test.go",
         "engine_test.go",
+        "inventory_test.go",
+        "metric_families_test.go",
+        "progress_test.go",
         "timeline_test.go",
     ],
     data = ["//cmd/eudm-simulator:replay_testdata"],
@@ -49,6 +55,7 @@ dd_agent_go_test(
         "//pkg/metrics",
         "//pkg/networkdevice/metadata",
         "//pkg/tagset",
+        "//pkg/telemetrycapture",
         "@com_github_datadog_agent_payload_v5//process",
         "@rules_go//go/runfiles",
     ],

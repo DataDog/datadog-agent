@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
 	softwareimpl "github.com/DataDog/datadog-agent/comp/softwareinventory/impl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
 // HostMetadata is the portable sanitized subset of the Agent host metadata body.
@@ -44,6 +45,7 @@ func (h *HostMetadata) MarshalJSON() ([]byte, error) {
 type Sample struct {
 	Metrics      []*metrics.Serie
 	HostMetadata *HostMetadata
+	Inventory    *telemetrycapture.Inventory
 	Processes    *model.CollectorProc
 	Connections  *model.CollectorConnections
 	Software     *softwareimpl.Payload
@@ -52,6 +54,20 @@ type Sample struct {
 // Decode rejects malformed, empty, unknown-field, and wrong-stream samples.
 // Platform and profile consistency are checked separately against the manifest.
 func Decode(stream schema.Stream, data []byte) (*Sample, error) {
+	return decodeSample(stream, data, false)
+}
+
+// DecodeGroupChunk permits an empty process or connection chunk inside a
+// validated multi-chunk group. The caller must verify that the complete group
+// contains records, and must use Decode for singleton samples.
+func DecodeGroupChunk(stream schema.Stream, data []byte) (*Sample, error) {
+	if stream != schema.Processes && stream != schema.Connections {
+		return nil, errors.New("group chunks require a process or connection stream")
+	}
+	return decodeSample(stream, data, true)
+}
+
+func decodeSample(stream schema.Stream, data []byte, allowEmptyChunk bool) (*Sample, error) {
 	sample := &Sample{}
 	switch stream {
 	case schema.Metrics:
@@ -79,12 +95,21 @@ func Decode(stream schema.Stream, data []byte) (*Sample, error) {
 			}
 		}
 		sample.HostMetadata = &value
+	case schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo:
+		var value telemetrycapture.Inventory
+		if err := decode(data, &value); err != nil {
+			return nil, err
+		}
+		if err := validateInventory(stream, &value); err != nil {
+			return nil, err
+		}
+		sample.Inventory = &value
 	case schema.Processes:
 		var value model.CollectorProc
 		if err := decode(data, &value); err != nil {
 			return nil, err
 		}
-		if value.HostName == "" || value.Info == nil || value.Info.TotalMemory <= 0 || value.Info.Os == nil || !slices.Contains([]string{"darwin", "windows"}, value.Info.Os.Name) || len(value.Processes) == 0 {
+		if value.HostName == "" || value.Info == nil || value.Info.TotalMemory <= 0 || value.Info.Os == nil || !slices.Contains([]string{"darwin", "windows"}, value.Info.Os.Name) || (!allowEmptyChunk && len(value.Processes) == 0) {
 			return nil, errors.New("process sample lacks host, system information, or processes")
 		}
 		for _, process := range value.Processes {
@@ -98,7 +123,7 @@ func Decode(stream schema.Stream, data []byte) (*Sample, error) {
 		if err := decode(data, &value); err != nil {
 			return nil, err
 		}
-		if value.HostName == "" || len(value.Connections) == 0 {
+		if value.HostName == "" || (!allowEmptyChunk && len(value.Connections) == 0) {
 			return nil, errors.New("connection sample lacks host or connections")
 		}
 		for _, connection := range value.Connections {

@@ -6,6 +6,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "util",
     srcs = [
+        "inventory_capture.go",
         "inventory_enabled.go",
         "inventory_payload.go",
     ],
@@ -19,6 +20,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/serializer",
         "//pkg/serializer/marshaler",
+        "//pkg/telemetrycapture",
         "//pkg/util/log",
         "//pkg/util/scrubber",
         "@org_uber_go_atomic//:atomic",
@@ -28,6 +30,7 @@ go_library(
 dd_agent_go_test(
     name = "util_test",
     srcs = [
+        "inventory_capture_test.go",
         "inventory_enabled_test.go",
         "inventory_payload_test.go",
     ],
@@ -39,7 +42,9 @@ dd_agent_go_test(
         "//pkg/config/mock",
         "//pkg/serializer/marshaler",
         "//pkg/serializer/mocks",
+        "//pkg/telemetrycapture",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
     ],
 )

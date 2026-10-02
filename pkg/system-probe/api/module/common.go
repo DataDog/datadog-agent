@@ -26,6 +26,7 @@ import (
 	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
 // ErrNotEnabled is a special error type that should be returned by a Factory
@@ -58,4 +59,5 @@ type FactoryDependencies struct {
 	Traceroute           traceroute.Component
 	ConnectionsForwarder connectionsforwarder.Component
 	NPCollector          npcollector.Component
+	CaptureManager       *telemetrycapture.Manager
 }

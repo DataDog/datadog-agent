@@ -27,6 +27,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
@@ -39,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -64,6 +66,7 @@ type agentMetadata map[string]interface{}
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
+	util.InventoryCaptureTiming
 	Hostname  string        `json:"hostname"`
 	Timestamp int64         `json:"timestamp"`
 	Metadata  agentMetadata `json:"agent_metadata"`
@@ -91,6 +94,8 @@ type inventoryagent struct {
 
 // Requires defines the dependencies for the inventoryagent component
 type Requires struct {
+	Lc             compdef.Lifecycle
+	CaptureManager *telemetrycapture.Manager `optional:"true"`
 	Log            log.Component
 	Config         config.Component
 	SysProbeConfig option.Option[sysprobeconfig.Component]
@@ -121,6 +126,10 @@ func NewComponent(deps Requires) Provides {
 		client:       deps.IPCClient,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
+	ia.ConfigureCapture(deps.CaptureManager, telemetrycapture.AgentInventory)
+	if deps.CaptureManager != nil && deps.Lc != nil {
+		deps.Lc.Append(compdef.Hook{OnStop: func(context.Context) error { ia.StopCapture(); return nil }})
+	}
 
 	if ia.Enabled {
 		ia.initData()

@@ -6,17 +6,19 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "capture",
     srcs = [
+        "inventory.go",
         "sanitize.go",
         "software.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/capture",
     visibility = ["//cmd/eudm-simulator:__subpackages__"],
     deps = [
+        "//cmd/eudm-simulator/internal/telemetry",
         "//pkg/inventory/software",
         "//pkg/metrics",
         "//pkg/serializer/marshaler",
         "//pkg/tagset",
-        "//pkg/version",
+        "//pkg/telemetrycapture",
         "@com_github_datadog_agent_payload_v5//process",
     ],
 )
@@ -24,13 +26,16 @@ go_library(
 dd_agent_go_test(
     name = "capture_test",
     srcs = [
+        "inventory_test.go",
         "sanitize_test.go",
+        "software_test.go",
     ],
     embed = [":capture"],
     deps = [
         "//pkg/inventory/software",
         "//pkg/metrics",
         "//pkg/tagset",
+        "//pkg/telemetrycapture",
         "@com_github_datadog_agent_payload_v5//process",
     ],
 )

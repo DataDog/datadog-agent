@@ -25,6 +25,7 @@ import (
 	secretnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	forwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
@@ -84,8 +85,8 @@ func NewConfig() config.Component {
 	return &isolatedConfig{BuildableConfig: cfg, start: time.Now()}
 }
 
-// Hostname implements the standard component without resolving replay-host
-// metadata. Native capture can construct one from its actual device hostname.
+// Hostname implements the standard component using an already sanitized or
+// replay-assigned identity, without resolving metadata from the local host.
 type Hostname string
 
 func (h Hostname) Get(context.Context) (string, error) { return string(h), nil }
@@ -104,11 +105,44 @@ func (f processForwarders) GetConnectionsForwarder() connectionsforwarder.Compon
 
 type metadataRouter struct {
 	forwarderdef.Forwarder
-	metadata forwarderdef.Forwarder
+	metadata         forwarderdef.Forwarder
+	metricProtocol   string
+	metadataProtocol string
+}
+
+func (f metadataRouter) SubmitMetadata(payloads transaction.BytesPayloads, headers http.Header) error {
+	return f.metadata.SubmitMetadata(payloads, headers)
 }
 
 func (f metadataRouter) SubmitHostMetadata(payloads transaction.BytesPayloads, headers http.Header) error {
+	if f.metadataProtocol == "metadata-v2" {
+		for _, resolver := range f.metadata.GetDomainResolvers() {
+			for index := range resolver.GetAuthorizers() {
+				for _, payload := range payloads {
+					txn := transaction.NewHTTPTransaction()
+					txn.Endpoint, txn.Resolver = endpoints.HostMetadataEndpoint, resolver
+					txn.Domain = resolver.Resolve(txn.Endpoint)
+					txn.APIKeyIndex, txn.Payload = uint(index), payload
+					txn.Headers = headers.Clone()
+					txn.Headers.Set("Content-Type", "application/json")
+					if err := f.metadata.SubmitTransaction(txn); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		return nil
+	}
 	return f.metadata.SubmitHostMetadata(payloads, headers)
+}
+
+// The v3 beta contract uses the same Agent encoder as v3. This fixed endpoint
+// selection is restricted to non-networking evidence regeneration below.
+func (f metadataRouter) SubmitTransaction(txn *transaction.HTTPTransaction) error {
+	if f.metricProtocol == "v3beta" && txn.Endpoint == endpoints.V3SeriesEndpoint {
+		txn.Endpoint = endpoints.V3BetaSeriesEndpoint
+	}
+	return f.Forwarder.SubmitTransaction(txn)
 }
 
 // Pipeline owns the common delivery build for both captured operating systems.
@@ -122,16 +156,17 @@ type Pipeline struct {
 	cancel     context.CancelFunc
 }
 
-// Options are installed before any producer starts. Capture transformers are
-// supplied only for native capture; replay may constrain the Agent queues.
+// Options are installed before any delivery starts. Replay may constrain the
+// Agent queues; evidence regeneration may select observed wire protocols.
 type Options struct {
 	QueueCapacity int
-	Serializer    serializer.CaptureTransformer
-	Process       runner.CaptureTransformer
+	// Observed protocols are accepted only with the non-networking recorder.
+	MetricProtocol   string
+	MetadataProtocol string
 }
 
-// New constructs isolated Agent serializers and forwarders. A Recorder disables
-// all intake networking during capture. Replay supplies a staging-guarded
+// New constructs isolated Agent serializers and forwarders. A Recorder prevents
+// intake networking while regenerating sanitized evidence. Replay supplies a staging-guarded
 // transport and keeps the Agent's ordinary retry policy.
 func New(ctx context.Context, destinations map[safety.Destination][]string, apiKey string, transport http.RoundTripper, options ...Options) (*Pipeline, error) {
 	if strings.TrimSpace(apiKey) == "" {
@@ -152,6 +187,12 @@ func New(ctx context.Context, destinations map[safety.Destination][]string, apiK
 		cancel()
 		return nil, errors.New("queue capacity cannot be negative")
 	}
+	if settings.MetricProtocol != "" || settings.MetadataProtocol != "" {
+		if _, ok := transport.(*Recorder); !ok {
+			cancel()
+			return nil, errors.New("observed protocols require the non-networking recorder")
+		}
+	}
 	success := false
 	defer func() {
 		if !success {
@@ -164,6 +205,25 @@ func New(ctx context.Context, destinations map[safety.Destination][]string, apiK
 	}
 	if settings.QueueCapacity > 0 {
 		set("process_config.queue_size", settings.QueueCapacity)
+	}
+	switch settings.MetricProtocol {
+	case "":
+	case "v1", "v2", "v3", "v3beta":
+		set("use_v2_api.series", settings.MetricProtocol != "v1")
+		set("use_v3_api.series.enabled", "false")
+		if settings.MetricProtocol == "v3" || settings.MetricProtocol == "v3beta" {
+			set("use_v3_api.series.enabled", "true")
+			set("serializer_compressor_kind", "zstd")
+		}
+	default:
+		return nil, errors.New("unsupported observed metric protocol")
+	}
+	if settings.MetadataProtocol != "" && settings.MetadataProtocol != "metadata-v1" && settings.MetadataProtocol != "metadata-v2" {
+		return nil, errors.New("unsupported observed metadata protocol")
+	}
+	compressor := selector.FromConfig(p.Config)
+	if (settings.MetricProtocol == "v3" || settings.MetricProtocol == "v3beta") && compressor.ContentEncoding() != "zstd" {
+		return nil, errors.New("observed v3 metrics require a build with zstd support")
 	}
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
 	if transport == nil {
@@ -226,11 +286,10 @@ func New(ctx context.Context, destinations map[safety.Destination][]string, apiK
 	}
 	p.Events = events
 	p.Events.Start()
-	hooks := settings
-	p.Serializer = serializer.NewSerializer(metadataRouter{Forwarder: byStream[safety.Metrics], metadata: byStream[safety.Metadata]}, nil, selector.FromConfig(p.Config), p.Config, logger, "capture-host", hooks.Serializer)
+	p.Serializer = serializer.NewSerializer(metadataRouter{Forwarder: byStream[safety.Metrics], metadata: byStream[safety.Metadata], metricProtocol: settings.MetricProtocol, metadataProtocol: settings.MetadataProtocol}, nil, compressor, p.Config, logger, "capture-host")
 	p.Serializer.RequireCompleteDelivery = true
 	syscfg := &sysprobeConfig{BuildableConfig: p.Config.(*isolatedConfig).BuildableConfig}
-	p.Submitter, err = runner.NewSubmitter(p.Config, logger, processForwarders{byStream[safety.Processes], byStream[safety.Connections]}, &statsd.NoOpClient{}, "capture-host", syscfg, hooks.Process)
+	p.Submitter, err = runner.NewSubmitter(p.Config, logger, processForwarders{byStream[safety.Processes], byStream[safety.Connections]}, &statsd.NoOpClient{}, "capture-host", syscfg)
 	if err != nil {
 		return nil, err
 	}
@@ -246,6 +305,12 @@ func (p *Pipeline) Process(ctx context.Context, at time.Time, body *model.Collec
 }
 func (p *Pipeline) Connections(ctx context.Context, at time.Time, body *model.CollectorConnections) error {
 	return p.Submitter.SubmitForHost(ctx, at, checks.ConnectionsCheckName, body.HostName, &types.Payload{Message: []model.MessageBody{body}})
+}
+
+// Group submits an entire sanitized collection through one ordinary queue
+// entry, retaining the request-ID chunk indices used to correlate its wires.
+func (p *Pipeline) Group(ctx context.Context, at time.Time, check, host string, bodies []model.MessageBody) error {
+	return p.Submitter.SubmitForHost(ctx, at, check, host, &types.Payload{Message: bodies})
 }
 func (p *Pipeline) Event(ctx context.Context, eventType string, body []byte, at time.Time) error {
 	return p.Events.Send(ctx, message.NewMessage(body, nil, "", at.UnixNano()), eventType)

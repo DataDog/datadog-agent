@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "impl",
     srcs = [
+        "capture.go",
         "inventoryagent.go",
         "status.go",
     ],
@@ -22,6 +23,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/status",
         "//comp/core/sysprobeconfig/def",
+        "//comp/def",
         "//comp/metadata/internal/util",
         "//comp/metadata/inventoryagent/def",
         "//comp/metadata/runner/def",
@@ -34,6 +36,7 @@ go_library(
         "//pkg/fips",
         "//pkg/serializer",
         "//pkg/serializer/marshaler",
+        "//pkg/telemetrycapture",
         "//pkg/util/ecs/metadata",
         "//pkg/util/flavor",
         "//pkg/util/http",
@@ -48,7 +51,10 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["inventoryagent_test.go"],
+    srcs = [
+        "capture_test.go",
+        "inventoryagent_test.go",
+    ],
     embed = [":impl"],
     deps = [
         "//comp/core/config",
@@ -69,6 +75,7 @@ dd_agent_go_test(
         "//pkg/serializer",
         "//pkg/serializer/mocks",
         "//pkg/system-probe/config",
+        "//pkg/telemetrycapture",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/util/installinfo",
@@ -76,6 +83,7 @@ dd_agent_go_test(
         "//pkg/util/option",
         "//pkg/version",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
     ],
 )

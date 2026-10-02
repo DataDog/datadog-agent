@@ -74,6 +74,7 @@ go_library(
         "//pkg/status/health",
         "//pkg/tagger/types",
         "//pkg/tagset",
+        "//pkg/telemetrycapture",
         "//pkg/util/flavor",
         "//pkg/util/infratags",
         "//pkg/util/log",
@@ -94,6 +95,7 @@ dd_agent_go_test(
     name = "aggregator_test",
     srcs = [
         "aggregator_test.go",
+        "capture_test.go",
         "check_sampler_bench_test.go",
         "check_sampler_test.go",
         "context_resolver_bench_test.go",
@@ -171,6 +173,7 @@ dd_agent_go_test(
         "//pkg/serializer",
         "//pkg/tagger/types",
         "//pkg/tagset",
+        "//pkg/telemetrycapture",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/util/infratags",

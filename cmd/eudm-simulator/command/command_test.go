@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -65,6 +66,9 @@ func TestCommandSurface(t *testing.T) {
 		if sub.Flags().Lookup("fast") != nil {
 			t.Fatal("staging time acceleration is exposed")
 		}
+		if (sub.Flags().Lookup("cfgpath") != nil) != (name == "capture") {
+			t.Fatal("installed configuration must be available only to capture")
+		}
 		for _, flag := range []string{"config", "plan", "start", "workers", "queue-capacity", "delivery-grace", "deadline"} {
 			if sub.Flags().Lookup(flag) != nil {
 				t.Fatalf("%s still exposes the removed --%s option", name, flag)
@@ -74,12 +78,13 @@ func TestCommandSurface(t *testing.T) {
 }
 
 func TestCaptureUsesInternalTimeout(t *testing.T) {
-	if err := nativeCaptureSupported(); err != nil {
+	if err := captureSupported(); err != nil {
 		t.Skip(err)
 	}
 	t.Setenv("DD_SITE", "")
 	t.Setenv("DD_API_KEY", "")
 	directory := filepath.Join(t.TempDir(), "capture")
+	cfgpath := filepath.Join(t.TempDir(), "datadog.yaml")
 	before := time.Now()
 	var captureContext context.Context
 	cmd := MakeCommand(Runtime{
@@ -87,6 +92,9 @@ func TestCaptureUsesInternalTimeout(t *testing.T) {
 			captureContext = ctx
 			if request.Directory != directory {
 				t.Fatalf("unexpected capture directory: %s", request.Directory)
+			}
+			if request.ConfigPath != cfgpath {
+				t.Fatal("capture did not receive its installed configuration path")
 			}
 			deadline, ok := ctx.Deadline()
 			if !ok || deadline.Before(before.Add(35*time.Minute)) || deadline.After(time.Now().Add(35*time.Minute)) {
@@ -99,12 +107,22 @@ func TestCaptureUsesInternalTimeout(t *testing.T) {
 			return nil
 		},
 	})
-	cmd.SetArgs([]string{"capture", "--output", directory})
+	cmd.SetArgs([]string{"capture", "--output", directory, "--cfgpath", cfgpath})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
 	if captureContext == nil || captureContext.Err() != context.Canceled {
 		t.Fatal("capture did not release its timeout after completion")
+	}
+}
+
+func TestReplayRejectsCaptureConfig(t *testing.T) {
+	for _, action := range []string{"run", "validate"} {
+		cmd := MakeCommand(Runtime{})
+		cmd.SetArgs([]string{action, "--cfgpath", "installed-agent-config"})
+		if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "unknown flag: --cfgpath") {
+			t.Fatalf("replay accepted installed configuration: %v", err)
+		}
 	}
 }
 
@@ -213,7 +231,7 @@ func TestRunDirectlyFromScenarioAndBaseline(t *testing.T) {
 			var got *ReplayRequest
 			cmd := MakeCommand(Runtime{
 				Capture: func(context.Context, CaptureRequest) error {
-					t.Fatal("run started native capture")
+					t.Fatal("run started live capture")
 					return nil
 				},
 				Replay: func(_ context.Context, request ReplayRequest) error {
@@ -252,12 +270,46 @@ func TestRunDirectlyFromScenarioAndBaseline(t *testing.T) {
 	}
 }
 
+func TestRunShowsProgressAndFinalResult(t *testing.T) {
+	scenarioPath, bundlePath := replayFixture(t)
+	for _, failed := range []bool{false, true} {
+		t.Run(fmt.Sprint(failed), func(t *testing.T) {
+			var output bytes.Buffer
+			var runErr error
+			status := "succeeded"
+			if failed {
+				runErr = errors.New("injected delivery failure")
+				status = "failed"
+			}
+			path := filepath.Join(t.TempDir(), "report.json")
+			cmd := MakeCommand(Runtime{Replay: func(_ context.Context, request ReplayRequest) error {
+				if request.Progress == nil {
+					t.Fatal("replay did not receive the command output writer")
+				}
+				if _, err := fmt.Fprintln(request.Progress, "Replay 30s/35m0s | phase=healthy | replaying"); err != nil {
+					t.Fatal(err)
+				}
+				return runErr
+			}})
+			cmd.SetOut(&output)
+			cmd.SetArgs([]string{"run", "--scenario", scenarioPath, "--bundle", bundlePath, "--report", path})
+			if err := cmd.Execute(); !errors.Is(err, runErr) {
+				t.Fatalf("run error was lost: %v", err)
+			}
+			want := "Run report: " + path + "\nReplay 30s/35m0s | phase=healthy | replaying\nRun " + status + ". Report: " + path + "\n"
+			if output.String() != want {
+				t.Fatalf("missing progress or final result: %s", output.String())
+			}
+		})
+	}
+}
+
 func TestValidateBaselineNeedsNoAPIKeyAndDoesNotReplay(t *testing.T) {
 	scenarioPath, bundlePath := replayFixture(t)
 	t.Setenv("DD_API_KEY", "")
 	cmd := MakeCommand(Runtime{
 		Capture: func(context.Context, CaptureRequest) error {
-			t.Fatal("validate started native capture")
+			t.Fatal("validate started live capture")
 			return nil
 		},
 		Replay: func(context.Context, ReplayRequest) error {
@@ -316,6 +368,34 @@ func TestRemovedCommandAndFlagsAreRejected(t *testing.T) {
 			cmd.SetArgs(tc.args)
 			if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("expected %q, got %v", tc.want, err)
+			}
+		})
+	}
+}
+
+func TestCaptureAcceptsBoundedTimeoutForHourlyHardware(t *testing.T) {
+	if captureSupported() != nil {
+		t.Skip("live capture requires macOS or Windows")
+	}
+	for _, timeout := range []string{"70m", "0s", "-1s", "121m"} {
+		t.Run(timeout, func(t *testing.T) {
+			called := false
+			cmd := MakeCommand(Runtime{Capture: func(ctx context.Context, _ CaptureRequest) error {
+				called = true
+				deadline, ok := ctx.Deadline()
+				if !ok || time.Until(deadline) < 69*time.Minute || time.Until(deadline) > 70*time.Minute {
+					t.Fatal("custom capture deadline lost")
+				}
+				return nil
+			}})
+			cmd.SetArgs([]string{"capture", "--output", filepath.Join(t.TempDir(), "capture"), "--timeout", timeout})
+			err := cmd.Execute()
+			if timeout == "70m" {
+				if err != nil || !called {
+					t.Fatalf("hourly capture timeout rejected: %v", err)
+				}
+			} else if err == nil || called {
+				t.Fatal("invalid timeout started capture")
 			}
 		})
 	}

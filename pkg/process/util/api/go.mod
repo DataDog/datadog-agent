@@ -6,6 +6,7 @@ require (
 	github.com/DataDog/agent-payload/v5 v5.0.211
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.70.0
+	github.com/DataDog/datadog-agent/pkg/telemetrycapture v0.0.0-00010101000000-000000000000
 	github.com/gogo/protobuf v1.3.2
 	github.com/stretchr/testify v1.12.1
 )
@@ -208,6 +209,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/status/health => ../../../../pkg/status/health
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../../pkg/tagset
+	github.com/DataDog/datadog-agent/pkg/telemetrycapture => ../../../../pkg/telemetrycapture
 	github.com/DataDog/datadog-agent/pkg/template => ../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../../pkg/trace/log

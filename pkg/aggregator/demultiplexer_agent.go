@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
@@ -53,7 +54,9 @@ type DemultiplexerWithAggregator interface {
 
 // AgentDemultiplexer is the demultiplexer implementation for the main Agent.
 type AgentDemultiplexer struct {
-	log log.Component
+	captureMu      sync.Mutex
+	captureStopped bool
+	log            log.Component
 
 	m sync.RWMutex
 
@@ -84,9 +87,8 @@ type AgentDemultiplexer struct {
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
 type AgentDemultiplexerOptions struct {
-	// CaptureTransformer is optional and is fixed before serializers start.
-	CaptureTransformer serializer.CaptureTransformer
-	FlushInterval      time.Duration
+	CaptureManager *telemetrycapture.Manager
+	FlushInterval  time.Duration
 
 	NoAggregationPipelineWorkersCount int
 
@@ -176,7 +178,9 @@ func initAgentDemultiplexer(log log.Component,
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname, options.CaptureTransformer)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
+	sharedSerializer.LiveCapture = options.CaptureManager
+	sharedSerializer.LiveCaptureCadence = options.FlushInterval
 	if options.DogStatsDLookback == nil && options.DogStatsDLookbackFactory != nil {
 		options.DogStatsDLookback = options.DogStatsDLookbackFactory(sharedSerializer)
 	}
@@ -219,7 +223,10 @@ func initAgentDemultiplexer(log log.Component,
 		noAggSerializers = make([]serializer.MetricSerializer, workersCount)
 		noAggSamplesChan = make(chan metrics.MetricSampleBatch, pkgconfigsetup.Datadog().GetInt("dogstatsd_queue_size"))
 		for i := 0; i < workersCount; i++ {
-			noAggSerializers[i] = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname, options.CaptureTransformer)
+			noAggSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
+			noAggSerializer.LiveCapture = options.CaptureManager
+			noAggSerializer.LiveCaptureCadence = noAggWorkerStreamCheckFrequency
+			noAggSerializers[i] = noAggSerializer
 			noAggWorkers[i] = newNoAggregationStreamWorker(
 				pkgconfigsetup.Datadog().GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 				metricSamplePool,
@@ -408,6 +415,8 @@ func (d *AgentDemultiplexer) run() {
 	d.filterList.OnUpdateMetricFilterList(d.SetSamplersFilterList)
 	d.filterList.OnUpdateTagFilterList(d.SetAggregatorTagFilterList)
 
+	d.startCaptureReadiness()
+	defer d.stopCaptureReadiness()
 	d.flushLoop() // this is the blocking call
 }
 
@@ -449,6 +458,7 @@ func (d *AgentDemultiplexer) flushLoop() {
 // Stop performs a final flush, then releases resources. The instance should
 // not be used after a call to `Stop()`.
 func (d *AgentDemultiplexer) Stop() {
+	d.stopCaptureReadiness()
 	timeout := pkgconfigsetup.Datadog().GetDuration("aggregator_stop_timeout") * time.Second
 	forceFlushAll := pkgconfigsetup.Datadog().GetBool("dogstatsd_flush_incomplete_buckets")
 
@@ -822,4 +832,26 @@ func (d *AgentDemultiplexer) GetDefaultSender() (sender.Sender, error) {
 	}
 
 	return d.senders.GetDefaultSender()
+}
+
+func (d *AgentDemultiplexer) startCaptureReadiness() {
+	manager := d.options.CaptureManager
+	if manager == nil || !d.sharedSerializer.AreSeriesEnabled() || d.options.FlushInterval <= 0 {
+		return
+	}
+	d.captureMu.Lock()
+	defer d.captureMu.Unlock()
+	if !d.captureStopped {
+		_ = manager.Register(telemetrycapture.Capability{Stream: telemetrycapture.Metrics, Cadence: d.options.FlushInterval})
+	}
+}
+
+func (d *AgentDemultiplexer) stopCaptureReadiness() {
+	if d.options.CaptureManager == nil {
+		return
+	}
+	d.captureMu.Lock()
+	defer d.captureMu.Unlock()
+	d.captureStopped = true
+	d.options.CaptureManager.Unregister(telemetrycapture.Metrics)
 }

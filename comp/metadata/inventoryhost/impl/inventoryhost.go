@@ -17,6 +17,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
@@ -28,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -98,6 +100,7 @@ type hostMetadata struct {
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
+	util.InventoryCaptureTiming
 	Hostname  string        `json:"hostname"`
 	Timestamp int64         `json:"timestamp"`
 	Metadata  *hostMetadata `json:"host_metadata"`
@@ -121,10 +124,12 @@ type invHost struct {
 
 // Requires defines the dependencies for the inventoryhost component
 type Requires struct {
-	Log        log.Component
-	Config     config.Component
-	Serializer serializer.MetricSerializer
-	Hostname   hostnameinterface.Component
+	Lc             compdef.Lifecycle
+	CaptureManager *telemetrycapture.Manager `optional:"true"`
+	Log            log.Component
+	Config         config.Component
+	Serializer     serializer.MetricSerializer
+	Hostname       hostnameinterface.Component
 }
 
 // Provides defines the output of the inventoryhost component
@@ -145,6 +150,10 @@ func NewComponent(deps Requires) Provides {
 		data:     &hostMetadata{},
 	}
 	ih.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ih.getPayload, "host.json")
+	ih.ConfigureCapture(deps.CaptureManager, telemetrycapture.HostInventory)
+	if deps.CaptureManager != nil && deps.Lc != nil {
+		deps.Lc.Append(compdef.Hook{OnStop: func(context.Context) error { ih.StopCapture(); return nil }})
+	}
 
 	return Provides{
 		Comp:          ih,

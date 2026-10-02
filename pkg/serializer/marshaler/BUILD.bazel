@@ -4,13 +4,17 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "marshaler",
     srcs = [
+        "capture.go",
         "dummy_marshaller.go",
         "marshaler.go",
         "marshaler_adapter.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/serializer/marshaler",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_json_iterator_go//:go"],
+    deps = [
+        "//comp/forwarder/defaultforwarder/transaction",
+        "@com_github_json_iterator_go//:go",
+    ],
 )
 
 dd_agent_go_test(

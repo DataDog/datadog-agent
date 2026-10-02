@@ -6,10 +6,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "command",
     srcs = [
+        "capture_darwin.go",
+        "capture_unsupported.go",
+        "capture_windows.go",
         "command.go",
-        "native_darwin.go",
-        "native_unsupported.go",
-        "native_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/command",
     visibility = ["//cmd/eudm-simulator:__subpackages__"],

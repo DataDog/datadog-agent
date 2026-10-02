@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -82,7 +83,10 @@ func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) ([]software.En
 // This struct holds the state and dependencies needed to collect and manage
 // software inventory data from the Windows system.
 type softwareInventory struct {
-	capture CaptureTransformer
+	captureManager *telemetrycapture.Manager
+	// captureMu serializes readiness with shutdown without changing collection.
+	captureMu      sync.Mutex
+	captureStopped bool
 	// true if the component was enabled in the configuration
 	enabled bool
 	// log provides logging capabilities for the component
@@ -109,8 +113,7 @@ type softwareInventory struct {
 // This struct defines all the required dependencies that must be provided
 // when creating a new inventory software component instance.
 type Requires struct {
-	// CaptureTransformer receives the complete snapshot before serialization.
-	CaptureTransformer CaptureTransformer `optional:"true"`
+	CaptureManager *telemetrycapture.Manager `optional:"true"`
 	// Log provides logging capabilities for the component
 	Log log.Component
 	// Config provides access to the agent configuration
@@ -158,7 +161,7 @@ func newWithClient(reqs Requires, client sysProbeClient, sleepFunc func(time.Dur
 	}
 
 	is := &softwareInventory{
-		capture:        reqs.CaptureTransformer,
+		captureManager: reqs.CaptureManager,
 		enabled:        reqs.Config.GetBool("software_inventory.enabled"),
 		log:            reqs.Log,
 		sysProbeClient: client,
@@ -178,6 +181,11 @@ func newWithClient(reqs Requires, client sysProbeClient, sleepFunc func(time.Dur
 
 	is.jitter = time.Duration(localRand.Intn(max(reqs.Config.GetInt("software_inventory.jitter"), 60))) * time.Second
 	is.interval = time.Duration(max(reqs.Config.GetInt("software_inventory.interval"), 10)) * time.Minute
+	if forwarder, ok := is.eventPlatform.Get(); ok {
+		if observer, ok := forwarder.(interface{ SetSoftwareCaptureCadence(time.Duration) }); ok {
+			observer.SetSoftwareCaptureCadence(is.interval)
+		}
+	}
 
 	is.log.Infof("Starting the inventory software component")
 
@@ -185,6 +193,7 @@ func newWithClient(reqs Requires, client sysProbeClient, sleepFunc func(time.Dur
 	reqs.Lc.Append(compdef.Hook{
 		OnStop: func(context.Context) error {
 			cancel()
+			is.stopCapture()
 			return nil
 		},
 	})
@@ -199,16 +208,19 @@ func newWithClient(reqs Requires, client sysProbeClient, sleepFunc func(time.Dur
 }
 
 func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Context) {
+	defer is.stopCapture()
 	// Wait for System Probe to be ready with simple retry loop
 	for {
 		initialInventory, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventoryModule)
 		if err == nil {
 			is.log.Debug("Initial software inventory collection completed")
+			is.captureReady(ctx)
 			is.cachedInventoryMu.Lock()
 			is.cachedInventory = initialInventory
 			is.cachedInventoryMu.Unlock()
 			break
 		}
+		is.captureUnavailable()
 
 		// Only retry if System Probe hasn't started yet.
 		// This error is returned for the first 5min after the Agent startup (configurable with check_system_probe_startup_time).
@@ -249,12 +261,14 @@ func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Contex
 		case <-ticker.C:
 			newInventory, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventoryModule)
 			if err != nil {
+				is.captureUnavailable()
 				_ = is.log.Warnf("Failed to get software inventory: %v", err)
 				continue
 			}
 
 			// TODO: Compare old and new inventory
 
+			is.captureReady(ctx)
 			is.cachedInventoryMu.Lock()
 			is.cachedInventory = newInventory
 			is.cachedInventoryMu.Unlock()
@@ -282,14 +296,6 @@ func (is *softwareInventory) sendPayload() error {
 		// No cached inventory available, skip sending payload
 		return nil
 	}
-	if is.capture != nil {
-		transformed, err := is.capture(payload.(*Payload))
-		if err != nil {
-			return err
-		}
-		payload = transformed
-	}
-
 	jsonPayload, err := payload.MarshalJSON()
 	if err != nil {
 		return err

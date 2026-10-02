@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
+	"io"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -64,6 +64,12 @@ func (a AgentDelivery) Send(ctx context.Context, at time.Time, stream schema.Str
 	case schema.HostMetadata:
 		for _, s := range samples {
 			if err := a.Pipeline.Serializer.SendHostMetadata(s.HostMetadata); err != nil {
+				return err
+			}
+		}
+	case schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo:
+		for _, s := range samples {
+			if err := a.Pipeline.Serializer.SendMetadata(s.Inventory); err != nil {
 				return err
 			}
 		}
@@ -121,6 +127,7 @@ const (
 type ExecutionOptions struct {
 	ReportPath, APIKey string
 	Destinations       map[safety.Destination][]string
+	Progress           io.Writer
 }
 
 // Execute is the wall-clock staging lifecycle. Reserve the report before any
@@ -133,29 +140,18 @@ func Execute(ctx context.Context, request Request, options ExecutionOptions) err
 	if options.APIKey == "" {
 		return errors.New("set DD_API_KEY to the target staging organization's API key")
 	}
-	file, err := os.OpenFile(options.ReportPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
+	writer, err := report.NewWriter(options.ReportPath)
 	if err != nil {
 		return fmt.Errorf("reserve local run report: %w", err)
 	}
-	defer file.Close()
-	write := func(r *report.Report) error {
-		data, err := json.MarshalIndent(r, "", "  ")
-		if err != nil {
-			return err
+	publish := func(r *report.Report) error {
+		if err := writer.Write(r); err != nil {
+			return fmt.Errorf("write local run report: %w", err)
 		}
-		if _, err := file.Seek(0, 0); err != nil {
-			return err
-		}
-		if err := file.Truncate(0); err != nil {
-			return err
-		}
-		if _, err := file.Write(append(data, '\n')); err != nil {
-			return err
-		}
-		return file.Sync()
+		return writeProgress(options.Progress, r)
 	}
 	prepared.report.Status = "running"
-	if err := write(prepared.report); err != nil {
+	if err := writer.Write(prepared.report); err != nil {
 		return err
 	}
 	ctx, cancel := context.WithCancel(ctx)
@@ -165,7 +161,8 @@ func Execute(ctx context.Context, request Request, options ExecutionOptions) err
 		prepared.report.Status = "failed"
 		prepared.report.End = time.Now()
 		prepared.report.Errors = append(prepared.report.Errors, err.Error())
-		if reportErr := write(prepared.report); reportErr != nil {
+		prepared.report.Progress = progressAt(prepared.report, prepared.report.End)
+		if reportErr := publish(prepared.report); reportErr != nil {
 			return fmt.Errorf("delivery startup failed (%v), report write failed: %w", err, reportErr)
 		}
 		return err
@@ -175,15 +172,12 @@ func Execute(ctx context.Context, request Request, options ExecutionOptions) err
 	// The CLI supplies provisional metadata; execution establishes the real start.
 	request.Plan.Start = time.Now().UTC()
 	prepared.report.Start = request.Plan.Start
-	if err := write(prepared.report); err != nil {
-		return err
-	}
 	deadline := request.Plan.Start.Add(prepared.duration).Add(deliveryGrace)
 	ctx, cancelDeadline := context.WithDeadline(ctx, deadline)
 	defer cancelDeadline()
-	result, runErr := prepared.run(ctx, Options{Workers: replayWorkers, QueueCapacity: replayQueueCapacity, Clock: WallClock{}, Delivery: AgentDelivery{Pipeline: pipeline}})
-	if err := write(result); err != nil {
-		return fmt.Errorf("write final local report (run error: %v): %w", runErr, err)
+	result, runErr := prepared.run(ctx, Options{Workers: replayWorkers, QueueCapacity: replayQueueCapacity, Clock: WallClock{}, Delivery: AgentDelivery{Pipeline: pipeline}, Progress: publish})
+	if err := publish(result); err != nil {
+		return errors.Join(runErr, fmt.Errorf("publish final run result: %w", err))
 	}
 	return runErr
 }

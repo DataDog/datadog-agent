@@ -16,18 +16,19 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/overlay"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
 // validateOverlays checks conservative bounds, including the full variation
 // envelope, against every captured cycle before delivery starts. CPU and memory
 // reconciliation are monotone in their target values, so checking both bounds
 // also covers every device and intermediate point without expanding the fleet.
-func validateOverlays(s *schema.Scenario, group schema.GroupDef, b *bundle.Loaded, timelines map[schema.Stream]*timeline) error {
+func validateOverlays(s *schema.Scenario, group schema.GroupDef, b *bundle.Loaded, timelines map[schema.Stream][]*timeline) error {
 	var baselines [][]*model.CollectorProc
-	for _, cycle := range timelines[schema.Processes].cycles {
+	for _, cycle := range timelines[schema.Processes][0].cycles {
 		var chunks []*model.CollectorProc
 		for _, ref := range cycle.refs {
-			sample, err := telemetry.Decode(ref.Stream, b.Files[ref.File])
+			sample, err := decodeCapturedSample(b, ref)
 			if err != nil {
 				return err
 			}
@@ -36,6 +37,12 @@ func validateOverlays(s *schema.Scenario, group schema.GroupDef, b *bundle.Loade
 		baselines = append(baselines, chunks)
 	}
 	for phaseIndex, phase := range s.Phases {
+		for _, name := range requiredMetricEvidence(phase, group) {
+			family := telemetrycapture.MetricFamily(name)
+			if !slices.ContainsFunc(timelines[schema.Metrics], func(t *timeline) bool { return t.family == family }) {
+				return fmt.Errorf("cohort %q phase %q lacks captured metric family for %q", group.Group, phase.Name, name)
+			}
+		}
 		for _, upper := range []bool{false, true} {
 			bounded := *s
 			bounded.Phases = slices.Clone(s.Phases)
@@ -43,30 +50,28 @@ func validateOverlays(s *schema.Scenario, group schema.GroupDef, b *bundle.Loade
 			fixedGroup := group
 			fixedGroup.BaselineVariance = 0
 			for _, stream := range streamOrder {
-				timeline := timelines[stream]
-				if timeline == nil {
-					continue
-				}
-				for cycleIndex, cycle := range timeline.cycles {
-					if err := validateCycleEvidence(b, cycle, stream, phase, group); err != nil {
-						return err
-					}
-					selected := baselines[:1]
-					if stream == schema.Processes {
-						selected = baselines[cycleIndex : cycleIndex+1]
-					}
-					if stream == schema.Metrics && len(phase.Processes[group.Group]) > 0 {
-						selected = baselines
-					}
-					for _, baseline := range selected {
-						ctx := overlay.Context{Scenario: &bounded, Group: fixedGroup, PhaseIndex: phaseIndex, Stream: stream, BaselineProcesses: baseline}
-						for _, ref := range cycle.refs {
-							sample, err := telemetry.Decode(ref.Stream, b.Files[ref.File])
-							if err == nil {
-								err = overlay.Apply(ctx, sample)
-							}
-							if err != nil {
-								return fmt.Errorf("cohort %q phase %q %s preflight: %w", group.Group, phase.Name, stream, err)
+				for _, timeline := range timelines[stream] {
+					for cycleIndex, cycle := range timeline.cycles {
+						if err := validateCycleEvidence(b, cycle, stream, timeline.family, phase, group); err != nil {
+							return err
+						}
+						selected := baselines[:1]
+						if stream == schema.Processes {
+							selected = baselines[cycleIndex : cycleIndex+1]
+						}
+						if stream == schema.Metrics && len(phase.Processes[group.Group]) > 0 {
+							selected = baselines
+						}
+						for _, baseline := range selected {
+							ctx := overlay.Context{Scenario: &bounded, Group: fixedGroup, PhaseIndex: phaseIndex, Stream: stream, BaselineProcesses: baseline}
+							for _, ref := range cycle.refs {
+								sample, err := decodeTimelineSample(b, ref, timeline.family)
+								if err == nil {
+									err = overlay.Apply(ctx, sample)
+								}
+								if err != nil {
+									return fmt.Errorf("cohort %q phase %q %s preflight: %w", group.Group, phase.Name, stream, err)
+								}
 							}
 						}
 					}
@@ -77,12 +82,12 @@ func validateOverlays(s *schema.Scenario, group schema.GroupDef, b *bundle.Loade
 	return nil
 }
 
-// Profile inventories are unions; each replay cycle must itself contain the
-// evidence its overlay targets, even if that cycle spans multiple chunks.
-func validateCycleEvidence(b *bundle.Loaded, cycle cycle, stream schema.Stream, phase schema.Phase, group schema.GroupDef) error {
+// Profile inventories are unions; each replay collection must itself contain
+// the evidence targeted within its check family, including multi-chunk groups.
+func validateCycleEvidence(b *bundle.Loaded, cycle cycle, stream schema.Stream, family string, phase schema.Phase, group schema.GroupDef) error {
 	names := map[string]bool{}
 	for _, ref := range cycle.refs {
-		sample, err := telemetry.Decode(ref.Stream, b.Files[ref.File])
+		sample, err := decodeTimelineSample(b, ref, family)
 		if err != nil {
 			return err
 		}
@@ -109,14 +114,10 @@ func validateCycleEvidence(b *bundle.Loaded, cycle cycle, stream schema.Stream, 
 	}
 	var required []string
 	if stream == schema.Metrics {
-		for name := range phase.Metrics[group.Group] {
-			required = append(required, name)
-		}
-		if len(phase.Processes[group.Group]) > 0 {
-			required = append(required, "system.cpu.user", "system.cpu.system", "system.cpu.idle", "system.mem.used", "system.mem.free", "system.mem.usable", "system.mem.pct_usable")
-		}
-		if group.AccessPoint != "" || group.BSSID != "" || group.SSID != "" {
-			required = append(required, "system.wlan.rssi", "system.wlan.noise", "system.wlan.txrate", "system.wlan.rxrate")
+		for _, name := range requiredMetricEvidence(phase, group) {
+			if telemetrycapture.MetricFamily(name) == family {
+				required = append(required, name)
+			}
 		}
 	}
 	if stream == schema.Connections {
@@ -130,6 +131,20 @@ func validateCycleEvidence(b *bundle.Loaded, cycle cycle, stream schema.Stream, 
 		}
 	}
 	return nil
+}
+
+func requiredMetricEvidence(phase schema.Phase, group schema.GroupDef) []string {
+	var required []string
+	for name := range phase.Metrics[group.Group] {
+		required = append(required, name)
+	}
+	if len(phase.Processes[group.Group]) > 0 {
+		required = append(required, "system.cpu.user", "system.cpu.system", "system.cpu.idle", "system.mem.used", "system.mem.free", "system.mem.usable", "system.mem.pct_usable")
+	}
+	if group.AccessPoint != "" || group.BSSID != "" || group.SSID != "" {
+		required = append(required, "system.wlan.rssi", "system.wlan.noise", "system.wlan.txrate", "system.wlan.rxrate")
+	}
+	return required
 }
 
 func boundedPhase(phase schema.Phase, group schema.GroupDef, upper bool) schema.Phase {

@@ -23,6 +23,7 @@ import (
 	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
+	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
 // submitter implements the Component.
@@ -41,6 +42,7 @@ type dependencies struct {
 	Forwarders     forwarders.Component
 	HostInfo       hostinfo.Component
 	Statsd         statsd.ClientInterface
+	CaptureManager *telemetrycapture.Manager `optional:"true"`
 }
 
 type Provides struct {
@@ -56,6 +58,7 @@ func NewComponent(deps dependencies) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+	s.CaptureManager = deps.CaptureManager
 
 	if agent.Enabled(deps.Config, deps.Checks, deps.Log) {
 		deps.Lc.Append(compdef.Hook{
@@ -79,6 +82,18 @@ func NewComponent(deps dependencies) (Provides, error) {
 
 func (s *submitterImpl) Submit(start time.Time, checkName string, payload *types.Payload) {
 	s.s.Submit(start, checkName, payload)
+}
+
+func (s *submitterImpl) SetCaptureCadence(checkName string, interval time.Duration) {
+	s.s.SetCaptureCadence(checkName, interval)
+}
+
+func (s *submitterImpl) SetCaptureCheckRunning(checkName string, running bool) {
+	s.s.SetCaptureCheckRunning(checkName, running)
+}
+
+func (s *submitterImpl) SetCaptureCheckHealthy(checkName string, healthy bool) {
+	s.s.SetCaptureCheckHealthy(checkName, healthy)
 }
 
 func (s *submitterImpl) Start() error {
