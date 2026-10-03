@@ -6,6 +6,7 @@
 package agentconfiguration
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -31,7 +32,14 @@ const (
 	guiAPIEndpoint = "/agent/gui/intent"
 )
 
-func getGUIIntentToken(t *assert.CollectT, host *components.RemoteHost, authtoken string) string {
+// guiIntentToken mirrors the payload of /agent/gui/intent: a single-use
+// credential the GUI exchanges for a session cookie.
+type guiIntentToken struct {
+	ID     string `json:"id"`
+	Secret string `json:"secret"`
+}
+
+func getGUIIntentToken(t *assert.CollectT, host *components.RemoteHost, authtoken string) guiIntentToken {
 	hostHTTPClient := host.NewHTTPClient()
 
 	apiEndpoint := &url.URL{
@@ -51,10 +59,15 @@ func getGUIIntentToken(t *assert.CollectT, host *components.RemoteHost, authtoke
 
 	require.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", apiEndpoint.String())
 
-	url, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	require.NoErrorf(t, err, "failed to read response body from %s", apiEndpoint.String())
 
-	return string(url)
+	var intentToken guiIntentToken
+	require.NoErrorf(t, json.Unmarshal(body, &intentToken), "failed to decode intent token from %s", apiEndpoint.String())
+	require.NotEmpty(t, intentToken.ID)
+	require.NotEmpty(t, intentToken.Secret)
+
+	return intentToken
 }
 
 func getGUIClient(t *assert.CollectT, host *components.RemoteHost, authtoken string) *http.Client {
@@ -64,9 +77,6 @@ func getGUIClient(t *assert.CollectT, host *components.RemoteHost, authtoken str
 		Scheme: "http",
 		Host:   net.JoinHostPort("localhost", strconv.Itoa(guiPort)),
 		Path:   "/auth",
-		RawQuery: url.Values{
-			"intent": {intentToken},
-		}.Encode(),
 	}
 
 	jar, err := cookiejar.New(&cookiejar.Options{})
@@ -75,8 +85,13 @@ func getGUIClient(t *assert.CollectT, host *components.RemoteHost, authtoken str
 	guiClient := host.NewHTTPClient()
 	guiClient.Jar = jar
 
-	// Make the GET request
-	resp, err := guiClient.Get(guiURL.String())
+	// The intent token is POSTed, never put in the URL: a URL would leak the
+	// token through the argv of the OS URL-opener (VULN-92705). This mirrors
+	// what the bootstrap page written by `agent launch-gui` does.
+	resp, err := guiClient.PostForm(guiURL.String(), url.Values{
+		"id":     {intentToken.ID},
+		"secret": {intentToken.Secret},
+	})
 	require.NoErrorf(t, err, "failed to reach GUI at address %s", guiURL.String())
 	require.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", guiURL.String())
 	defer resp.Body.Close()

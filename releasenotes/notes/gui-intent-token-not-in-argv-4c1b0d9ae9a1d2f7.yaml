@@ -1,0 +1,11 @@
+---
+security:
+  - |
+    ``agent launch-gui`` and the Windows systray "Configure" action no longer
+    pass the GUI's single-use intent token to the browser as part of a URL. A
+    URL is handed to the OS URL-opener (``xdg-open``, ``open``,
+    ``rundll32``) as a command-line argument, where any other local user could
+    read it from the process list and redeem it for a GUI session. The token is
+    now written to a file readable only by the user starting the GUI, and that
+    file is opened in the browser instead, so only a path appears on any
+    command line.
