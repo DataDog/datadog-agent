@@ -155,7 +155,7 @@ func (client *Client) loginOAuth() error {
 	req.Header.Add("Accept", "application/json")
 
 	// Execute the request
-	resp, err := client.httpClient.Do(req)
+	resp, err := client.executeRequest(req)
 	if err != nil {
 		return fmt.Errorf("OAuth request failed: %w", err)
 	}
@@ -246,7 +246,7 @@ func (client *Client) runGetCSRFToken() error {
 		return err
 	}
 
-	resp, err := client.httpClient.Do(req)
+	resp, err := client.executeRequest(req)
 	if err != nil {
 		return nil
 	}
@@ -288,7 +288,7 @@ func (client *Client) runJSpringSecurityCheck(authPayload *url.Values) error {
 		req.Header.Add("X-CSRF-TOKEN", client.sessionToken)
 	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	sessionRes, err := client.httpClient.Do(req)
+	sessionRes, err := client.executeRequest(req)
 	if err != nil {
 		return fmt.Errorf("invalid request: %w", err)
 	}
@@ -329,7 +329,7 @@ func (client *Client) runAnalyticsLogin(analyticsPayload *url.Values) error {
 	req.Header.Add("X-CSRF-TOKEN", client.sessionToken)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	loginRes, err := client.httpClient.Do(req)
+	loginRes, err := client.executeRequest(req)
 	if err != nil {
 		return fmt.Errorf("invalid request: %w", err)
 	}
