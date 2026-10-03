@@ -61,9 +61,22 @@ class TestRunPulumi(unittest.TestCase):
 
     def test_pty_is_kept_elsewhere(self):
         ctx = _run_mock()
-        with mock.patch.object(tool, "is_windows", return_value=False):
+        with (
+            mock.patch.object(tool, "is_windows", return_value=False),
+            mock.patch("sys.stdout.isatty", return_value=True),
+        ):
             tool.run_pulumi(ctx, "up --yes", project_dir=False, pty=True)
         self.assertTrue(ctx.run.call_args.kwargs["pty"])
+
+    def test_pty_is_disabled_when_output_is_redirected(self):
+        # e.g. `dda inv aws.create-... > deploy.log`: a pty would fill the log with escape sequences.
+        ctx = _run_mock()
+        with (
+            mock.patch.object(tool, "is_windows", return_value=False),
+            mock.patch("sys.stdout.isatty", return_value=False),
+        ):
+            tool.run_pulumi(ctx, "up --yes", project_dir=False, pty=True)
+        self.assertFalse(ctx.run.call_args.kwargs["pty"])
 
 
 class TestPulumiEnv(unittest.TestCase):
