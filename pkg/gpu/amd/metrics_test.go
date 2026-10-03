@@ -63,6 +63,22 @@ func TestReadMetricsFullTelemetry(t *testing.T) {
 	}, m)
 }
 
+// A Phoenix APU (kernel 6.12) pads power1_cap with NULs after the newline.
+func TestReadMetricsNULPaddedAttribute(t *testing.T) {
+	fs := NewFakeSysfs(t)
+	devDir := fs.AddPCIDevice("0000:09:00.0", "amdgpu", MI300XAttributes(""))
+	fs.AddCard("card0", devDir)
+	fs.AddHwmon(devDir, "hwmon4", map[string]string{
+		"power1_input": "5097000\n",
+		"power1_cap":   "15000000\n" + strings.Repeat("\x00", 1011),
+	})
+
+	m, err := discoverSingle(t, fs).ReadMetrics()
+	require.NoError(t, err)
+	assert.Equal(t, valid(15000), m.PowerCapMilliwatts)
+	assert.Equal(t, valid(5097), m.PowerMilliwatts)
+}
+
 func TestReadMetricsMissingAttributesAreInvalidNotErrors(t *testing.T) {
 	fs := NewFakeSysfs(t)
 	attrs := MI300XAttributes("")

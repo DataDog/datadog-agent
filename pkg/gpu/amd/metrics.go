@@ -107,7 +107,7 @@ func (r *reader) read(path string) (string, bool) {
 		}
 		return "", false
 	}
-	return strings.TrimSpace(string(content)), true
+	return sysfsValue(content), true
 }
 
 func (r *reader) readDir(path string) []os.DirEntry {

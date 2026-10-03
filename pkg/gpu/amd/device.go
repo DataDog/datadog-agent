@@ -13,6 +13,7 @@
 package amd
 
 import (
+	"bytes"
 	"cmp"
 	"errors"
 	"fmt"
@@ -278,6 +279,17 @@ func boundToAmdgpu(devicePath string) (bool, error) {
 	return false, nil
 }
 
+// sysfsValue returns a sysfs attribute's content up to the first NUL byte, with
+// surrounding whitespace removed. Some amdgpu hwmon attributes pad the value
+// with NULs: on a Phoenix APU (kernel 6.12) power1_cap reads "15000000\n"
+// followed by 1011 NUL bytes.
+func sysfsValue(content []byte) string {
+	if end := bytes.IndexByte(content, 0); end >= 0 {
+		content = content[:end]
+	}
+	return strings.TrimSpace(string(content))
+}
+
 // readTrimmed returns the trimmed content of a sysfs attribute, or "" when
 // the attribute is missing or unreadable.
 func readTrimmed(path string) string {
@@ -285,7 +297,7 @@ func readTrimmed(path string) string {
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(content))
+	return sysfsValue(content)
 }
 
 // readHexID parses a sysfs ID attribute such as "0x1002".
@@ -294,7 +306,7 @@ func readHexID(path string) (uint16, error) {
 	if err != nil {
 		return 0, err
 	}
-	value := strings.TrimSpace(string(content))
+	value := sysfsValue(content)
 	id, err := strconv.ParseUint(strings.TrimPrefix(value, "0x"), 16, 16)
 	if err != nil {
 		return 0, fmt.Errorf("parse %s: %w", path, err)

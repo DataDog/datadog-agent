@@ -422,7 +422,7 @@ func readUint(path string) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	value, err := strconv.ParseUint(strings.TrimSpace(string(content)), 10, 64)
+	value, err := strconv.ParseUint(sysfsValue(content), 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("parse %s: %w", path, err)
 	}
