@@ -294,8 +294,5 @@ func cpuWeightToSharesNonLinear(cpuWeight float64) float64 {
 
 // absDiff returns the absolute difference between two uint64 values.
 func absDiff(a, b uint64) uint64 {
-	if a > b {
-		return a - b
-	}
-	return b - a
+	return max(a, b) - min(a, b)
 }
