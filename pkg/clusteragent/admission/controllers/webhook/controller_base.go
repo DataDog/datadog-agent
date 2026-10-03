@@ -47,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	kubecommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -157,9 +158,15 @@ func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta 
 			serverVersion = sv
 		}
 	}
+	isOpenShift := false
+	if apiCl, err := apiserver.GetAPIClient(); err != nil {
+		log.Warnf("Failed to get the apiserver client to detect OpenShift: %v", err)
+	} else {
+		isOpenShift = apiCl.DetectOpenShiftAPILevel() != apiserver.NotOpenShift
+	}
 
 	// Setup APM Instrumentation webhook. APM Instrumentation webhook needs to be registered after the config webhook.
-	apmWebhook, err := autoinstrumentation.NewAutoInstrumentation(datadogConfig, wmeta, serverVersion, csiDriverWatcher, rcClient, ddiTargets)
+	apmWebhook, err := autoinstrumentation.NewAutoInstrumentation(datadogConfig, wmeta, serverVersion, isOpenShift, csiDriverWatcher, rcClient, ddiTargets)
 	if err != nil {
 		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
 	} else {
