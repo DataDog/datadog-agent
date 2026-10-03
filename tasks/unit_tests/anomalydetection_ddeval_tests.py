@@ -6,7 +6,12 @@ from unittest.mock import patch
 
 from invoke.exceptions import Exit
 
-from tasks.anomalydetection import AWS_VAULT_PROFILE, _local_aws_command, _local_ddeval_command, eval_ddeval
+from tasks.anomalydetection import (
+    AWS_VAULT_PROFILE,
+    _local_aws_command,
+    _local_ddeval_command,
+    eval_ddeval,
+)
 from tasks.libs.anomalydetection.ddeval import (
     ARTIFACT_PREFIX,
     RedactingWriter,
