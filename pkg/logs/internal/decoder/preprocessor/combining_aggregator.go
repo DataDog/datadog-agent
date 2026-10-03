@@ -30,7 +30,7 @@ type bucket struct {
 
 // add appends msg and its first-line tokens to the bucket. The caller chooses
 // the token lifetime: pass the borrowed tokens as-is when the line is flushed
-// within the current Process call, or tokens.retained() when the line stays
+// within the current Process call, or tokens.Retained() when the line stays
 // buffered for a later call (the tokenizer's scratch buffer is reused between
 // lines, so a buffered line must own a copy).
 func (b *bucket) add(msg *message.Message, tokens BorrowedTokens) {
@@ -254,7 +254,7 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 		} else {
 			// Under the limit: buffered until its continuation lines arrive, so it
 			// must own its tokens.
-			a.bucket.add(msg, tokens.retained())
+			a.bucket.add(msg, tokens.Retained())
 		}
 		return a.collected
 	}
@@ -270,7 +270,7 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 
 	// We're an aggregate label within a startGroup and within the maxContentSize.
 	// Append new multiline; the line stays buffered, so it must own its tokens.
-	a.bucket.add(msg, tokens.retained())
+	a.bucket.add(msg, tokens.Retained())
 	return a.collected
 }
 

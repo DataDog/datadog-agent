@@ -28,7 +28,7 @@
 --     Labeler contract's promises. Documented in the
 --     auto_multiline_labeler.allium implementation spec.
 
-use "./tokenizer.allium" as tokenizer
+use "../../../tokenizer/tokenizer.allium" as tokenizer
 
 ------------------------------------------------------------
 -- Enumerations
