@@ -1029,7 +1029,7 @@ def build_object_files(ctx, arch: Arch):
     info("[+] Building eBPF object files via Bazel...")
     build_dir = get_ebpf_build_dir(arch)
     runtime_dir = get_ebpf_runtime_dir()
-    bazel_build_ebpf(ctx, arch, str(build_dir), str(runtime_dir), strip=False)
+    bazel_build_ebpf(ctx, arch, str(build_dir), str(runtime_dir))
     bazel("test", *ebpf_bazel_flags(arch), "--build_tests_only", "//pkg/ebpf:verify_generated_files")
 
 
