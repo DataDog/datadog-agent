@@ -6,7 +6,7 @@
 #include "helpers/span_fill.h"
 #include "hooks/network/flow.h"
 
-int __attribute__((always_inline)) read_sock_and_send_event(ctx_t * ctx, struct sock * sock) {
+static __always_inline int read_sock_and_send_event(ctx_t * ctx, struct sock * sock) {
     struct accept_event_t *event = SPAN_FILL_EVENT(struct accept_event_t, EVENT_ACCEPT);
     if (!event) {
         return 0;

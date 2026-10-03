@@ -45,7 +45,7 @@ enum param_kind_t {
 
 #define HOOK_ON_DEMAND HOOK_ENTRY("parse_args")
 
-struct on_demand_event_t* __attribute__((always_inline)) get_on_demand_event() {
+static __always_inline struct on_demand_event_t *get_on_demand_event() {
 	// The event is staged in the shared span_fill slot (built and emitted within
 	// this same program, so no cross-hook persistence is needed). SPAN_FILL_EVENT
 	// zeroes it.

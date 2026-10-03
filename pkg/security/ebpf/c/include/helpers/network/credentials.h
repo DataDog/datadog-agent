@@ -6,7 +6,7 @@
 #include "structs/network.h"
 
 // looks up the credential source for an address
-__attribute__((always_inline)) u32 lookup_credential_source(u64 *addr) {
+static __always_inline u32 lookup_credential_source(u64 *addr) {
     struct credential_endpoint_t key = {};
     key.addr[0] = addr[0];
     key.addr[1] = addr[1];
@@ -19,7 +19,7 @@ __attribute__((always_inline)) u32 lookup_credential_source(u64 *addr) {
 }
 
 // credential source of a packet's src or dst address
-__attribute__((always_inline)) u32 get_credential_source(struct packet_t *pkt) {
+static __always_inline u32 get_credential_source(struct packet_t *pkt) {
     u32 source = lookup_credential_source(pkt->ns_flow.flow.daddr);
     if (source != CREDENTIAL_SOURCE_UNKNOWN) {
         return source;

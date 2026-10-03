@@ -62,7 +62,7 @@ int hook___get_unmapped_area(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_mmap_ret_impl(void *ctx, int retval, u64 addr, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_mmap_ret_impl(void *ctx, int retval, u64 addr, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
     if (!syscall) {
         return 0;
@@ -109,7 +109,7 @@ pop_and_exit:
     return 0;
 }
 
-int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr) {
+static __always_inline int sys_mmap_ret(void *ctx, int retval, u64 addr) {
     return sys_mmap_ret_impl(ctx, retval, addr, KPROBE_OR_FENTRY_TYPE);
 }
 

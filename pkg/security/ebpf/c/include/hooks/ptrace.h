@@ -45,7 +45,7 @@ HOOK_SYSCALL_ENTRY3(ptrace, u32, request, pid_t, pid, void *, addr) {
     return 0;
 }
 
-int __attribute__((always_inline)) ptrace_check_attach_common(struct task_struct *child) {
+static __always_inline int ptrace_check_attach_common(struct task_struct *child) {
     if (!child) {
         return 0;
     }
@@ -74,7 +74,7 @@ int hook_arch_ptrace(ctx_t *ctx) {
     return ptrace_check_attach_common((struct task_struct *)CTX_PARM1(ctx));
 }
 
-int __attribute__((always_inline)) sys_ptrace_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_ptrace_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_PTRACE);
     if (!syscall) {
         return 0;
@@ -102,7 +102,7 @@ pop_and_exit:
     return 0;
 }
 
-int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
+static __always_inline int sys_ptrace_ret(void *ctx, int retval) {
     return sys_ptrace_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

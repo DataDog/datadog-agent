@@ -20,7 +20,7 @@ int hook_security_sb_umount(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_umount_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_umount_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UMOUNT);
     if (!syscall) {
         return 0;
@@ -50,7 +50,7 @@ int __attribute__((always_inline)) sys_umount_ret_impl(void *ctx, int retval, en
     return 0;
 }
 
-int __attribute__((always_inline)) sys_umount_ret(void *ctx, int retval) {
+static __always_inline int sys_umount_ret(void *ctx, int retval) {
     return sys_umount_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

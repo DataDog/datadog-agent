@@ -157,7 +157,7 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
     return 0;
 }
 
-__attribute__((always_inline)) int trace_nat_manip_pkt(struct nf_conn *ct) {
+static __always_inline int trace_nat_manip_pkt(struct nf_conn *ct) {
     u32 netns = get_netns_from_nf_conn(ct);
 
     struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
@@ -199,7 +199,7 @@ int hook_nf_nat_packet(ctx_t *ctx) {
     return trace_nat_manip_pkt(ct);
 }
 
-__attribute__((always_inline)) void fill_pid_route_from_sflow(struct pid_route_t *route, struct namespaced_flow_t *ns_flow) {
+static __always_inline void fill_pid_route_from_sflow(struct pid_route_t *route, struct namespaced_flow_t *ns_flow) {
     route->addr[0] = ns_flow->flow.saddr[0];
     route->addr[1] = ns_flow->flow.saddr[1];
     route->port = ns_flow->flow.tcp_udp.sport;
@@ -207,7 +207,7 @@ __attribute__((always_inline)) void fill_pid_route_from_sflow(struct pid_route_t
     route->l4_protocol = ns_flow->flow.l4_protocol;
 }
 
-__attribute__((always_inline)) void flush_flow_pid_by_route(struct pid_route_t *route) {
+static __always_inline void flush_flow_pid_by_route(struct pid_route_t *route) {
     struct pid_route_entry_t *value = bpf_map_lookup_elem(&flow_pid, route);
     if (value != NULL) {
         if (value->type == PROCFS_ENTRY || value->owner_sk == 0) {
@@ -272,7 +272,7 @@ int hook_nf_ct_delete(ctx_t *ctx) {
     return 0;
 }
 
-__attribute__((always_inline)) int handle_sk_release(struct sock *sk) {
+static __always_inline int handle_sk_release(struct sock *sk) {
     struct pid_route_t route = {};
 
     // register that this socket is closing
@@ -514,7 +514,7 @@ int hook_sk_destruct(ctx_t *ctx) {
     return 0;
 }
 
-__attribute__((always_inline)) int handle_inet_bind(struct socket *sock) {
+static __always_inline int handle_inet_bind(struct socket *sock) {
     struct inet_bind_args_t args = {};
     args.sock = sock;
     u64 pid = bpf_get_current_pid_tgid();
@@ -534,7 +534,7 @@ int hook_inet6_bind(ctx_t *ctx) {
     return handle_inet_bind(sock);
 }
 
-__attribute__((always_inline)) int handle_inet_bind_ret(int ret) {
+static __always_inline int handle_inet_bind_ret(int ret) {
     // fetch inet_bind arguments
     u64 id = bpf_get_current_pid_tgid();
     u32 tid = (u32)id;
@@ -631,7 +631,7 @@ int rethook_inet6_bind(ctx_t *ctx) {
     return handle_inet_bind_ret(ret);
 }
 
-__attribute__((always_inline)) int register_connected_flow(struct sock *sk, u64 pid_tgid) {
+static __always_inline int register_connected_flow(struct sock *sk, u64 pid_tgid) {
     struct pid_route_t route = {};
 
     route.netns = get_netns_from_sock(sk);
@@ -698,7 +698,7 @@ __attribute__((always_inline)) int register_connected_flow(struct sock *sk, u64 
 // Before Linux 7.0 an IPv6 socket was classified on its first transmit by security_sk_classify_flow.
 // Starting with Linux 7.0, security_sk_classify_flow is only called by inet6_csk_xmit on a route miss,
 // so IPv6 sockets need to call this helper to register the corresponding flow.
-__attribute__((always_inline)) int register_native_ipv6_flow(struct sock *sk, u64 pid_tgid) {
+static __always_inline int register_native_ipv6_flow(struct sock *sk, u64 pid_tgid) {
     // IPv4 sockets still reach security_sk_classify_flow with a usable flow
     if (get_family_from_sock_common((void *)sk) != AF_INET6) {
         return 0;
@@ -715,12 +715,12 @@ __attribute__((always_inline)) int register_native_ipv6_flow(struct sock *sk, u6
 }
 
 // the BIND_ENTRY of a wildcard listener doesn't cover the local address the connection landed on
-__attribute__((always_inline)) int register_accepted_flow(struct sock *sk) {
+static __always_inline int register_accepted_flow(struct sock *sk) {
     return register_native_ipv6_flow(sk, bpf_get_current_pid_tgid());
 }
 
 // tcp_v6_connect classifies the flow before inet_hash_connect assigns the ephemeral port
-__attribute__((always_inline)) int register_connecting_flow(struct sock *sk, u64 pid_tgid) {
+static __always_inline int register_connecting_flow(struct sock *sk, u64 pid_tgid) {
     if (sk == NULL) {
         return 0;
     }

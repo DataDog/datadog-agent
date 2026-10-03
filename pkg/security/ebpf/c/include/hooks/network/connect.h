@@ -7,7 +7,7 @@
 #include "helpers/span_fill.h"
 #include "hooks/network/flow.h"
 
-int __attribute__((always_inline)) sys_connect(void *ctx, u64 pid_tgid) {
+static __always_inline int sys_connect(void *ctx, u64 pid_tgid) {
     struct policy_t policy = fetch_policy(EVENT_CONNECT);
     struct syscall_cache_t syscall = {
         .policy = policy,
@@ -29,7 +29,7 @@ HOOK_SYSCALL_ENTRY3(connect, int, socket, struct sockaddr *, addr, unsigned int,
     return sys_connect(ctx, 0);
 }
 
-int __attribute__((always_inline)) sys_connect_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_connect_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_CONNECT);
     if (!syscall) {
         return 0;
@@ -101,7 +101,7 @@ pop_and_exit:
     return 0;
 }
 
-int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
+static __always_inline int sys_connect_ret(void *ctx, int retval) {
     return sys_connect_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

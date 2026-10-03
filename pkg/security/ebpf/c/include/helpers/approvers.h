@@ -649,7 +649,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct s
     return state;
 }
 
-enum SYSCALL_STATE __attribute__((always_inline)) rename_approvers(struct syscall_cache_t *syscall) {
+static __always_inline enum SYSCALL_STATE rename_approvers(struct syscall_cache_t *syscall) {
     enum SYSCALL_STATE state = approve_by_basename(syscall->rename.src_dentry, EVENT_RENAME);
     if (state == DISCARDED) {
         state = approve_by_basename(syscall->rename.target_dentry, EVENT_RENAME);
@@ -661,7 +661,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) rename_approvers(struct syscal
     return state;
 }
 
-enum SYSCALL_STATE __attribute__((always_inline)) rmdir_approvers(struct syscall_cache_t *syscall) {
+static __always_inline enum SYSCALL_STATE rmdir_approvers(struct syscall_cache_t *syscall) {
     enum SYSCALL_STATE state = approve_by_basename(syscall->rmdir.dentry, EVENT_RMDIR);
     if (state == DISCARDED) {
         state = approve_by_auid(syscall, EVENT_RMDIR);
@@ -669,7 +669,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) rmdir_approvers(struct syscall
     return state;
 }
 
-enum SYSCALL_STATE __attribute__((always_inline)) approve_splice_by_entry_flags(struct syscall_cache_t *syscall) {
+static __always_inline enum SYSCALL_STATE approve_splice_by_entry_flags(struct syscall_cache_t *syscall) {
     u32 flags = 0;
 
     int exists = lookup_u32_flags(&splice_entry_flags_approvers, &flags);
@@ -684,7 +684,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_splice_by_entry_flags(
     return DISCARDED;
 }
 
-enum SYSCALL_STATE __attribute__((always_inline)) approve_splice_by_exit_flags(struct syscall_cache_t *syscall) {
+static __always_inline enum SYSCALL_STATE approve_splice_by_exit_flags(struct syscall_cache_t *syscall) {
     u32 flags = 0;
 
     int exists = lookup_u32_flags(&splice_exit_flags_approvers, &flags);

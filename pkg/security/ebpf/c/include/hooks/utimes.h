@@ -6,7 +6,7 @@
 #include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_utimes(void *ctx, const char *filename) {
+static __always_inline int trace__sys_utimes(void *ctx, const char *filename) {
     if (is_discarded_by_pid() || is_auid_discarder(EVENT_UTIME)) {
         return 0;
     }
@@ -44,7 +44,7 @@ HOOK_SYSCALL_COMPAT_TIME_ENTRY2(futimesat, int, dirfd, const char *, filename) {
     return trace__sys_utimes(ctx, filename);
 }
 
-int __attribute__((always_inline)) sys_utimes_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_utimes_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UTIME);
     if (!syscall) {
         return 0;
@@ -80,7 +80,7 @@ pop_and_exit:
     return 0;
 }
 
-int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {
+static __always_inline int sys_utimes_ret(void *ctx, int retval) {
     return sys_utimes_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

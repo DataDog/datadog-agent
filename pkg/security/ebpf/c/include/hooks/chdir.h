@@ -9,7 +9,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
-long __attribute__((always_inline)) trace__sys_chdir(void *ctx, const char *path) {
+static __always_inline long trace__sys_chdir(void *ctx, const char *path) {
     if (is_discarded_by_pid() || is_auid_discarder(EVENT_CHDIR)) {
         return 0;
     }
@@ -64,7 +64,7 @@ pop_and_exit:
     return 0;
 }
 
-int __attribute__((always_inline)) sys_chdir_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_chdir_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_CHDIR);
     if (!syscall) {
         return 0;
@@ -108,7 +108,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_chdir_exit, struct tracepoint_raw_syscalls_s
     return sys_chdir_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
-int __attribute__((always_inline)) dr_chdir_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int dr_chdir_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_CHDIR);
     if (!syscall) {
         return 0;

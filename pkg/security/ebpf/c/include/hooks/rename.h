@@ -8,7 +8,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
-int __attribute__((always_inline)) trace__sys_rename(void *ctx, u8 async, const char *oldpath, const char *newpath) {
+static __always_inline int trace__sys_rename(void *ctx, u8 async, const char *oldpath, const char *newpath) {
     struct syscall_cache_t syscall = {
         .policy = fetch_policy(EVENT_RENAME),
         .async = async,
@@ -125,7 +125,7 @@ int hook_vfs_rename(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_rename_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
         goto pop_and_exit;
     }
@@ -214,7 +214,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_rename_exit, struct tracepoint_raw_syscalls_
     return sys_rename_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
-int __attribute__((always_inline)) dr_rename_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int dr_rename_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
     if (!syscall) {
         return 0;

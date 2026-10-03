@@ -10,7 +10,7 @@
 // so neither should be filtered by discarders. RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP is a carry-over flag set by
 // approve_syscall when a traced cgroup forces an otherwise-discarded event to be kept, so it must be
 // preserved when callers refresh the resolver flags after approval.
-int __attribute__((always_inline)) get_resolver_flags(struct syscall_cache_t *syscall, u8 apply_discarders) {
+static __always_inline int get_resolver_flags(struct syscall_cache_t *syscall, u8 apply_discarders) {
     if (!apply_discarders) {
         return syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
     }
@@ -19,7 +19,7 @@ int __attribute__((always_inline)) get_resolver_flags(struct syscall_cache_t *sy
     return flags | (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP);
 }
 
-void __attribute__((always_inline)) apply_dentry_resolution_outcome(struct syscall_cache_t *syscall, u64 event_type) {
+static __always_inline void apply_dentry_resolution_outcome(struct syscall_cache_t *syscall, u64 event_type) {
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
         if (syscall->state != ACCEPTED) {
             syscall->state = DISCARDED;
@@ -37,7 +37,7 @@ void __attribute__((always_inline)) apply_dentry_resolution_outcome(struct sysca
     }
 }
 
-int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct dentry_resolver_input_t *input) {
+static __always_inline int resolve_dentry_tail_call(void *ctx, struct dentry_resolver_input_t *input) {
     struct path_leaf_t map_value = {};
     struct path_key_t key = input->key;
     struct path_key_t next_key = input->key;
@@ -188,7 +188,7 @@ static void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, enum 
    dentry_resolver_kern_recursive(ctx, prog_type, &syscall->resolver);
 }
 
-struct dentry_resolver_input_t *__attribute__((always_inline)) peek_task_resolver_inputs(u64 pid_tgid, u64 event_type) {
+static __always_inline struct dentry_resolver_input_t *peek_task_resolver_inputs(u64 pid_tgid, u64 event_type) {
     struct dentry_resolver_input_t *inputs = (struct dentry_resolver_input_t *)bpf_map_lookup_elem(&dentry_resolver_inputs, &pid_tgid);
     if (!inputs) {
         return NULL;
@@ -199,12 +199,12 @@ struct dentry_resolver_input_t *__attribute__((always_inline)) peek_task_resolve
     return NULL;
 }
 
-struct dentry_resolver_input_t *__attribute__((always_inline)) peek_resolver_inputs(u64 event_type) {
+static __always_inline struct dentry_resolver_input_t *peek_resolver_inputs(u64 event_type) {
     u64 key = bpf_get_current_pid_tgid();
     return peek_task_resolver_inputs(key, event_type);
 }
 
-void __attribute__((always_inline)) dentry_resolver_kern_no_syscall(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline void dentry_resolver_kern_no_syscall(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct dentry_resolver_input_t *inputs = peek_resolver_inputs(EVENT_ANY);
     if (!inputs)
         return;
@@ -232,7 +232,7 @@ TAIL_CALL_FNC(dentry_resolver_kern_no_syscall, ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) dentry_resolver_erpc_write_user(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int dentry_resolver_erpc_write_user(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     u32 key = 0;
     u32 resolution_err = 0;
     struct path_leaf_t *map_value = 0;
@@ -310,7 +310,7 @@ TAIL_CALL_FNC(dentry_resolver_erpc_write_user, ctx_t *ctx) {
     return dentry_resolver_erpc_write_user(ctx, KPROBE_OR_FENTRY_TYPE);
 }
 
-int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int dentry_resolver_erpc_mmap(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     u32 key = 0;
     u32 resolution_err = 0;
     struct path_leaf_t *map_value = 0;

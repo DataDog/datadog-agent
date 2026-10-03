@@ -12,7 +12,7 @@
 #include "span.h"
 #include "user_sessions.h"
 
-int __attribute__((always_inline)) handle_discard_inode(void *data) {
+static __always_inline int handle_discard_inode(void *data) {
     if (!is_runtime_request()) {
         return 0;
     }
@@ -23,7 +23,7 @@ int __attribute__((always_inline)) handle_discard_inode(void *data) {
     return discard_inode(discarder.req.event_type, discarder.mount_id, discarder.inode, discarder.req.timeout, discarder.is_leaf);
 }
 
-int __attribute__((always_inline)) handle_expire_inode_discarder(void *data) {
+static __always_inline int handle_expire_inode_discarder(void *data) {
     if (!is_runtime_request()) {
         return 0;
     }
@@ -36,7 +36,7 @@ int __attribute__((always_inline)) handle_expire_inode_discarder(void *data) {
     return 0;
 }
 
-int __attribute__((always_inline)) handle_bump_discarders_revision(void *data) {
+static __always_inline int handle_bump_discarders_revision(void *data) {
     if (!is_runtime_request()) {
         return 0;
     }
@@ -47,7 +47,7 @@ int __attribute__((always_inline)) handle_bump_discarders_revision(void *data) {
 }
 
 #if USE_RING_BUFFER == 1
-int __attribute__((always_inline)) handle_get_ringbuf_usage(void *data) {
+static __always_inline int handle_get_ringbuf_usage(void *data) {
     if (!is_runtime_request()) {
         return 0;
     }
@@ -58,7 +58,7 @@ int __attribute__((always_inline)) handle_get_ringbuf_usage(void *data) {
 }
 #endif
 
-int __attribute__((always_inline)) is_erpc_request(ctx_t *ctx) {
+static __always_inline int is_erpc_request(ctx_t *ctx) {
     u32 cmd = CTX_PARM2(ctx);
     if (cmd != RPC_CMD) {
         return 0;
@@ -67,13 +67,13 @@ int __attribute__((always_inline)) is_erpc_request(ctx_t *ctx) {
     return 1;
 }
 
-int __attribute__((always_inline)) handle_nop_event(ctx_t *ctx) {
+static __always_inline int handle_nop_event(ctx_t *ctx) {
     struct nop_event_t nop_event = {};
     send_event(ctx, EVENT_NOP, nop_event);
     return 0;
 }
 
-void __attribute__((always_inline)) handle_discard_prctl(void * data) {
+static __always_inline void handle_discard_prctl(void * data) {
     if (!is_runtime_request()) {
         return;
     }
@@ -84,7 +84,7 @@ void __attribute__((always_inline)) handle_discard_prctl(void * data) {
     discard_pr_name(discarder);
 }
 
-void __attribute__((always_inline)) handle_discard_auid(void * data) {
+static __always_inline void handle_discard_auid(void * data) {
     if (!is_runtime_request()) {
         return;
     }
@@ -95,7 +95,7 @@ void __attribute__((always_inline)) handle_discard_auid(void * data) {
     bpf_probe_read(&event_type, sizeof(event_type), payload + sizeof(auid));
     discard_auid(auid, event_type);
 }
-int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
+static __always_inline int handle_erpc_request(ctx_t *ctx) {
     void *req = (void *)CTX_PARM3(ctx);
 
     u8 op = 0;
