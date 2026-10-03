@@ -35,8 +35,8 @@ variables on first install.
 Package selection variables:
   DD_REPO_URL              Package base URL. Defaults to
                            https://dd-agent-aix.s3.amazonaws.com
-  DD_AGENT_DIST_CHANNEL    Package channel: stable (default) or beta. Packages
-                           are stored below <base>/<channel>/.
+  DD_AGENT_DIST_CHANNEL    Package channel: stable (default), beta, nightly,
+                           or dev. Packages are stored below <base>/<channel>/.
   DD_AGENT_VERSION         Exact Agent version, without the package build
                            number (for example, 7.84.0).
   DD_AGENT_MINOR_VERSION   Exact Agent 7 minor and patch version (for example,
@@ -157,8 +157,8 @@ esac
 
 agent_dist_channel=${DD_AGENT_DIST_CHANNEL:-stable}
 case "$agent_dist_channel" in
-    stable|beta) ;;
-    *) fail "DD_AGENT_DIST_CHANNEL must be stable or beta." ;;
+    stable|beta|nightly|dev) ;;
+    *) fail "DD_AGENT_DIST_CHANNEL must be stable, beta, nightly, or dev." ;;
 esac
 
 repo_url=${DD_REPO_URL:-$default_repo_url}
@@ -198,7 +198,7 @@ else
 fi
 chmod 600 "$bff_file"
 
-current_fileset=$(/usr/sbin/installp -ld "$bff_file" 2>&1 | awk 'tolower($0) ~ /datadog-agent/ { print $2; exit }')
+current_fileset=$($sudo_cmd /usr/sbin/installp -ld "$bff_file" 2>&1 | awk 'tolower($0) ~ /datadog-agent/ { print $2; exit }')
 if [ -z "$current_fileset" ]; then
     fail "the BFF does not contain the datadog-agent fileset."
 fi
@@ -234,7 +234,7 @@ $sudo_cmd chmod 640 "$install_info"
 
 if [ -n "${DD_INSTALL_ONLY:-}" ]; then
     printf '%b\nDatadog Agent %s was installed but not started because DD_INSTALL_ONLY is set.\nStart it with:\n\n    startsrc -g datadog-agent\n%b' "$GREEN" "$current_fileset" "$NC"
-elif [ -z "${DD_API_KEY:-}" ] && [ ! -f /etc/datadog-agent/datadog.yaml ]; then
+elif [ -z "${DD_API_KEY:-}" ] && ! $sudo_cmd test -f /etc/datadog-agent/datadog.yaml; then
     printf '%b\nDatadog Agent %s was installed but not started because no configuration exists.\nCreate /etc/datadog-agent/datadog.yaml with your API key, then run:\n\n    startsrc -g datadog-agent\n%b' "$YELLOW" "$current_fileset" "$NC"
 elif lssrc -s datadog-agent 2>/dev/null | grep -q active; then
     printf '%b\nDatadog Agent %s was installed successfully.\n\nCheck its status with:\n\n    lssrc -g datadog-agent\n\nStop or start all Agent services with:\n\n    stopsrc -g datadog-agent\n    startsrc -g datadog-agent\n%b' "$GREEN" "$current_fileset" "$NC"
