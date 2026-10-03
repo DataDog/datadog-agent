@@ -26,6 +26,13 @@ The payload is a JSON dict with the following fields
 - `hostname` - **string**: the hostname of the agent as shown on the status page.
 - `uuid` - **string**: a unique identifier of the agent, used in case the hostname is empty.
 - `timestamp` - **int**: the timestamp when the payload was created.
+- `files_metadata` - **dict of string to object**: the scrubbed contents of `datadog.yaml`, `system-probe.yaml`,
+  `security-agent.yaml`, and `application_monitoring.yaml`, keyed by file path. Missing, unreadable, invalid, multi-document,
+  or alias-containing files are omitted.
+  The YAML setting order and scalar styles are preserved, while comments are omitted to avoid reporting secrets from
+  free-form text. Each object contains:
+  - `raw_config` - **string**: the scrubbed configuration file.
+  - `hash` - **string**: the SHA-256 hash of `raw_config`.
 - `agent_metadata` - **dict of string to JSON type**:
   - `hostname_source` - **string**: the source for the agent hostname (see pkg/util/hostname/providers.go:GetWithProvider).
   - `agent_version` - **string**: the version of the Agent.
@@ -187,7 +194,13 @@ Here an example of an inventory payload:
         "cli_configuration": "log_level: \"warn\"",
         "source_local_configuration": "",
         "config_id": "my-config"
-    }
+    },
+    "files_metadata": {
+        "/etc/datadog-agent/datadog.yaml": {
+            "hash": "8e9f...",
+            "raw_config": "api_key: '***************************aaaa'\nsite: datadoghq.com\n"
+        }
+    },
     "hostname": "my-host",
     "timestamp": 1631281754507358895
 }

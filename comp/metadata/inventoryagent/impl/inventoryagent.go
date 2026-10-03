@@ -8,9 +8,13 @@ package inventoryagentimpl
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"maps"
 	"net/http"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -58,16 +62,19 @@ var (
 	}
 	fetchTraceConfig       = configFetcher.TraceAgentConfig
 	fetchSystemProbeConfig = sysprobeConfigFetcher.SystemProbeConfig
+	configFileUsed         = func(config config.Reader) string { return config.ConfigFileUsed() }
+	sysprobeConfigFileUsed = func(config sysprobeconfig.Component) string { return config.ConfigFileUsed() }
 )
 
 type agentMetadata map[string]interface{}
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname  string        `json:"hostname"`
-	Timestamp int64         `json:"timestamp"`
-	Metadata  agentMetadata `json:"agent_metadata"`
-	UUID      string        `json:"uuid"`
+	Hostname      string        `json:"hostname"`
+	Timestamp     int64         `json:"timestamp"`
+	Metadata      agentMetadata `json:"agent_metadata"`
+	FilesMetadata agentMetadata `json:"files_metadata"`
+	UUID          string        `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -525,6 +532,56 @@ func (ia *inventoryagent) getConfigs(data agentMetadata) {
 	}
 }
 
+func (ia *inventoryagent) getFilesMetadata() agentMetadata {
+	filesMetadata := agentMetadata{}
+	if !ia.conf.GetBool("inventories_configuration_enabled") {
+		return filesMetadata
+	}
+
+	mainConfigPath := configFileUsed(ia.conf)
+	configPaths := []string{}
+	if mainConfigPath != "" {
+		configDir := filepath.Dir(mainConfigPath)
+		configPaths = append(configPaths,
+			mainConfigPath,
+			filepath.Join(configDir, "security-agent.yaml"),
+			filepath.Join(configDir, "application_monitoring.yaml"),
+		)
+	}
+
+	systemProbeConfigPath := ""
+	if sysprobeConfig, found := ia.sysprobeConf.Get(); found {
+		systemProbeConfigPath = sysprobeConfigFileUsed(sysprobeConfig)
+	}
+	if systemProbeConfigPath == "" && mainConfigPath != "" {
+		systemProbeConfigPath = filepath.Join(filepath.Dir(mainConfigPath), "system-probe.yaml")
+	}
+	if systemProbeConfigPath != "" {
+		configPaths = append(configPaths, systemProbeConfigPath)
+	}
+
+	for _, configPath := range configPaths {
+		rawConfig, err := os.ReadFile(configPath)
+		if err != nil {
+			ia.log.Debugf("could not read configuration file metadata for %q", configPath)
+			continue
+		}
+		scrubbedConfig, err := scrubber.ScrubYamlPreserveStructure(rawConfig)
+		if err != nil {
+			ia.log.Warnf("could not safely scrub configuration file metadata for %q", configPath)
+			continue
+		}
+
+		hash := sha256.Sum256(scrubbedConfig)
+		filesMetadata[configPath] = agentMetadata{
+			"raw_config": string(scrubbedConfig),
+			"hash":       hex.EncodeToString(hash[:]),
+		}
+	}
+
+	return filesMetadata
+}
+
 func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	ia.m.Lock()
 	defer ia.m.Unlock()
@@ -538,10 +595,11 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	ia.getConfigs(data)
 
 	return &Payload{
-		Hostname:  ia.hostname,
-		Timestamp: time.Now().UnixNano(),
-		Metadata:  data,
-		UUID:      uuid.GetUUID(),
+		Hostname:      ia.hostname,
+		Timestamp:     time.Now().UnixNano(),
+		Metadata:      data,
+		FilesMetadata: ia.getFilesMetadata(),
+		UUID:          uuid.GetUUID(),
 	}
 }
 

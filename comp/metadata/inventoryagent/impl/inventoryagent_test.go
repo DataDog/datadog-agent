@@ -7,15 +7,21 @@ package inventoryagentimpl
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"maps"
+	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -761,6 +767,98 @@ func TestGetProvidedConfigurationDisable(t *testing.T) {
 	assert.NotContains(t, payload.Metadata, "remote_configuration")
 	assert.NotContains(t, payload.Metadata, "cli_configuration")
 	assert.NotContains(t, payload.Metadata, "source_local_configuration")
+	assert.Empty(t, payload.FilesMetadata)
+}
+
+func TestGetPayloadFilesMetadata(t *testing.T) {
+	configDir := t.TempDir()
+	systemProbeConfigDir := t.TempDir()
+	configFiles := map[string]string{
+		filepath.Join(configDir, "datadog.yaml"): `# comments are not safe to report
+second: 2
+first: "preserve this style"
+unknown_setting:
+  nested: untouched
+api_key: datadog-secret
+`,
+		filepath.Join(systemProbeConfigDir, "system-probe.yaml"): "network_config:\n  enabled: true\nauth_token: system-probe-secret\n",
+		filepath.Join(configDir, "security-agent.yaml"):          "runtime_security_config:\n  enabled: true\npassword: security-secret\n",
+		filepath.Join(configDir, "application_monitoring.yaml"):  "tracing:\n  enabled: true\napi_key: application-secret\n",
+	}
+	for path, contents := range configFiles {
+		require.NoError(t, os.WriteFile(path, []byte(contents), 0600))
+	}
+
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+	previousConfigFileUsed := configFileUsed
+	previousSysprobeConfigFileUsed := sysprobeConfigFileUsed
+	configFileUsed = func(config.Reader) string { return filepath.Join(configDir, "datadog.yaml") }
+	sysprobeConfigFileUsed = func(sysprobeconfig.Component) string {
+		return filepath.Join(systemProbeConfigDir, "system-probe.yaml")
+	}
+	t.Cleanup(func() {
+		configFileUsed = previousConfigFileUsed
+		sysprobeConfigFileUsed = previousSysprobeConfigFileUsed
+	})
+
+	payload := ia.getPayload().(*Payload)
+	require.Len(t, payload.FilesMetadata, len(configFiles))
+	for path := range configFiles {
+		fileMetadata, ok := payload.FilesMetadata[path].(agentMetadata)
+		require.True(t, ok)
+		rawConfig, ok := fileMetadata["raw_config"].(string)
+		require.True(t, ok)
+		assert.NotContains(t, rawConfig, "-secret")
+
+		hash := sha256.Sum256([]byte(rawConfig))
+		assert.Equal(t, hex.EncodeToString(hash[:]), fileMetadata["hash"])
+	}
+
+	datadogMetadata := payload.FilesMetadata[filepath.Join(configDir, "datadog.yaml")].(agentMetadata)
+	datadogRawConfig := datadogMetadata["raw_config"].(string)
+	assert.Less(t, strings.Index(datadogRawConfig, "second:"), strings.Index(datadogRawConfig, "first:"))
+	assert.Contains(t, datadogRawConfig, `first: "preserve this style"`)
+	assert.Contains(t, datadogRawConfig, "unknown_setting:\n  nested: untouched")
+	assert.NotContains(t, datadogRawConfig, "comments are not safe to report")
+}
+
+func TestGetPayloadFilesMetadataSkipsUnsafeAndMissingFiles(t *testing.T) {
+	configDir := t.TempDir()
+	datadogConfigPath := filepath.Join(configDir, "datadog.yaml")
+	require.NoError(t, os.WriteFile(datadogConfigPath, []byte("api_key: [invalid"), 0600))
+
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+	previousConfigFileUsed := configFileUsed
+	configFileUsed = func(config.Reader) string { return datadogConfigPath }
+	t.Cleanup(func() { configFileUsed = previousConfigFileUsed })
+
+	payload := ia.getPayload().(*Payload)
+	assert.Empty(t, payload.FilesMetadata)
+}
+
+func TestGetPayloadFilesMetadataWithoutMainConfig(t *testing.T) {
+	systemProbeConfigPath := filepath.Join(t.TempDir(), "system-probe.yaml")
+	require.NoError(t, os.WriteFile(systemProbeConfigPath, []byte("network_config:\n  enabled: true\n"), 0600))
+
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+	previousConfigFileUsed := configFileUsed
+	previousSysprobeConfigFileUsed := sysprobeConfigFileUsed
+	configFileUsed = func(config.Reader) string { return "" }
+	sysprobeConfigFileUsed = func(sysprobeconfig.Component) string { return systemProbeConfigPath }
+	t.Cleanup(func() {
+		configFileUsed = previousConfigFileUsed
+		sysprobeConfigFileUsed = previousSysprobeConfigFileUsed
+	})
+
+	payload := ia.getPayload().(*Payload)
+	require.Len(t, payload.FilesMetadata, 1)
+	assert.Contains(t, payload.FilesMetadata, systemProbeConfigPath)
 }
 
 func TestGetProvidedConfiguration(t *testing.T) {
