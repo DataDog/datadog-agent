@@ -5,9 +5,8 @@
 #        . "$SCRIPT_DIR/lib/env.sh"      (from build.sh)
 #
 # This file is sourced, never executed directly. Callers control set -e/set -u.
-# No validation of required input variables is done here; each script validates
-# its own inputs after sourcing this file. Values derived from the source tree
-# (AGENT_SRC, AGENT_DATA_PLANE_VERSION) are fatal if unreadable — env.sh exits 1.
+# No validation of required variables is done here; each script validates its
+# own inputs after sourcing this file.
 # AGENT_SRC is resolved automatically from $0 — callers do not need to pre-set
 # any variable before sourcing this file.
 
@@ -22,10 +21,9 @@ export PYTHON_VERSION PYTHON_MAJ_MIN
 
 # ── Rust SDK version ──────────────────────────────────────────────────────────
 # IBM Rust SDK for AIX. The SDK is installed at /opt/freeware/lib/RustSDK/<ver>/bin.
-# This is the toolchain for the Python-extension build stages (06/07/08); saluki
-# pins its own Rust version in its rust-toolchain.toml, which setup-host.sh
-# installs separately. All stage scripts reference $RUST_VERSION; update only
-# this one line to upgrade.
+# Used for the Python-extension build stages; saluki's own Rust version is
+# installed separately by setup-host.sh. All stage scripts reference
+# $RUST_VERSION; update only this one line to upgrade.
 RUST_VERSION="1.92"
 export RUST_VERSION
 
