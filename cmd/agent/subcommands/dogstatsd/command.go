@@ -7,17 +7,13 @@
 package dogstatsd
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"os"
-	"sort"
 	"strconv"
-	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/zstd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -28,7 +24,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/contexttop"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -38,6 +34,8 @@ type topFlags struct {
 	path               string
 	nmetrics           int
 	ntags              int
+	outputJSON         bool
+	output             io.Writer
 	logLevelDefaultOff command.LogLevelDefaultOff
 }
 
@@ -53,7 +51,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	topCmd := &cobra.Command{
 		Use:   "top",
 		Short: "Display metrics with most contexts in the aggregator",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			topFlags.output = cmd.OutOrStdout()
+			if topFlags.path != "" {
+				return topContextsFromFile(&topFlags)
+			}
 			return fxutil.OneShot(
 				topContexts,
 				fx.Supply(&topFlags),
@@ -70,6 +72,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	topCmd.Flags().StringVarP(&topFlags.path, "path", "p", "", "use specified file for input instead of getting contexts from the agent")
 	topCmd.Flags().IntVarP(&topFlags.nmetrics, "num-metrics", "m", 10, "number of metrics to show")
 	topCmd.Flags().IntVarP(&topFlags.ntags, "mum-tags", "t", 5, "number of tags to show per metric")
+	topCmd.Flags().BoolVar(&topFlags.outputJSON, "json", false, "print the result as JSON")
 
 	c.AddCommand(topCmd)
 
@@ -129,11 +132,6 @@ func dumpContexts(config cconfig.Component, _ log.Component, client ipc.HTTPClie
 	return nil
 }
 
-type metric struct {
-	count uint
-	tags  map[string]struct{}
-}
-
 func topContexts(config cconfig.Component, flags *topFlags, _ log.Component, client ipc.HTTPClient) error {
 	var err error
 
@@ -147,149 +145,62 @@ func topContexts(config cconfig.Component, flags *topFlags, _ log.Component, cli
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Wrote %s\n", path)
+		if !flags.outputJSON {
+			fmt.Fprintf(flags.outputWriter(), "Wrote %s\n", path)
+		}
 	}
 
-	f, err := os.Open(path)
+	return renderTopContexts(path, flags)
+}
+
+func topContextsFromFile(flags *topFlags) error {
+	return renderTopContexts(flags.path, flags)
+}
+
+func renderTopContexts(path string, flags *topFlags) error {
+	top, err := contexttop.FromFile(path, flags.nmetrics, flags.ntags)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
-	var r io.Reader = bufio.NewReader(f)
-
-	if strings.HasSuffix(path, ".zstd") {
-		d, err := zstd.NewReader(r)
-		if err != nil {
-			return err
-		}
-		defer d.Close()
-		r = d
+	if flags.outputJSON {
+		return json.NewEncoder(flags.outputWriter()).Encode(top)
 	}
 
-	dec := json.NewDecoder(r)
-
-	repr := aggregator.ContextDebugRepr{}
-
-	metrics := make(map[string]*metric)
-
-	for {
-		err := dec.Decode(&repr)
-		if err == io.EOF {
-			break
-		}
-
-		if err != nil {
-			return err
-		}
-
-		m := metrics[repr.Name]
-		if m == nil {
-			m = &metric{
-				tags: make(map[string]struct{}, len(repr.MetricTags)),
-			}
-			metrics[repr.Name] = m
-		}
-
-		m.count++
-
-		for _, tag := range repr.MetricTags {
-			m.tags[tag] = struct{}{}
-		}
+	output := flags.outputWriter()
+	fmt.Fprintf(output, " % 10s\t%s\t(%s)\n", "Contexts", "Metric name", "number of unique values for each tag")
+	for _, metric := range top.Metrics {
+		fmt.Fprintf(output, " % 10d\t%s\t(", metric.Contexts, metric.Name)
+		printTopTags(output, metric)
+		fmt.Fprintln(output, ")")
 	}
 
-	fmt.Printf(" % 10s\t%s\t(%s)\n", "Contexts", "Metric name", "number of unique values for each tag")
-
-	ks := make([]string, 0, len(metrics))
-	for k := range metrics {
-		ks = append(ks, k)
-	}
-
-	sort.Slice(ks, func(i, j int) bool {
-		n := metrics[ks[i]].count
-		m := metrics[ks[j]].count
-		if n == m {
-			return ks[i] < ks[j]
-		}
-		return n > m
-	})
-
-	top := ks
-	rest := []string{}
-	limit := flags.nmetrics
-	// +1 to avoid showing "1 more", just show it.
-	if len(ks) > limit+1 {
-		top = ks[:limit]
-		rest = ks[limit:]
-	}
-
-	for _, k := range top {
-		m := metrics[k]
-
-		fmt.Printf(" % 10d\t%s\t(", m.count, k)
-		printTopTags(m, flags.ntags)
-		fmt.Println(")")
-	}
-
-	if len(rest) > 0 {
-		var sum uint
-		for _, k := range rest {
-			sum += metrics[k].count
-		}
-		fmt.Printf(" % 10d\t(other %d metrics)\n", sum, len(rest))
+	if top.OtherMetrics > 0 {
+		fmt.Fprintf(output, " % 10d\t(other %d metrics)\n", top.OtherContexts, top.OtherMetrics)
 	}
 
 	return nil
 }
 
-func printTopTags(m *metric, limit int) {
-	ts := make(map[string]uint)
-	for tag := range m.tags {
-		k, _, _ := strings.Cut(tag, ":")
-		ts[k]++
+func (flags *topFlags) outputWriter() io.Writer {
+	if flags.output == nil {
+		return os.Stdout
 	}
+	return flags.output
+}
 
-	ks := make([]string, 0, len(ts))
-	for k := range ts {
-		ks = append(ks, k)
-	}
-
-	sort.Slice(ks, func(i, j int) bool {
-		n := ts[ks[i]]
-		m := ts[ks[j]]
-		if n == m {
-			return ks[i] < ks[j]
-		}
-		return n > m
-	})
-
-	top := ks
-	rest := []string{}
-
-	// +1 to avoid showing "1 more", just show it.
-	if len(ks) > limit+1 {
-		top = ks[:limit]
-		rest = ks[limit:]
-	}
-
-	for i, k := range top {
+func printTopTags(output io.Writer, metric contexttop.Metric) {
+	for i, tag := range metric.Tags {
 		if i > 0 {
-			fmt.Printf(", ")
+			fmt.Fprint(output, ", ")
 		}
-
-		fmt.Printf("%d %s", ts[k], k)
+		fmt.Fprintf(output, "%d %s", tag.UniqueValues, tag.Key)
 	}
 
-	if len(rest) > 0 {
-		var sum uint
-		for _, k := range rest {
-			sum += ts[k]
+	if metric.OtherTags > 0 {
+		if len(metric.Tags) > 0 {
+			fmt.Fprint(output, ", ")
 		}
-
-		if len(top) > 0 {
-			fmt.Printf(", ")
-		}
-
-		fmt.Printf("%d values in %d other tags", sum, len(rest))
+		fmt.Fprintf(output, "%d values in %d other tags", metric.OtherTagValues, metric.OtherTags)
 	}
 }
