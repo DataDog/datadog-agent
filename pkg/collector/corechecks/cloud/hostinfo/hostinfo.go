@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/shirou/gopsutil/v4/host"
@@ -34,6 +36,63 @@ const PreemptionEventType = "HostPreemption"
 // PreemptionRiskEventType is the event type for rebalance recommendation events
 const PreemptionRiskEventType = "HostPreemptionRisk"
 
+// After this many consecutive failed IMDS lookups, the check only retries
+// once per metadataFailureBackoff instead of on every run: on hosts where
+// IMDS can never answer (e.g. hop-limited containers), every-run lookups
+// each block a collector slot for the metadata timeout doing work that
+// cannot succeed (#55269).
+const (
+	metadataFailureThreshold = 4
+	metadataFailureBackoff   = 60 * time.Second
+)
+
+// metadataLookupFailure reports whether an error from a metadata lookup is a
+// connectivity-style failure that can never succeed on this host, as opposed
+// to the healthy no-active-notice response: IMDS answers 404 for the spot
+// termination and rebalance endpoints when no notice exists, and those must
+// not count toward the backoff.
+func metadataLookupFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	var statusCodeError *httputils.StatusCodeError
+	if errors.As(err, &statusCodeError) {
+		return statusCodeError.StatusCode != http.StatusNotFound
+	}
+	return true
+}
+
+// recordMetadataResult records a metadata lookup outcome for the current
+// Run(), without touching the shared counter yet: preemption and rebalance
+// can both attempt a lookup within the same Run(), and the aggregate result
+// of the two is only applied once, by applyMetadataResults.
+func (c *Check) recordMetadataResult(err error) {
+	if metadataLookupFailure(err) {
+		c.metadataFailedThisRun = true
+		return
+	}
+	// A nil error or a healthy no-active-notice 404 means IMDS answered.
+	c.metadataAnsweredThisRun = true
+}
+
+// applyMetadataResults updates the shared failure counter once per Run(),
+// from the outcomes recorded by recordMetadataResult. A failure recorded by
+// either lookup counts once toward the backoff, even though both the
+// preemption and rebalance lookups can fail on the same unreachable
+// endpoint within the same Run(). Otherwise, if IMDS answered any attempted
+// lookup (success or healthy 404), the counter is reset.
+func (c *Check) applyMetadataResults() {
+	switch {
+	case c.metadataFailedThisRun:
+		c.metadataFailures++
+		c.metadataLastAttempt = time.Now()
+	case c.metadataAnsweredThisRun:
+		c.metadataFailures = 0
+	}
+	c.metadataFailedThisRun = false
+	c.metadataAnsweredThisRun = false
+}
+
 // Check collects host information from cloud provider metadata services
 type Check struct {
 	core.CheckBase
@@ -43,6 +102,11 @@ type Check struct {
 	terminationTime       time.Time
 	rebalanceNoticeTime   time.Time
 	preemptionUnsupported bool // Set to true when preemption detection is not supported or instance is not preemptible
+
+	metadataFailures        int       // consecutive transient preemption-lookup failures
+	metadataLastAttempt     time.Time // time of the last preemption lookup
+	metadataFailedThisRun   bool      // a lookup failed in the Run() currently executing
+	metadataAnsweredThisRun bool      // a lookup got an answer (success or healthy 404) in the Run() currently executing
 }
 
 // For testing purposes
@@ -75,6 +139,11 @@ func (c *Check) Run() error {
 	c.checkPreemptionEvents(sender)
 	c.checkRebalanceRecommendation(sender)
 
+	// Both lookups above hit the same metadata endpoint and share
+	// metadataFailures; apply their combined outcome once so an IMDS outage
+	// doesn't halve the effective metadataFailureThreshold.
+	c.applyMetadataResults()
+
 	sender.Commit()
 
 	return nil
@@ -102,16 +171,30 @@ func (c *Check) checkPreemptionEvents(sender sender.Sender) {
 		return
 	}
 
+	// After repeated transient failures (e.g. IMDS unreachable from a
+	// hop-limited container), retry at most once per backoff window instead
+	// of on every check run.
+	if c.metadataFailures >= metadataFailureThreshold && time.Since(c.metadataLastAttempt) < metadataFailureBackoff {
+		log.Tracef("Skipping preemption detection, %d consecutive failures, backing off until %s", c.metadataFailures, c.metadataLastAttempt.Add(metadataFailureBackoff))
+		return
+	}
+
 	terminationTime, err := getPreemptionTerminationFn(ctx, c.cloudProvider)
 	if err != nil {
 		// Check if we should stop polling for preemption events
 		if errors.Is(err, cloudproviders.ErrNotPreemptible) || errors.Is(err, cloudproviders.ErrPreemptionUnsupported) {
 			c.preemptionUnsupported = true
 			log.Debugf("Preemption detection disabled, cloud provider: %s, error: %s", c.cloudProvider, err)
+			return
 		}
+		// The healthy no-active-notice 404 resets the counter rather than
+		// just skipping the increment: IMDS answered, so the host isn't
+		// in the unreachable state the backoff guards against.
+		c.recordMetadataResult(err)
 		log.Tracef("Preemption detection returned an error (usually expected), cloud provider: %s, error: %s", c.cloudProvider, err)
 		return
 	}
+	c.recordMetadataResult(nil)
 
 	// Store termination time to avoid emitting duplicate events
 	c.terminationTime = terminationTime
@@ -159,11 +242,20 @@ func (c *Check) checkRebalanceRecommendation(sender sender.Sender) {
 		return
 	}
 
+	// The rebalance lookup hits the same unreachable IMDS endpoint; back it
+	// off on the same counter as the preemption lookup.
+	if c.metadataFailures >= metadataFailureThreshold && time.Since(c.metadataLastAttempt) < metadataFailureBackoff {
+		log.Tracef("Skipping rebalance recommendation check, %d consecutive failures, backing off until %s", c.metadataFailures, c.metadataLastAttempt.Add(metadataFailureBackoff))
+		return
+	}
+
 	noticeTime, err := getRebalanceRecommendationFn(context.Background(), c.cloudProvider)
 	if err != nil {
+		c.recordMetadataResult(err)
 		log.Tracef("Rebalance recommendation check returned an error (usually expected), cloud provider: %s, error: %s", c.cloudProvider, err)
 		return
 	}
+	c.recordMetadataResult(nil)
 
 	c.rebalanceNoticeTime = noticeTime
 
