@@ -43,7 +43,7 @@ type ModuleDeps struct {
 	SelfIdent *selfident.SelfIdent
 }
 
-// ModuleFactory is a function that creates a new Module instance
+// ModuleFactory creates a Module, or returns nil to decline registration (GetAllModules skips nil).
 type ModuleFactory func(deps ModuleDeps) Module
 
 var (
@@ -67,7 +67,9 @@ func GetAllModules(deps ModuleDeps) []Module {
 
 	modules := make([]Module, 0, len(moduleFactories))
 	for _, factory := range moduleFactories {
-		modules = append(modules, factory(deps))
+		if module := factory(deps); module != nil {
+			modules = append(modules, module)
+		}
 	}
 	return modules
 }
