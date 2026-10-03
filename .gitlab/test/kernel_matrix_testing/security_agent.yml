@@ -70,9 +70,8 @@ kmt_setup_env_secagent_x64:
     - !reference [.setup_ssh_config]
     - scp $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
     # build connector
-    - pushd $CI_PROJECT_DIR/test/new-e2e
-    - go build -o $CI_PROJECT_DIR/connector-${ARCH} $CI_PROJECT_DIR/test/new-e2e/system-probe/connector/main.go
-    - popd
+    - bazel --batch run //test/new-e2e/system-probe/connector:install -- --destdir=$CI_PROJECT_DIR/connector-install
+    - mv $CI_PROJECT_DIR/connector-install/connector $CI_PROJECT_DIR/connector-${ARCH}
     # upload connector to metal instance
     - scp $CI_PROJECT_DIR/connector-${ARCH} metal_instance:/home/ubuntu/connector
   after_script:
