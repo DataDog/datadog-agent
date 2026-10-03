@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"sync/atomic"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -45,7 +47,6 @@ const (
 
 	defaultRegion         = "us-east-1"
 	defaultStsHost        = "sts.amazonaws.com"
-	regionalStsHost       = "sts.%s.amazonaws.com"
 	service               = "sts"
 	getCallerIdentityBody = "Action=GetCallerIdentity&Version=2011-06-15"
 )
@@ -187,7 +188,7 @@ func (a *AWSAuth) getConnectionParameters() (string, string, string) {
 		host = defaultStsHost
 	} else {
 		// If the region is not empty, use the regional STS host
-		host = fmt.Sprintf(regionalStsHost, region)
+		host = fmt.Sprintf(creds.RegionalStsHost, region)
 	}
 	stsFullURL := "https://" + host
 	return stsFullURL, region, host
@@ -267,4 +268,99 @@ func (a *AWSAuth) generateAwsAuthData(ctx context.Context, orgUUID string, awsCr
 		method:         http.MethodPost,
 		urlEncoded:     base64.StdEncoding.EncodeToString([]byte(stsFullURL)),
 	}, nil
+}
+
+// resolveCredentials selects the AWS credential provider matching the runtime
+// environment, in the SDK's standard precedence but limited to the mechanisms a deployed Agent
+// actually encounters: static env vars, IRSA web identity, ECS / EKS Pod Identity container
+// credentials, and EC2 IMDS. It deliberately does not use config.LoadDefaultConfig, which would
+// also link SSO, credential_process and shared-profile (~/.aws) support that the Agent does not
+// need and which materially grows the binary. The static and container providers are from
+// aws-sdk-go-v2; the web-identity and IMDS legs are handled directly (hand-rolled STS to avoid
+// linking service/sts, and the Agent's IMDS helper to honor ec2_metadata_timeout). Only the
+// selection is ours.
+//
+// Divergences from the SDK default chain are intentional and follow Agent conventions:
+//   - IMDS is governed by Agent config (ec2_metadata_timeout, ec2_prefer_imdsv2), not the SDK's
+//     IMDS env vars (AWS_EC2_METADATA_DISABLED / _V1_DISABLED / _SERVICE_ENDPOINT / _ENDPOINT_MODE),
+//     which this path does not honor (the Agent honors none of them elsewhere either).
+//   - the IRSA STS call uses the Agent's HTTP transport, so proxy / custom CA / TLS come from Agent
+//     config and AWS_CA_BUNDLE is not consulted.
+//   - only AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY are read for static creds (not the legacy
+//     AWS_ACCESS_KEY / AWS_SECRET_KEY aliases), and shared-config / SSO / credential_process are
+//     unsupported.
+func (a *AWSAuth) resolveCredentials(ctx context.Context, cfg pkgconfigmodel.Reader) (*creds.SecurityCredentials, error) {
+	// The mechanism is decided by the environment before any credential is fetched. Record it up
+	// front so that a failure can name what was actually attempted: the chain is first-match, so
+	// only one mechanism is ever tried and a message listing all four would misdirect.
+	provider, source, err := a.credentialProvider(cfg)
+	a.lastSource.Store(&source)
+	if err != nil {
+		return nil, fmt.Errorf("%s: provider setup failed: %w", source, err)
+	}
+	return a.resolveCredentialsFrom(ctx, provider, source)
+}
+
+// resolveCredentialsFrom retrieves and validates credentials from an already-selected provider.
+// Split out from resolveCredentials so the retrieval and validation behavior can be tested against
+// an injected provider without depending on the ambient environment.
+func (a *AWSAuth) resolveCredentialsFrom(ctx context.Context, provider aws.CredentialsProvider, source string) (*creds.SecurityCredentials, error) {
+	// Resolve once per call. Delegated auth re-runs this on each proof generation (startup and
+	// every refresh interval), and the credentials it returns are valid for hours, so no
+	// cross-call caching is needed.
+	sdkCreds, err := provider.Retrieve(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", source, err)
+	}
+	if sdkCreds.AccessKeyID == "" || sdkCreds.SecretAccessKey == "" {
+		// Treat blank credentials as a failure rather than passing them on. The Agent's IMDS helper
+		// unmarshals whatever JSON the metadata endpoint returns, so an error document answered with
+		// a 200 yields an empty, error-free result; without this check the caller would log a
+		// successful resolution and then fail to sign the proof for no visible reason.
+		return nil, fmt.Errorf("%s: returned empty credentials", source)
+	}
+
+	// sdkCreds.Source is set by the provider that produced the credentials (ex:
+	// DelegatedAuthWebIdentity, EC2RoleProvider). Logged at Info (once per key fetch, matching the
+	// surrounding delegated-auth logs) so operators can confirm the credential source without
+	// enabling debug; the status page reads it from lastSource for the same reason.
+	log.Infof("delegated auth resolved AWS credentials via %s", sdkCreds.Source)
+
+	return &creds.SecurityCredentials{
+		AccessKeyID:     sdkCreds.AccessKeyID,
+		SecretAccessKey: sdkCreds.SecretAccessKey,
+		Token:           sdkCreds.SessionToken,
+	}, nil
+}
+
+// credentialProvider warns about a half-configured credential source, then picks the provider
+// for the region of the proof, see creds.CredentialProvider.
+func (a *AWSAuth) credentialProvider(cfg pkgconfigmodel.Reader) (aws.CredentialsProvider, string, error) {
+	// A half-configured mechanism is skipped rather than treated as an error, so the selection below
+	// silently lands on a lower-precedence source and the proof gets signed as a different principal.
+	// Say so, otherwise the only symptom is telemetry attributed to an unexpected identity.
+	if incomplete := creds.IncompleteAWSCredentialEnv(); incomplete != "" {
+		log.Warnf("delegated auth: %s, so that credential source is incomplete and was skipped; "+
+			"falling back to the next source in the AWS precedence order. Set both variables if you "+
+			"intended to use it.", incomplete)
+	}
+
+	return creds.CredentialProvider(cfg, a.resolveRegion())
+}
+
+// resolveRegion returns the region for the STS web-identity call, in the same precedence the SDK
+// uses, with a final fallback so a region always exists: delegated_auth.aws.region (a.region),
+// then AWS_REGION / AWS_DEFAULT_REGION, then defaultRegion. This mirrors the signing path and
+// keeps the IRSA STS call working when no region is configured.
+func (a *AWSAuth) resolveRegion() string {
+	if a.region != "" {
+		return a.region
+	}
+	if r := os.Getenv("AWS_REGION"); r != "" {
+		return r
+	}
+	if r := os.Getenv("AWS_DEFAULT_REGION"); r != "" {
+		return r
+	}
+	return defaultRegion
 }

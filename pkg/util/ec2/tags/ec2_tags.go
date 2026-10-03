@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -25,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	pkgec2 "github.com/DataDog/datadog-agent/pkg/util/ec2"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
@@ -165,17 +165,14 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
-func createEC2Client(ctx context.Context, region string, creds aws.CredentialsProvider) (*ec2.Client, error) {
-	opts := []func(*config.LoadOptions) error{config.WithRegion(region)}
-	if creds != nil {
-		opts = append(opts, config.WithCredentialsProvider(creds))
+func createEC2Client(_ context.Context, region string, provider aws.CredentialsProvider) (*ec2.Client, error) {
+	if provider == nil {
+		var err error
+		if provider, _, err = creds.CredentialProvider(pkgconfigsetup.Datadog(), region); err != nil {
+			return nil, fmt.Errorf("unable to select AWS credentials: %w", err)
+		}
 	}
-
-	cfg, err := config.LoadDefaultConfig(ctx, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("unable to load AWS SDK config: %w", err)
-	}
-	return ec2.NewFromConfig(cfg), nil
+	return ec2.NewFromConfig(aws.Config{Region: region, Credentials: aws.NewCredentialsCache(provider)}), nil
 }
 
 func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
