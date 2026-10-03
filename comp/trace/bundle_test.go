@@ -89,7 +89,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Supply(&traceagentimpl.Params{}),
 		payloadmodifierfx.NilModule(),
 		fx.Invoke(func(_ traceagent.Component) {}),
-		MockBundle(),
+		MockBundle(t),
 		taggerfx.Module(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	))
