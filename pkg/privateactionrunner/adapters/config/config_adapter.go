@@ -67,6 +67,7 @@ type Config struct {
 	HeartbeatInterval          time.Duration
 	EnableProfiling            bool
 	DisableCredentialTemplates bool
+	CredentialValues           map[string]string
 
 	Version string
 
