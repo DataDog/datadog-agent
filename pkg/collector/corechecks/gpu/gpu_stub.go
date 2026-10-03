@@ -15,7 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+// Readiness is unused when the GPU check is not supported.
+type Readiness struct{}
+
+// NewReadiness is a no-op when the GPU check is not supported.
+func NewReadiness() *Readiness { return nil }
+
 // Factory creates a new check factory
-func Factory(_ tagger.Component, _ telemetry.Component, _ workloadmeta.Component) option.Option[func() check.Check] {
+func Factory(_ tagger.Component, _ telemetry.Component, _ workloadmeta.Component, _ *Readiness) option.Option[func() check.Check] {
 	return option.None[func() check.Check]()
 }

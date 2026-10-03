@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
@@ -46,11 +47,18 @@ const (
 // logLimitCheck is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
 var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 
+// Readiness is shared across GPU check instances for the lifetime of the agent.
+type Readiness struct {
+	handle *health.Handle
+	timer  *time.Timer
+}
+
 var _ check.IssueAwareCheck = (*Check)(nil)
 
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
+	readiness           *Readiness
 	collectors          []nvidia.Collector               // collectors for NVML metrics
 	excludedDeviceUUIDs map[string]struct{}              // excludedDeviceUUIDs contains normalized device UUIDs whose metrics should not be collected
 	tagger              tagger.Component                 // Tagger instance to add tags to outgoing metrics
@@ -88,16 +96,30 @@ type checkTelemetryMetrics struct {
 	deviceCount                telemetry.Gauge // emitted as a telemetry metric too in order to send it through COAT
 }
 
+// NewReadiness registers GPU readiness before the health probe server and checks start.
+// The returned state must be shared across check cancellations and reloads.
+func NewReadiness() *Readiness {
+	handle := health.RegisterReadiness(CheckName, health.Once)
+	timer := time.AfterFunc(5*time.Minute, func() {
+		select {
+		case <-handle.C:
+		default:
+		}
+	})
+	return &Readiness{handle: handle, timer: timer}
+}
+
 // Factory creates a new check factory
-func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) option.Option[func() check.Check] {
+func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component, readiness *Readiness) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
-		return newCheck(tagger, telemetry, wmeta)
+		return newCheck(tagger, telemetry, wmeta, readiness)
 	})
 }
 
-func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
+func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component, readiness *Readiness) check.Check {
 	return &Check{
 		CheckBase:           core.NewCheckBase(CheckName),
+		readiness:           readiness,
 		tagger:              tagger,
 		telemetry:           newCheckTelemetry(telemetry),
 		wmeta:               wmeta,
@@ -112,7 +134,7 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 
 // NewCheck creates a new GPU check instance. This is exported for integration testing.
 func NewCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
-	return newCheck(tagger, telemetry, wmeta)
+	return newCheck(tagger, telemetry, wmeta, nil)
 }
 
 // SetContainerProvider sets the container provider on the Check.
@@ -377,6 +399,13 @@ func (c *Check) Run() error {
 	// Check the state of the NVML library for telemetry
 	c.telemetry.nvmlState.Check()
 	c.syncNvmlHealthIssue(c.telemetry.nvmlState.Unavailable(), c.telemetry.nvmlState.LastNvmlInitSuccess())
+	if c.telemetry.nvmlState.LastNvmlInitSuccess() && c.readiness != nil {
+		c.readiness.timer.Stop()
+		select {
+		case <-c.readiness.handle.C:
+		default:
+		}
+	}
 
 	if err := c.deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
