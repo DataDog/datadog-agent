@@ -22,7 +22,7 @@ func enableOTelCollectorConfigInDatadogYAML(ctx HookContext, datadogYamlPath str
 	span, _ := ctx.StartSpan("enable_otelcollector_config_in_datadog_yaml")
 	defer func() { span.Finish(err) }()
 
-	data, err := os.ReadFile(datadogYamlPath)
+	data, err := readFileInDir(datadogYamlPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			// datadog.yaml not yet written (fresh install); the install script or a
@@ -46,15 +46,17 @@ func enableOTelCollectorConfigInDatadogYAML(ctx HookContext, datadogYamlPath str
 	if err != nil {
 		return fmt.Errorf("failed to serialize datadog.yaml: %w", err)
 	}
-	return os.WriteFile(datadogYamlPath, updated, 0o640) // Permissions shouldn't change as the file exists
+	return writeFileInDir(datadogYamlPath, updated, 0o640) // Permissions shouldn't change as the file exists
 }
 
 // disableOtelCollectorConfigCommon removes otelcollector and agent_ipc from the given datadog.yaml path
 // nolint:unused // Called only from platform-specific code/contexts
 func disableOtelCollectorConfigCommon(datadogYamlPath string) error {
-	data, err := os.ReadFile(datadogYamlPath)
+	data, err := readFileInDir(datadogYamlPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		// errors.Is, not os.IsNotExist: readFileInDir wraps with %w, which os.IsNotExist does
+		// not unwrap.
+		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
 		return fmt.Errorf("failed to read datadog.yaml: %w", err)
@@ -69,7 +71,7 @@ func disableOtelCollectorConfigCommon(datadogYamlPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to serialize datadog.yaml: %w", err)
 	}
-	return os.WriteFile(datadogYamlPath, updated, 0o600)
+	return writeFileInDir(datadogYamlPath, updated, 0o600)
 }
 
 // writeOTelConfigCommon creates otel-config.yaml from a template by substituting api_key and site found in datadog.yaml
@@ -80,13 +82,26 @@ func writeOTelConfigCommon(ctx HookContext, datadogYamlPath, templatePath, outPa
 	defer func() { span.Finish(err) }()
 
 	if preserveIfExists {
-		if _, err := os.Stat(outPath); err == nil {
+		// Lstat, not Stat: a symlink here must be reported rather than silently accepted as
+		// an already-configured file, which would leave DDOT unconfigured.
+		info, err := lstatInDir(outPath)
+		switch {
+		case err == nil:
+			if info.Mode()&os.ModeSymlink != 0 {
+				return fmt.Errorf("refusing to use %s: it is a symlink", outPath)
+			}
 			return nil
+		case errors.Is(err, os.ErrNotExist):
+			// Not written yet: fall through and create it.
+		default:
+			// Any other failure is reported rather than swallowed. Continuing here would step
+			// around the symlink check above and write the config anyway.
+			return err
 		}
 	}
 
 	var apiKey, site string
-	data, err := os.ReadFile(datadogYamlPath)
+	data, err := readFileInDir(datadogYamlPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to read datadog.yaml: %w", err)
 	}
@@ -106,7 +121,7 @@ func writeOTelConfigCommon(ctx HookContext, datadogYamlPath, templatePath, outPa
 		site = e.Site
 	}
 
-	templateData, err := os.ReadFile(templatePath)
+	templateData, err := readFileInDir(templatePath)
 	if err != nil {
 		return fmt.Errorf("failed to read otel-config template: %w", err)
 	}
@@ -119,5 +134,5 @@ func writeOTelConfigCommon(ctx HookContext, datadogYamlPath, templatePath, outPa
 		site = "datadoghq.com"
 	}
 	content = strings.ReplaceAll(content, "${env:DD_SITE}", site)
-	return os.WriteFile(outPath, []byte(content), mode)
+	return writeFileInDir(outPath, []byte(content), mode)
 }
