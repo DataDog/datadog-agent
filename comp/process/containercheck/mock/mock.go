@@ -5,19 +5,41 @@
 
 //go:build test
 
-// Package containercheck implements mock for the containercheck component.
-package containercheck
+// Package mock implements a mock for the containercheck component.
+package mock
 
 import (
-	"go.uber.org/fx"
+	"testing"
 
-	containercheckimpl "github.com/DataDog/datadog-agent/comp/process/containercheck/impl"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/stretchr/testify/mock"
+
+	containercheck "github.com/DataDog/datadog-agent/comp/process/containercheck/def"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 )
 
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(containercheckimpl.NewMock),
-	)
+var _ containercheck.Component = (*Mock)(nil)
+
+// Mock implements a mock containercheck component.
+type Mock struct {
+	check checks.Check
+}
+
+// Object returns the underlying check.
+func (m *Mock) Object() checks.Check {
+	return m.check
+}
+
+// New creates a new mock containercheck component for testing.
+func New(t testing.TB) containercheck.Component {
+	c := mocks.NewCheck(t)
+	c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
+	c.On("Name").Return("container").Maybe()
+	c.On("SupportsRunOptions").Return(false).Maybe()
+	c.On("Realtime").Return(false).Maybe()
+	c.On("Cleanup").Maybe()
+	c.On("Run", mock.Anything, mock.Anything).Return(&checks.StandardRunResult{}, nil).Maybe()
+	c.On("ShouldSaveLastRun").Return(false).Maybe()
+	c.On("IsEnabled").Return(true).Maybe()
+	return &Mock{check: c}
 }
