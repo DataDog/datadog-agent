@@ -85,12 +85,7 @@ fi
 log "INTEGRATIONS_CORE_VERSION = $INTEGRATIONS_CORE_VERSION"
 
 # AGENT_DATA_PLANE_VERSION is read from deps/agent_data_plane/agent_data_plane.MODULE.bazel
-# by lib/env.sh (pre-set the variable to override). Only validate it here.
-if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
-    log "ERROR: AGENT_DATA_PLANE_VERSION is not set — lib/env.sh could not read it"
-    log "       from deps/agent_data_plane/agent_data_plane.MODULE.bazel."
-    exit 1
-fi
+# by lib/env.sh, which fails if it cannot be read (pre-set the variable to override).
 log "AGENT_DATA_PLANE_VERSION = $AGENT_DATA_PLANE_VERSION"
 
 # ─── Step 3: Clone or fetch integrations-core ─────────────────────────────────

@@ -120,7 +120,8 @@ fi
 #     in stages 06/07/08.
 #   - $SALUKI_RUST_VERSION: the toolchain saluki pins for its agent-data-plane
 #     AIX build (stage 05). Read from saluki's rust-toolchain.toml at the
-#     pinned tag so bumping the saluki pin bumps the toolchain too.
+#     pinned tag so bumping the saluki pin bumps the toolchain too. env.sh
+#     guarantees AGENT_DATA_PLANE_VERSION is set.
 install_rust_sdk() {
     if [ -x "/opt/freeware/lib/RustSDK/$1/bin/cargo" ]; then
         log "Rust $1 already installed"
@@ -133,11 +134,6 @@ install_rust_sdk() {
 
 install_rust_sdk "$RUST_VERSION"
 
-if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
-    echo "ERROR: AGENT_DATA_PLANE_VERSION is not set — lib/env.sh could not read it" >&2
-    echo "       from deps/agent_data_plane/agent_data_plane.MODULE.bazel." >&2
-    exit 1
-fi
 SALUKI_RUST_TOOLCHAIN_URL="https://raw.githubusercontent.com/DataDog/saluki/${AGENT_DATA_PLANE_VERSION}/rust-toolchain.toml"
 SALUKI_RUST_CHANNEL=$(curl -fsSL "$SALUKI_RUST_TOOLCHAIN_URL" | sed -n 's/^channel *= *"\([^"]*\)".*/\1/p' | head -1)
 # IBM ships the Rust SDK per major.minor (e.g. 1.96), not the full semver

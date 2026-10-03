@@ -5,8 +5,9 @@
 #        . "$SCRIPT_DIR/lib/env.sh"      (from build.sh)
 #
 # This file is sourced, never executed directly. Callers control set -e/set -u.
-# No validation of required variables is done here; each script validates its
-# own inputs after sourcing this file.
+# No validation of required input variables is done here; each script validates
+# its own inputs after sourcing this file. Values derived from the source tree
+# (AGENT_SRC, AGENT_DATA_PLANE_VERSION) are fatal if unreadable — env.sh exits 1.
 # AGENT_SRC is resolved automatically from $0 — callers do not need to pre-set
 # any variable before sourcing this file.
 
@@ -59,6 +60,11 @@ if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
     _adp_module="$AGENT_SRC/deps/agent_data_plane/agent_data_plane.MODULE.bazel"
     if [ -f "$_adp_module" ]; then
         AGENT_DATA_PLANE_VERSION=$(sed -n 's/^VERSION = "\(.*\)".*/\1/p' "$_adp_module" | head -1)
+    fi
+    if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
+        printf 'ERROR: env.sh could not read AGENT_DATA_PLANE_VERSION from %s\n' "$_adp_module" >&2
+        printf '       Is the source tree complete? Pre-set the variable to override.\n' >&2
+        exit 1
     fi
 fi
 unset _adp_module
