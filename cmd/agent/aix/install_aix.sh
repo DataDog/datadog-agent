@@ -198,7 +198,7 @@ else
 fi
 chmod 600 "$bff_file"
 
-current_fileset=$(/usr/sbin/installp -ld "$bff_file" 2>&1 | awk 'tolower($0) ~ /datadog-agent/ { print $2; exit }')
+current_fileset=$($sudo_cmd /usr/sbin/installp -ld "$bff_file" 2>&1 | awk 'tolower($0) ~ /datadog-agent/ { print $2; exit }')
 if [ -z "$current_fileset" ]; then
     fail "the BFF does not contain the datadog-agent fileset."
 fi
