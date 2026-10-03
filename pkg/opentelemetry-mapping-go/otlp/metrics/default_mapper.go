@@ -330,11 +330,14 @@ func (m *defaultMapper) MapExponentialHistogramMetrics(
 				agentSketch.Basic.Max = histInfo.sum
 			}
 		}
+		// The sketch min/max are approximate, so clamp them against the exact ones.
 		if delta && p.HasMin() {
 			agentSketch.Basic.Min = p.Min()
+			agentSketch.Basic.Max = math.Max(agentSketch.Basic.Max, p.Min())
 		}
 		if delta && p.HasMax() {
 			agentSketch.Basic.Max = p.Max()
+			agentSketch.Basic.Min = math.Min(agentSketch.Basic.Min, p.Max())
 		}
 
 		consumer.ConsumeSketch(ctx, pointDims, ts, 0, agentSketch)
@@ -471,13 +474,18 @@ func (m *defaultMapper) getSketchBuckets(
 		}
 
 		// If there is at least one bucket with nonzero count,
-		// override min/max with bounds if they are not infinite.
+		// override min/max with finite bounds,
+		// or with the global min/max otherwise.
 		if minBoundSet {
 			if !math.IsInf(minBound, 0) {
 				sketch.Basic.Min = minBound
+			} else if p.HasMin() {
+				sketch.Basic.Min = p.Min()
 			}
 			if !math.IsInf(maxBound, 0) {
 				sketch.Basic.Max = maxBound
+			} else if p.HasMax() {
+				sketch.Basic.Max = p.Max()
 			}
 		}
 
@@ -495,6 +503,17 @@ func (m *defaultMapper) getSketchBuckets(
 		} else if p.HasMax() {
 			// Clamp maximum with global maximum (p.Max()) to account for sketch mapping error.
 			sketch.Basic.Max = math.Min(p.Max(), sketch.Basic.Max)
+		}
+
+		// Inf bounds buckets can make min > max; keep the non infinite bound.
+		if sketch.Basic.Min > sketch.Basic.Max {
+			// Max comes from either the point or a finite bucket bound, so it is an upper bound on the values.
+			maxIsBound := p.HasMax() || (minBoundSet && !math.IsInf(maxBound, 0))
+			if maxIsBound {
+				sketch.Basic.Min = sketch.Basic.Max
+			} else {
+				sketch.Basic.Max = sketch.Basic.Min
+			}
 		}
 
 		var interval int64
