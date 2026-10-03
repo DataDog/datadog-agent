@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	filedeletionaudit "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/file-deletion-audit"
 )
 
 // EventLogEntry contains basic information from a Windows event log entry
@@ -22,6 +24,86 @@ type EventLogEntry struct {
 	Message      string
 	RecordID     int
 	TimeCreated  string
+}
+
+// SecurityLogCheckpoint identifies a point in the Security log and records
+// enough log metadata to diagnose rollover and capacity issues.
+type SecurityLogCheckpoint = filedeletionaudit.SecurityLogCheckpoint
+
+// FileDeletionEvent is the locale-independent subset of Security event 4663
+// used to attribute successful filesystem deletion access.
+type FileDeletionEvent = filedeletionaudit.FileDeletionEvent
+
+// GetSecurityLogCheckpoint returns the current record range and size of the
+// Windows Security event log.
+func GetSecurityLogCheckpoint(host *components.RemoteHost) (SecurityLogCheckpoint, error) {
+	cmd := `
+		$log = Get-WinEvent -ListLog Security -ErrorAction Stop
+		$newest = Get-WinEvent -LogName Security -MaxEvents 1 -ErrorAction Stop
+		$oldest = Get-WinEvent -LogName Security -Oldest -MaxEvents 1 -ErrorAction Stop
+		if ($null -eq $newest -or $null -eq $oldest) { throw 'Security log has no checkpoint records' }
+		[pscustomobject]@{
+			RecordID = [long]$newest.RecordId
+			OldestRecordID = [long]$oldest.RecordId
+			RecordCount = [long]$log.RecordCount
+			FileSize = [long]$log.FileSize
+			MaximumSizeInBytes = [long]$log.MaximumSizeInBytes
+		} | ConvertTo-Json -Compress
+	`
+	out, err := host.Execute(cmd)
+	if err != nil {
+		return SecurityLogCheckpoint{}, fmt.Errorf("get Security log checkpoint: %w", err)
+	}
+	return filedeletionaudit.DecodeSecurityLogCheckpoint(out)
+}
+
+// WaitForSecurityLogToSettle waits for the newest Security record identifier
+// to remain unchanged for quietPeriod. If timeout is reached, it returns the
+// latest valid checkpoint with settled=false so callers still include the
+// bounded post-operation delay in their audit window.
+func WaitForSecurityLogToSettle(host *components.RemoteHost, quietPeriod, timeout time.Duration) (checkpoint SecurityLogCheckpoint, settled bool, err error) {
+	checkpoint, err = GetSecurityLogCheckpoint(host)
+	if err != nil {
+		return checkpoint, false, err
+	}
+
+	stableSince := time.Now()
+	deadline := stableSince.Add(timeout)
+	for time.Now().Before(deadline) {
+		time.Sleep(250 * time.Millisecond)
+		current, checkpointErr := GetSecurityLogCheckpoint(host)
+		if checkpointErr != nil {
+			return checkpoint, false, checkpointErr
+		}
+		if current.RecordID != checkpoint.RecordID {
+			stableSince = time.Now()
+		}
+		checkpoint = current
+		if time.Since(stableSince) >= quietPeriod {
+			return checkpoint, true, nil
+		}
+	}
+	return checkpoint, false, nil
+}
+
+// GetFileDeletionEvents returns event 4663 records after start through end,
+// correlated with event 4660 deletion confirmations in the same window. It
+// fails rather than returning incomplete evidence if start has rolled out.
+func GetFileDeletionEvents(host *components.RemoteHost, start SecurityLogCheckpoint, end SecurityLogCheckpoint) ([]FileDeletionEvent, error) {
+	if err := filedeletionaudit.ValidateSecurityLogWindow(start, end); err != nil {
+		return nil, err
+	}
+	if end.RecordID == start.RecordID {
+		return nil, nil
+	}
+
+	xpath := fmt.Sprintf(`*[System[((EventID=4660) or (EventID=4663)) and (EventRecordID > %d) and (EventRecordID <= %d)]]`, start.RecordID, end.RecordID)
+	cmd := fmt.Sprintf(`wevtutil.exe query-events Security /query:"%s" /format:xml /element:Events /rd:false`, xpath)
+	out, err := host.Execute(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("query Security deletion events after record %d through %d: %w", start.RecordID, end.RecordID, err)
+	}
+	return filedeletionaudit.DecodeFileDeletionEventsXML(out)
 }
 
 // ExportEventLog exports an event log to a file
