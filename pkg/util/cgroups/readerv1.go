@@ -46,7 +46,7 @@ func newReaderV1(procPath string, mountPoints map[string]string, baseController 
 	return nil, &InvalidInputError{Desc: fmt.Sprintf("cannot create cgroup readerv1: %s controller not found", baseController)}
 }
 
-func (r *readerV1) parseCgroups() (map[string]Cgroup, error) {
+func (r *readerV1) parseCgroups() (map[string]Cgroup, map[uint64]string, error) {
 	res := make(map[string]Cgroup)
 
 	err := filepath.WalkDir(r.cgroupRoot, func(fullPath string, de fs.DirEntry, err error) error {
@@ -78,5 +78,5 @@ func (r *readerV1) parseCgroups() (map[string]Cgroup, error) {
 		return err
 	})
 
-	return res, err
+	return res, nil, err
 }
