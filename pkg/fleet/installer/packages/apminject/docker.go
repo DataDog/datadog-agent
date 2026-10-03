@@ -219,6 +219,28 @@ func (a *InjectorInstaller) deleteDockerConfigContent(_ context.Context, previou
 	return dockerConfigJSON, nil
 }
 
+// isDockerInstrumented reports whether daemon.json already routes containers
+// through the injector runtime, i.e. whether it holds what setDockerConfigContent
+// writes. Content that cannot be parsed is reported as instrumented: replaying
+// the install hook would not repair invalid JSON, instrumentDocker fails loudly
+// on it, and reporting it as uninstrumented would force a reinstall on every run.
+func (a *InjectorInstaller) isDockerInstrumented(daemonConfig []byte) bool {
+	dockerConfig := dockerDaemonConfig{}
+	if err := unmarshalDockerConfigContent(daemonConfig, &dockerConfig); err != nil {
+		log.Warnf("could not read the docker runtime configuration: %v", err)
+		return true
+	}
+	if defaultRuntime, _ := dockerConfig["default-runtime"].(string); defaultRuntime != "dd-shim" {
+		return false
+	}
+	runtimes, ok := dockerConfig["runtimes"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	_, ok = runtimes["dd-shim"]
+	return ok
+}
+
 // verifyDockerRuntime validates that docker runtime configuration contains
 // a path to the injector runtime.
 // As the reload is eventually consistent we have to retry a few times

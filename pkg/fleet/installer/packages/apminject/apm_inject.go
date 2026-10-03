@@ -502,6 +502,12 @@ func (a *InjectorInstaller) allKnownLauncherPattern() string {
 	return "(" + strings.Join(alts, "|") + ")"
 }
 
+// isHostInstrumented reports whether ldSoPreload already references one of the
+// launcher paths this installer knows how to write.
+func (a *InjectorInstaller) isHostInstrumented(ldSoPreload []byte) bool {
+	return regexp.MustCompile(a.allKnownLauncherPattern()).Match(ldSoPreload)
+}
+
 // removeKnownLauncherEntries strips every known launcher entry from ldSoPreload,
 // including surrounding whitespace. Used by deleteLDPreloadConfigContent.
 func (a *InjectorInstaller) removeKnownLauncherEntries(ldSoPreload []byte) []byte {

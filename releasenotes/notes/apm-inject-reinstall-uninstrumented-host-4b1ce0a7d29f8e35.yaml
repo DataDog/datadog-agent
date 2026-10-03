@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Re-running the install script with APM Single Step Instrumentation enabled
+    now restores the instrumentation on a host where it was reverted with
+    ``dd-host-install --uninstall`` or ``dd-container-install --uninstall``.
+    The script previously reported success without restoring the ``dd-shim``
+    Docker runtime or the ``/etc/ld.so.preload`` entry, leaving the host
+    silently uninstrumented.
