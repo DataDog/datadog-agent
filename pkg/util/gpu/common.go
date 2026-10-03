@@ -45,6 +45,11 @@ var longToShortGPUName = map[ResourceGPU]string{
 // 3. The optional prefix "rtx_pro_" or "rtx_", which we use it as it's part of the GPU type
 // 4. The GPU type, which is the next alphanumeric part of the device name. Anything behind it (such as the memory size or whether it's PCI or SXM) is ignored.
 var gpuTypeRegex = regexp.MustCompile(`^(?:nvidia|tesla)_(?:geforce_)?(rtx_pro_|rtx_)?([a-z\d]+)`)
+
+// this regex matches normalized AMD Instinct device names and extracts the GPU type. For example, from "amd_instinct_mi350x_vf" it will extract "mi350x".
+// The "VF" and "HF" suffixes, and the second model of names such as "AMD Instinct MI250X / MI250", are ignored:
+// the first model of the name is the type.
+var amdGPUTypeRegex = regexp.MustCompile(`^amd_(?:radeon_)?instinct_([a-z]+\d+[a-z]*)`)
 var gpuNameSeparatorRegex = regexp.MustCompile(`[^a-z\d]+`)
 
 var gpuTypeVariants = map[string]string{
@@ -94,6 +99,10 @@ func ExtractGPUType(deviceName string) string {
 	// Extract the optional RTX prefix and the GPU model token.
 	matches := gpuTypeRegex.FindStringSubmatch(normalizedName)
 	if len(matches) == 0 {
+		// AMD Instinct accelerators, e.g. "AMD Instinct MI350X VF" => mi350x.
+		if amdMatches := amdGPUTypeRegex.FindStringSubmatch(normalizedName); len(amdMatches) > 0 {
+			return amdMatches[1]
+		}
 		return ""
 	}
 

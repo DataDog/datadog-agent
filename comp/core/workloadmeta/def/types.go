@@ -87,6 +87,9 @@ const (
 	// SourceNVML represents entities detected by the NVML GPU collector.
 	SourceNVML Source = "nvml"
 
+	// SourceAMDGPU represents entities detected by the AMD GPU (amdgpu sysfs) collector.
+	SourceAMDGPU Source = "amdgpu"
+
 	// SourceClusterOrchestrator represents entities detected by calling
 	// the central component of an orchestrator, or the Datadog Cluster
 	// Agent.  `kube_metadata` and `cloudfoundry` use this.

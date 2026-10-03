@@ -26,6 +26,12 @@ func TestGetTags(t *testing.T) {
 	kernel.ProcFSRoot = func() string { return tmpDir }
 	defer func() { kernel.ProcFSRoot = originalProcFSRoot }()
 
+	// Keep the AMD detection away from the host sysfs
+	originalSysFSRoot := kernel.SysFSRoot
+	sysDir := t.TempDir()
+	kernel.SysFSRoot = func() string { return sysDir }
+	defer func() { kernel.SysFSRoot = originalSysFSRoot }()
+
 	tests := []struct {
 		name     string
 		setup    func() error
@@ -108,6 +114,108 @@ func TestGetTags(t *testing.T) {
 			}
 			gotTags := getTags()
 			assert.Equal(t, tt.wantTags, gotTags)
+		})
+	}
+}
+
+func TestGetTagsAMD(t *testing.T) {
+	originalProcFSRoot := kernel.ProcFSRoot
+	procDir := t.TempDir()
+	kernel.ProcFSRoot = func() string { return procDir }
+	defer func() { kernel.ProcFSRoot = originalProcFSRoot }()
+
+	originalSysFSRoot := kernel.SysFSRoot
+	defer func() { kernel.SysFSRoot = originalSysFSRoot }()
+
+	type card struct {
+		name   string
+		device string // PCI address, or a platform device name
+		vendor string
+		driver string // driver link target, empty for none
+		uevent string // uevent content, empty for none
+		noLink bool   // card without a device link
+	}
+
+	tests := []struct {
+		name     string
+		cards    []card
+		noDRM    bool
+		expected []string
+	}{
+		{name: "no DRM class", noDRM: true},
+		{name: "no cards"},
+		{
+			name:     "AMD GPU bound to amdgpu",
+			cards:    []card{{name: "card0", device: "0000:c1:00.0", vendor: "0x1002", driver: "amdgpu"}},
+			expected: []string{"gpu_host:true"},
+		},
+		{
+			name:     "AMD GPU bound through uevent",
+			cards:    []card{{name: "card1", device: "0000:c1:00.0", vendor: "0x1002", uevent: "DRIVER=amdgpu\nPCI_ID=1002:75A3\n"}},
+			expected: []string{"gpu_host:true"},
+		},
+		{
+			name:  "AMD device bound to another driver",
+			cards: []card{{name: "card0", device: "0000:c1:00.0", vendor: "0x1002", driver: "vfio-pci"}},
+		},
+		{
+			name:  "AMD device without a driver",
+			cards: []card{{name: "card0", device: "0000:c1:00.0", vendor: "0x1002"}},
+		},
+		{
+			name:  "non-AMD GPU",
+			cards: []card{{name: "card0", device: "0000:03:00.0", vendor: "0x1a03", driver: "ast"}},
+		},
+		{
+			name:  "compute partition platform device",
+			cards: []card{{name: "card1", device: "amdgpu_xcp_0", vendor: "0x1002", driver: "amdgpu"}},
+		},
+		{
+			name:  "connector node",
+			cards: []card{{name: "card0-DP-1", device: "0000:c1:00.0", vendor: "0x1002", driver: "amdgpu"}},
+		},
+		{
+			name:  "card without device link",
+			cards: []card{{name: "card0", noLink: true}},
+		},
+		{
+			name: "AMD GPU next to a non-AMD card",
+			cards: []card{
+				{name: "card0", device: "0000:03:00.0", vendor: "0x1a03", driver: "ast"},
+				{name: "card1", device: "0000:c1:00.0", vendor: "0x1002", driver: "amdgpu"},
+			},
+			expected: []string{"gpu_host:true"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sysDir := t.TempDir()
+			kernel.SysFSRoot = func() string { return sysDir }
+			if !tt.noDRM {
+				assert.NoError(t, os.MkdirAll(filepath.Join(sysDir, "class", "drm"), 0o755))
+			}
+			for _, c := range tt.cards {
+				cardDir := filepath.Join(sysDir, "class", "drm", c.name)
+				assert.NoError(t, os.MkdirAll(cardDir, 0o755))
+				if c.noLink {
+					continue
+				}
+				deviceDir := filepath.Join(sysDir, "devices", "pci0000:00", c.device)
+				assert.NoError(t, os.MkdirAll(deviceDir, 0o755))
+				assert.NoError(t, os.WriteFile(filepath.Join(deviceDir, "vendor"), []byte(c.vendor+"\n"), 0o644))
+				if c.driver != "" {
+					driverDir := filepath.Join(sysDir, "bus", "pci", "drivers", c.driver)
+					assert.NoError(t, os.MkdirAll(driverDir, 0o755))
+					assert.NoError(t, os.Symlink(driverDir, filepath.Join(deviceDir, "driver")))
+				}
+				if c.uevent != "" {
+					assert.NoError(t, os.WriteFile(filepath.Join(deviceDir, "uevent"), []byte(c.uevent), 0o644))
+				}
+				assert.NoError(t, os.Symlink(deviceDir, filepath.Join(cardDir, "device")))
+			}
+
+			assert.Equal(t, tt.expected, getTags())
 		})
 	}
 }
