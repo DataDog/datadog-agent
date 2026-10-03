@@ -104,6 +104,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/provider"
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/hardening"
 	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions"
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
@@ -519,6 +520,9 @@ func start(log log.Component,
 		if config.GetBool("kubeactions.enabled") {
 			products = append(products, state.ProductK8SActions)
 		}
+		if config.GetBool("admission_controller.hardening.enabled") {
+			products = append(products, state.ProductCWSWorkloadHardening)
+		}
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
 		}
@@ -673,6 +677,14 @@ func start(log log.Component,
 		}
 	}
 
+	// Workload hardening: the store feeds the hardening webhook, so start it before the admission controller.
+	var hardeningStore *hardening.Store
+	if config.GetBool("admission_controller.enabled") && config.GetBool("admission_controller.hardening.enabled") {
+		if hardeningStore, err = hardening.Start(mainCtx, config.GetString("admission_controller.hardening.requests_file"), clusterID, apiCl.Cl, le.IsLeader, rcClient); err != nil {
+			log.Errorf("Cannot start workload hardening: %v", err)
+		}
+	}
+
 	if config.GetBool("admission_controller.enabled") {
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			patchCtx := admissionpatch.ControllerContext{
@@ -712,6 +724,7 @@ func start(log log.Component,
 			CSIDriverWatcher:             csiDriverWatcher,
 			DDITargets:                   apmTargetStore,
 			RcClient:                     rcClient,
+			HardeningStore:               hardeningStore,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh, healthPlatform)
