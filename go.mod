@@ -165,6 +165,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.82.0
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.82.0
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.82.0
+	github.com/DataDog/datadog-agent/pkg/util/aws/creds v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3
@@ -566,7 +567,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.72.0-devel.0.20250907091827-dbb380833b5f // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/aws/creds v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.78.1 // indirect
 	github.com/DataDog/datadog-go v4.8.3+incompatible // indirect

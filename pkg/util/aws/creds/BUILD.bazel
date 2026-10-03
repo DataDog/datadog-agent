@@ -6,10 +6,17 @@ go_library(
     srcs = [
         "credentials.go",
         "detection.go",
+        "resolve_credentials.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/aws/creds",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/util/aws/creds/internal"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/util/aws/creds/internal",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+    ],
 )
 
 dd_agent_go_test(
@@ -17,6 +24,7 @@ dd_agent_go_test(
     srcs = [
         "credentials_test.go",
         "detection_test.go",
+        "resolve_credentials_providers_test.go",
     ],
     data = ["tags/payloads/security_cred.json"],
     embed = [":creds"],
