@@ -63,6 +63,16 @@ go_library(
 )
 
 dd_agent_go_test(
+    name = "ebpf_test0",
+    gotags_sets = [["linux_bpf"]],
+    # keep: alignment tests require cgo_align, which can not be part
+    # of the canonical ebpftest library.
+    deps = [
+        "//pkg/ebpf/ebpftest:cgo_align",
+    ],
+)
+
+dd_agent_go_test(
     name = "ebpf_test",
     srcs = [
         "conntrack_types_linux_test.go",
