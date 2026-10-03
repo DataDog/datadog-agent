@@ -144,6 +144,18 @@ some_future_key:
 	assert.Equal(t, "value", sfk["nested"])
 }
 
+func TestEnableSystemProbeConfig_UnmarshalError(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "system-probe.yaml")
+
+	// Malformed YAML: this is the kind of failure postInstallAPMInject must
+	// tolerate without failing the overall APM inject install.
+	writeFile(t, configPath, `windows_crash_detection: [this is not a map`)
+
+	err := enableSystemProbeConfigAt(configPath)
+	require.Error(t, err)
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(path, []byte(content), 0640))
