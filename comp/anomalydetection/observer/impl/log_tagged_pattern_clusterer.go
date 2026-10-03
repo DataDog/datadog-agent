@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/patterns"
 )
 
@@ -158,11 +159,15 @@ func globalClusterHash(groupHash uint64, clusterID int64) string {
 // NOT thread-safe: all calls must be made from the same goroutine.
 type TaggedPatternClusterer struct {
 	// MaxPatterns caps live clusters across all groups. Zero disables this cap.
-	MaxPatterns         int
-	patternTouches      patternTouchHeap
-	patternEntries      map[EvictedCluster]*patternTouchEntry
-	registry            *TagGroupByKeyRegistry
-	subClusterers       map[uint64]*patterns.PatternClusterer
+	MaxPatterns    int
+	patternTouches patternTouchHeap
+	patternEntries map[EvictedCluster]*patternTouchEntry
+	registry       *TagGroupByKeyRegistry
+	subClusterers  map[uint64]*patterns.PatternClusterer
+	// generations contains only live groups. nextGeneration survives Reset so
+	// stale refs cannot resolve after group eviction or replay reset.
+	generations         map[uint64]uint64
+	nextGeneration      uint64
 	newPatternClusterer func() *patterns.PatternClusterer
 	// MaxClustersPerGroup, when > 0, is propagated as patterns.PatternClusterer.MaxClusters
 	// on each newly created sub-clusterer; existing sub-clusterers are NOT
@@ -254,6 +259,11 @@ func (tc *TaggedPatternClusterer) Process(tags []string, message string, unixSec
 	if !exists {
 		tc.evictLRUTagGroupIfOverCap(groupHash)
 		tc.subClusterers[groupHash] = sub
+		if tc.generations == nil {
+			tc.generations = make(map[uint64]uint64)
+		}
+		tc.nextGeneration++
+		tc.generations[groupHash] = tc.nextGeneration
 	}
 
 	// Drain layer-1 LRU evictions from this sub-clusterer and tag them with groupHash.
@@ -360,6 +370,7 @@ func (tc *TaggedPatternClusterer) removeTagGroup(groupHash uint64) {
 		}
 	}
 	delete(tc.subClusterers, groupHash)
+	delete(tc.generations, groupHash)
 	delete(tc.lastTouchByGroup, groupHash)
 	tc.registry.delete(groupHash)
 }
@@ -434,9 +445,32 @@ func (tc *TaggedPatternClusterer) GetCluster(groupHash uint64, clusterID int64) 
 	return sub.GetCluster(clusterID)
 }
 
+// ClusterRef returns the stable identity of a cluster in its current group.
+func (tc *TaggedPatternClusterer) ClusterRef(groupHash uint64, clusterID int64) (observerdef.LogContextRef, bool) {
+	generation := tc.generations[groupHash]
+	if generation == 0 {
+		return observerdef.LogContextRef{}, false
+	}
+	return observerdef.LogContextRef{Generation: generation, GroupHash: groupHash, ClusterID: clusterID}, true
+}
+
+// ResolveCluster rejects a reference from an earlier group lifetime.
+func (tc *TaggedPatternClusterer) ResolveCluster(ref observerdef.LogContextRef) (*patterns.Cluster, TagGroupByKey, bool) {
+	if ref.Generation == 0 || tc.generations[ref.GroupHash] != ref.Generation {
+		return nil, TagGroupByKey{}, false
+	}
+	cluster, err := tc.GetCluster(ref.GroupHash, ref.ClusterID)
+	if err != nil {
+		return nil, TagGroupByKey{}, false
+	}
+	group, ok := tc.registry.Lookup(ref.GroupHash)
+	return cluster, group, ok
+}
+
 // Reset drops all sub-clusterers, registered groups, and LRU bookkeeping.
 func (tc *TaggedPatternClusterer) Reset() {
 	tc.subClusterers = make(map[uint64]*patterns.PatternClusterer)
+	tc.generations = nil
 	tc.registry.reset()
 	tc.lastTouchByGroup = nil
 	tc.touchHeap = nil

@@ -277,6 +277,20 @@ func truncateScorerContributorLines(lines []string) string {
 	return message
 }
 
+// PrepareCorrelation resolves context once for the selected output. The copy
+// keeps the correlator's anomaly slice and history unchanged.
+func PrepareCorrelation(c observerdef.ActiveCorrelation, storage observerdef.StorageReader) observerdef.ActiveCorrelation {
+	if len(c.Anomalies) == 0 {
+		return c
+	}
+	prepared := make([]observerdef.Anomaly, len(c.Anomalies))
+	for i, a := range c.Anomalies {
+		prepared[i] = observerdef.ResolveAnomalyContext(a, storage)
+	}
+	c.Anomalies = prepared
+	return c
+}
+
 func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 	msg := BuildChangeMessage(c, s.storage)
 	ts := time.Unix(c.FirstSeen, 0).UTC().Format(time.RFC3339)
@@ -430,7 +444,7 @@ func BuildEventTags(c observerdef.ActiveCorrelation) []string {
 	dimensionSet := make(map[string]struct{})
 
 	for _, a := range c.Anomalies {
-		if a.Type == observerdef.AnomalyTypeLog || IsLogDerivedAnomaly(a) {
+		if HasLogOrigin(a) {
 			hasLog = true
 		} else {
 			hasMetric = true
@@ -612,7 +626,7 @@ func buildChangeMetadata(c observerdef.ActiveCorrelation) map[string]any {
 				entry["context"] = ctx
 			}
 		}
-		if a.Type == observerdef.AnomalyTypeLog || IsLogDerivedAnomaly(a) {
+		if HasLogOrigin(a) {
 			logAnomalies = append(logAnomalies, entry)
 		} else {
 			metricAnomalies = append(metricAnomalies, entry)
@@ -732,7 +746,7 @@ func classifyCorrelationSubCategory(c observerdef.ActiveCorrelation) string {
 		return subCategorySpike
 	}
 	for _, a := range c.Anomalies {
-		if !(a.Type == observerdef.AnomalyTypeLog || IsLogDerivedAnomaly(a)) {
+		if !HasLogOrigin(a) {
 			continue
 		}
 		if a.DebugInfo == nil || a.DebugInfo.BaselineMean == 0 {
@@ -757,9 +771,20 @@ func classifyCorrelationSubCategory(c observerdef.ActiveCorrelation) string {
 	return subCategorySpike
 }
 
-// IsLogDerivedAnomaly returns true for metric anomalies that originate from
-// log pattern extraction. These should be presented as log anomalies with
-// pattern/example/rate context rather than raw metric descriptions.
+// HasLogOrigin classifies log-derived anomalies without presentation context,
+// which may be unavailable by the time output is built.
+func HasLogOrigin(a observerdef.Anomaly) bool {
+	if a.Type == observerdef.AnomalyTypeLog {
+		return true
+	}
+	if a.Type != "" && a.Type != observerdef.AnomalyTypeMetric {
+		return false
+	}
+	return a.Source.Namespace == logPatternExtractorNamespace || a.Source.Namespace == logMetricsExtractorNamespace
+}
+
+// IsLogDerivedAnomaly reports whether a metric anomaly has enough resolved
+// context for a human-readable log description.
 func IsLogDerivedAnomaly(a observerdef.Anomaly) bool {
 	if a.Type == observerdef.AnomalyTypeLog || a.Context == nil {
 		return false

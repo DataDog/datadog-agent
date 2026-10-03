@@ -47,6 +47,29 @@ func (s *sumRangeStorage) GetContext(ref observerdef.SeriesRef) (observerdef.Met
 	return *context, true
 }
 
+func TestPrepareCorrelationResolvesWithoutChangingRawAnomalies(t *testing.T) {
+	storage := &sumRangeStorage{contexts: map[observerdef.SeriesRef]*observerdef.MetricContext{
+		7: {Pattern: "error <*> timeout", Example: "error db timeout", SplitTags: map[string]string{"service": "api"}},
+	}}
+	raw := observerdef.ActiveCorrelation{Pattern: "p", Anomalies: []observerdef.Anomaly{{
+		Type:      observerdef.AnomalyTypeMetric,
+		Source:    observerdef.SeriesDescriptor{Namespace: logPatternExtractorNamespace},
+		SourceRef: &observerdef.QueryHandle{Ref: 7},
+	}}}
+	prepared := PrepareCorrelation(raw, storage)
+	assert.Nil(t, raw.Anomalies[0].Context)
+	assert.Equal(t, "error <*> timeout", prepared.Anomalies[0].Context.Pattern)
+	assert.Contains(t, BuildChangeMessage(prepared, nil), "error <*> timeout")
+	assert.Contains(t, BuildEventTags(prepared), "service:api")
+
+	storage.contexts[7] = nil
+	missing := PrepareCorrelation(raw, storage)
+	assert.Nil(t, missing.Anomalies[0].Context)
+	assert.True(t, HasLogOrigin(missing.Anomalies[0]))
+	assert.Contains(t, BuildEventTags(missing), "anomaly_type:log")
+	assert.NotPanics(t, func() { _ = BuildChangeMessage(missing, nil) })
+}
+
 func TestFormatScorerContributorMessage(t *testing.T) {
 	storage := &sumRangeStorage{metas: map[observerdef.SeriesRef]observerdef.SeriesMeta{
 		42: {Ref: 42, Namespace: "dogstatsd", Name: "system.cpu.user", Host: "web-1", Tags: tagset.CompositeTagsFromSlice([]string{"env:prod"})},

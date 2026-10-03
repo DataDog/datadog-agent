@@ -1037,8 +1037,8 @@ func (o *observerImpl) AddTelemetry(name string, value float64, timestamp int64,
 // Implements DebugView.
 func (o *observerImpl) ReplayStoredData() {
 	// resetAnalysisState resets detectors/correlators and tracking state but
-	// preserves extractor state so enrichAnomaly can still attach log pattern
-	// context (stored on seriesStats) during replay.
+	// preserves extractor state so output can resolve log pattern context
+	// from the stored series after replay.
 	o.replayMu.Lock()
 	o.engine.resetAnalysisState()
 	o.engine.ReplayStoredData()
