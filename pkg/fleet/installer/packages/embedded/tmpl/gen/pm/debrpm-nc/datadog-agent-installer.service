@@ -8,12 +8,12 @@ ConditionPathExists=!/etc/systemd/system/datadog-installer-exp.service
 
 [Service]
 Type=simple
-PIDFile=/opt/datadog-packages/datadog-agent/stable/run/installer.pid
+PIDFile=/opt/datadog-agent/run/installer.pid
 Restart=on-failure
 EnvironmentFile=-/etc/datadog-agent/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/stable"
-Environment="DD_PROCESS_MANAGER_ENABLED=false"
-ExecStart=/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer run -c /etc/datadog-agent -p /opt/datadog-packages/datadog-agent/stable/run/installer.pid
+Environment="DD_PROCESS_MANAGER_ENABLED=true"
+ExecStart=/opt/datadog-agent/embedded/bin/installer run -c /etc/datadog-agent -p /opt/datadog-agent/run/installer.pid
 StartLimitInterval=10
 StartLimitBurst=5
 

@@ -118,27 +118,6 @@ func (h *Host) procmgrExec(cli, args string) (string, error) {
 	}
 }
 
-// ProcmgrEnabled reports whether dd-procmgr is the active service manager on the host, i.e.
-// whether the dd-procmgr CLI is present under the current datadog-agent install. This is a
-// presence check, not an opt-out check: hosts running an agent version or install method that
-// predates procmgr correctly report false here.
-func (h *Host) ProcmgrEnabled(installDir string) bool {
-	cli, err := h.procmgrCLI(installDir)
-	if err != nil {
-		return false
-	}
-	switch h.RemoteHost.OSFamily {
-	case e2eos.LinuxFamily:
-		_, err = h.RemoteHost.Execute("test -x " + cli)
-	case e2eos.WindowsFamily:
-		escaped := strings.ReplaceAll(cli, "'", "''")
-		_, err = h.RemoteHost.Execute(fmt.Sprintf(`if (-not (Test-Path -LiteralPath '%s')) { exit 1 }`, escaped))
-	default:
-		return false
-	}
-	return err == nil
-}
-
 // ProcmgrProcess is the state of a single process supervised by dd-procmgrd, as reported by
 // `dd-procmgr describe --json`.
 type ProcmgrProcess struct {
