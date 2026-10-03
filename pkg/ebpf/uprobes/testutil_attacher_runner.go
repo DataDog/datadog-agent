@@ -37,6 +37,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+var (
+	attacherReadyRegex  = regexp.MustCompile("standalone attacher ready to serve requests")
+	attacherLibsslRegex = regexp.MustCompile(`libssl.so`)
+)
+
 // This file provides infrastructure for testing the uprobe attacher in different environments.
 // It includes several runner types:
 // - AttacherRunner: Interface for running the attacher (SameProcessAttacherRunner, ContainerizedAttacherRunner)
@@ -389,7 +394,7 @@ func (r *ContainerizedAttacherRunner) RunAttacher(t *testing.T, configName Attac
 		"DD_SYSTEM_PROBE_BTF_OUTPUT_DIR":              ebpfCfg.BTFOutputDir,
 	}
 
-	scanner, err := procutil.NewScanner(regexp.MustCompile("standalone attacher ready to serve requests"), nil)
+	scanner, err := procutil.NewScanner(attacherReadyRegex, nil)
 	require.NoError(t, err)
 
 	envVars := []string{}
@@ -455,7 +460,7 @@ func loadAttacherTestConfigs() {
 	AttacherTestConfigs[LibraryAndMainAttacherTestConfigName] = AttacherConfig{
 		Rules: []*AttachRule{
 			{
-				LibraryNameRegex: regexp.MustCompile(`libssl.so`),
+				LibraryNameRegex: attacherLibsslRegex,
 				Targets:          AttachToSharedLibraries,
 				ProbesSelector: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},

@@ -24,6 +24,8 @@ import (
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 )
 
+var ntpInstanceErrorRegex = regexp.MustCompile(`Instance\sID[:]\sntp[:][a-z0-9]+\s\[ERROR\]`)
+
 // SanitizeStatusOutputForKnownNoise filters expected non-actionable status output noise
 // so tests can assert on real errors only.
 func SanitizeStatusOutputForKnownNoise(statusOutput string) string {
@@ -34,8 +36,7 @@ func SanitizeStatusOutputForKnownNoise(statusOutput string) string {
 	if strings.Contains(statusOutput, "Error: failed to get clock offset from any ntp host") {
 		// The triggering error will look something like this:
 		// Instance ID: ntp:4c427a42a70bbf8 [ERROR]
-		re := regexp.MustCompile(`Instance\sID[:]\sntp[:][a-z0-9]+\s\[ERROR\]`)
-		statusOutput = re.ReplaceAllString(statusOutput, "Instance ID: ntp [ignored]")
+		statusOutput = ntpInstanceErrorRegex.ReplaceAllString(statusOutput, "Instance ID: ntp [ignored]")
 	}
 
 	return statusOutput

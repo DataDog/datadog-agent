@@ -118,6 +118,11 @@ func (e *Host) Diagnose(outputDir string) (string, error) {
 	return strings.Join(diagnoses, "\n"), nil
 }
 
+var (
+	hostFlarePathRegex    = regexp.MustCompile(`(?m)^(.+\.zip) is going to be uploaded to Datadog$`)
+	hostCoveragePathRegex = regexp.MustCompile(`(?m)Coverage written to (.+)$`)
+)
+
 func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *components.RemoteHost, outputDir string) (string, error) {
 	if agent == nil || host == nil {
 		return "", errors.New("Agent or RemoteHost component is not initialized, cannot generate flare")
@@ -140,8 +145,7 @@ func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *comp
 
 	// find <path to flare>.zip in flare command output
 	// (?m) is a flag that allows ^ and $ to match the beginning and end of each line
-	re := regexp.MustCompile(`(?m)^(.+\.zip) is going to be uploaded to Datadog$`)
-	matches := re.FindStringSubmatch(flareCommandOutput)
+	matches := hostFlarePathRegex.FindStringSubmatch(flareCommandOutput)
 	if len(matches) < 2 {
 		return "", fmt.Errorf("output does not contain the path to the flare archive, output: %s", flareCommandOutput)
 	}
@@ -243,8 +247,7 @@ func (e *Host) Coverage(outputDir string) (string, error) {
 			continue
 		}
 		// find coverage folder in command output
-		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
-		matches := re.FindStringSubmatch(output)
+		matches := hostCoveragePathRegex.FindStringSubmatch(output)
 		if len(matches) < 2 {
 			outStr, errs = updateErrorOutput(target, outStr, errs, "output does not contain the path to the coverage folder, output: "+output)
 			continue

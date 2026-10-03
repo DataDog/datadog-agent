@@ -36,6 +36,11 @@ type tmplContext struct {
 // BpfMaxObjSize defines the BPF max object size
 const BpfMaxObjSize = 15 // 16 - 1 for the \0
 
+var (
+	mapMatcher    = regexp.MustCompile(`BPF_(.*?)_MAP(?:_FLAGS)?\(\s*(.*?)\s*,.*?\)`)
+	defineMatcher = regexp.MustCompile(`\s*#define BPF`)
+)
+
 func main() {
 	var (
 		runtimePath string
@@ -47,9 +52,6 @@ func main() {
 	flag.StringVar(&outputPath, "output", "", "Output path of the generated file with the map names")
 	flag.StringVar(&packageName, "pkg-name", "", "Package name to use in the output")
 	flag.Parse()
-
-	mapMatcher := regexp.MustCompile(`BPF_(.*?)_MAP(?:_FLAGS)?\(\s*(.*?)\s*,.*?\)`)
-	defineMatcher := regexp.MustCompile(`\s*#define BPF`)
 
 	f, err := os.Open(runtimePath)
 	if err != nil {

@@ -57,9 +57,11 @@ func loadFile(filename string) (*Config, error) {
 	return cfg, nil
 }
 
+var yamlCommentRegex = regexp.MustCompile(`(^|\n)\s*#[^\n]*`)
+
 func loadData(data []byte, cfg interface{}) error {
 	// Remove comment lines starting with #.
-	data = regexp.MustCompile(`(^|\n)\s*#[^\n]*`).ReplaceAll(data, nil)
+	data = yamlCommentRegex.ReplaceAll(data, nil)
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(cfg); err != nil {

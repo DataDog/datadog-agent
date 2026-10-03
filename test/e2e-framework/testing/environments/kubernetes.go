@@ -180,6 +180,11 @@ func podRejectsExec(pod v1.Pod) bool {
 	return pod.Annotations[gkeAutopilotNoConnectAnnotation] == "true"
 }
 
+var (
+	kubernetesFlarePathRegex    = regexp.MustCompile(`(?m)^(.+\.zip) is going to be uploaded to Datadog$`)
+	kubernetesCoveragePathRegex = regexp.MustCompile(`(?m)Coverage written to (.+)$`)
+)
+
 func (e *Kubernetes) generateAndDownloadAgentFlare(agentBinary string, pod v1.Pod, container string, outputDir string) (string, error) {
 	stdout, stderr, err := e.KubernetesCluster.KubernetesClient.PodExec(pod.Namespace, pod.Name, container, []string{agentBinary, "flare", "--email", "e2e-tests@datadog-agent", "--send"})
 	flareOutput := strings.Join([]string{stdout, stderr}, "\n")
@@ -188,8 +193,7 @@ func (e *Kubernetes) generateAndDownloadAgentFlare(agentBinary string, pod v1.Po
 	}
 	// find <path to flare>.zip in flare command output
 	// (?m) is a flag that allows ^ and $ to match the beginning and end of each line
-	re := regexp.MustCompile(`(?m)^(.+\.zip) is going to be uploaded to Datadog$`)
-	matches := re.FindStringSubmatch(flareOutput)
+	matches := kubernetesFlarePathRegex.FindStringSubmatch(flareOutput)
 	if len(matches) < 2 {
 		return "", fmt.Errorf("Failed to find flare path in output: %s", flareOutput)
 	}
@@ -388,8 +392,7 @@ func (e *Kubernetes) generateAndDownloadCoverageForPod(pod v1.Pod, podType podTy
 			continue
 		}
 		// find coverage folder in command output
-		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
-		matches := re.FindStringSubmatch(output)
+		matches := kubernetesCoveragePathRegex.FindStringSubmatch(output)
 		if len(matches) < 2 {
 			outStr, errs = updateErrorOutput(target, outStr, errs, "output does not contain the path to the coverage folder, output: "+output)
 			continue

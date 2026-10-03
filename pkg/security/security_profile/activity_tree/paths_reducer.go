@@ -109,11 +109,20 @@ func (r *PathsReducer) ReducePath(path string, fileEvent *model.FileEvent, node 
 	return path
 }
 
+var (
+	processPIDRegex              = regexp.MustCompile(`/proc/(\d+)/`)
+	processTIDRegex              = regexp.MustCompile(`/task/(\d+)/`)
+	kubepodsCgroupRegex          = regexp.MustCompile(`kubepods-([^/]*)\.(?:slice|scope)`)
+	containerdCgroupRegex        = regexp.MustCompile(`cri-containerd-([^/]*)\.(?:slice|scope)`)
+	blockDeviceRegex             = regexp.MustCompile(`/sys/devices/virtual/block/(?:dm-|loop)([0-9]+)`)
+	serviceAccountTokenDateRegex = regexp.MustCompile(`secrets/kubernetes\.io/serviceaccount/([0-9._]+)`)
+)
+
 // getPathsReducerPatterns returns the patterns used to reduce the paths in an activity tree
 func getPathsReducerPatterns() []PatternReducer {
 	return []PatternReducer{
 		{
-			Pattern: regexp.MustCompile(`/proc/(\d+)/`), // process PID
+			Pattern: processPIDRegex, // process PID
 			Hint:    "proc",
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(1)
@@ -131,7 +140,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
-			Pattern: regexp.MustCompile(`/task/(\d+)/`), // process TID
+			Pattern: processTIDRegex, // process TID
 			Hint:    "task",
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(1)
@@ -139,7 +148,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
-			Pattern: regexp.MustCompile(`kubepods-([^/]*)\.(?:slice|scope)`), // kubernetes cgroup
+			Pattern: kubepodsCgroupRegex, // kubernetes cgroup
 			Hint:    "kubepods",
 			PreCheck: func(_ string, fileEvent *model.FileEvent) bool {
 				return fileEvent.Filesystem == "sysfs"
@@ -150,7 +159,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
-			Pattern: regexp.MustCompile(`cri-containerd-([^/]*)\.(?:slice|scope)`), // kubernetes cgroup
+			Pattern: containerdCgroupRegex, // kubernetes cgroup
 			Hint:    "cri-containerd",
 			PreCheck: func(_ string, fileEvent *model.FileEvent) bool {
 				return fileEvent.Filesystem == "sysfs"
@@ -182,7 +191,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
-			Pattern: regexp.MustCompile(`/sys/devices/virtual/block/(?:dm-|loop)([0-9]+)`), // block devices
+			Pattern: blockDeviceRegex, // block devices
 			Hint:    "devices",
 			PreCheck: func(_ string, fileEvent *model.FileEvent) bool {
 				return fileEvent.Filesystem == "sysfs"
@@ -193,7 +202,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
-			Pattern: regexp.MustCompile(`secrets/kubernetes\.io/serviceaccount/([0-9._]+)`), // service account token date
+			Pattern: serviceAccountTokenDateRegex, // service account token date
 			Hint:    "serviceaccount",
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(1)

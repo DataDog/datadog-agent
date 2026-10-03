@@ -107,13 +107,15 @@ func (s *FleetSuite) SetupSuite() {
 	s.Installer = installer.New(s.T, s.Env())
 }
 
+var stackNameInvalidCharsRegex = regexp.MustCompile("[^a-zA-Z0-9]+")
+
 // Run runs the fleet suite for the given platforms.
 func Run(t *testing.T, f func() e2e.Suite[environments.Host], platforms []e2eos.Descriptor, opts ...awshost.ProvisionerOption) {
 	for _, platform := range platforms {
 		s := f()
 		t.Run(platform.String(), func(t *testing.T) {
 			t.Parallel()
-			name := regexp.MustCompile("[^a-zA-Z0-9]+").ReplaceAllString(t.Name(), "_")
+			name := stackNameInvalidCharsRegex.ReplaceAllString(t.Name(), "_")
 			// clone opts and shadow it to avoid race condition when running in parallel
 			opts := append(slices.Clone(opts), awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(platform), ec2.WithInternetAccess()), ec2.WithoutAgent()))
 			e2e.Run(t, s, e2e.WithProvisioner(awshost.Provisioner(opts...)), e2e.WithStackName(name))

@@ -124,6 +124,12 @@ func GetPIDKeyedTLSMapNames() []string {
 	return names
 }
 
+var (
+	libsslRegex    = regexp.MustCompile(`libssl.so`)
+	libcryptoRegex = regexp.MustCompile(`libcrypto.so`)
+	libgnutlsRegex = regexp.MustCompile(`libgnutls.so`)
+)
+
 var openSSLProbes = []manager.ProbesSelector{
 	&manager.BestEffort{
 		Selectors: []manager.ProbesSelector{
@@ -533,17 +539,17 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		{
 			Targets:          uprobes.AttachToSharedLibraries,
 			ProbesSelector:   openSSLProbes,
-			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
+			LibraryNameRegex: libsslRegex,
 		},
 		{
 			Targets:          uprobes.AttachToSharedLibraries,
 			ProbesSelector:   cryptoProbes,
-			LibraryNameRegex: regexp.MustCompile(`libcrypto.so`),
+			LibraryNameRegex: libcryptoRegex,
 		},
 		{
 			Targets:          uprobes.AttachToSharedLibraries,
 			ProbesSelector:   gnuTLSProbes,
-			LibraryNameRegex: regexp.MustCompile(`libgnutls.so`),
+			LibraryNameRegex: libgnutlsRegex,
 		},
 	}
 	o := &sslProgram{

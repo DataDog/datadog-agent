@@ -325,6 +325,18 @@ func (m *Msiexec) openAndProcessLogFile() ([]byte, error) {
 	return result, err
 }
 
+var (
+	customActionsRegex        = regexp.MustCompile("Datadog[.]CustomActions.*")
+	systemExceptionRegex      = regexp.MustCompile("System[.]Exception")
+	cannotStartServiceRegex   = regexp.MustCompile("Cannot start service")
+	createServiceFailureRegex = regexp.MustCompile("Failed to CreateService")
+	missingPasswordRegex      = regexp.MustCompile("A password was not provided")
+	fileInUseRegex            = regexp.MustCompile("is being held in use by the following process")
+	actualErrorRegex          = regexp.MustCompile("returned actual error")
+	servicePrivilegesRegex    = regexp.MustCompile("Verify that you have sufficient privileges to install system services")
+	unexpectedOwnerRegex      = regexp.MustCompile("has unexpected owner|to verify its owner")
+)
+
 // processLogFile takes an open file and processes it with a series of processors to obtain
 // a condensed version of the log file with only the relevant information.
 func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
@@ -332,11 +344,11 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 	return processLogFile(logFile,
 		func(bytes []byte) []TextRange {
 			// Only need one TextRange of context before and after since other regexes will combine
-			return FindAllIndexWithContext(regexp.MustCompile("Datadog[.]CustomActions.*"), bytes, 1, 1)
+			return FindAllIndexWithContext(customActionsRegex, bytes, 1, 1)
 		},
 		func(bytes []byte) []TextRange {
 			// Only need one TextRange of context before and after since other regexes will combine
-			return FindAllIndexWithContext(regexp.MustCompile("System[.]Exception"), bytes, 1, 1)
+			return FindAllIndexWithContext(systemExceptionRegex, bytes, 1, 1)
 		},
 		func(bytes []byte) []TextRange {
 			// typically looks like this:
@@ -347,7 +359,7 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 			// 	  at Datadog.CustomActions.Native.ServiceController.StartService(String serviceName, TimeSpan timeout)
 			// 	  at Datadog.CustomActions.ServiceCustomAction.StartDDServices()
 			// Other regexes will pick up on the stack trace, but there's not much information to get before the error
-			return FindAllIndexWithContext(regexp.MustCompile("Cannot start service"), bytes, 1, 2)
+			return FindAllIndexWithContext(cannotStartServiceRegex, bytes, 1, 2)
 		},
 		func(bytes []byte) []TextRange {
 			// Typically looks like this:
@@ -356,7 +368,7 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 			// 	CA(ddnpm): DriverInstall:  Service exists, verifying
 			// 	CA(ddnpm): DriverInstall:  Updated path for existing service
 			// So include a bit of context before and after
-			return FindAllIndexWithContext(regexp.MustCompile("Failed to CreateService"), bytes, 5, 5)
+			return FindAllIndexWithContext(createServiceFailureRegex, bytes, 5, 5)
 		},
 		func(bytes []byte) []TextRange {
 			// Typically looks like this:
@@ -373,13 +385,13 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 			//	CustomAction ProcessDdAgentUserCredentials returned actual error code 1603 (note this may not be 100% accurate if translation happened inside sandbox)
 			//	Action ended 1:49:43: ProcessDdAgentUserCredentials. Return value 3.
 			// So include lots of context to ensure we get the full picture
-			return FindAllIndexWithContext(regexp.MustCompile("A password was not provided"), bytes, 6, 6)
+			return FindAllIndexWithContext(missingPasswordRegex, bytes, 6, 6)
 		},
 		func(bytes []byte) []TextRange {
 			// Typically looks like this:
 			// 	Info 1603. The file C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe is being held in use by the following process: Name: process-agent, Id: 4704, Window Title: '(not determined yet)'. Close that application and retry.
 			// Not much context to be had before and after
-			return FindAllIndexWithContext(regexp.MustCompile("is being held in use by the following process"), bytes, 1, 1)
+			return FindAllIndexWithContext(fileInUseRegex, bytes, 1, 1)
 		},
 		func(bytes []byte) []TextRange {
 			// Typically looks like this:
@@ -387,7 +399,7 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 			// 	CustomAction WixFailWhenDeferred returned actual error code 1603 (note this may not be 100% accurate if translation happened inside sandbox)
 			// 	Action ended 2:11:49: InstallFinalize. Return value 3.
 			// The important context is the TextRange after the error ("Return value 3") but the previous lines can include some useful information too
-			return FindAllIndexWithContext(regexp.MustCompile("returned actual error"), bytes, 5, 1)
+			return FindAllIndexWithContext(actualErrorRegex, bytes, 5, 1)
 		},
 		func(bytes []byte) []TextRange {
 			// Typically looks like this:
@@ -395,7 +407,7 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 			//   InstallServices: Service:
 			//   Error 1923. Service 'Datadog Agent' (datadogagent) could not be installed. Verify that you have sufficient privileges to install system services.
 			//   MSI (s) (54:EC) [12:25:53:886]: Product: Datadog Agent -- Error 1923. Service 'Datadog Agent' (datadogagent) could not be installed. Verify that you have sufficient privileges to install system services.
-			return FindAllIndexWithContext(regexp.MustCompile("Verify that you have sufficient privileges to install system services"), bytes, 2, 1)
+			return FindAllIndexWithContext(servicePrivilegesRegex, bytes, 2, 1)
 		},
 		func(bytes []byte) []TextRange {
 			// The first pattern is the owner check, in both the MSI (EnsureSecureConfigRoot) and the
@@ -403,7 +415,7 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 			// Typically looks like this:
 			//   CA: 12:24:00: EnsureSecureConfigRoot. C:\ProgramData\Datadog has unexpected owner WIN-HOST\someuser (S-1-5-21-1-2-3-1001), it must be owned by Administrators or SYSTEM. The installer will not use a directory that a user without administrator rights may have created. Remove it, or make Administrators its owner by running takeown.exe /A /F "C:\ProgramData\Datadog" after reviewing its contents, then retry.
 			return FindAllIndexWithContext(
-				regexp.MustCompile("has unexpected owner|to verify its owner"),
+				unexpectedOwnerRegex,
 				bytes, 2, 2)
 		})
 }

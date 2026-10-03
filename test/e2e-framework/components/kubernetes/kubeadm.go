@@ -56,6 +56,11 @@ func rootScript(script string) pulumi.StringInput {
 	return pulumi.String("bash <<'KUBEADM_EOF'\nset -euxo pipefail\n" + script + "\nKUBEADM_EOF")
 }
 
+var (
+	kubeadmCertificateAuthorityDataRegex = regexp.MustCompile(`certificate-authority-data:.+`)
+	kubeadmServerRegex                   = regexp.MustCompile(`server: https://\S+`)
+)
+
 // NewKubeadmCluster brings up a single-node Kubernetes cluster directly on vm
 // (a real host, not a nested container) using kubeadm with the selected
 // container runtime (containerd or CRI-O). Because the node is the host, an
@@ -281,8 +286,8 @@ kubectl get nodes -o wide`),
 			kubeconfigRaw := args[0].(string)
 			vmIP := args[1].(string)
 			// args[2] forces this to run after the readiness wait.
-			insecure := regexp.MustCompile(`certificate-authority-data:.+`).ReplaceAllString(kubeconfigRaw, "insecure-skip-tls-verify: true")
-			return regexp.MustCompile(`server: https://\S+`).ReplaceAllString(insecure, "server: https://"+vmIP+":6443")
+			insecure := kubeadmCertificateAuthorityDataRegex.ReplaceAllString(kubeconfigRaw, "insecure-skip-tls-verify: true")
+			return kubeadmServerRegex.ReplaceAllString(insecure, "server: https://"+vmIP+":6443")
 		}).(pulumi.StringOutput)
 		clusterComp.ClusterName = clusterName.ToStringOutput()
 		return nil

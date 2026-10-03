@@ -428,6 +428,8 @@ func (api *API) EvtClearLog(ChannelPath string) error {
 	return nil
 }
 
+var bookmarkRecordIDRegex = regexp.MustCompile(`RecordId="(\d+)"`)
+
 // EvtCreateBookmark fake
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtcreatebookmark
 func (api *API) EvtCreateBookmark(xml string) (evtapi.EventBookmarkHandle, error) {
@@ -442,8 +444,7 @@ func (api *API) EvtCreateBookmark(xml string) (evtapi.EventBookmarkHandle, error
 
 	// parse Xml to get record ID using regex
 	// Example: ...<Bookmark RecordId='123' />...
-	re := regexp.MustCompile(`RecordId="(\d+)"`)
-	match := re.FindStringSubmatch(xml)
+	match := bookmarkRecordIDRegex.FindStringSubmatch(xml)
 	if len(match) != 2 {
 		return evtapi.EventBookmarkHandle(0), errors.New("invalid bookmark XML")
 	}

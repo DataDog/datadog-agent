@@ -28,6 +28,8 @@ import (
 
 const dockerCommandMaxLength = 29
 
+var imgRx = regexp.MustCompile(`\"Image\": \"sha256:\w+"`)
+
 func getDockerSelfInspect(wmeta option.Option[workloadmeta.Component]) ([]byte, error) {
 	if !env.IsContainerized() {
 		return nil, errors.New("The Agent is not containerized")
@@ -68,7 +70,6 @@ func getDockerSelfInspect(wmeta option.Option[workloadmeta.Component]) ([]byte, 
 	serialized := out.Bytes()
 
 	// replace all Image: sha256:xxx with a resolved image name
-	imgRx := regexp.MustCompile(`\"Image\": \"sha256:\w+"`)
 	replFunc := func(s []byte) []byte {
 		m := string(s[10 : len(s)-1])
 		shaResolvedInspect, _ := du.ResolveImageName(context.TODO(), m)

@@ -162,6 +162,11 @@ func (e *DockerHost) getAgentCoverageCommands() []CoverageTargetSpec {
 	return targets
 }
 
+var (
+	dockerHostCoveragePathRegex = regexp.MustCompile(`(?m)Coverage written to (.+)$`)
+	dockerHostFlarePathRegex    = regexp.MustCompile(`(?m)^(.+\.zip) is going to be uploaded to Datadog$`)
+)
+
 func (e *DockerHost) generateAndDownloadCoverageForContainer(outputDir string) (string, error) {
 	commandCoverages := e.getAgentCoverageCommands()
 	outStr := []string{}
@@ -177,8 +182,7 @@ func (e *DockerHost) generateAndDownloadCoverageForContainer(outputDir string) (
 		}
 
 		// find coverage folder in command output
-		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
-		matches := re.FindStringSubmatch(stdout)
+		matches := dockerHostCoveragePathRegex.FindStringSubmatch(stdout)
 		if len(matches) < 2 {
 			outStr, errs = updateErrorOutput(target, outStr, errs, "output does not contain the path to the coverage folder, output: "+stdout)
 			continue
@@ -224,8 +228,7 @@ func (e *DockerHost) generateAndDownloadAgentFlare(outputDir string) (string, er
 
 	// find <path to flare>.zip in flare command output
 	// (?m) is a flag that allows ^ and $ to match the beginning and end of each line
-	re := regexp.MustCompile(`(?m)^(.+\.zip) is going to be uploaded to Datadog$`)
-	matches := re.FindStringSubmatch(flareCommandOutput)
+	matches := dockerHostFlarePathRegex.FindStringSubmatch(flareCommandOutput)
 	if len(matches) < 2 {
 		return "", fmt.Errorf("output does not contain the path to the flare archive, output: %s", flareCommandOutput)
 	}

@@ -36,11 +36,12 @@ var counterIndex = 0 // index of counter into the query must be global, because
 // class -> counter -> instance -> values
 var counterValues = make(map[string]map[string]map[string][]float64)
 
+var mockCounterPathRegex = regexp.MustCompile(`\\\\([^\\]+)\\([^\\\(]+)(?:\(([^\\\)]+)\))?\\(.+)`)
+
 func mockCounterFromString(path string) mockCounter {
 	// Example: \\.\LogicalDisk(HarddiskVolume2)\Current Disk Queue Length
 	// Example: \\.\Memory\Available Bytes
-	r := regexp.MustCompile(`\\\\([^\\]+)\\([^\\\(]+)(?:\(([^\\\)]+)\))?\\(.+)`)
-	res := r.FindStringSubmatch(path)
+	res := mockCounterPathRegex.FindStringSubmatch(path)
 	return mockCounter{
 		path:     path,
 		machine:  res[1],

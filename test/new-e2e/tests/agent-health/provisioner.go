@@ -174,6 +174,8 @@ func (e *dockerPermissionEnv) Diagnose(outputDir string) (string, error) {
 	return strings.Join(diagnoses, "\n"), nil
 }
 
+var flarePathRegex = regexp.MustCompile(`(?m)^(.+\.zip) is going to be uploaded to Datadog$`)
+
 func (e *dockerPermissionEnv) generateAndDownloadAgentFlare(outputDir string) (string, error) {
 	if e.Agent == nil || e.RemoteHost == nil {
 		return "", errors.New("Agent or RemoteHost component is not initialized")
@@ -189,8 +191,7 @@ func (e *dockerPermissionEnv) generateAndDownloadAgentFlare(outputDir string) (s
 	flareCommandOutput = strings.Join(lines, "\n")
 
 	// Find <path to flare>.zip in flare command output
-	re := regexp.MustCompile(`(?m)^(.+\.zip) is going to be uploaded to Datadog$`)
-	matches := re.FindStringSubmatch(flareCommandOutput)
+	matches := flarePathRegex.FindStringSubmatch(flareCommandOutput)
 	if len(matches) < 2 {
 		return "", fmt.Errorf("output does not contain the path to the flare archive, output: %s", flareCommandOutput)
 	}
