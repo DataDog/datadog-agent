@@ -31,6 +31,8 @@ var (
 // DefaultOTLPServiceName is the default service name for OTel spans when no service name is found in the resource attributes.
 const DefaultOTLPServiceName = "otlpresourcenoservicename"
 
+const genAIAttributePrefix = "gen_ai."
+
 // checkDBType checks if the dbType is a known db type and returns the corresponding span.Type
 func checkDBType(dbType string) string {
 	spanType, ok := attributes.DBTypes[dbType]
@@ -226,11 +228,26 @@ func SpanKind2Type(span ptrace.Span, res pcommon.Resource) string {
 	return typ
 }
 
+func hasGenAIAttribute(attrs pcommon.Map) bool {
+	found := false
+	attrs.Range(func(k string, _ pcommon.Value) bool {
+		if strings.HasPrefix(k, genAIAttributePrefix) {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
 // GetOTelSpanTypeWithAccessor returns the DD span type based on OTel span kind and attributes,
 // using a pre-created accessor to avoid repeated allocation when multiple lookups share the
 // same span and resource attribute maps.
 func GetOTelSpanTypeWithAccessor[A semantics.Accessor](span ptrace.Span, accessor A) string {
 	typ := lookupString(accessor, semantics.ConceptSpanType, false)
+	if hasGenAIAttribute(span.Attributes()) {
+		return "llm"
+	}
 	if typ != "" {
 		return typ
 	}
