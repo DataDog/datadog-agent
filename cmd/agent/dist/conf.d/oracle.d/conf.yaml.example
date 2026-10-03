@@ -232,6 +232,8 @@ instances:
 
     ## Configure collection of table and column metadata for Oracle 12c or later. Requires
     ## `dbm: true` or `data_observability.enabled: true`.
+    ## Include/exclude filters use Oracle regular expressions with case-insensitive matching.
+    ## Invalid patterns fail collection; exclusions take precedence over inclusions.
     #
     # collect_schemas:
 
