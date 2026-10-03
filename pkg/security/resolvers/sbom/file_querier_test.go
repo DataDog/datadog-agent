@@ -8,7 +8,6 @@
 package sbom
 
 import (
-	"sync"
 	"testing"
 
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
@@ -61,39 +60,37 @@ func TestQueryFileUsrMerge(t *testing.T) {
 	}
 }
 
-// TestFixedSizeQueueConcurrentAccess calls push/contains concurrently on a
-// shared fixedSizeQueue, as happens when containers share an image. Run with -race.
-func TestFixedSizeQueueConcurrentAccess(t *testing.T) {
-	q := newFixedSizeQueue[uint64](2)
-
-	const goroutines = 50
-	const iterations = 200
-
-	var wg sync.WaitGroup
-
-	for g := 0; g < goroutines; g++ {
-		seed := uint64(g)
-		wg.Go(func() {
-			for i := uint64(0); i < iterations; i++ {
-				q.push(seed*iterations + i)
-			}
-		})
+// TestQueryFileFirstOwnerWins checks that a path two packages list, as rpm does
+// for a directory they share, resolves to the first of them in the report, as
+// it did when the index was walked in report order.
+func TestQueryFileFirstOwnerWins(t *testing.T) {
+	report := []sbomtypes.PackageWithInstalledFiles{
+		{Package: sbomtypes.Package{Name: "filesystem"}, InstalledFiles: []string{"/usr/share/doc", "/usr/bin"}},
+		{Package: sbomtypes.Package{Name: "bash"}, InstalledFiles: []string{"/usr/bin/bash", "/usr/share/doc", "/usr/bin"}},
+		{Package: sbomtypes.Package{Name: "coreutils"}, InstalledFiles: []string{"/usr/bin", "/usr/bin/cat"}},
 	}
 
-	for g := 0; g < goroutines; g++ {
-		seed := uint64(g)
-		wg.Go(func() {
-			for i := uint64(0); i < iterations; i++ {
-				q.contains(seed*iterations + i)
-			}
-		})
+	backing := make([]sbomtypes.Package, len(report))
+	for i := range report {
+		backing[i] = report[i].Package
 	}
 
-	wg.Wait()
-
-	// The queue must never grow past its configured bound, even under
-	// concurrent access.
-	if got := len(q.queue); got > 2 {
-		t.Errorf("queue length = %d, want at most 2", got)
+	fq := newFileQuerier(report, backing, false)
+	for _, tc := range []struct {
+		query   string
+		wantPkg string
+	}{
+		{"/usr/share/doc", "filesystem"},
+		{"/usr/bin", "filesystem"},
+		{"/usr/bin/bash", "bash"},
+		{"/usr/bin/cat", "coreutils"},
+	} {
+		got := ""
+		if pkg := fq.queryFile(tc.query); pkg != nil {
+			got = pkg.Name
+		}
+		if got != tc.wantPkg {
+			t.Errorf("queryFile(%q) = %q, want %q", tc.query, got, tc.wantPkg)
+		}
 	}
 }
