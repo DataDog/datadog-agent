@@ -74,6 +74,7 @@ dd_agent_go_test(
         "//pkg/collector/check/id",
         "//pkg/collector/check/stub",
         "//pkg/collector/externalhost",
+        "//pkg/collector/runner/expvars",
         "//pkg/metrics",
         "//pkg/serializer",
         "//pkg/util/option",
