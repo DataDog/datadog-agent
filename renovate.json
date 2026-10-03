@@ -324,7 +324,7 @@
         "autoReplaceStringTemplate": "GPU_BURNER_VERSION = \"{{{replace '^(.{8}).*$' '$1' newDigest}}}\"",
         "currentValueTemplate": "main",
         "depNameTemplate": "gpu-burner",
-        "packageNameTemplate": "https://github.com/DataDog/gpu-burner",
+        "packageNameTemplate": "https://github.com/ddoghq/gpu-burner",
         "datasourceTemplate": "git-refs",
         "registryUrlTemplate": ""
       },
