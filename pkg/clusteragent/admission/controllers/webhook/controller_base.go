@@ -9,6 +9,7 @@ package webhook
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
@@ -55,6 +56,9 @@ import (
 type Controller interface {
 	Run(stopCh <-chan struct{})
 	EnabledWebhooks() []Webhook
+	// LastReconcileError returns the error from the most recent reconciliation
+	// attempt, or nil if the last reconciliation succeeded or none has run yet.
+	LastReconcileError() error
 }
 
 // NewController returns the adequate implementation of the Controller interface.
@@ -216,6 +220,17 @@ type controllerBase struct {
 	isLeaderFunc             func() bool
 	leadershipStateNotif     <-chan struct{}
 	webhooks                 []Webhook
+
+	reconcileErrMu   sync.RWMutex
+	lastReconcileErr error
+}
+
+// LastReconcileError returns the error from the most recent reconciliation
+// attempt, or nil if the last reconciliation succeeded or none has run yet.
+func (c *controllerBase) LastReconcileError() error {
+	c.reconcileErrMu.RLock()
+	defer c.reconcileErrMu.RUnlock()
+	return c.lastReconcileErr
 }
 
 // EnabledWebhooks returns the list of enabled webhooks.
@@ -357,7 +372,13 @@ func (c *controllerBase) processNextWorkItem(reconcile func() error) bool {
 	}
 	defer c.queue.Done(key)
 
-	if err := reconcile(); err != nil {
+	err := reconcile()
+
+	c.reconcileErrMu.Lock()
+	c.lastReconcileErr = err
+	c.reconcileErrMu.Unlock()
+
+	if err != nil {
 		c.requeue(key)
 		log.Errorf("Couldn't reconcile webhook %s: %v", c.config.getWebhookName(), err)
 		metrics.ReconcileErrors.Inc(metrics.WebhooksControllerName)
