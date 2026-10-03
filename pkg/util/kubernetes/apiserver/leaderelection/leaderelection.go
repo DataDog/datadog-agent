@@ -72,6 +72,8 @@ type LeaderEngine struct {
 	leaderIdentityMutex sync.RWMutex
 	leaderElector       *leaderelection.LeaderElector
 	lockType            string
+	initMutex           sync.Mutex
+	initDone            bool
 
 	// leaderIdentity is the HolderIdentity of the current leader.
 	leaderIdentity string
@@ -120,6 +122,32 @@ func GetLeaderEngine() (*LeaderEngine, error) {
 	return globalLeaderEngine, nil
 }
 
+// waitForLeaderEngineSleep is declared as a variable so we can mock it in tests.
+var waitForLeaderEngineSleep = time.After
+
+// WaitForLeaderEngine creates the global leader engine if needed and will block until the engine is initialized or fails permanently.
+func WaitForLeaderEngine(ctx context.Context) (*LeaderEngine, error) {
+	CreateGlobalLeaderEngine(ctx)
+
+	for {
+		_ = globalLeaderEngine.initRetry.TriggerRetry()
+		switch globalLeaderEngine.initRetry.RetryStatus() {
+		case retry.OK:
+			return globalLeaderEngine, nil
+		case retry.PermaFail:
+			return nil, errors.New("Permanent failure while waiting for Leader Election engine")
+		default:
+			sleepFor := globalLeaderEngine.initRetry.NextRetry().UTC().Sub(time.Now().UTC()) + time.Second
+			log.Debugf("Waiting for Leader Election engine, next retry: %v", sleepFor)
+			select {
+			case <-ctx.Done():
+				return nil, errors.New("Context deadline reached while waiting for Leader Election engine")
+			case <-waitForLeaderEngineSleep(sleepFor):
+			}
+		}
+	}
+}
+
 // CreateGlobalLeaderEngine returns a non initialized leader engine client
 func CreateGlobalLeaderEngine(ctx context.Context) *LeaderEngine {
 	if globalLeaderEngine == nil {
@@ -136,6 +164,13 @@ func CreateGlobalLeaderEngine(ctx context.Context) *LeaderEngine {
 }
 
 func (le *LeaderEngine) init() error {
+	le.initMutex.Lock()
+	defer le.initMutex.Unlock()
+
+	if le.initDone {
+		return nil
+	}
+
 	var err error
 
 	if le.HolderIdentity == "" {
@@ -190,6 +225,7 @@ func (le *LeaderEngine) init() error {
 		return err
 	}
 	log.Debugf("Leader Engine for %q successfully initialized", le.HolderIdentity)
+	le.initDone = true
 	return nil
 }
 
