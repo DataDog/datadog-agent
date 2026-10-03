@@ -80,6 +80,7 @@ go_library(
         "//pkg/system-probe/config",
         "//pkg/system-probe/config/types",
         "//pkg/template/text",
+        "//pkg/util/cloudproviders/network",
         "//pkg/util/fargate",
         "//pkg/util/flavor",
         "//pkg/util/grpc",
@@ -103,7 +104,6 @@ go_library(
         "@rules_go//go/platform:android": [
             "//pkg/discovery/usm",
             "//pkg/languagedetection/languagemodels",
-            "//pkg/util/cloudproviders/network",
             "//pkg/util/port/portlist",
             "@com_github_patrickmn_go_cache//:go-cache",
             "@com_github_shirou_gopsutil_v4//host",
@@ -150,7 +150,6 @@ go_library(
         "@rules_go//go/platform:linux": [
             "//pkg/discovery/usm",
             "//pkg/languagedetection/languagemodels",
-            "//pkg/util/cloudproviders/network",
             "//pkg/util/port/portlist",
             "@com_github_patrickmn_go_cache//:go-cache",
             "@com_github_shirou_gopsutil_v4//host",
@@ -196,7 +195,6 @@ go_library(
             "//pkg/gohai/cpu",
             "//pkg/gohai/platform",
             "//pkg/languagedetection/languagemodels",
-            "//pkg/util/cloudproviders/network",
             "//pkg/util/port/portlist",
             "//pkg/util/winutil/winmem",
         ],
