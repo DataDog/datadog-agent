@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    dd-procmgrd: Add GetMetrics gRPC RPC for per-process supervision metrics (state, pid, restart count, last exit code/signal).
