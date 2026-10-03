@@ -15,4 +15,39 @@ type Component interface {
 	Set(name string, value interface{})
 	// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
 	Get() map[string]interface{}
+	// Submit synchronously builds a payload and enqueues it for submission now,
+	// bypassing the metadata runner's first-run delay and interval gating. An
+	// embedder with no host-metadata pipeline has no host-creation race to order
+	// around and may exit before the runner goroutine fires, so it enqueues the
+	// first payload directly.
+	Submit()
+}
+
+// Capabilities lets an embedding binary adapt the inventoryagent component for
+// an environment that diverges from the standard full-agent one (currently:
+// serverless-init). It is an optional fx dependency, and each field is named
+// for its divergence so the zero value (no Capabilities supplied) is exactly
+// full-agent behavior.
+type Capabilities struct {
+	// SkipCrossProcessEnrichment turns off the payload-enrichment tier that
+	// fetches configuration from the other agent processes (security/process/
+	// trace/system-probe) over IPC/localhost. An environment where those
+	// processes do not run sets it true, since the fetches would only fail and
+	// risk dereferencing a nil IPC client.
+	SkipCrossProcessEnrichment bool
+	// PayloadUUID overrides the payload's uuid. Nil means use the cached host
+	// machine GUID (uuid.GetUUID()), which is meaningless across the ephemeral,
+	// per-process containers of a hostless environment. Resolved per payload, so an
+	// environment that only learns its identity after construction still reports it.
+	// Called while the component holds its lock: it must not call back in.
+	PayloadUUID func() string
+}
+
+// NewServerlessCapabilities builds the Capabilities for serverless-init, a
+// hostless single-process environment with no sibling agent processes.
+func NewServerlessCapabilities(payloadUUID func() string) *Capabilities {
+	return &Capabilities{
+		SkipCrossProcessEnrichment: true,
+		PayloadUUID:                payloadUUID,
+	}
 }
