@@ -120,8 +120,7 @@ fi
 #     in stages 06/07/08.
 #   - $SALUKI_RUST_VERSION: the toolchain saluki pins for its agent-data-plane
 #     AIX build (stage 05). Read from saluki's rust-toolchain.toml at the
-#     pinned tag so bumping the saluki pin bumps the toolchain too. env.sh
-#     guarantees AGENT_DATA_PLANE_VERSION is set.
+#     pinned tag so bumping the saluki pin bumps the toolchain too.
 install_rust_sdk() {
     if [ -x "/opt/freeware/lib/RustSDK/$1/bin/cargo" ]; then
         log "Rust $1 already installed"

@@ -83,9 +83,6 @@ if [ -z "$INTEGRATIONS_CORE_VERSION" ]; then
 fi
 
 log "INTEGRATIONS_CORE_VERSION = $INTEGRATIONS_CORE_VERSION"
-
-# AGENT_DATA_PLANE_VERSION is read from deps/agent_data_plane/agent_data_plane.MODULE.bazel
-# by lib/env.sh, which fails if it cannot be read (pre-set the variable to override).
 log "AGENT_DATA_PLANE_VERSION = $AGENT_DATA_PLANE_VERSION"
 
 # ─── Step 3: Clone or fetch integrations-core ─────────────────────────────────
