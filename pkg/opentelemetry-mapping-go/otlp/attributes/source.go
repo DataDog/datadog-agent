@@ -133,7 +133,7 @@ func azureContainerAppsResourceFromAttributes(attrs pcommon.Map) (azureContainer
 	// instead of azure.container_app.instance.id. The latter stays authoritative
 	// since it's what the RDP detector currently emits.
 	if !replicaOK || replica.Str() == "" {
-		replica, replicaOK = attrs.Get(attributeServiceInstanceID)
+		replica, replicaOK = attrs.Get(string(conventions.ServiceInstanceIDKey))
 	}
 	// Fallback: derive name, subscription_id, and resource_group from cloud.resource_id
 	if resourceID, ok := attrs.Get(string(semconv143.CloudResourceIDKey)); ok && resourceID.Str() != "" {
