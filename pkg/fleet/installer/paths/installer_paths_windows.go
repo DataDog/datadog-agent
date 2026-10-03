@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	advapi32                        = syscall.NewLazyDLL("advapi32.dll")
+	advapi32                        = windows.NewLazySystemDLL("advapi32.dll")
 	procTreeResetNamedSecurityInfoW = advapi32.NewProc("TreeResetNamedSecurityInfoW")
 )
 
