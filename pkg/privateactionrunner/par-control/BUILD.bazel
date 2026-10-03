@@ -28,6 +28,7 @@ rust_library(
         "src/bootstrap.rs",
         "src/config.rs",
         "src/executor.rs",
+        "src/identity.rs",
         "src/jwt.rs",
         "src/lib.rs",
         "src/opms.rs",

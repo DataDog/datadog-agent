@@ -77,6 +77,7 @@ func (s *windowsPARSplitLifecycleSuite) SetupSuite() {
 
 	_, err = s.Env().RemoteHost.Execute(`[Environment]::SetEnvironmentVariable('DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS', 'true', 'Machine')`)
 	s.Require().NoError(err)
+	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
 	s.Require().NoError(s.runProcmgr("stop", parControlProcess))
 	s.waitForProcessState(parControlProcess, "Stopped", 30*time.Second)
 	_ = s.runProcmgr("stop", parExecutorProcess)
