@@ -77,6 +77,7 @@ dd_agent_go_test(
         "tcp_processor_rtt_test.go",
         "tcp_processor_test.go",
         "tcp_utils_linux_test.go",
+        "tcp_utils_test.go",
     ],
     embed = [":ebpfless"],
     gotags_sets = [["bpf"]],

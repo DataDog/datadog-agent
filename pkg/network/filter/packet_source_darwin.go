@@ -60,10 +60,12 @@ var packetSourceTelemetry = struct {
 
 // packetWithInfo wraps copied packet data with metadata
 type packetWithInfo struct {
-	data      []byte // Copied data from pool, caller must return via putBuffer
-	timestamp time.Time
-	direction uint8 // PACKET_HOST or PACKET_OUTGOING
-	layerType gopacket.LayerType
+	data        []byte // Copied data from pool, caller must return via putBuffer
+	timestamp   time.Time
+	direction   uint8 // PACKET_HOST or PACKET_OUTGOING
+	layerType   gopacket.LayerType
+	originalLen int
+	capturedLen int
 }
 
 // directionDecoder is a placeholder for gopacket-based direction decoding.
@@ -72,8 +74,9 @@ type directionDecoder struct{}
 
 // interfaceHandle holds a pcap handle and its associated local addresses
 type interfaceHandle struct {
-	handle    *pcap.Handle
-	ifaceName string
+	handle     *pcap.Handle
+	ifaceName  string
+	ifaceIndex int
 	// linkType is the raw pcap DLT for this interface, used by
 	// determinePacketDirection to select the correct header parser.
 	linkType layers.LinkType
@@ -128,7 +131,9 @@ type DarwinPacketInfo struct {
 	// encapsulation. Callers must use this to select the correct decoder —
 	// different interfaces on macOS may use different encapsulations
 	// (e.g. LayerTypeEthernet for en0, LayerTypeLoopback for utun0).
-	LayerType gopacket.LayerType
+	LayerType   gopacket.LayerType
+	originalLen int
+	capturedLen int
 }
 
 // PacketType returns the packet direction type
@@ -143,6 +148,16 @@ func (d *DarwinPacketInfo) LinkLayerType() gopacket.LayerType {
 		return d.LayerType
 	}
 	return layers.LayerTypeEthernet
+}
+
+// OriginalLength returns the packet length before capture truncation.
+func (d *DarwinPacketInfo) OriginalLength() int {
+	return d.originalLen
+}
+
+// CapturedLength returns the number of bytes supplied to the visitor.
+func (d *DarwinPacketInfo) CapturedLength() int {
+	return d.capturedLen
 }
 
 // Option configures a LibpcapSource.
@@ -180,8 +195,9 @@ func OptBPFFilter(expr string) Option {
 }
 
 // isEligibleInterface reports whether an interface should be captured.
-// Skips loopback, virtual/tunnel interfaces that never carry TCP/UDP connections,
-// Apple-internal interfaces, and virtualization/hardware interconnect interfaces.
+// It excludes loopback and selected virtual or Apple-internal interfaces from
+// optional packet enrichment; the composite backend still discovers their
+// connections through NStat. utun interfaces remain eligible for VPN traffic.
 func isEligibleInterface(iface net.Interface) bool {
 	if iface.Flags&net.FlagLoopback != 0 {
 		return false
@@ -243,7 +259,7 @@ func NewLibpcapSource(opts ...Option) (*LibpcapSource, error) {
 		if !isEligibleInterface(iface) {
 			continue
 		}
-		if err := ps.addInterface(iface.Name); err != nil {
+		if err := ps.addInterface(iface); err != nil {
 			log.Warnf("skipping interface %s: %v", iface.Name, err)
 		}
 	}
@@ -263,11 +279,12 @@ func NewLibpcapSource(opts ...Option) (*LibpcapSource, error) {
 	return ps, nil
 }
 
-// addInterface opens a pcap handle on ifaceName, registers it in p.interfaces,
+// addInterface opens a pcap handle on iface, registers it in p.interfaces,
 // and starts a reader goroutine that owns the handle for its lifetime.
 // When the reader exits for any reason it removes itself from the map and
 // closes the handle, so the caller never needs to do that explicitly.
-func (p *LibpcapSource) addInterface(ifaceName string) error {
+func (p *LibpcapSource) addInterface(iface net.Interface) error {
+	ifaceName := iface.Name
 	// Don't open new handles after shutdown has been signalled.
 	select {
 	case <-p.exit:
@@ -319,6 +336,7 @@ func (p *LibpcapSource) addInterface(ifaceName string) error {
 	ih := &interfaceHandle{
 		handle:            handle,
 		ifaceName:         ifaceName,
+		ifaceIndex:        iface.Index,
 		linkType:          lt,
 		goPacketLayerType: linkTypeToLayerType(lt),
 		dirDecoder:        newDirectionDecoder(),
@@ -387,6 +405,8 @@ func (p *LibpcapSource) VisitPackets(visitor func(data []byte, info PacketInfo, 
 		case pkt := <-p.packetChan:
 			packetInfo.PktType = pkt.direction
 			packetInfo.LayerType = pkt.layerType
+			packetInfo.originalLen = pkt.originalLen
+			packetInfo.capturedLen = pkt.capturedLen
 
 			// Wrap in a closure so putBuffer runs via defer even if visitor
 			// panics, preventing a permanent pool leak.
@@ -475,10 +495,12 @@ func (p *LibpcapSource) readPacketsFromInterface(ih *interfaceHandle) {
 
 		select {
 		case p.packetChan <- packetWithInfo{
-			data:      buf,
-			timestamp: ci.Timestamp,
-			direction: direction,
-			layerType: ih.goPacketLayerType,
+			data:        buf,
+			timestamp:   ci.Timestamp,
+			direction:   direction,
+			layerType:   ih.goPacketLayerType,
+			originalLen: ci.Length,
+			capturedLen: ci.CaptureLength,
 		}:
 		case <-p.exit:
 			p.putBuffer(buf)
@@ -509,6 +531,28 @@ func (p *LibpcapSource) collectStats(ih *interfaceHandle, prev *struct{ captured
 
 	prev.captured = uint64(stats.PacketsReceived)
 	prev.dropped = uint64(stats.PacketsDropped)
+}
+
+// CapturesInterfaceIndex reports whether packets on the interface with the
+// given index are currently being captured. Index 0 (unknown) is never
+// captured.
+func (p *LibpcapSource) CapturesInterfaceIndex(index uint32) bool {
+	if index == 0 {
+		return false
+	}
+	select {
+	case <-p.exit:
+		return false
+	default:
+	}
+	p.interfacesMu.RLock()
+	defer p.interfacesMu.RUnlock()
+	for _, ih := range p.interfaces {
+		if ih.ifaceIndex == int(index) {
+			return true
+		}
+	}
+	return false
 }
 
 // LayerType returns a default layer type for this source. On Darwin, packets
@@ -565,21 +609,21 @@ func (p *LibpcapSource) syncInterfaces() {
 
 	// Add captures for eligible interfaces not yet in the map
 	p.interfacesMu.RLock()
-	var toAdd []string
+	var toAdd []net.Interface
 	for _, iface := range systemIfaces {
 		if !isEligibleInterface(iface) {
 			continue
 		}
 		if _, ok := p.interfaces[iface.Name]; !ok {
-			toAdd = append(toAdd, iface.Name)
+			toAdd = append(toAdd, iface)
 		}
 	}
 	p.interfacesMu.RUnlock()
 
-	for _, name := range toAdd {
-		log.Infof("new interface %s detected, starting capture", name)
-		if err := p.addInterface(name); err != nil {
-			log.Warnf("failed to add capture on interface %s: %v", name, err)
+	for _, iface := range toAdd {
+		log.Infof("new interface %s detected, starting capture", iface.Name)
+		if err := p.addInterface(iface); err != nil {
+			log.Warnf("failed to add capture on interface %s: %v", iface.Name, err)
 		}
 	}
 

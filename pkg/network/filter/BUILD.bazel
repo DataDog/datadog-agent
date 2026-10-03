@@ -8,6 +8,7 @@ go_library(
         "packet_constants_linux.go",
         "packet_source.go",
         "packet_source_darwin.go",
+        "packet_source_fanout.go",
         "packet_source_linux.go",
         "socket_filter.go",
     ],
@@ -64,37 +65,32 @@ dd_agent_go_test(
     name = "filter_test",
     srcs = [
         "packet_source_darwin_test.go",
+        "packet_source_fanout_test.go",
         "packet_source_linux_test.go",
     ],
     embed = [":filter"],
     gotags_sets = [["bpf"]],
-    deps = select({
+    deps = [
+        "@com_github_google_gopacket//:gopacket",
+        "@com_github_google_gopacket//layers",
+        "@com_github_stretchr_testify//require",
+    ] + select({
         "@rules_go//go/platform:android": [
-            "@com_github_google_gopacket//:gopacket",
             "@com_github_google_gopacket//afpacket",
             "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/util/sync",
-            "@com_github_google_gopacket//:gopacket",
-            "@com_github_google_gopacket//layers",
             "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/util/sync",
-            "@com_github_google_gopacket//:gopacket",
-            "@com_github_google_gopacket//layers",
             "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_google_gopacket//:gopacket",
             "@com_github_google_gopacket//afpacket",
             "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
