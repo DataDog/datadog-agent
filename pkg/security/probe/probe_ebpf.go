@@ -2931,7 +2931,7 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 func isKillActionPresent(rs *rules.RuleSet) bool {
 	for _, rule := range rs.GetRules() {
 		for _, action := range rule.Def.Actions {
-			if action.Kill != nil {
+			if action != nil && action.Kill != nil {
 				return true
 			}
 		}
@@ -2942,7 +2942,7 @@ func isKillActionPresent(rs *rules.RuleSet) bool {
 func isRawPacketActionPresent(rs *rules.RuleSet) bool {
 	for _, rule := range rs.GetRules() {
 		for _, action := range rule.Def.Actions {
-			if action.NetworkFilter != nil {
+			if action != nil && action.NetworkFilter != nil {
 				return true
 			}
 		}
