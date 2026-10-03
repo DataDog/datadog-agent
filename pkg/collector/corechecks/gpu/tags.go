@@ -11,7 +11,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
+	"strings"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -26,6 +28,12 @@ import (
 )
 
 const workloadTagCacheTelemetrySubsystem = consts.GpuTelemetryModule + "__workload_tag_cache"
+
+const (
+	pidTagPrefix   = "pid:"
+	nspidTagPrefix = "nspid:"
+	gpuTagPrefix   = "gpu_"
+)
 
 type workloadTagCacheEntry struct {
 	tags  []string
@@ -42,9 +50,10 @@ type WorkloadTagCache struct {
 	cache             *simplelru.LRU[workloadmeta.EntityID, *workloadTagCacheEntry]
 	tagger            tagger.Component
 	wmeta             workloadmeta.Component
-	containerProvider proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
-	pidToCid          map[int]string                   // pidToCid is the mapping of PIDs to container IDs, retrieved from the container provider until it is invalidated.
-	telemetry         *workloadTagCacheTelemetry       // telemetry is the telemetry component for the workload tag cache
+	containerProvider proccontainers.ContainerProvider  // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
+	pidToCid          map[int]string                    // pidToCid is the mapping of PIDs to container IDs, retrieved from the container provider until it is invalidated.
+	telemetry         *workloadTagCacheTelemetry        // telemetry is the telemetry component for the workload tag cache
+	sharedProcessTags map[string]*workloadTagCacheEntry // sharedProcessTags caches the tags common to a set of processes, keyed by the sorted list of PIDs
 }
 
 type workloadTagCacheTelemetry struct {
@@ -76,6 +85,7 @@ func NewWorkloadTagCache(tagger tagger.Component, wmeta workloadmeta.Component, 
 		wmeta:             wmeta,
 		containerProvider: containerProvider,
 		telemetry:         newWorkloadTagCacheTelemetry(tm),
+		sharedProcessTags: make(map[string]*workloadTagCacheEntry),
 	}
 
 	var err error
@@ -156,11 +166,94 @@ func (c *WorkloadTagCache) MarkStale() {
 		entry.stale = true
 	}
 
+	// Shared process tag entries are keyed by the set of PIDs on a device, which changes as processes
+	// come and go. Entries not used since the previous MarkStale call are removed so they don't accumulate.
+	for key, entry := range c.sharedProcessTags {
+		if entry.stale {
+			delete(c.sharedProcessTags, key)
+		} else {
+			entry.stale = true
+		}
+	}
+
 	// Invalidate the PID -> CID mapping, so that it's refreshed on the next run
 	c.pidToCid = nil
 
 	// Update the telemetry metrics with the current state of the cache.
 	c.telemetry.cacheSize.Set(float64(c.cache.Len()))
+}
+
+// GetOrCreateSharedProcessTags returns the tags common to all the given processes, excluding the
+// per-process pid and nspid tags. Processes that cannot be found are ignored. Results are cached
+// until the next MarkStale call. If errors happen, the partial result is returned (and cached)
+// along with the error. Note that processes with errors are still part of the intersection with
+// whatever partial tags they have, so a single process failing to resolve its container tags will
+// remove those tags from the result.
+func (c *WorkloadTagCache) GetOrCreateSharedProcessTags(pids []int32) ([]string, error) {
+	if len(pids) == 0 {
+		return nil, nil
+	}
+
+	key := sharedProcessTagsKey(pids)
+	if entry, exists := c.sharedProcessTags[key]; exists && !entry.stale {
+		return entry.tags, nil
+	}
+
+	tags, err := c.buildSharedProcessTags(pids)
+
+	c.sharedProcessTags[key] = &workloadTagCacheEntry{tags: tags}
+
+	return tags, err
+}
+
+func sharedProcessTagsKey(pids []int32) string {
+	sorted := slices.Clone(pids)
+	slices.Sort(sorted)
+	return fmt.Sprint(sorted)
+}
+
+func (c *WorkloadTagCache) buildSharedProcessTags(pids []int32) ([]string, error) {
+	var multiErr error
+	var shared map[string]struct{} // nil until the first process with tags is found
+
+	for _, pid := range pids {
+		workloadID := workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: strconv.FormatInt(int64(pid), 10)}
+		tags, err := c.GetOrCreateWorkloadTags(workloadID)
+		if err != nil {
+			if agenterrors.IsNotFound(err) {
+				continue
+			}
+			// continue with the partial tags we got
+			multiErr = errors.Join(multiErr, fmt.Errorf("error getting tags for process %d: %w", pid, err))
+		}
+
+		processTags := make(map[string]struct{}, len(tags))
+		for _, tag := range tags {
+			if strings.HasPrefix(tag, pidTagPrefix) || strings.HasPrefix(tag, nspidTagPrefix) {
+				continue
+			}
+			processTags[tag] = struct{}{}
+		}
+
+		if shared == nil {
+			shared = processTags
+			continue
+		}
+
+		for tag := range shared {
+			if _, ok := processTags[tag]; !ok {
+				delete(shared, tag)
+			}
+		}
+	}
+
+	result := make([]string, 0, len(shared))
+	for tag := range shared {
+		result = append(result, tag)
+	}
+	slices.Sort(result)
+
+	return result, multiErr
 }
 
 // buildContainerTags builds the tags for a container. Can return "ErrNotFound"
@@ -197,7 +290,7 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 	}
 	pid := int32(pidInt)
 
-	tags := []string{fmt.Sprintf("pid:%d", pid)}
+	tags := []string{fmt.Sprintf("%s%d", pidTagPrefix, pid)}
 
 	// Apart from PID, we try to add nspid and container-related tags if
 	// available. Workloadmeta can provide this information, but it might not be
@@ -238,7 +331,7 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 			nspid = pid
 		}
 	}
-	tags = append(tags, fmt.Sprintf("nspid:%d", nspid))
+	tags = append(tags, fmt.Sprintf("%s%d", nspidTagPrefix, nspid))
 
 	if contErr != nil && nspidErr != nil && !kernel.ProcessExists(int(pid)) {
 		// The process does not exist anymore, so return a "NotFound" error so that we can return stale data.
@@ -261,6 +354,19 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 			multiErr = errors.Join(multiErr, fmt.Errorf("error building container tags for process %d and container %s: %w", pid, containerID, err))
 		}
 		tags = append(tags, containerTags...)
+	}
+
+	processEntityTags, err := c.tagger.Tag(taggertypes.NewEntityID(taggertypes.Process, strconv.FormatInt(int64(pid), 10)), taggertypes.LowCardinality)
+	if err != nil {
+		multiErr = errors.Join(multiErr, fmt.Errorf("error getting tagger tags for process %d: %w", pid, err))
+	}
+	// The tagger adds to process entities the tags of every GPU the process uses. GPU metrics already
+	// carry the tags of their own device, so adding these would tag a device's metrics with the tags
+	// of other GPUs used by the same process.
+	for _, tag := range processEntityTags {
+		if !strings.HasPrefix(tag, gpuTagPrefix) {
+			tags = append(tags, tag)
+		}
 	}
 
 	return tags, multiErr
@@ -330,6 +436,7 @@ func NewWorkloadTagCacheWithSubsystem(subsystemPrefix string, tagger tagger.Comp
 		wmeta:             wmeta,
 		containerProvider: containerProvider,
 		telemetry:         newWorkloadTagCacheTelemetryWithSubsystem(subsystemPrefix, tm),
+		sharedProcessTags: make(map[string]*workloadTagCacheEntry),
 	}
 
 	var err error
