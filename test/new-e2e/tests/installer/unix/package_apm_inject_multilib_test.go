@@ -75,40 +75,12 @@ func (s *packageApmInjectMultilibSuite) libExpansion() (lib64, lib32 string) {
 	}
 }
 
-// installCompiler installs a C compiler able to emit dynamically-linked ELF64
-// executables.
-func (s *packageApmInjectMultilibSuite) installCompiler() {
+// requireCompiler checks for the C compiler, able to emit dynamically-linked
+// ELF64 executables, that ami-builder bakes into the e2e AMIs of the matrix.
+func (s *packageApmInjectMultilibSuite) requireCompiler() {
 	s.T().Helper()
-	switch s.os.Flavor {
-	case e2eos.Ubuntu, e2eos.Debian:
-		s.Env().RemoteHost.MustExecute("sudo apt-get update -qq && sudo apt-get install -y gcc libc6-dev")
-	case e2eos.RedHat, e2eos.CentOS, e2eos.Fedora, e2eos.AmazonLinux:
-		s.Env().RemoteHost.MustExecute("sudo yum install -y gcc glibc-devel")
-	default:
-		s.T().Skipf("test does not know how to install gcc on %s", s.os.Flavor)
-	}
-}
-
-// install32BitSupport adds what `gcc -m32` needs on top of installCompiler.
-// None of the amd64 images in the matrix ship a 32-bit libc by default, and the
-// package that provides one differs: Debian bundles headers and runtime in
-// gcc-multilib, while on RPM distros the stock gcc is already multilib-capable
-// and only the i686 glibc bits are missing.
-func (s *packageApmInjectMultilibSuite) install32BitSupport() {
-	s.T().Helper()
-	var cmd string
-	switch s.os.Flavor {
-	case e2eos.Ubuntu, e2eos.Debian:
-		cmd = "sudo apt-get install -y gcc-multilib"
-	case e2eos.RedHat, e2eos.CentOS, e2eos.Fedora, e2eos.AmazonLinux:
-		cmd = "sudo yum install -y glibc-devel.i686 libgcc.i686"
-	default:
-		s.T().Skipf("test does not know how to install 32-bit libc on %s", s.os.Flavor)
-	}
-	out, err := s.Env().RemoteHost.Execute(cmd)
-	require.NoErrorf(s.T(), err,
-		"could not install a 32-bit libc on %s. Everything above this point passed, so the injector's 64-bit $LIB path is fine and this is a test-host packaging problem.\n%s",
-		s.os, out)
+	out, err := s.Env().RemoteHost.Execute("command -v gcc")
+	require.NoErrorf(s.T(), err, "gcc is missing from the %s e2e AMI; bake it in ami-builder rather than installing it at test time.\n%s", s.os, out)
 }
 
 // elfClass returns "32" or "64" for the ELF at path, read straight from the
@@ -171,10 +143,8 @@ func (s *packageApmInjectMultilibSuite) TestMultilibLauncher() {
 	require.Equal(s.T(), "32", s.elfClass(launcher32), "launcher reached through $LIB=%s must be ELF32", lib32Dir)
 
 	// Build real dynamic ELF32 and ELF64 executables from the same source.
-	// Installing the toolchain now, with host injection already active, makes the
-	// package manager's own subprocesses exercise the new preload path too.
 	defer host.Execute("sudo rm -f /tmp/multilib_executable.c /tmp/multilib-executable32 /tmp/multilib-executable64") //nolint:errcheck
-	s.installCompiler()
+	s.requireCompiler()
 	encodedSource := base64.StdEncoding.EncodeToString([]byte(multilibExecutableSource))
 	host.MustExecute("echo " + encodedSource + " | base64 -d | sudo tee /tmp/multilib_executable.c >/dev/null")
 	host.MustExecute("gcc -m64 -Wall -Wextra -Werror /tmp/multilib_executable.c -o /tmp/multilib-executable64")
@@ -189,8 +159,12 @@ func (s *packageApmInjectMultilibSuite) TestMultilibLauncher() {
 	require.Contains(s.T(), output64, "debug flag set, running injection",
 		"64-bit executable did not load the APM injector")
 
-	s.install32BitSupport()
-	host.MustExecute("gcc -m32 -Wall -Wextra -Werror /tmp/multilib_executable.c -o /tmp/multilib-executable32")
+	// The 32-bit libc comes from gcc-multilib on Debian/Ubuntu and from
+	// glibc-devel.i686 and libgcc.i686 on RPM distros, all baked into the AMI.
+	out, err := host.Execute("gcc -m32 -Wall -Wextra -Werror /tmp/multilib_executable.c -o /tmp/multilib-executable32 2>&1")
+	require.NoErrorf(s.T(), err,
+		"could not build a 32-bit executable on %s. Everything above this point passed, so the injector's 64-bit $LIB path is fine and this is a test-host packaging problem: the e2e AMI is missing its 32-bit libc.\n%s",
+		s.os, out)
 	require.Equal(s.T(), "32", s.elfClass("/tmp/multilib-executable32"))
 
 	// Exact equality, not Contains: anything ld.so prints about a preload entry
