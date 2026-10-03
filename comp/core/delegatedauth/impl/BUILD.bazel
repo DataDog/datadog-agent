@@ -23,6 +23,7 @@ go_library(
         "//pkg/util/scrubber",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_cenkalti_backoff_v7//:backoff",
+        "@com_github_spf13_cast//:cast",
     ],
 )
 

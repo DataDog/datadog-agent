@@ -559,6 +559,54 @@ func TestBackoffDelayDisabled(t *testing.T) {
 	server.Stop()
 }
 
+func TestPendingDelegatedAuthDoesNotSend(t *testing.T) {
+	cfg := configmock.New(t)
+	server := NewTestServer(http.StatusOK, cfg)
+	defer server.Stop()
+
+	server.Destination.endpoint = config.NewEndpoint(
+		"DELA(some-org-uuid, aws)",
+		"logs_config.additional_endpoints",
+		server.Endpoint.Host,
+		server.Endpoint.Port,
+		config.EmptyPathPrefix,
+		false,
+	)
+
+	err := server.Destination.unconditionalSend(&message.Payload{
+		MessageMetas: []*message.MessageMetadata{},
+		Encoded:      []byte("test log"),
+	})
+
+	assert.ErrorIs(t, err, errCredentialNotReady)
+	assert.Empty(t, server.request.Header)
+}
+
+func TestPendingDelegatedAuthDoesNotBlockReliableDestination(t *testing.T) {
+	cfg := configmock.New(t)
+	server := NewTestServer(http.StatusOK, cfg)
+	defer server.Stop()
+
+	server.Destination.endpoint = config.NewEndpoint(
+		"DELA(some-org-uuid, aws)",
+		"logs_config.additional_endpoints",
+		server.Endpoint.Host,
+		server.Endpoint.Port,
+		config.EmptyPathPrefix,
+		false,
+	)
+	server.Destination.shouldRetry = true
+	payload := &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("test log")}
+	output := make(chan *message.Payload, 1)
+
+	result := server.Destination.sendAndRetry(payload, output, make(chan bool, 1))
+
+	assert.NoError(t, result.err)
+	assert.Same(t, payload, <-output)
+	assert.Zero(t, server.Destination.nbErrors)
+	assert.Empty(t, server.request.Header)
+}
+
 func TestDestinationHA(t *testing.T) {
 	variants := []bool{true, false}
 	for _, variant := range variants {

@@ -1687,6 +1687,174 @@ func TestSequenceID(t *testing.T) {
 	assert.Equal(t, uint64(3), config.GetSequenceID())
 }
 
+func TestUpdate(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.SetDefault("nullable", nil)
+	config.BuildSchema()
+
+	config.Set("a", 1, model.SourceAgentRuntime)
+	assert.False(t, config.Update("a", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+		assert.Equal(t, 1, current)
+		return 2, false
+	}))
+	assert.Equal(t, 1, config.GetInt("a"))
+
+	assert.True(t, config.Update("a", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+		return current.(int) + 1, true
+	}))
+	assert.Equal(t, 2, config.GetInt("a"))
+
+	assert.True(t, config.Update("A", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+		return current.(int) + 1, true
+	}))
+	assert.Equal(t, 3, config.GetInt("a"))
+
+	config.Set("nullable", nil, model.SourceAgentRuntime)
+	assert.True(t, config.Update("nullable", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+		assert.Nil(t, current)
+		return map[string]interface{}{"value": 4}, true
+	}))
+	assert.Equal(t, 4, config.GetStringMap("nullable")["value"])
+
+	assert.False(t, config.Update("nullable", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+		current.(map[string]interface{})["value"] = 5
+		return current, false
+	}))
+	assert.Equal(t, 4, config.GetStringMap("nullable")["value"])
+}
+
+func TestUpdateShadowedByHigherSource(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	config.Set("a", 1, model.SourceFile)
+	config.Set("a", 10, model.SourceCLI)
+	assert.False(t, config.Update("a", model.SourceSecret, func(current interface{}) (interface{}, bool) {
+		// The callback never sees a layer above the one it writes.
+		assert.Equal(t, 1, current)
+		return current.(int) + 1, true
+	}))
+	assert.Equal(t, 10, config.GetInt("a"))
+
+	// The write landed in the secret layer, derived from the file layer rather than a copy of CLI's.
+	config.UnsetForSource("a", model.SourceCLI)
+	assert.Equal(t, 2, config.GetInt("a"))
+	assert.Equal(t, model.SourceSecret, config.GetSource("a"))
+}
+
+func TestUpdateReadsOwnLayerElseClosestBelow(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	seen := func(source model.Source) interface{} {
+		var got interface{}
+		config.Update("a", source, func(current interface{}) (interface{}, bool) {
+			got = current
+			return nil, false
+		})
+		return got
+	}
+
+	assert.Equal(t, 0, seen(model.SourceSecret), "only the default is set")
+
+	config.Set("a", 1, model.SourceFile)
+	config.Set("a", 2, model.SourceConfigPostInit)
+	config.Set("a", 3, model.SourceAgentRuntime)
+	assert.Equal(t, 2, seen(model.SourceConfigPostInit), "source's own value")
+	assert.Equal(t, 2, seen(model.SourceSecret), "empty source falls back to the closest layer below")
+	assert.Equal(t, 1, seen(model.SourceFile), "file sees itself, not higher layers")
+}
+
+func TestUpdateUnknownKeySkipsCallback(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	called := false
+	assert.False(t, config.Update("missing", model.SourceAgentRuntime, func(interface{}) (interface{}, bool) {
+		called = true
+		return 1, true
+	}))
+	assert.False(t, called)
+}
+
+func TestUpdateNotifiesAfterUnlock(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	var notified []interface{}
+	config.OnUpdate(func(key string, _ model.Source, _, _ any, _ uint64, _ model.Source) {
+		// Would deadlock if receivers ran under the write lock.
+		notified = append(notified, config.Get(key))
+	})
+
+	var applied []bool
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		applied = append(applied, config.Update("a", model.SourceAgentRuntime, func(interface{}) (interface{}, bool) { return 1, true }))
+		// Unchanged value: no notification.
+		applied = append(applied, config.Update("a", model.SourceAgentRuntime, func(interface{}) (interface{}, bool) { return 1, true }))
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Update deadlocked notifying receivers")
+	}
+	assert.Equal(t, []bool{true, true}, applied)
+	assert.Equal(t, []interface{}{1}, notified)
+}
+
+func TestUpdateRejectsNilCallback(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	assert.Panics(t, func() {
+		config.Update("a", model.SourceAgentRuntime, nil)
+	})
+	assert.Equal(t, 0, config.GetInt("a"))
+}
+
+func TestUpdateUnlocksAfterCallbackPanic(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	assert.Panics(t, func() {
+		config.Update("a", model.SourceAgentRuntime, func(interface{}) (interface{}, bool) {
+			panic("update failed")
+		})
+	})
+	config.Set("a", 1, model.SourceAgentRuntime)
+	assert.Equal(t, 1, config.GetInt("a"))
+}
+
+func TestUpdateSerializesConcurrentWriters(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	const writers = 100
+	var wg sync.WaitGroup
+	for range writers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			config.Update("a", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+				return current.(int) + 1, true
+			})
+		}()
+	}
+	wg.Wait()
+
+	assert.Equal(t, writers, config.GetInt("a"))
+}
+
 func TestParseEnvSplitComma(t *testing.T) {
 	t.Setenv("TEST_MY_LIST", "a,b,c")
 	t.Setenv("TEST_MY_LIST_2", "")

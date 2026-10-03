@@ -227,27 +227,52 @@ func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
+	c.set(key, newValue, source, nil)
+}
+
+// Update computes and writes a setting while holding the config write lock.
+func (c *ntmConfig) Update(key string, source model.Source, update func(interface{}) (interface{}, bool)) bool {
+	if update == nil {
+		panicInTest("Update callback must not be nil")
+		return false
+	}
+	return c.set(key, nil, source, update)
+}
+
+func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, update func(interface{}) (interface{}, bool)) bool {
 	if source == model.SourceEnvVar {
 		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
 	}
 	c.maybeRebuild()
 
 	c.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			c.Unlock()
+		}
+	}()
 
 	if !c.isKnownKey(key) {
 		if c.allowDynamicSchema.Load() {
 			_ = log.ErrorfStackDepth(2, "set value for unknown key '%s'", key)
 		} else {
 			_ = log.ErrorfStackDepth(2, "could not set '%s' unknown key", key)
-			c.Unlock()
-			return
+			return false
 		}
 	}
 	declaredNode := c.nodeAtPathFromNode(key, c.defaults)
 	if declaredNode.IsInnerNode() {
 		panicInTest("Key '%s' is partial path of a setting. 'Set' does not allow configuring multiple settings at once using maps", key)
-		c.Unlock()
-		return
+		return false
+	}
+	previousValue := c.leafAtPathFromNode(strings.ToLower(key), c.root).Get()
+	if update != nil {
+		var apply bool
+		newValue, apply = update(copyIfNeeded(c.valueAtOrBelowSource(strings.ToLower(key), source)))
+		if !apply {
+			return false
+		}
 	}
 
 	// convert the value to the type of the default
@@ -273,13 +298,10 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	// convert the key to lower case for the logs line and the notification
 	key = strings.ToLower(key)
 
-	previousValue := c.leafAtPathFromNode(key, c.root).Get()
-
 	newTree, err := c.insertValueIntoTree(key, newValue, source)
 	if err != nil {
 		_ = log.ErrorfStackDepth(2, "could not insert value: %s", err)
-		c.Unlock()
-		return
+		return false
 	} else if newTree != nil {
 		// a new node was allocated, merge it into root
 		c.root, _ = c.root.Merge(newTree)
@@ -292,11 +314,11 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	resolved := c.leafAtPathFromNode(key, c.root)
 	resolvedValue := resolved.Get()
 	resolvedSource := resolved.Source()
+	updateApplied := resolvedSource == source
 
 	// if no value has changed we don't notify
 	if reflect.DeepEqual(previousValue, resolvedValue) {
-		c.Unlock()
-		return
+		return updateApplied
 	}
 
 	c.sequenceID++
@@ -304,11 +326,13 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	// after unlocking.
 	sequenceID := c.sequenceID
 	c.Unlock()
+	locked = false
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
 		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID, "")
 	}
+	return updateApplied
 }
 
 func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source model.Source) (*nodeImpl, error) {
@@ -451,6 +475,23 @@ func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*no
 		}
 	}
 	return nil, ErrNotFound
+}
+
+// valueAtOrBelowSource returns source's own value for key, or else the closest lower layer's, so an
+// Update never builds on a layer above the one it writes. Must be called with the lock held.
+func (c *ntmConfig) valueAtOrBelowSource(key string, source model.Source) interface{} {
+	tree, err := c.getTreeBySource(source)
+	if err != nil {
+		// Not a writable layer (e.g. SourceSchema); the write fails later anyway.
+		return nil
+	}
+	if leaf := c.leafAtPathFromNode(key, tree); leaf != missingLeaf {
+		return leaf.Get()
+	}
+	if node, err := c.findPreviousSourceNode(key, source); err == nil {
+		return node.Get()
+	}
+	return nil
 }
 
 // UnsetForSource unsets a config entry for a given source

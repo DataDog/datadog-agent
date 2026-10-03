@@ -236,6 +236,15 @@ type EnvVarControl interface {
 // Writer is a subset of Config that only allows writing the configuration
 type Writer interface {
 	Set(key string, value interface{}, source Source)
+	// Update atomically computes and writes a setting while holding the config write lock. The
+	// callback receives a copy of source's own value, or the closest lower layer's if source has
+	// none (nil if no layer has one); layers above source are never seen. It must only do bounded
+	// in-memory work and must not call back into the config: the lock is not reentrant, so that
+	// deadlocks. Returning apply=false leaves the setting unchanged. Update returns true only if
+	// source determines the resolved value after the write; false also covers apply=false,
+	// unknown keys (outside dynamic-schema test mode), and writes shadowed by a higher-priority
+	// source.
+	Update(key string, source Source, update func(current interface{}) (value interface{}, apply bool)) bool
 	SetInTest(key string, value interface{})
 	UnsetForSource(key string, source Source)
 	// DirectBulkSet writes settings already resolved by another config, keeping each one in the

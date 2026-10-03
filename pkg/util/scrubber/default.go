@@ -46,6 +46,12 @@ func init() {
 // DefaultScrubber, but can be used to initialize other, custom scrubbers with
 // the default replacers.
 func AddDefaultReplacers(scrubber *Scrubber) {
+	delaFallbackReplacer := Replacer{
+		Regex:       regexp.MustCompile(`(?i)(\bfallback\s*=\s*)[^,)]*`),
+		Hints:       []string{"DELA("},
+		Repl:        []byte(`${1}********`),
+		LastUpdated: parseVersion("7.84.0"),
+	}
 	hintedAPIKeyReplacer := Replacer{
 		// If hinted, mask the value regardless if it doesn't match 32-char hexadecimal string
 		Regex: regexp.MustCompile(`(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{4})\b`),
@@ -239,6 +245,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 				if apiKey == "" {
 					return ""
 				}
+				apiKey = scrubber.ScrubLine(apiKey)
 				return HideKeyExceptLastChars(apiKey)
 			}
 			return defaultReplacement
@@ -346,6 +353,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	privateKeyReplacer.LastUpdated = parseVersion("7.76.0")
 
+	scrubber.AddReplacer(SingleLine, delaFallbackReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
 	scrubber.AddReplacer(SingleLine, prefixedAPPKeyReplacer)

@@ -44,6 +44,7 @@ go_library(
         "config_test_accessor.go",
         "config_windows.go",
         "constants_compat.go",
+        "delegated_auth_endpoints.go",
         "fixup_init.go",
         "otlp.go",
         "privateactionrunner.go",
@@ -87,6 +88,7 @@ dd_agent_go_test(
         "config_init_test.go",
         "config_secret_test.go",
         "config_test.go",
+        "delegated_auth_endpoints_test.go",
         "privateactionrunner_test.go",
         "process_test.go",
         "system_probe_test.go",
@@ -94,6 +96,7 @@ dd_agent_go_test(
     ],
     embed = [":setup"],
     deps = [
+        "//comp/core/delegatedauth/api/cloudauth/config",
         "//comp/core/delegatedauth/def",
         "//comp/core/delegatedauth/mock",
         "//comp/core/secrets/mock",
