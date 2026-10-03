@@ -51,7 +51,12 @@ The default value for a setting node.
 - **Mandatory:** yes, for all setting nodes. Mutually exclusive with `platform_default` (one or the other must be
   specified).
 
-The value must match the `type` of the setting.
+Non-null default values must match the `type` of the setting.
+
+For an optional string setting, `default: null` registers the key without supplying a
+value. The generated Go default is `nil`, so config-stream snapshots omit it until
+it is configured. Use this when the consuming process computes its own default;
+`default: ''` instead supplies an explicit empty string.
 
 ```yaml
 check_runners:

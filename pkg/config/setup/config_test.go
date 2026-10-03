@@ -929,6 +929,122 @@ data_plane:
 	})
 }
 
+func TestCheckRunnerConfiguration(t *testing.T) {
+	const adapters = `{"python":{"checksd":"/checks/python"},"custom_rust":{"adapter":"rust","checksd":"/checks/rust","options":{"enabled":true}}}`
+	const yamlConfig = `
+check_runner:
+  enabled: true
+  standalone_mode: true
+  api_listen_address: tcp://127.0.0.1:15200
+  secure_api_listen_address: tcp://127.0.0.1:15201
+  adapters_dir: /plugins
+  adapters:
+    python:
+      checksd: /checks/python
+    custom_rust:
+      adapter: rust
+      checksd: /checks/rust
+      options:
+        enabled: true
+  flush_interval_secs: 30
+  endpoints:
+    console:
+      enabled: true
+    ipc:
+      enabled: false
+      endpoint: http://127.0.0.1:15105
+`
+	settings := []struct {
+		key          string
+		defaultValue interface{}
+		envValue     string
+		want         interface{}
+	}{
+		{"enabled", false, "true", true},
+		{"standalone_mode", false, "true", true},
+		{"api_listen_address", "tcp://0.0.0.0:5200", "tcp://127.0.0.1:15200", "tcp://127.0.0.1:15200"},
+		{"secure_api_listen_address", "tcp://0.0.0.0:5201", "tcp://127.0.0.1:15201", "tcp://127.0.0.1:15201"},
+		{"adapters_dir", nil, "/plugins", "/plugins"},
+		{"adapters", map[string]interface{}{}, adapters, map[string]interface{}{
+			"python": map[string]interface{}{"checksd": "/checks/python"},
+			"custom_rust": map[string]interface{}{
+				"adapter": "rust", "checksd": "/checks/rust", "options": map[string]interface{}{"enabled": true},
+			},
+		}},
+		{"flush_interval_secs", 15, "30", 30},
+		{"endpoints.console.enabled", false, "true", true},
+		{"endpoints.ipc.enabled", true, "false", false},
+		{"endpoints.ipc.endpoint", "http://localhost:5105", "http://127.0.0.1:15105", "http://127.0.0.1:15105"},
+	}
+
+	for _, tc := range []struct {
+		name      string
+		source    pkgconfigmodel.Source
+		separator string
+	}{
+		{"defaults", pkgconfigmodel.SourceDefault, ""},
+		{"YAML", pkgconfigmodel.SourceFile, ""},
+		{"core Agent environment", pkgconfigmodel.SourceEnvVar, "_"},
+		{"ACR environment", pkgconfigmodel.SourceEnvVar, "__"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var environ []string
+			for _, setting := range settings {
+				for _, separator := range []string{"_", "__"} {
+					envVar := "DD_" + strings.ToUpper(strings.ReplaceAll("check_runner."+setting.key, ".", separator))
+					value := ""
+					if separator == tc.separator {
+						value = setting.envValue
+					}
+					t.Setenv(envVar, value)
+					environ = append(environ, envVar+"="+value)
+				}
+			}
+
+			fileConfig := ""
+			if tc.source == pkgconfigmodel.SourceFile {
+				fileConfig = yamlConfig
+			} else if tc.source == pkgconfigmodel.SourceEnvVar {
+				fileConfig = "check_runner:\n  flush_interval_secs: 5\n  endpoints:\n    ipc:\n      enabled: true\n"
+			}
+			cfg := confFromYAML(t, fileConfig)
+			assert.Empty(t, findUnknownEnvVars(cfg, environ, nil))
+
+			// The config stream consumes this map, including the adapters object as a single setting.
+			resolved, _ := cfg.AllFlattenedSettingsWithSequenceID()
+			for _, setting := range settings {
+				key := "check_runner." + setting.key
+				want := setting.want
+				if tc.source == pkgconfigmodel.SourceDefault {
+					want = setting.defaultValue
+				}
+				assert.Equal(t, tc.source, cfg.GetSource(key), key)
+				actual, exists := resolved[key]
+				require.True(t, exists, key)
+				// YAML and JSON environment parsing can use different concrete map types.
+				actualYAML, err := yaml.Marshal(actual)
+				require.NoError(t, err)
+				wantYAML, err := yaml.Marshal(want)
+				require.NoError(t, err)
+				assert.YAMLEq(t, string(wantYAML), string(actualYAML), key)
+			}
+			if tc.source == pkgconfigmodel.SourceDefault {
+				// Nil is skipped by config-stream snapshots, preserving ACR's executable-relative default.
+				assert.Nil(t, resolved["check_runner.adapters_dir"])
+				assert.False(t, cfg.IsConfigured("check_runner.adapters_dir"))
+			}
+		})
+	}
+}
+
+func TestCheckRunnerEnvPrecedence(t *testing.T) {
+	t.Setenv("DD_CHECK_RUNNER_FLUSH_INTERVAL_SECS", "0")
+	t.Setenv("DD_CHECK_RUNNER__FLUSH_INTERVAL_SECS", "30")
+	cfg := confFromYAML(t, "check_runner:\n  flush_interval_secs: 5\n")
+	assert.Equal(t, 0, cfg.GetInt("check_runner.flush_interval_secs"))
+	assert.Equal(t, pkgconfigmodel.SourceEnvVar, cfg.GetSource("check_runner.flush_interval_secs"))
+}
+
 func TestDataPlaneDefaults(t *testing.T) {
 	cfg := confFromYAML(t, "")
 
@@ -943,6 +1059,55 @@ func TestDataPlaneDefaults(t *testing.T) {
 	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.traces.enabled"))
 	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.metrics.enabled"))
 	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.logs.enabled"))
+}
+
+func TestDataPlaneChecksEnabled(t *testing.T) {
+	const key = "data_plane.checks.enabled"
+	const envVar = "DD_DATA_PLANE_CHECKS_ENABLED"
+
+	for _, tc := range []struct {
+		name       string
+		yamlConfig string
+		envValue   string
+		want       bool
+		source     pkgconfigmodel.Source
+	}{
+		{
+			name:   "disabled by default",
+			source: pkgconfigmodel.SourceDefault,
+		},
+		{
+			name:       "enabled via YAML",
+			yamlConfig: "data_plane:\n  checks:\n    enabled: true\n",
+			want:       true,
+			source:     pkgconfigmodel.SourceFile,
+		},
+		{
+			name:     "enabled via environment",
+			envValue: "true",
+			want:     true,
+			source:   pkgconfigmodel.SourceEnvVar,
+		},
+		{
+			name:       "environment overrides YAML",
+			yamlConfig: "data_plane:\n  checks:\n    enabled: true\n",
+			envValue:   "false",
+			source:     pkgconfigmodel.SourceEnvVar,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(envVar, tc.envValue)
+			cfg := confFromYAML(t, tc.yamlConfig)
+
+			assert.Equal(t, tc.want, cfg.GetBool(key))
+			assert.Equal(t, tc.source, cfg.GetSource(key))
+			assert.Empty(t, findUnknownEnvVars(cfg, []string{envVar + "=" + tc.envValue}, nil))
+
+			// The config stream builds its snapshot from these resolved settings.
+			settings, _ := cfg.AllFlattenedSettingsWithSequenceID()
+			assert.Equal(t, tc.want, settings[key])
+		})
+	}
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {

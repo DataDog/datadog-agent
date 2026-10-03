@@ -31,6 +31,7 @@ pkg_filegroup(
         "//packages/agent:linux_default": [
             "//deps/compile_policy:all_files",
             "//deps/security_agent_policies:all_files",
+            "//deps/agent_check_runner:all_files",
             "//deps/agent_data_plane:all_files",
             # This is really part of system-probe
             "@libpcap//:all_files",

@@ -185,6 +185,9 @@ def retrieve_default_value(node, name):
             durationValue = try_parse_duration(settingDefault)
             if durationValue is not None:
                 return durationValue
+        if settingDefault is None:
+            # An optional string must remain unset, not become an explicit empty value.
+            return 'nil'
         if isinstance(settingDefault, str):
             return f"\"{settingDefault}\""
 
