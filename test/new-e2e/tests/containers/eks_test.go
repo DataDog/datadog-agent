@@ -43,9 +43,9 @@ func TestEKSSuite(t *testing.T) {
 		kubernetesagentparams.WithHelmValues(containerHelmValues),
 	}
 
-	skipWindows, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)
-	require.NoError(t, err, "failed to get %s parameter", parameters.SkipWindows)
-	if !skipWindows {
+	windowsEnabled, err := runner.GetProfile().ParamStore().WindowsEnabled()
+	require.NoError(t, err, "failed to get %s parameter", parameters.RunWindows)
+	if windowsEnabled {
 		eksOptions = append(eksOptions, sceneks.WithWindowsNodeGroup())
 		agentOptions = append(agentOptions, kubernetesagentparams.WithWindowsImage())
 	}

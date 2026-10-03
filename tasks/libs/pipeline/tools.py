@@ -174,50 +174,61 @@ def trigger_agent_pipeline(
     branch="nightly",
     deploy=False,
     deploy_installer=False,
-    all_builds=False,
+    macos_build=False,
     e2e_tests=False,
     kmt_tests=False,
-    rc_build=False,
+    pipeline_type="",
     run_flaky_tests=False,
 ) -> ProjectPipeline:
     """
     Trigger a pipeline on the datadog-agent repositories. Multiple options are available:
-    - run a pipeline with all builds (by default, a pipeline only runs a subset of all available builds),
+    - run a pipeline with the macOS dmg build (by default, the dmg is only built on
+      the default branch and deploy pipelines),
     - run a pipeline with all e2e tests,
-    - run a pipeline with all end-to-end tests,
-    - run a deploy pipeline (includes all builds & e2e tests + uploads artifacts to staging repositories);
+    - run a pipeline with all Kernel Matrix Tests,
+    - run a deploy pipeline (includes all builds & tests + uploads artifacts to staging repositories);
     - run a pipeline that does not skip flaky tests (by default, known flaky tests are skipped).
+    - run a pipeline selected by a single variable with PIPELINE_TYPE ("light", "full" or
+      "full_deploy"); the workflow rules expand it into the individual RUN_*/DEPLOY_* variables.
     """
 
     ref = ref or get_default_branch()
-    args = {"TRIGGERED_PIPELINE": "true"}
+    args = {}
+
+    if pipeline_type:
+        if pipeline_type not in ("light", "full", "full_deploy"):
+            raise ValueError(
+                f"Invalid pipeline type: {pipeline_type!r}, must be one of 'light', 'full' or 'full_deploy'"
+            )
+        args["PIPELINE_TYPE"] = pipeline_type
 
     if deploy:
         args["DEPLOY_AGENT"] = "true"
     if deploy_installer:
         args["DEPLOY_INSTALLER"] = "true"
 
-    # The RUN_ALL_BUILDS option can be selectively enabled. However, it cannot be explicitly
-    # disabled on pipelines where they're activated by default (default branch & deploy pipelines)
-    # as that would make the pipeline fail (some jobs on the default branch and deploy pipelines depend
-    # on jobs that are only run if RUN_ALL_BUILDS is true).
-    if all_builds:
-        args["RUN_ALL_BUILDS"] = "true"
+    # When PIPELINE_TYPE is set, the workflow rules expand it into the individual
+    # RUN_*/DEPLOY_* variables; skip the individual toggles to avoid conflicting
+    # with the expansion.
+    if not pipeline_type:
+        # The RUN_MACOS_BUILD option can be selectively enabled. However, it cannot be explicitly
+        # disabled on pipelines where it's activated by default (default branch & deploy pipelines)
+        # as that would make the pipeline fail (some jobs on the default branch and deploy pipelines depend
+        # on jobs that are only run if RUN_MACOS_BUILD is true).
+        if macos_build:
+            args["RUN_MACOS_BUILD"] = "true"
 
-    # End to end tests can be selectively enabled, or disabled on pipelines where they're
-    # enabled by default (default branch and deploy pipelines).
-    if e2e_tests:
-        args["RUN_E2E_TESTS"] = "on"
-    else:
-        args["RUN_E2E_TESTS"] = "off"
+        # End to end tests can be selectively enabled, or disabled on pipelines where they're
+        # enabled by default (default branch and deploy pipelines).
+        if e2e_tests:
+            args["RUN_E2E_TESTS"] = "true"
+        else:
+            args["RUN_E2E_TESTS"] = "false"
 
-    args["RUN_KMT_TESTS"] = "on" if kmt_tests else "off"
+        args["RUN_KMT_TESTS"] = "true" if kmt_tests else "false"
 
     if branch is not None:
         args["BUCKET_BRANCH"] = branch
-
-    if rc_build:
-        args["RC_BUILD"] = "true"
 
     if run_flaky_tests:
         args["GO_TEST_SKIP_FLAKE"] = "false"

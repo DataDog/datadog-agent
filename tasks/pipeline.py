@@ -134,10 +134,10 @@ def run(
     repo_branch="dev",
     deploy=False,
     deploy_installer=False,
-    all_builds=True,
+    macos_build=True,
     e2e_tests=True,
     kmt_tests=True,
-    rc_build=False,
+    pipeline_type="",
     run_flaky_tests=False,
 ):
     """
@@ -145,17 +145,13 @@ def run(
     By default, this pipeline will run all builds & tests, including all kmt and e2e tests, but is not a deploy pipeline.
     Use --deploy to make this pipeline a deploy pipeline for the agent, which will upload artifacts to the staging repositories.
     Use --deploy-installer to make this pipeline a deploy pipeline for the installer, which will upload artifacts to the staging repositories.
-    Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
+    Use --no-macos-build to not build the macOS dmg on the pipeline (it is always built on the default branch and on deploy pipelines).
     Use --no-kmt-tests to not run all Kernel Matrix Tests on the pipeline.
     Use --e2e-tests to run all e2e tests on the pipeline.
     Use --run-flaky-tests to run tests that are marked as flaky (by default, known flaky tests are skipped).
-
-    Release Candidate related flags:
-    Use --rc-build to mark the build as Release Candidate. Staging k8s deployment PR will be created during the build pipeline.
-
-    By default, the pipeline builds both Agent 6 and Agent 7.
-    Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
-    (eg. '6' to build Agent 6 only, '6,7' to build both Agent 6 and Agent 7).
+    Use --pipeline-type <light|full|full_deploy> to select the pipeline with a single variable: it is
+    expanded by the workflow rules into the individual RUN_*/DEPLOY_* variables (takes precedence
+    over the individual --macos-build/--e2e-tests/--kmt-tests options).
 
     The --repo-branch option indicates which branch of the staging repository the packages will be deployed to (useful only on deploy pipelines).
 
@@ -175,6 +171,12 @@ def run(
     Run a pipeline with e2e tets on the current branch:
       dda inv pipeline.run --here --e2e-tests
 
+    Run a full pipeline (all tests & builds) on the current branch:
+      dda inv pipeline.run --here --pipeline-type full
+
+    Run a full deploy pipeline on the current branch:
+      dda inv pipeline.run --here --pipeline-type full_deploy
+
     Run a pipeline that includes flaky tests on the current branch:
       dda inv pipeline.run --here --run-flaky-tests
 
@@ -190,18 +192,24 @@ def run(
     if here:
         git_ref = get_current_branch(ctx)
 
-    if deploy or deploy_installer:
+    if pipeline_type and pipeline_type not in ("light", "full", "full_deploy"):
+        raise Exit(
+            f"ERROR: Invalid --pipeline-type {pipeline_type!r}, must be one of 'light', 'full' or 'full_deploy'.",
+            code=1,
+        )
+
+    if deploy or deploy_installer or pipeline_type == "full_deploy":
         # Check the validity of the deploy pipeline
         check_deploy_pipeline(repo_branch)
         # Force all builds and e2e tests to be run
-        if not all_builds:
+        if not macos_build:
             print(
                 color_message(
-                    "WARNING: ignoring --no-all-builds option, RUN_ALL_BUILDS is automatically set to true on deploy pipelines",
+                    "WARNING: ignoring --no-macos-build option, RUN_MACOS_BUILD is automatically set to true on deploy pipelines",
                     "orange",
                 )
             )
-            all_builds = True
+            macos_build = True
         if not e2e_tests:
             print(
                 color_message(
@@ -230,10 +238,10 @@ def run(
             repo_branch,
             deploy=deploy,
             deploy_installer=deploy_installer,
-            all_builds=all_builds,
+            macos_build=macos_build,
             e2e_tests=e2e_tests,
             kmt_tests=kmt_tests,
-            rc_build=rc_build,
+            pipeline_type=pipeline_type,
             run_flaky_tests=run_flaky_tests,
         )
     except FilteredOutException:

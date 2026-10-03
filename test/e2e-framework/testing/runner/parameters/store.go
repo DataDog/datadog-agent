@@ -55,6 +55,22 @@ func (s Store) GetIntWithDefault(key StoreKey, def int) (int, error) {
 	return getWithDefault(key, s.GetInt, def)
 }
 
+// WindowsEnabled returns whether Windows infrastructure and workloads should run.
+// It reads the RunWindows parameter (which defaults to true) and also honors the
+// legacy SkipWindows parameter (which defaults to false) for pipelines that still
+// set it directly: Windows run unless either parameter disables them.
+func (s Store) WindowsEnabled() (bool, error) {
+	runWindows, err := s.GetBoolWithDefault(RunWindows, true)
+	if err != nil {
+		return false, err
+	}
+	skipWindows, err := s.GetBoolWithDefault(SkipWindows, false)
+	if err != nil {
+		return false, err
+	}
+	return runWindows && !skipWindows, nil
+}
+
 func getWithDefault[T any](key StoreKey, getFunc func(StoreKey) (T, error), defaultValue T) (T, error) {
 	val, err := getFunc(key)
 	if err != nil {
