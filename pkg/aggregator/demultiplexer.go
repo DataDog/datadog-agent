@@ -90,6 +90,10 @@ type trigger struct {
 type flushTrigger struct {
 	trigger
 
+	// finalFlush retires check samplers after emitting their pending endpoints.
+	// This is independent of forceFlushAll, which controls DogStatsD buckets.
+	finalFlush bool
+
 	sketchesSink metrics.SketchesSink
 	seriesSink   metrics.SerieSink
 }
