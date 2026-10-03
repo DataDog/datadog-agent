@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 
 	"time"
 
@@ -52,12 +51,9 @@ type networkDeviceConfigImpl struct {
 
 	devices *DeviceMap
 
-	inventoryMaxInterval  time.Duration
-	lastInventoryReportAt time.Time
-	inventoryLock         sync.Mutex
-	clock                 clock.Clock
-	hostname              string
-	profiles              ncmprofile.Map
+	clock    clock.Clock
+	hostname string
+	profiles ncmprofile.Map
 
 	connect func(*ncmconfig.DeviceInstance) (ncmremote.Connection, error)
 }
@@ -75,22 +71,9 @@ func (n *networkDeviceConfigImpl) RegisterDevice(device *ncmconfig.DeviceInstanc
 	return n.devices.RegisterDevice(context.Background(), device, profile)
 }
 
-// SetMaxReportInterval sets a maximum time to wait between sending inventory
-// reports - if a check runs and doesn't find any new configs to report, but
-// it's been at least this long since the last time inventory was reported, we
-// will send an inventory report anyway.
-func (n *networkDeviceConfigImpl) SetMaxReportInterval(interval time.Duration) {
-	if n.inventoryMaxInterval != 0 && n.inventoryMaxInterval != interval {
-		n.log.Warnf("Changing inventory max interval from %v to %v - all check runners are supposed to agree on this", n.inventoryMaxInterval, interval)
-	}
-	n.inventoryMaxInterval = interval
-}
-
 // ReportConfig runs the NCM check - it fetches the running and startup config
-// and communicates them to the DD backend, along with an inventory report if
-// necessary. The inventory report will be included if the device had new
-// configuration, or if more than n.inventoryMaxInterval has elapsed since the
-// last time inventory was reported.
+// and sends them to the DD backend, along with an inventory report of the configs 
+// currently held in the local store for this device.
 func (n *networkDeviceConfigImpl) ReportConfig(ctx context.Context, deviceID string, baseSender sender.Sender) error {
 	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
 	log.Debug("Running config check.")
@@ -139,36 +122,30 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 		nonBlockingErrors = append(nonBlockingErrors, types.WrapErrorf(types.ErrMetadataSendFailed, "failed to send device metadata: %w", err))
 	}
 
-	configs, localStoreChanged, confErrs := retrieveAndStoreBothConfigs(ctx, dc, conn, n.store, sender)
+	configs, confErrs := retrieveAndStoreBothConfigs(ctx, dc, conn, n.store, sender)
 	nonBlockingErrors = append(nonBlockingErrors, confErrs...)
 
 	var inventoryEntries []ncmreport.InventoryEntry
-	timeSinceInventory := startTime.Sub(n.getLastInventoryTime())
-	hasStore := n.store != nil
-	if !hasStore {
+	var inventoryReportBuilt bool
+	if n.store == nil {
 		log.Debugf("rollback is disabled, so no inventory will be reported.")
-	} else if localStoreChanged {
-		log.Debugf("local configstore has updated, so inventory will be reported.")
-	} else if timeSinceInventory > n.inventoryMaxInterval {
-		log.Debugf("inventory hasn't been reported in %v > %v and so will be reported.", timeSinceInventory, n.inventoryMaxInterval)
 	} else {
-		log.Debugf("local config store unchanged since last report %v ago (< %v).", timeSinceInventory, n.inventoryMaxInterval)
-	}
-	if hasStore && (localStoreChanged || timeSinceInventory > n.inventoryMaxInterval) {
-		var err error
-		inventoryEntries, err = n.buildInventoryReport()
+		entry, err := n.buildInventoryReport(deviceID)
 		if err != nil {
 			log.Errorf("skipping inventory report due to error: %v", err)
+		} else {
+			inventoryEntries = []ncmreport.InventoryEntry{*entry}
+			inventoryReportBuilt = true
 		}
 	}
-	if len(configs)+len(inventoryEntries) > 0 {
+
+	inventoryEmpty := inventoryReportBuilt && len(inventoryEntries[0].ConfigID) == 0
+	if len(configs) > 0 || inventoryReportBuilt {
 		log.Debugf("Sending NCM payload with %d configs and %d inventory entries", len(configs), len(inventoryEntries))
-		err := sender.SendNCMPayload(ncmreport.ToNCMPayload(device.Namespace, n.hostname, configs, inventoryEntries, n.clock.Now().Unix()))
+		err := sender.SendNCMPayload(ncmreport.ToNCMPayload(device.Namespace, n.hostname, configs, inventoryEntries, inventoryEmpty, n.clock.Now().Unix()))
 		if err != nil {
 			log.Warnf("Failed to send payload to backend: %v", err)
 			nonBlockingErrors = append(nonBlockingErrors, types.WrapErrorf(types.ErrPayloadSendFailed, "failed to send payload to backend: %w", err))
-		} else if len(inventoryEntries) > 0 {
-			n.setLastInventoryTime(n.clock.Now())
 		}
 	} else {
 		log.Debugf("no new config and no need to send inventory data")
@@ -187,23 +164,30 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 	return fmt.Errorf("check completed but with errors: %v", errors.Join(nonBlockingErrors...))
 }
 
-func (n *networkDeviceConfigImpl) buildInventoryReport() ([]ncmreport.InventoryEntry, error) {
-	if n.store == nil {
-		return nil, nil
-	}
+// buildInventoryReport returns the inventory entry describing which configs
+// are currently held in the local store for deviceID.
+//
+// TODO: this still does a full scan over the whole store's metadata bucket,
+// since it isn't indexed by device - see the TODOs on ConfigStore about
+// adding a composite/prefix key. Scoping this to a single device doesn't
+// reduce that read cost by itself.
+func (n *networkDeviceConfigImpl) buildInventoryReport(deviceID string) (*ncmreport.InventoryEntry, error) {
 	configMeta, err := n.store.GetAllConfigMetadata()
 	if err != nil {
 		return nil, err
 	}
-	entries := make([]ncmreport.InventoryEntry, 0, len(configMeta))
+
+	var configIDs []string
 	for _, m := range configMeta {
-		entries = append(entries, ncmreport.InventoryEntry{
-			Namespace: m.GetNamespace(),
-			ConfigID:  m.ConfigUUID,
-			DeviceID:  m.DeviceID,
-		})
+		if m.DeviceID == deviceID {
+			configIDs = append(configIDs, m.ConfigUUID)
+		}
 	}
-	return entries, nil
+
+	return &ncmreport.InventoryEntry{
+		DeviceID: deviceID,
+		ConfigID: configIDs,
+	}, nil
 }
 
 // connectAndEnsureProfile connects to dc.device and sets the profile on the connection, calling findMatchingProfile if dc.profile is not yet set.
@@ -247,16 +231,4 @@ func (n *networkDeviceConfigImpl) findMatchingProfile(ctx context.Context, conn 
 		return prof, true
 	}
 	return nil, false
-}
-
-func (n *networkDeviceConfigImpl) getLastInventoryTime() time.Time {
-	n.inventoryLock.Lock()
-	defer n.inventoryLock.Unlock()
-	return n.lastInventoryReportAt
-}
-
-func (n *networkDeviceConfigImpl) setLastInventoryTime(now time.Time) {
-	n.inventoryLock.Lock()
-	defer n.inventoryLock.Unlock()
-	n.lastInventoryReportAt = now
 }

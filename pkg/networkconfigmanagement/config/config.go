@@ -28,7 +28,6 @@ import (
 var checkName = "network_config_management"
 var defaultCheckInterval = 15 * time.Minute
 var defaultSSHTimeout = 30 * time.Second
-var defaultInventoryReportMaxInterval = 1 * time.Hour
 
 // AuthCredentials holds the authentication credentials to connect to a network device.
 type AuthCredentials struct { // auth_credentials
@@ -61,10 +60,9 @@ func (di *DeviceInstance) DeviceID() string {
 
 // InitConfig holds the initial configuration for the NCM component, including the namespace and check interval.
 type InitConfig struct {
-	Namespace                  string        `yaml:"namespace"`                     // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
-	MinCollectionInterval      time.Duration `yaml:"min_collection_interval"`       // Interval in seconds to check for config changes
-	InventoryReportMaxInterval time.Duration `yaml:"inventory_report_max_interval"` // Slowest cadence (in seconds) for sending an inventory report; a report is also sent any time a new config is captured
-	SSH                        *SSHConfig    `yaml:"ssh"`                           // SSH holds global connection configurations that can apply to all devices if pertinent
+	Namespace             string        `yaml:"namespace"`               // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
+	MinCollectionInterval time.Duration `yaml:"min_collection_interval"` // Interval in seconds to check for config changes
+	SSH                   *SSHConfig    `yaml:"ssh"`                     // SSH holds global connection configurations that can apply to all devices if pertinent
 }
 
 // SSHConfig holds the configuration (either globally if in init config or for the specific device instance) to use when connecting to the configured device via SSH
@@ -86,9 +84,8 @@ type SSHConfig struct {
 
 // NcmCheckContext holds the processed config needed for an integration instance to run
 type NcmCheckContext struct {
-	Device                     *DeviceInstance
-	MinCollectionInterval      time.Duration
-	InventoryReportMaxInterval time.Duration
+	Device                *DeviceInstance
+	MinCollectionInterval time.Duration
 }
 
 // NewNcmCheckContext creates a new NcmCheckContext from raw instance and init config data
@@ -119,9 +116,8 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 
 	// Build the final context to send out
 	ncc := &NcmCheckContext{
-		MinCollectionInterval:      initConfig.MinCollectionInterval,
-		InventoryReportMaxInterval: initConfig.InventoryReportMaxInterval,
-		Device:                     &deviceInstance,
+		MinCollectionInterval: initConfig.MinCollectionInterval,
+		Device:                &deviceInstance,
 	}
 	return ncc, nil
 }
@@ -179,15 +175,6 @@ func (ic *InitConfig) applyDefaults() {
 		// was entered without units and parsed as nanoseconds.
 		ic.MinCollectionInterval *= time.Second
 	}
-	if ic.InventoryReportMaxInterval <= 0 {
-		log.Debugf("No or invalid inventory_report_max_interval specified in init config, applying default: %s", defaultInventoryReportMaxInterval)
-		ic.InventoryReportMaxInterval = defaultInventoryReportMaxInterval
-	} else if ic.InventoryReportMaxInterval < time.Millisecond {
-		// go-yaml parses a plain int (e.g. "30") as "30ns"; we want plain ints
-		// to be seconds. We assume that any time frame less than a millisecond
-		// was entered without units and parsed as nanoseconds.
-		ic.InventoryReportMaxInterval *= time.Second
-	}
 }
 
 // Validate checks that the InitConfig has all required fields and applies defaults where needed
@@ -200,10 +187,6 @@ func (ic *InitConfig) Validate() error {
 
 	if ic.MinCollectionInterval <= 0 {
 		return errors.New("min_collection_interval must be greater than zero")
-	}
-
-	if ic.InventoryReportMaxInterval <= 0 {
-		return errors.New("inventory_report_max_interval must be greater than 0")
 	}
 
 	// if SSH configs exist, ensure they're valid
