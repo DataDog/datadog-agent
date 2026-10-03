@@ -48,7 +48,11 @@ exports_files(glob(
     allow_empty = True,
 ))
 
-exports_files(["go.mod"])
+exports_files([
+    "go.mod",
+    "go.sum",
+    "go.work",
+])
 
 # TODO(ABLD-519): remove below `gazelle:exclude` directives
 # rc_tester_v1 imports gopkg.in/DataDog/dd-trace-go.v1, which is not part of the
