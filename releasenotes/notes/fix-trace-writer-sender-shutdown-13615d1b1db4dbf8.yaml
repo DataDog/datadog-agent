@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    The trace-agent payload sender now counts a payload as in-flight before it
+    is queued rather than after. Previously a synchronous flush or a sender
+    shutdown could observe an in-flight count of zero while a payload was
+    already queued, and return before that payload had been sent.
+  - |
+    Stopping a trace-agent payload sender now waits for its worker goroutines
+    to exit (up to five seconds) instead of returning as soon as the queue is
+    closed, and is safe to call more than once. Payloads handed to a sender
+    that is already stopped are returned to the payload pool instead of being
+    dropped without being recycled.
