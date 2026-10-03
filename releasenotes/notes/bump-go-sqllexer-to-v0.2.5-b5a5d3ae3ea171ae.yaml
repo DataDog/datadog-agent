@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    [DBM] Bump ``go-sqllexer`` to v0.2.5 to fix SQL obfuscation and normalization bugs:
+
+    - Fix truncated obfuscation of PostgreSQL strings containing backslashes
+      (`DataDog/go-sqllexer#110 <https://github.com/DataDog/go-sqllexer/pull/110>`_).
+    - Keep MySQL qualified identifiers such as ``db . table`` intact during normalization
+      (`DataDog/go-sqllexer#108 <https://github.com/DataDog/go-sqllexer/pull/108>`_).
