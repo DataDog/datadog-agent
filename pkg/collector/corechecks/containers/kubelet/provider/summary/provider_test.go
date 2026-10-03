@@ -645,7 +645,7 @@ func (suite *FilteringTestSuite) TestContainerNameFiltering() {
 	suite.setupFilteredTestData()
 
 	// Configure workload filter to exclude istio-proxy containers using config
-	suite.mockConfig.SetInTest("container_exclude", "name:istio-proxy")
+	suite.mockConfig.SetInTest("container_exclude", []string{"name:istio-proxy"})
 	suite.createProviderWithFilters()
 
 	// Provide metrics
@@ -668,7 +668,7 @@ func (suite *FilteringTestSuite) TestNamespaceFiltering() {
 	suite.setupFilteredTestData()
 
 	// Configure workload filter to exclude kube-system namespace pods using config
-	suite.mockConfig.SetInTest("container_exclude", "kube_namespace:kube-system")
+	suite.mockConfig.SetInTest("container_exclude", []string{"kube_namespace:kube-system"})
 	suite.createProviderWithFilters()
 
 	// Provide metrics
@@ -715,7 +715,7 @@ func (suite *FilteringTestSuite) TestSpecificImageNameFiltering() {
 	suite.setupFilteredTestData()
 
 	// Configure workload filter to exclude containers with specific image name
-	suite.mockConfig.SetInTest("container_exclude", "image:istio/proxy")
+	suite.mockConfig.SetInTest("container_exclude", []string{"image:istio/proxy"})
 	suite.createProviderWithFilters()
 
 	// Provide metrics

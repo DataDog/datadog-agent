@@ -1,0 +1,60 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "gke",
+    srcs = [
+        "detection.go",
+        "events.go",
+        "gke.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/gke",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log/def",
+        "//pkg/clusteragent/appsec/config",
+        "//pkg/util/kubernetes",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//tools/record",
+    ],
+)
+
+dd_agent_go_test(
+    name = "gke_test",
+    srcs = [
+        "detection_test.go",
+        "gke_test.go",
+    ],
+    embed = [":gke"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
+    deps = [
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//pkg/clusteragent/appsec/config",
+        "//pkg/util/kubernetes",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//dynamic/fake",
+        "@io_k8s_client_go//testing",
+        "@io_k8s_client_go//tools/record",
+    ],
+)

@@ -170,8 +170,8 @@ func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, 
 		portSet[k] = struct{}{}
 	}
 	created := ""
-	if lastHistory.Created != nil {
-		created = lastHistory.Created.Format(time.RFC3339Nano)
+	if imgConfig.Created != nil {
+		created = imgConfig.Created.Format(time.RFC3339Nano)
 	}
 
 	return dimage.InspectResponse{
@@ -355,7 +355,7 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 		}
 	}()
 
-	report, err := c.ScanFilesystem(ctx, imagePath, scanOptions, false)
+	report, err := c.scanFilesystem(ctx, imagePath, scanOptions, false, imgMeta.Created)
 	if err != nil {
 		return nil, fmt.Errorf("unable to scan image %s, err: %w", imgMeta.ID, err)
 	}

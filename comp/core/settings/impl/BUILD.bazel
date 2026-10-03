@@ -16,7 +16,7 @@ go_library(
         "//pkg/util/scrubber",
         "@com_github_json_iterator_go//:go",
         "@com_github_mohae_deepcopy//:deepcopy",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 

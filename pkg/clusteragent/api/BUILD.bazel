@@ -17,6 +17,7 @@ go_library(
         "//pkg/util/kubernetes/apiserver/leaderelection",
         "//pkg/util/log",
         "//pkg/util/log/setup",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/ext",
         "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
         "@com_github_prometheus_client_golang//prometheus",
     ],

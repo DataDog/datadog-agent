@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Autodiscovery now reports the check configuration keys it ignores when
+    several annotation or label formats are set on the same entity. Only the
+    format with the highest priority is applied (``checks``, then
+    ``check_names`` with ``init_configs`` and ``instances``, then the legacy
+    ``service-discovery.datadoghq.com`` prefix), and the others used to be
+    discarded silently. The ignored keys are now listed in the Autodiscovery
+    section of the ``agent status`` output.

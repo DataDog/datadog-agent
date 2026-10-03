@@ -5,6 +5,7 @@
 #include "helpers/approvers.h"
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) trace__sys_link(void *ctx, u8 async, const char *oldpath, const char *newpath) {
@@ -157,8 +158,7 @@ int rethook_lookup_one_qstr_excl(ctx_t *ctx) {
 
 int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
-        pop_syscall(EVENT_LINK);
-        return 0;
+        goto pop_and_exit;
     }
 
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
@@ -199,6 +199,7 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, enum TAIL
         resolve_dentry(ctx, prog_type);
     }
 
+pop_and_exit:
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_LINK);
     return 0;
@@ -230,8 +231,8 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_link_exit, struct tracepoint_raw_syscalls_sy
     return sys_link_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
-int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_LINK);
+int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
         return 0;
     }
@@ -239,34 +240,37 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
     s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
+        goto pop_and_exit;
     }
 
-    struct link_event_t event = {
-        .event.type = EVENT_LINK,
-        .event.timestamp = bpf_ktime_get_ns(),
-        .syscall.retval = retval,
-        .syscall_ctx.id = syscall->ctx_id,
-        .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
-        .source = syscall->link.src_file,
-        .target = syscall->link.target_file,
-    };
+    struct link_event_t *event = SPAN_FILL_EVENT(struct link_event_t, EVENT_LINK);
+    if (!event) {
+        goto pop_and_exit;
+    }
+    event->syscall.retval = retval;
+    event->syscall_ctx.id = syscall->ctx_id;
+    event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
+    event->source = syscall->link.src_file;
+    event->target = syscall->link.target_file;
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    pop_syscall(EVENT_LINK);
 
-    send_event(ctx, EVENT_LINK, event);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
+    span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_LINK);
     return 0;
 }
 
 TAIL_CALL_FNC(dr_link_dst_callback, ctx_t *ctx) {
-    return dr_link_dst_callback(ctx);
+    return dr_link_dst_callback(ctx, KPROBE_OR_FENTRY_TYPE);
 }
 
 TAIL_CALL_TRACEPOINT_FNC(dr_link_dst_callback, struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_link_dst_callback(args);
+    return dr_link_dst_callback(args, TRACEPOINT_TYPE);
 }
 
 #endif

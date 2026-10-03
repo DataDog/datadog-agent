@@ -98,6 +98,10 @@ type spLiteExecCmd struct {
 	Env  []string
 }
 
+// These are supplied for testability.
+type spliteExecFunc func(string, []string, []string) error
+type spliteExecutableFunc func() (string, error)
+
 // configPrefix is the system-probe config namespace (avoids importing pkg/system-probe/config and its setup dependency cycle).
 const configPrefix = "system_probe_config."
 
@@ -114,6 +118,12 @@ const configSyncTimeout = 10 * time.Second
 
 // Commands returns a slice of subcommands for the 'system-probe' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	return commands(globalParams, spliteExecFunc(syscall.Exec), spliteExecutableFunc(os.Executable))
+}
+
+// commands allows tests to intercept the system-probe-lite handoff while
+// exercising the same Fx options as the production command.
+func commands(globalParams *command.GlobalParams, execFn spliteExecFunc, executableFn spliteExecutableFunc) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
@@ -126,6 +136,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Invoke(func(_ log.Component) {
 					ddruntime.SetMaxProcs()
 				}),
+				fx.Supply(execFn),
+				fx.Supply(executableFn),
+				fx.Invoke(tryExecSPLite),
 				fx.Supply(config.NewAgentParams(
 					globalParams.DatadogConfFilePath(),
 					config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
@@ -142,6 +155,23 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runCmd.Flags().StringVarP(&cliParams.pidfilePath, "pid", "p", "", "path to the pidfile")
 
 	return []*cobra.Command{runCmd}
+}
+
+// tryExecSPLite checks for a system-probe-lite handoff while Fx is
+// building the application, to do it as early as possible. It runs before
+// fxutil.OneShot starts lifecycle hooks for the full system-probe graph. Using
+// the graph's config components means an active config stream applies its
+// initial snapshot before this decision, and config loading errors still abort
+// startup normally. Resolving pid.Component writes and validates the PID file
+// that system-probe-lite will remove on exit.
+func tryExecSPLite(sysConfig sysprobeconfig.Component, _ pid.Component, pidParams pidimpl.Params, logger log.Component, executableFn spliteExecutableFunc, execFn spliteExecFunc) {
+	if cmd := maybeSPLite(sysConfig, pidParams.PIDfilePath, logger, executableFn); cmd != nil {
+		logger.Infof("execing into system-probe-lite: %s %v", cmd.Path, cmd.Args)
+		logger.Flush()
+		if err := execFn(cmd.Path, cmd.Args, cmd.Env); err != nil {
+			logger.Warnf("failed to exec into system-probe-lite: %s, falling back to running discovery in system-probe", err)
+		}
+	}
 }
 
 func getSharedFxOption() fx.Option {
@@ -223,17 +253,8 @@ func run(
 	_ autoexit.Component,
 	settings settings.Component,
 	_ ipc.Component,
-	pidParams pidimpl.Params,
 	deps module.FactoryDependencies,
 ) error {
-	if cmd := maybeSPLite(deps.SysprobeConfig, pidParams.PIDfilePath, deps.Log); cmd != nil {
-		deps.Log.Infof("execing into system-probe-lite: %s %v", cmd.Path, cmd.Args)
-		deps.Log.Flush()
-		if err := syscall.Exec(cmd.Path, cmd.Args, cmd.Env); err != nil {
-			deps.Log.Warnf("failed to exec into system-probe-lite: %s, falling back to running discovery in system-probe", err)
-		}
-	}
-
 	defer stopSystemProbe()
 
 	if deps.SysprobeConfig.GetBool("system_probe_config.disable_thp") {

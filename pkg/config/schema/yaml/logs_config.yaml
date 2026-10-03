@@ -139,7 +139,6 @@ properties:
       batch of logs before sending.
     tags:
     - generate_const:DefaultBatchWait
-    - golang_type:float64
   close_timeout:
     node_type: setting
     type: integer
@@ -316,8 +315,6 @@ properties:
         node_type: setting
         type: number
         default: 0.75
-        tags:
-        - golang_type:float64
       pattern_table_max_size:
         node_type: setting
         type: integer
@@ -337,8 +334,6 @@ properties:
         node_type: setting
         type: number
         default: 0.5
-        tags:
-        - golang_type:float64
       tokenizer_max_input_bytes:
         node_type: setting
         type: integer
@@ -347,8 +342,6 @@ properties:
     node_type: setting
     type: number
     default: 0.48
-    tags:
-    - golang_type:float64
   auto_multi_line_default_match_timeout:
     node_type: setting
     type: integer
@@ -525,8 +518,6 @@ properties:
         node_type: setting
         type: number
         default: 1000
-        tags:
-        - golang_type:float64
         comment: Maximum burst allowance per pattern, measured in accumulated credits/logs.
       disabled_sources:
         node_type: setting
@@ -563,8 +554,6 @@ properties:
         node_type: setting
         type: number
         default: 0.9
-        tags:
-        - golang_type:float64
         comment: Fraction of tokens that must match for two logs to be treated as
           the same pattern.
       max_patterns:
@@ -583,8 +572,6 @@ properties:
         node_type: setting
         type: number
         default: 1
-        tags:
-        - golang_type:float64
         comment: Steady-state logs per second allowed for each matched pattern.
       smart_severity_profiles:
         node_type: section
@@ -606,8 +593,6 @@ properties:
                 node_type: setting
                 type: number
                 default: 1000
-                tags:
-                - golang_type:float64
               pass_through:
                 node_type: setting
                 type: boolean
@@ -616,8 +601,6 @@ properties:
                 node_type: setting
                 type: number
                 default: 1
-                tags:
-                - golang_type:float64
           medium:
             node_type: section
             type: object
@@ -626,8 +609,6 @@ properties:
                 node_type: setting
                 type: number
                 default: 1000
-                tags:
-                - golang_type:float64
               pass_through:
                 node_type: setting
                 type: boolean
@@ -636,8 +617,6 @@ properties:
                 node_type: setting
                 type: number
                 default: 1
-                tags:
-                - golang_type:float64
       tag_pattern_hash:
         node_type: setting
         type: boolean
@@ -665,8 +644,6 @@ properties:
     node_type: setting
     type: number
     default: 1
-    tags:
-    - golang_type:float64
     comment: Time in seconds
   fingerprint_config:
     node_type: section
@@ -730,8 +707,6 @@ properties:
     node_type: setting
     type: number
     default: 0.8
-    tags:
-    - golang_type:float64
     comment: Do not store logs on disk when the disk usage exceeds 80% of the disk
       capacity.
   k8s_container_use_file:
@@ -790,21 +765,18 @@ properties:
     default: 1
     tags:
     - generate_const:DefaultLogsSenderBackoffBase
-    - golang_type:float64
   sender_backoff_factor:
     node_type: setting
     type: number
     default: 2
     tags:
     - generate_const:DefaultLogsSenderBackoffFactor
-    - golang_type:float64
   sender_backoff_max:
     node_type: setting
     type: number
     default: 120
     tags:
     - generate_const:DefaultLogsSenderBackoffMax
-    - golang_type:float64
   sender_recovery_interval:
     node_type: setting
     type: integer
@@ -842,6 +814,55 @@ properties:
       additional config to ensure initial logs are tagged with kubelet tags
       wait (seconds) for tagger before start fetching tags of new AD services
       Disabled by default (0 seconds)
+  unreliable_mount:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Node-wide profile for log files on mounts with stale page-cache or file-handle
+      behavior during rotation, such as CIFS/SMB and Azure Files. It selects direct
+      fingerprint reads on Linux, smaller fingerprint defaults, a separate
+      rotation drain timeout, and a sequential handoff after rotation. Normal log
+      tailing keeps buffered reads.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Enable the unreliable-mount profile for all file log sources on this Agent.
+          Restart the Agent after changing this setting. On Linux, fingerprint reads
+          use O_DIRECT, including when a source overrides the checksum settings.
+          Other platforms keep buffered fingerprint reads.
+          If no global fingerprint strategy is explicitly set, use line_checksum with
+          one line. In line mode, global max_bytes defaults to 4096 unless explicitly
+          configured. Explicit checksum settings, including disabled, are preserved.
+          Use rotation_drain_timeout in place of close_timeout for rotated files.
+          After a rotation detected by fingerprint, the replacement tailer does not
+          open the path until the rotated tailer has closed it. The rotated tailer
+          stops once its file has gone 30 seconds without new reads, or at
+          rotation_drain_timeout. The path is not collected until then, so a file
+          rotated away sooner than that after the previous rotation is not read.
+          A failed fingerprint prevents a new tailer from starting. An active tailer
+          keeps collecting, but cannot check fingerprint rotation until a later read
+          succeeds. Failures appear in the Agent log and status; status clears on recovery.
+          Linux does not retry a failed direct read using buffered I/O.
+          Direct reads fetch the whole fingerprint window on each scan. Scan frequency
+          is unchanged; consider raising logs_config.file_scan_period to reduce I/O.
+      rotation_drain_timeout:
+        node_type: setting
+        type: integer
+        default: 60
+        visibility: public
+        description: |-
+          Maximum seconds a tailer keeps reading a rotated file through its
+          already-open descriptor before closing it, used in place of close_timeout
+          when unreliable_mount.enabled is true. A rotated file that a replacement
+          tailer is waiting on closes earlier, once it has gone 30 seconds without
+          new reads. On these mounts a fresh open of the
+          path can fail while the open descriptor still drains. Values at or below
+          zero use the 60-second default.
   use_http:
     node_type: setting
     type: boolean

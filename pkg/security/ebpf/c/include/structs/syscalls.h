@@ -13,6 +13,13 @@ struct syscall_monitor_key_t {
     u32 pid;
 };
 
+// syscall_sample_key_t: keyed by (exec_cookie, syscall_id), padded to 16 bytes.
+struct syscall_sample_key_t {
+    u64 exec_cookie;
+    u32 syscall_id;
+    u32 padding;
+};
+
 struct syscall_monitor_entry_t {
     char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
     u64 last_sent;
@@ -38,7 +45,8 @@ struct syscall_cache_t {
     struct dentry_resolver_input_t resolver;
     s64 retval;
     enum TAIL_CALL_PROG_TYPE prog_type;
-    u32 sample_cookie;
+    u32 sample_padding;
+    u64 sample_cookie;
 
     union {
         struct {
@@ -119,6 +127,7 @@ struct syscall_cache_t {
             int clone_mnt_ctr;
             int source;
             u64 ns_inum;
+            u64 unshare_flags;
         } mount;
 
         struct {
@@ -148,6 +157,7 @@ struct syscall_cache_t {
             struct args_envs_t envs;
             struct args_envs_parsing_context_t args_envs_ctx;
             struct span_context_t span_context;
+            struct go_labels_context_t go_labels;
             struct linux_binprm_t linux_binprm;
             u32 is_through_symlink;
         } exec;
@@ -298,6 +308,12 @@ struct syscall_cache_t {
             char suffix[TRACER_MEMFD_SUFFIX_LEN];
         } tracer_memfd_create;
     };
+};
+
+// Recovers the syscall cache key of a task whose pid numbers changed mid-execve.
+struct exec_pid_transfer_t {
+    u64 pid_tgid;
+    u64 task; // de_thread swaps the pid numbers, not the task
 };
 
 #endif

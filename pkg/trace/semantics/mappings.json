@@ -316,6 +316,16 @@
         }
       ]
     },
+    "url.template": {
+      "canonical": "url.template",
+      "fallbacks": [
+        {
+          "name": "url.template",
+          "provider": "otel",
+          "type": "string"
+        }
+      ]
+    },
     "http.status_code": {
       "canonical": "http.status_code",
       "fallbacks": [

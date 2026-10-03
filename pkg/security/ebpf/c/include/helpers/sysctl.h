@@ -32,7 +32,7 @@ __attribute__((always_inline)) struct sysctl_event_t *reset_sysctl_event() {
     // process, cgroup, span contexts
     struct proc_cache_t *entry = fill_process_context(&evt->process);
     fill_cgroup_context(entry, &evt->cgroup);
-    fill_span_context(&evt->span);
+    fill_span_context(&evt->span, &evt->go_labels);
 
     return evt;
 }

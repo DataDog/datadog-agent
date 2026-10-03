@@ -30,3 +30,36 @@ func TestGpuArchToString(t *testing.T) {
 		})
 	}
 }
+
+func TestPCIInfoToBusID(t *testing.T) {
+	tests := []struct {
+		name     string
+		pciInfo  nvml.PciInfo
+		expected string
+	}{
+		{
+			name: "typical Linux BDF",
+			pciInfo: nvml.PciInfo{
+				Domain: 0,
+				Bus:    0x65,
+				Device: 0,
+			},
+			expected: "0000:65:00.0",
+		},
+		{
+			name: "domain wider than four hex digits",
+			pciInfo: nvml.PciInfo{
+				Domain: 0x12345,
+				Bus:    0xab,
+				Device: 0x1e,
+			},
+			expected: "12345:ab:1e.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, PCIInfoToBusID(tt.pciInfo))
+		})
+	}
+}

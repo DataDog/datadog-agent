@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Autodiscovery: a negative index in the ``%%port_<index>%%`` template
+    variable (for example ``%%port_-1%%``) no longer crashes the Agent.
+    Negative indexes are now resolved Python-style, ``-1`` being the last
+    port, ``-2`` the second to last, and so on, wrapping around the list of
+    ports so that indexes beyond the number of ports still resolve.

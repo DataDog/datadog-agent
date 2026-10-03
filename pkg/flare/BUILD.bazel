@@ -15,6 +15,7 @@ go_library(
         "archive_nolinux.go",
         "archive_notaix.go",
         "archive_win.go",
+        "certificates.go",
         "config_check.go",
         "flare.go",
         "runtime_debug.go",
@@ -53,7 +54,7 @@ go_library(
         "//pkg/util/option",
         "@com_github_fatih_color//:color",
         "@com_github_moby_moby_client//:client",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ] + select({
@@ -80,6 +81,7 @@ dd_agent_go_test(
     srcs = [
         "archive_docker_test.go",
         "archive_test.go",
+        "certificates_test.go",
         "config_check_test.go",
         "runtime_debug_test.go",
         "service_windows_test.go",
@@ -125,7 +127,7 @@ dd_agent_go_test(
         "@com_github_fatih_color//:color",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:windows": [

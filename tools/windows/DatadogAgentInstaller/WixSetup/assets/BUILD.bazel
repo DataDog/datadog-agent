@@ -2,6 +2,7 @@ exports_files(
     ["project.ico"],
     visibility = [
         "//cmd:__subpackages__",
+        "//pkg/privateactionrunner:__subpackages__",
         "//pkg/procmgr:__subpackages__",
     ],
 )

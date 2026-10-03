@@ -24,21 +24,21 @@ func Test_resolveProfiles(t *testing.T) {
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
 	mockConfig.SetInTest("confd_path", defaultTestConfdPath)
 	defaultTestConfdProfiles := ProfileConfigMap{}
-	userTestConfdProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
+	userTestConfdProfiles, legacyProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
-	require.False(t, haveLegacyProfile)
+	require.Empty(t, legacyProfiles)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
 	mockConfig.SetInTest("confd_path", profilesWithInvalidExtendConfdPath)
-	profilesWithInvalidExtendProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
+	profilesWithInvalidExtendProfiles, legacyProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
-	require.False(t, haveLegacyProfile)
+	require.Empty(t, legacyProfiles)
 
 	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_cyclic.d"))
 	mockConfig.SetInTest("confd_path", invalidCyclicConfdPath)
-	invalidCyclicProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
+	invalidCyclicProfiles, legacyProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
-	require.False(t, haveLegacyProfile)
+	require.Empty(t, legacyProfiles)
 
 	profileWithInvalidExtendsFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "profile_with_invalid_extends.yaml"))
 	profileWithInvalidExtends, haveLegacyProfile, err := readProfileDefinition(profileWithInvalidExtendsFile)
@@ -52,12 +52,12 @@ func Test_resolveProfiles(t *testing.T) {
 
 	userProfilesCaseConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
 	mockConfig.SetInTest("confd_path", userProfilesCaseConfdPath)
-	userProfilesCaseUserProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
+	userProfilesCaseUserProfiles, legacyProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
-	require.False(t, haveLegacyProfile)
-	userProfilesCaseDefaultProfiles, haveLegacyProfile, err := getProfileDefinitions(defaultProfilesFolder, true)
+	require.Empty(t, legacyProfiles)
+	userProfilesCaseDefaultProfiles, legacyProfiles, err := getProfileDefinitions(defaultProfilesFolder, true)
 	require.NoError(t, err)
-	require.False(t, haveLegacyProfile)
+	require.Empty(t, legacyProfiles)
 
 	tests := []struct {
 		name                    string

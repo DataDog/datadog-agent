@@ -34,7 +34,7 @@ func TestChdir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFolder, _, err := test.Path("test-chdir")
 	if err != nil {

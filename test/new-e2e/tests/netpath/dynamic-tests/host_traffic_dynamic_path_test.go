@@ -59,7 +59,7 @@ services:
     privileged: true
     ports:
     - 80:8080/tcp
-    image: ghcr.io/datadog/apps-go-httpbin:{APPS_VERSION}
+    image: ${DD_APPS_REGISTRY:-ghcr.io/datadog}/apps-go-httpbin:{APPS_VERSION}
     container_name: httpbin
     volumes: []
     environment: {}
@@ -94,10 +94,10 @@ type hostTrafficDynamicPathSuite struct {
 
 // TestHostTrafficDynamicPathSuite runs Network Path Dynamic Tests backed by host NPM traffic.
 func TestHostTrafficDynamicPathSuite(t *testing.T) {
-	e2e.Run(t, &hostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("hostTrafficDynamicPath", hostTrafficDynamicPathAgentConfig)))
+	e2e.Run(t, &hostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("hostTrafficDynamicPath", hostTrafficDynamicPathAgentConfig, hostTrafficSystemProbeConfig)))
 }
 
-func hostTrafficDynamicPathProvisioner(name, agentConfig string) provisioners.Provisioner {
+func hostTrafficDynamicPathProvisioner(name, agentConfig, systemProbeConfig string) provisioners.Provisioner {
 	return provisioners.NewTypedPulumiProvisioner[hostTrafficDynamicPathEnv](name, func(ctx *pulumi.Context, env *hostTrafficDynamicPathEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -108,7 +108,7 @@ func hostTrafficDynamicPathProvisioner(name, agentConfig string) provisioners.Pr
 			ec2.WithName("hosttrafficdynamicpathvm"),
 			ec2.WithAgentOptions(
 				agentparams.WithAgentConfig(agentConfig),
-				agentparams.WithSystemProbeConfig(hostTrafficSystemProbeConfig),
+				agentparams.WithSystemProbeConfig(systemProbeConfig),
 			),
 		)
 		if err := ec2.Run(ctx, awsEnv, env, params); err != nil {
@@ -211,6 +211,8 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 		assert.Equal(c, payload.PathOriginNetworkTraffic, match.Origin)
 		assert.Equal(c, payload.SourceProductNetworkPath, match.SourceProduct)
 		assert.Equal(c, payload.TestRunTypeDynamic, match.TestRunType)
+		assert.Equal(c, payload.DynamicTestProfileStandard, match.DynamicTestProfile)
+		assert.Empty(c, match.DynamicTestClass)
 		assert.Equal(c, payload.CollectorTypeAgent, match.CollectorType)
 		assert.Equal(c, payload.ProtocolTCP, match.Protocol)
 		assert.Equal(c, hostTrafficRemoteConfigDomain, match.Destination.Hostname)

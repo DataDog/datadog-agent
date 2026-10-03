@@ -14,6 +14,14 @@ use tonic::transport::Channel;
 // Code::Cancelled instead of hanging a dispatch.
 const PROCMGR_RPC_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// Executor lifecycle operations the orchestrator relies on. A trait so the
+/// orchestrator can be tested without a real process manager.
+pub trait ExecutorLifecycle: Send + Sync + 'static {
+    fn ensure_started(&self) -> impl std::future::Future<Output = Result<()>> + Send;
+    /// For fail-and-report: exited/crashed/failed.
+    fn has_exited(&self) -> impl std::future::Future<Output = Result<bool>> + Send;
+}
+
 #[derive(Clone)]
 pub struct ProcmgrLifecycle {
     client: ProcessManagerClient<Channel>,
@@ -66,12 +74,14 @@ impl ProcmgrLifecycle {
         }
     }
 
-    /// Whether the executor exited or failed. A missing definition is also gone.
+    /// Whether the executor exited, crashed or failed. A missing definition is
+    /// also gone.
     pub async fn has_exited(&self) -> Result<bool> {
         match self.describe_state().await? {
-            None | Some(procmgr::ProcessState::Exited) | Some(procmgr::ProcessState::Failed) => {
-                Ok(true)
-            }
+            None
+            | Some(procmgr::ProcessState::Exited)
+            | Some(procmgr::ProcessState::Crashed)
+            | Some(procmgr::ProcessState::Failed) => Ok(true),
             Some(procmgr::ProcessState::Unknown) => bail!(
                 "process-manager reports an unknown state for {:?}",
                 self.process_name
@@ -108,6 +118,16 @@ impl ProcmgrLifecycle {
                     .context("process-manager returned an unknown process state")
             })
             .transpose()
+    }
+}
+
+impl ExecutorLifecycle for ProcmgrLifecycle {
+    async fn ensure_started(&self) -> Result<()> {
+        ProcmgrLifecycle::ensure_started(self).await
+    }
+
+    async fn has_exited(&self) -> Result<bool> {
+        ProcmgrLifecycle::has_exited(self).await
     }
 }
 
@@ -171,6 +191,7 @@ mod tests {
             (FakeProcmgr::in_state(procmgr::ProcessState::Running), false),
             (FakeProcmgr::in_state(procmgr::ProcessState::Stopped), false),
             (FakeProcmgr::in_state(procmgr::ProcessState::Exited), true),
+            (FakeProcmgr::in_state(procmgr::ProcessState::Crashed), true),
             (FakeProcmgr::in_state(procmgr::ProcessState::Failed), true),
             (FakeProcmgr::vanished(), true),
         ] {

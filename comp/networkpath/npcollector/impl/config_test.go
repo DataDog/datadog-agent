@@ -30,10 +30,10 @@ func TestNetworkPathCollectorEnabled(t *testing.T) {
 	config.connectionsMonitoringEnabled = false
 	assert.False(t, config.networkPathCollectorEnabled())
 
-	config.baselineTestsEnabled = true
+	config.basicTestsEnabled = true
 	assert.True(t, config.networkPathCollectorEnabled())
 
-	config.baselineTestsEnabled = false
+	config.basicTestsEnabled = false
 	config.netflowMonitoringEnabled = true
 	assert.True(t, config.networkPathCollectorEnabled())
 }
@@ -51,7 +51,9 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedConfig: &collectorConfigs{
 				connectionsMonitoringEnabled: false,
-				baselineTestsEnabled:         false,
+				basicTestsEnabled:            false,
+				basicCandidateLimit:          basicCandidateLimit,
+				basicSelectionLimit:          basicSelectionsPerWindow,
 				netflowMonitoringEnabled:     false,
 				workers:                      4,
 				timeout:                      1000 * time.Millisecond,
@@ -125,7 +127,9 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedConfig: &collectorConfigs{
 				connectionsMonitoringEnabled: false,
-				baselineTestsEnabled:         false,
+				basicTestsEnabled:            false,
+				basicCandidateLimit:          basicCandidateLimit,
+				basicSelectionLimit:          basicSelectionsPerWindow,
 				netflowMonitoringEnabled:     false,
 				workers:                      8,
 				timeout:                      5000 * time.Millisecond,
@@ -180,6 +184,35 @@ func TestNewConfig(t *testing.T) {
 	}
 }
 
+func TestEUDMBasicConfig(t *testing.T) {
+	tests := []struct {
+		name           string
+		overrides      map[string]any
+		enabled        bool
+		candidateLimit int
+	}{
+		{name: "default on", overrides: map[string]any{"infrastructure_mode": "end_user_device"}, enabled: true, candidateLimit: 80},
+		{name: "explicit off", overrides: map[string]any{"infrastructure_mode": "end_user_device", "network_path.connections_monitoring.eudm_basic_tests_enabled": false}, candidateLimit: basicCandidateLimit},
+		{name: "custom capacity", overrides: map[string]any{"infrastructure_mode": "end_user_device", "network_path.connections_monitoring.eudm_basic_candidate_limit": 40}, enabled: true, candidateLimit: 40},
+		{name: "below minimum", overrides: map[string]any{"infrastructure_mode": "end_user_device", "network_path.connections_monitoring.eudm_basic_candidate_limit": 19}, enabled: true, candidateLimit: 80},
+		{name: "above maximum", overrides: map[string]any{"infrastructure_mode": "end_user_device", "network_path.connections_monitoring.eudm_basic_candidate_limit": 513}, enabled: true, candidateLimit: 80},
+		{name: "CNM flag ignored in EUDM", overrides: map[string]any{"infrastructure_mode": "end_user_device", "network_path.connections_monitoring.eudm_basic_tests_enabled": false, "network_path.connections_monitoring.basic_tests_enabled": true}, candidateLimit: basicCandidateLimit},
+		{name: "EUDM flag ignored in CNM", overrides: map[string]any{"network_path.connections_monitoring.eudm_basic_tests_enabled": true}, candidateLimit: basicCandidateLimit},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := newConfig(config.NewMockWithOverrides(t, test.overrides), logmock.New(t))
+			assert.Equal(t, test.enabled, cfg.basicModeEnabled())
+			assert.Equal(t, test.candidateLimit, cfg.basicCandidateLimit)
+			if test.enabled {
+				assert.Equal(t, eudmBasicSelectionsPerWindow, cfg.basicSelectionLimit)
+			} else {
+				assert.Equal(t, basicSelectionsPerWindow, cfg.basicSelectionLimit)
+			}
+		})
+	}
+}
+
 func TestNewConfigInvalidFilters(t *testing.T) {
 	// Test with invalid filter configuration that will cause unmarshalling error
 	mockConfig := config.NewMockWithOverrides(t, map[string]any{
@@ -193,4 +226,31 @@ func TestNewConfigInvalidFilters(t *testing.T) {
 	require.NotNil(t, result)
 
 	assert.Empty(t, result.filterConfig)
+}
+
+func TestNewConfigFiltersFromEnv(t *testing.T) {
+	t.Setenv("DD_NETWORK_PATH_COLLECTOR_FILTERS", `[
+		{"match_domain":"*.example.com","type":"exclude"},
+		{"match_domain":"^api-[0-9]+\\.example\\.com$","match_domain_strategy":"regex","type":"include"},
+		{"match_ip":"10.0.0.0/8","type":"exclude"}
+	]`)
+
+	mockConfig := config.NewMock(t)
+	result := newConfig(mockConfig, logmock.New(t))
+
+	require.Equal(t, []connfilter.Config{
+		{
+			Type:        connfilter.FilterTypeExclude,
+			MatchDomain: "*.example.com",
+		},
+		{
+			Type:                connfilter.FilterTypeInclude,
+			MatchDomain:         `^api-[0-9]+\.example\.com$`,
+			MatchDomainStrategy: connfilter.MatchDomainStrategyRegex,
+		},
+		{
+			Type:    connfilter.FilterTypeExclude,
+			MatchIP: "10.0.0.0/8",
+		},
+	}, result.filterConfig)
 }

@@ -6,23 +6,49 @@
 package setup
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPrivateActionRunnerApiKeyOnlyEnrollmentDefaultFalse(t *testing.T) {
+func TestPrivateActionRunnerSplitModeDefaultsOnSupportedHosts(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "")
+
 	cfg := newTestConf(t)
 
-	assert.False(t, cfg.GetBool(PARApiKeyOnlyEnrollment))
+	assert.Equal(t, runtime.GOOS == "linux" || runtime.GOOS == "windows", cfg.GetBool("private_action_runner.split_enabled"))
 }
 
-func TestPrivateActionRunnerApiKeyOnlyEnrollmentFromEnv(t *testing.T) {
-	t.Setenv("DD_PRIVATE_ACTION_RUNNER_API_KEY_ONLY_ENROLLMENT", "true")
+func TestPrivateActionRunnerSplitModeDefaultsOffInContainers(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "true")
 
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.GetBool("private_action_runner.split_enabled"))
+}
+
+func TestPrivateActionRunnerSplitModeCanBeDisabledOnHosts(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "")
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "false")
+
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.GetBool("private_action_runner.split_enabled"))
+}
+
+func TestPrivateActionRunnerApiKeyOnlyEnrollmentDefaultTrue(t *testing.T) {
 	cfg := newTestConf(t)
 
 	assert.True(t, cfg.GetBool(PARApiKeyOnlyEnrollment))
+}
+
+func TestPrivateActionRunnerApiKeyOnlyEnrollmentFromEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_API_KEY_ONLY_ENROLLMENT", "false")
+
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.GetBool(PARApiKeyOnlyEnrollment))
 }
 
 func TestPrivateActionRunnerActionsAllowlistFromEnv(t *testing.T) {
@@ -195,6 +221,22 @@ func TestPrivateActionRunnerRestrictedShellAllowedCommandsJSONArrayEnv(t *testin
 			assert.Equal(t, tc.want, cfg.GetStringSlice(PARRestrictedShellAllowedCommands))
 		})
 	}
+}
+
+func TestPrivateActionRunnerRestrictedShellDisableDetailedTelemetryUnsetByDefault(t *testing.T) {
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.IsConfigured(PARRestrictedShellDisableDetailedTelemetry))
+	assert.False(t, cfg.GetBool(PARRestrictedShellDisableDetailedTelemetry))
+}
+
+func TestPrivateActionRunnerRestrictedShellDisableDetailedTelemetryFromEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_DISABLE_DETAILED_TELEMETRY", "true")
+
+	cfg := newTestConf(t)
+
+	assert.True(t, cfg.IsConfigured(PARRestrictedShellDisableDetailedTelemetry))
+	assert.True(t, cfg.GetBool(PARRestrictedShellDisableDetailedTelemetry))
 }
 
 // TestPrivateActionRunnerRestrictedShellAllowedPathsInvalidJSONEnv pins

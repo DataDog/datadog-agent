@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "otelprocessctx",
+    srcs = [
+        "attributes.go",
+        "process_ctx.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/otelprocessctx",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/probe/procfs",
+            "@io_opentelemetry_go_proto_slim_otlp//common/v1:common",
+            "@io_opentelemetry_go_proto_slim_otlp_processcontext_v1development//:v1development",
+            "@org_golang_google_protobuf//proto",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/probe/procfs",
+            "@io_opentelemetry_go_proto_slim_otlp//common/v1:common",
+            "@io_opentelemetry_go_proto_slim_otlp_processcontext_v1development//:v1development",
+            "@org_golang_google_protobuf//proto",
+        ],
+        "//conditions:default": [],
+    }),
+)

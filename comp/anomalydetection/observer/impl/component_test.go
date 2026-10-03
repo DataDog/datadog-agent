@@ -62,7 +62,7 @@ func (l *testLifecycle) Append(h compdef.Hook) {
 func requireNoObserverMetricFamilies(t *testing.T, telemetryComp telemetry.Component) {
 	t.Helper()
 
-	metricFamilies, err := telemetryComp.Gather(false)
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 
 	for _, family := range metricFamilies {
@@ -115,9 +115,7 @@ anomaly_detection:
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.NewFromYAML(t, tc.yaml)
 			lc := &testLifecycle{}
-			telComp := telemetryimpl.GetCompatComponent()
-			telComp.Reset()
-			t.Cleanup(telComp.Reset)
+			telComp := telemetryimpl.NewMock(t)
 
 			_, err := NewComponent(Requires{
 				Lifecycle: lc,
@@ -141,9 +139,7 @@ anomaly_detection:
         source: dogstatsd
 `)
 	lc := &testLifecycle{}
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	provides, err := NewComponent(Requires{
 		Lifecycle: lc,
@@ -205,12 +201,30 @@ anomaly_detection:
 			provides, err := NewComponent(Requires{
 				Lifecycle: &testLifecycle{},
 				Config:    cfg,
+				Telemetry: telemetryimpl.NewMock(t),
 			})
 			require.NoError(t, err)
 			obs, ok := provides.Comp.(*observerImpl)
 			require.True(t, ok)
 			require.Equal(t, tc.wantTTL, obs.engine.storage.cfg.InactiveSeriesTTLSeconds)
 			require.Equal(t, tc.wantInterval, obs.engine.storage.cfg.InactiveSeriesCheckIntervalSeconds)
+		})
+	}
+}
+
+func TestLogPatternLimitFromAgentConfig(t *testing.T) {
+	for _, test := range []struct {
+		value string
+		want  int
+	}{
+		{"7", 7}, {"0", 3000}, {"-1", 3000},
+	} {
+		t.Run(test.value, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  detectors:\n    log_pattern_extractor:\n      max_patterns: "+test.value+"\n")
+			settings := settingsFromAgentConfig(defaultCatalog(), cfg)
+			actual := settings.configs[LogPatternExtractorName].(LogPatternExtractorConfig)
+			require.Equal(t, test.want, actual.MaxPatterns)
+			require.Equal(t, test.want, NewLogPatternExtractor(actual).taggedClusterer.MaxPatterns)
 		})
 	}
 }

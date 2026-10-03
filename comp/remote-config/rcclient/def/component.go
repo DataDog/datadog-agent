@@ -23,6 +23,12 @@ type Component interface {
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }
 
+// TUFProofProvider exposes the Director proof for a Remote Config target.
+type TUFProofProvider interface {
+	// GetConfigTUFProof returns the Director proof for one Remote Config target.
+	GetConfigTUFProof(targetPath string) (state.ConfigTUFProof, bool)
+}
+
 // Params is the input parameter struct for the RC client Component.
 type Params struct {
 	AgentName     string

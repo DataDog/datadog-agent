@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 	"github.com/shirou/gopsutil/v4/common"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 	"github.com/spf13/afero"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -148,6 +149,7 @@ type Check struct {
 	goos                      string // OS name, defaults to runtime.GOOS, injectable for testing
 
 	partitionEnumInFlight atomic.Bool
+	diskUsageInFlight     sync.Map // map[string]struct{}
 
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
@@ -664,6 +666,7 @@ func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil
 	}
 	go func() {
 		partitions, err := c.diskPartitionsWithContext(ctx, includeAllDevices)
+		// Clear the gate before publishing the result so back-to-back calls don't race the clear.
 		c.partitionEnumInFlight.Store(false)
 		resultCh <- partitionsResult{partitions, err}
 	}()
@@ -676,6 +679,10 @@ func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil
 }
 
 func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+	if _, loaded := c.diskUsageInFlight.LoadOrStore(mountpoint, struct{}{}); loaded {
+		return nil, fmt.Errorf("disk usage call for mountpoint %s skipped — a previous call is still in progress, which may indicate an inaccessible or orphaned volume on the system", mountpoint)
+	}
+
 	type usageResult struct {
 		usage *gopsutil_disk.UsageStat
 		err   error
@@ -687,11 +694,9 @@ func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.Usage
 	go func() {
 		// UsageWithContext in gopsutil ignores the context for now (PR opened: https://github.com/shirou/gopsutil/pull/1837)
 		usage, err := c.diskUsage(mountpoint)
-		// Use select to avoid writing to resultCh if timeout already occurred.
-		select {
-		case resultCh <- usageResult{usage, err}:
-		case <-timeoutCh:
-		}
+		// Clear before publishing so back-to-back calls for the same mountpoint aren't rejected.
+		c.diskUsageInFlight.Delete(mountpoint)
+		resultCh <- usageResult{usage, err}
 	}()
 	// Use select to wait for either the disk usage result or a timeout.
 	select {

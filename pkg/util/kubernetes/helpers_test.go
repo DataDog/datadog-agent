@@ -39,6 +39,63 @@ func TestParseDeploymentForReplicaSet(t *testing.T) {
 	}
 }
 
+func TestResolvePodRootOwner(t *testing.T) {
+	tests := []struct {
+		name         string
+		ownerKind    string
+		ownerName    string
+		podLabels    map[string]string
+		expectedKind string
+		expectedName string
+	}{
+		{
+			name:         "replicaset resolves to deployment",
+			ownerKind:    ReplicaSetKind,
+			ownerName:    "my-app-6d4f5b7c8",
+			expectedKind: DeploymentKind,
+			expectedName: "my-app",
+		},
+		{
+			name:         "argo replicaset resolves to rollout",
+			ownerKind:    ReplicaSetKind,
+			ownerName:    "my-rollout-9b8dc4bd6",
+			podLabels:    map[string]string{ArgoRolloutLabelKey: "9b8dc4bd6"},
+			expectedKind: RolloutKind,
+			expectedName: "my-rollout",
+		},
+		{
+			name:         "unparseable replicaset stays replicaset",
+			ownerKind:    ReplicaSetKind,
+			ownerName:    "invalid-name",
+			podLabels:    map[string]string{ArgoRolloutLabelKey: "invalid"},
+			expectedKind: ReplicaSetKind,
+			expectedName: "invalid-name",
+		},
+		{
+			name:         "job resolves to cronjob",
+			ownerKind:    JobKind,
+			ownerName:    "backup-1562319360",
+			expectedKind: CronJobKind,
+			expectedName: "backup",
+		},
+		{
+			name:         "direct owner stays unchanged",
+			ownerKind:    StatefulSetKind,
+			ownerName:    "database",
+			expectedKind: StatefulSetKind,
+			expectedName: "database",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			kind, name := ResolvePodRootOwner(test.ownerKind, test.ownerName, test.podLabels)
+			assert.Equal(t, test.expectedKind, kind)
+			assert.Equal(t, test.expectedName, name)
+		})
+	}
+}
+
 func TestParseDeploymentForPodName(t *testing.T) {
 	for in, out := range map[string]string{
 		// Nominal 1.6 cases

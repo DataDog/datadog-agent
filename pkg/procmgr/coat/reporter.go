@@ -11,7 +11,6 @@ import (
 	"time"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 )
 
 const reportInterval = 5 * time.Minute
@@ -20,6 +19,7 @@ type gauges struct {
 	daemonReachable          telemetry.Gauge
 	daemonReady              telemetry.Gauge
 	processRunning           telemetry.Gauge
+	processState             telemetry.Gauge
 	serviceInstalled         telemetry.Gauge
 	serviceProcmgrConfigured telemetry.Gauge
 	serviceManagementMode    telemetry.Gauge
@@ -35,6 +35,12 @@ func StartReporter(ctx context.Context, tlm telemetry.Component) {
 		daemonReachable: tlm.NewGauge("runtime", "procmgr_daemon_reachable", []string{}, "dd-procmgrd is reachable from the core agent"),
 		daemonReady:     tlm.NewGauge("runtime", "procmgr_daemon_ready", []string{}, "dd-procmgrd reports ready"),
 		processRunning:  tlm.NewGauge("runtime", "procmgr_process_running", []string{"process"}, "Managed process is running under dd-procmgrd"),
+		processState: tlm.NewGauge(
+			"runtime",
+			"procmgr_process_state",
+			[]string{"process", "state"},
+			"1 for the state dd-procmgrd currently reports for a managed process, 0 for all other states",
+		),
 		serviceInstalled: tlm.NewGauge(
 			"runtime",
 			"agent_service_installed",
@@ -101,7 +107,13 @@ func report(ctx context.Context, g gauges, collector *Collector) {
 
 		setBoolGauge(g.serviceInstalled, service.Installed, service.ID)
 		setBoolGauge(g.serviceProcmgrConfigured, service.ProcmgrConfigured, service.ID)
-		setBoolGauge(g.processRunning, service.ProcmgrState == pb.ProcessState_RUNNING, spec.ProcmgrProcessName)
+		setBoolGauge(g.processRunning, service.ProcmgrState == ProcessStateRunning, spec.ProcmgrProcessName)
+
+		// processRunning alone cannot separate "deliberately stopped" from "crash looping",
+		// so also report the state itself.
+		for _, state := range procmgrProcessStates {
+			setBoolGauge(g.processState, procmgrStateIsActive(service, state), spec.ProcmgrProcessName, state)
+		}
 
 		// Do not emit management_mode=none on platforms where we never classify
 		// systemd/SCM/procmgr (e.g. macOS); avoids polluting COAT adoption metrics.

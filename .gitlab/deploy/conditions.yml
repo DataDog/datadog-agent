@@ -101,7 +101,7 @@
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
       SECRET_GENERIC_CONNECTOR_REPOSITORY: ci/datadog-agent/secret-generic-connector-release
-      IMG_REGISTRIES: internal-aws-ddbuild
+      IMG_REGISTRIES: ddbuild
 
 # Same as on_deploy_manual_final, except the job is used to publish images
 # to our internal registries.
@@ -119,7 +119,7 @@
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
       SECRET_GENERIC_CONNECTOR_REPOSITORY: ci/datadog-agent/secret-generic-connector-release
-      IMG_REGISTRIES: internal-aws-ddbuild
+      IMG_REGISTRIES: ddbuild
 
 .on_deploy_stable_or_beta_repo_branch_manual:
   - <<: *if_not_stable_or_beta_repo_branch

@@ -383,7 +383,7 @@ var kernelVersionPatterns = []struct {
 	{regexp.MustCompile(`\.deb10\.`), []btfPlatform{platformDebian}},
 	{regexp.MustCompile(`\.fc\d{2}\.`), []btfPlatform{platformFedora}},
 	{regexp.MustCompile(`-lp15\d\.`), []btfPlatform{platformOpenSUSELeap}},
-	{regexp.MustCompile(`-150300\.`), []btfPlatform{platformOpenSUSELeap}},
+	{regexp.MustCompile(`-150300\.`), []btfPlatform{platformOpenSUSELeap, platformSUSE}},
 }
 
 var errIncorrectOSReleaseMount = errors.New("please mount the /etc/os-release file as /host/etc/os-release in the system-probe container to resolve this")

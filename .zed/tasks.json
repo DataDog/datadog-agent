@@ -1,0 +1,19 @@
+[
+  {
+    "label": "dda inv test $ZED_SYMBOL",
+    "command": "dda",
+    "args": [
+      "inv",
+      "test",
+      "--targets",
+      "./$ZED_RELATIVE_DIR",
+      "--test-run-name",
+      "^$ZED_SYMBOL$",
+      "--rtloader-root",
+      "$ZED_WORKTREE_ROOT/rtloader"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "tags": ["go-test"],
+    "save": "current"
+  }
+]

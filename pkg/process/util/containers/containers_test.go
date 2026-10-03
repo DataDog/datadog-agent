@@ -730,7 +730,7 @@ func TestGetContainersExcludesFilteredContainers(t *testing.T) {
 
 	// Configure container exclusion by name
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("container_exclude", "name:excluded-container-name")
+	mockConfig.SetInTest("container_exclude", []string{"name:excluded-container-name"})
 
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 	filter := filterStore.GetContainerSharedMetricFilters()

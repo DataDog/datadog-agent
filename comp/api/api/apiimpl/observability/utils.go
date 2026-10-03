@@ -34,18 +34,27 @@ func extractPath(r *http.Request) string {
 	return reqURL.Path
 }
 
+// WithRouteTemplate wraps h so that, when it serves a request, it stores path in
+// the telemetry route capture (planted by the telemetry middleware) instead of
+// letting the request be reported with an "unknown" path. Use it where the
+// handler registration site knows the route template but is not a
+// http.ServeMux registration, e.g. the trace agent debug server's AddRoute.
+func WithRouteTemplate(path string, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture); ok {
+			capture.template = path
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
 // WrapWithRouteTemplate registers h on mux for the given method and path, storing the
 // path template in the capture context so the telemetry middleware can use it for metric
 // cardinality reduction instead of the raw request path.
 // When the mux is mounted under a path prefix, use MountWithPrefix at the mount site
 // to have the prefix prepended automatically to the captured template.
 func WrapWithRouteTemplate(mux *http.ServeMux, method, path string, h http.Handler) {
-	mux.Handle(method+" "+path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture); ok {
-			capture.template = path
-		}
-		h.ServeHTTP(w, r)
-	}))
+	mux.Handle(method+" "+path, WithRouteTemplate(path, h))
 }
 
 // MountWithPrefix strips prefix from the request path and passes it to h, then

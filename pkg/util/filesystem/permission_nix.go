@@ -140,15 +140,19 @@ func getDatadogUserUID() (uint32, error) {
 	return uint32(os.Getuid()), nil
 }
 
+const agentIdentityMarker = "/opt/datadog-agent/.dd-agent-identity"
+
 // GetAgentUserGroupIDs returns the UID and primary GID of the agent service
 // account ("dd-agent" on Linux, "_dd-agent" on macOS). The GID is the
 // user's primary group (e.g. "root" in the standard container, where no
-// same-named group exists), not a separately-named group. ok is false if the
-// user does not exist on the system.
+// same-named group exists), not a separately-named group. If looking up the
+// service user fails, the identity marker is consulted as a fallback. ok is
+// false if neither the service user nor a valid identity marker can provide
+// the UID and GID.
 func GetAgentUserGroupIDs() (uid, gid int, ok bool) {
 	u, err := user.Lookup(agentUsername())
 	if err != nil {
-		return 0, 0, false
+		return getAgentUserGroupIDsFromMarker()
 	}
 	uid, err = strconv.Atoi(u.Uid)
 	if err != nil {
@@ -159,6 +163,18 @@ func GetAgentUserGroupIDs() (uid, gid int, ok bool) {
 		return 0, 0, false
 	}
 	return uid, gid, true
+}
+
+func getAgentUserGroupIDsFromMarker() (uid, gid int, ok bool) {
+	info, err := os.Lstat(agentIdentityMarker)
+	if err != nil || !info.Mode().IsRegular() {
+		return 0, 0, false
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, 0, false
+	}
+	return int(stat.Uid), int(stat.Gid), true
 }
 
 // isRootOrAgentUID reports whether uid is root (0) or the dd-agent service account.

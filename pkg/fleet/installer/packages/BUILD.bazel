@@ -32,8 +32,7 @@ go_library(
         "//pkg/fleet/installer/telemetry",
         "//pkg/util/log",
         "//pkg/version",
-        "@in_gopkg_yaml_v3//:yaml_v3",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/fleet/installer/installinfo",
@@ -49,6 +48,7 @@ go_library(
             "//pkg/fleet/installer/packages/service/sysvinit",
             "//pkg/fleet/installer/packages/service/upstart",
             "//pkg/fleet/installer/packages/user",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/fleet/installer/installinfo",
@@ -64,6 +64,7 @@ go_library(
             "//pkg/fleet/installer/packages/service/sysvinit",
             "//pkg/fleet/installer/packages/service/upstart",
             "//pkg/fleet/installer/packages/user",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/msi",
@@ -74,7 +75,7 @@ go_library(
             "//pkg/fleet/installer/packages/user/windows",
             "//pkg/fleet/installer/setup/config",
             "//pkg/util/winutil",
-            "@in_yaml_go_yaml_v3//:yaml",
+            "@in_yaml_go_yaml_v2//:yaml",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
             "@org_golang_x_sys//windows/svc",
@@ -91,6 +92,7 @@ dd_agent_go_test(
         "apm_inject_windows_test.go",
         "datadog_agent_eudm_windows_test.go",
         "datadog_agent_extensions_test.go",
+        "datadog_agent_linux_test.go",
         "datadog_agent_windows_test.go",
         "otel_config_common_test.go",
     ],
@@ -99,12 +101,17 @@ dd_agent_go_test(
         "//pkg/fleet/installer/packages/extensions",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/fleet/installer/packages/file",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/fleet/installer/packages/file",
+        ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/setup/config",
-            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "//conditions:default": [],
     }),

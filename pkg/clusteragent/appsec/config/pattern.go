@@ -9,6 +9,7 @@ package config
 
 import (
 	"context"
+	"errors"
 
 	v1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -56,6 +57,11 @@ type MutationSkippedReason struct {
 }
 
 func (s *MutationSkippedReason) Error() string { return "mutation skipped: " + string(s.Reason) }
+
+// ErrInjectionNotApplicable indicates a proxy type does not apply to the current
+// configuration and should be skipped quietly rather than reported as a failure.
+// Patterns wrap it from IsInjectionPossible to opt into a quiet skip.
+var ErrInjectionNotApplicable = errors.New("injection not applicable")
 
 // InjectionPattern is the main interface to implement to support a new proxy type
 // for appsec injection. It is similar to the controller pattern used in

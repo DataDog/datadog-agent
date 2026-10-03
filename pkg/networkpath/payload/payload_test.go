@@ -46,7 +46,8 @@ func TestNetworkPathDynamicTestProfileJSON(t *testing.T) {
 		expectField bool
 	}{
 		{name: "unset", expectField: false},
-		{name: "baseline", profile: DynamicTestProfileBaseline, expectField: true},
+		{name: "basic", profile: DynamicTestProfileBasic, expectField: true},
+		{name: "standard", profile: DynamicTestProfileStandard, expectField: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -62,6 +63,37 @@ func TestNetworkPathDynamicTestProfileJSON(t *testing.T) {
 			require.Equal(t, string(tt.profile), decoded["dynamic_test_profile"])
 		})
 	}
+}
+
+func TestNetworkPathDynamicTestClassJSON(t *testing.T) {
+	tests := []struct {
+		name        string
+		class       DynamicTestClass
+		expectField bool
+	}{
+		{name: "unset"},
+		{name: "core", class: DynamicTestClassCore, expectField: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw, err := json.Marshal(NetworkPath{DynamicTestClass: tt.class})
+			require.NoError(t, err)
+
+			var decoded map[string]any
+			require.NoError(t, json.Unmarshal(raw, &decoded))
+			if !tt.expectField {
+				require.NotContains(t, decoded, "dynamic_test_class")
+				return
+			}
+			require.Equal(t, string(tt.class), decoded["dynamic_test_class"])
+		})
+	}
+}
+
+func TestNetworkPathDynamicTestClassMissingJSONUnmarshalsEmpty(t *testing.T) {
+	var path NetworkPath
+	require.NoError(t, json.Unmarshal([]byte(`{}`), &path))
+	require.Empty(t, path.DynamicTestClass)
 }
 
 func TestICMPMode(t *testing.T) {

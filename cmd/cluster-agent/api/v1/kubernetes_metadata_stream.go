@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"k8s.io/apimachinery/pkg/util/sets"
 
@@ -162,6 +163,7 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 	initialResp := fullStateResponse(lastSentPodServicesState, lastSentMetadataState)
 	initialSendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_full_state",
 		tracer.ResourceName("sendFullState"),
+		tracer.Tag(ext.SpanKind, ext.SpanKindServer),
 		tracer.Tag("node_name", nodeName),
 	)
 	if err := grpc.DoWithTimeout(func() error {
@@ -192,19 +194,12 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 				IsFullState: false,
 				Mappings:    podServiceMappingsDiff,
 			}
-			sendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_diff",
-				tracer.ResourceName("sendDiff"),
-				tracer.Tag("node_name", nodeName),
-				tracer.Tag("event_type", "pod_services"),
-			)
 			if err := grpc.DoWithTimeout(func() error {
 				return stream.Send(resp)
 			}, streamSendTimeout); err != nil {
 				log.Warnf("Error sending pod-service metadata diff for node %s: %s", nodeName, err)
-				sendSpan.Finish(tracer.WithError(err))
 				return err
 			}
-			sendSpan.Finish()
 			lastSentPodServicesState = currentPodServiceMappingsState
 			ticker.Reset(keepAliveInterval)
 
@@ -215,19 +210,12 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 				continue
 			}
 			resp := metadataDiff.response(false)
-			sendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_diff",
-				tracer.ResourceName("sendDiff"),
-				tracer.Tag("node_name", nodeName),
-				tracer.Tag("event_type", "metadata"),
-			)
 			if err := grpc.DoWithTimeout(func() error {
 				return stream.Send(resp)
 			}, streamSendTimeout); err != nil {
 				log.Warnf("Error sending metadata diff for node %s: %s", nodeName, err)
-				sendSpan.Finish(tracer.WithError(err))
 				return err
 			}
-			sendSpan.Finish()
 			lastSentMetadataState = currentMetadataState
 			ticker.Reset(keepAliveInterval)
 

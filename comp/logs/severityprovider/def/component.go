@@ -8,7 +8,7 @@ package severityprovider
 
 import severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 
-// team: agent-log-pipelines q-branch
+// team: agent-log-pipelines agent-anomaly-detection
 
 // Component exposes the current anomaly-detection severity to log samplers.
 type Component interface {

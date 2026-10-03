@@ -486,7 +486,7 @@ func printHealthPlatformIssues(_ log.Component, config config.Component, client 
 		return err
 	}
 	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cmd_port")))
-	apiConfigURL := fmt.Sprintf("https://%s/health-platform/issues", addr)
+	apiConfigURL := fmt.Sprintf("https://%s/agent/health-platform/issues", addr)
 
 	r, err := client.Get(apiConfigURL, ipchttp.WithCloseConnection)
 	if err != nil {
@@ -542,7 +542,7 @@ func printAgentFullTelemetry(config config.Component, client ipc.HTTPClient) err
 		return err
 	}
 	addr := net.JoinHostPort(ipcAddress, config.GetString("expvar_port"))
-	r, err := client.Get(fmt.Sprintf("http://%s/telemetry", addr))
+	r, err := client.Get(fmt.Sprintf("http://%s/telemetry", addr), ipchttp.WithoutAuthToken)
 	if err != nil {
 		return fmt.Errorf("error getting full telemetry payload: %w", err)
 	}

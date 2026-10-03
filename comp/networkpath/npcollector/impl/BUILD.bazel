@@ -6,7 +6,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "impl",
     srcs = [
-        "baseline.go",
+        "basic.go",
         "config.go",
         "localips.go",
         "npcollector.go",
@@ -50,7 +50,8 @@ go_library(
 dd_agent_go_test(
     name = "impl_test",
     srcs = [
-        "baseline_test.go",
+        "allowance_test.go",
+        "basic_test.go",
         "config_test.go",
         "localips_test.go",
         "module_test.go",
