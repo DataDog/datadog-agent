@@ -11,3 +11,7 @@ telemetry.enabled: true
 telemetry.checks: '*'
 
 dogstatsd_socket: '/tmp/dsd.socket'
+
+# Route DogStatsD traffic through the Agent Data Plane to check for regressions
+# with ADP enabled.
+data_plane.enabled: true
