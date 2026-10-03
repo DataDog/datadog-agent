@@ -6,6 +6,7 @@
 package config
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -169,7 +170,50 @@ func (l *LogsConfigKeys) hasAdditionalEndpoints() bool {
 // shouldUseTCP returns true if the configuration should use TCP.
 // This happens when force_use_tcp, socks5_proxy_address, or additional_endpoints are set.
 func (l *LogsConfigKeys) shouldUseTCP() bool {
+	if l.foldspaceEnabled() {
+		return l.isForceTCPUse() || l.isSocks5ProxySet()
+	}
 	return l.isForceTCPUse() || l.isSocks5ProxySet() || l.hasAdditionalEndpoints()
+}
+
+func (l *LogsConfigKeys) foldspaceEnabled() bool {
+	return l.getConfig().GetBool(l.getConfigKey("foldspace.enabled"))
+}
+
+func (l *LogsConfigKeys) foldspaceTapChannelSize() int {
+	if size := l.getConfig().GetInt(l.getConfigKey("foldspace.tap_channel_size")); size > 0 {
+		return size
+	}
+	return l.getConfig().GetInt(l.getConfigKey("message_channel_size"))
+}
+
+// FoldspaceEnabled reports logs_config.foldspace.enabled.
+func FoldspaceEnabled(coreConfig pkgconfigmodel.Reader) bool {
+	return defaultLogsConfigKeys(coreConfig).foldspaceEnabled()
+}
+
+// FoldspaceTapChannelSize reports logs_config.foldspace.tap_channel_size,
+// falling back to logs_config.message_channel_size when unset. The ingest buffer
+// is a foldspace concern: it decides how far foldspace may drift from the primary
+// destination before the two paths start affecting each other.
+func FoldspaceTapChannelSize(coreConfig pkgconfigmodel.Reader) int {
+	return defaultLogsConfigKeys(coreConfig).foldspaceTapChannelSize()
+}
+
+// ValidateFoldspace returns a startup error when foldspace is requested with
+// an incompatible transport or a binary that was not built with the foldspace tag.
+func ValidateFoldspace(coreConfig pkgconfigmodel.Reader) error {
+	keys := defaultLogsConfigKeys(coreConfig)
+	if !keys.foldspaceEnabled() {
+		return nil
+	}
+	if keys.isForceTCPUse() {
+		return errors.New("logs_config.foldspace.enabled is incompatible with logs_config.use_tcp / force_use_tcp")
+	}
+	if keys.isSocks5ProxySet() {
+		return errors.New("logs_config.foldspace.enabled is incompatible with logs_config.socks5_proxy_address")
+	}
+	return nil
 }
 
 // getMainAPIKey return the global API key for the current config with the path used to get it. Main api key means the
