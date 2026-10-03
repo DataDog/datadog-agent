@@ -39,7 +39,7 @@ func makeDevice(t testing.TB, srv *FakeSSHServer) *ncmconfig.DeviceInstance {
 	}
 	return &ncmconfig.DeviceInstance{
 		IPAddress: srv.Host(),
-		Auth: ncmconfig.AuthCredentials{
+		RollbackAuth: ncmconfig.AuthCredentials{
 			Username: srv.User(),
 			Password: srv.Password(),
 			Port:     strconv.Itoa(port),
@@ -63,7 +63,7 @@ interface GigabitEthernet0/1
 		"show startup-config": Ok(expectedConfig),
 	})
 	device := makeDevice(t, srv)
-	client, err := NewSSHConnector(device)
+	client, err := NewSSHConnector(device.IPAddress, &device.RollbackAuth)
 	require.NoError(t, err)
 	conn, err := client.Connect()
 	require.NoError(t, err)
@@ -107,14 +107,14 @@ interface GigabitEthernet0/1
 
 func TestSSHConnector_MissingSSHConfig(t *testing.T) {
 	device := &ncmconfig.DeviceInstance{}
-	_, err := NewSSHConnector(device)
+	_, err := NewSSHConnector(device.IPAddress, &device.RollbackAuth)
 	assert.ErrorContains(t, err, "missing ssh client config")
 }
 
 func TestSSHConnector_InvalidSSHConfig(t *testing.T) {
 	device := &ncmconfig.DeviceInstance{
 		IPAddress: "127.0.0.1",
-		Auth: ncmconfig.AuthCredentials{
+		RollbackAuth: ncmconfig.AuthCredentials{
 			Username: "nobody",
 			Password: "wrong",
 			Port:     "22",
@@ -124,7 +124,7 @@ func TestSSHConnector_InvalidSSHConfig(t *testing.T) {
 			},
 		},
 	}
-	_, err := NewSSHConnector(device)
+	_, err := NewSSHConnector(device.IPAddress, &device.RollbackAuth)
 	assert.ErrorContains(t, err, "unsupported cipher")
 }
 

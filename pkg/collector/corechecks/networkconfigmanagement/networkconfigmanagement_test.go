@@ -64,7 +64,7 @@ func TestCheck_Configure_ValidConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, check.checkContext)
 	assert.Equal(t, "10.0.0.1", check.checkContext.Device.IPAddress)
-	assert.Equal(t, "admin", check.checkContext.Device.Auth.Username)
+	assert.Equal(t, "admin", check.checkContext.Device.RollbackAuth.Username)
 }
 
 func TestCheck_Configure_InvalidConfig(t *testing.T) {
@@ -81,7 +81,7 @@ func TestCheck_Configure_InvalidConfig(t *testing.T) {
 		{
 			name:          "missing auth",
 			config:        invalidConfigMissingAuth,
-			expectedError: "auth is required",
+			expectedError: "invalid auth",
 		},
 		{
 			name:          "malformed YAML",

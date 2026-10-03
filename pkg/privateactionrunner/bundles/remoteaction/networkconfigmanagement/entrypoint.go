@@ -21,6 +21,7 @@ func NewNetworkConfigManagement(client ipc.HTTPClient) types.Bundle {
 	return &NetworkConfigManagementBundle{
 		actions: map[string]types.Action{
 			"rollbackConfig": NewRollbackConfigHandler(client),
+			"runCommand":     NewRunCommandHandler(client),
 		},
 	}
 }

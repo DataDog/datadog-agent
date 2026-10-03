@@ -11,11 +11,12 @@ import (
 	"testing"
 	"time"
 
-	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 )
 
 func sendTestV1GenericTrap(t *testing.T, trapConfig *config.TrapsConfig, community string) *gosnmp.GoSNMP {
