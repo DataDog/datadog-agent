@@ -18,6 +18,8 @@ const (
 	CSMDummyInterface = "dummy_csm"
 	// CSMPodIdentityDummyInterface is the Dummy interface name used by the EKS Pod Identity tests
 	CSMPodIdentityDummyInterface = "dummy_csm_pi"
+	// CSMECSDummyInterface is the Dummy interface name used by the ECS credential tests
+	CSMECSDummyInterface = "dummy_csm_ecs"
 )
 
 // CreateDummyInterface creates a dummy interface and attaches it to the provided IP
