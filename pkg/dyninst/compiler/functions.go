@@ -68,6 +68,12 @@ type ProcessEvent struct {
 	TopPCOffset         int8
 	ThrottleMode        ThrottleMode
 	EventRootType       *ir.EventRootType
+	// Location of an in-scope context.Context for coordinated sampling;
+	// CtxLocKind 0 means none.
+	CtxLocKind     uint8
+	CtxRegTab      uint8
+	CtxRegData     uint8
+	CtxStackOffset int32
 }
 
 // String returns a human-readable identifier for the function.
