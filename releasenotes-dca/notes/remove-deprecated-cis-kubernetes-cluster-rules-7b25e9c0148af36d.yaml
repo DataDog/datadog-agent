@@ -1,0 +1,14 @@
+---
+upgrade:
+  - |
+    Six CIS Kubernetes 1.5.1 rules evaluated by the Cluster Agent are no
+    longer shipped: ``cis-kubernetes-1.5.1-5.1.5`` (default service account
+    in use), ``cis-kubernetes-1.5.1-5.2.2`` through ``-5.2.5``, which read
+    PodSecurityPolicy objects, and ``cis-kubernetes-1.5.1-5.7.4`` (resources
+    in the default namespace). Only ``cis-kubernetes-1.5.1-5.1.5`` stops
+    producing findings. Kubernetes removed PodSecurityPolicy in 1.25, so the
+    four PodSecurityPolicy rules have reported ``skipped`` on any cluster at
+    1.25 or later. ``cis-kubernetes-1.5.1-5.7.4`` requested pods from the
+    ``policy/v1beta1`` API group instead of the core group, so it has reported
+    ``skipped`` or ``error`` on every cluster since Agent 7.33.0.
+    ``cis-kubernetes-1.5.1-5.3.2`` is unchanged.
