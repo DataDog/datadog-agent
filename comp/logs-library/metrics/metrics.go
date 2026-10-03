@@ -184,6 +184,10 @@ var (
 	// Tags: listener_type (tcp, udp)
 	TlmListenerIPDenied = telemetryimpl.GetCompatComponent().NewCounter("logs", "listener_ip_denied",
 		[]string{"listener_type"}, "Count of connections or datagrams rejected by IP allow/deny filters")
+
+	// TlmFoldspaceDropped counts non-abandoning payload drops reported by foldspace.
+	TlmFoldspaceDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_foldspace", "dropped",
+		nil, "Payloads a foldspace sender gave up on without abandoning the record")
 )
 
 // FailureCause* are the stable tag values for the logs.http_connectivity_failure
