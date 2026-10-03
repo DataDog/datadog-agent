@@ -48,6 +48,7 @@ dd_agent_go_test(
         "//comp/core/workloadfilter/fx-mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
+        "//comp/networkpath/npcollector/def",
         "//comp/networkpath/npcollector/mock",
         "//comp/process",
         "//comp/rdnsquerier/fx-mock",
