@@ -2366,6 +2366,18 @@ const (
 	PipeBufFlagLoss PipeBufFlag = 0x40 /* Message loss happened after this buffer */
 )
 
+// NamespaceType represents the namespace type bitmask requested by a setns syscall
+type NamespaceType int
+
+func (nst NamespaceType) String() string {
+	// 0 means the type could not be determined: the caller passed 0 and no install callback was
+	// observed. Name it rather than render an empty string.
+	if nst == 0 {
+		return "ANY"
+	}
+	return CloneFlags(nst).String()
+}
+
 // Signal represents a type of unix signal (ie, SIGKILL, SIGSTOP etc)
 type Signal int
 

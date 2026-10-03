@@ -1,0 +1,93 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "setns.schema.json",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "event.schema.json"
+        },
+        {
+            "$ref": "usr.schema.json"
+        },
+        {
+            "$ref": "process_context.schema.json"
+        },
+        {
+            "date": {
+                "$ref": "datetime.schema.json"
+            }
+        },
+        {
+            "properties": {
+                "setns": {
+                    "type": "object",
+                    "required": [
+                        "nstype"
+                    ],
+                    "properties": {
+                        "nstype": {
+                            "type": "string"
+                        },
+                        "mntns": {
+                            "type": "integer"
+                        },
+                        "netns": {
+                            "type": "integer"
+                        },
+                        "pidns": {
+                            "type": "integer"
+                        },
+                        "userns": {
+                            "type": "integer"
+                        },
+                        "utsns": {
+                            "type": "integer"
+                        },
+                        "ipcns": {
+                            "type": "integer"
+                        },
+                        "cgroupns": {
+                            "type": "integer"
+                        },
+                        "timens": {
+                            "type": "integer"
+                        },
+                        "previous": {
+                            "type": "object",
+                            "properties": {
+                                "mntns": {
+                                    "type": "integer"
+                                },
+                                "netns": {
+                                    "type": "integer"
+                                },
+                                "pidns": {
+                                    "type": "integer"
+                                },
+                                "userns": {
+                                    "type": "integer"
+                                },
+                                "utsns": {
+                                    "type": "integer"
+                                },
+                                "ipcns": {
+                                    "type": "integer"
+                                },
+                                "cgroupns": {
+                                    "type": "integer"
+                                },
+                                "timens": {
+                                    "type": "integer"
+                                }
+                            },
+                            "additionalProperties": false
+                        }
+                    }
+                }
+            },
+            "required": [
+                "setns"
+            ]
+        }
+    ]
+}

@@ -705,6 +705,38 @@ type UnshareEventSerializer struct {
 	Flags []string `json:"flags,omitempty"`
 }
 
+// SetNSEventSerializer serializes a setns event
+// easyjson:json
+type SetNSEventSerializer struct {
+	// Namespace types the thread joined, ANY if the type couldn't be determined
+	NSType string `json:"nstype"`
+	// Namespace IDs of the thread once the syscall returned
+	NamespaceIDsSerializer
+	// Namespace IDs of the thread before the syscall
+	Previous *NamespaceIDsSerializer `json:"previous,omitempty"`
+}
+
+// NamespaceIDsSerializer serializes the namespace IDs of a thread, an ID is omitted if it couldn't be resolved
+// easyjson:json
+type NamespaceIDsSerializer struct {
+	// Mount namespace ID
+	MntNS uint32 `json:"mntns,omitempty"`
+	// Network namespace ID
+	NetNS uint32 `json:"netns,omitempty"`
+	// ID of the PID namespace future children are created in (pid_for_children)
+	PIDNS uint32 `json:"pidns,omitempty"`
+	// User namespace ID
+	UserNS uint32 `json:"userns,omitempty"`
+	// UTS namespace ID
+	UTSNS uint32 `json:"utsns,omitempty"`
+	// IPC namespace ID
+	IPCNS uint32 `json:"ipcns,omitempty"`
+	// Cgroup namespace ID
+	CgroupNS uint32 `json:"cgroupns,omitempty"`
+	// Time namespace ID
+	TimeNS uint32 `json:"timens,omitempty"`
+}
+
 // CGroupWriteEventSerializer serializes a cgroup_write event
 // easyjson:json
 type CGroupWriteEventSerializer struct {
@@ -869,6 +901,7 @@ type EventSerializer struct {
 	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
 	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 	*SetrlimitEventSerializer     `json:"setrlimit,omitempty"`
+	*SetNSEventSerializer         `json:"setns,omitempty"`
 	*SocketEventSerializer        `json:"socket,omitempty"`
 	*UnshareEventSerializer       `json:"unshare,omitempty"`
 }
@@ -1657,6 +1690,15 @@ func newUnshareEventSerializer(e *model.Event) *UnshareEventSerializer {
 	}
 }
 
+func newSetNSEventSerializer(e *model.Event) *SetNSEventSerializer {
+	previous := NamespaceIDsSerializer(e.SetNS.Previous)
+	return &SetNSEventSerializer{
+		NSType:                 model.NamespaceType(e.SetNS.NSType).String(),
+		NamespaceIDsSerializer: NamespaceIDsSerializer(e.SetNS.NamespaceIDs),
+		Previous:               &previous,
+	}
+}
+
 func newSocketEventSerializer(e *model.Event) *SocketEventSerializer {
 	return &SocketEventSerializer{
 		Domain:   model.SocketDomain(e.Socket.Domain).String(),
@@ -1997,6 +2039,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	case model.SetrlimitEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Setrlimit.Retval)
 		s.SetrlimitEventSerializer = newSetrlimitEventSerializer(event)
+	case model.SetNSEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.SetNS.Retval)
+		s.SetNSEventSerializer = newSetNSEventSerializer(event)
 	case model.SocketEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Socket.Retval)
 		s.SocketEventSerializer = newSocketEventSerializer(event)
