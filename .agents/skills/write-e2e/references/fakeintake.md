@@ -20,7 +20,7 @@ Get the client with `s.Env().FakeIntake.Client()`, importing `"github.com/DataDo
 | Network connections | `GetConnections()` |
 | Container images, SBOMs, lifecycle | `GetContainerImageNames()`, `GetSBOMIDs()`, `GetContainerLifecycleEvents()` |
 | Orchestrator resources | `GetOrchestratorResources(filter)`, `GetOrchestratorManifests()` |
-| Agent health, telemetry, flare | `GetAgentHealth()`, `GetAgentTelemetryLogs()`, `GetLatestFlare()` |
+| Agent health, telemetry, flare | `GetAgentHealth()`, `GetAgentTelemetryLogs()`, `GetDDInjectorCrashes()`, `GetLatestFlare()` |
 | Host metadata or tags | `GetMetadata()`, `GetHostTags(hostname)`, `GetHosts()` |
 | SDS scan results | `GetSDSResults()` |
 
