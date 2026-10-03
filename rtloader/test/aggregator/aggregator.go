@@ -62,6 +62,9 @@ var (
 	monotonic       bool
 )
 
+var metricGILReleased bool
+var bucketGILReleased bool
+
 type event struct {
 	title          string
 	text           string
@@ -162,6 +165,10 @@ func charArrayToSlice(array **C.char) (res []string) {
 
 //export submitMetric
 func submitMetric(id *C.char, mt C.metric_type_t, mname *C.char, val C.double, t **C.char, hname *C.char, fFirstValue C.bool) {
+	// ensure_gil returns the previous state; restore it before returning to Python.
+	state := C.ensure_gil(rtloader)
+	metricGILReleased = state == C.DATADOG_AGENT_RTLOADER_GIL_UNLOCKED
+	C.release_gil(rtloader, state)
 	checkID = C.GoString(id)
 	metricType = int(mt)
 	name = C.GoString(mname)
@@ -223,6 +230,9 @@ func submitEvent(id *C.char, ev *C.event_t) {
 
 //export submitHistogramBucket
 func submitHistogramBucket(id *C.char, cMetricName *C.char, cVal C.longlong, cLowerBound C.float, cUpperBound C.float, cMonotonic C.int, cHostname *C.char, t **C.char, fFirstValue C.bool) {
+	state := C.ensure_gil(rtloader)
+	bucketGILReleased = state == C.DATADOG_AGENT_RTLOADER_GIL_UNLOCKED
+	C.release_gil(rtloader, state)
 	checkID = C.GoString(id)
 	name = C.GoString(cMetricName)
 	intValue = int(cVal)

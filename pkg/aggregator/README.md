@@ -60,6 +60,20 @@ metric types supported upstream (Gauges, Counters, etc). To get an instance of
 the global default sender, call `GetDefaultSender`, the function will take care
 of initialising everything, Aggregator included.
 
+### Check batching
+
+With `check_sampler_batch_sizes`, each opted-in sender admits one batch at a
+time and waits for its drain. The aggregator keeps receiving from the shared
+input; it must never wait for a check's batch or timestamp. This matters because
+serialization can itself submit metrics through an ordinary sender.
+
+The sender orders samples, histogram buckets, and commit requests on the same
+channel. The sampler acknowledges only after appending the batch to the bounded
+serialization pipeline. A too-early commit returns a retry time to the sender;
+the sampler retains the timestamp across sender reuse. Intermediate commits
+preserve metric baselines; the final commit ends the logical check run.
+Shutdown cancels sender waits. Python callers release the GIL before waiting.
+
 ### Aggregator
 For now the package provides only one Aggregator implementation, the
 `BufferedAggregator`, named after its capabilities of storing in memory the

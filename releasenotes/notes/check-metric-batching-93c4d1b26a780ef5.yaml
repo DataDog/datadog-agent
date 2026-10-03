@@ -1,0 +1,7 @@
+enhancements:
+  - |
+    Add opt-in metric batching to reduce memory spikes during large check
+    collections. Configure ``check_sampler_batch_sizes`` with a check name and
+    sample or histogram bucket limit (for example, ``sqlserver: 100000``) to commit and flush batches,
+    allowing each check instance to wait for its own batch to drain while other
+    senders remain active. Disabled by default.
