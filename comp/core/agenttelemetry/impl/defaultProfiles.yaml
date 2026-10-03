@@ -383,6 +383,10 @@ profiles:
         preserve_tags:
           - service
           - mode
+      - name: runtime.agent_service_running
+        preserve_tags:
+          - service
+          - supervisor
   schedule:
     start_after: 30
     iterations: 0

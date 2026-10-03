@@ -220,6 +220,28 @@ func (s *baseProcmgrSuite) TestCLIStopStartThenKillRestarts() {
 	}, 30*time.Second, 2*time.Second)
 }
 
+const agentServiceRunningMetric = "runtime__agent_service_running"
+
+// agentServiceSupervisors are the supervisor tags on agent_service_running. The gauge is one-hot:
+// exactly one supervisor series is set to 1 for a given service.
+var agentServiceSupervisors = []string{"procmgr", "systemd", "windows_service"}
+
+// assertAgentServiceRunningExclusive checks the service is up under wantSupervisor and that no
+// other supervisor series is 1 for that service (exclusive one-hot; COAT drops zeros).
+func assertAgentServiceRunningExclusive(ct *assert.CollectT, output, serviceID, wantSupervisor string) {
+	assert.True(ct, telemetryGaugeIsTrue(output, agentServiceRunningMetric, map[string]string{
+		"service": serviceID, "supervisor": wantSupervisor,
+	}), "agent_service_running should be 1 for service=%s supervisor=%s: %s", serviceID, wantSupervisor, output)
+	for _, supervisor := range agentServiceSupervisors {
+		if supervisor == wantSupervisor {
+			continue
+		}
+		assert.False(ct, telemetryGaugeIsTrue(output, agentServiceRunningMetric, map[string]string{
+			"service": serviceID, "supervisor": supervisor,
+		}), "only one supervisor may be set for %s, but %q is also 1: %s", serviceID, supervisor, output)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // CLI output parsing helpers
 // ---------------------------------------------------------------------------
@@ -341,4 +363,33 @@ func extractColumn(line string, idx int, columns []tableColumn) string {
 		end = len(line)
 	}
 	return strings.TrimSpace(line[start:end])
+}
+
+// telemetryGaugeIsTrue reports whether "show-metadata agent-full-telemetry" carries metric set to 1
+// with every label in labels. That payload is unfiltered, so a gauge the reporter emitted at 0 is
+// present as a line valued 0 and is correctly reported as not set here.
+func telemetryGaugeIsTrue(output, metric string, labels map[string]string) bool {
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, metric) {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 2 || (fields[len(fields)-1] != "1" && fields[len(fields)-1] != "1.0") {
+			continue
+		}
+
+		allLabelsMatch := true
+		for key, value := range labels {
+			if !strings.Contains(line, key+`="`+value+`"`) {
+				allLabelsMatch = false
+				break
+			}
+		}
+		if allLabelsMatch {
+			return true
+		}
+	}
+	return false
 }

@@ -270,6 +270,7 @@ const (
 	metricAgentServiceInstalled         = "runtime__agent_service_installed"
 	metricAgentServiceProcmgrConfigured = "runtime__agent_service_procmgr_configured"
 	metricAgentServiceManagementMode    = "runtime__agent_service_management_mode"
+	metricAgentServiceRunning           = "runtime__agent_service_running"
 	procmgrManagementModeProcmgr        = "procmgr"
 	procmgrProcessStateRunning          = "running"
 )
@@ -304,6 +305,10 @@ func (h *Host) AssertProcmgrTelemetry(t *testing.T, serviceID, processName strin
 		assertTelemetryGaugeTrue(c, out, metricAgentServiceManagementMode, map[string]string{
 			"service": serviceID,
 			"mode":    procmgrManagementModeProcmgr,
+		})
+		assertTelemetryGaugeTrue(c, out, metricAgentServiceRunning, map[string]string{
+			"service":    serviceID,
+			"supervisor": procmgrManagementModeProcmgr,
 		})
 	}, 7*time.Minute, 10*time.Second, "procmgr telemetry gauges should be emitted")
 }
