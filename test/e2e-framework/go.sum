@@ -569,6 +569,8 @@ github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0 h1:XTI3n9L4NrABP2ivPB+v45MBKP8hhgs
 github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0/go.mod h1:Yf4jYBGmvm+xnvsmQDCbKJ6EOlmvn/iL4pB8cpqT8g0=
 github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0 h1:YFX8Pzx9qXyQVcrArwjE4E8b41ZUbLkPgeRxGKYF6lE=
 github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0/go.mod h1:hgcC2HINtvhF+0Q4SbTQqXxQdUO/0cn/swtGfJvOMWQ=
+github.com/pulumi/pulumi-eks/sdk/v4 v4.4.0 h1:i8WP3JtVBC+O7QOoDoX1gKXihMSPpRVVFT0L/i7TyXo=
+github.com/pulumi/pulumi-eks/sdk/v4 v4.4.0/go.mod h1:W/jRMGvQSKB15Mi+ln4TnV0viqwSWFw8Urq8+AgYqKc=
 github.com/pulumi/pulumi-gcp/sdk/v9 v9.37.0 h1:52GsX1s6UymbSxCge2X/7uKvplAKlm4608FJK0+W9PM=
 github.com/pulumi/pulumi-gcp/sdk/v9 v9.37.0/go.mod h1:QLjjZ26lmpa1HpUqSi1ykMm7ops+6nXF9HF3SaL7w1Y=
 github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.2 h1:W9XLxp6EzQGf14DumMCGOnT9QcRRSgsI+f5Do3pMqqU=
