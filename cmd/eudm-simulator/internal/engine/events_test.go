@@ -113,29 +113,3 @@ func TestReplayEventsMatchDeliveredCyclesWithoutSummaries(t *testing.T) {
 		}
 	}
 }
-
-func TestReplayNetworkEvents(t *testing.T) {
-	request := shippedRequest(t, "wifi-degradation-macos")
-	for i := range request.Scenario.Fleet {
-		request.Scenario.Fleet[i].Count = 1
-	}
-	request = requestFor(t, request.Scenario, request.Plan.ScenarioDigest, request.Bundle)
-	prepared, err := prepare(request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var output bytes.Buffer
-	events := eventlog.New(&output)
-	delivery := &recordingDelivery{start: request.Plan.Start}
-	for _, stream := range []schema.Stream{APMetricStream, NDMStream} {
-		if err := prepared.deliver(context.Background(), delivery, job{stream: stream}, events); err != nil {
-			t.Fatal(err)
-		}
-	}
-	events.Close("replay", "finished")
-	for _, want := range []string{"[access_point_metrics] delivered access-point metrics (", "[ndm_metadata] delivered metadata (", " batches)", "network devices; phase=healthy; cycle=1"} {
-		if !strings.Contains(output.String(), want) {
-			t.Fatalf("missing %q in %s", want, output.String())
-		}
-	}
-}

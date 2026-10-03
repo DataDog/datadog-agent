@@ -31,9 +31,8 @@ proofs. Protocol 4 adds one fresh host-system-info submission at capture start. 
 predate this simplification; they are not a new live acceptance result.
 macOS also captures connections when Process Agent advertises them. Reinstall the updated producers and
 recapture; an older bundle cannot supply the missing evidence.
-The Windows VPN proof remains
-**NOT RUN — DEFERRED**. Unit tests, recording transports, synthetic fixtures,
-and successful delivery do not establish either backend relationship.
+Unit tests, recording transports, synthetic fixtures, and successful delivery
+do not establish the backend enrichment relationship.
 
 Real bundles retain native application/process names, users, paths, domains,
 versions, and hardware details. Treat them as telemetry exports and keep them
@@ -223,42 +222,6 @@ the replay host. Earlier schemas require reinstallation of compatible producers
 and recapture; do not edit manifests to relabel older captures.
 Keep real bundles outside the repository; checked-in fixtures remain synthetic.
 
-## Windows walkthrough
-
-Run these PowerShell commands from the repository root after preparing the Windows build environment. They use the two-device host-enrichment probe first, so application-specific overlays do not obscure missing baseline evidence. Capture observes running services while their normal delivery continues; `run` sends additional staging replay telemetry.
-
-Windows live verification is deferred. For a later run, prepare compatible core Agent, Process Agent, and system-probe services through the existing installation procedure. Their normal configuration must already enable required streams and direct connection sending. The command reads configured API locations and authenticates with existing IPC artifacts. Keep ordinary healthy TCP traffic present so two nonempty connection cycles can be observed; record backend delivery and service identities across the session.
-
-```powershell
-git fetch origin
-git switch focus/create-eudm-simulator
-git pull --ff-only
-dda inv eudm-simulator.build
-if ($LASTEXITCODE -ne 0) { throw 'Simulator build failed' }
-
-$eudm = '.\bin\eudm-simulator\eudm-simulator.exe'
-$eudmRoot = 'C:\Temp\eudm-evaluation'
-New-Item -ItemType Directory -Force -Path $eudmRoot | Out-Null
-$bundle = Join-Path $eudmRoot 'windows-baseline'
-$scenario = 'cmd/eudm-simulator/testdata/probes/host-enrichment-windows.yaml'
-$env:DD_SITE = 'datad0g.com'
-
-& $eudm capture --duration 35m --output $bundle
-if ($LASTEXITCODE -ne 0) { throw 'Capture failed; inspect missing-stream error' }
-```
-
-If the local branch does not exist, use `git switch --track origin/focus/create-eudm-simulator` on the first checkout. Use a new bundle directory for a new capture. To reuse an existing compatible bundle, skip the `capture` command; never overwrite an earlier capture. Build capture/replay binaries at the same commit; installed producers must support protocol 4 and record their own build identities. Use separate runs and matching baselines for Windows and macOS scenarios.
-
-Before the next block, obtain the intended staging organization's API key through your credential workflow and expose it as `DD_API_KEY` in this process. To check the scenario without sending telemetry, optionally run `& $eudm validate --scenario $scenario --bundle $bundle`; this needs no API key.
-
-```powershell
-if (-not $env:DD_API_KEY) { throw 'Load the staging API key into DD_API_KEY first' }
-& $eudm run --scenario $scenario --bundle $bundle
-if ($LASTEXITCODE -ne 0) { throw 'Replay failed; inspect the printed report path and stderr' }
-```
-
-After validation and setup, the probe runs for 35 minutes, with up to five further minutes for retries. The command prints its report path, which defaults to `eudm-run-<run_id>.json` in the current directory. Inspect the complete ledger in that JSON report, then follow [proof 1](#required-proof-1-normal-eudm-host-enrichment) to establish actual device visibility. To switch to the full healthy Windows scenario, change the scenario path and keep the same baseline bundle. Every run checks the baseline evidence and creates a fresh run identity and report.
-
 ## Configure the environment and optionally validate
 
 The simulator reads its site from `DD_SITE` and its replay credentials from
@@ -289,23 +252,22 @@ rejects a missing key. Use the API key for the intended staging organization.
 Validation needs `DD_SITE` but no API key. Capture needs neither
 environment variable.
 
-The checked-in host-enrichment probes each declare two baseline devices without
-overlays. This optional macOS check validates all required bundle files, digests,
+The checked-in healthy macOS scenario declares three baseline devices without
+overlays. This optional check validates all required bundle files, digests,
 typed evidence inventories, scenario declarations, platform compatibility,
 replay schedules, and staging routes:
 
 ```sh
 ./bin/eudm-simulator/eudm-simulator validate \
-  --scenario cmd/eudm-simulator/testdata/probes/host-enrichment-macos.yaml \
+  --scenario cmd/eudm-simulator/scenarios/healthy-macos.yaml \
   --bundle /private/tmp/eudm-macos-baseline
 ```
 
-For Windows, use `host-enrichment-windows.yaml` and its Windows bundle. Supply
-exactly one `--bundle /path/to/capture` for the whole scenario. Every cohort
+Supply exactly one `--bundle /path/to/capture` for the whole scenario. Every cohort
 starts from that baseline; scenario overlays produce the differences between
 cohorts. Group-to-bundle assignments and multiple bundles are unsupported.
 Every cohort's OS must match the capture, independently of the replay host OS.
-Use separate runs for Windows and macOS baselines. Missing required process,
+Missing required process,
 software, metric, or connection evidence rejects the scenario before replay.
 
 `run` performs this validation automatically, so a separate `validate` command
@@ -332,7 +294,7 @@ replay directly:
 
 ```sh
 ./bin/eudm-simulator/eudm-simulator run \
-  --scenario cmd/eudm-simulator/testdata/probes/host-enrichment-macos.yaml \
+  --scenario cmd/eudm-simulator/scenarios/healthy-macos.yaml \
   --bundle /private/tmp/eudm-macos-baseline
 ```
 
@@ -346,9 +308,9 @@ one event even when it contains multiple chunks. Access-point metrics and networ
 metadata also produce events. For example:
 
 ```text
-2026-10-02T17:30:15-04:00 [metrics] delivered battery, cpu, network (84 series); device=eudm-<run_id>-0; phase=healthy; cycle=1
-2026-10-02T17:30:20-04:00 [processes] delivered 312 processes (8 chunks); device=eudm-<run_id>-0; phase=healthy; cycle=1
-2026-10-02T17:30:30-04:00 [software] delivered inventory (319 applications); device=eudm-<run_id>-0; phase=healthy; cycle=1
+2026-10-02T17:30:15-04:00 [metrics] delivered battery, cpu, network (84 series); device=host-<opaque-id>; phase=healthy; cycle=1
+2026-10-02T17:30:20-04:00 [processes] delivered 312 processes (8 chunks); device=host-<opaque-id>; phase=healthy; cycle=1
+2026-10-02T17:30:30-04:00 [software] delivered inventory (319 applications); device=host-<opaque-id>; phase=healthy; cycle=1
 ```
 
 Setup, start, phase dispatch, delivery waits, and completion/failure also produce
@@ -386,141 +348,80 @@ or batches are accepted. Success requires `status: succeeded`, matching
 `expected` and `delivered` counts for every stream, and no failures. A successful
 HTTP delivery report alone does not prove product enrichment or monitor behavior.
 
-The scenario `expectation` is a local acceptance declaration. Its conclusion is
-one of `healthy`, `process_software_version`, `vpn_path`, or
-`wireless_access_points`, and its affected cohorts must be declared in the
-fleet. Never emit the expectation, scenario name, or affected membership as
-telemetry. Correlate products using the report's selectors:
-`eudm_run_id:<opaque-run-id>` for telemetry and `eudm-<opaque-run-id>` for the NDM
-namespace. Hostnames also contain this opaque run ID.
+The compact healthy replay does not declare an `expectation`, cohort name, or
+phase name. The loader supplies internal healthy defaults solely so it can use
+the common scheduler and local report. Advanced incident scenarios explicitly
+declare an `expectation`; its affected cohorts must exist in their fleet. Never
+emit the expectation, scenario name, affected membership, run ID, or simulator
+marker as telemetry. Correlate products using the exact opaque hostnames in the
+report ledger. Custom access-point scenarios also record their neutral NDM
+namespace locally in the report.
 
-## Shipped scenarios and bundle requirements
+## Checked-in scenario and bundle requirements
 
 | Scenario | Fleet | Additional captured evidence |
 | --- | --- | --- |
 | `healthy-macos.yaml` | 3 macOS devices | Required baseline streams |
-| `healthy-windows.yaml` | 3 Windows devices | Required baseline streams |
-| `application-update-regression-macos.yaml` | 7 macOS devices | Google Chrome process and software entry, with a healthy version different from the declared incident version |
-| `windows-security-agent-regression.yaml` | 8 Windows devices | `SentinelAgent.exe` and SentinelOne software entry, with a healthy version different from the declared incident version |
-| `vpn-degradation-windows.yaml` | 6 Windows devices | Confirmed captured VPN-path TCP connections |
-| `wifi-degradation-macos.yaml` | 60 macOS devices and 3 APs | Healthy `system.wlan.rssi`, `noise`, `txrate`, and `rxrate` measurements with wireless identity tags |
 
-Incident scenarios have healthy, onset, sustained, and recovery phases. Current
-declarations use a 10-minute monitor window and 5-minute visibility delay; verify
-these against the actual staging monitor before replay. Healthy and sustained
-phases must each cover at least their sum. Application and security-agent
-scenarios restore captured process/software baselines during recovery and leave
-comparison cohorts unchanged. The Wi-Fi scenario changes only affected client
-WLAN evidence and AP radio/network metrics while keeping host workloads and AP
-reachability healthy. Its comparison AP stays healthy throughout.
+The scenario uses one macOS baseline for all three devices. It applies no
+incident overlays: replay changes device identities and observation times while
+preserving the captured evidence. Test fixtures exercise portable replay without
+contacting staging; real staging replay remains separate acceptance work.
 
-The VPN file deliberately contains
-`REPLACE_WITH_CAPTURED_VPN_CONNECTION_SELECTOR`. Replace every occurrence in a
-local scenario copy with the confirmed selector from the verified Windows
-bundle. Validation rejects the placeholder; a synthetic fixture's selector is
-not evidence that a real device used a VPN. RTT declarations use milliseconds;
-the overlay converts them into Agent connection units.
-
-Each scenario uses one matching baseline for all its cohorts, including healthy
-comparison groups. Scenario overlays modify copies of that baseline; they do
-not fill in absent evidence. A scenario mixing Windows and macOS cohorts is
-rejected because one capture cannot match both platforms. Use separate runs for
-the two platforms. Test fixtures exercise portable replay without contacting
-staging; cross-platform native builds and real staging replay remain separate
-acceptance work.
-
-## Required proof 1: normal EUDM host enrichment
+## Required proof: normal EUDM host enrichment
 
 Status: **INCOMPLETE — LEGACY HOST ENRICHMENT**. Schema-3 macOS device visibility
 is verified in Fleet and EUDM; OS/hardware enrichment remains incomplete. See
-the recorded macOS attempts below. Windows remains deferred.
+the recorded macOS attempts below.
 
 Prerequisites are a completed real-device bundle from the command's exact Agent
-commit; an identified staging organization
-and API key; and access to that organization's EUDM device, process, software,
+commit, an identified staging organization, an API key, and access to that
+organization's EUDM device, process, software,
 metric, Agent inventory, host inventory, and host metadata views. A recording fixture cannot substitute for the
 real-device capture.
 
-1. Select the matching two-device host-enrichment probe. Adjust its
+1. Select the matching healthy scenario. Adjust its
    phase before running if the staging visibility delay requires a longer
    observation period, and capture at least that total duration.
-2. Replay it through the common Agent serializer/forwarder adapters into two
-   distinct cloned identities. Save the complete delivery report and the opaque
-   run selector.
-3. Confirm that normal host enrichment creates **two complete EUDM devices**.
+2. Replay it through the common Agent serializer/forwarder adapters into three
+   distinct cloned identities. Save the complete delivery report and its exact
+   ledger hostnames.
+3. Confirm that normal host enrichment creates **three complete EUDM devices**.
    Record each product identifier and verify that its metric, legacy host metadata,
-   Agent inventory, host inventory, process, and software evidence belongs to the same cloned identity. Include
-   Windows connection evidence when using the Windows probe.
+   Agent inventory, host inventory, process, and software evidence belongs to the same cloned identity.
 4. Check that the original capture device and earlier or concurrent run
    identities were not selected by the queries.
 
-Use a complete hostname when searching for one device. Fleet prefix searches
-need a trailing `*`, for example `eudm-<run_id>*`. Intake acceptance and Fleet
+Use each complete hostname from the report ledger when searching for a device.
+There is deliberately no shared emitted run tag or hostname prefix. Intake acceptance and Fleet
 registration can precede the EUDM Devices list: the backend source's discovery
 worker runs every 30 minutes, and the Devices API serves its stored list when
 that list is populated. Allow for discovery and queue processing after the first
 inventory submissions; record actual visibility times rather than treating
 successful HTTP delivery as proof that discovery has completed.
 
-If the two identities do not become complete devices, record the missing backend
+If the three identities do not become complete devices, record the missing backend
 relationship as an acceptance blocker. Do not add REDAPL registration or a direct
 resource-ingestion bypass.
-
-## Required proof 2: Windows VPN monitor to Command Center
-
-Status: **NOT RUN — DEFERRED**.
-
-Prerequisites include proof 1, a real Windows capture with healthy VPN-path
-connections and healthy physical WLAN evidence, the unchanged private
-network-performance monitor's ID and full query, its evaluation window and
-staging visibility delay, and access to the corresponding Command Center issue
-and Bits investigation.
-
-Create a local connection probe from the Windows baseline after inspecting the
-verified manifest's `profile.connection_selectors` and its corresponding
-captured records. The selector must identify a captured VPN-path connection;
-do not substitute an invented endpoint or assume every connection is a VPN
-connection. Captured selectors alone do not prove VPN attribution:
-retain the capture operator's confirmation without recording the real private
-addresses in the probe.
-
-Declare `expectation.conclusion: vpn_path` and the affected cohort. Use
-`healthy`, `onset`, `sustained`, and `recovery` phases in that order. Set
-`monitor_window` and `visibility_delay` from the actual staging monitor, with
-both healthy and sustained phases at least their sum. Connection overlays use
-`selector`, `rtt_ms`, `rtt_variance_ms`, `retransmits`, and `tcp_failures`.
-Standardized TCP failure code `110` represents timeout; other accepted codes are
-`104`, `111`, and `125`. Values must be supported by the selected capture and
-the actual monitor; do not invent a monitor query or threshold.
-
-Run the probe at normal cadence. Confirm that degraded RTT, retransmits, and
-timeouts appear on the selected VPN-path records while host CPU/memory and
-physical `system.wlan.*` measurements stay at their healthy baselines. Verify
-that the existing monitor fires, creates the unchanged Command Center issue
-path, and lets the investigation reach the declared cohort and VPN conclusion.
-Connection Explorer visibility alone does not pass this gate. If the monitor or
-backend cannot produce that path, record the dependency as an acceptance blocker.
 
 ## Proof record and later acceptance
 
 Record real results here or in an operator-managed artifact linked from here.
 The historical schema-2 macOS attempt below established delivery, but not device visibility. The schema-3 follow-up is recorded under [Inventory discovery fix](#inventory-discovery-fix-2026-10-01):
 
-| Evidence | Host enrichment | Windows VPN monitor |
-| --- | --- | --- |
-| Status | INCOMPLETE — MISSING AGENT INVENTORY (macOS) | NOT RUN — DEFERRED |
-| Agent commit | `57fd27a769f691651f743cebfdf6fba0f30a4d6b` | Not recorded |
-| Bundle digest | `386e4879dd98cb3a784c6dd6f7e1b5d9640f93a8c1cc63ce390b49c936bef731` | Not recorded |
-| Scenario digest and run ID | `6938b0e6f51caaf6985c1c53d89c45fa3f9e388a27cdf332c49a6535be1d46f1`; `b764f461e6884369df6d9337e6154978` | Not recorded |
-| Replay host OS/architecture | darwin; architecture not recorded in report | Not recorded |
-| Staging organization | Operator checked `ddeudm.datad0g.com`; numeric organization ID not verified | Not established |
-| Monitor ID, exact query, evaluation window | Not applicable | Not established |
-| Start/end and observed visibility delay | 2026-10-01 14:38:48.555676–15:13:49.300870 UTC; device visibility not established | Not recorded |
-| Opaque product selectors | `eudm_run_id:b764f461e6884369df6d9337e6154978` | Not recorded |
-| Observed device/product identifiers | Operator saw metrics, but no Fleet or EUDM device entries | Not recorded |
-| Command Center issue and Bits result | Not applicable | Not recorded |
-| Final delivery report | Operator-local `eudm-run-b764f461e6884369df6d9337e6154978.json`, status `succeeded` | Not produced |
-| Implementation gap or external blocker | Schema-2 replay omitted Agent inventory; staging inventory rows not directly inspected | Pending prerequisites |
+| Evidence | Host enrichment |
+| --- | --- |
+| Status | INCOMPLETE — MISSING AGENT INVENTORY (macOS) |
+| Agent commit | `57fd27a769f691651f743cebfdf6fba0f30a4d6b` |
+| Bundle digest | `386e4879dd98cb3a784c6dd6f7e1b5d9640f93a8c1cc63ce390b49c936bef731` |
+| Scenario digest and run ID | `6938b0e6f51caaf6985c1c53d89c45fa3f9e388a27cdf332c49a6535be1d46f1`; `b764f461e6884369df6d9337e6154978` |
+| Replay host OS/architecture | darwin; architecture not recorded in report |
+| Staging organization | Operator checked `ddeudm.datad0g.com`; numeric organization ID not verified |
+| Start/end and observed visibility delay | 2026-10-01 14:38:48.555676–15:13:49.300870 UTC; device visibility not established |
+| Opaque product selectors | `eudm_run_id:b764f461e6884369df6d9337e6154978` |
+| Observed device/product identifiers | Operator saw metrics, but no Fleet or EUDM device entries |
+| Final delivery report | Operator-local `eudm-run-b764f461e6884369df6d9337e6154978.json`, status `succeeded` |
+| Implementation gap or external blocker | Schema-2 replay omitted Agent inventory; staging inventory rows not directly inspected |
 
 The 35-minute macOS probe delivered all expected cycles for each of its two
 devices: 2 host metadata, 140 metrics, 210 process, and 4 software cycles, with
@@ -543,16 +444,11 @@ inventory delivery. This historical schema-2 result is unchanged: it establishes
 delivery but fails product visibility. Repeat live capture and the product proof
 with the new inventory streams before marking host enrichment accepted.
 
-Local implementation and automated checks may continue while these external
-proofs are deferred. Native Windows capture, replay on another host OS, and each
-shipped scenario's full-fleet staging product path still require recorded
-acceptance. Automated constrained-queue tests currently cover the largest shipped
-fleet of 60 devices; larger evaluation fleets must repeat the load test. Wi-Fi
-acceptance additionally requires the staging Bits
-identity to read NDM device evidence. Missing NDM permission is an external
-blocker; do not copy AP facts into endpoint tags to work around it.
+Local implementation and automated checks may continue while this external
+proof is deferred. Replay on another host OS and the healthy macOS scenario's
+full-fleet staging product path still require recorded acceptance.
 
-Use each run's opaque selector for investigation, comparison, and any
+Use the exact ledger hostnames for investigation, comparison, and any
 operator-approved cleanup queries. Keep local reports and proof artifacts
 separate from telemetry, and exclude secrets from them. Cleanup must be scoped
 to that run; do not use scenario names or broad staging-wide queries. Refresh
@@ -593,6 +489,10 @@ on both capture devices, and recapture the baselines before the next runs.
 Use `capture --help`, `validate --help`, or `run --help` for the installed binary's flags. There is no resume, acceleration, standalone bundle-only validation, or automatic cleanup command. A retry is a new run with a new opaque identity. Select artifacts and product evidence by that identity so failed and concurrent runs do not contaminate the evaluation.
 
 ## Recorded local verification
+
+The records below retain the commands and two-device scenarios used at the time.
+Those historical `testdata/probes` scenarios have since been removed; use the
+matching healthy scenario above for new validation and replay runs.
 
 ### Replay event logs, 2026-10-02
 
@@ -657,7 +557,7 @@ Schema 7 records all complete in-window observations for the explicit
 `capture --duration`; replay never loops and rejects a longer scenario before
 delivery. Protocol 4 adds one authenticated fresh host-system-info submission
 after all producers activate, without resetting the provider's regular hourly
-schedule. The macOS host-enrichment probe again lasts 35 minutes.
+schedule. The then-current macOS host-enrichment scenario lasted 35 minutes.
 
 The following local verification passed on macOS:
 
@@ -1363,7 +1263,8 @@ The replay implementation subsequently passed:
 - The final full simulator suite via
   `dda inv test --targets=./cmd/eudm-simulator/... --build-exclude=python`
   (139 Go tests, with the opt-in fixture generator and native-artifact test
-  skipped). Coverage includes all six shipped scenarios at full declared counts
+  skipped). Coverage included all six scenarios shipped at the time at full
+  declared counts
   and durations with a fake clock, exact native cadence, deterministic
   mixed-platform output, backpressure, and failure accounting.
 - Race-enabled engine, integration, and NDM metadata tests (26 Go tests, with

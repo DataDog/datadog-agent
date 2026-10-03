@@ -146,8 +146,13 @@ func TestCorrelatedProgressionAndDeterministicCarryForward(t *testing.T) {
 		}
 		for _, point := range values {
 			value := point.Points[0].Value
-			if point.Source != metrics.MetricSourceSnmp || !slices.Contains(point.Tags.UnsafeToReadOnlySliceString(), "eudm_run_id:"+m.runID) {
-				t.Fatal("AP metrics do not use Agent NDM origin or run isolation")
+			if point.Source != metrics.MetricSourceSnmp {
+				t.Fatal("AP metrics do not use the Agent NDM origin")
+			}
+			for _, tag := range point.Tags.UnsafeToReadOnlySliceString() {
+				if strings.HasPrefix(tag, "eudm_run_id:") {
+					t.Fatal("AP metrics expose simulator provenance")
+				}
 			}
 			if statusMetric(point.Name) && value != 1 {
 				t.Fatal("status metric was jittered or an AP became unreachable")

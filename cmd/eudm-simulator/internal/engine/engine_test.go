@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -21,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/accesspoint"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/report"
@@ -29,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/bazelbuild/rules_go/go/runfiles"
 )
 
@@ -117,24 +114,20 @@ func requestFor(t *testing.T, scenario *schema.Scenario, digest string, capture 
 	return Request{Scenario: scenario, Plan: plan, Bundle: capture}
 }
 
-func shippedRequest(t *testing.T, name string) Request {
+func healthyMacOSRequest(t *testing.T) Request {
 	t.Helper()
-	captures := map[string]*bundle.Loaded{"macos": capturedFixture(t, "macos"), "windows": capturedFixture(t, "windows")}
-	data, err := os.ReadFile(testFile(t, "scenarios/"+name+".yaml"))
+	capture := capturedFixture(t, "macos")
+	data, err := os.ReadFile(testFile(t, "scenarios/healthy-macos.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Operator adaptation is explicit: use a known captured VPN path. The
-	// shipped template must never guess which private endpoint represents VPN.
-	data = []byte(strings.ReplaceAll(string(data), "REPLACE_WITH_CAPTURED_VPN_CONNECTION_SELECTOR", captures["windows"].Manifest.Profile.ConnectionSelectors[0]))
 	var scenario schema.Scenario
 	if err := schema.DecodeStrict(data, &scenario); err != nil {
 		t.Fatal(err)
 	}
-	// Exercise the shipped fleets and phase overlays within the real synthetic
-	// recording. Scale only this test's clock and monitor windows, never the
-	// recorded offsets or manifest duration.
-	available := captures[scenario.Fleet[0].OS].Manifest.Duration - time.Second
+	// Exercise the checked-in fleet within the real synthetic recording. Scale
+	// only this test's clock, never the recorded offsets or manifest duration.
+	available := capture.Manifest.Duration - time.Second
 	total := durationOf(&scenario)
 	if total > available {
 		scale := func(d time.Duration) time.Duration {
@@ -146,7 +139,7 @@ func shippedRequest(t *testing.T, name string) Request {
 		scenario.MonitorWindow.Duration = scale(scenario.MonitorWindow.Duration)
 		scenario.VisibilityDelay.Duration = scale(scenario.VisibilityDelay.Duration)
 	}
-	return requestFor(t, &scenario, schema.Digest(data), captures[scenario.Fleet[0].OS])
+	return requestFor(t, &scenario, schema.Digest(data), capture)
 }
 
 func sharedBaselineRequest(t *testing.T) Request {
@@ -264,7 +257,7 @@ func (d *recordingDelivery) Send(ctx context.Context, at time.Time, stream schem
 		return errors.New("empty collection cycle")
 	}
 	host := sampleHost(samples[0], stream)
-	if !strings.HasPrefix(host, "eudm-") {
+	if !strings.HasPrefix(host, "host-") {
 		return errors.New("unrewritten device identity")
 	}
 	var payloads []json.RawMessage
@@ -389,205 +382,36 @@ func assertCompleteCadences(t *testing.T, request Request, result *report.Report
 	}
 }
 
-func TestEveryShippedFleetRunsAtNativeCadence(t *testing.T) {
-	for _, name := range []string{"healthy-macos", "healthy-windows", "application-update-regression-macos", "windows-security-agent-regression", "vpn-degradation-windows", "wifi-degradation-macos"} {
-		t.Run(name, func(t *testing.T) {
-			request := shippedRequest(t, name)
-			sink := &recordingDelivery{start: request.Plan.Start}
-			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-			defer cancel()
-			result, err := Run(ctx, request, Options{Workers: 4, QueueCapacity: 1, Clock: &advancingClock{now: request.Plan.Start}, Delivery: sink})
-			if err != nil {
-				t.Fatal(err)
-			}
-			assertCompleteCadences(t, request, result, sink)
-			var count int
-			for _, cohort := range request.Scenario.Fleet {
-				count += cohort.Count
-			}
-			if len(result.Ledger) != count || result.DeclaredDevices != count {
-				t.Fatal("full declared fleet was truncated")
-			}
-			if name == "wifi-degradation-macos" && count != 60 {
-				t.Fatal("update this full-fleet bound when the shipped Wi-Fi fleet changes")
-			}
-		})
+func TestHealthyMacOSFleetRunsAtNativeCadence(t *testing.T) {
+	request := healthyMacOSRequest(t)
+	sink := &recordingDelivery{start: request.Plan.Start}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	result, err := Run(ctx, request, Options{Workers: 4, QueueCapacity: 1, Clock: &advancingClock{now: request.Plan.Start}, Delivery: sink})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertCompleteCadences(t, request, result, sink)
+	if len(result.Ledger) != 3 || result.DeclaredDevices != 3 {
+		t.Fatal("full declared fleet was truncated")
 	}
 }
 
-func TestShippedDurationsRequireLongerRecordings(t *testing.T) {
-	for _, name := range []string{"healthy-macos", "healthy-windows", "application-update-regression-macos", "windows-security-agent-regression", "vpn-degradation-windows", "wifi-degradation-macos"} {
-		t.Run(name, func(t *testing.T) {
-			request := shippedRequest(t, name)
-			data, err := os.ReadFile(testFile(t, "scenarios/"+name+".yaml"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if strings.Contains(string(data), "REPLACE_WITH_CAPTURED_VPN_CONNECTION_SELECTOR") {
-				data = []byte(strings.ReplaceAll(string(data), "REPLACE_WITH_CAPTURED_VPN_CONNECTION_SELECTOR", request.Bundle.Manifest.Profile.ConnectionSelectors[0]))
-			}
-			if err := schema.DecodeStrict(data, request.Scenario); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := schema.NewPlan(request.Scenario, schema.Digest(data), fixtureCommit, 1, request.Plan.Start, request.Bundle.Ref()); err == nil || !strings.Contains(err.Error(), "recapture") {
-				t.Fatalf("new plan accepted a shipped scenario with a short recording: %v", err)
-			}
-			if err := Validate(request); err == nil || !strings.Contains(err.Error(), "recapture") || !strings.Contains(err.Error(), request.Bundle.Manifest.Duration.String()) {
-				t.Fatalf("shipped scenario accepted a short recording: %v", err)
-			}
-		})
+func TestHealthyMacOSScenarioRequiresLongerRecording(t *testing.T) {
+	request := healthyMacOSRequest(t)
+	data, err := os.ReadFile(testFile(t, "scenarios/healthy-macos.yaml"))
+	if err != nil {
+		t.Fatal(err)
 	}
-}
-
-func TestRecordedSoftwareObservationsTrackProcessRegressionAndRecovery(t *testing.T) {
-	for _, scenario := range []string{"application-update-regression-macos", "windows-security-agent-regression"} {
-		t.Run(scenario, func(t *testing.T) {
-			r := shippedRequest(t, scenario)
-			for i := range r.Scenario.Fleet {
-				r.Scenario.Fleet[i].Count, r.Scenario.Fleet[i].BaselineVariance = 1, 0
-			}
-			app := r.Scenario.Phases[1].Software["rollout"][0]
-			processDef := r.Scenario.Phases[2].Processes["rollout"][0]
-			onset := r.Scenario.Phases[0].Duration.Duration
-			recovery := onset + r.Scenario.Phases[1].Duration.Duration + r.Scenario.Phases[2].Duration.Duration
-			var softwareRef bundle.SampleRef
-			var sequence uint64
-			for _, ref := range r.Bundle.Manifest.Samples {
-				sequence = max(sequence, ref.Sequence, ref.CycleID)
-				if ref.Stream == schema.Software && ref.Offset == 0 {
-					softwareRef = ref
-				}
-			}
-			baseline, err := r.Bundle.Decode(softwareRef)
-			if err != nil {
-				t.Fatal(err)
-			}
-			baselineVersion := ""
-			for _, entry := range baseline.Software.Metadata.Software {
-				if entry.DisplayName == app.Name {
-					baselineVersion = entry.Version
-				}
-			}
-			if baselineVersion == "" || baselineVersion == app.Version {
-				t.Fatal("fixture needs a distinct healthy application version")
-			}
-			// These are additional synthetic observations inside this recording,
-			// not repeated replay output or a fabricated longer manifest window.
-			for _, offset := range []time.Duration{onset, recovery} {
-				data, err := telemetry.Encode(baseline.Software)
-				if err != nil {
-					t.Fatal(err)
-				}
-				sequence++
-				ref := softwareRef
-				ref.Offset, ref.CycleID, ref.Sequence = offset, sequence, sequence
-				ref.File = fmt.Sprintf("observed-software-%d.json", sequence)
-				r.Bundle.Files[ref.File], r.Bundle.Manifest.Files[ref.File] = data, schema.Digest(data)
-				r.Bundle.Manifest.Samples = append(r.Bundle.Manifest.Samples, ref)
-			}
-			r.Bundle.Manifest.Cadences[schema.Software] = onset
-			r = requestFor(t, r.Scenario, r.Plan.ScenarioDigest, r.Bundle)
-			delivery := &recordingDelivery{start: r.Plan.Start, retainPayload: true}
-			result, err := Run(context.Background(), r, Options{Workers: 2, QueueCapacity: 1, Clock: &advancingClock{now: r.Plan.Start}, Delivery: delivery})
-			if err != nil {
-				t.Fatal(err)
-			}
-			assertCompleteCadences(t, r, result, delivery)
-			groups := map[string]string{}
-			for _, device := range result.Ledger {
-				groups[device.Hostname] = device.Cohort
-			}
-			seen := map[string]int{}
-			for _, record := range delivery.records {
-				if record.Stream != schema.Software && record.Stream != schema.Processes {
-					continue
-				}
-				phase, _ := phaseAt(r.Scenario, record.Offset)
-				group := groups[record.Host]
-				var chunks []json.RawMessage
-				if err := json.Unmarshal([]byte(record.Payload), &chunks); err != nil {
-					t.Fatal(err)
-				}
-				changed := group == "rollout" && (phase == 1 || phase == 2)
-				for _, data := range chunks {
-					value, err := telemetry.Decode(record.Stream, data)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if record.Stream == schema.Software {
-						want := baselineVersion
-						if changed {
-							want = app.Version
-						}
-						found := false
-						for _, entry := range value.Software.Metadata.Software {
-							if entry.DisplayName == app.Name {
-								found = entry.Version == want
-							}
-						}
-						if !found {
-							t.Fatalf("%s software phase %d did not preserve/change/restore the observed version", group, phase)
-						}
-					} else {
-						var original *model.CollectorProc
-						for _, ref := range r.Bundle.Manifest.Samples {
-							if ref.Stream == schema.Processes && ref.Offset == record.Offset {
-								captured, err := r.Bundle.Decode(ref)
-								if err != nil {
-									t.Fatal(err)
-								}
-								original = captured.Processes
-								break
-							}
-						}
-						gotCPU, gotMemory, gotPath := processResources(value.Processes, processDef.Name)
-						wantCPU, wantMemory, wantPath := processResources(original, processDef.Name)
-						if changed && phase == 2 {
-							wantCPU, wantMemory = processDef.CPU.Steady.Value, uint64(processDef.Memory.Steady.Value*(1<<20))
-						}
-						if (!changed || phase == 2) && (math.Abs(gotCPU-wantCPU) > 1e-5 || gotMemory != wantMemory) {
-							t.Fatalf("%s process phase %d lost the expected resource change/recovery", group, phase)
-						}
-						if changed && app.Name == "SentinelOne" {
-							if !strings.Contains(gotPath, app.Version) {
-								t.Fatal("process path and changed software version disagree")
-							}
-						} else if !changed && gotPath != wantPath {
-							t.Fatal("healthy or recovery process path differs from its recorded observation")
-						}
-					}
-					seen[fmt.Sprintf("%s/%s/%d", group, record.Stream, phase)]++
-				}
-			}
-			for _, group := range []string{"rollout", "comparison"} {
-				for _, key := range []string{"software/0", "software/1", "software/3", "processes/0", "processes/2", "processes/3"} {
-					if seen[group+"/"+key] == 0 {
-						t.Fatalf("missing observed replay coverage for %s/%s", group, key)
-					}
-				}
-			}
-		})
+	if err := schema.DecodeStrict(data, request.Scenario); err != nil {
+		t.Fatal(err)
 	}
-}
-
-func processResources(payload *model.CollectorProc, name string) (float64, uint64, string) {
-	if payload == nil || payload.Info == nil {
-		return 0, 0, ""
+	if _, err := schema.NewPlan(request.Scenario, schema.Digest(data), fixtureCommit, 1, request.Plan.Start, request.Bundle.Ref()); err == nil || !strings.Contains(err.Error(), "recapture") {
+		t.Fatalf("new plan accepted the healthy macOS scenario with a short recording: %v", err)
 	}
-	var cpus, cpu float64
-	var memory uint64
-	var path string
-	for _, topology := range payload.Info.Cpus {
-		cpus += float64(topology.Cores)
+	if err := Validate(request); err == nil || !strings.Contains(err.Error(), "recapture") || !strings.Contains(err.Error(), request.Bundle.Manifest.Duration.String()) {
+		t.Fatalf("healthy macOS scenario accepted a short recording: %v", err)
 	}
-	for _, process := range payload.Processes {
-		if process.Command != nil && process.Command.Comm == name {
-			cpu += float64(process.Cpu.TotalPct)
-			memory += process.Memory.Rss
-			path = process.Command.Exe
-		}
-	}
-	return cpu / cpus, memory, path
 }
 
 func TestSharedBaselineReplayDeterministicAcrossWorkersAndMapOrder(t *testing.T) {
@@ -754,24 +578,6 @@ func TestRecordingTooShortFailsBeforeDeliveryOrReportCreation(t *testing.T) {
 	}
 }
 
-func TestPreflightUsesObservedProcessesWithinTheirReplayPhase(t *testing.T) {
-	request := shippedRequest(t, "application-update-regression-macos")
-	// Chrome need not exist in the first healthy collection to be overlaid in
-	// later onset collections. A Cartesian comparison of all cycles rejects it.
-	rewriteFixtureSamples(t, request, schema.Processes, func(s *telemetry.Sample, index int) {
-		if index == 0 {
-			for _, process := range s.Processes.Processes {
-				if process.Command != nil && process.Command.Comm == "Google Chrome" {
-					process.Command.Comm = "Earlier Native Application"
-				}
-			}
-		}
-	})
-	if err := Validate(request); err != nil {
-		t.Fatalf("preflight compared an overlay against an unrelated process observation: %v", err)
-	}
-}
-
 func rewriteFixtureSamples(t *testing.T, request Request, stream schema.Stream, mutate func(*telemetry.Sample, int)) {
 	t.Helper()
 	capture := request.Bundle
@@ -795,77 +601,12 @@ func rewriteFixtureSamples(t *testing.T, request Request, stream schema.Stream, 
 	}
 }
 
-func TestSemanticPreflightRejectsUnproducibleFleetBeforeDelivery(t *testing.T) {
-	for _, tc := range []struct {
-		name, scenario, want string
-		mutate               func(*testing.T, Request)
-	}{
-		{"missing-cpu-topology", "application-update-regression-macos", "CPU topology", func(t *testing.T, r Request) {
-			rewriteFixtureSamples(t, r, schema.Processes, func(s *telemetry.Sample, _ int) { s.Processes.Info.Cpus = nil })
-		}},
-		{"regression-already-installed", "application-update-regression-macos", "already equals regression version", func(t *testing.T, r Request) {
-			version := r.Scenario.Phases[1].Software["rollout"][0].Version
-			rewriteFixtureSamples(t, r, schema.Software, func(s *telemetry.Sample, _ int) {
-				for i := range s.Software.Metadata.Software {
-					if s.Software.Metadata.Software[i].DisplayName == "Google Chrome" {
-						s.Software.Metadata.Software[i].Version = version
-					}
-				}
-			})
-		}},
-		{"later-phase-memory-overflow", "application-update-regression-macos", "resource capacity", func(_ *testing.T, r Request) {
-			r.Scenario.Phases[2].Processes["rollout"][0].Memory = schema.Pattern{Steady: &schema.SteadyPattern{Value: 65536}}
-		}},
-		{"missing-initial-ap-metrics", "wifi-degradation-macos", "initial network_metrics", func(_ *testing.T, r Request) {
-			delete(r.Scenario.Phases[0].NetworkMetrics, r.Scenario.NetworkDevices.AccessPoints[0].Name)
-		}},
-		{"invalid-nested-host-metadata", "healthy-macos", "invalid gohai", func(t *testing.T, r Request) {
-			rewriteFixtureSamples(t, r, schema.HostMetadata, func(s *telemetry.Sample, _ int) { s.HostMetadata.Gohai = `{"cpu":` })
-		}},
-		{"missing-wireless-identity", "wifi-degradation-macos", "wireless identity tags", func(t *testing.T, r Request) {
-			rewriteFixtureSamples(t, r, schema.Metrics, func(s *telemetry.Sample, _ int) {
-				for _, metric := range s.Metrics {
-					metric.Tags = tagset.CompositeTags{}
-				}
-			})
-		}},
-		{"selector-missing-in-one-cycle", "vpn-degradation-windows", "lacks required", func(t *testing.T, r Request) {
-			target, index := -1, 0
-			for _, ref := range r.Bundle.Manifest.Samples {
-				if ref.Stream == schema.Connections {
-					phase, _ := phaseAt(r.Scenario, ref.Offset)
-					if len(r.Scenario.Phases[phase].Connections["vpn-path"]) != 0 {
-						target = index
-						break
-					}
-					index++
-				}
-			}
-			if target < 0 {
-				t.Fatal("fixture lacks a connection cycle during the declared overlay")
-			}
-			rewriteFixtureSamples(t, r, schema.Connections, func(s *telemetry.Sample, index int) {
-				if index == target {
-					s.Connections.Connections[0].Raddr.Port++
-				}
-			})
-		}},
-		{"metric-missing-in-one-cycle", "wifi-degradation-macos", "lacks required", func(t *testing.T, r Request) {
-			rewriteFixtureSamples(t, r, schema.Metrics, func(s *telemetry.Sample, index int) {
-				if index == 1 {
-					s.Metrics = slices.DeleteFunc(s.Metrics, func(serie *metrics.Serie) bool { return serie.Name == "system.wlan.rssi" })
-				}
-			})
-		}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			request := shippedRequest(t, tc.scenario)
-			tc.mutate(t, request)
-			sink := &recordingDelivery{start: request.Plan.Start}
-			result, err := Run(context.Background(), request, Options{Workers: 4, QueueCapacity: 1, Clock: &advancingClock{now: request.Plan.Start}, Delivery: sink})
-			if err == nil || !strings.Contains(err.Error(), tc.want) || result != nil || sink.calls != 0 || sink.waits != 0 {
-				t.Fatalf("semantic preflight failed to reject %s before delivery: %v", tc.name, err)
-			}
-		})
+func TestSemanticPreflightRejectsInvalidHostMetadataBeforeDelivery(t *testing.T) {
+	request := healthyMacOSRequest(t)
+	rewriteFixtureSamples(t, request, schema.HostMetadata, func(s *telemetry.Sample, _ int) { s.HostMetadata.Gohai = `{"cpu":` })
+	sink := &recordingDelivery{start: request.Plan.Start}
+	result, err := Run(context.Background(), request, Options{Workers: 4, QueueCapacity: 1, Clock: &advancingClock{now: request.Plan.Start}, Delivery: sink})
+	if err == nil || !strings.Contains(err.Error(), "invalid gohai") || result != nil || sink.calls != 0 || sink.waits != 0 {
+		t.Fatalf("semantic preflight failed to reject invalid host metadata before delivery: %v", err)
 	}
 }

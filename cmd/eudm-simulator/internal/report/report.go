@@ -109,7 +109,7 @@ func (r *Report) Snapshot() *Report {
 
 // New copies the inputs required to explain and select one run.
 func New(plan *schema.RunPlan, scenario *schema.Scenario, replayOS string) *Report {
-	r := &Report{Version: 2, Status: "planned", ScenarioDigest: plan.ScenarioDigest, BundleDigest: plan.Bundle.Digest, AgentCommit: plan.AgentCommit, Seed: plan.Seed, RunID: plan.RunID, Start: plan.Start, ReplayOS: replayOS, Expectation: schema.Expectation{Conclusion: scenario.Expectation.Conclusion, AffectedCohorts: slices.Clone(scenario.Expectation.AffectedCohorts)}, Selectors: map[string]string{"telemetry": "eudm_run_id:" + plan.RunID, "ndm_namespace": identity.Namespace(plan.RunID)}, Errors: []string{}, NetworkStreams: map[schema.Stream]*Counts{}, NetworkDevices: []string{}}
+	r := &Report{Version: 2, Status: "planned", ScenarioDigest: plan.ScenarioDigest, BundleDigest: plan.Bundle.Digest, AgentCommit: plan.AgentCommit, Seed: plan.Seed, RunID: plan.RunID, Start: plan.Start, ReplayOS: replayOS, Expectation: schema.Expectation{Conclusion: scenario.Expectation.Conclusion, AffectedCohorts: slices.Clone(scenario.Expectation.AffectedCohorts)}, Selectors: map[string]string{"ndm_namespace": identity.Namespace(plan.RunID)}, Errors: []string{}, NetworkStreams: map[schema.Stream]*Counts{}, NetworkDevices: []string{}}
 	for _, group := range scenario.Fleet {
 		r.DeclaredDevices += group.Count
 	}

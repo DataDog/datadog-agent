@@ -41,7 +41,6 @@ type accessPoint struct {
 // declarations, so delivery order never changes carry-forward or variation.
 type Model struct {
 	scenario     *schema.Scenario
-	runID        string
 	namespace    string
 	seed         uint64
 	accessPoints []accessPoint
@@ -61,12 +60,12 @@ func New(s *schema.Scenario, runID string, seed uint64) (*Model, error) {
 	if len(s.NetworkDevices.AccessPoints) > 65534 {
 		return nil, errors.New("too many access points for the run address space")
 	}
-	m := &Model{scenario: s, runID: runID, namespace: identity.Namespace(runID), seed: seed}
+	m := &Model{scenario: s, namespace: identity.Namespace(runID), seed: seed}
 	addressBlock := sha256.Sum256([]byte(runID))
 	for ordinal, def := range s.NetworkDevices.AccessPoints {
 		ip := fmt.Sprintf("10.%d.%d.%d", addressBlock[0], (ordinal+1)>>8, (ordinal+1)&255)
 		deviceID := metadata.DeviceID(m.namespace, ip)
-		name := "ap-" + runID + "-" + opaque(def.Name)
+		name := "ap-" + opaque(runID, def.Name)
 		d := metadata.DeviceMetadata{ID: deviceID, IDTags: metadata.DeviceIDTags(m.namespace, ip), IPAddress: ip, Name: name, OsHostname: name, SerialNumber: "serial-" + opaque(runID, def.SerialNumber, def.Name), Status: metadata.DeviceStatusReachable, PingStatus: metadata.DeviceStatusReachable, Profile: def.Profile, Vendor: def.Vendor, Model: def.Model, OsName: def.OSName, OsVersion: def.OSVersion, Version: def.Version, SysObjectID: def.SysObjectID, Integration: s.EffectiveIntegration(), DeviceType: def.DeviceType}
 		if d.DeviceType == "" {
 			d.DeviceType = "access_point"
@@ -74,7 +73,7 @@ func New(s *schema.Scenario, runID string, seed uint64) (*Model, error) {
 		if def.Location != "" {
 			d.Location = "location-" + opaque(runID, def.Location)
 		}
-		d.Tags = []string{"device_namespace:" + m.namespace, "device_id:" + deviceID, "device_ip:" + ip, "snmp_device:" + ip, "device_hostname:" + name, "eudm_run_id:" + runID, "device_type:" + d.DeviceType}
+		d.Tags = []string{"device_namespace:" + m.namespace, "device_id:" + deviceID, "device_ip:" + ip, "snmp_device:" + ip, "device_hostname:" + name, "device_type:" + d.DeviceType}
 		for key, value := range map[string]string{"device_vendor": def.Vendor, "snmp_profile": def.Profile} {
 			if value != "" {
 				d.Tags = append(d.Tags, key+":"+value)
@@ -104,7 +103,7 @@ func New(s *schema.Scenario, runID string, seed uint64) (*Model, error) {
 			if iface.Kind == "radio" {
 				typeID = 71
 				mac = identity.RadioMAC(runID, def.Name, iface.Name, iface.BSSID)
-				ap.wireless = append(ap.wireless, metadata.WirelessInterfaceMetadata{Namespace: m.namespace, DeviceByIntegrationID: deviceID, InterfaceByIntegrationID: metadata.InterfaceID(deviceID, iface.Index), BSSID: mac, SSID: identity.SSID(runID, iface.EffectiveSSID()), Band: iface.Band, AdminStatus: metadata.IfAdminStatus(iface.EffectiveAdminStatus()), OperStatus: metadata.IfOperStatus(iface.EffectiveOperStatus()), Tags: []string{"eudm_run_id:" + runID}})
+				ap.wireless = append(ap.wireless, metadata.WirelessInterfaceMetadata{Namespace: m.namespace, DeviceByIntegrationID: deviceID, InterfaceByIntegrationID: metadata.InterfaceID(deviceID, iface.Index), BSSID: mac, SSID: identity.SSID(runID, iface.EffectiveSSID()), Band: iface.Band, AdminStatus: metadata.IfAdminStatus(iface.EffectiveAdminStatus()), OperStatus: metadata.IfOperStatus(iface.EffectiveOperStatus())})
 			}
 			ap.interfaces = append(ap.interfaces, metadata.InterfaceMetadata{DeviceID: deviceID, IDTags: metadata.InterfaceIDTags(ifaceName, iface.Index), Index: iface.Index, Name: ifaceName, MacAddress: mac, AdminStatus: metadata.IfAdminStatus(iface.EffectiveAdminStatus()), OperStatus: metadata.IfOperStatus(iface.EffectiveOperStatus()), Type: typeID})
 		}

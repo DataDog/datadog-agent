@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/identity"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
 )
 
@@ -77,8 +78,8 @@ func TestLocalReportContainsPortableEvidenceAndRefusesOverwrite(t *testing.T) {
 	if !got.Complete() || got.Version != 2 || got.ReplayOS != "linux" || got.Seed != 123 || got.Status != "succeeded" || got.Expectation.Conclusion != schema.VPNPath || got.ScenarioDigest != r.ScenarioDigest || got.BundleDigest != r.BundleDigest {
 		t.Fatal("lost local report contract")
 	}
-	if got.Phases[1].StartOffset != 20*time.Minute || got.Phases[1].Duration != time.Minute || got.Selectors["telemetry"] != "eudm_run_id:"+r.RunID || strings.Contains(got.Selectors["telemetry"], "affected") {
-		t.Fatal("phase timing or opaque product selector changed")
+	if got.Phases[1].StartOffset != 20*time.Minute || got.Phases[1].Duration != time.Minute || got.Selectors["ndm_namespace"] != identity.Namespace(r.RunID) || got.Selectors["telemetry"] != "" {
+		t.Fatal("phase timing or local product identities changed")
 	}
 }
 

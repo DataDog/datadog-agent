@@ -25,6 +25,17 @@ phases:
   - {name: healthy, duration: 20m}
 `
 
+const compactHealthyYAML = `version: 1
+scenario:
+  name: healthy-macos
+  description: Replays captured macOS endpoint telemetry without overlays.
+fleet:
+  count: 3
+  os: macos
+replay:
+  duration: 20m
+`
+
 func healthy(t *testing.T) *Scenario {
 	t.Helper()
 	var scenario Scenario
@@ -36,6 +47,41 @@ func healthy(t *testing.T) *Scenario {
 
 func baselineRef(platform string) BundleRef {
 	return BundleRef{Digest: Digest([]byte(platform)), CaptureToolCommit: strings.Repeat("a", 40), Duration: time.Hour, Profile: Profile{OS: platform, Architecture: "arm64", Streams: []Stream{Metrics, HostMetadata, AgentInventory, HostInventory, Processes, Software}, MetricNames: []string{"system.cpu.user"}, ProcessNames: []string{"Chrome"}, SoftwareNames: []string{"Google Chrome"}}}
+}
+
+func TestCompactReplayNormalizesToExecutionModel(t *testing.T) {
+	var scenario Scenario
+	if err := DecodeStrict([]byte(compactHealthyYAML), &scenario); err != nil {
+		t.Fatal(err)
+	}
+	if scenario.Expectation.Conclusion != Healthy || len(scenario.Expectation.AffectedCohorts) != 0 {
+		t.Fatalf("compact replay acquired a non-healthy expectation: %+v", scenario.Expectation)
+	}
+	if len(scenario.Fleet) != 1 || !reflect.DeepEqual(scenario.Fleet[0], GroupDef{Group: "endpoints", Count: 3, OS: "macos"}) {
+		t.Fatalf("compact fleet was not normalized: %+v", scenario.Fleet)
+	}
+	if len(scenario.Phases) != 1 || scenario.Phases[0].Name != "healthy" || scenario.Phases[0].Duration.Duration != 20*time.Minute {
+		t.Fatalf("compact replay was not normalized: %+v", scenario.Phases)
+	}
+	if err := scenario.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCompactReplayRejectsMixedAndUnknownForms(t *testing.T) {
+	for _, input := range []string{
+		strings.Replace(compactHealthyYAML, "  os: macos", "  os: macos\n  group: unnecessary", 1),
+		strings.Replace(compactHealthyYAML, "  duration: 20m", "  duration: 20m\n  conclusion: healthy", 1),
+		strings.Replace(compactHealthyYAML, "fleet:", "expectation: {conclusion: healthy}\nfleet:", 1),
+		strings.Replace(compactHealthyYAML, "replay:", "software_inventory: {}\nreplay:", 1),
+		compactHealthyYAML + "phases: [{name: healthy, duration: 20m}]\n",
+		strings.Replace(compactHealthyYAML, "fleet:\n  count: 3\n  os: macos", "fleet: [{group: endpoints, count: 3, os: macos}]", 1),
+	} {
+		var scenario Scenario
+		if err := DecodeStrict([]byte(input), &scenario); err == nil {
+			t.Fatalf("accepted invalid compact replay:\n%s", input)
+		}
+	}
 }
 
 func TestSingleBaselinePlanRoundTrip(t *testing.T) {

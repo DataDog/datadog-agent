@@ -23,6 +23,7 @@ dd_agent_go_test(
     ],
     embed = [":report"],
     deps = [
+		"//cmd/eudm-simulator/internal/identity",
         "//cmd/eudm-simulator/internal/schema",
         "//pkg/util/filesystem",
     ],

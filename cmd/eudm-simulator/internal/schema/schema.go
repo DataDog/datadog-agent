@@ -17,7 +17,14 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// Scenario is the top-level structure of a eudsim scenario YAML file.
+const (
+	implicitGroupName = "endpoints"
+	implicitPhaseName = "healthy"
+)
+
+// Scenario is the normalized simulator scenario. The YAML contract has a
+// compact replay form for a single cohort and retains the explicit form for
+// scenarios that need named cohorts, expectations, phases, or overlays.
 type Scenario struct {
 	Version         int                       `yaml:"version"`
 	Expectation     Expectation               `yaml:"expectation"`
@@ -28,6 +35,115 @@ type Scenario struct {
 	Software        map[string][]SoftwareItem `yaml:"software_inventory"`
 	Phases          []Phase                   `yaml:"phases"`
 	NetworkDevices  NetworkDevicesConfig      `yaml:"network_devices"` // optional: simulated NDM access points
+}
+
+// Replay defines the duration of a compact, overlay-free replay.
+type Replay struct {
+	Duration Duration `yaml:"duration"`
+}
+
+type compactFleet struct {
+	Count int    `yaml:"count"`
+	OS    string `yaml:"os"`
+}
+
+type scenarioFleet struct {
+	groups  []GroupDef
+	compact bool
+}
+
+func (f *scenarioFleet) UnmarshalYAML(value *yaml.Node) error {
+	switch value.Kind {
+	case yaml.MappingNode:
+		var fleet compactFleet
+		if err := decodeNodeStrict(value, &fleet); err != nil {
+			return err
+		}
+		f.groups = []GroupDef{{Group: implicitGroupName, Count: fleet.Count, OS: fleet.OS}}
+		f.compact = true
+		return nil
+	case yaml.SequenceNode:
+		type groups []GroupDef
+		var fleet groups
+		if err := decodeNodeStrict(value, &fleet); err != nil {
+			return err
+		}
+		f.groups = []GroupDef(fleet)
+		return nil
+	default:
+		return errors.New("fleet must be a count/os mapping or a list of cohorts")
+	}
+}
+
+type scenarioDocument struct {
+	Version         int                       `yaml:"version"`
+	Expectation     *Expectation              `yaml:"expectation"`
+	MonitorWindow   *Duration                 `yaml:"monitor_window"`
+	VisibilityDelay *Duration                 `yaml:"visibility_delay"`
+	Meta            ScenarioMeta              `yaml:"scenario"`
+	Fleet           scenarioFleet             `yaml:"fleet"`
+	Replay          *Replay                   `yaml:"replay"`
+	Software        map[string][]SoftwareItem `yaml:"software_inventory"`
+	Phases          *[]Phase                  `yaml:"phases"`
+	NetworkDevices  *NetworkDevicesConfig     `yaml:"network_devices"`
+}
+
+// UnmarshalYAML normalizes the compact replay form into the same internal
+// cohort and phase model used by advanced scenarios. Keeping one execution
+// model avoids giving the simple syntax subtly different replay behavior.
+func (s *Scenario) UnmarshalYAML(value *yaml.Node) error {
+	var document scenarioDocument
+	if err := decodeNodeStrict(value, &document); err != nil {
+		return err
+	}
+	if document.Replay != nil && document.Phases != nil {
+		return errors.New("replay and phases are mutually exclusive")
+	}
+	if document.Fleet.compact && document.Replay == nil {
+		return errors.New("compact fleet requires replay")
+	}
+	if !document.Fleet.compact && document.Replay != nil {
+		return errors.New("replay requires compact fleet")
+	}
+	if document.Fleet.compact && (document.Expectation != nil || document.MonitorWindow != nil || document.VisibilityDelay != nil || document.Software != nil || document.NetworkDevices != nil) {
+		return errors.New("compact replay accepts only version, scenario, fleet, and replay")
+	}
+
+	var expectation Expectation
+	if document.Expectation != nil {
+		expectation = *document.Expectation
+	}
+	var monitorWindow, visibilityDelay Duration
+	if document.MonitorWindow != nil {
+		monitorWindow = *document.MonitorWindow
+	}
+	if document.VisibilityDelay != nil {
+		visibilityDelay = *document.VisibilityDelay
+	}
+	var phases []Phase
+	if document.Phases != nil {
+		phases = *document.Phases
+	}
+	var networkDevices NetworkDevicesConfig
+	if document.NetworkDevices != nil {
+		networkDevices = *document.NetworkDevices
+	}
+	if document.Replay != nil {
+		expectation = Expectation{Conclusion: Healthy}
+		phases = []Phase{{Name: implicitPhaseName, Duration: document.Replay.Duration}}
+	}
+	*s = Scenario{
+		Version:         document.Version,
+		Expectation:     expectation,
+		MonitorWindow:   monitorWindow,
+		VisibilityDelay: visibilityDelay,
+		Meta:            document.Meta,
+		Fleet:           document.Fleet.groups,
+		Software:        document.Software,
+		Phases:          phases,
+		NetworkDevices:  networkDevices,
+	}
+	return nil
 }
 
 // ScenarioMeta holds scenario identity fields.

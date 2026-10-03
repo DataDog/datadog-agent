@@ -32,9 +32,9 @@ type Wireless struct{ BSSID, SSID string }
 // Map is immutable and safe to use concurrently on independently owned samples.
 // Baseline addresses identify the device; remote services retain their native identities.
 type Map struct {
-	Hostname, UUID, ClientMAC, RunTag string
-	runID, scope                      string
-	valid                             bool
+	Hostname, UUID, ClientMAC string
+	scope                     string
+	valid                     bool
 	*Baseline
 }
 
@@ -58,12 +58,11 @@ func NewWithBaseline(runID string, seed uint64, cohort string, ordinal int, base
 		baseline = NewBaseline()
 	}
 	scope := string(hash(runID, strconv.FormatUint(seed, 10), cohort, strconv.Itoa(ordinal)))
-	m := &Map{runID: runID, scope: scope, valid: runPattern.MatchString(runID) && ordinal >= 0,
+	m := &Map{scope: scope, valid: runPattern.MatchString(runID) && ordinal >= 0,
 		Baseline: baseline}
-	m.Hostname = "eudm-" + runID + "-" + strconv.FormatInt(int64(ordinal), 36)
+	m.Hostname = "host-" + hex.EncodeToString(hash(scope, "hostname")[:8])
 	m.UUID = uuid(hash(scope, "host"))
 	m.ClientMAC = mac(hash(scope, "client"))
-	m.RunTag = "eudm_run_id:" + runID
 	return m
 }
 
@@ -96,8 +95,11 @@ func token(scope, kind, value string) string {
 
 func (m *Map) token(kind, value string) string { return token(m.scope, kind, value) }
 
-// Namespace isolates all NDM resources belonging to one opaque run.
-func Namespace(runID string) string { return "eudm-" + runID }
+// Namespace isolates all NDM resources belonging to one opaque run without
+// exposing simulator or scenario provenance to downstream consumers.
+func Namespace(runID string) string {
+	return "network-" + hex.EncodeToString(hash(runID, "namespace")[:8])
+}
 
 // RadioMAC is shared by an AP radio and every client associated with it.
 // A configured BSSID is scoped too, so concurrent runs cannot share a resource.
@@ -139,7 +141,7 @@ func ip(scope, value string) string {
 }
 
 func (m *Map) tags(baseline []string, group schema.GroupDef, wireless *Wireless) []string {
-	result := make([]string, 0, len(baseline)+len(group.Tags)+1)
+	result := make([]string, 0, len(baseline)+len(group.Tags))
 	for _, tag := range baseline {
 		key, value, ok := strings.Cut(tag, ":")
 		if !ok {
@@ -171,7 +173,7 @@ func (m *Map) tags(baseline []string, group schema.GroupDef, wireless *Wireless)
 		result = append(result, key+":"+value)
 	}
 	result = append(result, group.Tags...)
-	return append(result, m.RunTag)
+	return result
 }
 
 // Apply changes only simulated device identity. Native application, user,

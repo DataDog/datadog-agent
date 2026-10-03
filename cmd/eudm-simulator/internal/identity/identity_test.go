@@ -31,7 +31,7 @@ func fixture() *telemetry.Sample {
 	return &telemetry.Sample{
 		Metrics: []*metrics.Serie{{Name: "system.wlan.rssi", Host: "native-laptop", Device: "en0", Points: []metrics.Point{{Ts: 15, Value: -55}}, Unit: "decibel", SourceTypeName: "system", NoIndex: true,
 			Resources: []metrics.Resource{{Type: "host", Name: "native-laptop"}, {Type: "device", Name: "en0"}},
-			Tags:      tagset.CompositeTagsFromSlice([]string{"bssid:02:00:00:00:00:01", "mac_address:02:00:00:00:00:02", "ssid:Corp-WiFi", "interface:en0", "scenario:native-label", "unkeyed", "infra_mode:end_user_device"})}},
+			Tags:      tagset.CompositeTagsFromSlice([]string{"bssid:02:00:00:00:00:01", "mac_address:02:00:00:00:00:02", "ssid:Corp-WiFi", "interface:en0", "scenario:native-label", "unkeyed", "infra_mode:end_user_device", "eudm_run_id:stale"})}},
 		HostMetadata: &telemetry.HostMetadata{Hostname: "native-laptop", UUID: "native-uuid", OS: "darwin", Network: map[string]string{"network-id": "native-network"},
 			HostTags: map[string][]string{"system": {"os_name:darwin", "total_memory_gb:16"}, "custom": {"owner:alice", "unkeyed"}},
 			Gohai:    `{"platform":{"hostname":"native-laptop","hardware_uuid":"native-uuid","serial_number":"native-serial"},"cpu":{"model_name":"Native CPU Model","cache_size":9007199254740993},"network":{"ipaddress":"10.1.2.3","macaddress":"02:00:00:00:00:02"}}`},
@@ -98,11 +98,16 @@ func TestIdentityChangesOnlyDeviceIdentity(t *testing.T) {
 		t.Fatal("remote endpoint or network attributes changed")
 	}
 	for _, tag := range baseline.Metrics[0].Tags.UnsafeToReadOnlySliceString() {
-		if strings.HasPrefix(tag, "mac_address:") {
+		if strings.HasPrefix(tag, "mac_address:") || strings.HasPrefix(tag, "eudm_run_id:") {
 			continue
 		}
 		if !slices.Contains(sample.Metrics[0].Tags.UnsafeToReadOnlySliceString(), tag) {
 			t.Fatalf("native tag lost: %s", tag)
+		}
+	}
+	for _, tag := range sample.Metrics[0].Tags.UnsafeToReadOnlySliceString() {
+		if strings.HasPrefix(tag, "eudm_run_id:") {
+			t.Fatal("simulator provenance tag survived identity rewriting")
 		}
 	}
 	if !slices.Contains(sample.HostMetadata.HostTags["custom"], "owner:alice") || !slices.Contains(sample.HostMetadata.HostTags["custom"], "unkeyed") {

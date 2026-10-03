@@ -323,8 +323,13 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 				foundChrome := false
 				for _, process := range body.Processes {
 					d.processPIDs[process.Pid] = true
-					if process.CreateTime != start.Add(-time.Minute).UnixMilli() || !slices.Contains(process.Tags, d.id.RunTag) {
-						t.Fatal("process time or opaque run identity changed")
+					if process.CreateTime != start.Add(-time.Minute).UnixMilli() {
+						t.Fatal("process time changed")
+					}
+					for _, tag := range process.Tags {
+						if strings.HasPrefix(tag, "eudm_run_id:") {
+							t.Fatal("process payload exposes simulator provenance")
+						}
 					}
 					if process.User.GetName() != "fixture-user" || process.IoStat.GetReadRate() != 5 || process.IoStat.GetWriteRate() != 9 || !slices.Contains(process.Tags, "team:desktop") || !slices.Contains(process.Tags, "interactive") || !slices.Contains(process.Command.Args, "--profile=work") {
 						t.Fatal("native process user, I/O, tags, or arguments changed")
@@ -396,8 +401,13 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 					}
 				}
 				d := device(host)
-				if !slices.Contains(serie.Tags, d.id.RunTag) || serie.Metadata.GetOrigin().GetOriginService() == 0 {
-					t.Fatal("metric run tag or captured Agent origin lost")
+				if serie.Metadata.GetOrigin().GetOriginService() == 0 {
+					t.Fatal("captured Agent origin lost")
+				}
+				for _, tag := range serie.Tags {
+					if strings.HasPrefix(tag, "eudm_run_id:") {
+						t.Fatal("metric payload exposes simulator provenance")
+					}
 				}
 				metricType := metrics.APIGaugeType
 				if tc.MetricFamily(serie.Metric) == "network" {
@@ -429,8 +439,15 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 			if d.os == "windows" {
 				wantOS = "win32"
 			}
-			if payload.OS != wantOS || payload.UUID != d.id.UUID || !slices.Contains(payload.HostTags["system"], d.id.RunTag) {
+			if payload.OS != wantOS || payload.UUID != d.id.UUID {
 				t.Fatal("host enrichment metadata does not represent the simulated device")
+			}
+			for _, tags := range payload.HostTags {
+				for _, tag := range tags {
+					if strings.HasPrefix(tag, "eudm_run_id:") {
+						t.Fatal("host metadata exposes simulator provenance")
+					}
+				}
 			}
 			if !slices.Contains(payload.HostTags["gcp"], "team:desktop") || !slices.Contains(payload.HostTags["gcp"], "interactive") {
 				t.Fatal("native host tag buckets were discarded")
@@ -748,8 +765,13 @@ func TestWirelessEvidenceThroughAgentNDMBatchesAndMetricDelivery(t *testing.T) {
 	clientMACs := map[string]bool{}
 	clientSignals, clientWorkloads, radioNoise, reachability := 0, 0, 0, 0
 	for _, serie := range series {
-		if !slices.Contains(serie.Tags, "eudm_run_id:"+runID) || len(serie.Points) != 1 || serie.Points[0].Timestamp != at.Unix() {
-			t.Fatal("wireless metric lost its opaque run identity or absolute timestamp")
+		if len(serie.Points) != 1 || serie.Points[0].Timestamp != at.Unix() {
+			t.Fatal("wireless metric lost its absolute timestamp")
+		}
+		for _, tag := range serie.Tags {
+			if strings.HasPrefix(tag, "eudm_run_id:") {
+				t.Fatal("wireless metric exposes simulator provenance")
+			}
 		}
 		value := serie.Points[0].Value
 		if serie.Metric == "snmp.device.reachable" {

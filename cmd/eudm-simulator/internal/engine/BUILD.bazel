@@ -58,9 +58,7 @@ dd_agent_go_test(
         "//cmd/eudm-simulator/internal/telemetry",
         "//pkg/metrics",
         "//pkg/networkdevice/metadata",
-        "//pkg/tagset",
         "//pkg/telemetrycapture",
-        "@com_github_datadog_agent_payload_v5//process",
         "@rules_go//go/runfiles",
     ],
 )

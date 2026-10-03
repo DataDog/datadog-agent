@@ -1,15 +1,9 @@
 version: 1
 scenario:
   name: healthy-macos
-  description: Healthy macOS endpoints replay all captured evidence without incident overlays.
-expectation:
-  affected_cohorts: []
-  conclusion: healthy
+  description: Replays captured macOS endpoint telemetry without overlays.
 fleet:
-  - group: endpoints
-    count: 3
-    os: macos
-    tags: [dept:engineering, site:remote]
-phases:
-  - name: healthy
-    duration: 20m
+  count: 3
+  os: macos
+replay:
+  duration: 20m

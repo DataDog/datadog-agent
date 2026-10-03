@@ -1,27 +1,41 @@
 # EUDM simulator scenario reference
 
-Scenarios describe cohorts and changes to captured evidence. Read the [overview](index.md) for scope and status, and use the [runbook](../../how-to/test/eudm-simulator.md) for the commands. The authoritative contracts are <<<repo("cmd/eudm-simulator/internal/schema/schema.go")>>> and <<<repo("cmd/eudm-simulator/internal/schema/contracts.go")>>>.
+Scenarios describe how captured evidence is replayed and, when needed, how it changes over time. Read the [overview](index.md) for scope and status, and use the [runbook](../../how-to/test/eudm-simulator.md) for the commands. The authoritative contracts are <<<repo("cmd/eudm-simulator/internal/schema/schema.go")>>> and <<<repo("cmd/eudm-simulator/internal/schema/contracts.go")>>>.
 
-## Shipped scenarios
+## Checked-in scenario
 
-Definitions are in <<<repo("cmd/eudm-simulator/scenarios")>>>. Counts refer to the complete fleet, including healthy comparison cohorts.
+The definition is in <<<repo("cmd/eudm-simulator/scenarios")>>>.
 
-| File | Cohorts sharing the baseline | Required evidence beyond the common baseline |
+| File | Fleet | Required evidence beyond the common baseline |
 | --- | --- | --- |
-| `healthy-macos.yaml` | `endpoints` (3 macOS) | No incident overlay |
-| `healthy-windows.yaml` | `endpoints` (3 Windows) | No incident overlay; native Windows capture includes connections |
-| `application-update-regression-macos.yaml` | `rollout` (3), `comparison` (4) | Captured `Google Chrome` process and software entry; CPU/memory headroom; a healthy version distinct from the declared incident version |
-| `windows-security-agent-regression.yaml` | `rollout` (4), `comparison` (4) | Captured `SentinelAgent.exe` process and `SentinelOne` software entry; CPU/memory headroom; a distinct healthy version |
-| `vpn-degradation-windows.yaml` | `vpn-path` (3), `comparison` (3) | A confirmed VPN-path TCP connection present in every relevant captured cycle |
-| `wifi-degradation-macos.yaml` | See the three fleet groups in the file (60 clients, 3 APs) | `system.wlan.rssi`, `noise`, `txrate`, and `rxrate`, including BSSID/SSID/client identity tags |
+| `healthy-macos.yaml` | 3 macOS devices | No incident overlay |
 
-Every endpoint requires metrics, legacy host metadata, Agent/host inventories, processes, and software inventory. An advertised host-system-info provider contributes hardware evidence. Windows capture requires multiple connection cycles; macOS includes connections when its running producer advertises them. A connection overlay requires that captured evidence.
+Every endpoint requires metrics, legacy host metadata, Agent/host inventories, processes, and software inventory. An advertised host-system-info provider contributes hardware evidence. macOS includes connections when its running producer advertises them.
 
-The application, security-agent, and VPN files use 20-minute healthy, 5-minute onset, 20-minute sustained, and 15-minute recovery phases, totaling 60 minutes. Wi-Fi uses 15, 5, 20, and 10 minutes respectively, totaling 50 minutes. Their monitor window is 10 minutes and visibility delay 5 minutes; these are scenario inputs to confirm against the real staging monitor, not discovered backend settings. Healthy-only files run for 20 minutes. The separate host-enrichment probes in <<<repo("cmd/eudm-simulator/testdata/probes")>>> use two devices and a 35-minute healthy phase. Capture for at least the scenario's total duration; the 60-minute incidents require longer recordings than the probes.
+The healthy scenario uses the compact replay form:
 
-## Minimal multi-cohort scenario
+```yaml
+version: 1
+scenario:
+  name: healthy-macos
+  description: Replays captured macOS endpoint telemetry without overlays.
+fleet:
+  count: 3
+  os: macos
+replay:
+  duration: 20m
+```
 
-Save this as a local YAML file and supply one completed macOS baseline bundle from the same Agent commit. Unknown YAML fields and additional YAML documents are rejected.
+It contains only schema identity, scenario metadata, and inputs that constrain
+replay. The runner internally normalizes it to one cohort and one phase so it
+uses the same scheduling and accounting path as an advanced scenario. Capture
+for at least its 20-minute duration.
+
+## Advanced scenarios
+
+Use the explicit form when a scenario needs multiple cohorts, expectations,
+phases, or overlays. This machinery remains available for incident scenarios;
+it is intentionally absent from the compact healthy replay. For example:
 
 ```yaml
 version: 1
@@ -35,17 +49,15 @@ fleet:
   - group: engineering
     count: 2
     os: macos
-    tags: [dept:engineering, site:remote]
   - group: sales
     count: 2
     os: macos
-    tags: [dept:sales, site:remote]
 phases:
   - name: healthy
     duration: 35m
 ```
 
-Run with `--scenario /path/to/scenario.yaml --bundle /path/to/macos-bundle`; validation is automatic. Use the same arguments with optional `validate` to check without sending telemetry. On Windows, use native directory paths. The one bundle path is a command argument, not part of the scenario, and supplies the baseline for every cohort. Per-cohort bundle assignments and multiple bundles are unsupported. Every cohort's OS must match the capture; the replay host OS is independent. Run Windows and macOS scenarios separately with their corresponding baselines.
+Save custom YAML locally and run with `--scenario /path/to/scenario.yaml --bundle /path/to/macos-bundle`; validation is automatic. Unknown YAML fields, mixed compact/advanced fields, and additional YAML documents are rejected. Use the same arguments with optional `validate` to check without sending telemetry. On Windows, use native directory paths. The one bundle path is a command argument, not part of the scenario, and supplies the baseline for every cohort. Per-cohort bundle assignments and multiple bundles are unsupported. Every cohort's OS must match the capture; the replay host OS is independent. Run Windows and macOS scenarios separately with their corresponding baselines.
 
 ## Top-level fields
 
@@ -53,14 +65,15 @@ Run with `--scenario /path/to/scenario.yaml --bundle /path/to/macos-bundle`; val
 | --- | --- |
 | `version` | Required; currently `1` |
 | `scenario.name`, `scenario.description` | Local scenario identity and explanation; do not copy these into emitted tags |
-| `expectation` | Local affected-cohort list and typed conclusion; never emitted as telemetry |
-| `fleet` | Ordered cohorts, each with a unique `group`, positive `count`, and `os: macos` or `os: windows`; all must match the baseline's OS |
+| `fleet` | Compact `count`/`os` mapping, or an ordered list of explicit cohorts; all device OS declarations must match the baseline |
+| `replay` | Compact replay duration; mutually exclusive with explicit `phases` |
+| `expectation` | Advanced-only local affected-cohort list and typed conclusion; never emitted as telemetry |
 | `monitor_window`, `visibility_delay` | Duration strings; incident healthy and sustained phases must each cover their sum |
 | `software_inventory` | Optional map from cohort to software overrides applied in every phase |
-| `phases` | Ordered phase definitions with positive durations and optional evidence overlays |
+| `phases` | Advanced-only ordered phase definitions with positive durations and optional evidence overlays |
 | `network_devices` | Optional generated AP inventory, with `integration` (default `snmp`) and `access_points` |
 
-The conclusions are `healthy`, `process_software_version`, `vpn_path`, and `wireless_access_points`. Healthy requires an empty affected list. An incident requires declared affected cohorts and exactly four phases named `healthy`, `onset`, `sustained`, and `recovery`, in that order. The expectation is an acceptance declaration, not an instruction that automatically changes cohort behavior: put the intended changes under the relevant phase/cohort.
+The compact form has an implicit local healthy expectation. Explicit conclusions are `healthy`, `process_software_version`, `vpn_path`, and `wireless_access_points`. Healthy requires an empty affected list. An incident requires declared affected cohorts and exactly four phases named `healthy`, `onset`, `sustained`, and `recovery`, in that order. The expectation is an acceptance declaration, not an instruction that automatically changes cohort behavior: put the intended changes under the relevant phase/cohort.
 
 All names referenced by process, software, metric, and connection overlays must exist in the baseline capture. Missing required evidence rejects the scenario; overlays do not create missing processes, installations, metrics, or connections. Validation checks resource capacity and all relevant captured cycles. A scenario that parses successfully can still fail evidence validation. The total scenario duration must not exceed the bundle recording duration; validation rejects longer scenarios before delivery. Replay sends each recorded cycle once and never loops the baseline or fills gaps. Shorter scenarios must reach the first captured sample of every selected stream and metric family. Phase transitions do not force additional collections; where an investigation needs a phase-specific software version or metadata snapshot, choose phase lengths that contain a relevant native collection cycle.
 
@@ -78,7 +91,7 @@ The runner assigns device ordinals in fleet declaration order. Changing that ord
 
 `baseline_variance` does not randomize unspecified captured background telemetry. A phase's `jitter_scale` multiplies the configured spread, capped at `1`; omitted or `0` means `1`, so set `baseline_variance: 0` to disable endpoint variation. The independent key includes seed, cohort, device ordinal, phase, stream, sample ordinal, and field.
 
-Reserved tags include scenario/expectation/cohort labels and generated host, network, wireless, and NDM identity keys. See `validateTag` in <<<repo("cmd/eudm-simulator/internal/schema/contracts.go")>>> for the full list. The emitted selector is `eudm_run_id:<opaque-id>` and the NDM namespace is `eudm-<opaque-id>`. SSIDs and cohort BSSIDs stay literal. Declared AP radios and AP addresses receive run-scoped identities; use the report and emitted resources to query those resources.
+Reserved tags include scenario/expectation/cohort labels and generated host, network, wireless, and NDM identity keys. See `validateTag` in <<<repo("cmd/eudm-simulator/internal/schema/contracts.go")>>> for the full list. No run ID or simulator marker is emitted. The report records exact opaque hostnames and, for custom access-point scenarios, a neutral NDM namespace. SSIDs and cohort BSSIDs stay literal. Declared AP radios and AP addresses receive run-scoped identities; use the report and emitted resources to query those resources.
 
 Scenario YAML supplies explicit overrides to captured telemetry. Its values are sent as authored; keep transport credentials out of it. Neutral tags should provide realistic comparison dimensions without naming the intended root cause.
 
@@ -111,7 +124,7 @@ Optional `user`, `exe`, and `args` alter existing process fields; omitted fields
 
 Software entries match existing display names, set `version`, and optionally change nonempty `publisher`, `software_type`, `deployment_status`, `deployment_time`, `product_code`, and `user`. A phase entry takes precedence over a top-level entry of the same name. Entries update the existing application rather than adding duplicates. `is_64_bit: true` sets the field; false/omitted preserves the capture rather than forcing a 32-bit application. Product codes, users, paths, and historical installation dates remain native unless explicitly overridden. There is no default installation date derived from the run start.
 
-Start from the shipped Chrome or SentinelOne declaration. Confirm that the process stays present throughout the capture, the matching software version is healthy, and resource headroom supports the incident values plus variation. A declaration cannot invent a missing installation.
+For a custom process/software scenario, confirm that the process stays present throughout the capture, the matching software version is healthy, and resource headroom supports the incident values plus variation. A declaration cannot invent a missing installation.
 
 ### Metrics
 
@@ -119,7 +132,7 @@ Only allowed endpoint metric names that exist in the capture can be overlaid. Th
 
 ### VPN connections
 
-Copy the shipped VPN file locally and replace every `REPLACE_WITH_CAPTURED_VPN_CONNECTION_SELECTOR` occurrence with a selector from the verified bundle's `profile.connection_selectors`. Confirm with the capture operator that it represents the intended VPN path. A selector alone or a synthetic fixture does not establish that relationship, and the simulator does not discover VPNs automatically.
+For a custom connection scenario, use a selector from the verified bundle's `profile.connection_selectors`. Confirm with the capture operator that it represents the intended path. A selector alone or a synthetic fixture does not establish that relationship, and the simulator does not discover VPNs automatically.
 
 | Connection field | Units/behavior |
 | --- | --- |
@@ -132,7 +145,7 @@ Unspecified connection fields and unmatched connections keep their baseline valu
 
 ## Access points and Wi-Fi
 
-Start from <<<repo("cmd/eudm-simulator/scenarios/wifi-degradation-macos.yaml")>>>. Each AP needs a unique name/address and at least one interface. Interfaces need unique names and positive indexes within that AP, and `kind: ethernet` or `kind: radio`. Radios require `band: 2.4GHz`, `5GHz`, or `6GHz`; SSID defaults to `Corp-WiFi`. Interface admin/oper status defaults to up. The contract is in <<<repo("cmd/eudm-simulator/internal/schema/network.go")>>>.
+In a custom access-point scenario, each AP needs a unique name/address and at least one interface. Interfaces need unique names and positive indexes within that AP, and `kind: ethernet` or `kind: radio`. Radios require `band: 2.4GHz`, `5GHz`, or `6GHz`; SSID defaults to `Corp-WiFi`. Interface admin/oper status defaults to up. The contract is in <<<repo("cmd/eudm-simulator/internal/schema/network.go")>>>.
 
 The runner creates run-scoped AP/device/interface/IP/wireless resources, supplies Agent NDM identity tags, and assigns each associated client the exact emitted radio BSSID. The synthetic AP model does not poll real network equipment. Scenario labels and configured addresses are not literal backend resource IDs.
 
@@ -147,6 +160,6 @@ Keep a healthy comparison AP and its clients. During degradation, change the aff
 1. Inspect a verified bundle profile and samples, then choose an existing scenario with the required evidence. Use a local scenario copy for operator-specific selectors and values.
 1. Declare all cohorts against the same baseline profile and OS. Preserve a comparison cohort and give the incident enough time for the real monitor window, visibility delay, and slow stream cadences.
 1. Optionally use `validate` to check without sending telemetry. Fix evidence or capacity errors by changing the declaration or capturing an appropriate healthy device, rather than altering bundle manifests.
-1. Run at normal wall-clock speed. Each invocation validates the current inputs and records their digests, its seed, start time, and fresh run identity in the report. Inspect the complete ledger and opaque selectors, and record the actual product outcome separately from the expectation.
+1. Run at normal wall-clock speed. Each invocation validates the current inputs and records their digests, its seed, start time, and fresh local run identity in the report. Inspect the complete ledger and exact opaque hostnames, and record the actual product outcome separately from the expectation.
 
-For a checked-in scenario, add progression and complete-fleet coverage alongside <<<repo("cmd/eudm-simulator/internal/engine/engine_test.go")>>> and the recording integration tests. Run the simulator suite with `dda inv test --targets=./cmd/eudm-simulator/... --build-exclude=python`. The current largest tested shipped fleet is 60 endpoints; a larger declaration requires a new constrained-queue load test before claiming support.
+For a checked-in scenario, add complete-fleet coverage alongside <<<repo("cmd/eudm-simulator/internal/engine/engine_test.go")>>> and the recording integration tests. Run the simulator suite with `dda inv test --targets=./cmd/eudm-simulator/... --build-exclude=python`. A larger declaration requires a new constrained-queue load test before claiming support.
