@@ -28,6 +28,7 @@ dd_agent_go_test(
         "//comp/core/hostname/hostnameimpl",
         "//comp/forwarder/defaultforwarder/mock",
         "//comp/forwarder/eventplatform/mock",
+        "//comp/forwarder/orchestrator/def",
         "//comp/forwarder/orchestrator/mock",
         "//pkg/aggregator",
         "//pkg/util/fxutil",

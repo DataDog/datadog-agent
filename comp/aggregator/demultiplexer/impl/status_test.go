@@ -98,7 +98,7 @@ func TestStatusOutPut(t *testing.T) {
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		defaultforwardermock.MockModule(),
 		haagentmock.Module(),
-		orchestratormock.MockModule(),
+		fx.Provide(func() orchestratorforwarder.Component { return orchestratormock.New(t) }),
 		eventplatformmock.MockModule(),
 		metricscompression.MockModule(),
 		filterlistfx.MockModule(),
