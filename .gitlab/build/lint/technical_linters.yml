@@ -71,6 +71,7 @@ validate_modules:
   script:
     - dda inv -- -e modules.validate
     - dda inv -- -e modules.validate-used-by-otel
+    - dda inv -- -e modules.validate-cargo
 
 check_modules_replace:
   extends: .lint
