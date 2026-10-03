@@ -48,6 +48,7 @@ dd_agent_go_test(
         "//comp/core/hostname/hostnameimpl",
         "//comp/forwarder/defaultforwarder/mock",
         "//comp/forwarder/eventplatform/def",
+        "//comp/ndmtmp/forwarder/def",
         "//comp/ndmtmp/forwarder/mock",
         "//comp/netflow/common",
         "//comp/netflow/config/def",
