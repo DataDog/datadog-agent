@@ -71,7 +71,7 @@ func TestWaitForPendingSamplesDrainsRealDemux(t *testing.T) {
 // broken drain reliably show up as a sketchCount short of iterations.
 func TestWaitForPendingSamplesDrainsThroughWrappedDemux(t *testing.T) {
 	mockConfig := configmock.New(t)
-	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), nil)
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t))
 
 	cf := newCountingForwarder()
 
