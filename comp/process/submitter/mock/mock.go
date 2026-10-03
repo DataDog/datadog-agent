@@ -5,26 +5,17 @@
 
 //go:build test
 
-// Package submitter implements a component to submit collected data in the Process Agent to
-// supported Datadog intakes.
-package submitter
+// Package mock provides a mock process submitter for testing.
+package mock
 
 import (
-	"go.uber.org/fx"
+	"testing"
 
 	submitter "github.com/DataDog/datadog-agent/comp/process/submitter/def"
 	submitterimpl "github.com/DataDog/datadog-agent/comp/process/submitter/impl"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	submitter.Component
-}
-
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(submitterimpl.NewMock),
-	)
+// New returns a testify mock submitter with optional Start, Stop, and Submit expectations.
+func New(t testing.TB) submitter.Component {
+	return submitterimpl.NewMock(t)
 }
