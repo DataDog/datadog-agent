@@ -26,8 +26,13 @@ import (
 )
 
 const (
-	defaultLoader       = "core"
-	defaultQueryTimeout = 20
+	defaultLoader                   = "core"
+	defaultQueryTimeout             = 20
+	defaultSchemaCollectionInterval = 600
+	defaultSchemaMaxViews           = 1000
+	defaultSchemaMaxTables          = 300
+	defaultSchemaMaxColumns         = 50
+	defaultSchemaMaxQueryDuration   = 60
 )
 
 // InitConfig is used to deserialize integration init config.
@@ -76,6 +81,35 @@ type SysMetricsConfig struct {
 type TablespacesConfig struct {
 	Enabled            bool  `yaml:"enabled"`
 	CollectionInterval int64 `yaml:"collection_interval"`
+}
+
+type SchemasConfig struct {
+	Enabled            bool     `yaml:"enabled"`
+	CollectionInterval int64    `yaml:"collection_interval"`
+	CollectViews       *bool    `yaml:"collect_views"`
+	MaxViews           int      `yaml:"max_views"`
+	MaxTables          int      `yaml:"max_tables"`
+	MaxColumns         int      `yaml:"max_columns"`
+	MaxQueryDuration   int      `yaml:"max_query_duration"`
+	IncludeSchemas     []string `yaml:"include_schemas"`
+	ExcludeSchemas     []string `yaml:"exclude_schemas"`
+	IncludeTables      []string `yaml:"include_tables"`
+	ExcludeTables      []string `yaml:"exclude_tables"`
+	IncludeDatabases   []string `yaml:"include_databases"`
+	ExcludeDatabases   []string `yaml:"exclude_databases"`
+}
+
+// collect_views defaults to true when omitted.
+func (c SchemasConfig) ViewsEnabled() bool {
+	return c.CollectViews == nil || *c.CollectViews
+}
+
+func (c SchemasConfig) MaxQueryDurationDuration() time.Duration {
+	return time.Duration(c.MaxQueryDuration) * time.Second
+}
+
+type DataObservabilityConfig struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -191,6 +225,8 @@ type InstanceConfig struct {
 	Asm                                asmConfig                `yaml:"asm"`
 	ResourceManager                    resourceManagerConfig    `yaml:"resource_manager"`
 	Locks                              locksConfig              `yaml:"locks"`
+	Schemas                            SchemasConfig            `yaml:"collect_schemas"`
+	DataObservability                  DataObservabilityConfig  `yaml:"data_observability"`
 	OnlyCustomQueries                  bool                     `yaml:"only_custom_queries"`
 	Service                            string                   `yaml:"service"`
 	Loader                             string                   `yaml:"loader"`
@@ -281,6 +317,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	instance.Tablespaces.CollectionInterval = 600
 
+	instance.Schemas.CollectionInterval = defaultSchemaCollectionInterval
+	instance.Schemas.MaxViews = defaultSchemaMaxViews
+	instance.Schemas.MaxTables = defaultSchemaMaxTables
+	instance.Schemas.MaxColumns = defaultSchemaMaxColumns
+	instance.Schemas.MaxQueryDuration = defaultSchemaMaxQueryDuration
+
 	instance.Loader = defaultLoader
 	initCfg.Loader = defaultLoader
 	// Defaults end
@@ -290,6 +332,22 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 	if err := yaml.Unmarshal(rawInitConfig, &initCfg); err != nil {
 		return nil, err
+	}
+
+	if instance.Schemas.CollectionInterval <= 0 {
+		instance.Schemas.CollectionInterval = defaultSchemaCollectionInterval
+	}
+	if instance.Schemas.MaxTables <= 0 {
+		instance.Schemas.MaxTables = defaultSchemaMaxTables
+	}
+	if instance.Schemas.MaxViews <= 0 {
+		instance.Schemas.MaxViews = defaultSchemaMaxViews
+	}
+	if instance.Schemas.MaxColumns <= 0 {
+		instance.Schemas.MaxColumns = defaultSchemaMaxColumns
+	}
+	if instance.Schemas.MaxQueryDuration <= 0 {
+		instance.Schemas.MaxQueryDuration = defaultSchemaMaxQueryDuration
 	}
 
 	if err := validateCustomQueryCollectionIntervals("custom_queries", instance.CustomQueries); err != nil {
