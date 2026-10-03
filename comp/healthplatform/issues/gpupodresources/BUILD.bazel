@@ -14,10 +14,12 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
+        "//comp/def",
         "//comp/healthplatform/issueregistry/utils/selfident",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
         "//pkg/config/env",
+        "//pkg/util/fxutil",
         "//pkg/util/kubernetes/kubelet",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@org_golang_google_protobuf//types/known/structpb",
@@ -42,7 +44,6 @@ dd_agent_go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/mock",
-        "//comp/healthplatform/issues",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
