@@ -1,7 +1,7 @@
 #!/bin/sh
-# Unconfiguration Script — the only lifecycle script reliably stored in
-# liblpp.a and run by installp during deinstallation (installp -u).
-# It also runs during upgrades, but preinst recreates any removed state.
+# Unconfiguration Script — runs only at deinstall (installp -u), before the
+# files are removed. It never runs during upgrades: on upgrades, only the
+# incoming package's scripts run.
 stopsrc -g datadog-agent 2>/dev/null || true
 # Wait up to 30 s for dd-agent processes to fully exit before cleanup.
 i=0

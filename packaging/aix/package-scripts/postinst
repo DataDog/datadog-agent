@@ -1,4 +1,7 @@
 #!/bin/sh
+# Post-installation Script — runs on fresh installs and upgrades, after the
+# new files are installed.
+
 # Create dd-agent group
 lsgroup dd-agent > /dev/null 2>&1 || mkgroup dd-agent
 
