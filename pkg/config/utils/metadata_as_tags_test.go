@@ -129,3 +129,94 @@ func TestGetMetadataAsTagsNoError(t *testing.T) {
 		})
 	}
 }
+
+func TestGetMetadataAsTagsGPUJobs(t *testing.T) {
+	tests := []struct {
+		name                         string
+		gpuEnabled                   bool
+		runKey                       string
+		runType                      string
+		groupKey                     string
+		groupType                    string
+		podLabelsAsTags              map[string]string
+		resourcesAnnotationsAsTag    string
+		expectedPodLabelsAsTags      map[string]string
+		expectedPodAnnotationsAsTags map[string]string
+	}{
+		{
+			name:       "gpu disabled",
+			gpuEnabled: false,
+			runKey:     "example/run",
+			runType:    "label",
+			groupKey:   "example/group",
+			groupType:  "annotation",
+		},
+		{
+			name:       "no keys configured",
+			gpuEnabled: true,
+			runType:    "label",
+			groupType:  "label",
+		},
+		{
+			name:                         "label and annotation",
+			gpuEnabled:                   true,
+			runKey:                       "Example/Run",
+			runType:                      "label",
+			groupKey:                     "example/group",
+			groupType:                    "Annotation",
+			expectedPodLabelsAsTags:      map[string]string{"example/run": "training_run_id"},
+			expectedPodAnnotationsAsTags: map[string]string{"example/group": "training_group_id"},
+		},
+		{
+			name:                         "env type is skipped",
+			gpuEnabled:                   true,
+			runKey:                       "_RAY_SUBMISSION_ID",
+			runType:                      "env",
+			groupKey:                     "example/group",
+			groupType:                    "annotation",
+			expectedPodAnnotationsAsTags: map[string]string{"example/group": "training_group_id"},
+		},
+		{
+			name:                         "merged with existing user config",
+			gpuEnabled:                   true,
+			runKey:                       "example/run",
+			runType:                      "label",
+			groupKey:                     "example/group",
+			groupType:                    "annotation",
+			podLabelsAsTags:              map[string]string{"example/run": "my_run", "app": "app"},
+			resourcesAnnotationsAsTag:    `{"pods":{"other":"other"}}`,
+			expectedPodLabelsAsTags:      map[string]string{"example/run": "my_run,training_run_id", "app": "app"},
+			expectedPodAnnotationsAsTags: map[string]string{"other": "other", "example/group": "training_group_id"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			mockConfig := configmock.New(tt)
+			mockConfig.SetInTest("gpu.enabled", test.gpuEnabled)
+			mockConfig.SetInTest("gpu.jobs.run.key", test.runKey)
+			mockConfig.SetInTest("gpu.jobs.run.type", test.runType)
+			mockConfig.SetInTest("gpu.jobs.group.key", test.groupKey)
+			mockConfig.SetInTest("gpu.jobs.group.type", test.groupType)
+			mockConfig.SetInTest("kubernetes_pod_labels_as_tags", test.podLabelsAsTags)
+			mockConfig.SetInTest("kubernetes_resources_annotations_as_tags", test.resourcesAnnotationsAsTag)
+
+			metadataAsTags := GetMetadataAsTags(mockConfig)
+
+			assertTagsEqual(tt, test.expectedPodLabelsAsTags, metadataAsTags.GetPodLabelsAsTags())
+			assertTagsEqual(tt, test.expectedPodAnnotationsAsTags, metadataAsTags.GetPodAnnotationsAsTags())
+
+			// Calling again must not accumulate tags
+			assertTagsEqual(tt, test.expectedPodLabelsAsTags, GetMetadataAsTags(mockConfig).GetPodLabelsAsTags())
+		})
+	}
+}
+
+// assertTagsEqual treats nil and empty maps as equal
+func assertTagsEqual(t *testing.T, expected, actual map[string]string) {
+	if len(expected) == 0 {
+		assert.Empty(t, actual)
+		return
+	}
+	assert.Equal(t, expected, actual)
+}
