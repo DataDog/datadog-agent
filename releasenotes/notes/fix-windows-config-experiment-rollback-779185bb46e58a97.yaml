@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Windows Fleet Automation config experiments no longer roll back from a
+    partially deleted backup after promotion. Rollbacks also preserve config
+    file permissions and unmanaged configuration files, and remove check
+    directories created by the failed experiment.
