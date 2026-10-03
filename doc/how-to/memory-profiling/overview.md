@@ -17,8 +17,8 @@ results. A good example of a tool that becomes difficult to use in this
 environment is Valgrind. The problem is Valgrind will account for all
 allocations in the Go and CPython spaces, and these being garbage collected
 can make the reports a little hard to understand. You can also try to use a
-supression file to supress some of the allocations in Python or Go, but it is
-difficult to find a supression file.
+suppression file to suppress some of the allocations in Python or Go, but it is
+difficult to find a suppression file.
 
 This guide covers Go and Python have facilities for tracking and troubleshooting.
 Datadog also offers some C/C++ facilities to help you track allocations.
