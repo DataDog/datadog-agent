@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fixed an issue where changing the Multi-Region Failover logs settings could block
+    indefinitely after the logs pipeline restarted (for example when switching from TCP
+    to HTTP), which stopped Remote Configuration from applying further Multi-Region
+    Failover updates and hung runtime settings changes.
