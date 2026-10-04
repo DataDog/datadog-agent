@@ -36,6 +36,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
@@ -77,7 +78,11 @@ type localTagger struct {
 	cfg           config.Component
 	collector     *collectors.WorkloadMetaCollector
 
-	datadogConfig              datadogConfig
+	datadogConfig datadogConfig
+	// infraModeTags is resolved once at construction: `infrastructure_mode` is a
+	// local setting, so the Tagger normalizes and validates it rather than
+	// propagating it.
+	infraModeTags              []string
 	tlmUDPOriginDetectionError coretelemetry.Counter
 	telemetryStore             *telemetry.Store
 	ctx                        context.Context
@@ -205,7 +210,14 @@ func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.
 		cfg:                        cfg,
 		tlmUDPOriginDetectionError: tlmUDPOriginDetectionError,
 		datadogConfig:              dc,
+		infraModeTags:              configutils.InfraModeTags(cfg),
 	}, nil
+}
+
+// InfraModeTags returns the infrastructure mode tags for this Agent, or nil when
+// the mode does not carry a mark.
+func (t *localTagger) InfraModeTags() []string {
+	return t.infraModeTags
 }
 
 // getTags returns a read only list of tags for a given entity.

@@ -1,0 +1,25 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Agents running with a marked ``infrastructure_mode`` (``cloud_cost_only`` or
+    ``end_user_device``) now add an ``infra_mode`` tag to the Kubernetes resource,
+    ECS resource, kubelet configuration and container payloads they emit. Setting
+    ``infrastructure_mode`` is now enough: the
+    ``orchestrator_explorer.extra_tags`` and ``tags`` workarounds that were
+    previously needed to identify these payloads can be removed. The mark is
+    deliberately kept off metrics, so custom metrics and DogStatsD metrics are
+    unaffected.
+fixes:
+  - |
+    The Agent now logs a warning when ``infrastructure_mode`` is set to a value
+    outside the declared set (``full``, ``basic``, ``end_user_device``,
+    ``cloud_cost_only``, ``none``). Such a value previously applied no mode
+    override without reporting anything, so a typo looked like a working
+    configuration.

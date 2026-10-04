@@ -16,10 +16,12 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/process"
 
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/ecs"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -75,6 +77,48 @@ func TestNotECS(t *testing.T) {
 	err := check.Run()
 	require.NoError(t, err)
 	require.Len(t, sender.messages, 0)
+}
+
+func TestNewCheckInfraModeTags(t *testing.T) {
+	tests := []struct {
+		name      string
+		infraMode string
+		extraTags []string
+		expected  []string
+	}{
+		{
+			name:      "cloud_cost_only marks the payload",
+			infraMode: "cloud_cost_only",
+			expected:  []string{"infra_mode:cloud_cost_only"},
+		},
+		{
+			name:      "full leaves the payload unmarked",
+			infraMode: "full",
+			expected:  nil,
+		},
+		{
+			name:      "the legacy extra_tags workaround is not duplicated",
+			infraMode: "cloud_cost_only",
+			extraTags: []string{"infra_mode:cloud_cost_only"},
+			expected:  []string{"infra_mode:cloud_cost_only"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// The ECS check reads the config singleton rather than a config
+			// component, so the mode has to be set there too.
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("orchestrator_explorer.extra_tags", tc.extraTags)
+
+			fakeTagger := taggerfxmock.SetupFakeTaggerWithOverrides(t, map[string]interface{}{
+				"infrastructure_mode": tc.infraMode,
+			})
+
+			check := newCheck(nil, fakeTagger).(*Check)
+			require.Equal(t, tc.expected, check.config.ExtraTags)
+		})
+	}
 }
 
 func TestECSV4Enabled(t *testing.T) {

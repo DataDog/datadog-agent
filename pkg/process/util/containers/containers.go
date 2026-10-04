@@ -16,6 +16,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	taggerutils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -118,6 +119,9 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 	processContainers := make([]*model.Container, 0)
 	rateStats := make(map[string]*ContainerRateMetrics)
 	pidToCid := make(map[int]string)
+	// The container payload is built from per-entity tags only, so it is the one
+	// resource payload the global entity never reaches. Mark it here instead.
+	infraModeTags := p.tagger.InfraModeTags()
 	for _, container := range containersMetadata {
 		pod, _ := p.metadataStore.GetKubernetesPodForContainer(container.ID)
 		filterablePod := workloadmetafilter.CreatePod(pod)
@@ -138,6 +142,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 			log.Debugf("Could not collect tags for container %q, err: %v", containerutilPkg.ShortContainerID(container.ID), err)
 		}
 		tags = append(tags, container.CollectorTags...)
+		tags = taggerutils.AppendUniqueTags(tags, infraModeTags...)
 
 		outPreviousStats := NullContainerRates
 		// Name and Image fields exist but are never filled

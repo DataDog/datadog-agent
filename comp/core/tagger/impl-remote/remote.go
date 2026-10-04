@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -103,6 +104,11 @@ type remoteTagger struct {
 	checksCardinality    types.TagCardinality
 	dogstatsdCardinality types.TagCardinality
 
+	// infraModeTags is resolved from the local config and not from the remote
+	// tagger stream: `infrastructure_mode` is delivered to every Agent process,
+	// so there is nothing to propagate.
+	infraModeTags []string
+
 	wg sync.WaitGroup
 }
 
@@ -154,6 +160,7 @@ func newRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.C
 		log:            log,
 		tlsConfig:      ipc.GetTLSClientConfig(),
 		authToken:      ipc.GetAuthToken(),
+		infraModeTags:  configutils.InfraModeTags(cfg),
 	}
 
 	// Override the default TLS config and auth token if provided
@@ -477,6 +484,12 @@ func (t *remoteTagger) AgentTags(_ types.TagCardinality) ([]string, error) {
 
 func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
 	return t.Tag(types.GetGlobalEntityID(), cardinality)
+}
+
+// InfraModeTags returns the infrastructure mode tags for this Agent, or nil when
+// the mode does not carry a mark.
+func (t *remoteTagger) InfraModeTags() []string {
+	return t.infraModeTags
 }
 
 // EnrichTags enriches the tags with the global tags.

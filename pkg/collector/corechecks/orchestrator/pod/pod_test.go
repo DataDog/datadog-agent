@@ -169,6 +169,52 @@ func TestPodTestSuite(t *testing.T) {
 	suite.Run(t, new(PodTestSuite))
 }
 
+func TestNewCheckInfraModeTags(t *testing.T) {
+	tests := []struct {
+		name      string
+		infraMode string
+		extraTags []string
+		expected  []string
+	}{
+		{
+			name:      "cloud_cost_only marks the payload",
+			infraMode: "cloud_cost_only",
+			expected:  []string{"infra_mode:cloud_cost_only"},
+		},
+		{
+			name:      "full leaves the payload unmarked",
+			infraMode: "full",
+			expected:  nil,
+		},
+		{
+			name:      "the legacy extra_tags workaround is not duplicated",
+			infraMode: "cloud_cost_only",
+			extraTags: []string{"infra_mode:cloud_cost_only"},
+			expected:  []string{"infra_mode:cloud_cost_only"},
+		},
+		{
+			name:      "configured extra tags are preserved",
+			infraMode: "cloud_cost_only",
+			extraTags: []string{"team:container-platform"},
+			expected:  []string{"team:container-platform", "infra_mode:cloud_cost_only"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("orchestrator_explorer.extra_tags", tc.extraTags)
+
+			fakeTagger := taggerfxmock.SetupFakeTaggerWithOverrides(t, map[string]interface{}{
+				"infrastructure_mode": tc.infraMode,
+			})
+
+			check := newCheck(nil, mockConfig, fakeTagger).(*Check)
+			require.Equal(t, tc.expected, check.config.ExtraTags)
+		})
+	}
+}
+
 func (suite *PodTestSuite) TestPodCheck() {
 	cacheKey := cache.BuildAgentKey(constants.ClusterIDCacheKey)
 	cachedClusterID, found := cache.Cache.Get(cacheKey)

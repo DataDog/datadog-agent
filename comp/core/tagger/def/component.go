@@ -46,4 +46,15 @@ type Component interface {
 	//   - ChecksConfigCardinality: alias defined via `checks_tag_cardinality` setting an above option
 	GlobalTags(cardinality types.TagCardinality) ([]string, error)
 	EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo)
+	// InfraModeTags returns the infrastructure mode tags for this Agent, or nil
+	// when the mode does not carry a mark. The tagset describes the Agent
+	// process, so it is constant and takes no entity and no cardinality.
+	//
+	// Callers append it explicitly where they serialize a payload the Agent
+	// itself produces. It is deliberately not served through Tag, GlobalTags or
+	// EnrichTags: those reach metric samples, and the metrics intake renames
+	// series tagged `infra_mode:cloud_cost_only` into the `dd.cloud_cost`
+	// namespace, which would drop customer custom metrics from dashboards and
+	// metering.
+	InfraModeTags() []string
 }

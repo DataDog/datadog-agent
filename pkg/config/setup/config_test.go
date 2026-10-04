@@ -770,6 +770,16 @@ infrastructure_mode: none
 	assert.False(t, config.GetBool("integration.enabled"))
 }
 
+func TestInfrastructureModeUnknownValueAppliesNoOverride(t *testing.T) {
+	// A typo must behave as `full` rather than silently picking up the overrides
+	// of the mode the operator meant to set.
+	config := confFromYAML(t, "infrastructure_mode: nonee")
+	applyInfrastructureModeOverrides(config)
+
+	assert.True(t, config.GetBool("integration.enabled"))
+	assert.False(t, config.GetBool("software_inventory.enabled"))
+}
+
 func TestInfrastructureModeLegacyAliases(t *testing.T) {
 	// Test that legacy allowed_additional_checks is aliased to mode-specific
 	// key via applyInfrastructureModeOverrides

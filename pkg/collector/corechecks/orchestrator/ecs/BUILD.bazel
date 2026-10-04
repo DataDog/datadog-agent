@@ -12,6 +12,7 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/tagger/def",
+        "//comp/core/tagger/utils",
         "//comp/core/workloadmeta/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
@@ -44,10 +45,12 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
+        "//comp/core/tagger/fx-mock",
         "//comp/core/tagger/impl-noop",
         "//comp/core/workloadmeta/def",
         "//pkg/aggregator/mocksender",
         "//pkg/collector/corechecks/cluster/orchestrator/transformers/ecs",
+        "//pkg/config/mock",
         "//pkg/orchestrator",
         "//pkg/orchestrator/config",
         "//pkg/process/checks",

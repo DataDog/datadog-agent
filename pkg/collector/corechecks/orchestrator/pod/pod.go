@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerutils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -74,6 +75,9 @@ func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.C
 
 func newCheck(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) check.Check {
 	extraTags := cfg.GetStringSlice(oconfig.OrchestratorNSKey("extra_tags"))
+	// A deployment that still sets the mark through orchestrator_explorer.extra_tags
+	// must not emit it twice.
+	extraTags = taggerutils.AppendUniqueTags(extraTags, tagger.InfraModeTags()...)
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
 		config:    oconfig.NewDefaultOrchestratorConfig(extraTags),

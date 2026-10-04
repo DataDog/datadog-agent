@@ -58,6 +58,10 @@ func (n *noopTagger) GlobalTags(types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
+func (n *noopTagger) InfraModeTags() []string {
+	return nil
+}
+
 func (n *noopTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) {}
 
 // NewComponent returns a new noop tagger component

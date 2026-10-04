@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -522,6 +523,80 @@ func TestGlobalTags(t *testing.T) {
 	tb := tagset.NewHashingTagsAccumulator()
 	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", Cardinality: "orchestrator"})
 	assert.Equal(t, []string{"container-low", "container-orch", "global-low", "global-orch"}, tb.Get())
+}
+
+func TestInfraModeTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		mode     string
+		expected []string
+	}{
+		{"cloud_cost_only is marked", "cloud_cost_only", []string{"infra_mode:cloud_cost_only"}},
+		{"end_user_device is marked", "end_user_device", []string{"infra_mode:end_user_device"}},
+		{"full is not marked", "full", nil},
+		{"unset is not marked", "", nil},
+		{"basic is not marked", "basic", nil},
+		{"none is not marked", "none", nil},
+		{"an unknown mode is not marked", "cloud_cost", nil},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest("infrastructure_mode", tc.mode)
+
+			mockReq := MockRequires{
+				Config:    cfg,
+				Log:       logmock.New(t),
+				Telemetry: noopTelemetry.GetCompatComponent(),
+			}
+			mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
+				fx.Provide(func() config.Component { return mockReq.Config }),
+				fx.Provide(func() log.Component { return mockReq.Log }),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			)
+
+			assert.Equal(t, tc.expected, NewMock(mockReq).Comp.InfraModeTags())
+		})
+	}
+}
+
+// The mark must stay off every path that ends at a metric sample. The metrics
+// intake renames series tagged `infra_mode:cloud_cost_only` into the
+// `dd.cloud_cost` namespace, so a leak here drops customer custom metrics from
+// dashboards, monitors and metering.
+func TestInfraModeTagsDoNotReachMetricSamples(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("infrastructure_mode", "cloud_cost_only")
+
+	mockReq := MockRequires{
+		Config:    cfg,
+		Log:       logmock.New(t),
+		Telemetry: noopTelemetry.GetCompatComponent(),
+	}
+	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
+		fx.Provide(func() config.Component { return mockReq.Config }),
+		fx.Provide(func() log.Component { return mockReq.Log }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	fakeTagger := NewMock(mockReq).Comp
+
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, nil, nil, nil)
+	fakeTagger.SetGlobalTags([]string{"global-low"}, nil, nil, nil)
+
+	require.Equal(t, []string{"infra_mode:cloud_cost_only"}, fakeTagger.InfraModeTags())
+
+	globalTags, err := fakeTagger.GlobalTags(types.LowCardinality)
+	assert.NoError(t, err)
+	assert.NotContains(t, globalTags, "infra_mode:cloud_cost_only")
+
+	entityTags, err := fakeTagger.Tag(types.NewEntityID(types.ContainerID, "bar"), types.LowCardinality)
+	assert.NoError(t, err)
+	assert.NotContains(t, entityTags, "infra_mode:cloud_cost_only")
+
+	tb := tagset.NewHashingTagsAccumulator()
+	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", Cardinality: "low"})
+	assert.NotContains(t, tb.Get(), "infra_mode:cloud_cost_only")
 }
 
 func TestAgentTags(t *testing.T) {

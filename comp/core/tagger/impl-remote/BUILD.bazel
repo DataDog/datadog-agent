@@ -23,6 +23,7 @@ go_library(
         "//comp/core/tagger/utils",
         "//comp/core/telemetry/def",
         "//comp/def",
+        "//pkg/config/utils",
         "//pkg/proto/pbgo/core",
         "//pkg/tagger/types",
         "//pkg/tagset",

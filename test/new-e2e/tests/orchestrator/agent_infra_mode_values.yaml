@@ -1,0 +1,28 @@
+datadog:
+  kubelet:
+    tlsVerify: false
+  processAgent:
+    # The container check is what produces the container payload the mark has to
+    # reach, so pin it on rather than relying on the chart default.
+    containerCollection: true
+  # envDict rather than env: Helm replaces a list-valued `env` wholesale across
+  # values files, which would drop the fakeintake endpoints the framework
+  # injects into datadog.env.
+  envDict:
+    DD_INFRASTRUCTURE_MODE: cloud_cost_only
+
+agents:
+  useHostNetwork: true
+
+clusterAgent:
+  enabled: true
+  confd:
+    orchestrator.yaml: |-
+      init_config:
+      instances:
+        - collectors:
+          - pods
+          - nodes
+          - deployments
+  envDict:
+    DD_INFRASTRUCTURE_MODE: cloud_cost_only

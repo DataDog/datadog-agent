@@ -17,6 +17,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/tagger/def",
         "//comp/core/tagger/types",
+        "//comp/core/tagger/utils",
         "//comp/core/telemetry/impl",
         "//comp/core/workloadmeta/def",
         "//pkg/aggregator/sender",

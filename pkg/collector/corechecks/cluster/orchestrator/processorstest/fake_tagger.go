@@ -22,6 +22,8 @@ import (
 //nolint:revive
 type FakeTagger struct {
 	TagsByEntityID map[types.EntityID][]string
+	// InfraMode is the tagset returned by InfraModeTags.
+	InfraMode []string
 }
 
 // NewEmptyFakeTagger creates a FakeTagger with no configured tags.
@@ -76,6 +78,13 @@ func (f *FakeTagger) GetEntityHash(entityID types.EntityID, cardinality types.Ta
 //nolint:revive
 func (f *FakeTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
 	return nil, nil
+}
+
+// InfraModeTags returns the configured infrastructure mode tags.
+//
+//nolint:revive
+func (f *FakeTagger) InfraModeTags() []string {
+	return f.InfraMode
 }
 
 // List returns an empty response.

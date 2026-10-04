@@ -154,6 +154,11 @@ func (f *fakeTagger) GlobalTags(cardinality types.TagCardinality) ([]string, err
 	return f.tagger.GlobalTags(cardinality)
 }
 
+// InfraModeTags calls tagger.InfraModeTags().
+func (f *fakeTagger) InfraModeTags() []string {
+	return f.tagger.InfraModeTags()
+}
+
 // EnrichTags calls tagger.EnrichTags().
 func (f *fakeTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
 	f.tagger.EnrichTags(tb, originInfo)

@@ -31,6 +31,7 @@ go_library(
         "//pkg/config/fetcher/sysprobe",
         "//pkg/config/fetcher/tracers",
         "//pkg/config/model",
+        "//pkg/config/setup/constants",
         "//pkg/fips",
         "//pkg/serializer",
         "//pkg/serializer/marshaler",

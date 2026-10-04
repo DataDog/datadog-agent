@@ -33,6 +33,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetContainers(t *testing.T) {
@@ -893,6 +894,64 @@ func TestGetContainersDoesNotPanicOnShortID(t *testing.T) {
 		_, _, _, err := containerProvider.GetContainers(0, nil)
 		assert.NoError(t, err)
 	})
+}
+
+// The container payload is built from per-entity tags, which the Tagger global
+// entity never reaches, so the infrastructure mode mark has to be appended here
+// for a cost-only Agent's containers to be identifiable downstream.
+func TestGetContainersInfraModeTags(t *testing.T) {
+	tests := []struct {
+		name          string
+		infraMode     string
+		collectorTags []string
+		expectedTags  []string
+	}{
+		{
+			name:         "cloud_cost_only marks the container",
+			infraMode:    "cloud_cost_only",
+			expectedTags: []string{"infra_mode:cloud_cost_only"},
+		},
+		{
+			name:         "full leaves the container unmarked",
+			infraMode:    "full",
+			expectedTags: []string{},
+		},
+		{
+			name:          "a mark already carried by collector tags is not duplicated",
+			infraMode:     "cloud_cost_only",
+			collectorTags: []string{"infra_mode:cloud_cost_only"},
+			expectedTags:  []string{"infra_mode:cloud_cost_only"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			metadataProvider := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				core.MockBundle(),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+
+			fakeTagger := taggerfxmock.SetupFakeTaggerWithOverrides(t, map[string]interface{}{
+				"infrastructure_mode": tc.infraMode,
+			})
+
+			filter := workloadfilterfxmock.SetupMockFilter(t).GetContainerSharedMetricFilters()
+			containerProvider := NewContainerProvider(mock.NewMetricsProvider(), metadataProvider, filter, fakeTagger)
+
+			metadataProvider.Set(&workloadmeta.Container{
+				EntityID:      workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "cID1"},
+				Runtime:       workloadmeta.ContainerRuntimeContainerd,
+				CollectorTags: tc.collectorTags,
+				State:         workloadmeta.ContainerState{Running: true, Status: workloadmeta.ContainerStatusRunning},
+			})
+
+			processContainers, _, _, err := containerProvider.GetContainers(0, nil)
+			assert.NoError(t, err)
+			require.Len(t, processContainers, 1)
+			assert.Equal(t, tc.expectedTags, processContainers[0].Tags)
+		})
+	}
 }
 
 func compareResults(a, b interface{}) string {

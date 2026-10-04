@@ -29,6 +29,7 @@ import (
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	taggerutils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -164,6 +165,10 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 	extraTags := make([]string, 0, len(checkConfigExtraTags)+len(taggerExtraTags))
 	extraTags = append(extraTags, checkConfigExtraTags...)
 	extraTags = append(extraTags, taggerExtraTags...)
+
+	// On a Cluster Check Runner the dispatched check configuration can already
+	// carry the mark, so append it only when it is absent.
+	extraTags = taggerutils.AppendUniqueTags(extraTags, o.tagger.InfraModeTags()...)
 
 	o.orchestratorConfig = orchcfg.NewDefaultOrchestratorConfig(extraTags)
 

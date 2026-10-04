@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -972,6 +973,14 @@ func toggleDefaultPayloads(config pkgconfigmodel.Config) {
 func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	infraMode := config.GetString("infrastructure_mode")
 
+	// A value outside the declared set applies no override and carries no
+	// `infra_mode` mark, so report it rather than letting a typo look like a
+	// working configuration.
+	if infraMode != "" && !constants.IsKnownInfraMode(infraMode) {
+		log.Warnf("invalid value for 'infrastructure_mode': %q, expected one of %v (behaving as %q)",
+			infraMode, constants.KnownInfraModes, constants.InfraModeFull)
+	}
+
 	// Apply legacy alias: copy values from legacy key to integration.additional
 	// Legacy `allowed_additional_checks` -> `integration.additional`
 	if legacyAdditional := config.GetStringSlice("allowed_additional_checks"); len(legacyAdditional) > 0 {
@@ -979,13 +988,13 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("integration.additional", combined, pkgconfigmodel.SourceAgentRuntime)
 	}
 
-	if infraMode == "end_user_device" {
+	if infraMode == constants.InfraModeEndUserDevice {
 		// Enable features for end_user_device mode
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("logon_duration.enabled", true, pkgconfigmodel.SourceInfraMode)
-	} else if infraMode == "none" {
+	} else if infraMode == constants.InfraModeNone {
 		// Disable integrations (no host metrics collection)
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
 		// Avoid detailed ECS task metadata collection when not collecting infrastructure.
