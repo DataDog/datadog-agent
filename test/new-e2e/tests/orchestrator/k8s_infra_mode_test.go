@@ -47,9 +47,13 @@ type k8sInfraModeSuite struct {
 func TestKindInfraModeSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &k8sInfraModeSuite{},
+		// The demo workload is deliberately left out: the assertions below only
+		// need some pod and some container to exist, which the cluster's own
+		// namespaces provide. Deploying it quadruples the payload volume the
+		// fakeintake has to serve, past the point where a read completes within
+		// the client's timeout.
 		e2e.WithProvisioner(awskindvm.Provisioner(
 			awskindvm.WithRunOptions(
-				scenariokindvm.WithDeployTestWorkload(),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithHelmValues(agentInfraModeValues),
 				),
