@@ -32,11 +32,18 @@ func configBoolDefaultTrue(cfg config.Component, key string) bool {
 }
 
 func (s logSourceSettings) shouldStart(observerAvailable, workloadmetaAvailable, observerRequired, recordingEnabled bool) bool {
+	if !s.shouldObserve(observerAvailable, observerRequired, recordingEnabled) {
+		return false
+	}
+	return s.kubeletSourceEnabled || (s.containerSourcesEnabled && workloadmetaAvailable)
+}
+
+func (s logSourceSettings) shouldObserve(observerAvailable, observerRequired, recordingEnabled bool) bool {
 	if !observerAvailable {
 		return false
 	}
 	if !recordingEnabled && (!observerRequired || !s.logsEnabled) {
 		return false
 	}
-	return s.kubeletSourceEnabled || (s.containerSourcesEnabled && workloadmetaAvailable)
+	return s.kubeletSourceEnabled || s.containerSourcesEnabled
 }
