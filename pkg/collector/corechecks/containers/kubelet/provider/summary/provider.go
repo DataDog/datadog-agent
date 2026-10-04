@@ -44,6 +44,12 @@ type Provider struct {
 	defaultRateFilterList []*regexp.Regexp
 }
 
+var (
+	diskIORateFilterRegex  = regexp.MustCompile("diskio[.]io_service_bytes[.]stats[.]total")
+	networkRateFilterRegex = regexp.MustCompile("network[.].._bytes")
+	cpuRateFilterRegex     = regexp.MustCompile("cpu[.].*[.]total")
+)
+
 // NewProvider is created by filter, config and workloadmeta
 func NewProvider(
 	filterStore workloadfilter.Component,
@@ -52,9 +58,9 @@ func NewProvider(
 	tagger tagger.Component,
 ) *Provider {
 	defaultRateFilterList := []*regexp.Regexp{
-		regexp.MustCompile("diskio[.]io_service_bytes[.]stats[.]total"),
-		regexp.MustCompile("network[.].._bytes"),
-		regexp.MustCompile("cpu[.].*[.]total"),
+		diskIORateFilterRegex,
+		networkRateFilterRegex,
+		cpuRateFilterRegex,
 	} //default enabled_rates
 
 	return &Provider{

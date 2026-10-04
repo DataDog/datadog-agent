@@ -374,11 +374,7 @@ func (jc *JoinsConfigWithoutLabelsMapping) setupGetAllLabels() {
 	}
 }
 
-var labelRegexp *regexp.Regexp
-
-func init() {
-	labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
-}
+var labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
 
 // Configure prepares the configuration of the KSM check instance
 func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string, provider string) error {

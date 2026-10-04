@@ -53,6 +53,8 @@ func validateKubeVersionFormat(kubeVersion string) error {
 	return nil
 }
 
+var kindCertificateAuthorityDataRegex = regexp.MustCompile("certificate-authority-data:.+")
+
 func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion string, kindFlags KindConfigFlags, opts ...pulumi.ResourceOption) (*Cluster, error) {
 	return components.NewComponent(env, name, func(clusterComp *Cluster) error {
 		kindClusterName := env.CommonNamer().DisplayName(49) // We can have some issues if the name is longer than 50 characters
@@ -181,7 +183,7 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 		// Patch Kubeconfig based on private IP output
 		// Also add skip tls
 		clusterComp.KubeConfig = pulumi.All(kubeConfigCmd.StdoutOutput(), vm.Address).ApplyT(func(args []interface{}) string {
-			allowInsecure := regexp.MustCompile("certificate-authority-data:.+").ReplaceAllString(args[0].(string), "insecure-skip-tls-verify: true")
+			allowInsecure := kindCertificateAuthorityDataRegex.ReplaceAllString(args[0].(string), "insecure-skip-tls-verify: true")
 			return strings.ReplaceAll(allowInsecure, "0.0.0.0", args[1].(string))
 		}).(pulumi.StringOutput)
 		clusterComp.ClusterName = kindClusterName.ToStringOutput()

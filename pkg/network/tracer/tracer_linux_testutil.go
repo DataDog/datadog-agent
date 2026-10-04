@@ -19,6 +19,9 @@ import (
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
+// dnsWorkloadReadyRegex indicates that the Python client got a response from CoreDNS
+var dnsWorkloadReadyRegex = regexp.MustCompile(`.*Address: 1\.2\.3\.4.*`)
+
 // RunDNSWorkload runs a CoreDNS server and Python client in docker containers
 // The Python client continuously queries my-server.local against the CoreDNS server in a single process
 func RunDNSWorkload(t testing.TB) error {
@@ -31,8 +34,7 @@ func RunDNSWorkload(t testing.TB) error {
 		"TESTDIR=" + curDir,
 	}
 
-	// this regex indicates that the Python client got a response from CoreDNS
-	scanner, err := globalutils.NewScanner(regexp.MustCompile(`.*Address: 1\.2\.3\.4.*`), globalutils.NoPattern)
+	scanner, err := globalutils.NewScanner(dnsWorkloadReadyRegex, globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 
 	dockerCfg := dockerutils.NewComposeConfig(

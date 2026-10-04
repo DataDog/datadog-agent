@@ -51,6 +51,8 @@ func linkFile(t *testing.T, src, dst string) error {
 	return nil
 }
 
+var nodeJSServerReadyRegex = regexp.MustCompile("Server running at https.*")
+
 // RunServerNodeJS launches an HTTPs server written in NodeJS.
 func RunServerNodeJS(t *testing.T, key, cert, serverPort string) error {
 	t.Helper()
@@ -68,7 +70,7 @@ func RunServerNodeJS(t *testing.T, key, cert, serverPort string) error {
 		"TESTDIR=" + dir + "/testdata",
 	}
 
-	scanner, err := globalutils.NewScanner(regexp.MustCompile("Server running at https.*"), globalutils.NoPattern)
+	scanner, err := globalutils.NewScanner(nodeJSServerReadyRegex, globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 
 	dockerCfg := dockerutils.NewComposeConfig(
@@ -126,7 +128,7 @@ func RunServerNodeJSUbuntu(t *testing.T, key, cert, serverPort string) error {
 		"CERTSDIR=" + tmpDir,
 	}
 
-	scanner, err := globalutils.NewScanner(regexp.MustCompile("Server running at https.*"), globalutils.NoPattern)
+	scanner, err := globalutils.NewScanner(nodeJSServerReadyRegex, globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 
 	dockerCfg := dockerutils.NewComposeConfig(

@@ -18,6 +18,8 @@ import (
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
+var goHTTPBinReadyRegex = regexp.MustCompile("go-httpbin listening on https://0.0.0.0:8080")
+
 // RunServer runs a go-httpbin server in a docker container.
 func RunServer(t testing.TB, serverPort string) error {
 	env := []string{
@@ -26,7 +28,7 @@ func RunServer(t testing.TB, serverPort string) error {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	scanner, err := globalutils.NewScanner(regexp.MustCompile("go-httpbin listening on https://0.0.0.0:8080"), globalutils.NoPattern)
+	scanner, err := globalutils.NewScanner(goHTTPBinReadyRegex, globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 
 	dockerCfg := dockerutils.NewComposeConfig(

@@ -93,6 +93,9 @@ func addSources(sources map[string]bool, path string, sourcePattern *regexp.Rege
 // discoverIntegrationSources scans configuration directories to find valid
 // integration log sources by parsing conf.yaml.example files (or conf.yaml
 // files) and extracting log source names.
+// sourceLineRegex matches source lines like "source: nginx" (including commented-out lines).
+var sourceLineRegex = regexp.MustCompile(`^#?\s*source:\s*"?(.+?)"?\s*$`)
+
 func discoverIntegrationSources() map[string]bool {
 	sources := make(map[string]bool)
 
@@ -103,9 +106,6 @@ func discoverIntegrationSources() map[string]bool {
 	}
 
 	log.Tracef("Discovering integration sources from paths: %v", searchPaths)
-
-	// Pattern to match source lines like "source: nginx" (including commented-out lines).
-	sourcePattern := regexp.MustCompile(`^#?\s*source:\s*"?(.+?)"?\s*$`)
 
 	for _, searchPath := range searchPaths {
 		if searchPath == "" {
@@ -123,7 +123,7 @@ func discoverIntegrationSources() map[string]bool {
 				return nil
 			}
 
-			addSources(sources, path, sourcePattern)
+			addSources(sources, path, sourceLineRegex)
 
 			return nil
 		})

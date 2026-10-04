@@ -202,6 +202,8 @@ type nodeJSMonitor struct {
 // Ensuring nodeJSMonitor implements the protocols.Protocol interface.
 var _ protocols.Protocol = (*nodeJSMonitor)(nil)
 
+var libnodeRegex = regexp.MustCompile(`libnode\.so`)
+
 func newNodeJSMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error) {
 	if !c.EnableNodeJSMonitoring || !usmconfig.TLSSupported(c) || !usmconfig.UretprobeSupported() {
 		return nil, nil
@@ -220,7 +222,7 @@ func newNodeJSMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protoco
 				// Dynamically linked Node.js (SSL symbols in libnode.so)
 				Targets:          uprobes.AttachToSharedLibraries,
 				ProbesSelector:   nodeJSProbes,
-				LibraryNameRegex: regexp.MustCompile(`libnode\.so`),
+				LibraryNameRegex: libnodeRegex,
 			},
 		},
 		EbpfConfig:                     &c.Config,

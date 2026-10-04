@@ -34,6 +34,8 @@ const (
 
 var archiveNameCounter atomic.Uint64
 
+var otherAPIKeysRx = regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]{2,}`)
+
 func newBuilder(root string, hostname string, localFlare bool, flareArgs types.FlareArgs) (*builder, error) {
 	fb := &builder{
 		tmpDir:           root,
@@ -66,7 +68,6 @@ func newBuilder(root string, hostname string, localFlare bool, flareArgs types.F
 	//
 	// We want the value to be at least 2 characters which will avoid matching the first '"' from the regular
 	// replacer for api_key.
-	otherAPIKeysRx := regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]{2,}`)
 	apiKeyReplacer := scrubber.Replacer{
 		Regex: otherAPIKeysRx,
 		ReplFunc: func(_ []byte) []byte {

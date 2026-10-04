@@ -96,6 +96,9 @@ func accessMaskToString(mask string) string {
 	return strings.Join(rights, ", ")
 }
 
+// aceRegex matches each ACE enclosed in parentheses within a DACL.
+var aceRegex = regexp.MustCompile(`\(([^\)]+)\)`)
+
 // GetHumanReadableSD parse SDDL string to extract and translate the owner, group, and DACL
 func (resolver *Resolver) GetHumanReadableSD(sddl string) (string, error) {
 	var builder strings.Builder
@@ -118,8 +121,7 @@ func (resolver *Resolver) GetHumanReadableSD(sddl string) (string, error) {
 	}
 
 	// Use regex to find all ACEs
-	re := regexp.MustCompile(`\(([^\)]+)\)`)
-	matches := re.FindAllStringSubmatch(sddl, -1)
+	matches := aceRegex.FindAllStringSubmatch(sddl, -1)
 	if matches == nil {
 		return "", errors.New("no ACEs found in DACL")
 	}

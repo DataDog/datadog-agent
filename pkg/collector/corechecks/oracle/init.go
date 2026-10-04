@@ -182,6 +182,8 @@ func (c *Check) init() error {
 	return nil
 }
 
+var templateVarRegex = regexp.MustCompile(`\$([a-z_]+)`)
+
 func (c *Check) createDatabaseIdentifier() string {
 	tags := make(map[string]string, len(c.tags))
 	for _, tag := range c.tags {
@@ -204,8 +206,7 @@ func (c *Check) createDatabaseIdentifier() string {
 
 	identifier := c.config.DatabaseIdentifier.Template
 
-	re := regexp.MustCompile(`\$([a-z_]+)`)
-	matches := re.FindAllString(identifier, -1)
+	matches := templateVarRegex.FindAllString(identifier, -1)
 	for _, match := range matches {
 		key := strings.TrimPrefix(match, "$")
 		if value, ok := tags[key]; ok && value != "" {

@@ -58,6 +58,11 @@ func ValidateSupported() error {
 	return nil
 }
 
+var (
+	libsslRegex    = regexp.MustCompile(`libssl.so`)
+	libcryptoRegex = regexp.MustCompile(`libcrypto.so`)
+)
+
 var openSSLProbes = []manager.ProbesSelector{
 	&manager.BestEffort{
 		Selectors: []manager.ProbesSelector{
@@ -167,12 +172,12 @@ func NewSSLCertsProgram(mgr *manager.Manager, cfg *config.Config) (*SSLCertsProg
 		{
 			Targets:          uprobes.AttachToSharedLibraries,
 			ProbesSelector:   openSSLProbes,
-			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
+			LibraryNameRegex: libsslRegex,
 		},
 		{
 			Targets:          uprobes.AttachToSharedLibraries,
 			ProbesSelector:   cryptoProbes,
-			LibraryNameRegex: regexp.MustCompile(`libcrypto.so`),
+			LibraryNameRegex: libcryptoRegex,
 		},
 	}
 
