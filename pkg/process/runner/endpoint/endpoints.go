@@ -7,6 +7,7 @@
 package endpoint
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -16,22 +17,55 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
+// ErrNoConnectionsEndpoint is returned when process_config.connections_send_to_main_endpoint
+// is false but no usable process_config.additional_endpoints entry is configured, which would
+// leave network connections payloads with nowhere to go. The configuration is rejected instead
+// of silently dropping NPM and USM data.
+var ErrNoConnectionsEndpoint = errors.New("process_config.connections_send_to_main_endpoint is false but no usable process_config.additional_endpoints entry is configured: refusing to run with no destination for network connections")
+
 // GetAPIEndpoints returns the list of api endpoints from the config
 func GetAPIEndpoints(config pkgconfigmodel.Reader) (eps []apicfg.Endpoint, err error) {
-	return getAPIEndpointsWithKeys(config, "https://process.", "process_config.process_dd_url", "process_config.additional_endpoints")
+	return getAPIEndpointsWithKeys(config, "https://process.", "process_config.process_dd_url", "process_config.additional_endpoints", true)
 }
 
-func getAPIEndpointsWithKeys(config pkgconfigmodel.Reader, prefix, defaultEpKey, additionalEpsKey string) (eps []apicfg.Endpoint, err error) {
-	// Setup main endpoint
-	mainEndpointURL, err := url.Parse(utils.GetMainEndpoint(config, prefix, defaultEpKey))
+// GetConnectionsAPIEndpoints returns the api endpoints for network connections payloads. It is
+// GetAPIEndpoints minus the main endpoint when process_config.connections_send_to_main_endpoint
+// is false, so the local copy can be dropped while additional_endpoints keep receiving data.
+func GetConnectionsAPIEndpoints(config pkgconfigmodel.Reader) (eps []apicfg.Endpoint, err error) {
+	includeMain := config.GetBool("process_config.connections_send_to_main_endpoint")
+	eps, err = getAPIEndpointsWithKeys(config, "https://process.", "process_config.process_dd_url", "process_config.additional_endpoints", includeMain)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing %s: %s", defaultEpKey, err)
+		return nil, err
 	}
-	eps = append(eps, apicfg.Endpoint{
-		APIKey:            utils.SanitizeAPIKey(config.GetString("api_key")),
-		Endpoint:          mainEndpointURL,
-		ConfigSettingPath: "api_key",
-	})
+	if !includeMain && !hasUsableEndpoint(eps) {
+		return nil, ErrNoConnectionsEndpoint
+	}
+	return eps, nil
+}
+
+// hasUsableEndpoint reports whether at least one endpoint could actually receive a payload. An
+// endpoint missing a host or an API key is not dropped here, it is sent and rejected by the intake.
+func hasUsableEndpoint(eps []apicfg.Endpoint) bool {
+	for _, e := range eps {
+		if e.Endpoint != nil && e.Endpoint.Host != "" && e.APIKey != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func getAPIEndpointsWithKeys(config pkgconfigmodel.Reader, prefix, defaultEpKey, additionalEpsKey string, includeMain bool) (eps []apicfg.Endpoint, err error) {
+	if includeMain {
+		mainEndpointURL, err := url.Parse(utils.GetMainEndpoint(config, prefix, defaultEpKey))
+		if err != nil {
+			return nil, fmt.Errorf("error parsing %s: %s", defaultEpKey, err)
+		}
+		eps = append(eps, apicfg.Endpoint{
+			APIKey:            utils.SanitizeAPIKey(config.GetString("api_key")),
+			Endpoint:          mainEndpointURL,
+			ConfigSettingPath: "api_key",
+		})
+	}
 
 	// Optional additional pairs of endpoint_url => []apiKeys to submit to other locations.
 	for endpointURL, apiKeys := range config.GetStringMapStringSlice(additionalEpsKey) {

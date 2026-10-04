@@ -36,8 +36,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
-	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
@@ -48,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -114,7 +111,7 @@ func New(
 		deps.Logger.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, pkgconfigsetup.DefaultProcessQueueBytes)
 		queueBytes = pkgconfigsetup.DefaultProcessQueueBytes
 	}
-	processAPIEndpoints, err := endpoint.GetAPIEndpoints(deps.Config)
+	processAPIEndpoints, err := endpoint.GetConnectionsAPIEndpoints(deps.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -123,14 +120,6 @@ func New(
 	if err := endpoint.CheckAPIKeysResolved(processAPIEndpoints); err != nil {
 		return nil, err
 	}
-	resolvers, err := resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processAPIEndpoints))
-	if err != nil {
-		return nil, err
-	}
-	forwarderOpts := defaultforwarderimpl.NewOptionsWithResolvers(deps.Config, deps.Logger, resolvers)
-	forwarderOpts.DisableAPIKeyChecking = true
-	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes
-
 	checkInterval := 30 * time.Second
 	if deps.Config.IsConfigured("process_config.intervals.connections") {
 		if v := deps.Config.GetInt("process_config.intervals.connections"); v > 0 {
