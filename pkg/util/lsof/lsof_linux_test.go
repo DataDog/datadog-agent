@@ -346,8 +346,26 @@ func TestFDStat(t *testing.T) {
 }
 
 func TestReadSocketInfo(t *testing.T) {
+	ofl := &openFilesLister{
+		lookupAddr: func(addr string) ([]string, error) {
+			switch addr {
+			case "20.199.39.224":
+				return []string{"example.com"}, nil
+			case "20.199.39.225":
+				return []string{"example2.com", "example3.com"}, nil
+			case "20.199.39.226":
+				return nil, errors.New("failed")
+			case "192.168.1.50":
+				return nil, errors.New("failed")
+			default:
+				t.Fatalf("unexpected address: %s", addr)
+				return nil, nil
+			}
+		},
+	}
+
 	t.Run("success", func(t *testing.T) {
-		info := readSocketInfo("testdata/readSocketInfo/1")
+		info := ofl.readSocketInfo("testdata/readSocketInfo/1")
 
 		expected := map[uint64]socketInfo{
 			10975:   {"0.0.0.0:18777->0.0.0.0:0", "CLOSE", "udp6"},
@@ -355,18 +373,22 @@ func TestReadSocketInfo(t *testing.T) {
 			1986475: {"127.0.0.1:38489->0.0.0.0:0", "LISTEN", "tcp"},
 			1987112: {"stream:/tmp/.X11-unix/X2", "unconnected:listen", "unix"},
 			2506353: {"stream:", "connected:default", "unix"},
-			3359554: {"172.17.0.2:44594->20.199.39.224:443", "ESTABLISHED", "tcp6"},
+			3359554: {"172.17.0.2:44594->20.199.39.224:443 (example.com)", "ESTABLISHED", "tcp6"},
+			3359555: {"172.17.0.2:44594->20.199.39.225:443 (example2.com,example3.com)", "ESTABLISHED", "tcp6"},
+			3359556: {"172.17.0.2:44594->20.199.39.226:443 (unknown)", "ESTABLISHED", "tcp6"},
+			3359557: {"172.17.0.2:44594->127.0.0.1:443 (loopback)", "ESTABLISHED", "tcp6"},
+			3359558: {"172.17.0.2:44594->192.168.1.50:443 (private)", "ESTABLISHED", "tcp6"},
 		}
 
 		require.Equal(t, expected, info)
 	})
 
 	t.Run("empty", func(t *testing.T) {
-		assert.Empty(t, readSocketInfo("testdata/readSocketInfo/2"))
+		assert.Empty(t, ofl.readSocketInfo("testdata/readSocketInfo/2"))
 	})
 
 	t.Run("does not exist", func(t *testing.T) {
-		assert.Empty(t, readSocketInfo("testdata/readSocketInfo/3"))
+		assert.Empty(t, ofl.readSocketInfo("testdata/readSocketInfo/3"))
 	})
 }
 
