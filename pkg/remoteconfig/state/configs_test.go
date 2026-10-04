@@ -112,3 +112,17 @@ func TestASMData(t *testing.T) {
 		})
 	}
 }
+
+// The NDM product carries the Remote-Configuration-driven autodiscovery
+// ranges. parseConfig rejects any product missing from validProducts, so an
+// unregistered product would make every NDM config unparseable at run time
+// while the subscription itself still looks healthy.
+func TestNDMProductIsRegistered(t *testing.T) {
+	_, ok := validProducts[ProductNDM]
+	require.True(t, ok, "the NDM product must be registered")
+
+	raw := []byte(`{"kind":"autodiscovery"}`)
+	cfg, err := parseConfig(ProductNDM, raw, Metadata{})
+	require.NoError(t, err)
+	require.Equal(t, RawConfig{Config: raw}, cfg)
+}
