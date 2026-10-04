@@ -31,6 +31,9 @@ The structure of each case is as follows:
 * `datadog-agent/` -- __Required__ This is the configuration directory of your
   program. Will be mounted read-only in the container build from `Dockerfile`
   above at `/etc/datadog-agent`.
+* `fakeintake/` -- __Optional__ Starts a fakeintake sidecar in the experiment's
+  network namespace. The directory must contain `fakeintake.yaml` with a pinned
+  image and may contain `rc-state.yaml` to preload Remote Config state.
 * `experiment.yaml` -- __Required__ Set any experiment-specific configuration.
   The "optimization goal" determines what metric the Regression Detector
   will analyze at the conclusion of the experiment.

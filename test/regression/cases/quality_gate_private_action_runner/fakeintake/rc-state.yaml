@@ -1,0 +1,8 @@
+product: AP_RUNNER_KEYS
+config_id: fake-runner-key
+config_name: fake-runner-key
+data:
+  keyType: ED25519
+  # Base64-encoded PEM public key. Fakeintake JSON-encodes this value for the
+  # []byte field consumed by PAR's task verifier.
+  key: LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQWViVldMby9tVlBsQWVMRVM2S21McDVBZmhUcm1sYjdYNE9PUkM2MEVsbVE9Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo=
