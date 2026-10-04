@@ -65,7 +65,7 @@ func ParsePercentiles(percentiles []string) []int {
 			log.Errorf("Could not parse '%s' from 'histogram_percentiles' (skipping): %s", p, err)
 			continue
 		}
-		if i < 0 || i > 1 {
+		if math.IsNaN(i) || i < 0 || i > 1 {
 			log.Errorf("histogram_percentiles must be between 0 and 1: skipping %f", i)
 			continue
 		}
