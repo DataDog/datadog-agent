@@ -12,6 +12,7 @@ import (
 	"maps"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -35,7 +36,6 @@ import (
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher/tracers"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -175,9 +175,9 @@ func (ia *inventoryagent) initData() {
 
 	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))
 	// fleet-automation: This validation should be done by the Config once we have such mechanism
-	if !constants.IsKnownInfraMode(infraMode) {
-		ia.log.Warnf("invalid value for 'infrastructure_mode': '%s' (defaulting to '%s')", infraMode, constants.InfraModeFull)
-		infraMode = constants.InfraModeFull
+	if !slices.Contains([]string{"full", "end_user_device", "basic", "cloud_cost_only", "none"}, infraMode) {
+		ia.log.Warnf("invalid value for 'infrastructure_mode': '%s' (defaulting to 'full')", infraMode)
+		infraMode = "full"
 	}
 	ia.data["infrastructure_mode"] = infraMode
 }
