@@ -117,6 +117,13 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/vnd.tcpdump.pcap")
 	w.Header().Set("Trailer", "X-Packet-Count, X-Bytes-Captured, X-Packets-Dropped, X-Capture-Errors")
 	w.WriteHeader(http.StatusOK)
+	// Send the headers now. Without a flush they wait until ~4KB of pcap has
+	// been written or the handler returns; a quiet capture writes far less, so
+	// the caller saw nothing until the capture ended and its response-header
+	// timeout fired first.
+	if err := http.NewResponseController(w).Flush(); err != nil {
+		log.Warnf("packet_capture: flushing response headers: %s", err)
+	}
 
 	ctx, cancel := context.WithTimeout(req.Context(), duration+stopGracePeriod)
 	defer cancel()
