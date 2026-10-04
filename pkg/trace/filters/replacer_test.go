@@ -224,6 +224,133 @@ func TestReplacer(t *testing.T) {
 	})
 }
 
+// TestReplacerEnvImmutable verifies that replace rules can never change the
+// "env" tag, which the trace agent uses to derive the sampling env (see
+// pkg/trace/traceutil.GetEnv). Both an explicit "env" rule and a "*" wildcard
+// rule must leave Meta["env"] untouched while still rewriting other tags.
+func TestReplacerEnvImmutable(t *testing.T) {
+	t.Run("v0 named env rule leaves the env Meta tag untouched", func(tt *testing.T) {
+		rules := parseRulesFromString([][3]string{
+			{"env", "prod", "myenv"},
+		})
+		span := &pb.Span{
+			Meta: map[string]string{"env": "prod", "http.url": "/foo"},
+			SpanEvents: []*pb.SpanEvent{
+				{Attributes: map[string]*pb.AttributeAnyValue{
+					"env": {Type: pb.AttributeAnyValue_STRING_VALUE, StringValue: "prod"},
+				}},
+			},
+		}
+		NewReplacer(rules).Replace(pb.Trace{span})
+		// The env Meta tag (used by traceutil.GetEnv for sampling) is immutable.
+		assert.Equal(tt, "prod", span.Meta["env"])
+		assert.Equal(tt, "/foo", span.Meta["http.url"])
+		// A span-event attribute named env is not the sampling env, so an
+		// explicit env rule still applies to it (matching wildcard behavior).
+		assert.Equal(tt, "myenv", span.SpanEvents[0].Attributes["env"].StringValue)
+	})
+
+	t.Run("v0 named env rule does not leak a numeric env metric into Meta", func(tt *testing.T) {
+		// replaceNumericTag can move a non-numeric replacement result from
+		// Metrics into Meta; an env rule must not be able to create or change
+		// Meta["env"] that way.
+		rules := parseRulesFromString([][3]string{
+			{"env", "1", "prod"},
+		})
+		span := &pb.Span{
+			Meta:    map[string]string{},
+			Metrics: map[string]float64{"env": 1},
+		}
+		NewReplacer(rules).Replace(pb.Trace{span})
+		_, ok := span.Meta["env"]
+		assert.False(tt, ok, "env metric must not be written into Meta[\"env\"]")
+		assert.Equal(tt, float64(1), span.Metrics["env"], "env metric is unchanged")
+	})
+
+	t.Run("v0 wildcard rule does not touch env", func(tt *testing.T) {
+		rules := parseRulesFromString([][3]string{
+			{"*", "prod", "stage"},
+		})
+		span := &pb.Span{
+			Meta:     map[string]string{"env": "prod", "custom.tag": "prod-value"},
+			Resource: "prod-resource",
+		}
+		NewReplacer(rules).Replace(pb.Trace{span})
+		assert.Equal(tt, "prod", span.Meta["env"], "env must be immutable")
+		assert.Equal(tt, "stage-value", span.Meta["custom.tag"], "other tags still replaced")
+		assert.Equal(tt, "stage-resource", span.Resource, "resource still replaced")
+	})
+
+	t.Run("v0 wildcard rule does not leak a numeric env metric into Meta", func(tt *testing.T) {
+		rules := parseRulesFromString([][3]string{
+			{"*", "1", "prod"},
+		})
+		span := &pb.Span{
+			Meta:    map[string]string{},
+			Metrics: map[string]float64{"env": 1, "latency": 1},
+		}
+		NewReplacer(rules).Replace(pb.Trace{span})
+		_, ok := span.Meta["env"]
+		assert.False(tt, ok, "wildcard rule must not write env into Meta")
+		assert.Equal(tt, float64(1), span.Metrics["env"], "env metric is unchanged")
+		// A non-env numeric metric is still subject to the wildcard rule.
+		assert.Equal(tt, "prod", span.Meta["latency"], "non-env metric still replaced")
+	})
+
+	t.Run("v1 named env rule leaves the env attribute untouched", func(tt *testing.T) {
+		rules := parseRulesFromString([][3]string{
+			{"env", "prod", "myenv"},
+		})
+		chunk := &idx.InternalTraceChunk{
+			Spans:   make([]*idx.InternalSpan, 1),
+			Strings: idx.NewStringTable(),
+		}
+		span := idx.NewInternalSpan(chunk.Strings, &idx.Span{
+			SpanID:      rand.Uint64(),
+			ParentID:    1111,
+			ServiceRef:  chunk.Strings.Add("django"),
+			NameRef:     chunk.Strings.Add("django.controller"),
+			ResourceRef: chunk.Strings.Add("GET /some/raclette"),
+			Start:       1448466874000000000,
+			Duration:    10000000,
+			Attributes:  map[uint32]*idx.AnyValue{},
+			Events: []*idx.SpanEvent{
+				{NameRef: chunk.Strings.Add("foo"), Attributes: map[uint32]*idx.AnyValue{}},
+			},
+		})
+		span.SetAttributeFromString("env", "prod")
+		span.SetAttributeFromString("http.url", "/foo")
+		span.Events()[0].SetAttributeFromString("env", "prod")
+		chunk.Spans[0] = span
+		NewReplacer(rules).ReplaceV1(chunk)
+		env, _ := chunk.Spans[0].GetAttributeAsString("env")
+		url, _ := chunk.Spans[0].GetAttributeAsString("http.url")
+		eventEnv, _ := chunk.Spans[0].Events()[0].GetAttributeAsString("env")
+		assert.Equal(tt, "prod", env, "env tag must be immutable")
+		assert.Equal(tt, "/foo", url)
+		assert.Equal(tt, "myenv", eventEnv, "span-event env attribute is still replaced")
+	})
+
+	t.Run("v1 wildcard rule does not touch env", func(tt *testing.T) {
+		rules := parseRulesFromString([][3]string{
+			{"*", "prod", "stage"},
+		})
+		chunk := &idx.InternalTraceChunk{
+			Spans:   make([]*idx.InternalSpan, 1),
+			Strings: idx.NewStringTable(),
+		}
+		span := newTestSpanV1EmptyAttributes(chunk.Strings)
+		span.SetAttributeFromString("env", "prod")
+		span.SetAttributeFromString("custom.tag", "prod-value")
+		chunk.Spans[0] = span
+		NewReplacer(rules).ReplaceV1(chunk)
+		env, _ := chunk.Spans[0].GetAttributeAsString("env")
+		custom, _ := chunk.Spans[0].GetAttributeAsString("custom.tag")
+		assert.Equal(tt, "prod", env, "env must be immutable")
+		assert.Equal(tt, "stage-value", custom, "other tags still replaced")
+	})
+}
+
 // GetTestSpan returns a Span with different fields set
 func newTestSpanV1EmptyAttributes(strings *idx.StringTable) *idx.InternalSpan {
 	return idx.NewInternalSpan(strings, &idx.Span{
