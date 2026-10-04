@@ -88,5 +88,8 @@ jobs:
             
             ### Describe how you validated your changes
             CI is considered enough to validate changes.
+
+            ### Owners
+            @DataDog/agent-integrations and @DataDog/agent-devx
           team-reviewers: agent-integrations
           labels: team/agent-integrations,changelog/no-changelog
