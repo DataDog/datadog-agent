@@ -42,6 +42,10 @@ func commonFormatter(loggerName LoggerName, cfg pkgconfigmodel.Reader) func(ctx 
 func jsonFormatter(loggerName LoggerName, cfg pkgconfigmodel.Reader) func(ctx context.Context, r slog.Record) string {
 	if loggerName == "JMXFETCH" {
 		return func(_ context.Context, r slog.Record) string {
+			if line, ok := parseJMXFetchLine(r.Message); ok {
+				return fmt.Sprintf(`{"agent":"jmxfetch","time":%s,"level":%s,"thread":%s,"logger":%s,"msg":%s}`+"\n",
+					formatters.Quote(line.time), formatters.Quote(line.level), formatters.Quote(line.thread), formatters.Quote(line.logger), formatters.Quote(line.msg))
+			}
 			return `{"msg":` + formatters.Quote(r.Message) + "}\n"
 		}
 	}
@@ -58,4 +62,24 @@ func jsonFormatter(loggerName LoggerName, cfg pkgconfigmodel.Reader) func(ctx co
 
 		return fmt.Sprintf(`{"agent":"%s","time":"%s","level":"%s","file":"%s","line":"%d","func":"%s","msg":%s%s}`+"\n", strings.ToLower(string(loggerName)), date, level, shortFilePath, frame.Line, funcShort, formatters.Quote(r.Message), extraContext)
 	}
+}
+
+type jmxFetchLine struct {
+	time, level, thread, logger, msg string
+}
+
+// Parses a JMXFetch log line and returns false
+// if the line doesn't follow that format.
+func parseJMXFetchLine(line string) (jmxFetchLine, bool) {
+	parts := strings.SplitN(line, " | ", 6)
+	if len(parts) != 6 || parts[1] != "JMX" {
+		return jmxFetchLine{}, false
+	}
+	return jmxFetchLine{
+		time:   parts[0],
+		level:  strings.TrimSpace(parts[2]),
+		thread: parts[3],
+		logger: parts[4],
+		msg:    parts[5],
+	}, true
 }

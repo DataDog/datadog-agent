@@ -34,6 +34,7 @@ go_library(
 dd_agent_go_test(
     name = "setup_test",
     srcs = [
+        "log_format_test.go",
         "log_nix_test.go",
         "log_test.go",
         "split_writer_test.go",
