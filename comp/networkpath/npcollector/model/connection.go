@@ -22,9 +22,16 @@ type NetworkPathConnection struct {
 	Type              model.ConnectionType
 	Direction         model.ConnectionDirection
 	Family            model.ConnectionFamily
-	Domain            string
-	IntraHost         bool
-	SystemProbeConn   bool
+	// Domain is the primary reverse-resolved DNS name for Dest (first entry of
+	// Domains, kept for display and backwards compatibility).
+	Domain string
+	// Domains is every DNS name the reverse-DNS map associates with Dest. A
+	// single IP can map to more than one name (e.g. a Datadog intake endpoint
+	// CNAME'd to an AWS ELB); filtering evaluates all of them so Datadog
+	// infrastructure is excluded regardless of cache ordering.
+	Domains         []string
+	IntraHost       bool
+	SystemProbeConn bool
 
 	// SentBytes and RecvBytes are traffic observed since the previous CNM
 	// snapshot, not lifetime counters.
