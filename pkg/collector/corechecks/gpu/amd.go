@@ -29,6 +29,12 @@ import (
 // amdCollectorName is the collector name used in telemetry for AMD devices.
 const amdCollectorName nvidia.CollectorName = "amd"
 
+// defaultAMDReadTimeout bounds how long a check run waits for the telemetry of
+// one AMD device. Reading all of its attributes takes about a millisecond on
+// real hardware, but a sysfs read blocked in the driver (a hung GPU or SMU)
+// cannot be cancelled.
+const defaultAMDReadTimeout = 5 * time.Second
+
 // refreshAMDDevices rediscovers AMD GPUs and returns the ones not excluded by
 // configuration. Discovery errors are logged: devices that could be probed
 // are still returned.
@@ -161,29 +167,118 @@ func (c *Check) collectAMDSamples() []collectorSamplesCollection {
 	// Charge the shared process scan to the first device, like its errors.
 	start := time.Now()
 	usage, _, usageErr := amd.ReadProcessMemory(c.amdSysRoot, c.amdDevices)
+	processScan := time.Since(start)
 	processesByDevice := make(map[string][]amd.ProcessMemory, len(c.amdDevices))
 	for _, u := range usage {
 		processesByDevice[u.DeviceUUID] = append(processesByDevice[u.DeviceUUID], u)
 	}
 
+	readings := c.readAMDMetrics()
 	results := make([]collectorSamplesCollection, len(c.amdDevices))
 	for i, dev := range c.amdDevices {
-		m, err := dev.ReadMetrics()
-		if i == 0 && usageErr != nil {
-			// Report the process read error once, on the first device.
-			err = errors.Join(err, fmt.Errorf("read AMD GPU processes: %w", usageErr))
+		reading := readings[i]
+		if !reading.metrics.VRAMTotalBytes.Valid && dev.MemoryTotal > 0 {
+			// The VRAM size is static: when the read did not return it (a
+			// blocked device), keep the limit that process memory is compared
+			// with, from discovery.
+			reading.metrics.VRAMTotalBytes = amd.Reading{Value: float64(dev.MemoryTotal), Valid: true}
+		}
+		if i == 0 {
+			reading.duration += processScan
+			if usageErr != nil {
+				// Report the process read error once, on the first device.
+				reading.err = errors.Join(reading.err, fmt.Errorf("read AMD GPU processes: %w", usageErr))
+			}
 		}
 		results[i] = collectorSamplesCollection{
 			name:          amdCollectorName,
 			deviceUUID:    dev.UUID,
 			telemetryTags: amdTelemetryTags(dev),
-			samples:       append(amdSamples(m), amdProcessSamples(m, processesByDevice[dev.UUID])...),
-			err:           err,
-			duration:      time.Since(start),
+			samples:       append(amdSamples(reading.metrics), amdProcessSamples(reading.metrics, processesByDevice[dev.UUID])...),
+			err:           reading.err,
+			duration:      reading.duration,
 		}
-		start = time.Now()
 	}
 	return results
+}
+
+// amdReading is the outcome of reading the telemetry of one AMD device.
+type amdReading struct {
+	metrics  amd.Metrics
+	err      error
+	duration time.Duration
+}
+
+// readAMDMetrics reads the telemetry of every AMD device concurrently and
+// waits at most amdReadTimeout. A sysfs read blocked in the driver (a hung GPU
+// or SMU) cannot be cancelled, so a device whose read has not returned is
+// reported with an error and skipped by later runs until that read returns:
+// one stuck device neither holds the check runner nor piles up blocked
+// goroutines. Its process memory, read from the KFD, is still reported.
+func (c *Check) readAMDMetrics() []amdReading {
+	if c.amdPendingReads == nil {
+		c.amdPendingReads = make(map[string]<-chan struct{})
+	}
+	type indexedReading struct {
+		index   int
+		reading amdReading
+	}
+	readings := make([]amdReading, len(c.amdDevices))
+	waiting := make(map[int]bool, len(c.amdDevices))
+	results := make(chan indexedReading, len(c.amdDevices)) // buffered: late reads never block
+	for i, dev := range c.amdDevices {
+		if pending, ok := c.amdPendingReads[dev.UUID]; ok {
+			select {
+			case <-pending:
+				delete(c.amdPendingReads, dev.UUID)
+			default:
+				readings[i].err = fmt.Errorf("telemetry read of AMD GPU %s is still blocked from a previous run", dev.UUID)
+				continue
+			}
+		}
+		done := make(chan struct{})
+		c.amdPendingReads[dev.UUID] = done
+		waiting[i] = true
+		go func() {
+			defer close(done)
+			start := time.Now()
+			m, err := dev.ReadMetrics()
+			results <- indexedReading{index: i, reading: amdReading{metrics: m, err: err, duration: time.Since(start)}}
+		}()
+	}
+
+	record := func(r indexedReading) {
+		readings[r.index] = r.reading
+		delete(waiting, r.index)
+		delete(c.amdPendingReads, c.amdDevices[r.index].UUID)
+	}
+	timeout := time.NewTimer(c.amdReadTimeout)
+	defer timeout.Stop()
+	for len(waiting) > 0 {
+		select {
+		case r := <-results:
+			record(r)
+		case <-timeout.C:
+			// Keep the reads that returned as the deadline passed, rather than
+			// reporting them as blocked.
+			for drained := false; !drained; {
+				select {
+				case r := <-results:
+					record(r)
+				default:
+					drained = true
+				}
+			}
+			for i := range waiting {
+				readings[i] = amdReading{
+					err:      fmt.Errorf("telemetry read of AMD GPU %s did not return within %s", c.amdDevices[i].UUID, c.amdReadTimeout),
+					duration: c.amdReadTimeout,
+				}
+			}
+			return readings
+		}
+	}
+	return readings
 }
 
 // amdProcessSamples returns the per-process memory metrics of a device and,

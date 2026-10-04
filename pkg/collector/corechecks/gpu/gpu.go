@@ -79,6 +79,8 @@ type Check struct {
 	amdSysRoot          string                           // amdSysRoot is the sysfs root used to discover AMD GPUs
 	amdDevices          []*amd.Device                    // amdDevices are the AMD GPUs found on the last run, minus excluded ones
 	amdDeviceTags       map[string][]string              // amdDeviceTags maps AMD device UUIDs to their device tags
+	amdReadTimeout      time.Duration                    // amdReadTimeout bounds the wait for the telemetry of one AMD device
+	amdPendingReads     map[string]<-chan struct{}       // amdPendingReads holds AMD telemetry reads, by device UUID, that have not returned yet
 }
 
 type checkTelemetry struct {
@@ -182,6 +184,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	if c.amdSysRoot == "" {
 		// Tests set the root before Configure; otherwise honor HOST_SYS and /host/sys in containers.
 		c.amdSysRoot = kernel.SysFSRoot()
+	}
+	if c.amdReadTimeout == 0 {
+		c.amdReadTimeout = defaultAMDReadTimeout
 	}
 
 	if c.containerProvider == nil {

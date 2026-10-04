@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -633,6 +634,81 @@ func TestAMDProcessReadErrorsPreserveAvailableMetrics(t *testing.T) {
 	assert.Equal(t, float64(206141652992), gauges["gpu.memory.limit"][0].Arguments.Get(1))
 	require.Len(t, gauges["gpu.gr_engine_active"], 1)
 	assert.Equal(t, float64(37), gauges["gpu.gr_engine_active"][0].Arguments.Get(1))
+}
+
+// A telemetry read blocked in the driver must not hold the check: the other
+// devices and the blocked device's process memory are still reported, later
+// runs skip the device instead of waiting again, and it recovers once the read
+// returns.
+func TestAMDHungTelemetryReadDoesNotBlockCheck(t *testing.T) {
+	withoutNVML(t)
+	fs := amd.NewFakeSysfs(t)
+	hungDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", amd.MI300XAttributes("00c0ffee00c0ffee"))
+	fs.AddCard("card0", hungDir)
+	fs.AddCard("card1", fs.AddPCIDevice("0000:d1:00.0", "amdgpu", amd.MI300XAttributes("")))
+	fs.AddKFDNode(1, 4101, 0, 0xc100, 90402)
+	fs.AddKFDProcess(os.Getpid(), 4101, 42)
+	// open() of a FIFO without a writer blocks in the kernel, like a sysfs read on a hung GPU.
+	busy := filepath.Join(hungDir, "gpu_busy_percent")
+	require.NoError(t, os.Remove(busy))
+	require.NoError(t, syscall.Mkfifo(busy, 0o600))
+	t.Cleanup(func() { // release the reader if the test fails before doing so
+		if w, err := os.OpenFile(busy, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
+			w.Close()
+		}
+	})
+
+	check, mockSender := newAMDCheck(t, fs.Root, nil)
+	check.nvmlUnavailable = true
+	check.amdReadTimeout = 500 * time.Millisecond
+	check.refreshAMDDevices()
+	gaugesByUUID := func(name string) map[string]float64 {
+		values := map[string]float64{}
+		for _, call := range emittedGauges(mockSender)[name] {
+			for _, tag := range call.Arguments.Get(3).([]string) {
+				if uuid, ok := strings.CutPrefix(tag, "gpu_uuid:"); ok {
+					values[uuid] = call.Arguments.Get(1).(float64)
+				}
+			}
+		}
+		return values
+	}
+	const healthyUUID = "amd-0000-d1-00-0"
+
+	start := time.Now()
+	require.ErrorContains(t, check.emitMetrics(mockSender, nil, time.Unix(1000, 0)), "did not return within 500ms")
+	assert.Less(t, time.Since(start), 3*time.Second)
+	assert.Equal(t, map[string]float64{healthyUUID: 37}, gaugesByUUID("gpu.gr_engine_active"))
+	assert.Equal(t, map[string]float64{testAMDUUID: 42}, gaugesByUUID("gpu.process.memory.usage"))
+	// The limit of the blocked device's process memory comes from discovery.
+	assert.Equal(t, float64(206141652992), gaugesByUUID("gpu.memory.limit")[testAMDUUID])
+
+	mockSender.ResetCalls()
+	start = time.Now()
+	require.ErrorContains(t, check.emitMetrics(mockSender, nil, time.Unix(1015, 0)), "still blocked from a previous run")
+	assert.Less(t, time.Since(start), check.amdReadTimeout, "the blocked device is skipped, not waited for again")
+	assert.Equal(t, map[string]float64{healthyUUID: 37}, gaugesByUUID("gpu.gr_engine_active"))
+
+	// Unblock the read: the pending reader gets 37, later reads the new file.
+	pending := check.amdPendingReads[testAMDUUID]
+	require.NotNil(t, pending)
+	writer, err := os.OpenFile(busy, os.O_WRONLY, 0) // does not block: the reader is waiting
+	require.NoError(t, err)
+	require.NoError(t, os.Remove(busy))
+	require.NoError(t, os.WriteFile(busy, []byte("55\n"), 0o644))
+	_, err = writer.WriteString("37\n")
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	select {
+	case <-pending:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the blocked read did not return")
+	}
+
+	mockSender.ResetCalls()
+	require.NoError(t, check.emitMetrics(mockSender, nil, time.Unix(1030, 0)))
+	assert.Equal(t, map[string]float64{testAMDUUID: 55, healthyUUID: 37}, gaugesByUUID("gpu.gr_engine_active"))
+	assert.Empty(t, check.amdPendingReads)
 }
 
 func TestAMDKubernetesAllocationsTagDeviceMetrics(t *testing.T) {
