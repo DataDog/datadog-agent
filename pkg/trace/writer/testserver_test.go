@@ -7,6 +7,8 @@ package writer
 
 import (
 	"context"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptrace"
 	"strings"
@@ -144,5 +146,41 @@ func TestTestServer(t *testing.T) {
 		assert.Equal(2, ts.Accepted())
 		assert.Equal(0, ts.Failed())
 		assert.Equal(4, ts.Retried())
+	})
+
+	t.Run("truncated-body", func(t *testing.T) {
+		assert := assert.New(t)
+		ts := newTestServer()
+		defer ts.Close()
+
+		// Announce more body than we send, then hang up. The handler's read of
+		// the request body fails, which is what happens for real when a server
+		// is closed with a request still in flight. The handler must record the
+		// error and abort the connection with http.ErrAbortHandler rather than
+		// panicking normally: a stack trace in the output is attributed to
+		// whichever test is running, and a suspected panic makes the CI harness
+		// skip the rerun pass.
+		conn, err := net.Dial("tcp", strings.TrimPrefix(ts.URL, "http://"))
+		assert.NoError(err)
+		defer conn.Close()
+		_, err = io.WriteString(conn, "POST / HTTP/1.1\r\nHost: test\r\nContent-Length: 100\r\n\r\nshort")
+		assert.NoError(err)
+		// Half-close so the server sees EOF mid-body while we can still read
+		// whatever it sends back.
+		assert.NoError(conn.(*net.TCPConn).CloseWrite())
+
+		// The connection is aborted, not answered: no HTTP response is written.
+		// Replying with a status instead would change how a real sender treats
+		// this, since sender.do drops a 4xx but retries a transport error.
+		assert.NoError(conn.SetReadDeadline(time.Now().Add(5 * time.Second)))
+		got, _ := io.ReadAll(conn)
+		assert.Empty(got, "the handler must not write a response, got %q", got)
+
+		assert.Eventually(func() bool {
+			return len(ts.ReadErrors()) == 1
+		}, 5*time.Second, 10*time.Millisecond, "the server should have recorded the failed body read")
+		// A request the server could not read is not a payload.
+		assert.Empty(ts.Payloads())
+		assert.Equal(0, ts.Accepted())
 	})
 }

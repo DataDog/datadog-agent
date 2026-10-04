@@ -61,6 +61,7 @@ func newTestServerWithLatency(d time.Duration) *testServer {
 func newTestServer() *testServer {
 	srv := &testServer{
 		seen:     make(map[string]*requestStatus),
+		closed:   atomic.NewBool(false),
 		total:    atomic.NewUint64(0),
 		accepted: atomic.NewUint64(0),
 		retried:  atomic.NewUint64(0),
@@ -83,12 +84,55 @@ type testServer struct {
 
 	mu       sync.Mutex // guards below
 	seen     map[string]*requestStatus
-	payloads []*payload
+	received []*receivedRequest
+	readErrs []error
 
 	// stats
 	total, accepted *atomic.Uint64
 	retried, failed *atomic.Uint64
 	peak, active    *atomic.Int64
+
+	closed *atomic.Bool
+}
+
+// receivedRequest is a request that the testServer accepted with a 2xx, together
+// with the details needed to tell where it came from. A body that did not
+// originate from the test under scrutiny is identifiable by its remote address,
+// its listener, its Content-Encoding, or by the payloadSplitter marker that
+// expectResponses writes into its plain-text bodies.
+type receivedRequest struct {
+	*payload
+	raw        []byte
+	remoteAddr string
+	serverURL  string
+}
+
+// describe renders the request's provenance and the start of its body, for use
+// in assertion failure messages.
+func (r *receivedRequest) describe() string {
+	prefix := r.raw
+	if len(prefix) > 8 {
+		prefix = prefix[:8]
+	}
+	var marker string
+	if bytes.Contains(r.raw, []byte(payloadSplitter)) {
+		marker = " (contains " + payloadSplitter + ": built by expectResponses, not by a writer)"
+	}
+	return fmt.Sprintf("server=%s remote=%s content-type=%q content-encoding=%q len=%d prefix=% x%s",
+		r.serverURL, r.remoteAddr, r.headers["Content-Type"], r.headers["Content-Encoding"],
+		len(r.raw), prefix, marker)
+}
+
+// describeReceived renders every recorded request, one per line.
+func describeReceived(received []*receivedRequest) string {
+	if len(received) == 0 {
+		return "(none)"
+	}
+	var b strings.Builder
+	for i, r := range received {
+		fmt.Fprintf(&b, "\n  [%d] %s", i, r.describe())
+	}
+	return b.String()
 }
 
 // requestStatus keeps track of how many times a custom payload was seen and what
@@ -126,9 +170,44 @@ func (ts *testServer) Accepted() int { return int(ts.accepted.Load()) }
 
 // Payloads returns the payloads that were accepted by the server, as received.
 func (ts *testServer) Payloads() []*payload {
+	received := ts.Received()
+	payloads := make([]*payload, len(received))
+	for i, r := range received {
+		payloads[i] = r.payload
+	}
+	return payloads
+}
+
+// Received returns the requests that were accepted by the server, as received,
+// each carrying the diagnostics that identify its origin.
+func (ts *testServer) Received() []*receivedRequest {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
-	return ts.payloads
+	return append([]*receivedRequest(nil), ts.received...)
+}
+
+// ReadErrors returns the errors the server encountered while reading request
+// bodies. These are expected only when a server is closed with requests still in
+// flight, which in turn means some writer outlived the test that created it.
+func (ts *testServer) ReadErrors() []error {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	return append([]error(nil), ts.readErrs...)
+}
+
+// ResetPayloads discards the requests recorded so far, so that a test which
+// flushes more than once can assert on one flush at a time.
+func (ts *testServer) ResetPayloads() {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	ts.received = nil
+}
+
+// recordReadError records a request body read failure.
+func (ts *testServer) recordReadError(err error) {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	ts.readErrs = append(ts.readErrs, err)
 }
 
 // ServeHTTP responds based on the request body.
@@ -143,11 +222,18 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		time.Sleep(ts.latency)
 	}
 
+	defer req.Body.Close()
 	slurp, err := io.ReadAll(req.Body)
 	if err != nil {
-		panic(fmt.Sprintf("error reading request body: %v", err))
+		// A read failure here means the connection died, normally because the
+		// server was closed while this request was still in flight. Abort the
+		// connection (as before) via http.ErrAbortHandler, which net/http
+		// special-cases to skip its stack-trace log; a suspected panic in the
+		// output makes the CI harness skip the rerun pass. Record the error so
+		// the owning test can assert on it.
+		ts.recordReadError(err)
+		panic(http.ErrAbortHandler)
 	}
-	defer req.Body.Close()
 	statusCode := ts.getNextCode(slurp)
 	w.WriteHeader(statusCode)
 	switch {
@@ -165,9 +251,14 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 		ts.mu.Lock()
 		defer ts.mu.Unlock()
-		ts.payloads = append(ts.payloads, &payload{
-			body:    bytes.NewBuffer(slurp),
-			headers: headers,
+		ts.received = append(ts.received, &receivedRequest{
+			payload: &payload{
+				body:    bytes.NewBuffer(slurp),
+				headers: headers,
+			},
+			raw:        slurp,
+			remoteAddr: req.RemoteAddr,
+			serverURL:  ts.URL,
 		})
 	default:
 		ts.failed.Inc()
@@ -209,5 +300,11 @@ func (ts *testServer) getNextCode(reqBody []byte) int {
 	return p.nextResponse()
 }
 
-// Close closes the underlying http.Server.
-func (ts *testServer) Close() { ts.server.Close() }
+// Close closes the underlying http.Server. It is idempotent, so a test may close
+// the server explicitly and still register a cleanup that closes it.
+func (ts *testServer) Close() {
+	if ts.closed.Swap(true) {
+		return
+	}
+	ts.server.Close()
+}
