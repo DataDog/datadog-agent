@@ -9,8 +9,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -33,9 +31,7 @@ type RetryHTTPOptions struct {
 // where no HTTP response was received.
 //
 // Transport errors and responses accepted by IsRetryableHTTPStatus are
-// retried; other responses are permanent. op can wrap an error with
-// WithRetryAfter to wait for the server-requested delay instead of the next
-// backoff interval.
+// retried; other responses are permanent.
 func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opts RetryHTTPOptions) (T, error) {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = opts.InitialInterval
@@ -70,32 +66,4 @@ func IsRetryableHTTPStatus(statusCode int) bool {
 		return true
 	}
 	return statusCode < 400 || statusCode >= 500
-}
-
-// WithRetryAfter wraps err so that RetryHTTPRequest waits for the delay given
-// by a Retry-After header value before the next attempt. err is returned
-// unchanged when the header is absent or cannot be parsed.
-func WithRetryAfter(err error, retryAfter string) error {
-	delay, ok := parseRetryAfter(retryAfter, time.Now())
-	if !ok {
-		return err
-	}
-	return backoff.RetryAfter(delay, err)
-}
-
-// parseRetryAfter parses a Retry-After header value, either delay-seconds or
-// an HTTP-date (RFC 9110 section 10.2.3).
-func parseRetryAfter(value string, now time.Time) (time.Duration, bool) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return 0, false
-	}
-	if seconds, err := strconv.ParseUint(value, 10, 32); err == nil {
-		return time.Duration(seconds) * time.Second, seconds > 0
-	}
-	if date, err := http.ParseTime(value); err == nil {
-		delay := date.Sub(now)
-		return delay, delay > 0
-	}
-	return 0, false
 }

@@ -217,9 +217,7 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 	}
 	if resp.StatusCode != http.StatusOK {
 		err := fmt.Errorf("runner creation failed with HTTP status code %d and response %s", resp.StatusCode, string(respBody))
-		if resp.StatusCode == http.StatusTooManyRequests {
-			err = util.WithRetryAfter(err, resp.Header.Get("Retry-After"))
-		} else if !util.IsRetryableHTTPStatus(resp.StatusCode) {
+		if !util.IsRetryableHTTPStatus(resp.StatusCode) {
 			err = fmt.Errorf("%w: %w; check the site and Private Action Runner configuration, then restart the Private Action Runner", ErrEnrollmentRejected, err)
 		}
 		return nil, resp.StatusCode, err
