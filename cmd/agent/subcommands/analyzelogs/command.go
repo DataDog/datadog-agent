@@ -62,7 +62,7 @@ type CliParams struct {
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalParams *command.GlobalParams, _ command.ProductComposition) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams, product command.ProductComposition) []*cobra.Command {
 	cliParams := &CliParams{
 		GlobalParams:   globalParams,
 		CoreConfigPath: defaultCoreConfigPath, // Set default path
@@ -88,6 +88,7 @@ func Commands(globalParams *command.GlobalParams, _ command.ProductComposition) 
 				workloadfilterfx.Module(),
 				hostnameimpl.Module(),
 				adfx.Module(),
+				fx.Options(product.AutodiscoveryOptions...),
 				healthplatform.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)

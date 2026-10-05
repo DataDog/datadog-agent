@@ -64,16 +64,17 @@ var listenerCandidateIntl = 30 * time.Second
 // Requires is the set of dependencies for the AutoConfig component.
 type Requires struct {
 	compdef.In
-	Lc             compdef.Lifecycle
-	Config         configComponent.Component
-	Log            logComp.Component
-	TaggerComp     tagger.Component
-	Secrets        secrets.Component
-	WMeta          option.Option[workloadmeta.Component]
-	FilterStore    workloadfilter.Component
-	Telemetry      telemetry.Component
-	HealthPlatform healthplatformdef.Component
-	ServiceTracker adtypes.ServiceTracker `optional:"true"`
+	Lc               compdef.Lifecycle
+	Config           configComponent.Component
+	Log              logComp.Component
+	TaggerComp       tagger.Component
+	Secrets          secrets.Component
+	WMeta            option.Option[workloadmeta.Component]
+	FilterStore      workloadfilter.Component
+	Telemetry        telemetry.Component
+	HealthPlatform   healthplatformdef.Component
+	ServiceTracker   adtypes.ServiceTracker         `optional:"true"`
+	ConfigDiscoverer discovererPkg.ConfigDiscoverer `optional:"true"`
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -183,7 +184,7 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 		}
 	}()
 
-	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceTracker)
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceTracker, deps.ConfigDiscoverer)
 	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.start()
@@ -204,10 +205,15 @@ func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretReso
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component, tracker adtypes.ServiceTracker) *AutoConfig {
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component, tracker adtypes.ServiceTracker, configDiscoverers ...discovererPkg.ConfigDiscoverer) *AutoConfig {
+	var configDiscoverer discovererPkg.ConfigDiscoverer
+	if len(configDiscoverers) > 0 {
+		configDiscoverer = configDiscoverers[0]
+	}
+
 	staticConfigIndex := listeners.NewStaticConfigIndex()
 	telStore := acTelemetry.NewStore(telemetryComp)
-	cfgMgr := newReconcilingConfigManager(secretResolver, hp, staticConfigIndex, discovererPkg.NewPythonBridge(), telStore)
+	cfgMgr := newReconcilingConfigManager(secretResolver, hp, staticConfigIndex, configDiscoverer, telStore)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),
