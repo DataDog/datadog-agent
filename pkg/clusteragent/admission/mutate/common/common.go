@@ -11,6 +11,7 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -41,10 +42,7 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 	// Snapshot the typed object before normalization or mutation. Comparing the
 	// original JSON with a typed round trip would delete fields newer than our
 	// Kubernetes client understands.
-	original, err := json.Marshal(pod)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode the original Pod object: %v", err)
-	}
+	originalPod := pod.DeepCopy()
 
 	// In rare cases multiple mutation webhooks executed in sequence can cause the spec to be invalid. This was seen
 	// when the autoinstrumentation library injection webhook ran before and after GKE Autopilot webhooks.
@@ -54,27 +52,11 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 		log.Warnf("failed to normalize input spec for %s: %v - API Server is likely to reject due to invalid spec", PodString(&pod), err)
 	}
 
-	// Volume normalization can remove duplicate merge keys. Apply its positional
-	// edits before strategic merge, which requires unique keys in named lists.
-	normalized, err := json.Marshal(pod)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode the normalized Pod object: %v", err)
-	}
-	normalization, err := jsondiff.CompareJSON(original, normalized, jsondiff.LCS())
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare the normalization patch: %v", err)
-	}
-	normalizationJSON, err := json.Marshal(normalization)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode the normalization patch: %v", err)
-	}
-	normalizationPatch, err := jsonpatch.DecodePatch(normalizationJSON)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode the normalization patch: %v", err)
-	}
-	normalizedRaw, err := normalizationPatch.Apply(rawPod)
-	if err != nil {
-		return nil, fmt.Errorf("failed to normalize the raw Pod object: %v", err)
+	// Most requests are unchanged. Keep typed snapshots so the fast path does
+	// not need serialization, and only copy again if normalization changed Pod.
+	normalizedPod := originalPod
+	if !reflect.DeepEqual(originalPod, &pod) {
+		normalizedPod = pod.DeepCopy()
 	}
 
 	injected, err := m(&pod, ns, dc)
@@ -84,6 +66,42 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 	}
 
 	metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
+
+	// injected is a metrics signal, not a reliable indication of every edit.
+	// Include normalization and mutators that return false after modifying Pod.
+	if reflect.DeepEqual(originalPod, &pod) {
+		return []byte("[]"), nil
+	}
+
+	// Volume normalization can remove duplicate merge keys. Apply its positional
+	// edits before strategic merge, which requires unique keys in named lists.
+	normalized, err := json.Marshal(normalizedPod)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode the normalized Pod object: %v", err)
+	}
+	normalizedRaw := rawPod
+	if normalizedPod != originalPod {
+		original, err := json.Marshal(originalPod)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode the original Pod object: %v", err)
+		}
+		normalization, err := jsondiff.CompareJSON(original, normalized, jsondiff.LCS())
+		if err != nil {
+			return nil, fmt.Errorf("failed to prepare the normalization patch: %v", err)
+		}
+		normalizationJSON, err := json.Marshal(normalization)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode the normalization patch: %v", err)
+		}
+		normalizationPatch, err := jsonpatch.DecodePatch(normalizationJSON)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode the normalization patch: %v", err)
+		}
+		normalizedRaw, err = normalizationPatch.Apply(rawPod)
+		if err != nil {
+			return nil, fmt.Errorf("failed to normalize the raw Pod object: %v", err)
+		}
+	}
 
 	bytes, err := json.Marshal(pod)
 	if err != nil {

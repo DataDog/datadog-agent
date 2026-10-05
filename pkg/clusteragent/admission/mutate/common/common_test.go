@@ -9,6 +9,7 @@ package common
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -415,4 +416,51 @@ func TestMutatePreservesNormalization(t *testing.T) {
 	volumes := unstructured["spec"].(map[string]interface{})["volumes"].([]interface{})
 	assert.Equal(t, "data", volumes[0].(map[string]interface{})["futureVolumeField"])
 	assert.Equal(t, "cache", volumes[1].(map[string]interface{})["futureVolumeField"])
+}
+
+func TestMutateFalseWithChanges(t *testing.T) {
+	raw := []byte(`{"metadata":{"name":"test"},"spec":{"containers":[{"name":"app","image":"app:v1"}],"futurePodField":true}}`)
+	patchBytes, err := Mutate(raw, "default", "test", func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+		AddAnnotation(pod, "injection-status", "blocked")
+		return false, nil
+	}, nil)
+	require.NoError(t, err)
+	patch, err := jsonpatch.DecodePatch(patchBytes)
+	require.NoError(t, err)
+	result, err := patch.Apply(raw)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"metadata":{"name":"test","annotations":{"injection-status":"blocked"}},"spec":{"containers":[{"name":"app","image":"app:v1"}],"futurePodField":true}}`, string(result))
+}
+
+func BenchmarkMutate(b *testing.B) {
+	for _, count := range []int{1, 100} {
+		pod := corev1.Pod{}
+		for i := 0; i < count; i++ {
+			container := corev1.Container{Name: fmt.Sprintf("app-%d", i), Image: "app:v1"}
+			for j := 0; j < 20; j++ {
+				container.Env = append(container.Env, corev1.EnvVar{Name: fmt.Sprintf("VAR_%d", j), Value: "value"})
+			}
+			pod.Spec.Containers = append(pod.Spec.Containers, container)
+		}
+		raw, err := json.Marshal(pod)
+		require.NoError(b, err)
+		for _, mutation := range []bool{false, true} {
+			b.Run(fmt.Sprintf("containers=%d/mutated=%t", count, mutation), func(b *testing.B) {
+				mutator := func(p *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+					if mutation {
+						p.Spec.Containers[0].Image = "app:v2"
+					}
+					return mutation, nil
+				}
+				b.ReportAllocs()
+				b.SetBytes(int64(len(raw)))
+				for b.Loop() {
+					_, err := Mutate(raw, "default", "benchmark", mutator, nil)
+					if err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+		}
+	}
 }
