@@ -204,6 +204,13 @@ class JevDynTestExecutor(DynTestExecutor):
         """Build the full test universe instead of loading a stored index."""
         self._index = JevTestUniverse(self.pipeline_id).build()
 
+    def index(self):
+        # same lazy semantics as the base class (redefined so the duck-typed
+        # fallback without invoke also has it)
+        if self._index is None:
+            self.init_index()
+        return self._index
+
     def tests_to_run_per_job(self, changes: list[str]) -> dict:
         # NOTE: the Jev prediction ignores `changes`; the selector gathers its
         # own, richer PR context (diff, description, team, test code).
