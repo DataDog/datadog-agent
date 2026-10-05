@@ -163,7 +163,10 @@ def fetch_ddci_metadata() -> dict | None:
         "ref": req.get("ref"),
         "pr_number": (req.get("pull_request") or {}).get("number"),
         "author": (req.get("user_info") or {}).get("github_handle"),
-        "changed_files": [(f["path"], f.get("kind", "").replace("FILE_MODIFICATION_KIND_", "").lower()) for f in results.get("changed_files", [])],
+        "changed_files": [
+            (f["path"], f.get("kind", "").replace("FILE_MODIFICATION_KIND_", "").lower())
+            for f in results.get("changed_files", [])
+        ],
         "impacted_targets": [t["name"] for t in results.get("targets", [])],
     }
     print(
@@ -211,7 +214,9 @@ def fetch_pr_info(base: str, ddci: dict | None) -> dict:
             print(f"[warn] no open PR found for branch {branch}")
             return pr
     print(f"[info] PR #{payload.get('number')}: {payload.get('title')}")
-    pr.update({"number": payload.get("number"), "title": payload.get("title", ""), "description": payload.get("body") or ""})
+    pr.update(
+        {"number": payload.get("number"), "title": payload.get("title", ""), "description": payload.get("body") or ""}
+    )
     return pr
 
 
@@ -308,9 +313,7 @@ def get_ai_gateway_token(args: argparse.Namespace) -> str:
     if args.token_cmd:
         return run_cmd(args.token_cmd.split()).strip()
     # laptop fallback
-    return run_cmd(
-        ["ddtool", "auth", "token", "rapid-ai-platform", "--datacenter", "us1.staging.dog", "--raw"]
-    ).strip()
+    return run_cmd(["ddtool", "auth", "token", "rapid-ai-platform", "--datacenter", "us1.staging.dog", "--raw"]).strip()
 
 
 def ask_jev(args: argparse.Namespace, token: str, state: str) -> dict:
@@ -327,6 +330,7 @@ def ask_jev(args: argparse.Namespace, token: str, state: str) -> dict:
             "Authorization": f"Bearer {token}",
             "source": args.source,
             "org-id": "2",
+            "x-dd-tag-ddagent-ci": "innovation-week-experiment",
         },
         method="POST",
     )
@@ -345,16 +349,22 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--suite", required=True, help="E2E suite under test/new-e2e/tests/ (e.g. fleet)")
     parser.add_argument("--test", help="Restrict to a single test entry point or suite method")
-    parser.add_argument("--base", default=os.environ.get("COMPARE_TO_BRANCH", "main"), help="Base branch to diff against")
+    parser.add_argument(
+        "--base", default=os.environ.get("COMPARE_TO_BRANCH", "main"), help="Base branch to diff against"
+    )
     parser.add_argument("--team", default=None, help="Owning team (defaults to the suite directory name)")
     parser.add_argument("--model", default="datadoginternal/openjev-medium")
     parser.add_argument("--dc", default="us1.ddbuild.io", help="AI Gateway datacenter")
     parser.add_argument("--source", default="datadog-agent", help="source header for AI Gateway")
     parser.add_argument("--token", help="Raw internal auth token (default: $AI_GATEWAY_TOKEN)")
     parser.add_argument("--token-cmd", help="Command producing a raw token, e.g. authanywhere invocation")
-    parser.add_argument("--run-threshold", type=float, default=0.5, help="should_execute value above which the test runs")
+    parser.add_argument(
+        "--run-threshold", type=float, default=0.5, help="should_execute value above which the test runs"
+    )
     parser.add_argument("--output", default="jev_e2e_decisions.json", help="JSON output path")
-    parser.add_argument("--dry-run", action="store_true", help="Print the state that would be sent, without calling Jev")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print the state that would be sent, without calling Jev"
+    )
     args = parser.parse_args()
 
     suite_dir = os.path.join("test", "new-e2e", "tests", args.suite)
@@ -396,9 +406,8 @@ def main() -> int:
         author = f", author: @{pr['author']}" if pr.get("author") else ""
         impacted = ""
         if ddci and ddci.get("impacted_targets"):
-            impacted = (
-                "\n\n## Impacted build targets (from DDCI build impact analysis)\n"
-                + ", ".join(ddci["impacted_targets"][:100])
+            impacted = "\n\n## Impacted build targets (from DDCI build impact analysis)\n" + ", ".join(
+                ddci["impacted_targets"][:100]
             )
         state = (
             "## PR under review\n"
@@ -463,7 +472,9 @@ def main() -> int:
             json.dump(summary, f, indent=2)
         print(f"\n[summary] run: {to_run or 'none'}")
         print(f"[summary] skip: {to_skip or 'none'}")
-        print(f"[summary] go test flag: --skip '{'|'.join(to_skip)}'" if to_skip else "[summary] go test flag: (run all)")
+        print(
+            f"[summary] go test flag: --skip '{'|'.join(to_skip)}'" if to_skip else "[summary] go test flag: (run all)"
+        )
         print(f"[summary] decisions written to {args.output}")
     return 0
 
