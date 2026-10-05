@@ -11,6 +11,13 @@ stop_timeout: 180
 condition_path_exists: '{{.InstallDir}}/bin/agent/par-control.exe'
 restart: on-failure
 restart_sec: 2
+# A bootstrap failure (e.g. a rejected enrollment) exits after a few seconds.
+# With the default 1-second runtime_success_sec that counts as a healthy run,
+# so the delay reset to restart_sec on every cycle and par-control re-enrolled
+# every ~3s forever. Only a run of at least a minute counts as healthy, so
+# repeated failures back off up to restart_max_delay_sec.
+runtime_success_sec: 60
+restart_max_delay_sec: 300
 start_limit_interval_sec: 10
 start_limit_burst: 5
 stdout: '{{.EtcDir}}/logs/par-control.log'

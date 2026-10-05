@@ -8,6 +8,9 @@ package util
 import (
 	"context"
 	"errors"
+	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -17,7 +20,7 @@ import (
 // RetryHTTPOptions controls the retry policy for RetryHTTPRequest.
 //
 // MaxElapsedTime == 0 disables the elapsed-time cap, meaning retries continue
-// until the request succeeds, hits a permanent failure (4xx), or the caller's
+// until the request succeeds, hits a permanent failure (4xx other than 429), or the caller's
 // context is cancelled.
 type RetryHTTPOptions struct {
 	InitialInterval time.Duration
@@ -31,7 +34,9 @@ type RetryHTTPOptions struct {
 //
 // 4xx responses are treated as permanent (no retry) since they typically
 // indicate a non-transient client problem (bad credentials, malformed payload).
-// Transport errors and 5xx responses are retried.
+// Transport errors, 5xx and 429 responses are retried. op can wrap a 429 error
+// with WithRetryAfter to wait for the server-requested delay instead of the
+// next backoff interval.
 func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opts RetryHTTPOptions) (T, error) {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = opts.InitialInterval
@@ -42,7 +47,7 @@ func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opt
 		if err == nil {
 			return result, nil
 		}
-		if statusCode >= 400 && statusCode < 500 {
+		if statusCode >= 400 && statusCode < 500 && statusCode != http.StatusTooManyRequests {
 			return result, backoff.Permanent(err)
 		}
 		log.FromContext(ctx).Warnf("HTTP request failed, will retry: %v", err)
@@ -55,4 +60,32 @@ func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opt
 		return result, re.LastErr
 	}
 	return result, err
+}
+
+// WithRetryAfter wraps err so that RetryHTTPRequest waits for the delay given
+// by a Retry-After header value before the next attempt. err is returned
+// unchanged when the header is absent or cannot be parsed.
+func WithRetryAfter(err error, retryAfter string) error {
+	delay, ok := parseRetryAfter(retryAfter, time.Now())
+	if !ok {
+		return err
+	}
+	return backoff.RetryAfter(delay, err)
+}
+
+// parseRetryAfter parses a Retry-After header value, either delay-seconds or
+// an HTTP-date (RFC 9110 section 10.2.3).
+func parseRetryAfter(value string, now time.Time) (time.Duration, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, false
+	}
+	if seconds, err := strconv.ParseUint(value, 10, 32); err == nil {
+		return time.Duration(seconds) * time.Second, seconds > 0
+	}
+	if date, err := http.ParseTime(value); err == nil {
+		delay := date.Sub(now)
+		return delay, delay > 0
+	}
+	return 0, false
 }

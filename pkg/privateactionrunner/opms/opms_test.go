@@ -385,6 +385,25 @@ func TestEnrollmentCredentialRejectionStopsRetrying(t *testing.T) {
 	}
 }
 
+func TestEnrollmentRateLimitIsRetried(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		if calls == 1 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		_, _ = w.Write([]byte("{}"))
+	}))
+	defer srv.Close()
+
+	p := &publicClient{httpClient: srv.Client()}
+	body, err := p.doEnrollRequestWithRetry(context.Background(), srv.URL, []byte("{}"), "api-key", "app-key")
+	require.NoError(t, err)
+	assert.Equal(t, "{}", string(body))
+	assert.Equal(t, 2, calls)
+}
+
 func TestHeartbeat_NotFoundReturnsErrJobNotFound(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
