@@ -95,6 +95,10 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	// stripped from the DPA status), so a follower webhook would otherwise leave the CPU limit in
 	// place. Inputs come from the spec/annotations, available on all replicas; idempotent on the leader.
 	constrainedVertical := autoscaler.ScalingValues().Vertical.DeepCopy()
+	if _, err := applyForcedResources(constrainedVertical, autoscaler.ForcedResources()); err != nil {
+		log.Warnf("Autoscaler %s: failed to apply forced resources for POD %s/%s, not patching resources: %v", autoscaler.ID(), pod.Namespace, pod.Name, err)
+		return patched, nil
+	}
 	if _, err := applyVerticalConstraints(constrainedVertical, autoscaler.Spec().Constraints, autoscaler.IsBurstable()); err != nil {
 		log.Warnf("Autoscaler %s: failed to apply vertical constraints for POD %s/%s, not patching resources: %v", autoscaler.ID(), pod.Namespace, pod.Name, err)
 		return patched, nil

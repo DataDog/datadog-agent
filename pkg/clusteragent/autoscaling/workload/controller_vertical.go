@@ -94,7 +94,23 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	// Without this, clamped values would persist and the VerticalScalingLimited condition would be
 	// cleared on the next sync since constraints re-applied to already-clamped values are no-ops.
 	constrainedVertical := scalingValues.Vertical.DeepCopy()
+	// Resources forced by annotation are overlaid on the recommendation, then bounded by the
+	// constraints like any recommended value.
+	forcedErr, err := applyForcedResources(constrainedVertical, autoscalerInternal.ForcedResources())
+	if err != nil {
+		autoscalerInternal.SetConstrainedVerticalScaling(nil, nil)
+		autoscalerInternal.UpdateFromVerticalAction(nil, err)
+		return autoscaling.NoRequeue, err
+	}
 	limitErr, err := applyVerticalConstraints(constrainedVertical, autoscalerInternal.Spec().Constraints, autoscalerInternal.IsBurstable())
+	if forcedErr != nil {
+		// The override is the reason the recommendation is not followed; a clamp on top of it is
+		// still reported.
+		if limitErr != nil {
+			forcedErr = autoscaling.NewConditionErrorf(autoscaling.ConditionReasonForcedByAnnotation, "%v; %v", forcedErr, limitErr)
+		}
+		limitErr = forcedErr
+	}
 	if err != nil {
 		autoscalerInternal.SetConstrainedVerticalScaling(nil, nil)
 		autoscalerInternal.UpdateFromVerticalAction(nil, err)
@@ -484,6 +500,7 @@ func (u *verticalController) syncDeploymentKind(
 		u.clock.Now(),
 		minDelayBetweenRollouts,
 		autoscalerInternal.ID(),
+		len(autoscalerInternal.ForcedResources()) > 0,
 	)
 
 	return u.handleRolloutDecision(ctx, podAutoscaler, autoscalerInternal, target, targetGVK, recommendationID, podsPerRecommendationID, decision)
@@ -528,6 +545,7 @@ func (u *verticalController) syncStatefulSetKind(
 		u.clock.Now(),
 		minDelayBetweenRollouts,
 		autoscalerInternal.ID(),
+		len(autoscalerInternal.ForcedResources()) > 0,
 	)
 
 	return u.handleRolloutDecision(ctx, podAutoscaler, autoscalerInternal, target, targetGVK, recommendationID, podsPerRecommendationID, decision)

@@ -1796,6 +1796,7 @@ type ContainerImageMetadata struct {
 	OSVersion    string
 	Architecture string
 	Variant      string
+	Created      time.Time
 	Layers       []ContainerImageLayer
 	SBOM         *CompressedSBOM
 }
@@ -1894,6 +1895,7 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "OS Version:", i.OSVersion)
 		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
+		_, _ = fmt.Fprintln(&sb, "Created:", i.Created)
 
 		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
 		if i.SBOM != nil {
@@ -2357,6 +2359,11 @@ type GPU struct {
 	// Healthy indicates whether or not the GPU device is healthy
 	Healthy bool
 
+	// Lost indicates that the driver reports the GPU as lost (e.g., it fell off
+	// the bus). Attributes that require querying the device keep the values
+	// reported before the GPU was lost.
+	Lost bool
+
 	// ParentGPUUUID is the UUID of the parent GPU device. Empty string if the device does not have a parent.
 	ParentGPUUUID string
 
@@ -2425,6 +2432,9 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Memory Bus Width:", g.MemoryBusWidth)
 	_, _ = fmt.Fprintln(&sb, "Max SM Clock Rate:", g.MaxClockRates[GPUSM])
 	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[GPUMemory])
+	if g.Lost {
+		_, _ = fmt.Fprintln(&sb, "Lost: true")
+	}
 
 	// Do not show "physical" device type as it's the default and redundant information
 	if g.DeviceType == GPUDeviceTypeMIG {

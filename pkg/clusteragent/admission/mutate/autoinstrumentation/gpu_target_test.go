@@ -63,14 +63,26 @@ func TestNewGPUTarget(t *testing.T) {
 				fieldRefTracerConfig(trainingGroupIDEnvVar, "metadata.annotations['example/task-name']"),
 			),
 		},
-		"env identifiers are ignored": {
+		"run from an env var and group from an annotation": {
 			tracing: enabled,
 			jobs: gpuconfig.JobsConfig{
 				Run:   gpuconfig.IdentifierConfig{Key: "_RAY_SUBMISSION_ID", Type: gpuconfig.IdentifierTypeEnv},
 				Group: gpuconfig.IdentifierConfig{Key: "example/task-name", Type: gpuconfig.IdentifierTypeAnnotation},
 			},
 			want: append(baseConfigs,
+				TracerConfig{Name: trainingRunIDEnvVar, Value: "env:_RAY_SUBMISSION_ID"},
 				fieldRefTracerConfig(trainingGroupIDEnvVar, "metadata.annotations['example/task-name']"),
+			),
+		},
+		"run and group from env vars": {
+			tracing: enabled,
+			jobs: gpuconfig.JobsConfig{
+				Run:   gpuconfig.IdentifierConfig{Key: "_RAY_SUBMISSION_ID", Type: gpuconfig.IdentifierTypeEnv},
+				Group: gpuconfig.IdentifierConfig{Key: "RAY_CLUSTER_NAME", Type: gpuconfig.IdentifierTypeEnv},
+			},
+			want: append(baseConfigs,
+				TracerConfig{Name: trainingRunIDEnvVar, Value: "env:_RAY_SUBMISSION_ID"},
+				TracerConfig{Name: trainingGroupIDEnvVar, Value: "env:RAY_CLUSTER_NAME"},
 			),
 		},
 		"identifiers without a key are ignored": {
@@ -210,6 +222,33 @@ gpu:
 		{Name: "DD_TRACE_HOOK_MODULES", Value: "gpu"},
 		fieldRefEnvVar(trainingRunIDEnvVar, "metadata.annotations['example/job-id']"),
 		fieldRefEnvVar(trainingGroupIDEnvVar, "metadata.annotations['example/task-name']"),
+	}, target.envVars)
+}
+
+func TestGPUTargetInjectionEnvIdentifiers(t *testing.T) {
+	const cfg = `
+gpu:
+  tracing:
+    enabled: true
+  jobs:
+    run:
+      key: FOO
+      type: env
+    group:
+      key: example/job-group-annotation
+      type: annotation
+`
+	m := newMatchMutator(t, cfg, newMatchTestWmeta(t))
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "ml", Labels: gpuPodLabels}}
+
+	target := m.getMatchingTarget(pod)
+
+	require.NotNil(t, target)
+	assert.Equal(t, []corev1.EnvVar{
+		{Name: "DD_INJECT_NATIVE", Value: "always"},
+		{Name: "DD_TRACE_HOOK_MODULES", Value: "gpu"},
+		{Name: "DD_TRAINING_RUN_ID", Value: "env:FOO"},
+		fieldRefEnvVar(trainingGroupIDEnvVar, "metadata.annotations['example/job-group-annotation']"),
 	}, target.envVars)
 }
 

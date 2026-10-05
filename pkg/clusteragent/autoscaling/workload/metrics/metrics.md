@@ -93,6 +93,17 @@ Every metric carries the following base tags.
   it, so alerting on this series persisting is the intended way to catch an override that was
   set during an incident and never reverted.
 
+#### `datadog.cluster_agent.autoscaling.workload.force_resources`
+- **Type:** Gauge
+- **Tags:** base tags
+- **Description:** Indicates whether container resources are overridden by the
+  `autoscaling.datadoghq.com/force-resources` annotation and the override is applied. Value is `1`
+  when the autoscaler is allowed to apply it, `0` when it is paused or its apply mode is not `Apply`.
+  Only emitted while a valid override is set: autoscalers without it, or with an invalid value, send
+  no series. Forced values are bounded by `spec.constraints` like any recommendation.
+  Nothing expires the override, so alerting on this metric staying `1` is the intended way to
+  catch an override that was set during an incident and never reverted.
+
 ---
 
 ### Horizontal scaling — received recommendations
