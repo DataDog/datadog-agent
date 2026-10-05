@@ -306,8 +306,8 @@ func TestCurrentBottleneckComponentUsesActualLossWindow(t *testing.T) {
 	snapshot.Windows.LastSaturatedAt = now.Add(-30 * time.Second)
 	pm := register()
 	require.Equal(t, BackpressureWarning, BackpressureSnapshot().State, "the snapshot still carries the history")
-	assert.Empty(t, currentBottleneckComponent(pm, now.Add(-5*time.Second)),
-		"saturation that ended before the loss is neither the cause nor proof of health")
+	assert.Equal(t, NoBottleneck, currentBottleneckComponent(pm, now.Add(-5*time.Second)),
+		"saturation that ended before the loss did not cause it")
 
 	// CurrentlySaturated is debounced and may remain true after the last saturated sample.
 	// The timestamp still wins when that sample predates the rotation.
@@ -319,6 +319,49 @@ func TestCurrentBottleneckComponentUsesActualLossWindow(t *testing.T) {
 	pm = register()
 	assert.Equal(t, "strategy", currentBottleneckComponent(pm, now.Add(-5*time.Second)),
 		"recovered saturation inside the post-rotation window remains attributable")
+}
+
+func TestBottleneckDuringLossWarning(t *testing.T) {
+	now := time.Now()
+	sat := func(name string, lastSat time.Duration) ComponentBackpressure {
+		return ComponentBackpressure{
+			Component:           name,
+			Saturated30mSeconds: 60,
+			HasLastSaturated:    true,
+			LastSaturatedAt:     now.Add(-lastSat),
+		}
+	}
+	tests := []struct {
+		name        string
+		comps       []ComponentBackpressure
+		windowStart time.Duration
+		want        string
+	}{
+		{
+			name:        "all saturation before the window",
+			comps:       []ComponentBackpressure{sat("processor", 20*time.Minute), sat("worker", 15*time.Minute)},
+			windowStart: 5 * time.Minute,
+			want:        NoBottleneck,
+		},
+		{
+			name:        "one component saturated inside the window",
+			comps:       []ComponentBackpressure{sat("processor", 20*time.Minute), sat("worker", time.Minute)},
+			windowStart: 5 * time.Minute,
+			want:        "worker",
+		},
+		{
+			name:        "window beyond the history bound",
+			comps:       []ComponentBackpressure{sat("processor", 50*time.Minute)},
+			windowStart: 40 * time.Minute,
+			want:        "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			summary := BackpressureSummary{State: BackpressureWarning, Components: tc.comps}
+			assert.Equal(t, tc.want, bottleneckDuringLoss(summary, now.Add(-tc.windowStart), now))
+		})
+	}
 }
 
 func TestCurrentBottleneckComponentCoalescesConcurrentMisses(t *testing.T) {

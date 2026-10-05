@@ -265,9 +265,9 @@ func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now 
 		return recovered.Component
 	}
 
-	// Saturation durations only cover the trailing 30 minutes, so a healthy summary proves
-	// nothing about a rotation older than that.
-	if summary.State == BackpressureHealthy && now.Sub(lossWindowStartedAt) <= 30*time.Minute {
+	// Saturation durations only cover the trailing 30 minutes, so a summary without in-window
+	// saturation proves nothing about a rotation older than that.
+	if (summary.State == BackpressureHealthy || summary.State == BackpressureWarning) && now.Sub(lossWindowStartedAt) <= 30*time.Minute {
 		return NoBottleneck
 	}
 	return ""
