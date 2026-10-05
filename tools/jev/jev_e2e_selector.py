@@ -6,6 +6,9 @@ should be executed on the current PR, by asking a Jev (TypeSafe System One)
 model through the AI Gateway:
 
     state  = PR title + description + changed files + owning team + test code
+         (PR number, changed files with modification kinds, merge base, author
+          and impacted targets come from the DDCI Metadata Service when
+          $DDCI_REQUEST_ID is set, else git merge-base + GitHub API fallback)
     questions:
       - should_execute (noul)   : run the test on this PR?
       - relation (choice)       : why (direct code, shared infra, packaging/CI, unrelated)
@@ -40,6 +43,8 @@ import urllib.request
 REPO = "DataDog/datadog-agent"
 GITHUB_API = f"https://api.github.com/repos/{REPO}"
 SYSTEMONE_PATH = "/v1/systemone"
+# https://datadoghq.atlassian.net/wiki/spaces/DEVX/pages/5423334716/DDCI+Metadata+Service
+DDCI_METADATA_URL = "https://cimetadataserver.us1.ddbuild.io/internal/ddci/metadata"
 
 # Keep the state well below Jev's 32k tokens per question cap.
 MAX_TEST_CODE_BYTES = 24_000
@@ -98,35 +103,101 @@ def truncate(text: str, limit: int, label: str) -> str:
 # ---------------------------------------------------------------- PR information
 
 
-def fetch_pr_info(base: str) -> dict:
-    """PR title/description from the GitHub API (uses GITHUB_TOKEN if present)."""
-    token = os.environ.get("GITHUB_TOKEN")
-    branch = git("rev-parse", "--abbrev-ref", "HEAD")
-    if not token:
-        print(f"[warn] GITHUB_TOKEN not set, cannot fetch PR description for {branch}")
-        return {"branch": branch, "title": "", "description": ""}
+def fetch_ddci_metadata() -> dict | None:
+    """PR/merge-base/changed-files metadata from the DDCI Metadata Service.
 
-    req = urllib.request.Request(
-        f"{GITHUB_API}/pulls?head={REPO.split(':')[0]}:{urllib.parse.quote(branch)}&state=open&per_page=1",
-        headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
+    Available in CI when the $DDCI_REQUEST_ID env var is set (change analysis
+    for the PR). Returns None when unavailable (e.g. local run, no analysis)
+    so callers can fall back to git + GitHub API.
+    """
+    request_id = os.environ.get("DDCI_REQUEST_ID")
+    if not request_id:
+        print("[info] DDCI_REQUEST_ID not set, skipping DDCI metadata")
+        return None
+    try:
+        with urllib.request.urlopen(f"{DDCI_METADATA_URL}/{request_id}", timeout=15) as resp:
+            data = json.load(resp)
+    except Exception as e:
+        print(f"[warn] could not fetch DDCI metadata for request {request_id}: {e}")
+        return None
+    event = data.get("event", {})
+    if event.get("status") != "completed":
+        print(f"[warn] DDCI analysis status is '{event.get('status')}', not using it")
+        return None
+    req = event.get("request", {})
+    results = event.get("results") or {}
+    meta = {
+        "request_id": request_id,
+        "base_commit": req.get("base_commit"),
+        "head_commit": req.get("head_commit"),
+        "base_ref": req.get("base_ref"),
+        "ref": req.get("ref"),
+        "pr_number": (req.get("pull_request") or {}).get("number"),
+        "author": (req.get("user_info") or {}).get("github_handle"),
+        "changed_files": [(f["path"], f.get("kind", "").replace("FILE_MODIFICATION_KIND_", "").lower()) for f in results.get("changed_files", [])],
+        "impacted_targets": [t["name"] for t in results.get("targets", [])],
+    }
+    print(
+        f"[info] DDCI metadata: PR #{meta['pr_number']}, merge base {str(meta['base_commit'])[:8]}, "
+        f"{len(meta['changed_files'])} changed files, {len(meta['impacted_targets'])} impacted targets"
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        pulls = json.load(resp)
-    if not pulls:
-        print(f"[warn] no open PR found for branch {branch}")
-        return {"branch": branch, "title": "", "description": ""}
-    pr = pulls[0]
-    print(f"[info] PR #{pr['number']}: {pr['title']}")
-    return {"branch": branch, "number": pr["number"], "title": pr["title"], "description": pr["body"] or ""}
+    return meta
 
 
-def changed_files(base: str) -> list[str]:
+def fetch_pr_info(base: str, ddci: dict | None) -> dict:
+    """PR title/description from the GitHub API (uses GITHUB_TOKEN if present)."""
+    branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    number = ddci.get("pr_number") if ddci else None
+    token = os.environ.get("GITHUB_TOKEN")
+    pr: dict = {"branch": branch, "title": "", "description": ""}
+    if ddci:
+        pr["author"] = ddci.get("author")
+    if not token:
+        print("[warn] GITHUB_TOKEN not set, cannot fetch PR description")
+        return pr
+
+    if number:
+        req = urllib.request.Request(
+            f"{GITHUB_API}/pulls/{number}",
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
+        )
+    else:
+        print(f"[warn] no DDCI PR number, looking up PR by branch {branch}")
+        req = urllib.request.Request(
+            f"{GITHUB_API}/pulls?head={REPO.split(':')[0]}:{urllib.parse.quote(branch)}&state=open&per_page=1",
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
+        )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            payload = json.load(resp)
+    except Exception as e:
+        print(f"[warn] GitHub API request failed: {e}")
+        return pr
+    if isinstance(payload, list):
+        payload = payload[0] if payload else {}
+        if not payload:
+            print(f"[warn] no open PR found for branch {branch}")
+            return pr
+    print(f"[info] PR #{payload.get('number')}: {payload.get('title')}")
+    pr.update({"number": payload.get("number"), "title": payload.get("title", ""), "description": payload.get("body") or ""})
+    return pr
+
+
+def changed_files(base: str, ddci: dict | None) -> tuple[list, str]:
+    """Changed (path, modification_kind) pairs and the merge base used.
+
+    Prefers the DDCI metadata (GitHub-computed merge base + changed files with
+    modification kinds), falls back to a local git merge-base diff.
+    """
+    if ddci and ddci.get("changed_files") is not None:
+        files = ddci["changed_files"][:MAX_CHANGED_FILES]
+        return files, ddci.get("base_commit") or base
     try:
         merge_base = git("merge-base", "HEAD", base)
     except RuntimeError:
         merge_base = base
-    files = git("diff", "--name-only", merge_base, "HEAD").splitlines()
-    return files[:MAX_CHANGED_FILES]
+    files = [(f, "") for f in git("diff", "--name-only", merge_base, "HEAD").splitlines()]
+    return files[:MAX_CHANGED_FILES], merge_base
 
 
 # ---------------------------------------------------------------- test discovery
@@ -260,9 +331,10 @@ def main() -> int:
     team = args.team or args.suite
 
     print(f"[info] suite={args.suite} team={team} base={args.base}")
-    pr = fetch_pr_info(args.base)
-    files = changed_files(args.base)
-    print(f"[info] {len(files)} changed files vs {args.base}")
+    ddci = fetch_ddci_metadata()
+    pr = fetch_pr_info(args.base, ddci)
+    files, merge_base = changed_files(args.base, ddci)
+    print(f"[info] {len(files)} changed files (merge base {str(merge_base)[:8]})")
 
     suites = list_suites(suite_dir)
     if args.test:
@@ -287,14 +359,21 @@ def main() -> int:
 
     decisions = []
     for name, path, code in suites:
+        files_section = "\n".join(f"- {f} ({kind})" if kind else f"- {f}" for f, kind in files)
+        author = f", author: @{pr['author']}" if pr.get("author") else ""
+        impacted = ""
+        if ddci and ddci.get("impacted_targets"):
+            impacted = (
+                "\n\n## Impacted build targets (from DDCI build impact analysis)\n"
+                + ", ".join(ddci["impacted_targets"][:100])
+            )
         state = (
             "## PR under review\n"
-            f"Title: {pr.get('title') or '(unknown)'}\n"
+            f"Title: {pr.get('title') or '(unknown)'}{author}\n"
             f"Description:\n{truncate(pr.get('description') or '(none)', MAX_DESCRIPTION_BYTES, 'description')}\n"
             f"Owning team of the E2E suite: {team}\n\n"
-            f"## Files changed in this PR (vs {args.base}, {len(files)} files)\n"
-            + "\n".join(f"- {f}" for f in files)
-            + "\n\n"
+            f"## Files changed in this PR (merge base {str(merge_base)[:12]}, {len(files)} files)\n"
+            f"{files_section}{impacted}\n\n"
             "## E2E test under evaluation\n"
             f"Test: {name}\n"
             f"Suite: {args.suite} ({path})\n"

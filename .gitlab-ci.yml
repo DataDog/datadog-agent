@@ -37,6 +37,10 @@ jev_e2e_selector:
     AI_GATEWAY_DC: "us1.ddbuild.io"
     AI_GATEWAY_MODEL: "datadoginternal/openjev-medium"
   script:
+    # DDCI change-analysis metadata (merge base, changed files, PR number) is
+    # used when DDCI_REQUEST_ID is set; otherwise the selector falls back to
+    # git merge-base + GitHub API.
+    - echo "DDCI_REQUEST_ID=${DDCI_REQUEST_ID}"
     - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read)
     # Install authanywhere, see
     # https://datadoghq.atlassian.net/wiki/spaces/DEVX/pages/3733193227/Authanywhere
