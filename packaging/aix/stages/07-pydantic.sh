@@ -147,7 +147,6 @@ if [ -n "$CACHED_WHEEL" ]; then
     log "pydantic and pydantic-core installed from cache successfully"
 else
     log "No cached wheel found for pydantic==$PYDANTIC_VERSION — building pydantic-core from source"
-    log "Disk space required: ~7 GB in /tmp, ~4 GB in /"
     log "Cache directory: $WHEEL_CACHE_DIR"
 
     # Throwaway pip cache: the default one may hold a wheel built by an older
