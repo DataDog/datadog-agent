@@ -423,9 +423,15 @@ def main() -> int:
                     executed_future = pool.submit(fetch_executed_from_gitlab, args.from_artifacts)
                 else:
                     scope = f"@ci.pipeline.id:{args.pipeline_id}" if args.pipeline_id else f"@git.commit.sha:{head}"
+                    # Query-side filtering to keep the payload small:
+                    #   @ci.job.name:new-e2e*  -> only the e2e suite jobs
+                    #   -@test.name:*/*        -> exclude sub-tests (root entry
+                    #                           points only). The client-side
+                    #                           root/new-e2e filter is kept as a
+                    #                           safety net for query syntax quirks.
                     executed_future = pool.submit(
                         fetch_executed_e2e_tests,
-                        f"env:prod @ci.pipeline.name:{PIPELINE_NAME} {scope}",
+                        f"env:prod @ci.pipeline.name:{PIPELINE_NAME} {scope} @ci.job.name:new-e2e* -@test.name:*/*",
                         args.days,
                     )
                 if args.concurrency <= 1:
