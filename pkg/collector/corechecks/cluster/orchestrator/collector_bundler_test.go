@@ -557,9 +557,11 @@ func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
 		expectedIngress     int // 6 entries (2 NGINX + 1 Traefik + 3 group-level)
 	}{
 		{
-			name:               "gateway API enabled by default",
-			useDefaults:        true,
-			expectedGatewayAPI: 5,
+			name:                "all families enabled by default",
+			useDefaults:         true,
+			expectedGatewayAPI:  5,
+			expectedServiceMesh: 11,
+			expectedIngress:     6,
 		},
 		{
 			name:                "all families enabled",

@@ -1,8 +1,10 @@
 ---
 enhancements:
   - |
-    Orchestrator Explorer now collects Gateway API Gateway, HTTPRoute, GRPCRoute,
-    TLSRoute, and ListenerSet resources by default when the resources are installed
+    Orchestrator Explorer now collects supported Gateway API, ingress controller,
+    and service mesh custom resources by default when the resources are installed
     and the Cluster Agent has permission to list and watch them. Set
-    ``orchestrator_explorer.custom_resources.ootb.gateway_api`` to ``false`` to
-    disable their automatic collection.
+    ``orchestrator_explorer.custom_resources.ootb.gateway_api``,
+    ``orchestrator_explorer.custom_resources.ootb.ingress_controllers``, or
+    ``orchestrator_explorer.custom_resources.ootb.service_mesh`` to ``false`` to
+    disable automatic collection for the corresponding family.
