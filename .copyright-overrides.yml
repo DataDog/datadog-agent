@@ -39,6 +39,8 @@ github.com/golang/groupcache: Copyright 2013 Google Inc.
 github.com/googleapis/*: Copyright 2017 Google Inc.
 github.com/google/go-cmp/*: Copyright (c) 2017 The Go Authors. All rights reserved.
 github.com/hashicorp/*: Copyright © 2014-2018 HashiCorp, Inc
+# go-smb2 is copied into pkg/logs/internal/smb/thirdparty/gosmb2 and listed through .wwhrd.yml additional
+hirochachacha/go-smb2: "Copyright (c) 2016 Hiroshi Ioka. All rights reserved."
 github.com/jmespath/go-jmespath: "Copyright 2015 James Saryerwinnie"
 github.com/mattn/go-colorable: "Copyright (c) 2016 Yasuhiro Matsumoto"
 github.com/mattn/go-isatty: "Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>"
