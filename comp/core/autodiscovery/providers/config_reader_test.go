@@ -6,6 +6,8 @@
 package providers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path"
@@ -324,6 +326,54 @@ func TestReadConfigFilesConcurrentMatchesSequential(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReadConfigFormats(t *testing.T) {
+	testFileContent := `
+init_config:
+
+instances:
+  - host: localhost
+    password: hunter2`
+
+	tempDir := t.TempDir()
+	testFilePath := path.Join(tempDir, "foo.yaml")
+	require.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))
+
+	configmock.New(t)
+	// The initial scan at startup does not build the formats
+	ResetReader([]string{tempDir})
+	configs, _, err := ReadConfigFiles(GetAll)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	_, found := reader.cache.Get("configFormats")
+	assert.False(t, found)
+
+	// ReadConfigFormats builds and caches them
+	formats := ReadConfigFormats()
+	require.Len(t, formats, 1)
+	format := formats[0]
+	assert.Equal(t, testFilePath, format.Filename)
+	assert.False(t, format.IsDiscovery)
+	assert.Contains(t, format.ConfigFormat, "host: localhost")
+	assert.NotContains(t, format.ConfigFormat, "hunter2")
+	hash := sha256.Sum256([]byte(format.ConfigFormat))
+	assert.Equal(t, hex.EncodeToString(hash[:]), format.Hash)
+	_, found = reader.cache.Get("configFormats")
+	assert.True(t, found)
+
+	// They match the ones built by GetIntegrationConfigFromFile
+	_, expectedFormat, err := GetIntegrationConfigFromFile("foo", testFilePath)
+	require.NoError(t, err)
+	assert.Equal(t, expectedFormat, format)
+
+	// Scans after the initial one, like the ones triggered by ReadConfigFiles on a cache miss, build the formats
+	reader.cache.Flush()
+	_, _, err = ReadConfigFiles(GetAll)
+	require.NoError(t, err)
+	cachedFormats, found := reader.cache.Get("configFormats")
+	require.True(t, found)
+	assert.Equal(t, formats, cachedFormats)
 }
 
 func TestReadConfigFilesCache(t *testing.T) {
