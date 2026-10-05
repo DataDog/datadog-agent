@@ -1,10 +1,10 @@
 # Evaluate the accuracy of the Jev-based e2e test skipping with the same
-# DynTestEvaluator harness as the coverage-based selection
-# (dda inv -e dyntest.evaluate-index): Jev is plugged in as an alternative
-# DynTestExecutor implementation (tasks/libs/dynamic_test/jev_selection.py),
-# judged over every e2e job that ran in this pipeline and every test entry
-# point under test/new-e2e/tests. not_executed_failing_count is the miss
-# count; stats are tagged selector:jev / universe:all-e2e-tests.
+# evaluate-index task and DynTestEvaluator harness as the coverage-based
+# selection: Jev is plugged in as an alternative DynTestExecutor implementation
+# (tasks/libs/dynamic_test/jev_selection.py), judged over every e2e job that
+# ran in this pipeline and every test entry point under test/new-e2e/tests.
+# not_executed_failing_count is the miss count; stats are tagged
+# selector:jev / universe:all-e2e-tests.
 #
 # Evaluation only: Jev is NOT used to select the tests that run in this
 # pipeline, it only measures what it would have skipped.
@@ -33,4 +33,4 @@ jev-dyntest-evaluate:
       if [ "$(uname -m)" = "x86_64" ]; then AAA="amd64"; else AAA="arm64"; fi
       curl -sSfL -o authanywhere "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${AAA}"
       chmod +x authanywhere
-    - dda inv -- -e dyntest.evaluate-jev-index --pipeline-id $CI_PIPELINE_ID
+    - dda inv -- -e dyntest.evaluate-index --selector jev --bucket-uri $S3_PERMANENT_ARTIFACTS_URI --commit-sha $CI_COMMIT_SHA --pipeline-id $CI_PIPELINE_ID

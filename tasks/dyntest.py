@@ -75,9 +75,83 @@ def consolidate_index_in_s3(_: Context, bucket_uri: str, commit_sha: str):
     uploader.upload_index(index_diffed, IndexKind.DIFFED_PACKAGE, commit_sha)
 
 
-@task
-def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: str):
+@task(
+    help={
+        "bucket-uri": "S3 bucket URI where the dynamic test index is stored",
+        "commit-sha": "Commit SHA to evaluate (the index of the closest ancestor is used)",
+        "pipeline-id": "CI pipeline ID to evaluate against",
+        "selector": "Which selection to evaluate: the coverage index (coverage, default) or the Jev-based selection (jev)",
+    }
+)
+def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: str, selector: str = "coverage"):
+    """Evaluate the accuracy of a dynamic test selection against what actually ran.
+
+    coverage (default): evaluates the stored coverage indexes (package, file,
+    diffed_package) with the DatadogDynTestEvaluator, as originally introduced
+    with the dynamic tests.
+
+    jev: evaluates the Jev-based selection through the same evaluator: Jev is
+    plugged in as an alternative DynTestExecutor implementation
+    (tasks/libs/dynamic_test/jev_selection.py). Its test universe is NOT
+    restricted to the coverage index: every e2e job that ran in the pipeline
+    is evaluated (GitLab API) and every test entry point under
+    test/new-e2e/tests is decidable, including tests without coverage data or
+    brand new tests. not_executed_failing_count is the miss count; stats are
+    tagged selector:jev / universe:all-e2e-tests.
+
+    Requires DD_SITE/DD_API_KEY/DD_APP_KEY (CI Visibility). The jev selector
+    additionally needs the GitLab token (authanywhere in CI, GITLAB_TOKEN or
+    ddtool locally) and the AI Gateway token (authanywhere in CI,
+    JEV_TOKEN_CMD/JEV_DC locally).
+    """
     uploader = S3Backend(bucket_uri)
+
+    changed_files = get_modified_files(ctx)
+    changed_packages = list({os.path.dirname(change) for change in changed_files})
+    print("Detected changes:", changed_files)
+
+    if selector == "jev":
+        # Jev is a different DynTestExecutor implementation; a single
+        # evaluation (its test universe does not depend on the index kind,
+        # so unlike the coverage path there is nothing to iterate over)
+        executor = JevDynTestExecutor(ctx, uploader, IndexKind.DIFFED_PACKAGE, commit_sha, pipeline_id)
+        evaluator = DatadogDynTestEvaluator(
+            ctx,
+            IndexKind.DIFFED_PACKAGE,
+            executor,
+            pipeline_id,
+            telemetry_handler=DatadogTelemetryHandler(
+                default_tags=[
+                    f"pipeline_id:{pipeline_id}",
+                    "index_kind:diffed_package",
+                    "service:dynamic_test_evaluator",
+                    "selector:jev",
+                    "universe:all-e2e-tests",
+                ]
+            ),
+        )
+        if not evaluator.initialize():
+            print(color_message("WARNING: Failed to initialize the Jev test universe", Color.ORANGE))
+            return
+        results = evaluator.evaluate(changed_packages + changed_files)
+        evaluator.print_summary(results)
+        evaluator.send_stats_to_datadog(results)
+
+        # Sanity check: a vacuous evaluation (jobs evaluated, but zero executed
+        # tests found overall) is invisible in the metrics above and would
+        # look like a perfect selector with zero misses everywhere.
+        total_actual = sum(r.actual_count() for r in results)
+        if results and total_actual == 0:
+            print(
+                color_message(
+                    "WARNING: no executed tests found for ANY of the "
+                    f"{len(results)} evaluated jobs - the evaluation is vacuous. "
+                    "The executed-test queries likely matched no CI Visibility events "
+                    "(env tag mismatch: the e2e jobs tag their events env:nativetest).",
+                    Color.RED,
+                )
+            )
+        return
 
     def evaluate(kind: IndexKind, changes: list[str]):
         executor = DynTestExecutor(ctx, uploader, kind, commit_sha)
@@ -89,78 +163,9 @@ def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: 
         evaluator.print_summary(results)
         evaluator.send_stats_to_datadog(results)
 
-    changed_files = get_modified_files(ctx)
-    changed_packages = list({os.path.dirname(change) for change in changed_files})
-    print("Detected changes:", changed_files)
-
     for kind in [IndexKind.PACKAGE, IndexKind.FILE, IndexKind.DIFFED_PACKAGE]:
         evaluate(kind, changed_packages + changed_files)
         sleep(10)  # small sleep to avoid rate limiting
-
-
-@task(
-    help={
-        "pipeline-id": "CI pipeline ID to evaluate against",
-    }
-)
-def evaluate_jev_index(ctx, pipeline_id):
-    """Evaluate the accuracy of the Jev-based test skipping with the same evaluator as the coverage index.
-
-    Uses DynTestEvaluator with a Jev-backed executor. Unlike the coverage
-    evaluation, the test universe is NOT restricted to the tests present in
-    the coverage index: every e2e job that ran in the pipeline is evaluated
-    (GitLab API), and every test entry point under test/new-e2e/tests is
-    decidable - including tests without coverage data or brand new tests.
-    not_executed_failing_count is the miss count (executed, failing, and not
-    predicted); stats are tagged selector:jev.
-
-    Requires DD_SITE/DD_API_KEY/DD_APP_KEY (CI Visibility), the GitLab token
-    (authanywhere in CI, GITLAB_TOKEN or ddtool locally) and the AI Gateway
-    token (authanywhere in CI, JEV_TOKEN_CMD/JEV_DC locally).
-    """
-    jev_executor = JevDynTestExecutor(ctx, None, IndexKind.DIFFED_PACKAGE, get_commit_sha(ctx, short=True), pipeline_id)
-    evaluator = DatadogDynTestEvaluator(
-        ctx,
-        IndexKind.DIFFED_PACKAGE,
-        jev_executor,
-        pipeline_id,
-        telemetry_handler=DatadogTelemetryHandler(
-            default_tags=[
-                f"pipeline_id:{pipeline_id}",
-                "index_kind:diffed_package",
-                "service:dynamic_test_evaluator",
-                "selector:jev",
-                "universe:all-e2e-tests",
-            ]
-        ),
-    )
-    if not evaluator.initialize():
-        print(color_message("WARNING: Failed to initialize the Jev test universe", Color.ORANGE))
-        return
-
-    changed_files = get_modified_files(ctx)
-    print("Detected changes:", changed_files)
-
-    results = evaluator.evaluate(changed_files)
-    evaluator.print_summary(results)
-    evaluator.send_stats_to_datadog(results)
-
-    # Sanity check: a vacuous evaluation (jobs evaluated, but zero executed
-    # tests found overall) is invisible in the metrics above and would look
-    # like a perfect selector with zero misses everywhere. If this fires, the
-    # executed-set queries matched no events - check the env tag of the e2e
-    # test events against the evaluator's query.
-    total_actual = sum(r.actual_count() for r in results)
-    if results and total_actual == 0:
-        print(
-            color_message(
-                "WARNING: no executed tests found for ANY of the "
-                f"{len(results)} evaluated jobs - the evaluation is vacuous. "
-                "The executed-test queries likely matched no CI Visibility events "
-                "(env tag mismatch: the e2e jobs tag their events env:nativetest).",
-                Color.RED,
-            )
-        )
 
 
 @task(
