@@ -37,6 +37,12 @@ if _TOOLS_JEV not in sys.path:  # standalone selector modules (stdlib only)
 from executed_lookup import _gitlab_pipeline_jobs  # noqa: E402
 from test_discovery import E2E_TESTS_DIR, list_suites  # noqa: E402
 
+try:
+    # Real base class when used from the invoke tasks (CI image, invoke installed)
+    from tasks.libs.dynamic_test.executor import DynTestExecutor
+except ImportError:  # standalone use (no invoke): duck-type the same interface
+    DynTestExecutor = object
+
 _SELECTOR = os.path.join(_TOOLS_JEV, "jev_e2e_selector.py")
 
 
@@ -99,15 +105,6 @@ def jev_selection(targets: list[str], team: str | None = None) -> dict:
         return {}
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-
-
-def jev_tests_to_skip(targets: list[str], team: str | None = None) -> tuple[list[str], dict]:
-    """(to_skip, stats) for the dynamic tests integration: the entry points Jev
-    would skip, plus the full decision summary for logging/measuring."""
-    summary = jev_selection(targets, team)
-    if not summary:
-        return [], summary
-    return summary.get("skip", []), summary
 
 
 def jev_tests_to_run_all() -> set:
@@ -174,42 +171,56 @@ class JevTestUniverse:
         return self._jobs.get(job, set())
 
 
-class JevDynTestExecutor:
-    """DynTestExecutor-compatible prediction source backed by Jev, for DynTestEvaluator.
+class JevDynTestExecutor(DynTestExecutor):
+    """A DynTestExecutor implementation whose decisions come from the Jev
+    selector (AI Gateway System One) instead of the coverage index.
 
-    Unlike the coverage-based executor, the test universe is NOT restricted to
-    the tests present in the coverage index: every e2e job that ran in the
-    evaluated pipeline is considered (from the GitLab API, with their full
-    matrix names), and every entry point under test/new-e2e/tests is decidable.
-    The prediction (tests_to_run_per_job) comes from the Jev selector
-    (tools/jev), which can decide on all of them - including tests without
-    coverage data or brand new tests.
+    Drop-in alternative to the coverage-based executor, usable wherever a
+    DynTestExecutor is accepted (the dynamic tests evaluation, or the
+    --impacted selection) without modifying the callers:
+
+    - same constructor shape; `backend` is unused (kept for interface
+      compatibility, the Jev selection has no stored index)
+    - the "index" is the full e2e test universe: every job that ran in the
+      evaluated pipeline (GitLab API, full matrix names) and every test
+      entry point under test/new-e2e/tests - NOT restricted to the tests
+      the coverage index knows about
+    - predictions (tests_to_run / tests_to_skip) come from the Jev selector,
+      which decides on all of them, including tests without coverage data or
+      brand new tests
     """
 
-    def __init__(self, pipeline_id: str):
-        self.pipeline_id = pipeline_id
-        self.commit_sha = os.getenv("CI_COMMIT_SHA") or ""
-        self._universe: JevTestUniverse | None = None
+    def __init__(self, ctx, backend, kind, commit_sha, pipeline_id=None):
+        if DynTestExecutor is not object:
+            super().__init__(ctx, backend, kind, commit_sha)
+        else:  # duck-typed fallback (no invoke available): mirror the base attributes
+            self.ctx, self.backend, self.kind = ctx, backend, kind
+            self.commit_sha = commit_sha
+            self._index = None
+        self.pipeline_id = pipeline_id or os.getenv("CI_PIPELINE_ID") or ""
         self._jev_run_tests = None
 
-    # --- executor interface used by DynTestEvaluator ---------------------------------
-
     def init_index(self):
-        self._universe = JevTestUniverse(self.pipeline_id).build()
-
-    def index(self):
-        return self._universe
+        """Build the full test universe instead of loading a stored index."""
+        self._index = JevTestUniverse(self.pipeline_id).build()
 
     def tests_to_run_per_job(self, changes: list[str]) -> dict:
         # NOTE: the Jev prediction ignores `changes`; the selector gathers its
         # own, richer PR context (diff, description, team, test code).
         run = self._jev_run()
-        return {job: run for job in self._universe.to_dict().keys()}
+        return {job: run for job in self.index().to_dict().keys()}
+
+    def tests_to_run(self, job_name: str, changes: list[str]) -> set:
+        candidates = self.index().get_indexed_tests_for_job(job_name) or set()
+        return set(candidates) & self._jev_run()
 
     def tests_to_skip(self, job_name: str, changes: list[str]) -> set:
-        return set(self._universe.get_indexed_tests_for_job(job_name) or []) - self._jev_run()
+        candidates = self.index().get_indexed_tests_for_job(job_name) or set()
+        return set(candidates) - self._jev_run()
 
-    # ---------------------------------------------------------------------------------
+    def triggering_paths(self, job_name: str, test_name: str) -> list:
+        # No coverage information behind the Jev selection
+        return []
 
     def _jev_run(self) -> set:
         if self._jev_run_tests is None:

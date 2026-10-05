@@ -542,38 +542,6 @@ def run(
                 ctx.run(f"datadog-ci measure --level job --measures 'e2e.skipped_tests:{len(to_skip)}'", warn=True)
                 print(color_message(f"The following tests will be skipped: {to_skip}", "yellow"))
                 skip.extend(to_skip)
-
-                # Jev-based selection (AI Gateway System One). JEV_SELECTION gates
-                # the mode: 'shadow' computes/measures the decision without applying
-                # it (evaluation phase, like the coverage-based rollout), 'enforce'
-                # additionally extends the skip list. Any error fails open.
-                jev_mode = os.getenv("JEV_SELECTION")
-                if jev_mode in ("shadow", "enforce"):
-                    try:
-                        from tasks.libs.dynamic_test.jev_selection import jev_tests_to_skip
-
-                        jev_skip, jev_summary = jev_tests_to_skip(targets, os.getenv("TEAM"))
-                        disagreement = sorted(set(jev_skip) - set(to_skip))
-                        print(
-                            color_message(
-                                f"Jev selection ({jev_mode}): would skip {jev_skip}; "
-                                f"disagreement with the coverage index: {disagreement}",
-                                "yellow",
-                            )
-                        )
-                        ctx.run(
-                            f"datadog-ci measure --level job --measures 'jev.skipped_tests:{len(jev_skip)}'",
-                            warn=True,
-                        )
-                        ctx.run(
-                            f"datadog-ci measure --level job --measures 'jev.disagreement:{len(disagreement)}'",
-                            warn=True,
-                        )
-                        if jev_mode == "enforce":
-                            skip.extend(jev_skip)
-                    except Exception as e:
-                        print(color_message(f"Error using Jev selection: {e}", "red"))
-                        print(color_message("Continuing with the coverage selection only", "yellow"))
         except Exception as e:
             print(color_message(f"Error using dynamic tests: {e}", "red"))
             print(color_message("Continuing with static tests", "yellow"))

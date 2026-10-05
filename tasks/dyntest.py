@@ -118,7 +118,7 @@ def evaluate_jev_index(ctx, pipeline_id):
     (authanywhere in CI, GITLAB_TOKEN or ddtool locally) and the AI Gateway
     token (authanywhere in CI, JEV_TOKEN_CMD/JEV_DC locally).
     """
-    jev_executor = JevDynTestExecutor(pipeline_id)
+    jev_executor = JevDynTestExecutor(ctx, None, IndexKind.DIFFED_PACKAGE, get_commit_sha(ctx, short=True), pipeline_id)
     evaluator = DatadogDynTestEvaluator(
         ctx,
         IndexKind.DIFFED_PACKAGE,
