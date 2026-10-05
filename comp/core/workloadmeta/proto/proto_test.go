@@ -89,6 +89,7 @@ func TestConversions(t *testing.T) {
 					},
 					ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
+						{Name: "gpu.nvidia.com", ID: "gpu-0-mig-1g35gb-15-0", PoolName: "node-a-gpu-pool", CdiDevices: []string{"k8s.gpu.nvidia.com/claim=uid1-gpu-0-mig-1g35gb-15-0"}},
 					},
 					Resources: workloadmeta.ContainerResources{
 						CPURequest:    pointer.Ptr(0.5),
@@ -152,6 +153,7 @@ func TestConversions(t *testing.T) {
 					},
 					ResolvedAllocatedResources: []*pb.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
+						{Name: "gpu.nvidia.com", ID: "gpu-0-mig-1g35gb-15-0", PoolName: "node-a-gpu-pool", CdiDevices: []string{"k8s.gpu.nvidia.com/claim=uid1-gpu-0-mig-1g35gb-15-0"}},
 					},
 					Resources: &pb.ContainerResources{
 						CpuRequest:    pointer.Ptr(0.5),
@@ -219,6 +221,7 @@ func TestConversions(t *testing.T) {
 					},
 					ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
+						{Name: "gpu.nvidia.com", ID: "gpu-0-mig-1g35gb-15-0", PoolName: "node-a-gpu-pool", CdiDevices: []string{"k8s.gpu.nvidia.com/claim=uid1-gpu-0-mig-1g35gb-15-0"}},
 					},
 					Owner: &workloadmeta.EntityID{
 						Kind: workloadmeta.KindKubernetesPod,
@@ -280,6 +283,7 @@ func TestConversions(t *testing.T) {
 					},
 					ResolvedAllocatedResources: []*pb.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
+						{Name: "gpu.nvidia.com", ID: "gpu-0-mig-1g35gb-15-0", PoolName: "node-a-gpu-pool", CdiDevices: []string{"k8s.gpu.nvidia.com/claim=uid1-gpu-0-mig-1g35gb-15-0"}},
 					},
 					Owner: &pb.WorkloadmetaEntityId{
 						Kind: pb.WorkloadmetaKind_KUBERNETES_POD,
@@ -813,6 +817,36 @@ func TestConvertWorkloadEventToProtoWithUnpopulatedFields(t *testing.T) {
 	actualProtoEvent, err := ProtobufEventFromWorkloadmetaEvent(wlmEvent)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedProtoEvent, actualProtoEvent)
+}
+
+func TestContainerImageMetadataCreatedRoundTrip(t *testing.T) {
+	tests := []struct {
+		name    string
+		created time.Time
+	}{
+		{"unknown", time.Time{}},
+		{"nanoseconds", time.Date(2026, time.May, 20, 20, 12, 16, 38472911, time.UTC)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := ProtobufEventFromWorkloadmetaEvent(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.ContainerImageMetadata{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainerImageMetadata,
+						ID:   "sha256:56122bfdab2ec6ccdfb5353a47d6a5ea08018cac6eb44e6a7cec699bdc038f2f",
+					},
+					Created: tt.created,
+				},
+			})
+			require.NoError(t, err)
+
+			event, err := WorkloadmetaEventFromProtoEvent(p)
+			require.NoError(t, err)
+			got := event.Entity.(*workloadmeta.ContainerImageMetadata).Created
+			assert.Truef(t, got.Equal(tt.created), "Created = %v, want %v", got, tt.created)
+		})
+	}
 }
 
 func TestProtobufFilterFromWorkloadmetaFilter(t *testing.T) {

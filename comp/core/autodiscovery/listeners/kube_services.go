@@ -199,6 +199,10 @@ func servicesDiffer(first, second *v1.Service) bool {
 	if standardTagsDigest(first.GetLabels()) != standardTagsDigest(second.GetLabels()) {
 		return true
 	}
+	// Annotations/labels used for CEL workload-exclude filtering
+	if metadataDiffers(first, second) {
+		return true
+	}
 	// Cluster IP
 	if first.Spec.ClusterIP != second.Spec.ClusterIP {
 		return true
@@ -255,7 +259,7 @@ func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *Kub
 		namespace: ksvc.Namespace,
 	}
 
-	svc.metadata = workloadfilter.CreateKubeService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations())
+	svc.metadata = workloadfilter.CreateKubeService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations(), ksvc.GetLabels())
 	svc.metricsExcluded = filterStore.GetKubeServiceAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(svc.metadata)
 	svc.globalExcluded = filterStore.GetKubeServiceAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(svc.metadata)
 

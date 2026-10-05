@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoadPackage_WithFlatExtractedDependencies(t *testing.T) {
+func TestLoadPackage_WithIsolatedDependencies(t *testing.T) {
 	const fqn = "com.datadoghq.authoredscripts.echo"
 	contents := `
 {
@@ -32,41 +32,42 @@ func TestLoadPackage_WithFlatExtractedDependencies(t *testing.T) {
   ]
 }
 `
-	artifactDirectory := writeManifest(t, contents)
-	scriptDir := filepath.Join(artifactDirectory, scriptDirectory)
-	commandPath := filepath.Join(scriptDir, "run.sh")
+	artifact := writePackageManifest(t, contents)
+	commandPath := filepath.Join(artifact.ScriptDirectory(), "run.sh")
 	require.NoError(t, os.WriteFile(commandPath, []byte("#!/bin/sh\n"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(scriptDir, "helm"), []byte("helm"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(scriptDir, "jq"), []byte("jq"), 0o755))
+	require.NoError(t, os.MkdirAll(artifact.DependencyDirectory("helm"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(artifact.DependencyDirectory("helm"), "helm"), []byte("helm"), 0o755))
+	require.NoError(t, os.MkdirAll(artifact.DependencyDirectory("jq"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(artifact.DependencyDirectory("jq"), "jq"), []byte("jq"), 0o755))
 	descriptor := Descriptor{
+		FQN:     fqn,
 		Package: fqn,
 		Version: "0.0.1",
 		SHA256:  "sha256",
 	}
 
-	pkg, err := LoadPackage(fqn, descriptor, LocalArtifact{Directory: artifactDirectory})
+	pkg, err := LoadPackage(fqn, descriptor, artifact)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{commandPath}, pkg.Command)
 	assert.Equal(t, []string{
-		filepath.Join(scriptDir, "helm"),
-		filepath.Join(scriptDir, "jq"),
-	}, pkg.ToolPaths)
+		artifact.DependencyDirectory("helm"),
+		artifact.DependencyDirectory("jq"),
+	}, pkg.ExecutableDirectories)
 }
 
 func TestLoadPackage_RejectsEscapingSymlinkCommand(t *testing.T) {
 	const fqn = "com.datadoghq.authoredscripts.echo"
-	artifactDirectory := writeManifest(t, validManifest)
-	scriptDir := filepath.Join(artifactDirectory, scriptDirectory)
+	artifact := writePackageManifest(t, validManifest)
 	externalDirectory := t.TempDir()
 	externalCommand := filepath.Join(externalDirectory, "run.sh")
 	require.NoError(t, os.WriteFile(externalCommand, []byte("#!/bin/sh\n"), 0o755))
-	if err := os.Symlink(externalCommand, filepath.Join(scriptDir, "run.sh")); err != nil {
+	if err := os.Symlink(externalCommand, filepath.Join(artifact.ScriptDirectory(), "run.sh")); err != nil {
 		t.Skipf("cannot create symlink: %v", err)
 	}
-	descriptor := Descriptor{Package: fqn, Version: "0.0.1"}
+	descriptor := Descriptor{FQN: fqn, Package: fqn, Version: "0.0.1"}
 
-	_, err := LoadPackage(fqn, descriptor, LocalArtifact{Directory: artifactDirectory})
+	_, err := LoadPackage(fqn, descriptor, artifact)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid authored-script command")
@@ -75,14 +76,14 @@ func TestLoadPackage_RejectsEscapingSymlinkCommand(t *testing.T) {
 func TestLoadPackage_RejectsCommandPathTraversal(t *testing.T) {
 	const fqn = "com.datadoghq.authoredscripts.echo"
 	manifest := strings.Replace(validManifest, `"entrypoint": "run.sh"`, `"entrypoint": "../run.sh"`, 1)
-	artifactDirectory := writeManifest(t, manifest)
-	require.NoError(t, os.WriteFile(filepath.Join(artifactDirectory, "run.sh"), []byte("#!/bin/sh\n"), 0o755))
-	descriptor := Descriptor{Package: fqn, Version: "0.0.1"}
+	artifact := writePackageManifest(t, manifest)
+	require.NoError(t, os.WriteFile(filepath.Join(artifact.Directory, "run.sh"), []byte("#!/bin/sh\n"), 0o755))
+	descriptor := Descriptor{FQN: fqn, Package: fqn, Version: "0.0.1"}
 
-	_, err := LoadPackage(fqn, descriptor, LocalArtifact{Directory: artifactDirectory})
+	_, err := LoadPackage(fqn, descriptor, artifact)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "command path")
+	assert.Contains(t, err.Error(), "invalid authored-script command")
 }
 
 func TestLoadPackage_RejectsDependencyPathComponents(t *testing.T) {
@@ -99,31 +100,37 @@ func TestLoadPackage_RejectsDependencyPathComponents(t *testing.T) {
   ]
 }
 `
-	artifactDirectory := writeManifest(t, contents)
-	scriptDir := filepath.Join(artifactDirectory, scriptDirectory)
-	require.NoError(t, os.WriteFile(filepath.Join(scriptDir, "run.sh"), []byte("#!/bin/sh\n"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(artifactDirectory, "helm"), []byte("helm"), 0o755))
-	descriptor := Descriptor{Package: fqn, Version: "0.0.1"}
+	artifact := writePackageManifest(t, contents)
+	require.NoError(t, os.WriteFile(filepath.Join(artifact.ScriptDirectory(), "run.sh"), []byte("#!/bin/sh\n"), 0o755))
+	descriptor := Descriptor{FQN: fqn, Package: fqn, Version: "0.0.1"}
 
-	_, err := LoadPackage(fqn, descriptor, LocalArtifact{Directory: artifactDirectory})
+	_, err := LoadPackage(fqn, descriptor, artifact)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "dependency name")
 }
 
+func writePackageManifest(t *testing.T, contents string) LocalArtifact {
+	t.Helper()
+	artifact := LocalArtifact{Directory: t.TempDir()}
+	require.NoError(t, os.MkdirAll(artifact.ScriptDirectory(), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(artifact.ScriptDirectory(), manifestFile), []byte(contents), 0o644))
+	return artifact
+}
+
 func TestValidatePackageIdentity(t *testing.T) {
-	const fqn = "com.datadoghq.authoredscripts.echo"
+	const fqn = "com.datadoghq.authoredscripts.echoAction"
 	tests := []struct {
 		name        string
 		mutate      func(*Descriptor, *Manifest)
 		expectError string
 	}{
 		{
-			name: "descriptor package mismatch",
+			name: "descriptor FQN mismatch",
 			mutate: func(descriptor *Descriptor, _ *Manifest) {
-				descriptor.Package = "com.datadoghq.authoredscripts.other"
+				descriptor.FQN = "com.datadoghq.authoredscripts.other"
 			},
-			expectError: "descriptor package",
+			expectError: "descriptor FQN",
 		},
 		{
 			name: "manifest FQN mismatch",
@@ -139,12 +146,19 @@ func TestValidatePackageIdentity(t *testing.T) {
 			},
 			expectError: "manifest version",
 		},
+		{
+			name: "FQN casing differs",
+			mutate: func(descriptor *Descriptor, manifest *Manifest) {
+				descriptor.FQN = strings.ToLower(descriptor.FQN)
+				manifest.FQN = strings.ToUpper(manifest.FQN)
+			},
+		},
 		{name: "valid identity"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			descriptor := Descriptor{Package: fqn, Version: "0.0.1"}
+			descriptor := Descriptor{FQN: fqn, Package: "com.datadoghq.authoredscripts.echoaction", Version: "0.0.1"}
 			manifest := &Manifest{FQN: fqn, Version: descriptor.Version}
 			if tt.mutate != nil {
 				tt.mutate(&descriptor, manifest)

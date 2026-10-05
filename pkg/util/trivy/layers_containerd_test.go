@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/containerd/containerd/v2/core/mount"
 	"github.com/containerd/containerd/v2/core/snapshots"
 	"github.com/containerd/errdefs"
@@ -193,6 +194,15 @@ func TestBuildContainerdLayerPaths(t *testing.T) {
 		require.ErrorIs(t, err, errLayerCountMismatch)
 	})
 
+	// A nydus view stacks the tree nydusd merges from every layer on the
+	// view's own directory.
+	t.Run("count_mismatch_nydus_view", func(t *testing.T) {
+		mounts := mountsFromTopDownPaths([]string{"/snap/nydus-rafs", "/snap/nydus-view"})
+		_, err := buildContainerdLayerPaths(t.Context(), snap, imgName, diffIDs, manifest, mounts)
+		require.ErrorIs(t, err, errLayerCountMismatch)
+		require.ErrorIs(t, err, sbom.ErrScanNotSupported)
+	})
+
 	t.Run("empty_diff_ids", func(t *testing.T) {
 		_, err := buildContainerdLayerPaths(t.Context(), snap, imgName, nil, manifest, nil)
 		require.Error(t, err)
@@ -232,4 +242,34 @@ func TestBuildContainerdLayerPaths(t *testing.T) {
 			assert.NotContainsf(t, diffIDSet, lp.Digest, "[%d] LayerPath.Digest = %q is also a DiffID; pairing desync", i, lp.Digest)
 		}
 	})
+}
+
+func TestIsNydusImage(t *testing.T) {
+	layer := ocispec.Descriptor{MediaType: ocispec.MediaTypeImageLayerGzip, Digest: d("layer")}
+	blob := ocispec.Descriptor{
+		MediaType:   "application/vnd.oci.image.layer.nydus.blob.v1",
+		Digest:      d("blob"),
+		Annotations: map[string]string{"containerd.io/snapshot/nydus-blob": "true"},
+	}
+	bootstrap := ocispec.Descriptor{
+		MediaType:   ocispec.MediaTypeImageLayerGzip,
+		Digest:      d("bootstrap"),
+		Annotations: map[string]string{"containerd.io/snapshot/nydus-bootstrap": "true"},
+	}
+
+	tests := []struct {
+		name   string
+		layers []ocispec.Descriptor
+		want   bool
+	}{
+		{name: "oci", layers: []ocispec.Descriptor{layer, layer}},
+		{name: "nydus", layers: []ocispec.Descriptor{blob, blob, bootstrap}, want: true},
+		{name: "nydus with one blob", layers: []ocispec.Descriptor{blob, bootstrap}, want: true},
+		{name: "no layers"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, isNydusImage(ocispec.Manifest{Layers: tt.layers}))
+		})
+	}
 }

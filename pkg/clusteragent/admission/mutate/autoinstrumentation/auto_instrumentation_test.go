@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic/fake"
 	"k8s.io/utils/ptr"
 
@@ -23,7 +24,10 @@ import (
 	admissioncommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/ssi"
 	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
 )
 
@@ -34,6 +38,38 @@ const (
 )
 
 var defaultContainerNames = []string{defaultTestContainer}
+
+type mockRemoteConfigClient struct {
+	configs  map[string]state.RawConfig
+	applied  map[string]state.ApplyStatus
+	onUpdate func(map[string]state.RawConfig, func(string, state.ApplyStatus))
+}
+
+func (c *mockRemoteConfigClient) GetConfigs(product string) map[string]state.RawConfig {
+	if product == state.ProductApmPolicies {
+		return c.configs
+	}
+	return nil
+}
+
+func (c *mockRemoteConfigClient) UpdateApplyStatus(path string, status state.ApplyStatus) {
+	c.applied[path] = status
+}
+
+func (c *mockRemoteConfigClient) Subscribe(product string, cb func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+	if product == state.ProductApmPolicies {
+		c.onUpdate = cb
+	}
+}
+
+func ddiTarget(cr types.NamespacedName, enabled bool, tracerVersions map[string]string, tracerConfigs []corev1.EnvVar) ssi.DDIAPMConfig {
+	return ssi.DDIAPMConfig{
+		CR:             cr,
+		Enabled:        enabled,
+		TracerVersions: tracerVersions,
+		TracerConfigs:  tracerConfigs,
+	}
+}
 
 var defaultLibraries = map[string]string{
 	"dotnet": "v3",
@@ -85,15 +121,19 @@ func TestAutoinstrumentation(t *testing.T) {
 		unmutatedContainers []string
 		// expectedAnnotations (optional) ensures that the pod has the expected annotations.
 		expectedAnnotations map[string]string
+		// unsetAnnotations (optional) ensures that the pod does not have these annotations.
+		unsetAnnotations []string
 	}
 
 	tests := map[string]struct {
-		config       map[string]any
-		pod          *corev1.Pod
-		namespaces   []workloadmeta.KubernetesMetadata
-		deployments  []common.MockDeployment
-		shouldMutate bool
-		expected     *expected
+		config           map[string]any
+		pod              *corev1.Pod
+		namespaces       []workloadmeta.KubernetesMetadata
+		deployments      []common.MockDeployment
+		ddiTargetEntries map[ssi.DDICRTarget]ssi.DDIAPMConfig
+		remotePolicies   map[string]state.RawConfig
+		shouldMutate     bool
+		expected         *expected
 	}{
 		"default on-demand configuration should not mutate without a matching rule": {
 			pod: common.FakePodSpec{
@@ -1271,6 +1311,129 @@ func TestAutoinstrumentation(t *testing.T) {
 			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
+		"CRD target mutates pod when static instrumentation is disabled": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			ddiTargetEntries: map[ssi.DDICRTarget]ssi.DDIAPMConfig{
+				{Kind: "Deployment", Namespace: "application", Name: "deployment"}: ddiTarget(
+					types.NamespacedName{Namespace: "default", Name: "ddi-deployment"}, true,
+					map[string]string{"python": "v4"}, []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
+				),
+			},
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"python": "v4",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
+					"DD_LOGS_INJECTION":               "true",
+					"DD_RUNTIME_METRICS_ENABLED":      "true",
+					"DD_SERVICE":                      "web",
+					"DD_TRACE_ENABLED":                "true",
+					"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
+				},
+				expectedAnnotations: map[string]string{
+					"internal.apm.datadoghq.com/applied-target": `{"name":"datadoginstrumentation:default/ddi-deployment","workload":{"Kind":"Deployment","Namespace":"application","Name":"deployment"},"ddTraceVersions":{"python":"v4"},"ddTraceConfigs":[{"name":"DD_SERVICE","value":"web"}]}`,
+				},
+			},
+		},
+		"annotation takes precedence over CRD target": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			ddiTargetEntries: map[ssi.DDICRTarget]ssi.DDIAPMConfig{
+				{Kind: "Deployment", Namespace: "application", Name: "deployment"}: ddiTarget(
+					types.NamespacedName{Namespace: "default", Name: "ddi-deployment"}, true,
+					map[string]string{"python": "v4"}, nil,
+				),
+			},
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"java": "v1",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
+					"DD_TRACE_ENABLED":                "true",
+					"DD_LOGS_INJECTION":               "true",
+				},
+			},
+		},
+		"CRD target takes precedence over static target": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.targets": []autoinstrumentation.Target{
+					{
+						Name: "test-target",
+						TracerVersions: map[string]string{
+							"ruby": "v2",
+						},
+						NamespaceSelector: &autoinstrumentation.NamespaceSelector{
+							MatchNames: []string{
+								"application",
+							},
+						},
+					},
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			ddiTargetEntries: map[ssi.DDICRTarget]ssi.DDIAPMConfig{
+				{Kind: "Deployment", Namespace: "application", Name: "deployment"}: ddiTarget(
+					types.NamespacedName{Namespace: "default", Name: "ddi-deployment"}, true,
+					map[string]string{"python": "v4"}, nil,
+				),
+			},
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"python": "v4",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
+				},
+				expectedAnnotations: map[string]string{
+					"internal.apm.datadoghq.com/applied-target": `{"name":"datadoginstrumentation:default/ddi-deployment","workload":{"Kind":"Deployment","Namespace":"application","Name":"deployment"},"ddTraceVersions":{"python":"v4"}}`,
+				},
+			},
+		},
 		"targets with matching rule and local sdk injection favors local sdk version": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
@@ -1309,6 +1472,66 @@ func TestAutoinstrumentation(t *testing.T) {
 					"ruby": "v3",
 				},
 				containerNames: defaultContainerNames,
+			},
+		},
+		"annotation overrides RC denial without inheriting SSI mode from a matching static target": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":   true,
+				"apm_config.instrumentation.on_demand": true,
+				"apm_config.instrumentation.targets": []autoinstrumentation.Target{{
+					Name:           "static-python",
+					TracerVersions: map[string]string{"python": "v3"},
+					TracerConfigs:  []autoinstrumentation.TracerConfig{{Name: "DD_PROFILING_ENABLED", Value: "true"}},
+				}},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+				},
+				Labels: map[string]string{admissioncommon.EnabledLabelKey: "true", "app": "web"},
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			remotePolicies: map[string]state.RawConfig{
+				"datadog/2/APM_POLICIES/1.kubernetes/config": {Config: []byte(`{
+					"policies": [{
+						"description": "deny-web",
+						"rules": {
+							"node_type": "EvaluatorNode",
+							"node": {
+								"eval_type": "StrEvaluator",
+								"eval": {"id": "POD_LABEL", "cmp": "CMP_EXACT", "value": "app=web"}
+							}
+						},
+						"actions": [{"action": "INJECT_DENY"}]
+					}]
+				}`)},
+			},
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{"java": "v1"},
+				containerNames:  defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_lib_injection",
+				},
+				unsetEnvs: []string{
+					"DD_TRACE_ENABLED",
+					"DD_LOGS_INJECTION",
+					"DD_RUNTIME_METRICS_ENABLED",
+					"DD_TRACE_HEALTH_METRICS_ENABLED",
+					"DD_PROFILING_ENABLED",
+					autoinstrumentation.AppliedTargetEnvVar,
+					autoinstrumentation.AppliedPolicyEnvVar,
+				},
+				unsetAnnotations: []string{
+					"internal.apm.datadoghq.com/applied-target",
+					"internal.apm.datadoghq.com/applied-policy",
+				},
 			},
 		},
 		"local sdk injection with tracer-configs annotation injects env vars": {
@@ -2776,8 +2999,27 @@ func TestAutoinstrumentation(t *testing.T) {
 				mockMeta.(workloadmetamock.Mock).Set(&ns)
 			}
 
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil)
+			var ddiTargets *instrumentationhandlers.APMTargetStore
+			if len(test.ddiTargetEntries) > 0 {
+				ddiTargets = instrumentationhandlers.NewAPMTargetStore()
+				for workload, entry := range test.ddiTargetEntries {
+					ddiTargets.UpsertTarget(workload, entry)
+				}
+			}
+
+			rcClient := &mockRemoteConfigClient{
+				configs: test.remotePolicies,
+				applied: make(map[string]state.ApplyStatus),
+			}
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, rcClient, ddiTargets)
 			require.NoError(t, err)
+			if len(test.remotePolicies) > 0 {
+				require.NotNil(t, rcClient.onUpdate, "mutator must subscribe to RC policies")
+				for path := range test.remotePolicies {
+					require.Contains(t, rcClient.applied, path)
+					require.Equal(t, state.ApplyStateAcknowledged, rcClient.applied[path].State, rcClient.applied[path].Error)
+				}
+			}
 
 			// Mutate pod.
 			in := test.pod.DeepCopy()
@@ -2827,6 +3069,9 @@ func TestAutoinstrumentation(t *testing.T) {
 
 			// Require annotations match expected.
 			validator.RequireAnnotations(t, test.expected.expectedAnnotations)
+			for _, name := range test.expected.unsetAnnotations {
+				require.NotContains(t, in.Annotations, name)
+			}
 		})
 	}
 }
@@ -2844,7 +3089,7 @@ func TestAutoinstrumentation_LocalLibInjectionPerContainerOnlyMountsLibraryOnTar
 		mockMeta.(workloadmetamock.Mock).Set(&ns)
 	}
 
-	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil)
+	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	pod := common.FakePodSpec{
@@ -3007,7 +3252,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -3206,7 +3451,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.

@@ -63,9 +63,7 @@ func TestSeriesDetectorAdapter_DoesNotReemitOutputsWithoutNewData(t *testing.T) 
 
 	adapter := newSeriesDetectorAdapter(&countingSeriesDetector{
 		anomalies: []observerdef.Anomaly{{
-			Title:       "spike",
-			Description: "detected spike",
-			Timestamp:   100,
+			Timestamp: 100,
 		}},
 	}, []observerdef.Aggregate{observerdef.AggregateAverage})
 
@@ -85,9 +83,7 @@ func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
 
 	adapter := newSeriesDetectorAdapter(&countingSeriesDetector{
 		anomalies: []observerdef.Anomaly{{
-			Title:       "spike",
-			Description: "detected spike",
-			Timestamp:   100,
+			Timestamp: 100,
 		}},
 	}, []observerdef.Aggregate{observerdef.AggregateAverage})
 
@@ -127,12 +123,20 @@ func TestObserverPublishesSeriesCountOnAdvanceAndReplayBoundaries(t *testing.T) 
 	})
 
 	// The first observation creates a series but does not advance analysis.
-	obs.obsCh <- observation{source: "ns", metric: &metricObs{name: "requests", value: 1, timestamp: 0}}
+	obs.obsCh <- observation{
+		source:    "ns",
+		metric:    metricHandoff{name: "requests", value: 1, timestamp: 1},
+		hasMetric: true,
+	}
 	obs.Flush()
 	requireSeriesCountTelemetry(t, telComp, 0)
 
 	// A later observation advances analysis and publishes the current count.
-	obs.obsCh <- observation{source: "ns", metric: &metricObs{name: "requests", value: 1, timestamp: 2}}
+	obs.obsCh <- observation{
+		source:    "ns",
+		metric:    metricHandoff{name: "requests", value: 1, timestamp: 2},
+		hasMetric: true,
+	}
 	obs.Flush()
 	requireSeriesCountTelemetry(t, telComp, 1)
 
@@ -154,7 +158,7 @@ func TestObserverPublishesSeriesCountOnAdvanceAndReplayBoundaries(t *testing.T) 
 
 func requireSeriesCountTelemetry(t *testing.T, telemetryComp telemetry.Component, want float64) {
 	t.Helper()
-	metricFamilies, err := telemetryComp.Gather(false)
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 	for _, family := range metricFamilies {
 		if family.GetName() != "observer__"+telemetrySeriesCount {
@@ -187,7 +191,7 @@ func TestBaselineCompletedCallbackSink_AccumulatesGroupsUntilAllBaselinesComplet
 	}
 
 	// The first detector finds a metric-backed anomaly. The final detector
-	// models a detector such as RRCF, which has no per-series source refs.
+	// finishes without finding any additional noisy series.
 	sink.onEngineEvent(engineEvent{
 		kind: eventBaselineCompleted,
 		baselineCompleted: &baselineCompletedEvent{

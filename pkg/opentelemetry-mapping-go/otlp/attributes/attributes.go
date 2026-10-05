@@ -16,6 +16,7 @@
 package attributes
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -270,8 +271,13 @@ func TagsFromAttributes(attrs pcommon.Map) []string {
 			"name:"+appService.name,
 			"subscription_id:"+appService.subscriptionID,
 			"resource_group:"+appService.resourceGroup,
-			"instance:"+appService.instanceID,
 		)
+	}
+
+	if src, ok := gcpServerlessSourceFromAttributes(attrs); ok {
+		for key, value := range src.SourceIdentifier.Dimensions {
+			tags = append(tags, key+":"+value)
+		}
 	}
 
 	tags = append(tags, processAttributes.extractTags()...)
@@ -748,21 +754,66 @@ func GetSpecifiedKeysFromOTelAttributes(signalAttrs pcommon.Map, resourceAttrs p
 
 // GetHost returns the DD hostname based on OTel resource attributes.
 func GetHost(resourceAttrs pcommon.Map, fallbackHost string) string {
+	if IsGCPServerless(resourceAttrs) {
+		return ""
+	}
 	src, srcok := SourceFromAttrs(resourceAttrs, nil)
 	if !srcok {
 		if v := GetOTelAttrVal(resourceAttrs, false, "_dd.hostname"); v != "" {
-			src = source.Source{Kind: source.HostnameKind, Identifier: v}
+			src = source.Source{
+				Kind:             source.HostnameKind,
+				Identifier:       v, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+				SourceIdentifier: source.SourceIdentifier{Primary: v},
+			}
 			srcok = true
 		}
 	}
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			return src.Identifier
+			return src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			return ""
 		}
 	}
 	return fallbackHost
+}
+
+// azureResourceID holds the fields extracted from an Azure ARM resource ID.
+type azureResourceID struct {
+	SubscriptionID string
+	ResourceGroup  string
+	ResourceName   string
+}
+
+// parseAzureResourceID parses the cloud.resource_id string for Azure resources
+// that match: /subscriptions/{sub}/resourceGroups/{rg}/providers/{provider}/{type}/{name}
+// (e.g. Azure Container Apps: .../containerApps/{name}).
+func parseAzureResourceID(resourceID string) (azureResourceID, error) {
+	if resourceID == "" {
+		return azureResourceID{}, errors.New("empty resource ID")
+	}
+
+	parts := strings.Split(resourceID, "/")
+	// Example: /subscriptions/11111111.../resourceGroups/rg-name/providers/Microsoft.Web/sites/site-name
+	// parts[0] = ""
+	// parts[1] = "subscriptions"
+	// parts[2] = "11111111..."
+	// parts[3] = "resourceGroups"
+	// parts[4] = "rg-name"
+	// parts[5] = "providers"
+	// parts[6] = "Microsoft.App" (or Microsoft.Web)
+	// parts[7] = "containerApps" (or sites)
+	// parts[8] = "site-name"
+
+	if len(parts) < 9 {
+		return azureResourceID{}, errors.New("invalid Azure resource ID format: " + resourceID)
+	}
+
+	return azureResourceID{
+		SubscriptionID: parts[2],
+		ResourceGroup:  parts[4],
+		ResourceName:   parts[8],
+	}, nil
 }

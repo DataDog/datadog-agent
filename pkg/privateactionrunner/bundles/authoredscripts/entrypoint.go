@@ -6,17 +6,27 @@
 package com_datadoghq_authoredscripts
 
 import (
+	"net/http"
+
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
+	authoredscriptssupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 type AuthoredScripts struct {
 	runAuthoredScript types.Action
 }
 
-func NewAuthoredScripts() *AuthoredScripts {
-	return &AuthoredScripts{
-		runAuthoredScript: NewRunAuthoredScriptHandler(),
+// NewAuthoredScripts creates the bundle and subscribes its catalog to Remote Config.
+func NewAuthoredScripts(client rcclient.Client, agentHTTPClient *http.Client) (*AuthoredScripts, error) {
+	catalog, err := authoredscriptssupport.NewRemoteCatalog(client, state.ProductUpdaterCatalogDD)
+	if err != nil {
+		return nil, err
 	}
+	return &AuthoredScripts{
+		runAuthoredScript: NewRunAuthoredScriptHandler(catalog, agentHTTPClient),
+	}, nil
 }
 
 func (h *AuthoredScripts) GetAction(actionName string) types.Action {

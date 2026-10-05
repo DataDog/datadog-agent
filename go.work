@@ -7,6 +7,7 @@ godebug tlsmlkem=0
 
 use (
 	.
+	cmd/agent/macos
 	comp/anomalydetection/observer/def
 	comp/anomalydetection/recorder/def
 	comp/anomalydetection/severityevents/def
@@ -137,6 +138,7 @@ use (
 	pkg/process/util/api
 	pkg/proto
 	pkg/remoteconfig/state
+	pkg/remoteflags
 	pkg/security/secl
 	pkg/security/seclwin
 	pkg/serializer
@@ -190,6 +192,7 @@ use (
 	pkg/util/uuid
 	pkg/util/winutil
 	pkg/version
+	pkg/zstd
 	test/e2e-framework
 	test/fakeintake
 	test/new-e2e

@@ -9,7 +9,7 @@ package systeminfo
 
 /*
 #cgo CFLAGS: -x objective-c -fobjc-arc
-#cgo LDFLAGS: -framework Foundation -framework IOKit
+#cgo LDFLAGS: -framework Foundation -framework IOKit -framework SystemConfiguration
 
 #include <stdlib.h>
 #include "systeminfo_darwin.h"
@@ -26,6 +26,7 @@ func collect() (*SystemInfo, error) {
 	defer C.free(unsafe.Pointer(cInfo.modelNumber))
 	defer C.free(unsafe.Pointer(cInfo.productName))
 	defer C.free(unsafe.Pointer(cInfo.serialNumber))
+	defer C.free(unsafe.Pointer(cInfo.computerName))
 
 	return &SystemInfo{
 		Manufacturer: "Apple Inc.",
@@ -34,6 +35,7 @@ func collect() (*SystemInfo, error) {
 		ModelName:    C.GoString(cInfo.productName),
 		ChassisType:  getChassisType(C.GoString(cInfo.productName), C.GoString(cInfo.modelIdentifier)),
 		Identifier:   C.GoString(cInfo.modelIdentifier),
+		ComputerName: C.GoString(cInfo.computerName),
 	}, nil
 }
 

@@ -36,6 +36,7 @@ dd_agent_go_test(
     ],
     embed = [":metrics"],
     deps = [
+        "//comp/logs-library/client",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -16,9 +16,8 @@
     - tar -xf $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
     - mkdir -p /tmp/system-probe
     - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/clang-${CLANG_LLVM_VER}.${PACKAGE_ARCH}.${CLANG_BUILD_VERSION}" /tmp/system-probe/clang-bpf
-    - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/llc-${CLANG_LLVM_VER}.${PACKAGE_ARCH}.${CLANG_BUILD_VERSION}" /tmp/system-probe/llc-bpf
     - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
-    - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
+    - chmod 0744 /tmp/system-probe/clang-bpf
     # NOTE: for now, we consider "ociru" to be a "redhat_target" in omnibus/lib/ostools.rb
     # if we ever start building on a different platform, that might need to change
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru --flavor "$FLAVOR" --install-directory="$INSTALL_DIR"
@@ -36,7 +35,7 @@
 datadog-agent-oci-x64-a7:
   extends: [.common_build_oci, .agent_base_flavor]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -55,7 +54,7 @@ datadog-agent-oci-x64-a7:
 datadog-agent-oci-arm64-a7:
   extends: [.common_build_oci, .agent_base_flavor]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -74,7 +73,7 @@ datadog-agent-oci-arm64-a7:
 datadog-agent-oci-x64-a7-fips:
   extends: [.common_build_oci, .agent_fips_flavor]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -93,7 +92,7 @@ datadog-agent-oci-x64-a7-fips:
 datadog-agent-oci-arm64-a7-fips:
   extends: [.common_build_oci, .agent_fips_flavor]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -114,7 +113,7 @@ datadog-agent-oci-arm64-a7-fips:
 #
 installer-install-scripts:
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -177,7 +176,7 @@ installer-install-scripts:
 
 .installer_linux_common:
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX

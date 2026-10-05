@@ -127,7 +127,6 @@ dogstatsd-msg.h
 # omnibus files
 omnibus/.tarball-version
 omnibus/files/sources
-omnibus/resources/agent/msi/cal/packages/
 
 # serverless artifact
 cmd/serverless/serverless
@@ -247,6 +246,9 @@ CLAUDE_PERSONAL.md
 # auto-jira work tracking (local only, never commit)
 AUTO_JIRA.md
 .agents/skills/auto-jira/SKILL.notes.md
+
+# follow-pr worktree-local autonomy preferences (local only, never commit)
+.agents/skills/follow-pr/config.toml
 
 # Claude Code worktrees (local development, not for repo)
 .claude/worktrees/

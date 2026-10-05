@@ -54,7 +54,7 @@ func testAgent(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMetho
 
 // waitForCoreUnitsActive waits for the units assertUnits expects Running, including procmgrUnit
 // when procmgr is the active service manager (assertUnits checks it conditionally too).
-func (s *packageAgentSuite) waitForCoreUnitsActive() {
+func (s *packageBaseSuite) waitForCoreUnitsActive() {
 	units := []string{agentUnit, traceUnit, probeUnit}
 	if s.host.ProcmgrEnabled() {
 		units = append(units, procmgrUnit)
@@ -63,6 +63,13 @@ func (s *packageAgentSuite) waitForCoreUnitsActive() {
 }
 
 func (s *packageAgentSuite) TestInstall() {
+	s.testInstall()
+}
+
+// testInstall holds the TestInstall assertions, shared with packageAgentFapolicydSuite so that
+// suite embeds packageBaseSuite instead of packageAgentSuite and doesn't promote every other
+// packageAgentSuite Test* method (experiment lifecycle, NSS-user, FIPS, ...) into its own run.
+func (s *packageBaseSuite) testInstall() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
@@ -95,7 +102,7 @@ func (s *packageAgentSuite) TestInstall() {
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
 }
 
-func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
+func (s *packageBaseSuite) assertUnits(state host.State, oldUnits bool) {
 	loadedUnits := []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit}
 	if s.host.ProcmgrEnabled() {
 		loadedUnits = append(loadedUnits, procmgrUnit)
@@ -356,18 +363,6 @@ func (s *packageAgentSuite) TestInstallWithGroupPreviouslyCreated() {
 	assert.True(s.T(), s.host.GroupExists("dd-agent"), "dd-agent group should exist")
 }
 
-func (s *packageAgentSuite) TestInstallWithFapolicyd() {
-	if s.os != e2eos.RedHat9 {
-		s.T().Skip("fapolicyd is only supported on RedHat 9")
-	}
-	defer func() {
-		s.host.Run("sudo yum remove -y fapolicyd")
-	}()
-	s.host.Run("sudo yum install -y fapolicyd")
-
-	s.TestInstall()
-}
-
 func (s *packageAgentSuite) TestNoWorldWritableFiles() {
 	s.RunInstallScript()
 	defer s.Purge()
@@ -433,21 +428,10 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 	// We use libnss-extrausers which reads from /var/lib/extrausers
 	// This works through nsswitch.conf without needing environment variables
 
-	// Install libnss-extrausers
-	if s.host.GetPkgManager() == "apt" {
-		s.host.Run("sudo apt-get update && sudo apt-get install -y libnss-extrausers")
-	} else if s.host.GetPkgManager() == "yum" {
-		_, err := s.Env().RemoteHost.Execute("sudo yum install -y libnss-extrausers")
-		if err != nil {
-			s.T().Skip("libnss-extrausers not available on this system")
-			return
-		}
-	} else if s.host.GetPkgManager() == "zypper" {
-		_, err := s.Env().RemoteHost.Execute("sudo zypper install -y libnss-extrausers")
-		if err != nil {
-			s.T().Skip("libnss-extrausers not available on this system")
-			return
-		}
+	// libnss-extrausers is only available on apt systems
+	if s.host.GetPkgManager() != "apt" {
+		s.T().Skip("libnss-extrausers not available on this system")
+		return
 	}
 
 	// Create the extrausers directory structure
