@@ -900,6 +900,30 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		}
 	}
 
+	apis = append(apis, apiCallInfo{
+		Name: "device_unavailable",
+		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+			physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
+			if !ok || physicalDevice.HasMIGFeatureEnabled {
+				return nil, 0, errUnsupportedDevice
+			}
+
+			value := 0.0
+			if _, err := device.GetIndex(); err != nil {
+				if !ddnvml.IsGPULost(err) {
+					return nil, 0, err
+				}
+				value = 1
+			}
+			return []Sample{&Metric{
+				baseSample: baseSample{tags: []string{"unavailable_reason:lost"}},
+				Name:       "device.unavailable",
+				Value:      value,
+				Type:       metrics.GaugeType,
+			}}, 0, nil
+		},
+	})
+
 	// Create APIs for retired memory pages, one per retirement cause.
 	for cause, causeName := range pageRetirementCauseToName {
 		apis = append(apis, apiCallInfo{
