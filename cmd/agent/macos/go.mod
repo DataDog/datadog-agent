@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/cmd/agent/macos
 
-go 1.26.0
+go 1.27.0
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
