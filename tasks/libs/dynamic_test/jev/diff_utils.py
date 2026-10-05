@@ -1,11 +1,12 @@
 """Diff processing for the Jev e2e tooling: chunking, per-file modified
 percentage annotations and size-capped output."""
 
-from __future__ import annotations  # python 3.9 compat
-
-from pr_context import git, truncate
+from __future__ import annotations
 
 import re
+from pathlib import Path
+
+from tasks.libs.dynamic_test.jev.pr_context import git, truncate
 
 MAX_DIFF_BYTES = 40_000
 
@@ -43,7 +44,7 @@ def _chunk_annotation(chunk: str) -> str:
     if "Binary files" in chunk and changed == 0:
         return f"# {path}: binary file changed\n"
     try:
-        total = len(open(path, encoding="utf-8", errors="ignore").read().splitlines())
+        total = len(Path(path).read_text(encoding="utf-8", errors="ignore").splitlines())
     except OSError:
         return f"# {path}: file deleted ({deleted} lines removed)\n"
     if changed >= total:
@@ -67,21 +68,6 @@ def _split_diff_chunks(diff: str) -> list:
     return chunks
 
 
-def files_from_diff(diff: str) -> list:
-    """(path, modification kind) pairs parsed from a unified diff, DDCI-style kinds."""
-    out = []
-    for chunk in _split_diff_chunks(diff):
-        path, _, _ = _diff_chunk_stats(chunk)
-        if "new file mode" in chunk:
-            kind = "added"
-        elif "deleted file mode" in chunk:
-            kind = "deleted"
-        else:
-            kind = "edited"
-        out.append((path, kind))
-    return out
-
-
 def _annotate_diff(diff: str, shortstat: str = "") -> str:
     """Annotated, truncated diff text: per-file modified-percentage headers,
     per-file and total size caps. File line counts are read from the CWD, so
@@ -100,7 +86,7 @@ def _annotate_diff(diff: str, shortstat: str = "") -> str:
             parts.append("\n")
     full = "".join(parts)
     if len(full.encode()) > MAX_DIFF_BYTES:
-        return full[:MAX_DIFF_BYTES] + "\n[... diff truncated, see the file list above for the remaining files ...]"
+        return truncate(full, MAX_DIFF_BYTES, "diff; see the file list for remaining files")
     return full
 
 
@@ -113,6 +99,3 @@ def pr_diff(merge_base: str) -> str:
         print(f"[warn] could not compute the full PR diff: {e}")
         return ""
     return _annotate_diff(diff, shortstat)
-
-
-# ---------------------------------------------------------------- test discovery

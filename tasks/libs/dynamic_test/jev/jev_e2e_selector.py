@@ -3,31 +3,33 @@
 
 Decides, for each E2E test of a given suite (or a single test), whether it
 should be executed on the current PR, by asking a Jev (TypeSafe System One)
-model through the AI Gateway. See tools/jev/jev_client.py for the questions
-and the run/skip decision (single source shared with the eval), and the
+model through the AI Gateway. See tasks/libs/dynamic_test/jev/jev_client.py for the questions
+and the run/skip decision used by the executor, and the
 sibling modules for context gathering (pr_context.py), diff processing
 (diff_utils.py) and test discovery (test_discovery.py).
 
 Usage (from repo root):
-    GITHUB_TOKEN=... AI_GATEWAY_TOKEN=... python3 tools/jev/jev_e2e_selector.py \
+    GITHUB_TOKEN=... AI_GATEWAY_TOKEN=... dda run i python -m tasks.libs.dynamic_test.jev.jev_e2e_selector \
         --suite fleet [--test TestFleetConfig] [--base main]
 
 Token acquisition:
-    - CI:      download authanywhere and pass --token-cmd 'authanywhere --audience rapid-ai-platform --raw --dc us1.ddbuild.io'
-    - laptop:  ddtool auth token rapid-ai-platform --datacenter us1.staging.dog (default)
+    - CI/laptop: preinstalled authanywhere (rapid-ai-platform audience, selected --dc)
+    - overrides: AI_GATEWAY_TOKEN or --token-cmd
 Jev docs: https://datadoghq.atlassian.net/wiki/spaces/AIP/pages/7265386822
 """
 
-from __future__ import annotations  # python 3.9 compat
+from __future__ import annotations
 
 import argparse
 import json
 import os
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
-from diff_utils import MAX_DIFF_BYTES, MAX_DIFF_PER_FILE, pr_diff
-from jev_client import (
+from tasks.libs.dynamic_test.jev.diff_utils import MAX_DIFF_BYTES, MAX_DIFF_PER_FILE, pr_diff
+from tasks.libs.dynamic_test.jev.jev_client import (
     DEFAULT_RUN_THRESHOLD,
     QUESTIONS,
     SYSTEMONE_PATH,
@@ -38,8 +40,8 @@ from jev_client import (
     get_ai_gateway_token,
     print_collapsible,
 )
-from pr_context import changed_files, fetch_ddci_metadata, fetch_pr_info
-from test_discovery import E2E_TESTS_DIR, list_suites, suite_definition
+from tasks.libs.dynamic_test.jev.pr_context import changed_files, fetch_ddci_metadata, fetch_pr_info
+from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suites, suite_definition
 
 
 def main() -> int:
@@ -53,6 +55,7 @@ def main() -> int:
     parser.add_argument("--model", default="datadoginternal/openjev-medium")
     parser.add_argument("--dc", default="us1.ddbuild.io", help="AI Gateway datacenter")
     parser.add_argument("--source", default="datadog-agent", help="source header for AI Gateway")
+    parser.add_argument("--workers", type=int, default=8, help="Maximum concurrent Jev requests")
     parser.add_argument("--token", help="Raw internal auth token (default: $AI_GATEWAY_TOKEN)")
     parser.add_argument("--token-cmd", help="Command producing a raw token, e.g. authanywhere invocation")
     parser.add_argument(
@@ -66,6 +69,8 @@ def main() -> int:
         "--dry-run", action="store_true", help="Print the state that would be sent, without calling Jev"
     )
     args = parser.parse_args()
+    if args.workers < 1 or not 0 <= args.run_threshold <= 1:
+        parser.error("--workers must be positive and --run-threshold must be between 0 and 1")
 
     suite_dir = os.path.join(E2E_TESTS_DIR, args.suite)
     if not os.path.isdir(suite_dir):
@@ -91,7 +96,7 @@ def main() -> int:
                     if not f.endswith(".go"):
                         continue
                     path = os.path.join(root, f)
-                    code = open(path, encoding="utf-8", errors="ignore").read()
+                    code = Path(path).read_text(encoding="utf-8", errors="ignore")
                     if re.search(rf"^func \(s \*\w+\) {re.escape(args.test)}\(", code, re.MULTILINE):
                         entries = re.findall(r"^func (Test\w+)\(", code, re.MULTILINE)
                         suites = [s for s in list_suites(suite_dir) if s[0] in entries]
@@ -106,8 +111,8 @@ def main() -> int:
     if suite_def_code:
         print(f"[info] suite definition included: {suite_def_path} ({len(suite_def_code)} chars)")
 
-    decisions = []
-    for name, path, code in suites:
+    def select_test(test):
+        name, path, code = test
         state = build_state(
             name,
             path,
@@ -123,8 +128,7 @@ def main() -> int:
         )
         if args.dry_run:
             print(f"--- state for {name} (dry run, not sent) ---\n{state}\n")
-            decisions.append({"test": name, "dry_run": True})
-            continue
+            return {"test": name, "dry_run": True}
 
         # Print exactly what is sent to Jev for every call, in a collapsed section
         section_name = "jev_call_" + re.sub(r"\W+", "_", name)
@@ -137,26 +141,27 @@ def main() -> int:
 
         try:
             answer = ask_jev(args, token, state)
+            row = {
+                "test": name,
+                **decide(answer["answers"], args.run_threshold),
+                "usage": answer.get("usage"),
+            }
         except Exception as e:  # fail open: if Jev is unavailable, run the test
             print(f"[warn] Jev call failed for {name}: {e} -> defaulting to RUN")
-            decisions.append({"test": name, **fail_open(e)})
-            continue
-
-        # Single decision source: jev_client.decide (shared with the eval)
-        row = {
-            "test": name,
-            **decide(answer["answers"], args.run_threshold),
-            "usage": answer.get("usage"),
-        }
-        decisions.append(row)
+            return {"test": name, **fail_open(e)}
         print(
             f"[jev] {name:<45} -> {row['decision'].upper():4}  should_execute={row['should_execute']:.2f}  "
             f"relation={row['relation']}  confidence={row['confidence']:.2f}"
         )
+        return row
+
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        decisions = list(pool.map(select_test, suites))
 
     if not args.dry_run:
         to_run = sorted({d["test"] for d in decisions if d["decision"] == "run"})
-        to_skip = sorted({d["test"] for d in decisions if d["decision"] == "skip"})
+        # Bare names may occur in several packages/platform files. RUN wins.
+        to_skip = sorted({d["test"] for d in decisions if d["decision"] == "skip"} - set(to_run))
         summary = {
             "suite": args.suite,
             "team": team,

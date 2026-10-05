@@ -76,6 +76,7 @@ The `e2e.*` Invoke tasks will **NOT WORK** in a workspace provisioned in `eu-wes
 - [Test Categories](../../../guidelines/testing/test-categories.md) - Understanding different test types
 - [Unit Testing](../unit.md) - Running unit tests
 - [Manual QA](../manual-qa/index.md) - Provisioning the same infrastructure for manual inspection
+- [Jev selection evaluation](../jev-evaluation.md) - Comparing Jev predictions with completed E2E runs
 - [Using Developer Environments](../../../tutorials/dev/env.md) - Setting up development environments
 - <<<repo("test/new-e2e/codereview_guideline.md", "E2E test writing guidelines")>>> - The rules a new test is reviewed against
 - <<<repo("test/e2e-framework", "test/e2e-framework")>>> - Infrastructure provisioning framework

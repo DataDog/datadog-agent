@@ -2,13 +2,14 @@
 # evaluate-index task and DynTestEvaluator harness as the coverage-based
 # selection: Jev is plugged in as an alternative DynTestExecutor implementation
 # (tasks/libs/dynamic_test/jev_selection.py), judged over every e2e job that
-# ran in this pipeline and every test entry point under test/new-e2e/tests.
-# not_executed_failing_count is the miss count; stats are tagged
-# selector:jev / universe:all-e2e-tests.
+# ran in this pipeline, using its configured TARGETS/EXTRA_PARAMS (no coverage
+# restriction). not_executed_failing_count is the miss count; stats are tagged
+# index_kind:jev. Skipped tests are not counted as executed.
 #
 # Evaluation only: Jev is NOT used to select the tests that run in this
 # pipeline, it only measures what it would have skipped.
 jev-dyntest-evaluate:
+  extends: .dd_octo_sts
   stage: dynamic_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64"]
@@ -22,9 +23,11 @@ jev-dyntest-evaluate:
   variables:
     GIT_DEPTH: 0 # get_modified_files uses git merge-base
     GIT_STRATEGY: clone
+  before_script:
+    - !reference [.setup_github_token_read]
   script:
     # CI Visibility access (executed tests) - same secrets as the original
     # dynamic-test evaluation job
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY
-    - dda inv -- -e dyntest.evaluate-index --selector jev --bucket-uri $S3_PERMANENT_ARTIFACTS_URI --commit-sha $CI_COMMIT_SHA --pipeline-id $CI_PIPELINE_ID
+    - dda inv -- -e dyntest.evaluate-index --selector jev --commit-sha $CI_COMMIT_SHA --pipeline-id $CI_PIPELINE_ID

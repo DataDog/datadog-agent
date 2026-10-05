@@ -1,228 +1,199 @@
-"""Jev-based (System One) test selection, integrated with the dynamic tests.
+"""Jev selection adapter for the existing dynamic-test executor/evaluator.
 
-Provides JevDynTestExecutor, a DynTestExecutor implementation whose
-selection decisions come from the standalone Jev selector
-(tools/jev/jev_e2e_selector.py) instead of the coverage index: usable
-wherever a DynTestExecutor is accepted, e.g. the evaluate-index task with
---selector jev (see tasks/dyntest.py). Always fails open: any error returns
-an empty selection, so nothing is skipped.
-
-Tokens: authanywhere comes with the CI build image (and laptops have it via
-`brew install datadog/tap/ddr && brew install authanywhere`);
-$JEV_TOKEN_CMD/$JEV_DC override it.
+The evaluation universe comes from the evaluated pipeline's jobs and their
+resolved TARGETS/EXTRA_PARAMS, not from coverage data. Only explicit, successful
+Jev skip decisions may remove tests; errors and unknown tests run conservatively.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
-import shutil
+import shlex
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
+from string import Template
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-_TOOLS_JEV = os.path.join(_REPO_ROOT, "tools", "jev")
-if _TOOLS_JEV not in sys.path:  # standalone selector modules (stdlib only)
-    sys.path.insert(0, _TOOLS_JEV)
+from tasks.libs.ciproviders.gitlab_api import (
+    get_pipeline,
+    post_process_gitlab_ci_configuration,
+    resolve_gitlab_ci_configuration,
+)
+from tasks.libs.dynamic_test.executor import DynTestExecutor
+from tasks.libs.dynamic_test.index import DynamicTestIndex, IndexKind
+from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suites
 
-from test_discovery import E2E_TESTS_DIR, list_suites  # noqa: E402
-
-try:
-    # Real base class when used from the invoke tasks (CI image, invoke installed)
-    from tasks.libs.dynamic_test.executor import DynTestExecutor
-except ImportError:  # standalone use (no invoke): duck-type the same interface
-    DynTestExecutor = object
-
-_SELECTOR = os.path.join(_TOOLS_JEV, "jev_e2e_selector.py")
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
-def _auth() -> tuple[str, str]:
-    """(token command, AI Gateway dc) for the Jev selector.
-
-    authanywhere comes with the CI build image (and laptops have it via
-    brew); $JEV_TOKEN_CMD/$JEV_DC override it.
-    """
-    if os.environ.get("JEV_TOKEN_CMD"):
-        return os.environ["JEV_TOKEN_CMD"], os.environ.get("JEV_DC", "us1.ddbuild.io")
-    return "authanywhere --audience rapid-ai-platform --raw --dc us1.ddbuild.io", "us1.ddbuild.io"
-
-
-def jev_selection(targets: list[str], team: str | None = None) -> dict:
-    """Run the Jev selector for the job's e2e suite.
-
-    Returns the selector's summary dict ({"suite", "run": [...], "skip": [...],
-    "decisions": [...]}), or an empty dict on any error (fail open).
-    """
-    if not targets:
-        return {}
-    # the e2e jobs run with targets like ./tests/fleet (or ./tests/installer/unix)
-    suite = os.path.basename(targets[0].rstrip("/"))
-    tmp = tempfile.mkdtemp(prefix="jev-selection-")
-    try:
-        out = os.path.join(tmp, "decisions.json")
-        token_cmd, dc = _auth()
+def jev_selection(suite: str) -> dict:
+    """Run the selector for a relative E2E suite path; return {} on failure."""
+    with tempfile.TemporaryDirectory(prefix="jev-selection-") as tmp:
+        output = Path(tmp) / "decisions.json"
         cmd = [
-            "python3",
-            _SELECTOR,
+            sys.executable,
+            "-m",
+            "tasks.libs.dynamic_test.jev.jev_e2e_selector",
             "--suite",
             suite,
             "--output",
-            out,
+            str(output),
             "--dc",
-            dc,
-            "--token-cmd",
-            token_cmd,
+            os.environ.get("JEV_DC", "us1.ddbuild.io"),
         ]
-        if team:
-            cmd += ["--team", team]
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=_REPO_ROOT)
-        if res.returncode != 0:
-            raise RuntimeError(res.stderr.strip()[-500:] or "selector failed with no output")
-        with open(out) as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"[jev] selection failed, failing open: {e}")
-        return {}
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        if token_cmd := os.environ.get("JEV_TOKEN_CMD"):
+            cmd += ["--token-cmd", token_cmd]
+        try:
+            # Calls run concurrently in the selector, with a per-request timeout.
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, cwd=_REPO_ROOT)
+            if result.returncode:
+                raise RuntimeError(result.stderr.strip()[-500:] or "selector failed with no output")
+            with output.open() as f:
+                summary = json.load(f)
+            if not isinstance(summary, dict) or not all(
+                isinstance(summary.get(key), list) and all(isinstance(name, str) for name in summary[key])
+                for key in ("run", "skip")
+            ):
+                raise ValueError("invalid selector summary")
+            decisions = summary.get("decisions", [])
+            if not isinstance(decisions, list) or not all(isinstance(row, dict) for row in decisions):
+                raise ValueError("invalid selector decisions")
+            errors = [row["error"] for row in decisions if "error" in row]
+            if errors:
+                print(f"[jev] {suite}: {len(errors)} decisions failed open; first error: {errors[0]}")
+            return summary
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as e:
+            print(f"[jev] selection failed for {suite}, running all its tests: {e}")
+            return {}
 
 
-def jev_tests_to_run_all() -> set:
-    """Run the Jev selection over every e2e suite; returns the entry points Jev
-    would RUN (bare test names, the same keying the dynamic test index uses)."""
-    run = set()
-    suites_root = os.path.join(_REPO_ROOT, "test", "new-e2e", "tests")
-    for suite in sorted(os.listdir(suites_root)):
-        if not os.path.isdir(os.path.join(suites_root, suite)):
-            continue
-        summary = jev_selection([f"./tests/{suite}"])
-        if summary:
-            run.update(summary.get("run", []))
-            print(f"[jev] suite {suite}: {len(summary.get('run', []))} run / {len(summary.get('skip', []))} skip")
-    return run
+def _suite_path(target: str) -> str:
+    """Keep nested suite paths (installer/unix), rather than just the basename."""
+    target = target.removeprefix("./").removesuffix("/...").rstrip("/")
+    if not target.startswith("tests/") or ".." in Path(target).parts or "$" in target:
+        raise ValueError(f"Unsupported E2E TARGETS value: {target}")
+    return target.removeprefix("tests/")
 
 
-def all_e2e_entry_points() -> set:
-    """Every test entry point defined under test/new-e2e/tests, across all suites."""
-    entries = set()
-    root = os.path.join(_REPO_ROOT, E2E_TESTS_DIR)
-    for suite in sorted(os.listdir(root)):
-        suite_dir = os.path.join(root, suite)
-        if not os.path.isdir(suite_dir):
-            continue
-        entries.update(name for name, _, _ in list_suites(suite_dir))
-    print(f"[jev] e2e test universe: {len(entries)} entry points across all suites")
-    return entries
+def _expand_variables(value: str, variables: dict) -> str:
+    """Expand job/matrix variables while preserving regex anchors such as '$'."""
+    for _ in range(10):
+        expanded = Template(value).safe_substitute(variables)
+        if expanded == value:
+            return expanded
+        value = expanded
+    raise ValueError("Cyclic CI variable expansion")
 
 
-def _candidates_for_job(job_name: str, universe: set) -> set:
-    """Tests a job can run: entry points named in the job's --run pattern
-    (matrix job names embed their EXTRA_PARAMS), or the whole universe when
-    the job has no run pattern."""
-    m = re.search(r"--run\s+\"?([^\"\]]+)", job_name)
-    if m:
-        return {t for t in universe if t in m.group(1)}
-    return universe
+def _candidates_for_job(extra_params: str, universe: set[str]) -> set[str]:
+    """Apply Go's root-test run/skip regexes from the resolved job variables.
 
-
-class JevTestUniverse:
-    """Index-like object for DynTestEvaluator, WITHOUT the coverage index
-    restriction: every e2e job that ran in the pipeline is evaluated, and the
-    decidable universe is every test entry point under test/new-e2e/tests
-    (not only the tests with coverage data)."""
-
-    def __init__(self, pipeline_id: str):
-        self.pipeline_id = pipeline_id
-        self._jobs: dict = {}
-
-    def build(self) -> "JevTestUniverse":
-        # Jobs from the GitLab API through the canonical helper (tasks.libs.
-        # ciproviders.gitlab_api): lazy import, the module needs the invoke
-        # environment (python-gitlab + the token machinery)
-        from tasks.libs.ciproviders.gitlab_api import get_gitlab_api
-
-        universe = all_e2e_entry_points()
-        project = get_gitlab_api().projects.get("DataDog/datadog-agent", lazy=True)
-        for job in project.jobs.list(pipeline_id=self.pipeline_id, scope=["success", "failed"]):
-            if not job.name.startswith("new-e2e"):
-                continue
-            self._jobs[job.name] = _candidates_for_job(job.name, universe)
-        print(f"[jev] universe: {len(self._jobs)} new-e2e jobs from pipeline {self.pipeline_id}")
-        return self
-
-    def to_dict(self) -> dict:
-        return {job: sorted(tests) for job, tests in self._jobs.items()}
-
-    def get_indexed_tests_for_job(self, job: str) -> set:
-        return self._jobs.get(job, set())
+    Subtest-only skips must not remove a root suite. Go splits run patterns at
+    '/', so TestFleetConfig$/TestConfig still selects the TestFleetConfig root.
+    """
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--run", default="")
+    parser.add_argument("--skip", default="")
+    args, _ = parser.parse_known_args(shlex.split(extra_params))
+    if any(re.search(r"\$(?:\w+|\{)", pattern) for pattern in (args.run, args.skip)):
+        raise ValueError("Unresolved CI variable in the job's run/skip filters")
+    run = args.run.split("/", 1)[0]
+    skip = args.skip if "/" not in args.skip else ""
+    return {name for name in universe if re.search(run, name) and not (skip and re.search(skip, name))}
 
 
 class JevDynTestExecutor(DynTestExecutor):
-    """A DynTestExecutor implementation whose decisions come from the Jev
-    selector (AI Gateway System One) instead of the coverage index.
+    """Evaluation-only Jev executor, with an in-memory DynamicTestIndex.
 
-    Drop-in alternative to the coverage-based executor, usable wherever a
-    DynTestExecutor is accepted (the dynamic tests evaluation, or the
-    --impacted selection) without modifying the callers:
-
-    - same constructor shape; `backend` is unused (kept for interface
-      compatibility, the Jev selection has no stored index)
-    - the "index" is the full e2e test universe: every job that ran in the
-      evaluated pipeline (GitLab API, full matrix names) and every test
-      entry point under test/new-e2e/tests - NOT restricted to the tests
-      the coverage index knows about
-    - predictions (tests_to_run / tests_to_skip) come from the Jev selector,
-      which decides on all of them, including tests without coverage data or
-      brand new tests
+    Uses the shared GitLab helpers for pipeline jobs and CI configuration. The
+    shared Datadog evaluator owns all executed-test queries and comparisons.
     """
 
-    # Extra telemetry tags for the evaluation stats - the selection is
-    # identified by its index kind (IndexKind.JEV -> index_kind:jev), this
-    # only tags the test universe difference (see evaluate_index)
-    telemetry_tags = ["universe:all-e2e-tests"]
-
-    def __init__(self, ctx, backend, kind, commit_sha, pipeline_id=None):
-        if DynTestExecutor is not object:
-            super().__init__(ctx, backend, kind, commit_sha)
-        else:  # duck-typed fallback (no invoke available): mirror the base attributes
-            self.ctx, self.backend, self.kind = ctx, backend, kind
-            self.commit_sha = commit_sha
-            self._index = None
-        self.pipeline_id = pipeline_id or os.getenv("CI_PIPELINE_ID") or ""
-        self._jev_run_tests = None
+    def __init__(self, ctx, commit_sha: str, pipeline_id: str):
+        super().__init__(ctx, None, IndexKind.JEV, commit_sha)
+        self.pipeline_id = pipeline_id
+        self.job_ids: dict[str, str] = {}
+        self.unreliable_jobs: set[str] = set()
+        self._suites: set[str] = set()
+        self._jev_run_tests: set[str] | None = None
 
     def init_index(self):
-        """Build the full test universe instead of loading a stored index."""
-        self._index = JevTestUniverse(self.pipeline_id).build()
+        pipeline = get_pipeline("DataDog/datadog-agent", self.pipeline_id)
+        if pipeline.sha != self.commit_sha:
+            raise RuntimeError("The evaluated pipeline SHA must match --commit-sha and the checked-out HEAD")
+        jobs = [
+            job
+            for job in pipeline.jobs.list(scope=["success", "failed"], iterator=True)
+            if job.name.startswith("new-e2e")
+        ]
+        if not jobs:
+            raise RuntimeError(f"No completed E2E jobs in pipeline {self.pipeline_id}")
+        config = post_process_gitlab_ci_configuration(resolve_gitlab_ci_configuration(self.ctx), expand_matrix=True)
+        index = DynamicTestIndex()
+        self.job_ids.clear()
+        self.unreliable_jobs.clear()
+        self._suites.clear()
+        self._jev_run_tests = None
+        for job in jobs:
+            # Non-matrix parallel jobs have a ' 1/N' suffix, not separate configs.
+            job_config = config.get(job.name) or config.get(re.sub(r" \d+/\d+$", "", job.name))
+            if not job_config:
+                raise RuntimeError(f"Cannot find CI configuration for {job.name}")
+            variables = {**config.get("variables", {}), **job_config.get("variables", {})}
+            targets = _expand_variables(variables.get("TARGETS", ""), variables)
+            if not targets:
+                # new-e2e-unit-tests and cleanup jobs are not E2E test runs.
+                continue
+            candidates = set()
+            for target in targets.split(","):
+                suite = _suite_path(target.strip())
+                directory = _REPO_ROOT / E2E_TESTS_DIR / suite
+                if not directory.is_dir():
+                    raise RuntimeError(f"E2E suite does not exist: {directory}")
+                self._suites.add(suite)
+                candidates.update(name for name, _, _ in list_suites(str(directory)))
+            candidates = _candidates_for_job(
+                _expand_variables(variables.get("EXTRA_PARAMS", ""), variables), candidates
+            )
+            index.add_tests(job.name, "jev", candidates)
+            self.job_ids[job.name] = str(job.id)
+            if job.allow_failure:
+                self.unreliable_jobs.add(job.name)
+        if not index.get_jobs():
+            raise RuntimeError(f"No completed E2E test jobs in pipeline {self.pipeline_id}")
+        self._index = index
+        print(
+            f"[jev] universe: {len(index.get_jobs())} E2E jobs, {len(self._suites)} suites in pipeline {self.pipeline_id}"
+        )
 
-    def index(self):
-        # same lazy semantics as the base class (redefined so the duck-typed
-        # fallback without invoke also has it)
-        if self._index is None:
-            self.init_index()
-        return self._index
-
-    def tests_to_run_per_job(self, changes: list[str]) -> dict:
-        # NOTE: the Jev prediction ignores `changes`; the selector gathers its
-        # own, richer PR context (diff, description, team, test code).
-        run = self._jev_run()
-        return {job: run for job in self.index().to_dict().keys()}
-
-    def tests_to_run(self, job_name: str, changes: list[str]) -> set:
-        candidates = self.index().get_indexed_tests_for_job(job_name) or set()
-        return set(candidates) & self._jev_run()
-
-    def tests_to_skip(self, job_name: str, changes: list[str]) -> set:
-        candidates = self.index().get_indexed_tests_for_job(job_name) or set()
-        return set(candidates) - self._jev_run()
-
-    def triggering_paths(self, job_name: str, test_name: str) -> list:
-        # No coverage information behind the Jev selection
-        return []
-
-    def _jev_run(self) -> set:
+    def _jev_run(self) -> set[str]:
+        self.index()
         if self._jev_run_tests is None:
-            self._jev_run_tests = jev_tests_to_run_all()
+            run = set()
+            for suite in sorted(self._suites):
+                discovered = {name for name, _, _ in list_suites(str(_REPO_ROOT / E2E_TESTS_DIR / suite))}
+                summary = jev_selection(suite)
+                # Unknown/missing decisions run. Duplicate bare names across suites
+                # run if ANY occurrence runs, matching the index's bare-name keys.
+                skip = set(summary.get("skip", [])) - set(summary.get("run", []))
+                run.update(discovered - skip)
+                print(f"[jev] {suite}: {len(discovered - skip)} run / {len(discovered & skip)} skip")
+            self._jev_run_tests = run
         return self._jev_run_tests
+
+    def tests_to_run_per_job(self, changes: list[str]) -> dict[str, set[str]]:
+        run = self._jev_run()
+        return {job: self.index().get_indexed_tests_for_job(job) & run for job in self.index().get_jobs()}
+
+    def tests_to_run(self, job_name: str, changes: list[str]) -> set[str]:
+        return self.index().get_indexed_tests_for_job(job_name) & self._jev_run()
+
+    def tests_to_skip(self, job_name: str, changes: list[str]) -> set[str]:
+        return self.index().get_indexed_tests_for_job(job_name) - self._jev_run()
+
+    def triggering_paths(self, job_name: str, test_name: str) -> list[str]:
+        return []

@@ -1,39 +1,19 @@
 """E2E test discovery for the Jev e2e tooling: suite entry points, their
 file source and the suite provisioning definitions."""
 
-from __future__ import annotations  # python 3.9 compat
+from __future__ import annotations
 
 import os
 import re
+from pathlib import Path
 
-from pr_context import truncate
+from tasks.libs.dynamic_test.jev.pr_context import truncate
 
 MAX_TEST_CODE_BYTES = 32_000
 MAX_SUITE_DEFINITION_BYTES = 8_000
 
 # E2E suites live under this directory in the datadog-agent repo
 E2E_TESTS_DIR = "test/new-e2e/tests"
-
-
-def extract_function(code: str, func_header: str) -> str:
-    """Extract a Go function body from `code`, from the header line to balanced braces."""
-    lines = code.splitlines(keepends=True)
-    start = None
-    for i, line in enumerate(lines):
-        if line.strip().startswith(func_header):
-            start = i
-            break
-    if start is None:
-        return func_header
-    out, depth, opened = [], 0, False
-    for line in lines[start:]:
-        out.append(line)
-        depth += line.count("{") - line.count("}")
-        if "{" in line:
-            opened = True
-        if opened and depth <= 0:
-            break
-    return "".join(out)
 
 
 def strip_license_header(code: str) -> str:
@@ -58,7 +38,7 @@ def suite_definition(suite_dir: str) -> tuple[str, str]:
         if not f.endswith(".go"):
             continue
         try:
-            code = open(os.path.join(suite_pkg, f), encoding="utf-8", errors="ignore").read()
+            code = Path(suite_pkg, f).read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
         code = strip_license_header(code)
@@ -67,25 +47,6 @@ def suite_definition(suite_dir: str) -> tuple[str, str]:
         return "", ""
     full = "\n\n".join(f"// --- {f} ---\n{code}" for f, code in chunks)
     return suite_pkg, truncate(full, MAX_SUITE_DEFINITION_BYTES, "suite definition")
-
-
-def find_test_code(suite_dir: str, test_name: str) -> tuple[str, str]:
-    """Return (file_path, source) for a test entry point or suite method."""
-    for root, _, go_files in os.walk(suite_dir):
-        for f in sorted(go_files):
-            if not f.endswith(".go") or f.endswith("_test_helpers.go"):
-                continue
-            path = os.path.join(root, f)
-            try:
-                code = open(path, encoding="utf-8", errors="ignore").read()
-            except OSError:
-                continue
-            for pattern in (rf"func {test_name}\(", rf"func \(s \*\w+\) {test_name}\("):
-                m = re.search(pattern, code)
-                if m:
-                    header = m.group(0)
-                    return path, extract_function(code, header)
-    return "", test_name  # not found: fall back to the bare name
 
 
 def list_suites(suite_dir: str) -> list:
@@ -99,15 +60,12 @@ def list_suites(suite_dir: str) -> list:
     suites = []
     for root, _, go_files in os.walk(suite_dir):
         for f in sorted(go_files):
-            if not f.endswith(".go"):
+            if not f.endswith("_test.go"):
                 continue
             path = os.path.join(root, f)
-            code = open(path, encoding="utf-8", errors="ignore").read()
+            code = Path(path).read_text(encoding="utf-8", errors="ignore")
             code = strip_license_header(code)
-            entries = re.findall(r"^func (Test\w+)\(", code, re.MULTILINE)
+            entries = re.findall(r"^func (Test\w+)\(\w+ \*testing\.T\)", code, re.MULTILINE)
             for entry in entries:
                 suites.append((entry, path, code))
     return sorted(suites)
-
-
-# ---------------------------------------------------------------- Jev client

@@ -412,6 +412,14 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
     - Returns ExecutedTest objects for evaluation
     """
 
+    def __init__(self, *args, test_env="prod", lookback_days=3, job_ids=None, unreliable_jobs=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.test_env = test_env
+        self.lookback_days = lookback_days
+        # Keep the executor's dictionaries by reference: initialization populates them.
+        self.job_ids = job_ids if job_ids is not None else {}
+        self.unreliable_jobs = unreliable_jobs if unreliable_jobs is not None else set()
+
     def list_tests_for_job(self, job_name: str) -> list[ExecutedTest]:
         """Retrieve tests executed in a specific job using Datadog CI API.
 
@@ -426,14 +434,19 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
 
         Note:
             - Only returns root-level tests (filters out sub-tests with '/' in name)
-            - Sets unreliable_status=True for tests marked as flaky by Datadog
-            - Queries up to 3 days of historical data
+            - Excludes skipped tests (they did not execute)
+            - Sets unreliable_status=True for flaky tests or allow-failure jobs
+            - Queries lookback_days of historical data (3 by default)
+            - When job IDs are supplied, only queries the latest GitLab job attempt
         """
         escaped_job_name = job_name.replace('"', '\\"')
-        events = get_ci_test_events(
-            f'env:prod @ci.pipeline.name:DataDog/datadog-agent @ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}"',
-            3,
+        query = (
+            f'env:{self.test_env} @ci.pipeline.name:DataDog/datadog-agent '
+            f'@ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}"'
         )
+        if job_id := self.job_ids.get(job_name):
+            query += f" @ci.job.id:{job_id}"
+        events = get_ci_test_events(query, self.lookback_days)
 
         tests: list[ExecutedTest] = []
         for item in events:
@@ -444,7 +457,11 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
             job_attrs = ci_attrs.get("job", {})
             pipeline_attrs = ci_attrs.get("pipeline", {})
             # Only consider root tests, not sub-tests
-            if not test_attrs.get("name") or len(test_attrs.get("name").split("/")) > 1:
+            if (
+                not test_attrs.get("name")
+                or "/" in test_attrs["name"]
+                or test_attrs.get("status") not in {"pass", "fail"}
+            ):
                 continue
 
             tests.append(
@@ -454,7 +471,10 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
                     pipeline_id=pipeline_attrs.get("id"),
                     job_id=job_attrs.get("id"),
                     job_name=job_attrs.get("name"),
-                    unreliable_status=test_attrs.get("agent_is_flaky_failure", "false") == "true",
+                    unreliable_status=(
+                        job_name in self.unreliable_jobs
+                        or str(test_attrs.get("agent_is_flaky_failure", False)).lower() == "true"
+                    ),
                 )
             )
         return tests

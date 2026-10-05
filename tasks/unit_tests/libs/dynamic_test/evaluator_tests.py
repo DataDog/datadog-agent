@@ -1,141 +1,138 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from tasks.libs.dynamic_test.evaluator import DynTestEvaluator, EvaluationResult, ExecutedTest
-from tasks.libs.dynamic_test.index import IndexKind
+from tasks.libs.dynamic_test.evaluator import DatadogDynTestEvaluator, DynTestEvaluator, ExecutedTest
+from tasks.libs.dynamic_test.index import DynamicTestIndex, IndexKind
+from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler
 
 
 class _FakeEvaluator(DynTestEvaluator):
-    def list_tests_for_job(self, job_name: str):
-        # two executed tests, one failed (reliable)
+    def list_tests_for_job(self, job_name):
         return [
-            ExecutedTest("pkg/a.TestOne", "passed", "p", "j", job_name, False),
-            ExecutedTest("pkg/a.TestTwo", "failed", "p", "j", job_name, False),
+            ExecutedTest("TestPass", "pass", "42", "1", job_name, False),
+            ExecutedTest("TestFail", "fail", "42", "1", job_name, False),
+            ExecutedTest("TestFlaky", "fail", "42", "1", job_name, True),
+            ExecutedTest("TestNotIndexed", "fail", "42", "1", job_name, False),
         ]
 
 
 class TestDynTestEvaluator(unittest.TestCase):
-    def test_evaluate_builds_results(self):
-        ctx = MagicMock()
-        executor = MagicMock()
-        # predictions per job
-        executor.tests_to_run_per_job.return_value = {"job": {"pkg/a.TestTwo", "pkg/a.TestThree"}}
-        # index is a field on the executor
-        index = MagicMock()
-        index.to_dict.return_value = {"job": {"pkg": ["ignored"]}}
-        index.get_indexed_tests_for_job.return_value = {
-            "pkg/a.TestOne",
-            "pkg/a.TestTwo",
-            "pkg/a.TestThree",
+    def setUp(self):
+        self.executor = MagicMock()
+        self.executor.commit_sha = "commit123"
+        self.index = DynamicTestIndex({"job": {"pkg": ["TestPass", "TestFail", "TestFlaky"]}})
+        self.executor.index.return_value = self.index
+        self.telemetry = MagicMock()
+        self.evaluator = _FakeEvaluator(
+            MagicMock(), IndexKind.PACKAGE, self.executor, "42", telemetry_handler=self.telemetry
+        )
+
+    def test_initialize_success(self):
+        self.assertTrue(self.evaluator.initialize())
+        self.executor.init_index.assert_called_once_with()
+        self.assertIs(self.evaluator.index, self.index)
+        self.telemetry.send_event.assert_called_once()
+        self.assertEqual(self.telemetry.send_event.call_args.args[0].alert_type, "success")
+
+    def test_initialize_errors(self):
+        for error, error_type in [
+            (RuntimeError("No ancestor commit found for commit123"), "index_not_found"),
+            (RuntimeError("Backend connection failed"), "index_initialization_failed"),
+            (ValueError("Unexpected value"), "unexpected_error"),
+        ]:
+            with self.subTest(error_type=error_type):
+                self.telemetry.reset_mock()
+                self.executor.init_index.side_effect = error
+                self.assertFalse(self.evaluator.initialize())
+                event = self.telemetry.send_event.call_args.args[0]
+                self.assertEqual(event.title, f"Dynamic Test Evaluator Error: {error_type}")
+                self.assertIn("commit_sha:commit123", event.tags)
+
+    def test_failed_telemetry_falls_back_to_console(self):
+        self.executor.init_index.side_effect = RuntimeError("offline")
+        self.telemetry.send_event.return_value = False
+        with patch("builtins.print") as output:
+            self.assertFalse(self.evaluator.initialize())
+        self.assertTrue(any("offline" in str(call) for call in output.call_args_list))
+
+    def test_misses_and_unindexed_tests(self):
+        self.executor.tests_to_run_per_job.return_value = {"job": {"TestPass", "Unrelated"}}
+        self.assertTrue(self.evaluator.initialize())
+        result = self.evaluator.evaluate([])[0]
+        self.assertEqual(result.actual_executed_tests, {"TestPass", "TestFail", "TestFlaky"})
+        self.assertEqual(result.predicted_executed_tests, {"TestPass"})
+        self.assertEqual(result.not_executed_failing_tests, {"TestFail"})
+
+    def test_console_telemetry_never_publishes(self):
+        with (
+            patch("tasks.libs.dynamic_test.telemetry.send_event") as event,
+            patch("tasks.libs.dynamic_test.telemetry.send_metrics") as metrics,
+        ):
+            self.evaluator.telemetry_handler = ConsoleTelemetryHandler()
+            self.assertTrue(self.evaluator.initialize())
+            self.executor.tests_to_run_per_job.return_value = {}
+            self.evaluator.send_stats_to_datadog(self.evaluator.evaluate([]))
+            event.assert_not_called()
+            metrics.assert_not_called()
+
+
+class TestDatadogDynTestEvaluator(unittest.TestCase):
+    @staticmethod
+    def event(name, status="pass", flaky=False):
+        return {
+            "attributes": {
+                "attributes": {
+                    "test": {"name": name, "status": status, "agent_is_flaky_failure": flaky},
+                    "ci": {"job": {"id": "7", "name": "job"}, "pipeline": {"id": "42"}},
+                }
+            }
         }
-        executor.index = index
 
-        ev = _FakeEvaluator(ctx, IndexKind.PACKAGE, executor, pipeline_id="123")
-        # Manually set the index since the constructor expects it
-        ev.index = index
-        results = ev.evaluate(["ignored"])
+    @patch("tasks.libs.dynamic_test.evaluator.get_ci_test_events")
+    def test_query_environment_window_job_attempt_and_filtering(self, events):
+        events.return_value = [
+            self.event("TestPass"),
+            self.event("TestFail", "fail"),
+            self.event("TestSkip", "skip"),
+            self.event("TestRoot/Subtest", "fail"),
+            self.event("", "fail"),
+            self.event("TestFlaky", "fail", "true"),
+            self.event("TestFlakyBool", "fail", True),
+        ]
+        ids = {}
+        evaluator = DatadogDynTestEvaluator(
+            MagicMock(),
+            IndexKind.JEV,
+            MagicMock(),
+            "42",
+            telemetry_handler=MagicMock(),
+            test_env="nativetest",
+            lookback_days=7,
+            job_ids=ids,
+        )
+        ids['job: ["matrix"]'] = "7"
+        tests = evaluator.list_tests_for_job('job: ["matrix"]')
+        query, days = events.call_args.args
+        self.assertIn("env:nativetest", query)
+        self.assertIn("@ci.pipeline.id:42", query)
+        self.assertIn("@ci.job.id:7", query)
+        self.assertIn(r'@ci.job.name:"job: [\"matrix\"]"', query)
+        self.assertEqual(days, 7)
+        self.assertEqual([test.name for test in tests], ["TestPass", "TestFail", "TestFlaky", "TestFlakyBool"])
+        self.assertFalse(tests[1].unreliable_status)
+        self.assertTrue(tests[2].unreliable_status)
+        self.assertTrue(tests[3].unreliable_status)
 
-        self.assertEqual(len(results), 1)
-        r: EvaluationResult = results[0]
-        self.assertEqual(r.job_name, "job")
-        self.assertEqual(r.actual_executed_tests, {"pkg/a.TestOne", "pkg/a.TestTwo"})
-        self.assertEqual(r.predicted_executed_tests, {"pkg/a.TestTwo", "pkg/a.TestThree"})
-        # failed test is TestTwo but it is predicted, so not_executed_failing_tests should be empty
-        self.assertEqual(r.not_executed_failing_tests, set())
-
-    @patch("tasks.libs.dynamic_test.evaluator.send_event")
-    def test_initialize_success(self, mock_send_event):
-        """Test successful index initialization."""
-        ctx = MagicMock()
-        executor = MagicMock()
-        index = MagicMock()
-        executor.init_index.return_value = None
-        executor.index = index
-
-        ev = _FakeEvaluator(ctx, IndexKind.PACKAGE, executor, pipeline_id="123")
-        result = ev.initialize(IndexKind.PACKAGE, "commit123")
-
-        self.assertTrue(result)
-        self.assertEqual(ev.index, index)
-        self.assertEqual(ev.kind, IndexKind.PACKAGE)
-        executor.init_index.assert_called_once_with(IndexKind.PACKAGE, "commit123")
-        mock_send_event.assert_not_called()
-
-    @patch("tasks.libs.dynamic_test.evaluator.send_event")
-    def test_initialize_index_not_found(self, mock_send_event):
-        """Test error reporting when no ancestor commit with index is found."""
-        ctx = MagicMock()
-        executor = MagicMock()
-        executor.init_index.side_effect = RuntimeError("No ancestor commit found for commit123")
-
-        ev = _FakeEvaluator(ctx, IndexKind.PACKAGE, executor, pipeline_id="456")
-        result = ev.initialize(IndexKind.PACKAGE, "commit123")
-
-        self.assertFalse(result)
-        mock_send_event.assert_called_once()
-
-        # Check the event details
-        call_args = mock_send_event.call_args
-        self.assertEqual(call_args[1]["title"], "Dynamic Test Evaluator Error: index_not_found")
-        self.assertIn("No ancestor commit with index found for commit123", call_args[1]["text"])
-        self.assertEqual(call_args[1]["alert_type"], "error")
-        self.assertIn("commit_sha:commit123", call_args[1]["tags"])
-        self.assertIn("pipeline_id:456", call_args[1]["tags"])
-        self.assertIn("error_type:index_not_found", call_args[1]["tags"])
-
-    @patch("tasks.libs.dynamic_test.evaluator.send_event")
-    def test_initialize_other_runtime_error(self, mock_send_event):
-        """Test error reporting for other RuntimeErrors."""
-        ctx = MagicMock()
-        executor = MagicMock()
-        executor.init_index.side_effect = RuntimeError("Backend connection failed")
-
-        ev = _FakeEvaluator(ctx, IndexKind.PACKAGE, executor, pipeline_id="789")
-        result = ev.initialize(IndexKind.PACKAGE, "commit456")
-
-        self.assertFalse(result)
-        mock_send_event.assert_called_once()
-
-        call_args = mock_send_event.call_args
-        self.assertEqual(call_args[1]["title"], "Dynamic Test Evaluator Error: index_initialization_failed")
-        self.assertIn("Backend connection failed", call_args[1]["text"])
-        self.assertIn("error_type:index_initialization_failed", call_args[1]["tags"])
-
-    @patch("tasks.libs.dynamic_test.evaluator.send_event")
-    def test_initialize_unexpected_error(self, mock_send_event):
-        """Test error reporting for unexpected exceptions."""
-        ctx = MagicMock()
-        executor = MagicMock()
-        executor.init_index.side_effect = ValueError("Unexpected value error")
-
-        ev = _FakeEvaluator(ctx, IndexKind.PACKAGE, executor, pipeline_id="101")
-        result = ev.initialize(IndexKind.PACKAGE, "commit789")
-
-        self.assertFalse(result)
-        mock_send_event.assert_called_once()
-
-        call_args = mock_send_event.call_args
-        self.assertEqual(call_args[1]["title"], "Dynamic Test Evaluator Error: unexpected_error")
-        self.assertIn("Unexpected error initializing index: Unexpected value error", call_args[1]["text"])
-        self.assertIn("error_type:unexpected_error", call_args[1]["tags"])
-
-    @patch("tasks.libs.dynamic_test.evaluator.send_event")
-    def test_send_error_fallback_on_datadog_failure(self, mock_send_event):
-        """Test fallback to console logging when Datadog event sending fails."""
-        mock_send_event.side_effect = Exception("Datadog API failed")
-        ctx = MagicMock()
-        executor = MagicMock()
-        executor.init_index.side_effect = RuntimeError("Test error")
-
-        ev = _FakeEvaluator(ctx, IndexKind.PACKAGE, executor, pipeline_id="test")
-
-        with patch('builtins.print') as mock_print:
-            result = ev.initialize(IndexKind.PACKAGE, "test_commit")
-
-        self.assertFalse(result)
-        mock_send_event.assert_called_once()
-        mock_print.assert_called()  # Should print fallback messages
-
-
-if __name__ == "__main__":
-    unittest.main()
+    @patch("tasks.libs.dynamic_test.evaluator.get_ci_test_events")
+    def test_allow_failure_and_coverage_defaults(self, events):
+        events.return_value = [self.event("TestFail", "fail")]
+        unreliable = set()
+        evaluator = DatadogDynTestEvaluator(
+            MagicMock(), IndexKind.FILE, MagicMock(), "42", telemetry_handler=MagicMock(), unreliable_jobs=unreliable
+        )
+        unreliable.add("job")
+        self.assertTrue(evaluator.list_tests_for_job("job")[0].unreliable_status)
+        query, days = events.call_args.args
+        self.assertIn("env:prod", query)
+        self.assertNotIn("@ci.job.id:", query)
+        self.assertEqual(days, 3)

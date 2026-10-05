@@ -34,11 +34,7 @@ class IndexKind(Enum):
     PACKAGE = "package"
     FILE = "file"
     DIFFED_PACKAGE = "diffed_package"
-    # Not a stored coverage index: the kind of the Jev-based selection
-    # (see tasks/libs/dynamic_test/jev_selection.py), whose decisions come
-    # from the Jev selector over the full e2e test universe instead of a
-    # coverage index. Used to identify the Jev executor/evaluation (e.g. in
-    # the evaluation stats tags).
+    # Jev predictions use an in-memory test universe, not a stored coverage index.
     JEV = "jev"
 
 

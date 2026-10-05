@@ -1,21 +1,21 @@
 """Jev (System One) client for the e2e tooling: questions, state building,
 token handling and the SINGLE run/skip decision shared by all tools."""
 
-from __future__ import annotations  # python 3.9 compat
+from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
-import re
+import shlex
 import time
 import urllib.error
 import urllib.request
 
-from pr_context import MAX_DESCRIPTION_BYTES, run_cmd, truncate
-from test_discovery import MAX_SUITE_DEFINITION_BYTES, MAX_TEST_CODE_BYTES
+from tasks.libs.dynamic_test.jev.pr_context import MAX_DESCRIPTION_BYTES, run_cmd, truncate
+from tasks.libs.dynamic_test.jev.test_discovery import MAX_TEST_CODE_BYTES
 
 SYSTEMONE_PATH = "/v1/systemone"
-# https://datadoghq.atlassian.net/wiki/spaces/DEVX/pages/5423334716/DDCI+Metadata+Service
 
 
 QUESTIONS = {
@@ -61,9 +61,8 @@ def get_ai_gateway_token(args: argparse.Namespace) -> str:
     if os.environ.get("AI_GATEWAY_TOKEN"):
         return os.environ["AI_GATEWAY_TOKEN"]
     if args.token_cmd:
-        return run_cmd(args.token_cmd.split()).strip()
-    # laptop fallback: ddtool prints the raw internal service token by default
-    return run_cmd(["ddtool", "auth", "token", "rapid-ai-platform", "--datacenter", "us1.staging.dog"]).strip()
+        return run_cmd(shlex.split(args.token_cmd)).strip()
+    return run_cmd(["authanywhere", "--audience", "rapid-ai-platform", "--raw", "--dc", args.dc]).strip()
 
 
 def ask_jev(args: argparse.Namespace, token: str, state: str) -> dict:
@@ -154,14 +153,10 @@ def build_state(
     )
 
 
-# ---------------------------------------------------------------- main
-
-
 def decide(answers: dict, run_threshold: float = DEFAULT_RUN_THRESHOLD) -> dict:
     """Single source of truth for the run/skip decision.
 
-    Used by both the selector (live decisions) and the eval (replays), so the
-    two can never drift again. A test runs only if BOTH:
+    A test runs only if BOTH:
       - its relation to the PR is not "unrelated" (code, infra or packaging link)
       - its should_execute score is at least run_threshold
     otherwise it is skipped. Any error in the pipeline fails open to run
@@ -170,6 +165,16 @@ def decide(answers: dict, run_threshold: float = DEFAULT_RUN_THRESHOLD) -> dict:
     should = answers["should_execute"]["noul"]
     relation = answers["relation"]["choice"]
     confidence = answers["confidence"]["score"]
+    for value in (should, confidence):
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int | float)
+            or not math.isfinite(value)
+            or not 0 <= value <= 1
+        ):
+            raise ValueError("Jev scores must be finite numbers between 0 and 1")
+    if relation not in QUESTIONS["relation"]["criteria"]:
+        raise ValueError(f"Unknown Jev relation: {relation}")
     decision = "run" if should >= run_threshold and relation != "unrelated" else "skip"
     return {
         "should_execute": should,

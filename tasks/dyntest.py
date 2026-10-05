@@ -6,6 +6,7 @@ import os
 from time import sleep
 
 from invoke import Context, task
+from invoke.exceptions import Exit
 
 from tasks.libs.common.auth import get_aws_vault_env
 from tasks.libs.common.color import Color, color_message
@@ -15,13 +16,13 @@ from tasks.libs.dynamic_test.backend import S3Backend
 from tasks.libs.dynamic_test.evaluator import DatadogDynTestEvaluator
 from tasks.libs.dynamic_test.executor import DynTestExecutor
 from tasks.libs.dynamic_test.index import IndexKind
-from tasks.libs.dynamic_test.jev_selection import JevDynTestExecutor
-from tasks.libs.dynamic_test.telemetry import DatadogTelemetryHandler
 from tasks.libs.dynamic_test.indexers.e2e import (
     DiffedPackageCoverageDynTestIndexer,
     FileCoverageDynTestIndexer,
     PackageCoverageDynTestIndexer,
 )
+from tasks.libs.dynamic_test.jev_selection import JevDynTestExecutor
+from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler, DatadogTelemetryHandler
 from tasks.new_e2e_tests import DEFAULT_DYNTEST_BUCKET_URI
 
 
@@ -77,91 +78,98 @@ def consolidate_index_in_s3(_: Context, bucket_uri: str, commit_sha: str):
 
 @task(
     help={
-        "bucket-uri": "S3 bucket URI where the dynamic test index is stored",
-        "commit-sha": "Commit SHA to evaluate (the index of the closest ancestor is used)",
-        "pipeline-id": "CI pipeline ID to evaluate against",
-        "selector": "Which selection to evaluate: the coverage index (coverage, default) or the Jev-based selection (jev)",
+        "bucket-uri": "S3 index bucket (coverage selector only)",
+        "commit-sha": "Commit to evaluate; Jev requires it to match HEAD and the pipeline SHA",
+        "pipeline-id": "Completed GitLab pipeline ID to evaluate",
+        "selector": "coverage (default) or jev",
+        "test-env": "CI Visibility environment (defaults to nativetest for Jev, prod for coverage)",
+        "lookback-days": "CI Visibility query window in days",
+        "send-stats": "Publish evaluation telemetry; use --no-send-stats for local trials",
     }
 )
-def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: str, selector: str = "coverage"):
-    """Evaluate the accuracy of a dynamic test selection against what actually ran.
+def evaluate_index(
+    ctx: Context,
+    bucket_uri: str = DEFAULT_DYNTEST_BUCKET_URI,
+    commit_sha: str = "",
+    pipeline_id: str = "",
+    selector: str = "coverage",
+    test_env: str = "",
+    lookback_days: int = 3,
+    send_stats: bool = True,
+):
+    """Compare a selector's predictions with executed tests using the shared evaluator.
 
-    coverage (default): evaluates the stored coverage indexes (package, file,
-    diffed_package) with the DatadogDynTestEvaluator, as originally introduced
-    with the dynamic tests.
+    Coverage evaluates the package/file/diffed-package indexes. Jev evaluates
+    completed E2E jobs using their configured targets, without requiring coverage
+    data or S3 access. Jev must run from the evaluated pipeline's checkout.
 
-    jev: evaluates the Jev-based selection through the same evaluator: Jev is
-    plugged in as an alternative DynTestExecutor implementation
-    (tasks/libs/dynamic_test/jev_selection.py). Its test universe is NOT
-    restricted to the coverage index: every e2e job that ran in the pipeline
-    is evaluated (GitLab API) and every test entry point under
-    test/new-e2e/tests is decidable, including tests without coverage data or
-    brand new tests. not_executed_failing_count is the miss count; stats are
-    tagged selector:jev / universe:all-e2e-tests.
-
-    Requires DD_SITE/DD_API_KEY/DD_APP_KEY (CI Visibility). The jev selector
-    additionally needs the GitLab token (authanywhere in CI, GITLAB_TOKEN or
-    ddtool locally) and the AI Gateway token (authanywhere in CI,
-    JEV_TOKEN_CMD/JEV_DC locally).
+    Requires DD_API_KEY/DD_APP_KEY with CI Visibility read access (and DD_SITE
+    when not datadoghq.com). Jev additionally uses the standard GitLab task
+    authentication and preinstalled authanywhere for AI Gateway access.
+    AI_GATEWAY_TOKEN or JEV_TOKEN_CMD/JEV_DC can override Gateway authentication.
+    GITHUB_TOKEN optionally supplies the PR title/description.
     """
-    uploader = S3Backend(bucket_uri)
-
-    changed_files = get_modified_files(ctx)
-    changed_packages = list({os.path.dirname(change) for change in changed_files})
-    print("Detected changes:", changed_files)
-
-    # The executors to evaluate. Jev is just another DynTestExecutor
-    # implementation: the coverage selection evaluates one executor per
-    # index kind, the Jev selection evaluates a single executor (its
-    # decisions do not depend on the index kind). The evaluation flow itself
-    # is identical for all of them.
+    if selector not in {"coverage", "jev"}:
+        raise Exit("--selector must be coverage or jev", code=1)
+    if not pipeline_id or not pipeline_id.isdecimal() or lookback_days < 1:
+        raise Exit("Provide a numeric --pipeline-id and positive --lookback-days", code=1)
+    head = get_commit_sha(ctx)
+    commit_sha = commit_sha or head
+    options = {"test_env": test_env or ("nativetest" if selector == "jev" else "prod"), "lookback_days": lookback_days}
     if selector == "jev":
-        executors = [JevDynTestExecutor(ctx, uploader, IndexKind.JEV, commit_sha, pipeline_id)]
+        if commit_sha != head:
+            raise Exit("For Jev, check out the pipeline commit and pass its full SHA (or omit --commit-sha)", code=1)
+        executor = JevDynTestExecutor(ctx, commit_sha, pipeline_id)
+        executors = [executor]
+        options.update(job_ids=executor.job_ids, unreliable_jobs=executor.unreliable_jobs)
+        changes = []  # Jev gathers the richer PR diff/context from this checkout.
     else:
+        backend = S3Backend(bucket_uri)
+        changed_files = get_modified_files(ctx)
+        changes = list({os.path.dirname(change) for change in changed_files}) + changed_files
+        print("Detected changes:", changed_files)
         executors = [
-            DynTestExecutor(ctx, uploader, kind, commit_sha)
+            DynTestExecutor(ctx, backend, kind, commit_sha)
             for kind in [IndexKind.PACKAGE, IndexKind.FILE, IndexKind.DIFFED_PACKAGE]
         ]
 
-    for executor in executors:
-        evaluator = DatadogDynTestEvaluator(
-            ctx,
-            executor.kind,
-            executor,
-            pipeline_id,
-            telemetry_handler=DatadogTelemetryHandler(
+    failed = False
+    for i, executor in enumerate(executors):
+        if i:
+            sleep(10)  # Avoid rate limiting between coverage evaluations.
+        telemetry = (
+            DatadogTelemetryHandler(
                 default_tags=[
                     f"pipeline_id:{pipeline_id}",
                     f"index_kind:{executor.kind.value}",
                     "service:dynamic_test_evaluator",
-                    # executors may carry extra tags identifying the selection
-                    # (e.g. selector:jev) - the coverage executors carry none
-                    *(getattr(executor, "telemetry_tags", None) or []),
                 ]
-            ),
+            )
+            if send_stats
+            else ConsoleTelemetryHandler()
+        )
+        evaluator = DatadogDynTestEvaluator(
+            ctx, executor.kind, executor, pipeline_id, telemetry_handler=telemetry, **options
         )
         if not evaluator.initialize():
-            print(color_message(f"WARNING: Failed to initialize the {executor.kind.value} evaluation", Color.ORANGE))
+            print(color_message(f"Failed to initialize the {executor.kind.value} evaluation", Color.RED))
+            failed = True
             continue
-        results = evaluator.evaluate(changed_packages + changed_files)
+        results = evaluator.evaluate(changes)
         evaluator.print_summary(results)
-        evaluator.send_stats_to_datadog(results)
-
-        # Sanity check: a vacuous evaluation (jobs evaluated, but zero executed
-        # tests found overall) is invisible in the metrics above and would
-        # look like a perfect selector with zero misses everywhere.
-        total_actual = sum(r.actual_count() for r in results)
-        if results and total_actual == 0:
+        if not results or not any(result.actual_count() for result in results):
             print(
                 color_message(
-                    "WARNING: no executed tests found for ANY of the "
-                    f"{len(results)} evaluated jobs - the evaluation is vacuous. "
-                    "The executed-test queries likely matched no CI Visibility events "
-                    "(env tag mismatch: the e2e jobs tag their events env:nativetest).",
+                    "No executed tests found; check the pipeline, --test-env and --lookback-days. No stats sent.",
                     Color.RED,
                 )
             )
-        sleep(10)  # small sleep to avoid rate limiting
+            failed = True
+            continue
+        if send_stats:
+            evaluator.send_stats_to_datadog(results)
+    if failed:
+        raise Exit("Evaluation incomplete; see the errors above", code=1)
 
 
 @task(

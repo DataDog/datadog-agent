@@ -1,6 +1,6 @@
 """Git / GitHub / DDCI context for the Jev e2e tooling."""
 
-from __future__ import annotations  # python 3.9 compat
+from __future__ import annotations
 
 import json
 import os
@@ -28,9 +28,7 @@ MAX_DESCRIPTION_BYTES = 4_000
 
 
 def run_cmd(cmd: list[str], cwd: str | None = None) -> str:
-    import subprocess
-
-    res = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
+    res = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, timeout=60)
     if res.returncode != 0:
         raise RuntimeError(f"command {' '.join(cmd)} failed: {res.stderr.strip()}")
     return res.stdout.strip()
@@ -66,7 +64,7 @@ def resolve_ref(base: str) -> str:
             continue
     print(f"[info] ref '{base}' not found locally, fetching from origin")
     git("fetch", "origin", base)
-    return f"origin/{base}"
+    return "FETCH_HEAD"
 
 
 def truncate(text: str, limit: int, label: str) -> str:
@@ -143,7 +141,7 @@ def fetch_pr_info(base: str, ddci: dict | None) -> dict:
     elif branch:
         print(f"[info] no DDCI PR number, looking up PR by branch {branch}")
         req = urllib.request.Request(
-            f"{GITHUB_API}/pulls?head={REPO.split(':')[0]}:{urllib.parse.quote(branch)}&state=open&per_page=1",
+            f"{GITHUB_API}/pulls?head={REPO.split('/')[0]}:{urllib.parse.quote(branch, safe='')}&state=open&per_page=1",
             headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
         )
     else:
