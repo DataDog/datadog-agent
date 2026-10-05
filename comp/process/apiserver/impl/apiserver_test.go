@@ -27,7 +27,6 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	settingsmock "github.com/DataDog/datadog-agent/comp/core/settings/mock"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -57,11 +56,6 @@ func TestLifecycle(t *testing.T) {
 			})
 		}),
 		workloadmetafx.Module(workloadmeta.NewParams()),
-		fx.Supply(
-			status.Params{
-				PythonVersionGetFunc: func() string { return "n/a" },
-			},
-		),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		statusimpl.Module(),
 		settingsmock.MockModule(),
@@ -94,11 +88,6 @@ func TestPostAuthentication(t *testing.T) {
 			})
 		}),
 		workloadmetafx.Module(workloadmeta.NewParams()),
-		fx.Supply(
-			status.Params{
-				PythonVersionGetFunc: func() string { return "n/a" },
-			},
-		),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		statusimpl.Module(),
 		settingsmock.MockModule(),
