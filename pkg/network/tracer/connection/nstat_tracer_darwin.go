@@ -104,7 +104,7 @@ var nstatTracerTelemetry = struct {
 	kernelErrors:       telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "kernel_errors", nil, "Error responses from the NStat kernel control"),
 	descriptionErrors:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "description_errors", nil, "NStat source description requests that failed"),
 	droppedSources:     telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "dropped_sources", nil, "NStat sources dropped at the tracking limit"),
-	removals:           telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "removals", []string{"resolution"}, "NStat source removals by identity resolution"),
+	removals:           telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "removals", []string{"resolution"}, "NStat source removals: published (resolved), described but not published (filtered), or never described (unresolved)"),
 	runtimeFailures:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "runtime_failures", nil, "Fatal NStat runtime failures"),
 	directionConflicts: telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "direction_conflicts", nil, "Conflicting direction evidence observed"),
 	directionInferred:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "direction_inferred", []string{"result"}, "TCP directions inferred from ports, and inferences later overridden by direction evidence"),
@@ -148,6 +148,7 @@ type nstatSource struct {
 	listenerKey              darwinTCPListenerKey
 	listenerIndexed          bool
 	loopbackFiltered         bool
+	peerlessFiltered         bool
 }
 
 type nstatTracer struct {
@@ -488,6 +489,8 @@ func (t *nstatTracer) processEvent(event nstat.Event) {
 			t.updateSource(event.SourceRef, source, event)
 			if source.removed && source.conn != nil {
 				closed = t.closeAndRemoveSource(event.SourceRef, source)
+			} else if source.removed && nstatSourceResolved(source) {
+				t.removeFilteredSource(event.SourceRef, source)
 			}
 		}
 	case nstat.EventRemoved:
@@ -495,6 +498,8 @@ func (t *nstatTracer) processEvent(event nstat.Event) {
 			t.removeTCPListener(event.SourceRef, source)
 			if source.conn != nil {
 				closed = t.closeAndRemoveSource(event.SourceRef, source)
+			} else if nstatSourceResolved(source) {
+				t.removeFilteredSource(event.SourceRef, source)
 			} else {
 				source.removed = true
 				source.removedAt = t.now()
@@ -633,7 +638,7 @@ func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event 
 		return
 	}
 	if source.conn == nil {
-		if !nstatSourceResolved(source) {
+		if !nstatSourceResolved(source) || !nstatSourceEnabled(t.config, source) {
 			return
 		}
 		if !t.includeLoopback && nstatFlowIsLoopback(source.flow) {
@@ -643,7 +648,11 @@ func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event 
 			}
 			return
 		}
-		if !nstatSourceEnabled(t.config, source) {
+		if !nstatFlowHasPeer(source.flow) {
+			if !source.peerlessFiltered {
+				source.peerlessFiltered = true
+				nstatTracerTelemetry.filteredSources.Inc("no_peer")
+			}
 			return
 		}
 		source.conn = t.newConnection(sourceRef, source)
@@ -731,6 +740,16 @@ func nstatSourceEnabled(cfg *config.Config, source *nstatSource) bool {
 
 func nstatFlowIsLoopback(flow *nstat.Flow) bool {
 	return flow.Local.Address.Unmap().IsLoopback() || flow.Remote.Address.Unmap().IsLoopback()
+}
+
+// nstatFlowHasPeer reports whether the flow names a remote endpoint. NStat
+// counts unconnected UDP sockets per socket, so their traffic to any number of
+// peers carries no remote address and cannot form a connection tuple.
+func nstatFlowHasPeer(flow *nstat.Flow) bool {
+	return flow.Remote.Present &&
+		flow.Remote.Address.IsValid() &&
+		!flow.Remote.Address.IsUnspecified() &&
+		flow.Remote.Port != 0
 }
 
 func nstatSourceResolved(source *nstatSource) bool {
@@ -1156,6 +1175,16 @@ func (t *nstatTracer) enrichTCPPacket(
 	conn.TLSTags.MergeWith(analysis.tlsTags)
 	t.mu.Unlock()
 	return currentMatch
+}
+
+// removeFilteredSource drops a removed source that was described but never
+// published, so it does not wait out the pending-removal TTL.
+func (t *nstatTracer) removeFilteredSource(sourceRef uint64, source *nstatSource) {
+	t.removeTCPListener(sourceRef, source)
+	delete(t.sources, sourceRef)
+	delete(t.descriptionQueued, sourceRef)
+	nstatTracerTelemetry.activeSources.Set(float64(len(t.sources)))
+	nstatTracerTelemetry.removals.Inc("filtered")
 }
 
 func (t *nstatTracer) closeAndRemoveSource(sourceRef uint64, source *nstatSource) *network.ConnectionStats {

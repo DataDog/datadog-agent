@@ -923,44 +923,100 @@ func TestNStatTracerFiltersLoopbackByDefault(t *testing.T) {
 	require.Equal(t, uint32(1005), buffer.Connections()[0].Pid)
 	require.Equal(t, before+float64(len(loopback)), filtered.Get())
 
+	removals := nstatTracerTelemetry.removals.WithValues("filtered")
+	removalsBefore := removals.Get()
 	for _, source := range loopback {
 		tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: source.sourceRef})
+		require.NotContains(t, tracer.sources, source.sourceRef)
 	}
 	require.Empty(t, closed)
+	require.Equal(t, removalsBefore+float64(len(loopback)), removals.Get())
 }
 
-func TestNStatTracerAppliesLateAuthoritativeUDPRemote(t *testing.T) {
+func TestNStatTracerRemovesFilteredSourceDescribedAfterRemoval(t *testing.T) {
 	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
-	initial := testNStatUDPFlow(1234)
-	initial.Remote = nstat.Endpoint{}
+	var closed []*network.ConnectionStats
+	tracer.closeCallback = func(conn *network.ConnectionStats) {
+		closed = append(closed, conn)
+	}
+	filtered := nstatTracerTelemetry.removals.WithValues("filtered")
+	unresolved := nstatTracerTelemetry.removals.WithValues("unresolved")
+	filteredBefore, unresolvedBefore := filtered.Get(), unresolved.Get()
+
+	tracer.processEvent(nstat.Event{Kind: nstat.EventAdded, SourceRef: 45, Provider: nstat.ProviderTCPKernel})
+	tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: 45})
+	require.True(t, tracer.sources[45].removed)
+
 	tracer.processEvent(nstat.Event{
 		Kind:      nstat.EventDescription,
-		SourceRef: 16,
-		Provider:  nstat.ProviderUDPKernel,
-		Flow:      initial,
+		SourceRef: 45,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatLoopbackTCPFlow(1006, "127.0.0.1", 50003, 8083),
 	})
+	require.NotContains(t, tracer.sources, uint64(45))
+	require.Empty(t, closed)
+	require.Equal(t, filteredBefore+1, filtered.Get())
+	require.Equal(t, unresolvedBefore, unresolved.Get())
+}
+
+func TestNStatTracerFiltersUDPWithoutPeer(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	var closed []*network.ConnectionStats
+	tracer.closeCallback = func(conn *network.ConnectionStats) {
+		closed = append(closed, conn)
+	}
+	filtered := nstatTracerTelemetry.filteredSources.WithValues("no_peer")
+	before := filtered.Get()
+
+	wildcard := testNStatUDPFlow(1234)
+	wildcard.Local.Address = netip.IPv4Unspecified()
+	wildcard.Remote = nstat.Endpoint{Address: netip.IPv4Unspecified(), Present: true}
+	bound := testNStatUDPFlow(1235)
+	bound.Remote = nstat.Endpoint{}
+	peerless := []struct {
+		sourceRef uint64
+		flow      *nstat.Flow
+	}{
+		{16, wildcard},
+		{17, bound},
+	}
+	for _, source := range peerless {
+		for range 2 {
+			tracer.processEvent(nstat.Event{
+				Kind:      nstat.EventDescription,
+				SourceRef: source.sourceRef,
+				Provider:  nstat.ProviderUDPKernel,
+				Flow:      source.flow,
+				Counts:    &nstat.Counts{TXBytes: 100, RXBytes: 200},
+			})
+		}
+	}
 
 	var buffer network.ConnectionBuffer
 	require.NoError(t, tracer.GetConnections(&buffer, nil))
-	require.Len(t, buffer.Connections(), 1)
-	oldTuple := buffer.Connections()[0].ConnectionTuple
-	require.False(t, oldTuple.Dest.Addr.IsValid())
+	require.Empty(t, buffer.Connections())
+	require.Equal(t, before+float64(len(peerless)), filtered.Get())
 
-	update := testNStatUDPFlow(1234)
+	tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: 16})
+	require.NotContains(t, tracer.sources, uint64(16))
+	require.Empty(t, closed)
+
+	connected := testNStatUDPFlow(1235)
 	tracer.processEvent(nstat.Event{
-		Kind:      nstat.EventDescription,
-		SourceRef: 16,
+		Kind:      nstat.EventUpdate,
+		SourceRef: 17,
 		Provider:  nstat.ProviderUDPKernel,
-		Flow:      update,
+		Flow:      connected,
+		Counts:    &nstat.Counts{TXBytes: 100, RXBytes: 200},
 	})
 
 	buffer.Reset()
 	require.NoError(t, tracer.GetConnections(&buffer, nil))
 	require.Len(t, buffer.Connections(), 1)
 	conn := buffer.Connections()[0]
-	require.Equal(t, update.Remote.Address, conn.Dest.Addr)
-	require.Equal(t, update.Remote.Port, conn.DPort)
-	require.False(t, tracer.tuples.match(oldTuple).matched)
+	require.Equal(t, connected.Local.Address, conn.Source.Addr)
+	require.Equal(t, connected.Remote.Address, conn.Dest.Addr)
+	require.Equal(t, connected.Remote.Port, conn.DPort)
 	match := tracer.tuples.match(conn.ConnectionTuple)
 	require.True(t, match.matched)
 	require.Equal(t, conn.Cookie, match.cookie)
@@ -1202,6 +1258,26 @@ func TestNStatTracerHonorsProtocolAndFamilyConfiguration(t *testing.T) {
 				cfg.CollectUDPv6Conns = false
 			},
 		},
+		{
+			name:     "udp6 disabled without peer",
+			provider: nstat.ProviderUDPKernel,
+			flow: func() *nstat.Flow {
+				flow := testNStatUDPv6Flow(1234)
+				flow.Remote = nstat.Endpoint{}
+				return flow
+			},
+			configure: func(cfg *config.Config) {
+				cfg.CollectUDPv6Conns = false
+			},
+		},
+		{
+			name:     "tcp6 disabled on loopback",
+			provider: nstat.ProviderTCPKernel,
+			flow:     func() *nstat.Flow { return testNStatLoopbackTCPFlow(1234, "::1", 50000, 8080) },
+			configure: func(cfg *config.Config) {
+				cfg.CollectTCPv6Conns = false
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -1213,6 +1289,9 @@ func TestNStatTracerHonorsProtocolAndFamilyConfiguration(t *testing.T) {
 			tracer.closeCallback = func(conn *network.ConnectionStats) {
 				closed = append(closed, conn)
 			}
+			loopback := nstatTracerTelemetry.filteredSources.WithValues("loopback")
+			noPeer := nstatTracerTelemetry.filteredSources.WithValues("no_peer")
+			loopbackBefore, noPeerBefore := loopback.Get(), noPeer.Get()
 
 			tracer.processEvent(nstat.Event{
 				Kind:      nstat.EventDescription,
@@ -1224,7 +1303,10 @@ func TestNStatTracerHonorsProtocolAndFamilyConfiguration(t *testing.T) {
 			var buffer network.ConnectionBuffer
 			require.NoError(t, tracer.GetConnections(&buffer, nil))
 			require.Empty(t, buffer.Connections())
+			require.Equal(t, loopbackBefore, loopback.Get())
+			require.Equal(t, noPeerBefore, noPeer.Get())
 			tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: 1})
+			require.NotContains(t, tracer.sources, uint64(1))
 			require.Empty(t, closed)
 		})
 	}
