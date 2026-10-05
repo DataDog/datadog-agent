@@ -26,13 +26,13 @@ type Provides struct {
 	FlareProvider flaretypes.Provider
 }
 
-func fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
+func fillFlare(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	if fb.IsLocal() {
 		_ = fb.Logf("listing open files is not supported in local mode")
 		return nil
 	}
 
-	files, err := lsof.ListOpenFilesFromSelf()
+	files, err := lsof.ListOpenFilesFromSelfWithContext(ctx)
 	if err != nil {
 		if errors.Is(err, lsof.ErrNotImplemented) {
 			_ = fb.Logf("listing files opened by the agent process is not supported on %s/%s", runtime.GOOS, runtime.GOARCH)

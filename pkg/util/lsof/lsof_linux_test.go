@@ -6,7 +6,9 @@
 package lsof
 
 import (
+	"context"
 	"errors"
+	"net"
 	"os"
 	"syscall"
 	"testing"
@@ -21,7 +23,7 @@ func TestOpenFiles(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		pid := os.Getpid()
 
-		files, err := openFiles(pid)
+		files, err := openFiles(context.Background(), pid)
 
 		require.NoError(t, err)
 		require.NotEmpty(t, files)
@@ -215,7 +217,11 @@ func TestFDStat(t *testing.T) {
 				return "socket", nil
 			},
 			map[uint64]socketInfo{
-				456: {"127.0.0.1:42->127.0.0.1:43", "connected", "tcp"},
+				456: {
+					Description: "127.0.0.1:42->127.0.0.1:43",
+					State:       "connected",
+					Protocol:    "tcp",
+				},
 			},
 			&File{
 				Fd:       "3",
@@ -346,50 +352,191 @@ func TestFDStat(t *testing.T) {
 }
 
 func TestReadSocketInfo(t *testing.T) {
-	ofl := &openFilesLister{
-		lookupAddr: func(addr string) ([]string, error) {
-			switch addr {
-			case "20.199.39.224":
-				return []string{"example.com"}, nil
-			case "20.199.39.225":
-				return []string{"example2.com", "example3.com"}, nil
-			case "20.199.39.226":
-				return nil, errors.New("failed")
-			case "192.168.1.50":
-				return nil, errors.New("failed")
-			default:
-				t.Fatalf("unexpected address: %s", addr)
-				return nil, nil
-			}
-		},
-	}
-
 	t.Run("success", func(t *testing.T) {
-		info := ofl.readSocketInfo("testdata/readSocketInfo/1")
+		info := readSocketInfo("testdata/readSocketInfo/1")
 
 		expected := map[uint64]socketInfo{
-			10975:   {"0.0.0.0:18777->0.0.0.0:0", "CLOSE", "udp6"},
-			40124:   {"10.254.219.58:123->0.0.0.0:0", "UNKNOWN(42)", "udp"},
-			1986475: {"127.0.0.1:38489->0.0.0.0:0", "LISTEN", "tcp"},
-			1987112: {"stream:/tmp/.X11-unix/X2", "unconnected:listen", "unix"},
-			2506353: {"stream:", "connected:default", "unix"},
-			3359554: {"172.17.0.2:44594->20.199.39.224:443 (example.com)", "ESTABLISHED", "tcp6"},
-			3359555: {"172.17.0.2:44594->20.199.39.225:443 (example2.com,example3.com)", "ESTABLISHED", "tcp6"},
-			3359556: {"172.17.0.2:44594->20.199.39.226:443 (unknown)", "ESTABLISHED", "tcp6"},
-			3359557: {"172.17.0.2:44594->127.0.0.1:443 (loopback)", "ESTABLISHED", "tcp6"},
-			3359558: {"172.17.0.2:44594->192.168.1.50:443 (private)", "ESTABLISHED", "tcp6"},
+			10975: {
+				LocalAddr:  parseIPv4("0.0.0.0"),
+				LocalPort:  18777,
+				RemoteAddr: parseIPv4("0.0.0.0"),
+				State:      "CLOSE",
+				Protocol:   "udp6",
+			},
+			40124: {
+				LocalAddr:  parseIPv4("10.254.219.58"),
+				LocalPort:  123,
+				RemoteAddr: parseIPv4("0.0.0.0"),
+				State:      "UNKNOWN(42)",
+				Protocol:   "udp",
+			},
+			1986475: {
+				LocalAddr:  parseIPv4("127.0.0.1"),
+				LocalPort:  38489,
+				RemoteAddr: parseIPv4("0.0.0.0"),
+				State:      "LISTEN",
+				Protocol:   "tcp",
+			},
+			1987112: {
+				Description: "stream:/tmp/.X11-unix/X2",
+				State:       "unconnected:listen",
+				Protocol:    "unix",
+			},
+			2506353: {
+				Description: "stream:",
+				State:       "connected:default",
+				Protocol:    "unix",
+			},
+			3359554: newNetworkSocketInfo("20.199.39.224"),
+			3359555: newNetworkSocketInfo("20.199.39.225"),
+			3359556: newNetworkSocketInfo("20.199.39.226"),
+			3359557: newNetworkSocketInfo("127.0.0.1"),
+			3359558: newNetworkSocketInfo("192.168.1.50"),
 		}
 
 		require.Equal(t, expected, info)
 	})
 
 	t.Run("empty", func(t *testing.T) {
-		assert.Empty(t, ofl.readSocketInfo("testdata/readSocketInfo/2"))
+		assert.Empty(t, readSocketInfo("testdata/readSocketInfo/2"))
 	})
 
 	t.Run("does not exist", func(t *testing.T) {
-		assert.Empty(t, ofl.readSocketInfo("testdata/readSocketInfo/3"))
+		assert.Empty(t, readSocketInfo("testdata/readSocketInfo/3"))
 	})
+}
+
+func parseIPv4(addr string) net.IP {
+	return net.ParseIP(addr).To4()
+}
+
+func newNetworkSocketInfo(remoteAddr string) socketInfo {
+	return socketInfo{
+		LocalAddr:  parseIPv4("172.17.0.2"),
+		LocalPort:  44594,
+		RemoteAddr: parseIPv4(remoteAddr),
+		RemotePort: 443,
+		State:      "ESTABLISHED",
+		Protocol:   "tcp6",
+	}
+}
+
+func TestSocketInfoRender(t *testing.T) {
+	lookupAddr := func(_ context.Context, addr string) ([]string, error) {
+		switch addr {
+		case "20.199.39.224":
+			return []string{"example.com"}, nil
+		case "20.199.39.225":
+			return []string{"example2.com", "example3.com"}, nil
+		case "20.199.39.226", "192.168.1.50":
+			return nil, errors.New("failed")
+		default:
+			t.Fatalf("unexpected address: %s", addr)
+			return nil, nil
+		}
+	}
+
+	testCases := []struct {
+		name     string
+		info     socketInfo
+		expected string
+	}{
+		{
+			name:     "hostname",
+			info:     newNetworkSocketInfo("20.199.39.224"),
+			expected: "172.17.0.2:44594->20.199.39.224:443 (example.com)",
+		},
+		{
+			name:     "multiple hostnames",
+			info:     newNetworkSocketInfo("20.199.39.225"),
+			expected: "172.17.0.2:44594->20.199.39.225:443 (example2.com,example3.com)",
+		},
+		{
+			name:     "unknown",
+			info:     newNetworkSocketInfo("20.199.39.226"),
+			expected: "172.17.0.2:44594->20.199.39.226:443 (unknown)",
+		},
+		{
+			name:     "loopback",
+			info:     newNetworkSocketInfo("127.0.0.1"),
+			expected: "172.17.0.2:44594->127.0.0.1:443 (loopback)",
+		},
+		{
+			name:     "private",
+			info:     newNetworkSocketInfo("192.168.1.50"),
+			expected: "172.17.0.2:44594->192.168.1.50:443 (private)",
+		},
+		{
+			name: "unconnected",
+			info: socketInfo{
+				LocalAddr:  parseIPv4("0.0.0.0"),
+				LocalPort:  18777,
+				RemoteAddr: parseIPv4("0.0.0.0"),
+			},
+			expected: "0.0.0.0:18777->0.0.0.0:0",
+		},
+		{
+			name:     "unix",
+			info:     socketInfo{Description: "stream:/tmp/socket"},
+			expected: "stream:/tmp/socket",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := tc.info.render(context.Background(), lookupAddr, make(map[string]string))
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestSocketInfoRenderUsesContextAndCache(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	lookups := 0
+	lookupAddr := func(ctx context.Context, _ string) ([]string, error) {
+		lookups++
+		return nil, ctx.Err()
+	}
+	cache := make(map[string]string)
+	info := newNetworkSocketInfo("20.199.39.224")
+
+	require.Equal(t, "172.17.0.2:44594->20.199.39.224:443 (unknown)", info.render(ctx, lookupAddr, cache))
+	require.Equal(t, "172.17.0.2:44594->20.199.39.224:443 (unknown)", info.render(context.Background(), lookupAddr, cache))
+	require.Equal(t, 1, lookups)
+}
+
+func TestFDStatOnlyResolvesMatchingSocket(t *testing.T) {
+	var lookups []string
+	ofl := &openFilesLister{
+		pid:             123,
+		procPath:        "/myproc",
+		ctx:             context.Background(),
+		remoteInfoCache: make(map[string]string),
+		lookupAddr: func(_ context.Context, addr string) ([]string, error) {
+			lookups = append(lookups, addr)
+			return []string{"example.com"}, nil
+		},
+		lstat: func(string) (os.FileInfo, error) {
+			return &mockFileInfo{mode: os.ModeSymlink | 0700}, nil
+		},
+		stat: func(string) (os.FileInfo, error) {
+			return &mockFileInfo{
+				mode: os.ModeSocket | 0600,
+				sys:  &syscall.Stat_t{Ino: 456},
+			}, nil
+		},
+		socketInfo: map[uint64]socketInfo{
+			456: newNetworkSocketInfo("20.199.39.224"),
+			789: newNetworkSocketInfo("20.199.39.225"),
+		},
+	}
+
+	file, ok := ofl.fdStat(3)
+	require.True(t, ok)
+	require.Equal(t, "172.17.0.2:44594->20.199.39.224:443 (example.com)", file.Name)
+	require.Equal(t, []string{"20.199.39.224"}, lookups)
 }
 
 func TestPermToString(t *testing.T) {

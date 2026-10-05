@@ -6,6 +6,7 @@
 package lsof
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -29,10 +30,12 @@ type openFilesLister struct {
 	readlink   func(string) (string, error)
 	stat       func(string) (os.FileInfo, error)
 	lstat      func(string) (os.FileInfo, error)
-	lookupAddr func(string) ([]string, error)
+	lookupAddr func(context.Context, string) ([]string, error)
 
-	proc       procfsProc
-	socketInfo map[uint64]socketInfo
+	ctx             context.Context
+	remoteInfoCache map[string]string
+	proc            procfsProc
+	socketInfo      map[uint64]socketInfo
 }
 
 // procfsProc is an interface to allow mocking of procfs.Proc
@@ -44,18 +47,24 @@ type procfsProc interface {
 
 type socketInfo struct {
 	Description string
+	LocalAddr   net.IP
+	LocalPort   uint64
+	RemoteAddr  net.IP
+	RemotePort  uint64
 	State       string
 	Protocol    string
 }
 
-func openFiles(pid int) (Files, error) {
+func openFiles(ctx context.Context, pid int) (Files, error) {
 	ofl := &openFilesLister{
 		pid: pid,
 
-		readlink:   os.Readlink,
-		stat:       os.Stat,
-		lstat:      os.Lstat,
-		lookupAddr: net.LookupAddr,
+		readlink:        os.Readlink,
+		stat:            os.Stat,
+		lstat:           os.Lstat,
+		lookupAddr:      net.DefaultResolver.LookupAddr,
+		ctx:             ctx,
+		remoteInfoCache: make(map[string]string),
 	}
 
 	ofl.procPath = procPath()
@@ -70,7 +79,7 @@ func openFiles(pid int) (Files, error) {
 		return nil, err
 	}
 
-	ofl.socketInfo = ofl.readSocketInfo(ofl.procPIDPath())
+	ofl.socketInfo = readSocketInfo(ofl.procPIDPath())
 
 	return ofl.openFiles(), nil
 }
@@ -241,7 +250,7 @@ func (ofl *openFilesLister) fdStat(fd uintptr) (File, bool) {
 	}
 
 	if info, ok := ofl.socketInfo[inode]; ok {
-		file.Name = info.Description
+		file.Name = info.render(ofl.ctx, ofl.lookupAddr, ofl.remoteInfoCache)
 		file.FilePerm = info.State
 		file.Type = info.Protocol
 	} else {
@@ -281,52 +290,52 @@ func stateStr(state uint64) string {
 	return fmt.Sprintf("UNKNOWN(%d)", state)
 }
 
-func (ofl *openFilesLister) displayableRemoteInfo(remoteInfoCache map[string]string, addr net.IP, port uint64) string {
-	if port == 0 {
-		return ""
+func (si socketInfo) render(ctx context.Context, lookupAddr func(context.Context, string) ([]string, error), remoteInfoCache map[string]string) string {
+	if si.Description != "" {
+		return si.Description
 	}
 
-	if addr.IsLoopback() {
-		return " (loopback)"
+	description := fmt.Sprintf("%s:%d->%s:%d", si.LocalAddr, si.LocalPort, si.RemoteAddr, si.RemotePort)
+	if si.RemotePort == 0 {
+		return description
 	}
 
-	addrStr := addr.String()
-	if res, ok := remoteInfoCache[addrStr]; ok {
-		return res
+	if si.RemoteAddr.IsLoopback() {
+		return description + " (loopback)"
 	}
 
-	host, err := ofl.lookupAddr(addrStr)
-	var res string
+	addr := si.RemoteAddr.String()
+	if remoteInfo, ok := remoteInfoCache[addr]; ok {
+		return description + remoteInfo
+	}
+
+	host, err := lookupAddr(ctx, addr)
+	var remoteInfo string
 	if err == nil {
-		res = fmt.Sprintf(" (%s)", strings.Join(host, ","))
+		remoteInfo = fmt.Sprintf(" (%s)", strings.Join(host, ","))
 	} else {
-		log.Debugf("Failed to lookup address %s: %s", addrStr, err)
-		if addr.IsPrivate() {
-			res = " (private)"
+		log.Debugf("Failed to lookup address %s: %s", addr, err)
+		if si.RemoteAddr.IsPrivate() {
+			remoteInfo = " (private)"
 		} else {
-			res = " (unknown)"
+			remoteInfo = " (unknown)"
 		}
 	}
 
-	remoteInfoCache[addrStr] = res
-	return res
+	remoteInfoCache[addr] = remoteInfo
+	return description + remoteInfo
 }
 
 // readSocketInfo reads the socket information from /proc/<pid>/net/{tcp,tcp6,udp,udp6,unix}
 // returns a map of inode to socketInfo
 // see https://www.kernel.org/doc/Documentation/networking/proc_net_tcp.txt
-func (ofl *openFilesLister) readSocketInfo(procPIDPath string) map[uint64]socketInfo {
+func readSocketInfo(procPIDPath string) map[uint64]socketInfo {
 	si := make(map[uint64]socketInfo)
 
 	fs, err := procfs.NewFS(procPIDPath)
 	if err != nil {
 		log.Debugf("Failed to read %s: %s", procPIDPath, err)
 		return si
-	}
-
-	remoteInfoCache := make(map[string]string)
-	remoteInfo := func(addr net.IP, port uint64) string {
-		return ofl.displayableRemoteInfo(remoteInfoCache, addr, port)
 	}
 
 	for protocol, parser := range map[string]func() (procfs.NetTCP, error){
@@ -340,9 +349,12 @@ func (ofl *openFilesLister) readSocketInfo(procPIDPath string) map[uint64]socket
 		}
 		for _, entry := range addrs {
 			si[entry.Inode] = socketInfo{
-				fmt.Sprintf("%s:%d->%s:%d%s", entry.LocalAddr, entry.LocalPort, entry.RemAddr, entry.RemPort, remoteInfo(entry.RemAddr, entry.RemPort)),
-				stateStr(entry.St),
-				protocol,
+				LocalAddr:  entry.LocalAddr,
+				LocalPort:  entry.LocalPort,
+				RemoteAddr: entry.RemAddr,
+				RemotePort: entry.RemPort,
+				State:      stateStr(entry.St),
+				Protocol:   protocol,
 			}
 		}
 	}
@@ -358,9 +370,12 @@ func (ofl *openFilesLister) readSocketInfo(procPIDPath string) map[uint64]socket
 		}
 		for _, entry := range addrs {
 			si[entry.Inode] = socketInfo{
-				fmt.Sprintf("%s:%d->%s:%d%s", entry.LocalAddr, entry.LocalPort, entry.RemAddr, entry.RemPort, remoteInfo(entry.RemAddr, entry.RemPort)),
-				stateStr(entry.St),
-				protocol,
+				LocalAddr:  entry.LocalAddr,
+				LocalPort:  entry.LocalPort,
+				RemoteAddr: entry.RemAddr,
+				RemotePort: entry.RemPort,
+				State:      stateStr(entry.St),
+				Protocol:   protocol,
 			}
 		}
 	}
@@ -369,9 +384,9 @@ func (ofl *openFilesLister) readSocketInfo(procPIDPath string) map[uint64]socket
 	if err == nil {
 		for _, entry := range unix.Rows {
 			si[entry.Inode] = socketInfo{
-				fmt.Sprintf("%s:%s", entry.Type, entry.Path),
-				fmt.Sprintf("%s:%s", entry.State, entry.Flags),
-				"unix",
+				Description: fmt.Sprintf("%s:%s", entry.Type, entry.Path),
+				State:       fmt.Sprintf("%s:%s", entry.State, entry.Flags),
+				Protocol:    "unix",
 			}
 		}
 	} else {
