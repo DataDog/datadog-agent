@@ -175,17 +175,28 @@ def fetch_executed_e2e_tests(query: str, days: int) -> dict:
 
     executed: dict = {}
     sample_names = []
+    skipped_subtests = skipped_empty = skipped_job = 0
     for item in events:
         attrs = item.get("attributes", {}).get("attributes", {})
         test_attrs = attrs.get("test", {})
+        job_name = ((attrs.get("ci", {}) or {}).get("job", {}) or {}).get("name", "")
         name = test_attrs.get("name") or ""
-        # e2e tests only, root-level only (sub-tests contain '/')
-        if "new-e2e" not in name or "/" in name:
-            if len(sample_names) < 5:
-                sample_names.append(name)
+        # CI Visibility test names are bare names (e.g. "TestServiceBehaviorPowerShell"
+        # or "TestFleetConfig/linux/TestConfig" for sub-tests), with no package path,
+        # so the e2e check must use the job name, not the test name.
+        if not name:
+            skipped_empty += 1
+            continue
+        if "/" in name:  # sub-tests
+            skipped_subtests += 1
+            continue
+        if job_name and not job_name.startswith("new-e2e"):  # non-e2e job (query filter safety net)
+            skipped_job += 1
             continue
         m = re.search(r"(Test\w+)\s*$", name)
         if not m:
+            if len(sample_names) < 5:
+                sample_names.append(name)
             continue
         entry = m.group(1)
         status = "pass" if test_attrs.get("status") == "pass" else "fail"
@@ -197,9 +208,9 @@ def fetch_executed_e2e_tests(query: str, days: int) -> dict:
             e["flaky"] = True
         e["jobs"].append((attrs.get("ci", {}).get("job", {}) or {}).get("name", ""))
     print(
-        f"[info] CI Visibility result: {len(events)} test events over {pages} page(s), "
-        f"of which {len(executed)} root e2e tests (new-e2e, no '/'); "
-        f"rejected samples: {sample_names[:3]}"
+        f"[info] CI Visibility result: {len(events)} test events over {pages} page(s) "
+        f"(skipped: {skipped_subtests} sub-tests, {skipped_empty} without a name, {skipped_job} from non-e2e jobs); "
+        f"kept {len(executed)} root e2e tests; unmatched names: {sample_names[:3]}"
     )
     print(f"[info] executed root e2e tests: {len(executed)}: {sorted(executed)[:10]}{' ...' if len(executed) > 10 else ''}")
     if not executed:
