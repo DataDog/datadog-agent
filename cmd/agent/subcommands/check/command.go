@@ -20,7 +20,7 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams, _ command.ProductComposition) []*cobra.Command {
 	cmd := check.MakeCommand(func() check.GlobalParams {
 		return check.GlobalParams{
 			ConfFilePath:         globalParams.ConfFilePath,

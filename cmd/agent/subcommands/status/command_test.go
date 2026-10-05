@@ -19,7 +19,7 @@ import (
 func TestStatusCommand(t *testing.T) {
 	defer os.Unsetenv("DD_AUTOCONFIG_FROM_ENVIRONMENT") // undo os.Setenv by RunE
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"status", "-j"},
 		statusCmd,
 		func(cliParams *cliParams, _ core.BundleParams) {
@@ -31,7 +31,7 @@ func TestStatusCommand(t *testing.T) {
 func TestComponentStatusCommand(t *testing.T) {
 	defer os.Unsetenv("DD_AUTOCONFIG_FROM_ENVIRONMENT") // undo os.Setenv by RunE
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"status", "component", "abc"},
 		statusCmd,
 		func(cliParams *cliParams, _ core.BundleParams) {

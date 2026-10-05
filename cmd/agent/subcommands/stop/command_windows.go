@@ -15,6 +15,6 @@ import (
 )
 
 // Commands returns nils on windows where the agent is run as a Windows service.
-func Commands(_ *command.GlobalParams) []*cobra.Command {
+func Commands(_ *command.GlobalParams, _ command.ProductComposition) []*cobra.Command {
 	return nil
 }

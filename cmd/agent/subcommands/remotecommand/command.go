@@ -51,7 +51,7 @@ func (e exitCodeError) ExitCode() int {
 var remoteGlobalParams sync.Map // map[*cobra.Command]*command.GlobalParams
 
 // Commands returns the static remote parent. Command providers are attached before Cobra resolves their child names.
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams, _ command.ProductComposition) []*cobra.Command {
 	remote := &cobra.Command{
 		Use:           "remote",
 		Short:         "Run commands exposed by other Agent processes",

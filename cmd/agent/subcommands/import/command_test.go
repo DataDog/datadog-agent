@@ -16,7 +16,7 @@ import (
 
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"import", "o", "n", "--force"},
 		importCmd,
 		func(cliParams *cliParams) {

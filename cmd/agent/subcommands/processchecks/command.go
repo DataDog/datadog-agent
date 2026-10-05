@@ -78,7 +78,7 @@ func getCoreAgentFxOptions(cliParams *check.CliParams, bundleParams core.BundleP
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams, _ command.ProductComposition) []*cobra.Command {
 	processCommand.OneShotLogParams = log.ForOneShot(string(command.LoggerName), "info", true)
 	checkAllowlist := []string{"process", "rtprocess", "container", "rtcontainer", "process_discovery"}
 	cmd := check.MakeCommand(func() *processCommand.GlobalParams {

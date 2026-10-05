@@ -42,7 +42,8 @@ func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{
 			ConfFilePath: configPath,
-		}),
+		}, command.ProductComposition{}),
+
 		[]string{"processchecks", "process"},
 		check.RunCheckCmd,
 		func(_ *check.CliParams) {},
