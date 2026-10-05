@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -255,39 +256,41 @@ func TestWorkerExitsAfterIntervalZeroCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			configmock.New(t).SetInTest("hostname", "myhost")
 			expvars.Reset()
+			synctest.Test(t, func(t *testing.T) {
+				checksTracker := tracker.NewRunningChecksTracker()
+				if tt.alreadyRunning {
+					require.True(t, checksTracker.AddCheck(tt.check))
+				}
+				// The channel stays open: the worker must exit on its own and
+				// leave the periodic check for another worker.
+				periodic := newCheck(t, "periodic:1", false, nil)
+				pendingChecksChan := make(chan check.Check, 2)
+				pendingChecksChan <- tt.check
+				pendingChecksChan <- periodic
 
-			checksTracker := tracker.NewRunningChecksTracker()
-			if tt.alreadyRunning {
-				require.True(t, checksTracker.AddCheck(tt.check))
-			}
-			// The channel stays open: the worker must exit on its own and
-			// leave the periodic check for another worker.
-			periodic := newCheck(t, "periodic:1", false, nil)
-			pendingChecksChan := make(chan check.Check, 2)
-			pendingChecksChan <- tt.check
-			pendingChecksChan <- periodic
+				worker, err := NewWorker(aggregator.NewNoOpSenderManager(), tt.haAgent, 100, 200,
+					pendingChecksChan, checksTracker, func(checkid.ID) bool { return true }, 0)
+				require.NoError(t, err)
+				done := make(chan struct{})
+				go func() {
+					worker.Run(context.Background())
+					close(done)
+				}()
+				select {
+				case <-done:
+				case <-time.After(5 * time.Second):
+					t.Fatal("worker did not exit after its interval-zero check")
+				}
 
-			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), tt.haAgent, 100, 200,
-				pendingChecksChan, checksTracker, func(checkid.ID) bool { return true }, 0)
-			require.NoError(t, err)
-			done := make(chan struct{})
-			go func() {
-				worker.Run(context.Background())
-				close(done)
-			}()
-			select {
-			case <-done:
-			case <-time.After(5 * time.Second):
-				t.Fatal("worker did not exit after its interval-zero check")
-			}
+				// The utilization updater cleans up after Run returns.
+				synctest.Wait()
 
-			assert.Equal(t, tt.expectedRuns, tt.check.RunCount())
-			assert.Zero(t, periodic.RunCount())
-			assert.Len(t, pendingChecksChan, 1)
-			AssertAsyncWorkerCount(t, 0)
-			assert.EventuallyWithT(t, func(c *assert.CollectT) {
-				assert.False(c, hasWorkerUtilizationMetric(c, worker.Name))
-			}, 2*time.Second, 10*time.Millisecond)
+				assert.Equal(t, tt.expectedRuns, tt.check.RunCount())
+				assert.Zero(t, periodic.RunCount())
+				assert.Len(t, pendingChecksChan, 1)
+				assert.Zero(t, expvars.GetWorkerCount())
+				assert.False(t, hasWorkerUtilizationMetric(t, worker.Name))
+			})
 		})
 	}
 }
