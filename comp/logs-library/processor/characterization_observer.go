@@ -6,6 +6,7 @@
 package processor
 
 import (
+	"hash/maphash"
 	"strconv"
 	"sync"
 
@@ -14,7 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-const characterizationQueueSize = 1024
+const (
+	characterizationQueueSize   = 1024
+	characterizationSourceLimit = 4096
+)
 
 type characterizationObservation struct {
 	contentBytes int
@@ -25,18 +29,31 @@ type characterizationObservation struct {
 	pipeline     string
 	hasService   bool
 	hasSource    bool
+	sourceHash   uint64
+	hasSourceID  bool
+}
+
+type characterizationSourceIdentity struct {
+	sourceType string
+	hash       uint64
 }
 
 type characterizationObserver struct {
-	queue chan characterizationObservation
-	done  chan struct{}
-	once  sync.Once
+	queue        chan characterizationObservation
+	done         chan struct{}
+	once         sync.Once
+	sourceSeed   maphash.Seed
+	sourceIDs    map[characterizationSourceIdentity]struct{}
+	sourceCounts map[string]int
 }
 
 func newCharacterizationObserver() *characterizationObserver {
 	return &characterizationObserver{
-		queue: make(chan characterizationObservation, characterizationQueueSize),
-		done:  make(chan struct{}),
+		queue:        make(chan characterizationObservation, characterizationQueueSize),
+		done:         make(chan struct{}),
+		sourceSeed:   maphash.MakeSeed(),
+		sourceIDs:    make(map[characterizationSourceIdentity]struct{}),
+		sourceCounts: make(map[string]int),
 	}
 }
 
@@ -55,7 +72,7 @@ func (o *characterizationObserver) stop() {
 }
 
 func (o *characterizationObserver) observe(msg *message.Message, pipeline string) {
-	observation := makeCharacterizationObservation(msg, pipeline)
+	observation := makeCharacterizationObservation(msg, pipeline, o.sourceSeed)
 	select {
 	case o.queue <- observation:
 	default:
@@ -64,6 +81,7 @@ func (o *characterizationObserver) observe(msg *message.Message, pipeline string
 }
 
 func (o *characterizationObserver) record(observation characterizationObservation) {
+	o.recordSource(observation)
 	hasService := strconv.FormatBool(observation.hasService)
 	hasSource := strconv.FormatBool(observation.hasSource)
 	metrics.TlmCharacterizationIngressEvents.Inc(observation.sourceType, observation.pipeline, hasService, hasSource)
@@ -74,7 +92,27 @@ func (o *characterizationObserver) record(observation characterizationObservatio
 	metrics.TlmCharacterizationTagBytes.Observe(float64(observation.tagBytes), observation.sourceType, observation.pipeline)
 }
 
-func makeCharacterizationObservation(msg *message.Message, pipeline string) characterizationObservation {
+func (o *characterizationObserver) recordSource(observation characterizationObservation) {
+	if !observation.hasSourceID {
+		metrics.TlmCharacterizationSourceIdentityMissing.Inc(observation.sourceType, observation.pipeline)
+		return
+	}
+	identity := characterizationSourceIdentity{sourceType: observation.sourceType, hash: observation.sourceHash}
+	if _, found := o.sourceIDs[identity]; found {
+		return
+	}
+	if len(o.sourceIDs) >= characterizationSourceLimit {
+		metrics.TlmCharacterizationSourceCardinalitySaturated.Set(1, observation.sourceType, observation.pipeline)
+		return
+	}
+	o.sourceIDs[identity] = struct{}{}
+	o.sourceCounts[observation.sourceType]++
+	metrics.TlmCharacterizationSourceCardinality.Set(
+		float64(o.sourceCounts[observation.sourceType]), observation.sourceType, observation.pipeline,
+	)
+}
+
+func makeCharacterizationObservation(msg *message.Message, pipeline string, sourceSeed maphash.Seed) characterizationObservation {
 	observation := characterizationObservation{
 		contentBytes: len(msg.GetContent()),
 		rawBytes:     msg.RawDataLen,
@@ -86,7 +124,22 @@ func makeCharacterizationObservation(msg *message.Message, pipeline string) char
 		observation.hasService = msg.Origin.Service() != ""
 		observation.hasSource = msg.Origin.Source() != ""
 	}
+	observation.sourceHash, observation.hasSourceID = characterizationSourceHash(msg, sourceSeed)
 	return observation
+}
+
+func characterizationSourceHash(msg *message.Message, seed maphash.Seed) (uint64, bool) {
+	if msg.Origin == nil {
+		return 0, false
+	}
+	identifier := msg.Origin.Identifier
+	if identifier == "" {
+		identifier = msg.Origin.FilePath
+	}
+	if identifier == "" {
+		return 0, false
+	}
+	return maphash.String(seed, identifier), true
 }
 
 func characterizationSourceType(msg *message.Message) string {

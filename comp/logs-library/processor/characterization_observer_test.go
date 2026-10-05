@@ -26,7 +26,8 @@ func TestMakeCharacterizationObservation(t *testing.T) {
 	msg.RawDataLen = 7
 	msg.ParsingExtra.Tags = []string{"parser:tag"}
 
-	observation := makeCharacterizationObservation(msg, "2")
+	observer := newCharacterizationObserver()
+	observation := makeCharacterizationObservation(msg, "2", observer.sourceSeed)
 	require.Equal(t, 5, observation.contentBytes)
 	require.Equal(t, 7, observation.rawBytes)
 	require.Equal(t, 2, observation.tagCount)
@@ -52,4 +53,33 @@ func TestCharacterizationSourceTypeIsAllowlisted(t *testing.T) {
 	source := sources.NewLogSource("test", &config.LogsConfig{Type: "secret-custom-type"})
 	msg := message.NewMessageWithSource([]byte("hello"), "info", source, 0)
 	require.Equal(t, "unknown", characterizationSourceType(msg))
+}
+
+func TestCharacterizationSourceCardinalityIsBoundedAndDoesNotRetainIdentifiers(t *testing.T) {
+	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.FileType})
+	observer := newCharacterizationObserver()
+	first := message.NewMessageWithSource([]byte("first"), "info", source, 0)
+	first.Origin.Identifier = "/private/first.log"
+	second := message.NewMessageWithSource([]byte("second"), "info", source, 0)
+	second.Origin.Identifier = "/private/second.log"
+
+	firstObservation := makeCharacterizationObservation(first, "1", observer.sourceSeed)
+	secondObservation := makeCharacterizationObservation(second, "1", observer.sourceSeed)
+	require.NotZero(t, firstObservation.sourceHash)
+	require.NotEqual(t, firstObservation.sourceHash, secondObservation.sourceHash)
+
+	observer.recordSource(firstObservation)
+	observer.recordSource(firstObservation)
+	observer.recordSource(secondObservation)
+	require.Len(t, observer.sourceIDs, 2)
+	require.Equal(t, 2, observer.sourceCounts[config.FileType])
+
+	observer.sourceIDs = make(map[characterizationSourceIdentity]struct{})
+	for index := 0; index < characterizationSourceLimit; index++ {
+		observer.sourceIDs[characterizationSourceIdentity{sourceType: config.FileType, hash: uint64(index + 1)}] = struct{}{}
+	}
+	observer.recordSource(characterizationObservation{
+		sourceType: config.FileType, pipeline: "1", sourceHash: ^uint64(0), hasSourceID: true,
+	})
+	require.Len(t, observer.sourceIDs, characterizationSourceLimit)
 }

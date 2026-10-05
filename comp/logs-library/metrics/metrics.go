@@ -130,6 +130,15 @@ var (
 	// TlmCharacterizationObserverDrops counts observations discarded when the bounded queue is full.
 	TlmCharacterizationObserverDrops = telemetryimpl.GetCompatComponent().NewCounter("logs_characterization", "observer_drops",
 		[]string{"pipeline"}, "Characterization observations dropped because the bounded queue was full")
+	// TlmCharacterizationSourceCardinality records bounded source cardinality without exporting source identifiers.
+	TlmCharacterizationSourceCardinality = telemetryimpl.GetCompatComponent().NewGauge("logs_characterization", "source_cardinality",
+		[]string{"source_type", "pipeline"}, "Distinct source identities observed at Logs pipeline ingress")
+	// TlmCharacterizationSourceIdentityMissing counts messages for which no source identity was available.
+	TlmCharacterizationSourceIdentityMissing = telemetryimpl.GetCompatComponent().NewCounter("logs_characterization", "source_identity_missing",
+		[]string{"source_type", "pipeline"}, "Messages without a source identity at Logs pipeline ingress")
+	// TlmCharacterizationSourceCardinalitySaturated reports that the bounded identity set reached capacity.
+	TlmCharacterizationSourceCardinalitySaturated = telemetryimpl.GetCompatComponent().NewGauge("logs_characterization", "source_cardinality_saturated",
+		[]string{"source_type", "pipeline"}, "Whether the bounded source-cardinality set reached capacity")
 
 	// TlmSyslogMalformedBytes is the total number of malformed bytes seen by the syslog
 	// framer (bytes that do not form a valid RFC 6587 frame).
