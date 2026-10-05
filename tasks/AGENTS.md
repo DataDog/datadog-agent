@@ -187,3 +187,10 @@ py_binary(
 - **CWS syscall testers** — `build_embed_syscall_tester` copies Bazel outputs into
   `pkg/security/tests/syscall_tester/bin` for `//go:embed`. `syscall_x86_tester` stays
   a `manual` cc_binary (`-m32`); the hermetic toolchain has no i386 sysroot.
+
+- **KMT testsuites** — `kmt_sysprobe_prepare` Bazel-builds the `{dir}_test` variant
+  whose `gotags` best cover the KMT build tags (e.g. `gpu_test_bpf_nvml`, not
+  `gpu_test_bpf`: a name-based pick silently drops `nvml`-gated tests) and copies it
+  as `<pkg>/testsuite`. Packages without such a variant, and dyninst test
+  *programs*, stay ninja. `go_test` needs a Linux execution platform
+  (`--platforms=linux_*` in the compiler image). Do not `bazel test` on KMT VMs.

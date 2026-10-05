@@ -17,7 +17,7 @@ from collections import defaultdict
 from collections.abc import Callable, Iterable
 from glob import glob
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
 import gitlab
 import gitlab.exceptions
@@ -52,7 +52,7 @@ from tasks.kernel_matrix_testing.stacks import check_and_get_stack, check_and_ge
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, info, warn
 from tasks.kernel_matrix_testing.types import PlatformInfo, component_from_str
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
-from tasks.libs.build.bazel import bazel, build_binaries_with_bazel
+from tasks.libs.build.bazel import bazel, build_binaries_with_bazel, split_label
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import (
     get_gitlab_job_dependencies,
@@ -60,6 +60,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     post_process_gitlab_ci_configuration,
     resolve_gitlab_ci_configuration,
 )
+from tasks.libs.common.bazel_query import bazel_query
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.go import go_build
@@ -720,6 +721,84 @@ def kmt_bazel_flags(arch: Arch) -> list[str]:
     return [f"--platforms={kmt_linux_platform(arch)}"]
 
 
+def canonical_go_test_label(label: str) -> str:
+    parts = split_label(label)
+    return f"//{parts.package}:{parts.name}"
+
+
+class KMTGoTest(NamedTuple):
+    label: str
+    macro: str  # dd_agent_go_test name the variant was generated from
+    gotags: frozenset[str]
+
+
+def pick_kmt_go_test_target(pkg: str, tests: Iterable[KMTGoTest], kmt_tags: set[str]) -> str | None:
+    """Pick the `{dir}_test` variant whose gotags best cover the tags KMT builds with.
+
+    Variants needing a tag outside kmt_tags, and split go_test rules, are ignored.
+    """
+    prefix = f"//{pkg}:"
+    macro = f"{pkg.rsplit('/', 1)[-1]}_test"
+    candidates = [t for t in tests if t.label.startswith(prefix) and t.macro == macro and t.gotags <= kmt_tags]
+    if not candidates:
+        return None
+    # Ties (bpf vs npm, where npm only gates Windows code) go to bpf: KMT runs the eBPF paths.
+    return max(candidates, key=lambda t: (len(t.gotags), "bpf" in t.gotags)).label
+
+
+def sysprobe_go_test_query() -> str:
+    parts: list[str] = []
+    for p in TEST_PACKAGES_LIST:
+        p = p.removeprefix("./").rstrip("/")
+        if p.endswith("..."):
+            parts.append("//" + p)
+        else:
+            parts.append(f"//{p}:*")
+    return "kind('go_test rule', " + " + ".join(parts) + ")"
+
+
+def query_kmt_go_tests() -> list[KMTGoTest]:
+    tests = []
+    for obj in bazel_query(sysprobe_go_test_query(), lambda o: o.get("type") == "RULE"):
+        rule = obj["rule"]
+        attrs = {a["name"]: a for a in rule.get("attribute", [])}
+        label = canonical_go_test_label(rule["name"])
+        macro = attrs.get("generator_name", {}).get("stringValue") or split_label(label).name
+        tests.append(KMTGoTest(label, macro, frozenset(attrs.get("gotags", {}).get("stringListValue", []))))
+    return tests
+
+
+def stage_kmt_testsuites(kmt_paths: KMTPaths, arch: Arch, packages: list[str], build_tags: list[str]) -> list[str]:
+    """Build matching go_test binaries with Bazel. Return packages that still need ninja."""
+    tests = query_kmt_go_tests()
+    kmt_tags = set(build_tags)
+
+    dest_by_target: dict[str, str] = {}
+    missing: list[str] = []
+    for pkg in packages:
+        rel = os.path.relpath(pkg)
+        go_files = glob(f"{pkg}/*.go")
+        if not any(x.lower().endswith("_test.go") for x in go_files):
+            continue
+        target = pick_kmt_go_test_target(rel, tests, kmt_tags)
+        if target is None:
+            missing.append(pkg)
+            continue
+        dest_by_target[target] = str(kmt_paths.sysprobe_tests / rel / "testsuite")
+
+    if dest_by_target:
+        info("[+] Building KMT testsuites via Bazel...")
+        build_binaries_with_bazel(dest_by_target, args=kmt_bazel_flags(arch))
+
+    for pkg in packages:
+        testdata = Path(pkg) / "testdata"
+        if testdata.is_dir():
+            dest = kmt_paths.sysprobe_tests / os.path.relpath(pkg) / "testdata"
+            shutil.copytree(testdata, dest, dirs_exist_ok=True)
+
+    return missing
+
+
 def stage_kmt_helper_binaries(ctx: Context, kmt_paths: KMTPaths, arch: Arch, *, include_pkg_helpers: bool) -> None:
     """Build KMT helper binaries with Bazel and copy them into the KMT layout."""
     flags = kmt_bazel_flags(arch)
@@ -992,6 +1071,32 @@ def build_run_config(run: str | None, packages: list[str]):
     return c
 
 
+def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: list[str]) -> dict[str, set[str]]:
+    dd_pkg_name = "github.com/DataDog/datadog-agent/"
+    pkg_deps: dict[str, set[str]] = defaultdict(set)
+    if not packages:
+        return pkg_deps
+
+    packages_list = " ".join(packages)
+    list_format = "{{ .ImportPath }}: {{ join .Deps \" \" }}"
+    res = ctx.run(
+        f"go list -buildvcs=false -test -f '{list_format}' -tags \"{','.join(build_tags)}\" {packages_list}", hide=True
+    )
+    if res is None or not res.ok:
+        raise Exit("Failed to get dependencies for system-probe")
+
+    for line in res.stdout.split("\n"):
+        if ":" not in line:
+            continue
+        pkg, deps = line.split(":", 1)
+        deps = [d.strip() for d in deps.split(" ")]
+        dd_deps = [d[len(dd_pkg_name) :] for d in deps if d.startswith(dd_pkg_name)]
+        pkg = pkg.split(" ")[0].removeprefix(dd_pkg_name).removesuffix(".test")
+        pkg_deps[pkg].update(dd_deps)
+
+    return pkg_deps
+
+
 def build_target_packages(filter_packages: list[str], build_tags: list[str]):
     all_packages = go_package_dirs(TEST_PACKAGES_LIST, build_tags)
     if not filter_packages:
@@ -1009,38 +1114,6 @@ def build_object_files(ctx, arch: Arch):
     bazel("test", *ebpf_bazel_flags(arch), "--build_tests_only", "//pkg/ebpf:verify_generated_files")
 
 
-def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: list[str]) -> dict[str, set[str]]:
-    dd_pkg_name = "github.com/DataDog/datadog-agent/"
-    pkg_deps: dict[str, set[str]] = defaultdict(set)
-
-    packages_list = " ".join(packages)
-    list_format = "{{ .ImportPath }}: {{ join .Deps \" \" }}"
-    res = ctx.run(
-        f"go list -buildvcs=false -test -f '{list_format}' -tags \"{','.join(build_tags)}\" {packages_list}", hide=True
-    )
-    if res is None or not res.ok:
-        raise Exit("Failed to get dependencies for system-probe")
-
-    for line in res.stdout.split("\n"):
-        if ":" not in line:
-            continue
-
-        pkg, deps = line.split(":", 1)
-        deps = [d.strip() for d in deps.split(" ")]
-        dd_deps = [d[len(dd_pkg_name) :] for d in deps if d.startswith(dd_pkg_name)]
-
-        # The import path printed by "go list" is usually path/to/pkg  (e.g., pkg/ebpf/verifier).
-        # However, for test packages it might be either:
-        # - path/to/pkg.test
-        # - path/to/pkg [path/to/pkg.test]
-        # In any case all variants refer to the same variant. This code controls for that
-        # so that we keep the usual package name.
-        pkg = pkg.split(" ")[0].removeprefix(dd_pkg_name).removesuffix(".test")
-        pkg_deps[pkg].update(dd_deps)
-
-    return pkg_deps
-
-
 @task
 def kmt_sysprobe_prepare(
     ctx: Context,
@@ -1050,6 +1123,9 @@ def kmt_sysprobe_prepare(
     extra_arguments: str | None = None,
     ci: bool = False,
 ):
+    if extra_arguments:
+        raise Exit("kmt.sysprobe-prepare --extra-arguments is not supported with Bazel testsuites")
+
     if ci:
         stack = "ci"
 
@@ -1058,29 +1134,19 @@ def kmt_sysprobe_prepare(
     assert arch is not None and arch != "local", "No architecture provided"
 
     arch = Arch.from_str(arch)
-    check_for_ninja(ctx)
 
     filter_pkgs = []
     if packages:
         filter_pkgs = packages.split(",")
 
     kmt_paths = KMTPaths(stack, arch)
-    nf_path = os.path.join(kmt_paths.arch_dir, "kmt-sysprobe.ninja")
-
     kmt_paths.arch_dir.mkdir(exist_ok=True, parents=True)
     kmt_paths.dependencies.mkdir(exist_ok=True, parents=True)
 
-    go_path = "go"
-    go_root = os.getenv("GOROOT")
-    if go_root:
-        go_path = os.path.join(go_root, "bin", "go")
-
     build_object_files(ctx, arch)
 
-    info("[+] Computing Go dependencies for test packages...")
     build_tags = get_sysprobe_test_buildtags(False, False)
     target_packages = build_target_packages(filter_pkgs, build_tags)
-    pkg_deps = compute_package_dependencies(ctx, target_packages, build_tags)
 
     info("[+] Building Rust binaries...")
     build_rust_binaries(
@@ -1090,51 +1156,40 @@ def kmt_sysprobe_prepare(
         packages=[os.path.relpath(p, os.getcwd()) for p in target_packages],
     )
 
-    info("[+] Generating build instructions..")
-    with open(nf_path, 'w') as ninja_file:
-        nw = NinjaWriter(ninja_file)
+    schema_codegen(ctx)
+    ninja_pkgs = stage_kmt_testsuites(kmt_paths, arch, target_packages, build_tags)
+    wants_dyninst = any(os.path.relpath(p).startswith("pkg/dyninst") for p in target_packages)
 
+    if ninja_pkgs or wants_dyninst:
+        check_for_ninja(ctx)
+        go_path = "go"
+        go_root = os.getenv("GOROOT")
+        if go_root:
+            go_path = os.path.join(go_root, "bin", "go")
+        nf_path = os.path.join(kmt_paths.arch_dir, "kmt-sysprobe.ninja")
+        pkg_deps = compute_package_dependencies(ctx, ninja_pkgs, build_tags) if ninja_pkgs else {}
         _, _, env = get_build_flags(ctx, arch=arch)
         env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
-
-        env_str = ""
-        for key, val in env.items():
-            new_val = val.replace('\n', ' ')
-            env_str += f"{key}='{new_val}' "
-        env_str = env_str.rstrip()
-
-        ninja_define_rules(nw, debug=True, ci=ci)
-        ninja_add_dyninst_test_programs(
-            ctx,
-            nw,
-            kmt_paths.sysprobe_tests,
-            go_path,
-        )
-
-        build_tags = get_sysprobe_test_buildtags(False, False)
-        for pkg in target_packages:
-            pkg_name = os.path.relpath(pkg, os.getcwd())
-            target_path = os.path.join(kmt_paths.sysprobe_tests, pkg_name)
-            output_path = os.path.join(target_path, "testsuite")
-            variables = {
-                "env": env_str,
-                "go": go_path,
-                "build_tags": ",".join(build_tags),
-            }
-            timeout = get_test_timeout(os.path.relpath(pkg, os.getcwd()))
-            if timeout:
-                variables["timeout"] = f"-timeout {timeout}"
-            if extra_arguments:
-                variables["extra_arguments"] = extra_arguments
-
-            go_files = set(glob(f"{pkg}/*.go"))
-            has_test_files = any(x.lower().endswith("_test.go") for x in go_files)
-
-            # skip packages without test files
-            if has_test_files:
-                for deps in pkg_deps[pkg_name]:
+        env_str = " ".join(f"{k}='{v.replace(chr(10), ' ')}'" for k, v in env.items())
+        with open(nf_path, "w") as ninja_file:
+            nw = NinjaWriter(ninja_file)
+            ninja_define_rules(nw, debug=True, ci=ci)
+            if wants_dyninst:
+                ninja_add_dyninst_test_programs(ctx, nw, kmt_paths.sysprobe_tests, go_path)
+            for pkg in ninja_pkgs:
+                pkg_name = os.path.relpath(pkg)
+                output_path = os.path.join(kmt_paths.sysprobe_tests, pkg_name, "testsuite")
+                variables = {
+                    "env": env_str,
+                    "go": go_path,
+                    "build_tags": ",".join(build_tags),
+                }
+                timeout = get_test_timeout(pkg_name)
+                if timeout:
+                    variables["timeout"] = f"-timeout {timeout}"
+                go_files = set(glob(f"{pkg}/*.go"))
+                for deps in pkg_deps.get(pkg_name, ()):
                     go_files.update(os.path.abspath(p) for p in glob(f"{deps}/*.go"))
-
                 nw.build(
                     inputs=[pkg],
                     outputs=[output_path],
@@ -1143,23 +1198,8 @@ def kmt_sysprobe_prepare(
                     pool="gobuild",
                     variables=variables,
                 )
-
-        # handle testutils and testdata separately since they are
-        # shared across packages
-        target_pkgs = build_target_packages([], build_tags)
-        for pkg in target_pkgs:
-            target_path = os.path.join(kmt_paths.sysprobe_tests, os.path.relpath(pkg, os.getcwd()))
-
-            testdata = os.path.join(pkg, "testdata")
-            if os.path.exists(testdata):
-                nw.build(inputs=[testdata], outputs=[os.path.join(target_path, "testdata")], rule="copyextra")
-
-    info("[+] Compiling tests...")
-
-    # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx)
-
-    ctx.run(f"ninja -d explain -v -f {nf_path}")
+        info("[+] Compiling leftover testsuites with ninja...")
+        ctx.run(f"ninja -d explain -v -f {nf_path}")
 
     # After testdata copy so cudasample lands in the copied testdata dir, not under it.
     stage_kmt_helper_binaries(ctx, kmt_paths, arch, include_pkg_helpers=True)

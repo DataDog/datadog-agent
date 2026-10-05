@@ -114,3 +114,51 @@ class TestKMTHelperTargets(unittest.TestCase):
 
         self.assertTrue((repo / "pkg/gpu/testdata/cudasample.c").is_file())
         self.assertTrue((repo / "pkg/gpu/testdata/BUILD.bazel").is_file())
+
+
+class TestKMTGoTestTargetPick(unittest.TestCase):
+    KMT_TAGS = {"bpf", "ec2", "netcgo", "npm", "nvml", "test", "zlib"}
+
+    @staticmethod
+    def _go_test(label: str, macro: str, *gotags: str):
+        from tasks.kmt import KMTGoTest
+
+        return KMTGoTest(label, macro, frozenset(gotags))
+
+    def _pick(self, pkg, tests):
+        from tasks.kmt import pick_kmt_go_test_target
+
+        return pick_kmt_go_test_target(pkg, tests, self.KMT_TAGS)
+
+    def test_prefers_variant_covering_most_kmt_tags(self):
+        tests = [
+            self._go_test("//pkg/gpu:gpu_test", "gpu_test", "test"),
+            self._go_test("//pkg/gpu:gpu_test_bpf", "gpu_test", "bpf", "test"),
+            self._go_test("//pkg/gpu:gpu_test_bpf_nvml", "gpu_test", "bpf", "nvml", "test"),
+        ]
+        self.assertEqual(self._pick("pkg/gpu", tests), "//pkg/gpu:gpu_test_bpf_nvml")
+
+    def test_ties_go_to_bpf(self):
+        tests = [
+            self._go_test("//pkg/network/usm:usm_test_npm", "usm_test", "npm", "test"),
+            self._go_test("//pkg/network/usm:usm_test_bpf", "usm_test", "bpf", "test"),
+        ]
+        self.assertEqual(self._pick("pkg/network/usm", tests), "//pkg/network/usm:usm_test_bpf")
+
+    def test_skips_variants_needing_tags_kmt_does_not_build(self):
+        tests = [
+            self._go_test("//pkg/foo:foo_test", "foo_test", "test"),
+            self._go_test("//pkg/foo:foo_test_docker", "foo_test", "docker", "test"),
+        ]
+        self.assertEqual(self._pick("pkg/foo", tests), "//pkg/foo:foo_test")
+
+    def test_ignores_split_go_test_rules(self):
+        tests = [
+            self._go_test("//pkg/dyninst/loader:relocations_test_bpf", "relocations_test", "bpf", "test"),
+            self._go_test("//pkg/dyninst/loader:stats_test_bpf", "stats_test", "bpf", "test"),
+        ]
+        self.assertIsNone(self._pick("pkg/dyninst/loader", tests))
+
+    def test_missing_package(self):
+        tests = [self._go_test("//pkg/ebpf:ebpf_test_bpf", "ebpf_test", "bpf", "test")]
+        self.assertIsNone(self._pick("pkg/network/usm", tests))

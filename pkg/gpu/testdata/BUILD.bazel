@@ -14,3 +14,16 @@ cc_binary(
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )
+
+# testdata/ is its own package because of the cc_binary above; //pkg/gpu cannot glob it.
+filegroup(
+    name = "testdata_files",
+    srcs = [
+        "common_functions.h",
+        "cudarate.c",
+        "cudasample.c",
+        "pytorch_batched_kernels.ndjson",
+        ":cudasample",
+    ],
+    visibility = ["//pkg/gpu:__pkg__"],
+)
