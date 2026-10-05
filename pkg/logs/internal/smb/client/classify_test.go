@@ -14,7 +14,6 @@ import (
 	"os"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -92,8 +91,8 @@ func TestClassify(t *testing.T) {
 
 		// A server status wins over the wrapping.
 		{"status inside fmt wrapping", fmt.Errorf("read: %w", pathErr(status(statusSharingViolation))), ErrSharing},
-		{"status inside backoff error", &backoffError{target: "smb://h/s", retryIn: time.Second, err: status(statusLogonFailure)}, ErrAuth},
-		{"transient inside backoff error", &backoffError{target: "smb://h/s", retryIn: time.Second, err: dialRefused}, ErrTransient},
+		{"status inside backoff error", &backoffError{err: status(statusLogonFailure)}, ErrAuth},
+		{"transient inside backoff error", &backoffError{err: dialRefused}, ErrTransient},
 		{"redacted error keeps its kind", &redactedError{msg: "x", kind: ErrSharing}, ErrSharing},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

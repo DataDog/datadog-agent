@@ -39,6 +39,10 @@ const (
 	// drainCaughtUpPolls is how many consecutive polls must find no new data
 	// in a rotated file, already read to its end, before its drain ends.
 	drainCaughtUpPolls = 2
+	// blockedReportAfter is how long a matched file may keep failing to open
+	// with a sharing violation or a not found error, as it does for a moment
+	// during a rotation, before the source status reports it.
+	blockedReportAfter = 30 * time.Second
 )
 
 // errFIPS is the status of smb sources in FIPS builds.
@@ -71,8 +75,10 @@ type Launcher struct {
 	// Owned by the run goroutine.
 	scanners     map[*sources.LogSource]*scanner
 	refused      map[*sources.LogSource]bool // added but not started (invalid, FIPS)
+	replaced     map[*sources.LogSource]bool // stopped for a newer source of the same configuration
 	removedEarly map[*sources.LogSource]bool // removal delivered before the addition
 	clients      map[clientKey]*sharedClient
+	closing      map[client.Client]chan struct{} // clients logging off in the background; the channel closes when done
 }
 
 // NewLauncher returns a Launcher. closeTimeout bounds how long a rotated file
@@ -88,8 +94,10 @@ func NewLauncher(closeTimeout time.Duration) *Launcher {
 		removedDone:  make(chan struct{}),
 		scanners:     make(map[*sources.LogSource]*scanner),
 		refused:      make(map[*sources.LogSource]bool),
+		replaced:     make(map[*sources.LogSource]bool),
 		removedEarly: make(map[*sources.LogSource]bool),
 		clients:      make(map[clientKey]*sharedClient),
+		closing:      make(map[client.Client]chan struct{}),
 	}
 }
 
@@ -112,8 +120,8 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 // closes the SMB clients. It is safe to call when Start never ran.
 //
 // Stop does not wait for the server: cancelling the scanners' context ends
-// their SMB calls, and the client aborts a session whose call keeps running
-// after that.
+// their SMB calls, the client aborts a session whose call keeps running after
+// that, and the sessions are then aborted rather than logged off.
 func (l *Launcher) Stop() {
 	l.stopOnce.Do(func() {
 		if l.cancel == nil {
@@ -144,7 +152,7 @@ func (l *Launcher) run(ctx context.Context, added, removed chan *sources.LogSour
 // addSource starts a scanner for source. Sources replayed by the subscription
 // skipped validation, so every source is validated again here.
 func (l *Launcher) addSource(ctx context.Context, source *sources.LogSource) {
-	if _, ok := l.scanners[source]; ok || l.refused[source] {
+	if _, ok := l.scanners[source]; ok || l.refused[source] || l.replaced[source] {
 		return
 	}
 	if l.removedEarly[source] {
@@ -160,9 +168,76 @@ func (l *Launcher) addSource(ctx context.Context, source *sources.LogSource) {
 		return
 	}
 	key, c := l.acquireClient(source.Config.SMB)
-	s := newScanner(l, source, c, key)
+	s, err := newScanner(l, source, c, key)
+	if err != nil {
+		l.releaseClient(key)
+		l.refuse(source, err)
+		return
+	}
+	for _, previous := range l.previousSources(source) {
+		l.replace(previous, s)
+	}
 	l.scanners[source] = s
 	s.start(ctx)
+}
+
+// previousSources returns the running and refused sources that source
+// replaces: those created from the same configuration entry (the same item of
+// the same integration config). Autodiscovery schedules a conf.d config again
+// without unscheduling it when its secrets are refreshed (the logs scheduler
+// cannot unschedule a config without a service), so the refreshed source,
+// with the new password, arrives next to the old one.
+func (l *Launcher) previousSources(source *sources.LogSource) []*sources.LogSource {
+	entry, ok := configEntryOf(source)
+	if !ok {
+		return nil
+	}
+	var previous []*sources.LogSource
+	for candidate := range l.scanners {
+		if e, ok := configEntryOf(candidate); ok && e == entry {
+			previous = append(previous, candidate)
+		}
+	}
+	for candidate := range l.refused {
+		if e, ok := configEntryOf(candidate); ok && e == entry {
+			previous = append(previous, candidate)
+		}
+	}
+	return previous
+}
+
+// replace stops previous, which next (not started yet) replaces: next resumes
+// previous's files where previous stopped reading them, and previous is hidden
+// from agent status. A later removal of previous is ignored.
+func (l *Launcher) replace(previous *sources.LogSource, next *scanner) {
+	log.Infof("SMB source %s was configured again (for example after a secret refresh): the new configuration replaces the previous one", previous.Name)
+	if s, ok := l.scanners[previous]; ok {
+		delete(l.scanners, previous)
+		s.Stop() // releases its files, so next can claim them
+		next.resumeFrom(s)
+		l.releaseClient(s.clientKey)
+	}
+	delete(l.refused, previous)
+	l.replaced[previous] = true
+	previous.HideFromStatus()
+}
+
+// configEntry identifies the configuration entry a source was created from.
+type configEntry struct {
+	name       string
+	file       string // the integration config's source, e.g. file:/etc/datadog-agent/conf.d/app.d/conf.yaml
+	index      int    // the entry's index in the config's logs list
+	identifier string // the service, for autodiscovered configs
+}
+
+// configEntryOf returns the configuration entry of source, if it comes from an
+// integration config.
+func configEntryOf(source *sources.LogSource) (configEntry, bool) {
+	cfg := source.Config
+	if cfg.IntegrationSource == "" {
+		return configEntry{}, false
+	}
+	return configEntry{name: source.Name, file: cfg.IntegrationSource, index: cfg.IntegrationSourceIndex, identifier: cfg.Identifier}, true
 }
 
 func (l *Launcher) refuse(source *sources.LogSource, err error) {
@@ -174,8 +249,9 @@ func (l *Launcher) refuse(source *sources.LogSource, err error) {
 
 // removeSource stops source's scanner, which stops its tailers.
 func (l *Launcher) removeSource(source *sources.LogSource) {
-	if l.refused[source] {
+	if l.refused[source] || l.replaced[source] {
 		delete(l.refused, source)
+		delete(l.replaced, source)
 		return
 	}
 	s, ok := l.scanners[source]
@@ -195,11 +271,21 @@ func (l *Launcher) stopAll() {
 		delete(l.scanners, source)
 	}
 	stopper.Stop()
+	// Abort the sessions rather than log them off, which can take seconds per
+	// session with a server that stopped answering, and cut short the logoffs
+	// of removed sources' sessions. No handle outlives an SMB call, so the
+	// server has nothing to clean up but the sessions, which it drops with
+	// their connections.
 	for key, shared := range l.clients {
-		if err := shared.client.Close(); err != nil {
+		if err := client.Abort(shared.client); err != nil {
 			log.Debugf("Error closing SMB client: %v", err)
 		}
 		delete(l.clients, key)
+	}
+	for c, done := range l.closing {
+		_ = client.Abort(c)
+		<-done
+		delete(l.closing, c)
 	}
 	// The tracker outlives this launcher (it survives agent restarts), so it
 	// must not keep listing stopped tailers.
@@ -210,8 +296,8 @@ func (l *Launcher) stopAll() {
 
 // clientKey identifies the sources that can share an SMB session: same
 // server, share and account. The password is part of it so a source whose
-// secret was refreshed does not reuse a session opened with the old one; the
-// key is never printed.
+// secret was refreshed (see previousSources) does not reuse a session opened
+// with the old one; the key is never printed.
 type clientKey struct {
 	host     string
 	port     int
@@ -261,9 +347,24 @@ func (l *Launcher) releaseClient(key clientKey) {
 		return
 	}
 	delete(l.clients, key)
-	if err := shared.client.Close(); err != nil {
-		log.Debugf("Error closing SMB client: %v", err)
+	for c, done := range l.closing {
+		select {
+		case <-done:
+			delete(l.closing, c)
+		default:
+		}
 	}
+	// Log off in the background: the run goroutine also serves source
+	// additions and removals, which must not wait for the server. stopAll
+	// cuts the logoff short.
+	done := make(chan struct{})
+	l.closing[shared.client] = done
+	go func() {
+		defer close(done)
+		if err := shared.client.Close(); err != nil {
+			log.Debugf("Error closing SMB client: %v", err)
+		}
+	}()
 }
 
 // claims makes sure two sources never tail the same file: two tailers

@@ -7,7 +7,6 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -19,6 +18,10 @@ import (
 const (
 	initialBackoff = time.Second
 	maxBackoff     = 30 * time.Second
+	// stableSession is how long a session must stay up for its loss to be
+	// routine (an expired session, a server failover): it is then replaced
+	// right away. A session lost sooner counts as a failed connection attempt.
+	stableSession = 30 * time.Second
 )
 
 // Option configures NewReconnecting.
@@ -37,13 +40,17 @@ func WithClock(clk clock.Clock) Option {
 // NewReconnecting returns a Client that dials lazily, on its first call, and
 // replaces its session after a Transient error.
 //
-// After a Transient error the session is dropped and the next call dials
-// again right away. A failed dial makes the following calls fail fast, without
-// dialing, for an exponential backoff (1s, 2s, 4s, ... capped at 30s) that
-// resets after a successful dial. An Auth dial failure (bad password, locked
-// account, unknown share) waits the full 30s between attempts, so a wrong
-// password does not hammer the domain controller. Calls made during a backoff
-// return an error that classifies like the dial failure that started it.
+// A failed dial, and a session lost to a Transient error less than 30s after
+// it was dialed, count as failed connection attempts: the following calls fail
+// fast, without dialing, for an exponential backoff (1s, 2s, 4s, ... capped at
+// 30s). So a server that accepts sessions but fails every request (overloaded,
+// throttling) gets one new session per backoff period, not one per call. The
+// backoff resets when a session stays up for 30s; the loss of such a session
+// is routine (it expired, the server failed over), and the next call dials
+// again right away. An Auth dial failure (bad password, locked account,
+// unknown share) waits the full 30s between attempts, so a wrong password does
+// not hammer the domain controller. Calls made during a backoff return an
+// error that classifies like the failure that started it.
 //
 // Errors other than Transient (NotFound, Sharing, Auth on one file) keep the
 // session. So does an error caused by the caller's own context ending, because
@@ -70,10 +77,13 @@ type reconnecting struct {
 
 	mu      sync.Mutex
 	cur     Client        // nil when not connected
+	since   time.Time     // when cur was dialed
 	dialing chan struct{} // closed when the dial in progress ends
 	closed  bool
+	closing Client // the session Close logs off, which Abort can cut short
 
-	// Backoff state, set by failed dials and reset by a successful one.
+	// Backoff state, set by failed connection attempts and reset by a stable
+	// session (see NewReconnecting).
 	failures int
 	retryAt  time.Time
 	lastErr  error
@@ -105,22 +115,45 @@ func (r *reconnecting) ReadAt(ctx context.Context, path string, off int64, maxLe
 	return res, nil
 }
 
-// Close implements Client. It does not wait for a dial in progress; that dial
-// closes its session as soon as it completes.
+// Close implements Client. It logs the session off, which can take a few
+// seconds with a server that stopped answering; Abort cuts it short. It does
+// not wait for a dial in progress; that dial closes its session as soon as it
+// completes.
 func (r *reconnecting) Close() error {
+	c := r.shutdown()
+	if c == nil {
+		return nil
+	}
+	return r.redact(c.Close())
+}
+
+// Abort closes the client like Close, but drops the session's connection
+// without logging off, so it never waits for the server, and cuts short a
+// Close waiting for its LOGOFF. See the Abort function.
+func (r *reconnecting) Abort() error {
+	r.shutdown()
 	r.mu.Lock()
+	c := r.closing
+	r.mu.Unlock()
+	if c == nil {
+		return nil
+	}
+	return r.redact(Abort(c))
+}
+
+// shutdown marks the client closed and returns its session, which the caller
+// must close, or nil if it has none or was already closed.
+func (r *reconnecting) shutdown() Client {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.closed {
-		r.mu.Unlock()
 		return nil
 	}
 	r.closed = true
 	c := r.cur
 	r.cur = nil
-	r.mu.Unlock()
-	if c == nil {
-		return nil
-	}
-	return r.redact(c.Close())
+	r.closing = c
+	return c
 }
 
 // String implements fmt.Stringer, so printing the client never prints its
@@ -153,8 +186,8 @@ func (r *reconnecting) session(ctx context.Context) (Client, error) {
 				return nil, ctx.Err()
 			}
 		}
-		if now := r.clock.Now(); now.Before(r.retryAt) {
-			err := &backoffError{target: r.target, retryIn: r.retryAt.Sub(now), err: r.lastErr}
+		if r.clock.Now().Before(r.retryAt) {
+			err := &backoffError{err: r.lastErr}
 			r.mu.Unlock()
 			return nil, err
 		}
@@ -181,18 +214,18 @@ func (r *reconnecting) session(ctx context.Context) (Client, error) {
 			return nil, err
 		case r.closed:
 			r.mu.Unlock()
-			_ = c.Close()
+			_ = Abort(c) // never used: dropping the connection is enough
 			return nil, ErrClosed
 		}
-		r.cur = c
-		r.failures, r.retryAt, r.lastErr = 0, time.Time{}, nil
+		r.cur, r.since = c, r.clock.Now()
 		r.mu.Unlock()
 		log.Infof("smb: connected to %s", r.target)
 		return c, nil
 	}
 }
 
-// recordFailure schedules the next dial attempt. r.mu must be held.
+// recordFailure records a failed connection attempt and schedules the next
+// dial. r.mu must be held.
 func (r *reconnecting) recordFailure(err error) time.Duration {
 	r.failures++
 	delay := maxBackoff
@@ -216,13 +249,19 @@ func (r *reconnecting) failed(ctx context.Context, c Client, err error) error {
 		return err
 	}
 	r.cur = nil
-	r.mu.Unlock()
-	log.Infof("smb: session to %s lost, reconnecting: %v", r.target, err)
-	if a, ok := c.(interface{ abort() }); ok {
-		a.abort() // the session is broken: skip LOGOFF
+	var delay time.Duration
+	if r.clock.Since(r.since) >= stableSession {
+		r.failures, r.retryAt, r.lastErr = 0, time.Time{}, nil
 	} else {
-		_ = c.Close()
+		delay = r.recordFailure(err)
 	}
+	r.mu.Unlock()
+	if delay > 0 {
+		log.Warnf("smb: session to %s lost shortly after it was established, next attempt in %s: %v", r.target, delay, err)
+	} else {
+		log.Infof("smb: session to %s lost, reconnecting: %v", r.target, err)
+	}
+	_ = Abort(c) // the session is broken: skip LOGOFF
 	return err
 }
 
@@ -231,18 +270,19 @@ func (r *reconnecting) redact(err error) error {
 }
 
 // backoffError is returned while a reconnection attempt is not due yet. It
-// unwraps to the dial error that started the backoff, so it classifies the
-// same way.
+// unwraps to the error that started the backoff, so it classifies the same
+// way.
 type backoffError struct {
-	target  string
-	retryIn time.Duration
-	err     error
+	err error
 }
 
+// Error returns the message of the dial error that started the backoff. It
+// leaves out the wait, which the dial failure's log line already gives: a
+// message that changed on every call would defeat the deduplication of the
+// launcher's status warnings, which would then log one per poll while the
+// server is down.
 func (e *backoffError) Error() string {
-	// Round up so a sub-second wait does not read as "0s".
-	retryIn := (e.retryIn + time.Second - 1).Truncate(time.Second)
-	return fmt.Sprintf("smb: not connected to %s (next attempt in %s): %v", e.target, retryIn, e.err)
+	return e.err.Error()
 }
 
 func (e *backoffError) Unwrap() error { return e.err }

@@ -186,6 +186,105 @@ func TestLauncherStopWithoutStart(_ *testing.T) {
 	l.Stop()
 }
 
+// returnsWithin fails the test if fn does not return within testTimeout.
+func returnsWithin(t *testing.T, msg string, fn func()) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		fn()
+	}()
+	select {
+	case <-done:
+	case <-time.After(testTimeout):
+		require.FailNow(t, msg)
+	}
+}
+
+func TestLauncherStopDoesNotWaitForLogoffs(t *testing.T) {
+	st := startLauncher(t)
+	st.share.Write("app/app.log", []byte(lines(1, 1)))
+	// One session per share, as with sources on several shares of a server.
+	for _, share := range []string{"a", "b", "c"} {
+		st.sources.AddSource(newSMBSource(share, func(c *config.LogsConfig) { c.SMB.Share = share }))
+	}
+	st.out.waitLines(t, 3)
+	require.Equal(t, 3, st.share.LiveSessions())
+
+	st.share.SetLogoffLatency(time.Hour) // the server stopped answering
+	returnsWithin(t, "Stop waited for the logoffs", st.launcher.Stop)
+	assert.Zero(t, st.share.LiveSessions(), "the sessions were aborted")
+	assert.Zero(t, st.share.Calls(fake.OpLogoff))
+}
+
+func TestLauncherSourceRemovalDoesNotWaitForTheLogoff(t *testing.T) {
+	st := startLauncher(t)
+	st.share.Write("app/app.log", []byte(lines(1, 1)))
+	first := newSMBSource("first", func(c *config.LogsConfig) { c.SMB.Share = "a" })
+	st.sources.AddSource(first)
+	st.out.waitLines(t, 1)
+
+	st.share.SetLogoffLatency(time.Hour) // the server stopped answering
+	returnsWithin(t, "the source removal and the next addition waited for the logoff", func() {
+		st.sources.RemoveSource(first)
+		st.sources.AddSource(newSMBSource("second", func(c *config.LogsConfig) { c.SMB.Share = "b" }))
+	})
+	st.out.waitLines(t, 2)
+	st.waitFor(t, func() bool { return st.share.Calls(fake.OpLogoff) == 1 }, "the removed source's session logs off in the background")
+
+	returnsWithin(t, "Stop waited for the logoff", st.launcher.Stop)
+	assert.Zero(t, st.share.LiveSessions(), "Stop cut the logoff short")
+}
+
+// TestLauncherReplacesASourceScheduledAgain covers a secret refresh:
+// autodiscovery schedules a conf.d config again, with the new password, without
+// removing the source it created before.
+func TestLauncherReplacesASourceScheduledAgain(t *testing.T) {
+	st := startLauncher(t)
+	st.share.Write("app/app.log", []byte(lines(1, 2)))
+	entry := func(password string) *sources.LogSource {
+		return newSMBSource("demo", func(c *config.LogsConfig) {
+			c.IntegrationSource = "file:/etc/datadog-agent/conf.d/demo.d/conf.yaml"
+			c.IntegrationSourceIndex = 0
+			c.SMB.Password = password
+		})
+	}
+	previous := entry("old-key")
+	st.sources.AddSource(previous)
+	st.out.waitLines(t, 2)
+	// Another entry of the same file is a different source.
+	other := newSMBSource("demo", func(c *config.LogsConfig) {
+		c.IntegrationSource = "file:/etc/datadog-agent/conf.d/demo.d/conf.yaml"
+		c.IntegrationSourceIndex = 1
+		c.Path = "app/other.log"
+		c.SMB.Password = "other-key"
+	})
+	st.sources.AddSource(other)
+	st.waitFor(t, func() bool { return other.Status().IsSuccess() }, "other entry scanned")
+	require.Equal(t, 2, st.share.Calls(fake.OpDial))
+
+	st.share.Append("app/app.log", []byte(lines(3, 3)))
+	refreshed := entry("new-key")
+	st.sources.AddSource(refreshed)
+	st.waitFor(t, func() bool { return len(refreshed.GetInputs()) == 1 }, "the refreshed source tails the file")
+	assert.Equal(t, []string{identifier("app/app.log")}, refreshed.GetInputs())
+	assert.Empty(t, previous.GetInputs())
+	assert.True(t, previous.IsHiddenFromStatus(), "agent status does not list the replaced source")
+	assert.False(t, other.IsHiddenFromStatus())
+	assert.Equal(t, 3, st.share.Calls(fake.OpDial), "the refreshed source dials with the new password")
+	st.waitFor(t, func() bool { return st.share.LiveSessions() == 2 }, "the old password's session is closed")
+
+	// A late removal of the replaced source does not touch the new one.
+	st.sources.RemoveSource(previous)
+	st.share.Append("app/app.log", []byte(lines(4, 4)))
+	st.clock.Add(time.Second)
+	st.out.waitLines(t, 4)
+
+	st.launcher.Stop()
+	st.out.flush()
+	assert.Equal(t, want(1, 4), st.out.lines(), "nothing is read twice or skipped across the replacement")
+}
+
 func TestLauncherStopDoesNotWaitForTheServer(t *testing.T) {
 	st := startLauncher(t)
 	st.share.SetLatency(time.Hour) // a server that never answers

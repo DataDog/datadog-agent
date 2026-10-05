@@ -230,6 +230,7 @@ func TestInjectedErrors(t *testing.T) {
 	assert.Equal(t, client.ErrAuth, client.Classify(err))
 	_, err = sess.ListDir(ctx, "")
 	assert.NoError(t, err)
+	assert.Equal(t, client.ErrTransient, client.Classify(ErrOverloaded))
 
 	assert.Equal(t, 5, s.Calls(OpReadAt), "failed calls count too")
 	assert.Equal(t, 2, s.Calls(OpListDir))
@@ -284,24 +285,55 @@ func TestHookAndOpenHandles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "new!", string(res.Data))
 
-	// A handle is open only while ReadAt runs.
-	s.SetLatency(50 * time.Millisecond)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		_, _ = sess.ReadAt(ctx, "app.log", 0, 1)
-	}()
-	assert.Eventually(t, func() bool { return s.OpenHandles() == 1 }, time.Second, time.Millisecond)
-	<-done
-	assert.Zero(t, s.OpenHandles())
-
-	// Latency gives way to the context.
+	// A handle is open only while ReadAt runs. The read lasts until it is
+	// canceled, so the open handle is seen however the goroutines are
+	// scheduled.
 	s.SetLatency(time.Hour)
+	rctx, cancelRead := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	go func() {
+		_, err := sess.ReadAt(rctx, "app.log", 0, 1)
+		done <- err
+	}()
+	require.Eventually(t, func() bool { return s.OpenHandles() == 1 }, 5*time.Second, time.Millisecond)
+	cancelRead()
+	assert.ErrorIs(t, <-done, context.Canceled, "latency gives way to the context")
+	assert.Zero(t, s.OpenHandles(), "a canceled read releases its handle")
+
 	tctx, cancel := context.WithTimeout(ctx, 20*time.Millisecond)
 	defer cancel()
 	_, err = sess.ReadAt(tctx, "app.log", 0, 1)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
-	assert.Zero(t, s.OpenHandles(), "a canceled read releases its handle")
+	assert.Zero(t, s.OpenHandles())
+}
+
+func TestLogoffLatencyAndAbort(t *testing.T) {
+	s := New()
+	s.SetLogoffLatency(time.Hour) // a server that never answers LOGOFF
+	sess := s.NewSession()
+
+	closed := make(chan error, 1)
+	go func() { closed <- sess.Close() }()
+	require.Eventually(t, func() bool { return s.Calls(OpLogoff) == 1 }, 5*time.Second, time.Millisecond)
+	assert.Equal(t, 1, s.LiveSessions(), "a session logging off is still live")
+	select {
+	case <-closed:
+		require.FailNow(t, "Close did not wait for the logoff")
+	default:
+	}
+
+	require.NoError(t, sess.Abort())
+	assert.NoError(t, <-closed, "Abort cuts the logoff short")
+	assert.Zero(t, s.LiveSessions())
+	require.NoError(t, sess.Abort(), "Abort is idempotent")
+	require.NoError(t, sess.Close())
+	assert.Equal(t, 1, s.Calls(OpLogoff), "a closed session does not log off again")
+
+	other := s.NewSession()
+	require.NoError(t, other.Abort())
+	assert.Zero(t, s.LiveSessions())
+	_, err := other.ListDir(ctx, "")
+	assert.ErrorIs(t, err, client.ErrClosed)
 }
 
 func TestReadAtRejectsBadArguments(t *testing.T) {

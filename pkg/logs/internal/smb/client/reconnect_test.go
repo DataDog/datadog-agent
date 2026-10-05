@@ -79,7 +79,7 @@ func TestReconnectingDialsLazilyAndOnce(t *testing.T) {
 }
 
 func TestReconnectingRedialsAfterTransientErrorAndResumes(t *testing.T) {
-	c, share, _ := newClient(t)
+	c, share, clk := newClient(t)
 	ctx := context.Background()
 	share.Write("a.log", []byte("line 1\n"))
 
@@ -87,6 +87,8 @@ func TestReconnectingRedialsAfterTransientErrorAndResumes(t *testing.T) {
 	require.NoError(t, err)
 	offset := int64(len(res.Data))
 
+	// The session served for 30s before it expired: a routine loss.
+	clk.Add(30 * time.Second)
 	share.Append("a.log", []byte("line 2\n"))
 	share.DropSessions()
 	_, err = c.ReadAt(ctx, "a.log", offset, 100)
@@ -96,7 +98,7 @@ func TestReconnectingRedialsAfterTransientErrorAndResumes(t *testing.T) {
 
 	// The caller retries from the offset it kept: no bytes are read twice.
 	res, err = c.ReadAt(ctx, "a.log", offset, 100)
-	require.NoError(t, err, "the first call after a drop redials without waiting")
+	require.NoError(t, err, "the first call after the loss of a stable session redials without waiting")
 	assert.Equal(t, "line 2\n", string(res.Data))
 	assert.Equal(t, 2, share.Calls(fake.OpDial))
 	assert.Equal(t, 1, share.LiveSessions())
@@ -112,26 +114,30 @@ func TestReconnectingBacksOffExponentially(t *testing.T) {
 
 	dials := 0
 	for _, wait := range []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second, 30 * time.Second, 30 * time.Second} {
-		_, err := c.ListDir(ctx, "")
+		_, dialErr := c.ListDir(ctx, "")
 		dials++
-		require.Error(t, err)
-		assert.Equal(t, client.ErrTransient, client.Classify(err))
+		require.Error(t, dialErr)
+		assert.Equal(t, client.ErrTransient, client.Classify(dialErr))
 		assert.Equal(t, dials, share.Calls(fake.OpDial))
 
 		// Until the delay has passed, calls fail fast without dialing, with
-		// an error that classifies like the dial failure.
+		// an error that classifies like the dial failure. Its message is the
+		// dial failure's, unchanged however long the wait left: the launcher
+		// only warns again when its status message changes.
 		clk.Add(wait - time.Millisecond)
-		_, err = c.ListDir(ctx, "")
+		_, err := c.ListDir(ctx, "")
 		require.Error(t, err)
 		assert.Equal(t, client.ErrTransient, client.Classify(err))
-		assert.Contains(t, err.Error(), "next attempt in 1s")
+		assert.Equal(t, dialErr.Error(), err.Error())
 		assert.Equal(t, dials, share.Calls(fake.OpDial), "no dial during the backoff (%s)", wait)
 		clk.Add(time.Millisecond)
 	}
 
-	// The dial succeeds: the backoff resets.
+	// The dial succeeds, and the session stays up for 30s: the backoff
+	// resets.
 	_, err := c.ListDir(ctx, "")
 	require.NoError(t, err)
+	clk.Add(30 * time.Second)
 
 	share.DropSessions()
 	_, err = c.ListDir(ctx, "")
@@ -142,6 +148,49 @@ func TestReconnectingBacksOffExponentially(t *testing.T) {
 	clk.Add(time.Second)
 	_, err = c.ListDir(ctx, "")
 	require.NoError(t, err, "the backoff started over at 1s")
+}
+
+// TestReconnectingBacksOffWhenNewSessionsKeepFailing covers a server that
+// accepts sessions but fails every request with a Transient error (overloaded
+// or throttling): each failure drops the session, and a new session is dialed
+// once per backoff period, not once per call.
+func TestReconnectingBacksOffWhenNewSessionsKeepFailing(t *testing.T) {
+	c, share, clk := newClient(t)
+	ctx := context.Background()
+	share.Write("a.log", []byte("x"))
+	waits := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second, 30 * time.Second, 30 * time.Second}
+	for range waits {
+		share.FailNext(fake.OpReadAt, fake.ErrOverloaded)
+	}
+
+	for i, wait := range waits {
+		for range 20 { // a scan reading 20 files
+			_, err := c.ReadAt(ctx, "a.log", 0, 1)
+			require.Error(t, err)
+			assert.Equal(t, client.ErrTransient, client.Classify(err))
+		}
+		assert.Equal(t, i+1, share.Calls(fake.OpDial), "one session per backoff period (%s), not one per call", wait)
+		assert.Zero(t, share.LiveSessions(), "the failed session is closed")
+
+		clk.Add(wait - time.Millisecond)
+		_, err := c.ReadAt(ctx, "a.log", 0, 1)
+		require.Error(t, err)
+		assert.Equal(t, client.ErrTransient, client.Classify(err))
+		assert.Equal(t, i+1, share.Calls(fake.OpDial), "no dial during the backoff")
+		clk.Add(time.Millisecond)
+	}
+
+	// The server recovers: once a session stays up for 30s, its loss is
+	// routine and the next call dials again right away.
+	_, err := c.ReadAt(ctx, "a.log", 0, 1)
+	require.NoError(t, err)
+	clk.Add(30 * time.Second)
+	share.DropSessions()
+	_, err = c.ReadAt(ctx, "a.log", 0, 1)
+	require.Error(t, err)
+	_, err = c.ReadAt(ctx, "a.log", 0, 1)
+	require.NoError(t, err)
+	assert.Equal(t, len(waits)+2, share.Calls(fake.OpDial))
 }
 
 func TestReconnectingAuthFailureWaitsTheMaximum(t *testing.T) {
@@ -226,6 +275,38 @@ func TestReconnectingClose(t *testing.T) {
 	_, err = c.ReadAt(context.Background(), "a.log", 0, 1)
 	assert.ErrorIs(t, err, client.ErrClosed)
 	assert.Equal(t, 1, share.Calls(fake.OpDial), "no dial after Close")
+}
+
+func TestReconnectingAbortDoesNotWaitForLogoff(t *testing.T) {
+	c, share, _ := newClient(t)
+	_, err := c.ListDir(context.Background(), "")
+	require.NoError(t, err)
+	share.SetLogoffLatency(time.Hour) // a server that stopped answering
+
+	closed := make(chan error, 1)
+	go func() { closed <- c.Close() }()
+	require.Eventually(t, func() bool { return share.Calls(fake.OpLogoff) == 1 }, 5*time.Second, time.Millisecond, "Close logs off")
+
+	require.NoError(t, client.Abort(c))
+	select {
+	case err := <-closed:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "Abort did not cut the logoff short")
+	}
+	assert.Zero(t, share.LiveSessions())
+	require.NoError(t, client.Abort(c), "Abort is idempotent")
+	_, err = c.ListDir(context.Background(), "")
+	assert.ErrorIs(t, err, client.ErrClosed)
+
+	// Without a Close in progress, Abort does not log off at all.
+	c2, share2, _ := newClient(t)
+	_, err = c2.ListDir(context.Background(), "")
+	require.NoError(t, err)
+	share2.SetLogoffLatency(time.Hour)
+	require.NoError(t, client.Abort(c2))
+	assert.Zero(t, share2.Calls(fake.OpLogoff))
+	assert.Zero(t, share2.LiveSessions())
 }
 
 func TestReconnectingSharesOneDialAcrossCallers(t *testing.T) {

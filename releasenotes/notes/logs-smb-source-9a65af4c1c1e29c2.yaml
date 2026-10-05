@@ -9,4 +9,6 @@ features:
     connect with. The Agent lists the share every ``poll_interval`` seconds
     (default 1), opens a file only to read new data, and follows rotated files
     by their server file ID. Only NTLMv2 authentication is supported, so
-    ``smb`` sources are refused by FIPS builds of the Agent.
+    ``smb`` sources are refused by FIPS builds of the Agent. The Agent
+    requires SMB signing or encryption, and refuses guest and anonymous
+    sessions.

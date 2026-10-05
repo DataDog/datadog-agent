@@ -43,6 +43,11 @@ import (
 // closeTimeout elapses, or when its FileId is no longer listed; bytes known to
 // exist but not read are then reported as missed. While it lasts, agent status
 // lists the drain next to the path's new tailer.
+//
+// start_position applies to the files that were there when the source
+// started, i.e. the files matched until the first scan that lists every
+// directory of the pattern. A file that appears later is new: it is read from
+// the beginning, as file sources do.
 type scanner struct {
 	l         *Launcher
 	source    *sources.LogSource
@@ -68,8 +73,15 @@ type scanner struct {
 	patterns  map[string]*regexp.Regexp // multiline patterns of the paths' previous tailers
 	conflicts map[string]bool           // paths tailed by another source, already logged
 	mismatch  map[string]int            // consecutive identity changes the listing does not show
+	blocked   map[string]time.Time      // paths whose file could not be opened (locked or missing), since then
+	listedAll bool                      // a scan listed every directory of the pattern
+	initial   map[string]bool           // paths matched until then, not tailed yet: they start at start_position
 	failing   bool                      // the previous scan reported an error
 	lastErr   string
+
+	// stoppedAt is where the tailers stopped reading, set once the scanner
+	// stopped, for a scanner that replaces this one (see Launcher.replace).
+	stoppedAt map[string]handoff
 }
 
 type drain struct {
@@ -85,7 +97,8 @@ type handoff struct {
 	offset int64
 }
 
-func newScanner(l *Launcher, source *sources.LogSource, c client.Client, key clientKey) *scanner {
+// newScanner returns a scanner of source, which passed validation.
+func newScanner(l *Launcher, source *sources.LogSource, c client.Client, key clientKey) (*scanner, error) {
 	cfg := source.Config.SMB
 	s := &scanner{
 		l:         l,
@@ -103,20 +116,49 @@ func newScanner(l *Launcher, source *sources.LogSource, c client.Client, key cli
 		patterns:  make(map[string]*regexp.Regexp),
 		conflicts: make(map[string]bool),
 		mismatch:  make(map[string]int),
+		blocked:   make(map[string]time.Time),
+		initial:   make(map[string]bool),
 		done:      make(chan struct{}),
 	}
 	if cfg.PollInterval > 0 {
-		s.interval = time.Duration(cfg.PollInterval * float64(time.Second))
+		// Validate bounds poll_interval; bounding the duration again keeps
+		// the ticker from panicking on a non-positive interval whatever the
+		// value.
+		interval := time.Duration(cfg.PollInterval * float64(time.Second))
+		s.interval = min(max(interval, config.SMBMinPollInterval), config.SMBMaxPollInterval)
 	}
 	s.mode, _ = config.TailingModeFromString(source.Config.TailingMode)
-	// Validate accepted the pattern; CleanPath only normalizes it.
-	s.pattern, _ = client.CleanPath(source.Config.Path)
-	for _, exclude := range source.Config.ExcludePaths {
-		if p, err := client.CleanPath(exclude); err == nil {
-			s.excludes = append(s.excludes, p)
-		}
+	// Validate rejects the patterns CleanPath refuses; CleanPath normalizes
+	// them.
+	var err error
+	if s.pattern, err = client.CleanPath(source.Config.Path); err != nil {
+		return nil, fmt.Errorf("invalid smb path: %w", err)
 	}
-	return s
+	for _, exclude := range source.Config.ExcludePaths {
+		p, err := client.CleanPath(exclude)
+		if err != nil {
+			return nil, fmt.Errorf("invalid smb exclude_paths entry: %w", err)
+		}
+		s.excludes = append(s.excludes, p)
+	}
+	return s, nil
+}
+
+// resumeFrom makes s, not started yet, continue the work of prev, a stopped
+// scanner of the same configuration: s's tailers resume prev's files where
+// prev's tailers stopped reading them, so nothing is read twice, and
+// start_position does not apply again to files prev found after it started.
+func (s *scanner) resumeFrom(prev *scanner) {
+	for p, h := range prev.stoppedAt {
+		s.handoffs[p] = h
+	}
+	for p, pattern := range prev.patterns {
+		s.patterns[p] = pattern
+	}
+	s.listedAll = prev.listedAll
+	for p := range prev.initial {
+		s.initial[p] = true
+	}
 }
 
 func (s *scanner) start(ctx context.Context) {
@@ -149,10 +191,15 @@ func (s *scanner) run(ctx context.Context) {
 	}
 }
 
-// stopTailers stops every tailer of the scanner and waits for them.
+// stopTailers stops every tailer of the scanner and waits for them. It records
+// where the active tailers stopped reading in stoppedAt.
 func (s *scanner) stopTailers() {
+	s.stoppedAt = make(map[string]handoff, len(s.active))
 	stopper := startstop.NewParallelStopper()
 	for p, t := range s.active {
+		// Nothing polls t anymore: its offset is final, and stopping t
+		// forwards everything it read.
+		s.stoppedAt[p] = handoff{fileID: t.FileID(), offset: t.Offset()}
 		s.deactivate(p, t)
 		stopper.Add(t)
 	}
@@ -172,6 +219,15 @@ func (s *scanner) scan(ctx context.Context) {
 	if ctx.Err() != nil {
 		return
 	}
+	if !s.listedAll {
+		for p := range v.matches {
+			if s.active[p] == nil {
+				s.initial[p] = true
+			}
+		}
+		s.listedAll = !v.failed
+	}
+	s.forgetUnlisted(v)
 
 	for _, p := range sortedKeys(s.active) {
 		t := s.active[p]
@@ -207,12 +263,34 @@ func (s *scanner) scan(ctx context.Context) {
 	s.report(&errs)
 }
 
+// forgetUnlisted forgets the per-path state of the paths the listing v shows
+// are gone.
+func (s *scanner) forgetUnlisted(v *view) {
+	gone := func(p string) bool {
+		_, listed, known := v.lookup(p)
+		return known && !listed
+	}
+	for p := range s.blocked {
+		if gone(p) {
+			delete(s.blocked, p)
+		}
+	}
+	for p := range s.initial {
+		if gone(p) {
+			delete(s.initial, p)
+		}
+	}
+}
+
 // poll polls the active tailer t of path p and handles what it found.
 func (s *scanner) poll(ctx context.Context, p string, t *tailer.Tailer, entry *client.Entry, errs *scanErrors) {
 	outcome, err := t.Poll(ctx, entry)
 	if err != nil {
-		errs.addFileErr(t.Identifier(), err)
+		s.fileErr(p, t.Identifier(), err, errs)
 		return
+	}
+	if outcome != tailer.OutcomeUnchanged {
+		delete(s.blocked, p) // the file could be opened
 	}
 	switch outcome {
 	case tailer.OutcomeIdentityChanged:
@@ -270,6 +348,7 @@ func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry,
 	}
 	rotated := s.fromStart[p]
 	delete(s.fromStart, p)
+	delete(s.initial, p)
 	pattern := s.patterns[p]
 	delete(s.patterns, p)
 
@@ -301,7 +380,8 @@ func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry,
 }
 
 // startPosition returns the offset a new tailer of p starts at:
-//   - where a drain of the same file ended, for a drained file now at p;
+//   - where a drain of the same file ended, for a drained file now at p, or
+//     where the scanner this one replaces stopped reading it;
 //   - 0 for a path whose previous file was replaced while being tailed;
 //   - the registry offset, when it was recorded for the same FileId and is
 //     not past the end of the file;
@@ -309,7 +389,9 @@ func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry,
 //     the end of the file: the file was replaced or truncated while it was not
 //     tailed, so all of it is new (as for file sources,
 //     pkg/logs/launchers/file/position.go);
-//   - otherwise 0 (start_position: beginning) or the end of the file (end).
+//   - for a file that was there when the source started (see scanner), 0
+//     (start_position: beginning) or the end of the file (end);
+//   - otherwise 0: the file appeared since, so all of it is new.
 //
 // The drain's offset comes first: a path whose previous file rotated away can
 // receive a file that was already drained, the previous file of another
@@ -329,9 +411,10 @@ func (s *scanner) startPosition(ctx context.Context, p, identifier string, entry
 	}
 	res, err := s.client.ReadAt(ctx, p, 0, 0)
 	if err != nil {
-		errs.addFileErr(identifier, err)
+		s.fileErr(p, identifier, err, errs)
 		return 0, 0, false
 	}
+	delete(s.blocked, p)
 	fileID = res.FileID
 	if fileID == 0 {
 		fileID = entry.FileID
@@ -348,7 +431,7 @@ func (s *scanner) startPosition(ctx context.Context, p, identifier string, entry
 			return 0, fileID, true
 		}
 	}
-	if s.mode == config.Beginning {
+	if s.mode == config.Beginning || !s.initial[p] {
 		return 0, fileID, true
 	}
 	return res.Size, fileID, true
@@ -504,6 +587,8 @@ func (s *scanner) statusError(errs *scanErrors) error {
 		msg = fmt.Sprintf("cannot reach %s, retrying: %v", s.target, errs.err)
 	case client.ErrNotFound:
 		msg = fmt.Sprintf("not found on %s: %v", s.target, errs.err)
+	case client.ErrSharing:
+		msg = fmt.Sprintf("cannot open a file on %s: another program keeps it open without letting others read it (sharing violation), or holds a lock on it: %v", s.target, errs.err)
 	default:
 		msg = fmt.Sprintf("error reading %s: %v", s.target, errs.err)
 	}
@@ -635,6 +720,31 @@ func (e *scanErrors) addFileErr(identifier string, err error) {
 	default:
 		e.add(kind, err)
 	}
+}
+
+// fileErr records an error opening or reading the file at the matched path p.
+// Like addFileErr, it tolerates a sharing violation or a missing file, which a
+// rotation causes for a moment; but once the file has failed that way for
+// blockedReportAfter, the error is reported: the writer may keep the file open
+// without allowing reads, or a deleted file may stay listed while its writer
+// keeps it open.
+func (s *scanner) fileErr(p, identifier string, err error, errs *scanErrors) {
+	kind := client.Classify(err)
+	if kind != client.ErrNotFound && kind != client.ErrSharing {
+		errs.add(kind, err)
+		return
+	}
+	now := s.l.clock.Now()
+	since, ok := s.blocked[p]
+	if !ok {
+		s.blocked[p] = now
+		since = now
+	}
+	if now.Sub(since) < blockedReportAfter {
+		log.Debugf("SMB file %s: %v (retrying on the next scan)", identifier, err)
+		return
+	}
+	errs.add(kind, fmt.Errorf("%s still cannot be opened after %s: %w", identifier, blockedReportAfter, err))
 }
 
 func hasMeta(segment string) bool {

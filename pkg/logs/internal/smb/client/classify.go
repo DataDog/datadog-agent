@@ -145,6 +145,9 @@ func Classify(err error) ErrorKind {
 	if errors.Is(err, ErrClosed) {
 		return ErrOther
 	}
+	if errors.Is(err, errGuestSession) {
+		return ErrAuth
+	}
 	if code, ok := statusCode(err); ok {
 		return statusKinds[code]
 	}

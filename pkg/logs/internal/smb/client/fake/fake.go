@@ -34,6 +34,7 @@ import (
 // FailNext or FailNextPath; client.Classify maps each to the kind in its name.
 var (
 	ErrTransient    error = &protocol.ResponseError{Code: 0xC000035C} // STATUS_NETWORK_SESSION_EXPIRED
+	ErrOverloaded   error = &protocol.ResponseError{Code: 0xC0000205} // STATUS_INSUFF_SERVER_RESOURCES (ErrTransient kind)
 	ErrNotFound     error = &protocol.ResponseError{Code: 0xC0000034} // STATUS_OBJECT_NAME_NOT_FOUND
 	ErrAuth         error = &protocol.ResponseError{Code: 0xC000006D} // STATUS_LOGON_FAILURE
 	ErrAccessDenied error = &protocol.ResponseError{Code: 0xC0000022} // STATUS_ACCESS_DENIED (ErrAuth kind)
@@ -49,6 +50,9 @@ const (
 	OpDial Op = iota
 	OpListDir
 	OpReadAt
+	// OpLogoff is a Session.Close, which logs the session off. Only Calls
+	// counts it: it takes no hook and no injected error.
+	OpLogoff
 )
 
 func (op Op) String() string {
@@ -59,6 +63,8 @@ func (op Op) String() string {
 		return "readdir"
 	case OpReadAt:
 		return "read"
+	case OpLogoff:
+		return "logoff"
 	default:
 		return fmt.Sprintf("op(%d)", int(op))
 	}
@@ -90,6 +96,7 @@ type Share struct {
 	listIDs  bool
 	readIDs  bool
 	latency  time.Duration
+	logoff   time.Duration
 	hook     func(op Op, path string)
 	errs     map[errKey][]error
 	calls    map[Op]int
@@ -270,6 +277,15 @@ func (s *Share) SetLatency(d time.Duration) {
 	s.latency = d
 }
 
+// SetLogoffLatency makes Session.Close wait d before it returns, as a LOGOFF
+// to a server that stopped answering does, unless Session.Abort cuts it short.
+// The session counts as live while it waits.
+func (s *Share) SetLogoffLatency(d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.logoff = d
+}
+
 // SetHook registers fn to run at the start of every call, before any error
 // injection, without the share's lock held: fn may change the share, for
 // example to rotate a file between a listing and a read.
@@ -344,17 +360,20 @@ func (s *Share) Dial(ctx context.Context, _ client.Config) (client.Client, error
 
 // NewSession returns a connected session, bypassing dial errors and counts.
 func (s *Share) NewSession() *Session {
-	sess := &Session{share: s}
+	sess := &Session{share: s, aborted: make(chan struct{})}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sessions[sess] = false
 	return sess
 }
 
-// Session is one connection to a Share. It implements client.Client.
+// Session is one connection to a Share. It implements client.Client, and the
+// Abort method client.Abort uses.
 type Session struct {
-	share  *Share
-	closed bool // guarded by share.mu
+	share     *Share
+	closed    bool // guarded by share.mu
+	aborted   chan struct{}
+	abortOnce sync.Once
 }
 
 var _ client.Client = (*Session)(nil)
@@ -445,14 +464,42 @@ func (sess *Session) ReadAt(ctx context.Context, p string, off int64, maxLen int
 	return res, nil
 }
 
-// Close implements client.Client.
+// Close implements client.Client. It waits for the logoff latency, if any.
 func (sess *Session) Close() error {
+	s := sess.share
+	s.mu.Lock()
+	closed := sess.closed
+	logoff := s.logoff
+	if !closed {
+		s.calls[OpLogoff]++
+	}
+	s.mu.Unlock()
+	if !closed && logoff > 0 {
+		t := time.NewTimer(logoff)
+		defer t.Stop()
+		select {
+		case <-t.C:
+		case <-sess.aborted:
+		}
+	}
+	sess.close()
+	return nil
+}
+
+// Abort closes the session without logging off: it never waits, and it cuts
+// short a Close waiting for its logoff latency.
+func (sess *Session) Abort() error {
+	sess.abortOnce.Do(func() { close(sess.aborted) })
+	sess.close()
+	return nil
+}
+
+func (sess *Session) close() {
 	s := sess.share
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sess.closed = true
 	delete(s.sessions, sess)
-	return nil
 }
 
 // begin runs the common part of a call: hook, count, session state, injected

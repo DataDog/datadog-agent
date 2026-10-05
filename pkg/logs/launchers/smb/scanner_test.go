@@ -8,8 +8,11 @@
 package smb
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/smb"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -187,7 +191,9 @@ func newHarness(t *testing.T, opts ...harnessOption) *harness {
 		ctx:      context.Background(),
 	}
 	key, c := l.acquireClient(source.Config.SMB)
-	h.scanner = newScanner(l, source, c, key)
+	var err error
+	h.scanner, err = newScanner(l, source, c, key)
+	require.NoError(t, err)
 	t.Cleanup(h.stop)
 	return h
 }
@@ -654,6 +660,9 @@ func TestTransientErrorRedialsAndResumesWithoutResending(t *testing.T) {
 	h.out.waitLines(t, 2)
 	require.Equal(t, 1, h.share.Calls(fake.OpDial))
 
+	// The session served long enough for its loss to be routine (it
+	// expired): the next scan dials again right away.
+	h.clock.Add(30 * time.Second)
 	h.share.DropSessions()
 	h.share.Append("app/app.log", []byte(lines(3, 3)))
 	h.scan()
@@ -666,6 +675,90 @@ func TestTransientErrorRedialsAndResumesWithoutResending(t *testing.T) {
 	assert.True(t, h.source.Status().IsSuccess(), "the status recovers")
 	assert.Equal(t, want(1, 3), h.out.waitLines(t, 3))
 	assert.Equal(t, want(1, 3), h.finish(), "nothing was sent twice")
+}
+
+// TestTransientReadErrorsDoNotRedialPerFile covers a server that accepts
+// sessions but fails reads (overloaded, throttling): a scan dials at most
+// once, however many files it reads, and new sessions follow the backoff.
+func TestTransientReadErrorsDoNotRedialPerFile(t *testing.T) {
+	h := newHarness(t)
+	files := []string{"app/a.log", "app/b.log", "app/c.log", "app/d.log", "app/e.log"}
+	for _, f := range files {
+		h.share.Write(f, []byte(f+" 1\n"))
+	}
+	h.scan()
+	h.out.waitLines(t, len(files))
+	require.Equal(t, 1, h.share.Calls(fake.OpDial))
+
+	h.share.FailNext(fake.OpReadAt, fake.ErrOverloaded, fake.ErrOverloaded)
+	for _, f := range files {
+		h.share.Append(f, []byte(f+" 2\n"))
+	}
+	h.scan()
+	assert.True(t, h.source.Status().IsError())
+	assert.Equal(t, 1, h.share.Calls(fake.OpDial), "the files after the first failure do not dial")
+	h.scan()
+	assert.Equal(t, 1, h.share.Calls(fake.OpDial), "no dial before the backoff (1s) passed")
+
+	h.clock.Add(time.Second)
+	h.scan() // the new session fails too: the next one waits 2s
+	assert.Equal(t, 2, h.share.Calls(fake.OpDial))
+	h.clock.Add(time.Second)
+	h.scan()
+	assert.Equal(t, 2, h.share.Calls(fake.OpDial))
+	h.clock.Add(time.Second)
+	h.scan()
+	assert.Equal(t, 3, h.share.Calls(fake.OpDial))
+	assert.True(t, h.source.Status().IsSuccess(), "the server recovered")
+
+	var want []string
+	for _, f := range files {
+		want = append(want, f+" 1", f+" 2")
+	}
+	assert.ElementsMatch(t, want, h.finish(), "every line is sent once")
+}
+
+func TestServerOutageWarnsOnce(t *testing.T) {
+	h := newHarness(t)
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.share.FailNext(fake.OpDial, fake.ErrTransient, fake.ErrTransient, fake.ErrTransient)
+
+	var statuses []string
+	logs := captureLogs(t, func() {
+		// Dial failures 1s, 2s and 4s apart, with scans in the backoffs.
+		for _, step := range []time.Duration{0, 500 * time.Millisecond, 500 * time.Millisecond, time.Second, 2 * time.Second, 2 * time.Second} {
+			h.clock.Add(step)
+			h.scan()
+			require.True(t, h.source.Status().IsError())
+			statuses = append(statuses, h.source.Status().GetError())
+		}
+	})
+	assert.Equal(t, 3, h.share.Calls(fake.OpDial))
+	for _, status := range statuses[1:] {
+		assert.Equal(t, statuses[0], status, "the status does not change while the server stays down")
+	}
+	assert.Equal(t, 1, strings.Count(logs, "[WARN] SMB source "), "one warning for the outage, not one per scan:\n%s", logs)
+
+	h.clock.Add(4 * time.Second)
+	h.scan()
+	assert.True(t, h.source.Status().IsSuccess())
+	assert.Equal(t, want(1, 1), h.out.waitLines(t, 1))
+}
+
+// captureLogs redirects the Agent logger to a buffer while fn runs and
+// returns everything logged, at every level.
+func captureLogs(t *testing.T, fn func()) string {
+	t.Helper()
+	var buf bytes.Buffer
+	w := bufio.NewWriter(&buf)
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.TraceLvl)
+	require.NoError(t, err)
+	previous := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previous, "debug") })
+	log.SetupLogger(logger, "trace")
+	fn()
+	require.NoError(t, w.Flush())
+	return buf.String()
 }
 
 func TestListingErrorKeepsTailers(t *testing.T) {
@@ -725,6 +818,138 @@ func TestStartPosition(t *testing.T) {
 			h.scan()
 			assert.Equal(t, tc.want, h.finish())
 		})
+	}
+}
+
+func TestFilesCreatedAfterTheSourceStartedAreReadFromTheBeginning(t *testing.T) {
+	// start_position: end, the default, applies to the files that were there
+	// when the source started, as for file sources.
+	h := newHarness(t, withPath("*/*.log"), withStartPosition(""))
+	h.share.Write("app/old.log", []byte(lines(1, 2)))
+	h.scan()
+
+	// Created after the source started: in a directory listed before, in a
+	// directory created since, and in a directory that was empty.
+	h.share.Mkdir("empty")
+	h.scan()
+	h.share.Write("app/new.log", []byte(lines(3, 4)))
+	h.share.Write("other/app.log", []byte(lines(5, 5)))
+	h.share.Write("empty/first.log", []byte(lines(6, 6)))
+	h.share.Append("app/old.log", []byte(lines(7, 7)))
+	h.scan()
+	assert.ElementsMatch(t, want(3, 7), h.finish())
+}
+
+func TestStartPositionAppliesToTheFilesOfTheFirstFullListing(t *testing.T) {
+	t.Run("share unreachable when the source starts", func(t *testing.T) {
+		h := newHarness(t, withStartPosition("end"))
+		h.share.Write("app/app.log", []byte(lines(1, 2)))
+		h.share.FailNext(fake.OpDial, fake.ErrTransient)
+		h.scan() // nothing is listed
+		require.True(t, h.source.Status().IsError())
+		h.clock.Add(time.Second) // the dial backoff
+		h.scan()                 // the file may have been there before the source started
+		h.share.Append("app/app.log", []byte(lines(3, 3)))
+		h.scan()
+		assert.Equal(t, want(3, 3), h.finish())
+	})
+	t.Run("file locked when the source starts", func(t *testing.T) {
+		h := newHarness(t, withStartPosition("end"))
+		h.share.Write("app/app.log", []byte(lines(1, 2)))
+		h.share.FailNextPath(fake.OpReadAt, "app/app.log", fake.ErrSharing)
+		h.scan() // listed, but it cannot be opened yet
+		require.Empty(t, h.scanner.active)
+		h.scan() // still a file that was there when the source started
+		h.share.Append("app/app.log", []byte(lines(3, 3)))
+		h.scan()
+		assert.Equal(t, want(3, 3), h.finish())
+	})
+}
+
+func TestPersistentOpenFailuresAreReported(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"sharing violation", fake.ErrSharing, "another program keeps it open without letting others read it (sharing violation)"},
+		{"not found while listed", fake.ErrNotFound, "not found on smb://files.example.com/logs"},
+	} {
+		t.Run(tc.name+" of a new file", func(t *testing.T) {
+			h := newHarness(t)
+			h.share.Write("app/app.log", []byte(lines(1, 1)))
+			h.share.FailNextPath(fake.OpReadAt, "app/app.log", tc.err, tc.err, tc.err)
+
+			h.scan()
+			assert.True(t, h.source.Status().IsSuccess(), "first taken for a rotation race")
+			h.clock.Add(blockedReportAfter - time.Second)
+			h.scan()
+			assert.True(t, h.source.Status().IsSuccess())
+			h.clock.Add(time.Second)
+			h.scan()
+			require.True(t, h.source.Status().IsError(), "still failing after %s", blockedReportAfter)
+			msg := h.source.Status().GetError()
+			assert.Contains(t, msg, tc.want)
+			assert.Contains(t, msg, identifier("app/app.log")+" still cannot be opened after 30s")
+
+			h.scan() // the file can be opened again
+			assert.True(t, h.source.Status().IsSuccess())
+			assert.Equal(t, want(1, 1), h.finish())
+		})
+		t.Run(tc.name+" of a tailed file", func(t *testing.T) {
+			h := newHarness(t)
+			h.share.Write("app/app.log", []byte(lines(1, 1)))
+			h.scan()
+			h.out.waitLines(t, 1)
+			h.share.Append("app/app.log", []byte(lines(2, 2)))
+			h.share.FailNextPath(fake.OpReadAt, "app/app.log", tc.err, tc.err)
+
+			h.scan()
+			assert.True(t, h.source.Status().IsSuccess())
+			h.clock.Add(blockedReportAfter)
+			h.scan()
+			require.True(t, h.source.Status().IsError())
+			assert.Contains(t, h.source.Status().GetError(), tc.want)
+			h.scan()
+			assert.True(t, h.source.Status().IsSuccess())
+			assert.Equal(t, want(1, 2), h.finish())
+		})
+	}
+}
+
+func TestPollIntervalIsBounded(t *testing.T) {
+	configmock.New(t)
+	l := newTestLauncher(fake.New(), clock.NewMock())
+	for _, tc := range []struct {
+		seconds float64
+		want    time.Duration
+	}{
+		{0, defaultPollInterval},
+		{-1, defaultPollInterval},
+		{math.NaN(), defaultPollInterval},
+		{0.5, 500 * time.Millisecond},
+		// Validation refuses these, but a ticker with a zero or negative
+		// interval would panic: they are bounded again.
+		{1e-10, config.SMBMinPollInterval},
+		{1e10, config.SMBMaxPollInterval},
+		{math.Inf(1), config.SMBMaxPollInterval},
+	} {
+		source := newSMBSource("smb-test", func(c *config.LogsConfig) { c.SMB.PollInterval = tc.seconds })
+		s, err := newScanner(l, source, nil, clientKey{})
+		require.NoError(t, err)
+		assert.Equal(t, tc.want, s.interval, "poll_interval %v", tc.seconds)
+	}
+}
+
+func TestScannerRefusesPathsLeavingTheShare(t *testing.T) {
+	configmock.New(t)
+	l := newTestLauncher(fake.New(), clock.NewMock())
+	for _, opt := range []func(*config.LogsConfig){
+		func(c *config.LogsConfig) { c.Path = "../logs/*.log" },
+		func(c *config.LogsConfig) { c.ExcludePaths = []string{"app/../x"} },
+	} {
+		_, err := newScanner(l, newSMBSource("smb-test", opt), nil, clientKey{})
+		assert.ErrorContains(t, err, "invalid smb")
 	}
 }
 

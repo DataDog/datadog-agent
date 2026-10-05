@@ -314,6 +314,28 @@ func TestSMBClientRejectsBadArguments(t *testing.T) {
 	assert.ErrorIs(t, err, ErrClosed)
 }
 
+func TestDialerRequiresSigning(t *testing.T) {
+	cfg := Config{Host: "h", Share: "s", Username: "u", Password: testPassword, Domain: "CORP"}.withDefaults()
+	d := newDialer(cfg)
+	assert.True(t, d.RequireMessageSigning, "unsigned sessions, including guest and anonymous ones, are refused")
+	assert.True(t, d.DisableAAPLExtension)
+}
+
+func TestGuestSessionIsAnAuthError(t *testing.T) {
+	for _, msg := range []string{"guest account doesn't support signing", "anonymous account doesn't support signing"} {
+		// What the library returns for a SESSION_SETUP response flagged
+		// IS_GUEST or IS_NULL when signing is required.
+		libErr := &protocol.InvalidResponseError{Message: msg}
+		require.True(t, isGuestSession(fmt.Errorf("dial: %w", libErr)), msg)
+		err := fmt.Errorf("smb: connect to smb://h/s: %w", fmt.Errorf("%w: %w", errGuestSession, libErr))
+		assert.Equal(t, ErrAuth, Classify(err), "a guest session needs user action, not a retry")
+		assert.Contains(t, err.Error(), "check the username and password")
+	}
+	assert.False(t, isGuestSession(&protocol.InvalidResponseError{Message: "broken session setup response format"}))
+	assert.False(t, isGuestSession(errors.New("guest account doesn't support signing")))
+	assert.Equal(t, ErrTransient, Classify(&protocol.InvalidResponseError{Message: "broken"}))
+}
+
 func TestDialRejectsInvalidConfig(t *testing.T) {
 	for _, cfg := range []Config{
 		{Share: "s", Password: testPassword},

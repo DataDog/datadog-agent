@@ -93,6 +93,19 @@ type Client interface {
 // DialFunc opens a Client. Dial is the production implementation.
 type DialFunc func(ctx context.Context, cfg Config) (Client, error)
 
+// Abort closes c like Close, but without logging off: it drops the connection
+// at once, so it never waits for the server, and it cuts short a Close of c
+// that is waiting for its LOGOFF. The server closes the session's tree
+// connects and opens when the connection drops ([MS-SMB2] 3.3.7.1), and no
+// handle outlives a call of this package, so nothing is lost. A Client that
+// cannot abort is closed with Close.
+func Abort(c Client) error {
+	if a, ok := c.(interface{ Abort() error }); ok {
+		return a.Abort()
+	}
+	return c.Close()
+}
+
 // CleanPath returns p in the form the Client uses for paths relative to the
 // share root: '/' separators (a '\' is treated as one), no leading, trailing
 // or repeated separator, no "." element, and "" for the root. It rejects ".."

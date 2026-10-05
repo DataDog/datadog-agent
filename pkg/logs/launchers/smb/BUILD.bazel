@@ -45,6 +45,7 @@ dd_agent_go_test(
         "//pkg/logs/sources",
         "//pkg/logs/tailers",
         "//pkg/logs/tailers/smb",
+        "//pkg/util/log",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

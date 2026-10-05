@@ -67,24 +67,12 @@ func Dial(ctx context.Context, cfg Config) (Client, error) {
 	ctx, cancel := context.WithTimeout(ctx, cfg.DialTimeout)
 	defer cancel()
 
-	var domain *string // nil lets the server's challenge choose the domain
-	if cfg.Domain != "" {
-		d := cfg.Domain
-		domain = &d
-	}
-	dialer := &smb2.Dialer{
-		Credentials: auth.NTLMCredential{User: cfg.Username, Password: cfg.Password, Domain: domain},
-		TransportDialer: smb2.TCPDialer{
-			Port:   cfg.Port,
-			Dialer: &net.Dialer{Timeout: cfg.DialTimeout, KeepAlive: 30 * time.Second},
-		},
-		// The Apple extension is only needed to manage security descriptors on
-		// macOS servers; skipping it saves a CREATE on the share root.
-		DisableAAPLExtension: true,
-	}
 	// Dial closes the transport when ctx ends, so it is bounded on its own.
-	sess, err := dialer.Dial(ctx, cfg.Host)
+	sess, err := newDialer(cfg).Dial(ctx, cfg.Host)
 	if err != nil {
+		if isGuestSession(err) {
+			err = fmt.Errorf("%w: %w", errGuestSession, err)
+		}
 		return nil, redactErr(fmt.Errorf("smb: connect to %s: %w", target, err), cfg.Password)
 	}
 	done := watchdog(ctx, abortGrace, func() { _ = sess.Abort() })
@@ -101,6 +89,49 @@ func Dial(ctx context.Context, cfg Config) (Client, error) {
 		sess:      sess,
 		share:     share,
 	}, nil
+}
+
+// newDialer returns the dialer of Dial. cfg has its defaults applied.
+func newDialer(cfg Config) *smb2.Dialer {
+	var domain *string // nil lets the server's challenge choose the domain
+	if cfg.Domain != "" {
+		d := cfg.Domain
+		domain = &d
+	}
+	return &smb2.Dialer{
+		Credentials: auth.NTLMCredential{User: cfg.Username, Password: cfg.Password, Domain: domain},
+		TransportDialer: smb2.TCPDialer{
+			Port:   cfg.Port,
+			Dialer: &net.Dialer{Timeout: cfg.DialTimeout, KeepAlive: 30 * time.Second},
+		},
+		// Signing (or encryption, which replaces it on SMB 3) authenticates
+		// every response with a key that only a server that verified the
+		// password can derive. Without it, a server that grants a guest or
+		// anonymous session (Samba's "map to guest", for a mistyped username)
+		// or a machine answering in the server's place could serve any content
+		// as the share's files. Requiring it also makes the library reject
+		// guest and anonymous sessions ([MS-SMB2] 3.2.5.3.1), see
+		// isGuestSession.
+		RequireMessageSigning: true,
+		// The Apple extension is only needed to manage security descriptors on
+		// macOS servers; skipping it saves a CREATE on the share root.
+		DisableAAPLExtension: true,
+	}
+}
+
+// errGuestSession is the error of a dial that the server would only grant as a
+// guest or anonymous session. It classifies as ErrAuth.
+var errGuestSession = errors.New("the server only granted a guest or anonymous session, which cannot sign messages and is refused: check the username and password")
+
+// isGuestSession reports whether a dial failed because the server granted a
+// guest or anonymous session while signing is required. The vendored library
+// reports it with these messages (x/protocol/session.go validateSessionFlags).
+func isGuestSession(err error) bool {
+	var invalid *protocol.InvalidResponseError
+	if !errors.As(err, &invalid) {
+		return false
+	}
+	return strings.HasPrefix(invalid.Message, "guest account ") || strings.HasPrefix(invalid.Message, "anonymous account ")
 }
 
 // ListDir implements Client.
@@ -255,18 +286,23 @@ func readHitEndOfFile(err error) bool {
 
 // Close logs off and closes the connection. LOGOFF makes the server close any
 // tree and open still attached to the session ([MS-SMB2] 3.3.5.7); the library
-// bounds it with its own timeout.
+// bounds it with its own timeout (5s), and Abort cuts it short.
 func (c *smbClient) Close() error {
 	c.closed.Store(true)
 	c.closeOnce.Do(func() { c.closeErr = c.wrapErr(c.sess.Close()) })
 	return c.closeErr
 }
 
-// abort drops the connection without LOGOFF. The reconnecting client uses it
-// for sessions it already knows are broken.
-func (c *smbClient) abort() {
+// Abort drops the connection without LOGOFF, see the Abort function. It cuts
+// short a concurrent Close waiting for its LOGOFF, so it never waits for the
+// server.
+func (c *smbClient) Abort() error {
 	c.closed.Store(true)
-	c.closeOnce.Do(func() { c.closeErr = c.wrapErr(c.sess.Abort()) })
+	// The library tears the connection down before it joins a Close in
+	// progress, whose LOGOFF then fails at once.
+	err := c.wrapErr(c.sess.Abort())
+	c.closeOnce.Do(func() { c.closeErr = err })
+	return err
 }
 
 // String implements fmt.Stringer.

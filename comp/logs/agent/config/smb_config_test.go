@@ -59,6 +59,10 @@ func TestValidateSMB(t *testing.T) {
 		{name: "port max", mutate: func(c *LogsConfig) { c.SMB.Port = 65535 }},
 		{name: "file at share root", mutate: func(c *LogsConfig) { c.Path = "app.log" }},
 		{name: "nested glob", mutate: func(c *LogsConfig) { c.Path = "app/*/[a-z]?.log" }},
+		{name: "dots in names", mutate: func(c *LogsConfig) { c.Path = "app/..hidden/a..b.log" }},
+		{name: "valid excludes", mutate: func(c *LogsConfig) { c.ExcludePaths = []string{"app/old-*.log", "app/archive/*"} }},
+		{name: "poll_interval minimum", mutate: func(c *LogsConfig) { c.SMB.PollInterval = 0.1 }},
+		{name: "poll_interval maximum", mutate: func(c *LogsConfig) { c.SMB.PollInterval = 3600 }},
 
 		{name: "missing smb block", mutate: func(c *LogsConfig) { c.SMB = nil }, wantErr: "must have an smb block"},
 		{name: "smb block on file source", mutate: func(c *LogsConfig) { c.Type = FileType; c.Path = "/var/log/a.log" }, wantErr: "only supported for smb sources, got file"},
@@ -77,10 +81,22 @@ func TestValidateSMB(t *testing.T) {
 		{name: "negative poll_interval", mutate: func(c *LogsConfig) { c.SMB.PollInterval = -1 }, wantErr: "poll_interval"},
 		{name: "NaN poll_interval", mutate: func(c *LogsConfig) { c.SMB.PollInterval = math.NaN() }, wantErr: "poll_interval"},
 		{name: "infinite poll_interval", mutate: func(c *LogsConfig) { c.SMB.PollInterval = math.Inf(1) }, wantErr: "poll_interval"},
+		// A sub-nanosecond interval truncates to a zero duration and an overflowing one turns
+		// negative: either would make the scan ticker panic.
+		{name: "sub-nanosecond poll_interval", mutate: func(c *LogsConfig) { c.SMB.PollInterval = 1e-10 }, wantErr: "between 0.1 and 3600 seconds"},
+		{name: "poll_interval below the minimum", mutate: func(c *LogsConfig) { c.SMB.PollInterval = 0.05 }, wantErr: "poll_interval"},
+		{name: "overflowing poll_interval", mutate: func(c *LogsConfig) { c.SMB.PollInterval = 1e10 }, wantErr: "poll_interval"},
+		{name: "poll_interval above the maximum", mutate: func(c *LogsConfig) { c.SMB.PollInterval = 3601 }, wantErr: "poll_interval"},
 		{name: "missing path", mutate: func(c *LogsConfig) { c.Path = "" }, wantErr: "must have a path"},
 		{name: "absolute path", mutate: func(c *LogsConfig) { c.Path = "/app/*.log" }, wantErr: "relative to the share root"},
 		{name: "backslash path", mutate: func(c *LogsConfig) { c.Path = `app\*.log` }, wantErr: "'/' separators"},
 		{name: "malformed glob", mutate: func(c *LogsConfig) { c.Path = "app/[.log" }, wantErr: "not a valid glob pattern"},
+		{name: "path leaving its directory", mutate: func(c *LogsConfig) { c.Path = "app/../other/*.log" }, wantErr: "must not contain '..' elements"},
+		{name: "path leaving the share", mutate: func(c *LogsConfig) { c.Path = "../logs/*.log" }, wantErr: "must not contain '..' elements"},
+		{name: "path with a NUL byte", mutate: func(c *LogsConfig) { c.Path = "app/a\x00.log" }, wantErr: "NUL"},
+		{name: "invalid exclude glob", mutate: func(c *LogsConfig) { c.ExcludePaths = []string{"app/[old.log"} }, wantErr: `exclude_paths entry "app/[old.log" is not a valid glob pattern`},
+		{name: "absolute exclude", mutate: func(c *LogsConfig) { c.ExcludePaths = []string{"/app/old.log"} }, wantErr: "exclude_paths entry \"/app/old.log\" must be relative to the share root"},
+		{name: "exclude with ..", mutate: func(c *LogsConfig) { c.ExcludePaths = []string{"app/../x"} }, wantErr: "must not contain '..' elements"},
 		{name: "unsupported start_position", mutate: func(c *LogsConfig) { c.TailingMode = "forceBeginning" }, wantErr: "supported: beginning, end"},
 		{name: "unknown start_position", mutate: func(c *LogsConfig) { c.TailingMode = "middle" }, wantErr: "invalid start_position"},
 	}
