@@ -37,6 +37,8 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 
 # make tools/jev and the repo root (for tasks.libs...) importable
@@ -113,7 +115,7 @@ def fetch_executed_e2e_tests(query: str, days: int) -> dict:
         print("[warn] DD_API_KEY / DD_APP_KEY not set, skipping the executed-test lookup")
         return {}
     site = os.environ.get("DD_SITE", "datadoghq.com")
-    url = f"https://{site}/api/v2/ci/tests/events"
+    url = f"https://api.{site}/api/v2/ci/tests/events"
     # query params as the datadog_api_client serializes them (bracket attributes)
     params = {
         "filter[query]": query,
@@ -130,8 +132,12 @@ def fetch_executed_e2e_tests(query: str, days: int) -> dict:
     events = []
     while True:
         req = urllib.request.Request(url + "?" + urllib.parse.urlencode(params), headers=headers)
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            payload = json.load(resp)
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                payload = json.load(resp)
+        except urllib.error.HTTPError as e:
+            body = e.read().decode(errors="ignore")[:500]
+            raise RuntimeError(f"CI Visibility API HTTP {e.code} on {url}: {body}") from e
         events.extend(payload.get("data", []))
         cursor = (payload.get("meta", {}).get("page", {}) or {}).get("after")
         if not cursor:
