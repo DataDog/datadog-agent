@@ -263,6 +263,17 @@ func TestDeriveBackpressureKeepsBottleneckFirst(t *testing.T) {
 		"the bottleneck must be row 0 or a truncating caller drops it")
 }
 
+// useMockBottleneckClock drives registration and attribution time; windows are built from the
+// returned clock, advanced past registration.
+func useMockBottleneckClock(t *testing.T) *clock.Mock {
+	t.Helper()
+	clk := clock.NewMock()
+	prev := bottleneck.clk
+	bottleneck.clk = clk
+	t.Cleanup(func() { bottleneck.clk = prev })
+	return clk
+}
+
 func TestCurrentBottleneckComponent(t *testing.T) {
 	for _, tc := range []struct {
 		name             string
@@ -282,10 +293,12 @@ func TestCurrentBottleneckComponent(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			clk := useMockBottleneckClock(t)
 			RegisterPipelineMonitor(tc.monitor)
 			t.Cleanup(ResetPipelineMonitorForTest)
+			clk.Add(time.Minute)
 			assert.Equal(t, tc.state, BackpressureSnapshot().State)
-			assert.Equal(t, tc.component, currentBottleneckComponent(time.Now().Add(-time.Minute)))
+			assert.Equal(t, tc.component, currentBottleneckComponent(clk.Now().Add(-time.Minute)))
 		})
 	}
 }
@@ -293,14 +306,21 @@ func TestCurrentBottleneckComponent(t *testing.T) {
 // Only saturation inside the loss window is attributed, even when both samples are inside the
 // trailing-minute aggregate.
 func TestCurrentBottleneckComponentUsesActualLossWindow(t *testing.T) {
+	clk := useMockBottleneckClock(t)
 	ResetPipelineMonitorForTest()
 	t.Cleanup(ResetPipelineMonitorForTest)
-	now := time.Now()
+	registered := clk.Now()
+	now := registered.Add(time.Hour)
 	snapshot := saturatedSnapshot("strategy", 0.9, 30*time.Second, 20*time.Minute, false)
 	snapshot.Windows.HasLastSaturated = true
+	register := func() {
+		clk.Set(registered)
+		RegisterPipelineMonitor(&stubPipelineMonitor{snaps: []ComponentSnapshot{snapshot}})
+		clk.Set(now)
+	}
 
 	snapshot.Windows.LastSaturatedAt = now.Add(-30 * time.Second)
-	RegisterPipelineMonitor(&stubPipelineMonitor{snaps: []ComponentSnapshot{snapshot}})
+	register()
 	require.Equal(t, BackpressureWarning, BackpressureSnapshot().State, "the snapshot still carries the history")
 	assert.Equal(t, NoBottleneck, currentBottleneckComponent(now.Add(-5*time.Second)),
 		"saturation that ended before the loss did not cause it")
@@ -308,11 +328,11 @@ func TestCurrentBottleneckComponentUsesActualLossWindow(t *testing.T) {
 	// CurrentlySaturated is debounced and may remain true after the last saturated sample.
 	// The timestamp still wins when that sample predates the rotation.
 	snapshot.Windows.CurrentlySaturated = true
-	RegisterPipelineMonitor(&stubPipelineMonitor{snaps: []ComponentSnapshot{snapshot}})
+	register()
 	assert.Empty(t, currentBottleneckComponent(now.Add(-5*time.Second)))
 
 	snapshot.Windows.LastSaturatedAt = now.Add(-2 * time.Second)
-	RegisterPipelineMonitor(&stubPipelineMonitor{snaps: []ComponentSnapshot{snapshot}})
+	register()
 	assert.Equal(t, "strategy", currentBottleneckComponent(now.Add(-5*time.Second)),
 		"recovered saturation inside the post-rotation window remains attributable")
 }
@@ -398,24 +418,46 @@ func TestCurrentBottleneckComponentCoalescesConcurrentMisses(t *testing.T) {
 
 // A transport switch builds a new pipeline; the previous one's bottleneck is stale.
 func TestRegisterPipelineMonitorInvalidatesCache(t *testing.T) {
+	clk := useMockBottleneckClock(t)
 	ResetPipelineMonitorForTest()
 	t.Cleanup(ResetPipelineMonitorForTest)
 
 	RegisterPipelineMonitor(&stubPipelineMonitor{
 		snaps: []ComponentSnapshot{saturatedSnapshot("strategy", 0.95, 0, time.Minute, true)},
 	})
-	lossWindowStartedAt := time.Now().Add(-time.Minute)
-	require.Equal(t, "strategy", currentBottleneckComponent(lossWindowStartedAt))
+	clk.Add(2 * time.Minute)
+	oldWindow := clk.Now().Add(-time.Minute)
+	require.Equal(t, "strategy", currentBottleneckComponent(oldWindow))
 
 	RegisterPipelineMonitor(&stubPipelineMonitor{
 		snaps: []ComponentSnapshot{saturatedSnapshot("processor", 0.99, 0, time.Minute, true)},
 	})
-	assert.Equal(t, "processor", currentBottleneckComponent(lossWindowStartedAt))
+	clk.Add(2 * time.Minute)
+	assert.Equal(t, "processor", currentBottleneckComponent(clk.Now().Add(-time.Minute)))
+	assert.Empty(t, currentBottleneckComponent(oldWindow), "the new pipeline did not cover the older window")
+}
+
+func TestCurrentBottleneckComponentRequiresMonitorBeforeWindow(t *testing.T) {
+	clk := useMockBottleneckClock(t)
+	ResetPipelineMonitorForTest()
+	t.Cleanup(ResetPipelineMonitorForTest)
+	healthy := &stubPipelineMonitor{snaps: []ComponentSnapshot{saturatedSnapshot("processor", 0.2, 0, 0, false)}}
+
+	windowStart := clk.Now().Add(time.Minute)
+	assert.Empty(t, currentBottleneckComponent(windowStart), "no monitor registered")
+
+	clk.Add(2 * time.Minute)
+	RegisterPipelineMonitor(healthy)
+	assert.Empty(t, currentBottleneckComponent(windowStart), "registered after the window started")
+
+	clk.Add(2 * time.Minute)
+	assert.Equal(t, NoBottleneck, currentBottleneckComponent(clk.Now().Add(-time.Minute)), "registered before the window")
 }
 
 // A transport restart can replace the registered monitor while a tailer is deriving a
 // snapshot. The old result must neither reach that tailer nor repopulate the invalidated cache.
 func TestRegisterPipelineMonitorDuringSnapshotRetriesWithNewMonitor(t *testing.T) {
+	clk := useMockBottleneckClock(t)
 	ResetPipelineMonitorForTest()
 	t.Cleanup(ResetPipelineMonitorForTest)
 
@@ -425,10 +467,12 @@ func TestRegisterPipelineMonitorDuringSnapshotRetriesWithNewMonitor(t *testing.T
 		release: make(chan struct{}),
 	}
 	RegisterPipelineMonitor(oldMonitor)
+	clk.Add(2 * time.Minute)
+	window := clk.Now().Add(-time.Minute)
 
 	result := make(chan string, 1)
 	go func() {
-		result <- currentBottleneckComponent(time.Now().Add(-time.Minute))
+		result <- currentBottleneckComponent(window)
 	}()
 
 	select {
@@ -450,7 +494,7 @@ func TestRegisterPipelineMonitorDuringSnapshotRetriesWithNewMonitor(t *testing.T
 		t.Fatal("bottleneck lookup did not retry after monitor replacement")
 	}
 
-	assert.Equal(t, "processor", currentBottleneckComponent(time.Now().Add(-time.Minute)))
+	assert.Equal(t, "processor", currentBottleneckComponent(clk.Now()))
 	assert.Equal(t, int32(1), newMonitor.reads.Load(), "the replacement snapshot should be cached")
 }
 

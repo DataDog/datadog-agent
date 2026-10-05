@@ -182,6 +182,7 @@ func DeriveBackpressure(snaps []ComponentSnapshot) BackpressureSummary {
 var registeredMonitor struct {
 	sync.RWMutex
 	pm PipelineMonitor
+	at time.Time
 }
 
 // RegisterPipelineMonitor records the monitor whose snapshots process-wide readers see.
@@ -189,6 +190,7 @@ func RegisterPipelineMonitor(pm PipelineMonitor) {
 	registeredMonitor.Lock()
 	defer registeredMonitor.Unlock()
 	registeredMonitor.pm = pm
+	registeredMonitor.at = bottleneck.clk.Now()
 	bottleneck.invalidate()
 }
 
@@ -196,6 +198,12 @@ func registeredPipelineMonitor() PipelineMonitor {
 	registeredMonitor.RLock()
 	defer registeredMonitor.RUnlock()
 	return registeredMonitor.pm
+}
+
+func registeredSince() time.Time {
+	registeredMonitor.RLock()
+	defer registeredMonitor.RUnlock()
+	return registeredMonitor.at
 }
 
 // BackpressureSnapshot summarises the registered pipeline monitor, or returns the zero value
@@ -338,5 +346,8 @@ var bottleneck = newBottleneckCache(clock.New())
 // currentBottleneckComponent names a stage saturated during the loss window, NoBottleneck
 // when no blocking component was observed saturated in it, or "" when attribution is unknown.
 func currentBottleneckComponent(lossWindowStartedAt time.Time) string {
+	if lossWindowStartedAt.Before(registeredSince()) {
+		return ""
+	}
 	return bottleneck.get(lossWindowStartedAt)
 }
