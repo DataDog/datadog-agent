@@ -35,9 +35,10 @@ func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Owner-only. On Linux the owner stays root, which the daemon runs as. On macOS the socket
-	// is handed to the Agent's account so it can read the daemon's status, and rootOnlyChanges
-	// keeps every other route for root.
+	// Owner-only. On Linux the daemon runs with dd-agent as its effective user, so the socket is
+	// created owned by dd-agent. On macOS the daemon runs as root, so the socket is handed to the
+	// Agent's account so it can read the daemon's status, and rootOnlyChanges keeps every other
+	// route for root.
 	if err := os.Chmod(socketPath, 0700); err != nil {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
