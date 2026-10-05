@@ -228,7 +228,7 @@ Likely the longest task. Involve the build and packaging owners early.
 
 - [x] Add the native lib and Go binding as dependencies (Bazel; see `bazel/AGENTS.md`). For libyara: a `cc_library` under `deps/` (see the `update-3rd-party-libs` skill), `--without-crypto`, only the needed modules, static link. go-yara uses `#cgo pkg-config`, which rules_go doesn't support: patch the binding or add a thin cgo wrapper
 - [ ] Check the glibc floor on the agent's build sysroot (the spike built on glibc 2.39)
-- [x] Add a `yara` build tag to the system-probe flavors in `tasks/build_tags.bzl`, Linux only (opt-in for now: `SYSTEM_PROBE_YARA_TAGS`, `dda inv system-probe.build --yara`)
+- [x] Add a `yara` build tag to the system-probe flavors in `tasks/build_tags.bzl`, Linux only (`SYSTEM_PROBE_YARA_TAGS`). Now **default-on** for the packaged Linux build: `dda inv system-probe.build` / `build-sysprobe-binary` (and `agent.build` → system-probe, omnibus) link libyara by default on Linux amd64/arm64 and install it via `@libyara//:install`; `--no-yara` opts out. The static default tag set stays yara-free so lint/unit/KMT builds keep the stand-in engine.
 - [ ] Package with the agent (`packages/`; omnibus only if unavoidable)
 - [x] Update `LICENSE-3rdparty.csv` (go-yara; libyara is tracked by its Bazel `license()`, like the other C deps)
 - [ ] Run the size quality gate and report the delta
