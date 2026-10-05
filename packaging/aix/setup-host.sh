@@ -107,8 +107,10 @@ else
     # OBJECT_MODE must be unset before Go's external linker runs (see the
     # matching comment in stages/04-agent.sh): with both OBJECT_MODE=64 and
     # AIX_OBJECT_MODE=64 exported, gcc-8 selects the 32-bit /lib/crt0.o.
-    unset OBJECT_MODE
+    # Scoped to this subshell only — the rest of the script still needs
+    # OBJECT_MODE=64 from env.sh.
     ( cd "$AGENT_SRC/internal/tools" && \
+        unset OBJECT_MODE && \
         GOBIN="$BUILD_DIR/bin" \
         GOCACHE="$BUILD_DIR/gocache" TMPDIR="$BUILD_DIR/buildtmp" \
         PATH="/opt/go/bin:$PATH" \
