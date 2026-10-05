@@ -28,12 +28,15 @@ Environment:
 from __future__ import annotations  # python 3.9 compat
 
 import argparse
+import concurrent.futures
 import json
 import os
 import re
 import shutil
 import sys
 import tempfile
+import threading
+import time
 import urllib.request
 
 # make tools/jev and the repo root (for tasks.libs...) importable
@@ -168,6 +171,10 @@ def main() -> int:
     parser.add_argument("--suite", default=None, help="Restrict to one e2e suite (default: all)")
     parser.add_argument("--pipeline-id", default=None, help="GitLab pipeline id of the executed run to compare with")
     parser.add_argument("--days", type=int, default=90, help="CI Visibility lookback window in days")
+    parser.add_argument(
+        "--concurrency", type=int, default=8,
+        help="parallel Jev calls (the CI Visibility lookup runs concurrently too); 1 = sequential",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Skip Jev calls and the executed lookup (debug)")
     parser.add_argument("--model", default="datadoginternal/openjev-medium")
     parser.add_argument("--dc", default="us1.ddbuild.io", help="AI Gateway datacenter")
@@ -216,8 +223,8 @@ def main() -> int:
         # Decide which suites to evaluate
         suites_root = os.path.join(worktree, E2E_TESTS_DIR)
         suite_names = sorted(os.listdir(suites_root)) if not args.suite else [args.suite]
-        decisions = []
-        token = None if args.dry_run else get_ai_gateway_token(args)
+        # Discover all suites/tests first, then fan the Jev calls out in parallel
+        tasks = []
         for suite in suite_names:
             suite_dir = os.path.join(suites_root, suite)
             if not os.path.isdir(suite_dir):
@@ -227,45 +234,79 @@ def main() -> int:
                 continue
             _, suite_def_code = suite_definition(suite_dir)
             print(f"[info] suite {suite}: {len(entries)} tests")
-            for name, path, code in entries:
-                path = os.path.relpath(path, worktree)
-                if args.dry_run:
-                    decisions.append({"test": name, "suite": suite, "decision": "run", "dry_run": True})
-                    continue
-                state = build_state(
-                    name, path, code, suite, suite, pr_info, files, merge_base, diff,
-                    suite_def_code=suite_def_code,
-                )
-                try:
-                    answer = ask_jev(args, token, state)
-                except Exception as e:
-                    print(f"[warn] Jev failed for {suite}/{name}: {e} -> defaulting to RUN")
-                    decisions.append({"test": name, "suite": suite, "decision": "run", "error": str(e)})
-                    continue
-                a = answer["answers"]
-                should = a["should_execute"]["noul"]
-                relation = a["relation"]["choice"]
-                decision = "run" if should >= 0.5 or relation != "unrelated" else "skip"
-                decisions.append(
-                    {
-                        "test": name, "suite": suite, "decision": decision,
-                        "should_execute": should, "relation": relation,
-                        "confidence": a["confidence"]["score"],
-                    }
-                )
-                print(f"[jev] {suite}/{name:<45} -> {decision.upper()}  {should:.2f} {relation}")
+            tasks.extend(
+                (suite, name, os.path.relpath(path, worktree), code, suite_def_code)
+                for name, path, code in entries
+            )
 
-        # What actually ran
+        token = None if args.dry_run else get_ai_gateway_token(args)
+
+        def evaluate(entry):
+            """One Jev decision for one test entry point (thread-safe: pure inputs)."""
+            suite, name, path, code, suite_def_code = entry
+            state = build_state(
+                name, path, code, suite, suite, pr_info, files, merge_base, diff,
+                suite_def_code=suite_def_code,
+            )
+            try:
+                answer = ask_jev(args, token, state)
+            except Exception as e:
+                return {"test": name, "suite": suite, "decision": "run", "error": str(e)}
+            a = answer["answers"]
+            should = a["should_execute"]["noul"]
+            relation = a["relation"]["choice"]
+            decision = "run" if should >= 0.5 or relation != "unrelated" else "skip"
+            return {
+                "test": name, "suite": suite, "decision": decision,
+                "should_execute": should, "relation": relation,
+                "confidence": a["confidence"]["score"],
+            }
+
+        print_lock = threading.Lock()
+
+        def report_result(d):
+            line = f"{d['suite']}/{d['test']:<45}"
+            if "error" in d:
+                with print_lock:
+                    print(f"[warn] {line} -> Jev failed: {d['error']} -> defaulting to RUN")
+            else:
+                with print_lock:
+                    print(f"[jev] {line} -> {d['decision'].upper()}  {d['should_execute']:.2f} {d['relation']}")
+
+        started = time.monotonic()
         if args.dry_run:
+            decisions = [{"test": t[1], "suite": t[0], "decision": "run", "dry_run": True} for t in tasks]
             executed = {}
         else:
-            scope = f"@ci.pipeline.id:{args.pipeline_id}" if args.pipeline_id else f"@git.commit.sha:{head}"
-            executed = fetch_executed_e2e_tests(
-                f"env:prod @ci.pipeline.name:{PIPELINE_NAME} {scope}", args.days
-            )
+            # The executed-test lookup is independent of the Jev calls: run it
+            # concurrently in the same pool (+1 worker for it).
+            with concurrent.futures.ThreadPoolExecutor(max_workers=args.concurrency + 1) as pool:
+                scope = f"@ci.pipeline.id:{args.pipeline_id}" if args.pipeline_id else f"@git.commit.sha:{head}"
+                executed_future = pool.submit(
+                    fetch_executed_e2e_tests,
+                    f"env:prod @ci.pipeline.name:{PIPELINE_NAME} {scope}",
+                    args.days,
+                )
+                if args.concurrency <= 1:
+                    decisions = []
+                    for entry in tasks:
+                        d = evaluate(entry)
+                        decisions.append(d)
+                        report_result(d)
+                else:
+                    futures = [pool.submit(evaluate, entry) for entry in tasks]
+                    decisions = []
+                    for fut in concurrent.futures.as_completed(futures):
+                        d = fut.result()
+                        decisions.append(d)
+                        report_result(d)
+                executed = executed_future.result()
+            print(f"[info] {len(decisions)} Jev decisions in {time.monotonic() - started:.0f}s (concurrency {args.concurrency})")
     finally:
         git("worktree", "remove", "--force", worktree)
         shutil.rmtree(worktree, ignore_errors=True)
+
+    decisions.sort(key=lambda d: (d["suite"], d["test"]))  # stable report despite parallel completion order
 
     would_run = {d["test"] for d in decisions if d["decision"] == "run"}
     would_skip = {d["test"] for d in decisions if d["decision"] == "skip"}
