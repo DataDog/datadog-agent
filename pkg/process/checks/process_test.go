@@ -8,6 +8,7 @@ package checks
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strconv"
 	"testing"
@@ -146,6 +147,45 @@ func mockProcesses(wlmEnabled bool, probe *mocks.Probe, wmeta workloadmetamock.M
 		probe.On("StatsForPIDs", mock.Anything, mock.Anything).Return(statsByPid, nil)
 	} else {
 		probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(processesByPid, nil)
+	}
+}
+
+func TestProcessCheckDeferredNetworkID(t *testing.T) {
+	for _, found := range []bool{true, false} {
+		t.Run(fmt.Sprintf("found=%t", found), func(t *testing.T) {
+			check, probe, wmeta := processCheckWithMocks(t)
+			check.sysprobeClient = &http.Client{}
+			calls := 0
+			check.initializeNetworkID = check.deferredNetworkIDLookup(func(client *http.Client) (string, error) {
+				calls++
+				require.Same(t, check.sysprobeClient, client)
+				if found {
+					return "test-network", nil
+				}
+				return "", fmt.Errorf("metadata unavailable after retries")
+			})
+			require.Zero(t, calls, "creating the initializer must not query metadata")
+			require.Empty(t, check.networkID)
+
+			proc := makeProcessWithCreateTime(1, "example", time.Now().Unix())
+			mockProcesses(check.WLMProcessCollectionEnabled(), probe, wmeta,
+				map[int32]*procutil.Process{1: proc}, map[int32]*procutil.Stats{1: proc.Stats})
+			first, err := check.Run(testGroupID(0), nil)
+			require.NoError(t, err)
+			require.Empty(t, first.Payloads()) // First sample establishes rates.
+			require.Equal(t, 1, calls)
+			second, err := check.Run(testGroupID(0), nil)
+			require.NoError(t, err)
+			require.Equal(t, 1, calls, "both successful and exhausted lookups are cached")
+			require.NotEmpty(t, second.Payloads())
+			for _, payload := range second.Payloads() {
+				if found {
+					require.Equal(t, "test-network", payload.(*model.CollectorProc).NetworkId)
+				} else {
+					require.Empty(t, payload.(*model.CollectorProc).NetworkId)
+				}
+			}
+		})
 	}
 }
 
