@@ -150,18 +150,20 @@ HOOK_SYSCALL_ENTRY1(unshare, unsigned long, flags) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_unshare_ret(void *ctx, int retval) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_UNSHARE);
+static int __attribute__((always_inline)) sys_unshare_ret(void *ctx, int retval) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE);
     if (!syscall) {
         return 0;
     }
 
     // the CLONE_NEWNS entry above is cached even with no rule loaded
     if (!is_event_enabled(EVENT_UNSHARE)) {
+        pop_syscall(EVENT_UNSHARE);
         return 0;
     }
 
     if (approve_syscall(syscall, unshare_approvers) == DISCARDED) {
+        pop_syscall(EVENT_UNSHARE);
         return 0;
     }
 
@@ -169,6 +171,8 @@ int __attribute__((always_inline)) sys_unshare_ret(void *ctx, int retval) {
         .syscall.retval = retval,
         .flags = syscall->mount.unshare_flags,
     };
+
+    pop_syscall(EVENT_UNSHARE);
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_cgroup_context(entry, &event.cgroup);
@@ -213,6 +217,10 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
     }
 
     fill_mount_fields(syscall, &event->mountfields);
+
+    // only pop EVENT_FSMOUNT, the other mount types are released by another exit hook
+    pop_syscall(EVENT_FSMOUNT);
+
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
 
@@ -664,7 +672,7 @@ HOOK_SYSCALL_ENTRY3(fsmount, int, fs_fd, unsigned int, flags, unsigned int, attr
 }
 
 HOOK_SYSCALL_EXIT(fsmount) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_FSMOUNT);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_FSMOUNT);
     if (!syscall) {
         // should never happen
         return 0;
@@ -673,6 +681,8 @@ HOOK_SYSCALL_EXIT(fsmount) {
     if(syscall->retval >= 0) {
         handle_new_mount(ctx, syscall, true);
     }
+
+    pop_syscall(EVENT_FSMOUNT);
 
     return 0;
 }
@@ -690,11 +700,12 @@ HOOK_SYSCALL_ENTRY4(move_mount, int, from_dfd, const char *, from_pathname, int,
 
 
 HOOK_SYSCALL_EXIT(move_mount) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_MOVE_MOUNT);
-    if (!syscall) {
+    if (peek_syscall(EVENT_MOVE_MOUNT) == NULL) {
         // should never happen
         return 0;
     }
+
+    pop_syscall(EVENT_MOVE_MOUNT);
 
     return 0;
 }

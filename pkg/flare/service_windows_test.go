@@ -56,3 +56,13 @@ func TestFilterDatadogServices(t *testing.T) {
 	assert.Contains(t, outServices, "Datadog Installer", "prefix match should be case insensitive")
 	assert.NotContains(t, outServices, "not-datadog", "non-datadog services should not be included")
 }
+
+func TestFilterDatadogServicesKeepsProcmgrSupervisor(t *testing.T) {
+	inServices := []string{"datadog-agent", "dd-procmgr-service", "DD-ProcMgr-Service", "dd-unrelated"}
+	outServices := filterDatadogServices(inServices)
+	assert.Contains(t, outServices, "dd-procmgr-service",
+		"the procmgr supervisor owns migrated agent processes and must appear in the flare service dump")
+	assert.Contains(t, outServices, "DD-ProcMgr-Service", "known-name match should be case insensitive")
+	assert.NotContains(t, outServices, "dd-unrelated",
+		"only explicitly known names should bypass the datadog prefix match")
+}

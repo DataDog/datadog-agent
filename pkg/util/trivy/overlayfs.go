@@ -26,10 +26,11 @@ import (
 
 // errLayerCountMismatch means the overlayfs mount (or the docker / crio
 // equivalent) exposed a different number of layer paths than the image
-// config has diff_ids. They are 1:1 by the OCI spec, so a divergence
-// means an upstream invariant broke and we refuse to scan rather than
-// guess a pairing.
-var errLayerCountMismatch = errors.New("overlayfs mount layer count does not match image config")
+// config has diff_ids, as the view of a nydus image does with the layers
+// nydusd merges into one directory. We refuse to scan rather than guess a
+// pairing. A retry finds the same layout, so the error wraps
+// sbom.ErrScanNotSupported and the scanner drops the request.
+var errLayerCountMismatch = fmt.Errorf("%w: overlayfs mount layer count does not match image config", sbom.ErrScanNotSupported)
 
 // fakeContainer adapts a pre-paired set of LayerPaths into the
 // ftypes.Container surface Trivy expects. It carries imgMeta separately

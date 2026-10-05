@@ -7,7 +7,7 @@
 #include "helpers/syscalls.h"
 #include "events_definition.h"
 
-#define SETRLIMIT_RATE_LIMITER  100     
+#define SETRLIMIT_RATE_LIMITER  100
 
 static const int important_resources[] = {
     RLIMIT_CPU,
@@ -86,13 +86,13 @@ int hook_security_task_setrlimit(ctx_t *ctx)
 static __always_inline int
 sys_setrlimit_ret_impl(void *ctx, int ret, enum TAIL_CALL_PROG_TYPE prog_type)
 {
-    struct syscall_cache_t *cache = pop_syscall(EVENT_SETRLIMIT);
+    struct syscall_cache_t *cache = peek_syscall(EVENT_SETRLIMIT);
     if (!cache) {
         return 0;
     }
 
     if (ret != 0 && ret != -EPERM) {
-        return 0;
+        goto pop_and_exit;
     }
 
     if (cache->setrlimit.pid == 0) {
@@ -102,7 +102,7 @@ sys_setrlimit_ret_impl(void *ctx, int ret, enum TAIL_CALL_PROG_TYPE prog_type)
 
     struct setrlimit_event_t *evt = SPAN_FILL_EVENT(struct setrlimit_event_t, EVENT_SETRLIMIT);
     if (!evt) {
-        return 0;
+        goto pop_and_exit;
     }
     evt->syscall.retval = ret;
     evt->resource = cache->setrlimit.resource;
@@ -110,10 +110,15 @@ sys_setrlimit_ret_impl(void *ctx, int ret, enum TAIL_CALL_PROG_TYPE prog_type)
     evt->rlim_max = cache->setrlimit.rlim_max;
     evt->target = cache->setrlimit.pid;
 
+    pop_syscall(EVENT_SETRLIMIT);
+
     struct proc_cache_t *pc = fill_process_context(&evt->process);
     fill_cgroup_context(pc, &evt->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_SETRLIMIT);
     return 0;
 }
 
@@ -142,7 +147,7 @@ HOOK_SYSCALL_ENTRY4(prlimit64,
     if (new_limit == NULL) {
         return 0;
     }
-    
+
     return handle_setrlimit_common(ctx, resource, new_limit, pid);
 }
 

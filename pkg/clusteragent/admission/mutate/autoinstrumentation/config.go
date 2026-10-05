@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,6 +43,9 @@ type staticConfig struct {
 
 	// Instrumentation is the configuration for the autoinstrumentation logic
 	Instrumentation *InstrumentationConfig
+
+	// gpuTarget is the target injecting tracers into GPU workloads. It is nil when gpu.tracing is disabled.
+	gpuTarget *Target
 
 	// containerRegistry is the container registry to use for the autoinstrumentation logic
 	containerRegistry string
@@ -144,6 +148,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 			Webhook:                       NewWebhookConfig(datadogConfig),
 			LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
 			Instrumentation:               instrumentationConfig,
+			gpuTarget:                     newGPUTarget(gpuconfig.NewTracingConfig(datadogConfig), gpuconfig.NewJobsConfig(datadogConfig)),
 			containerRegistry:             containerRegistry,
 			registryAllowList:             registryAllowList,
 			defaultDDRegistries:           defaultDDRegistries,

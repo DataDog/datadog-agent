@@ -63,18 +63,18 @@ int hook___get_unmapped_area(ctx_t *ctx) {
 }
 
 int __attribute__((always_inline)) sys_mmap_ret_impl(void *ctx, int retval, u64 addr, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_MMAP);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
     if (!syscall) {
         return 0;
     }
 
     if (approve_syscall(syscall, mmap_approvers) == DISCARDED) {
-        return 0;
+        goto pop_and_exit;
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_MMAP);
     if (syscall->state == DISCARDED) {
-        return 0;
+        goto pop_and_exit;
     }
 
     if (retval != -1) {
@@ -83,7 +83,7 @@ int __attribute__((always_inline)) sys_mmap_ret_impl(void *ctx, int retval, u64 
 
     struct mmap_event_t *event = SPAN_FILL_EVENT(struct mmap_event_t, EVENT_MMAP);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->file = syscall->mmap.file;
@@ -96,10 +96,16 @@ int __attribute__((always_inline)) sys_mmap_ret_impl(void *ctx, int retval, u64 
     if (syscall->mmap.dentry != NULL) {
         fill_file(syscall->mmap.dentry, &event->file);
     }
+
+    pop_syscall(EVENT_MMAP);
+
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_MMAP);
     return 0;
 }
 

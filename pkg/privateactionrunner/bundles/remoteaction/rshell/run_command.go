@@ -309,7 +309,12 @@ func (h *RunCommandHandler) Run(
 	if inputs.EffectivePermissions != "" {
 		switch inputs.EffectivePermissions {
 		case privilegedhelper.EscalationAllowed:
-			return h.runPrivileged(ctx, task, inputs)
+			if h.privilegedEnabled {
+				return h.runPrivileged(ctx, task, inputs)
+			}
+			// Permission to elevate does not require elevation. Without local
+			// opt-in, the ordinary interpreter runs commands and rejects sudo
+			// if it is invoked, including through shell expansion.
 		case "Root":
 			return nil, errors.New("whole-script root execution is not supported")
 		default:

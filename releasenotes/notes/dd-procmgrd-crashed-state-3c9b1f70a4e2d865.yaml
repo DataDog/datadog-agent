@@ -1,0 +1,9 @@
+features:
+  - |
+    ``dd-procmgrd`` now reports a managed process that died without returning a value as ``Crashed``
+    instead of ``Failed``: killed by a signal on Linux, terminated by a fatal exception code on Windows.
+    ``Failed`` keeps its meaning but covers a narrower set, namely a process that ran to completion and
+    returned a non-zero exit code. ``dd-procmgr list``, ``describe``, and ``status`` show the new state,
+    ``status`` gained a ``Crashed`` counter (``crashed_processes`` in ``--json``), and a crash restarts
+    under exactly the same restart policies as a failure. Tooling that matches on ``Failed`` sees fewer
+    hits and should match on both states to cover every unsuccessful exit.

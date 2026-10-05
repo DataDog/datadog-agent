@@ -521,3 +521,80 @@ func TestNVlinkFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigur
 			"nvlink.errors.effective should not be enrolled when INVALID_ARGUMENT is mapped to unsupported")
 	}
 }
+
+func TestDecodeNvlinkBER(t *testing.T) {
+	tests := []struct {
+		name      string
+		raw       uint64
+		valueType nvml.ValueType
+		expected  float64
+	}{
+		{name: "healthy link sentinel 0xFFF", raw: 0xFFF, valueType: nvml.VALUE_TYPE_UNSIGNED_LONG_LONG, expected: 15e-255},
+		{name: "zero", raw: 0, valueType: nvml.VALUE_TYPE_UNSIGNED_LONG_LONG, expected: 0},
+		{name: "1.5e-12", raw: 15<<8 | 13, valueType: nvml.VALUE_TYPE_UNSIGNED_LONG_LONG, expected: 15e-13},
+		{name: "exponent zero", raw: 3 << 8, valueType: nvml.VALUE_TYPE_UNSIGNED_LONG_LONG, expected: 3},
+		{name: "ignores bits above mantissa", raw: 0xF000 | 2<<8 | 9, valueType: nvml.VALUE_TYPE_UNSIGNED_LONG_LONG, expected: 2e-9},
+		{name: "unsigned int value type", raw: 7<<8 | 5, valueType: nvml.VALUE_TYPE_UNSIGNED_INT, expected: 7e-5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var fv nvml.FieldValue
+			testutil.ApplyMockFieldValue(&fv, testutil.MockFieldValue{Value: tt.raw, ValueType: tt.valueType, Return: nvml.SUCCESS})
+
+			value, err := decodeNvlinkBER(nvml.ValueType(fv.ValueType), fv.Value)
+			require.NoError(t, err)
+			if tt.expected == 0 {
+				require.Zero(t, value)
+				return
+			}
+			// Use a relative tolerance: absolute deltas are meaningless at these magnitudes.
+			require.InEpsilon(t, tt.expected, value, 1e-9)
+		})
+	}
+}
+
+func TestNVLinkFieldsCollectorDecodesBERFields(t *testing.T) {
+	values := map[uint32]map[uint32]testutil.MockFieldValue{
+		nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER: {
+			0: testutil.NewFieldValue(0xFFF),
+			1: testutil.NewFieldValue(15<<8 | 13),
+		},
+		nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER: {
+			0: testutil.NewFieldValue(1<<8 | 20),
+			1: testutil.NewFieldValue(9<<8 | 3),
+		},
+	}
+	device := setupMockDevice(t, testutil.WithScopedFieldValues(values), testutil.WithNVLinkLinkCount(2))
+
+	collector, err := newNVLinkFieldsCollectorWithMetrics(device, map[uint32]nvlinkFieldValueMetric{
+		nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER: nvlinkFieldsMetrics[nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER],
+		nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER:    nvlinkFieldsMetrics[nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER],
+	})
+	require.NoError(t, err)
+
+	collected, err := collector.Collect()
+	require.NoError(t, err)
+
+	got := make(map[string]map[string]float64)
+	for _, metric := range requireMetrics(t, collected) {
+		require.Equal(t, metrics.GaugeType, metric.Type)
+		if got[metric.Name] == nil {
+			got[metric.Name] = make(map[string]float64)
+		}
+		require.Len(t, metric.Tags(), 1)
+		got[metric.Name][metric.Tags()[0]] = metric.Value
+	}
+
+	expected := map[string]map[string]float64{
+		"nvlink.ber.effective": {nvlinkPortTag(1): 15e-255, nvlinkPortTag(2): 15e-13},
+		"nvlink.ber.symbol":    {nvlinkPortTag(1): 1e-20, nvlinkPortTag(2): 9e-3},
+	}
+	require.Len(t, got, len(expected))
+	for name, byPort := range expected {
+		require.Len(t, got[name], len(byPort), "metric %s", name)
+		for port, value := range byPort {
+			require.InEpsilon(t, value, got[name][port], 1e-9, "metric %s port %s", name, port)
+		}
+	}
+}

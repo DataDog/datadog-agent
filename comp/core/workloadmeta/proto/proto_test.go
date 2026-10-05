@@ -819,6 +819,36 @@ func TestConvertWorkloadEventToProtoWithUnpopulatedFields(t *testing.T) {
 	assert.Equal(t, expectedProtoEvent, actualProtoEvent)
 }
 
+func TestContainerImageMetadataCreatedRoundTrip(t *testing.T) {
+	tests := []struct {
+		name    string
+		created time.Time
+	}{
+		{"unknown", time.Time{}},
+		{"nanoseconds", time.Date(2026, time.May, 20, 20, 12, 16, 38472911, time.UTC)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := ProtobufEventFromWorkloadmetaEvent(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.ContainerImageMetadata{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainerImageMetadata,
+						ID:   "sha256:56122bfdab2ec6ccdfb5353a47d6a5ea08018cac6eb44e6a7cec699bdc038f2f",
+					},
+					Created: tt.created,
+				},
+			})
+			require.NoError(t, err)
+
+			event, err := WorkloadmetaEventFromProtoEvent(p)
+			require.NoError(t, err)
+			got := event.Entity.(*workloadmeta.ContainerImageMetadata).Created
+			assert.Truef(t, got.Equal(tt.created), "Created = %v, want %v", got, tt.created)
+		})
+	}
+}
+
 func TestProtobufFilterFromWorkloadmetaFilter(t *testing.T) {
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceRuntime).

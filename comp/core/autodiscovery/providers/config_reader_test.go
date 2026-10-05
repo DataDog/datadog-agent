@@ -6,6 +6,7 @@
 package providers
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"testing"
@@ -140,97 +141,189 @@ func TestGetIntegrationConfig(t *testing.T) {
 }
 
 func TestReadConfigFiles(t *testing.T) {
-	paths := []string{"testdata"}
-	ResetReader(paths)
+	mockConfig := configmock.New(t)
 
-	configs, errors, err := ReadConfigFiles(GetAll)
-	require.Nil(t, err)
-	require.Equal(t, 23, len(configs))
-	require.Equal(t, 4, len(errors))
+	readConfigFilesTest := func(t *testing.T, numWorkers int) {
+		mockConfig.SetInTest("autoconf_config_files_num_workers", numWorkers)
 
-	for _, c := range configs {
-		if c.Name == "empty" {
-			require.Fail(t, "empty config should not be returned")
+		paths := []string{"testdata"}
+		ResetReader(paths)
+
+		configs, errors, err := ReadConfigFiles(GetAll)
+		require.Nil(t, err)
+		require.Equal(t, 23, len(configs))
+		require.Equal(t, 4, len(errors))
+
+		for _, c := range configs {
+			if c.Name == "empty" {
+				require.Fail(t, "empty config should not be returned")
+			}
 		}
-	}
 
-	configs, _, err = ReadConfigFiles(WithoutAdvancedAD)
-	require.Nil(t, err)
-	require.Equal(t, 21, len(configs))
+		configs, _, err = ReadConfigFiles(WithoutAdvancedAD)
+		require.Nil(t, err)
+		require.Equal(t, 21, len(configs))
 
-	expectedConfig1 := integration.Config{
-		Name: "advanced_ad",
-		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{
-			{
-				KubeService: integration.KubeNamespacedName{
-					Name:      "svc-name",
-					Namespace: "svc-ns",
-				},
-			},
-		},
-		Instances: []integration.Data{
-			integration.Data("foo: bar\n"),
-		},
-		Source: "file:testdata/advanced_ad.yaml",
-	}
-
-	expectedConfig2 := integration.Config{
-		Name: "advanced_ad_kube_endpoints",
-		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{
-			{
-				KubeEndpoints: integration.KubeEndpointsIdentifier{
-					KubeNamespacedName: integration.KubeNamespacedName{
+		expectedConfig1 := integration.Config{
+			Name: "advanced_ad",
+			AdvancedADIdentifiers: []integration.AdvancedADIdentifier{
+				{
+					KubeService: integration.KubeNamespacedName{
 						Name:      "svc-name",
 						Namespace: "svc-ns",
 					},
-					Resolve: "ip",
 				},
 			},
-		},
-		Instances: []integration.Data{
-			integration.Data("foo: bar\n"),
-		},
-		Source: "file:testdata/advanced_ad_kube_endpoints.yaml",
-	}
-
-	configs, _, err = ReadConfigFiles(WithAdvancedADOnly)
-	require.Nil(t, err)
-	require.Equal(t, 2, len(configs))
-
-	// Ignore the Source field for comparison because varies by OS
-	// Ignore the matchingPrograms field for comparison since it's not relevant for the test
-	ignoreFields := cmpopts.IgnoreFields(integration.Config{}, "Source", "matchingPrograms")
-
-	// Check if expectedConfig1 is in the configs slice
-	found := false
-	for _, config := range configs {
-		if cmp.Equal(config, expectedConfig1, ignoreFields) {
-			found = true
-			break
+			Instances: []integration.Data{
+				integration.Data("foo: bar\n"),
+			},
+			Source: "file:testdata/advanced_ad.yaml",
 		}
-	}
-	if !found {
-		t.Errorf("expectedConfig not found in configs.\nExpected: %+v\nActual configs: %+v\nDiff: %s",
-			expectedConfig1, configs, cmp.Diff(expectedConfig1, configs, ignoreFields))
-	}
 
-	// Check if expectedConfig2 is in the configs slice
-	found = false
-	for _, config := range configs {
-		if cmp.Equal(config, expectedConfig2, ignoreFields) {
-			found = true
-			break
+		expectedConfig2 := integration.Config{
+			Name: "advanced_ad_kube_endpoints",
+			AdvancedADIdentifiers: []integration.AdvancedADIdentifier{
+				{
+					KubeEndpoints: integration.KubeEndpointsIdentifier{
+						KubeNamespacedName: integration.KubeNamespacedName{
+							Name:      "svc-name",
+							Namespace: "svc-ns",
+						},
+						Resolve: "ip",
+					},
+				},
+			},
+			Instances: []integration.Data{
+				integration.Data("foo: bar\n"),
+			},
+			Source: "file:testdata/advanced_ad_kube_endpoints.yaml",
 		}
-	}
-	if !found {
-		t.Errorf("expectedConfig not found in configs.\nExpected: %+v\nActual configs: %+v\nDiff: %s",
-			expectedConfig2, configs, cmp.Diff(expectedConfig2, configs, ignoreFields))
+
+		configs, _, err = ReadConfigFiles(WithAdvancedADOnly)
+		require.Nil(t, err)
+		require.Equal(t, 2, len(configs))
+
+		// Ignore the Source field for comparison because varies by OS
+		// Ignore the matchingPrograms field for comparison since it's not relevant for the test
+		ignoreFields := cmpopts.IgnoreFields(integration.Config{}, "Source", "matchingPrograms")
+
+		// Check if expectedConfig1 is in the configs slice
+		found := false
+		for _, config := range configs {
+			if cmp.Equal(config, expectedConfig1, ignoreFields) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expectedConfig not found in configs.\nExpected: %+v\nActual configs: %+v\nDiff: %s",
+				expectedConfig1, configs, cmp.Diff(expectedConfig1, configs, ignoreFields))
+		}
+
+		// Check if expectedConfig2 is in the configs slice
+		found = false
+		for _, config := range configs {
+			if cmp.Equal(config, expectedConfig2, ignoreFields) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expectedConfig not found in configs.\nExpected: %+v\nActual configs: %+v\nDiff: %s",
+				expectedConfig2, configs, cmp.Diff(expectedConfig2, configs, ignoreFields))
+		}
+
+		configs, _, err = ReadConfigFiles(func(c integration.Config) bool { return c.Name == "baz" })
+		require.Nil(t, err)
+		require.Equal(t, 1, len(configs))
+		require.Equal(t, configs[0].Name, "baz")
 	}
 
-	configs, _, err = ReadConfigFiles(func(c integration.Config) bool { return c.Name == "baz" })
+	for _, numWorkers := range []int{1, 2, 4, 8, 64} {
+		t.Run(fmt.Sprintf("workers=%d", numWorkers), func(t *testing.T) {
+			readConfigFilesTest(t, numWorkers)
+		})
+	}
+}
+
+// TestReadConfigFilesErrorClearing checks that when multiple files share an
+// integration name, a later valid file clears an earlier file's recorded
+// error (and vice versa: a later invalid file's error survives), both within
+// a single `<integration>.d/` directory and across two independent top-level
+// entries. See errorAction/applyErrorAction in config_reader.go.
+func TestReadConfigFilesErrorClearing(t *testing.T) {
+	mockConfig := configmock.New(t)
+
+	readConfigFilesErrorClearingTest := func(t *testing.T, numWorkers int) {
+		mockConfig.SetInTest("autoconf_config_files_num_workers", numWorkers)
+		ResetReader([]string{"testdata/errorclearing"})
+
+		configs, errs, err := ReadConfigFiles(GetAll)
+		require.Nil(t, err)
+
+		names := map[string]bool{}
+		for _, c := range configs {
+			names[c.Name] = true
+		}
+
+		// cleared.d/1.yaml (invalid) sets an error, then cleared.d/2.yaml (valid,
+		// processed after in the same directory) clears it: the config is
+		// returned and no error is recorded for the name.
+		require.True(t, names["cleared"], "valid file's config should be returned")
+		require.NotContains(t, errs, "cleared", "later valid file should clear the earlier error")
+
+		// notcleared.d/1.yaml (valid) clears nothing yet, then notcleared.d/2.yaml
+		// (invalid, processed last) sets the error: it should survive.
+		// Note: config still exists for the integration since notcleared.d/1.yaml was valid
+		require.True(t, names["notcleared"], "valid file's config should be returned")
+		require.Contains(t, errs, "notcleared", "later invalid file's error should not be erased")
+
+		// Same ordering guarantee across two different top-level entries handled
+		// by the worker pool (not just within one directory) - results are still
+		// merged back in original, deterministic entry order.
+		require.True(t, names["siblingcleared"])
+		require.NotContains(t, errs, "siblingcleared")
+	}
+
+	// 8 is more than the number of entries in testdata/errorclearing, so it also covers the worker count cap
+	for _, numWorkers := range []int{1, 2, 4, 8} {
+		t.Run(fmt.Sprintf("workers=%d", numWorkers), func(t *testing.T) {
+			// read several times since a scheduling-dependent ordering bug wouldn't show up on every run
+			for range 5 {
+				readConfigFilesErrorClearingTest(t, numWorkers)
+			}
+		})
+	}
+}
+
+func TestReadConfigFilesConcurrentMatchesSequential(t *testing.T) {
+	mockConfig := configmock.New(t)
+
+	// read the files with one worker
+	mockConfig.SetInTest("autoconf_config_files_num_workers", 1)
+	ResetReader([]string{"testdata"})
+	expectedConfigs, expectedErrors, err := ReadConfigFiles(GetAll)
 	require.Nil(t, err)
-	require.Equal(t, 1, len(configs))
-	require.Equal(t, configs[0].Name, "baz")
+	expectedFormats := ReadConfigFormats()
+	require.NotEmpty(t, expectedConfigs)
+	require.NotEmpty(t, expectedErrors)
+
+	// 64 is more than the number of entries in testdata, so it also covers the worker count cap
+	for _, numWorkers := range []int{2, 8, 64} {
+		t.Run(fmt.Sprintf("workers=%d", numWorkers), func(t *testing.T) {
+			mockConfig.SetInTest("autoconf_config_files_num_workers", numWorkers)
+			// read several times since a scheduling-dependent ordering bug wouldn't show up on every run
+			for range 5 {
+				ResetReader([]string{"testdata"})
+				configs, errors, err := ReadConfigFiles(GetAll)
+				require.Nil(t, err)
+				// Assert outputs match the ouputs we got with one worker
+				require.Equal(t, expectedConfigs, configs)
+				require.Equal(t, expectedErrors, errors)
+				require.Equal(t, expectedFormats, ReadConfigFormats())
+			}
+		})
+	}
 }
 
 func TestReadConfigFilesCache(t *testing.T) {

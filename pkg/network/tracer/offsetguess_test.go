@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 //go:generate $GOPATH/bin/include_headers pkg/network/ebpf/c/runtime/offsetguess-test.c pkg/ebpf/bytecode/build/runtime/offsetguess-test.c pkg/ebpf/c pkg/ebpf/c/protocols pkg/network/ebpf/c/runtime pkg/network/ebpf/c
@@ -311,7 +310,6 @@ func testOffsetGuess(t *testing.T) {
 	})
 
 	t.Run("only RTT offsets", func(t *testing.T) {
-		flake.Mark(t)
 		testOffsets(t, []offsetT{offsetRtt, offsetRttVar}, nil)
 	})
 

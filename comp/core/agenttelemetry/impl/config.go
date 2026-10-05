@@ -40,6 +40,10 @@ type Profile struct {
 	Metric   *AgentMetricConfig `yaml:"metric,omitempty"`
 	Schedule *Schedule          `yaml:"schedule,omitempty"`
 	Events   []*Event           `yaml:"events"`
+	// RemoteFlag optionally gates the whole profile behind a remote flag
+	// (see remoteflag.go). When set, the profile is only collected while that
+	// flag is enabled through Remote Config; it is off by default.
+	RemoteFlag string `yaml:"remote_flag,omitempty"`
 
 	// compiled
 	metricsMap        map[string]*MetricConfig
@@ -134,6 +138,11 @@ type Event struct {
 // When included, emits one total independently for each emitter. A special tag "total"
 // containing that emitter's source-timeseries count is added to the metric's JSON object
 // (accordingly "total" is a reserved tag).
+//
+// profiles[].remote_flag (optional)
+// ---------------------------------
+// When specified, the profile is only collected while the named remote flag is enabled
+// through Remote Config.
 //
 // profiles[].schedule (optional)
 // --------------------------------
@@ -283,6 +292,10 @@ func validateProfiles(cfg *Config) error {
 	for i, p := range cfg.Profiles {
 		if len(p.Name) == 0 {
 			return fmt.Errorf("profile requires 'name' attribute to be specified. Profile index: %d", i)
+		}
+
+		if p.RemoteFlag != "" && p.RemoteFlag != flagTroubleshooting {
+			return fmt.Errorf("profile '%s' references unknown remote flag '%s'", p.Name, p.RemoteFlag)
 		}
 	}
 

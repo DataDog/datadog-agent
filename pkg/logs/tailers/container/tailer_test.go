@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"strings"
 	"sync"
 	"testing"
@@ -220,7 +221,7 @@ func TestTailer_readForever(t *testing.T) {
 			name: "The agent is stopping",
 			newTailer: func() *Tailer {
 				_, cancelFunc := context.WithCancel(context.Background())
-				reader := NewTestReader("", errors.New("use of closed network connection"), nil)
+				reader := NewTestReader("", net.ErrClosed, nil)
 				tailer := NewTestTailer(reader, reader, cancelFunc)
 				tailer.stopping.Store(true)
 				return tailer
@@ -239,7 +240,7 @@ func TestTailer_readForever(t *testing.T) {
 				// init the fake reader with an io.EOF
 				initialReader := NewTestReader("", io.EOF, nil)
 				// then the new reader return by the unsafeReader client will return close network connection to simulate stop agent
-				connectionCloseReader := NewTestReader("", errors.New("use of closed network connection"), nil)
+				connectionCloseReader := NewTestReader("", net.ErrClosed, nil)
 				tailer := NewTestTailer(initialReader, connectionCloseReader, cancelFunc)
 				tailer.sleepDuration = time.Millisecond
 				// The EOF triggers a restart onto connectionCloseReader; the
@@ -329,13 +330,13 @@ func (r *cancelSurfacingReader) Close() error { return nil }
 // restart, no erroredContainerID signal, and no further "Stop tailing
 // container" log. The fix makes it reconnect unless the tailer is stopping.
 func TestTailer_readForeverReconnectsOnStreamCloseWhenNotStopping(t *testing.T) {
-	for _, errStr := range []string{
-		"http: read on closed response body", // isReaderClosed
-		"use of closed network connection",   // isClosedConnError
+	for _, tErr := range []error{
+		errors.New("http: read on closed response body"), // isReaderClosed
+		net.ErrClosed, // isClosedConnError
 	} {
-		t.Run(errStr, func(t *testing.T) {
+		t.Run(tErr.Error(), func(t *testing.T) {
 			_, cancelFunc := context.WithCancel(context.Background())
-			reader := NewTestReader("", errors.New(errStr), nil)
+			reader := NewTestReader("", tErr, nil)
 			tailer := NewTestTailer(reader, reader, cancelFunc)
 			tailer.sleepDuration = time.Millisecond
 
@@ -377,8 +378,8 @@ func TestTailer_readForeverReconnectsOnStreamCloseWhenNotStopping(t *testing.T) 
 // context.Canceled. readForever must reconnect, not die.
 func TestTailer_readForeverReconnectsAfterReadTimeoutCancel(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	blocked := &cancelSurfacingReader{ctx: ctx, onCancel: errors.New("use of closed network connection")}
-	restartReader := NewTestReader("", errors.New("use of closed network connection"), nil)
+	blocked := &cancelSurfacingReader{ctx: ctx, onCancel: net.ErrClosed}
+	restartReader := NewTestReader("", net.ErrClosed, nil)
 	tailer := NewTestTailer(blocked, restartReader, cancelFunc)
 	tailer.sleepDuration = time.Millisecond
 

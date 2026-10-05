@@ -91,7 +91,6 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 		log.Errorf("Could not retrieve tags for container image %s: %v", img.ID, err)
 	}
 
-	var lastCreated *timestamppb.Timestamp
 	layers := make([]*model.ContainerImage_ContainerImageLayer, 0, len(img.Layers))
 	for _, layer := range img.Layers {
 		modelLayer := &model.ContainerImage_ContainerImageLayer{
@@ -115,7 +114,6 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 
 			if layer.History.Created != nil {
 				modelLayer.History.Created = timestamppb.New(*layer.History.Created)
-				lastCreated = modelLayer.History.Created
 			}
 		}
 
@@ -137,6 +135,11 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 		// parsed correctly.
 		repoName, _ := pkgimage.SplitRepoTag(repoTag)
 		repos[repoName] = struct{}{}
+	}
+
+	var builtAt *timestamppb.Timestamp
+	if !img.Created.IsZero() {
+		builtAt = timestamppb.New(img.Created)
 	}
 
 	for repo := range repos {
@@ -205,7 +208,7 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 				Architecture: img.Architecture,
 			},
 			Layers:  layers,
-			BuiltAt: lastCreated,
+			BuiltAt: builtAt,
 		}
 	}
 }

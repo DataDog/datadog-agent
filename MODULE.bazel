@@ -85,7 +85,8 @@ bazel_dep(name = "protobuf", version = "35.1")
 bazel_dep(name = "re.bzl", version = "0.4.1")
 bazel_dep(name = "rules_cc", version = "0.2.25")
 bazel_dep(name = "rules_flex", version = "0.4.1")
-bazel_dep(name = "rules_go", version = "0.64.0")
+bazel_dep(name = "rules_foreign_cc", version = "0.16.0")
+bazel_dep(name = "rules_go", version = "0.64.1")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
@@ -95,7 +96,7 @@ bazel_dep(name = "rules_rust", version = "0.74.0")
 bazel_dep(name = "rules_rust_prost", version = "0.74.0")
 bazel_dep(name = "rules_shell", version = "0.8.0")
 bazel_dep(name = "toml.bzl", version = "0.5.0")
-bazel_dep(name = "toolchains_llvm", version = "1.8.0")
+bazel_dep(name = "toolchains_llvm", version = "1.11.1")
 bazel_dep(name = "toolchains_msvc", version = "0.1.0")
 bazel_dep(name = "with_cfg.bzl", version = "1.0.0")
 
@@ -115,16 +116,32 @@ single_version_override(
     module_name = "rules_cc",
     patch_strip = 1,
     patches = ["//bazel/patches:rules_cc-restore-grep-includes.patch"],
-    version = "0.2.25",
 )
 
-# Temporary until corresponding PRs (or equivalent) land in a release
+single_version_override(
+    module_name = "rules_foreign_cc",
+    patch_strip = 1,
+    patches = [
+        # https://github.com/bazel-contrib/rules_foreign_cc/pull/1452
+        "//bazel/patches:rules_foreign_cc/0002-configure_make-provide-DY-LD_LIBRARY_PATH-based-on-t.patch",
+        # https://github.com/bazel-contrib/rules_foreign_cc/pull/1491
+        "//bazel/patches:rules_foreign_cc/0003-pass-j-flag-directly-on-make-command-line.patch",
+        # https://github.com/bazel-contrib/rules_foreign_cc/issues/985
+        # TODO(agent-build): Ideally we'd like to find a better way to solve this, possibly
+        # finding a general solution that could be properly upstreamed
+        "//bazel/patches:rules_foreign_cc/0004-Pass-cc-flags-as-CPPFLAGS.patch",
+    ],
+)
+
+# Temporary until the following PRs (or equivalents) land
 single_version_override(
     module_name = "rules_go",
     patch_strip = 1,
     patches = [
-        "//bazel/patches:rules_go-cover-workdir-trimpath.patch",  # https://github.com/bazel-contrib/rules_go/pull/4733
-        "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # https://github.com/bazel-contrib/rules_go/pull/3977
+        # https://github.com/bazel-contrib/rules_go/pull/3977
+        "//bazel/patches:rules_go-windows-symlink-workaround.patch",
+        # https://github.com/bazel-contrib/rules_go/pull/4727
+        "//bazel/patches:rules_go-link-resource-set.patch",
     ],
 )
 
@@ -139,14 +156,6 @@ archive_override(
     sha256 = "54a824c8d57c4f1e9dad9aee7ffab63eeff90e793afd1a20fe42b4c3dc060cfe",
     strip_prefix = "rules_pkg-4d04b6cb28e65c52af84a0e80808e883e581a43e",
     urls = ["https://github.com/bazelbuild/rules_pkg/archive/4d04b6cb28e65c52af84a0e80808e883e581a43e.tar.gz"],  # main as of Oct 01, 2026
-)
-
-# Temporary until https://github.com/bazel-contrib/toolchains_llvm/pull/790 lands in a release
-archive_override(
-    module_name = "toolchains_llvm",
-    sha256 = "addeebfa8fdcf9fbc1c339e451cbb285e1c0d4c078c3718e42bd1791d0d96d4e",
-    strip_prefix = "toolchains_llvm-ffe407ca2423f4d171b7a0f3897c23bbb7e40310",
-    urls = ["https://github.com/bazel-contrib/toolchains_llvm/archive/ffe407ca2423f4d171b7a0f3897c23bbb7e40310.tar.gz"],
 )
 
 ##########################################

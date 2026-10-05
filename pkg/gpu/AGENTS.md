@@ -216,6 +216,7 @@ require.Equal(t, stats.get, stats.put)  // Balanced get/put
 - Safe wrapper around NVIDIA NVML library
 - Handles library loading, error recovery
 - Caches device info to reduce NVML calls
+- `DeviceCache.Refresh` keeps a previously enumerated physical GPU when that index returns `NVML_ERROR_GPU_IS_LOST`. No lost-state attribute is added to `DeviceInfo`; callers that need the current state must query NVML. Any other per-device error still drops that index.
 
 ### NVML test mocks (`testutil/`)
 - Use `safenvml/testutil.SetupMockNVML` as the main setup entry point outside

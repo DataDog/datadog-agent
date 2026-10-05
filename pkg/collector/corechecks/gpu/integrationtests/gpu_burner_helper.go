@@ -31,7 +31,7 @@ const (
 	gpuBurnerBinEnv             = "GPU_BURNER_BIN"
 	gpuBurnerStartupLimit       = 90 * time.Second
 	gpuBurnerStatusTimeout      = 5 * time.Second
-	gpuBurnerRunTime            = 30
+	gpuBurnerRunTime            = 120
 	gpuBurnerCalibrationSeconds = 10
 )
 
@@ -39,7 +39,7 @@ var gpuBurnerHTTPClient = &http.Client{Timeout: gpuBurnerStatusTimeout}
 
 // GPUBurnerMetrics is the live GPU metric snapshot returned by gpu-burner.
 type GPUBurnerMetrics struct {
-	SMActive float64 `json:"sm_active"`
+	SMActive *float64 `json:"sm_active"`
 }
 
 // GPUBurnerWorker describes a gpu-burner worker returned by its status API.
@@ -64,6 +64,14 @@ type GPUBurner struct {
 	mu        sync.Mutex
 	exited    bool
 	exitErr   error
+}
+
+// MetricValues returns gpu-burner status values keyed by GPU spec metric name.
+func (m *GPUBurnerMetrics) MetricValues() map[string]*float64 {
+	if m == nil {
+		return nil
+	}
+	return map[string]*float64{"sm_active": m.SMActive}
 }
 
 func requireGPUBurner(t *testing.T) string {
@@ -152,6 +160,9 @@ func StartGPUBurner(t *testing.T, visibleDevices string, workers int, targetSM i
 			require.Equal(collect, "running", worker.Stage)
 			require.NotEmpty(collect, worker.GPUUUID)
 			require.NotNil(collect, worker.Metrics)
+			// Workers report "running" before their first step, so wait until NVML sees load.
+			require.NotNil(collect, worker.Metrics.SMActive)
+			require.Positive(collect, *worker.Metrics.SMActive)
 		}
 	}, gpuBurnerStartupLimit, time.Second, "gpu-burner did not become ready")
 

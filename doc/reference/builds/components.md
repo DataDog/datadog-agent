@@ -39,7 +39,7 @@ Here is a list of usable "tags" that you can pass during the build process to cu
 * `log`: enable the log agent.
 * `process`: enable the process agent.
 * `zk`: enable Zookeeper as a configuration store.
-* `zstd`: use Zstandard instead of Zlib.
+* `zlib`: link the Zlib and Zstandard payload compressors; without it only gzip and no-op are available.
 * `systemd`: enable systemd journal log collection.
 * `netcgo`: force the use of the CGO resolver. _This will also have the effect of making the binary non-static._
 * `secrets`: enable secrets support in configuration files (see documentation [here](https://docs.datadoghq.com/agent/guide/secrets-management)).

@@ -532,10 +532,14 @@ func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.SubGraph
 func (at *ActivityTree) prepareCapabilitiesNode(p *ProcessNode, data *utils.SubGraph) utils.GraphID {
 	var labelBuilder strings.Builder
 	labelBuilder.WriteString(tableHeader)
+	labelBuilder.WriteString("<TR><TD>capability</TD><TD>capable</TD><TD>attempted in host userns</TD><TD>capable in host userns</TD></TR>")
 
 	for _, capabilityNode := range p.Capabilities {
 		kernelCap := model.KernelCapability(1 << capabilityNode.Capability)
-		labelBuilder.WriteString("<TR><TD>" + kernelCap.String() + "</TD><TD>" + strconv.FormatBool(capabilityNode.Capable) + "</TD></TR>")
+		labelBuilder.WriteString("<TR><TD>" + kernelCap.String() +
+			"</TD><TD>" + strconv.FormatBool(capabilityNode.Capable) +
+			"</TD><TD>" + strconv.FormatBool(capabilityNode.AttemptedHostUserNS) +
+			"</TD><TD>" + strconv.FormatBool(capabilityNode.CapableHostUserNS) + "</TD></TR>")
 	}
 
 	labelBuilder.WriteString("</TABLE>>")

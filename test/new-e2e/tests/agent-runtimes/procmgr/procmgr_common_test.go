@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 // platformConfig holds all platform-specific paths, commands, and config
@@ -75,6 +76,37 @@ func (s *baseProcmgrSuite) requireCLI() {
 	}
 }
 
+// stopShouldTakeLessThan bounds a dd-procmgr stop of a test fixture. Linux's
+// exits on the signal; Windows' ignores it and is pinned to a 10s stop_timeout,
+// so this leaves room for that, the force kill after it, and a retry in
+// between. A stop that runs past this is one the daemon never escalated.
+const stopShouldTakeLessThan = 20 * time.Second
+
+// retryCLIAction runs a mutating dd-procmgr command until it succeeds.
+//
+// A single attempt is not a fair test of the daemon: the CLI opens a fresh
+// connection per invocation, so one transport fault fails the command outright
+// and, with MustExecute, the whole test with it. alreadyDone is the daemon's
+// refusal when a retry finds the work done, which is a success here.
+//
+// Returns how long the action took to settle across every attempt, so a caller
+// can hold the daemon to a duration as well as an outcome. Timing the last
+// attempt alone would let a retry report only the tail of the work: a transport
+// fault halfway through a slow stop would leave the retry measuring what was
+// left of it, which is the one case this helper exists to tolerate.
+func (s *baseProcmgrSuite) retryCLIAction(action, procName, alreadyDone string) time.Duration {
+	s.T().Helper()
+	start := time.Now()
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out, err := s.Env().RemoteHost.Execute(s.platform.cliCmd(action + " " + procName))
+		if err == nil || strings.Contains(err.Error(), alreadyDone) {
+			return
+		}
+		assert.NoError(ct, err, "%s %s: %s", action, procName, out)
+	}, 60*time.Second, 2*time.Second)
+	return time.Since(start)
+}
+
 // ---------------------------------------------------------------------------
 // Shared tests — run on both Linux and Windows
 // ---------------------------------------------------------------------------
@@ -93,6 +125,39 @@ func (s *baseProcmgrSuite) TestServiceRunning() {
 		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.checkSvcRunning)
 		assert.Equal(ct, s.platform.svcRunningOutput, strings.TrimSpace(out))
 	}, 30*time.Second, 2*time.Second)
+}
+
+// daemonServiceStateMetric is the COAT gauge reporting the dd-procmgrd unit or SCM state. It is
+// one-hot: the reporter emits one series per state and sets exactly one of them to 1.
+const daemonServiceStateMetric = "runtime__procmgr_daemon_service_state"
+
+// daemonServiceStates are the states that gauge can report, in the same order the reporter emits
+// them.
+var daemonServiceStates = []string{
+	"running", "starting", "stopping", "stopped", "failed", "unknown", "not_installed",
+}
+
+// The gauge reports the OS unit or SCM state rather than gRPC readiness, so it has to agree with
+// TestServiceRunning above: on a host where the service is up, "running" is the state that is set.
+//
+// The rest are asserted to be 0 because the one-hot is what makes the metric readable downstream.
+// COAT drops zero series, so a payload carries only the state that is set, and a second series at 1
+// would be indistinguishable from a host genuinely in two states.
+func (s *baseProcmgrSuite) TestDaemonServiceStateTelemetry() {
+	// The COAT reporter refreshes on its own cadence rather than per diagnose call, so the first
+	// snapshot after install can predate the running service.
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		output := s.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "agent-full-telemetry"}))
+		assert.True(ct, telemetryGaugeIsTrue(output, daemonServiceStateMetric, map[string]string{
+			"state": "running",
+		}), "daemon service state should be running while the service is up: %s", output)
+
+		for _, state := range daemonServiceStates[1:] {
+			assert.False(ct, telemetryGaugeIsTrue(output, daemonServiceStateMetric, map[string]string{
+				"state": state,
+			}), "only one state may be set, but %q is also 1: %s", state, output)
+		}
+	}, 7*time.Minute, 10*time.Second)
 }
 
 func (s *baseProcmgrSuite) TestCLIStatus() {
@@ -149,8 +214,15 @@ func (s *baseProcmgrSuite) TestCLIStopStartThenKillRestarts() {
 		assertTableRow(ct, out, procName, map[string]string{"STATE": "Running"})
 	}, 30*time.Second, 2*time.Second)
 
-	s.Env().RemoteHost.MustExecute(s.platform.cliCmd("stop " + procName))
-	s.Env().RemoteHost.MustExecute(s.platform.cliCmd("start " + procName))
+	// Held to a duration, not just an outcome. On Windows the fixture ignores
+	// the graceful stop, so this exercises the escalation: the daemon has to
+	// give up after stop_timeout and force-kill. A daemon that waits forever
+	// on a child that will never exit on its own fails here.
+	stopTook := s.retryCLIAction("stop", procName, "is not running")
+	assert.Less(s.T(), stopTook, stopShouldTakeLessThan,
+		"stop took %s: the daemon did not escalate to a force kill after stop_timeout", stopTook)
+
+	s.retryCLIAction("start", procName, "is already running")
 
 	var pidBeforeKill uint64
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {

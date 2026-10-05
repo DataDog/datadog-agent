@@ -310,4 +310,10 @@ struct syscall_cache_t {
     };
 };
 
+// Recovers the syscall cache key of a task whose pid numbers changed mid-execve.
+struct exec_pid_transfer_t {
+    u64 pid_tgid;
+    u64 task; // de_thread swaps the pid numbers, not the task
+};
+
 #endif

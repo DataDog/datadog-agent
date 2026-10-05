@@ -541,7 +541,7 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		c.telemetry.collectorTelemetry.CollectionRuns.Inc(collectorResult.telemetryTags...)
 		c.telemetry.collectorTelemetry.Time.Observe(float64(collectorResult.duration.Milliseconds()), collectorResult.telemetryTags...)
 
-		if collectorResult.err != nil {
+		if collectorResult.err != nil && !ddnvml.IsGPULost(collectorResult.err) {
 			c.telemetry.collectorTelemetry.CollectionErrors.Add(1, collectorResult.telemetryTags...)
 			multiErr = append(multiErr, fmt.Errorf("collector %s failed. %w", collectorResult.name, collectorResult.err))
 		}

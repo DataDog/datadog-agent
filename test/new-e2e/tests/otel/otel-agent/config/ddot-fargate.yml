@@ -1,0 +1,37 @@
+extensions:
+  health_check:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  # No application sends OTLP data in this e2e scenario. hostmetrics keeps
+  # metrics continuously flowing through the pipeline so the datadog exporter's
+  # standalone-mode running-metric emission (which the .fargate billing
+  # variant is one of) has data to trigger on.
+  hostmetrics:
+    collection_interval: 10s
+    scrapers:
+      cpu:
+
+exporters:
+  datadog:
+    metrics:
+      resource_attributes_as_tags: true
+    api:
+      key: ${env:DD_API_KEY}
+    sending_queue:
+      batch:
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog]
+    metrics:
+      receivers: [otlp, hostmetrics]
+      exporters: [datadog]

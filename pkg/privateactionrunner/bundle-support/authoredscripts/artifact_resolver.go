@@ -23,9 +23,6 @@ const (
 	authoredScriptCacheDirectory = "dd-authored-script"
 )
 
-// LocalArtifact identifies an immutable artifact directory that is ready for use.
-type LocalArtifact = artifactstore.Artifact
-
 // PackageMaterializer materializes an authored-script package. MaterializationID must
 // identify every materialization choice not represented by the package digest.
 type PackageMaterializer interface {
@@ -93,7 +90,7 @@ func (r *ArtifactResolver) Resolve(ctx context.Context, descriptor Descriptor) (
 	if err != nil {
 		return LocalArtifact{}, fmt.Errorf("could not ensure authored-script package %q version %q: %w", descriptor.Package, descriptor.Version, err)
 	}
-	return artifact, nil
+	return LocalArtifact{Directory: artifact.Directory}, nil
 }
 
 func (r *ArtifactResolver) artifactKey(descriptor Descriptor) artifactstore.Key {

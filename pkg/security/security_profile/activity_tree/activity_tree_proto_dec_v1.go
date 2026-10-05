@@ -551,10 +551,12 @@ func decodeProtoCapabilityNode(pan *adproto.CapabilityNode, getIDFromImageTag fu
 	}
 
 	capNode := &CapabilityNode{
-		NodeBase:       NewNodeBase(),
-		GenerationType: Runtime,
-		Capability:     pan.Capability,
-		Capable:        pan.IsCapable,
+		NodeBase:            NewNodeBase(),
+		GenerationType:      Runtime,
+		Capability:          pan.Capability,
+		Capable:             pan.IsCapable,
+		AttemptedHostUserNS: pan.IsAttemptedHostUserns,
+		CapableHostUserNS:   pan.IsCapableHostUserns,
 	}
 
 	if pan.NodeBase != nil {

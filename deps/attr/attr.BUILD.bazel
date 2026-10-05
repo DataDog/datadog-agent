@@ -60,6 +60,14 @@ _PUBLIC_HEADERS = [
 ]
 
 cc_library(
+    name = "headers",
+    hdrs = _PUBLIC_HEADERS,
+    include_prefix = "attr",
+    strip_include_prefix = "include",
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "libattr",
     srcs = [
         "include/nls.h",

@@ -8,6 +8,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/taglist",
+        "//comp/core/tagger/tags",
         "//pkg/util/log",
         "//pkg/util/tmplvar",
         "@com_github_gobwas_glob//:glob",

@@ -14,6 +14,8 @@ import (
 type ProcmgrSession interface {
 	Status(ctx context.Context) (DaemonSnapshot, error)
 	List(ctx context.Context) (map[string]ProcessSnapshot, error)
+	// Describe returns the full detail for one process, including the fields List omits.
+	Describe(ctx context.Context, nameOrUUID string) (ProcessSnapshot, error)
 	Disconnect() error
 }
 
@@ -29,6 +31,59 @@ func clientContext(parent context.Context) (context.Context, context.CancelFunc)
 		parent = context.Background()
 	}
 	return context.WithTimeout(parent, clientTimeout)
+}
+
+// serviceSweepReserve is the part of a collection budget held back from the dd-procmgrd calls so the
+// per-service supervisor checks that follow them still have time to run.
+//
+// Those checks are the only part of a snapshot that does not go through dd-procmgrd, which makes them
+// what is left when the daemon is itself the problem. They share the collection context, and a
+// context cannot outlive an expired parent, so without a reserve a daemon that hangs long enough to
+// exhaust the budget makes every "systemctl is-active" fail on arrival. Every service would then
+// report management_mode "none", which claims no supervisor owns it rather than admitting we could
+// not tell.
+//
+// One value serves both callers when the budget is large enough for it. When the caller has given us
+// no more than the reserve, the carve-out is skipped: the fleet daemon, for example, polls Collect
+// with a two-second deadline, and subtracting the full reserve there would expire the daemon calls
+// on arrival and make every procmgr-managed service report unknown.
+const serviceSweepReserve = 2 * time.Second
+
+// daemonPhaseContext bounds the dd-procmgrd calls so they cannot spend a whole collection budget,
+// leaving serviceSweepReserve of it for the local checks that run afterwards.
+//
+// Derived from the collection context rather than the caller's, so the reserve is carved out of the
+// budget collection already agreed to and any margin the caller set aside is still respected. When
+// the remaining budget is no larger than the reserve, the carve-out is skipped and the daemon calls
+// keep the full budget: failing them on arrival would hide procmgr ownership, which is worse than
+// a service sweep that may itself run short.
+func daemonPhaseContext(collection context.Context) (context.Context, context.CancelFunc) {
+	deadline, ok := collection.Deadline()
+	if !ok {
+		return context.WithCancel(collection)
+	}
+	remaining := time.Until(deadline)
+	if remaining <= serviceSweepReserve {
+		return context.WithCancel(collection)
+	}
+	return context.WithDeadline(collection, deadline.Add(-serviceSweepReserve))
+}
+
+// daemonServiceStateBudget is the part of serviceSweepReserve given to the dd-procmgrd unit or
+// service query, which runs before the per-service sweep.
+//
+// Order alone is not enough: the query goes first because a stopped or failed unit is what it exists
+// to report, and running it last let a slow daemon phase and a slow sweep hand it an already expired
+// context, so it would answer "unknown" in exactly the case the gauge was added for. Bounding it
+// keeps that ordering from simply moving the starvation onto the sweep, so it has to stay below the
+// reserve the sweep runs on.
+const daemonServiceStateBudget = time.Second
+
+// daemonServiceStateContext bounds the dd-procmgrd unit or service query to daemonServiceStateBudget.
+// A child context cannot outlive its parent, so a collection context with less than that left still
+// binds and the budget never extends it.
+func daemonServiceStateContext(collection context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(collection, daemonServiceStateBudget)
 }
 
 func newDefaultClient() Client {

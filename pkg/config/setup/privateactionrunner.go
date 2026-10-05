@@ -31,6 +31,9 @@ const (
 	PARHttpAllowlist         = "private_action_runner.http_allowlist"
 	PARHttpAllowImdsEndpoint = "private_action_runner.http_allow_imds_endpoint"
 
+	// Kubernetes action related
+	PARKubernetesAllowedCustomResources = "private_action_runner.kubernetes_allowed_custom_resources"
+
 	// Restricted Shell
 	PARRestrictedShellAllowedPaths             = "private_action_runner.restricted_shell.allowed_paths"
 	PARRestrictedShellAllowedCommands          = "private_action_runner.restricted_shell.allowed_commands"
