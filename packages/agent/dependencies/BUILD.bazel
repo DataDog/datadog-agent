@@ -6,6 +6,8 @@ This replaces datadog-agent-dependencies.rb.
 
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("//compliance:package_licenses.bzl", "package_licenses")
 
@@ -120,6 +122,48 @@ pkg_filegroup(
     name = "collected_libs",
     srcs = [":_collected_libs"],
     prefix = "embedded",
+)
+
+# Validate the actual Agent package inputs, rather than only the focused
+# libdd-rc smoke package. The platform-specific tests below assert Linux's
+# static linkage and macOS's packaged AWS-LC FIPS dylib respectively.
+pkg_filegroup(
+    name = "rc_x509_packaged_agent_files",
+    testonly = True,
+    srcs = [
+        ":collected_libs",
+        "//packages/agent/product:agent_binary",
+    ],
+)
+
+pkg_tar(
+    name = "rc_x509_packaged_agent_archive",
+    testonly = True,
+    srcs = [":rc_x509_packaged_agent_files"],
+    extension = "tar",
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+)
+
+sh_test(
+    name = "rc_x509_packaged_agent_linux_test",
+    srcs = ["rc_x509_packaged_agent_linux_test.sh"],
+    args = ["$(location :rc_x509_packaged_agent_archive)"],
+    data = [":rc_x509_packaged_agent_archive"],
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+sh_test(
+    name = "rc_x509_packaged_agent_macos_test",
+    srcs = ["rc_x509_packaged_agent_test.sh"],
+    args = ["$(location :rc_x509_packaged_agent_archive)"],
+    data = [":rc_x509_packaged_agent_archive"],
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:macos"],
 )
 
 dd_collect_dependencies(

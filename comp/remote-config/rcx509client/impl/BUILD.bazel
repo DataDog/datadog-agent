@@ -12,6 +12,11 @@ go_library(
         "rcx509client.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcx509client/impl",
+    target_compatible_with = select({
+        "@rules_go//go/platform:darwin": [],
+        "@rules_go//go/platform:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
@@ -32,6 +37,11 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = ["rcx509client_test.go"],
     embed = [":impl"],
+    target_compatible_with = select({
+        "@rules_go//go/platform:darwin": [],
+        "@rules_go//go/platform:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
     deps = [
         "//comp/core/config",
         "//comp/core/log/mock",

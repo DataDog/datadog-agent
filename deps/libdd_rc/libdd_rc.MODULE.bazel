@@ -36,6 +36,16 @@ crate.annotation(
     deps = ["@libdd_rc_crates//:valuable-0.1.1"],
 )
 
+# aws-lc-sys appends the Bazel-provided optimization flags after the -O0 that
+# its optional jitter-entropy source requires, so optimized clean builds reject
+# that source. aws-lc-sys remains in aws-lc-rs's resolved graph even though
+# libdd-rc selects the separate aws-lc-fips-sys backend, which is unaffected by
+# this setting.
+crate.annotation(
+    build_script_env = {"AWS_LC_SYS_NO_JITTER_ENTROPY": "1"},
+    crate = "aws-lc-sys",
+)
+
 # TODO: update as needed
 crate.annotation(
     additive_build_file_content = """

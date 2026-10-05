@@ -128,19 +128,23 @@ bazel:test:linux-arm64:
 
 bazel:rc-x509-ffi:linux-amd64:
   extends: [.bazel:runner:linux-amd64, .bazel:rc-x509-ffi]
+  variables:
+    RC_X509_ADDITIONAL_TEST_TARGETS: //packages/agent/dependencies:rc_x509_packaged_agent_linux_test
 
 bazel:rc-x509-ffi:linux-arm64:
   extends: [.bazel:runner:linux-arm64, .bazel:rc-x509-ffi]
+  variables:
+    RC_X509_ADDITIONAL_TEST_TARGETS: //packages/agent/dependencies:rc_x509_packaged_agent_linux_test
 
 bazel:rc-x509-ffi:macos-amd64:
   extends: [.bazel:runner:macos-amd64, .bazel:rc-x509-ffi]
   variables:
-    RC_X509_ADDITIONAL_TEST_TARGETS: //deps/libdd_rc/smoke:packaged_client_lifecycle_test
+    RC_X509_ADDITIONAL_TEST_TARGETS: //deps/libdd_rc/smoke:packaged_client_lifecycle_test //packages/agent/dependencies:rc_x509_packaged_agent_macos_test
 
 bazel:rc-x509-ffi:macos-arm64:
   extends: [.bazel:runner:macos-arm64, .bazel:rc-x509-ffi]
   variables:
-    RC_X509_ADDITIONAL_TEST_TARGETS: //deps/libdd_rc/smoke:packaged_client_lifecycle_test
+    RC_X509_ADDITIONAL_TEST_TARGETS: //deps/libdd_rc/smoke:packaged_client_lifecycle_test //packages/agent/dependencies:rc_x509_packaged_agent_macos_test
 
 .bazel:coverage:macos:
   extends: [.bazel:test:reporting, .bazel:test]
