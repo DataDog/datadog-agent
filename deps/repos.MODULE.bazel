@@ -357,6 +357,10 @@ http_archive(
     files = {
         "BUILD.bazel": "//deps:krb5/krb5.BUILD.bazel",
     },
+    patch_strip = 1,
+    patches = [
+        "//deps:krb5/0001-Fix-two-NegoEx-parsing-vulnerabilities.patch",
+    ],
     sha256 = "b7a4cd5ead67fb08b980b21abd150ff7217e85ea320c9ed0c6dadd304840ad35",
     strip_prefix = "krb5-1.21.3",
     urls = [
