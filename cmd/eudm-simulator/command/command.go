@@ -126,7 +126,7 @@ func replayCommand(action string, runtime Runtime) *cobra.Command {
 		if bundlePath == "" {
 			return errors.New("--bundle is required: supply the baseline capture directory")
 		}
-		loaded, err := bundle.Load(bundlePath, version.FullCommit)
+		loaded, err := bundle.Load(bundlePath)
 		if err != nil {
 			return err
 		}

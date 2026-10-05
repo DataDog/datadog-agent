@@ -68,7 +68,7 @@ func TestWriterCancellationRevokesCompletion(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(directory, "COMPLETE")); !os.IsNotExist(err) {
 				t.Fatal("canceled finalization left a valid completion marker")
 			}
-			if _, err := Load(directory, source.Manifest.CaptureTool.Commit); err == nil {
+			if _, err := Load(directory); err == nil {
 				t.Fatal("canceled finalization left a replayable bundle")
 			}
 		})
@@ -191,7 +191,7 @@ func TestBundleRejectsSymlinksAndOversizedFiles(t *testing.T) {
 			} else if err := os.Truncate(path, maxFileBytes+1); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := Load(dir, strings.Repeat("a", 40)); err == nil {
+			if _, err := Load(dir); err == nil {
 				t.Fatal("accepted an unbounded or indirect bundle file")
 			}
 		})
@@ -237,10 +237,10 @@ func TestLoadAggregateByteLimit(t *testing.T) {
 	for _, data := range source.Files {
 		total += int64(len(data))
 	}
-	if _, err := loadWithLimit(dir, source.Manifest.CaptureTool.Commit, total); err != nil {
+	if _, err := loadWithLimit(dir, total); err != nil {
 		t.Fatalf("bundle exactly at aggregate limit was rejected: %v", err)
 	}
-	if _, err := loadWithLimit(dir, source.Manifest.CaptureTool.Commit, total-1); err == nil || !strings.Contains(err.Error(), "sample byte limit") {
+	if _, err := loadWithLimit(dir, total-1); err == nil || !strings.Contains(err.Error(), "sample byte limit") {
 		t.Fatalf("aggregate budget was not enforced across sample files: %v", err)
 	}
 	// A sparse file larger than the remaining budget must be rejected from its
@@ -249,7 +249,7 @@ func TestLoadAggregateByteLimit(t *testing.T) {
 	if err := os.Truncate(path, total+1); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := loadWithLimit(dir, source.Manifest.CaptureTool.Commit, total); err == nil || !strings.Contains(err.Error(), "sample byte limit") {
+	if _, err := loadWithLimit(dir, total); err == nil || !strings.Contains(err.Error(), "sample byte limit") {
 		t.Fatalf("oversized sample was not rejected before loading: %v", err)
 	}
 }

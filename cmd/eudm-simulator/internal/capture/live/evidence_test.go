@@ -222,7 +222,7 @@ func TestEvidencePersistsNativeSemanticSamples(t *testing.T) {
 	if err := f.e.Finish(ctx, stops, f.session.Origin.Add(time.Minute+2*time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	loaded, err := bundle.Load(f.e.directory, f.e.tool.Commit)
+	loaded, err := bundle.Load(f.e.directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -426,7 +426,7 @@ func TestEvidenceWaitsForSlowMetricFamiliesAndCapturesMacOSConnections(t *testin
 	if err := f.e.Finish(ctx, stops, f.session.Origin.Add(8*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	loaded, err := bundle.Load(f.e.directory, f.e.tool.Commit)
+	loaded, err := bundle.Load(f.e.directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -462,7 +462,7 @@ func TestEvidenceWindowKeepsWholeGroupsAndEveryCycle(t *testing.T) {
 	if err := f.e.Finish(ctx, f.stops(), f.session.Origin.Add(f.session.Duration)); err != nil {
 		t.Fatal(err)
 	}
-	loaded, err := bundle.Load(f.e.directory, f.e.tool.Commit)
+	loaded, err := bundle.Load(f.e.directory)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -20,7 +20,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -38,7 +37,7 @@ func TestCaptureArtifactCredentialAudit(t *testing.T) {
 			t.Fatal("artifact audit failed while decoding typed samples")
 		}
 	}()
-	loaded, err := bundle.Load(directory, version.FullCommit)
+	loaded, err := bundle.Load(directory)
 	if err != nil {
 		t.Fatal("capture bundle provenance, completeness, or typed validation failed")
 	}

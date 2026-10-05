@@ -19,9 +19,10 @@ synthetic producers use commit `bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb`,
 protocol version 4, and the same fixture version. Producer process identities,
 activation/stop acknowledgements, the fully armed recording window, sequences and cycles are constructed
 test facts; no service was contacted to obtain them.
-A normal revision-stamped simulator binary rejects them as incompatible; use
-real operator-managed captures for staging. Do not edit their manifests to
-claim the revision of a real binary.
+Their test identities are provenance, not a compatibility barrier. Use real
+operator-managed captures for staging acceptance; these fixtures do not
+represent observed devices. Do not edit their manifests to claim the revision
+of a real binary.
 
 Each bundle includes:
 
@@ -96,9 +97,9 @@ Generator success alone is not a replay acceptance result.
 
 Real Windows and macOS captures remain outside the repository as
 operator-managed artifacts. Their run reports record their actual digests,
-capture-tool revision, and producing builds. Replay requires the exact
-capture-tool revision; compatible producer revisions may differ under protocol
-version 4. Earlier bundle schemas require recapture with compatible producers.
+capture-tool revision, and producing builds. Replay accepts the current bundle
+schema and producer protocol across capture-tool revisions. Earlier bundle
+schemas require recapture with compatible producers.
 The loader does not migrate or relabel historical captures. Follow the
 [simulator runbook](../../../../doc/how-to/test/eudm-simulator.md) for authenticated
 live capture and the deferred staging proofs.

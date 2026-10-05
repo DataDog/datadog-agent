@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package bundle reads revision-bound telemetry capture directories.
+// Package bundle reads versioned telemetry capture directories.
 package bundle
 
 import (
@@ -42,8 +42,9 @@ type SampleRef struct {
 	File       string        `json:"file"`
 }
 
-// BuildIdentity binds portable replay to the tool that captured the bundle.
-// Installed producer builds are validated independently.
+// BuildIdentity records the tool that captured the bundle. Compatibility is
+// determined by the bundle schema and producer protocols; commits are retained
+// as provenance.
 type BuildIdentity struct {
 	Version string `json:"version"`
 	Commit  string `json:"commit"`
@@ -124,11 +125,11 @@ func DecodeJSON(data []byte, out any) error {
 
 // Load verifies the complete bundle, including every declared digest, before
 // returning any samples. The replay host's operating system is irrelevant.
-func Load(directory, captureToolCommit string) (*Loaded, error) {
-	return loadWithLimit(directory, captureToolCommit, MaxBundleBytes)
+func Load(directory string) (*Loaded, error) {
+	return loadWithLimit(directory, MaxBundleBytes)
 }
 
-func loadWithLimit(directory, captureToolCommit string, maxBytes int64) (*Loaded, error) {
+func loadWithLimit(directory string, maxBytes int64) (*Loaded, error) {
 	root, err := os.OpenRoot(directory)
 	if err != nil {
 		return nil, fmt.Errorf("open capture bundle: %w", err)
@@ -190,9 +191,6 @@ func loadWithLimit(directory, captureToolCommit string, maxBytes int64) (*Loaded
 	m := &b.Manifest
 	if m.SchemaVersion != SchemaVersion {
 		return nil, errors.New("unsupported bundle schema; recapture")
-	}
-	if !validCommit(captureToolCommit) || m.CaptureTool.Commit != captureToolCommit {
-		return nil, errors.New("bundle capture-tool commit mismatch; recapture using this exact replay revision")
 	}
 	marker, err := read("COMPLETE", 65, nil)
 	if err != nil || !m.Complete || string(marker) != b.Digest+"\n" {

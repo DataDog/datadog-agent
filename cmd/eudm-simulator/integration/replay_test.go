@@ -8,6 +8,7 @@
 package integration
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -102,7 +103,7 @@ func replayFixture(t *testing.T, platform string) *bundle.Loaded {
 			t.Fatal(err)
 		}
 	}
-	loaded, err := bundle.Load(directory, fixtureCommit)
+	loaded, err := bundle.Load(directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +155,7 @@ func TestRecordedInventoryAndMetricFamiliesKeepNativeCadences(t *testing.T) {
 			const duration = 65 * time.Minute
 			fixtureRoot := t.TempDir()
 			generateFixtureDuration(t, platform, fixtureRoot, duration)
-			captured, err := bundle.Load(filepath.Join(fixtureRoot, platform), fixtureCommit)
+			captured, err := bundle.Load(filepath.Join(fixtureRoot, platform))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -183,11 +184,19 @@ func TestRecordedInventoryAndMetricFamiliesKeepNativeCadences(t *testing.T) {
 					cadence, firstOffset, count = time.Hour, 5250*time.Millisecond, 2
 				}
 				cycles := recorder.samples[stream]
-				if len(cycles) != count {
-					t.Fatalf("%s must replay its observed %s cadence: got %d cycles", stream, cadence, len(cycles))
+				var expectedTimes []int64
+				if stream == schema.AgentInventory || stream == schema.HostInventory {
+					expectedTimes = append(expectedTimes, start.UnixNano())
 				}
+				for i := range count {
+					expectedTimes = append(expectedTimes, start.Add(time.Duration(i)*cadence+firstOffset).UnixNano())
+				}
+				if len(cycles) != len(expectedTimes) {
+					t.Fatalf("%s must bootstrap once and replay its observed %s cadence: got %d cycles", stream, cadence, len(cycles))
+				}
+				slices.SortFunc(cycles, func(a, b *tc.Inventory) int { return cmp.Compare(a.Timestamp, b.Timestamp) })
 				for i, inventory := range cycles {
-					if inventory.Hostname != id.Hostname || inventory.UUID != id.UUID || inventory.Timestamp != start.Add(time.Duration(i)*cadence+firstOffset).UnixNano() {
+					if inventory.Hostname != id.Hostname || inventory.UUID != id.UUID || inventory.Timestamp != expectedTimes[i] {
 						t.Fatal("recorded inventory identity or collection time diverged")
 					}
 					if inventory.Agent != nil && inventory.Agent.AgentStartupTimeMS != start.Add(-time.Minute).UnixMilli() {
@@ -268,6 +277,8 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 		connections                   []int64
 		processPIDs                   map[int32]bool
 		connectionPID                 []int32
+		agentInventoryTimes           []int64
+		hostInventoryTimes            []int64
 		hosts, software               int
 		agentInventory, hostInventory int
 		hostSystemInfo                int
@@ -474,14 +485,16 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 			}
 			if agent := payload.Agent; agent != nil {
 				d.agentInventory++
+				d.agentInventoryTimes = append(d.agentInventoryTimes, payload.Timestamp)
 				if agent.InfrastructureMode != "end_user_device" || agent.AgentVersion != "7.85.0-fixture" || agent.Flavor != "agent" || !agent.FeatureProcessEnabled || !agent.FeatureNetworksEnabled {
 					t.Fatal("Agent inventory discovery fields or producing version changed")
 				}
-				if payload.Timestamp != start.Add(250*time.Millisecond).UnixNano() || agent.AgentStartupTimeMS != start.Add(-time.Minute).UnixMilli() {
+				if agent.AgentStartupTimeMS != start.Add(-time.Minute).UnixMilli() {
 					t.Fatal("Agent inventory collection or startup time was not rebased from the captured offsets")
 				}
 			} else if payload.Host != nil {
 				d.hostInventory++
+				d.hostInventoryTimes = append(d.hostInventoryTimes, payload.Timestamp)
 				host := payload.Host
 				arch, osname := "arm64", "darwin"
 				if d.os == "windows" {
@@ -490,7 +503,7 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 				if host.AgentVersion != "7.85.0-fixture" || host.CPUArchitecture != arch || host.OS != osname || host.CPULogicalProcessors != 4 || host.MemoryTotalKb != 16<<20 {
 					t.Fatal("host inventory hardware, platform or producing version changed")
 				}
-				if payload.Timestamp != start.Add(500*time.Millisecond).UnixNano() || host.IPAddress == "10.0.0.1" || host.MacAddress == "02:00:00:00:00:02" {
+				if host.IPAddress == "10.0.0.1" || host.MacAddress == "02:00:00:00:00:02" {
 					t.Fatal("host inventory timestamp or network identity was not rewritten")
 				}
 			} else {
@@ -583,8 +596,14 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 	}
 	wantProcesses := []int64{start.Unix(), start.Add(10 * time.Second).Unix(), start.Add(20 * time.Second).Unix(), start.Add(30 * time.Second).Unix()}
 	for host, evidence := range devices {
-		if evidence.hosts != 1 || evidence.agentInventory != 1 || evidence.hostInventory != 1 || evidence.hostSystemInfo != 1 || evidence.software != 1 || len(evidence.metrics) != len(evidence.metricNames) {
+		if evidence.hosts != 2 || evidence.agentInventory != 2 || evidence.hostInventory != 2 || evidence.hostSystemInfo != 1 || evidence.software != 1 || len(evidence.metrics) != len(evidence.metricNames) {
 			t.Fatalf("partial declared device %s: metadata=%d agent inventory=%d host inventory=%d system information=%d software=%d metric names=%d", host, evidence.hosts, evidence.agentInventory, evidence.hostInventory, evidence.hostSystemInfo, evidence.software, len(evidence.metrics))
+		}
+		slices.Sort(evidence.agentInventoryTimes)
+		slices.Sort(evidence.hostInventoryTimes)
+		if !slices.Equal(evidence.agentInventoryTimes, []int64{start.UnixNano(), start.Add(250 * time.Millisecond).UnixNano()}) ||
+			!slices.Equal(evidence.hostInventoryTimes, []int64{start.UnixNano(), start.Add(500 * time.Millisecond).UnixNano()}) {
+			t.Fatalf("metadata bootstrap or captured inventory timing mismatch for %s", host)
 		}
 		for _, metric := range evidence.metricNames {
 			wantMetrics := []int64{start.Unix(), start.Add(15 * time.Second).Unix(), start.Add(30 * time.Second).Unix()}

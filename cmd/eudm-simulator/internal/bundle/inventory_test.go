@@ -23,7 +23,7 @@ func TestInventoryBundleRequiresRecaptureAndCompleteEvidence(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(`{"schema_version":2}`), 0600); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := Load(dir, strings.Repeat("a", 40)); err == nil || !strings.Contains(err.Error(), "recapture") {
+		if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "recapture") {
 			t.Fatalf("schema 2 did not explain required recapture: %v", err)
 		}
 	})
@@ -42,7 +42,7 @@ func TestInventoryBundleRequiresRecaptureAndCompleteEvidence(t *testing.T) {
 
 				}
 				writeManifest(t, dir, *m)
-				if _, err := Load(dir, strings.Repeat("a", 40)); err == nil {
+				if _, err := Load(dir); err == nil {
 					t.Fatal("accepted incomplete inventory evidence")
 				}
 			})
@@ -74,7 +74,7 @@ func TestInventoryBundleReconcilesIdentityBuildAndHardware(t *testing.T) {
 			test.mutate(value)
 			writeBundleFile(t, dir, loaded, ref.File, value)
 			writeManifest(t, dir, loaded.Manifest)
-			if _, err := Load(dir, strings.Repeat("a", 40)); err == nil {
+			if _, err := Load(dir); err == nil {
 				t.Fatal("accepted contradictory inventory")
 			}
 		})
@@ -95,7 +95,7 @@ func TestInventoryBundleReconcilesIdentityBuildAndHardware(t *testing.T) {
 		}
 		writeBundleFile(t, dir, loaded, ref.File, value)
 		writeManifest(t, dir, loaded.Manifest)
-		if _, err := Load(dir, strings.Repeat("a", 40)); err != nil {
+		if _, err := Load(dir); err != nil {
 			t.Fatal(err)
 		}
 	})

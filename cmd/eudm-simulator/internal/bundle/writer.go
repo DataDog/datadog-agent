@@ -204,7 +204,7 @@ func (w *Writer) CompleteContext(ctx context.Context, duration time.Duration, pr
 	if err != nil {
 		return nil, err
 	}
-	loaded, err = loadWithLimit(w.directory, w.manifest.CaptureTool.Commit, w.maxBytes)
+	loaded, err = loadWithLimit(w.directory, w.maxBytes)
 	if err == nil {
 		err = ctx.Err()
 	}

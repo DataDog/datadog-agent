@@ -68,7 +68,7 @@ func TestRejectIncompleteOrUnsafeProvenance(t *testing.T) {
 			dir, loaded := fixture(t, "macos")
 			test.mutate(&loaded.Manifest)
 			writeManifest(t, dir, loaded.Manifest)
-			if _, err := Load(dir, strings.Repeat("a", 40)); err == nil {
+			if _, err := Load(dir); err == nil {
 				t.Fatal("accepted invalid live provenance")
 			}
 		})
@@ -79,7 +79,7 @@ func TestDistinctCyclesNotTimestampEqualityDetermineCoverage(t *testing.T) {
 	dir, loaded := fixture(t, "macos")
 	loaded.Manifest.Samples[1].Offset = loaded.Manifest.Samples[0].Offset
 	writeManifest(t, dir, loaded.Manifest)
-	if _, err := Load(dir, strings.Repeat("a", 40)); err != nil {
+	if _, err := Load(dir); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -88,7 +88,7 @@ func TestConcurrentCollectionMayArriveOutOfTimeOrder(t *testing.T) {
 	dir, loaded := fixture(t, "macos")
 	loaded.Manifest.Samples[0], loaded.Manifest.Samples[1] = loaded.Manifest.Samples[1], loaded.Manifest.Samples[0]
 	writeManifest(t, dir, loaded.Manifest)
-	if _, err := Load(dir, strings.Repeat("a", 40)); err != nil {
+	if _, err := Load(dir); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -99,7 +99,7 @@ func TestConsumedNoncoverageSequencesMayBeAbsent(t *testing.T) {
 	loaded.Manifest.Producers[0].AcknowledgedSequence = 100
 	loaded.Manifest.Samples[0].Sequence = 90
 	writeManifest(t, dir, loaded.Manifest)
-	if _, err := Load(dir, strings.Repeat("a", 40)); err != nil {
+	if _, err := Load(dir); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -110,7 +110,7 @@ func TestLegacyManifestRequiresRecaptureBeforeUnknownFieldDecode(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load(dir, strings.Repeat("a", 40)); err == nil || !strings.Contains(err.Error(), "recapture") || strings.Contains(err.Error(), "unknown field") {
+	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "recapture") || strings.Contains(err.Error(), "unknown field") {
 		t.Fatalf("legacy capture did not produce a recapture instruction: %v", err)
 	}
 }
@@ -130,7 +130,7 @@ func TestWindowsRequiresConnectionCoverage(t *testing.T) {
 		return true
 	})
 	writeManifest(t, dir, *m)
-	if _, err := Load(dir, strings.Repeat("a", 40)); err == nil || !strings.Contains(err.Error(), "missing connections") {
+	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "missing connections") {
 		t.Fatalf("Windows bundle without connections accepted: %v", err)
 	}
 }
@@ -167,7 +167,7 @@ func fixtureProcessGroup(t *testing.T) (string, *Loaded, int) {
 
 func TestCompleteOrderedProcessGroups(t *testing.T) {
 	dir, _, _ := fixtureProcessGroup(t)
-	if _, err := Load(dir, strings.Repeat("a", 40)); err != nil {
+	if _, err := Load(dir); err != nil {
 		t.Fatal(err)
 	}
 	for _, test := range []struct {
@@ -187,7 +187,7 @@ func TestCompleteOrderedProcessGroups(t *testing.T) {
 			dir, loaded, index := fixtureProcessGroup(t)
 			test.mutate(loaded, index)
 			writeManifest(t, dir, loaded.Manifest)
-			if _, err := Load(dir, strings.Repeat("a", 40)); err == nil {
+			if _, err := Load(dir); err == nil {
 				t.Fatal("accepted incomplete group")
 			}
 		})
@@ -210,7 +210,7 @@ func TestRejectInvalidTypedGroups(t *testing.T) {
 			}
 			writeBundleFile(t, dir, loaded, loaded.Manifest.Samples[index+1].File, value)
 			writeManifest(t, dir, loaded.Manifest)
-			if _, err := Load(dir, strings.Repeat("a", 40)); err == nil {
+			if _, err := Load(dir); err == nil {
 				t.Fatal("accepted invalid typed group")
 			}
 		})
@@ -224,7 +224,7 @@ func TestRecordedWindowExcludesActivationSkewAndStopCleanup(t *testing.T) {
 		loaded.Manifest.Producers[i].StopOffset = loaded.Manifest.Duration + 10*time.Second
 	}
 	writeManifest(t, dir, loaded.Manifest)
-	result, err := Load(dir, strings.Repeat("a", 40))
+	result, err := Load(dir)
 	if err != nil {
 		t.Fatal(err)
 	}

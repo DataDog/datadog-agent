@@ -97,7 +97,7 @@ func capturedFixture(t *testing.T, platform string) *bundle.Loaded {
 			t.Fatal(err)
 		}
 	}
-	loaded, err := bundle.Load(directory, fixtureCommit)
+	loaded, err := bundle.Load(directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,9 +349,13 @@ func assertCompleteCadences(t *testing.T, request Request, result *report.Report
 			t.Fatal("device did not use the shared baseline")
 		}
 		for stream := range capture.Manifest.Cadences {
-			// Count only original collections, including singleton inventories.
 			// Assert actual timestamps, not just counters reported by the engine.
+			// Discovery metadata includes one explicit bootstrap submission before
+			// all original collections replay at their captured offsets.
 			var expected []time.Duration
+			if isMetadataBootstrapStream(stream) {
+				expected = append(expected, 0)
+			}
 			seenCycles := map[string]bool{}
 			for _, ref := range capture.Manifest.Samples {
 				key := fmt.Sprintf("%s/%d", ref.ProducerID, ref.CycleID)
@@ -394,6 +398,44 @@ func TestHealthyMacOSFleetRunsAtNativeCadence(t *testing.T) {
 	assertCompleteCadences(t, request, result, sink)
 	if len(result.Ledger) != 3 || result.DeclaredDevices != 3 {
 		t.Fatal("full declared fleet was truncated")
+	}
+}
+
+func TestMetadataBootstrapPrecedesCapturedCycles(t *testing.T) {
+	request := healthyMacOSRequest(t)
+	sink := &recordingDelivery{start: request.Plan.Start, retainPayload: true}
+	result, err := Run(context.Background(), request, Options{Workers: 4, QueueCapacity: 8, Clock: &advancingClock{now: request.Plan.Start}, Delivery: sink})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertCompleteCadences(t, request, result, sink)
+
+	var expected []deliveryRecord
+	for _, device := range result.Ledger {
+		for _, stream := range metadataBootstrapOrder {
+			expected = append(expected, deliveryRecord{Host: device.Hostname, Stream: stream})
+		}
+	}
+	if len(sink.records) < len(expected) {
+		t.Fatalf("only %d deliveries for %d metadata bootstrap submissions", len(sink.records), len(expected))
+	}
+	for i, want := range expected {
+		got := sink.records[i]
+		if got.Host != want.Host || got.Stream != want.Stream || got.Offset != 0 {
+			t.Fatalf("bootstrap delivery %d = %s/%s at %s, want %s/%s at run start", i, got.Host, got.Stream, got.Offset, want.Host, want.Stream)
+		}
+		if got.Stream == schema.HostMetadata {
+			continue
+		}
+		var payloads []struct {
+			Timestamp int64 `json:"timestamp"`
+		}
+		if err := json.Unmarshal([]byte(got.Payload), &payloads); err != nil || len(payloads) != 1 {
+			t.Fatalf("decode bootstrap %s payload: %v", got.Stream, err)
+		}
+		if payloads[0].Timestamp != 0 {
+			t.Fatalf("normalized bootstrap %s timestamp = %d, want run start", got.Stream, payloads[0].Timestamp)
+		}
 	}
 }
 

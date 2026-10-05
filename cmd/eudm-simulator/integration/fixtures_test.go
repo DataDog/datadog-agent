@@ -27,8 +27,8 @@ import (
 	tc "github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
-// Synthetic typed inputs, replayed through real Agent delivery in tests. This fixture
-// commit deliberately cannot be used by a revision-stamped staging binary.
+// Synthetic typed inputs, replayed through real Agent delivery in tests. The
+// fixture commit is provenance and does not represent a real capture build.
 const fixtureCommit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 func TestGenerateCaptureFixtures(t *testing.T) {

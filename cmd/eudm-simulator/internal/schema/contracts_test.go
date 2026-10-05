@@ -135,7 +135,7 @@ func TestPlanRejectsMissingAndIncompatibleEvidence(t *testing.T) {
 		{"OS mismatch", func(_ *Scenario, r *BundleRef) { r.Profile.OS = "windows" }},
 		{"incompatible second group", func(s *Scenario, _ *BundleRef) { s.Fleet[1].OS = "windows" }},
 		{"missing stream", func(_ *Scenario, r *BundleRef) { r.Profile.Streams = []Stream{Metrics} }},
-		{"wrong capture tool commit", func(_ *Scenario, r *BundleRef) { r.CaptureToolCommit = strings.Repeat("b", 40) }},
+		{"invalid capture tool commit", func(_ *Scenario, r *BundleRef) { r.CaptureToolCommit = "short" }},
 		{"invented hardware", func(s *Scenario, _ *BundleRef) { s.Fleet[0].TotalRAMGB = 128 }},
 		{"invented metric", func(s *Scenario, _ *BundleRef) {
 			s.Phases[0].Metrics = map[string]map[string]Pattern{"mac": {"system.wlan.rssi": {Steady: &SteadyPattern{Value: -55}}}}
@@ -263,7 +263,7 @@ func TestPersistedPlanTampering(t *testing.T) {
 		func(p *RunPlan) { p.Version++ }, func(p *RunPlan) { p.ScenarioDigest = Digest([]byte("changed")) },
 		func(p *RunPlan) { p.RunID = "healthy-mixed" }, func(p *RunPlan) { p.Start = time.Time{} },
 		func(p *RunPlan) { p.Version = 1 }, func(p *RunPlan) { p.Version = 2 }, func(p *RunPlan) { p.Bundle = BundleRef{} },
-		func(p *RunPlan) { p.Bundle.CaptureToolCommit = strings.Repeat("b", 40) },
+		func(p *RunPlan) { p.Bundle.CaptureToolCommit = "short" },
 		func(p *RunPlan) { p.Bundle.Digest = "invalid" },
 		func(p *RunPlan) { p.Bundle.Profile.Streams = nil },
 	} {
@@ -315,5 +315,22 @@ func TestPlanAcceptsExactRecordingDuration(t *testing.T) {
 	baseline.Duration = 20 * time.Minute
 	if _, err := NewPlan(s, Digest([]byte(healthyYAML)), baseline.CaptureToolCommit, 1, time.Now(), baseline); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPlanAcceptsBundleFromDifferentCaptureCommit(t *testing.T) {
+	s := healthy(t)
+	s.Fleet[1].OS = "macos"
+	baseline := baselineRef("macos")
+	replayCommit := strings.Repeat("b", 40)
+	if baseline.CaptureToolCommit == replayCommit {
+		t.Fatal("test requires distinct capture and replay commits")
+	}
+	p, err := NewPlan(s, Digest([]byte(healthyYAML)), replayCommit, 1, time.Now(), baseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.AgentCommit != replayCommit || p.Bundle.CaptureToolCommit != baseline.CaptureToolCommit {
+		t.Fatal("run plan lost independent replay and capture provenance")
 	}
 }

@@ -44,15 +44,12 @@ dd_agent_go_test(
         "@rules_go//go/runfiles",
     ] + select({
         "@rules_go//go/platform:darwin": [
-            "//pkg/version",
             "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:ios": [
-            "//pkg/version",
             "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:windows": [
-            "//pkg/version",
             "@in_yaml_go_yaml_v3//:yaml",
         ],
         "//conditions:default": [],

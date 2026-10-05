@@ -169,7 +169,9 @@ phases:
 func replayFixture(t *testing.T) (scenarioPath, bundlePath string) {
 	t.Helper()
 	previousCommit := version.FullCommit
-	version.FullCommit = strings.Repeat("a", 40)
+	// The checked-in bundle was captured at the fixture's a*40 commit. Use a
+	// distinct replay commit to cover schema-compatible cross-revision reuse.
+	version.FullCommit = strings.Repeat("b", 40)
 	t.Cleanup(func() { version.FullCommit = previousCommit })
 	t.Setenv("DD_SITE", "datad0g.com")
 

@@ -38,6 +38,16 @@ const (
 
 var streamOrder = []schema.Stream{schema.Metrics, schema.HostMetadata, schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo, schema.Processes, schema.Connections, schema.Software}
 
+// Synthetic identities do not have the long-lived backend state of the
+// captured endpoint. Replay therefore establishes each identity through the
+// ordinary metadata routes before any captured cycles can arrive. The complete
+// captured timelines still replay afterward at their native offsets.
+var metadataBootstrapOrder = []schema.Stream{schema.AgentInventory, schema.HostMetadata, schema.HostInventory}
+
+func isMetadataBootstrapStream(stream schema.Stream) bool {
+	return slices.Contains(metadataBootstrapOrder, stream)
+}
+
 type Request struct {
 	Scenario *schema.Scenario
 	Plan     *schema.RunPlan
@@ -156,6 +166,9 @@ func prepare(request Request) (*prepared, error) {
 			for _, stream := range streams {
 				counts := p.report.Ledger[ordinal].Streams[stream]
 				counts.Expected = uint64(timelines[stream].count)
+				if isMetadataBootstrapStream(stream) {
+					counts.Expected++
+				}
 			}
 			ordinal++
 		}
@@ -209,12 +222,13 @@ func validateRegressionVersions(s *schema.Scenario, g schema.GroupDef, b *bundle
 }
 
 type job struct {
-	device   *device
-	timeline *timeline
-	stream   schema.Stream
-	ordinal  int64
-	offset   time.Duration
-	rank     int
+	device    *device
+	timeline  *timeline
+	stream    schema.Stream
+	ordinal   int64
+	offset    time.Duration
+	rank      int
+	bootstrap bool
 }
 type schedule []job
 
@@ -285,6 +299,46 @@ func (p *prepared) run(parent context.Context, options Options) (*report.Report,
 	if ctx.Err() == nil {
 		options.Events.Log("replay", fmt.Sprintf("started; devices=%d; duration=%s; ends=%s", len(p.devices), p.duration, p.request.Plan.Start.Add(p.duration).Local().Format(time.RFC3339)))
 	}
+	deliver := func(work job) error {
+		err := p.deliver(ctx, options.Delivery, work, options.Events)
+		mu.Lock()
+		counts := r.NetworkStreams[work.stream]
+		if work.device != nil {
+			counts = r.Ledger[work.device.ordinal].Streams[work.stream]
+		}
+		if err == nil {
+			counts.Delivered++
+		} else {
+			counts.Failed++
+		}
+		mu.Unlock()
+		if err != nil {
+			label := fmt.Sprintf("cycle %d", work.ordinal)
+			if work.bootstrap {
+				label = "bootstrap"
+			}
+			fail(fmt.Errorf("%s %s delivery: %w", work.stream, label, err))
+		}
+		return err
+	}
+	// Submit discovery metadata synchronously and in dependency order. A fresh
+	// synthetic hostname has no pre-existing Agent or host resource for later
+	// inventory and hardware payloads to enrich.
+	for _, d := range p.devices {
+		for _, stream := range metadataBootstrapOrder {
+			if ctx.Err() != nil {
+				break
+			}
+			t := d.timelines[stream]
+			if t == nil {
+				continue
+			}
+			work := job{device: d, timeline: t, stream: stream, rank: d.ordinal, bootstrap: true}
+			if deliver(work) != nil {
+				break
+			}
+		}
+	}
 	for i := 0; i < options.Workers; i++ {
 		wg.Add(1)
 		go func() {
@@ -293,21 +347,7 @@ func (p *prepared) run(parent context.Context, options Options) (*report.Report,
 				if ctx.Err() != nil {
 					continue
 				}
-				err := p.deliver(ctx, options.Delivery, work, options.Events)
-				mu.Lock()
-				counts := r.NetworkStreams[work.stream]
-				if work.device != nil {
-					counts = r.Ledger[work.device.ordinal].Streams[work.stream]
-				}
-				if err == nil {
-					counts.Delivered++
-				} else {
-					counts.Failed++
-				}
-				mu.Unlock()
-				if err != nil {
-					fail(fmt.Errorf("%s cycle %d delivery: %w", work.stream, work.ordinal, err))
-				}
+				_ = deliver(work)
 			}
 		}()
 	}
@@ -396,7 +436,11 @@ func (p *prepared) deliver(ctx context.Context, out Delivery, work job, events *
 			if work.device != nil {
 				target = "device=" + work.device.id.Hostname
 			}
-			context := fmt.Sprintf("%s; phase=%s; cycle=%d", target, p.request.Scenario.Phases[phase].Name, work.ordinal+1)
+			cycle := fmt.Sprintf("cycle=%d", work.ordinal+1)
+			if work.bootstrap {
+				cycle = "bootstrap"
+			}
+			context := fmt.Sprintf("%s; phase=%s; %s", target, p.request.Scenario.Phases[phase].Name, cycle)
 			if err != nil {
 				events.Log(string(work.stream), "delivery failed; "+context)
 			} else {
@@ -452,6 +496,9 @@ func (p *prepared) deliver(ctx context.Context, out Delivery, work job, events *
 			return err
 		}
 		rebase(sample, p.request.Plan.Start, work.ordinal, len(c.refs))
+		if work.bootstrap && sample.Inventory != nil {
+			sample.Inventory.Timestamp = at.UnixNano()
+		}
 		if err := d.id.Apply(sample, d.group, d.wireless); err != nil {
 			return err
 		}

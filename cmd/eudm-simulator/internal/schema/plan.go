@@ -69,16 +69,16 @@ func (p *RunPlan) Validate(s *Scenario, scenarioDigest, commit string) error {
 		return errors.New("run plan scenario digest mismatch")
 	}
 	if !commitPattern.MatchString(commit) || p.AgentCommit != commit {
-		return errors.New("run plan requires the exact Agent commit; rebuild and recapture bundles")
+		return errors.New("run plan requires the current simulator commit; rebuild the simulator")
 	}
 	if !runIDPattern.MatchString(p.RunID) || p.Start.IsZero() {
 		return errors.New("run plan requires an opaque run ID and absolute start time")
 	}
-	if !digestPattern.MatchString(p.Bundle.Digest) || p.Bundle.CaptureToolCommit != commit {
-		return errors.New("bundle digest or capture tool commit mismatch; recapture with this replay revision")
+	if !digestPattern.MatchString(p.Bundle.Digest) || !commitPattern.MatchString(p.Bundle.CaptureToolCommit) {
+		return errors.New("bundle requires valid content and capture-tool identities")
 	}
 	if p.Bundle.Duration <= 0 {
-		return errors.New("bundle requires a positive recording duration; recapture with this replay revision")
+		return errors.New("bundle requires a positive recording duration")
 	}
 	var duration time.Duration
 	for _, phase := range s.Phases {

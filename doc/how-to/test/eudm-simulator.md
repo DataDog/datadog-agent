@@ -85,9 +85,10 @@ currently supports macOS only. Windows setup and live verification are deferred;
 Windows direct connection capture also needs compatible core Agent, Process Agent,
 and system-probe services with the normal network driver.
 
-Capture and replay binaries must have the same exact stamped commit, recorded as
-`capture_tool.commit`. Producing Agents may use different commits, but must
-support capture protocol 4 and advertise metric check schedules. Installation and its restart happen before the
+Replay accepts schema-7 bundles across simulator commits. `capture_tool.commit`
+and producer commits remain immutable provenance; compatibility is enforced by
+the bundle schema and capture protocol 4. Producing Agents must also advertise
+metric check schedules. Installation and its restart happen before the
 observation window; capture itself never starts, restarts, or replaces services.
 
 Use a healthy device with the applications, hardware, and wireless interfaces
@@ -374,8 +375,8 @@ Status: **INCOMPLETE — LEGACY HOST ENRICHMENT**. Schema-3 macOS device visibil
 is verified in Fleet and EUDM; OS/hardware enrichment remains incomplete. See
 the recorded macOS attempts below.
 
-Prerequisites are a completed real-device bundle from the command's exact Agent
-commit, an identified staging organization, an API key, and access to that
+Prerequisites are a completed schema-7 real-device bundle from protocol-4
+producers, an identified staging organization, an API key, and access to that
 organization's EUDM device, process, software,
 metric, Agent inventory, host inventory, and host metadata views. A recording fixture cannot substitute for the
 real-device capture.
@@ -451,9 +452,9 @@ full-fleet staging product path still require recorded acceptance.
 Use the exact ledger hostnames for investigation, comparison, and any
 operator-approved cleanup queries. Keep local reports and proof artifacts
 separate from telemetry, and exclude secrets from them. Cleanup must be scoped
-to that run; do not use scenario names or broad staging-wide queries. Refresh
-this feature branch when staging moves to a different Agent revision, rebuild
-on both capture devices, and recapture the baselines before the next runs.
+to that run; do not use scenario names or broad staging-wide queries. Rebuild
+the replay binary when the branch changes; reuse complete bundles while their
+schema and producer protocol remain supported.
 
 ## Troubleshooting
 
@@ -462,7 +463,7 @@ on both capture devices, and recapture the baselines before the next runs.
 | Build dependencies or Windows native libraries missing | Use the repository's configured platform build environment. Native Windows build is an outstanding acceptance step; record the exact build failure rather than claiming the macOS result covers it. |
 | Capture deadline reports missing connections | Verify the advertised connection owner, driver/network collection, configured local API address, and active TCP traffic. Use capture `--cfgpath` for API/authentication locations; direct-send configuration stays unchanged. |
 | Capture has no `COMPLETE` marker | It did not finish required coverage. Preserve its error for diagnosis and recapture into a new directory; do not manufacture a completion marker. |
-| Capture-tool commit mismatch | Rebuild capture and replay binaries from one exact commit and recapture. Producer commits may differ when protocol 4 is supported. |
+| Invalid capture-tool provenance | Do not edit the manifest. Use the original complete bundle or recapture if its recorded build identity is malformed. Capture and replay commits may otherwise differ. |
 | Earlier bundle schema | Reinstall protocol-4 producers and recapture using an explicit duration for schema 7; do not relabel an old manifest. |
 | Capture reports missing Agent/host inventory capability | Install the updated core Agent and verify normal inventory collection is enabled; neither cached inventory endpoints nor host tags substitute for an observed inventory. |
 | Capture API unavailable or incompatible | Install compatible producing builds before the session and verify enabled streams. Capture cannot add the APIs to an older running service. |
@@ -484,7 +485,7 @@ on both capture devices, and recapture the baselines before the next runs.
 | AP evidence stays degraded during recovery | Endpoint overlays reset to captured values, but omitted AP metrics carry forward. Explicitly restore AP values in the recovery phase. |
 | Delivery succeeded, but devices/issue/Bits result are missing | Follow the staging proof gates above and record the backend/monitor/permission dependency. HTTP acceptance is not product acceptance. |
 | Traffic table is populated, but network summary percentages are blank | The EUDM summary reads a closed 30-minute bucket with an additional 30-minute delay. A new replay may need up to an hour to enter that window; inspect the live traffic table separately. |
-| Battery/traffic appear before CPU, IP, or hardware fields | Replay preserves captured stream offsets. Legacy host metadata supplies CPU/IP enrichment; the fresh host-system-info submission supplies manufacturer/model/serial. Check each stream's delivered count and allow for downstream enrichment. |
+| Battery/traffic appear before CPU, IP, or hardware fields | Replay bootstraps Agent inventory, legacy host metadata, and host inventory before starting the captured timelines. Their original cycles still replay at the captured offsets; the fresh host-system-info cycle supplies manufacturer/model/serial. Check the bootstrap and stream delivery counts, then allow for independent downstream cache refreshes. |
 
 Use `capture --help`, `validate --help`, or `run --help` for the installed binary's flags. There is no resume, acceleration, standalone bundle-only validation, or automatic cleanup command. A retry is a new run with a new opaque identity. Select artifacts and product evidence by that identity so failed and concurrent runs do not contaminate the evaluation.
 
@@ -1236,7 +1237,7 @@ bundle digest was
 `867bafb96ef226f069e5d32c1821ffb924ca2774d04d7490ff9a483b2987fffd`.
 The operator-managed bundle is at
 `/private/tmp/eudm-native-capture-20260929-complete` on the capture host; it is
-not a checked-in fixture. A new revision requires a new capture.
+not a checked-in fixture. Its retired schema remains unsupported.
 
 The bundle contains two distinct metric cycles, two distinct process cycles,
 one host-metadata sample, and one complete software snapshot. The initial host
@@ -1296,5 +1297,5 @@ remain unverified.
 
 The small fixtures under `cmd/eudm-simulator/testdata/bundles/` contain synthetic
 typed inputs serialized by the real Agent pipeline. Their deliberate test commit
-prevents use by a normal revision-stamped staging binary. See their
+identifies them as test provenance; they are not staging acceptance evidence. See their
 <<<repo("cmd/eudm-simulator/testdata/bundles/README.md", "fixture README")>>> for generation.

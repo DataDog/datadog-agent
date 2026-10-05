@@ -123,7 +123,7 @@ func TestBundleRoundTripAndPlatformIndependence(t *testing.T) {
 	for _, platform := range []string{"windows", "macos"} {
 		t.Run(platform, func(t *testing.T) {
 			dir, written := fixture(t, platform)
-			loaded, err := Load(dir, strings.Repeat("a", 40))
+			loaded, err := Load(dir)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -144,7 +144,7 @@ func TestRejectTamperedOrIncompatibleBundles(t *testing.T) {
 		mutate func(*Manifest)
 	}{
 		{"schema", func(m *Manifest) { m.SchemaVersion++ }},
-		{"revision", func(m *Manifest) { m.CaptureTool.Commit = strings.Repeat("b", 40) }},
+		{"invalid capture revision", func(m *Manifest) { m.CaptureTool.Commit = "short" }},
 		{"completion", func(m *Manifest) { m.Complete = false }},
 		{"missing stream", func(m *Manifest) { m.Profile.Streams = m.Profile.Streams[:1] }},
 		{"checksum", func(m *Manifest) {
@@ -170,7 +170,7 @@ func TestRejectTamperedOrIncompatibleBundles(t *testing.T) {
 			m := loaded.Manifest
 			tc.mutate(&m)
 			writeManifest(t, dir, m)
-			if _, err := Load(dir, strings.Repeat("a", 40)); err == nil {
+			if _, err := Load(dir); err == nil {
 				t.Fatal("accepted invalid capture")
 			}
 		})
@@ -179,7 +179,7 @@ func TestRejectTamperedOrIncompatibleBundles(t *testing.T) {
 	if err := os.Remove(filepath.Join(dir, "COMPLETE")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load(dir, strings.Repeat("a", 40)); err == nil {
+	if _, err := Load(dir); err == nil {
 		t.Fatal("accepted interrupted capture")
 	}
 }
@@ -241,7 +241,7 @@ func TestRejectInvalidTypedSamplesWithValidChecksums(t *testing.T) {
 				break
 			}
 			writeManifest(t, dir, loaded.Manifest)
-			if _, err := Load(dir, strings.Repeat("a", 40)); err == nil {
+			if _, err := Load(dir); err == nil {
 				t.Fatal("accepted invalid typed sample with matching checksums")
 			}
 		})
@@ -259,7 +259,7 @@ func TestNativeSoftwareSourceIsNotRestrictedToKnownCollectors(t *testing.T) {
 		writeBundleFile(t, dir, loaded, ref.File, value)
 	}
 	writeManifest(t, dir, loaded.Manifest)
-	if _, err := Load(dir, strings.Repeat("a", 40)); err != nil {
+	if _, err := Load(dir); err != nil {
 		t.Fatalf("native software source was rejected: %v", err)
 	}
 }
@@ -291,8 +291,8 @@ func TestDecodeReturnsOwnedSamplesWithoutRetainingDecodedCache(t *testing.T) {
 }
 
 func TestDecodeSupportsMetadataOnlyChunkInsideCompleteGroup(t *testing.T) {
-	dir, original, index := fixtureProcessGroup(t)
-	loaded, err := Load(dir, original.Manifest.CaptureTool.Commit)
+	dir, _, index := fixtureProcessGroup(t)
+	loaded, err := Load(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
