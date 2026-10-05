@@ -155,6 +155,9 @@ def fetch_executed_e2e_tests(query: str, days: int) -> dict:
     }
 
     events = []
+    pages = 0
+    print(f"[info] CI Visibility query: {query}")
+    print(f"[info] CI Visibility request: GET {url} (lookback {days} days)")
     while True:
         req = urllib.request.Request(url + "?" + urllib.parse.urlencode(params), headers=headers)
         try:
@@ -164,6 +167,7 @@ def fetch_executed_e2e_tests(query: str, days: int) -> dict:
             body = e.read().decode(errors="ignore")[:500]
             raise RuntimeError(f"CI Visibility API HTTP {e.code} on {url}: {body}") from e
         events.extend(payload.get("data", []))
+        pages += 1
         cursor = (payload.get("meta", {}).get("page", {}) or {}).get("after")
         if not cursor:
             break
@@ -192,7 +196,12 @@ def fetch_executed_e2e_tests(query: str, days: int) -> dict:
         if flaky:
             e["flaky"] = True
         e["jobs"].append((attrs.get("ci", {}).get("job", {}) or {}).get("name", ""))
-    print(f"[info] {len(executed)} root e2e tests actually executed ({query})")
+    print(
+        f"[info] CI Visibility result: {len(events)} test events over {pages} page(s), "
+        f"of which {len(executed)} root e2e tests (new-e2e, no '/'); "
+        f"rejected samples: {sample_names[:3]}"
+    )
+    print(f"[info] executed root e2e tests: {len(executed)}: {sorted(executed)[:10]}{' ...' if len(executed) > 10 else ''}")
     if not executed:
         print(f"[warn] no executed e2e tests matched; sample test names seen: {sample_names}")
     return executed
