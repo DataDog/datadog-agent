@@ -10,8 +10,7 @@ package libraryinjection
 import (
 	"slices"
 
-	corev1 "k8s.io/api/core/v1"
-
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -76,14 +75,14 @@ func (p *AutoProvider) GetName() string {
 	return p.realProvider.GetName() + " (auto)"
 }
 
-// InjectInjector mutates the pod to add the APM injector.
-func (p *AutoProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult {
-	return p.realProvider.InjectInjector(pod, cfg)
+// PlanInjector mutates the pod to add the APM injector.
+func (p *AutoProvider) PlanInjector(session *patch.PodSession, cfg InjectorConfig) MutationResult {
+	return p.realProvider.PlanInjector(session, cfg)
 }
 
-// InjectLibrary mutates the pod to add a language-specific tracing library.
-func (p *AutoProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) MutationResult {
-	return p.realProvider.InjectLibrary(pod, cfg)
+// PlanLibrary mutates the pod to add a language-specific tracing library.
+func (p *AutoProvider) PlanLibrary(session *patch.PodSession, cfg LibraryConfig) MutationResult {
+	return p.realProvider.PlanLibrary(session, cfg)
 }
 
 // Verify that AutoProvider implements LibraryInjectionProvider.

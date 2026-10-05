@@ -13,9 +13,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// withEnvOverrides applies the extraEnv overrides to the container. Returns a
+// withTemplateEnvOverrides applies the extraEnv overrides to the container. Returns a
 // boolean that indicates if the container was mutated
-func withEnvOverrides(container *corev1.Container, extraEnv ...corev1.EnvVar) (bool, error) {
+func withTemplateEnvOverrides(container *corev1.Container, extraEnv ...corev1.EnvVar) (bool, error) {
 	if container == nil {
 		return false, errors.New("can't apply environment overrides to nil container")
 	}
@@ -41,31 +41,6 @@ func withEnvOverrides(container *corev1.Container, extraEnv ...corev1.EnvVar) (b
 			container.Env = append(container.Env, envVarOverride)
 			mutated = true
 		}
-	}
-
-	return mutated, nil
-}
-
-// withResourceLimits applies the resource limits overrides to the container
-func withResourceLimits(container *corev1.Container, resourceLimits corev1.ResourceRequirements) error {
-	if container == nil {
-		return errors.New("can't apply resource requirements overrides to nil container")
-	}
-	container.Resources = resourceLimits
-	return nil
-}
-
-// withSecurityContextOverrides applies the security context overrides to the container
-func withSecurityContextOverrides(container *corev1.Container, securityContext *corev1.SecurityContext) (bool, error) {
-	if container == nil {
-		return false, errors.New("can't apply security context overrides to nil container")
-	}
-
-	mutated := false
-
-	if securityContext != nil {
-		container.SecurityContext = securityContext
-		mutated = true
 	}
 
 	return mutated, nil

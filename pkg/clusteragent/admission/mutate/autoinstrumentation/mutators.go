@@ -8,169 +8,96 @@
 package autoinstrumentation
 
 import (
+	"encoding/json"
 	"strconv"
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 )
 
-// containerMutator describes something that can mutate a container.
 type containerMutator interface {
-	mutateContainer(*corev1.Container) error
+	planContainer(*patch.PodSession, patch.ContainerID) error
 }
+type containerMutatorFunc func(*patch.PodSession, patch.ContainerID) error
 
-// containerMutatorFunc is a containerMutator as a function.
-type containerMutatorFunc func(*corev1.Container) error
-
-// mutateContainer implements containerMutator for containerMutatorFunc.
-func (f containerMutatorFunc) mutateContainer(c *corev1.Container) error {
-	return f(c)
+func (f containerMutatorFunc) planContainer(s *patch.PodSession, id patch.ContainerID) error {
+	return f(s, id)
 }
 
 type containerMutators []containerMutator
 
-func (ms containerMutators) mutateContainer(c *corev1.Container) error {
+func (ms containerMutators) planContainer(s *patch.PodSession, id patch.ContainerID) error {
 	for _, m := range ms {
-		if err := m.mutateContainer(c); err != nil {
+		if err := m.planContainer(s, id); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
-// podMutator describes something that can mutate a pod.
-type podMutator interface {
-	mutatePod(*corev1.Pod) error
+type podMutator interface{ planPod(*patch.PodSession) error }
+type podMutatorFunc func(*patch.PodSession) error
+
+func (f podMutatorFunc) planPod(s *patch.PodSession) error { return f(s) }
+func snapshotContainer(s *patch.PodSession, id patch.ContainerID) (*corev1.Container, error) {
+	return s.ContainerSnapshot(id)
 }
-
-// podMutatorFunc is a podMutator as a function.
-type podMutatorFunc func(*corev1.Pod) error
-
-// mutatePod implements podMutator.
-func (f podMutatorFunc) mutatePod(pod *corev1.Pod) error {
-	return f(pod)
-}
-
-// mutatePodContainers applies a containerMutator to containers of a pod.
-// If includeInitContainers is true, it also applies to init containers.
-func mutatePodContainers(pod *corev1.Pod, mutator containerMutator, includeInitContainers bool) error {
-	if includeInitContainers {
-		for idx, c := range pod.Spec.InitContainers {
-			if err := mutator.mutateContainer(&c); err != nil {
-				return err
-			}
-			pod.Spec.InitContainers[idx] = c
+func planPodContainers(s *patch.PodSession, m containerMutator, includeInit bool) error {
+	pod, err := s.Snapshot()
+	if err != nil {
+		return err
+	}
+	var ids []patch.ContainerID
+	if includeInit {
+		for _, c := range pod.Spec.InitContainers {
+			ids = append(ids, patch.ContainerID{Kind: patch.InitContainers, Name: c.Name})
 		}
 	}
-
-	for idx, c := range pod.Spec.Containers {
-		if err := mutator.mutateContainer(&c); err != nil {
-			return err
-		}
-		pod.Spec.Containers[idx] = c
+	for _, c := range pod.Spec.Containers {
+		ids = append(ids, patch.ContainerID{Kind: patch.RegularContainers, Name: c.Name})
 	}
-
-	return nil
+	return s.ForContainers(ids, func(id patch.ContainerID) error { return m.planContainer(s, id) })
 }
 
-// initContainer is a podMutator which adds the container to a pod as an
-// init container. It will only add the container one time based on the
-// container name.
-//
-// This has the option to both append and prepend the container to the list.
 type initContainer struct {
 	corev1.Container
 	Prepend  bool
 	Mutators containerMutators
 }
 
-var _ podMutator = (*initContainer)(nil)
-
-// mutatePod implements podMutator for initContainer.
-func (i initContainer) mutatePod(pod *corev1.Pod) error {
-	container := i.Container
-
-	if err := i.Mutators.mutateContainer(&container); err != nil {
-		return err
-	}
-
-	for idx, c := range pod.Spec.InitContainers {
-		if c.Name == container.Name {
-			pod.Spec.InitContainers[idx] = container
-			return nil
+func (i initContainer) planPod(s *patch.PodSession) error {
+	// This is a fresh recipe, so typed construction and serialization are safe.
+	container := *i.Container.DeepCopy()
+	if len(i.Mutators) > 0 {
+		raw, err := json.Marshal(corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{container}}})
+		if err != nil {
+			return err
 		}
-	}
-
-	pod.Spec.InitContainers = appendOrPrepend(container, pod.Spec.InitContainers, i.Prepend)
-	return nil
-}
-
-// volume is a podMutator which adds the volume to a pod.
-//
-// It will only add the volume one time based on the volume name.
-type volume struct {
-	corev1.Volume
-	Prepend bool
-}
-
-var _ podMutator = (*volume)(nil)
-
-// mutatePod implements podMutator for volume.
-func (v volume) mutatePod(pod *corev1.Pod) error {
-	common.MarkVolumeAsSafeToEvictForAutoscaler(pod, v.Name)
-
-	vol := v.Volume
-	for idx, i := range pod.Spec.Volumes {
-		if i.Name == v.Volume.Name {
-			pod.Spec.Volumes[idx] = vol
-			return nil
+		recipe, err := patch.NewPodSession(raw)
+		if err != nil {
+			return err
 		}
+		if err := i.Mutators.planContainer(recipe, patch.ContainerID{Kind: patch.RegularContainers, Name: container.Name}); err != nil {
+			return err
+		}
+		pod, err := recipe.Snapshot()
+		if err != nil {
+			return err
+		}
+		container = pod.Spec.Containers[0]
 	}
-
-	pod.Spec.Volumes = appendOrPrepend(vol, pod.Spec.Volumes, v.Prepend)
-	return nil
+	return s.ConfigureInitContainerTemplate(container, i.Prepend)
 }
 
-// volumeMount is a containerMutator which adds a volume mount to a container.
-//
-// It will only add the volumeMount one time based on Name and MountPath.
 type volumeMount struct {
 	corev1.VolumeMount
 	Prepend bool
 }
 
-var _ containerMutator = (*volumeMount)(nil)
-
-// mutateContainer implements containerMutator for volumeMount.
-func (v volumeMount) mutateContainer(c *corev1.Container) error {
-	mnt := v.VolumeMount
-	for idx, vol := range c.VolumeMounts {
-		if vol.Name == mnt.Name && vol.MountPath == mnt.MountPath {
-			c.VolumeMounts[idx] = mnt
-			return nil
-		}
-	}
-
-	c.VolumeMounts = appendOrPrepend(mnt, c.VolumeMounts, v.Prepend)
-	return nil
+func (v volumeMount) planContainer(s *patch.PodSession, id patch.ContainerID) error {
+	return s.ConfigureVolumeMount(id, v.VolumeMount, v.Prepend)
 }
-
-func (v volumeMount) readOnly() volumeMount { // nolint:unused
-	m := v.VolumeMount
-	m.ReadOnly = true
-	return volumeMount{m, v.Prepend}
-}
-
-func appendOrPrepend[T any](item T, toList []T, prepend bool) []T {
-	if prepend {
-		return append([]T{item}, toList...)
-	}
-
-	return append(toList, item)
-}
-
 func newConfigEnvVarFromBoolMutator(key string, val *bool) envVar {
 	return envVarMutator(corev1.EnvVar{
 		Name:  key,
@@ -194,11 +121,18 @@ type containerFilter func(c *corev1.Container) bool
 // filteredContainerMutator applies a containerFilter to the given
 // containerMutator, producing a containerMutator.
 func filteredContainerMutator(f containerFilter, m containerMutator) containerMutator {
-	return containerMutatorFunc(func(c *corev1.Container) error {
+	if f == nil {
+		return m
+	}
+	return containerMutatorFunc(func(s *patch.PodSession, id patch.ContainerID) error {
+		c, err := snapshotContainer(s, id)
+		if err != nil {
+			return err
+		}
 		if f != nil && !f(c) {
 			return nil
 		}
-		return m.mutateContainer(c)
+		return m.planContainer(s, id)
 	})
 }
 
@@ -222,16 +156,14 @@ type containerSecurityContext struct {
 	*corev1.SecurityContext
 }
 
-func (r containerSecurityContext) mutateContainer(c *corev1.Container) error {
-	c.SecurityContext = r.SecurityContext
-	return nil
+func (r containerSecurityContext) planContainer(s *patch.PodSession, id patch.ContainerID) error {
+	return s.ConfigureSecurityContext(id, r.SecurityContext)
 }
 
 type containerResourceRequirements struct {
 	corev1.ResourceRequirements
 }
 
-func (r containerResourceRequirements) mutateContainer(c *corev1.Container) error {
-	c.Resources = r.ResourceRequirements
-	return nil
+func (r containerResourceRequirements) planContainer(s *patch.PodSession, id patch.ContainerID) error {
+	return s.ConfigureResources(id, r.ResourceRequirements)
 }

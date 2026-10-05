@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/DataDog/dd-policy-engine/go/policies"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 
@@ -20,9 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/ssi"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/dd-policy-engine/go/policies"
 )
 
 const (
@@ -144,8 +145,15 @@ func (m *TargetMutator) ClearRemotePolicies() {
 	m.remoteSource.clearPolicies()
 }
 
-// MutatePod mutates the pod if it matches the target based workload selection or has the appropriate annotations.
-func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
+// PlanPod mutates the pod if it matches the target based workload selection or has the appropriate annotations.
+func (m *TargetMutator) PlanPod(session *patch.PodSession, ns string, _ dynamic.Interface) (bool, error) {
+	if session == nil {
+		return false, errors.New(metrics.InvalidInput)
+	}
+	pod, err := session.Snapshot()
+	if err != nil {
+		return false, err
+	}
 	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
 	// Sanitize input.
@@ -190,8 +198,14 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	}
 	injection := resolved.plan
 	if injection.blocked {
-		annotation.Set(pod, annotation.AppliedPolicy, injection.appliedMetadataJSON)
-		annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusBlocked)
+
+		if err := annotation.SetPatch(session, annotation.AppliedPolicy, injection.appliedMetadataJSON); err != nil {
+			return false, err
+		}
+
+		if err := annotation.SetPatch(session, annotation.InjectionStatus, annotation.InjectionStatusBlocked); err != nil {
+			return false, err
+		}
 		return false, nil
 	}
 	extracted := m.core.initExtractedLibInfo(pod, resolved.isSSI).withLibs(injection.libraries)
@@ -206,36 +220,40 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	}
 
 	// Add the configuration for the security client library.
-	if err := m.core.mutatePodContainers(pod, m.securityClientLibraryMutator, true); err != nil {
+	if err := m.core.planContainers(session, m.securityClientLibraryMutator, true); err != nil {
 		return false, fmt.Errorf("error mutating pod for security client: %w", err)
 	}
 
 	// Add the configuration for profiling.
-	if err := m.core.mutatePodContainers(pod, m.profilingClientLibraryMutator, true); err != nil {
+	if err := m.core.planContainers(session, m.profilingClientLibraryMutator, true); err != nil {
 		return false, fmt.Errorf("error mutating pod for profiling client: %w", err)
 	}
 
 	// Inject the tracer configs. We do this before lib injection to ensure DD_SERVICE is set if the user configures it
 	// in the target.
 	for _, envVar := range injection.tracerEnvVars {
-		_ = m.core.mutatePodContainers(pod, envVarMutator(envVar), true)
+		if err := m.core.planContainers(session, envVarMutator(envVar), true); err != nil {
+			return false, err
+		}
 	}
 
 	// Inject the libraries.
-	err := m.core.injectTracers(pod, extracted)
+	err = m.core.planTracers(session, extracted, ns)
 	if err != nil {
 		return false, fmt.Errorf("error injecting libraries: %w", err)
 	}
 
 	// Annotation-based injection has no applied target/policy metadata.
 	if injection.appliedMetadataJSON != "" {
-		m.addAppliedMetadata(pod, resolved)
+		if err := m.addAppliedMetadata(session, resolved); err != nil {
+			return false, err
+		}
 	}
 
 	return true, nil
 }
 
-func (m *TargetMutator) addAppliedMetadata(pod *corev1.Pod, resolved *injectionResolution) {
+func (m *TargetMutator) addAppliedMetadata(session *patch.PodSession, resolved *injectionResolution) error {
 	injection := resolved.plan
 	envVarName := AppliedTargetEnvVar
 	annotationKey := annotation.AppliedTarget
@@ -244,11 +262,13 @@ func (m *TargetMutator) addAppliedMetadata(pod *corev1.Pod, resolved *injectionR
 		annotationKey = annotation.AppliedPolicy
 	}
 
-	_ = m.core.mutatePodContainers(pod, envVarMutator(corev1.EnvVar{
+	if err := m.core.planContainers(session, envVarMutator(corev1.EnvVar{
 		Name:  envVarName,
 		Value: injection.appliedMetadataJSON,
-	}), true)
-	annotation.Set(pod, annotationKey, injection.appliedMetadataJSON)
+	}), true); err != nil {
+		return err
+	}
+	return annotation.SetPatch(session, annotationKey, injection.appliedMetadataJSON)
 }
 
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
@@ -258,7 +278,7 @@ func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
 }
 
 // getTarget returns an injectable resolution. A remote-config denial is not
-// injectable, but resolveTarget still exposes it so MutatePod can record the
+// injectable, but resolveTarget still exposes it so PlanPod can record the
 // blocking policy on the pod.
 func (m *TargetMutator) getTarget(pod *corev1.Pod) *injectionResolution {
 	resolved := m.resolveTarget(pod)

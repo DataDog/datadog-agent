@@ -10,6 +10,7 @@ go_library(
         "//comp/core/config",
         "//pkg/clusteragent/admission/common",
         "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/clusteragent/admission/patch",
         "//pkg/clusteragent/autoscaling/workload",
         "@io_k8s_api//admission/v1:admission",
         "@io_k8s_api//admissionregistration/v1:admissionregistration",

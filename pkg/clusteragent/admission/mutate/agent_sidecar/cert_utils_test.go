@@ -19,6 +19,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
+
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 )
 
 func TestEnsureCACertConfigMapInNamespace(t *testing.T) {
@@ -107,6 +110,52 @@ func TestEnsureCACertConfigMapInNamespace(t *testing.T) {
 				require.NoError(t, getErr)
 				assert.Equal(t, tt.expectCMData, cm.Data)
 			}
+		})
+	}
+}
+
+// The wrapper and local validation must not repeat the real feature's external
+// ConfigMap decision. The helper tests above cover its create/update policy.
+func TestSidecarAdmissionConfigMapInvocationCount(t *testing.T) {
+	for _, dryRun := range []bool{false, true} {
+		t.Run(map[bool]string{false: "admission", true: "dry run"}[dryRun], func(t *testing.T) {
+			cfg := coreconfig.NewMockWithOverrides(t, map[string]any{
+				"admission_controller.agent_sidecar.cluster_agent.tls_verification.enabled":           true,
+				"admission_controller.agent_sidecar.cluster_agent.tls_verification.copy_ca_configmap": true,
+			})
+			webhook := NewWebhook(cfg)
+			webhook.caCertData = map[string]string{"ca.crt": "fixture-cert"}
+			client := fake.NewSimpleClientset(&corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: agentSidecarSecretName, Namespace: "test-ns"},
+				Data:       map[string][]byte{"api-key": []byte("fixture-key"), "token": []byte("fixture-token")},
+			})
+			response := webhook.WebhookFunc()(&admission.Request{
+				Object:    []byte(`{"metadata":{"name":"app"},"spec":{"containers":[{"name":"app"}]}}`),
+				Namespace: "test-ns", APIClient: client, DryRun: &dryRun,
+			})
+			require.True(t, response.Allowed)
+			require.NotEmpty(t, response.Patch)
+			if response.Result != nil {
+				require.Empty(t, response.Result.Message)
+			}
+			gets, creates := 0, 0
+			for _, action := range client.Actions() {
+				if action.GetResource().Resource != "configmaps" {
+					continue
+				}
+				switch action.GetVerb() {
+				case "get":
+					gets++
+				case "create":
+					creates++
+				}
+			}
+			want := 1
+			if dryRun {
+				want = 0
+			}
+			require.Equal(t, want, gets)
+			require.Equal(t, want, creates)
 		})
 	}
 }

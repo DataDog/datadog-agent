@@ -17,6 +17,7 @@ go_library(
     deps = [
         "//comp/core/log/def",
         "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/clusteragent/admission/patch",
         "//pkg/clusteragent/appsec/config",
         "//pkg/clusteragent/appsec/sidecar",
         "//pkg/errors",
@@ -46,6 +47,7 @@ dd_agent_go_test(
         "enablebackend_test.go",
         "envoy_sidecar_test.go",
         "envoy_test.go",
+        "patch_test_utils_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":envoygateway"],
@@ -60,6 +62,8 @@ dd_agent_go_test(
     deps = [
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//pkg/clusteragent/admission/patch",
+        "//pkg/clusteragent/admission/patchtest",
         "//pkg/clusteragent/appsec/config",
         "//pkg/clusteragent/appsec/sidecar",
         "@com_github_stretchr_testify//assert",

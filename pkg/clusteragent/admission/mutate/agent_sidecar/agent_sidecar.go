@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -173,10 +174,10 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 			requestContext = context.Background()
 		}
 		// Create a wrapper function that includes the request context (DryRun and APIClient)
-		injectFunc := func(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
-			return w.injectAgentSidecar(requestContext, pod, ns, dc, request.APIClient, request.DryRun)
+		injectFunc := func(session *patch.PodSession, ns string, dc dynamic.Interface) (bool, error) {
+			return w.planAgentSidecar(requestContext, session, ns, dc, request.APIClient, request.DryRun)
 		}
-		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), injectFunc, request.DynamicClient))
+		return common.MutationResponse(mutatecommon.MutateWithPatch(request.Object, request.Namespace, w.Name(), injectFunc, request.DynamicClient))
 	}
 }
 
@@ -192,15 +193,18 @@ func (w *Webhook) isReadOnlyRootFilesystem() bool {
 	return false // default to false (temp)
 }
 
-func attachVolume(p *corev1.Pod, v corev1.Volume) error {
+func planAttachVolume(session *patch.PodSession, v corev1.Volume) error {
+	p, err := session.Snapshot()
+	if err != nil {
+		return err
+	}
 	for _, vol := range p.Spec.Volumes {
 		if vol.Name == v.Name {
 			return &VolumeAlreadyAttached{vol.Name}
 		}
 	}
 
-	p.Spec.Volumes = append(p.Spec.Volumes, v)
-	return nil
+	return session.InsertVolume(v, false)
 }
 
 func mountVolume(c *corev1.Container, vm corev1.VolumeMount) error {
@@ -214,7 +218,15 @@ func mountVolume(c *corev1.Container, vm corev1.VolumeMount) error {
 	return nil
 }
 
-func (w *Webhook) injectAgentSidecar(requestContext context.Context, pod *corev1.Pod, namespace string, _ dynamic.Interface, apiClient kubernetes.Interface, dryRun *bool) (bool, error) {
+func (w *Webhook) planAgentSidecar(requestContext context.Context, session *patch.PodSession, namespace string, _ dynamic.Interface, apiClient kubernetes.Interface, dryRun *bool) (bool, error) {
+	if session == nil {
+		return false, errors.New(metrics.InvalidInput)
+	}
+	pod, err := session.Snapshot()
+	if err != nil {
+		return false, err
+	}
+	var securityInit *corev1.Container
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
 	}
@@ -229,14 +241,14 @@ func (w *Webhook) injectAgentSidecar(requestContext context.Context, pod *corev1
 		if err := w.validateAgentSidecarSecret(requestContext, namespace, apiClient); err != nil {
 			if reason := agentSidecarSecretSkipReason(err); reason != "" {
 				log.Warnf("Skipping Agent sidecar injection for pod %s/%s: %v", namespace, pod.GetName(), err)
-				if pod.Annotations == nil {
-					pod.Annotations = map[string]string{}
+				if err := session.SetAnnotations(map[string]string{agentSidecarInjectionStatusAnnotation: agentSidecarInjectionStatusSkipped, agentSidecarInjectionErrorAnnotation: err.Error()}, false); err != nil {
+					return false, err
 				}
-				pod.Annotations[agentSidecarInjectionStatusAnnotation] = agentSidecarInjectionStatusSkipped
-				pod.Annotations[agentSidecarInjectionErrorAnnotation] = err.Error()
 				metrics.AgentSidecarInjectionSkipped.Inc(reason)
 				if w.provider == providerFargate {
-					deleteConfigWebhookVolumesAndMounts(pod)
+					if _, err := planDeleteConfigWebhookVolumesAndMounts(session); err != nil {
+						return false, err
+					}
 				}
 
 				// The pod was annotated, but the sidecar itself was not injected.
@@ -258,16 +270,16 @@ func (w *Webhook) injectAgentSidecar(requestContext context.Context, pod *corev1
 			w.addSecurityConfigToAgent(agentSidecarContainer)
 
 			// Don't want to apply any overrides to the agent sidecar init container
-			defer func() {
-				initContainer := w.getSecurityInitTemplate()
-				pod.Spec.InitContainers = append(pod.Spec.InitContainers, *initContainer)
-			}()
+			securityInit = w.getSecurityInitTemplate()
 		}
 
 		// 3. Attach relevant volumes and mounts
 		volumes := w.getVolumeTemplates()
 		for _, vol := range volumes {
-			err := attachVolume(pod, vol)
+			err := planAttachVolume(session, vol)
+			if session.Err() != nil {
+				return false, session.Err()
+			}
 			if err != nil {
 				var attached VolumeAlreadyAttached
 				if errors.As(err, &attached) {
@@ -316,37 +328,46 @@ func (w *Webhook) injectAgentSidecar(requestContext context.Context, pod *corev1
 			// a. the ConfigMap was successfully created/updated/read OR
 			// b. the ConfigMap is self managed by the user
 			if configMapSideEffectSucceeded || !w.isClusterAgentTLSCopyCAConfigMap {
-				if err := attachVolume(pod, clusterCACertVolume); err != nil {
+				if err := planAttachVolume(session, clusterCACertVolume); err != nil {
+					if session.Err() != nil {
+						return false, session.Err()
+					}
 					log.Errorf("Failed to attach volume: %v", err)
 				}
 				if err := mountVolume(agentSidecarContainer, clusterCACertVolumeMount); err != nil {
 					log.Errorf("Failed to mount volume: %v", err)
 				}
 
-				_, _ = withEnvOverrides(agentSidecarContainer,
+				_, _ = withTemplateEnvOverrides(agentSidecarContainer,
 					corev1.EnvVar{Name: "DD_CLUSTER_TRUST_CHAIN_ENABLE_TLS_VERIFICATION", Value: "true"},
 					corev1.EnvVar{Name: "DD_CLUSTER_TRUST_CHAIN_CA_CERT_FILE_PATH", Value: caCertDirPath + "/ca.crt"},
 				)
 			}
 		}
 
-		pod.Spec.Containers = append(pod.Spec.Containers, *agentSidecarContainer)
+		if err := session.InsertContainer(patch.RegularContainers, *agentSidecarContainer, false); err != nil {
+			return false, err
+		}
 		podUpdated = true
 	}
 
-	updated, err := applyProviderOverrides(pod, w.provider)
+	updated, err := planProviderOverrides(session, w.provider)
 	if err != nil {
 		log.Errorf("Failed to apply provider overrides: %v", err)
 		return podUpdated, errors.New(metrics.InvalidInput)
 	}
 	podUpdated = podUpdated || updated
 
+	pod, err = session.Snapshot()
+	if err != nil {
+		return false, err
+	}
 	// User-provided overrides should always be applied last in order to have
 	// highest override-priority. They only apply to the agent sidecar container.
 	for i := range pod.Spec.Containers {
 		if pod.Spec.Containers[i].Name == agentSidecarContainerName {
 			if isOwnedByJob(pod.OwnerReferences) {
-				updated, err = withEnvOverrides(&pod.Spec.Containers[i], corev1.EnvVar{
+				updated, err = planEnvOverrides(session, patch.ContainerID{Kind: patch.RegularContainers, Name: pod.Spec.Containers[i].Name}, corev1.EnvVar{
 					Name:  "DD_AUTO_EXIT_NOPROCESS_ENABLED",
 					Value: "true",
 				})
@@ -357,7 +378,7 @@ func (w *Webhook) injectAgentSidecar(requestContext context.Context, pod *corev1
 			}
 			podUpdated = podUpdated || updated
 
-			updated, err = applyProfileOverrides(&pod.Spec.Containers[i], w.profileOverrides)
+			updated, err = planProfileOverrides(session, patch.ContainerID{Kind: patch.RegularContainers, Name: pod.Spec.Containers[i].Name}, w.profileOverrides)
 			if err != nil {
 				log.Errorf("Failed to apply profile overrides: %v", err)
 				return podUpdated, errors.New(metrics.InvalidInput)
@@ -368,6 +389,11 @@ func (w *Webhook) injectAgentSidecar(requestContext context.Context, pod *corev1
 		}
 	}
 
+	if securityInit != nil {
+		if err := session.InsertContainer(patch.InitContainers, *securityInit, false); err != nil {
+			return false, err
+		}
+	}
 	return podUpdated, nil
 }
 
@@ -542,7 +568,7 @@ func (w *Webhook) getDefaultSidecarTemplate() *corev1.Container {
 	}
 
 	if w.isClusterAgentEnabled {
-		_, _ = withEnvOverrides(agentContainer, corev1.EnvVar{
+		_, _ = withTemplateEnvOverrides(agentContainer, corev1.EnvVar{
 			Name:  "DD_CLUSTER_AGENT_ENABLED",
 			Value: "true",
 		}, corev1.EnvVar{
@@ -565,7 +591,7 @@ func (w *Webhook) getDefaultSidecarTemplate() *corev1.Container {
 	}
 
 	if w.isKubeletAPILoggingEnabled {
-		_, _ = withEnvOverrides(agentContainer,
+		_, _ = withTemplateEnvOverrides(agentContainer,
 			corev1.EnvVar{
 				Name:  "DD_LOGS_ENABLED",
 				Value: "true",

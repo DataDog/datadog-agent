@@ -12,15 +12,14 @@ import (
 	"testing"
 	"time"
 
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -92,7 +91,7 @@ func applyWithPatcher(t *testing.T, pai model.PodAutoscalerInternal) *corev1.Pod
 	item.Upsert(pai, "")
 
 	pod := newForcedResourcesPod()
-	_, err := NewPodPatcher(s, nil, nil).ApplyRecommendations(pod)
+	_, err := applyRecommendationsForTest(NewPodPatcher(s, nil, nil), pod)
 	require.NoError(t, err)
 	return pod
 }
@@ -266,7 +265,7 @@ func TestPatcherApplyForcedResourcesMultipleContainers(t *testing.T) {
 
 	pod := newForcedResourcesPod()
 	pod.Spec.Containers = []corev1.Container{{Name: "app"}, {Name: "sidecar"}, {Name: "logger"}, {Name: "worker"}}
-	_, err := NewPodPatcher(s, nil, nil).ApplyRecommendations(pod)
+	_, err := applyRecommendationsForTest(NewPodPatcher(s, nil, nil), pod)
 	require.NoError(t, err)
 
 	resources := map[string]*corev1.ResourceRequirements{}

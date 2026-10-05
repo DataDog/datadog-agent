@@ -13,6 +13,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
+        "//pkg/clusteragent/admission/patch",
         "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/apiserver/common/namespace",
         "//pkg/util/log",

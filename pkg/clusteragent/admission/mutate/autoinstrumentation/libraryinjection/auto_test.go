@@ -70,7 +70,7 @@ func TestAutoProvider_PicksCSIWhenWatcherReportsAPMEnabled(t *testing.T) {
 		CSIDriverWatcher:  fakeCSIDriverWatcher{registered: true, apmEnabled: true},
 	})
 
-	result := provider.InjectInjector(pod, injectorConfig())
+	result := injectInjectorForTest(provider, pod, injectorConfig())
 	assert.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
 
 	// CSIProvider injects the InstrumentationVolume as a CSI volume; the
@@ -147,7 +147,7 @@ func TestAutoProvider_FallsBackToInitContainerWhenWatcherReportsAPMDisabled(t *t
 		CSIDriverWatcher: fakeCSIDriverWatcher{registered: true, apmEnabled: false},
 	})
 
-	result := provider.InjectInjector(pod, injectorConfig())
+	result := injectInjectorForTest(provider, pod, injectorConfig())
 	assert.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
 
 	vol := findInstrumentationVolume(t, pod)
@@ -165,7 +165,7 @@ func TestAutoProvider_FallsBackToInitContainerWhenWatcherIsNil(t *testing.T) {
 		CSIDriverWatcher: nil,
 	})
 
-	result := provider.InjectInjector(pod, injectorConfig())
+	result := injectInjectorForTest(provider, pod, injectorConfig())
 	assert.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
 
 	vol := findInstrumentationVolume(t, pod)

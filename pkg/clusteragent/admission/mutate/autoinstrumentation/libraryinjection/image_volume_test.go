@@ -31,7 +31,7 @@ func TestImageVolumeProvider_InjectInjector(t *testing.T) {
 	}
 
 	provider := libraryinjection.NewImageVolumeProvider(libraryinjection.LibraryInjectionConfig{})
-	result := provider.InjectInjector(pod, libraryinjection.InjectorConfig{
+	result := injectInjectorForTest(provider, pod, libraryinjection.InjectorConfig{
 		Package: libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/apm-inject:0.52.0", "0.52.0"),
 	})
 
@@ -110,7 +110,7 @@ func TestImageVolumeProvider_InjectInjector_SkipsWhenInsufficientResources(t *te
 	}
 
 	provider := libraryinjection.NewImageVolumeProvider(libraryinjection.LibraryInjectionConfig{})
-	resultLow := provider.InjectInjector(podLowResources, libraryinjection.InjectorConfig{
+	resultLow := injectInjectorForTest(provider, podLowResources, libraryinjection.InjectorConfig{
 		Package: libraryinjection.NewLibraryImageFromFullRef("test-image", ""),
 	})
 
@@ -135,13 +135,13 @@ func TestImageVolumeProvider_InjectInjector_UsesConfiguredInitSecurityContext(t 
 	provider := libraryinjection.NewImageVolumeProvider(libraryinjection.LibraryInjectionConfig{
 		InitSecurityContext: sc,
 	})
-	result := provider.InjectInjector(pod, libraryinjection.InjectorConfig{
+	result := injectInjectorForTest(provider, pod, libraryinjection.InjectorConfig{
 		Package: libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/apm-inject:0.52.0", "0.52.0"),
 	})
 
 	require.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
 	require.Len(t, pod.Spec.InitContainers, 1)
-	require.Same(t, sc, pod.Spec.InitContainers[0].SecurityContext)
+	require.Equal(t, sc, pod.Spec.InitContainers[0].SecurityContext)
 }
 
 func TestImageVolumeProvider_InjectLibrary_TargetsSingleContainer(t *testing.T) {
@@ -156,7 +156,7 @@ func TestImageVolumeProvider_InjectLibrary_TargetsSingleContainer(t *testing.T) 
 	}
 
 	provider := libraryinjection.NewImageVolumeProvider(libraryinjection.LibraryInjectionConfig{})
-	result := provider.InjectLibrary(pod, libraryinjection.LibraryConfig{
+	result := injectLibraryForTest(provider, pod, libraryinjection.LibraryConfig{
 		Language:      "java",
 		Package:       libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/dd-lib-java-init:1.2.3", "1.2.3"),
 		ContainerName: "app",

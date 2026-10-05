@@ -1,45 +1,7 @@
 [
     {
-        "value": "DD_INTERNAL_POD_UID",
-        "op": "replace",
-        "path": "/spec/containers/0/env/0/name"
-    },
-    {
-        "op": "remove",
-        "path": "/spec/containers/0/env/0/value"
-    },
-    {
-        "value": {
-            "fieldRef": {
-                "fieldPath": "metadata.uid"
-            }
-        },
         "op": "add",
-        "path": "/spec/containers/0/env/0/valueFrom"
-    },
-    {
-        "value": "DD_EXTERNAL_ENV",
-        "op": "replace",
-        "path": "/spec/containers/0/env/1/name"
-    },
-    {
-        "value": "it-false,cn-container,pu-$(DD_INTERNAL_POD_UID)",
-        "op": "replace",
-        "path": "/spec/containers/0/env/1/value"
-    },
-    {
-        "value": {
-            "name": "DD_ENTITY_ID",
-            "valueFrom": {
-                "fieldRef": {
-                    "fieldPath": "metadata.uid"
-                }
-            }
-        },
-        "op": "add",
-        "path": "/spec/containers/0/env/-"
-    },
-    {
+        "path": "/spec/containers/0/env/0",
         "value": {
             "name": "DD_AGENT_HOST",
             "valueFrom": {
@@ -47,24 +9,38 @@
                     "fieldPath": "status.hostIP"
                 }
             }
-        },
-        "op": "add",
-        "path": "/spec/containers/0/env/-"
+        }
     },
     {
-        "value": {
-            "name": "container-env-foo",
-            "value": "container-env-foo-env-value"
-        },
         "op": "add",
-        "path": "/spec/containers/0/env/-"
+        "path": "/spec/containers/0/env/0",
+        "value": {
+            "name": "DD_ENTITY_ID",
+            "valueFrom": {
+                "fieldRef": {
+                    "fieldPath": "metadata.uid"
+                }
+            }
+        }
     },
     {
-        "value": {
-            "name": "container-env-bar",
-            "value": "container-env-bar-env-value"
-        },
         "op": "add",
-        "path": "/spec/containers/0/env/-"
+        "path": "/spec/containers/0/env/0",
+        "value": {
+            "name": "DD_EXTERNAL_ENV",
+            "value": "it-false,cn-container,pu-$(DD_INTERNAL_POD_UID)"
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/0/env/0",
+        "value": {
+            "name": "DD_INTERNAL_POD_UID",
+            "valueFrom": {
+                "fieldRef": {
+                    "fieldPath": "metadata.uid"
+                }
+            }
+        }
     }
 ]

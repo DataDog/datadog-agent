@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "patchtest",
+    srcs = ["helpers.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patchtest",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/clusteragent/admission/metrics",
+        "//pkg/clusteragent/admission/patch",
+        "@com_github_evanphx_json_patch_v5//:json-patch",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_client_go//dynamic",
+    ],
+)

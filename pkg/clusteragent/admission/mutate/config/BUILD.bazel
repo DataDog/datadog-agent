@@ -16,6 +16,7 @@ go_library(
         "//pkg/clusteragent/admission/common",
         "//pkg/clusteragent/admission/metrics",
         "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/clusteragent/admission/patch",
         "//pkg/util/kubernetes/apiserver/common/namespace",
         "//pkg/util/log",
         "//pkg/util/pointer",
@@ -29,7 +30,10 @@ go_library(
 
 dd_agent_go_test(
     name = "config_test",
-    srcs = ["config_test.go"],
+    srcs = [
+        "config_test.go",
+        "patch_test_utils_test.go",
+    ],
     data = glob(["testdata/**"]),
     embed = [":config"],
     gotags_sets = [[
@@ -45,8 +49,11 @@ dd_agent_go_test(
         "//comp/core/config",
         "//pkg/clusteragent/admission/common",
         "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/clusteragent/admission/patch",
+        "//pkg/clusteragent/admission/patchtest",
         "//pkg/util/kubernetes/apiserver/common/namespace",
         "//pkg/util/pointer",
+        "@com_github_evanphx_json_patch_v5//:json-patch",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//admission/v1:admission",
@@ -54,5 +61,6 @@ dd_agent_go_test(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/runtime",
         "@io_k8s_apimachinery//pkg/runtime/serializer",
+        "@io_k8s_client_go//dynamic",
     ],
 )

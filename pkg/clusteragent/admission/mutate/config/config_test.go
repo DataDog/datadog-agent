@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	admiv1 "k8s.io/api/admission/v1"
@@ -781,9 +782,21 @@ func TestJSONPatchCorrectness(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			pod := mutatecommon.FakePodWithContainer("foo", mutatecommon.FakeContainer("container"))
+			// Duplicate occurrences and expansion order must survive the prepend.
+			pod.Spec.Containers[0].Env = []corev1.EnvVar{{Name: "X", Value: "one"}, {Name: "Y", Value: "$(X)"}, {Name: "X", Value: "two"}}
 			mutatecommon.WithLabels(pod, map[string]string{admCommon.EnabledLabelKey: "true"})
 			podJSON, err := json.Marshal(pod)
-			assert.NoError(t, err)
+			require.NoError(t, err)
+			var input map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(podJSON, &input))
+			input["custom"] = json.RawMessage(`{"large":18446744073709551617,"precise":0.12345678901234567890123456789}`)
+			var spec map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(input["spec"], &spec))
+			spec["customSchedulingPolicy"] = json.RawMessage(`{"nested":{"preserve":true}}`)
+			input["spec"], err = json.Marshal(spec)
+			require.NoError(t, err)
+			podJSON, err = json.Marshal(input)
+			require.NoError(t, err)
 			datadogConfig := config.NewMockWithOverrides(t, tt.overrides)
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
@@ -798,6 +811,29 @@ func TestJSONPatchCorrectness(t *testing.T) {
 			expected, err := os.ReadFile(tt.file)
 			assert.NoError(t, err)
 			assert.JSONEq(t, string(expected), string(admissionResponse.Patch))
+			operations, err := jsonpatch.DecodePatch(admissionResponse.Patch)
+			require.NoError(t, err)
+			options := jsonpatch.NewApplyOptions()
+			options.SupportNegativeIndices = false
+			options.AllowMissingPathOnRemove = false
+			options.EnsurePathExistsOnAdd = false
+			output, err := operations.ApplyWithOptions(podJSON, options)
+			require.NoError(t, err)
+			var patched map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(output, &patched))
+			require.Equal(t, string(input["custom"]), string(patched["custom"]))
+			require.NoError(t, json.Unmarshal(patched["spec"], &spec))
+			require.JSONEq(t, `{"nested":{"preserve":true}}`, string(spec["customSchedulingPolicy"]))
+			var result corev1.Pod
+			require.NoError(t, json.Unmarshal(output, &result))
+			require.Equal(t, pod.Spec.Containers[0].Env, result.Spec.Containers[0].Env[4:])
+			// The same extension-bearing input on a feature skip is a true no-op.
+			pod.Labels[admCommon.EnabledLabelKey] = "false"
+			input["metadata"], err = json.Marshal(pod.ObjectMeta)
+			require.NoError(t, err)
+			request.Object, err = json.Marshal(input)
+			require.NoError(t, err)
+			require.Equal(t, "[]", string(webhook.WebhookFunc()(&request).Patch))
 		})
 	}
 }

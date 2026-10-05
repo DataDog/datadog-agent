@@ -12,9 +12,7 @@ package tagsfromlabels
 import (
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -32,11 +30,11 @@ type Webhook struct {
 	resources       []common.WebhookResourceRule
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
-	mutator         mutatecommon.Mutator
+	mutator         mutatecommon.PatchMutator
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(datadogConfig config.Component, mutator mutatecommon.Mutator) *Webhook {
+func NewWebhook(datadogConfig config.Component, mutator mutatecommon.PatchMutator) *Webhook {
 	return &Webhook{
 		name:            webhookName,
 		isEnabled:       datadogConfig.GetBool("admission_controller.inject_tags.enabled"),
@@ -102,15 +100,9 @@ func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
 // WebhookFunc returns the function that mutates the resources
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), func(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
-			// Adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to the pod template from pod and higher-level resource labels.
-			return w.inject(pod, ns, dc)
-		}, request.DynamicClient))
+		return common.MutationResponse(mutatecommon.MutateWithPatch(request.Object, request.Namespace, w.Name(), w.mutator.PlanPod, request.DynamicClient))
 	}
 }
 
 // inject is a helper method to call the underlying injector directly from the webook. This is useful for testing. All
 // the logic must be in the injector itself and we should consider refactoring this method out.
-func (w *Webhook) inject(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
-	return w.mutator.MutatePod(pod, ns, dc)
-}

@@ -183,7 +183,7 @@ func TestAutoInstrumentation(t *testing.T) {
 			response := f(request)
 
 			// Check if the patch is expected.
-			emptyPatch := "null"
+			emptyPatch := "[]"
 			if tt.expectPatch {
 				assert.NotEqual(t, emptyPatch, string(response.Patch))
 			} else {

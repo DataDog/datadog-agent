@@ -12,6 +12,8 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 )
 
 const (
@@ -39,7 +41,11 @@ func (p *ImageVolumeProvider) GetName() string {
 	return string(InjectionModeImageVolume)
 }
 
-func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult {
+func (p *ImageVolumeProvider) PlanInjector(session *patch.PodSession, cfg InjectorConfig) MutationResult {
+	pod, err := session.Snapshot()
+	if err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 	// Validate that the pod has sufficient resources for the micro init container.
 	result, err := ComputeInitContainerResourceRequirementsForInitContainer(pod, p.cfg.DefaultResourceRequirements, InjectLDPreloadInitContainerName)
 	if err != nil {
@@ -49,10 +55,11 @@ func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig
 		return MutationResult{Status: MutationStatusSkipped, Err: errors.New(result.Message)}
 	}
 	requirements := result.Requirements
-	patcher := NewPodPatcher(pod, p.cfg.ContainerFilter)
+	patcher := NewPodPatcher(session, p.cfg.ContainerFilter)
 
 	// Image volume for the injector image contents
-	patcher.AddVolume(corev1.Volume{
+
+	if err := patcher.AddVolume(corev1.Volume{
 		Name: InstrumentationVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			Image: &corev1.ImageVolumeSource{
@@ -60,7 +67,9 @@ func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig
 				PullPolicy: corev1.PullIfNotPresent,
 			},
 		},
-	})
+	}); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 
 	// Volume mount for the injector files
 	injectorMount := corev1.VolumeMount{
@@ -69,15 +78,22 @@ func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig
 		SubPath:   injectPackageDir,
 		ReadOnly:  true,
 	}
-	patcher.AddVolumeMount(injectorMount)
 
-	etcMountInitContainer := addEtcLdSoPreloadVolumeAndMounts(patcher)
+	if err := patcher.AddVolumeMount(injectorMount); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
+
+	etcMountInitContainer, err := addEtcLdSoPreloadVolumeAndMounts(patcher)
+	if err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 
 	preloadPath := asAbsPath(injectorFilePath("launcher.preload.so"))
 	dst := etcMountPath + "/" + ldSoPreloadFileName
 
 	// Init container writes /etc/ld.so.preload with the launcher preload path.
-	patcher.AddInitContainer(corev1.Container{
+
+	if err := patcher.AddInitContainer(corev1.Container{
 		Name:    InjectLDPreloadInitContainerName,
 		Image:   cfg.Package.FullRef(),
 		Command: []string{"/bin/sh", "-c", "--"},
@@ -88,9 +104,11 @@ func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig
 			injectorMount,
 			etcMountInitContainer,
 		},
-		SecurityContext: resolveInitSecurityContext(p.cfg, pod.Namespace),
+		SecurityContext: resolveInitSecurityContext(p.cfg, lookupNamespace(p.cfg, pod)),
 		Resources:       requirements,
-	})
+	}); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 
 	return MutationResult{
 		Status: MutationStatusInjected,
@@ -100,11 +118,12 @@ func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig
 	}
 }
 
-func (p *ImageVolumeProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) MutationResult {
-	patcher := NewPodPatcher(pod, p.cfg.ContainerFilter)
+func (p *ImageVolumeProvider) PlanLibrary(session *patch.PodSession, cfg LibraryConfig) MutationResult {
+	patcher := NewPodPatcher(session, p.cfg.ContainerFilter)
 
 	volumeName := "dd-lib-" + cfg.Language
-	patcher.AddVolume(corev1.Volume{
+
+	if err := patcher.AddVolume(corev1.Volume{
 		Name: volumeName,
 		VolumeSource: corev1.VolumeSource{
 			Image: &corev1.ImageVolumeSource{
@@ -112,14 +131,18 @@ func (p *ImageVolumeProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) 
 				PullPolicy: corev1.PullIfNotPresent,
 			},
 		},
-	})
+	}); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 
-	patcher.AddVolumeMountWithTarget(corev1.VolumeMount{
+	if err := patcher.AddVolumeMountWithTarget(corev1.VolumeMount{
 		Name:      volumeName,
 		MountPath: asAbsPath(libraryPackagesDir) + "/" + cfg.Language,
 		SubPath:   librarySubPath,
 		ReadOnly:  true,
-	}, cfg.ContainerName)
+	}, cfg.ContainerName); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 
 	return MutationResult{
 		Status: MutationStatusInjected,

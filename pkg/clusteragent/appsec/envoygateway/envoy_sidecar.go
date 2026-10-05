@@ -14,15 +14,17 @@ import (
 	"path"
 	"strings"
 
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/sidecar"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
+
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/sidecar"
 )
 
 const (
@@ -89,14 +91,18 @@ func (e *envoyGatewaySidecarPattern) PodDeleted(*corev1.Pod, string, dynamic.Int
 }
 
 // Added is a no-op in sidecar mode: the Backend + EnvoyExtensionPolicy are created lazily on the
-// first pod mutation (see MutatePod), so Envoy Gateway is never directed at the UDS ext_proc Backend
+// first pod mutation (see PlanPod), so Envoy Gateway is never directed at the UDS ext_proc Backend
 // before at least one data-plane pod actually has the injected sidecar/socket. Teardown stays
 // Gateway-informer-driven via the inherited Deleted().
 func (e *envoyGatewaySidecarPattern) Added(context.Context, *unstructured.Unstructured) error {
 	return nil
 }
 
-func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+func (e *envoyGatewaySidecarPattern) PlanPod(session *patch.PodSession, _ string, _ dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+	pod, err := session.Snapshot()
+	if err != nil {
+		return appsecconfig.MutationError, err
+	}
 	for _, container := range pod.Spec.Containers {
 		if container.Name == sidecar.SidecarContainerName {
 			return appsecconfig.MutationSkipped, &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonAlreadySidecar}
@@ -143,14 +149,19 @@ func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dyna
 		return appsecconfig.MutationError, fmt.Errorf("could not ensure envoy gateway appsec resources: %w", err)
 	}
 
-	volumeName := sidecar.EnsureSharedSocketVolume(pod)
+	volumeName, err := sidecar.PlanSharedSocketVolume(session)
+	if err != nil {
+		return appsecconfig.MutationError, err
+	}
 	if pod.Spec.SecurityContext != nil && pod.Spec.SecurityContext.FSGroup != nil && *pod.Spec.SecurityContext.FSGroup != e.config.Sidecar.RunAsUser {
 		e.logger.Warnf("Pod %s already has fsGroup %d; leaving it unchanged instead of setting appsec sidecar fsGroup %d", mutatecommon.PodString(pod), *pod.Spec.SecurityContext.FSGroup, e.config.Sidecar.RunAsUser)
 	}
-	sidecar.EnsureSocketFSGroup(pod, e.config.Sidecar.RunAsUser)
+	if err := session.EnsureFSGroup(e.config.Sidecar.RunAsUser); err != nil {
+		return appsecconfig.MutationError, err
+	}
 
 	mountDir := path.Dir(e.config.Sidecar.UDSPath)
-	if err := sidecar.MountSocketIntoContainer(pod, envoyProxyContainerName, volumeName, mountDir); err != nil {
+	if err := sidecar.PlanSocketMount(session, envoyProxyContainerName, volumeName, mountDir); err != nil {
 		e.recorder.Eventf(
 			&corev1.ObjectReference{Kind: "Pod", Namespace: pod.Namespace, Name: pod.Name, APIVersion: "v1"},
 			corev1.EventTypeWarning,
@@ -162,7 +173,9 @@ func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dyna
 		return appsecconfig.MutationError, fmt.Errorf("failed to mount appsec socket into envoy container for pod %s: %w", mutatecommon.PodString(pod), err)
 	}
 
-	pod.Spec.Containers = append(pod.Spec.Containers, sidecar.BuildExtProcProcessorContainerUDS(e.config.Sidecar))
+	if err := session.InsertContainer(patch.RegularContainers, sidecar.BuildExtProcProcessorContainerUDS(e.config.Sidecar), false); err != nil {
+		return appsecconfig.MutationError, err
+	}
 	e.logger.Infof("Injected appsec UDS ext_proc sidecar into pod %s", mutatecommon.PodString(pod))
 
 	return appsecconfig.MutationMutated, nil

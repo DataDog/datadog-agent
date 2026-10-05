@@ -17,6 +17,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -27,10 +30,8 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // mockInjectionPattern implements the InjectionPattern interface for testing
@@ -86,7 +87,7 @@ func (m *mockSidecarInjectionPattern) IsPodEligible(*corev1.Pod, string) bool {
 	return true
 }
 
-func (m *mockSidecarInjectionPattern) MutatePod(*corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+func (m *mockSidecarInjectionPattern) PlanPod(*patch.PodSession, string, dynamic.Interface) (appsecconfig.MutationOutcome, error) {
 	return appsecconfig.MutationMutated, nil
 }
 

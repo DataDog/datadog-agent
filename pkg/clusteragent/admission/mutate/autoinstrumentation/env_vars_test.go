@@ -126,7 +126,7 @@ func TestEnvVars(t *testing.T) {
 				Env:  []corev1.EnvVar{initial},
 			}
 
-			err := tt.mutator.mutateContainer(&c)
+			err := mutateContainerForTest(tt.mutator, &c)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, c.Env)
 		})

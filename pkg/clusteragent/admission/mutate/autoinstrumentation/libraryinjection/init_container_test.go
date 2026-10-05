@@ -31,7 +31,7 @@ func TestInjectInjector(t *testing.T) {
 	}
 
 	provider := libraryinjection.NewInitContainerProvider(libraryinjection.LibraryInjectionConfig{})
-	result := provider.InjectInjector(pod, libraryinjection.InjectorConfig{
+	result := injectInjectorForTest(provider, pod, libraryinjection.InjectorConfig{
 		Package: libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/apm-inject:latest", ""),
 	})
 
@@ -62,7 +62,7 @@ func TestInjectLibrary(t *testing.T) {
 	}
 
 	provider := libraryinjection.NewInitContainerProvider(libraryinjection.LibraryInjectionConfig{})
-	result := provider.InjectLibrary(pod, libraryinjection.LibraryConfig{
+	result := injectLibraryForTest(provider, pod, libraryinjection.LibraryConfig{
 		Language: "java",
 		Package:  libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/dd-lib-java-init:latest", ""),
 	})
@@ -87,7 +87,7 @@ func TestInjectLibrary_TargetsSingleContainer(t *testing.T) {
 	}
 
 	provider := libraryinjection.NewInitContainerProvider(libraryinjection.LibraryInjectionConfig{})
-	result := provider.InjectLibrary(pod, libraryinjection.LibraryConfig{
+	result := injectLibraryForTest(provider, pod, libraryinjection.LibraryConfig{
 		Language:      "java",
 		Package:       libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/dd-lib-java-init:latest", ""),
 		ContainerName: "app",
@@ -138,13 +138,13 @@ func TestInjectInjector_SkipsWhenInsufficientResources(t *testing.T) {
 	provider := libraryinjection.NewInitContainerProvider(libraryinjection.LibraryInjectionConfig{})
 
 	// Should succeed with sufficient resources
-	result := provider.InjectInjector(pod, libraryinjection.InjectorConfig{
+	result := injectInjectorForTest(provider, pod, libraryinjection.InjectorConfig{
 		Package: libraryinjection.NewLibraryImageFromFullRef("test-image", ""),
 	})
 	assert.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
 
 	// Should skip with insufficient resources
-	resultLow := provider.InjectInjector(podLowResources, libraryinjection.InjectorConfig{
+	resultLow := injectInjectorForTest(provider, podLowResources, libraryinjection.InjectorConfig{
 		Package: libraryinjection.NewLibraryImageFromFullRef("test-image", ""),
 	})
 	assert.Equal(t, libraryinjection.MutationStatusSkipped, resultLow.Status)
@@ -168,11 +168,11 @@ func TestInjectInjector_UsesConfiguredInitSecurityContext(t *testing.T) {
 		InitSecurityContext: sc,
 	})
 
-	result := provider.InjectInjector(pod, libraryinjection.InjectorConfig{
+	result := injectInjectorForTest(provider, pod, libraryinjection.InjectorConfig{
 		Package: libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/apm-inject:latest", ""),
 	})
 
 	require.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
 	require.Len(t, pod.Spec.InitContainers, 1)
-	require.Same(t, sc, pod.Spec.InitContainers[0].SecurityContext)
+	require.Equal(t, sc, pod.Spec.InitContainers[0].SecurityContext)
 }

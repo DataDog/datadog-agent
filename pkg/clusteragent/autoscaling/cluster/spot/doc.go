@@ -12,9 +12,17 @@ import corev1 "k8s.io/api/core/v1"
 
 // PodHandler handles pod admission events for spot scheduling.
 type PodHandler interface {
-	// PodCreated is called when a pod is created via admission webhook.
-	// It returns true if the pod was mutated to target a spot instance.
-	PodCreated(pod *corev1.Pod) (bool, error)
+	// PlanPlacement is called when a pod is created via admission webhook.
+	// It returns scheduling intent, or nil when the pod is left unchanged.
+	PlanPlacement(pod *corev1.Pod) (*PodPlacement, error)
 	// PodDeleted is called when a pod is deleted via admission webhook.
 	PodDeleted(pod *corev1.Pod)
+}
+
+// PodPlacement describes intended scheduling edits after one tracker decision.
+// It contains no admission transport or patch mechanics.
+type PodPlacement struct {
+	NodeSelector map[string]string
+	Labels       map[string]string
+	Tolerations  []corev1.Toleration
 }

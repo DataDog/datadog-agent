@@ -7,6 +7,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/sidecar",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/clusteragent/admission/patch",
         "//pkg/clusteragent/appsec/config",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource",
@@ -17,7 +18,10 @@ go_library(
 
 dd_agent_go_test(
     name = "sidecar_test",
-    srcs = ["container_test.go"],
+    srcs = [
+        "container_test.go",
+        "patch_test_utils_test.go",
+    ],
     embed = [":sidecar"],
     gotags_sets = [[
         "cel",
@@ -28,9 +32,12 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
+        "//pkg/clusteragent/admission/patch",
+        "//pkg/clusteragent/admission/patchtest",
         "//pkg/clusteragent/appsec/config",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",
+        "@io_k8s_client_go//dynamic",
     ],
 )

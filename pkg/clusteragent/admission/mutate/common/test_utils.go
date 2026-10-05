@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -21,14 +22,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/stretchr/testify/require"
-
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -152,6 +152,15 @@ func (f FakePodSpec) Create() *corev1.Pod {
 	pod := fakePodWithParent(f.NS, f.Name, f.Annotations, f.Labels, f.Envs, f.ParentKind, f.ParentName)
 
 	if len(f.Containers) > 0 {
+		// An explicit container of the default name supplies that fixture's
+		// contents; adding the automatic placeholder would create an invalid Pod.
+		// Tests for ambiguous identities construct duplicates explicitly.
+		for _, c := range f.Containers {
+			if c.Name == pod.Spec.Containers[0].Name {
+				pod.Spec.Containers = nil
+				break
+			}
+		}
 		pod.Spec.Containers = append(pod.Spec.Containers, f.Containers...)
 	}
 
@@ -339,16 +348,6 @@ type MockMutator struct {
 	Called bool
 }
 
-// MutatePod satisfies the mutator interface.
-func (m *MockMutator) MutatePod(_ *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
-	m.Called = true
-	if m.ShoudErr {
-		return false, errors.New("error")
-	}
-
-	return m.ShouldMutate, nil
-}
-
 // FakeMutator provides a new mock of the mutator.
 func FakeMutator(_ *testing.T, shouldErr bool) *MockMutator {
 	return &MockMutator{
@@ -381,4 +380,13 @@ func setInstrumentationTargets(t *testing.T, targets any) {
 	data, err := json.Marshal(targets)
 	require.NoError(t, err)
 	t.Setenv("DD_APM_INSTRUMENTATION_TARGETS", string(data))
+}
+
+// PlanPod satisfies the patch-aware mock interface for migrated webhook tests.
+func (m *MockMutator) PlanPod(_ *patch.PodSession, _ string, _ dynamic.Interface) (bool, error) {
+	m.Called = true
+	if m.ShoudErr {
+		return false, errors.New("error")
+	}
+	return m.ShouldMutate, nil
 }

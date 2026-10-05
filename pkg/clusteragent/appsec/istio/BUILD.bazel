@@ -16,6 +16,7 @@ go_library(
     deps = [
         "//comp/core/log/def",
         "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/clusteragent/admission/patch",
         "//pkg/clusteragent/appsec/config",
         "//pkg/clusteragent/appsec/sidecar",
         "//pkg/errors",
@@ -40,6 +41,7 @@ dd_agent_go_test(
         "gateway_sidecar_test.go",
         "gateway_test.go",
         "istio_test.go",
+        "patch_test_utils_test.go",
         "sidecar_test.go",
     ],
     data = glob(["testdata/**"]),
@@ -55,6 +57,8 @@ dd_agent_go_test(
     deps = [
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//pkg/clusteragent/admission/patch",
+        "//pkg/clusteragent/admission/patchtest",
         "//pkg/clusteragent/appsec/config",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

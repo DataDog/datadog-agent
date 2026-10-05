@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -41,7 +42,7 @@ type serviceNameMutator struct {
 	Source serviceNameSource
 }
 
-func (s *serviceNameMutator) mutateContainer(c *corev1.Container) error {
+func (s *serviceNameMutator) planContainer(session *patch.PodSession, id patch.ContainerID) error {
 	if s == nil {
 		return nil
 	}
@@ -61,7 +62,7 @@ func (s *serviceNameMutator) mutateContainer(c *corev1.Container) error {
 		Source: source,
 	}
 
-	return mutator.mutateContainer(c)
+	return mutator.planContainer(session, id)
 }
 
 func serviceNameMutatorForMetaAsTags(pod *corev1.Pod, t podMetaAsTags) *serviceNameMutator {

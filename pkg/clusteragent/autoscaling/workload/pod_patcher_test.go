@@ -12,9 +12,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,13 +27,12 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/tools/record"
 
-	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
-
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func patcherTestStoreWithData() *store {
@@ -1030,7 +1028,7 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 			store := patcherTestStoreWithData()
 			patcherAdapter := NewPodPatcher(store, nil, nil)
 
-			injected, err := patcherAdapter.ApplyRecommendations(&tt.pod)
+			injected, err := applyRecommendationsForTest(patcherAdapter, &tt.pod)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("updateResources() error = %v, wantErr %v", err, tt.wantErr)
 				return

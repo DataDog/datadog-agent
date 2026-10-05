@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -395,7 +396,7 @@ func TestApplyProfileOverrides(t *testing.T) {
 				} else {
 					assert.NotNil(tt, test.baseContainer)
 					assert.Truef(tt,
-						reflect.DeepEqual(*test.baseContainer, *test.expectedContainer),
+						equality.Semantic.DeepEqual(*test.baseContainer, *test.expectedContainer),
 						"overrides not applied as expected. expected %v, but found %v",
 						*test.expectedContainer,
 						*test.baseContainer,

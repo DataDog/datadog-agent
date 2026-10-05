@@ -16,6 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 )
 
 // InjectionMode represents the deployment mode for the AppSec processor
@@ -29,7 +31,7 @@ const (
 	InjectionModeSidecar InjectionMode = "sidecar"
 )
 
-// MutationOutcome names the terminal state of a MutatePod / PodDeleted call.
+// MutationOutcome names the terminal state of a PlanPod / PodDeleted call.
 type MutationOutcome int
 
 const (
@@ -103,14 +105,14 @@ type SidecarInjectionPattern interface {
 	// IsPodEligible is a PURE OWNERSHIP PREDICATE. It answers "is this pod one THIS
 	// pattern owns?" — nothing about idempotency, opt-out, or config validity.
 	// Ownership-negative outcomes (return false) are NOT skips and are NOT counted.
-	// Owned-but-skipped checks live inside MutatePod as MutationSkipped +
+	// Owned-but-skipped checks live inside PlanPod as MutationSkipped +
 	// *MutationSkippedReason.
 	IsPodEligible(pod *corev1.Pod, ns string) bool
 
-	// MutatePod mutates the pod or reports why it declined.
-	MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (MutationOutcome, error)
+	// PlanPod mutates the pod or reports why it declined.
+	PlanPod(session *patch.PodSession, ns string, dc dynamic.Interface) (MutationOutcome, error)
 
-	// PodDeleted mirrors MutatePod for DELETE admissions.
+	// PodDeleted mirrors PlanPod for DELETE admissions.
 	PodDeleted(pod *corev1.Pod, ns string, dc dynamic.Interface) (MutationOutcome, error)
 
 	// MatchCondition is unchanged — apiserver-level prefilter, OR-ed across patterns.

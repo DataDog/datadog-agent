@@ -117,7 +117,7 @@ func TestEnvoyGatewaySidecarMutatePodHappyPath(t *testing.T) {
 	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
 
 	require.True(t, pattern.IsPodEligible(pod, envoyGatewaySystemNamespace))
-	outcome, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+	outcome, err := mutatePatternForTest(pattern, pod, envoyGatewaySystemNamespace, client)
 	require.NoError(t, err)
 	require.Equal(t, appsecconfig.MutationMutated, outcome)
 
@@ -190,7 +190,7 @@ func TestEnvoyGatewaySidecarMutatePodRecreatesBackendWhenPolicyExists(t *testing
 	pattern := newTestEnvoyGatewaySidecarPattern(t, client, logger, recorder)
 	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
 
-	outcome, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+	outcome, err := mutatePatternForTest(pattern, pod, envoyGatewaySystemNamespace, client)
 	require.NoError(t, err)
 	require.Equal(t, appsecconfig.MutationMutated, outcome)
 
@@ -207,12 +207,12 @@ func TestEnvoyGatewaySidecarMutatePodIsIdempotent(t *testing.T) {
 	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
 
 	require.True(t, pattern.IsPodEligible(pod, envoyGatewaySystemNamespace))
-	outcome, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+	outcome, err := mutatePatternForTest(pattern, pod, envoyGatewaySystemNamespace, client)
 	require.NoError(t, err)
 	require.Equal(t, appsecconfig.MutationMutated, outcome)
 
 	assert.True(t, pattern.IsPodEligible(pod, envoyGatewaySystemNamespace))
-	outcome, err = pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+	outcome, err = mutatePatternForTest(pattern, pod, envoyGatewaySystemNamespace, client)
 	require.Error(t, err)
 	assert.Equal(t, appsecconfig.MutationSkipped, outcome)
 	var skipped *appsecconfig.MutationSkippedReason
@@ -231,7 +231,7 @@ func TestEnvoyGatewaySidecarMutatePodFailOpenWhenEnvoyContainerMissing(t *testin
 	pod.Spec.Containers = []corev1.Container{{Name: "shutdown-manager"}}
 
 	assert.False(t, pattern.IsPodEligible(pod, envoyGatewaySystemNamespace))
-	outcome, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+	outcome, err := mutatePatternForTest(pattern, pod, envoyGatewaySystemNamespace, client)
 	require.Error(t, err)
 	assert.Equal(t, appsecconfig.MutationError, outcome)
 	assert.Contains(t, err.Error(), "failed to mount appsec socket into envoy container")
@@ -350,7 +350,7 @@ func TestEnvoyGatewaySidecarMutatePodHonorsGatewayOptOut(t *testing.T) {
 	pattern := newTestEnvoyGatewaySidecarPattern(t, client, logger, recorder)
 	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
 
-	outcome, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+	outcome, err := mutatePatternForTest(pattern, pod, envoyGatewaySystemNamespace, client)
 	require.Error(t, err)
 	assert.Equal(t, appsecconfig.MutationSkipped, outcome)
 	var skipped *appsecconfig.MutationSkippedReason
@@ -377,7 +377,7 @@ func TestEnvoyGatewaySidecarMutatePodInjectsWhenGatewayOptedIn(t *testing.T) {
 	pattern := newTestEnvoyGatewaySidecarPattern(t, client, logger, recorder)
 	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
 
-	outcome, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+	outcome, err := mutatePatternForTest(pattern, pod, envoyGatewaySystemNamespace, client)
 	require.NoError(t, err)
 	require.Equal(t, appsecconfig.MutationMutated, outcome)
 	assert.NotNil(t, findContainer(pod, sidecar.SidecarContainerName))
@@ -409,7 +409,7 @@ func TestEnvoyGatewaySidecarMutatePodFailsOpenOnEmptyUDSPath(t *testing.T) {
 	require.True(t, ok)
 	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
 
-	outcome, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+	outcome, err := mutatePatternForTest(pattern, pod, envoyGatewaySystemNamespace, client)
 	require.Error(t, err)
 	assert.Equal(t, appsecconfig.MutationSkipped, outcome)
 	var skipped *appsecconfig.MutationSkippedReason
@@ -454,7 +454,7 @@ func TestEnvoyGatewaySidecarMutatePodSkipsAlreadySidecarOwnedPod(t *testing.T) {
 	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{Name: sidecar.SidecarContainerName})
 
 	require.True(t, pattern.IsPodEligible(pod, envoyGatewaySystemNamespace))
-	outcome, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+	outcome, err := mutatePatternForTest(pattern, pod, envoyGatewaySystemNamespace, client)
 
 	require.Error(t, err)
 	assert.Equal(t, appsecconfig.MutationSkipped, outcome)
@@ -498,7 +498,7 @@ func TestEnvoyGatewaySidecarBackendCheckUsesControllerNamespace(t *testing.T) {
 	require.True(t, ok)
 	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
 
-	outcome, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+	outcome, err := mutatePatternForTest(pattern, pod, envoyGatewaySystemNamespace, client)
 	require.NoError(t, err)
 	require.Equal(t, appsecconfig.MutationMutated, outcome)
 

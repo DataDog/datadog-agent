@@ -117,7 +117,7 @@ func TestGetName(t *testing.T) {
 func TestInjectAPMLibraries_Annotations_InitContainer(t *testing.T) {
 	pod := newPod()
 
-	err := libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
+	err := injectAPMLibrariesForTest(pod, libraryinjection.LibraryInjectionConfig{
 		InjectionMode: string(libraryinjection.InjectionModeInitContainer),
 		Injector:      injectorConfig(),
 		Libraries:     []libraryinjection.LibraryConfig{javaLib()},
@@ -143,7 +143,7 @@ func TestInjectAPMLibraries_Annotations_InitContainer(t *testing.T) {
 func TestInjectAPMLibraries_Annotations_CSI(t *testing.T) {
 	pod := newPod()
 
-	err := libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
+	err := injectAPMLibrariesForTest(pod, libraryinjection.LibraryInjectionConfig{
 		InjectionMode: string(libraryinjection.InjectionModeCSI),
 		Injector:      injectorConfig(),
 		Libraries:     []libraryinjection.LibraryConfig{javaLib()},
@@ -165,7 +165,7 @@ func TestInjectAPMLibraries_Annotations_CSI(t *testing.T) {
 func TestInjectAPMLibraries_Annotations_Auto_CSI(t *testing.T) {
 	pod := newPod()
 
-	err := libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
+	err := injectAPMLibrariesForTest(pod, libraryinjection.LibraryInjectionConfig{
 		InjectionMode:     string(libraryinjection.InjectionModeAuto),
 		CSIAutoRegistries: defaultCSIAutoRegistries,
 		CSIDriverWatcher:  fakeCSIDriverWatcher{registered: true, apmEnabled: true},
@@ -184,7 +184,7 @@ func TestInjectAPMLibraries_Annotations_Auto_CSI(t *testing.T) {
 func TestInjectAPMLibraries_Annotations_Auto_InitContainer(t *testing.T) {
 	pod := newPod()
 
-	err := libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
+	err := injectAPMLibrariesForTest(pod, libraryinjection.LibraryInjectionConfig{
 		InjectionMode:    string(libraryinjection.InjectionModeAuto),
 		CSIDriverWatcher: fakeCSIDriverWatcher{registered: true, apmEnabled: false},
 		Injector:         injectorConfig(),
@@ -214,7 +214,7 @@ func TestInjectAPMLibraries_Annotations_Skipped(t *testing.T) {
 		},
 	}
 
-	err := libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
+	err := injectAPMLibrariesForTest(pod, libraryinjection.LibraryInjectionConfig{
 		InjectionMode:     "auto",
 		KubeServerVersion: &version.Info{GitVersion: "v1.30.9"},
 		Injector:          injectorConfig(),
@@ -246,7 +246,7 @@ func TestInjectAPMLibraries_Annotations_Skipped(t *testing.T) {
 func TestInjectAPMLibraries_InjectedLibraries_UnsupportedLanguage(t *testing.T) {
 	pod := newPod()
 
-	err := libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
+	err := injectAPMLibrariesForTest(pod, libraryinjection.LibraryInjectionConfig{
 		InjectionMode: string(libraryinjection.InjectionModeCSI),
 		Injector:      injectorConfig(),
 		Libraries: []libraryinjection.LibraryConfig{
@@ -355,7 +355,7 @@ func TestInjectAPMLibraries_InjectionStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := libraryinjection.InjectAPMLibraries(tt.pod, tt.cfg)
+			err := injectAPMLibrariesForTest(tt.pod, tt.cfg)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -408,7 +408,7 @@ func TestInjectAPMLibraries_CSIDriverStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pod := newPod()
-			err := libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
+			err := injectAPMLibrariesForTest(pod, libraryinjection.LibraryInjectionConfig{
 				InjectionMode:    string(libraryinjection.InjectionModeCSI),
 				CSIDriverWatcher: tt.watcher,
 				Injector:         injectorConfig(),
@@ -439,7 +439,7 @@ func TestInjectAPMLibraries_StopsGracefullyWhenProviderUnavailable(t *testing.T)
 		},
 	}
 
-	err := libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
+	err := injectAPMLibrariesForTest(pod, libraryinjection.LibraryInjectionConfig{
 		InjectionMode:     "auto",
 		KubeServerVersion: &version.Info{GitVersion: "v1.30.9"},
 		Injector: libraryinjection.InjectorConfig{

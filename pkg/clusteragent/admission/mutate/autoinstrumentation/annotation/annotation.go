@@ -13,6 +13,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -162,4 +163,9 @@ func Set(pod *corev1.Pod, key string, value string) {
 
 	pod.Annotations[key] = value
 	log.Debugf("Set annotation %s=%s for Single Step Instrumentation.", key, value)
+}
+
+// SetPatch writes one annotation without reconstructing metadata or logging values.
+func SetPatch(session *patch.PodSession, key, value string) error {
+	return session.SetAnnotations(map[string]string{key: value}, false)
 }

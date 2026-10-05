@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 )
 
@@ -105,11 +106,60 @@ func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
 // WebhookFunc returns the function that mutates the resources
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), w.updateResources, request.DynamicClient))
+		return common.MutationResponse(mutatecommon.MutateWithPatch(request.Object, request.Namespace, w.Name(), w.updateResources, request.DynamicClient))
 	}
 }
 
 // updateResources finds the owner of a pod, calls the recommender to retrieve the recommended CPU and Memory requests
-func (w *Webhook) updateResources(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
-	return w.patcher.ApplyRecommendations(pod)
+func (w *Webhook) updateResources(session *patch.PodSession, _ string, _ dynamic.Interface) (bool, error) {
+	pod, err := session.Snapshot()
+	if err != nil {
+		return false, err
+	}
+	plan, err := w.patcher.PlanRecommendations(pod)
+	if err != nil || plan == nil {
+		return false, err
+	}
+	for _, annotation := range plan.Annotations {
+		if annotation.Value == nil {
+			err = session.RemoveAnnotations(annotation.Key)
+		} else {
+			err = session.SetAnnotations(map[string]string{annotation.Key: *annotation.Value}, false)
+		}
+		if err != nil {
+			return false, err
+		}
+	}
+	var edits []patch.ResourceEdit
+	for _, edit := range plan.Resources {
+		kind := patch.RegularContainers
+		if edit.Container.Init {
+			kind = patch.InitContainers
+		}
+		edits = append(edits, patch.ResourceEdit{Container: patch.ContainerID{Kind: kind, Name: edit.Container.Name}, Limits: edit.Limits, Name: edit.Name, Quantity: edit.Quantity})
+	}
+	if err := session.EditResources(edits); err != nil {
+		return false, err
+	}
+	for _, intent := range plan.Runtime {
+		kind := patch.RegularContainers
+		if intent.Container.Init {
+			kind = patch.InitContainers
+		}
+		id := patch.ContainerID{Kind: kind, Name: intent.Container.Name}
+		env := corev1.EnvVar{Name: "GOMEMLIMIT", Value: intent.GOMEMLIMIT}
+		matches, err := session.FindEnv(id, env.Name)
+		if err != nil {
+			return false, err
+		}
+		if len(matches) > 0 {
+			err = session.SetEnvOccurrence(matches[0], env)
+		} else {
+			_, err = session.EnsureEnvs([]patch.EnvInjection{{Container: id, Env: env}})
+		}
+		if err != nil {
+			return false, err
+		}
+	}
+	return plan.Changed(), nil
 }

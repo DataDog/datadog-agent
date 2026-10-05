@@ -26,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 )
 
@@ -82,7 +83,7 @@ func (m *mockSidecarPattern) IsPodEligible(_ *corev1.Pod, _ string) bool {
 	return m.podEligible
 }
 
-func (m *mockSidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+func (m *mockSidecarPattern) PlanPod(pod *patch.PodSession, _ string, _ dynamic.Interface) (appsecconfig.MutationOutcome, error) {
 	m.mutatePodCallCount++
 	if m.injectSidecarErr != nil {
 		return appsecconfig.MutationError, m.injectSidecarErr
@@ -102,7 +103,9 @@ func (m *mockSidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Inte
 			},
 		},
 	}
-	pod.Spec.Containers = append(pod.Spec.Containers, sidecarContainer)
+	if err := pod.InsertContainer(patch.RegularContainers, sidecarContainer, false); err != nil {
+		return appsecconfig.MutationError, err
+	}
 	return appsecconfig.MutationMutated, nil
 }
 
@@ -114,7 +117,7 @@ func (m *mockSidecarPattern) PodDeleted(_ *corev1.Pod, _ string, _ dynamic.Inter
 // noopMutator is a mutator that does nothing, used for testing
 type noopMutator struct{}
 
-func (n *noopMutator) MutatePod(_ *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+func (n *noopMutator) PlanPod(_ *patch.PodSession, _ string, _ dynamic.Interface) (bool, error) {
 	return false, nil
 }
 
@@ -294,7 +297,7 @@ func TestAppsecWebhookIntegration(t *testing.T) {
 
 			// Mutate pod
 			in := test.pod.DeepCopy()
-			matched, _, outcome, err := webhook.callPattern(in, in.Namespace, mockDynamic, appsecconfig.SidecarInjectionPattern.MutatePod)
+			matched, _, outcome, err := webhook.callPlanPatternForTest(in, in.Namespace, mockDynamic)
 			mutated := false
 			if matched {
 				var admErr error
@@ -438,7 +441,7 @@ func TestAppsecWebhookMultiplePatterns(t *testing.T) {
 	in := pod.DeepCopy()
 
 	// Mutate pod
-	matched, _, outcome, err := webhook.callPattern(in, in.Namespace, mockDynamic, appsecconfig.SidecarInjectionPattern.MutatePod)
+	matched, _, outcome, err := webhook.callPlanPatternForTest(in, in.Namespace, mockDynamic)
 	require.NoError(t, err)
 	mutated, admErr := appsecconfig.NormalizeOutcomeForAdmission(outcome, err)
 	require.NoError(t, admErr)

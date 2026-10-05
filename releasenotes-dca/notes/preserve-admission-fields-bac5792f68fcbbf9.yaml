@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Preserve Pod fields unknown to the Cluster Agent's Kubernetes client when
+    admission webhooks inject configuration, instrumentation, or sidecars, or
+    apply autoscaling and scheduling changes.

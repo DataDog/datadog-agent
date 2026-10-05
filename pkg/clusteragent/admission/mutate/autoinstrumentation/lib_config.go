@@ -10,11 +10,10 @@ package autoinstrumentation
 import (
 	"encoding/json"
 
-	corev1 "k8s.io/api/core/v1"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -31,10 +30,12 @@ func basicConfig() common.LibConfig {
 
 type basicLibConfigInjector struct{}
 
-func (basicLibConfigInjector) mutatePod(pod *corev1.Pod) error {
+func (basicLibConfigInjector) planPod(session *patch.PodSession) error {
 	libConfig := basicConfig()
 	for _, env := range libConfig.ToEnvs() {
-		_ = mutatecommon.InjectEnv(pod, env)
+		if _, err := mutatecommon.PatchInjectEnv(session, env); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -56,7 +57,11 @@ func (basicLibConfigInjector) containerMutator() containerMutator {
 type libConfigInjector struct{}
 
 func (l *libConfigInjector) podMutator(lang language) podMutator {
-	return podMutatorFunc(func(pod *corev1.Pod) error {
+	return podMutatorFunc(func(session *patch.PodSession) error {
+		pod, err := session.Snapshot()
+		if err != nil {
+			return err
+		}
 		config, found := annotation.Get(pod, annotation.LibraryConfigV1.Format(string(lang)))
 		if !found {
 			return nil
@@ -68,16 +73,13 @@ func (l *libConfigInjector) podMutator(lang language) podMutator {
 		}
 
 		for _, env := range c.ToEnvs() {
-			_ = mutatecommon.InjectEnv(pod, env)
+			if _, err := mutatecommon.PatchInjectEnv(session, env); err != nil {
+				return err
+			}
 		}
 
 		return nil
 	})
-}
-
-// injectLibConfig injects additional library configuration extracted from pod annotations
-func injectLibConfig(pod *corev1.Pod, lang language) error {
-	return (&libConfigInjector{}).podMutator(lang).mutatePod(pod)
 }
 
 func parseConfigJSON(in string) (common.LibConfig, error) {

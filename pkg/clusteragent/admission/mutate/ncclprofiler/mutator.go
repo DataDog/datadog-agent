@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 )
 
 const (
@@ -78,7 +79,11 @@ const (
 //
 // Pod-level opt-in policy (label + mutate_unlabelled) is enforced by the
 // webhook objectSelector at the K8s API server, not re-checked here.
-func mutatePod(pod *corev1.Pod, injectorImage, hostSocketDir, clientSocketDir, socketFilename string, initResources *corev1.ResourceRequirements) (bool, error) {
+func planPod(session *patch.PodSession, injectorImage, hostSocketDir, clientSocketDir, socketFilename string, initResources *corev1.ResourceRequirements) (bool, error) {
+	pod, err := session.Snapshot()
+	if err != nil {
+		return false, err
+	}
 	soVolume := corev1.Volume{
 		Name:         soVolumeName,
 		VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
@@ -102,21 +107,47 @@ func mutatePod(pod *corev1.Pod, injectorImage, hostSocketDir, clientSocketDir, s
 	volumeMount := corev1.VolumeMount{Name: socketVolumeName, MountPath: clientSocketDir, ReadOnly: true}
 
 	// Inject volumes + mounts into all app containers using shared helpers.
-	soVolAdded, soMountAdded := mutatecommon.InjectVolume(pod, soVolume, soMount)
-	sockVolAdded, sockMountAdded := mutatecommon.InjectVolume(pod, volume, volumeMount)
+	soVolAdded, soMountAdded, err := mutatecommon.PatchInjectVolume(session, soVolume, soMount)
+	if err != nil {
+		return false, err
+	}
+	sockVolAdded, sockMountAdded, err := mutatecommon.PatchInjectVolume(session, volume, volumeMount)
+	if err != nil {
+		return false, err
+	}
 
 	// Inject NCCL env vars into all app containers.
-	envAdded := mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_PROFILER_PLUGIN", Value: soDestPath})
-	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_SOCKET_PATH", Value: clientFile}) || envAdded
-	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_INSPECTOR_PATH", Value: soMountPath + "/libnccl-profiler-inspector.so"}) || envAdded
-	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_ENABLE", Value: "1"}) || envAdded
+	envAdded, err := mutatecommon.PatchInjectEnv(session, corev1.EnvVar{Name: "NCCL_PROFILER_PLUGIN", Value: soDestPath})
+	if err != nil {
+		return false, err
+	}
+	var added bool
+	added, err = mutatecommon.PatchInjectEnv(session, corev1.EnvVar{Name: "NCCL_DD_SOCKET_PATH", Value: clientFile})
+	if err != nil {
+		return false, err
+	}
+	envAdded = added || envAdded
+	added, err = mutatecommon.PatchInjectEnv(session, corev1.EnvVar{Name: "NCCL_DD_INSPECTOR_PATH", Value: soMountPath + "/libnccl-profiler-inspector.so"})
+	if err != nil {
+		return false, err
+	}
+	envAdded = added || envAdded
+	added, err = mutatecommon.PatchInjectEnv(session, corev1.EnvVar{Name: "NCCL_INSPECTOR_ENABLE", Value: "1"})
+	if err != nil {
+		return false, err
+	}
+	envAdded = added || envAdded
 
 	// Point NVIDIA Inspector's file-dump at /tmp — writable in virtually
 	// every customer training container. Without this, Inspector's dump
 	// thread tries the default location, and if THAT isn't writable, the
 	// thread breaks before calling our patched inspectorCommInfoDump →
 	// socket delivery silently emits nothing. Customer can override.
-	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_DUMP_DIR", Value: "/tmp/nccl-inspector"}) || envAdded
+	added, err = mutatecommon.PatchInjectEnv(session, corev1.EnvVar{Name: "NCCL_INSPECTOR_DUMP_DIR", Value: "/tmp/nccl-inspector"})
+	if err != nil {
+		return false, err
+	}
+	envAdded = added || envAdded
 
 	// Inspector's dump thread sets the needs_writing flag that gates the
 	// .so's socket-delivery hook. Default interval is 0 (thread sits
@@ -124,7 +155,11 @@ func mutatePod(pod *corev1.Pod, injectorImage, hostSocketDir, clientSocketDir, s
 	// to 100 ms; consumers can override (InjectEnv is a no-op if already
 	// set). The Inspector .so also setenv-defaults this at init time as a
 	// belt-and-suspenders for pods loading the .so outside the webhook.
-	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_DUMP_THREAD_INTERVAL_MICROSECONDS", Value: "100000"}) || envAdded
+	added, err = mutatecommon.PatchInjectEnv(session, corev1.EnvVar{Name: "NCCL_INSPECTOR_DUMP_THREAD_INTERVAL_MICROSECONDS", Value: "100000"})
+	if err != nil {
+		return false, err
+	}
+	envAdded = added || envAdded
 
 	// Prepend init container that copies the Inspector .so from the injector image.
 	// SecurityContext drops all capabilities + disallows privilege escalation so
@@ -158,7 +193,9 @@ func mutatePod(pod *corev1.Pod, injectorImage, hostSocketDir, clientSocketDir, s
 	}
 	initAdded := false
 	if !alreadyInjected {
-		pod.Spec.InitContainers = append([]corev1.Container{initContainer}, pod.Spec.InitContainers...)
+		if err := session.InsertContainer(patch.InitContainers, initContainer, true); err != nil {
+			return false, err
+		}
 		initAdded = true
 	}
 

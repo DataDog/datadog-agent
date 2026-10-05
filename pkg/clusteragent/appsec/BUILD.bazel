@@ -62,6 +62,7 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//pkg/clusteragent/admission/patch",
         "//pkg/clusteragent/appsec/config",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

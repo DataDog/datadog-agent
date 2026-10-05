@@ -9,10 +9,12 @@ package autoinstrumentation
 
 import (
 	"fmt"
+	"sort"
 
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -52,7 +54,13 @@ func envVarForPodMetaMapping(pod *corev1.Pod, kind podMetaKind, mappingSource po
 	}
 
 	// Check if any of the mapping keys exist in the pod metadata
-	for key, value := range mapping {
+	keys := make([]string, 0, len(mapping))
+	for key := range mapping {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		value := mapping[key]
 		if value != tag {
 			continue
 		}
@@ -99,7 +107,7 @@ type ustEnvVarMutator struct {
 	Source *corev1.EnvVar
 }
 
-func (m *ustEnvVarMutator) mutateContainer(c *corev1.Container) error {
+func (m *ustEnvVarMutator) planContainer(session *patch.PodSession, id patch.ContainerID) error {
 	if m == nil {
 		return nil
 	}
@@ -109,6 +117,10 @@ func (m *ustEnvVarMutator) mutateContainer(c *corev1.Container) error {
 		return nil
 	}
 
+	c, err := snapshotContainer(session, id)
+	if err != nil {
+		return err
+	}
 	for _, e := range c.Env {
 		if e.Name == m.EnvVar.Name {
 			return nil
@@ -122,6 +134,10 @@ func (m *ustEnvVarMutator) mutateContainer(c *corev1.Container) error {
 		envs = append(envs, *m.Source)
 	}
 
-	c.Env = append(envs, c.Env...)
-	return nil
+	var intents []patch.EnvInjection
+	for i := len(envs) - 1; i >= 0; i-- {
+		intents = append(intents, patch.EnvInjection{Container: id, Env: envs[i], Prepend: true})
+	}
+	err = session.InsertEnvs(intents)
+	return err
 }

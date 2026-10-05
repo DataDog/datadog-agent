@@ -112,7 +112,7 @@ func TestSidecarPattern_MutatePod_Success(t *testing.T) {
 		return true, createdFilter, nil
 	})
 
-	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := mutatePatternForTest(pattern, pod, "default", pattern.client)
 
 	// Verify
 	require.NoError(t, err)
@@ -138,7 +138,7 @@ func TestSidecarPattern_MutatePod_AlreadyInjected(t *testing.T) {
 	})
 
 	// Execute
-	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := mutatePatternForTest(pattern, pod, "default", pattern.client)
 
 	// Verify
 	require.Error(t, err)
@@ -160,7 +160,7 @@ func TestSidecarPattern_MutatePod_GatewayClassNotFound(t *testing.T) {
 	})
 
 	// Execute
-	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := mutatePatternForTest(pattern, pod, "default", pattern.client)
 
 	// Verify
 	require.Error(t, err)
@@ -342,7 +342,7 @@ func TestSidecarPattern_MutatePod_EnvoyFilterCreationFailure(t *testing.T) {
 	})
 
 	// Execute
-	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := mutatePatternForTest(pattern, pod, "default", pattern.client)
 
 	// Verify
 	require.Error(t, err)
@@ -384,13 +384,13 @@ func TestSidecarPattern_MutatePod_IdempotentEnvoyFilterCreation(t *testing.T) {
 	})
 
 	// First pod injection - creates EnvoyFilter
-	outcome1, err1 := pattern.MutatePod(pod1, "default", pattern.client)
+	outcome1, err1 := mutatePatternForTest(pattern, pod1, "default", pattern.client)
 	require.NoError(t, err1)
 	assert.Equal(t, appsecconfig.MutationMutated, outcome1)
 	assert.Equal(t, 1, createCallCount, "EnvoyFilter should be created once")
 
 	// Second pod injection - EnvoyFilter already exists
-	outcome2, err2 := pattern.MutatePod(pod2, "default", pattern.client)
+	outcome2, err2 := mutatePatternForTest(pattern, pod2, "default", pattern.client)
 	require.NoError(t, err2)
 	assert.Equal(t, appsecconfig.MutationMutated, outcome2)
 	// With current implementation, Added() will try to create again and handle AlreadyExists
@@ -426,7 +426,7 @@ func TestSidecarPattern_MutatePod_ContainerInjection(t *testing.T) {
 	})
 
 	// Execute
-	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := mutatePatternForTest(pattern, pod, "default", pattern.client)
 
 	// Verify
 	require.NoError(t, err)

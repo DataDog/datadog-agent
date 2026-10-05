@@ -13,6 +13,8 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 )
 
 ////////////////////////////////
@@ -50,45 +52,29 @@ func loadSidecarProfiles(profilesJSON string) ([]ProfileOverride, error) {
 
 // applyProfileOverrides applies the profile overrides to the container. It
 // returns a boolean that indicates if the container was mutated
-func applyProfileOverrides(container *corev1.Container, profiles []ProfileOverride) (bool, error) {
-	if container == nil {
-		return false, errors.New("can't apply profile overrides to nil containers")
-	}
-
+func planProfileOverrides(session *patch.PodSession, id patch.ContainerID, profiles []ProfileOverride) (bool, error) {
 	if profiles == nil {
 		return false, errors.New("can't apply nil profiles")
 	}
-
 	if len(profiles) == 0 {
 		return false, nil
 	}
-
 	overrides := profiles[0]
-
-	mutated := false
-
-	// Apply environment variable overrides
-	overridden, err := withEnvOverrides(container, overrides.EnvVars...)
+	mutated, err := planEnvOverrides(session, id, overrides.EnvVars...)
 	if err != nil {
 		return false, err
 	}
-	mutated = mutated || overridden
-
-	// Apply resource requirement overrides
 	if overrides.ResourceRequirements.Limits != nil {
-		err = withResourceLimits(container, overrides.ResourceRequirements)
-		if err != nil {
-			return mutated, err
+		if err := session.ConfigureResources(id, overrides.ResourceRequirements); err != nil {
+			return false, err
 		}
 		mutated = true
 	}
-
-	// Apply security context overrides
-	overridden, err = withSecurityContextOverrides(container, overrides.SecurityContext)
-	if err != nil {
-		return false, err
+	if overrides.SecurityContext != nil {
+		if err := session.ConfigureSecurityContext(id, overrides.SecurityContext); err != nil {
+			return false, err
+		}
+		mutated = true
 	}
-	mutated = mutated || overridden
-
 	return mutated, nil
 }

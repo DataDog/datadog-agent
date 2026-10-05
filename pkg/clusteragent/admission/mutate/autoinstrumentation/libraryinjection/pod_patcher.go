@@ -11,129 +11,124 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 )
 
-// PodPatcher provides helper functions for mutating pods.
-// It encapsulates common operations like adding volumes, volume mounts, and init containers.
+// PodPatcher translates library injection intent into narrow session edits.
 type PodPatcher struct {
-	pod    *corev1.Pod
-	filter func(*corev1.Container) bool
+	session *patch.PodSession
+	filter  func(*corev1.Container) bool
 }
 
-// NewPodPatcher creates a new PodPatcher for the given pod.
-// The optional filter function can be used to exclude certain containers from mutations.
-func NewPodPatcher(pod *corev1.Pod, filter func(*corev1.Container) bool) *PodPatcher {
-	return &PodPatcher{
-		pod:    pod,
-		filter: filter,
+// NewPodPatcher creates a writer using the shared request session.
+func NewPodPatcher(session *patch.PodSession, filter func(*corev1.Container) bool) *PodPatcher {
+	return &PodPatcher{session: session, filter: filter}
+}
+
+// AddVolume installs a source recipe, retaining unknown Volume siblings.
+func (p *PodPatcher) AddVolume(volume corev1.Volume) error {
+	pod, err := p.session.Snapshot()
+	if err != nil {
+		return err
 	}
-}
-
-// AddVolume adds a volume to the pod. If a volume with the same name exists, it replaces it.
-// It also marks the volume as safe to evict for the cluster autoscaler.
-func (p *PodPatcher) AddVolume(vol corev1.Volume) {
-	for i, existing := range p.pod.Spec.Volumes {
-		if existing.Name == vol.Name {
-			p.pod.Spec.Volumes[i] = vol
-			mutatecommon.MarkVolumeAsSafeToEvictForAutoscaler(p.pod, vol.Name)
-			return
+	found := false
+	for _, existing := range pod.Spec.Volumes {
+		if existing.Name == volume.Name {
+			found = true
+			break
 		}
 	}
-	p.pod.Spec.Volumes = append(p.pod.Spec.Volumes, vol)
-	mutatecommon.MarkVolumeAsSafeToEvictForAutoscaler(p.pod, vol.Name)
+	if found {
+		err = p.session.ReplaceVolumeSource(volume.Name, volume.VolumeSource)
+	} else {
+		err = p.session.InsertVolume(volume, false)
+	}
+	if err != nil {
+		return err
+	}
+	return p.session.MarkVolumeSafeToEvict(mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation, volume.Name)
 }
 
-// AddVolumeMount adds a volume mount to all application containers (filtered by ContainerFilter).
-// If a mount with the same name and path exists, it replaces it.
-func (p *PodPatcher) AddVolumeMount(mount corev1.VolumeMount) {
-	p.AddVolumeMountWithTarget(mount, "")
+// AddVolumeMount uses the existing name+mountPath collision policy and prepend order.
+func (p *PodPatcher) AddVolumeMount(mount corev1.VolumeMount) error {
+	return p.AddVolumeMountWithTarget(mount, "")
 }
 
-// AddVolumeMountWithTarget adds a volume mount to filtered application containers.
-// If containerName is non-empty, only the matching container is mutated.
-func (p *PodPatcher) AddVolumeMountWithTarget(mount corev1.VolumeMount, containerName string) {
-	for i := range p.pod.Spec.Containers {
-		ctr := &p.pod.Spec.Containers[i]
-		if p.filter != nil && !p.filter(ctr) {
+// AddVolumeMountWithTarget applies a mount to selected application containers.
+func (p *PodPatcher) AddVolumeMountWithTarget(mount corev1.VolumeMount, name string) error {
+	pod, err := p.session.Snapshot()
+	if err != nil {
+		return err
+	}
+	var edits []patch.MountEdit
+	for _, container := range pod.Spec.Containers {
+		if p.filter != nil && !p.filter(&container) || name != "" && container.Name != name {
 			continue
 		}
-		if containerName != "" && ctr.Name != containerName {
+		edits = append(edits, patch.MountEdit{Container: patch.ContainerID{Kind: patch.RegularContainers, Name: container.Name}, Mount: mount, Prepend: true, Configure: true})
+	}
+	return p.session.WriteVolumeMounts(nil, edits)
+}
+
+// AddInitContainer installs a fresh recipe or explicitly edits an existing one.
+func (p *PodPatcher) AddInitContainer(container corev1.Container) error {
+	return p.session.ConfigureInitContainerTemplate(container, true)
+}
+
+// AddEnvVar batches no-overwrite prepends into selected application containers.
+func (p *PodPatcher) AddEnvVar(env corev1.EnvVar) error {
+	pod, err := p.session.Snapshot()
+	if err != nil {
+		return err
+	}
+	var intents []patch.EnvInjection
+	for _, container := range pod.Spec.Containers {
+		if p.filter != nil && !p.filter(&container) {
 			continue
 		}
-		p.addVolumeMountToContainer(ctr, mount)
+		intents = append(intents, patch.EnvInjection{Container: patch.ContainerID{Kind: patch.RegularContainers, Name: container.Name}, Env: env, Prepend: true})
 	}
+	_, err = p.session.EnsureEnvs(intents)
+	return err
 }
 
-// addVolumeMountToContainer adds a volume mount to a specific container.
-func (p *PodPatcher) addVolumeMountToContainer(ctr *corev1.Container, mount corev1.VolumeMount) {
-	for j, existing := range ctr.VolumeMounts {
-		if existing.Name == mount.Name && existing.MountPath == mount.MountPath {
-			ctr.VolumeMounts[j] = mount
-			return
+// AddEnvVarWithJoin joins the first existing occurrence or prepends a fresh entry.
+func (p *PodPatcher) AddEnvVarWithJoin(name, value, separator string) error {
+	pod, err := p.session.Snapshot()
+	if err != nil {
+		return err
+	}
+	var ids []patch.ContainerID
+	for _, container := range pod.Spec.Containers {
+		if p.filter == nil || p.filter(&container) {
+			ids = append(ids, patch.ContainerID{Kind: patch.RegularContainers, Name: container.Name})
 		}
 	}
-	// Prepend volume mounts
-	ctr.VolumeMounts = append([]corev1.VolumeMount{mount}, ctr.VolumeMounts...)
-}
-
-// AddInitContainer adds an init container to the pod.
-// If an init container with the same name exists, it replaces it.
-// The init container is prepended to run before other init containers.
-func (p *PodPatcher) AddInitContainer(initCtr corev1.Container) {
-	for i, existing := range p.pod.Spec.InitContainers {
-		if existing.Name == initCtr.Name {
-			p.pod.Spec.InitContainers[i] = initCtr
-			return
+	return p.session.ForContainers(ids, func(id patch.ContainerID) error {
+		container, err := p.session.ContainerSnapshot(id)
+		if err != nil {
+			return err
 		}
-	}
-	// Prepend init containers
-	p.pod.Spec.InitContainers = append([]corev1.Container{initCtr}, p.pod.Spec.InitContainers...)
-}
-
-// AddEnvVar adds an environment variable to all application containers (filtered by ContainerFilter).
-// If the env var already exists, it is not overwritten.
-func (p *PodPatcher) AddEnvVar(env corev1.EnvVar) {
-	for i := range p.pod.Spec.Containers {
-		ctr := &p.pod.Spec.Containers[i]
-		if p.filter != nil && !p.filter(ctr) {
-			continue
+		found := false
+		for _, env := range container.Env {
+			if env.Name != name {
+				continue
+			}
+			found = true
+			matches, err := p.session.FindEnv(id, name)
+			if err != nil {
+				return err
+			}
+			if err := p.session.SetEnvOccurrence(matches[0], corev1.EnvVar{Name: name, Value: env.Value + separator + value}); err != nil {
+				return err
+			}
+			break
 		}
-		p.addEnvVarToContainer(ctr, env)
-	}
-}
-
-// AddEnvVarWithJoin adds an environment variable to all application containers (filtered by ContainerFilter).
-// If the env var already exists, the new value is appended using the specified separator.
-func (p *PodPatcher) AddEnvVarWithJoin(name, value, separator string) {
-	for i := range p.pod.Spec.Containers {
-		ctr := &p.pod.Spec.Containers[i]
-		if p.filter != nil && !p.filter(ctr) {
-			continue
+		if !found {
+			if _, err := p.session.EnsureEnvs([]patch.EnvInjection{{Container: id, Env: corev1.EnvVar{Name: name, Value: value}, Prepend: true}}); err != nil {
+				return err
+			}
 		}
-		p.addEnvVarWithJoinToContainer(ctr, name, value, separator)
-	}
-}
-
-// addEnvVarToContainer adds an env var to a specific container if it doesn't already exist.
-func (p *PodPatcher) addEnvVarToContainer(ctr *corev1.Container, env corev1.EnvVar) {
-	for _, existing := range ctr.Env {
-		if existing.Name == env.Name {
-			return // Already exists, don't overwrite
-		}
-	}
-	// Prepend env var
-	ctr.Env = append([]corev1.EnvVar{env}, ctr.Env...)
-}
-
-// addEnvVarWithJoinToContainer adds an env var to a container, joining with existing value if present.
-func (p *PodPatcher) addEnvVarWithJoinToContainer(ctr *corev1.Container, name, value, separator string) {
-	for i, existing := range ctr.Env {
-		if existing.Name == name {
-			// Append to existing value
-			ctr.Env[i].Value = existing.Value + separator + value
-			return
-		}
-	}
-	// Prepend new env var
-	ctr.Env = append([]corev1.EnvVar{{Name: name, Value: value}}, ctr.Env...)
+		return nil
+	})
 }

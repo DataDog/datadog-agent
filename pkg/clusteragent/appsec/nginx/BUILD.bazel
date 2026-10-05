@@ -16,6 +16,7 @@ go_library(
     deps = [
         "//comp/core/log/def",
         "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/clusteragent/admission/patch",
         "//pkg/clusteragent/appsec/config",
         "@com_github_distribution_reference//:reference",
         "@io_k8s_api//admissionregistration/v1:admissionregistration",
@@ -43,6 +44,7 @@ dd_agent_go_test(
         "configmap_test.go",
         "detection_test.go",
         "nginx_test.go",
+        "patch_test_utils_test.go",
         "sidecar_test.go",
     ],
     embed = [":nginx"],
@@ -56,6 +58,8 @@ dd_agent_go_test(
     include_default = False,
     deps = [
         "//comp/core/log/mock",
+        "//pkg/clusteragent/admission/patch",
+        "//pkg/clusteragent/admission/patchtest",
         "//pkg/clusteragent/appsec/config",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
@@ -65,6 +69,7 @@ dd_agent_go_test(
         "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
         "@io_k8s_apimachinery//pkg/runtime",
         "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//dynamic",
         "@io_k8s_client_go//dynamic/fake",
         "@io_k8s_client_go//testing",
         "@io_k8s_client_go//tools/record",

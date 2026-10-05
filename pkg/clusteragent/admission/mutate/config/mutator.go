@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -60,7 +62,7 @@ func NewMutatorConfig(datadogConfig config.Component) *MutatorConfig {
 	}
 }
 
-// Mutator satisfies the common.Mutator interface for the config webhook.
+// Mutator satisfies the common.PatchMutator interface for the config webhook.
 type Mutator struct {
 	config *MutatorConfig
 	filter mutatecommon.MutationFilter
@@ -74,13 +76,31 @@ func NewMutator(cfg *MutatorConfig, filter mutatecommon.MutationFilter) *Mutator
 	}
 }
 
-// MutatePod implements the common.Mutator interface for the config webhook. It injects the following environment
+// PlanPod implements the common.PatchMutator interface for the config webhook. It injects the following environment
 // variables into the pod template:
 //   - DD_AGENT_HOST: the host IP of the node
 //   - DD_ENTITY_ID: the entity ID of the pod
 //   - DD_EXTERNAL_ENV: the External Data Environment Variable
-func (i *Mutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
-	var injectedConfig, injectedEntity, injectedExternalEnv bool
+func (i *Mutator) PlanPod(session *patch.PodSession, _ string, _ dynamic.Interface) (bool, error) {
+	if session == nil {
+		return false, errors.New(metrics.InvalidInput)
+	}
+	pod, err := session.Snapshot()
+	if err != nil {
+		return false, err
+	}
+	var injectedConfig bool
+	var injections []patch.EnvInjection
+	addEnv := func(env corev1.EnvVar) {
+		for _, group := range []struct {
+			kind       patch.ContainerKind
+			containers []corev1.Container
+		}{{patch.RegularContainers, pod.Spec.Containers}, {patch.InitContainers, pod.Spec.InitContainers}} {
+			for _, c := range group.containers {
+				injections = append(injections, patch.EnvInjection{Container: patch.ContainerID{Kind: group.kind, Name: c.Name}, Env: env, Prepend: true})
+			}
+		}
+	}
 	var (
 		agentHostIPEnvVar = corev1.EnvVar{
 			Name:  agentHostEnvVarName,
@@ -128,12 +148,15 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (boo
 	mode := injectionMode(pod, i.config.mode, i.config.csiEnabled)
 	switch mode {
 	case hostIP:
-		injectedConfig = mutatecommon.InjectEnv(pod, agentHostIPEnvVar)
+		addEnv(agentHostIPEnvVar)
 	case service:
-		injectedConfig = mutatecommon.InjectEnv(pod, agentHostServiceEnvVar)
+		addEnv(agentHostServiceEnvVar)
 	case socket, csi:
 		useCSI := (mode == csi)
-		injectedVolumesOrVolumeMounts := i.injectSocketVolumes(pod, useCSI)
+		injectedVolumesOrVolumeMounts, err := i.planSocketVolumes(session, pod, useCSI)
+		if err != nil {
+			return false, err
+		}
 		isSocketVol := shouldUseSocketVolumeType(pod, i.config.typeSocketVolumes)
 
 		apmMountBase := i.config.socketPath
@@ -155,20 +178,30 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (boo
 		traceURLSocketEnvVar.Value = "unix://" + apmMountBase + "/" + i.config.apmSocketFile
 		dogstatsdURLSocketEnvVar.Value = "unix://" + dsdMountBase + "/" + i.config.dsdSocketFile
 
-		injectedEnv := mutatecommon.InjectEnv(pod, traceURLSocketEnvVar)
-		injectedEnv = mutatecommon.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
-		injectedConfig = injectedVolumesOrVolumeMounts || injectedEnv
+		addEnv(traceURLSocketEnvVar)
+		addEnv(dogstatsdURLSocketEnvVar)
+		injectedConfig = injectedVolumesOrVolumeMounts
 	default:
 		log.Errorf("invalid injection mode %q", i.config.mode)
 		return false, errors.New(metrics.InvalidInput)
 	}
 
-	injectedEntity = mutatecommon.InjectEnv(pod, defaultDdEntityIDEnvVar)
-
-	// Inject External Data Environment Variable
-	injectedExternalEnv = injectExternalDataEnvVar(pod)
-
-	return injectedConfig || injectedEntity || injectedExternalEnv, nil
+	addEnv(defaultDdEntityIDEnvVar)
+	for _, group := range []struct {
+		kind       patch.ContainerKind
+		containers []corev1.Container
+	}{{patch.RegularContainers, pod.Spec.Containers}, {patch.InitContainers, pod.Spec.InitContainers}} {
+		for _, c := range group.containers {
+			env, err := buildExternalEnv(&c, group.kind == patch.InitContainers)
+			if err != nil {
+				return false, err
+			}
+			injections = append(injections, patch.EnvInjection{Container: patch.ContainerID{Kind: group.kind, Name: c.Name}, Env: env, Prepend: true})
+		}
+	}
+	addEnv(corev1.EnvVar{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}})
+	injected, err := session.EnsureEnvs(injections)
+	return injectedConfig || injected, err
 }
 
 // injectSocketVolumes injects the volumes for the dogstatsd and trace agent
@@ -183,7 +216,7 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (boo
 // volume is injected.
 //
 // This function returns true if at least one volume or volume mount was injected
-func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
+func (i *Mutator) planSocketVolumes(session *patch.PodSession, pod *corev1.Pod, withCSI bool) (bool, error) {
 	var injectedVolNames []string
 	var injectedVolumeMount bool
 
@@ -205,7 +238,13 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 			},
 		}
 
-		for volumeName, volumeProps := range volumes {
+		keys := make([]string, 0, len(volumes))
+		for key := range volumes {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, volumeName := range keys {
+			volumeProps := volumes[volumeName]
 			var volume corev1.Volume
 			var volumeMount corev1.VolumeMount
 
@@ -215,7 +254,11 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 				volume, volumeMount = buildHostPathVolume(volumeName, volumeProps.hostsocketpath, volumeProps.socketpath, corev1.HostPathSocket, true)
 			}
 			var injectedVol bool
-			injectedVol, injectedVolumeMount = mutatecommon.InjectVolume(pod, volume, volumeMount)
+			var err error
+			injectedVol, injectedVolumeMount, err = mutatecommon.PatchInjectVolume(session, volume, volumeMount)
+			if err != nil {
+				return false, err
+			}
 			if injectedVol {
 				injectedVolNames = append(injectedVolNames, volumeName)
 			}
@@ -303,7 +346,10 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 
 		// Inject all planned volumes once.
 		for _, p := range mounts {
-			injected, mountAdded := mutatecommon.InjectVolume(pod, p.volume, p.volumeMount)
+			injected, mountAdded, err := mutatecommon.PatchInjectVolume(session, p.volume, p.volumeMount)
+			if err != nil {
+				return false, err
+			}
 			if injected {
 				injectedVolNames = append(injectedVolNames, p.name)
 			}
@@ -312,10 +358,12 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 	}
 
 	for _, volName := range injectedVolNames {
-		mutatecommon.MarkVolumeAsSafeToEvictForAutoscaler(pod, volName)
+		if err := session.MarkVolumeSafeToEvict(mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation, volName); err != nil {
+			return false, err
+		}
 	}
 
-	return len(injectedVolNames) > 0 || injectedVolumeMount
+	return len(injectedVolNames) > 0 || injectedVolumeMount, nil
 }
 
 // injectionMode returns the injection mode based on the global mode and pod labels
@@ -367,21 +415,15 @@ func buildExternalEnv(container *corev1.Container, init bool) (corev1.EnvVar, er
 
 // injectExternalDataEnvVar injects the External Data environment variable.
 // The format is: it-<init>,cn-<container_name>,pu-<pod_uid>
-func injectExternalDataEnvVar(pod *corev1.Pod) (injected bool) {
-	// Inject External Data Environment Variable for the pod
-	injected = mutatecommon.InjectDynamicEnv(pod, buildExternalEnv)
-
-	// Inject Internal Pod UID
-	injected = mutatecommon.InjectEnv(pod, corev1.EnvVar{
-		Name: podUIDEnvVarName,
-		ValueFrom: &corev1.EnvVarSource{
-			FieldRef: &corev1.ObjectFieldSelector{
-				FieldPath: "metadata.uid",
-			},
-		},
-	}) || injected
-
-	return
+func planExternalDataEnvVar(session *patch.PodSession) (bool, error) {
+	injected, err := mutatecommon.PatchInjectDynamicEnv(session, buildExternalEnv)
+	if err != nil {
+		return false, err
+	}
+	uidInjected, err := mutatecommon.PatchInjectEnv(session, corev1.EnvVar{
+		Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}},
+	})
+	return uidInjected || injected, err
 }
 
 func buildHostPathVolume(volumeName, hostpath string, path string, hostpathType corev1.HostPathType, readOnly bool) (corev1.Volume, corev1.VolumeMount) {

@@ -203,8 +203,8 @@ func TestAPMInjectionMutatorSetsStatusOnConfigError(t *testing.T) {
 		source: libInfoSourceLibInjection,
 	}
 
-	m := mutator.apmInjectionMutator(config, false, localLibraryInstrumentationInstallType)
-	err := m.mutatePod(pod)
+	m := mutator.apmInjectionMutator(config, false, localLibraryInstrumentationInstallType, pod.Namespace)
+	err := mutatePodForTest(m, pod)
 	require.NoError(t, err, "config errors must not propagate to Mutate")
 
 	status, ok := annotation.Get(pod, annotation.InjectionStatus)

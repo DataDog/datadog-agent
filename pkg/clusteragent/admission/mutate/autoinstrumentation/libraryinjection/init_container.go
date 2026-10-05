@@ -12,6 +12,8 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 )
 
 const (
@@ -40,8 +42,12 @@ func (p *InitContainerProvider) GetName() string {
 	return string(InjectionModeInitContainer)
 }
 
-// InjectInjector mutates the pod to add the APM injector using init containers.
-func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult {
+// PlanInjector mutates the pod to add the APM injector using init containers.
+func (p *InitContainerProvider) PlanInjector(session *patch.PodSession, cfg InjectorConfig) MutationResult {
+	pod, err := session.Snapshot()
+	if err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 	// First, validate that the pod has sufficient resources
 	result, err := ComputeInitContainerResourceRequirementsForInitContainer(pod, p.cfg.DefaultResourceRequirements, InjectorInitContainerName)
 	if err != nil {
@@ -52,11 +58,14 @@ func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConf
 	}
 	requirements := result.Requirements
 
-	patcher := NewPodPatcher(pod, p.cfg.ContainerFilter)
+	patcher := NewPodPatcher(session, p.cfg.ContainerFilter)
 
 	// Main volume for library files (EmptyDir)
 	sourceVolume := newEmptyDirVolume(InstrumentationVolumeName)
-	patcher.AddVolume(sourceVolume)
+
+	if err := patcher.AddVolume(sourceVolume); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 
 	// Volume mount for the injector files
 	injectorMount := corev1.VolumeMount{
@@ -66,13 +75,19 @@ func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConf
 	}
 
 	// Add volume mounts to app containers
-	etcMountInitContainer := addEtcLdSoPreloadVolumeAndMounts(patcher)
-	patcher.AddVolumeMount(corev1.VolumeMount{
+	etcMountInitContainer, err := addEtcLdSoPreloadVolumeAndMounts(patcher)
+	if err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
+
+	if err := patcher.AddVolumeMount(corev1.VolumeMount{
 		Name:      InstrumentationVolumeName,
 		MountPath: asAbsPath(injectPackageDir),
 		SubPath:   injectPackageDir,
 		ReadOnly:  true,
-	})
+	}); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 
 	// Timestamp file path for tracking init container completion
 	tsFilePath := injectorMount.MountPath + "/c-init-time." + InjectorInitContainerName
@@ -101,10 +116,12 @@ func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConf
 	}
 
 	// Resolve security context based on namespace labels and config
-	resolvedSecurityContext := resolveInitSecurityContext(p.cfg, pod.Namespace)
+	resolvedSecurityContext := resolveInitSecurityContext(p.cfg, lookupNamespace(p.cfg, pod))
 	initContainer.SecurityContext = resolvedSecurityContext
 
-	patcher.AddInitContainer(initContainer)
+	if err := patcher.AddInitContainer(initContainer); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 
 	return MutationResult{
 		Status: MutationStatusInjected,
@@ -115,13 +132,16 @@ func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConf
 	}
 }
 
-// InjectLibrary mutates the pod to add a language-specific tracing library using init containers.
-func (p *InitContainerProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) MutationResult {
-	patcher := NewPodPatcher(pod, p.cfg.ContainerFilter)
+// PlanLibrary mutates the pod to add a language-specific tracing library using init containers.
+func (p *InitContainerProvider) PlanLibrary(session *patch.PodSession, cfg LibraryConfig) MutationResult {
+	patcher := NewPodPatcher(session, p.cfg.ContainerFilter)
 
 	// Main volume (should already exist from injector, but we add it for completeness)
 	sourceVolume := newEmptyDirVolume(InstrumentationVolumeName)
-	patcher.AddVolume(sourceVolume)
+
+	if err := patcher.AddVolume(sourceVolume); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 
 	// Volume mount for the library files in the init container
 	initContainerMount := corev1.VolumeMount{
@@ -162,18 +182,23 @@ func (p *InitContainerProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig
 		Resources: cfg.Context.ResourceRequirements,
 	}
 
-	// Apply security context from the mutation context (resolved during InjectInjector)
+	// Apply security context from the mutation context (resolved during PlanInjector)
 	initContainer.SecurityContext = cfg.Context.InitSecurityContext
 
-	patcher.AddInitContainer(initContainer)
+	if err := patcher.AddInitContainer(initContainer); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 
 	// Volume mount for application containers
-	patcher.AddVolumeMountWithTarget(corev1.VolumeMount{
+
+	if err := patcher.AddVolumeMountWithTarget(corev1.VolumeMount{
 		Name:      InstrumentationVolumeName,
 		MountPath: asAbsPath(libraryPackagesDir),
 		SubPath:   libraryPackagesDir,
 		ReadOnly:  true,
-	}, cfg.ContainerName)
+	}, cfg.ContainerName); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 
 	return MutationResult{
 		Status: MutationStatusInjected,

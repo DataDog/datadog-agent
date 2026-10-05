@@ -13,15 +13,15 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/record"
+
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 )
 
 type nginxInjectionPattern struct {
@@ -61,7 +61,7 @@ func (n *nginxInjectionPattern) Namespace() string {
 }
 
 // Added is a no-op for nginx sidecar mode.
-// ConfigMap creation is deferred to MutatePod() to avoid race conditions
+// ConfigMap creation is deferred to PlanPod() to avoid race conditions
 // between the controller workqueue and the admission webhook.
 func (n *nginxInjectionPattern) Added(_ context.Context, _ *unstructured.Unstructured) error {
 	return nil

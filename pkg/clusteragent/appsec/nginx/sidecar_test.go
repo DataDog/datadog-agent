@@ -12,10 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
-
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,6 +20,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/tools/record"
+
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 )
 
 func newTestNginxSidecarPattern(t *testing.T) (*nginxSidecarPattern, *dynamicfake.FakeDynamicClient) {
@@ -195,7 +194,7 @@ func TestMutatePod(t *testing.T) {
 
 	pod := newControllerPod("test-pod", "ingress-nginx", "registry.k8s.io/ingress-nginx/controller:v1.15.1@sha256:abc123")
 
-	outcome, err := pattern.MutatePod(pod, "ingress-nginx", client)
+	outcome, err := mutatePatternForTest(pattern, pod, "ingress-nginx", client)
 	require.NoError(t, err)
 	assert.Equal(t, appsecconfig.MutationMutated, outcome)
 
@@ -615,7 +614,7 @@ func TestMutatePodInitImageResolution(t *testing.T) {
 			require.NoError(t, err)
 
 			pod := newControllerPod("test-pod", "ingress-nginx", tt.controllerImage)
-			outcome, err := pattern.MutatePod(pod, "ingress-nginx", client)
+			outcome, err := mutatePatternForTest(pattern, pod, "ingress-nginx", client)
 
 			if tt.wantErr != "" {
 				require.Error(t, err)
@@ -675,7 +674,7 @@ func TestMutatePod_CrossNamespaceConfigMapRefused(t *testing.T) {
 		"--election-id=ingress-nginx-leader",
 	}
 
-	outcome, err := pattern.MutatePod(pod, "attacker-ns", client)
+	outcome, err := mutatePatternForTest(pattern, pod, "attacker-ns", client)
 	assert.Equal(t, appsecconfig.MutationSkipped, outcome, "MutatePod must skip mutation on cross-ns refs")
 	var skip *appsecconfig.MutationSkippedReason
 	require.ErrorAs(t, err, &skip)
@@ -699,7 +698,7 @@ func TestMutatePod_EmptyConfigMapNameRefused(t *testing.T) {
 		"--configmap=ingress-nginx/",
 	}
 
-	outcome, err := pattern.MutatePod(pod, "ingress-nginx", client)
+	outcome, err := mutatePatternForTest(pattern, pod, "ingress-nginx", client)
 	assert.Equal(t, appsecconfig.MutationSkipped, outcome)
 	var skip *appsecconfig.MutationSkippedReason
 	require.ErrorAs(t, err, &skip)
@@ -713,7 +712,7 @@ func TestMutatePod_returns_init_container_present_skip_when_already_injected(t *
 	pod := newControllerPod("test", "ingress-nginx", "registry.k8s.io/ingress-nginx/controller:v1.15.1")
 	pod.Spec.InitContainers = []corev1.Container{{Name: initContainerName}}
 
-	outcome, err := pattern.MutatePod(pod, "ingress-nginx", client)
+	outcome, err := mutatePatternForTest(pattern, pod, "ingress-nginx", client)
 
 	assert.Equal(t, appsecconfig.MutationSkipped, outcome)
 	var skip *appsecconfig.MutationSkippedReason

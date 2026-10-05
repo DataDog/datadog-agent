@@ -10,7 +10,6 @@ package autoinstrumentation
 import (
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -59,13 +59,13 @@ type Webhook struct {
 	resources       []common.WebhookResourceRule
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
-	mutator         mutatecommon.Mutator
+	mutator         mutatecommon.PatchMutator
 	config          *WebhookConfig
 	labelSelectors  *LabelSelectors
 }
 
 // NewWebhook returns a new Webhook dependent on the injection filter.
-func NewWebhook(config *WebhookConfig, mutator mutatecommon.Mutator, labelSelectors *LabelSelectors) (*Webhook, error) {
+func NewWebhook(config *WebhookConfig, mutator mutatecommon.PatchMutator, labelSelectors *LabelSelectors) (*Webhook, error) {
 	log.Debug("Successfully created SSI webhook")
 	return &Webhook{
 		name:            WebhookName,
@@ -126,13 +126,13 @@ func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
 // WebhookFunc returns the function that will optionally mutate a pod.
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), w.MutatePod, request.DynamicClient))
+		return common.MutationResponse(mutatecommon.MutateWithPatch(request.Object, request.Namespace, w.Name(), w.PlanPod, request.DynamicClient))
 	}
 }
 
-// MutatePod will optionally mutate a pod, returning true if mutation occurs and an error if there is a problem. The
+// PlanPod will optionally mutate a pod, returning true if mutation occurs and an error if there is a problem. The
 // actual logic should be implemented in the mutator and this function is exposed only for testing.
-func (w *Webhook) MutatePod(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error) {
-	log.Debugf("Mutating pod with SSI %q", mutatecommon.PodString(pod))
-	return w.mutator.MutatePod(pod, ns, cl)
+func (w *Webhook) PlanPod(session *patch.PodSession, ns string, cl dynamic.Interface) (bool, error) {
+	log.Debugf("Mutating pod with SSI %q", session.String())
+	return w.mutator.PlanPod(session, ns, cl)
 }

@@ -19,6 +19,7 @@ go_library(
         "//pkg/clusteragent/admission/mutate/common",
         "//pkg/clusteragent/admission/mutate/config",
         "//pkg/clusteragent/admission/mutate/tagsfromlabels",
+        "//pkg/clusteragent/admission/patch",
         "//pkg/clusteragent/appsec",
         "//pkg/clusteragent/appsec/config",
         "//pkg/util/log",
@@ -33,6 +34,7 @@ go_library(
 dd_agent_go_test(
     name = "appsec_test",
     srcs = [
+        "patch_test_utils_test.go",
         "webhook_integration_test.go",
         "webhook_test.go",
     ],
@@ -51,6 +53,8 @@ dd_agent_go_test(
         "//comp/core/telemetry/impl",
         "//pkg/clusteragent/admission/common",
         "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/clusteragent/admission/patch",
+        "//pkg/clusteragent/admission/patchtest",
         "//pkg/clusteragent/appsec/config",
         "@com_github_prometheus_client_model//go",
         "@com_github_stretchr_testify//assert",

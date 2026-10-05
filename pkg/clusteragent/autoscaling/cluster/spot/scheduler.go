@@ -153,13 +153,13 @@ func (s *scheduler) rebalance(ctx context.Context) {
 	}
 }
 
-// PodCreated is called via admission webhook.
-// It decides whether a pod should be scheduled on spot and updates it accordingly.
+// PlanPlacement is called via admission webhook.
+// It updates the tracker once and returns scheduling intent without editing the Pod.
 // On-demand pods are left unchanged for resilience: if the webhook is unavailable,
 // pods are still scheduled normally and no other component depend on modifications.
-func (s *scheduler) PodCreated(pod *corev1.Pod) (bool, error) {
-	unchanged := func() (bool, error) {
-		return false, nil
+func (s *scheduler) PlanPlacement(pod *corev1.Pod) (*PodPlacement, error) {
+	unchanged := func() (*PodPlacement, error) {
+		return nil, nil
 	}
 
 	o, ok := resolveCoreV1PodOwnership(pod)
@@ -181,8 +181,7 @@ func (s *scheduler) PodCreated(pod *corev1.Pod) (bool, error) {
 	}
 
 	if s.tracker.admitNewPod(o) {
-		assignToSpot(pod)
-		return true, nil
+		return spotPlacement(), nil
 	}
 	return unchanged()
 }
@@ -224,22 +223,12 @@ func (s *scheduler) spotEligibleFilter(entity workloadmeta.Entity) bool {
 	return ok
 }
 
-func assignToSpot(pod *corev1.Pod) {
-	if pod.Spec.NodeSelector == nil {
-		pod.Spec.NodeSelector = map[string]string{}
+func spotPlacement() *PodPlacement {
+	return &PodPlacement{
+		NodeSelector: map[string]string{spotNodeLabelKey: spotNodeLabelValue},
+		Labels:       map[string]string{SpotAssignedLabel: SpotAssignedLabelValue},
+		Tolerations:  []corev1.Toleration{{Key: spotNodeTaintKey, Operator: corev1.TolerationOpEqual, Value: spotNodeTaintValue, Effect: corev1.TaintEffectNoSchedule}},
 	}
-	pod.Spec.NodeSelector[spotNodeLabelKey] = spotNodeLabelValue
-	pod.Spec.Tolerations = append(pod.Spec.Tolerations, corev1.Toleration{
-		Key:      spotNodeTaintKey,
-		Operator: corev1.TolerationOpEqual,
-		Value:    spotNodeTaintValue,
-		Effect:   corev1.TaintEffectNoSchedule,
-	})
-
-	if pod.Labels == nil {
-		pod.Labels = map[string]string{}
-	}
-	pod.Labels[SpotAssignedLabel] = SpotAssignedLabelValue
 }
 
 // checkOnDemandFallbackOnce checks pending spot-assigned pods, disables spot scheduling and evicts pending pods for affected workloads.

@@ -12,6 +12,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -84,12 +85,16 @@ func (e envVar) updateEnvVar(out *corev1.EnvVar) error {
 }
 
 // mutateContainer implements containerMutator for envVar.
-func (e envVar) mutateContainer(c *corev1.Container) error {
+func (e envVar) planContainer(session *patch.PodSession, id patch.ContainerID) error {
+	c, err := snapshotContainer(session, id)
+	if err != nil {
+		return err
+	}
 	if e.isEligibleToInject != nil && !e.isEligibleToInject(c) {
 		return nil
 	}
 
-	for idx, env := range c.Env {
+	for _, env := range c.Env {
 		if env.Name != e.key {
 			continue
 		}
@@ -99,8 +104,11 @@ func (e envVar) mutateContainer(c *corev1.Container) error {
 		if err := e.updateEnvVar(&env); err != nil {
 			return err
 		}
-		c.Env[idx] = env
-		return nil
+		matches, err := session.FindEnv(id, e.key)
+		if err != nil {
+			return err
+		}
+		return session.SetEnvOccurrence(matches[0], env)
 	}
 
 	env := corev1.EnvVar{Name: e.key}
@@ -108,8 +116,8 @@ func (e envVar) mutateContainer(c *corev1.Container) error {
 		return err
 	}
 
-	c.Env = appendOrPrepend(env, c.Env, e.prepend)
-	return nil
+	_, err = session.EnsureEnvs([]patch.EnvInjection{{Container: id, Env: env, Prepend: e.prepend}})
+	return err
 }
 
 // envValFunc is a callback used in [[envVar]] to merge existing

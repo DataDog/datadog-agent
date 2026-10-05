@@ -13,12 +13,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
-	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,6 +24,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
+
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 )
 
 func TestNewWebhook(t *testing.T) {
@@ -244,7 +246,7 @@ func TestWebhook_MatchConditions_MultiplePatterns(t *testing.T) {
 type mockPattern struct {
 	matchExpression     string
 	podEligible         bool
-	mutatePodFunc       func(*corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error)
+	mutatePodFunc       func(*patch.PodSession, string, dynamic.Interface) (appsecconfig.MutationOutcome, error)
 	podDeletedFunc      func(*corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error)
 	mutatePodCallCount  int
 	podDeletedCallCount int
@@ -260,7 +262,7 @@ func (m *mockPattern) IsPodEligible(*corev1.Pod, string) bool {
 	return m.podEligible
 }
 
-func (m *mockPattern) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+func (m *mockPattern) PlanPod(pod *patch.PodSession, ns string, dc dynamic.Interface) (appsecconfig.MutationOutcome, error) {
 	m.mutatePodCallCount++
 	if m.mutatePodFunc != nil {
 		return m.mutatePodFunc(pod, ns, dc)
@@ -376,7 +378,7 @@ func TestWebhook_WebhookFunc_CreateOperation_countsCanonicalMutationOutcomes(t *
 			pattern := &mockPattern{
 				matchExpression: "true",
 				podEligible:     true,
-				mutatePodFunc: func(*corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+				mutatePodFunc: func(*patch.PodSession, string, dynamic.Interface) (appsecconfig.MutationOutcome, error) {
 					return tt.outcome, tt.err
 				},
 			}
@@ -436,7 +438,7 @@ func TestWebhook_callPattern_doesNotCountWhenNoPatternOwnsPod(t *testing.T) {
 	client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 	before := totalSidecarMutationCount(t)
 
-	matched, proxyType, outcome, err := webhook.callPattern(newTestPod("test-pod", "default"), "default", client, appsecconfig.SidecarInjectionPattern.MutatePod)
+	matched, proxyType, outcome, err := webhook.callPlanPatternForTest(newTestPod("test-pod", "default"), "default", client)
 
 	require.NoError(t, err)
 	assert.False(t, matched)
@@ -566,7 +568,7 @@ func TestWebhook_callPattern_OwnershipFiltering(t *testing.T) {
 			scheme := runtime.NewScheme()
 			client := dynamicfake.NewSimpleDynamicClient(scheme)
 
-			matched, _, outcome, err := webhook.callPattern(pod, tt.podNamespace, client, appsecconfig.SidecarInjectionPattern.MutatePod)
+			matched, _, outcome, err := webhook.callPlanPatternForTest(pod, tt.podNamespace, client)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectMatched, matched)
@@ -603,7 +605,7 @@ func TestWebhook_callPattern_MultiplePatterns(t *testing.T) {
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
 
-	matched, proxyType, outcome, err := webhook.callPattern(pod, "default", client, appsecconfig.SidecarInjectionPattern.MutatePod)
+	matched, proxyType, outcome, err := webhook.callPlanPatternForTest(pod, "default", client)
 
 	require.NoError(t, err)
 	assert.True(t, matched)
@@ -618,7 +620,7 @@ func TestWebhook_callPattern_CallbackReceivesNamespace(t *testing.T) {
 	mockPattern := &mockPattern{
 		matchExpression: "true",
 		podEligible:     true,
-		mutatePodFunc: func(_ *corev1.Pod, ns string, _ dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+		mutatePodFunc: func(_ *patch.PodSession, ns string, _ dynamic.Interface) (appsecconfig.MutationOutcome, error) {
 			capturedNamespace = ns
 			return appsecconfig.MutationMutated, nil
 		},
@@ -632,7 +634,7 @@ func TestWebhook_callPattern_CallbackReceivesNamespace(t *testing.T) {
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
 
-	matched, _, outcome, err := webhook.callPattern(pod, "custom-namespace", client, appsecconfig.SidecarInjectionPattern.MutatePod)
+	matched, _, outcome, err := webhook.callPlanPatternForTest(pod, "custom-namespace", client)
 
 	require.NoError(t, err)
 	assert.True(t, matched)
@@ -644,12 +646,11 @@ func TestWebhook_WebhookFunc_CreateOperation_mutates_config_when_owner_mutates(t
 	mockPattern := &mockPattern{
 		matchExpression: "true",
 		podEligible:     true,
-		mutatePodFunc: func(pod *corev1.Pod, _ string, _ dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+		mutatePodFunc: func(pod *patch.PodSession, _ string, _ dynamic.Interface) (appsecconfig.MutationOutcome, error) {
 			// Add a label to verify mutation happened
-			if pod.Labels == nil {
-				pod.Labels = make(map[string]string)
+			if err := pod.SetLabels(map[string]string{"mutated": "true"}, false); err != nil {
+				return appsecconfig.MutationError, err
 			}
-			pod.Labels["mutated"] = "true"
 			return appsecconfig.MutationMutated, nil
 		},
 	}
@@ -725,7 +726,7 @@ func TestWebhook_WebhookFunc_CreateOperation_maps_outcomes_for_admission(t *test
 			mockPattern := &mockPattern{
 				matchExpression: "true",
 				podEligible:     true,
-				mutatePodFunc: func(*corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+				mutatePodFunc: func(*patch.PodSession, string, dynamic.Interface) (appsecconfig.MutationOutcome, error) {
 					return tt.outcome, tt.err
 				},
 			}
@@ -891,20 +892,16 @@ func TestWebhook_WebhookFunc_InvalidJSON(t *testing.T) {
 
 // mockMutator is a test implementation of Mutator
 type mockMutator struct {
-	mutatePodFunc      func(*corev1.Pod, string, dynamic.Interface) (bool, error)
+	mutatePodFunc      func(*patch.PodSession, string, dynamic.Interface) (bool, error)
 	mutatePodCallCount int
 }
 
-func (m *mockMutator) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+func (m *mockMutator) PlanPod(pod *patch.PodSession, ns string, dc dynamic.Interface) (bool, error) {
 	m.mutatePodCallCount++
 	if m.mutatePodFunc != nil {
 		return m.mutatePodFunc(pod, ns, dc)
 	}
-	if pod.Labels == nil {
-		pod.Labels = make(map[string]string)
-	}
-	pod.Labels["config-mutated"] = "true"
-	return true, nil
+	return true, pod.SetLabels(map[string]string{"config-mutated": "true"}, false)
 }
 
 func newTestAdmissionRequest(t *testing.T, operation admissionregistrationv1.OperationType) *admission.Request {

@@ -13,9 +13,6 @@ import (
 	"maps"
 	"strings"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -23,6 +20,9 @@ import (
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 )
 
 // configMapReconciler watches original ConfigMaps labeled with
@@ -135,7 +135,7 @@ func (r *configMapReconciler) reconcile(ctx context.Context, queue workqueue.Typ
 
 	moduleMountPath := r.config.Nginx.ModuleMountPath
 
-	// Build labels the same way MutatePod does.
+	// Build labels the same way PlanPod does.
 	ddLabels := make(map[string]string, len(r.config.CommonLabels)+1)
 	maps.Copy(ddLabels, r.config.CommonLabels)
 	ddLabels[appsecconfig.AppsecProcessorProxyTypeAnnotation] = string(appsecconfig.ProxyTypeIngressNginx)

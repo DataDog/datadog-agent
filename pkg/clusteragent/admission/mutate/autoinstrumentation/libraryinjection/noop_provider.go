@@ -10,7 +10,7 @@ package libraryinjection
 import (
 	"errors"
 
-	corev1 "k8s.io/api/core/v1"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 )
 
 // NoopProvider is a provider that intentionally performs no injection.
@@ -34,14 +34,14 @@ func (p *NoopProvider) GetName() string {
 	return "disabled"
 }
 
-func (p *NoopProvider) InjectInjector(_ *corev1.Pod, _ InjectorConfig) MutationResult {
+func (p *NoopProvider) PlanInjector(_ *patch.PodSession, _ InjectorConfig) MutationResult {
 	return MutationResult{
 		Status: MutationStatusSkipped,
 		Err:    p.err,
 	}
 }
 
-func (p *NoopProvider) InjectLibrary(_ *corev1.Pod, _ LibraryConfig) MutationResult {
+func (p *NoopProvider) PlanLibrary(_ *patch.PodSession, _ LibraryConfig) MutationResult {
 	return MutationResult{
 		Status: MutationStatusSkipped,
 		Err:    p.err,

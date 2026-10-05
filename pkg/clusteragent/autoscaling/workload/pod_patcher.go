@@ -9,14 +9,15 @@ package workload
 
 import (
 	"context"
-
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"sort"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -27,8 +28,8 @@ import (
 
 // PodPatcher allows a workload patcher to patch a workload with the recommendations from the autoscaler
 type PodPatcher interface {
-	// ApplyRecommendation applies the recommendation to the given pod
-	ApplyRecommendations(pod *corev1.Pod) (bool, error)
+	// PlanRecommendations evaluates recommendations once without admission writes.
+	PlanRecommendations(pod *corev1.Pod) (*PodRecommendationPlan, error)
 
 	// shouldObserverPod returns true if the pod should be observed by the pod watcher
 	shouldObservePod(pod *workloadmeta.KubernetesPod) bool
@@ -55,39 +56,34 @@ func NewPodPatcher(store *store, patcher *workloadpatcher.Patcher, eventRecorder
 	}
 }
 
-func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
+func (pa podPatcher) PlanRecommendations(pod *corev1.Pod) (*PodRecommendationPlan, error) {
+	// Sequential recommendations observe earlier planned known-field edits.
+	// This private decision view is never serialized as an admission Pod.
+	pod = pod.DeepCopy()
 	autoscaler, err := pa.findAutoscaler(pod)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	if autoscaler == nil {
 		// This POD is not managed by an autoscaler
-		return false, nil
+		return nil, nil
 	}
 
 	// We're always adding annotation to Pods when a matching Autoscaler is found even if we do not have recommendations ATM
-	patched := false
-	if pod.Annotations == nil {
-		pod.Annotations = map[string]string{}
-	}
-
-	autoscalerID := autoscaler.ID()
-	if pod.Annotations[model.AutoscalerIDAnnotation] != autoscalerID {
-		pod.Annotations[model.AutoscalerIDAnnotation] = autoscalerID
-		patched = true
-	}
+	plan := &PodRecommendationPlan{}
+	plan.annotation(pod, model.AutoscalerIDAnnotation, autoscaler.ID())
 
 	// Check if the autoscaler has recommendations
 	if autoscaler.ScalingValues().Vertical == nil || autoscaler.ScalingValues().Vertical.ResourcesHash == "" || len(autoscaler.ScalingValues().Vertical.ContainerResources) == 0 {
 		log.Debugf("Autoscaler %s has no vertical recommendations for POD %s/%s, not patching", autoscaler.ID(), pod.Namespace, pod.Name)
-		return patched, nil
+		return plan, nil
 	}
 
 	// Check if we're allowed to patch the POD
 	strategy, reason := getVerticalPatchingStrategy(autoscaler)
 	if strategy == datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy {
 		log.Debugf("Autoscaler %s has vertical patching disabled for POD %s/%s, reason: %s", autoscaler.ID(), pod.Namespace, pod.Name, reason)
-		return patched, nil
+		return plan, nil
 	}
 
 	// Re-derive the burstable/constraint transformations here so they are applied consistently on
@@ -97,27 +93,27 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	constrainedVertical := autoscaler.ScalingValues().Vertical.DeepCopy()
 	if _, err := applyForcedResources(constrainedVertical, autoscaler.ForcedResources()); err != nil {
 		log.Warnf("Autoscaler %s: failed to apply forced resources for POD %s/%s, not patching resources: %v", autoscaler.ID(), pod.Namespace, pod.Name, err)
-		return patched, nil
+		return plan, nil
 	}
 	if _, err := applyVerticalConstraints(constrainedVertical, autoscaler.Spec().Constraints, autoscaler.IsBurstable()); err != nil {
 		log.Warnf("Autoscaler %s: failed to apply vertical constraints for POD %s/%s, not patching resources: %v", autoscaler.ID(), pod.Namespace, pod.Name, err)
-		return patched, nil
+		return plan, nil
 	}
 
 	// Use the active scaling values hash (mirrored to the DPA status) so the annotation stays
 	// identical across replicas; not the recomputed constrained hash.
 	effectiveRecommendationID := autoscaler.ScalingValues().Vertical.ResourcesHash
-	patched = patchAnnotation(pod, model.RecommendationIDAnnotation, effectiveRecommendationID) || patched
+	plan.annotation(pod, model.RecommendationIDAnnotation, effectiveRecommendationID)
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
 	for _, reco := range constrainedVertical.ContainerResources {
-		patched = patchPod(reco, pod) || patched
+		plan.recommendation(reco, pod)
 	}
 
 	runtimeRecID, _ := computeRuntimeRecommendationID(constrainedVertical.ContainerResources)
-	patched = patchAnnotation(pod, model.RuntimeRecommendationIDAnnotation, runtimeRecID) || patched
+	plan.annotation(pod, model.RuntimeRecommendationIDAnnotation, runtimeRecID)
 
-	return patched, nil
+	return plan, nil
 }
 
 func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerInternal, error) {
@@ -215,97 +211,121 @@ func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.
 	log.Debugf("Event sent and POD %s/%s patched with event annotation", pod.Namespace, pod.Name)
 }
 
-// K8s guarantees that the name for an init container or normal container are unique among all containers.
-// It means that dispatching recommendations just by container names is sufficient
-func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *corev1.Pod) (patched bool) {
-	for i := range pod.Spec.Containers {
-		cont := &pod.Spec.Containers[i]
-		if cont.Name == reco.Name {
-			return patchContainerResources(reco, cont)
-		}
-	}
-
-	// recommendation can be also applied to sidecar containers
-	// kubernetes implements sidecar containers as a special case of init containers (see https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/)
-	for i := range pod.Spec.InitContainers {
-		cont := &pod.Spec.InitContainers[i]
-		// sidecar container by definition is an init container with `restartPolicy: Always`
-		isInitSidecarContainer := cont.RestartPolicy != nil && *cont.RestartPolicy == corev1.ContainerRestartPolicyAlways
-		if cont.Name == reco.Name && isInitSidecarContainer {
-			return patchContainerResources(reco, cont)
-		}
-	}
-
-	return false
+// PodRecommendationPlan holds domain intent independently of admission transport.
+type PodRecommendationPlan struct {
+	Annotations []RecommendationAnnotation
+	Resources   []RecommendationResource
+	Runtime     []RecommendationRuntime
+}
+type RecommendationAnnotation struct {
+	Key   string
+	Value *string
+}
+type RecommendationContainer struct {
+	Name string
+	Init bool
+}
+type RecommendationResource struct {
+	Container RecommendationContainer
+	Name      corev1.ResourceName
+	Limits    bool
+	Quantity  *resource.Quantity
+}
+type RecommendationRuntime struct {
+	Container  RecommendationContainer
+	GOMEMLIMIT string
 }
 
-// patchAnnotation sets, updates, or deletes the given annotation on the pod.
-// An empty value causes the annotation to be deleted. Returns true if the annotation was changed.
-func patchAnnotation(pod *corev1.Pod, key, value string) bool {
+// Changed retains the historical feature mutation signal.
+func (p *PodRecommendationPlan) Changed() bool {
+	return p != nil && len(p.Annotations)+len(p.Resources)+len(p.Runtime) > 0
+}
+
+func (p *PodRecommendationPlan) annotation(pod *corev1.Pod, key, value string) {
+	old, exists := pod.Annotations[key]
 	if value == "" {
-		if _, exists := pod.Annotations[key]; exists {
+		if exists {
+			p.Annotations = append(p.Annotations, RecommendationAnnotation{Key: key})
 			delete(pod.Annotations, key)
-			return true
 		}
-		return false
+		return
 	}
-	if pod.Annotations[key] == value {
-		return false
+	if old != value {
+		p.Annotations = append(p.Annotations, RecommendationAnnotation{key, &value})
+		if pod.Annotations == nil {
+			pod.Annotations = map[string]string{}
+		}
+		pod.Annotations[key] = value
 	}
-	pod.Annotations[key] = value
-	return true
 }
 
-func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, cont *corev1.Container) (patched bool) {
-	patched = false
+func (p *PodRecommendationPlan) recommendation(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *corev1.Pod) {
+	for i := range pod.Spec.Containers {
+		c := &pod.Spec.Containers[i]
+		if c.Name == reco.Name {
+			p.container(reco, c, false)
+			return
+		}
+	}
+	for i := range pod.Spec.InitContainers {
+		c := &pod.Spec.InitContainers[i]
+		if c.Name == reco.Name && c.RestartPolicy != nil && *c.RestartPolicy == corev1.ContainerRestartPolicyAlways {
+			p.container(reco, c, true)
+			return
+		}
+	}
+}
 
-	if cont.Resources.Limits == nil {
-		cont.Resources.Limits = corev1.ResourceList{}
-	}
-	if cont.Resources.Requests == nil {
-		cont.Resources.Requests = corev1.ResourceList{}
-	}
-	for resourceName, limit := range reco.Limits {
-		if limit.Cmp(removeLimitSentinel) == 0 {
-			// Sentinel: applyVerticalConstraints signalled that this limit must be actively
-			// removed from the pod (e.g. CPURequestsRemoveLimitsMemoryRequestsAndLimits).
-			if _, exists := cont.Resources.Limits[resourceName]; exists {
-				delete(cont.Resources.Limits, resourceName)
-				patched = true
-			}
-		} else if limit.Cmp(cont.Resources.Limits[resourceName]) != 0 {
-			cont.Resources.Limits[resourceName] = limit
-			patched = true
+func (p *PodRecommendationPlan) container(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, cont *corev1.Container, init bool) {
+	id := RecommendationContainer{cont.Name, init}
+	for _, group := range []struct {
+		limits                bool
+		recommended, existing corev1.ResourceList
+	}{{true, reco.Limits, cont.Resources.Limits}, {false, reco.Requests, cont.Resources.Requests}} {
+		names := make([]string, 0, len(group.recommended))
+		for name := range group.recommended {
+			names = append(names, string(name))
 		}
-	}
-	for resourceName, request := range reco.Requests {
-		if request.Cmp(cont.Resources.Requests[resourceName]) != 0 {
-			cont.Resources.Requests[resourceName] = request
-			patched = true
-		}
-	}
-	if reco.Runtime != nil && reco.Runtime.Gomemlimit != "" {
-		found := false
-		for i := range cont.Env {
-			if cont.Env[i].Name == "GOMEMLIMIT" {
-				if cont.Env[i].Value != reco.Runtime.Gomemlimit || cont.Env[i].ValueFrom != nil {
-					// Known limitation: comparison is string-based, so numerically equivalent but
-					// differently-formatted values (e.g. "1GiB" vs "1024MiB") are treated as different
-					// and trigger an unnecessary patch.
-					// Clear ValueFrom in case the env var was previously sourced from a ConfigMap/Secret;
-					// Kubernetes rejects env vars that have both Value and ValueFrom set.
-					cont.Env[i].Value = reco.Runtime.Gomemlimit
-					cont.Env[i].ValueFrom = nil
-					patched = true
+		sort.Strings(names)
+		for _, name := range names {
+			key := corev1.ResourceName(name)
+			quantity := group.recommended[key]
+			if group.limits && quantity.Cmp(removeLimitSentinel) == 0 {
+				if _, exists := group.existing[key]; exists {
+					p.Resources = append(p.Resources, RecommendationResource{Container: id, Name: key, Limits: true})
+					delete(cont.Resources.Limits, key)
 				}
-				found = true
-				break
+				continue
+			}
+			if quantity.Cmp(group.existing[key]) != 0 {
+				q := quantity.DeepCopy()
+				p.Resources = append(p.Resources, RecommendationResource{Container: id, Name: key, Limits: group.limits, Quantity: &q})
+				if group.limits {
+					if cont.Resources.Limits == nil {
+						cont.Resources.Limits = corev1.ResourceList{}
+					}
+					cont.Resources.Limits[key] = q
+				} else {
+					if cont.Resources.Requests == nil {
+						cont.Resources.Requests = corev1.ResourceList{}
+					}
+					cont.Resources.Requests[key] = q
+				}
 			}
 		}
-		if !found {
-			cont.Env = append(cont.Env, corev1.EnvVar{Name: "GOMEMLIMIT", Value: reco.Runtime.Gomemlimit})
-			patched = true
+	}
+	if reco.Runtime == nil || reco.Runtime.Gomemlimit == "" {
+		return
+	}
+	for i, env := range cont.Env {
+		if env.Name == "GOMEMLIMIT" {
+			if env.Value != reco.Runtime.Gomemlimit || env.ValueFrom != nil {
+				p.Runtime = append(p.Runtime, RecommendationRuntime{id, reco.Runtime.Gomemlimit})
+				cont.Env[i].Value, cont.Env[i].ValueFrom = reco.Runtime.Gomemlimit, nil
+			}
+			return
 		}
 	}
-	return patched
+	p.Runtime = append(p.Runtime, RecommendationRuntime{id, reco.Runtime.Gomemlimit})
+	cont.Env = append(cont.Env, corev1.EnvVar{Name: "GOMEMLIMIT", Value: reco.Runtime.Gomemlimit})
 }

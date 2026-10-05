@@ -168,7 +168,7 @@ func createOrUpdateDDConfigMap(ctx context.Context, client dynamic.Interface, na
 		return fmt.Errorf("failed to create DD ConfigMap %s/%s: %w", namespace, ddName, err)
 	}
 	if err != nil {
-		// Update existing DD ConfigMap. Retry on conflict since concurrent MutatePod
+		// Update existing DD ConfigMap. Retry on conflict since concurrent PlanPod
 		// calls (e.g. during rollouts) may race on the same ConfigMap's resourceVersion.
 		for retries := 0; retries < 3; retries++ {
 			existing, getErr := client.Resource(configMapGVR).Namespace(namespace).Get(ctx, ddName, metav1.GetOptions{})

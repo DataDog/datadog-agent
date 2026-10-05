@@ -11,14 +11,16 @@ import (
 	"context"
 	"fmt"
 
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/sidecar"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
+
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/sidecar"
 )
 
 const (
@@ -68,8 +70,12 @@ func (e *istioGatewaySidecarPattern) Added(context.Context, *unstructured.Unstru
 	return nil
 }
 
-// MutatePod wait for the first pod created by a certain gateway class to arrive to add our envoy filter to the mix.
-func (e *istioGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+// PlanPod wait for the first pod created by a certain gateway class to arrive to add our envoy filter to the mix.
+func (e *istioGatewaySidecarPattern) PlanPod(session *patch.PodSession, _ string, _ dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+	pod, err := session.Snapshot()
+	if err != nil {
+		return appsecconfig.MutationError, err
+	}
 	if sidecar.HasProcessorSidecar(pod) {
 		return appsecconfig.MutationSkipped, &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonAlreadySidecar}
 	}
@@ -86,7 +92,9 @@ func (e *istioGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dyna
 
 	// Build and inject processor container
 	container := sidecar.BuildExtProcProcessorContainer(e.config.Sidecar)
-	pod.Spec.Containers = append(pod.Spec.Containers, container)
+	if err := session.InsertContainer(patch.RegularContainers, container, false); err != nil {
+		return appsecconfig.MutationError, err
+	}
 
 	e.logger.Infof("Injected appsec processor sidecar into pod %s", mutatecommon.PodString(pod))
 

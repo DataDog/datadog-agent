@@ -13,11 +13,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -25,9 +20,15 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const webhookName = "appsec_proxies"
@@ -40,14 +41,14 @@ type Webhook struct {
 	resources     []common.WebhookResourceRule
 	operations    []admissionregistrationv1.OperationType
 	patterns      map[appsecconfig.ProxyType]appsecconfig.SidecarInjectionPattern
-	configMutator mutatecommon.Mutator
+	configMutator mutatecommon.PatchMutator
 }
 
 // NewWebhook creates a new appsec sidecar webhook
 func NewWebhook(config config.Component) *Webhook {
 	mutatorFilter := newMutationFilter()
 
-	configMutators := mutatecommon.NewMutators(
+	configMutators := mutatecommon.NewPatchMutators(
 		tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(config), mutatorFilter),
 		configWebhook.NewMutator(configWebhook.NewMutatorConfig(config), mutatorFilter),
 	)
@@ -149,12 +150,16 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
 		switch request.Operation {
 		case admissionregistrationv1.Create:
-			return common.MutationResponse(mutatecommon.Mutate(
+			return common.MutationResponse(mutatecommon.MutateWithPatch(
 				request.Object,
 				request.Namespace,
 				w.Name(),
-				func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error) {
-					matched, proxyType, outcome, err := w.callPattern(pod, ns, cl, appsecconfig.SidecarInjectionPattern.MutatePod)
+				func(session *patch.PodSession, ns string, cl dynamic.Interface) (bool, error) {
+					pod, err := session.Snapshot()
+					if err != nil {
+						return false, err
+					}
+					matched, proxyType, outcome, err := w.callPlanPattern(session, ns, cl)
 					if !matched {
 						return false, nil
 					}
@@ -164,7 +169,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 					mutated, admErr := appsecconfig.NormalizeOutcomeForAdmission(outcome, err)
 					if admErr == nil && mutated {
 						// Add APM config, label and tags so the pod is treated as a first-class citizen APM service.
-						return w.configMutator.MutatePod(pod, ns, cl)
+						return w.configMutator.PlanPod(session, ns, cl)
 					}
 					return mutated, admErr
 				},
@@ -199,6 +204,21 @@ func (w *Webhook) callPattern(pod *corev1.Pod, ns string, dl dynamic.Interface,
 		}
 
 		outcome, err = podCallback(pattern, pod, ns, dl)
+		return true, proxyType, outcome, err
+	}
+	return false, "", 0, nil
+}
+
+func (w *Webhook) callPlanPattern(session *patch.PodSession, ns string, dc dynamic.Interface) (bool, appsecconfig.ProxyType, appsecconfig.MutationOutcome, error) {
+	pod, err := session.Snapshot()
+	if err != nil {
+		return false, "", appsecconfig.MutationError, err
+	}
+	for proxyType, pattern := range w.patterns {
+		if !pattern.IsPodEligible(pod, ns) {
+			continue
+		}
+		outcome, err := pattern.PlanPod(session, ns, dc)
 		return true, proxyType, outcome, err
 	}
 	return false, "", 0, nil

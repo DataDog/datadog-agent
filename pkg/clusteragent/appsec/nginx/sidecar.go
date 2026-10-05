@@ -17,15 +17,15 @@ import (
 	"time"
 
 	"github.com/distribution/reference"
-
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
-
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/utils/ptr"
+
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 )
 
 // errCrossNamespaceConfigMap signals that the pod's --configmap arg references
@@ -41,7 +41,7 @@ var errEmptyConfigMapName = &appsecconfig.MutationSkippedReason{Reason: appsecco
 
 const (
 	// mutateTimeout bounds ConfigMap operations during pod mutation to prevent
-	// goroutine leaks if the API server is slow. The MutatePod interface does not
+	// goroutine leaks if the API server is slow. The PlanPod interface does not
 	// provide a context, so we create one with an explicit timeout.
 	mutateTimeout = 10 * time.Second
 
@@ -77,11 +77,15 @@ func (n *nginxSidecarPattern) IsPodEligible(pod *corev1.Pod, _ string) bool {
 	return true
 }
 
-// MutatePod injects the nginx-datadog module into an ingress-nginx controller pod by:
+// PlanPod injects the nginx-datadog module into an ingress-nginx controller pod by:
 // 1. Adding an init container that copies the .so module
 // 2. Adding an emptyDir volume for module sharing
 // 3. Redirecting the --configmap arg to a DD-owned ConfigMap
-func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+func (n *nginxSidecarPattern) PlanPod(session *patch.PodSession, ns string, client dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+	pod, err := session.Snapshot()
+	if err != nil {
+		return appsecconfig.MutationError, err
+	}
 	if hasInitContainer(pod) {
 		return appsecconfig.MutationSkipped, &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonAlreadyInitSidecar}
 	}
@@ -122,7 +126,7 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 	maps.Copy(ddLabels, n.config.CommonLabels)
 	ddLabels[appsecconfig.AppsecProcessorProxyTypeAnnotation] = string(appsecconfig.ProxyTypeIngressNginx)
 	ddCMName := ddConfigMapName(cmName)
-	// MutatePod interface does not provide a context. Use a bounded timeout
+	// PlanPod interface does not provide a context. Use a bounded timeout
 	// to prevent goroutine leaks if the API server is slow.
 	mutateCtx, cancel := context.WithTimeout(context.Background(), mutateTimeout)
 	defer cancel()
@@ -137,28 +141,36 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 	n.eventRecorder.recordConfigMapCreated("", ddCMName)
 	n.logger.Infof("Created/updated DD ConfigMap %s/%s", cmNamespace, ddCMName)
 
-	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+	if err := session.InsertVolume(corev1.Volume{
 		Name: moduleVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{
 				SizeLimit: resource.NewScaledQuantity(50, resource.Mega),
 			},
 		},
-	})
+	}, false); err != nil {
+		return appsecconfig.MutationError, err
+	}
 
-	pod.Spec.InitContainers = append(pod.Spec.InitContainers, buildInitContainer(initImageRef, moduleMountPath, n.config.Nginx.InitRunAsUser, n.config.Nginx.InitRunAsGroup))
+	if err := session.InsertContainer(patch.InitContainers, buildInitContainer(initImageRef, moduleMountPath, n.config.Nginx.InitRunAsUser, n.config.Nginx.InitRunAsGroup), false); err != nil {
+		return appsecconfig.MutationError, err
+	}
 
 	// Add volume mount to controller container
-	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
-		Name:      moduleVolumeName,
-		MountPath: moduleMountPath,
-	})
+	id := patch.ContainerID{Kind: patch.RegularContainers, Name: container.Name}
+	if err := session.InsertVolumeMount(id, corev1.VolumeMount{Name: moduleVolumeName, MountPath: moduleMountPath}, false); err != nil {
+		return appsecconfig.MutationError, err
+	}
 
 	// Redirect --configmap arg to DD-owned ConfigMap (or add it if absent)
 	if found {
-		container.Args[argIdx] = fmt.Sprintf("%s%s/%s", configmapArgPrefix, cmNamespace, ddCMName)
+		if err := session.EditContainerArg(id, argIdx, container.Args[argIdx], fmt.Sprintf("%s%s/%s", configmapArgPrefix, cmNamespace, ddCMName)); err != nil {
+			return appsecconfig.MutationError, err
+		}
 	} else {
-		container.Args = append(container.Args, fmt.Sprintf("%s%s/%s", configmapArgPrefix, cmNamespace, ddCMName))
+		if err := session.AppendContainerArg(id, fmt.Sprintf("%s%s/%s", configmapArgPrefix, cmNamespace, ddCMName)); err != nil {
+			return appsecconfig.MutationError, err
+		}
 	}
 
 	n.logger.Infof("Injected nginx-datadog module into pod %s (image %s)", mutatecommon.PodString(pod), initImageRef)

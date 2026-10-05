@@ -59,6 +59,7 @@ go_library(
 dd_agent_go_test(
     name = "spot_test",
     srcs = [
+        "admission_test_utils_test.go",
         "cluster_test.go",
         "config_test.go",
         "delayed_wlm_test.go",

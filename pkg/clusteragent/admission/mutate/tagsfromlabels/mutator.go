@@ -9,6 +9,7 @@ package tagsfromlabels
 
 import (
 	"errors"
+	"sort"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,7 +41,7 @@ func NewMutatorConfig(datadogConfig config.Component) *MutatorConfig {
 	}
 }
 
-// Mutator satisfies the common.Mutator interface for the tags mutator.
+// Mutator satisfies the common.PatchMutator interface for the tags mutator.
 type Mutator struct {
 	config *MutatorConfig
 	filter mutatecommon.MutationFilter
@@ -53,9 +55,16 @@ func NewMutator(cfg *MutatorConfig, filter mutatecommon.MutationFilter) *Mutator
 	}
 }
 
-// MutatePod implements the common.Mutator interface for the tags mutator. It injects DD_ENV, DD_VERSION, DD_SERVICE
+// PlanPod implements the common.PatchMutator interface for the tags mutator. It injects DD_ENV, DD_VERSION, DD_SERVICE
 // env vars into a pod template if needed.
-func (i *Mutator) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+func (i *Mutator) PlanPod(session *patch.PodSession, ns string, dc dynamic.Interface) (bool, error) {
+	if session == nil {
+		return false, errors.New(metrics.InvalidInput)
+	}
+	pod, err := session.Snapshot()
+	if err != nil {
+		return false, err
+	}
 	var injected bool
 
 	if pod == nil {
@@ -68,7 +77,11 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (b
 	}
 
 	var found bool
-	if found, injected = injectTagsFromLabels(pod.GetLabels(), pod); found {
+	found, injected, err = planTagsFromLabels(pod.GetLabels(), session)
+	if err != nil {
+		return false, err
+	}
+	if found {
 		// Standard labels found in the pod's labels
 		// No need to lookup the pod's owner
 		return injected, nil
@@ -95,28 +108,38 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (b
 	}
 
 	log.Debugf("Looking for standard labels on '%s/%s' - kind '%s' owner of pod %s", owner.namespace, owner.name, owner.kind, mutatecommon.PodString(pod))
-	_, injected = injectTagsFromLabels(owner.labels, pod)
+	_, injected, err = planTagsFromLabels(owner.labels, session)
 
-	return injected, nil
+	return injected, err
 }
 
 // injectTagsFromLabels looks for standard tags in pod labels and injects them as environment variables if found
-func injectTagsFromLabels(labels map[string]string, pod *corev1.Pod) (bool, bool) {
+func planTagsFromLabels(labels map[string]string, session *patch.PodSession) (bool, bool, error) {
 	found := false
 	injectedAtLeastOnce := false
-	for l, envName := range labelsToEnv {
+	keys := make([]string, 0, len(labelsToEnv))
+	for key := range labelsToEnv {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, l := range keys {
+		envName := labelsToEnv[l]
 		if tagValue, labelFound := labels[l]; labelFound {
 			env := corev1.EnvVar{
 				Name:  envName,
 				Value: tagValue,
 			}
-			if injected := mutatecommon.InjectEnv(pod, env); injected {
+			injected, err := mutatecommon.PatchInjectEnv(session, env)
+			if err != nil {
+				return false, false, err
+			}
+			if injected {
 				injectedAtLeastOnce = true
 			}
 			found = true
 		}
 	}
-	return found, injectedAtLeastOnce
+	return found, injectedAtLeastOnce, nil
 }
 
 func ownerCacheTTL(datadogConfig config.Component) time.Duration {

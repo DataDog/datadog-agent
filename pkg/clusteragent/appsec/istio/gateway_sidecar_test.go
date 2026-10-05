@@ -19,10 +19,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/tools/record"
-
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	k8stesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/record"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
@@ -200,7 +199,7 @@ func TestGatewaySidecar_MutatePod_Success(t *testing.T) {
 		"istio": "ingressgateway",
 	})
 
-	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := mutatePatternForTest(pattern, pod, "default", pattern.client)
 
 	require.NoError(t, err)
 	assert.Equal(t, appsecconfig.MutationMutated, outcome)
@@ -221,7 +220,7 @@ func TestGatewaySidecar_MutatePod_AlreadyInjected(t *testing.T) {
 		Image: "datadog/appsec-processor:latest",
 	})
 
-	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := mutatePatternForTest(pattern, pod, "default", pattern.client)
 
 	require.Error(t, err)
 	assert.Equal(t, appsecconfig.MutationSkipped, outcome)
@@ -246,7 +245,7 @@ func TestGatewaySidecar_MutatePod_NoMatchingGateway(t *testing.T) {
 		"istio": "ingressgateway",
 	})
 
-	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := mutatePatternForTest(pattern, pod, "default", pattern.client)
 
 	require.Error(t, err)
 	assert.Equal(t, appsecconfig.MutationError, outcome)
@@ -275,7 +274,7 @@ func TestGatewaySidecar_MutatePod_EnvoyFilterCreationError(t *testing.T) {
 		"app": "istio-gateway",
 	})
 
-	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := mutatePatternForTest(pattern, pod, "default", pattern.client)
 
 	require.Error(t, err)
 	assert.Equal(t, appsecconfig.MutationError, outcome)
@@ -396,7 +395,7 @@ func TestGatewaySidecar_MutatePod_ListGatewaysError(t *testing.T) {
 		"app": "istio-gateway",
 	})
 
-	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := mutatePatternForTest(pattern, pod, "default", pattern.client)
 
 	require.Error(t, err)
 	assert.Equal(t, appsecconfig.MutationError, outcome)

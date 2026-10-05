@@ -16,6 +16,7 @@ go_library(
         "//pkg/clusteragent/admission/mutate/common",
         "//pkg/clusteragent/admission/mutate/cwsinstrumentation/k8scp",
         "//pkg/clusteragent/admission/mutate/cwsinstrumentation/k8sexec",
+        "//pkg/clusteragent/admission/patch",
         "//pkg/config/setup",
         "//pkg/security/utils/k8sutils",
         "//pkg/util/kubernetes/apiserver",
@@ -36,7 +37,10 @@ go_library(
 
 dd_agent_go_test(
     name = "cwsinstrumentation_test",
-    srcs = ["cws_instrumentation_test.go"],
+    srcs = [
+        "cws_instrumentation_test.go",
+        "patch_test_utils_test.go",
+    ],
     embed = [":cwsinstrumentation"],
     gotags_sets = [[
         "cel",
@@ -57,6 +61,7 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/clusteragent/admission/patchtest",
         "//pkg/config/mock",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
@@ -64,6 +69,7 @@ dd_agent_go_test(
         "@io_k8s_api//authentication/v1:authentication",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//dynamic",
         "@io_k8s_client_go//kubernetes",
         "@io_k8s_client_go//kubernetes/typed/core/v1:core",
         "@org_uber_go_fx//:fx",

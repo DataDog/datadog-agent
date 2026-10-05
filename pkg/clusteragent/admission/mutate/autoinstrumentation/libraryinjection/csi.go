@@ -10,6 +10,8 @@ package libraryinjection
 import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 )
 
 // CSI driver constants.
@@ -55,12 +57,13 @@ func (p *CSIProvider) GetName() string {
 	return string(InjectionModeCSI)
 }
 
-// InjectInjector mutates the pod to add the APM injector using CSI volumes.
-func (p *CSIProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult {
-	patcher := NewPodPatcher(pod, p.cfg.ContainerFilter)
+// PlanInjector mutates the pod to add the APM injector using CSI volumes.
+func (p *CSIProvider) PlanInjector(session *patch.PodSession, cfg InjectorConfig) MutationResult {
+	patcher := NewPodPatcher(session, p.cfg.ContainerFilter)
 
 	// CSI volume for the injector image contents
-	patcher.AddVolume(corev1.Volume{
+
+	if err := patcher.AddVolume(corev1.Volume{
 		Name: InstrumentationVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			CSI: &corev1.CSIVolumeSource{
@@ -74,15 +77,21 @@ func (p *CSIProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) Mutati
 				},
 			},
 		},
-	})
-	patcher.AddVolumeMount(corev1.VolumeMount{
+	}); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
+
+	if err := patcher.AddVolumeMount(corev1.VolumeMount{
 		Name:      InstrumentationVolumeName,
 		MountPath: asAbsPath(injectPackageDir),
 		ReadOnly:  true,
-	})
+	}); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 
 	// CSI volume for /etc/ld.so.preload
-	patcher.AddVolume(corev1.Volume{
+
+	if err := patcher.AddVolume(corev1.Volume{
 		Name: EtcVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			CSI: &corev1.CSIVolumeSource{
@@ -93,25 +102,31 @@ func (p *CSIProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) Mutati
 				},
 			},
 		},
-	})
-	patcher.AddVolumeMount(corev1.VolumeMount{
+	}); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
+
+	if err := patcher.AddVolumeMount(corev1.VolumeMount{
 		Name:      EtcVolumeName,
 		MountPath: "/etc/ld.so.preload",
 		ReadOnly:  true,
-	})
+	}); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 
 	return MutationResult{
 		Status: MutationStatusInjected,
 	}
 }
 
-// InjectLibrary mutates the pod to add a language-specific tracing library using CSI volumes.
-func (p *CSIProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) MutationResult {
-	patcher := NewPodPatcher(pod, p.cfg.ContainerFilter)
+// PlanLibrary mutates the pod to add a language-specific tracing library using CSI volumes.
+func (p *CSIProvider) PlanLibrary(session *patch.PodSession, cfg LibraryConfig) MutationResult {
+	patcher := NewPodPatcher(session, p.cfg.ContainerFilter)
 
 	// CSI volume for the library (uses DatadogLibrary type to mount OCI image contents)
 	volumeName := "dd-lib-" + cfg.Language
-	patcher.AddVolume(corev1.Volume{
+
+	if err := patcher.AddVolume(corev1.Volume{
 		Name: volumeName,
 		VolumeSource: corev1.VolumeSource{
 			CSI: &corev1.CSIVolumeSource{
@@ -125,12 +140,17 @@ func (p *CSIProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) Mutation
 				},
 			},
 		},
-	})
-	patcher.AddVolumeMountWithTarget(corev1.VolumeMount{
+	}); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
+
+	if err := patcher.AddVolumeMountWithTarget(corev1.VolumeMount{
 		Name:      volumeName,
 		MountPath: asAbsPath(libraryPackagesDir) + "/" + cfg.Language,
 		ReadOnly:  true,
-	}, cfg.ContainerName)
+	}, cfg.ContainerName); err != nil {
+		return MutationResult{Status: MutationStatusError, Err: err}
+	}
 
 	return MutationResult{
 		Status: MutationStatusInjected,

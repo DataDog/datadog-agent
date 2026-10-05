@@ -64,18 +64,23 @@ func newEmptyDirVolume(name string) corev1.Volume {
 // /etc/ld.so.preload to application containers via a SubPath mount.
 //
 // It returns the init-container mount where the file should be written.
-func addEtcLdSoPreloadVolumeAndMounts(patcher *PodPatcher) corev1.VolumeMount {
-	patcher.AddVolume(newEmptyDirVolume(EtcVolumeName))
+func addEtcLdSoPreloadVolumeAndMounts(patcher *PodPatcher) (corev1.VolumeMount, error) {
 
-	patcher.AddVolumeMount(corev1.VolumeMount{
+	if err := patcher.AddVolume(newEmptyDirVolume(EtcVolumeName)); err != nil {
+		return corev1.VolumeMount{}, err
+	}
+
+	if err := patcher.AddVolumeMount(corev1.VolumeMount{
 		Name:      EtcVolumeName,
 		MountPath: ldSoPreloadMountPath,
 		SubPath:   ldSoPreloadFileName,
 		ReadOnly:  true,
-	})
+	}); err != nil {
+		return corev1.VolumeMount{}, err
+	}
 
 	return corev1.VolumeMount{
 		Name:      EtcVolumeName,
 		MountPath: etcMountPath,
-	}
+	}, nil
 }

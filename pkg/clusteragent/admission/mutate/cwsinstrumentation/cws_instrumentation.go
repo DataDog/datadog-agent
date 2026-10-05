@@ -41,6 +41,7 @@ import (
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8scp"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8sexec"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/k8sutils"
 	apiserverUtils "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -718,10 +719,18 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *cor
 }
 
 func (ci *CWSInstrumentation) injectForPod(request *admission.Request) *admiv1.AdmissionResponse {
-	return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, ci.webhookForPods.Name(), ci.injectCWSPodInstrumentation, request.DynamicClient))
+	return common.MutationResponse(mutatecommon.MutateWithPatch(request.Object, request.Namespace, ci.webhookForPods.Name(), ci.planCWSPodInstrumentation, request.DynamicClient))
 }
 
-func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
+func (ci *CWSInstrumentation) planCWSPodInstrumentation(session *patch.PodSession, ns string, _ dynamic.Interface) (bool, error) {
+	if session == nil {
+		metrics.CWSPodMutationAttempts.Inc(ci.mode.String(), "false", cwsNilInputReason)
+		return false, errors.New(metrics.InvalidInput)
+	}
+	pod, err := session.Snapshot()
+	if err != nil {
+		return false, err
+	}
 	if pod == nil {
 		log.Errorf("cannot inject CWS instrumentation into nil pod")
 		metrics.CWSPodMutationAttempts.Inc(ci.mode.String(), "false", cwsNilInputReason)
@@ -745,10 +754,15 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 
 	switch ci.mode {
 	case InitContainer:
-		ci.injectCWSPodInstrumentationInitContainer(pod)
+		if err := ci.planCWSPodInstrumentationInitContainer(session, pod); err != nil {
+			return false, err
+		}
 		instrumented = true
 	case RemoteCopy:
-		instrumented = ci.injectCWSPodInstrumentationRemoteCopy(pod)
+		instrumented, err = ci.planCWSPodInstrumentationRemoteCopy(session, pod)
+		if err != nil {
+			return false, err
+		}
 	default:
 		log.Errorf("Ignoring Pod %s admission request: unknown CWS Instrumentation mode %v", mutatecommon.PodString(pod), ci.mode)
 		metrics.CWSPodMutationAttempts.Inc(ci.mode.String(), "false", cwsUnknownModeReason)
@@ -757,10 +771,9 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 
 	if instrumented {
 		// add label to indicate that the pod has been instrumented
-		if pod.Annotations == nil {
-			pod.Annotations = make(map[string]string)
+		if err := session.SetAnnotations(map[string]string{cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady}, false); err != nil {
+			return false, err
 		}
-		pod.Annotations[cwsInstrumentationPodAnotationStatus] = cwsInstrumentationPodAnotationReady
 		log.Debugf("Pod %s is now instrumented for CWS", mutatecommon.PodString(pod))
 		metrics.CWSPodMutationAttempts.Inc(ci.mode.String(), "true", "")
 	} else {
@@ -770,107 +783,71 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 	return true, nil
 }
 
-func (ci *CWSInstrumentation) injectCWSPodInstrumentationInitContainer(pod *corev1.Pod) {
-	// create a new volume that will be used to share cws-instrumentation across the containers of this pod
-	injectCWSVolume(pod)
-
-	// bind mount the volume to all the containers of the pod
-	for i := range pod.Spec.Containers {
-		injectCWSVolumeMount(&pod.Spec.Containers[i])
+func (ci *CWSInstrumentation) planCWSPodInstrumentationInitContainer(session *patch.PodSession, pod *corev1.Pod) error {
+	if err := planCWSVolume(session, pod); err != nil {
+		return err
 	}
-
-	// same for other init containers
-	for i := range pod.Spec.InitContainers {
-		injectCWSVolumeMount(&pod.Spec.InitContainers[i])
+	if err := planCWSMounts(session, pod); err != nil {
+		return err
 	}
-
-	// add init container to copy cws-instrumentation in the cws volume
-	injectCWSInitContainer(pod, ci.resources, ci.image)
+	return planCWSInitContainer(session, pod, ci.resources, ci.image)
 }
-
-func (ci *CWSInstrumentation) injectCWSPodInstrumentationRemoteCopy(pod *corev1.Pod) bool {
-	// are we using a mounted volume for the remote copy ?
-	if ci.mountVolumeForRemoteCopy {
-		// create a new volume that will be used to share cws-instrumentation across the containers of this pod
-		injectCWSVolume(pod)
-
-		// bind mount the volume to all the containers of the pod
-		for i := range pod.Spec.Containers {
-			injectCWSVolumeMount(&pod.Spec.Containers[i])
-		}
-
-		// same for other init containers
-		for i := range pod.Spec.InitContainers {
-			injectCWSVolumeMount(&pod.Spec.InitContainers[i])
-		}
-
-		return true
+func (ci *CWSInstrumentation) planCWSPodInstrumentationRemoteCopy(session *patch.PodSession, pod *corev1.Pod) (bool, error) {
+	if !ci.mountVolumeForRemoteCopy {
+		return false, nil
 	}
-	return false
+	if err := planCWSVolume(session, pod); err != nil {
+		return false, err
+	}
+	if err := planCWSMounts(session, pod); err != nil {
+		return false, err
+	}
+	return true, nil
 }
-
-func injectCWSVolume(pod *corev1.Pod) {
-	volumeSource := corev1.VolumeSource{
-		EmptyDir: &corev1.EmptyDirVolumeSource{},
-	}
-
-	// make sure that the cws volume doesn't already exists
-	for i, vol := range pod.Spec.Volumes {
+func planCWSVolume(session *patch.PodSession, pod *corev1.Pod) error {
+	source := corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}
+	for _, vol := range pod.Spec.Volumes {
 		if vol.Name == cwsVolumeName {
-			// The volume exists but does it have the expected configuration ? Override just to be sure
-			pod.Spec.Volumes[i].VolumeSource = volumeSource
-			return
+			return session.ReplaceVolumeSource(cwsVolumeName, source)
 		}
 	}
-
-	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
-		Name:         cwsVolumeName,
-		VolumeSource: volumeSource,
-	})
-
-	mutatecommon.MarkVolumeAsSafeToEvictForAutoscaler(pod, cwsVolumeName)
+	if err := session.InsertVolume(corev1.Volume{Name: cwsVolumeName, VolumeSource: source}, false); err != nil {
+		return err
+	}
+	return session.MarkVolumeSafeToEvict(mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation, cwsVolumeName)
 }
-
-func injectCWSVolumeMount(container *corev1.Container) {
-	// make sure that the volume mount doesn't already exist
-	for i, mnt := range container.VolumeMounts {
-		if mnt.Name == cwsVolumeName {
-			// The volume mount exists but does it have the expected configuration ? Override just to be sure
-			container.VolumeMounts[i].MountPath = cwsMountPath
-			return
+func planCWSMounts(session *patch.PodSession, pod *corev1.Pod) error {
+	for _, group := range []struct {
+		kind       patch.ContainerKind
+		containers []corev1.Container
+	}{{patch.RegularContainers, pod.Spec.Containers}, {patch.InitContainers, pod.Spec.InitContainers}} {
+		for _, container := range group.containers {
+			if err := planCWSMount(session, patch.ContainerID{Kind: group.kind, Name: container.Name}, &container); err != nil {
+				return err
+			}
 		}
 	}
-
-	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
-		Name:      cwsVolumeName,
-		MountPath: cwsMountPath,
-	})
+	return nil
 }
-
-func injectCWSInitContainer(pod *corev1.Pod, resources *corev1.ResourceRequirements, image string) {
-	// check if the init container has already been added
+func planCWSMount(session *patch.PodSession, id patch.ContainerID, container *corev1.Container) error {
+	for _, mount := range container.VolumeMounts {
+		if mount.Name == cwsVolumeName {
+			return session.SetMountPath(id, cwsVolumeName, cwsMountPath)
+		}
+	}
+	return session.InsertVolumeMount(id, corev1.VolumeMount{Name: cwsVolumeName, MountPath: cwsMountPath}, false)
+}
+func planCWSInitContainer(session *patch.PodSession, pod *corev1.Pod, resources *corev1.ResourceRequirements, image string) error {
 	for _, c := range pod.Spec.InitContainers {
 		if c.Name == cwsInjectorInitContainerName {
-			// return now, the init container has already been added
-			return
+			return nil
 		}
 	}
-
-	initContainer := corev1.Container{
-		Name:    cwsInjectorInitContainerName,
-		Image:   image,
-		Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
-		VolumeMounts: []corev1.VolumeMount{
-			{
-				Name:      cwsVolumeName,
-				MountPath: cwsMountPath,
-			},
-		},
-	}
+	initContainer := corev1.Container{Name: cwsInjectorInitContainerName, Image: image, Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath}, VolumeMounts: []corev1.VolumeMount{{Name: cwsVolumeName, MountPath: cwsMountPath}}}
 	if resources != nil {
 		initContainer.Resources = *resources
 	}
-	pod.Spec.InitContainers = append([]corev1.Container{initContainer}, pod.Spec.InitContainers...)
+	return session.InsertContainer(patch.InitContainers, initContainer, true)
 }
 
 // labelSelectors returns the mutating webhook object selector based on the configuration

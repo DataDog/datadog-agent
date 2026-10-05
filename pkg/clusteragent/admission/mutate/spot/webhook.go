@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 )
 
@@ -119,9 +120,28 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 }
 
 func (w *Webhook) podCreated(request *admission.Request) *admiv1.AdmissionResponse {
-	return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(),
-		func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
-			return w.handler.PodCreated(pod)
+	return common.MutationResponse(mutatecommon.MutateWithPatch(request.Object, request.Namespace, w.Name(),
+		func(session *patch.PodSession, _ string, _ dynamic.Interface) (bool, error) {
+			pod, err := session.Snapshot()
+			if err != nil {
+				return false, err
+			}
+			placement, err := w.handler.PlanPlacement(pod)
+			if err != nil || placement == nil {
+				return false, err
+			}
+			if err := session.SetNodeSelectors(placement.NodeSelector, false); err != nil {
+				return false, err
+			}
+			for _, toleration := range placement.Tolerations {
+				if err := session.AppendToleration(toleration); err != nil {
+					return false, err
+				}
+			}
+			if err := session.SetLabels(placement.Labels, false); err != nil {
+				return false, err
+			}
+			return true, nil
 		}, request.DynamicClient))
 }
 

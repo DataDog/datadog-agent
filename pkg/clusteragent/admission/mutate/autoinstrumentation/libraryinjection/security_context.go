@@ -58,3 +58,10 @@ func resolveInitSecurityContext(cfg LibraryInjectionConfig, nsName string) *core
 
 	return nil
 }
+
+func lookupNamespace(cfg LibraryInjectionConfig, pod *corev1.Pod) string {
+	if pod.Namespace != "" {
+		return pod.Namespace
+	}
+	return cfg.Namespace
+}

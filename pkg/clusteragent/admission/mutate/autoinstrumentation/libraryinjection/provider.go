@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/version"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 )
 
 // MutationStatus represents the outcome of a mutation operation.
@@ -31,7 +32,7 @@ const (
 )
 
 // MutationContext contains data to pass between injection calls.
-// This allows InjectInjector to compute values that InjectLibrary can reuse.
+// This allows PlanInjector to compute values that PlanLibrary can reuse.
 type MutationContext struct {
 	// ResourceRequirements are the computed resource requirements for init containers.
 	ResourceRequirements corev1.ResourceRequirements
@@ -64,13 +65,15 @@ type LibraryConfig struct {
 	Package LibraryImage
 	// ContainerName is the target container name (empty means all containers).
 	ContainerName string
-	// Context contains data from a previous InjectInjector call.
+	// Context contains data from a previous PlanInjector call.
 	// This is used to pass computed values like resource requirements and security context.
 	Context MutationContext
 }
 
 // LibraryInjectionConfig contains all configuration needed to perform APM library injection.
 type LibraryInjectionConfig struct {
+	// Namespace is the admission lookup namespace; it is not an implicit Pod edit.
+	Namespace string
 	// InjectionMode determines the method for injecting libraries into pods.
 	// Possible values: "auto" (default), "init_container" and "csi".
 	InjectionMode string
@@ -137,15 +140,15 @@ type LibraryInjectionConfig struct {
 // - CSIProvider: Uses a CSI driver to mount library files
 // - ImageVolumeProvider: Uses Kubernetes image volumes to mount library files
 type LibraryInjectionProvider interface {
-	// InjectInjector mutates the pod to add the APM injector component.
+	// PlanInjector mutates the pod to add the APM injector component.
 	// The injector is responsible for the LD_PRELOAD mechanism that enables auto-instrumentation.
 	// It adds volumes, volume mounts, and optionally init containers to the pod.
-	InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult
+	PlanInjector(session *patch.PodSession, cfg InjectorConfig) MutationResult
 
-	// InjectLibrary mutates the pod to add a language-specific tracing library.
+	// PlanLibrary mutates the pod to add a language-specific tracing library.
 	// It adds volumes, volume mounts, and optionally init containers for the library.
 	// Returns MutationStatusError if the language is not supported.
-	InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) MutationResult
+	PlanLibrary(session *patch.PodSession, cfg LibraryConfig) MutationResult
 
 	// GetName returns the effective injection mode used by this provider.
 	// For AutoProvider, this reflects the resolved concrete mode suffixed with " (auto)"

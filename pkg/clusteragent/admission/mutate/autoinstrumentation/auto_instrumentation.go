@@ -12,6 +12,8 @@ package autoinstrumentation
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/version"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
@@ -19,8 +21,6 @@ import (
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
-
-	"k8s.io/apimachinery/pkg/version"
 )
 
 // NewAutoInstrumentation is a helper function to create a fully initialized webhook for SSI. Our webhook is made up of
@@ -44,7 +44,7 @@ func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.C
 	// For auto instrumentation, we need all the mutators to be applied for SSI to function. Specifically, we need
 	// things like the Datadog socket to be mounted from the config webhook and the DD_ENV, DD_SERVICE, and DD_VERSION
 	// env vars to be set from labels if they are available..
-	mutator := mutatecommon.NewMutators(
+	mutator := mutatecommon.NewPatchMutators(
 		tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), apm),
 		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), apm),
 		apm,

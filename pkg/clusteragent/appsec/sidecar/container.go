@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 )
 
@@ -236,24 +237,34 @@ func BuildExtProcProcessorContainerUDS(config appsecconfig.Sidecar) corev1.Conta
 // EnsureSharedSocketVolume appends the shared emptyDir UDS volume to the pod if absent.
 // Idempotent: calling it twice does not duplicate the volume.
 // Returns SharedSocketVolumeName.
-func EnsureSharedSocketVolume(pod *corev1.Pod) string {
+func PlanSharedSocketVolume(session *patch.PodSession) (string, error) {
+	pod, err := session.Snapshot()
+	if err != nil {
+		return "", err
+	}
 	for _, v := range pod.Spec.Volumes {
 		if v.Name == SharedSocketVolumeName {
-			return SharedSocketVolumeName
+			return SharedSocketVolumeName, nil
 		}
 	}
-	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+	if err := session.InsertVolume(corev1.Volume{
 		Name: SharedSocketVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
-	})
-	return SharedSocketVolumeName
+	}, false); err != nil {
+		return "", err
+	}
+	return SharedSocketVolumeName, nil
 }
 
 // MountSocketIntoContainer adds a VolumeMount for volumeName at mountDir to the named container.
 // Returns an error if the container is not found. Idempotent: does not add a duplicate mount.
-func MountSocketIntoContainer(pod *corev1.Pod, containerName, volumeName, mountDir string) error {
+func PlanSocketMount(session *patch.PodSession, containerName, volumeName, mountDir string) error {
+	pod, err := session.Snapshot()
+	if err != nil {
+		return err
+	}
 	for i := range pod.Spec.Containers {
 		if pod.Spec.Containers[i].Name != containerName {
 			continue
@@ -266,11 +277,10 @@ func MountSocketIntoContainer(pod *corev1.Pod, containerName, volumeName, mountD
 				return fmt.Errorf("mount path %q in container %q is already used by volume %q", mountDir, containerName, vm.Name)
 			}
 		}
-		pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{
+		return session.InsertVolumeMount(patch.ContainerID{Kind: patch.RegularContainers, Name: containerName}, corev1.VolumeMount{
 			Name:      volumeName,
 			MountPath: mountDir,
-		})
-		return nil
+		}, false)
 	}
 	return fmt.Errorf("container %q not found in pod", containerName)
 }
@@ -278,14 +288,3 @@ func MountSocketIntoContainer(pod *corev1.Pod, containerName, volumeName, mountD
 // EnsureSocketFSGroup sets the pod security context FSGroup to gid if it is not already set.
 // Also sets FSGroupChangePolicy to OnRootMismatch when the FSGroup is first applied.
 // Does not clobber a pre-existing FSGroup value. Idempotent.
-func EnsureSocketFSGroup(pod *corev1.Pod, gid int64) {
-	if pod.Spec.SecurityContext == nil {
-		pod.Spec.SecurityContext = &corev1.PodSecurityContext{}
-	}
-	if pod.Spec.SecurityContext.FSGroup != nil {
-		return
-	}
-	policy := corev1.FSGroupChangeOnRootMismatch
-	pod.Spec.SecurityContext.FSGroup = &gid
-	pod.Spec.SecurityContext.FSGroupChangePolicy = &policy
-}

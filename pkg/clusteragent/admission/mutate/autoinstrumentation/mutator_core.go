@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -45,11 +46,11 @@ func newMutatorCore(config *Config, wmeta workloadmeta.Component, imageResolver 
 	}
 }
 
-func (m *mutatorCore) mutatePodContainers(pod *corev1.Pod, cm containerMutator, includeInitContainers bool) error {
-	return mutatePodContainers(pod, filteredContainerMutator(m.config.containerFilter, cm), includeInitContainers)
+func (m *mutatorCore) planContainers(session *patch.PodSession, cm containerMutator, includeInitContainers bool) error {
+	return planPodContainers(session, filteredContainerMutator(m.config.containerFilter, cm), includeInitContainers)
 }
 
-func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo) error {
+func (m *mutatorCore) planTracers(session *patch.PodSession, config extractedPodLibInfo, namespace string) error {
 	if len(config.libs) == 0 {
 		return nil
 	}
@@ -63,7 +64,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		// Injects DD_INSTRUMENTATION_INSTALL_TYPE, DD_INSTRUMENTATION_INSTALL_TIME, DD_INSTRUMENTATION_INSTALL_ID
 		m.kpiEnvVarsMutator(config),
 		// Injects APM injector + language-specific library init containers, volumes, and env vars
-		m.apmInjectionMutator(config, autoDetected, injectionType),
+		m.apmInjectionMutator(config, autoDetected, injectionType, namespace),
 		// Injects DD_VERSION and DD_ENV from pod labels/annotations (SSI only)
 		m.ustEnvVarsPodMutator(config),
 		// Injects language detection annotations
@@ -73,7 +74,10 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		// Injects default library config for SSI matches
 		m.defaultLibConfigMutator(config),
 	} {
-		if err := mutator.mutatePod(pod); err != nil {
+		if err := mutator.planPod(session); err != nil {
+			if session.Err() != nil {
+				return session.Err()
+			}
 			lastError = err
 		}
 	}
@@ -84,23 +88,39 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 // kpiEnvVarsMutator returns a mutator that injects KPI-related env vars.
 // (DD_INSTRUMENTATION_INSTALL_TYPE, DD_INSTRUMENTATION_INSTALL_TIME, DD_INSTRUMENTATION_INSTALL_ID)
 func (m *mutatorCore) kpiEnvVarsMutator(config extractedPodLibInfo) podMutator {
-	return podMutatorFunc(func(pod *corev1.Pod) error {
-		return m.mutatePodContainers(pod, config.source.containerMutator(), true)
+	return podMutatorFunc(func(session *patch.PodSession) error {
+		return m.planContainers(session, config.source.containerMutator(), true)
 	})
 }
 
 // apmInjectionMutator returns a mutator that injects the APM injector and language-specific libraries.
-func (m *mutatorCore) apmInjectionMutator(config extractedPodLibInfo, autoDetected bool, injectionType string) podMutator {
-	return podMutatorFunc(func(pod *corev1.Pod) error {
+func (m *mutatorCore) apmInjectionMutator(config extractedPodLibInfo, autoDetected bool, injectionType string, namespace string) podMutator {
+	return podMutatorFunc(func(session *patch.PodSession) error {
+		pod, err := session.Snapshot()
+		if err != nil {
+			return err
+		}
+		if pod.Namespace == "" {
+			pod.Namespace = namespace
+		}
 		injectionCfg, err := m.buildLibraryInjectionConfig(pod, config, autoDetected, injectionType)
 		if err != nil {
 			log.Warnf("Skipping APM library injection for pod %s: %s", mutatecommon.PodString(pod), err)
-			annotation.Set(pod, annotation.InjectionError, err.Error())
-			annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusSkipped)
+
+			if err := annotation.SetPatch(session, annotation.InjectionError, err.Error()); err != nil {
+				return err
+			}
+
+			if err := annotation.SetPatch(session, annotation.InjectionStatus, annotation.InjectionStatusSkipped); err != nil {
+				return err
+			}
 			return nil
 		}
 
-		if err := libraryinjection.InjectAPMLibraries(pod, injectionCfg); err != nil {
+		if err := libraryinjection.PlanAPMLibraries(session, injectionCfg); err != nil {
+			if session.Err() != nil {
+				return session.Err()
+			}
 			// Per-library failures (unsupported language, injection error) are non-fatal
 			// at the webhook level: the outcome is already recorded in the pod annotations
 			// and returning an error here would cause Mutate to discard the entire patch,
@@ -135,6 +155,7 @@ func (m *mutatorCore) buildLibraryInjectionConfig(pod *corev1.Pod, config extrac
 
 	return libraryinjection.LibraryInjectionConfig{
 		InjectionMode:               m.config.Instrumentation.InjectionMode,
+		Namespace:                   pod.Namespace,
 		DefaultResourceRequirements: m.config.defaultResourceRequirements,
 		InitSecurityContext:         m.config.initSecurityContext,
 		ContainerFilter:             m.config.containerFilter,
@@ -219,13 +240,17 @@ func (m *mutatorCore) resolveLibraryImage(lib libInfo) libraryinjection.LibraryI
 // the corresponding env vars. Reads config for each injected language + "all".
 // This allows users to customize library behavior via annotations.
 func (m *mutatorCore) libConfigFromAnnotationsMutator(config extractedPodLibInfo, autoDetected bool, injectionType string) podMutator {
-	return podMutatorFunc(func(pod *corev1.Pod) error {
+	return podMutatorFunc(func(session *patch.PodSession) error {
+		pod, err := session.Snapshot()
+		if err != nil {
+			return err
+		}
 		configInjector := &libConfigInjector{}
 		var lastError error
 
 		// Inject config for each language
 		for _, lib := range config.libs {
-			if err := configInjector.podMutator(lib.lang).mutatePod(pod); err != nil {
+			if err := configInjector.podMutator(lib.lang).planPod(session); err != nil {
 				metrics.LibInjectionErrors.Inc(string(lib.lang), strconv.FormatBool(autoDetected), injectionType)
 				log.Errorf("Cannot inject library configuration for %s into pod %s: %s", lib.lang, mutatecommon.PodString(pod), err)
 				lastError = err
@@ -233,7 +258,7 @@ func (m *mutatorCore) libConfigFromAnnotationsMutator(config extractedPodLibInfo
 		}
 
 		// Inject config for "all" languages
-		if err := configInjector.podMutator(language("all")).mutatePod(pod); err != nil {
+		if err := configInjector.podMutator(language("all")).planPod(session); err != nil {
 			metrics.LibInjectionErrors.Inc("all", strconv.FormatBool(autoDetected), injectionType)
 			log.Errorf("Cannot inject library configuration into pod %s: %s", mutatecommon.PodString(pod), err)
 			lastError = err
@@ -248,26 +273,33 @@ func (m *mutatorCore) libConfigFromAnnotationsMutator(config extractedPodLibInfo
 // Defaults: DD_TRACE_ENABLED=true, DD_LOGS_INJECTION=true,
 // DD_TRACE_HEALTH_METRICS_ENABLED=true, DD_RUNTIME_METRICS_ENABLED=true.
 func (m *mutatorCore) defaultLibConfigMutator(config extractedPodLibInfo) podMutator {
-	return podMutatorFunc(func(pod *corev1.Pod) error {
+	return podMutatorFunc(func(session *patch.PodSession) error {
 		if !config.source.isSingleStep() {
 			return nil
 		}
 
-		return m.mutatePodContainers(pod, basicLibConfigInjector{}.containerMutator(), true)
+		return m.planContainers(session, basicLibConfigInjector{}.containerMutator(), true)
 	})
 }
 
 // ustEnvVarsPodMutator returns a mutator that injects UST env vars (DD_VERSION, DD_ENV) to filtered containers.
 func (m *mutatorCore) ustEnvVarsPodMutator(config extractedPodLibInfo) podMutator {
-	return podMutatorFunc(func(pod *corev1.Pod) error {
-		return m.mutatePodContainers(pod, m.ustEnvVarMutator(pod, config), true)
+	return podMutatorFunc(func(session *patch.PodSession) error {
+		pod, err := session.Snapshot()
+		if err != nil {
+			return err
+		}
+		return m.planContainers(session, m.ustEnvVarMutator(pod, config), true)
 	})
 }
 
 // languageDetectionMutator returns a mutator that applies language detection mutations to filtered containers.
 func (m *mutatorCore) languageDetectionMutator(config extractedPodLibInfo) podMutator {
-	return podMutatorFunc(func(pod *corev1.Pod) error {
-		return m.mutatePodContainers(pod, config.languageDetection.containerMutator(), false)
+	return podMutatorFunc(func(session *patch.PodSession) error {
+		if config.languageDetection == nil {
+			return nil
+		}
+		return m.planContainers(session, config.languageDetection.containerMutator(), false)
 	})
 }
 
@@ -305,10 +337,8 @@ func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod, config extractedPodLibIn
 		return mutators
 	}
 
-	for tag, envVarName := range map[string]string{
-		tags.Version: kubernetes.VersionTagEnvVar,
-		tags.Env:     kubernetes.EnvTagEnvVar,
-	} {
+	for _, mapping := range []struct{ tag, env string }{{tags.Version, kubernetes.VersionTagEnvVar}, {tags.Env, kubernetes.EnvTagEnvVar}} {
+		tag, envVarName := mapping.tag, mapping.env
 		if mutator := ustEnvVarMutatorForPodMeta(pod, m.config.podMetaAsTags, tag, envVarName); mutator != nil {
 			mutators = append(mutators, mutator)
 		}
@@ -386,7 +416,11 @@ type libInfoLanguageDetection struct {
 }
 
 func (l *libInfoLanguageDetection) containerMutator() containerMutator {
-	return containerMutatorFunc(func(c *corev1.Container) error {
+	return containerMutatorFunc(func(session *patch.PodSession, id patch.ContainerID) error {
+		c, err := snapshotContainer(session, id)
+		if err != nil {
+			return err
+		}
 		if l == nil {
 			return nil
 		}
@@ -411,7 +445,7 @@ func (l *libInfoLanguageDetection) containerMutator() containerMutator {
 				key:     "DD_INSTRUMENTATION_LANGUAGE_DETECTION_INJECTION_ENABLED",
 				valFunc: identityValFunc(strconv.FormatBool(l.injectionEnabled)),
 			},
-		}).mutateContainer(c); err != nil {
+		}).planContainer(session, id); err != nil {
 			return err
 		}
 

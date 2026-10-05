@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 )
 
 ////////////////////////////////
@@ -55,7 +55,7 @@ func providerIsSupported(provider string) bool {
 
 // applyProviderOverrides applies the necessary overrides for the provider
 // configured. It returns a boolean that indicates if the pod was mutated.
-func applyProviderOverrides(pod *corev1.Pod, provider string) (bool, error) {
+func planProviderOverrides(session *patch.PodSession, provider string) (bool, error) {
 
 	if !providerIsSupported(provider) {
 		return false, fmt.Errorf("unsupported provider: %v", provider)
@@ -63,7 +63,7 @@ func applyProviderOverrides(pod *corev1.Pod, provider string) (bool, error) {
 
 	switch provider {
 	case providerFargate:
-		return applyFargateOverrides(pod)
+		return planFargateOverrides(session)
 	}
 
 	return false, nil
@@ -86,49 +86,68 @@ func applyProviderOverrides(pod *corev1.Pod, provider string) (bool, error) {
 //   - Sets DD_DOGSTATSD_URL to the DogStatsD UDS path configured for the agent.
 //
 // This function returns a boolean that indicates if the pod was mutated.
-func applyFargateOverrides(pod *corev1.Pod) (bool, error) {
+func planFargateOverrides(session *patch.PodSession) (bool, error) {
+	if session == nil {
+		return false, errors.New("cannot apply provider overrides to nil session")
+	}
+	pod, err := session.Snapshot()
+	if err != nil {
+		return false, err
+	}
 	if pod == nil {
 		return false, errors.New("can't apply profile overrides to nil pod")
 	}
 
-	mutated := deleteConfigWebhookVolumesAndMounts(pod)
+	mutated, err := planDeleteConfigWebhookVolumesAndMounts(session)
+	if err != nil {
+		return false, err
+	}
 
 	volume, volumeMount := socketsVolume()
-	injectedVol, injectedMount := common.InjectVolume(pod, volume, volumeMount)
+	injectedVol, injectedMount, err := common.PatchInjectVolume(session, volume, volumeMount)
+	if err != nil {
+		return false, err
+	}
 	if injectedVol {
-		common.MarkVolumeAsSafeToEvictForAutoscaler(pod, volume.Name)
+		if err := session.MarkVolumeSafeToEvict(common.K8sAutoscalerSafeToEvictVolumesAnnotation, volume.Name); err != nil {
+			return false, err
+		}
 	}
 
 	mutated = mutated || injectedVol || injectedMount
 
 	// ShareProcessNamespace is required for the process collection feature
 	if pod.Spec.ShareProcessNamespace == nil || !*pod.Spec.ShareProcessNamespace {
-		pod.Spec.ShareProcessNamespace = pointer.Ptr(true)
+		if err := session.SetShareProcessNamespace(true); err != nil {
+			return false, err
+		}
 		mutated = true
 	}
 
-	for i := range pod.Spec.Containers {
-		if pod.Spec.Containers[i].Name == agentSidecarContainerName {
-			overridden, err := applyOverridesAgentContainer(&pod.Spec.Containers[i])
-			if err != nil {
-				return mutated, err
-			}
-			mutated = mutated || overridden
+	var ids []patch.ContainerID
+	for _, c := range pod.Spec.Containers {
+		ids = append(ids, patch.ContainerID{Kind: patch.RegularContainers, Name: c.Name})
+	}
+	if err := session.ForContainers(ids, func(id patch.ContainerID) error {
+		var overridden bool
+		var err error
+		if id.Name == agentSidecarContainerName {
+			overridden, err = planOverridesAgentContainer(session, id)
 		} else {
-			overridden, err := applyOverridesAppContainer(&pod.Spec.Containers[i])
-			if err != nil {
-				return mutated, err
-			}
-			mutated = mutated || overridden
+			overridden, err = planOverridesAppContainer(session, id)
 		}
+		mutated = mutated || overridden
+		return err
+	}); err != nil {
+		return mutated, err
 	}
 
 	return mutated, nil
 }
 
-func applyOverridesAgentContainer(container *corev1.Container) (bool, error) {
-	return withEnvOverrides(
-		container,
+func planOverridesAgentContainer(session *patch.PodSession, id patch.ContainerID) (bool, error) {
+	return planEnvOverrides(
+		session, id,
 		corev1.EnvVar{
 			Name:  "DD_EKS_FARGATE",
 			Value: "true",
@@ -144,9 +163,9 @@ func applyOverridesAgentContainer(container *corev1.Container) (bool, error) {
 	)
 }
 
-func applyOverridesAppContainer(container *corev1.Container) (bool, error) {
-	return withEnvOverrides(
-		container,
+func planOverridesAppContainer(session *patch.PodSession, id patch.ContainerID) (bool, error) {
+	return planEnvOverrides(
+		session, id,
 		corev1.EnvVar{
 			Name:  "DD_TRACE_AGENT_URL",
 			Value: "unix://" + apmSocket,
@@ -180,38 +199,40 @@ func socketsVolume() (corev1.Volume, corev1.VolumeMount) {
 // deleteConfigWebhookVolumesAndMounts deletes the volume and volumeMounts added
 // by the config webhook. Returns a boolean that indicates if the pod was
 // mutated.
-func deleteConfigWebhookVolumesAndMounts(pod *corev1.Pod) bool {
-	originalNumberOfVolumes := len(pod.Spec.Volumes)
-	// Delete the volume added by the config webhook
-	pod.Spec.Volumes = slices.DeleteFunc(
-		pod.Spec.Volumes,
-		func(volume corev1.Volume) bool {
-			return slices.Contains(volumeNamesInjectedByConfigWebhook, volume.Name)
-		},
-	)
-	mutated := len(pod.Spec.Volumes) != originalNumberOfVolumes
-
-	deleted := deleteConfigWebhookVolumeMounts(pod.Spec.Containers)
-	mutated = mutated || deleted
-
-	deleted = deleteConfigWebhookVolumeMounts(pod.Spec.InitContainers)
-	mutated = mutated || deleted
-
-	return mutated
-}
-
-// deleteConfigWebhookVolumeMounts deletes the volumeMounts added by the config
-// webhook. Returns a boolean that indicates if the pod was mutated.
-func deleteConfigWebhookVolumeMounts(containers []corev1.Container) bool {
-	mutated := false
-
-	for i, container := range containers {
-		originalNumberOfVolMounts := len(container.VolumeMounts)
-		containers[i].VolumeMounts = slices.DeleteFunc(container.VolumeMounts, func(volMount corev1.VolumeMount) bool {
-			return slices.Contains(volumeNamesInjectedByConfigWebhook, volMount.Name)
-		})
-		mutated = mutated || len(container.VolumeMounts) != originalNumberOfVolMounts
+func planDeleteConfigWebhookVolumesAndMounts(session *patch.PodSession) (bool, error) {
+	pod, err := session.Snapshot()
+	if err != nil {
+		return false, err
 	}
-
-	return mutated
+	mutated := false
+	for _, volume := range pod.Spec.Volumes {
+		if slices.Contains(volumeNamesInjectedByConfigWebhook, volume.Name) {
+			mutated = true
+		}
+	}
+	if err := session.RemoveVolumes(volumeNamesInjectedByConfigWebhook...); err != nil {
+		return false, err
+	}
+	for _, group := range []struct {
+		kind       patch.ContainerKind
+		containers []corev1.Container
+	}{{patch.RegularContainers, pod.Spec.Containers}, {patch.InitContainers, pod.Spec.InitContainers}} {
+		for _, container := range group.containers {
+			selected := false
+			for _, mount := range container.VolumeMounts {
+				if slices.Contains(volumeNamesInjectedByConfigWebhook, mount.Name) {
+					selected = true
+					break
+				}
+			}
+			if !selected {
+				continue
+			}
+			mutated = true
+			if err := session.RemoveVolumeMounts(patch.ContainerID{Kind: group.kind, Name: container.Name}, volumeNamesInjectedByConfigWebhook...); err != nil {
+				return false, err
+			}
+		}
+	}
+	return mutated, nil
 }

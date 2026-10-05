@@ -263,7 +263,7 @@ uses lazy initialization:
 	# Lazy (SIDECAR mode)
 	Start() → Detect proxies → Register webhook → [Wait for pod]
 	                                             ↓
-	Pod created → MutatePod() → Create config lazily (idempotent)
+	Pod created → PlanPod() → Create config lazily (idempotent)
 	                               ↓
 	              Inject container → Return modified pod
 
@@ -305,7 +305,7 @@ The wrapper:
   - Embeds the EXTERNAL mode pattern for proxy configuration logic
   - Implements SidecarInjectionPattern interface for pod injection
   - Delegates Added() calls to no-op (lazy initialization)
-  - Creates config during MutatePod() by calling the embedded pattern
+  - Creates config during PlanPod() by calling the embedded pattern
   - Leaves PodDeleted() as a no-op; Gateway-informer Deleted() handles cleanup when the last Gateway in the namespace is removed
 
 This design maximizes code reuse while maintaining clear separation between deployment modes.
@@ -363,7 +363,7 @@ For Envoy Gateway in SIDECAR mode:
 Sidecar Data Flow and Invariants:
   - The webhook injects the sidecar container and a shared emptyDir volume (datadog-appsec-uds) mounted into both the injected sidecar and the envoy container.
   - Pod fsGroup and sidecar runAsUser are set to 65532 to ensure shared-socket access.
-  - The Gateway informer does not eagerly create sidecar-mode resources on Gateway add; MutatePod lazily creates a Backend (UDS) and an EnvoyExtensionPolicy in the Gateway's namespace on first matching pod injection.
+  - The Gateway informer does not eagerly create sidecar-mode resources on Gateway add; PlanPod lazily creates a Backend (UDS) and an EnvoyExtensionPolicy in the Gateway's namespace on first matching pod injection.
   - Since the Backend is in the same namespace as the EnvoyExtensionPolicy, no ReferenceGrant is created (the no-ReferenceGrant invariant).
   - The extensionApis.enableBackend Envoy Gateway prerequisite is detected and warned about if disabled (the cluster-agent does not modify Envoy Gateway config).
   - The default injector mode is sidecar, so appsec-enabled Envoy Gateways default to sidecar injection.
@@ -612,7 +612,7 @@ The package emits telemetry metrics:
     Tags: proxy_type, operation, success
 
   - appsec_injector.sidecar_mutations: Counter tracking sidecar injection outcomes on the
-    CREATE (MutatePod) admission path, emitted once per admission for a pod owned by a sidecar
+    CREATE (PlanPod) admission path, emitted once per admission for a pod owned by a sidecar
     pattern. Not emitted on DELETE (pod deletion is a no-op).
     Tags: proxy_type, outcome, reason
 
