@@ -96,6 +96,7 @@ func TestBuildCRIOLayerPaths(t *testing.T) {
 }
 
 func TestFakeCRIOContainerConfigFile(t *testing.T) {
+	created := time.Date(2026, time.June, 2, 5, 4, 37, 326772648, time.UTC)
 	layerCreated := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
 
 	// One history entry for two diff_ids: what the collector produces from a
@@ -103,6 +104,7 @@ func TestFakeCRIOContainerConfigFile(t *testing.T) {
 	imgMeta := &workloadmeta.ContainerImageMetadata{
 		Architecture: "amd64",
 		OS:           "linux",
+		Created:      created,
 		Layers: []workloadmeta.ContainerImageLayer{
 			{
 				DiffID:  "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -121,6 +123,7 @@ func TestFakeCRIOContainerConfigFile(t *testing.T) {
 	configFile, err := ctr.ConfigFile()
 	require.NoError(t, err)
 
+	assert.Equal(t, created, configFile.Created.Time)
 	require.Len(t, configFile.History, 2)
 	assert.Equal(t, "step one", configFile.History[0].CreatedBy)
 	assert.Equal(t, layerCreated, configFile.History[0].Created.Time)
