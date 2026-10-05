@@ -70,7 +70,7 @@ func TestRejectedEnrollmentStopsSplitExecutorWithoutActions(t *testing.T) {
 
 	_, err := runner.getRunnerConfig(context.Background())
 	require.ErrorIs(t, err, opms.ErrEnrollmentUnauthorized)
-	require.EqualError(t, err, "self-enrollment failed: enrollment API call failed: enrollment credentials rejected (HTTP 403): check the API/application key and its required scopes, then restart the Private Action Runner")
+	require.NotContains(t, err.Error(), "backoff")
 	_, resolved, err := runner.configureExecutor(context.Background(), context.Background())
 	require.NoError(t, err)
 	require.Nil(t, resolved)

@@ -31,8 +31,7 @@ type RetryHTTPOptions struct {
 //
 // 4xx responses are treated as permanent (no retry) since they typically
 // indicate a non-transient client problem (bad credentials, malformed payload).
-// Transport errors and 5xx responses are retried. On a permanent failure the
-// error returned by op is returned as-is, without backoff's wrapper.
+// Transport errors and 5xx responses are retried.
 func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opts RetryHTTPOptions) (T, error) {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = opts.InitialInterval
