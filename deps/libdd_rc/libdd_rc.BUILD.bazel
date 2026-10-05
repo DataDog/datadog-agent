@@ -20,6 +20,13 @@ proto_library(
 )
 
 proto_library(
+    name = "remote_config_proto",
+    srcs = ["lib/rc-x509-proto/protos/magic_tunnel/remote_config/remote_config.proto"],
+    strip_import_prefix = "/lib/rc-x509-proto/protos",
+    deps = ["@protobuf//:timestamp_proto"],
+)
+
+proto_library(
     name = "protocol_proto",
     srcs = glob(["lib/rc-x509-proto/protos/protocol/*.proto"]),
     strip_import_prefix = "/lib/rc-x509-proto/protos",
@@ -42,6 +49,13 @@ go_proto_library(
 )
 
 go_proto_library(
+    name = "remote_config_go_proto",
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel/remote_config",
+    proto = ":remote_config_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
     name = "protocol_go_proto",
     importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/protocol",
     proto = ":protocol_proto",
@@ -58,6 +72,7 @@ rust_static_library(
         "lib/rc-x509-ffi/src/ctx.rs",
         "lib/rc-x509-ffi/src/io_handle.rs",
         "lib/rc-x509-ffi/src/lib.rs",
+        "lib/rc-x509-ffi/src/log_sink.rs",
     ],
     compile_data = ["lib/rc-x509-ffi/README.md"],
     crate_name = "rc_x509_ffi",
@@ -72,6 +87,7 @@ rust_static_library(
         "@libdd_rc_crates//:tokio-stream",
         "@libdd_rc_crates//:tokio-util",
         "@libdd_rc_crates//:tracing",
+        "@libdd_rc_crates//:tracing-subscriber",
     ],
 )
 
@@ -143,6 +159,7 @@ go_library(
         "ffi-hosts/go/internal/libddrcffi/context.go",
         "ffi-hosts/go/internal/libddrcffi/dispatcher.go",
         "ffi-hosts/go/internal/libddrcffi/doc.go",
+        "ffi-hosts/go/internal/libddrcffi/log_sink.go",
     ],
     cdeps = [":rc_x509_ffi_cc"],
     cgo = True,
@@ -159,6 +176,7 @@ go_library(
     name = "rcx509",
     srcs = [
         "ffi-hosts/go/rcx509/client.go",
+        "ffi-hosts/go/rcx509/log_sink.go",
         "ffi-hosts/go/rcx509/session.go",
     ],
     importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcx509",

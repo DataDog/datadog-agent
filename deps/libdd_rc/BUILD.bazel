@@ -5,6 +5,8 @@ exports_files(
         "aws-lc-fips-sys-macos-linker.patch",
         "lib.rs",
         "libdd_rc.BUILD.bazel",
+        "rcx509-client-options.patch",
+        "rcx509-log-sink.patch",
     ],
     visibility = ["//visibility:public"],
 )

@@ -1,12 +1,24 @@
 package smoke
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/libdd-rc/ffi-hosts/go/rcx509"
 )
 
 func TestClientLifecycle(t *testing.T) {
+	logFile, err := os.CreateTemp(t.TempDir(), "rc-x509-log-*.txt")
+	if err != nil {
+		t.Fatalf("create rc-x509 log file: %v", err)
+	}
+	defer logFile.Close()
+
+	if err := rcx509.EnableLogSink(logFile); err != nil {
+		t.Fatalf("enable rc-x509 log sink: %v", err)
+	}
+
 	client, err := rcx509.NewClient("ws://127.0.0.1:1", "datadog-agent", "bazel-smoke-test")
 	if err != nil {
 		t.Fatalf("initialize rc-x509 client: %v", err)
@@ -14,5 +26,16 @@ func TestClientLifecycle(t *testing.T) {
 
 	if err := client.Close(); err != nil {
 		t.Fatalf("close rc-x509 client: %v", err)
+	}
+
+	if err := logFile.Sync(); err != nil {
+		t.Fatalf("sync rc-x509 log file: %v", err)
+	}
+	logOutput, err := os.ReadFile(logFile.Name())
+	if err != nil {
+		t.Fatalf("read rc-x509 log file: %v", err)
+	}
+	if !strings.Contains(string(logOutput), "starting rc-x509-client instance") {
+		t.Fatalf("rc-x509 lifecycle log not written to configured sink: %q", logOutput)
 	}
 }
