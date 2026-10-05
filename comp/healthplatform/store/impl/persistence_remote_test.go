@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/assert"
@@ -195,10 +196,33 @@ func TestRemoteIssueLoaderLoadRequiresResourceID(t *testing.T) {
 	loader := newTestRemoteIssueLoader(t, " ", remoteIssuesNodeAgentType, func(http.ResponseWriter, *http.Request) {
 		t.Fatal("request should not be sent")
 	})
+	loader.resourceIDRetryInterval = time.Millisecond
+	loader.resourceIDResolveTimeout = 10 * time.Millisecond
 
 	snapshot, err := loader.load(context.Background())
 	assert.Nil(t, snapshot)
 	assert.ErrorContains(t, err, "resource ID is required")
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestRemoteIssueLoaderLoadRetriesResourceID(t *testing.T) {
+	const resourceID = "daemonset-uid"
+	loader := newTestRemoteIssueLoader(t, resourceID, remoteIssuesNodeAgentType, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(snapshotResponse(t, resourceID, []remoteIssue{}))
+	})
+	var calls atomic.Int32
+	loader.resourceID = func() string {
+		if calls.Add(1) == 1 {
+			return ""
+		}
+		return resourceID
+	}
+	loader.resourceIDRetryInterval = time.Millisecond
+
+	snapshot, err := loader.load(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, snapshot)
+	assert.Equal(t, int32(2), calls.Load())
 }
 
 func TestRemoteIssueLoaderLoadRequiresHTTPS(t *testing.T) {
