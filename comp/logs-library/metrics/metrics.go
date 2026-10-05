@@ -115,6 +115,12 @@ var (
 	// TlmCharacterizationIngressBytes counts content bytes observed at pipeline ingress.
 	TlmCharacterizationIngressBytes = telemetryimpl.GetCompatComponent().NewCounter("logs_characterization", "ingress_bytes",
 		[]string{"source_type", "pipeline"}, "Content bytes observed at Logs pipeline ingress")
+	// TlmCharacterizationPayloadFamilyEvents counts allowlisted structural payload families.
+	TlmCharacterizationPayloadFamilyEvents = telemetryimpl.GetCompatComponent().NewCounter("logs_characterization", "payload_family_events",
+		[]string{"payload_family", "pipeline"}, "Messages by bounded structural payload-family classification")
+	// TlmCharacterizationPayloadFamilyBytes counts content bytes by allowlisted structural payload family.
+	TlmCharacterizationPayloadFamilyBytes = telemetryimpl.GetCompatComponent().NewCounter("logs_characterization", "payload_family_bytes",
+		[]string{"payload_family", "pipeline"}, "Content bytes by bounded structural payload-family classification")
 	// TlmCharacterizationMessageSizes records content size at pipeline ingress.
 	TlmCharacterizationMessageSizes = telemetryimpl.GetCompatComponent().NewHistogram("logs_characterization", "message_sizes",
 		[]string{"source_type", "pipeline"}, "Distribution of message content sizes at Logs pipeline ingress", []float64{32, 128, 512, 2048, 8192, 32768, 131072, 524288, 2097152})

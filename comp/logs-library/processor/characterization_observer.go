@@ -6,6 +6,7 @@
 package processor
 
 import (
+	"bytes"
 	"hash/maphash"
 	"strconv"
 	"sync"
@@ -18,19 +19,27 @@ import (
 const (
 	characterizationQueueSize   = 1024
 	characterizationSourceLimit = 4096
+	characterizationScanLimit   = 4096
+)
+
+var (
+	datadogSourceKey = []byte(`"ddsource"`)
+	messageKey       = []byte(`"message"`)
+	httpMarker       = []byte(` HTTP/`)
 )
 
 type characterizationObservation struct {
-	contentBytes int
-	rawBytes     int
-	tagCount     int
-	tagBytes     int
-	sourceType   string
-	pipeline     string
-	hasService   bool
-	hasSource    bool
-	sourceHash   uint64
-	hasSourceID  bool
+	contentBytes  int
+	rawBytes      int
+	tagCount      int
+	tagBytes      int
+	sourceType    string
+	pipeline      string
+	payloadFamily string
+	hasService    bool
+	hasSource     bool
+	sourceHash    uint64
+	hasSourceID   bool
 }
 
 type characterizationSourceIdentity struct {
@@ -86,6 +95,8 @@ func (o *characterizationObserver) record(observation characterizationObservatio
 	hasSource := strconv.FormatBool(observation.hasSource)
 	metrics.TlmCharacterizationIngressEvents.Inc(observation.sourceType, observation.pipeline, hasService, hasSource)
 	metrics.TlmCharacterizationIngressBytes.Add(float64(observation.contentBytes), observation.sourceType, observation.pipeline)
+	metrics.TlmCharacterizationPayloadFamilyEvents.Inc(observation.payloadFamily, observation.pipeline)
+	metrics.TlmCharacterizationPayloadFamilyBytes.Add(float64(observation.contentBytes), observation.payloadFamily, observation.pipeline)
 	metrics.TlmCharacterizationMessageSizes.Observe(float64(observation.contentBytes), observation.sourceType, observation.pipeline)
 	metrics.TlmCharacterizationRawSizes.Observe(float64(observation.rawBytes), observation.sourceType, observation.pipeline)
 	metrics.TlmCharacterizationTagCounts.Observe(float64(observation.tagCount), observation.sourceType, observation.pipeline)
@@ -114,10 +125,11 @@ func (o *characterizationObserver) recordSource(observation characterizationObse
 
 func makeCharacterizationObservation(msg *message.Message, pipeline string, sourceSeed maphash.Seed) characterizationObservation {
 	observation := characterizationObservation{
-		contentBytes: len(msg.GetContent()),
-		rawBytes:     msg.RawDataLen,
-		sourceType:   characterizationSourceType(msg),
-		pipeline:     pipeline,
+		contentBytes:  len(msg.GetContent()),
+		rawBytes:      msg.RawDataLen,
+		sourceType:    characterizationSourceType(msg),
+		pipeline:      pipeline,
+		payloadFamily: characterizationPayloadFamily(msg.GetContent()),
 	}
 	if msg.Origin != nil {
 		observation.tagCount, observation.tagBytes = msg.Origin.TagMetadataStats(msg.ParsingExtra.Tags)
@@ -140,6 +152,32 @@ func characterizationSourceHash(msg *message.Message, seed maphash.Seed) (uint64
 		return 0, false
 	}
 	return maphash.String(seed, identifier), true
+}
+
+func characterizationPayloadFamily(content []byte) string {
+	end := min(len(content), characterizationScanLimit)
+	sample := content[:end]
+	start := 0
+	for start < len(sample) && (sample[start] == ' ' || sample[start] == '\t' || sample[start] == '\r' || sample[start] == '\n') {
+		start++
+	}
+	sample = sample[start:]
+	if len(sample) == 0 {
+		return "empty"
+	}
+	switch sample[0] {
+	case '{':
+		if bytes.Contains(sample, datadogSourceKey) && bytes.Contains(sample, messageKey) {
+			return "datadog_json"
+		}
+		return "json"
+	case '[':
+		return "json"
+	}
+	if sample[0] >= '0' && sample[0] <= '9' && bytes.Contains(sample, httpMarker) {
+		return "apache_common"
+	}
+	return "plain"
 }
 
 func characterizationSourceType(msg *message.Message) string {

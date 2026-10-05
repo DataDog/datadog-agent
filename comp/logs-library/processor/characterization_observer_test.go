@@ -34,6 +34,7 @@ func TestMakeCharacterizationObservation(t *testing.T) {
 	require.Equal(t, len("env:test,parser:tag"), observation.tagBytes)
 	require.Equal(t, config.FileType, observation.sourceType)
 	require.Equal(t, "2", observation.pipeline)
+	require.Equal(t, "plain", observation.payloadFamily)
 	require.True(t, observation.hasService)
 	require.True(t, observation.hasSource)
 }
@@ -82,4 +83,20 @@ func TestCharacterizationSourceCardinalityIsBoundedAndDoesNotRetainIdentifiers(t
 		sourceType: config.FileType, pipeline: "1", sourceHash: ^uint64(0), hasSourceID: true,
 	})
 	require.Len(t, observer.sourceIDs, characterizationSourceLimit)
+}
+
+func TestCharacterizationPayloadFamilyIsAllowlistedAndScanBounded(t *testing.T) {
+	tests := map[string]string{
+		"":                                       "empty",
+		"hello":                                  "plain",
+		` {"id": 1}`:                             "json",
+		`[{"id": 1}]`:                            "json",
+		`{"message":"hello","ddsource":"nginx"}`: "datadog_json",
+		`127.0.0.1 - - [date] "GET / HTTP/1.1" 200 1`: "apache_common",
+	}
+	for content, expected := range tests {
+		require.Equal(t, expected, characterizationPayloadFamily([]byte(content)))
+	}
+	content := append(make([]byte, characterizationScanLimit), []byte(`{"message":"hidden","ddsource":"hidden"}`)...)
+	require.Equal(t, "plain", characterizationPayloadFamily(content))
 }
