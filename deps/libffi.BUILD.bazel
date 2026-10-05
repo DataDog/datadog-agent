@@ -252,12 +252,18 @@ cc_library(
         "//conditions:default": [],
     }),
     includes = ["."],
+    # CPython links this static archive into shared extension modules such as
+    # _ctypes, so Linux objects must be position-independent even when Bazel
+    # materializes the non-PIC archive for rules_foreign_cc.
     copts = ["-O3"] +
             select({
                 # Even though -nostdinc is already set on the toolchain level
                 # we need to set it here again to avoid having errors with
                 # system headers being included using absolute paths.
-                "@platforms//os:linux": ["-nostdinc"],
+                "@platforms//os:linux": [
+                    "-fPIC",
+                    "-nostdinc",
+                ],
                 "@platforms//os:windows": [
                     "-DX86_WIN64",
                     "-DFFI_BUILDING_DLL",
