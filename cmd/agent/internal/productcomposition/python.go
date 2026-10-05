@@ -12,6 +12,7 @@ import (
 
 	pythonruntimefx "github.com/DataDog/datadog-agent/comp/collector/pythonruntime/fx-python"
 	pythondiscoveryfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer/fx-python"
+	pythonchecksfx "github.com/DataDog/datadog-agent/comp/core/gui/impl/pythonchecks/fx-python"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pythoninfofx "github.com/DataDog/datadog-agent/comp/metadata/host/impl/pythoninfo/fx-python"
 	collectorpython "github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -38,6 +39,12 @@ func collectorOptions() []fx.Option {
 func checkOptions() []fx.Option {
 	return []fx.Option{
 		pythonruntimefx.Module(),
+	}
+}
+
+func guiOptions() []fx.Option {
+	return []fx.Option{
+		pythonchecksfx.Module(),
 	}
 }
 

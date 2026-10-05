@@ -544,6 +544,7 @@ func getSharedFxOption(product command.ProductComposition) fx.Option {
 		}),
 		process.Bundle(),
 		guifx.Module(),
+		fx.Options(product.GUIOptions...),
 		agent.Bundle(jmxlogger.NewDefaultParams()),
 		fx.Provide(func(config config.Component) healthprobe.Options {
 			return healthprobe.Options{

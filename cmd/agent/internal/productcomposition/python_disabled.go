@@ -21,7 +21,12 @@ func collectorOptions() []fx.Option {
 	return nil
 }
 
+
 func checkOptions() []fx.Option {
+	return nil
+}
+
+func guiOptions() []fx.Option {
 	return nil
 }
 
