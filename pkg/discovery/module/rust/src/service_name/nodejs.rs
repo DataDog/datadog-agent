@@ -109,7 +109,7 @@ fn find_package_json_name(entry_point: &Path, ctx: &DetectionContext) -> Option<
         // Try to open the file
         if let Ok(file) = ctx.fs.open(&package_json_path) {
             // Found package.json: stop searching, whether or not it has a name
-            return parse_package_json(&file, &package_json_path).filter(|name| !name.is_empty());
+            return parse_package_json(&file, &package_json_path);
         }
         // File doesn't exist, continue searching up the directory tree
 
@@ -146,7 +146,7 @@ fn truncated_name<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::E
     d.deserialize_str(TruncatedName)
 }
 
-/// Parses package.json and extracts its "name" field, skipping other fields.
+/// Parses package.json and extracts its non-empty "name" field, skipping other fields.
 fn parse_package_json(file: &crate::fs::UnverifiedFile, path: &Path) -> Option<String> {
     file.verify(None)
         .map_err(serde_json::Error::io)
@@ -154,6 +154,7 @@ fn parse_package_json(file: &crate::fs::UnverifiedFile, path: &Path) -> Option<S
         .inspect_err(|e| log::debug!("Skipping package.json at {}: {e}", path.display()))
         .ok()
         .map(|package| package.name)
+        .filter(|name| !name.is_empty())
 }
 
 #[cfg(test)]
