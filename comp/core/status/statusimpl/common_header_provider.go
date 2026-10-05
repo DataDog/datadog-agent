@@ -76,7 +76,10 @@ func (h *headerProvider) data() map[string]interface{} {
 	data["time_nano"] = nowFunc().UnixNano()
 	data["config"] = populateConfig(h.config)
 	data["fips_status"] = populateFIPSStatus(h.config)
-	pythonVersion := h.params.PythonVersionGetFunc()
+	pythonVersion := "n/a"
+	if h.params.PythonVersionGetFunc != nil {
+		pythonVersion = h.params.PythonVersionGetFunc()
+	}
 	data["python_version"] = strings.Split(pythonVersion, " ")[0]
 	return data
 }

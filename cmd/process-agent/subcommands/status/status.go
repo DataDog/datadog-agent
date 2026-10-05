@@ -23,7 +23,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compStatus "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/process"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
@@ -79,11 +78,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(runStatus,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-				fx.Supply(
-					compStatus.Params{
-						PythonVersionGetFunc: python.GetPythonVersion,
-					},
-				),
 				core.Bundle(),
 				process.Bundle(),
 				ipcfx.ModuleReadOnly(),

@@ -46,7 +46,6 @@ go_library(
         "//comp/dogstatsd/statsd/fx",
         "//comp/serializer/logscompression/def",
         "//comp/serializer/logscompression/fx",
-        "//pkg/collector/python",
         "//pkg/compliance",
         "//pkg/config/model",
         "//pkg/config/settings",

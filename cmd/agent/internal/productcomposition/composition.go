@@ -13,5 +13,6 @@ func CoreAgent() command.ProductComposition {
 	return command.ProductComposition{
 		AutodiscoveryOptions: autodiscoveryOptions(),
 		HostMetadataOptions:  hostMetadataOptions(),
+		StatusOptions:        statusOptions(),
 	}
 }

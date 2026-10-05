@@ -16,3 +16,7 @@ func autodiscoveryOptions() []fx.Option {
 func hostMetadataOptions() []fx.Option {
 	return nil
 }
+
+func statusOptions() []fx.Option {
+	return nil
+}
