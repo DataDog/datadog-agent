@@ -1,5 +1,8 @@
 # Minimal pipeline: single job to smoke-test calling AI Gateway from CI runners.
-# See https://datadoghq.atlassian.net/wiki/spaces/AIP/pages/5402296601/AI+Gateway+FAQs#How-to-call-AI-Gateway-from-CI
+#
+# Jev (TypeSafe System One) smoke test: POST /v1/systemone with typed questions
+# (noul / choice / score), see
+# https://datadoghq.atlassian.net/wiki/spaces/AIP/pages/7265386822/AI+Gateway+Using+Jev+TypeSafe+System+One+models+on+AI+Gateway
 #
 # Notes:
 # - Token for internal service authentication is generated with authanywhere
@@ -7,6 +10,13 @@
 #   audience `rapid-ai-platform`, like in https://github.com/DataDog/dd-source/pull/291048.
 # - The gateway is reached at https://ai-gateway.us1.ddbuild.io: on EC2 CI runners
 #   authanywhere requires `--dc us1.ddbuild.io` for its AWS-backed token getter.
+# - `datadoginternal-experiments/openjev-vllm/Qwen3.6-35B-A3B` is only available in
+#   us1.staging.dog (not the CI datacenter) and is being deprecated, so this job
+#   defaults to `datadoginternal/openjev-medium`, which is served in us1.ddbuild.io.
+# - Access to these models is gated by the `ai-gateway-allow-typesafe` feature flag
+#   (targets provider, `source` header, org and user email): if the call returns 403
+#   "TypeSafe access is not enabled for this caller", ask #ai-platform to allowlist
+#   the source used below.
 
 ai_gateway_smoke_test:
   stage: test
@@ -15,7 +25,9 @@ ai_gateway_smoke_test:
   variables:
     AI_GATEWAY_DC: "us1.ddbuild.io"
     AI_GATEWAY_AUDIENCE: "rapid-ai-platform"
-    AI_GATEWAY_MODEL: "anthropic/claude-haiku-4-5-20251001"
+    # Models available in us1.ddbuild.io: typesafe/jev-latest (org 2 only),
+    # datadoginternal/openjev-medium. The experiments model is staging-only.
+    AI_GATEWAY_MODEL: "datadoginternal/openjev-medium"
   script:
     # Install authanywhere, see
     # https://datadoghq.atlassian.net/wiki/spaces/DEVX/pages/3733193227/Authanywhere
@@ -27,20 +39,41 @@ ai_gateway_smoke_test:
     - |
       AI_GATEWAY_TOKEN="$(./authanywhere --audience "${AI_GATEWAY_AUDIENCE}" --raw --dc "${AI_GATEWAY_DC}")"
       echo "Acquired AI Gateway token (${#AI_GATEWAY_TOKEN} chars) for audience '${AI_GATEWAY_AUDIENCE}' in dc '${AI_GATEWAY_DC}'"
-    # Call the AI Gateway
+    # Call the AI Gateway System One (Jev) endpoint. Question types are
+    # noul (yes/no-ish probability), choice (with criteria map) and
+    # score (with ordinal criteria legend).
     - |
-      HTTP_CODE=$(curl -sS -o ai_gateway_response.json -w "%{http_code}" \
-        -X POST "https://ai-gateway.${AI_GATEWAY_DC}/v1/chat/completions" \
+      cat > jev_payload.json <<EOF
+      {
+        "state": "The PR under review: title=Refactor auth token cache to async warmup; description=Changes the token cache from synchronous refresh to an async background warmup with a 5s TTL. Touches gateway middleware used by all internal services. CI passed but one integration test was skipped. Rolled out to staging and 3 services report intermittent 401s.",
+        "model": "${AI_GATEWAY_MODEL}",
+        "questions": {
+          "should_revert": {"type": "noul", "instructions": "Should this PR be reverted?"},
+          "failure_category": {"type": "choice",
+                       "instructions": "Which failure mode best explains any revert risk?",
+                       "criteria": {"correctness": "Breaks correctness or core behavior",
+                                    "reliability": "Outages, errors, or flaky behavior in production",
+                                    "performance": "Performance or resource regression",
+                                    "process": "Skipped tests, bypassed review, or rollout hygiene",
+                                    "none": "No revert-worthy issue"}},
+          "revert_urgency": {"type": "score",
+                    "instructions": "Rate the urgency of reverting.",
+                    "criteria": ["Safe to keep and fix forward", "Revert soon unless quick fix lands", "Revert immediately"]}
+        }
+      }
+      EOF
+      HTTP_CODE=$(curl -sS -o jev_response.json -w "%{http_code}" \
+        -X POST "https://ai-gateway.${AI_GATEWAY_DC}/v1/systemone" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${AI_GATEWAY_TOKEN}" \
         -H "source: datadog-agent" \
         -H "org-id: 2" \
-        -d "{\"model\":\"${AI_GATEWAY_MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with the single word: pong\"}],\"max_tokens\":16}")
+        --data @jev_payload.json)
       echo "--- AI Gateway response (HTTP ${HTTP_CODE}) ---"
-      cat ai_gateway_response.json
+      cat jev_response.json
       echo ""
       if [ "${HTTP_CODE}" != "200" ]; then
-        echo "AI Gateway call failed with HTTP ${HTTP_CODE}"
+        echo "AI Gateway System One (Jev) call failed with HTTP ${HTTP_CODE}"
         exit 1
       fi
-      echo "AI Gateway smoke test succeeded"
+      echo "AI Gateway Jev smoke test succeeded"
