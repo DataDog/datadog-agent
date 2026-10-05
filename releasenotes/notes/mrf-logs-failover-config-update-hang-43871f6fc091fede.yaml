@@ -1,7 +1,7 @@
 ---
 enhancements:
   - |
-    Enable `multi_region_failover.logs_service_allowlist`
+    Enable ``multi_region_failover.logs_service_allowlist``
     configuration via Remote Config.
 fixes:
   - |
