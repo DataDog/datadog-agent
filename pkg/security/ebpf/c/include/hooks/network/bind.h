@@ -3,12 +3,15 @@
 
 #include "constants/offsets/netns.h"
 #include "constants/syscall_macro.h"
+#include "helpers/approvers.h"
 #include "helpers/discarders.h"
 #include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
 static __always_inline int sys_bind(void *ctx, u64 pid_tgid) {
+    struct policy_t policy = fetch_policy(EVENT_BIND);
     struct syscall_cache_t syscall = {
+        .policy = policy,
         .type = EVENT_BIND,
         .async = pid_tgid ? 1: 0,
         .bind = {
@@ -33,7 +36,27 @@ static __always_inline int sys_bind_ret_impl(void *ctx, int retval, enum TAIL_CA
         return 0;
     }
 
+    // Bail out on failed binds before the approvers, otherwise a dropped event would still
+    // pollute bind_samples and suppress later successful binds to the same endpoint.
     if (IS_UNHANDLED_ERROR(retval)) {
+        goto pop_and_exit;
+    }
+
+    approve_syscall(syscall, bind_approvers);
+
+    // these probes are also loaded with the network probes, only send the event when a rule asks for it
+    if (!is_event_enabled(EVENT_BIND)) {
+        goto pop_and_exit;
+    }
+
+    // emit a sample refresh if the dedup map flagged one
+    if (syscall->state == DISCARDED && (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED)) {
+        struct sample_refresh_event_t ev = {};
+        ev.cookie = syscall->sample_cookie;
+        send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
+    }
+
+    if (syscall->state == DISCARDED) {
         goto pop_and_exit;
     }
 
@@ -48,6 +71,8 @@ static __always_inline int sys_bind_ret_impl(void *ctx, int retval, enum TAIL_CA
     event->family = syscall->bind.family;
     event->port = syscall->bind.port;
     event->protocol = syscall->bind.protocol;
+    event->event.flags = (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP ? (EVENT_FLAGS_SAVED_BY_AD | EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE) : 0);
+    event->sample_cookie = syscall->sample_cookie;
 
     struct proc_cache_t *entry;
     if (syscall->bind.pid_tgid != 0) {
