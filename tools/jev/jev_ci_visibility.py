@@ -44,7 +44,7 @@ def main() -> int:
     scope = f"@ci.pipeline.id:{args.pipeline_id}" if args.pipeline_id else f"@git.commit.sha:{head}"
     query = f"@ci.pipeline.name:{PIPELINE_NAME} {scope} @ci.job.name:new-e2e* -@test.name:*/*"
 
-    executed = fetch_executed_e2e_tests(query, args.days)
+    executed, coverage_skipped = fetch_executed_e2e_tests(query, args.days)
 
     fails = sorted(t for t, v in executed.items() if v["status"] == "fail")
     flaky = sorted(t for t, v in executed.items() if v["flaky"])
@@ -52,6 +52,7 @@ def main() -> int:
     print(f"root tests executed: {len(executed)}")
     print(f"failed:              {len(fails)} {fails}")
     print(f"flaky failures:      {len(flaky)} {flaky}")
+    print(f"skipped by coverage selection: {len(coverage_skipped)} {sorted(coverage_skipped)[:10]}")
     print(f"first tests:         {sorted(executed)[:10]}")
     if not executed and not os.environ.get("DD_API_KEY"):
         print("\n[warn] DD_API_KEY is not set - the lookup was skipped entirely. Export DD_API_KEY and DD_APP_KEY (org where the agent e2e events land).")

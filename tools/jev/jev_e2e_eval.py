@@ -122,7 +122,7 @@ def detect_pr_number() -> int | None:
 # ---------------------------------------------------------------- executed tests
 
 
-def fetch_executed_e2e_tests(query: str, days: int) -> dict:
+def fetch_executed_e2e_tests(query: str, days: int) -> tuple[dict, dict]:
     """Root-level e2e tests actually executed, from CI Visibility.
 
     Self-contained implementation of the CI Visibility test events query
@@ -130,7 +130,11 @@ def fetch_executed_e2e_tests(query: str, days: int) -> dict:
     stdlib-only so the script runs on a bare laptop). Requires DD_API_KEY
     and DD_APP_KEY in the environment.
 
-    Returns {entry_point: {"status": "pass|fail", "flaky": bool, "jobs": [..]}}
+    Returns (executed, coverage_skipped) where executed maps entry points to
+    {"status": "pass|fail", "flaky": bool, "jobs": [..]} (only tests whose
+    latest attempt actually ran and passed/failed), and coverage_skipped maps
+    entry points to the jobs where the latest attempt was a skip (tests the
+    coverage-based --impacted selection skipped).
     """
     from datetime import datetime, timedelta, timezone
 
@@ -138,7 +142,7 @@ def fetch_executed_e2e_tests(query: str, days: int) -> dict:
     app_key = os.environ.get("DD_APP_KEY") or os.environ.get("DD_APPLICATION_KEY")
     if not api_key or not app_key:
         print("[warn] DD_API_KEY / DD_APP_KEY not set, skipping the executed-test lookup")
-        return {}
+        return {}, {}
     site = os.environ.get("DD_SITE", "datadoghq.com")
     url = f"https://api.{site}/api/v2/ci/tests/events"
     # query params as the datadog_api_client serializes them (bracket attributes)
@@ -203,7 +207,12 @@ def fetch_executed_e2e_tests(query: str, days: int) -> dict:
                 sample_names.append(name)
             continue
         entry = m.group(1)
-        status = "pass" if test_attrs.get("status") == "pass" else "fail"
+        # CI Visibility statuses: pass, fail, skip. Only the latest attempt
+        # decides (see below); a latest status of skip means the test did not
+        # run (the coverage-based --impacted selection skipped it in the job),
+        # it must not be counted as executed nor as a failure.
+        raw_status = test_attrs.get("status") or ""
+        status = raw_status if raw_status in ("pass", "skip") else "fail"
         flaky = test_attrs.get("agent_is_flaky_failure", "false") == "true"
         # Retry semantics: a test may emit several events (one per attempt,
         # e.g. --max-retries). Only the LATEST attempt decides the status, so
@@ -219,15 +228,21 @@ def fetch_executed_e2e_tests(query: str, days: int) -> dict:
             e["flaky"] = flaky
             e["ts"] = ts
         e["jobs"].append((attrs.get("ci", {}).get("job", {}) or {}).get("name", ""))
+    # Split by the latest attempt: only tests that actually ran (latest
+    # status pass/fail) count as executed; latest-status-skip tests are the
+    # coverage selection's skips.
+    coverage_skipped = {t: v["jobs"] for t, v in executed.items() if v["status"] == "skip"}
+    executed = {t: v for t, v in executed.items() if v["status"] != "skip"}
     print(
         f"[info] CI Visibility result: {len(events)} test events over {pages} page(s) "
         f"(skipped: {skipped_subtests} sub-tests, {skipped_empty} without a name, {skipped_job} from non-e2e jobs); "
-        f"kept {len(executed)} root e2e tests; unmatched names: {sample_names[:3]}"
+        f"kept {len(executed)} executed root e2e tests and {len(coverage_skipped)} skipped by the coverage selection; "
+        f"unmatched names: {sample_names[:3]}"
     )
     print(f"[info] executed root e2e tests: {len(executed)}: {sorted(executed)[:10]}{' ...' if len(executed) > 10 else ''}")
     if not executed:
         print(f"[warn] no executed e2e tests matched; sample test names seen: {sample_names}")
-    return executed
+    return executed, coverage_skipped
 
 
 # ---------------------------------------------------------------- GitLab artifacts
