@@ -175,7 +175,15 @@ fn get_service(
 
     let cmdline = Cmdline::get(pid).ok()?;
     let exe = Exe::get(pid).ok()?;
-    let tracer_metadata = get_newest_tracer_metadata(&open_files_info.tracer_memfds);
+    // Truncate the tracer UST values like UST::from_envs does, so that the
+    // tagger's comparison between both still matches.
+    let tracer_metadata =
+        get_newest_tracer_metadata(&open_files_info.tracer_memfds).map(|mut tm| {
+            tm.service_name = tm.service_name.map(truncate_field);
+            tm.service_env = tm.service_env.map(truncate_field);
+            tm.service_version = tm.service_version.map(truncate_field);
+            tm
+        });
     let language = tracer_metadata
         .as_ref()
         .and_then(|m| Language::from_tracer_str(&m.tracer_language))
