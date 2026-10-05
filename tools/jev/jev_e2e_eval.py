@@ -147,6 +147,10 @@ def fetch_executed_e2e_tests(query: str, days: int) -> dict:
         "filter[from]": (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(),
         "filter[to]": datetime.now(timezone.utc).isoformat(),
         "page[limit]": 1000,
+        # chronological order (oldest first): with this sort, the last event
+        # seen for a test is its latest attempt, which makes the retry logic
+        # robust even when the timestamp attribute cannot be parsed
+        "sort": "timestamp",
     }
     headers = {
         "DD-API-KEY": api_key,
@@ -203,8 +207,12 @@ def fetch_executed_e2e_tests(query: str, days: int) -> dict:
         flaky = test_attrs.get("agent_is_flaky_failure", "false") == "true"
         # Retry semantics: a test may emit several events (one per attempt,
         # e.g. --max-retries). Only the LATEST attempt decides the status, so
-        # a fail that was retried to a pass counts as passed.
-        ts = str(item.get("attributes", {}).get("timestamp") or "")
+        # a fail that was retried to a pass counts as passed. The timestamp
+        # lives in the free-form attributes of the event (CIAppEventAttributes
+        # has no top-level timestamp), with outer/`@timestamp` fallbacks; the
+        # ascending sort guarantees chronological iteration order even when
+        # it cannot be found at all.
+        ts = str(attrs.get("timestamp") or item.get("attributes", {}).get("timestamp") or attrs.get("@timestamp") or "")
         e = executed.setdefault(entry, {"status": "pass", "flaky": False, "jobs": [], "ts": ""})
         if ts >= e["ts"]:
             e["status"] = status
