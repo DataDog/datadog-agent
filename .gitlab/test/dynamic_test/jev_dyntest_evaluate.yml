@@ -1,0 +1,36 @@
+# Evaluate the accuracy of the Jev-based e2e test skipping with the same
+# DynTestEvaluator harness as the coverage-based selection
+# (dda inv -e dyntest.evaluate-index): Jev is plugged in as an alternative
+# DynTestExecutor implementation (tasks/libs/dynamic_test/jev_selection.py),
+# judged over every e2e job that ran in this pipeline and every test entry
+# point under test/new-e2e/tests. not_executed_failing_count is the miss
+# count; stats are tagged selector:jev / universe:all-e2e-tests.
+#
+# Evaluation only: Jev is NOT used to select the tests that run in this
+# pipeline, it only measures what it would have skipped.
+jev-dyntest-evaluate:
+  stage: dynamic_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64"]
+  dependencies: []
+  rules:
+    # dev branch pipelines only (after the e2e tests ran); 'when: always' so the
+    # evaluation also runs when tests failed - that is exactly what it measures
+    - !reference [.on_dev_branches]
+    - when: always
+  allow_failure: true # evaluation only, must not impact the CI
+  variables:
+    GIT_DEPTH: 0 # get_modified_files uses git merge-base
+    GIT_STRATEGY: clone
+  script:
+    # CI Visibility access (executed tests) - same secrets as the original
+    # dynamic-test evaluation job
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY
+    # authanywhere for the GitLab API token (jobs listing, sdm audience); the
+    # Jev selector downloads its own copy for the AI Gateway token
+    - |
+      if [ "$(uname -m)" = "x86_64" ]; then AAA="amd64"; else AAA="arm64"; fi
+      curl -sSfL -o authanywhere "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${AAA}"
+      chmod +x authanywhere
+    - dda inv -- -e dyntest.evaluate-jev-index --pipeline-id $CI_PIPELINE_ID
