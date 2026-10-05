@@ -39,13 +39,15 @@ Use `AskUserQuestion` to collect the following. If `$ARGUMENTS` provides the top
 Generate the file using reno:
 
 ```bash
-reno new <topic> --no-edit
+reno new <topic>
 ```
 
 Or for non-default directories:
 ```bash
-reno --rel-notes-dir <directory> new <topic> --no-edit
+reno --rel-notes-dir <directory> new <topic>
 ```
+
+Omit `--edit` to run non-interactively; `--no-edit` is not supported by all reno versions.
 
 This creates a file at `<directory>/notes/<topic>-<hash>.yaml` with a template.
 
