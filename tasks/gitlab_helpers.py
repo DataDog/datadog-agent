@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 
 import yaml
 from invoke import task
@@ -14,7 +13,6 @@ from tasks.kernel_matrix_testing.ci import get_kmt_dashboard_links
 from tasks.libs.ciproviders.gitlab_api import (
     compute_gitlab_ci_config_diff,
     get_all_gitlab_ci_configurations,
-    get_gitlab_repo,
     post_process_gitlab_ci_configuration,
     print_gitlab_ci_configuration,
     resolve_gitlab_ci_configuration,
@@ -101,25 +99,6 @@ def create_gitlab_annotations_report(ci_job_id: str, ci_job_name: str):
         links["KMT Dashboard"] = kmt_links
 
     return links
-
-
-def print_gitlab_object(get_object, ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
-    """Prints one or more Gitlab objects in JSON and potentially query them with jq."""
-
-    repo = get_gitlab_repo(repo)
-    ids = [i for i in ids.split(",") if i]
-    for id in ids:
-        obj = get_object(repo, id)
-
-        if jq:
-            jq_flags = "-C" if jq_colors else ""
-            with tempfile.NamedTemporaryFile('w', delete=True) as f:
-                f.write(obj.to_json())
-                f.flush()
-
-                ctx.run(f"cat '{f.name}' | jq {jq_flags} '{jq}'")
-        else:
-            obj.pprint()
 
 
 @task

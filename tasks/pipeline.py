@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 import yaml
 from gitlab import GitlabError
 from gitlab.exceptions import GitlabGetError
-from gitlab.v4.objects import Project
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -240,17 +239,6 @@ def run(
         print(color_message(f"ERROR: pipeline does not match any workflow rule. Rules:\n{workflow_rules()}", "red"))
         return
 
-    wait_for_pipeline(repo, pipeline)
-
-
-def wait_for_pipeline_from_ref(repo: Project, ref):
-    # Get last updated pipeline
-    pipelines = repo.pipelines.list(ref=ref, per_page=1, order_by='updated_at')
-    if len(pipelines) == 0:
-        print(f"No pipelines found for {ref}")
-        raise Exit(code=1)
-
-    pipeline = pipelines[0]
     wait_for_pipeline(repo, pipeline)
 
 
