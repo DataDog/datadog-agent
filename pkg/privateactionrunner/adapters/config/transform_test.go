@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -237,6 +238,32 @@ func TestFromDDConfig(t *testing.T) {
 	}
 }
 
+func TestFromDDConfigKubernetesAllowedCustomResources(t *testing.T) {
+	t.Run("unset selects compatibility mode", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Nil(t, cfg.KubernetesAllowedCustomResources)
+	})
+
+	t.Run("configured list selects exact-match mode", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(setup.PARKubernetesAllowedCustomResources, []string{"cert-manager.io/v1/certificates"})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"cert-manager.io/v1/certificates"}, cfg.KubernetesAllowedCustomResources)
+	})
+
+	t.Run("configured empty list selects deny-all mode", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(setup.PARKubernetesAllowedCustomResources, []string{})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.KubernetesAllowedCustomResources)
+		assert.Empty(t, cfg.KubernetesAllowedCustomResources)
+	})
+}
+
 func TestFromDDConfigMetricsClient(t *testing.T) {
 	providedClient := &statsd.NoOpClient{}
 	tests := []struct {
@@ -275,6 +302,29 @@ func TestFromDDConfigMetricsClient(t *testing.T) {
 	}
 }
 
+func TestFromDDConfigAgentHTTPClientUsesAgentProxy(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest("proxy.https", "http://proxy.example.test:3128")
+	mockConfig.SetInTest("proxy.no_proxy", []string{})
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	require.NotNil(t, cfg.AgentHTTPClient)
+
+	transport, ok := cfg.AgentHTTPClient.Transport.(*http.Transport)
+	require.True(t, ok)
+	t.Cleanup(transport.CloseIdleConnections)
+	require.NotNil(t, transport.Proxy)
+
+	request, err := http.NewRequest(http.MethodGet, "https://registry.example.test/v2/", nil)
+	require.NoError(t, err)
+	proxyURL, err := transport.Proxy(request)
+	require.NoError(t, err)
+	require.Equal(t, "http://proxy.example.test:3128", proxyURL.String())
+}
+
 func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 	t.Run("cluster agent default actions are included when default_actions_enabled is true", func(t *testing.T) {
 		flavor.SetFlavor(flavor.ClusterAgent)
@@ -288,10 +338,14 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 
 		assert.True(t, allowlist["com.datadoghq.kubernetes.apps"].Has("listDeployment"))
 		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("getPod"))
+		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("getPodLogs"))
 		assert.True(t, allowlist["com.datadoghq.kubernetes.batch"].Has("getJob"))
 		// common actions should also be present
 		assert.True(t, allowlist["com.datadoghq.remoteaction.networks"].Has("runNetworkPath"))
 		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
+		// agent read-only diagnostics are node-agent only and must NOT be present
+		_, hasAgentBundle := allowlist["com.datadoghq.remoteaction.datadogagent"]
+		assert.False(t, hasAgentBundle)
 		// inherited actions should also be present for the kubernetes prefix
 		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("testConnection"))
 	})
@@ -308,6 +362,10 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		// common actions should be present
 		assert.True(t, allowlist["com.datadoghq.remoteaction.networks"].Has("runNetworkPath"))
 		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
+		// agent read-only diagnostics should be present
+		assert.True(t, allowlist["com.datadoghq.remoteaction.datadogagent"].Has("getStatus"))
+		assert.True(t, allowlist["com.datadoghq.remoteaction.datadogagent"].Has("getConfig"))
+		assert.True(t, allowlist["com.datadoghq.remoteaction.datadogagent"].Has("getDiagnose"))
 		// cluster-agent-specific actions should NOT be present
 		_, hasK8sApps := allowlist["com.datadoghq.kubernetes.apps"]
 		assert.False(t, hasK8sApps)
@@ -455,6 +513,75 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"cat", "ls"}, cfg.RShellAllowedCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsUnset(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.Nil(t, cfg.RShellPrivilegedElevatableCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsEmpty(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellPrivilegedElevatableCommands, []string{})
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.NotNil(t, cfg.RShellPrivilegedElevatableCommands)
+	assert.Empty(t, cfg.RShellPrivilegedElevatableCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsSet(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellPrivilegedElevatableCommands, []string{"rshell:journalctl", "rshell:systemctl"})
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"rshell:journalctl", "rshell:systemctl"}, cfg.RShellPrivilegedElevatableCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsWarnsForUnnamespaced(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellPrivilegedElevatableCommands, []string{"truncate", "rshell:journalctl"})
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, setup.PARRestrictedShellPrivilegedElevatableCommands)
+	assert.Contains(t, logs, `"truncate"`)
+	assert.Contains(t, logs, `"rshell:"`)
+	assert.Contains(t, logs, `"rshell:truncate"`)
+	assert.NotContains(t, logs, `"rshell:journalctl"`)
+}
+
+func TestFromDDConfigPARRestrictedShellPrivilegedNarrowingConfiguredFlags(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.False(t, cfg.RShellAllowedCommandsConfigured)
+	assert.False(t, cfg.RShellAllowedPathsConfigured)
+
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"rshell:*"})
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{"/"})
+	cfg, err = FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.True(t, cfg.RShellAllowedCommandsConfigured)
+	assert.True(t, cfg.RShellAllowedPathsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {

@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
@@ -559,6 +560,12 @@ const (
 	// pairs representing information about the container (Docker, EC2, etc).
 	tagContainersTags = "_dd.tags.container"
 	tagProcessTags    = "_dd.tags.process"
+
+	// tagSDKOtlpExport specifies the name of the tag which records whether the
+	// Datadog SDK that produced the payload exports its telemetry via OTLP
+	// ("true") or via the native Datadog protocols ("false"). An absent tag means
+	// the tracer predates the tag; an empty value is never written.
+	tagSDKOtlpExport = "_dd.sdk.otlp_export"
 )
 
 // TagStats returns the stats and tags coinciding with the information found in header.
@@ -571,15 +578,41 @@ func (r *HTTPReceiver) tagStats(v Version, req *http.Request, service string) *i
 	httpHeader := req.Header
 	connectionType := GetConnectionType(req.Context())
 	return r.Stats.GetTagStats(info.Tags{
-		Lang:            httpHeader.Get(header.Lang),
-		LangVersion:     httpHeader.Get(header.LangVersion),
-		Interpreter:     httpHeader.Get(header.LangInterpreter),
-		LangVendor:      httpHeader.Get(header.LangInterpreterVendor),
-		TracerVersion:   httpHeader.Get(header.TracerVersion),
+		Lang:            truncateMetaValue(httpHeader.Get(header.Lang)),
+		LangVersion:     truncateMetaValue(httpHeader.Get(header.LangVersion)),
+		Interpreter:     truncateMetaValue(httpHeader.Get(header.LangInterpreter)),
+		LangVendor:      truncateMetaValue(httpHeader.Get(header.LangInterpreterVendor)),
+		TracerVersion:   truncateMetaValue(httpHeader.Get(header.TracerVersion)),
 		EndpointVersion: string(v),
 		ConnectionType:  string(connectionType),
-		Service:         service,
+		// The service is normalized further down the pipeline, which truncates
+		// it to the same length; doing it here too keeps the service reported
+		// by the receiver's own metrics in agreement with the rest.
+		Service: cloneIfTruncated(service, normalizeutil.MaxServiceLen),
 	})
+}
+
+// maxMetaValueLen bounds the length of a Datadog-Meta-* header value used as
+// part of a stats map key. Real values are short ("go", "1.22.3", "v2.1.0");
+// the limit only exists because the values are otherwise bounded by the size
+// of the request headers, which would let a single request hold a megabyte of
+// them in the map and in every metric tag derived from it.
+const maxMetaValueLen = 200
+
+func truncateMetaValue(v string) string {
+	return cloneIfTruncated(v, maxMetaValueLen)
+}
+
+// cloneIfTruncated truncates v to limit and, only if that actually shortened
+// it, clones the result: TruncateUTF8 returns a substring backed by v's
+// original allocation, so a clipped megabyte-sized value would otherwise
+// keep that whole allocation alive in the stats map.
+func cloneIfTruncated(v string, limit int) string {
+	t := normalizeutil.TruncateUTF8(v, limit)
+	if len(t) == len(v) {
+		return v
+	}
+	return strings.Clone(t)
 }
 
 // decodeTracerPayload decodes the payload in http request `req`, it handles non v1.0 requests.
@@ -998,6 +1031,15 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		}
 		tp.Tags[tagProcessTags] = ptags
 	}
+	// Normalize the SDK export mode into TracerPayload.Tags. Note this is
+	// deliberately not propagated to Payload (the stats path); see
+	// getSDKOtlpExport.
+	if otlpExport := getSDKOtlpExport(tp); otlpExport != "" {
+		if tp.Tags == nil {
+			tp.Tags = make(map[string]string)
+		}
+		tp.Tags[tagSDKOtlpExport] = otlpExport
+	}
 	payload := &Payload{
 		Source:                 ts,
 		TracerPayload:          tp,
@@ -1115,6 +1157,12 @@ func (r *HTTPReceiver) handleTracesV1(v Version, w http.ResponseWriter, req *htt
 	if ptags != "" {
 		tp.SetStringAttribute(tagProcessTags, ptags)
 	}
+	// Normalize the SDK export mode into the payload attributes. Note this is
+	// deliberately not propagated to PayloadV1 (the stats path); see
+	// getSDKOtlpExport.
+	if otlpExport := getSDKOtlpExportV1(tp); otlpExport != "" {
+		tp.SetStringAttribute(tagSDKOtlpExport, otlpExport)
+	}
 	payload := &PayloadV1{
 		Source:                 ts,
 		TracerPayload:          tp,
@@ -1191,6 +1239,52 @@ func getProcessTags(h http.Header, p *pb.TracerPayload) string {
 	return h.Get(header.ProcessTags)
 }
 
+// getSDKOtlpExport extracts the "_dd.sdk.otlp_export" value from a v0.7 tracer
+// payload, normalizing whichever carrier the tracer used into a single value.
+// Order of priority mirrors getProcessTags:
+//  1. tags in the v0.7 payload
+//  2. tags in the first span of the first non-empty chunk (v0.4/v0.5, which have
+//     no payload-level field on the wire)
+//
+// If neither carrier holds the value, the empty string is returned.
+//
+// The original span meta entry is deliberately not stripped, so a v0.4/v0.5
+// payload legitimately carries the value in both places; the values always agree.
+//
+// The OTLP receive path (pkg/trace/api/otlp.go) deliberately does NOT use this
+// hoist. That receiver builds a pb.TracerPayload covering many resources at
+// once, so reading one span's meta and stamping it onto the whole payload would
+// mis-tag payloads mixing export modes. OTLP-origin spans carry the value in
+// span meta only, by design.
+func getSDKOtlpExport(p *pb.TracerPayload) string {
+	if p.Tags != nil {
+		if v, ok := p.Tags[tagSDKOtlpExport]; ok {
+			return v
+		}
+	}
+	if span, ok := getFirstSpan(p); ok {
+		if v, ok := span.Meta[tagSDKOtlpExport]; ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// getSDKOtlpExportV1 is the idx/v1 equivalent of getSDKOtlpExport. See that
+// function for the priority order and for why the OTLP receive path does not
+// use it.
+func getSDKOtlpExportV1(p *idx.InternalTracerPayload) string {
+	if v, ok := p.GetAttributeAsString(tagSDKOtlpExport); ok {
+		return v
+	}
+	if span, ok := getFirstSpanV1(p); ok {
+		if v, ok := span.GetAttributeAsString(tagSDKOtlpExport); ok {
+			return v
+		}
+	}
+	return ""
+}
+
 func getFirstSpan(p *pb.TracerPayload) (*pb.Span, bool) {
 	for _, chunk := range p.Chunks {
 		if len(chunk.Spans) != 0 {
@@ -1250,19 +1344,25 @@ func (r *HTTPReceiver) loop() {
 			r.Stats.PublishAndReset(r.statsd)
 
 			if now.Sub(lastLog) >= time.Minute {
-				// We expose the stats accumulated to expvar
-				info.UpdateReceiverStats(accStats)
-
-				// We reset the stats accumulated during the last minute
-				accStats.LogAndResetStats()
+				r.logAndResetPeriodicStats(accStats)
 				lastLog = now
-
-				// Also publish rates by service (they are updated by receiver)
-				rates := r.dynConf.RateByService.GetNewState("").Rates
-				info.UpdateRateByService(rates)
 			}
 		}
 	}
+}
+
+// logAndResetPeriodicStats exposes the stats accumulated over the last minute
+// to expvar and resets them.
+func (r *HTTPReceiver) logAndResetPeriodicStats(accStats *info.ReceiverStats) {
+	// We expose the stats accumulated to expvar
+	info.UpdateReceiverStats(accStats)
+
+	// We reset the stats accumulated during the last minute
+	accStats.LogAndResetStats()
+
+	// Also publish rates by service (they are updated by receiver)
+	rates := r.dynConf.RateByService.GetNewState("").Rates
+	info.UpdateRateByService(rates)
 }
 
 // killProcess exits the process with the given msg; replaced in tests.

@@ -14,18 +14,18 @@ import (
 
 func TestPassthroughCorrelations(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
-		{DetectorName: "rrcf", Timestamp: 30, Source: observerdef.SeriesDescriptor{Name: "late"}},
+		{DetectorName: "scanmw", Timestamp: 30, Source: observerdef.SeriesDescriptor{Name: "late"}},
 		{DetectorName: "bocpd", Timestamp: 20, Source: observerdef.SeriesDescriptor{Name: "first"}},
-		{DetectorName: "rrcf", Timestamp: 10, Source: observerdef.SeriesDescriptor{Name: "early"}},
+		{DetectorName: "scanmw", Timestamp: 10, Source: observerdef.SeriesDescriptor{Name: "early"}},
 	}
 
 	correlations := passthroughCorrelations(anomalies)
 	require.Len(t, correlations, 3)
 	require.Equal(t, "passthrough_bocpd_0", correlations[0].Pattern)
 	require.Equal(t, int64(20), correlations[0].FirstSeen)
-	require.Equal(t, "passthrough_rrcf_0", correlations[1].Pattern)
+	require.Equal(t, "passthrough_scanmw_0", correlations[1].Pattern)
 	require.Equal(t, int64(10), correlations[1].FirstSeen)
-	require.Equal(t, "passthrough_rrcf_1", correlations[2].Pattern)
+	require.Equal(t, "passthrough_scanmw_1", correlations[2].Pattern)
 	require.Equal(t, int64(30), correlations[2].FirstSeen)
 	for _, correlation := range correlations {
 		require.Len(t, correlation.Anomalies, 1)

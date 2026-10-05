@@ -369,7 +369,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           rate:
             node_type: setting
             type: integer
@@ -393,7 +393,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           rate:
             node_type: setting
             type: integer
@@ -402,6 +402,22 @@ properties:
             node_type: setting
             type: integer
             default: 80
+      syscalls:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          rate:
+            node_type: setting
+            type: integer
+            default: 500
+          threshold:
+            node_type: setting
+            type: integer
+            default: 60
   event_server:
     node_type: section
     type: object
@@ -615,7 +631,7 @@ properties:
               num_events_allowed:
                 node_type: setting
                 type: integer
-                default: 10
+                default: 2000
               num_keys:
                 node_type: setting
                 type: integer
@@ -623,7 +639,7 @@ properties:
               period:
                 node_type: setting
                 type: string
-                default: 1m
+                default: 1s
           silent_rule_events:
             node_type: section
             type: object
@@ -704,6 +720,13 @@ properties:
         node_type: section
         type: object
         properties:
+          clear_local_profiles_on_start:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: |
+              Testing aid: when true, deletes every locally stored security
+              profile on startup. Not user-facing.
           enabled:
             node_type: setting
             type: boolean
@@ -716,6 +739,8 @@ properties:
             - open
             - dns
             - bind
+            - connect
+            - capabilities
             items:
               type: string
           excluded_images:
@@ -728,6 +753,38 @@ properties:
             node_type: setting
             type: integer
             default: 2560
+          profile_reporting_delay:
+            node_type: section
+            type: object
+            properties:
+              duration:
+                node_type: setting
+                type: string
+                default: 0s
+                description: |
+                  Duration after a workload's security profile is created
+                  before it starts reporting out-of-profile events to the
+                  backend. Only used when time_based is true. 0s reports
+                  out-of-profile events as soon as the profile is created.
+              time_based:
+                node_type: setting
+                type: boolean
+                default: false
+                description: |
+                  When false (default), a profile withholds out-of-profile
+                  events until it has been shipped to the backend at least once.
+                  When true, it withholds them for duration after the profile is
+                  created, independent of shipping.
+          profiling_startup_delay:
+            node_type: setting
+            type: string
+            default: 0s
+            description: |
+              Duration after system-probe starts during which v2 workload
+              profiling ignores events, so profiles don't capture noisy activity
+              while system-probe is still stabilizing (resyncing from the OS,
+              loading rules, pushing approvers and discarders to the kernel).
+              0s (default) disables the delay.
           sample_refresh_period:
             node_type: setting
             type: string

@@ -35,13 +35,21 @@ const defaultWorkerProcesses = "auto"
 type K8sAppOption func(*k8sAppOptions)
 
 type k8sAppOptions struct {
-	workerProcesses string
+	workerProcesses           string
+	withoutDatadogAnnotations bool
 }
 
 // WithWorkerProcesses overrides the nginx worker_processes directive.
 func WithWorkerProcesses(workerProcesses string) K8sAppOption {
 	return func(opts *k8sAppOptions) {
 		opts.workerProcesses = workerProcesses
+	}
+}
+
+// WithoutDatadogAnnotations disables the default Datadog Autodiscovery annotations on the Nginx Deployment and Service.
+func WithoutDatadogAnnotations() K8sAppOption {
+	return func(opts *k8sAppOptions) {
+		opts.withoutDatadogAnnotations = true
 	}
 }
 
@@ -175,7 +183,16 @@ func K8sAppDefinitionWithOptions(e config.Env, kubeProvider *kubernetes.Provider
 		})
 	}
 
-	nginxManifest, err := k8s.NewNginxDeploymentManifest(namespace, nginxPort, k8s.WithRuntimeClass(runtimeClass), k8s.WithServiceAccount(sa), k8s.WithConfigMap(), k8s.WithImagePullSecrets(imagePullSecrets))
+	deploymentModifiers := []k8s.DeploymentModifier{
+		k8s.WithRuntimeClass(runtimeClass),
+		k8s.WithServiceAccount(sa),
+		k8s.WithConfigMap(),
+		k8s.WithImagePullSecrets(imagePullSecrets),
+	}
+	if config.withoutDatadogAnnotations {
+		deploymentModifiers = append(deploymentModifiers, k8s.WithoutDatadogAnnotations())
+	}
+	nginxManifest, err := k8s.NewNginxDeploymentManifest(e, namespace, nginxPort, deploymentModifiers...)
 	if err != nil {
 		return nil, err
 	}
@@ -362,11 +379,17 @@ func K8sAppDefinitionWithOptions(e config.Env, kubeProvider *kubernetes.Provider
 		}
 	}
 
-	if _, err := corev1.NewService(e.Ctx(), namespace+"/nginx", k8s.NewNginxServiceManifest(namespace, nginxPort), opts...); err != nil {
+	serviceManifest := k8s.NewNginxServiceManifest(namespace, nginxPort)
+	if config.withoutDatadogAnnotations {
+		if err := k8s.WithoutDatadogServiceAnnotations(serviceManifest); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := corev1.NewService(e.Ctx(), namespace+"/nginx", serviceManifest, opts...); err != nil {
 		return nil, err
 	}
 
-	nginxQueryManifest, err := k8s.NewNginxQueryDeploymentManifest(namespace, k8s.WithImagePullSecrets(imagePullSecrets))
+	nginxQueryManifest, err := k8s.NewNginxQueryDeploymentManifest(e, namespace, k8s.WithImagePullSecrets(imagePullSecrets))
 	if err != nil {
 		return nil, err
 	}
@@ -486,7 +509,7 @@ func K8sRolloutAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 					Containers: &corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("nginx"),
-							Image: pulumi.String("ghcr.io/datadog/apps-nginx-server:" + apps.Version),
+							Image: pulumi.String(apps.Image(e, "apps-nginx-server")),
 							Ports: &corev1.ContainerPortArray{
 								&corev1.ContainerPortArgs{
 									Name:          pulumi.String("http"),

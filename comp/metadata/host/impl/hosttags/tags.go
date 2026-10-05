@@ -81,6 +81,22 @@ func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 	return providers
 }
 
+// getInfraTags returns the host tags specific to the configured infrastructure_mode,
+// or nil if the active mode does not contribute any host tags.
+func getInfraTags(conf model.Reader) []string {
+	// EUDM mode has a custom logic for its infra tags
+	if conf.GetString("infrastructure_mode") == infrastructureModeEndUserDevice {
+		return getEUDMTags()
+	}
+
+	// infra mode "full" is not included in the host tags to keep the same tag set if the config doesn't include the infrastructure mode key
+	if conf.GetString("infrastructure_mode") != "full" {
+		return []string{"infra_mode:" + conf.GetString("infrastructure_mode")}
+	}
+
+	return nil
+}
+
 // this is a "low-tech" version of tagger/utils/taglist.go but host tags are handled separately here for now
 func appendAndSplitTags(target []string, tags []string, splits map[string]string) []string {
 	if len(splits) == 0 {
@@ -130,6 +146,9 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 	configTags := configUtils.GetConfiguredTags(conf, false)
 	hostTags := make([]string, 0, len(configTags))
 	hostTags = appendToHostTags(hostTags, configTags)
+	if conf.GetBool("private_action_runner.enabled") {
+		hostTags = appendToHostTags(hostTags, []string{"private_action_runner_enabled:true"})
+	}
 
 	env := conf.GetString("env")
 	if env != "" {
@@ -156,9 +175,7 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 		hostTags = appendToHostTags(hostTags, []string{tags.KubeDistribution + ":" + kubeDistro})
 	}
 
-	if conf.GetString("infrastructure_mode") == infrastructureModeEndUserDevice {
-		hostTags = appendToHostTags(hostTags, getEUDMTags())
-	}
+	hostTags = appendToHostTags(hostTags, getInfraTags(conf))
 
 	gceTags := []string{}
 	providers := getProvidersDefinitionsFunc(conf)

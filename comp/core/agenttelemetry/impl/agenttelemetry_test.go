@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/stretchr/testify/assert"
@@ -30,7 +31,9 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgremoteflags "github.com/DataDog/datadog-agent/pkg/remoteflags"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
@@ -230,6 +233,18 @@ func compileTestMetric(t *testing.T, preserveTags []string, aggregateTotal bool)
 	}
 	require.NoError(t, compileConfig(&Config{Profiles: []*Profile{profile}}))
 	return profile, &profile.Metric.Metrics[0]
+}
+
+type constMetricCollector struct {
+	desc        *prometheus.Desc
+	value       float64
+	labelValues []string
+}
+
+func (c *constMetricCollector) Describe(chan<- *prometheus.Desc) {}
+
+func (c *constMetricCollector) Collect(ch chan<- prometheus.Metric) {
+	ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, c.value, c.labelValues...)
 }
 
 func makeTelMock(t *testing.T) telemetry.Component {
@@ -688,8 +703,10 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 21 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode)
-	assert.Equal(t, 21, totalProfiles)
+	// Default config has 22 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode, troubleshooting).
+	// troubleshooting is scheduled like any other profile; it is skipped at
+	// collection time while its remote flag is off.
+	assert.Equal(t, 22, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -2738,7 +2755,7 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
 	assert.True(t, float64(nonCompressBodyLen)/float64(compressBodyLen) > 1.5)
 }
 
-func TestCoalescesDefaultAndNoDefaultMetricFamiliesBeforeAggregation(t *testing.T) {
+func TestAggregatesCoreAndRemoteAgentSeriesOfSameMetric(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
@@ -2746,10 +2763,9 @@ func TestCoalescesDefaultAndNoDefaultMetricFamiliesBeforeAggregation(t *testing.
         - name: points
           metric:
             metrics:
-              - name: point.sent
+              - name: points.sent
                 aggregate_tags:
                   - domain
-                  - remote_agent
     `
 
 	// setup and initiate atel
@@ -2759,12 +2775,19 @@ func TestCoalescesDefaultAndNoDefaultMetricFamiliesBeforeAggregation(t *testing.
 	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
-	corePointSent := tel.NewGaugeWithOpts("point", "sent", []string{"domain"}, "", telemetry.Options{DefaultMetric: true})
-	adpPointSent := tel.NewGaugeWithOpts("point", "sent", []string{"domain", "remote_agent"}, "", telemetry.Options{DefaultMetric: false})
+	corePointSent := tel.NewGauge("points", "sent", []string{"domain"}, "Number of points successfully sent to the intake")
 	corePointSent.Set(5, "https://api.datadoghq.com")
-	adpPointSent.Set(400, "https://api.datadoghq.com", "agent-data-plane")
 
-	metrics, ok := getPayloadFilteredMetricList(a, "point.sent")
+	// Remote agent telemetry reaches the registry through an unchecked collector, which is how it can
+	// carry a wider label set than the Core Agent's own series of the same metric family.
+	tel.RegisterCollector(&constMetricCollector{
+		desc: prometheus.NewDesc("points__sent", "Number of points successfully sent to the intake",
+			[]string{"domain", "emitter"}, nil),
+		value:       400,
+		labelValues: []string{"https://api.datadoghq.com", "agent-data-plane"},
+	})
+
+	metrics, ok := getPayloadFilteredMetricList(a, "points.sent")
 	require.True(t, ok)
 	require.Len(t, metrics, 2)
 
@@ -2773,14 +2796,14 @@ func TestCoalescesDefaultAndNoDefaultMetricFamiliesBeforeAggregation(t *testing.
 	assert.Equal(t, 5.0, coreMetric.Value)
 
 	adpMetric, ok := getPayloadMetricByTagValues(metrics, map[string]interface{}{
-		"domain":       "https://api.datadoghq.com",
-		"remote_agent": "agent-data-plane",
+		"domain":  "https://api.datadoghq.com",
+		"emitter": "agent-data-plane",
 	})
 	require.True(t, ok)
 	assert.Equal(t, 400.0, adpMetric.Value)
 }
 
-func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
+func TestExportsEveryMetricFamilyListedByAProfile(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
@@ -2799,8 +2822,8 @@ func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
 	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
-	gaugeFooBar := tel.NewGaugeWithOpts("foo", "bar", nil, "", telemetry.Options{DefaultMetric: false})
-	gaugeBarFoo := tel.NewGaugeWithOpts("bar", "foo", nil, "", telemetry.Options{DefaultMetric: true})
+	gaugeFooBar := tel.NewGauge("foo", "bar", nil, "foo bar help")
+	gaugeBarFoo := tel.NewGauge("bar", "foo", nil, "bar foo help")
 	gaugeFooBar.Set(10)
 	gaugeBarFoo.Set(20)
 
@@ -2919,8 +2942,8 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 		{name: "dogstatsd_client.bytes_dropped_writer", preserveTags: []string{"client", "client_transport"}},
 		{name: "logs.bytes_sent", aggregateTotal: true},
 		{name: "logs.encoded_bytes_sent", preserveTags: []string{"compression_kind"}, aggregateTotal: true},
-		{name: "point.sent", preserveTags: []string{"domain"}},
-		{name: "point.dropped", preserveTags: []string{"domain"}},
+		{name: "points.sent", preserveTags: []string{"domain"}},
+		{name: "points.dropped", preserveTags: []string{"domain"}},
 		{name: "transactions.input_count", preserveTags: []string{"domain", "endpoint"}},
 		{name: "transactions.input_bytes", preserveTags: []string{"domain", "endpoint"}},
 		{name: "transactions.success", preserveTags: []string{"domain", "endpoint", "proto_version"}, aggregateTotal: false},
@@ -3206,4 +3229,229 @@ func TestAgentTelemetrySendNonRegisteredEvent(t *testing.T) {
 	a.start()
 	err = a.SendEvent("agentbsod2", payload)
 	require.Error(t, err)
+}
+
+// ---------------------------------------------------------------------------
+// Remote flag gating
+// ---------------------------------------------------------------------------
+
+// Two profiles: one gated behind the troubleshooting remote flag, one not. The
+// non-gated one is the control: it must be collected in every case below.
+const remoteFlagYAMLConfig = `
+agent_telemetry:
+  enabled: true
+  profiles:
+    - name: gated
+      remote_flag: troubleshooting_coat_bundle
+      metric:
+        metrics:
+          - name: gatedgroup.gatedmetric
+    - name: plain
+      metric:
+        metrics:
+          - name: plaingroup.plainmetric
+`
+
+// getRemoteFlagTestAtel builds an atel over remoteFlagYAMLConfig with both
+// metrics registered. createAtel does not attach the flag set (NewComponent
+// does), so the test attaches it the same way.
+func getRemoteFlagTestAtel(t *testing.T, sndr sender) *atel {
+	t.Helper()
+
+	tel := makeTelMock(t)
+	tel.NewCounter("gatedgroup", "gatedmetric", []string{}, "").Inc()
+	tel.NewCounter("plaingroup", "plainmetric", []string{}, "").Inc()
+
+	a := getTestAtel(t, tel, remoteFlagYAMLConfig, sndr, nil, nil)
+	require.True(t, a.enabled)
+	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
+	return a
+}
+
+// collectMetricNames runs one collection and returns the names of the metrics
+// handed to the sender.
+func collectMetricNames(t *testing.T, a *atel, sndr *senderMock) []string {
+	t.Helper()
+
+	sndr.sentMetrics = nil
+	_, err := a.loadPayloads(a.atelCfg.Profiles)
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(sndr.sentMetrics))
+	for _, m := range sndr.sentMetrics {
+		names = append(names, m.name)
+	}
+	return names
+}
+
+func TestRemoteFlagGatesProfile(t *testing.T) {
+	sndr := &senderMock{}
+	a := getRemoteFlagTestAtel(t, sndr)
+
+	h := a.flag
+	require.NotNil(t, h)
+
+	// Off by default: nothing was received from Remote Config, so the gated
+	// profile must behave exactly as it did before it existed.
+	names := collectMetricNames(t, a, sndr)
+	assert.NotContains(t, names, "gatedgroup.gatedmetric")
+	assert.Contains(t, names, "plaingroup.plainmetric")
+
+	// Enabled through Remote Config.
+	require.NoError(t, h.OnChange(true))
+	names = collectMetricNames(t, a, sndr)
+	assert.Contains(t, names, "gatedgroup.gatedmetric")
+	assert.Contains(t, names, "plaingroup.plainmetric")
+
+	// RC targeting removed at the end of a debug session.
+	h.OnNoConfig()
+	names = collectMetricNames(t, a, sndr)
+	assert.NotContains(t, names, "gatedgroup.gatedmetric")
+	assert.Contains(t, names, "plaingroup.plainmetric")
+
+	// Enabled again, then forced back to the safe state by the health monitor.
+	require.NoError(t, h.OnChange(true))
+	names = collectMetricNames(t, a, sndr)
+	require.Contains(t, names, "gatedgroup.gatedmetric")
+
+	h.SafeRecover(errors.New("unhealthy"), true)
+	names = collectMetricNames(t, a, sndr)
+	assert.NotContains(t, names, "gatedgroup.gatedmetric")
+	assert.Contains(t, names, "plaingroup.plainmetric")
+
+	// SafeRecover must be idempotent.
+	h.SafeRecover(errors.New("unhealthy"), true)
+	names = collectMetricNames(t, a, sndr)
+	assert.NotContains(t, names, "gatedgroup.gatedmetric")
+}
+
+// A nil flag set — agent telemetry built outside NewComponent — must report
+// every flag as off rather than panic.
+func TestRemoteFlagNilSetKeepsGatedProfileOff(t *testing.T) {
+	sndr := &senderMock{}
+	a := getRemoteFlagTestAtel(t, sndr)
+	a.flag = nil
+
+	names := collectMetricNames(t, a, sndr)
+	assert.NotContains(t, names, "gatedgroup.gatedmetric")
+	assert.Contains(t, names, "plaingroup.plainmetric")
+}
+
+// flushFailingSender lets a test drive the flushSession error path that feeds
+// the remote flag health signal.
+type flushFailingSender struct {
+	*senderMock
+	fail bool
+}
+
+func (s *flushFailingSender) flushSession(_ *senderSession) error {
+	if s.fail {
+		return errors.New("flush failed")
+	}
+	return nil
+}
+
+func TestRemoteFlagHealthFollowsFlushFailures(t *testing.T) {
+	sndr := &flushFailingSender{senderMock: &senderMock{}}
+	a := getRemoteFlagTestAtel(t, sndr)
+
+	h := a.flag
+	require.NotNil(t, h)
+	require.True(t, h.IsHealthy())
+
+	// Fewer than maxConsecutiveFlushFailures failures: still healthy, so a
+	// single transient intake error does not revert a debugging session.
+	sndr.fail = true
+	for i := 0; i < maxConsecutiveFlushFailures-1; i++ {
+		a.run(a.atelCfg.Profiles)
+		assert.True(t, h.IsHealthy(), "still healthy after %d failures", i+1)
+	}
+
+	a.run(a.atelCfg.Profiles)
+	assert.False(t, h.IsHealthy())
+
+	// A single success clears the streak.
+	sndr.fail = false
+	a.run(a.atelCfg.Profiles)
+	assert.True(t, h.IsHealthy())
+}
+
+// The zero &atel{} createAtel returns on its disabled paths has no
+// flushFailures counter: recording a result must not panic, and the component
+// must report unhealthy so that enabling the flag on a host where agent
+// telemetry is off does not silently look like it took effect.
+func TestRemoteFlagHealthWhenComponentDisabled(t *testing.T) {
+	a := &atel{}
+	a.recordFlushResult(errors.New("boom"))
+	assert.False(t, a.isHealthy())
+
+	// Enabled but with no counter yet: healthy.
+	a.enabled = true
+	assert.True(t, a.isHealthy())
+}
+
+// A typo in remote_flag must fail config compilation rather than silently
+// disable the profile forever.
+func TestUnknownRemoteFlagRejected(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, `
+agent_telemetry:
+  enabled: true
+  profiles:
+    - name: typo
+      remote_flag: troubleshooting_coat_bundel
+      metric:
+        metrics:
+          - name: foogroup.foometric
+`)
+	_, err := parseConfig(cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown remote flag")
+}
+
+// NewComponent must export the subscriber so the remoteflags component can
+// pick it up through the fx group, including when agent telemetry is disabled.
+func TestRemoteFlagSubscriberIsProvided(t *testing.T) {
+	for _, enabled := range []bool{true, false} {
+		provides := NewComponent(Requires{
+			Config: configmock.NewFromYAML(t, getCommonYAMLConfig(enabled, "")),
+			Log:    makeLogMock(t),
+			Lc:     compdef.NewTestLifecycle(t),
+		})
+
+		require.NotNil(t, provides.Subscriber)
+		handlers := provides.Subscriber.Handlers()
+		require.Len(t, handlers, 1)
+		assert.Equal(t, pkgremoteflags.FlagName(flagTroubleshooting), handlers[0].FlagName())
+	}
+}
+
+// The gating tests above use a synthetic config. This one exercises the
+// profile actually shipped in defaultProfiles.yaml, so that a drift between
+// the flagTroubleshooting constant and the YAML's remote_flag is caught here
+// rather than silently disabling the profile.
+func TestShippedTroubleshootingProfileIsGated(t *testing.T) {
+	tel := makeTelMock(t)
+	// Only in the gated "troubleshooting" profile.
+	tel.NewCounter("transactions", "errors", []string{"domain", "endpoint", "error_type"}, "").Inc("d", "e", "dns")
+	// Only in the non-gated "logs-and-metrics" profile: the control.
+	tel.NewCounter("transactions", "retries", []string{"domain", "endpoint"}, "").Inc("d", "e")
+
+	sndr := &senderMock{}
+	a := getTestAtel(t, tel, getCommonYAMLConfig(true, "foo.bar"), sndr, nil, nil)
+	require.True(t, a.enabled, "default profiles must parse and compile")
+	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
+
+	names := collectMetricNames(t, a, sndr)
+	assert.NotContains(t, names, "transactions.errors")
+	assert.Contains(t, names, "transactions.retries")
+
+	require.NoError(t, a.flag.OnChange(true))
+	names = collectMetricNames(t, a, sndr)
+	assert.Contains(t, names, "transactions.errors")
+	assert.Contains(t, names, "transactions.retries")
+
+	a.flag.OnNoConfig()
+	names = collectMetricNames(t, a, sndr)
+	assert.NotContains(t, names, "transactions.errors")
+	assert.Contains(t, names, "transactions.retries")
 }
