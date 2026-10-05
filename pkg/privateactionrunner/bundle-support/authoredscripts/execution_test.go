@@ -49,6 +49,10 @@ func TestExecuteCommand_NonZeroExit(t *testing.T) {
 }
 
 func TestExecuteCommand_PermissionDenied(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses file permission checks")
+	}
+
 	scriptPath := filepath.Join(t.TempDir(), "script.sh")
 	require.NoError(t, os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o600))
 
