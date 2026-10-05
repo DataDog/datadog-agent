@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "gosmb2",
+    srcs = [
+        "aapl.go",
+        "credentials.go",
+        "dialer.go",
+        "feature.go",
+        "file.go",
+        "fs.go",
+        "limit.go",
+        "session.go",
+        "share.go",
+        "smb2.go",
+        "srvsvc.go",
+        "transport.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/smb/thirdparty/gosmb2",
+    visibility = [
+        "//pkg/logs:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_message//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_sources//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_status_statusinterface//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_status_utils//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_types//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
+    ],
+    deps = [
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/auth",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/internal/directory",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/internal/erref",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/internal/msrpc",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/internal/path",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/notify",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/security",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/x/protocol",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/x/wire",
+        "@com_github_google_uuid//:uuid",
+    ],
+)

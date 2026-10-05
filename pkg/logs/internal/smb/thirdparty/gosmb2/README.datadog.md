@@ -1,0 +1,124 @@
+# go-smb2 (vendored copy)
+
+This directory is a partial copy of the SMB2/3 client library
+`github.com/hirochachacha/go-smb2/v2`. The SMB log source in `pkg/logs` uses it
+to read log files from SMB shares.
+
+| | |
+|---|---|
+| Upstream | https://github.com/hirochachacha/go-smb2 |
+| Module | `github.com/hirochachacha/go-smb2/v2` |
+| Commit | `0314409c07a882ccaf03650aa2826b08c6781adb` (2026-10-05, pseudo-version `v2.0.0-20261005034315-0314409c07a8`) |
+| License | BSD-2-Clause, see `LICENSE` in this directory (copied unchanged) |
+| Owner | @DataDog/agent-log-pipelines |
+
+## Why a copy instead of a module dependency
+
+The upstream module cannot be used as-is:
+
+- it imports the standard library `uuid` package, which only exists from Go 1.27,
+  while the Agent builds with Go 1.26;
+- it links `github.com/quic-go/quic-go` for SMB over QUIC, which the log source
+  does not need;
+- its CREATE requests do not allow other clients to delete or rename a file
+  while it is open (no `FILE_SHARE_DELETE`), and its high-level API offers no
+  way to change that.
+
+Drop this copy and depend on the upstream module once these points are fixed
+upstream.
+
+## What was copied
+
+Only the non-test `.go` files of the packages that the root package `smb2`
+and `x/protocol` need:
+
+- `.` (package `smb2`)
+- `auth`
+- `internal/crypto/ccm`, `internal/crypto/cmac`, `internal/directory`,
+  `internal/erref`, `internal/msrpc`, `internal/ntlm`, `internal/path`,
+  `internal/spnego`, `internal/utf16le`
+- `notify`, `security`
+- `x/protocol`, `x/wire`
+
+Not copied: the `client`, `dfs`, `user` and `internal/dfsc` packages, every
+`_test.go` file and test fixture, `internal/erref/mkntstatus.go` (a
+`//go:build ignore` generator), and the non-Go files (`AGENTS.md`, `README.md`,
+`bug-reports/`, `scripts/`, `.agents/`).
+
+Import paths were rewritten from `github.com/hirochachacha/go-smb2/v2/...` to
+`github.com/DataDog/datadog-agent/pkg/logs/internal/smb/thirdparty/gosmb2/...`.
+Nothing else changed apart from the patches below.
+
+## Patches
+
+1. **`uuid` → `github.com/google/uuid`** (`dialer.go`, `x/protocol/dialer.go`,
+   `x/wire/guid.go`, `x/wire/request.go`, `x/wire/response.go`). The import
+   moves to `github.com/google/uuid`, `uuid.Nil()` becomes `uuid.Nil` and
+   `uuid.NewV4()` becomes `uuid.New()`. Both libraries produce version 4 UUIDs.
+2. **SMB over QUIC removed** (`transport.go`, `x/protocol/transport.go`).
+   `QUICDialer`, `protocol.DialQUICTransport` and the private `quicTransport`
+   type are deleted, so `quic-go` is not linked. The Direct TCP transport is
+   unchanged. Comments that mention QUIC on `Dialer` fields were left as is; on
+   TCP those options have no effect.
+3. **Kerberos removed** (`auth/kerberos.go` deleted; the `kerberosInitiator`
+   half of `auth/initiator.go` and the unused `errCredentialClosed` deleted).
+   This drops the `github.com/go-krb5/krb5` dependency tree. Kerberos was only
+   reachable through `auth.KerberosCredential`. NTLMv2 (`auth.NTLMCredential`)
+   and the `auth.Initiator` interface are unchanged, so a custom initiator can
+   still be plugged in later.
+4. **`FILE_SHARE_DELETE` in the default CREATE share access**
+   (`x/protocol/request.go`, `Request.Create`). The default `ShareAccess`
+   becomes `FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE`, so an open
+   held by the Agent never makes the log writer's rename or delete fail with
+   `STATUS_SHARING_VIOLATION`. `RequestedOplockLevel` stays
+   `SMB2_OPLOCK_LEVEL_NONE`. This affects every CREATE the library sends,
+   including `Share.Open`, `Share.OpenFile`, `Share.ReadDir` and `Share.Stat`.
+   One upstream behavior depends on the narrower default: `Share.RemoveAll`
+   opens each directory without `FILE_SHARE_DELETE` to stop it being renamed
+   while it is emptied, and that protection is gone. The log source never
+   calls `RemoveAll`.
+5. **`go:generate` directive removed** (`internal/erref/erref.go`), because its
+   generator is not copied. `internal/erref/ntstatus.go` is unchanged.
+6. **Import grouping** in `dialer.go` and `x/protocol/dialer.go` after patch 1
+   (gofmt layout only).
+
+### Create contexts sent by the library
+
+The CREATE paths used by the log source send no lease and no durable-handle
+create context. The only create contexts in the copied code are:
+
+- `wire.QueryOnDiskIDRequest` (QFid), sent by `Share.OpenFile`/`Share.Open`
+  and `Share.Stat`/`Share.Lstat`, which returns the file's `DiskFileId` and
+  `VolumeId` in the CREATE response;
+- the Apple `AAPL` context, sent once per `Session.Mount` on disk shares,
+  against the share root. Set `Dialer.DisableAAPLExtension` to skip it.
+
+## Repository integration
+
+- Excluded from golangci-lint (linters and formatters) in `.golangci.yml`, and
+  from the copyright header check in `tasks/libs/types/copyright.py`, like the
+  other copied upstream code in the repository.
+- `BUILD.bazel` files are generated by Gazelle.
+- New module dependency: `github.com/geoffgarside/ber` (BSD-3-Clause), listed
+  in `LICENSE-3rdparty.csv`. The other dependencies (`github.com/google/uuid`,
+  `github.com/pierrec/lz4/v4`, `golang.org/x/crypto/md4`) were already used by
+  the Agent.
+
+## Tests
+
+The upstream tests are not copied. At this commit the tests of the root
+package and of `x/protocol` need Go 1.27, because they set promoted fields in
+composite literals, so they cannot run with the Agent's toolchain. The `auth`
+tests also exercise the removed Kerberos code. The tests of every other copied
+package (`internal/...`, `notify`, `security`, `x/wire`) pass against this copy
+with Go 1.26.7.
+
+## Updating
+
+1. Check out the new upstream commit and copy the same packages (run
+   `go list -deps . ./x/protocol` in the upstream checkout to see whether the
+   set changed).
+2. Rewrite the imports and apply the patches above again.
+3. Run `bazel run //:gazelle -- pkg/logs/internal/smb/thirdparty` and
+   `bazel build //pkg/logs/internal/smb/thirdparty/...`.
+4. Update the commit in this file.
