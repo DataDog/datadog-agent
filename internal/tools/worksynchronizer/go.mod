@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/internal/tools/worksynchronizer
 
-go 1.26.0
+go 1.27.0
 
 require (
 	github.com/stretchr/testify v1.12.1

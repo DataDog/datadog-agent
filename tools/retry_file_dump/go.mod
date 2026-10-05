@@ -5,7 +5,7 @@
 
 module github.com/DataDog/datadog-agent/tools/retry_file_dump
 
-go 1.26.0
+go 1.27.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.82.1

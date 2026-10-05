@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/network/driver
 
-go 1.26.0
+go 1.27.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0

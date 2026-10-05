@@ -245,14 +245,14 @@ func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 
 	keysToStats := p.statskeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-			Type:  protocols.Redis,
-			Stats: keysToStats,
-		}, func() {
-			for _, stats := range keysToStats {
-				stats.Close()
-				requestStatsPool.Put(stats)
-			}
+		Type:  protocols.Redis,
+		Stats: keysToStats,
+	}, func() {
+		for _, stats := range keysToStats {
+			stats.Close()
+			requestStatsPool.Put(stats)
 		}
+	}
 }
 
 // IsBuildModeSupported returns always true, as Redis module is supported by all modes.

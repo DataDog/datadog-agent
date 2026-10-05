@@ -819,18 +819,18 @@ func openShiftInjectionModeNamespaceLabels() map[string]string {
 
 func openShiftCSIAppSecurityContexts() (*corev1.PodSecurityContextArgs, *corev1.SecurityContextArgs) {
 	return &corev1.PodSecurityContextArgs{
-			SeLinuxOptions: &corev1.SELinuxOptionsArgs{
-				User:  pulumi.String("system_u"),
-				Role:  pulumi.String("system_r"),
-				Type:  pulumi.String("spc_t"),
-				Level: pulumi.String("s0"),
-			},
-		}, &corev1.SecurityContextArgs{
-			Privileged:               pulumi.Bool(true),
-			AllowPrivilegeEscalation: pulumi.Bool(true),
-			RunAsUser:                pulumi.Int(0),
-			RunAsNonRoot:             pulumi.Bool(false),
-		}
+		SeLinuxOptions: &corev1.SELinuxOptionsArgs{
+			User:  pulumi.String("system_u"),
+			Role:  pulumi.String("system_r"),
+			Type:  pulumi.String("spc_t"),
+			Level: pulumi.String("s0"),
+		},
+	}, &corev1.SecurityContextArgs{
+		Privileged:               pulumi.Bool(true),
+		AllowPrivilegeEscalation: pulumi.Bool(true),
+		RunAsUser:                pulumi.Int(0),
+		RunAsNonRoot:             pulumi.Bool(false),
+	}
 }
 
 func openShiftSCC(e config.Env, kubeProvider *kubernetes.Provider) error {

@@ -4,6 +4,7 @@ package events
 
 import (
 	json "encoding/json"
+	jsontext "encoding/json/jsontext"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
@@ -119,15 +120,15 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents1(in *jl
 				in.Delim('[')
 				if out.RuleActions == nil {
 					if !in.IsDelim(']') {
-						out.RuleActions = make([]json.RawMessage, 0, 2)
+						out.RuleActions = make([]jsontext.Value, 0, 2)
 					} else {
-						out.RuleActions = []json.RawMessage{}
+						out.RuleActions = []jsontext.Value{}
 					}
 				} else {
 					out.RuleActions = (out.RuleActions)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v1 json.RawMessage
+					var v1 jsontext.Value
 					if in.IsNull() {
 						in.Skip()
 					} else {
