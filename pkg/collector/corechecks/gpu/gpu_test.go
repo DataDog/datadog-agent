@@ -1070,7 +1070,7 @@ func TestRunEmitsSharedProcessTags(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
-	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(1))
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2))
 
 	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, senderManager, nil)
 	mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
@@ -1078,6 +1078,12 @@ func TestRunEmitsSharedProcessTags(t *testing.T) {
 	deviceUUID := testutil.GPUUUIDs[0]
 	deviceTags := []string{"gpu_uuid:" + deviceUUID, "gpu_vendor:nvidia"}
 	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, deviceUUID), "foo", deviceTags, nil, nil, nil)
+
+	// A second GPU with no processes, whose metrics must not get the tags of the processes of the first one
+	idleDeviceUUID := testutil.GPUUUIDs[1]
+	idleDeviceTags := []string{"gpu_uuid:" + idleDeviceUUID, "gpu_vendor:nvidia"}
+	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, idleDeviceUUID), "foo", idleDeviceTags, nil, nil, nil)
+	wmetaMock.Set(&workloadmeta.GPU{EntityID: workloadmeta.EntityID{ID: idleDeviceUUID, Kind: workloadmeta.KindGPU}})
 
 	pids := []int32{1000, 1001}
 	wmetaMock.Set(&workloadmeta.GPU{
@@ -1107,27 +1113,41 @@ func TestRunEmitsSharedProcessTags(t *testing.T) {
 			Pid:      pid,
 			NsPid:    pid,
 		})
-		// GPU tags of the process entity must not leak into the metrics
-		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.Process, pidStr), "foo", []string{"service:svc", "gpu_uuid:other-gpu"}, nil, nil, nil)
+		// Same service with different versions. GPU tags of the process entity must not leak into the metrics
+		processTags := []string{"service:svc", fmt.Sprintf("version:v%d", i), "gpu_uuid:other-gpu"}
+		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.Process, pidStr), "foo", processTags, nil, nil, nil)
 	}
 
 	processWorkloadID := workloadmeta.EntityID{ID: strconv.Itoa(int(pids[0])), Kind: workloadmeta.KindProcess}
-	check.collectors = []nvidia.Collector{&mockCollector{
-		name:       "mockCollector",
-		deviceUUID: deviceUUID,
-		samples: []nvidia.Sample{
-			nvidia.NewMetric("no_workload_metric", 1, ddmetrics.GaugeType, 0, nil, nil),
-			nvidia.NewMetric("workload_metric", 2, ddmetrics.GaugeType, 0, nil, []workloadmeta.EntityID{processWorkloadID}),
+	check.collectors = []nvidia.Collector{
+		&mockCollector{
+			name:       "mockCollector",
+			deviceUUID: deviceUUID,
+			samples: []nvidia.Sample{
+				nvidia.NewMetric("no_workload_metric", 1, ddmetrics.GaugeType, 0, nil, nil),
+				nvidia.NewMetric("workload_metric", 2, ddmetrics.GaugeType, 0, nil, []workloadmeta.EntityID{processWorkloadID}),
+			},
 		},
-	}}
+		&mockCollector{
+			name:       "mockCollector",
+			deviceUUID: idleDeviceUUID,
+			samples: []nvidia.Sample{
+				nvidia.NewMetric("idle_device_metric", 3, ddmetrics.GaugeType, 0, nil, nil),
+			},
+		},
+	}
 
-	// Device-level metrics get the assigned container tags plus the tags shared by all processes
+	// Device-level metrics get the assigned container tags plus the tags shared by all processes, so
+	// the version is not included as it differs between them
 	noWorkloadTags := slices.Concat(deviceTags, containerTags[pids[0]], []string{"kube_namespace:ns", "service:svc"})
 	mockSender.On("GaugeWithTimestamp", "gpu.no_workload_metric", 1.0, "", mockMatchesTagSet(noWorkloadTags), mock.Anything).Return()
 
 	// Per-process metrics get the full process tags
-	workloadTags := slices.Concat(deviceTags, []string{"pid:1000", "nspid:1000", "service:svc"}, containerTags[pids[0]])
+	workloadTags := slices.Concat(deviceTags, []string{"pid:1000", "nspid:1000", "service:svc", "version:v0"}, containerTags[pids[0]])
 	mockSender.On("GaugeWithTimestamp", "gpu.workload_metric", 2.0, "", mockMatchesTagSet(workloadTags), mock.Anything).Return()
+
+	// Metrics of the idle device only get its own device tags
+	mockSender.On("GaugeWithTimestamp", "gpu.idle_device_metric", 3.0, "", mockMatchesTagSet(idleDeviceTags), mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
 	require.NoError(t, check.Run())
