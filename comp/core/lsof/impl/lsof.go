@@ -32,7 +32,7 @@ func fillFlare(ctx context.Context, fb flaretypes.FlareBuilder) error {
 		return nil
 	}
 
-	files, err := lsof.ListOpenFilesFromSelfWithContext(ctx)
+	files, err := lsof.ListOpenFilesFromSelf(ctx)
 	if err != nil {
 		if errors.Is(err, lsof.ErrNotImplemented) {
 			_ = fb.Logf("listing files opened by the agent process is not supported on %s/%s", runtime.GOOS, runtime.GOARCH)
@@ -48,7 +48,7 @@ func fillFlare(ctx context.Context, fb flaretypes.FlareBuilder) error {
 
 	// On Windows, also include a machine-parsable JSON report of loaded modules for support analysis
 	if runtime.GOOS == "windows" {
-		if data, err := lsof.ListLoadedModulesReportJSON(); err == nil && len(data) > 0 {
+		if data, err := lsof.ListLoadedModulesReportJSON(ctx); err == nil && len(data) > 0 {
 			_ = fb.AddFile("agent_loaded_modules.json", data)
 		} else if err != nil {
 			_ = fb.Logf("could not build agent_loaded_modules.json: %v", err)

@@ -12,21 +12,11 @@ import (
 )
 
 // ListOpenFiles returns a list of open files for the given process
-func ListOpenFiles(pid int) (Files, error) {
-	return ListOpenFilesWithContext(context.Background(), pid)
-}
-
-// ListOpenFilesWithContext returns a list of open files for the given process
-func ListOpenFilesWithContext(ctx context.Context, pid int) (Files, error) {
+func ListOpenFiles(ctx context.Context, pid int) (Files, error) {
 	return openFiles(ctx, pid)
 }
 
 // ListOpenFilesFromSelf returns a list of open files for the current process
-func ListOpenFilesFromSelf() (Files, error) {
-	return ListOpenFiles(os.Getpid())
-}
-
-// ListOpenFilesFromSelfWithContext returns a list of open files for the current process
-func ListOpenFilesFromSelfWithContext(ctx context.Context) (Files, error) {
-	return ListOpenFilesWithContext(ctx, os.Getpid())
+func ListOpenFilesFromSelf(ctx context.Context) (Files, error) {
+	return ListOpenFiles(ctx, os.Getpid())
 }
