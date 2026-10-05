@@ -79,7 +79,7 @@ func populateStatus(stats map[string]interface{}, config config.Component, hostn
 	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
 	stats["hostnameStats"] = hostnameStats
 
-	hostMetadata := hostMetadataUtils.GetFromCache(context.TODO(), config, hostname)
+	hostMetadata := hostMetadataUtils.GetFromCache(context.TODO(), config, hostname, nil)
 	metadataStats := make(map[string]interface{})
 	hostMetadataBytes, _ := json.Marshal(hostMetadata)
 	json.Unmarshal(hostMetadataBytes, &metadataStats) //nolint:errcheck
