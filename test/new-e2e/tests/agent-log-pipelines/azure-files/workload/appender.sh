@@ -65,7 +65,9 @@ append_markers() {
         marker_id="${run_id}-r${rotation}-m${delay_ms}"
 
         # The append targets the rotated path, so it lands on the file the
-        # draining reader still holds open, not on the new active file.
+        # draining reader is still finishing (an open descriptor for a file
+        # source, the same server FileId for the SMB source), not on the new
+        # active file.
         if printf 'post_rotation_marker run_id=%s rotation=%s marker_age_ms=%s marker_id=%s rotated_file=%s\n' \
             "$run_id" "$rotation" "$delay_ms" "$marker_id" "$rotated_name" >> "$rotated_path"; then
             journal appended "$rotation" "$delay_ms" "$marker_id" "$rotated_name"

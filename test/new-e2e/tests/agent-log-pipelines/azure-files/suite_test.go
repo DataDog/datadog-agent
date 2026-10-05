@@ -33,6 +33,11 @@ const (
 	runWriterImage = "AZURE_FILES_E2E_WRITER_IMAGE"
 	runProfile     = "AZURE_FILES_E2E_PROFILE"
 	runCells       = "AZURE_FILES_E2E_CELLS"
+	runStackName   = "AZURE_FILES_E2E_STACK"
+	// The smb cell needs an Agent built with the native SMB log source, which
+	// a stock build does not have, so it only runs on request.
+	smbOptIn       = "E2E_SMB_AZURE"
+	smbOptInValue  = "1"
 	completedFiles = 4
 	assertedFiles  = 3
 
@@ -42,6 +47,8 @@ const (
 	// has to cover a reader that is still draining picking it up and shipping
 	// it to Fakeintake.
 	markerSettleDelay = 30 * time.Second
+
+	redactedAccountKey = "[redacted storage account key]"
 )
 
 var (
@@ -79,7 +86,8 @@ type markerEntry struct {
 
 type azureFilesSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
-	spec runSpec
+	spec     runSpec
+	evidence *evidenceDir
 }
 
 func TestAzureFiles(t *testing.T) {
@@ -88,14 +96,27 @@ func TestAzureFiles(t *testing.T) {
 	if os.Getenv(runOptIn) != runOptInValue {
 		t.Skipf("set %s=%s to run the Azure Files E2E", runOptIn, runOptInValue)
 	}
+	// Unset, the writer pods run the stock Python image with the workload
+	// ConfigMap; set, they run this Java writer image.
 	writerImage := os.Getenv(runWriterImage)
-	if writerImage == "" {
-		t.Skipf("set %s to the immutable Log4j writer image", runWriterImage)
-	}
 
 	runID := fmt.Sprintf("%s-%06d", time.Now().UTC().Format("20060102t150405z"), time.Now().UTC().Nanosecond()/1000)
-	spec, err := newRunSpec(runID, writerImage, os.Getenv(runProfile), os.Getenv(runCells))
-	require.NoError(t, err, "%s or %s is invalid", runProfile, runCells)
+	spec, err := newRunSpec(runOptions{
+		runID:       runID,
+		writerImage: writerImage,
+		profile:     os.Getenv(runProfile),
+		cells:       os.Getenv(runCells),
+		stackName:   os.Getenv(runStackName),
+		smbEnabled:  os.Getenv(smbOptIn) == smbOptInValue,
+	})
+	require.NoError(t, err, "%s, %s or %s is invalid", runProfile, runCells, runStackName)
+	if len(spec.cells) == 0 {
+		names := make([]string, 0, len(spec.gatedCells))
+		for _, c := range spec.gatedCells {
+			names = append(names, c.name)
+		}
+		t.Skipf("every selected cell (%s) is gated: %s", strings.Join(names, ","), gateReason())
+	}
 	e2e.Run(t, &azureFilesSuite{spec: spec},
 		e2e.WithProvisioner(spec.storageProvisioner()),
 		e2e.WithStackName(spec.stackName),
@@ -105,13 +126,35 @@ func TestAzureFiles(t *testing.T) {
 	)
 }
 
+// gateReason says how to enable the gated smb cell.
+func gateReason() string {
+	return fmt.Sprintf("set %s=%s to run the smb cell; it needs an Agent built with the native SMB log source (see README.md)", smbOptIn, smbOptInValue)
+}
+
 func (suite *azureFilesSuite) TestRotatedFilesAreCollectedExactlyOnce() {
+	for _, c := range suite.spec.gatedCells {
+		suite.Run(c.name, func() {
+			suite.T().Skip(gateReason())
+		})
+	}
+
+	// A reused stack keeps its Fakeintake and the logs of earlier runs, which
+	// carry the same services and sequence numbers. The storage pass has just
+	// removed the Agent, so nothing new arrives before the Agent pass below.
+	require.NoError(suite.T(), suite.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 	suite.UpdateEnv(suite.spec.agentProvisioner())
 	require.NoError(suite.T(), suite.writeRunMetadata())
 	defer suite.captureEvidence()
 
 	for _, c := range suite.spec.cells {
 		suite.Run(c.name, func() {
+			if c.reader == smbReader {
+				// Fail with a clear message when the Agent cannot run the
+				// source at all, rather than with every sequence missing, and
+				// before waiting minutes for the writer's rotations.
+				suite.requireSMBSourceRunning(c)
+			}
+
 			pod := suite.writerPod(c)
 			var ledger []ledgerEntry
 			suite.EventuallyWithT(func(collect *assert.CollectT) {
@@ -128,9 +171,13 @@ func (suite *azureFilesSuite) TestRotatedFilesAreCollectedExactlyOnce() {
 			markers := suite.postRotationMarkers(pod, c, asserted)
 
 			suite.EventuallyWithT(func(collect *assert.CollectT) {
-				messages, err := suite.collectedMessages(c.service)
+				logs, err := suite.collectedLogs(c.service)
 				require.NoError(collect, err)
+				// Lines carrying the right service but not this source's
+				// metadata come from a reader that builds a wrong origin.
+				assertLogOrigin(collect, suite.spec.runID, c, logs)
 
+				messages := logMessages(logs)
 				actual := countSequences(messages, expected)
 				assert.Equal(collect, len(expected), len(actual),
 					"%s did not collect every ledger sequence", c.name)
@@ -147,6 +194,10 @@ func (suite *azureFilesSuite) TestRotatedFilesAreCollectedExactlyOnce() {
 			messages, err := suite.collectedMessages(c.service)
 			require.NoError(suite.T(), err)
 			assertMarkerOutcome(suite.T(), c, markers, countMarkerIDs(messages))
+
+			if c.reader == smbReader {
+				suite.checkSMBSource(c)
+			}
 		})
 	}
 }
@@ -185,11 +236,11 @@ func (suite *azureFilesSuite) postRotationMarkers(
 func assertMarkerOutcome(t assert.TestingT, c cell, markers []markerEntry, counts map[string]int) {
 	for _, marker := range markers {
 		switch marker.MarkerAgeMs {
-		case postRotationMarkerSurvivingDelayMs:
+		case c.markers.survivingMs:
 			assert.Equal(t, postRotationMarkerSurvivingCount, counts[marker.MarkerID],
-				"%s: marker %s was appended to %s %dms after its rename, inside every drain window, so it must be collected exactly once; losing it means appends to the rotated file are dropped",
-				c.name, marker.MarkerID, marker.RotatedFile, marker.MarkerAgeMs)
-		case postRotationMarkerLostDelayMs:
+				"%s: marker %s was appended to %s %dms after its rename, inside the drain window of its %s reader, so it must be collected exactly once; losing it means appends to the rotated file are dropped",
+				c.name, marker.MarkerID, marker.RotatedFile, marker.MarkerAgeMs, c.reader)
+		case c.markers.lostMs:
 			// An unexpected survival is a harness signal, not a product win: it
 			// means this suite is no longer proving that it can see the loss.
 			// Check the drain window constants and the rotation-detection lag
@@ -245,16 +296,57 @@ func countMarkerIDs(messages []string) map[string]int {
 	return counts
 }
 
-func (suite *azureFilesSuite) collectedMessages(service string) ([]string, error) {
+// collectedLog is the part of a Fakeintake log this suite checks.
+type collectedLog struct {
+	message string
+	source  string
+	tags    []string
+}
+
+func (suite *azureFilesSuite) collectedLogs(service string) ([]collectedLog, error) {
 	logs, err := suite.Env().FakeIntake.Client().FilterLogs(service)
 	if err != nil {
 		return nil, err
 	}
+	collected := make([]collectedLog, 0, len(logs))
+	for _, log := range logs {
+		collected = append(collected, collectedLog{message: log.Message, source: log.Source, tags: log.GetTags()})
+	}
+	return collected, nil
+}
+
+func (suite *azureFilesSuite) collectedMessages(service string) ([]string, error) {
+	logs, err := suite.collectedLogs(service)
+	if err != nil {
+		return nil, err
+	}
+	return logMessages(logs), nil
+}
+
+func logMessages(logs []collectedLog) []string {
 	messages := make([]string, 0, len(logs))
 	for _, log := range logs {
-		messages = append(messages, log.Message)
+		messages = append(messages, log.message)
 	}
-	return messages, nil
+	return messages
+}
+
+// assertLogOrigin requires every log of a cell's service to carry the source
+// and tags its log source configures. Fakeintake is flushed before the Agent
+// is installed, so a log of an earlier run on a reused stack fails it too.
+// Only the first mismatch is reported.
+func assertLogOrigin(t assert.TestingT, runID string, c cell, logs []collectedLog) {
+	wantedTags := []string{"e2e_run_id:" + runID, "e2e_cell:" + c.name}
+	for _, log := range logs {
+		if !assert.Equal(t, "java", log.source, "%s: a collected log has the wrong source", c.name) {
+			return
+		}
+		for _, tag := range wantedTags {
+			if !assert.Contains(t, log.tags, tag, "%s: a collected log is missing the tag of its log source", c.name) {
+				return
+			}
+		}
+	}
 }
 
 func expectedSequences(entries []ledgerEntry) map[int64]struct{} {
@@ -303,14 +395,20 @@ func (suite *azureFilesSuite) readLedger(pod corev1.Pod) ([]ledgerEntry, error) 
 	if err != nil {
 		return nil, err
 	}
-	var entries []ledgerEntry
-	for lineNumber, line := range strings.Split(strings.TrimSpace(stdout), "\n") {
+	return decodeJSONLines[ledgerEntry](stdout, "ledger")
+}
+
+// decodeJSONLines decodes a JSON Lines file of the share, the ledger or the
+// marker journal.
+func decodeJSONLines[T any](raw, what string) ([]T, error) {
+	var entries []T
+	for lineNumber, line := range strings.Split(strings.TrimSpace(raw), "\n") {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		var entry ledgerEntry
+		var entry T
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {
-			return nil, fmt.Errorf("decode ledger line %d: %w", lineNumber+1, err)
+			return nil, fmt.Errorf("decode %s line %d: %w", what, lineNumber+1, err)
 		}
 		entries = append(entries, entry)
 	}
@@ -330,18 +428,7 @@ func (suite *azureFilesSuite) readMarkerJournal(pod corev1.Pod) ([]markerEntry, 
 	if err != nil {
 		return nil, err
 	}
-	var entries []markerEntry
-	for lineNumber, line := range strings.Split(strings.TrimSpace(stdout), "\n") {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		var entry markerEntry
-		if err := json.Unmarshal([]byte(line), &entry); err != nil {
-			return nil, fmt.Errorf("decode marker journal line %d: %w", lineNumber+1, err)
-		}
-		entries = append(entries, entry)
-	}
-	return entries, nil
+	return decodeJSONLines[markerEntry](stdout, "marker journal")
 }
 
 func (suite *azureFilesSuite) readMarkerJournalRaw(pod corev1.Pod) (string, error) {
@@ -372,38 +459,67 @@ func (suite *azureFilesSuite) writeRunMetadata() error {
 			"name": c.name, "reader": c.reader, "service": c.service,
 			"storage_account": c.accountName, "share": c.shareName,
 			"mount_options": strings.Split(c.mountOptions, ","),
+			"post_rotation_markers": map[string]any{
+				"surviving_delay_ms": c.markers.survivingMs, "lost_delay_ms": c.markers.lostMs,
+			},
 		}
-		if c.reader == fileReader {
+		switch c.reader {
+		case fileReader:
 			entry["fingerprint"] = map[string]any{
 				"strategy": c.fingerprint.strategy, "count": c.fingerprint.count, "max_bytes": c.fingerprint.maxBytes,
+			}
+		case smbReader:
+			// The mount options apply to the writer only.
+			entry["smb"] = map[string]any{
+				"host": c.host(), "share": c.shareName, "username": c.accountName, "path": activeLogName,
+				"password_handle": smbPasswordHandle(c), "poll_interval": smbPollIntervalSeconds,
 			}
 		}
 		cells = append(cells, entry)
 	}
+	gated := make([]string, 0, len(suite.spec.gatedCells))
+	for _, c := range suite.spec.gatedCells {
+		gated = append(gated, c.name)
+	}
 	metadata := map[string]any{
-		"run_id":       suite.spec.runID,
-		"stack_name":   suite.spec.stackName,
-		"namespace":    e2eNamespace,
-		"writer_image": suite.spec.writerImage,
+		"run_id":     suite.spec.runID,
+		"stack_name": suite.spec.stackName,
+		"namespace":  e2eNamespace,
+		"writer":     suite.spec.writerMetadata(),
 		"profile": map[string]any{
 			"name":             suite.spec.profile.name,
 			"unreliable_mount": suite.spec.profile.unreliableMount,
 			"file_scan_period": fileScanPeriodSeconds,
 			"close_timeout":    closeTimeoutSeconds,
 		},
+		// The marker ages depend on the reader and are listed per cell.
 		"post_rotation_markers": map[string]any{
-			"surviving_delay_ms": postRotationMarkerSurvivingDelayMs,
-			"lost_delay_ms":      postRotationMarkerLostDelayMs,
 			"expected_surviving": postRotationMarkerSurvivingCount,
 			"expected_lost":      postRotationMarkerLostCount,
 		},
-		"cells": cells,
+		"cells":       cells,
+		"gated_cells": gated,
 	}
 	return writeJSON(filepath.Join(suite.SessionOutputDir(), "azure-files-run.json"), metadata)
 }
 
+// writerMetadata describes the writer pods. The stock image is recorded as
+// its Docker Hub reference; the pod manifests in the evidence show the image
+// each pod resolved.
+func (spec runSpec) writerMetadata() map[string]any {
+	if spec.workloadKind() == customWorkload {
+		return map[string]any{"workload": customWorkload, "image": spec.writerImage}
+	}
+	return map[string]any{
+		"workload":       stockWorkload,
+		"image":          stockWorkloadImage,
+		"config_map":     workloadConfigMapName,
+		"scripts_sha256": spec.workloadRuntime("").scriptsChecksum(),
+	}
+}
+
 func (suite *azureFilesSuite) captureEvidence() {
-	evidence, err := suite.newEvidenceDir()
+	evidence, err := suite.evidenceDir()
 	if err != nil {
 		suite.T().Logf("cannot create evidence directory: %v", err)
 		return
@@ -440,13 +556,20 @@ func (suite *azureFilesSuite) captureEvidence() {
 			)},
 		)
 		evidence.writeCommandResult(c.name+"-writer-filesystem.txt", stdout, stderr, err)
+		if !evidence.redactsEverySecret() {
+			continue
+		}
 		if logs, err := suite.Env().FakeIntake.Client().FilterLogs(c.service); err == nil {
 			evidence.writeJSON(c.name+"-fakeintake-logs.json", logs)
 		}
 	}
 
+	// Agent output and shipped logs are where a leaked key would show up, so
+	// they are only kept when every key can be redacted from them.
 	agentPods, err := suite.agentPods()
-	if err == nil {
+	if !evidence.redactsEverySecret() {
+		suite.T().Logf("skipping Agent and Fakeintake evidence: cannot redact the account key of %s", strings.Join(evidence.unredacted, ","))
+	} else if err == nil {
 		for _, pod := range agentPods {
 			evidence.writeJSON(pod.Name+"-pod.json", pod)
 			for _, container := range pod.Spec.Containers {
@@ -463,11 +586,17 @@ func (suite *azureFilesSuite) captureEvidence() {
 				)},
 			)
 			evidence.writeCommandResult(pod.Name+"-filesystem.txt", stdout, stderr, execErr)
-			// The status shows each source's errors.
+			// The status shows each source's errors, including SMB
+			// authentication and connection failures, and, verbose, each
+			// tailer with the bytes it read.
 			stdout, stderr, execErr = suite.Env().KubernetesCluster.KubernetesClient.PodExec(
-				agentNamespace, pod.Name, "agent", []string{"agent", "status"},
+				agentNamespace, pod.Name, "agent", []string{"agent", "status", "--verbose"},
 			)
 			evidence.writeCommandResult(pod.Name+"-status.txt", stdout, stderr, execErr)
+			stdout, stderr, execErr = suite.Env().KubernetesCluster.KubernetesClient.PodExec(
+				agentNamespace, pod.Name, "agent", []string{"agent", "status", "--json", "--verbose"},
+			)
+			evidence.writeCommandResult(pod.Name+"-status.json.txt", stdout, stderr, execErr)
 			registry, registryStderr, registryErr := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
 				agentNamespace, pod.Name, "agent",
 				[]string{"/bin/sh", "-c", "cat /opt/datadog-agent/run/registry.json"},
@@ -480,13 +609,33 @@ func (suite *azureFilesSuite) captureEvidence() {
 	suite.T().Logf("run resources: stack=%s namespace=%s accounts=%s", suite.spec.stackName, e2eNamespace, suite.storageAccountNames())
 }
 
-// newEvidenceDir creates the evidence directory of this run.
-func (suite *azureFilesSuite) newEvidenceDir() (*evidenceDir, error) {
+// evidenceDir returns the evidence directory of this run, creating it on first
+// use once the Agent pass has run. Everything written to it has the SMB cells'
+// storage account keys redacted, so a leak that the assertions catch is not
+// copied into the artifacts as well.
+func (suite *azureFilesSuite) evidenceDir() (*evidenceDir, error) {
+	if suite.evidence != nil {
+		return suite.evidence, nil
+	}
 	dir := filepath.Join(suite.SessionOutputDir(), "azure-files-evidence", suite.spec.runID)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	return &evidenceDir{dir: dir}, nil
+	evidence := &evidenceDir{dir: dir}
+	for _, c := range suite.spec.cells {
+		if c.reader != smbReader {
+			continue
+		}
+		key, err := suite.accountKey(c)
+		if err != nil {
+			suite.T().Logf("cannot read the %s account key to redact it from evidence: %v", c.name, err)
+			evidence.unredacted = append(evidence.unredacted, c.name)
+			continue
+		}
+		evidence.secrets = append(evidence.secrets, key)
+	}
+	suite.evidence = evidence
+	return evidence, nil
 }
 
 func (suite *azureFilesSuite) storageAccountNames() string {
@@ -497,13 +646,38 @@ func (suite *azureFilesSuite) storageAccountNames() string {
 	return strings.Join(names, ",")
 }
 
-// evidenceDir writes best-effort evidence files.
+// evidenceDir writes best-effort evidence files with secrets redacted.
 type evidenceDir struct {
-	dir string
+	dir     string
+	secrets []string
+	// unredacted lists the SMB cells whose key could not be read, and so
+	// cannot be redacted.
+	unredacted []string
+}
+
+// redactsEverySecret reports whether every SMB cell's key is known. Output
+// that may contain a key is only written when it is.
+func (e *evidenceDir) redactsEverySecret() bool {
+	return len(e.unredacted) == 0
+}
+
+func (e *evidenceDir) redact(content []byte) []byte {
+	return []byte(redactSecrets(string(content), e.secrets...))
+}
+
+// redactSecrets replaces every secret in text, for evidence files and for any
+// command output that a failure message quotes.
+func redactSecrets(text string, secrets ...string) string {
+	for _, secret := range secrets {
+		if secret != "" {
+			text = strings.ReplaceAll(text, secret, redactedAccountKey)
+		}
+	}
+	return text
 }
 
 func (e *evidenceDir) write(name string, content []byte) {
-	_ = os.WriteFile(filepath.Join(e.dir, name), content, 0o600)
+	_ = os.WriteFile(filepath.Join(e.dir, name), e.redact(content), 0o600)
 }
 
 func (e *evidenceDir) writeJSON(name string, value any) {

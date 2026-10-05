@@ -6,8 +6,17 @@ log_dir=${LOGWRITER_LOG_DIR:-/mnt/azure-files}
 ledger_path=${LOGWRITER_LEDGER_PATH:-${log_dir}/ledger.jsonl}
 seen_dir=${LOGWRITER_LEDGER_SEEN_DIR:-${log_dir}/.ledger-seen}
 poll_seconds=${LOGWRITER_LEDGER_POLL_SECONDS:-1}
+# Prints Go's hash/crc64 ISO checksum of a file's first 2048 bytes or first
+# line. The Java image runs its Crc64 class; the stock image runs logwriter.py,
+# which prints the same value.
+crc64_command=${LOGWRITER_CRC64_COMMAND:-java -cp /app/classes com.datadoghq.e2e.logwriter.Crc64}
 
 mkdir -p "$seen_dir"
+
+crc64() {
+    # shellcheck disable=SC2086 # the command is split into its words on purpose
+    $crc64_command "$@"
+}
 
 record_file() {
     rotated_path=$1
@@ -22,8 +31,8 @@ record_file() {
     lines=$(wc -l < "$rotated_path" | tr -d ' ')
     first_2048_sha256=$(dd if="$rotated_path" bs=2048 count=1 2>/dev/null | sha256sum | awk '{print $1}')
     first_line_sha256=$(sed -n '1{s/\r$//;p;}' "$rotated_path" | tr -d '\n' | sha256sum | awk '{print $1}')
-    first_2048_crc64=$(java -cp /app/classes com.datadoghq.e2e.logwriter.Crc64 bytes "$rotated_path")
-    first_line_crc64=$(java -cp /app/classes com.datadoghq.e2e.logwriter.Crc64 line "$rotated_path")
+    first_2048_crc64=$(crc64 bytes "$rotated_path")
+    first_line_crc64=$(crc64 line "$rotated_path")
     run_id=$(sed -n 's/.*run_id=\([^ |]*\).*/\1/p' "$rotated_path" | head -n 1)
     period=$(sed -n 's/.*period=\([^ |]*\).*/\1/p' "$rotated_path" | head -n 1)
     target_bytes=$(sed -n 's/.*target_bytes=\([0-9][0-9]*\).*/\1/p' "$rotated_path" | head -n 1)
