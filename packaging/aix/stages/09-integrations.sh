@@ -85,16 +85,15 @@ fi
 # so integrations-core is the single source of truth for AIX support instead
 # of a hardcoded list here.
 #
-# --constraint pins all transitive deps to the exact versions frozen by Stage 08,
-# matching the Linux omnibus approach and failing loudly if a dep is unavailable.
+# Dependency versions come from agent_requirements.in — the same pins the
+# other platforms compile into their lockfiles. The subset is computed by
+# lib/aix-deps-subset.py, which also skips native deps Stage 06 did not build
+# (e.g. pyodbc without unixODBC headers) so the install doesn't fail on a
+# source build that cannot succeed.
+#
+# --constraint pins all transitive deps to the exact versions frozen by Stage 08.
 # --find-links allows pip to locate native AIX wheels (pydantic-core, cryptography)
 # from the local cache if needed rather than hitting PyPI.
-#
-# IBM checks (ibm_mq, ibm_ace, ibm_db2, ibm_i) are installed regardless of
-# whether the corresponding C extension (pymqi, ibm_db, pyodbc) was built in
-# Stage 06. The check code installs successfully; it will surface a clear
-# ImportError at runtime if the missing native extension is not present on the
-# target system.
 
 PYTHON_CHECKS=$(python3.12 -c "
 import json
@@ -123,6 +122,28 @@ fi
 
 log "Discovered Python checks tagged Supported OS::AIX: $PYTHON_CHECKS"
 
+# Compute the AIX dependency subset (see lib/aix-deps-subset.py for details).
+AIX_DEPS="$BUILD_DIR/.09-aix-deps.tmp"
+AGENT_REQ="$INTEGRATIONS_CORE/agent_requirements.in"
+if [ ! -f "$AGENT_REQ" ]; then
+    log "ERROR: $AGENT_REQ not found — is the integrations-core checkout complete?"
+    exit 1
+fi
+python3.12 "$SCRIPT_DIR/../lib/aix-deps-subset.py" \
+    "$INTEGRATIONS_CORE" "$AGENT_REQ" "$STAGING/constraints.txt" "$AIX_DEPS"
+log "AIX dependency subset written to $AIX_DEPS ($(wc -l < "$AIX_DEPS" | tr -d ' ') entries):"
+sed 's/^/  /' "$AIX_DEPS" >&2
+
+log "Installing AIX dependency subset from agent_requirements.in"
+$PIP install \
+    --constraint "$STAGING/constraints.txt" \
+    --find-links "$WHEEL_CACHE" \
+    -r "$AIX_DEPS"
+rm -f "$AIX_DEPS"
+log "AIX dependency subset installed"
+
+# Check code only; its [deps] extra is already installed above, so this does
+# not rebuild native extensions.
 for check in $PYTHON_CHECKS; do
     CHECK_DIR="$INTEGRATIONS_CORE/$check"
     log "Installing check: $check"

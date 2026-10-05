@@ -1175,6 +1175,93 @@ func TestNeedsRecoverySampleUnsupported(t *testing.T) {
 	require.True(t, safenvml.IsAPIUnsupportedOnDevice(err, device))
 }
 
+func TestRetiredPagesSample(t *testing.T) {
+	tests := []struct {
+		name          string
+		cause         nvml.PageRetirementCause
+		addresses     []uint64
+		expectedValue float64
+	}{
+		{
+			name:          "multiple single-bit ECC errors",
+			cause:         nvml.PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS,
+			addresses:     []uint64{0x1000, 0x2000, 0x3000},
+			expectedValue: 3,
+		},
+		{
+			name:          "double-bit ECC error",
+			cause:         nvml.PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR,
+			addresses:     []uint64{0x4000},
+			expectedValue: 1,
+		},
+		{
+			// A healthy device reports no retired pages: NVML returns an empty
+			// (or nil) address list with SUCCESS, and the metric must still be
+			// emitted with value 0.
+			name:          "no retired pages",
+			cause:         nvml.PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS,
+			addresses:     nil,
+			expectedValue: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		causeName := pageRetirementCauseToName[tt.cause]
+		t.Run(tt.name, func(t *testing.T) {
+			mockDevice := setupMockDevice(t,
+				testutil.WithArchitecture("volta"),
+				testutil.WithCustomHook(func(device *testutil.MockDevice) {
+					device.GetRetiredPages_v2Func = func(_ nvml.PageRetirementCause) ([]uint64, []uint64, nvml.Return) {
+						return tt.addresses, nil, nvml.SUCCESS
+					}
+				}),
+			)
+
+			samplesOut, _, err := retiredPagesSample(mockDevice, tt.cause, causeName)
+			require.NoError(t, err)
+			require.Len(t, samplesOut, 1)
+
+			metric := requireMetrics(t, samplesOut)[0]
+			require.Equal(t, "retired_pages", metric.Name)
+			require.Equal(t, metrics.GaugeType, metric.Type)
+			require.Equal(t, tt.expectedValue, metric.Value)
+			require.Equal(t, []string{"cause:" + causeName}, metric.Tags())
+		})
+	}
+}
+
+func TestRetiredPagesSampleError(t *testing.T) {
+	tests := []struct {
+		name string
+		ret  nvml.Return
+		// unsupportedOnDevice is true when the error indicates the API is
+		// unsupported (so the collector can skip it silently) and false for
+		// unexpected errors, which must surface as regular errors.
+		unsupportedOnDevice bool
+	}{
+		{name: "not supported", ret: nvml.ERROR_NOT_SUPPORTED, unsupportedOnDevice: true},
+		{name: "unexpected error", ret: nvml.ERROR_UNKNOWN, unsupportedOnDevice: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDevice := setupMockDevice(t,
+				testutil.WithArchitecture("volta"),
+				testutil.WithCustomHook(func(device *testutil.MockDevice) {
+					device.GetRetiredPages_v2Func = func(_ nvml.PageRetirementCause) ([]uint64, []uint64, nvml.Return) {
+						return nil, nil, tt.ret
+					}
+				}),
+			)
+
+			samplesOut, _, err := retiredPagesSample(mockDevice, nvml.PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR, "double_bit")
+			require.Error(t, err)
+			require.Empty(t, samplesOut)
+			require.Equal(t, tt.unsupportedOnDevice, safenvml.IsAPIUnsupportedOnDevice(err, mockDevice))
+		})
+	}
+}
+
 func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInfo {
 	t.Helper()
 	for _, api := range apis {

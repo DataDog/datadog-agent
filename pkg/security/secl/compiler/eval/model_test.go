@@ -79,6 +79,8 @@ type testEvent struct {
 	listEvaluated bool
 	uidEvaluated  bool
 	gidEvaluated  bool
+
+	isRootEvalCount int
 }
 
 type testModel struct {
@@ -238,9 +240,14 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID, offset int) (Eva
 	case "process.is_root":
 
 		return &BoolEvaluator{
-			EvalFnc: func(ctx *Context) bool { return ctx.Event.(*testEvent).process.isRoot },
-			Field:   field,
-			Offset:  offset,
+			EvalFnc: func(ctx *Context) bool {
+				// to test that the evaluator isn't called more than once per evaluation
+				ctx.Event.(*testEvent).isRootEvalCount++
+
+				return ctx.Event.(*testEvent).process.isRoot
+			},
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.list.length":

@@ -117,10 +117,7 @@ func NewEgressPolicy(opts EgressPolicyOptions) *EgressPolicy {
 }
 
 func nonNegativeDuration(d time.Duration) time.Duration {
-	if d < 0 {
-		return 0
-	}
-	return d
+	return max(d, 0)
 }
 
 // Mode returns the current egress mode.

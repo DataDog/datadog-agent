@@ -1,0 +1,261 @@
+"""Heroku Agent package."""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_attributes",
+    "pkg_filegroup",
+    "pkg_files",
+)
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("@supply_chain_tools//sbom:sbom.bzl", "sbom")
+load("@supply_chain_tools//sbom:spdx.bzl", "spdx")
+load("//bazel/rules:compression.bzl", "get_compression_level")
+load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
+load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+load("//bazel/tools/healthcheck:gate.bzl", "healthcheck_gate")
+load("//compliance:package_licenses.bzl", "package_licenses")
+load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
+load("//packages/rules:dd_pkg_deb.bzl", "dd_pkg_deb")
+load("//packages/rules:package_naming.bzl", "make_version", "package_name_variables")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+package_name_variables(
+    name = "variables",
+    product_name = "datadog-heroku-agent",
+)
+
+rewrite_rpath(
+    name = "agent_binary_rpath",
+    destination = "{install_dir}/bin/agent",
+    inputs = ["//cmd/agent:agent-heroku"],
+    use_relative_rpaths = False,
+)
+
+pkg_files(
+    name = "agent_binary",
+    srcs = [":agent_binary_rpath"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "bin/agent",
+    renames = {":agent_binary_rpath": "agent"},
+)
+
+rewrite_rpath(
+    name = "process_agent_binary_rpath",
+    destination = "{install_dir}/embedded/bin",
+    inputs = ["//cmd/process-agent:process-agent-heroku"],
+    use_relative_rpaths = False,
+)
+
+pkg_files(
+    name = "process_agent_binary",
+    srcs = [":process_agent_binary_rpath"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+    renames = {":process_agent_binary_rpath": "process-agent"},
+)
+
+pkg_files(
+    name = "trace_agent_binary",
+    srcs = ["//cmd/trace-agent:trace-agent-heroku"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+    renames = {"//cmd/trace-agent:trace-agent-heroku": "trace-agent"},
+)
+
+# The systemd service needs a trace-loader, but nothing is traced through it.
+pkg_files(
+    name = "trace_loader",
+    srcs = ["//cmd/loader:main_noop.sh"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+    renames = {"//cmd/loader:main_noop.sh": "trace-loader"},
+)
+
+pkg_files(
+    name = "example_config",
+    srcs = [
+        "//pkg/config:agent_config",
+        "//pkg/config:application_monitoring_example_config_src",
+    ],
+    prefix = select(ETC_DIR_SELECTOR),
+    renames = {
+        "//pkg/config:agent_config": "datadog.yaml.example",
+    },
+)
+
+dd_collect_dependencies(
+    name = "_collected_libs",
+    srcs = [
+        "//cmd/agent",
+        "//cmd/privateactionrunner",
+        "//cmd/process-agent",
+        "//cmd/trace-agent",
+        "@curl//:curl_pkg",
+        "@freetds//:tdsodbc_pkg",
+        "@jemalloc//:jemalloc_pkg",
+    ],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+)
+
+pkg_filegroup(
+    name = "collected_libs",
+    srcs = [":_collected_libs"],
+)
+
+package_licenses(
+    name = "collected_libs_licenses",
+    src = ":_collected_libs",
+)
+
+pkg_filegroup(
+    name = "dependencies",
+    srcs = [
+        ":collected_libs",
+        "//deps/cacerts:all_files",
+        "//deps/gstatus:all_files",
+        "//deps/jmxfetch:all_files",
+        "//deps/snmp_traps:all_files",
+        "@systemd//:all_files",
+    ],
+)
+
+pkg_filegroup(
+    name = "product",
+    srcs = [
+        ":agent_binary",
+        ":example_config",
+        ":process_agent_binary",
+        ":trace_agent_binary",
+        ":trace_loader",
+        "//cmd/agent/dist:all_files",
+        "//cmd/agent/dist:all_python_files",
+        "//packages/agent/product:dirs",
+        "//packages/agent/product:privateactionrunner_binary",
+    ],
+)
+
+pkg_filegroup(
+    name = "everything",
+    srcs = [
+        ":dependencies",
+        ":product",
+        "//packages/install_dir:embedded",
+        "//packages/install_dir:etc",
+    ],
+)
+
+package_licenses(
+    name = "license_files",
+    src = ":everything",
+)
+
+healthcheck_gate(
+    name = "everything_checked",
+    srcs = ":everything",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_filegroup(
+    name = "installed_distro",
+    srcs = [
+        ":everything_checked",
+        ":license_files",
+    ],
+    package_variables = ":variables",
+    prefix = "$(install_dir)",
+)
+
+pkg_filegroup(
+    name = "whole_distro",
+    srcs = [":installed_distro"] + select({
+        "//:is_standard_install": [
+            "//packages/agent/linux:datadog_agent_installer_symlinks",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+pkg_tar(
+    name = "whole_distro_tar",
+    srcs = [":whole_distro"],
+    compression_level = get_compression_level(),
+    extension = "tar.xz",
+    owner = "0.0",
+)
+
+_DESCRIPTION = """Datadog Monitoring Agent
+The Datadog Monitoring Agent is a lightweight process that monitors system
+processes and services, and sends information back to your Datadog account.
+.
+This package installs and runs the advanced Agent daemon, which queues and
+forwards metrics from your applications as well as system services.
+.
+See http://www.datadoghq.com/ for more information
+"""
+
+dd_pkg_deb(
+    name = "debian",
+    out = "debian.deb",
+    conflicts = ["datadog-iot-agent"],
+    data = ":whole_distro_tar",
+    description = _DESCRIPTION,
+    homepage = "http://www.datadoghq.com",
+    license = "Apache License Version 2.0",
+    maintainer = "Datadog Packages <package@datadoghq.com>",
+    package = "datadog-heroku-agent",
+    package_file_name = "{product_name}_{version}-1_{arch_deb}.deb",
+    postinst = "//omnibus:package-scripts/agent-deb/postinst",
+    postrm = "//omnibus:package-scripts/agent-deb/postrm",
+    preinst = "//omnibus:package-scripts/agent-deb/preinst",
+    prerm = "//omnibus:package-scripts/agent-deb/prerm",
+    priority = "extra",
+    recommends = ["datadog-signing-keys (>= 1:1.4.0)"],
+    section = "utils",
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    version = "1:" + make_version() + "-1",
+)
+
+sbom(
+    name = "debian_sbom",
+    require_root_metadata = False,
+    target = ":everything",
+)
+
+spdx(
+    name = "debian_spdx",
+    out = "debian_spdx.yml",
+    format = "yaml",
+    sbom = ":debian_sbom",
+)
+
+# Temporary: only used by the omnibus heroku build to stage files into
+# {install_dir}. Goes away once the package is built with bazel.
+pkg_install(
+    name = "install_dependencies",
+    srcs = [":dependencies"],
+    destdir_flag = "//:install_dir",
+)
+
+pkg_filegroup(
+    name = "post_build_install_files",
+    srcs = [
+        ":example_config",
+        "//cmd/agent/dist:all_files",
+        "//cmd/agent/dist:all_python_files",
+        "//packages/agent/product:dirs",
+    ],
+)
+
+pkg_install(
+    name = "post_build_install",
+    srcs = [":post_build_install_files"],
+    destdir_flag = "//:install_dir",
+)

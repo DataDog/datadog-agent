@@ -6,9 +6,7 @@
 package installtest
 
 import (
-	"path/filepath"
 	"strconv"
-	"time"
 
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -16,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -130,28 +127,13 @@ func (s *testSubServicesOptsSuite) TestAPMEnabled() {
 }
 
 func (s *testSubServicesOptsSuite) testServiceState(serviceName string, running bool) {
-	vm := s.Env().RemoteHost
-
-	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		status, err := windowsCommon.GetServiceStatus(vm, serviceName)
-		require.NoError(c, err)
-		if running {
-			assert.Equal(c, "Running", status, "%s should be running", serviceName)
-		} else {
-			assert.Equal(c, "Stopped", status, "%s should be stopped", serviceName)
-		}
-	}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
+	state := "Stopped"
+	if running {
+		state = "Running"
+	}
+	windowsCommon.AssertServiceState(s.T(), s.Env().RemoteHost, serviceName, state)
 }
 
 func (s *testSubServicesOptsSuite) testProcmgrProcessRunning(processName string) {
-	vm := s.Env().RemoteHost
-	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
-	s.Require().NoError(err)
-	cli := filepath.Join(installPath, "bin", "agent", "dd-procmgr.exe")
-
-	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		state, err := windowsCommon.ProcmgrDescribeField(vm, cli, processName, "State")
-		require.NoError(c, err)
-		assert.Equal(c, "Running", state, "%s should be running under dd-procmgr", processName)
-	}, 1*time.Minute, 1*time.Second, "%s should be running under dd-procmgr", processName)
+	windowsAgent.AssertProcmgrProcessRunning(s.T(), s.Env().RemoteHost, processName)
 }

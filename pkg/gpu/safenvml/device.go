@@ -182,6 +182,10 @@ type SafeDevice interface {
 	RegisterEvents(evtTypes uint64, evtSet nvml.EventSet) error
 	// GetMemoryErrorCounter retrieves the requested memory error counter for the device.
 	GetMemoryErrorCounter(errorType nvml.MemoryErrorType, eccCounterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, error)
+	// GetRetiredPagesCount retrieves the number of memory pages the driver has
+	// retired, or will retire on the next driver reload, for the given retirement
+	// cause. Only the number of retired pages is exposed, not their addresses.
+	GetRetiredPagesCount(cause nvml.PageRetirementCause) (uint64, error)
 	// GetSramEccErrorStatus retrieves the detailed SRAM ECC error status for the device.
 	GetSramEccErrorStatus() (nvml.EccSramErrorStatus, error)
 }
