@@ -52,8 +52,14 @@ type GlobalParams struct {
 	NoColor bool
 }
 
+// ProductComposition contains product/flavor-specific composition choices for shared subcommands.
+//
+// It intentionally starts empty; fields should be added as feature migrations need
+// product-level control over reused subcommand composition.
+type ProductComposition struct{}
+
 // SubcommandFactory is a callable that will return a slice of subcommands.
-type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
+type SubcommandFactory func(globalParams *GlobalParams, product ProductComposition) []*cobra.Command
 
 // GetDefaultCoreBundleParams returns the default params for the Core Bundle (config loaded from the "datadog" file
 // and logger disabled).
@@ -69,6 +75,12 @@ func GetDefaultCoreBundleParams(globalParams *GlobalParams) core.BundleParams {
 
 // MakeCommand makes the top-level Cobra command for this app.
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
+	return MakeCommandWithProductComposition(subcommandFactories, ProductComposition{})
+}
+
+// MakeCommandWithProductComposition makes the top-level Cobra command for this app
+// using the supplied product/flavor composition.
+func MakeCommandWithProductComposition(subcommandFactories []SubcommandFactory, product ProductComposition) *cobra.Command {
 	globalParams := GlobalParams{}
 
 	// AgentCmd is the root command
@@ -104,7 +116,7 @@ monitoring and performance data.`,
 	}
 
 	for _, sf := range subcommandFactories {
-		subcommands := sf(&globalParams)
+		subcommands := sf(&globalParams, product)
 		for _, cmd := range subcommands {
 			agentCmd.AddCommand(cmd)
 		}

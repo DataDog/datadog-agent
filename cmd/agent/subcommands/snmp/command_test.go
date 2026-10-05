@@ -20,7 +20,7 @@ import (
 func TestWalkCommand(t *testing.T) {
 	// this command has _lots_ of options, so the test just exercises a few
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"snmp", "walk", "1.2.3.4", "10.9.8.7", "-v", "3", "-r", "10"},
 		snmpWalk,
 		func(cliParams *snmpparse.SNMPConfig, args argsType) {
@@ -34,7 +34,7 @@ func TestWalkCommand(t *testing.T) {
 func TestScanCommand(t *testing.T) {
 	// this command has _lots_ of options, so the test just exercises a few
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"snmp", "scan", "1.2.3.4", "-v", "3", "-r", "10"},
 		scanDevice,
 		func(cliParams *snmpparse.SNMPConfig, args argsType, scanOpts *scanFlags) {
@@ -51,7 +51,7 @@ func TestScanCommand(t *testing.T) {
 
 func TestScanCommandTuningFlags(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"snmp", "scan", "1.2.3.4", "--use-getbulk=false", "--bulk-batch-size", "7", "--flush-every-n-oids", "50", "--flush-interval", "30s"},
 		scanDevice,
 		func(_ *snmpparse.SNMPConfig, _ argsType, scanOpts *scanFlags) {

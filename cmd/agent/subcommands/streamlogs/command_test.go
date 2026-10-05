@@ -18,7 +18,7 @@ import (
 
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"stream-logs", "--type", "foo", "--duration", "10s", "--output", "output.log"},
 		streamLogs,
 		func(cliParams *CliParams, _ core.BundleParams) {

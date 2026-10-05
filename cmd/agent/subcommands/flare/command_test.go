@@ -275,7 +275,7 @@ func (c *commandTestSuite) TestReadProfileDataErrors() {
 func (c *commandTestSuite) TestCommand() {
 	t := c.T()
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"flare", "1234"},
 		makeFlare,
 		func(cliParams *cliParams, _ core.BundleParams) {

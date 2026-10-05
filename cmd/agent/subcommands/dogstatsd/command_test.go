@@ -16,14 +16,14 @@ import (
 
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"dogstatsd", "top"},
 		topContexts,
 		func(f *topFlags) {
 			assert.Equal(t, "", f.path)
 		})
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"dogstatsd", "top", "-p", "foo", "-m", "1", "-t", "2"},
 		topContexts,
 		func(f *topFlags) {
@@ -32,7 +32,7 @@ func TestCommand(t *testing.T) {
 			assert.Equal(t, 2, f.ntags)
 		})
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"dogstatsd", "dump-contexts"},
 		dumpContexts,
 		func() {},

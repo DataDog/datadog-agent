@@ -20,7 +20,7 @@ import (
 
 func TestDiagnoseCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"diagnose"},
 		cmdDiagnose,
 		func(_ *cliParams, _ core.BundleParams) {})
@@ -34,7 +34,7 @@ func TestDiagnoseCommandFailsWithoutAPIKey(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte("hostname: test\n"), 0o600))
 
 	root := &cobra.Command{Use: "agent"}
-	for _, c := range Commands(&command.GlobalParams{ConfFilePath: dir}) {
+	for _, c := range Commands(&command.GlobalParams{ConfFilePath: dir}, command.ProductComposition{}) {
 		root.AddCommand(c)
 	}
 	root.SetArgs([]string{"diagnose"})
@@ -47,7 +47,7 @@ func TestDiagnoseCommandFailsWithoutAPIKey(t *testing.T) {
 
 func TestShowMetadataV5Command(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"diagnose", "show-metadata", "v5"},
 		printPayload,
 		func(_ core.BundleParams) {})
@@ -55,7 +55,7 @@ func TestShowMetadataV5Command(t *testing.T) {
 
 func TestShowMetadataGohaiCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"diagnose", "show-metadata", "gohai"},
 		printPayload,
 		func(_ core.BundleParams) {})
@@ -63,7 +63,7 @@ func TestShowMetadataGohaiCommand(t *testing.T) {
 
 func TestShowMetadataInventoryAgentCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"diagnose", "show-metadata", "inventory-agent"},
 		printPayload,
 		func(_ core.BundleParams) {})
@@ -71,7 +71,7 @@ func TestShowMetadataInventoryAgentCommand(t *testing.T) {
 
 func TestShowHostGpuCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"diagnose", "show-metadata", "host-gpu"},
 		printPayload,
 		func(_ core.BundleParams) {})
@@ -79,7 +79,7 @@ func TestShowHostGpuCommand(t *testing.T) {
 
 func TestShowMetadataInventoryHostCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"diagnose", "show-metadata", "inventory-host"},
 		printPayload,
 		func(_ core.BundleParams) {})
@@ -87,7 +87,7 @@ func TestShowMetadataInventoryHostCommand(t *testing.T) {
 
 func TestShowMetadataInventoryChecksCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"diagnose", "show-metadata", "inventory-checks"},
 		printPayload,
 		func(_ core.BundleParams) {})
@@ -95,7 +95,7 @@ func TestShowMetadataInventoryChecksCommand(t *testing.T) {
 
 func TestShowMetadataHaAgentCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"diagnose", "show-metadata", "ha-agent"},
 		printPayload,
 		func(_ core.BundleParams) {})
@@ -103,7 +103,7 @@ func TestShowMetadataHaAgentCommand(t *testing.T) {
 
 func TestShowMetadataPkgSigningCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"diagnose", "show-metadata", "package-signing"},
 		printPayload,
 		func(_ core.BundleParams) {})
@@ -111,7 +111,7 @@ func TestShowMetadataPkgSigningCommand(t *testing.T) {
 
 func TestShowMetadataSystemProbeCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"diagnose", "show-metadata", "system-probe"},
 		printPayload,
 		func(_ core.BundleParams) {})
@@ -119,7 +119,7 @@ func TestShowMetadataSystemProbeCommand(t *testing.T) {
 
 func TestShowMetadataSecurityAgentCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"diagnose", "show-metadata", "security-agent"},
 		printPayload,
 		func(_ core.BundleParams) {})
@@ -127,7 +127,7 @@ func TestShowMetadataSecurityAgentCommand(t *testing.T) {
 
 func TestShowAgentTelemetryCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"diagnose", "show-metadata", "agent-telemetry"},
 		printPayload,
 		func(payload payloadName) {
@@ -137,7 +137,7 @@ func TestShowAgentTelemetryCommand(t *testing.T) {
 
 func TestShowFullAgentTelemetryCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"diagnose", "show-metadata", "agent-full-telemetry"},
 		printAgentFullTelemetry,
 		func() {},
@@ -146,7 +146,7 @@ func TestShowFullAgentTelemetryCommand(t *testing.T) {
 
 func TestShowMetadataHostSystemInfoCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"diagnose", "show-metadata", "host-system-info"},
 		printPayload,
 		func(_ core.BundleParams) {})
@@ -154,7 +154,7 @@ func TestShowMetadataHostSystemInfoCommand(t *testing.T) {
 
 func TestShowHealthIssuesCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"diagnose", "show-metadata", "health-issues"},
 		printHealthPlatformIssues,
 		func(_ core.BundleParams) {})

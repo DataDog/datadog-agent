@@ -30,7 +30,7 @@ type cliParams struct {
 }
 
 // Commands initializes dogstatsd sub-command tree.
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams, _ command.ProductComposition) []*cobra.Command {
 	c := &cobra.Command{
 		Use:   "coverage",
 		Short: "Handle running agent code coverage",

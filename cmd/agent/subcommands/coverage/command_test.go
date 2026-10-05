@@ -16,7 +16,7 @@ import (
 
 func TestCoverageGenerateCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"coverage", "generate"},
 		requestCoverage,
 		func() {},

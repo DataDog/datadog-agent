@@ -20,7 +20,7 @@ import (
 // Commands returns a slice of subcommands for the 'agent' command.
 //
 //nolint:revive // TODO(WINA) Fix revive linter
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams, _ command.ProductComposition) []*cobra.Command {
 	return []*cobra.Command{
 		{
 			Use:     "start-service",

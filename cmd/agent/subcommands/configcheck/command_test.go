@@ -27,7 +27,7 @@ func isValidJSON(data []byte) bool {
 
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"configcheck", "-v"},
 		run,
 		func(cliParams *cliParams, _ core.BundleParams) {

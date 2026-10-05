@@ -21,7 +21,7 @@ import (
 )
 
 func TestRemoteParentDisplaysHelp(t *testing.T) {
-	remote := Commands(&command.GlobalParams{})[0]
+	remote := Commands(&command.GlobalParams{}, command.ProductComposition{})[0]
 	require.Equal(t, "remote", remote.Name())
 	require.Equal(t, "Run commands exposed by other Agent processes", remote.Short)
 	require.Empty(t, remote.Commands())
@@ -34,7 +34,7 @@ func TestBareRemoteInvocation(t *testing.T) {
 }
 
 func TestDiscoveryErrorMessage(t *testing.T) {
-	remote := Commands(&command.GlobalParams{})[0]
+	remote := Commands(&command.GlobalParams{}, command.ProductComposition{})[0]
 	var output bytes.Buffer
 	remote.SetOut(&output)
 	setDiscoveryErrorMessage(remote, errors.New("unavailable"))
@@ -44,7 +44,7 @@ func TestDiscoveryErrorMessage(t *testing.T) {
 }
 
 func TestEmptyProviderMessage(t *testing.T) {
-	remote := Commands(&command.GlobalParams{})[0]
+	remote := Commands(&command.GlobalParams{}, command.ProductComposition{})[0]
 	var output bytes.Buffer
 	remote.SetOut(&output)
 	setEmptyProviderMessage(remote)
@@ -55,7 +55,7 @@ func TestEmptyProviderMessage(t *testing.T) {
 
 func TestPrepareFxDependencies(t *testing.T) {
 	root := &cobra.Command{Use: "agent"}
-	root.AddCommand(Commands(&command.GlobalParams{})...)
+	root.AddCommand(Commands(&command.GlobalParams{}, command.ProductComposition{})...)
 
 	fxutil.TestOneShot(t, func() {
 		require.NoError(t, Prepare(root, []string{"remote"}))
@@ -72,7 +72,7 @@ func TestPrepareDiscoversRemoteProvidersBeforeCobraDispatch(t *testing.T) {
 	globalParams := &command.GlobalParams{}
 	root := &cobra.Command{Use: "agent"}
 	root.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "")
-	remote := Commands(globalParams)[0]
+	remote := Commands(globalParams, command.ProductComposition{})[0]
 	root.AddCommand(remote)
 
 	var discovered bool
@@ -100,7 +100,7 @@ func TestPrepareDiscoversRemoteProvidersBeforeCobraDispatch(t *testing.T) {
 
 func TestPrepareSkipsDiscoveryForNonRemoteCommand(t *testing.T) {
 	root := &cobra.Command{Use: "agent"}
-	root.AddCommand(Commands(&command.GlobalParams{})...)
+	root.AddCommand(Commands(&command.GlobalParams{}, command.ProductComposition{})...)
 	root.AddCommand(&cobra.Command{Use: "status"})
 
 	discover := func(*cobra.Command, *command.GlobalParams, []string) error {
@@ -128,7 +128,7 @@ func TestApplyGlobalFlags(t *testing.T) {
 
 func TestRemoteCommandDetectionDoesNotSelectOtherCommands(t *testing.T) {
 	root := &cobra.Command{Use: "agent"}
-	root.AddCommand(Commands(&command.GlobalParams{})...)
+	root.AddCommand(Commands(&command.GlobalParams{}, command.ProductComposition{})...)
 	root.AddCommand(&cobra.Command{Use: "status"})
 
 	_, ok := remoteCommand(root, []string{"remote", "data-plane", "dogstatsd", "top"})
@@ -138,7 +138,7 @@ func TestRemoteCommandDetectionDoesNotSelectOtherCommands(t *testing.T) {
 }
 
 func TestAttachCommandProvidersBuildsNestedTreeAndPassesTypedFlags(t *testing.T) {
-	remote := Commands(&command.GlobalParams{})[0]
+	remote := Commands(&command.GlobalParams{}, command.ProductComposition{})[0]
 	var gotName string
 	var gotPath []string
 	var gotArguments map[string]any
@@ -177,7 +177,7 @@ func TestAttachCommandProvidersBuildsNestedTreeAndPassesTypedFlags(t *testing.T)
 }
 
 func TestAttachCommandProvidersForwardsInheritedPersistentFlag(t *testing.T) {
-	remote := Commands(&command.GlobalParams{})[0]
+	remote := Commands(&command.GlobalParams{}, command.ProductComposition{})[0]
 	var gotArguments map[string]any
 	providers := []*pb.CommandProvider{{
 		Name: "fixture-agent",
@@ -201,7 +201,7 @@ func TestAttachCommandProvidersForwardsInheritedPersistentFlag(t *testing.T) {
 }
 
 func TestAttachCommandProvidersDoesNotForwardNonPersistentParentParameters(t *testing.T) {
-	remote := Commands(&command.GlobalParams{})[0]
+	remote := Commands(&command.GlobalParams{}, command.ProductComposition{})[0]
 	var gotArguments map[string]any
 	providers := []*pb.CommandProvider{{
 		Name: "fixture-agent",
@@ -241,7 +241,7 @@ func TestArgumentsForCommandSupportsFinalPositionalSliceBeforeFlags(t *testing.T
 }
 
 func TestAttachCommandProvidersRendersResponseAndReturnsExitCode(t *testing.T) {
-	remote := Commands(&command.GlobalParams{})[0]
+	remote := Commands(&command.GlobalParams{}, command.ProductComposition{})[0]
 	var stdout, stderr bytes.Buffer
 	remote.SetOut(&stdout)
 	remote.SetErr(&stderr)
@@ -266,7 +266,7 @@ func TestAttachCommandProvidersRendersResponseAndReturnsExitCode(t *testing.T) {
 }
 
 func TestAttachCommandProvidersRejectsMissingName(t *testing.T) {
-	remote := Commands(&command.GlobalParams{})[0]
+	remote := Commands(&command.GlobalParams{}, command.ProductComposition{})[0]
 	require.Error(t, AttachCommandProviders(remote, []*pb.CommandProvider{{}}, func(string, []string, *structpb.Struct, io.Writer, io.Writer) error { return nil }))
 }
 
