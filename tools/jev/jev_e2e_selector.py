@@ -1,0 +1,360 @@
+#!/usr/bin/env python3
+"""Jev-based E2E test selector.
+
+Decides, for each E2E test of a given suite (or a single test), whether it
+should be executed on the current PR, by asking a Jev (TypeSafe System One)
+model through the AI Gateway:
+
+    state  = PR title + description + changed files + owning team + test code
+    questions:
+      - should_execute (noul)   : run the test on this PR?
+      - relation (choice)       : why (direct code, shared infra, packaging/CI, unrelated)
+      - confidence (score)      : how confident in the decision
+
+Outputs go-test compatible --run/--skip patterns (same integration point as the
+coverage-based `--impacted` selection in tasks/new_e2e_tests.py), plus a JSON
+artifact with the full decisions.
+
+Usage (from repo root):
+    GITHUB_TOKEN=... AI_GATEWAY_TOKEN=... python3 tools/jev/jev_e2e_selector.py \
+        --suite fleet [--test TestFleetConfig] [--base main]
+
+Token acquisition:
+    - CI:      download authanywhere and pass --token-cmd 'authanywhere --audience rapid-ai-platform --raw --dc us1.ddbuild.io'
+    - laptop:  ddtool auth token rapid-ai-platform --datacenter us1.staging.dog --raw (default)
+Jev docs: https://datadoghq.atlassian.net/wiki/spaces/AIP/pages/7265386822
+"""
+
+from __future__ import annotations  # python 3.9 compat
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+
+REPO = "DataDog/datadog-agent"
+GITHUB_API = f"https://api.github.com/repos/{REPO}"
+SYSTEMONE_PATH = "/v1/systemone"
+
+# Keep the state well below Jev's 32k tokens per question cap.
+MAX_TEST_CODE_BYTES = 24_000
+MAX_DESCRIPTION_BYTES = 4_000
+MAX_CHANGED_FILES = 300
+
+QUESTIONS = {
+    "should_execute": {
+        "type": "noul",
+        "instructions": (
+            "Given this PR's changed files and stated intent, could this PR "
+            "plausibly affect what this e2e test verifies? 1.0 means the test "
+            "should be executed, 0.0 means it is safe to skip."
+        ),
+    },
+    "relation": {
+        "type": "choice",
+        "instructions": "What best describes the relationship between this PR and this e2e test?",
+        "criteria": {
+            "code_under_test": "The PR modifies code or behavior this test directly exercises",
+            "shared_infra": "The PR modifies shared infrastructure, framework or configuration the test depends on",
+            "packaging_ci": "The PR modifies build, packaging, dependencies or CI config affecting the test environment",
+            "unrelated": "No plausible relationship between this PR and this test",
+        },
+    },
+    "confidence": {
+        "type": "score",
+        "instructions": "How confident are you in your decision?",
+        "criteria": [
+            "Unsure, run the test to be safe",
+            "Moderately confident",
+            "Highly confident, decision is clear from the inputs",
+        ],
+    },
+}
+
+
+def run_cmd(cmd: list[str], env: dict | None = None) -> str:
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    if result.returncode != 0:
+        raise RuntimeError(f"command {cmd} failed: {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
+def git(*args: str) -> str:
+    return run_cmd(["git", *args])
+
+
+def truncate(text: str, limit: int, label: str) -> str:
+    if len(text.encode()) <= limit:
+        return text
+    out = text.encode()[:limit].decode(errors="ignore")
+    return f"{out}\n[... truncated {label} ...]"
+
+
+# ---------------------------------------------------------------- PR information
+
+
+def fetch_pr_info(base: str) -> dict:
+    """PR title/description from the GitHub API (uses GITHUB_TOKEN if present)."""
+    token = os.environ.get("GITHUB_TOKEN")
+    branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    if not token:
+        print(f"[warn] GITHUB_TOKEN not set, cannot fetch PR description for {branch}")
+        return {"branch": branch, "title": "", "description": ""}
+
+    req = urllib.request.Request(
+        f"{GITHUB_API}/pulls?head={REPO.split(':')[0]}:{urllib.parse.quote(branch)}&state=open&per_page=1",
+        headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        pulls = json.load(resp)
+    if not pulls:
+        print(f"[warn] no open PR found for branch {branch}")
+        return {"branch": branch, "title": "", "description": ""}
+    pr = pulls[0]
+    print(f"[info] PR #{pr['number']}: {pr['title']}")
+    return {"branch": branch, "number": pr["number"], "title": pr["title"], "description": pr["body"] or ""}
+
+
+def changed_files(base: str) -> list[str]:
+    try:
+        merge_base = git("merge-base", "HEAD", base)
+    except RuntimeError:
+        merge_base = base
+    files = git("diff", "--name-only", merge_base, "HEAD").splitlines()
+    return files[:MAX_CHANGED_FILES]
+
+
+# ---------------------------------------------------------------- test discovery
+
+
+def extract_function(code: str, func_header: str) -> str:
+    """Extract a Go function body from `code`, from the header line to balanced braces."""
+    lines = code.splitlines(keepends=True)
+    start = None
+    for i, line in enumerate(lines):
+        if line.strip().startswith(func_header):
+            start = i
+            break
+    if start is None:
+        return func_header
+    out, depth, opened = [], 0, False
+    for line in lines[start:]:
+        out.append(line)
+        depth += line.count("{") - line.count("}")
+        if "{" in line:
+            opened = True
+        if opened and depth <= 0:
+            break
+    return "".join(out)
+
+
+def find_test_code(suite_dir: str, test_name: str) -> tuple[str, str]:
+    """Return (file_path, source) for a test entry point or suite method."""
+    for root, _, go_files in os.walk(suite_dir):
+        for f in sorted(go_files):
+            if not f.endswith(".go") or f.endswith("_test_helpers.go"):
+                continue
+            path = os.path.join(root, f)
+            try:
+                code = open(path, encoding="utf-8", errors="ignore").read()
+            except OSError:
+                continue
+            for pattern in (rf"func {test_name}\(", rf"func \(s \*\w+\) {test_name}\("):
+                m = re.search(pattern, code)
+                if m:
+                    header = m.group(0)
+                    return path, extract_function(code, header)
+    return "", test_name  # not found: fall back to the bare name
+
+
+def list_suites(suite_dir: str) -> list:
+    """All test entry points in the suite dir, with the full source of their file.
+
+    Each e2e suite file defines one `func TestXxx(t *testing.T)` entry point that
+    runs a suite of `func (s *...) TestYyy()` methods, so evaluating per entry
+    point with the whole file gives Jev the complete test logic.
+    Returns a list of (entry_point, file_path, file_code).
+    """
+    suites = []
+    for root, _, go_files in os.walk(suite_dir):
+        for f in sorted(go_files):
+            if not f.endswith(".go"):
+                continue
+            path = os.path.join(root, f)
+            code = open(path, encoding="utf-8", errors="ignore").read()
+            entries = re.findall(r"^func (Test\w+)\(", code, re.MULTILINE)
+            for entry in entries:
+                suites.append((entry, path, code))
+    return sorted(suites)
+
+
+# ---------------------------------------------------------------- Jev client
+
+
+def get_ai_gateway_token(args: argparse.Namespace) -> str:
+    if args.token:
+        return args.token
+    if os.environ.get("AI_GATEWAY_TOKEN"):
+        return os.environ["AI_GATEWAY_TOKEN"]
+    if args.token_cmd:
+        return run_cmd(args.token_cmd.split()).strip()
+    # laptop fallback
+    return run_cmd(
+        ["ddtool", "auth", "token", "rapid-ai-platform", "--datacenter", "us1.staging.dog", "--raw"]
+    ).strip()
+
+
+def ask_jev(args: argparse.Namespace, token: str, state: str) -> dict:
+    payload = {
+        "state": state,
+        "model": args.model,
+        "questions": QUESTIONS,
+    }
+    req = urllib.request.Request(
+        f"https://ai-gateway.{args.dc}{SYSTEMONE_PATH}",
+        data=json.dumps(payload).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+            "source": args.source,
+            "org-id": "2",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return json.load(resp)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="ignore")
+        raise RuntimeError(f"AI Gateway HTTP {e.code}: {body}") from e
+
+
+# ---------------------------------------------------------------- main
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--suite", required=True, help="E2E suite under test/new-e2e/tests/ (e.g. fleet)")
+    parser.add_argument("--test", help="Restrict to a single test entry point or suite method")
+    parser.add_argument("--base", default=os.environ.get("COMPARE_TO_BRANCH", "main"), help="Base branch to diff against")
+    parser.add_argument("--team", default=None, help="Owning team (defaults to the suite directory name)")
+    parser.add_argument("--model", default="datadoginternal/openjev-medium")
+    parser.add_argument("--dc", default="us1.ddbuild.io", help="AI Gateway datacenter")
+    parser.add_argument("--source", default="datadog-agent", help="source header for AI Gateway")
+    parser.add_argument("--token", help="Raw internal auth token (default: $AI_GATEWAY_TOKEN)")
+    parser.add_argument("--token-cmd", help="Command producing a raw token, e.g. authanywhere invocation")
+    parser.add_argument("--run-threshold", type=float, default=0.5, help="should_execute value above which the test runs")
+    parser.add_argument("--output", default="jev_e2e_decisions.json", help="JSON output path")
+    parser.add_argument("--dry-run", action="store_true", help="Print the state that would be sent, without calling Jev")
+    args = parser.parse_args()
+
+    suite_dir = os.path.join("test", "new-e2e", "tests", args.suite)
+    if not os.path.isdir(suite_dir):
+        print(f"error: no e2e suite at {suite_dir}", file=sys.stderr)
+        return 1
+    team = args.team or args.suite
+
+    print(f"[info] suite={args.suite} team={team} base={args.base}")
+    pr = fetch_pr_info(args.base)
+    files = changed_files(args.base)
+    print(f"[info] {len(files)} changed files vs {args.base}")
+
+    suites = list_suites(suite_dir)
+    if args.test:
+        # --test matches an entry point, or a suite method: use the entry point of its file
+        suites = [s for s in suites if s[0] == args.test]
+        if not suites:
+            for root, _, go_files in os.walk(suite_dir):
+                for f in sorted(go_files):
+                    if not f.endswith(".go"):
+                        continue
+                    path = os.path.join(root, f)
+                    code = open(path, encoding="utf-8", errors="ignore").read()
+                    if re.search(rf"^func \(s \*\w+\) {re.escape(args.test)}\(", code, re.MULTILINE):
+                        entries = re.findall(r"^func (Test\w+)\(", code, re.MULTILINE)
+                        suites = [s for s in list_suites(suite_dir) if s[0] in entries]
+        if not suites:
+            print(f"error: test {args.test} not found in {suite_dir}", file=sys.stderr)
+            return 1
+    print(f"[info] evaluating {len(suites)} tests: {', '.join(s[0] for s in suites)}")
+
+    token = None if args.dry_run else get_ai_gateway_token(args)
+
+    decisions = []
+    for name, path, code in suites:
+        state = (
+            "## PR under review\n"
+            f"Title: {pr.get('title') or '(unknown)'}\n"
+            f"Description:\n{truncate(pr.get('description') or '(none)', MAX_DESCRIPTION_BYTES, 'description')}\n"
+            f"Owning team of the E2E suite: {team}\n\n"
+            f"## Files changed in this PR (vs {args.base}, {len(files)} files)\n"
+            + "\n".join(f"- {f}" for f in files)
+            + "\n\n"
+            "## E2E test under evaluation\n"
+            f"Test: {name}\n"
+            f"Suite: {args.suite} ({path})\n"
+            f"Code:\n```go\n{truncate(code, MAX_TEST_CODE_BYTES, 'test code')}\n```\n\n"
+            "Context: this is a test in the datadog-agent repository, a large Go monorepo. "
+            "E2E tests provision real VMs and are expensive to run. Decide whether this PR "
+            "plausibly affects what this test verifies."
+        )
+        if args.dry_run:
+            print(f"--- state for {name} ---\n{state}\n")
+            decisions.append({"test": name, "dry_run": True})
+            continue
+
+        try:
+            answer = ask_jev(args, token, state)
+        except Exception as e:  # fail open: if Jev is unavailable, run the test
+            print(f"[warn] Jev call failed for {name}: {e} -> defaulting to RUN")
+            decisions.append({"test": name, "should_execute": 1.0, "error": str(e), "decision": "run"})
+            continue
+
+        a = answer["answers"]
+        should = a["should_execute"]["noul"]
+        relation = a["relation"]["choice"]
+        confidence = a["confidence"]["score"]
+        decision = "run" if should >= args.run_threshold or relation != "unrelated" else "skip"
+        row = {
+            "test": name,
+            "should_execute": should,
+            "relation": relation,
+            "confidence": confidence,
+            "decision": decision,
+            "usage": answer.get("usage"),
+        }
+        decisions.append(row)
+        print(
+            f"[jev] {name:<45} -> {decision.upper():4}  should_execute={should:.2f}  "
+            f"relation={relation}  confidence={confidence:.2f}"
+        )
+
+    if not args.dry_run:
+        to_run = sorted({d["test"] for d in decisions if d["decision"] == "run"})
+        to_skip = sorted({d["test"] for d in decisions if d["decision"] == "skip"})
+        summary = {
+            "suite": args.suite,
+            "team": team,
+            "base": args.base,
+            "pr": pr.get("number"),
+            "changed_files": files,
+            "run": to_run,
+            "skip": to_skip,
+            "decisions": decisions,
+        }
+        with open(args.output, "w") as f:
+            json.dump(summary, f, indent=2)
+        print(f"\n[summary] run: {to_run or 'none'}")
+        print(f"[summary] skip: {to_skip or 'none'}")
+        print(f"[summary] go test flag: --skip '{'|'.join(to_skip)}'" if to_skip else "[summary] go test flag: (run all)")
+        print(f"[summary] decisions written to {args.output}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

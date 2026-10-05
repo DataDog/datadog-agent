@@ -18,6 +18,46 @@
 #   "TypeSafe access is not enabled for this caller", ask #ai-platform to allowlist
 #   the source used below.
 
+# E2E test selector job: uses Jev to decide which E2E tests of a suite
+# should run on this PR (PR info + diff + team + test code).
+# Override the suite with the JEV_SUITE variable, e.g. JEV_SUITE=installer.
+jev_e2e_selector:
+  stage: test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux:v141311605-333887d1
+  tags: ["arch:amd64", "specific:true"]
+  # DDOCTOSTS_ID_TOKEN for dd-octo-sts, to get a read-only GitHub token
+  # (same pattern as .dd_octo_sts / .setup_github_token_read on main)
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  variables:
+    GIT_DEPTH: 0 # Full history: the selector uses git merge-base against the base branch
+    GIT_STRATEGY: clone
+    JEV_SUITE: "fleet"
+    AI_GATEWAY_DC: "us1.ddbuild.io"
+    AI_GATEWAY_MODEL: "datadoginternal/openjev-medium"
+  script:
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read)
+    # Install authanywhere, see
+    # https://datadoghq.atlassian.net/wiki/spaces/DEVX/pages/3733193227/Authanywhere
+    - |
+      if [ "$(uname -m)" = "x86_64" ]; then AAA="amd64"; else AAA="arm64"; fi
+      curl -sSfL -o authanywhere "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${AAA}"
+      chmod +x authanywhere
+    # Let Jev decide which e2e tests of the suite should run on this PR.
+    # The selector fails open (runs everything) if the AI Gateway is unreachable.
+    - |
+      python3 tools/jev/jev_e2e_selector.py \
+        --suite "${JEV_SUITE}" \
+        --base "${COMPARE_TO_BRANCH:-main}" \
+        --model "${AI_GATEWAY_MODEL}" \
+        --dc "${AI_GATEWAY_DC}" \
+        --token-cmd "$(pwd)/authanywhere --audience rapid-ai-platform --raw --dc ${AI_GATEWAY_DC}"
+  artifacts:
+    when: always
+    paths:
+      - jev_e2e_decisions.json
+
 ai_gateway_smoke_test:
   stage: test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux:v141311605-333887d1
