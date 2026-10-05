@@ -67,6 +67,14 @@ type ProductComposition struct {
 	// shared host metadata module.
 	HostMetadataOptions []fx.Option
 
+	// CollectorOptions are product-specific Fx options included alongside the
+	// shared collector module.
+	CollectorOptions []fx.Option
+
+	// CheckOptions are product-specific Fx options included alongside the shared
+	// check command graph.
+	CheckOptions []fx.Option
+
 	// StatusOptions are product-specific Fx options included alongside the
 	// shared status module.
 	StatusOptions []fx.Option

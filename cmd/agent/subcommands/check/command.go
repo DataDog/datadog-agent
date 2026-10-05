@@ -36,8 +36,10 @@ func Commands(globalParams *command.GlobalParams, product command.ProductComposi
 			proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 		}),
 	),
+
 		fx.Options(product.AutodiscoveryOptions...),
 		fx.Options(product.StatusOptions...),
+		fx.Options(product.CheckOptions...),
 	)
 
 	return []*cobra.Command{cmd}

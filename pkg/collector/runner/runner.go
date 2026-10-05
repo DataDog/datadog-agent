@@ -40,33 +40,49 @@ var (
 	workerIDGenerator = atomic.NewUint64(0)
 )
 
+// PythonProcessTerminator terminates Python subprocesses started by Python checks.
+type PythonProcessTerminator interface {
+	TerminateRunningProcesses()
+}
+
+// Option configures a Runner.
+type Option func(*Runner)
+
+// WithPythonProcessTerminator configures the Runner to terminate Python subprocesses on shutdown.
+func WithPythonProcessTerminator(terminator PythonProcessTerminator) Option {
+	return func(r *Runner) {
+		r.pythonProcessTerminator = terminator
+	}
+}
+
 // Runner is the object in charge of running all the checks
 type Runner struct {
-	senderManager       sender.SenderManager
-	haAgent             haagent.Component
-	isRunning           *atomic.Bool
-	id                  int                           // Globally unique identifier for the Runner
-	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
-	shadowWorkers       map[int]*worker.Worker        // Shadow workers currently under this Runner's management
-	workersLock         sync.Mutex                    // Lock to prevent concurrent worker changes
-	minWorkers          int                           // Largest worker count requested so far, restored when workers exit
-	isStaticWorkerCount bool                          // Flag indicating if numWorkers is dynamically updated
-	pendingChecksChan   chan check.Check              // The channel where checks come from
-	shadowChecksChan    chan check.Check              // The channel where shadow checks come from
-	checksTracker       *tracker.RunningChecksTracker // Tracker in charge of maintaining the running check list
-	scheduler           *scheduler.Scheduler          // Scheduler runner operates on
-	schedulerLock       sync.RWMutex                  // Lock around operations on the scheduler
-	utilizationMonitor  *worker.UtilizationMonitor    // Monitor in charge of checking the worker utilization
-	utilizationLogLimit *log.Limit                    // Log limiter for utilization warnings
-	stopWG              sync.WaitGroup                // Goroutines Stop waits for: monitor and checks
+	senderManager           sender.SenderManager
+	haAgent                 haagent.Component
+	isRunning               *atomic.Bool
+	id                      int                           // Globally unique identifier for the Runner
+	workers                 map[int]*worker.Worker        // Workers currrently under this Runner's management
+	shadowWorkers           map[int]*worker.Worker        // Shadow workers currently under this Runner's management
+	workersLock             sync.Mutex                    // Lock to prevent concurrent worker changes
+	minWorkers              int                           // Largest worker count requested so far, restored when workers exit
+	isStaticWorkerCount     bool                          // Flag indicating if numWorkers is dynamically updated
+	pendingChecksChan       chan check.Check              // The channel where checks come from
+	shadowChecksChan        chan check.Check              // The channel where shadow checks come from
+	checksTracker           *tracker.RunningChecksTracker // Tracker in charge of maintaining the running check list
+	scheduler               *scheduler.Scheduler          // Scheduler runner operates on
+	schedulerLock           sync.RWMutex                  // Lock around operations on the scheduler
+	utilizationMonitor      *worker.UtilizationMonitor    // Monitor in charge of checking the worker utilization
+	utilizationLogLimit     *log.Limit                    // Log limiter for utilization warnings
+	pythonProcessTerminator PythonProcessTerminator       // Terminates Python subprocesses on shutdown, when configured
+	stopWG                  sync.WaitGroup                // Goroutines Stop waits for: monitor and checks
 	// ctx is cancelled when the runner stops, providing a cancellation signal
 	// to any context-aware operation inside workers (e.g. hostname resolution).
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-// NewRunner takes the number of desired goroutines processing incoming checks.
-func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *Runner {
+// NewRunner creates a runner for processing incoming checks.
+func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, options ...Option) *Runner {
 	numWorkers := pkgconfigsetup.Datadog().GetInt("check_runners")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -86,6 +102,10 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *R
 		utilizationLogLimit: log.NewLogLimit(1, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_warning_cooldown")),
 		ctx:                 ctx,
 		cancel:              cancel,
+	}
+
+	for _, option := range options {
+		option(r)
 	}
 
 	if !r.isStaticWorkerCount {
@@ -255,8 +275,9 @@ func (r *Runner) Stop() {
 
 	// Stop running checks
 	r.checksTracker.WithRunningChecks(func(runningChecks map[checkid.ID]check.Check) {
-		// Stop all python subprocesses
-		terminateChecksRunningProcesses()
+		if r.pythonProcessTerminator != nil {
+			r.pythonProcessTerminator.TerminateRunningProcesses()
+		}
 
 		for _, c := range runningChecks {
 			r.stopWG.Go(func() {
