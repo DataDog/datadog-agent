@@ -345,8 +345,9 @@ fn standard_extract_context_from_war_name(file_name: &str) -> Option<String> {
     Some(without_ext.to_string())
 }
 
-/// Maximum number of context roots reported as additional service names.
-const MAX_CONTEXT_ROOTS: usize = 32;
+/// Maximum number of context roots reported as additional service names. The
+/// largest app servers seen in practice deploy a few hundred applications.
+const MAX_CONTEXT_ROOTS: usize = 1000;
 
 /// normalize_context_root applies the same normalization the java tracer does
 /// by removing the first / on the context-root if present, and truncates it.
