@@ -110,29 +110,39 @@ def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: 
     changed_packages = list({os.path.dirname(change) for change in changed_files})
     print("Detected changes:", changed_files)
 
+    # The executors to evaluate. Jev is just another DynTestExecutor
+    # implementation: the coverage selection evaluates one executor per
+    # index kind, the Jev selection evaluates a single executor (its
+    # decisions do not depend on the index kind). The evaluation flow itself
+    # is identical for all of them.
     if selector == "jev":
-        # Jev is a different DynTestExecutor implementation; a single
-        # evaluation (its test universe does not depend on the index kind,
-        # so unlike the coverage path there is nothing to iterate over)
-        executor = JevDynTestExecutor(ctx, uploader, IndexKind.DIFFED_PACKAGE, commit_sha, pipeline_id)
+        executors = [JevDynTestExecutor(ctx, uploader, IndexKind.DIFFED_PACKAGE, commit_sha, pipeline_id)]
+    else:
+        executors = [
+            DynTestExecutor(ctx, uploader, kind, commit_sha)
+            for kind in [IndexKind.PACKAGE, IndexKind.FILE, IndexKind.DIFFED_PACKAGE]
+        ]
+
+    for executor in executors:
         evaluator = DatadogDynTestEvaluator(
             ctx,
-            IndexKind.DIFFED_PACKAGE,
+            executor.kind,
             executor,
             pipeline_id,
             telemetry_handler=DatadogTelemetryHandler(
                 default_tags=[
                     f"pipeline_id:{pipeline_id}",
-                    "index_kind:diffed_package",
+                    f"index_kind:{executor.kind.value}",
                     "service:dynamic_test_evaluator",
-                    "selector:jev",
-                    "universe:all-e2e-tests",
+                    # executors may carry extra tags identifying the selection
+                    # (e.g. selector:jev) - the coverage executors carry none
+                    *getattr(executor, "telemetry_tags", []),
                 ]
             ),
         )
         if not evaluator.initialize():
-            print(color_message("WARNING: Failed to initialize the Jev test universe", Color.ORANGE))
-            return
+            print(color_message(f"WARNING: Failed to initialize the {executor.kind.value} evaluation", Color.ORANGE))
+            continue
         results = evaluator.evaluate(changed_packages + changed_files)
         evaluator.print_summary(results)
         evaluator.send_stats_to_datadog(results)
@@ -151,20 +161,6 @@ def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: 
                     Color.RED,
                 )
             )
-        return
-
-    def evaluate(kind: IndexKind, changes: list[str]):
-        executor = DynTestExecutor(ctx, uploader, kind, commit_sha)
-        evaluator = DatadogDynTestEvaluator(ctx, kind, executor, pipeline_id)
-        if not evaluator.initialize():
-            print(color_message(f"WARNING: Failed to initialize index for {kind.value} coverage", Color.ORANGE))
-            return
-        results = evaluator.evaluate(changes)
-        evaluator.print_summary(results)
-        evaluator.send_stats_to_datadog(results)
-
-    for kind in [IndexKind.PACKAGE, IndexKind.FILE, IndexKind.DIFFED_PACKAGE]:
-        evaluate(kind, changed_packages + changed_files)
         sleep(10)  # small sleep to avoid rate limiting
 
 

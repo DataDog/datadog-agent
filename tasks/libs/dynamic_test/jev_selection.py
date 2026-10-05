@@ -193,6 +193,10 @@ class JevDynTestExecutor(DynTestExecutor):
       brand new tests
     """
 
+    # Extra telemetry tags identifying this selection in the evaluation
+    # stats (the coverage executors carry none) - see evaluate_index
+    telemetry_tags = ["selector:jev", "universe:all-e2e-tests"]
+
     def __init__(self, ctx, backend, kind, commit_sha, pipeline_id=None):
         if DynTestExecutor is not object:
             super().__init__(ctx, backend, kind, commit_sha)
