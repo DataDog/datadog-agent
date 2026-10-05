@@ -10,6 +10,11 @@ package yara
 // EngineName identifies the rule engine compiled into this build
 const EngineName = "standin"
 
+// embeddedRulesSupported reports whether this build can evaluate the embedded rule set. The stand-in
+// engine only matches literal marker strings, so it can't evaluate real YARA conditions; the
+// embedded rules are skipped in this cgo-free dry-run build.
+const embeddedRulesSupported = false
+
 // DefaultCompiler returns the rule compiler of this build. Without the yara build tag, no YARA
 // engine is linked in, so it returns the stand-in compiler (dry run: marker strings only).
 // The libyara compiler is selected by building with the yara tag.

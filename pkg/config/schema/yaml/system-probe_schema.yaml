@@ -1340,8 +1340,10 @@ properties:
             node_type: setting
             type: string
             default: ''
-            description: Directory of YARA rule files compiled at startup. Scanning stays
-              off when unset.
+            description: Directory of YARA rule files compiled at startup, in addition to
+              the built-in embedded rules. It augments the embedded rule set rather than
+              replacing it; files here take precedence on a name collision. When unset, only
+              the embedded rules are loaded.
           chan_size:
             node_type: setting
             type: integer

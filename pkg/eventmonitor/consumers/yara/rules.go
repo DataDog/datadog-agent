@@ -197,6 +197,83 @@ func LoadScanner(dir string, compile Compiler) (Scanner, string, error) {
 	return &versionedScanner{Scanner: scanner, version: version}, version, nil
 }
 
+// LoadScannerWithEmbedded compiles the built-in embedded rules together with the rule files in dir,
+// and is the production entry point: the embedded rules are the default rule set, and the rules in
+// dir (when set) are added on top. The returned Scanner's RulesVersion is the hash of the combined
+// sources, also returned as version.
+//
+// Precedence: on a filename collision, the file from dir replaces the embedded one of the same name
+// (dir-over-embedded). Each file compiles into its own namespace named after the file, so this also
+// avoids the namespace collision that loading two files of the same name would cause.
+//
+// dir may be empty, in which case only the embedded rules are loaded. A dir that holds no rule file
+// (ErrNoRules) is tolerated as long as there are embedded rules, so a stray or empty rules_dir never
+// disables the built-in set; ErrUnsafeRules stays fatal. In a build whose engine can't evaluate the
+// embedded rules (the stand-in dry run), the embedded set is skipped and this behaves like
+// LoadScanner over dir alone.
+//
+// On error, the caller must log it and keep scanning disabled; it must never be fatal.
+func LoadScannerWithEmbedded(dir string, compile Compiler) (Scanner, string, error) {
+	if compile == nil {
+		return nil, "", errors.New("yara: no rule compiler")
+	}
+
+	var embedded []RuleSource
+	if embeddedRulesSupported {
+		var err error
+		embedded, err = EmbeddedRuleSources()
+		if err != nil {
+			return nil, "", err
+		}
+	}
+
+	var dirSources []RuleSource
+	if dir != "" {
+		var err error
+		dirSources, _, err = LoadRuleSources(dir)
+		if err != nil {
+			// a dir without rule files doesn't disable the embedded set; anything else (notably
+			// unsafe ownership or permissions) stays fatal
+			if !(errors.Is(err, ErrNoRules) && len(embedded) > 0) {
+				return nil, "", err
+			}
+		}
+	}
+
+	sources := mergeRuleSources(embedded, dirSources)
+	if len(sources) == 0 {
+		return nil, "", ErrNoRules
+	}
+	version := RulesVersion(sources)
+
+	scanner, err := compile(sources)
+	if err != nil {
+		return nil, "", fmt.Errorf("yara: failed to compile rules: %w", err)
+	}
+	if scanner == nil {
+		return nil, "", errors.New("yara: failed to compile rules: compiler returned no scanner")
+	}
+	return &versionedScanner{Scanner: scanner, version: version}, version, nil
+}
+
+// mergeRuleSources returns base and overrides merged, sorted by name, with a source in overrides
+// replacing a source in base of the same name.
+func mergeRuleSources(base, overrides []RuleSource) []RuleSource {
+	byName := make(map[string]RuleSource, len(base)+len(overrides))
+	for _, s := range base {
+		byName[s.Name] = s
+	}
+	for _, s := range overrides {
+		byName[s.Name] = s
+	}
+	merged := make([]RuleSource, 0, len(byName))
+	for _, s := range byName {
+		merged = append(merged, s)
+	}
+	sort.Slice(merged, func(i, j int) bool { return merged[i].Name < merged[j].Name })
+	return merged
+}
+
 func isRuleFileName(name string) bool {
 	ext := strings.ToLower(filepath.Ext(name))
 	for _, e := range ruleFileExtensions {

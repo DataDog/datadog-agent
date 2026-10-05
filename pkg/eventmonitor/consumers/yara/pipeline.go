@@ -40,6 +40,10 @@ type PipelineOpts struct {
 	// and is wired after ExtraReporter. The rules version isn't known until the scanner is
 	// loaded, which is why this is a factory rather than a plain reporter.
 	ExtraReporterFor func(rulesVersion string) Reporter
+	// IncludeEmbeddedRules loads the built-in embedded rule set as the default, with RulesDir added
+	// on top (see LoadScannerWithEmbedded). Production (NewExecScanner) sets it; it defaults to
+	// false so tests and callers that supply their own rules control the rule set exactly.
+	IncludeEmbeddedRules bool
 }
 
 // Pipeline is the whole YARA exec scanner, wired together:
@@ -80,7 +84,11 @@ func NewPipeline(cfg *Config, client statsd.ClientInterface, opts PipelineOpts) 
 		compile = DefaultCompiler()
 	}
 
-	scanner, rulesVersion, err := LoadScanner(cfg.RulesDir, compile)
+	load := LoadScanner
+	if opts.IncludeEmbeddedRules {
+		load = LoadScannerWithEmbedded
+	}
+	scanner, rulesVersion, err := load(cfg.RulesDir, compile)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +238,9 @@ func (t teeReporter) Report(f ExecFile, sum [32]byte, matches []Match, err error
 // and carry on without the YARA scanner: it must never prevent system-probe from starting.
 func NewExecScanner(evm *eventmonitor.EventMonitor, cfg *Config) (*Pipeline, error) {
 	p, err := NewPipeline(cfg, evm.StatsdClient, PipelineOpts{
-		ContainerPIDs: containerPIDsFromEventMonitor(evm),
+		// the built-in embedded rules are the default rule set; cfg.RulesDir is added on top
+		IncludeEmbeddedRules: true,
+		ContainerPIDs:        containerPIDsFromEventMonitor(evm),
 		// Report matches to the CWS backend in addition to the structured log line. The factory
 		// returns nil (log-only) when the probe can't build the serializer; a dispatch when CWS
 		// is disabled is a silent no-op, so the log line always stands on its own.

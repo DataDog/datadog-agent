@@ -21,7 +21,10 @@ const configPrefix = "event_monitoring_config.yara."
 type Config struct {
 	// Enabled turns the consumer on
 	Enabled bool
-	// RulesDir is the directory of rule files compiled at startup. Scanning stays off when empty.
+	// RulesDir is a directory of rule files compiled at startup, in addition to the built-in
+	// embedded rules. It augments the embedded rule set rather than replacing it: the embedded
+	// rules always load, and these are added on top (dir files win on a filename collision). When
+	// empty, only the embedded rules are loaded.
 	RulesDir string
 	// ChanSize is the size of the consumer channel (exec events)
 	ChanSize int

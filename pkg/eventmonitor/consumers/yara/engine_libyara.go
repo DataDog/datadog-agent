@@ -21,6 +21,10 @@ import (
 // EngineName identifies the rule engine compiled into this build
 const EngineName = "libyara"
 
+// embeddedRulesSupported reports whether this build can evaluate the embedded rule set. libyara can,
+// so the embedded rules ship as the default rule set in this build.
+const embeddedRulesSupported = true
+
 const (
 	// libyaraMaxScanners is libyara's YR_MAX_THREADS: the maximum number of scanner objects
 	// alive at the same time on one compiled ruleset. It bounds the idle scanners we keep.
