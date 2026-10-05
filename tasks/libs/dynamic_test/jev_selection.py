@@ -30,6 +30,10 @@ from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suite
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
+class NothingToEvaluateError(RuntimeError):
+    """The pipeline has no completed E2E test jobs to evaluate (not an error)."""
+
+
 def jev_selection(suite: str) -> dict:
     """Run the selector for a relative E2E suite path; return {} on failure."""
     with tempfile.TemporaryDirectory(prefix="jev-selection-") as tmp:
@@ -125,13 +129,15 @@ class JevDynTestExecutor(DynTestExecutor):
         pipeline = get_pipeline("DataDog/datadog-agent", self.pipeline_id)
         if pipeline.sha != self.commit_sha:
             raise RuntimeError("The evaluated pipeline SHA must match --commit-sha and the checked-out HEAD")
-        jobs = [
-            job
-            for job in pipeline.jobs.list(scope=["success", "failed"], iterator=True)
-            if job.name.startswith("new-e2e")
-        ]
+        jobs: list = []
+        # python-gitlab collapses list-valued query params (scope=["success",
+        # "failed"] reaches the API as a single scope), so query each status
+        # separately; iterator=True walks every page.
+        for scope in ("success", "failed"):
+            jobs.extend(pipeline.jobs.list(scope=scope, iterator=True))
+        jobs = [job for job in jobs if job.name.startswith("new-e2e")]
         if not jobs:
-            raise RuntimeError(f"No completed E2E jobs in pipeline {self.pipeline_id}")
+            raise NothingToEvaluateError(f"No completed E2E jobs in pipeline {self.pipeline_id}")
         config = post_process_gitlab_ci_configuration(resolve_gitlab_ci_configuration(self.ctx), expand_matrix=True)
         index = DynamicTestIndex()
         self.job_ids.clear()
@@ -164,7 +170,7 @@ class JevDynTestExecutor(DynTestExecutor):
             if job.allow_failure:
                 self.unreliable_jobs.add(job.name)
         if not index.get_jobs():
-            raise RuntimeError(f"No completed E2E test jobs in pipeline {self.pipeline_id}")
+            raise NothingToEvaluateError(f"No completed E2E test jobs in pipeline {self.pipeline_id}")
         self._index = index
         print(
             f"[jev] universe: {len(index.get_jobs())} E2E jobs, {len(self._suites)} suites in pipeline {self.pipeline_id}"

@@ -21,7 +21,7 @@ from tasks.libs.dynamic_test.indexers.e2e import (
     FileCoverageDynTestIndexer,
     PackageCoverageDynTestIndexer,
 )
-from tasks.libs.dynamic_test.jev_selection import JevDynTestExecutor
+from tasks.libs.dynamic_test.jev_selection import JevDynTestExecutor, NothingToEvaluateError
 from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler, DatadogTelemetryHandler
 from tasks.new_e2e_tests import DEFAULT_DYNTEST_BUCKET_URI
 
@@ -152,7 +152,17 @@ def evaluate_index(
             ctx, executor.kind, executor, pipeline_id, telemetry_handler=telemetry, **options
         )
         if not evaluator.initialize():
-            print(color_message(f"Failed to initialize the {executor.kind.value} evaluation", Color.RED))
+            if isinstance(evaluator.initialization_error, NothingToEvaluateError):
+                # E.g. a dev-branch pipeline where no E2E test jobs ran:
+                # nothing to measure, not an error.
+                print(color_message(f"Nothing to evaluate: {evaluator.initialization_error}", Color.ORANGE))
+                return
+            print(
+                color_message(
+                    f"Failed to initialize the {executor.kind.value} evaluation: {evaluator.initialization_error}",
+                    Color.RED,
+                )
+            )
             failed = True
             continue
         results = evaluator.evaluate(changes)

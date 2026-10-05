@@ -6,6 +6,7 @@ from invoke.exceptions import Exit
 
 from tasks.dyntest import evaluate_index
 from tasks.libs.dynamic_test.index import IndexKind
+from tasks.libs.dynamic_test.jev_selection import NothingToEvaluateError
 from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler
 
 
@@ -74,6 +75,18 @@ class EvaluateIndexTests(unittest.TestCase):
             with self.assertRaisesRegex(Exit, "incomplete"):
                 evaluate_index.body(Context(), pipeline_id="42", selector="jev")
             evaluator.return_value.send_stats_to_datadog.assert_not_called()
+
+    @patch("tasks.dyntest.get_commit_sha", return_value="abc")
+    @patch("tasks.dyntest.JevDynTestExecutor")
+    @patch("tasks.dyntest.DatadogDynTestEvaluator")
+    def test_nothing_to_evaluate_is_benign(self, evaluator, executor, _):
+        """A pipeline with no completed E2E test jobs exits cleanly, not red."""
+        executor.return_value.kind = IndexKind.JEV
+        evaluator.return_value.initialize.return_value = False
+        evaluator.return_value.initialization_error = NothingToEvaluateError("No completed E2E jobs in pipeline 42")
+        # Must not raise
+        evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False)
+        evaluator.return_value.evaluate.assert_not_called()
 
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
     @patch("tasks.dyntest.JevDynTestExecutor")

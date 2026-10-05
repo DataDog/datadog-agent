@@ -3,11 +3,12 @@ import subprocess
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from tasks.libs.dynamic_test.index import DynamicTestIndex, IndexKind
 from tasks.libs.dynamic_test.jev_selection import (
     JevDynTestExecutor,
+    NothingToEvaluateError,
     _candidates_for_job,
     _expand_variables,
     _suite_path,
@@ -115,14 +116,20 @@ class JevSelectionTests(unittest.TestCase):
     def test_pipeline_scoping_pagination_and_real_index(self, get_pipeline, resolve, discover, _):
         pipeline = get_pipeline.return_value
         pipeline.sha = SHA
-        pipeline.jobs.list.return_value = iter(
-            [
-                SimpleNamespace(name='new-e2e-fleet: [--run "TestFleet$"]', id=1, allow_failure=False),
-                SimpleNamespace(name="new-e2e-installer", id=2, allow_failure=True),
-                SimpleNamespace(name="new-e2e-unit-tests", id=3, allow_failure=False),
-                SimpleNamespace(name="unit-tests", id=4, allow_failure=False),
-            ]
-        )
+        pipeline.jobs.list.side_effect = [
+            iter(
+                [
+                    SimpleNamespace(name='new-e2e-fleet: [--run "TestFleet$"]', id=1, allow_failure=False),
+                    SimpleNamespace(name="new-e2e-unit-tests", id=3, allow_failure=False),
+                ]
+            ),
+            iter(
+                [
+                    SimpleNamespace(name="new-e2e-installer", id=2, allow_failure=True),
+                    SimpleNamespace(name="unit-tests", id=4, allow_failure=False),
+                ]
+            ),
+        ]
         resolve.return_value = {
             "new-e2e-fleet": {
                 "variables": {"TARGETS": "./tests/fleet"},
@@ -138,7 +145,10 @@ class JevSelectionTests(unittest.TestCase):
         executor = JevDynTestExecutor(MagicMock(), SHA, "42")
         executor.init_index()
         get_pipeline.assert_called_once_with("DataDog/datadog-agent", "42")
-        pipeline.jobs.list.assert_called_once_with(scope=["success", "failed"], iterator=True)
+        self.assertEqual(
+            pipeline.jobs.list.call_args_list,
+            [call(scope="success", iterator=True), call(scope="failed", iterator=True)],
+        )
         self.assertIsInstance(executor.index(), DynamicTestIndex)
         self.assertEqual(executor.kind, IndexKind.JEV)
         self.assertEqual(
@@ -158,6 +168,18 @@ class JevSelectionTests(unittest.TestCase):
             executor.init_index()
         pipeline.jobs.list.assert_not_called()
         pipeline.sha = SHA
-        pipeline.jobs.list.return_value = []
-        with self.assertRaisesRegex(RuntimeError, "No completed E2E jobs"):
+        pipeline.jobs.list.side_effect = [iter([]), iter([])]
+        with self.assertRaisesRegex(NothingToEvaluateError, "No completed E2E jobs"):
+            executor.init_index()
+        # Completed new-e2e jobs, but none is an E2E test run (no TARGETS,
+        # e.g. cleanup/unit-test jobs): benign as well, not a failure
+        pipeline.jobs.list.side_effect = [
+            iter([SimpleNamespace(name="new-e2e-unit-tests", id=1, allow_failure=False)]),
+            iter([]),
+        ]
+        config = {"new-e2e-unit-tests": {"variables": {}}}
+        with (
+            patch(f"{MODULE}.resolve_gitlab_ci_configuration", return_value=config),
+            self.assertRaisesRegex(NothingToEvaluateError, "No completed E2E test jobs"),
+        ):
             executor.init_index()

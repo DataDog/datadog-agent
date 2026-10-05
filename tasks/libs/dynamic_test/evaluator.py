@@ -173,6 +173,9 @@ class DynTestEvaluator(ABC):
         self.telemetry_handler = telemetry_handler or DatadogTelemetryHandler(
             default_tags=[f"pipeline_id:{pipeline_id}", f"index_kind:{kind.value}", "service:dynamic_test_evaluator"]
         )
+        # The exception that made initialize() fail, if any: lets callers
+        # distinguish error types (the console only shows a summary line).
+        self.initialization_error: Exception | None = None
 
     @abstractmethod
     def list_tests_for_job(self, job_name: str) -> list[ExecutedTest]:
@@ -213,6 +216,7 @@ class DynTestEvaluator(ABC):
             self._send_initialization_success_event()
             return True
         except RuntimeError as e:
+            self.initialization_error = e
             error_message = str(e)
             if "No ancestor commit found" in error_message:
                 self._send_error_event(
@@ -226,6 +230,7 @@ class DynTestEvaluator(ABC):
                 )
             return False
         except Exception as e:
+            self.initialization_error = e
             self._send_error_event(
                 error_type="unexpected_error",
                 error_message=f"Unexpected error initializing index: {str(e)}",
