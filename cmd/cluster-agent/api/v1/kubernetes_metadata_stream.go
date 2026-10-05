@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -35,6 +37,14 @@ const (
 	// Keep a bounded history of shared diffs. Streams that fall behind receive
 	// a full state instead, so coalesced notifications cannot lose deletions.
 	metadataHistorySize = 128
+)
+
+var metadataStreamHistoryResyncs = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+	"metadata_streaming",
+	"history_resyncs",
+	nil,
+	"Number of full metadata states successfully sent because an agent fell behind the retained version history",
+	telemetry.Options{NoDoubleUnderscoreSep: true},
 )
 
 type podServiceEntry struct {
@@ -225,6 +235,9 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 				}, streamSendTimeout); err != nil {
 					log.Warnf("Error sending metadata update for node %s: %s", nodeName, err)
 					return err
+				}
+				if !ok {
+					metadataStreamHistoryResyncs.Inc()
 				}
 				ticker.Reset(keepAliveInterval)
 			}
