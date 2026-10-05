@@ -151,24 +151,24 @@ func TestStatusEndpoints(t *testing.T) {
 	assert.Equal(t, "Reliable: Sending uncompressed logs in SSL encrypted TCP to agent-intake.logs.datadoghq.com. on port 10516 (API Key: ********)", status.Endpoints[0])
 }
 
-// Tests for getBackpressureStatus, called directly with a crafted utilization slice (no agent infra).
+// Tests for getBackpressureStatus, called directly with crafted snapshots (no agent infra).
 
 func TestGetBackpressureStatus_Healthy(t *testing.T) {
 	b := &Builder{}
-	utils := []ComponentUtilization{
-		{Name: "processor", Instance: "0", AvgRatio: 0.5},
+	snaps := []metrics.ComponentSnapshot{
+		{Name: "processor", Instance: "0", AvgRatio: 0.5, Measured: true},
 	}
-	bp := b.getBackpressureStatus(utils)
+	bp := b.getBackpressureStatus(snaps)
 	assert.Equal(t, "HEALTHY", bp.State)
 	assert.Empty(t, bp.Reason)
 }
 
 func TestGetBackpressureStatus_Saturated(t *testing.T) {
 	b := &Builder{}
-	utils := []ComponentUtilization{
-		{Name: "processor", Instance: "0", AvgRatio: 0.95, CurrentlySaturated: true, Saturated30mSeconds: 120},
+	snaps := []metrics.ComponentSnapshot{
+		{Name: "processor", Instance: "0", AvgRatio: 0.95, Measured: true, Windows: metrics.WindowStats{CurrentlySaturated: true, Saturated30m: 120 * time.Second}},
 	}
-	bp := b.getBackpressureStatus(utils)
+	bp := b.getBackpressureStatus(snaps)
 	assert.Equal(t, "SATURATED", bp.State)
 	assert.Contains(t, bp.Reason, "processor")
 	assert.Contains(t, bp.Reason, "2m0s") // 120s formatted
@@ -177,10 +177,10 @@ func TestGetBackpressureStatus_Saturated(t *testing.T) {
 // TestGetBackpressureStatus_FrozenRatioNotSaturated checks a frozen-high AvgRatio with stale saturation reads WARNING, not SATURATED.
 func TestGetBackpressureStatus_FrozenRatioNotSaturated(t *testing.T) {
 	b := &Builder{}
-	utils := []ComponentUtilization{
-		{Name: "processor", Instance: "0", AvgRatio: 0.95, CurrentlySaturated: false, Saturated30mSeconds: 120},
+	snaps := []metrics.ComponentSnapshot{
+		{Name: "processor", Instance: "0", AvgRatio: 0.95, Measured: true, Windows: metrics.WindowStats{Saturated30m: 120 * time.Second}},
 	}
-	bp := b.getBackpressureStatus(utils)
+	bp := b.getBackpressureStatus(snaps)
 	assert.NotEqual(t, "SATURATED", bp.State, "a frozen high AvgRatio must not read as live saturation")
 	assert.Equal(t, "WARNING", bp.State)
 }
@@ -188,20 +188,20 @@ func TestGetBackpressureStatus_FrozenRatioNotSaturated(t *testing.T) {
 // TestGetBackpressureStatus_FrozenRatioFullyIdleHealthy checks a frozen-high EWMA with no recent saturation reads HEALTHY.
 func TestGetBackpressureStatus_FrozenRatioFullyIdleHealthy(t *testing.T) {
 	b := &Builder{}
-	utils := []ComponentUtilization{
-		{Name: "processor", Instance: "0", AvgRatio: 0.95, CurrentlySaturated: false},
+	snaps := []metrics.ComponentSnapshot{
+		{Name: "processor", Instance: "0", AvgRatio: 0.95, Measured: true, Windows: metrics.WindowStats{}},
 	}
-	bp := b.getBackpressureStatus(utils)
+	bp := b.getBackpressureStatus(snaps)
 	assert.Equal(t, "HEALTHY", bp.State)
 	assert.Empty(t, bp.Reason)
 }
 
 func TestGetBackpressureStatus_WarningSat1m(t *testing.T) {
 	b := &Builder{}
-	utils := []ComponentUtilization{
-		{Name: "sender", Instance: "1", AvgRatio: 0.7, Saturated1mSeconds: 30, Saturated30mSeconds: 90},
+	snaps := []metrics.ComponentSnapshot{
+		{Name: "sender", Instance: "1", AvgRatio: 0.7, Measured: true, Windows: metrics.WindowStats{Saturated1m: 30 * time.Second, Saturated30m: 90 * time.Second}},
 	}
-	bp := b.getBackpressureStatus(utils)
+	bp := b.getBackpressureStatus(snaps)
 	assert.Equal(t, "WARNING", bp.State)
 	assert.Contains(t, bp.Reason, "sender")
 	assert.Contains(t, bp.Reason, "1m30s") // 90s
@@ -209,10 +209,10 @@ func TestGetBackpressureStatus_WarningSat1m(t *testing.T) {
 
 func TestGetBackpressureStatus_WarningSat30mOnly(t *testing.T) {
 	b := &Builder{}
-	utils := []ComponentUtilization{
-		{Name: "worker", Instance: "2", AvgRatio: 0.5, Saturated1mSeconds: 0, Saturated30mSeconds: 45},
+	snaps := []metrics.ComponentSnapshot{
+		{Name: "worker", Instance: "2", AvgRatio: 0.5, Measured: true, Windows: metrics.WindowStats{Saturated30m: 45 * time.Second}},
 	}
-	bp := b.getBackpressureStatus(utils)
+	bp := b.getBackpressureStatus(snaps)
 	assert.Equal(t, "WARNING", bp.State)
 	assert.Contains(t, bp.Reason, "worker")
 	assert.Contains(t, bp.Reason, "45s")
@@ -220,33 +220,33 @@ func TestGetBackpressureStatus_WarningSat30mOnly(t *testing.T) {
 
 func TestGetBackpressureStatus_SaturatedPicksHighestRatio(t *testing.T) {
 	b := &Builder{}
-	utils := []ComponentUtilization{
-		{Name: "processor", Instance: "0", AvgRatio: 0.85, CurrentlySaturated: true, Saturated30mSeconds: 10},
-		{Name: "sender", Instance: "1", AvgRatio: 0.98, CurrentlySaturated: true, Saturated30mSeconds: 60},
+	snaps := []metrics.ComponentSnapshot{
+		{Name: "processor", Instance: "0", AvgRatio: 0.85, Measured: true, Windows: metrics.WindowStats{CurrentlySaturated: true, Saturated30m: 10 * time.Second}},
+		{Name: "sender", Instance: "1", AvgRatio: 0.98, Measured: true, Windows: metrics.WindowStats{CurrentlySaturated: true, Saturated30m: 60 * time.Second}},
 	}
-	bp := b.getBackpressureStatus(utils)
+	bp := b.getBackpressureStatus(snaps)
 	assert.Equal(t, "SATURATED", bp.State)
 	assert.Contains(t, bp.Reason, "sender", "highest AvgRatio component must appear in reason")
 }
 
 func TestGetBackpressureStatus_SaturatedNonblockingDestination(t *testing.T) {
 	b := &Builder{}
-	utils := []ComponentUtilization{
-		{Name: "processor", Instance: "0", AvgRatio: 0.2},
-		{Name: "destination_unreliable_0", Instance: "0", AvgRatio: 0.99, CurrentlySaturated: true, Saturated30mSeconds: 60},
+	snaps := []metrics.ComponentSnapshot{
+		{Name: "processor", Instance: "0", AvgRatio: 0.2, Measured: true},
+		{Name: "destination_unreliable_0", Instance: "0", AvgRatio: 0.99, Measured: true, Windows: metrics.WindowStats{CurrentlySaturated: true, Saturated30m: 60 * time.Second}},
 	}
-	bp := b.getBackpressureStatus(utils)
+	bp := b.getBackpressureStatus(snaps)
 	assert.Equal(t, "SATURATED", bp.State)
 	assert.Contains(t, bp.Reason, "destination_unreliable_0")
 }
 
 func TestGetBackpressureStatus_WarningPicksHighestSat1m(t *testing.T) {
 	b := &Builder{}
-	utils := []ComponentUtilization{
-		{Name: "processor", Instance: "0", AvgRatio: 0.3, Saturated1mSeconds: 10, Saturated30mSeconds: 20},
-		{Name: "sender", Instance: "1", AvgRatio: 0.5, Saturated1mSeconds: 55, Saturated30mSeconds: 120},
+	snaps := []metrics.ComponentSnapshot{
+		{Name: "processor", Instance: "0", AvgRatio: 0.3, Measured: true, Windows: metrics.WindowStats{Saturated1m: 10 * time.Second, Saturated30m: 20 * time.Second}},
+		{Name: "sender", Instance: "1", AvgRatio: 0.5, Measured: true, Windows: metrics.WindowStats{Saturated1m: 55 * time.Second, Saturated30m: 120 * time.Second}},
 	}
-	bp := b.getBackpressureStatus(utils)
+	bp := b.getBackpressureStatus(snaps)
 	assert.Equal(t, "WARNING", bp.State)
 	assert.Contains(t, bp.Reason, "sender", "component with highest Saturated1mSeconds must appear in reason")
 }

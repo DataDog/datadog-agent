@@ -101,9 +101,8 @@ func SelectBottleneck(comps []ComponentBackpressure) (string, *ComponentBackpres
 	return BackpressureHealthy, nil
 }
 
-// DeriveBackpressure summarises a pipeline monitor's snapshots, ranking only blocking components.
-// A monitor with no measurable component yields the zero value: measuring nothing is not healthy.
-func DeriveBackpressure(snaps []ComponentSnapshot) BackpressureSummary {
+// BackpressureComponents maps the measured snapshots to ComponentBackpressure.
+func BackpressureComponents(snaps []ComponentSnapshot) []ComponentBackpressure {
 	comps := make([]ComponentBackpressure, 0, len(snaps))
 	for _, s := range snaps {
 		// A capacity-only component ("sender") reports zeroes it never measured.
@@ -126,6 +125,13 @@ func DeriveBackpressure(snaps []ComponentSnapshot) BackpressureSummary {
 			HasLastSaturated:    s.Windows.HasLastSaturated,
 		})
 	}
+	return comps
+}
+
+// DeriveBackpressure summarises a pipeline monitor's snapshots, ranking only blocking components.
+// A monitor with no measurable component yields the zero value: measuring nothing is not healthy.
+func DeriveBackpressure(snaps []ComponentSnapshot) BackpressureSummary {
+	comps := BackpressureComponents(snaps)
 
 	if len(comps) == 0 {
 		return BackpressureSummary{}

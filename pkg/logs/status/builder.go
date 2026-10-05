@@ -58,8 +58,12 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 	if verbose {
 		tailers = b.getTailers()
 	}
-	utils := b.getComponentUtilization()
-	bp := b.getBackpressureStatus(utils)
+	var snaps []logsMetrics.ComponentSnapshot
+	if b.pipelineMonitor != nil {
+		snaps = b.pipelineMonitor.Snapshots()
+	}
+	utils := b.getComponentUtilization(snaps)
+	bp := b.getBackpressureStatus(snaps)
 	return Status{
 		IsRunning:            b.getIsRunning(),
 		Endpoints:            b.getEndpoints(),
@@ -91,11 +95,10 @@ func componentRank(name string) int {
 }
 
 // getComponentUtilization returns per-component snapshots sorted in pipeline order.
-func (b *Builder) getComponentUtilization() []ComponentUtilization {
-	if b.pipelineMonitor == nil {
+func (b *Builder) getComponentUtilization(snaps []logsMetrics.ComponentSnapshot) []ComponentUtilization {
+	if snaps == nil {
 		return nil
 	}
-	snaps := b.pipelineMonitor.Snapshots()
 	result := make([]ComponentUtilization, 0, len(snaps))
 	for _, s := range snaps {
 		// A capacity-only aggregation point ("sender", between the strategy and the workers)
@@ -144,22 +147,9 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 }
 
 // getBackpressureStatus returns SATURATED (saturated in last 1m), WARNING (last 30m only), or HEALTHY.
-func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) BackpressureStatus {
-	// Only the fields SelectBottleneck ranks on: the max windows are for the table. Unlike loss
-	// attribution, this includes non-blocking destinations, which drop payloads when saturated.
-	comps := make([]logsMetrics.ComponentBackpressure, 0, len(utils))
-	for _, u := range utils {
-		comps = append(comps, logsMetrics.ComponentBackpressure{
-			Component:           u.Name,
-			Instance:            u.Instance,
-			AvgRatio:            u.AvgRatio,
-			Saturated1mSeconds:  u.Saturated1mSeconds,
-			Saturated30mSeconds: u.Saturated30mSeconds,
-			CurrentlySaturated:  u.CurrentlySaturated,
-		})
-	}
-
-	state, bottleneck := logsMetrics.SelectBottleneck(comps)
+func (b *Builder) getBackpressureStatus(snaps []logsMetrics.ComponentSnapshot) BackpressureStatus {
+	// Unlike loss attribution, this ranks non-blocking destinations too: they drop payloads when saturated.
+	state, bottleneck := logsMetrics.SelectBottleneck(logsMetrics.BackpressureComponents(snaps))
 	if bottleneck == nil {
 		return BackpressureStatus{State: state}
 	}
