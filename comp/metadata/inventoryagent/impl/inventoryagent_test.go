@@ -102,6 +102,31 @@ func TestSet(t *testing.T) {
 	assert.Equal(t, 1234, ia.data["test"])
 }
 
+func TestEnableInventoryPayloadOverridesOnlyInventoryPayloadGates(t *testing.T) {
+	confOverrides := map[string]any{
+		"enable_metadata_collection": false,
+		"inventories_enabled":        false,
+	}
+	assert.False(t, getTestInventoryPayload(t, confOverrides, nil).Enabled)
+
+	requires := makeRequires(fxutil.Test[testDeps](
+		t,
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
+		fx.Provide(func() sysprobeconfig.Component { return sysprobeconfigmock.NewMock(t) }),
+		fxutil.ProvideOptional[sysprobeconfig.Component](),
+		fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
+		hostnameimpl.MockModule(),
+	))
+	requires.Capabilities = &iainterface.Capabilities{EnableInventoryPayload: true}
+
+	provides := NewComponent(requires)
+	assert.True(t, provides.Comp.(*inventoryagent).Enabled)
+	assert.NotNil(t, provides.Provider.Callback)
+}
+
 func TestGetPayload(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 	ia.hostname = "hostname-for-test"

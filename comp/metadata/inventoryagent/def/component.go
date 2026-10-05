@@ -24,10 +24,10 @@ type Component interface {
 }
 
 // Capabilities lets an embedding binary adapt the inventoryagent component for
-// an environment that diverges from the standard full-agent one (currently:
-// serverless-init). It is an optional fx dependency, and each field is named
-// for its divergence so the zero value (no Capabilities supplied) is exactly
-// full-agent behavior.
+// an environment that diverges from the standard full-agent one (currently
+// serverless-init and the AAS extension). It is an optional fx dependency, and
+// each field is named for its divergence so the zero value (no Capabilities
+// supplied) is exactly full-agent behavior.
 type Capabilities struct {
 	// SkipCrossProcessEnrichment turns off the payload-enrichment tier that
 	// fetches configuration from the other agent processes (security/process/
@@ -41,6 +41,11 @@ type Capabilities struct {
 	// environment that only learns its identity after construction still reports it.
 	// Called while the component holds its lock: it must not call back in.
 	PayloadUUID func() string
+	// EnableInventoryPayload enables only this inventoryagent payload when an
+	// embedder has its own scoped feature gate. It does not modify the global
+	// enable_metadata_collection or inventories_enabled settings and therefore
+	// does not enable other metadata providers.
+	EnableInventoryPayload bool
 }
 
 // NewServerlessCapabilities builds the Capabilities for serverless-init, a
