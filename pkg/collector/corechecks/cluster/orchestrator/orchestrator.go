@@ -168,7 +168,7 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 
 	// On a Cluster Check Runner the dispatched check configuration can already
 	// carry the mark, so append it only when it is absent.
-	extraTags = taggerutils.AppendUniqueTags(extraTags, o.tagger.InfraModeTags()...)
+	extraTags = taggerutils.AppendUniqueTags(extraTags, o.tagger.GetInfraTags()...)
 
 	o.orchestratorConfig = orchcfg.NewDefaultOrchestratorConfig(extraTags)
 

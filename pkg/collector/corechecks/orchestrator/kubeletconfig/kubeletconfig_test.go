@@ -115,7 +115,7 @@ func TestKubeletConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(KubeletConfigTestSuite))
 }
 
-func TestNewCheckInfraModeTags(t *testing.T) {
+func TestNewCheckInfraTags(t *testing.T) {
 	tests := []struct {
 		name      string
 		infraMode string

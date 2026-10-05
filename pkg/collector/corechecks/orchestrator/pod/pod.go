@@ -77,7 +77,7 @@ func newCheck(store workloadmeta.Component, cfg config.Component, tagger tagger.
 	extraTags := cfg.GetStringSlice(oconfig.OrchestratorNSKey("extra_tags"))
 	// A deployment that still sets the mark through orchestrator_explorer.extra_tags
 	// must not emit it twice.
-	extraTags = taggerutils.AppendUniqueTags(extraTags, tagger.InfraModeTags()...)
+	extraTags = taggerutils.AppendUniqueTags(extraTags, tagger.GetInfraTags()...)
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
 		config:    oconfig.NewDefaultOrchestratorConfig(extraTags),

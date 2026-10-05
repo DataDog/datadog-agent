@@ -79,7 +79,7 @@ func TestNotECS(t *testing.T) {
 	require.Len(t, sender.messages, 0)
 }
 
-func TestNewCheckInfraModeTags(t *testing.T) {
+func TestNewCheckInfraTags(t *testing.T) {
 	tests := []struct {
 		name      string
 		infraMode string

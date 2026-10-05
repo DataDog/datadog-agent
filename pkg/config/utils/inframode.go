@@ -39,20 +39,21 @@ func ResolveInfrastructureMode(c pkgconfigmodel.Reader) string {
 	return mode
 }
 
-// InfraModeTags returns the infrastructure mode tags of the Agent, or nil when
-// the resolved mode carries no mark.
+// MarkedInfraMode returns the `infra_mode` tag value for the Agent, or the empty
+// string when the resolved mode carries no mark.
 //
-// The tagset describes the Agent process and not an entity, so callers append it
-// at the point where they serialize a payload the Agent itself produces.
+// The value describes the Agent process and not an entity, so it is stored under
+// a dedicated Tagger entity and appended where a payload the Agent itself
+// produces is serialized.
 //
 // It must never reach a metric sample. The metrics intake renames series tagged
 // `infra_mode:cloud_cost_only` into the `dd.cloud_cost` namespace, so a mark that
 // leaks onto a customer custom metric removes that metric from dashboards,
 // monitors and metering.
-func InfraModeTags(c pkgconfigmodel.Reader) []string {
+func MarkedInfraMode(c pkgconfigmodel.Reader) string {
 	mode := ResolveInfrastructureMode(c)
 	if !slices.Contains(markedInfraModes, mode) {
-		return nil
+		return ""
 	}
-	return []string{InfraModeTagKey + ":" + mode}
+	return mode
 }

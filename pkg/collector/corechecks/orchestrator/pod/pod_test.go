@@ -169,7 +169,7 @@ func TestPodTestSuite(t *testing.T) {
 	suite.Run(t, new(PodTestSuite))
 }
 
-func TestNewCheckInfraModeTags(t *testing.T) {
+func TestNewCheckInfraTags(t *testing.T) {
 	tests := []struct {
 		name      string
 		infraMode string

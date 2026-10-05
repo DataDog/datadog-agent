@@ -525,7 +525,7 @@ func TestGlobalTags(t *testing.T) {
 	assert.Equal(t, []string{"container-low", "container-orch", "global-low", "global-orch"}, tb.Get())
 }
 
-func TestInfraModeTags(t *testing.T) {
+func TestGetInfraTags(t *testing.T) {
 	tests := []struct {
 		name     string
 		mode     string
@@ -556,7 +556,7 @@ func TestInfraModeTags(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			)
 
-			assert.Equal(t, tc.expected, NewMock(mockReq).Comp.InfraModeTags())
+			assert.Equal(t, tc.expected, NewMock(mockReq).Comp.GetInfraTags())
 		})
 	}
 }
@@ -565,7 +565,7 @@ func TestInfraModeTags(t *testing.T) {
 // intake renames series tagged `infra_mode:cloud_cost_only` into the
 // `dd.cloud_cost` namespace, so a leak here drops customer custom metrics from
 // dashboards, monitors and metering.
-func TestInfraModeTagsDoNotReachMetricSamples(t *testing.T) {
+func TestGetInfraTagsDoNotReachMetricSamples(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("infrastructure_mode", "cloud_cost_only")
 
@@ -584,7 +584,7 @@ func TestInfraModeTagsDoNotReachMetricSamples(t *testing.T) {
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, nil, nil, nil)
 	fakeTagger.SetGlobalTags([]string{"global-low"}, nil, nil, nil)
 
-	require.Equal(t, []string{"infra_mode:cloud_cost_only"}, fakeTagger.InfraModeTags())
+	require.Equal(t, []string{"infra_mode:cloud_cost_only"}, fakeTagger.GetInfraTags())
 
 	globalTags, err := fakeTagger.GlobalTags(types.LowCardinality)
 	assert.NoError(t, err)

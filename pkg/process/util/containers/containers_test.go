@@ -899,7 +899,7 @@ func TestGetContainersDoesNotPanicOnShortID(t *testing.T) {
 // The container payload is built from per-entity tags, which the Tagger global
 // entity never reaches, so the infrastructure mode mark has to be appended here
 // for a cost-only Agent's containers to be identifiable downstream.
-func TestGetContainersInfraModeTags(t *testing.T) {
+func TestGetContainersInfraTags(t *testing.T) {
 	tests := []struct {
 		name          string
 		infraMode     string

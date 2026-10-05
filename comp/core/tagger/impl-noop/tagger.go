@@ -58,7 +58,7 @@ func (n *noopTagger) GlobalTags(types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
-func (n *noopTagger) InfraModeTags() []string {
+func (n *noopTagger) GetInfraTags() []string {
 	return nil
 }
 

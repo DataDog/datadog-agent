@@ -13,9 +13,11 @@ enhancements:
     ECS resource, kubelet configuration and container payloads they emit. Setting
     ``infrastructure_mode`` is now enough: the
     ``orchestrator_explorer.extra_tags`` and ``tags`` workarounds that were
-    previously needed to identify these payloads can be removed. The mark is
-    deliberately kept off metrics, so custom metrics and DogStatsD metrics are
-    unaffected.
+    previously needed to identify these payloads can be removed. A Cluster Check
+    Runner takes the mark from the Cluster Agent that dispatches its checks, so
+    it reports the right mode even when ``infrastructure_mode`` was not applied
+    to the runner itself. The mark is deliberately kept off metrics, so custom
+    metrics and DogStatsD metrics are unaffected.
 fixes:
   - |
     The Agent now logs a warning at configuration load when

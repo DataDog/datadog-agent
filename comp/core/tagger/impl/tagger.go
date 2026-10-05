@@ -36,7 +36,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
@@ -78,11 +77,7 @@ type localTagger struct {
 	cfg           config.Component
 	collector     *collectors.WorkloadMetaCollector
 
-	datadogConfig datadogConfig
-	// infraModeTags is resolved once at construction: `infrastructure_mode` is a
-	// local setting, so the Tagger normalizes and validates it rather than
-	// propagating it.
-	infraModeTags              []string
+	datadogConfig              datadogConfig
 	tlmUDPOriginDetectionError coretelemetry.Counter
 	telemetryStore             *telemetry.Store
 	ctx                        context.Context
@@ -210,14 +205,25 @@ func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.
 		cfg:                        cfg,
 		tlmUDPOriginDetectionError: tlmUDPOriginDetectionError,
 		datadogConfig:              dc,
-		infraModeTags:              configutils.InfraModeTags(cfg),
 	}, nil
 }
 
-// InfraModeTags returns the infrastructure mode tags for this Agent, or nil when
+// GetInfraTags returns the infrastructure mode tags for this Agent, or nil when
 // the mode does not carry a mark.
-func (t *localTagger) InfraModeTags() []string {
-	return t.infraModeTags
+//
+// The entity is published by the collector at construction and holds no tags for
+// an unmarked mode, so an empty result is normalized to nil to keep the contract
+// the same whether or not the entity has been seen.
+func (t *localTagger) GetInfraTags() []string {
+	tags, err := t.Tag(types.GetInfraTagsEntityID(), types.LowCardinality)
+	if err != nil {
+		t.log.Warnf("error getting infra tags: %s", err)
+		return nil
+	}
+	if len(tags) == 0 {
+		return nil
+	}
+	return tags
 }
 
 // getTags returns a read only list of tags for a given entity.

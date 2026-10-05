@@ -39,26 +39,26 @@ func TestResolveInfrastructureMode(t *testing.T) {
 	}
 }
 
-func TestInfraModeTags(t *testing.T) {
+func TestMarkedInfraMode(t *testing.T) {
 	tests := []struct {
 		name     string
 		mode     string
-		expected []string
+		expected string
 	}{
-		{"cloud_cost_only is marked", "cloud_cost_only", []string{"infra_mode:cloud_cost_only"}},
-		{"end_user_device is marked", "end_user_device", []string{"infra_mode:end_user_device"}},
-		{"full is not marked", "full", nil},
-		{"unset is not marked", "", nil},
-		{"basic is not marked", "basic", nil},
-		{"none is not marked", "none", nil},
-		{"an invalid mode resolves to full and is not marked", "ccm_only", nil},
+		{"cloud_cost_only is marked", "cloud_cost_only", "cloud_cost_only"},
+		{"end_user_device is marked", "end_user_device", "end_user_device"},
+		{"full is not marked", "full", ""},
+		{"unset is not marked", "", ""},
+		{"basic is not marked", "basic", ""},
+		{"none is not marked", "none", ""},
+		{"an invalid mode resolves to full and is not marked", "ccm_only", ""},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.SetInTest("infrastructure_mode", tc.mode)
-			assert.Equal(t, tc.expected, InfraModeTags(cfg))
+			assert.Equal(t, tc.expected, MarkedInfraMode(cfg))
 		})
 	}
 }

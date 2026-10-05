@@ -41,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -104,11 +103,6 @@ type remoteTagger struct {
 	checksCardinality    types.TagCardinality
 	dogstatsdCardinality types.TagCardinality
 
-	// infraModeTags is resolved from the local config and not from the remote
-	// tagger stream: `infrastructure_mode` is delivered to every Agent process,
-	// so there is nothing to propagate.
-	infraModeTags []string
-
 	wg sync.WaitGroup
 }
 
@@ -160,7 +154,6 @@ func newRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.C
 		log:            log,
 		tlsConfig:      ipc.GetTLSClientConfig(),
 		authToken:      ipc.GetAuthToken(),
-		infraModeTags:  configutils.InfraModeTags(cfg),
 	}
 
 	// Override the default TLS config and auth token if provided
@@ -486,10 +479,22 @@ func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, e
 	return t.Tag(types.GetGlobalEntityID(), cardinality)
 }
 
-// InfraModeTags returns the infrastructure mode tags for this Agent, or nil when
+// GetInfraTags returns the infrastructure mode tags for this Agent, or nil when
 // the mode does not carry a mark.
-func (t *remoteTagger) InfraModeTags() []string {
-	return t.infraModeTags
+//
+// It comes from the stream rather than the local config, so a Cluster Check
+// Runner reports the mode of the Cluster Agent that dispatches its checks even
+// when the setting was not applied to the runner itself.
+func (t *remoteTagger) GetInfraTags() []string {
+	tags, err := t.Tag(types.GetInfraTagsEntityID(), types.LowCardinality)
+	if err != nil {
+		t.log.Warnf("error getting infra tags: %s", err)
+		return nil
+	}
+	if len(tags) == 0 {
+		return nil
+	}
+	return tags
 }
 
 // EnrichTags enriches the tags with the global tags.
