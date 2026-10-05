@@ -8,6 +8,7 @@ package util
 import (
 	"context"
 	"errors"
+	"net/http"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -78,6 +79,68 @@ func TestRetryHTTPRequest_NoRetryOn4xx(t *testing.T) {
 	require.Error(t, err)
 	assert.Same(t, originalErr, err, "permanent errors should be returned without backoff's wrapper")
 	assert.EqualValues(t, 1, atomic.LoadInt32(&calls), "4xx should not retry")
+}
+
+func TestRetryHTTPRequest_RetriesOn429ThenSucceeds(t *testing.T) {
+	var calls int32
+	result, err := RetryHTTPRequest(context.Background(), func() (string, int, error) {
+		if atomic.AddInt32(&calls, 1) == 1 {
+			return "", 429, errors.New("rate limited")
+		}
+		return "ok", 200, nil
+	}, fastTestOpts(0))
+
+	require.NoError(t, err)
+	assert.Equal(t, "ok", result)
+	assert.EqualValues(t, 2, atomic.LoadInt32(&calls), "429 should be retried")
+}
+
+func TestRetryHTTPRequest_HonorsRetryAfter(t *testing.T) {
+	var calls int32
+	var firstCall time.Time
+	var waited time.Duration
+	_, err := RetryHTTPRequest(context.Background(), func() (string, int, error) {
+		if atomic.AddInt32(&calls, 1) == 1 {
+			firstCall = time.Now()
+			return "", 429, WithRetryAfter(errors.New("rate limited"), "1")
+		}
+		waited = time.Since(firstCall)
+		return "ok", 200, nil
+	}, fastTestOpts(0))
+
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, waited, 1*time.Second, "should wait the Retry-After delay, not the backoff interval")
+}
+
+func TestWithRetryAfter_KeepsCause(t *testing.T) {
+	cause := errors.New("rate limited")
+	assert.ErrorIs(t, WithRetryAfter(cause, "5"), cause)
+	assert.Same(t, cause, WithRetryAfter(cause, ""), "absent header leaves the error unchanged")
+}
+
+func TestParseRetryAfter(t *testing.T) {
+	now := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	for _, tc := range []struct {
+		value string
+		delay time.Duration
+		ok    bool
+	}{
+		{"", 0, false},
+		{"0", 0, false},
+		{"-1", 0, false},
+		{"garbage", 0, false},
+		{" 7 ", 7 * time.Second, true},
+		{now.Add(30 * time.Second).Format(http.TimeFormat), 30 * time.Second, true},
+		{now.Add(-30 * time.Second).Format(http.TimeFormat), 0, false},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			delay, ok := parseRetryAfter(tc.value, now)
+			assert.Equal(t, tc.ok, ok)
+			if tc.ok {
+				assert.Equal(t, tc.delay, delay)
+			}
+		})
+	}
 }
 
 func TestRetryHTTPRequest_StopsAtMaxElapsedTime(t *testing.T) {

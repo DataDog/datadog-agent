@@ -1564,6 +1564,28 @@ pub mod tests {
         assert_eq!(proc.restarts.count, 1, "counter should reset to 1");
     }
 
+    /// A process that keeps failing before `runtime_success_sec` must keep
+    /// growing its backoff and restart count instead of resetting each cycle.
+    #[test]
+    fn test_backoff_grows_on_short_runtime() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart_sec = Some(2.0);
+        cfg.restart_max_delay_sec = Some(300.0);
+        cfg.runtime_success_sec = Some(60);
+        let mut proc = ManagedProcess::new_config("grow".into(), test_helpers::test_uuid(), cfg);
+
+        for expected in [2.0, 4.0, 8.0] {
+            proc.restarts.last_spawn_time = Some(Instant::now() - Duration::from_secs(3));
+            proc.restarts
+                .record(proc.config.restart_delay(), proc.config.runtime_success());
+            assert!((proc.restarts.current_delay - expected).abs() < 0.001);
+            proc.restarts
+                .advance_backoff(proc.config.max_restart_delay());
+        }
+        assert_eq!(proc.restarts.count, 3);
+    }
+
     #[test]
     fn test_restart_config_defaults() {
         let (cmd, args) = test_helpers::true_cmd();

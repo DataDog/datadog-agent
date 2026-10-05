@@ -155,8 +155,8 @@ func (p *publicClient) enroll(
 }
 
 // doEnrollRequestWithRetry sends the enrollment POST and retries on transport
-// errors or HTTP 5xx responses with exponential backoff. 4xx responses are
-// returned immediately. Retries are unbounded; the caller's context
+// errors, HTTP 5xx and HTTP 429 responses with exponential backoff, honoring
+// Retry-After on 429. Other 4xx responses are returned immediately. Retries are unbounded; the caller's context
 // cancellation is the only exit other than success or a permanent (4xx)
 // failure. Enrollment is required for the runner to function, so we keep
 // trying rather than crashing the agent.
@@ -209,7 +209,11 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 		return nil, resp.StatusCode, fmt.Errorf("runner creation failed with HTTP status code %d and failed to read HTTP response with error %w", resp.StatusCode, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, resp.StatusCode, fmt.Errorf("runner creation failed with HTTP status code %d and response %s", resp.StatusCode, string(respBody))
+		err := fmt.Errorf("runner creation failed with HTTP status code %d and response %s", resp.StatusCode, string(respBody))
+		if resp.StatusCode == http.StatusTooManyRequests {
+			err = util.WithRetryAfter(err, resp.Header.Get("Retry-After"))
+		}
+		return nil, resp.StatusCode, err
 	}
 
 	return respBody, resp.StatusCode, nil
