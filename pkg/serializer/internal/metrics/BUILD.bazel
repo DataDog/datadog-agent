@@ -55,10 +55,7 @@ dd_agent_go_test(
         "sketch_series_test.go",
     ],
     embed = [":metrics"],
-    gotags_sets = [[
-        "zlib",
-        "zstd",
-    ]],
+    gotags_sets = [["zlib"]],
     deps = [
         "//comp/core/log/mock",
         "//comp/forwarder/defaultforwarder/endpoints",
@@ -80,6 +77,8 @@ dd_agent_go_test(
         "//pkg/util/quantile",
         "//pkg/util/testutil",
         "@com_github_datadog_agent_payload_v5//gogen",
+        "@com_github_richardartoul_molecule//:molecule",
+        "@com_github_richardartoul_molecule//src/codec",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

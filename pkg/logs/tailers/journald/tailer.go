@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build systemd
+//go:build linux && systemd
 
 package journald
 
@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var journaldMatchRe = regexp.MustCompile("^([^=]+)=(.+)$")
 
 // defaultWaitDuration represents the delay before which we try to collect a new log from the journal
 const (
@@ -129,8 +131,6 @@ func (t *Tailer) Stop() {
 func (t *Tailer) setup() error {
 	config := t.source.Config
 
-	matchRe := regexp.MustCompile("^([^=]+)=(.+)$")
-
 	// add filters to collect only the logs of the units defined in the configuration,
 	// if no units for both System and User, and no matches are defined,
 	// collect all the logs of the journal by default.
@@ -162,7 +162,7 @@ func (t *Tailer) setup() error {
 
 	for _, match := range config.IncludeMatches {
 		// add filters to collect only the logs of the matches defined in the configuration.
-		submatches := matchRe.FindStringSubmatch(match)
+		submatches := journaldMatchRe.FindStringSubmatch(match)
 		if len(submatches) < 1 {
 			return fmt.Errorf("incorrectly formatted IncludeMatch (must be `[field]=[value]`: %s", match)
 		}
@@ -187,7 +187,7 @@ func (t *Tailer) setup() error {
 	t.exclude.matches = make(map[string]map[string]bool)
 	for _, match := range config.ExcludeMatches {
 		// add filters to drop all the logs related to the matches to exclude.
-		submatches := matchRe.FindStringSubmatch(match)
+		submatches := journaldMatchRe.FindStringSubmatch(match)
 		if len(submatches) < 1 {
 			return fmt.Errorf("incorrectly formatted ExcludeMatch (must be `[field]=[value]`: %s", match)
 		}

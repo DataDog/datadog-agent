@@ -9,6 +9,7 @@ package uprobes
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"maps"
@@ -56,6 +57,8 @@ var (
 	ErrNoMatchingRule = errors.New("no matching rule")
 	// regex that defines internal DataDog processes
 	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace|otel)-agent|host-profiler|system-probe|agent)")
+
+	zeroByte = []byte{'0'}
 )
 
 // AttachTarget defines the target to which we should attach the probes, libraries or executables
@@ -1090,16 +1093,21 @@ func (ua *UprobeAttacher) getLibrariesFromMapsFile(pid int) ([]string, error) {
 	}
 	defer mapsFile.Close()
 
-	scanner := bufio.NewScanner(bufio.NewReader(mapsFile))
+	scanner := bufio.NewScanner(mapsFile)
+	scanner.Buffer(make([]byte, 128), bufio.MaxScanTokenSize)
 	libs := make(map[string]struct{})
 	for scanner.Scan() {
-		line := scanner.Text()
-		cols := strings.Fields(line)
+		cols := bytes.Fields(scanner.Bytes())
 		// ensuring we have exactly 6 elements (skip '(deleted)' entries) in the line, and the 4th element (inode) is
 		// not zero (indicates it is a path, and not an anonymous path).
-		if len(cols) == 6 && cols[4] != "0" {
-			libs[cols[5]] = struct{}{}
+		if len(cols) == 6 && !bytes.Equal(cols[4], zeroByte) {
+			if _, ok := libs[string(cols[5])]; !ok {
+				libs[string(cols[5])] = struct{}{}
+			}
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("scan maps file at %s: %w", mapsPath, err)
 	}
 
 	return slices.Collect(maps.Keys(libs)), nil

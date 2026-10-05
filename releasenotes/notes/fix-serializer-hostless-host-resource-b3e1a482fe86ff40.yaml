@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix an issue where metrics with no hostname (e.g. serverless or
+    task-scoped metrics submitted with an empty ``host``) incorrectly carried
+    an empty ``host`` resource in the metrics payload. This could cause such
+    metrics to be associated with a nonexistent host in Datadog.

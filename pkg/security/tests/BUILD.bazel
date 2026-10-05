@@ -2,6 +2,7 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:go_canonical_test_tag_set functionaltests bpf
+# gazelle:exclude syscall_tester/go
 
 go_library(
     name = "tests",
@@ -214,6 +215,7 @@ dd_agent_go_test(
         "rename_test.go",
         "replay_test.go",
         "rmdir_test.go",
+        "ruleset_loaded_actions_test.go",
         "sbom_test.go",
         "security_profile_test.go",
         "selftests_test.go",
@@ -279,6 +281,7 @@ dd_agent_go_test(
             "//pkg/security/resolvers/dentry",
             "//pkg/security/resolvers/process",
             "//pkg/security/resolvers/sbom",
+            "//pkg/security/rules/monitor",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model/sharedconsts",
@@ -327,6 +330,7 @@ dd_agent_go_test(
             "//pkg/security/resolvers/dentry",
             "//pkg/security/resolvers/process",
             "//pkg/security/resolvers/sbom",
+            "//pkg/security/rules/monitor",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model/sharedconsts",

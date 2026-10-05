@@ -7,13 +7,16 @@
 mod helpers;
 
 mod cli_contracts;
+mod config_gates;
 mod config_status;
+mod crashed_state;
 mod create;
 mod daemon;
 mod ddot;
 mod describe;
 mod env_files;
 mod fixtures;
+mod identity;
 mod list;
 #[cfg(windows)]
 mod privileged_allowlist;

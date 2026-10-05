@@ -50,6 +50,7 @@ dd_agent_go_test(
         "@com_github_containerd_containerd_api//types",
         "@com_github_containerd_containerd_v2//client",
         "@com_github_containerd_containerd_v2//core/containers",
+        "@com_github_containerd_containerd_v2//defaults",
         "@com_github_containerd_containerd_v2//pkg/cio",
         "@com_github_containerd_containerd_v2//pkg/namespaces",
         "@com_github_containerd_containerd_v2//pkg/oci",

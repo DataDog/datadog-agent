@@ -44,6 +44,10 @@ Package demultiplexer defines the aggregator demultiplexer
 
 Package demultiplexerendpoint component provides the /dogstatsd-contexts-dump API endpoint that can register via Fx value groups.
 
+### [comp/aggregator/dogstatsdclientdropdetector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector)
+
+Package dogstatsdclientdropdetector defines the DogStatsD client drop detector component.
+
 ### [comp/aggregator/dogstatsdclienttelemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry)
 
 Package dogstatsdclienttelemetry defines the DogStatsD client telemetry component.
@@ -869,7 +873,7 @@ Package observer provides a component for observing data flowing through the age
 
 *Datadog Team*: agent-anomaly-detection
 
-Package recorder provides a middleware component for recording and replaying observer data.
+Package recorder defines middleware and writer contracts for recording observer data.
 
 ### [comp/anomalydetection/reporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/reporter)
 

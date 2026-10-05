@@ -27,6 +27,8 @@ func TestTracerouteModule(t *testing.T) {
 	tests := []struct {
 		name                    string
 		npmEnabled              bool
+		eudm                    bool
+		eudmBasicEnabled        *bool
 		standardTestsEnabled    bool
 		basicTestsEnabled       bool
 		tracerouteEnabled       *bool
@@ -39,6 +41,10 @@ func TestTracerouteModule(t *testing.T) {
 		{name: "basic tests require NPM", basicTestsEnabled: true},
 		{name: "standard tests enable traceroute", npmEnabled: true, standardTestsEnabled: true, expectTracerouteEnabled: true},
 		{name: "basic tests enable traceroute", npmEnabled: true, basicTestsEnabled: true, expectTracerouteEnabled: true},
+		{name: "EUDM basic tests enable traceroute without NPM", eudm: true, expectTracerouteEnabled: true},
+		{name: "EUDM basic tests explicitly off", eudm: true, eudmBasicEnabled: boolPtr(false)},
+		{name: "CNM basic flag does not enable EUDM tests", eudm: true, eudmBasicEnabled: boolPtr(false), npmEnabled: true, basicTestsEnabled: true},
+		{name: "EUDM explicit traceroute off", eudm: true, tracerouteEnabled: boolPtr(false), expectWarning: true},
 		{name: "explicit true enables traceroute", tracerouteEnabled: boolPtr(true), expectTracerouteEnabled: true},
 		{name: "explicit false without dynamic tests", npmEnabled: true, tracerouteEnabled: boolPtr(false)},
 		{name: "explicit false with standard tests but without NPM does not warn", standardTestsEnabled: true, tracerouteEnabled: boolPtr(false)},
@@ -59,6 +65,12 @@ func TestTracerouteModule(t *testing.T) {
 			sysprobeCfg := mock.NewSystemProbe(t)
 			coreCfg.SetInTest("network_path.connections_monitoring.enabled", test.standardTestsEnabled)
 			coreCfg.SetInTest("network_path.connections_monitoring.basic_tests_enabled", test.basicTestsEnabled)
+			if test.eudm {
+				coreCfg.SetInTest("infrastructure_mode", "end_user_device")
+			}
+			if test.eudmBasicEnabled != nil {
+				coreCfg.SetInTest("network_path.connections_monitoring.eudm_basic_tests_enabled", *test.eudmBasicEnabled)
+			}
 			sysprobeCfg.SetInTest("network_config.enabled", test.npmEnabled)
 			if test.tracerouteEnabled != nil {
 				sysprobeCfg.SetInTest("traceroute.enabled", *test.tracerouteEnabled)

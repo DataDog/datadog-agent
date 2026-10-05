@@ -15,7 +15,6 @@
       -m 24576M
       -v "$(Get-Location):c:\mnt"
       -e GITLAB_CI
-      -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
       -e AWS_NETWORKING=true
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
@@ -33,6 +32,7 @@ lint_windows-x64:
   extends: .lint_windows_base
   rules:
     - !reference [.on_native_os_linters]
+    - !reference [.on_main_or_release_branch]  # lint_cross_windows-x64 missed regressions, leading to #55162 and #55210
   variables:
     ARCH: "x64"
   timeout: 1h30m

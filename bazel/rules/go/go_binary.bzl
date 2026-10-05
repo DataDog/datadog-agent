@@ -14,14 +14,13 @@ Version string strategy:
 x_defs values may reference any of the common variables Python-style format
 placeholders, e.g. {"some/pkg.appVersion": "{agent_version}"}.
 
-Run-path strategy, selected via //:linux_and_release and @platforms//os:linux:
+ELF RPATH strategy ("-r" gc_linkopts), selected via //:linux_and_release and @platforms//os:linux:
 - Linux + release (//:linux_and_release): /opt/datadog-packages/run
 - Linux + dev    (@platforms//os:linux):  dev/lib
 - Non-Linux      (//conditions:default):  no "-r" flag (ELF RPATH is Linux-specific)
 
-The run path is injected two ways:
-1. As a Go variable via x_defs (pkg/config/setup.defaultRunPath).
-2. As a gc_linkopts "-r" flag — embeds the ELF RPATH (Linux only).
+The Go run directory (pkg/util/defaultpaths.runPath) is not set here: it is
+binary-specific, so callers that need it pass their own x_defs.
 
 The Commit symbol is intentionally omitted: it requires git information that
 must come from a future repository rule (bazel/repo/git_info.bzl) and should
@@ -29,6 +28,7 @@ only be set when Bazel is invoked with the --stamp flag.
 """
 
 load("@rules_go//go:def.bzl", "go_binary")
+load("@with_cfg.bzl", "with_cfg")
 load("//bazel/rules/variables:variables.bzl", "compute_version_variables", "standard_to_url_safe")
 load(
     "//tasks:build_tags.bzl",
@@ -37,12 +37,10 @@ load(
     "FIPS_TAGS",
     "LINUX_ONLY_TAGS",
     "WINDOWS_EXCLUDED_TAGS",
-    "WINDOWS_INCLUDED_TAGS",
 )
 
 _REPO = "github.com/DataDog/datadog-agent"
 _VERSION_PKG = _REPO + "/pkg/version"
-_SETUP_PKG = _REPO + "/pkg/config/setup"
 
 _RUN_PATH_RELEASE = "/opt/datadog-packages/run"
 _RUN_PATH_DEV = "dev/lib"
@@ -83,9 +81,6 @@ def dd_agent_go_binary(
     # The value must come from a stamp file produced by a git_info repository
     # rule (planned: bazel/repo/git_info.bzl).
 
-    # Build two complete x_defs dicts — one per //:is_release branch.
-    # string_dict attributes do not support per-value select(); the select()
-    # must wrap the whole dict.
     common = compute_version_variables()
     if agent_version:
         agent_version_url_safe = standard_to_url_safe(agent_version)
@@ -97,23 +92,12 @@ def dd_agent_go_binary(
     subs["agent_version"] = agent_version
     subs["agent_version_url_safe"] = agent_version_url_safe
 
-    release_x_defs = {
+    all_x_defs = {
         _VERSION_PKG + ".AgentPayloadVersion": common["agent_payload_version"],
         _VERSION_PKG + ".AgentVersion": agent_version,
         _VERSION_PKG + ".AgentVersionURLSafe": agent_version_url_safe,
-        _SETUP_PKG + ".defaultRunPath": _RUN_PATH_RELEASE,
     }
-    dev_x_defs = {
-        _VERSION_PKG + ".AgentPayloadVersion": common["agent_payload_version"],
-        _VERSION_PKG + ".AgentVersion": agent_version,
-        _VERSION_PKG + ".AgentVersionURLSafe": agent_version_url_safe,
-        _SETUP_PKG + ".defaultRunPath": _RUN_PATH_DEV,
-    }
-
-    existing_x_defs = x_defs or {}
-    expanded_x_defs = {k: v.format(**subs) for k, v in existing_x_defs.items()}
-    release_x_defs.update(expanded_x_defs)
-    dev_x_defs.update(expanded_x_defs)
+    all_x_defs.update({k: v.format(**subs) for k, v in (x_defs or {}).items()})
 
     # cgo must be enabled on Windows to link the .syso resource file produced
     # by win_resource().  Callers that need additional conditions (e.g. FIPS)
@@ -151,17 +135,25 @@ def dd_agent_go_binary(
         kwargs["gotags"] = select({
             "@platforms//os:macos": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - DARWIN_EXCLUDED_TAGS),
             "//packages/agent:linux_fips": sorted(COMMON_TAGS | gotags | FIPS_TAGS),
-            "//packages/agent:windows_x86_64_fips": sorted((COMMON_TAGS | gotags | FIPS_TAGS | WINDOWS_INCLUDED_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
-            "//:windows_x86_64": sorted((COMMON_TAGS | gotags | WINDOWS_INCLUDED_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
+            "//packages/agent:windows_x86_64_fips": sorted((COMMON_TAGS | gotags | FIPS_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
+            "//:windows_x86_64": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
             "//conditions:default": sorted(COMMON_TAGS | gotags),
         })
 
     go_binary(
         name = name,
         gc_linkopts = (gc_linkopts or []) + run_path_linkopts + strip_linkopts,
-        x_defs = select({
-            "//:is_release": release_x_defs,
-            "//conditions:default": dev_x_defs,
-        }),
+        x_defs = all_x_defs,
         **kwargs
     )
+
+# Bazel's default --strip=sometimes strips rules_go binaries in fastbuild mode.
+# We have cases (like fixture binaries for tests) that rely on having
+# unconditionally unstripped binaries. This creates a target with a transition
+# that enforces that.
+unstripped_go_binary, _unstripped_go_binary_internal = with_cfg(
+    go_binary,
+).set(
+    "strip",
+    "never",
+).build()

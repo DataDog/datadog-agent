@@ -150,6 +150,11 @@
       },
       {
         "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/pulumi/pulumi-azure-native-sdk{,/**}"],
+        "groupName": "pulumi-azure-native-sdk"
+      },
+      {
+        "matchManagers": ["gomod"],
         "matchDepNames": ["istio.io/**"],
         "groupName": "istio"
       },
@@ -184,7 +189,7 @@
         "enabled": false
       },
       {
-        "matchManagers": ["bazel-module"],
+        "matchManagers": ["bazel-module", "pip_requirements"],
         "labels": ["dependencies", "dependencies-bazel", "changelog/no-changelog", "qa/no-code-change"]
       },
       {
