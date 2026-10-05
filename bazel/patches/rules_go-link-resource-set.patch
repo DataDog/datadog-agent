@@ -1,0 +1,25 @@
+diff --git a/go/private/actions/link.bzl b/go/private/actions/link.bzl
+index 1df51d6ef1..e229ce769e 100644
+--- a/go/private/actions/link.bzl
++++ b/go/private/actions/link.bzl
+@@ -48,6 +48,12 @@ def _format_imports(d, main_archive_file):
+         return None
+     return "{}={}".format(d.importmap, d._imports.path)
+ 
++def _link_resource_set(*_):
++    """Overrides Bazel's 250MB default, conservatively still below the observed
++    peak RSS: https://github.com/bazel-contrib/rules_go/issues/4726
++    """
++    return {"memory": 2048}
++
+ def emit_link(
+         go,
+         archive = None,
+@@ -250,6 +256,7 @@ def emit_link(
+         env = go.env,
+         toolchain = GO_TOOLCHAIN_LABEL,
+         exec_group = exec_group,
++        resource_set = _link_resource_set,
+     )
+ 
+ def _extract_extldflags(gc_linkopts, extldflags):
