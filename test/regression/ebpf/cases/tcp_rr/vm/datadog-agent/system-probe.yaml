@@ -4,6 +4,7 @@ runtime_security_config:
 system_probe_config:
   debug_port: 7654
   telemetry_enabled: true
+  sysprobe_socket: /var/run/sysprobe.sock
 
 network_config:
   enabled: true
@@ -12,3 +13,9 @@ network_config:
 ebpf_check:
   enabled: true
   kernel_bpf_stats: true
+
+ebpf:
+  force_no_prealloc_hash:
+    cnm: true
+    usm: true
+    misc: true

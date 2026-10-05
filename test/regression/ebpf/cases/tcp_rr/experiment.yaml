@@ -1,10 +1,16 @@
-optimization_goal: none
+# Agent 'all features enabled' idle experiment. Represents an agent install with
+# all sub-agents enabled in configuration and no active workload.
+# Further documentation:
+# https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates#idle_all_features
+
+optimization_goal: memory
 erratic: false
 
 target:
   name: datadog-agent
   cpu_allotment: 4
-  memory_allotment: 660 MiB
+  # Set to 30% higher than the memory_usage check value
+  memory_allotment: 999 MiB
 
   environment:
     DD_API_KEY: a0000001

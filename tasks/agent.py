@@ -28,6 +28,7 @@ from tasks.gointegrationtest import (
 )
 from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
+from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -431,6 +432,95 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
     ctx.run(f"rm {build_context}/{deb_glob}")
 
 
+# Team ids the single_machine_performance-full-amd64-a7 CI job publishes to, see
+# IMG_DESTINATIONS in .gitlab/deploy/container_build/docker_linux.yml.
+SMP_CI_TEAM_IDS = ["08450328", "52130853"]
+SMP_DEFAULT_REGION = "us-west-2"
+SMP_DEFAULT_AWS_PROFILE = "single-machine-performance"
+
+
+def resolve_smp_push_target(
+    ctx,
+    arch,
+    account_id=None,
+    team_id=None,
+    region=None,
+    aws_profile=None,
+    sha=None,
+):
+    """
+    Validate and resolve the SMP push parameters, returning the ECR
+    destinations to push to plus the login parameters.
+
+    Called before the image build so a misconfiguration fails immediately
+    rather than after a full build.
+    """
+    account_id = account_id or os.environ.get("SMP_ACCOUNT_ID")
+    if not account_id:
+        raise Exit(
+            "--push-to-smp needs the SMP AWS account id. Pass --smp-account-id or set SMP_ACCOUNT_ID.\n"
+            "In CI this comes from Vault (SMP_ACCOUNT/account_id); locally ask "
+            "#single-machine-performance for it.",
+            code=1,
+        )
+
+    if arch != "amd64":
+        # SMP's runners and its CLI release (x86_64-unknown-linux-musl) are x86_64
+        # only, so an arm64 image could be pushed but never analyzed.
+        raise Exit(
+            f"--push-to-smp only supports amd64 images, got '{arch}'. SMP runs on x86_64 hosts.",
+            code=1,
+        )
+
+    region = region or SMP_DEFAULT_REGION
+    aws_profile = aws_profile or SMP_DEFAULT_AWS_PROFILE
+
+    team_id = team_id or os.environ.get("SMP_TEAM_ID")
+    team_ids = [t.strip() for t in team_id.split(",") if t.strip()] if team_id else list(SMP_CI_TEAM_IDS)
+    if not team_ids:
+        raise Exit("--smp-team-id was given but contained no team id", code=1)
+
+    sha = sha or get_commit_sha(ctx)
+    registry = f"{account_id}.dkr.ecr.{region}.amazonaws.com"
+    # SMP resolves images by commit sha, so the tag must match what the
+    # regression detector looks up: '<sha>-7-full-<arch>'.
+    tag = f"{sha}-7-full-{arch}"
+
+    return {
+        "registry": registry,
+        "region": region,
+        "aws_profile": aws_profile,
+        "sha": sha,
+        "destinations": [f"{registry}/{tid}-agent:{tag}" for tid in team_ids],
+    }
+
+
+def push_image_to_smp(ctx, source_image, target):
+    """
+    Tag and push an already-built agent image to the single-machine-performance
+    ECR, mirroring what the single_machine_performance-full-amd64-a7 CI job does.
+
+    'target' is the dict returned by resolve_smp_push_target.
+    """
+    print(f"Logging in to {target['registry']} with AWS profile '{target['aws_profile']}'")
+    ctx.run(
+        f"aws ecr get-login-password --region {target['region']} "
+        f"| docker login --username AWS --password-stdin {target['registry']}",
+        hide="out",
+    )
+
+    for destination in target["destinations"]:
+        print(f"Pushing {source_image} to {destination}")
+        ctx.run(f"docker tag {source_image} {destination}")
+        ctx.run(f"docker push {destination}")
+
+    print(
+        f"\nPushed image for sha {target['sha']}. To analyze it, an SMP run needs this sha as its "
+        "comparison sha (smp job submit --comparison-sha), or run the manual "
+        "single-machine-performance-metal-runners-regression_detector job on a pipeline for that sha."
+    )
+
+
 @task(
     help={
         "base_image": doc.base_image,
@@ -446,6 +536,12 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
         "signed_pull": doc.signed_pull,
         "arch": doc.arch,
         "development": doc.development,
+        "push_to_smp": doc.push_to_smp,
+        "smp_account_id": doc.smp_account_id,
+        "smp_team_id": doc.smp_team_id,
+        "smp_region": doc.smp_region,
+        "smp_aws_profile": doc.smp_aws_profile,
+        "smp_sha": doc.smp_sha,
     }
 )
 def hacky_dev_image_build(
@@ -464,6 +560,12 @@ def hacky_dev_image_build(
     arch=None,
     development=True,
     build_exclude=None,
+    push_to_smp=False,
+    smp_account_id=None,
+    smp_team_id=None,
+    smp_region=None,
+    smp_aws_profile=None,
+    smp_sha=None,
 ):
     """
     Builds the agent or cluster-agent Docker image.
@@ -474,6 +576,21 @@ def hacky_dev_image_build(
     if arch is None:
         print("Unable to determine architecture to build, please set `arch`", file=sys.stderr)
         raise Exit(code=1)
+
+    # Resolve up front so a bad SMP configuration fails before the build, not after it.
+    smp_target = (
+        resolve_smp_push_target(
+            ctx,
+            arch,
+            account_id=smp_account_id,
+            team_id=smp_team_id,
+            region=smp_region,
+            aws_profile=smp_aws_profile,
+            sha=smp_sha,
+        )
+        if push_to_smp
+        else None
+    )
 
     if base_image is None:
         import requests
@@ -679,6 +796,9 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
         if push:
             ctx.run(f'docker push {target_image}')
+
+        if smp_target:
+            push_image_to_smp(ctx, target_image, smp_target)
 
 
 @task
