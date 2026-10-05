@@ -75,6 +75,10 @@ type ProductComposition struct {
 	// check command graph.
 	CheckOptions []fx.Option
 
+	// GUIOptions are product-specific Fx options included alongside the shared GUI
+	// module.
+	GUIOptions []fx.Option
+
 	// StatusOptions are product-specific Fx options included alongside the
 	// shared status module.
 	StatusOptions []fx.Option
