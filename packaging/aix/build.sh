@@ -145,7 +145,6 @@ else
 fi
 
 # Report the output artifact
-BFF_PATH="$BUILD_DIR/datadog-agent-${AGENT_VERSION}-${AGENT_BUILD}.aix.ppc64.bff"
 BUILD_END=$(date '+%Y-%m-%dT%H:%M:%S')
 
 log "=== Build complete ==="

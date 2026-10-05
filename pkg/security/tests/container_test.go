@@ -54,7 +54,7 @@ func TestContainerCreatedAt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("test-open")
 	if err != nil {
@@ -140,7 +140,7 @@ func TestContainerVariables(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("test-open")
 	if err != nil {
@@ -213,7 +213,7 @@ func TestContainerVariablesReleased(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {

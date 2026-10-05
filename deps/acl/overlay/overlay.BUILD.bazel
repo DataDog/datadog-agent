@@ -11,7 +11,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix
 
 package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
 
-VERSION = "2.3.1"
+VERSION = "2.4.0"
 
 package_metadata(
     name = "package_metadata",
@@ -73,18 +73,21 @@ cc_library(
         "include/acl_ea.h",
         "include/acl.h",
         "include/config.h",
+        "include/fchmodat_compat.h",
         "include/libacl.h",
         "include/misc.h",
+        "include/openat2.h",
+        "include/visibility-hidden.h",
         "include/walk_tree.h",
-        "libacl/__acl_extended_file.c",
-        "libacl/__acl_extended_file.h",
+        "include/xattrat.h",
+        "include/xattrat_compat.h",
+        "libacl/__acl_apply_mask_to_mode.c",
         "libacl/__acl_from_xattr.c",
         "libacl/__acl_from_xattr.h",
         "libacl/__acl_reorder_obj_p.c",
         "libacl/__acl_to_any_text.c",
         "libacl/__acl_to_xattr.c",
         "libacl/__acl_to_xattr.h",
-        "libacl/__apply_mask_to_mode.c",
         "libacl/__libobj.c",
         "libacl/acl_add_perm.c",
         "libacl/acl_calc_mask.c",
@@ -96,6 +99,7 @@ cc_library(
         "libacl/acl_copy_int.c",
         "libacl/acl_create_entry.c",
         "libacl/acl_delete_def_file.c",
+        "libacl/acl_delete_def_file_at.c",
         "libacl/acl_delete_entry.c",
         "libacl/acl_delete_perm.c",
         "libacl/acl_dup.c",
@@ -103,6 +107,7 @@ cc_library(
         "libacl/acl_equiv_mode.c",
         "libacl/acl_error.c",
         "libacl/acl_extended_fd.c",
+        "libacl/acl_extended_file_at.c",
         "libacl/acl_extended_file_nofollow.c",
         "libacl/acl_extended_file.c",
         "libacl/acl_free.c",
@@ -110,6 +115,7 @@ cc_library(
         "libacl/acl_from_text.c",
         "libacl/acl_get_entry.c",
         "libacl/acl_get_fd.c",
+        "libacl/acl_get_file_at.c",
         "libacl/acl_get_file.c",
         "libacl/acl_get_perm.c",
         "libacl/acl_get_permset.c",
@@ -117,6 +123,7 @@ cc_library(
         "libacl/acl_get_tag_type.c",
         "libacl/acl_init.c",
         "libacl/acl_set_fd.c",
+        "libacl/acl_set_file_at.c",
         "libacl/acl_set_file.c",
         "libacl/acl_set_permset.c",
         "libacl/acl_set_qualifier.c",
@@ -130,12 +137,21 @@ cc_library(
         "libacl/libobj.h",
         "libacl/perm_copy_fd.c",
         "libacl/perm_copy_file.c",
-        "libacl/perm_copy.h",
+        "libmisc/fchmodat_compat.c",
+        "libmisc/getxattrat_compat.c",
         "libmisc/high_water_alloc.c",
+        "libmisc/listxattrat_compat.c",
         "libmisc/next_line.c",
+        "libmisc/openat2.c",
+        "libmisc/proc-self-fd.c",
+        "libmisc/proc-self-fd.h",
         "libmisc/quote.c",
+        "libmisc/removexattrat_compat.c",
+        "libmisc/setxattrat_compat.c",
+        "libmisc/uid_gid_lookup.c",
         "libmisc/unquote.c",
         "libmisc/walk_tree.c",
+        "libmisc/xattrat.c",
     ],
     hdrs = PUBLIC_HEADERS,
     includes = [
@@ -157,16 +173,13 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "@attr//:libattr",
+        "@attr//:headers",
     ],
 )
 
 cc_shared_library(
     name = "acl",
     deps = [":libacl"],
-    dynamic_deps = [
-        "@attr//:attr_pkg",
-    ],
     additional_linker_inputs = [
         "exports",
     ],
@@ -179,13 +192,15 @@ cc_shared_library(
 pkg_files(
     name = "hdr_files",
     srcs = [":fixed_headers"],
+    prefix = "embedded",
     strip_prefix = strip_prefix.from_pkg("fixed"),
 )
 
 dd_cc_packaged(
     name = "acl_pkg",
     input = ":acl",
-    version = "1.1.2301",
+    dest_dir = "embedded/lib",
+    version = "1.2.2400",
     installed_files = [":hdr_files"],
     visibility = ["//visibility:public"],
 )
@@ -195,6 +210,5 @@ pkg_filegroup(
     srcs = [
         ":hdr_files",
     ],
-    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )

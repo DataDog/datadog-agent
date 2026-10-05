@@ -1,11 +1,10 @@
 description: Datadog Private Action Runner - Control Plane
 command: /opt/datadog-agent/embedded/bin/par-control
 args:
-  - --bootstrap-command
-  - /opt/datadog-agent/embedded/bin/privateactionrunner
-  - bootstrap-par-control
-  - --cfgpath
-  - /etc/datadog-agent/datadog.yaml
+  - --executor-socket
+  - /opt/datadog-agent/run/par-executor.sock
+  - --ipc-cert-file
+  - ${DD_IPC_CERT_FILE_PATH}
 auto_start: true
 # par-control drains for at most 170 seconds, including terminal publication.
 stop_timeout: 180

@@ -18,26 +18,28 @@ import (
 )
 
 type deviceOptions struct {
-	compatibilityHooks  []func(*MockDevice)
-	mode                DeviceFeatureMode
-	migEnabled          bool
-	migChildIndex       *int
-	uuid                *string
-	archSet             bool
-	architecture        nvml.DeviceArchitecture
-	computeMajor        int
-	computeMinor        int
-	processDataCallback func(uuid string) (MockProcessInfoList, nvml.Return)
-	gpmSupported        *bool
-	gpmSampleGetFunc    func(*MockGpmSample) nvml.Return
-	migDeviceCountFunc  func(deviceIdx int) int
-	nvlinkGeneration    int
-	nvlinkLinkCount     int
-	fieldValues         map[uint32]MockFieldValue
-	scopedFieldValues   map[uint32]map[uint32]MockFieldValue
-	nvlinkStates        []nvml.EnableState
-	nvlinkStateErrors   map[int]nvml.Return
-	migChildUUIDs       map[int]string
+	compatibilityHooks      []func(*MockDevice)
+	mode                    DeviceFeatureMode
+	migEnabled              bool
+	migChildIndex           *int
+	migComputeInstanceIndex *int
+	minorNumber             *int
+	uuid                    *string
+	archSet                 bool
+	architecture            nvml.DeviceArchitecture
+	computeMajor            int
+	computeMinor            int
+	processDataCallback     func(uuid string) (MockProcessInfoList, nvml.Return)
+	gpmSupported            *bool
+	gpmSampleGetFunc        func(*MockGpmSample) nvml.Return
+	migDeviceCountFunc      func(deviceIdx int) int
+	nvlinkGeneration        int
+	nvlinkLinkCount         int
+	fieldValues             map[uint32]MockFieldValue
+	scopedFieldValues       map[uint32]map[uint32]MockFieldValue
+	nvlinkStates            []nvml.EnableState
+	nvlinkStateErrors       map[int]nvml.Return
+	migChildUUIDs           map[int]string
 
 	fieldValuesReturn  *nvml.Return
 	samplesUnsupported bool
@@ -330,11 +332,22 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			}
 			return 0, 0, false, false, nvml.SUCCESS
 		},
+		GetRetiredPages_v2Func: func(_ nvml.PageRetirementCause) ([]uint64, []uint64, nvml.Return) {
+			if isMIGOrVGPUUnsupported {
+				return nil, nil, nvml.ERROR_NOT_SUPPORTED
+			}
+			// Dynamic page retirement is supported from Kepler to Turing; Ampere and
+			// newer replace it with row remapping (see GetRemappedRows)
+			if arch < nvml.DEVICE_ARCH_KEPLER || arch >= nvml.DEVICE_ARCH_AMPERE {
+				return nil, nil, nvml.ERROR_NOT_SUPPORTED
+			}
+			return nil, nil, nvml.SUCCESS
+		},
 		GetRepairStatusFunc: func() (nvml.RepairStatus, nvml.Return) {
 			if isMIGOrVGPUUnsupported {
 				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED
 			}
-			if arch < nvml.DEVICE_ARCH_AMPERE {
+			if arch < nvml.DEVICE_ARCH_TURING {
 				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED
 			}
 			return nvml.RepairStatus{}, nvml.SUCCESS
@@ -393,6 +406,14 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 		GetIndexFunc: func() (int, nvml.Return) {
 			return deviceIdx, nvml.SUCCESS
 		},
+		GetMinorNumberFunc: func() (int, nvml.Return) {
+			if opts.minorNumber != nil {
+				return *opts.minorNumber, nvml.SUCCESS
+			}
+			// Default to agreeing with the index, which is what ordinary
+			// hardware does; WithMinorNumber makes them diverge.
+			return deviceIdx, nvml.SUCCESS
+		},
 		IsMigDeviceHandleFunc: func() (bool, nvml.Return) {
 			return opts.isMIGChild(), nvml.SUCCESS
 		},
@@ -401,6 +422,15 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 				return 0, nvml.ERROR_INVALID_ARGUMENT
 			}
 			return *opts.migChildIndex, nvml.SUCCESS
+		},
+		GetComputeInstanceIdFunc: func() (int, nvml.Return) {
+			if !opts.isMIGChild() {
+				return 0, nvml.ERROR_INVALID_ARGUMENT
+			}
+			if opts.migComputeInstanceIndex != nil {
+				return *opts.migComputeInstanceIndex, nvml.SUCCESS
+			}
+			return 0, nvml.SUCCESS
 		},
 		GetProcessUtilizationFunc: func(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 			if isMIGUnsupported {

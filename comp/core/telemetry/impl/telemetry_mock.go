@@ -29,7 +29,6 @@ func NewMock(t testing.TB) telemetry.Mock {
 			registry:        reg,
 			metricHelpMutex: &sync.RWMutex{},
 			metricHelp:      make(map[string]string),
-			defaultRegistry: prometheus.NewRegistry(),
 		},
 	}
 
@@ -45,7 +44,6 @@ func NewMockComponent() telemetry.Mock {
 			registry:        prometheus.NewRegistry(),
 			metricHelpMutex: &sync.RWMutex{},
 			metricHelp:      make(map[string]string),
-			defaultRegistry: prometheus.NewRegistry(),
 		},
 	}
 }

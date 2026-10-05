@@ -8,6 +8,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.82.0
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.82.0
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.82.0
+	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.82.0
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.82.0
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.82.0
@@ -50,9 +51,9 @@ require (
 	go.opentelemetry.io/collector/exporter v1.65.0
 	go.opentelemetry.io/collector/exporter/exporterhelper v0.159.0
 	go.opentelemetry.io/collector/exporter/exportertest v0.159.0
-	go.opentelemetry.io/collector/featuregate v1.65.0
-	go.opentelemetry.io/collector/pdata v1.65.0
-	go.uber.org/atomic v1.11.0
+	go.opentelemetry.io/collector/featuregate v1.66.0
+	go.opentelemetry.io/collector/pdata v1.66.0
+	go.uber.org/atomic v1.12.0
 	go.uber.org/fx v1.24.0
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.28.0
@@ -61,10 +62,12 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.211 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.213 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/log/mock v0.70.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0 // indirect
@@ -101,8 +104,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
@@ -112,7 +117,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v7 v7.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
@@ -131,7 +136,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.20.0 // indirect
+	github.com/klauspost/compress v1.20.1 // indirect
 	github.com/knadh/koanf/maps v0.1.3 // indirect
 	github.com/knadh/koanf/providers/confmap v1.0.1 // indirect
 	github.com/knadh/koanf/v2 v2.3.6 // indirect
@@ -148,7 +153,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
-	github.com/pierrec/lz4/v4 v4.1.29 // indirect
+	github.com/pierrec/lz4/v4 v4.1.31 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/prometheus/client_golang v1.24.1 // indirect
@@ -190,8 +195,8 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0 // indirect
 	go.opentelemetry.io/otel v1.46.0 // indirect
 	go.opentelemetry.io/otel/metric v1.46.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.45.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.45.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.46.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.46.0 // indirect
 	go.opentelemetry.io/otel/trace v1.46.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
@@ -201,13 +206,14 @@ require (
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
-	google.golang.org/grpc v1.83.2 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260831171406-18b4a7587f8a // indirect
+	google.golang.org/grpc v1.84.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/agent/macos => ../../../../../../cmd/agent/macos
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ../../../../../../comp/anomalydetection/observer/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ../../../../../../comp/anomalydetection/recorder/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def => ../../../../../../comp/anomalydetection/severityevents/def
@@ -329,6 +335,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../../../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../../../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../../../../pkg/remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/remoteflags => ../../../../../../pkg/remoteflags
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../../../../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../../../../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../../../../../pkg/serializer
@@ -382,6 +389,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../../../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../../../pkg/version
+	github.com/DataDog/datadog-agent/pkg/zstd => ../../../../../../pkg/zstd
 	github.com/DataDog/datadog-agent/test/e2e-framework => ../../../../../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../../../../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../../../../test/new-e2e

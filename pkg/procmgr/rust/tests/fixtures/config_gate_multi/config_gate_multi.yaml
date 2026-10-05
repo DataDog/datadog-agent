@@ -1,0 +1,10 @@
+command: {{python}}
+args:
+  - {{script}}
+condition_config_any:
+  - path: {{root}}/datadog.yaml
+    keys:
+      - process_config.process_collection.enabled
+  - path: {{root}}/system-probe.yaml
+    keys:
+      - network_config.enabled

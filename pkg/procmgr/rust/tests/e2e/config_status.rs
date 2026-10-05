@@ -80,6 +80,7 @@ fn test_cli_status_basic() {
         .assert_field("Stopped", "0")
         .assert_field("Created", "0")
         .assert_field("Failed", "0")
+        .assert_field("Crashed", "0")
         .assert_field("Exited", "0");
 }
 
@@ -131,6 +132,7 @@ fn test_cli_status_json() {
     assert_eq!(json["created_processes"], 1);
     assert_eq!(json["stopped_processes"], 0);
     assert_eq!(json["failed_processes"], 0);
+    assert_eq!(json["crashed_processes"], 0);
     assert_eq!(json["exited_processes"], 0);
     assert_eq!(json["starting_processes"], 0);
     assert_eq!(json["stopping_processes"], 0);
