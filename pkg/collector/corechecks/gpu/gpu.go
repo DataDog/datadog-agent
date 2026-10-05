@@ -24,8 +24,6 @@ import (
 	gpumodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/gpu/amd"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -36,6 +34,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -73,14 +74,8 @@ type Check struct {
 	releaseWindowStart  time.Time                        // releaseWindowStart is when the current NVML release window opened (WARN diagnostics); only touched from the Run goroutine
 	sysprobeNvmlState   sysprobeNvmlStateNotifier        // sysprobeNvmlState pushes the release state to the system-probe GPU monitoring probe
 	nodeInfo            *hostinfo.NodeInfo               // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
-	nvmlUnavailable     bool                             // nvmlUnavailable is set by Run when NVML devices could not be listed, so only AMD devices are collected
-	amdEnabled          bool                             // amdEnabled controls the collection of AMD GPUs (gpu.amd.enabled)
-	amdPresent          bool                             // amdPresent includes AMD devices excluded from metric collection
-	amdSysRoot          string                           // amdSysRoot is the sysfs root used to discover AMD GPUs
-	amdDevices          []*amd.Device                    // amdDevices are the AMD GPUs found on the last run, minus excluded ones
-	amdDeviceTags       map[string][]string              // amdDeviceTags maps AMD device UUIDs to their device tags
-	amdReadTimeout      time.Duration                    // amdReadTimeout bounds the wait for the telemetry of one AMD device
-	amdPendingReads     map[string]<-chan struct{}       // amdPendingReads holds AMD telemetry reads, by device UUID, that have not returned yet
+	amdEnabled          bool                             // amdEnabled is gpu.amd.enabled: AMD GPUs are collected by the AMD GPU check
+	sysRoot             string                           // sysRoot is the sysfs root used to read the PCI inventory
 }
 
 type checkTelemetry struct {
@@ -176,17 +171,14 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		log.Infof("GPU device %s is excluded by configuration", deviceUUID)
 	}
 	c.parallelCollectors = pkgconfigsetup.Datadog().GetBool("gpu.parallel_collectors")
+	c.amdEnabled = pkgconfigsetup.Datadog().GetBool("gpu.amd.enabled")
+	if c.sysRoot == "" {
+		// Tests set the root before Configure; otherwise honor HOST_SYS and /host/sys in containers.
+		c.sysRoot = kernel.SysFSRoot()
+	}
 	c.strictIntervals = nvidia.NewStrictIntervalProcessor(c.gpuConfig.StaticMetricsReportingInterval)
 	if c.parallelCollectors {
 		log.Infof("Enabled concurrent NVML collector collection")
-	}
-	c.amdEnabled = pkgconfigsetup.Datadog().GetBool("gpu.amd.enabled")
-	if c.amdSysRoot == "" {
-		// Tests set the root before Configure; otherwise honor HOST_SYS and /host/sys in containers.
-		c.amdSysRoot = kernel.SysFSRoot()
-	}
-	if c.amdReadTimeout == 0 {
-		c.amdReadTimeout = defaultAMDReadTimeout
 	}
 
 	if c.containerProvider == nil {
@@ -332,9 +324,9 @@ func (c *Check) Interval() time.Duration {
 // Run executes the check. Configure must have been called before and returned no errors, otherwise
 // we will panic here as we assume certain components have been initialized.
 func (c *Check) Run() error {
-	// NVIDIA reset windows must not interrupt independent AMD collection.
-	nvmlPaused := c.shouldReleaseNVML()
-	if nvmlPaused {
+	// While an NVML release window is active, release NVML and skip
+	// collection so a GPU reset can proceed; re-acquire when the signals clear.
+	if c.shouldReleaseNVML() {
 		// Release exactly once per window; the global released state also
 		// covers an instance recreated mid-window (autoconfig reload).
 		if !ddnvml.IsNVMLReleased() {
@@ -367,17 +359,21 @@ func (c *Check) Run() error {
 		if !c.releaseWindowStart.IsZero() {
 			since = " for " + time.Since(c.releaseWindowStart).Round(time.Second).String()
 		}
-		_ = c.Warnf("NVML release window active%s (GPU reset in progress or requested); NVIDIA GPU collection paused until it completes", since)
-	} else if ddnvml.IsNVMLReleased() {
+		_ = c.Warnf("NVML release window active%s (GPU reset in progress or requested); GPU collection paused until it completes", since)
+		// Keep the NVML telemetry current before skipping the rest of the run:
+		// this is the only core-check caller of Check(), and the released gauge
+		// exists precisely to make this window observable. Skipping it would
+		// leave that gauge at 0 for the whole window and freeze
+		// library_unavailable at whatever it held when the window opened.
+		c.telemetry.nvmlState.Check()
+		return nil
+	}
+	if ddnvml.IsNVMLReleased() {
 		// The release window closed: the device cache re-enumerates in the
 		// Refresh below, and the event gatherer restarts at the !Started() guard.
 		c.reacquireNVML(false)
-		if !ddnvml.IsNVMLReleased() {
-			log.Info("NVML release window closed; resuming NVIDIA GPU collection")
-		}
+		log.Info("NVML release window closed; resuming GPU collection")
 	}
-	// A closing window can remain released while in-flight NVML calls drain.
-	nvmlPaused = nvmlPaused || ddnvml.IsNVMLReleased()
 
 	currentExecutionTime := time.Now()
 
@@ -388,66 +384,23 @@ func (c *Check) Run() error {
 	// Commit the metrics even in case of an error
 	defer snd.Commit()
 
-	// Discover AMD GPUs first: on hosts that only have AMD GPUs, NVML being
-	// unavailable is expected and must neither fail the run nor raise the
-	// NVML health issue.
-	amdDevices := c.refreshAMDDevices()
-
 	// Check the state of the NVML library for telemetry
-	if !nvmlPaused || ddnvml.IsNVMLReleased() {
-		c.telemetry.nvmlState.Check()
-	}
-	// Only suppress NVML failures when PCI inventory confirms an AMD-only
-	// host. An AMD GPU does not make a broken NVIDIA driver healthy.
-	if !nvmlPaused && c.amdPresent && c.issueReporter != nil && !c.telemetry.nvmlState.LastNvmlInitSuccess() && c.amdOnlyHost() {
-		c.issueReporter.ResolveIssue(gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable))
-	} else if !nvmlPaused {
-		c.syncNvmlHealthIssue(c.telemetry.nvmlState.Unavailable(), c.telemetry.nvmlState.LastNvmlInitSuccess())
-	}
-
-	// Avoid another NVML initialization attempt (and its cache warning) when
-	// telemetry already established that it is unavailable on an AMD host.
-	c.nvmlUnavailable = nvmlPaused || (c.amdPresent && !c.telemetry.nvmlState.LastNvmlInitSuccess())
-	if !c.nvmlUnavailable {
-		nvmlErr := c.deviceCache.Refresh()
-		c.nvmlUnavailable = nvmlErr != nil
-		if nvmlErr != nil && !c.amdPresent {
-			c.telemetry.metrics.deviceCount.Set(0)
-			return fmt.Errorf("failed to refresh device cache: %w", nvmlErr)
+	c.telemetry.nvmlState.Check()
+	// On hosts whose GPUs are all AMD, which the AMD GPU check collects, NVML
+	// is expected to be unavailable: neither fail nor raise the NVML issue.
+	if c.amdEnabled && !c.telemetry.nvmlState.LastNvmlInitSuccess() && amdOnlyHost(c.sysRoot) {
+		if c.issueReporter != nil {
+			c.issueReporter.ResolveIssue(gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable))
 		}
-		if nvmlErr != nil {
-			log.Debugf("NVML devices unavailable, collecting %d AMD GPU(s) only: %v", len(amdDevices), nvmlErr)
-		}
+		c.telemetry.metrics.deviceCount.Set(0)
+		return nil
+	}
+	c.syncNvmlHealthIssue(c.telemetry.nvmlState.Unavailable(), c.telemetry.nvmlState.LastNvmlInitSuccess())
+
+	if err := c.deviceCache.Refresh(); err != nil {
+		return fmt.Errorf("failed to refresh device cache: %w", err)
 	}
 
-	deviceCount := len(amdDevices)
-	if !c.nvmlUnavailable {
-		deviceCount += c.refreshNVMLData(currentExecutionTime)
-	}
-	c.telemetry.metrics.deviceCount.Set(float64(deviceCount))
-
-	// Make sure workload tag resolution attempts retrieving the most up to date values.
-	// Stale cache entries (from previous runs) might still be used as a fallback.
-	c.workloadTagCache.MarkStale()
-
-	// build the mapping of GPU devices -> containers to allow tagging device
-	// metrics with the tags of containers that are using them
-	var gpuToContainersMap map[string][]*workloadmeta.Container
-	if !c.nvmlUnavailable {
-		gpuToContainersMap = c.getGPUToContainersMap()
-	}
-	gpuToContainersMap = c.addAMDGPUContainers(gpuToContainersMap)
-
-	if err := c.emitMetrics(snd, gpuToContainersMap, currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
-		log.Warnf("error while sending gpu metrics: %s", err)
-	}
-
-	return nil
-}
-
-// refreshNVMLData refreshes the data sources of NVML collectors
-// (system-probe caches, device events) and returns the NVML device count.
-func (c *Check) refreshNVMLData(currentExecutionTime time.Time) int {
 	deviceCount, err := c.deviceCache.Count()
 	if err != nil {
 		if logLimitCheck.ShouldLog() {
@@ -455,9 +408,7 @@ func (c *Check) refreshNVMLData(currentExecutionTime time.Time) int {
 		}
 		deviceCount = 0
 	}
-	if deviceCount == 0 && c.amdPresent {
-		return 0
-	}
+	c.telemetry.metrics.deviceCount.Set(float64(deviceCount))
 
 	// Refresh system-probe data before collecting metrics.
 	if c.spCache != nil && c.gpuConfig.EnableEBPFProbes {
@@ -490,7 +441,19 @@ func (c *Check) refreshNVMLData(currentExecutionTime time.Time) int {
 		// Might cause empty metrics in collectors depending on device events
 	}
 
-	return deviceCount
+	// Make sure workload tag resolution attempts retrieving the most up to date values.
+	// Stale cache entries (from previous runs) might still be used as a fallback.
+	c.workloadTagCache.MarkStale()
+
+	// build the mapping of GPU devices -> containers to allow tagging device
+	// metrics with the tags of containers that are using them
+	gpuToContainersMap := c.getGPUToContainersMap()
+
+	if err := c.emitMetrics(snd, gpuToContainersMap, currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
+		log.Warnf("error while sending gpu metrics: %s", err)
+	}
+
+	return nil
 }
 
 func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
@@ -531,6 +494,57 @@ func gpuHealthIssueID(reason string) string {
 	return gpuenvironment.IssueID + ":" + reason
 }
 
+// PCI identifiers used to tell from the PCI inventory whether a host only has
+// AMD GPUs. GPUs have the display controller or processing accelerator class.
+const (
+	pciVendorAMD                  = 0x1002
+	pciVendorNVIDIA               = 0x10de
+	pciClassDisplayController     = 0x03
+	pciClassProcessingAccelerator = 0x12
+)
+
+// amdOnlyHost reports whether the PCI inventory under sysRoot has AMD GPUs and
+// no NVIDIA GPU, including NVIDIA GPUs whose driver is missing. NVIDIA audio
+// functions and network adapters are not GPUs. An unreadable inventory is not
+// AMD-only.
+func amdOnlyHost(sysRoot string) bool {
+	pciDir := filepath.Join(sysRoot, "bus", "pci", "devices")
+	entries, err := os.ReadDir(pciDir)
+	if err != nil {
+		return false
+	}
+	hasAMDGPU := false
+	for _, entry := range entries {
+		vendor, err := readPCIAttribute(filepath.Join(pciDir, entry.Name(), "vendor"), 16)
+		if err != nil {
+			return false
+		}
+		if vendor != pciVendorAMD && vendor != pciVendorNVIDIA {
+			continue
+		}
+		class, err := readPCIAttribute(filepath.Join(pciDir, entry.Name(), "class"), 24)
+		if err != nil {
+			return false
+		}
+		if baseClass := class >> 16; baseClass != pciClassDisplayController && baseClass != pciClassProcessingAccelerator {
+			continue
+		}
+		if vendor == pciVendorNVIDIA {
+			return false
+		}
+		hasAMDGPU = true
+	}
+	return hasAMDGPU
+}
+
+func readPCIAttribute(path string, bits int) (uint64, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.ParseUint(strings.TrimSpace(string(content)), 0, bits)
+}
+
 func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 	allPhysicalDevices, err := c.deviceCache.AllPhysicalDevices()
 	if err != nil {
@@ -563,88 +577,42 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 	return gpuToContainers
 }
 
-type deviceSamplesCollection struct {
-	collectorSamples map[nvidia.CollectorName][]nvidia.Sample
-	totalCount       int
-}
-
-type collectorSamplesCollection struct {
-	name          nvidia.CollectorName
-	deviceUUID    string
-	telemetryTags []string
-	samples       []nvidia.Sample
-	err           error
-	duration      time.Duration
-}
-
 func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container, currentExecutionTime time.Time) error {
-	var collectorResults []collectorSamplesCollection
-	var multiErr []error
-	if !c.nvmlUnavailable {
-		if err := c.ensureInitCollectors(); err != nil {
-			initErr := fmt.Errorf("failed to initialize NVML collectors: %w", err)
-			if !c.amdPresent {
-				return initErr
-			}
-			multiErr = append(multiErr, initErr)
-		} else if c.parallelCollectors {
-			collectorResults = collectSamples(c.collectors)
-		} else {
-			collectorResults = collectSamplesSerial(c.collectors)
-		}
-	}
-	collectorResults = append(collectorResults, c.collectAMDSamples()...)
-
-	perDeviceSamples := make(map[string]*deviceSamplesCollection)
-
-	for _, collectorResult := range collectorResults {
-		c.telemetry.collectorTelemetry.CollectionRuns.Inc(collectorResult.telemetryTags...)
-		c.telemetry.collectorTelemetry.Time.Observe(float64(collectorResult.duration.Milliseconds()), collectorResult.telemetryTags...)
-
-		if collectorResult.err != nil {
-			c.telemetry.collectorTelemetry.CollectionErrors.Add(1, collectorResult.telemetryTags...)
-			multiErr = append(multiErr, fmt.Errorf("collector %s failed. %w", collectorResult.name, collectorResult.err))
-		}
-
-		if len(collectorResult.samples) > 0 {
-			deviceUUID := collectorResult.deviceUUID
-			if perDeviceSamples[deviceUUID] == nil {
-				perDeviceSamples[deviceUUID] = &deviceSamplesCollection{
-					collectorSamples: make(map[nvidia.CollectorName][]nvidia.Sample),
-				}
-			}
-			perDeviceSamples[deviceUUID].collectorSamples[collectorResult.name] = collectorResult.samples
-			perDeviceSamples[deviceUUID].totalCount += len(collectorResult.samples)
-		}
-
-		c.telemetry.metrics.metricsSent.Add(float64(len(collectorResult.samples)), string(collectorResult.name))
+	err := c.ensureInitCollectors()
+	if err != nil {
+		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
 	}
 
-	// Iterate through devices to emit their samples.
-	for deviceUUID, deviceData := range perDeviceSamples {
-		deduplicatedSamples := nvidia.RemoveDuplicateSamples(deviceData.collectorSamples)
-		c.telemetry.metrics.duplicateMetrics.Add(float64(deviceData.totalCount-len(deduplicatedSamples)), deviceUUID)
-		deviceContainers := gpuToContainersMap[deviceUUID]
-		deviceTags, ok := c.deviceTags[deviceUUID]
-		if !ok {
-			deviceTags = c.amdDeviceTags[deviceUUID]
-		}
-
-		deduplicatedSamples = c.strictIntervals.ProcessSamples(deduplicatedSamples, currentExecutionTime, deviceUUID)
-		deduplicatedSamples = c.rateCalculator.ProcessSamples(deduplicatedSamples, currentExecutionTime, deviceUUID)
-
-		for _, sample := range deduplicatedSamples {
-			if err := c.emitSample(sample, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
-				multiErr = append(multiErr, fmt.Errorf("error emitting sample %s: %w", sample.Key(), err))
-			}
-		}
+	var collectorResults []CollectorSamples
+	if c.parallelCollectors {
+		collectorResults = collectSamples(c.collectors)
+	} else {
+		collectorResults = collectSamplesSerial(c.collectors)
 	}
 
-	return errors.Join(multiErr...)
+	deviceTags := func(deviceUUID string) []string { return c.deviceTags[deviceUUID] }
+	return c.sampleEmitter().Emit(snd, collectorResults, gpuToContainersMap, deviceTags, currentExecutionTime)
 }
 
-func collectSamplesSerial(collectors []nvidia.Collector) []collectorSamplesCollection {
-	results := make([]collectorSamplesCollection, len(collectors))
+// sampleEmitter returns the emitter of the check, over its current workload
+// tag cache, rate and cadence state, and telemetry.
+func (c *Check) sampleEmitter() *SampleEmitter {
+	return &SampleEmitter{
+		WorkloadTagCache: c.workloadTagCache,
+		RateCalculator:   c.rateCalculator,
+		StrictIntervals:  c.strictIntervals,
+		Telemetry: EmitterTelemetry{
+			CollectionRuns:   c.telemetry.collectorTelemetry.CollectionRuns,
+			CollectionErrors: c.telemetry.collectorTelemetry.CollectionErrors,
+			CollectionTime:   c.telemetry.collectorTelemetry.Time,
+			MetricsSent:      c.telemetry.metrics.metricsSent,
+			DuplicateMetrics: c.telemetry.metrics.duplicateMetrics,
+		},
+	}
+}
+
+func collectSamplesSerial(collectors []nvidia.Collector) []CollectorSamples {
+	results := make([]CollectorSamples, len(collectors))
 
 	for i, collector := range collectors {
 		results[i] = collectSample(collector)
@@ -653,8 +621,8 @@ func collectSamplesSerial(collectors []nvidia.Collector) []collectorSamplesColle
 	return results
 }
 
-func collectSamples(collectors []nvidia.Collector) []collectorSamplesCollection {
-	results := make([]collectorSamplesCollection, len(collectors))
+func collectSamples(collectors []nvidia.Collector) []CollectorSamples {
+	results := make([]CollectorSamples, len(collectors))
 
 	var wg sync.WaitGroup
 	wg.Add(len(collectors))
@@ -669,56 +637,26 @@ func collectSamples(collectors []nvidia.Collector) []collectorSamplesCollection 
 	return results
 }
 
-func collectSample(collector nvidia.Collector) (result collectorSamplesCollection) {
+func collectSample(collector nvidia.Collector) (result CollectorSamples) {
 	defer func() {
 		if r := recover(); r != nil {
-			result.err = fmt.Errorf("collector panicked: %v", r)
-			log.Errorf("Recovered from panic in collector %s: %v", result.name, r)
+			result.Err = fmt.Errorf("collector panicked: %v", r)
+			log.Errorf("Recovered from panic in collector %s: %v", result.Name, r)
 		}
 	}()
-	result.name = collector.Name()
-	result.deviceUUID = collector.Device().GetDeviceInfo().UUID
-	result.telemetryTags = nvidia.CollectorTelemetryTags(collector)
-	log.Debugf("Collecting samples from NVML collector: %s", result.name)
+	result.Name = collector.Name()
+	result.DeviceUUID = collector.Device().GetDeviceInfo().UUID
+	result.TelemetryTags = nvidia.CollectorTelemetryTags(collector)
+	log.Debugf("Collecting samples from NVML collector: %s", result.Name)
 	startTime := time.Now()
-	result.samples, result.err = collector.Collect()
-	result.duration = time.Since(startTime)
+	result.Samples, result.Err = collector.Collect()
+	result.Duration = time.Since(startTime)
 	return
 }
 
 func (c *Check) emitSample(sample nvidia.Sample, snd sender.Sender, currentExecutionTime time.Time, deviceContainers []*workloadmeta.Container, deviceTags []string) error {
-	var multiErr []error
-
-	metricWorkloads := sample.AssociatedWorkloads()
-
-	// Metrics with no associated workloads are assumed to apply to all workloads on the device.
-	if len(metricWorkloads) == 0 {
-		for _, deviceContainer := range deviceContainers {
-			metricWorkloads = append(metricWorkloads, deviceContainer.EntityID)
-		}
-	}
-
-	metricTags := []string{}
-	for _, workloadID := range metricWorkloads {
-		tags, err := c.workloadTagCache.GetOrCreateWorkloadTags(workloadID)
-		if err != nil && !agenterrors.IsNotFound(err) { // Only report errors that are not "not found"
-			multiErr = append(multiErr, fmt.Errorf("error collecting workload tags for workload %s of type %s: %w", workloadID.ID, workloadID.Kind, err))
-		}
-
-		// always continue with whatever tags we can get even if there are errors
-		metricTags = append(metricTags, tags...)
-	}
-
-	sample = sample.Clone() // avoid modifying the original sample
-	sample.AppendTags(metricTags)
-	sample.AppendTags(deviceTags)
-
-	err := sample.Emit(gpuMetricsNs, snd, currentExecutionTime)
-	if err != nil {
-		multiErr = append(multiErr, fmt.Errorf("error emitting sample: %w", err))
-	}
-
-	return errors.Join(multiErr...)
+	emitter := SampleEmitter{WorkloadTagCache: c.workloadTagCache}
+	return emitter.EmitSample(sample, snd, currentExecutionTime, deviceContainers, deviceTags)
 }
 
 // ---------------------------------------------------------------------------

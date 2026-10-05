@@ -11,3 +11,5 @@ features:
     GPU monitoring: add preliminary support for AMD GPUs. Metrics are read
     from the ``amdgpu`` kernel driver's sysfs files, without requiring ROCm.
     Enable it with ``gpu.amd.enabled: true`` alongside ``gpu.enabled: true``.
+    AMD GPUs are collected by a separate ``amd_gpu`` check, and hosts with AMD
+    GPUs get the ``gpu_host:true`` host tag only when AMD collection is enabled.

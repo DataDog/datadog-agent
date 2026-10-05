@@ -290,6 +290,7 @@
 /cmd/agent/dist/conf.d/memory.d/                       @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/myapp.d/                        @DataDog/agent-log-pipelines
 /cmd/agent/dist/conf.d/mysql.d/                        @DataDog/database-monitoring
+/cmd/agent/dist/conf.d/amd_gpu.d/                      @DataDog/accelerator-telemetry
 /cmd/agent/dist/conf.d/nccl.d/                         @DataDog/gpu-monitoring-agent
 /cmd/agent/dist/conf.d/network.d/                      @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/network_config_management.d/    @DataDog/ndm-integrations

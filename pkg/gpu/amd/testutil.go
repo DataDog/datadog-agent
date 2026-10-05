@@ -94,6 +94,7 @@ func (f *FakeSysfs) SetDriverVersion(version string) {
 func MI300XAttributes(uniqueID string) map[string]string {
 	attrs := map[string]string{
 		"vendor":              "0x1002\n",
+		"class":               "0x038000\n",
 		"device":              "0x74a1\n",
 		"gpu_busy_percent":    "37\n",
 		"mem_busy_percent":    "12\n",

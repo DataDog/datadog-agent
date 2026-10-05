@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"testing"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/assert"
 )
@@ -127,6 +128,8 @@ func TestGetTagsAMD(t *testing.T) {
 	originalSysFSRoot := kernel.SysFSRoot
 	defer func() { kernel.SysFSRoot = originalSysFSRoot }()
 
+	cfg := configmock.New(t)
+
 	type card struct {
 		name   string
 		device string // PCI address, or a platform device name
@@ -137,10 +140,11 @@ func TestGetTagsAMD(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		cards    []card
-		noDRM    bool
-		expected []string
+		name        string
+		cards       []card
+		noDRM       bool
+		amdDisabled bool // AMD collection (gpu.amd.enabled) is off
+		expected    []string
 	}{
 		{name: "no DRM class", noDRM: true},
 		{name: "no cards"},
@@ -148,6 +152,11 @@ func TestGetTagsAMD(t *testing.T) {
 			name:     "AMD GPU bound to amdgpu",
 			cards:    []card{{name: "card0", device: "0000:c1:00.0", vendor: "0x1002", driver: "amdgpu"}},
 			expected: []string{"gpu_host:true"},
+		},
+		{
+			name:        "AMD GPU with AMD collection disabled",
+			cards:       []card{{name: "card0", device: "0000:c1:00.0", vendor: "0x1002", driver: "amdgpu"}},
+			amdDisabled: true,
 		},
 		{
 			name:     "AMD GPU bound through uevent",
@@ -192,6 +201,7 @@ func TestGetTagsAMD(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			sysDir := t.TempDir()
 			kernel.SysFSRoot = func() string { return sysDir }
+			cfg.SetInTest("gpu.amd.enabled", !tt.amdDisabled)
 			if !tt.noDRM {
 				assert.NoError(t, os.MkdirAll(filepath.Join(sysDir, "class", "drm"), 0o755))
 			}
