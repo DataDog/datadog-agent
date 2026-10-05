@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    Experimental: the Agent can collect logs from files on an SMB 2/3 share,
+    such as a Windows file server, Samba or Azure Files, without mounting the
+    share. Configure a log source with ``type: smb``, a ``path`` glob relative
+    to the share root and an ``smb`` block with the ``host``, ``share``,
+    ``username`` and ``password`` (preferably an ``ENC[]`` secret handle) to
+    connect with. The Agent lists the share every ``poll_interval`` seconds
+    (default 1), opens a file only to read new data, and follows rotated files
+    by their server file ID. Only NTLMv2 authentication is supported, so
+    ``smb`` sources are refused by FIPS builds of the Agent.

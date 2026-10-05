@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "smb",
+    srcs = ["tailer.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers/smb",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs-library/metrics",
+        "//comp/logs/agent/config",
+        "//pkg/logs/internal/decoder",
+        "//pkg/logs/internal/smb/client",
+        "//pkg/logs/internal/tag",
+        "//pkg/logs/internal/util",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/utils",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+dd_agent_go_test(
+    name = "smb_test",
+    srcs = ["tailer_test.go"],
+    embed = [":smb"],
+    deps = [
+        "//comp/logs-library/metrics",
+        "//comp/logs/agent/config",
+        "//pkg/config/mock",
+        "//pkg/logs/internal/decoder",
+        "//pkg/logs/internal/smb/client",
+        "//pkg/logs/internal/smb/client/fake",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/utils",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

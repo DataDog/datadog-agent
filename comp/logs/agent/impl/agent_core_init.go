@@ -27,6 +27,7 @@ import (
 	integrationLauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/integration"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
+	smblauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/smb"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
@@ -164,6 +165,7 @@ func (a *logAgent) addLauncherInstances(lnchrs *launchers.Launchers, wmeta optio
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller, a.tagger))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
 	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger))
+	lnchrs.AddLauncher(smblauncher.NewLauncher(time.Duration(a.config.GetInt("logs_config.close_timeout")) * time.Second))
 	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
 		afero.NewOsFs(),
 		a.sources, integrationsLogs))

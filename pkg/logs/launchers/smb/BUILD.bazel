@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "smb",
+    srcs = [
+        "launcher.go",
+        "scanner.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/smb",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs-library/pipeline",
+        "//comp/logs/agent/config",
+        "//comp/logs/auditor/def",
+        "//pkg/fips",
+        "//pkg/logs/internal/decoder",
+        "//pkg/logs/internal/smb/client",
+        "//pkg/logs/launchers",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/utils",
+        "//pkg/logs/tailers",
+        "//pkg/logs/tailers/smb",
+        "//pkg/util/log",
+        "//pkg/util/startstop",
+        "@com_github_benbjohnson_clock//:clock",
+    ],
+)
+
+dd_agent_go_test(
+    name = "smb_test",
+    srcs = [
+        "launcher_test.go",
+        "scanner_test.go",
+    ],
+    embed = [":smb"],
+    deps = [
+        "//comp/logs-library/metrics",
+        "//comp/logs-library/pipeline/mock",
+        "//comp/logs/agent/config",
+        "//comp/logs/auditor/mock",
+        "//pkg/config/mock",
+        "//pkg/logs/internal/smb/client/fake",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/logs/tailers",
+        "//pkg/logs/tailers/smb",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
