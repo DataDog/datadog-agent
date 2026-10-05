@@ -119,6 +119,10 @@ func getVerticalPatchingStrategy(autoscalerInternal *model.PodAutoscalerInternal
 		return datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy, "no scaling values available"
 	}
 
+	if autoscalerInternal.IsPaused() {
+		return datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy, "vertical scaling disabled: autoscaling locally paused by the " + model.PauseAnnotationKey + " annotation"
+	}
+
 	// By default, policy is to allow all
 	if autoscalerInternal.Spec().ApplyPolicy == nil {
 		return datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy, ""
@@ -189,11 +193,12 @@ const (
 
 // shouldTriggerRollout determines whether a rollout should be triggered based on current state.
 // This function encapsulates the common decision logic used by all workload types:
-// 1. If all pods have the current recommendation, rollout is complete
-// 2. If we already triggered for this recommendation, wait for completion
-// 3. If there's an ongoing rollout:
-//   - Check if bypass is allowed (new recommendation increases limits)
-//   - Check rate limiting for bypass
+//  1. If all pods have the current recommendation, rollout is complete
+//  2. If we already triggered for this recommendation, wait for completion
+//  3. If there's an ongoing rollout:
+//     - Check if bypass is allowed (new recommendation increases limits, or resources are forced
+//     by annotation)
+//     - Check rate limiting for bypass
 //
 // 4. Otherwise, trigger the rollout
 func shouldTriggerRollout(
@@ -206,6 +211,7 @@ func shouldTriggerRollout(
 	currentTime time.Time,
 	minDelayBetweenRollouts time.Duration,
 	autoscalerID string,
+	forcedResources bool,
 ) rolloutDecision {
 	// Step 1: Check if rollout is complete for current recommendation
 	if isRecommendationRolloutComplete(recommendationID, pods, podsPerRecommendationID) {
@@ -222,9 +228,10 @@ func shouldTriggerRollout(
 	// Step 3: This is a NEW recommendation (different from what we last triggered)
 	// Check if there's an ongoing rollout from a previous recommendation
 	if rolloutInProgress {
-		// Check if the new recommendation increases limits - if so, we may bypass the rollout check
-		// to help recover from stuck rollouts caused by insufficient resources.
-		if hasLimitIncrease(recommendation, pods, recommendationID) {
+		// Check if the new recommendation increases limits, or carries resources forced by annotation
+		// (a break-glass change) - if so, we may bypass the rollout check to help recover from stuck
+		// rollouts caused by insufficient resources.
+		if forcedResources || hasLimitIncrease(recommendation, pods, recommendationID) {
 			// Apply rate limiting to prevent rollout thrashing from rapid new recommendations
 			if lastAction != nil && lastAction.Time.Add(minDelayBetweenRollouts).After(currentTime) {
 				log.Debugf("Rollout in progress for autoscaler: %s with new recommendation increasing limits, "+
@@ -499,6 +506,102 @@ func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constra
 	return limitErr, nil
 }
 
+// applyForcedResources overlays the resources forced by the force-resources annotation on vertical
+// values, before the constraints are applied: forced values are bounded by them like recommended ones.
+// Only the forced requests and limits change; a forced container without a recommendation is added
+// with its forced values only. The annotation is not validated when parsed, so only the usable values
+// are overlaid: named containers, cpu and memory, strictly positive quantities. When a forced value
+// conflicts with a recommended one, the forced value wins and the recommended one is adjusted so that
+// the request never exceeds the limit. It returns the VerticalScalingLimited reason when something is
+// forced.
+func applyForcedResources(verticalRecs *model.VerticalScalingValues, forced []datadoghqcommon.DatadogPodAutoscalerContainerResources) (limitErr, err error) {
+	if verticalRecs == nil {
+		return nil, nil
+	}
+
+	var overridden []string
+	for _, entry := range forced {
+		forcedContainer, usable := usableForcedResources(entry)
+		if !usable {
+			continue
+		}
+		index := slices.IndexFunc(verticalRecs.ContainerResources, func(cr datadoghqcommon.DatadogPodAutoscalerContainerResources) bool {
+			return cr.Name == forcedContainer.Name
+		})
+		if index < 0 {
+			verticalRecs.ContainerResources = append(verticalRecs.ContainerResources, datadoghqcommon.DatadogPodAutoscalerContainerResources{Name: forcedContainer.Name})
+			index = len(verticalRecs.ContainerResources) - 1
+		}
+		overlayResourceList(&verticalRecs.ContainerResources[index], forcedContainer)
+		overridden = append(overridden, forcedContainer.Name)
+	}
+	if len(overridden) == 0 {
+		return nil, nil
+	}
+
+	newHash, hashErr := autoscaling.ObjectHash(verticalRecs.ContainerResources)
+	if hashErr != nil {
+		return nil, autoscaling.NewConditionError(autoscaling.ConditionReasonRecommendationError,
+			fmt.Errorf("failed to recompute resources hash after applying forced resources: %w", hashErr))
+	}
+	verticalRecs.ResourcesHash = newHash
+
+	return autoscaling.NewConditionErrorf(autoscaling.ConditionReasonForcedByAnnotation,
+		"resources overridden for containers %s by the %s annotation", strings.Join(overridden, ", "), model.ForceResourcesAnnotationKey), nil
+}
+
+// usableForcedResources keeps the forced values of one entry that can be overlaid: cpu and memory with
+// a strictly positive quantity (a negative limit is the remove-limit sentinel). It reports false for an
+// entry without a name or without any usable value.
+func usableForcedResources(entry datadoghqcommon.DatadogPodAutoscalerContainerResources) (datadoghqcommon.DatadogPodAutoscalerContainerResources, bool) {
+	usable := datadoghqcommon.DatadogPodAutoscalerContainerResources{Name: entry.Name}
+	keep := func(list corev1.ResourceList) corev1.ResourceList {
+		var kept corev1.ResourceList
+		for name, qty := range list {
+			if (name == corev1.ResourceCPU || name == corev1.ResourceMemory) && qty.Sign() > 0 {
+				if kept == nil {
+					kept = corev1.ResourceList{}
+				}
+				kept[name] = qty
+			}
+		}
+		return kept
+	}
+	usable.Requests = keep(entry.Requests)
+	usable.Limits = keep(entry.Limits)
+	return usable, usable.Name != "" && (len(usable.Requests) > 0 || len(usable.Limits) > 0)
+}
+
+// overlayResourceList sets the forced requests and limits of one container on it, keeping the request
+// below the limit: the forced side wins, the recommended side is adjusted.
+func overlayResourceList(cr *datadoghqcommon.DatadogPodAutoscalerContainerResources, forced datadoghqcommon.DatadogPodAutoscalerContainerResources) {
+	for name, qty := range forced.Requests {
+		if cr.Requests == nil {
+			cr.Requests = corev1.ResourceList{}
+		}
+		cr.Requests[name] = qty.DeepCopy()
+	}
+	for name, qty := range forced.Limits {
+		if cr.Limits == nil {
+			cr.Limits = corev1.ResourceList{}
+		}
+		cr.Limits[name] = qty.DeepCopy()
+	}
+
+	for name, req := range cr.Requests {
+		lim, hasLimit := cr.Limits[name]
+		// A negative limit is the remove-limit sentinel, meaning no limit at all.
+		if !hasLimit || lim.Sign() < 0 || req.Cmp(lim) <= 0 {
+			continue
+		}
+		if _, limitForced := forced.Limits[name]; limitForced {
+			cr.Requests[name] = lim.DeepCopy()
+		} else if _, requestForced := forced.Requests[name]; requestForced {
+			cr.Limits[name] = req.DeepCopy()
+		}
+	}
+}
+
 // resolveMinMaxBounds returns the effective min/max bounds for requests and limits.
 // New top-level MinAllowed/MaxAllowed apply to both; deprecated Requests field applies to requests only.
 func resolveMinMaxBounds(c *datadoghqcommon.DatadogPodAutoscalerContainerConstraints) (reqMin, reqMax, limMin, limMax corev1.ResourceList) {
@@ -590,22 +693,21 @@ func shouldFallbackToRollout(toEvict []classifiedPod, hasInfeasible bool, podAut
 // A rollout is required when:
 //
 //	a) The global config flag (autoscaling.workload.in_place_vertical_scaling.enabled) is disabled, or
-//	b) The DPA explicitly sets Strategy: TriggerRollout
-func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
+//	b) The DPA explicitly sets Strategy: TriggerRollout, or
+//	c) Any runtime value is recommended for a container but not yet applied to all running pods
+//
+// pods is the current live pod list for the workload, used to check whether runtime values are already
+// applied so we avoid triggering unnecessary rollouts (e.g. when only CPU changed).
+func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal, pods []*workloadmeta.KubernetesPod) bool {
 	if !pkgconfigsetup.Datadog().GetBool("autoscaling.workload.in_place_vertical_scaling.enabled") {
 		return true
 	}
-	// Runtime values (e.g. GOMEMLIMIT) are env vars that can only be applied to new pods via the
+	// Runtime values are env vars that can only be applied to new pods via the
 	// admission webhook — they cannot be updated on a running container via pods/resize.
-	// Force the rollout path so pods are recreated and pick up the new values.
-	//
-	// Known limitation: this forces a rollout whenever a GOMEMLIMIT is present in the recommendation,
-	// even if the value has not changed (e.g. only CPU requests/limits changed). Fixing this requires
-	// comparing the recommended value against the running pod's env vars, which isRolloutRequired does
-	// not currently have access to. Left for a follow-up.
+	// Force the rollout path only when the recommended value differs from what is already on the pods.
 	if sv := autoscalerInternal.ScalingValues(); sv.Vertical != nil {
-		for _, cr := range sv.Vertical.ContainerResources {
-			if cr.Runtime != nil && cr.Runtime.Gomemlimit != "" {
+		if hash, hasRuntime := computeRuntimeRecommendationID(sv.Vertical.ContainerResources); hasRuntime {
+			if !runtimeRecommendationIDApplied(hash, pods) {
 				return true
 			}
 		}
@@ -615,6 +717,44 @@ func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
 		return false
 	}
 	return spec.ApplyPolicy.Update.Strategy == datadoghqcommon.DatadogPodAutoscalerTriggerRolloutUpdateStrategy
+}
+
+// computeRuntimeRecommendationID collects all non-nil Runtime values across container resources
+// and returns a deterministic hash of the combined map, suitable for use as the runtime-rec-id
+// annotation. Returns ("", false) when no container has runtime values.
+func computeRuntimeRecommendationID(containerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources) (string, bool) {
+	runtimeValues := make(map[string]datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues)
+	for _, cr := range containerResources {
+		if cr.Runtime != nil {
+			runtimeValues[cr.Name] = *cr.Runtime
+		}
+	}
+	if len(runtimeValues) == 0 {
+		return "", false
+	}
+	hash, err := autoscaling.ObjectHash(runtimeValues)
+	if err != nil {
+		log.Debugf("Failed to compute runtime recommendation ID hash: %v", err)
+		return "", false
+	}
+	return hash, true
+}
+
+// runtimeRecommendationIDApplied returns true if all non-terminating pods already carry the expected
+// runtime-rec-id annotation. Returns false if any pod is missing the annotation or has a different hash.
+func runtimeRecommendationIDApplied(expectedHash string, pods []*workloadmeta.KubernetesPod) bool {
+	if len(pods) == 0 {
+		return false
+	}
+	for _, pod := range pods {
+		if pod.DeletionTimestamp != nil {
+			continue
+		}
+		if pod.Annotations[model.RuntimeRecommendationIDAnnotation] != expectedHash {
+			return false
+		}
+	}
+	return true
 }
 
 // getPodResizeStatus returns the resize status of pod and the LastTransitionTime

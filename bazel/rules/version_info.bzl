@@ -10,6 +10,4 @@ def agent_version_defines():
         "MAJ_VER": parts[0],
         "MIN_VER": parts[1],
         "PATCH_VER": parts[2],
-        "PY3_RUNTIME": "1",
-        "BUILD_ARCH_x64": "1",
     }

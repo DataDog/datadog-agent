@@ -2931,7 +2931,7 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 func isKillActionPresent(rs *rules.RuleSet) bool {
 	for _, rule := range rs.GetRules() {
 		for _, action := range rule.Def.Actions {
-			if action.Kill != nil {
+			if action != nil && action.Kill != nil {
 				return true
 			}
 		}
@@ -2942,7 +2942,7 @@ func isKillActionPresent(rs *rules.RuleSet) bool {
 func isRawPacketActionPresent(rs *rules.RuleSet) bool {
 	for _, rule := range rs.GetRules() {
 		for _, action := range rule.Def.Actions {
-			if action.NetworkFilter != nil {
+			if action != nil && action.NetworkFilter != nil {
 				return true
 			}
 		}
@@ -4226,11 +4226,11 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 		case action.Def.CoreDump != nil:
 			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
-				dump := NewCoreDump(action.Def.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil, p.probe.scrubber))
-				rule := events.NewCustomRule(events.InternalCoreDumpRuleID, events.InternalCoreDumpRuleDesc, p.evalOpts())
+				dump := NewCoreDump(action.Def.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil, p.probe.scrubber), rule.ID)
+				customRule := events.NewCustomRule(events.InternalCoreDumpRuleID, events.InternalCoreDumpRuleDesc, p.evalOpts())
 				event := events.NewCustomEvent(model.UnknownEventType, dump)
 
-				p.probe.DispatchCustomEvent(rule, event)
+				p.probe.DispatchCustomEvent(customRule, event)
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		case action.Def.Hash != nil:

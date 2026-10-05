@@ -502,8 +502,10 @@ func capabilityNodeToProto(cap *CapabilityNode, tagIDToImageTag func(id uint64) 
 	}
 
 	return &adproto.CapabilityNode{
-		NodeBase:   nodeBaseToProto(&cap.NodeBase, tagIDToImageTag),
-		Capability: cap.Capability,
-		IsCapable:  cap.Capable,
+		NodeBase:              nodeBaseToProto(&cap.NodeBase, tagIDToImageTag),
+		Capability:            cap.Capability,
+		IsCapable:             cap.Capable,
+		IsAttemptedHostUserns: cap.AttemptedHostUserNS,
+		IsCapableHostUserns:   cap.CapableHostUserNS,
 	}
 }

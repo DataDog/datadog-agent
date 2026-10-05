@@ -6,8 +6,8 @@
   needs: []
   extends: .dd_octo_sts
   rules:
-    - !reference [.on_invoke_tasks_changes]
     - !reference [.except_light_pipeline]
+    - !reference [.on_invoke_tasks_changes]
     - changes:
         paths:
           - .gitlab/build/source_test/kmt_tasks.yml
