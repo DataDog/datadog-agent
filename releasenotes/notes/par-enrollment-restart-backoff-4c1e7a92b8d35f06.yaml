@@ -1,7 +1,9 @@
 fixes:
   - |
-    The Private Action Runner now retries enrollment in-process when the
-    enrollment endpoint returns HTTP 429, honoring the ``Retry-After`` header.
-    In split mode, repeated enrollment failures such as HTTP 400 or 404 now back
-    off between restarts (up to 5 minutes) instead of restarting every few
-    seconds indefinitely.
+    The Private Action Runner now stops cleanly, as it already did for HTTP 401
+    and 403, when enrollment is rejected with any other non-transient HTTP 4xx
+    such as 400 or 404, instead of restarting and re-enrolling every few
+    seconds. HTTP 408, 425 and 429 responses are retried in-process with
+    backoff, honoring the ``Retry-After`` header on 429. In split mode, repeated
+    par-control bootstrap failures now back off between restarts, up to
+    5 minutes.

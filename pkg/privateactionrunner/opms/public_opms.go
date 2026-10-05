@@ -28,7 +28,14 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-var ErrEnrollmentUnauthorized = errors.New("enrollment credentials rejected")
+// ErrEnrollmentRejected is returned when enrollment fails with a 4xx response
+// that retrying cannot fix (anything but 408, 425 and 429). The request is the
+// same on every attempt, so the runner must stop instead of re-enrolling until
+// the configuration is fixed and it is restarted.
+var ErrEnrollmentRejected = errors.New("enrollment rejected")
+
+// ErrEnrollmentUnauthorized is the ErrEnrollmentRejected returned for 401/403.
+var ErrEnrollmentUnauthorized = fmt.Errorf("%w: credentials not accepted", ErrEnrollmentRejected)
 
 const (
 	createPARPath           = "/api/unstable/on_prem_runners"
@@ -155,10 +162,10 @@ func (p *publicClient) enroll(
 }
 
 // doEnrollRequestWithRetry sends the enrollment POST and retries on transport
-// errors, HTTP 5xx and HTTP 429 responses with exponential backoff, honoring
-// Retry-After on 429. Other 4xx responses are returned immediately. Retries are unbounded; the caller's context
-// cancellation is the only exit other than success or a permanent (4xx)
-// failure. Enrollment is required for the runner to function, so we keep
+// errors, HTTP 5xx, 408, 425 and 429 responses with exponential backoff,
+// honoring Retry-After on 429. Other 4xx responses are returned immediately as
+// ErrEnrollmentRejected. Retries are unbounded; the caller's context
+// cancellation is the only exit other than success or a rejection. Enrollment is required for the runner to function, so we keep
 // trying rather than crashing the agent.
 func (p *publicClient) doEnrollRequestWithRetry(ctx context.Context, url string, body []byte, apiKey, appKey string) ([]byte, error) {
 	return util.RetryHTTPRequest(ctx, func() ([]byte, int, error) {
@@ -212,6 +219,8 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 		err := fmt.Errorf("runner creation failed with HTTP status code %d and response %s", resp.StatusCode, string(respBody))
 		if resp.StatusCode == http.StatusTooManyRequests {
 			err = util.WithRetryAfter(err, resp.Header.Get("Retry-After"))
+		} else if !util.IsRetryableHTTPStatus(resp.StatusCode) {
+			err = fmt.Errorf("%w: %w; check the site and Private Action Runner configuration, then restart the Private Action Runner", ErrEnrollmentRejected, err)
 		}
 		return nil, resp.StatusCode, err
 	}

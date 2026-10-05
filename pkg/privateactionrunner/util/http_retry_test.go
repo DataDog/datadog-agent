@@ -112,6 +112,15 @@ func TestRetryHTTPRequest_HonorsRetryAfter(t *testing.T) {
 	assert.GreaterOrEqual(t, waited, 1*time.Second, "should wait the Retry-After delay, not the backoff interval")
 }
 
+func TestIsRetryableHTTPStatus(t *testing.T) {
+	for _, status := range []int{302, 408, 425, 429, 500, 503} {
+		assert.True(t, IsRetryableHTTPStatus(status), status)
+	}
+	for _, status := range []int{400, 401, 403, 404, 409, 422} {
+		assert.False(t, IsRetryableHTTPStatus(status), status)
+	}
+}
+
 func TestWithRetryAfter_KeepsCause(t *testing.T) {
 	cause := errors.New("rate limited")
 	assert.ErrorIs(t, WithRetryAfter(cause, "5"), cause)

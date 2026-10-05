@@ -362,7 +362,7 @@ func TestDoEnrollRequestUsesOwnHttpClient(t *testing.T) {
 }
 
 func TestEnrollmentCredentialRejectionStopsRetrying(t *testing.T) {
-	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusBadRequest} {
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusBadRequest, http.StatusNotFound} {
 		t.Run(http.StatusText(status), func(t *testing.T) {
 			calls := 0
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -376,6 +376,7 @@ func TestEnrollmentCredentialRejectionStopsRetrying(t *testing.T) {
 			_, err := p.doEnrollRequestWithRetry(context.Background(), srv.URL, []byte("{}"), "api-key", "app-key")
 			require.Error(t, err)
 			assert.Equal(t, 1, calls)
+			assert.ErrorIs(t, err, ErrEnrollmentRejected)
 			assert.Equal(t, status == http.StatusUnauthorized || status == http.StatusForbidden, errors.Is(err, ErrEnrollmentUnauthorized))
 			if errors.Is(err, ErrEnrollmentUnauthorized) {
 				assert.NotContains(t, err.Error(), "sensitive response")
@@ -385,23 +386,27 @@ func TestEnrollmentCredentialRejectionStopsRetrying(t *testing.T) {
 	}
 }
 
-func TestEnrollmentRateLimitIsRetried(t *testing.T) {
-	calls := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		calls++
-		if calls == 1 {
-			w.WriteHeader(http.StatusTooManyRequests)
-			return
-		}
-		_, _ = w.Write([]byte("{}"))
-	}))
-	defer srv.Close()
+func TestEnrollmentTransientStatusIsRetried(t *testing.T) {
+	for _, status := range []int{http.StatusRequestTimeout, http.StatusTooEarly, http.StatusTooManyRequests, http.StatusServiceUnavailable} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			calls := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls++
+				if calls == 1 {
+					w.WriteHeader(status)
+					return
+				}
+				_, _ = w.Write([]byte("{}"))
+			}))
+			defer srv.Close()
 
-	p := &publicClient{httpClient: srv.Client()}
-	body, err := p.doEnrollRequestWithRetry(context.Background(), srv.URL, []byte("{}"), "api-key", "app-key")
-	require.NoError(t, err)
-	assert.Equal(t, "{}", string(body))
-	assert.Equal(t, 2, calls)
+			p := &publicClient{httpClient: srv.Client()}
+			body, err := p.doEnrollRequestWithRetry(context.Background(), srv.URL, []byte("{}"), "api-key", "app-key")
+			require.NoError(t, err)
+			assert.Equal(t, "{}", string(body))
+			assert.Equal(t, 2, calls)
+		})
+	}
 }
 
 func TestHeartbeat_NotFoundReturnsErrJobNotFound(t *testing.T) {
