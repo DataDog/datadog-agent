@@ -62,7 +62,7 @@ func TestGetSourceMap(t *testing.T) {
 			log.Debugf("Processing %s", path)
 			spec, err := ebpf.LoadCollectionSpec(path)
 			require.NoError(tt, err)
-			sourceMap, funcsPerSection, err := getSourceMap(path, spec)
+			sourceMap, funcsPerSection, err := getSourceMap(spec)
 
 			require.NoError(tt, err)
 			require.NotEmpty(tt, sourceMap)
@@ -80,7 +80,7 @@ func TestGetSourceMap(t *testing.T) {
 				hasSourceInfo := false
 
 				// Iterate all the instructions and compare the two sources of data we have.
-				// On one hand we have file-line from DWARF, on the other we have the line contents
+				// On one hand we have file-line from BTF, on the other we have the line contents
 				// from BTF data. We compare the two and make sure they match for most of the lines
 				// We accept some divergence as sometimes there will be differences with macros, etc.
 				insList := slices.Collect(maps.Keys(progSourceMap))

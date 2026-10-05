@@ -676,11 +676,5 @@ func containerIDFromTags(tags []string) string {
 
 func nextReconnectDelay(current time.Duration) time.Duration {
 	next := time.Duration(current.Seconds() * 2 * float64(time.Second))
-	if next > rcMaxReconnectDelay {
-		return rcMaxReconnectDelay
-	}
-	if next < rcInitialReconnectDelay {
-		return rcInitialReconnectDelay
-	}
-	return next
+	return min(max(next, rcInitialReconnectDelay), rcMaxReconnectDelay)
 }

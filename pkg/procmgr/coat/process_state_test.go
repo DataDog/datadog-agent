@@ -163,3 +163,54 @@ func TestCollectServiceProcessStateNotInstalled(t *testing.T) {
 
 	assert.Equal(t, ProcessStateNotInstalled, snapshot.ServiceProcessState(ServiceIDDDOT))
 }
+
+func TestProcmgrProcessStatesCoverReportedStates(t *testing.T) {
+	assert.ElementsMatch(t, []string{
+		ProcessStateUnknown,
+		ProcessStateCreated,
+		ProcessStateStarting,
+		ProcessStateRunning,
+		ProcessStateStopping,
+		ProcessStateStopped,
+		ProcessStateCrashed,
+		ProcessStateExited,
+		ProcessStateFailed,
+	}, procmgrProcessStates)
+	assert.NotContains(t, procmgrProcessStates, ProcessStateNotInstalled)
+}
+
+func TestProcmgrStateIsActiveOnlyForReportedState(t *testing.T) {
+	service := ServiceSnapshot{
+		ID:             ServiceIDDDOT,
+		ManagementMode: ManagementModeProcmgr,
+		ProcmgrState:   ProcessStateCrashed,
+	}
+
+	assert.True(t, procmgrStateIsActive(service, ProcessStateCrashed))
+	for _, state := range procmgrProcessStates {
+		if state == ProcessStateCrashed {
+			continue
+		}
+		assert.False(t, procmgrStateIsActive(service, state),
+			"only the reported state should be set, got %s", state)
+	}
+}
+
+func TestProcmgrStateIsActiveClearsWhenNotSupervised(t *testing.T) {
+	modes := []ManagementMode{ManagementModeNone, ManagementModeSystemd, ManagementModeWindowsService}
+
+	for _, mode := range modes {
+		t.Run(string(mode), func(t *testing.T) {
+			service := ServiceSnapshot{
+				ID:             ServiceIDDDOT,
+				ManagementMode: mode,
+				ProcmgrState:   ProcessStateRunning,
+			}
+
+			for _, state := range procmgrProcessStates {
+				assert.False(t, procmgrStateIsActive(service, state),
+					"state series must clear when procmgr does not supervise the service")
+			}
+		})
+	}
+}

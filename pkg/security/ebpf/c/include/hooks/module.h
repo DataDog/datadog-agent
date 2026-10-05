@@ -98,14 +98,14 @@ int hook_security_kernel_read_file(ctx_t *ctx) {
 }
 
 int __attribute__((always_inline)) trace_init_module_ret_impl(void *ctx, int retval, char *modname, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_INIT_MODULE);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
     }
 
     struct init_module_event_t *event = SPAN_FILL_EVENT(struct init_module_event_t, EVENT_INIT_MODULE);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
 
     event->syscall.retval = retval;
@@ -125,10 +125,15 @@ int __attribute__((always_inline)) trace_init_module_ret_impl(void *ctx, int ret
         fill_file(syscall->init_module.dentry, &event->file);
     }
 
+    pop_syscall(EVENT_INIT_MODULE);
+
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_INIT_MODULE);
     return 0;
 }
 
@@ -178,22 +183,27 @@ HOOK_SYSCALL_ENTRY1(delete_module, const char *, name_user) {
 }
 
 int __attribute__((always_inline)) trace_delete_module_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_DELETE_MODULE);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_DELETE_MODULE);
     if (!syscall) {
         return 0;
     }
 
     struct delete_module_event_t *event = SPAN_FILL_EVENT(struct delete_module_event_t, EVENT_DELETE_MODULE);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     bpf_probe_read_str(&event->name, sizeof(event->name), (void *)syscall->delete_module.name);
+
+    pop_syscall(EVENT_DELETE_MODULE);
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_DELETE_MODULE);
     return 0;
 }
 

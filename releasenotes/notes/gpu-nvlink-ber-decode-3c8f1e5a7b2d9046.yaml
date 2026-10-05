@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed the ``gpu.nvlink.ber.effective`` and ``gpu.nvlink.ber.symbol``
+    metrics reporting NVML's packed bit error rate encoding instead of the
+    actual rate. The Agent now decodes the value (mantissa × 10^-exponent), so a
+    healthy link reports a value close to zero instead of 4095. Monitors and
+    dashboards that use these metrics need their thresholds updated.

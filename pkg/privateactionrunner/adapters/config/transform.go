@@ -8,6 +8,7 @@ package config
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -70,6 +72,9 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	if v := config.GetInt32(setup.PARHttpTimeoutSeconds); v != 0 {
 		httpTimeout = time.Duration(v) * time.Second
 	}
+	agentHTTPClient := &http.Client{
+		Transport: httputils.CreateHTTPTransport(config),
+	}
 
 	return &Config{
 		MaxBackoff:                         maxBackoff,
@@ -92,9 +97,11 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		HeartbeatInterval:                  heartbeatInterval,
 		Version:                            version.AgentVersion,
 		MetricsClient:                      metricsClient,
+		AgentHTTPClient:                    agentHTTPClient,
 		ActionsAllowlist:                   makeActionsAllowlist(config),
 		Allowlist:                          config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:                  config.GetBool(setup.PARHttpAllowImdsEndpoint),
+		KubernetesAllowedCustomResources:   kubernetesAllowedCustomResources(config),
 		RShellAllowedPaths:                 rshellAllowedPaths(config),
 		RShellAllowedCommands:              rshellAllowedCommands(config),
 		RShellAllowedSystemServices:        rshellAllowedSystemServices(config),
@@ -114,6 +121,16 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		Urn:                                urn,
 		DatadogSite:                        ddSite,
 	}, nil
+}
+
+// kubernetesAllowedCustomResources preserves nil for an unset allowlist so custom
+// resource actions can distinguish compatibility mode from an explicit
+// empty-list deny-all policy.
+func kubernetesAllowedCustomResources(config config.Component) []string {
+	if !config.IsConfigured(setup.PARKubernetesAllowedCustomResources) {
+		return nil
+	}
+	return config.GetStringSlice(setup.PARKubernetesAllowedCustomResources)
 }
 
 func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {

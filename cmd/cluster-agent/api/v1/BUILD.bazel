@@ -19,6 +19,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
         "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/def",
         "//pkg/clusteragent",

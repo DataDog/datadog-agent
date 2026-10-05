@@ -95,6 +95,10 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	// stripped from the DPA status), so a follower webhook would otherwise leave the CPU limit in
 	// place. Inputs come from the spec/annotations, available on all replicas; idempotent on the leader.
 	constrainedVertical := autoscaler.ScalingValues().Vertical.DeepCopy()
+	if _, err := applyForcedResources(constrainedVertical, autoscaler.ForcedResources()); err != nil {
+		log.Warnf("Autoscaler %s: failed to apply forced resources for POD %s/%s, not patching resources: %v", autoscaler.ID(), pod.Namespace, pod.Name, err)
+		return patched, nil
+	}
 	if _, err := applyVerticalConstraints(constrainedVertical, autoscaler.Spec().Constraints, autoscaler.IsBurstable()); err != nil {
 		log.Warnf("Autoscaler %s: failed to apply vertical constraints for POD %s/%s, not patching resources: %v", autoscaler.ID(), pod.Namespace, pod.Name, err)
 		return patched, nil
@@ -103,15 +107,15 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	// Use the active scaling values hash (mirrored to the DPA status) so the annotation stays
 	// identical across replicas; not the recomputed constrained hash.
 	effectiveRecommendationID := autoscaler.ScalingValues().Vertical.ResourcesHash
-	if pod.Annotations[model.RecommendationIDAnnotation] != effectiveRecommendationID {
-		pod.Annotations[model.RecommendationIDAnnotation] = effectiveRecommendationID
-		patched = true
-	}
+	patched = patchAnnotation(pod, model.RecommendationIDAnnotation, effectiveRecommendationID) || patched
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
 	for _, reco := range constrainedVertical.ContainerResources {
 		patched = patchPod(reco, pod) || patched
 	}
+
+	runtimeRecID, _ := computeRuntimeRecommendationID(constrainedVertical.ContainerResources)
+	patched = patchAnnotation(pod, model.RuntimeRecommendationIDAnnotation, runtimeRecID) || patched
 
 	return patched, nil
 }
@@ -233,6 +237,23 @@ func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *
 	}
 
 	return false
+}
+
+// patchAnnotation sets, updates, or deletes the given annotation on the pod.
+// An empty value causes the annotation to be deleted. Returns true if the annotation was changed.
+func patchAnnotation(pod *corev1.Pod, key, value string) bool {
+	if value == "" {
+		if _, exists := pod.Annotations[key]; exists {
+			delete(pod.Annotations, key)
+			return true
+		}
+		return false
+	}
+	if pod.Annotations[key] == value {
+		return false
+	}
+	pod.Annotations[key] = value
+	return true
 }
 
 func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, cont *corev1.Container) (patched bool) {

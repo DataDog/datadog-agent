@@ -44,6 +44,9 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
+// Pattern to match source lines like "source: nginx" (including commented-out lines).
+var sourcePattern = regexp.MustCompile(`^#?\s*source:\s*"?(.+?)"?\s*$`)
+
 type serviceLogRef struct {
 	refCount int
 	config   integration.Config
@@ -103,9 +106,6 @@ func discoverIntegrationSources() map[string]bool {
 	}
 
 	log.Tracef("Discovering integration sources from paths: %v", searchPaths)
-
-	// Pattern to match source lines like "source: nginx" (including commented-out lines).
-	sourcePattern := regexp.MustCompile(`^#?\s*source:\s*"?(.+?)"?\s*$`)
 
 	for _, searchPath := range searchPaths {
 		if searchPath == "" {

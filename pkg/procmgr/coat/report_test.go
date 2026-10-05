@@ -1,0 +1,755 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package coat
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"runtime"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+)
+
+// wantRedacted is the placeholder these tests expect a secret to be replaced with. It deliberately
+// restates the value rather than reading the production constant: a test that asserts against the
+// constant it is checking passes whatever that constant is changed to. Spelled once because eight
+// asterisks cannot be counted by eye, so repeating the literal invites a seven-asterisk typo.
+const wantRedacted = "********"
+
+func writeProcmgrConfigFixture(t *testing.T, root string, service MigratableService) {
+	t.Helper()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, processesDirRel, service.ProcmgrConfigFile),
+		[]byte("cfg"),
+		0o644,
+	))
+}
+
+func reportProcessByName(t *testing.T, report SupportReport, name string) ProcessSnapshot {
+	t.Helper()
+
+	for _, process := range report.Processes {
+		if process.Name == name {
+			return process
+		}
+	}
+	require.Failf(t, "missing process", "process %q was not reported", name)
+	return ProcessSnapshot{}
+}
+
+func TestReportIncludesEveryProcessNotJustCatalogServices(t *testing.T) {
+	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true, RunningProcesses: 1, Version: "1.2.3"},
+		processes: map[string]ProcessSnapshot{
+			"datadog-agent-process": {Name: "datadog-agent-process", State: ProcessStateRunning, PID: 42},
+			"some-other-process":    {Name: "some-other-process", State: ProcessStateRunning, PID: 43},
+		},
+	})
+
+	report := collector.Report(context.Background(), ScrubOptions{})
+
+	require.Len(t, report.Processes, 2,
+		"the report must cover every supervised process, not only the migratable catalog")
+	assert.Equal(t, "datadog-agent-process", report.Processes[0].Name, "processes must be sorted by name")
+	assert.Equal(t, "some-other-process", report.Processes[1].Name)
+	assert.Equal(t, "1.2.3", report.Daemon.Version)
+	assert.Empty(t, report.DaemonError)
+	assert.NotEmpty(t, report.Notes, "the report must explain how to read a process that is down")
+}
+
+// The notes are the only thing in the report that tells a reader where to look when a process will
+// not start, so they must not name an artifact this platform never produces. Only the Windows
+// service writes a log file the flare collects: the Unix daemon starts with no log file and its
+// systemd unit sets no StandardOutput, so its lines go to the journal, which the flare cannot read
+// as dd-agent and therefore does not ship.
+func TestReportNotesPointAtALogThisPlatformActuallyHas(t *testing.T) {
+	notes := strings.Join(reportNotes(), "\n")
+
+	require.Contains(t, notes, daemonLogLocation(),
+		"the notes must name where the daemon log can be read on this platform")
+
+	if runtime.GOOS == "windows" {
+		assert.Contains(t, notes, "dd-procmgr.log",
+			"the Windows service writes this file and the flare collects it")
+		return
+	}
+
+	assert.NotContains(t, notes, "dd-procmgr.log",
+		"nothing writes this file off Windows, so pointing support at it sends them nowhere")
+	assert.Contains(t, notes, "journalctl",
+		"the daemon logs to stdout and systemd captures it, so the journal is where the reason is")
+}
+
+// dd-procmgrd reports Failed both for a spawn that never produced a process and for a process that
+// ran and exited non-zero, and only the second carries an exit code. restart_count cannot tell them
+// apart: it counts restarts actually performed, the default policy is never, and it is reset once a
+// spawn stays up long enough. Notes that read restart_count=0 as a failed spawn therefore call an
+// ordinary workload failure a spawn failure, under the default configuration.
+func TestReportNotesSeparateSpawnFailureFromWorkloadFailure(t *testing.T) {
+	notes := strings.Join(reportNotes(), "\n")
+
+	assert.Contains(t, notes, "no last_exit_code",
+		"a spawn that never ran is identified by the absence of an exit code")
+	assert.Contains(t, notes, "a last_exit_code",
+		"a process that ran and exited non-zero is identified by having one")
+	assert.Contains(t, notes, "restart_policy",
+		"restart_count only means something next to the policy that bounds it")
+
+	assert.NotContains(t, notes, "restart_count=0",
+		"restart_count=0 is the default-policy reading for any failure, so it cannot diagnose one")
+	assert.NotContains(t, notes, "restart_count>0",
+		"a restart count above zero is not by itself a crash loop")
+}
+
+func TestReportUnreachableDaemonIsRecordedNotDropped(t *testing.T) {
+	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
+		connectErr: errors.New("open \\\\.\\pipe\\datadog-procmgrd: file does not exist"),
+	})
+
+	report := collector.Report(context.Background(), ScrubOptions{})
+
+	assert.False(t, report.Daemon.Reachable)
+	assert.Contains(t, report.DaemonError, "connect to dd-procmgrd",
+		"a non-answering daemon must produce a report saying so, not an empty file")
+	assert.NotEmpty(t, report.SocketPath, "support needs to know which endpoint was tried")
+	assert.Empty(t, report.Processes)
+	assert.NotEmpty(t, report.Services, "service supervision mapping does not need the daemon")
+}
+
+func TestReportStatusFailureIsRecorded(t *testing.T) {
+	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
+		daemonErr: errors.New("deadline exceeded"),
+	})
+
+	report := collector.Report(context.Background(), ScrubOptions{})
+
+	assert.Contains(t, report.DaemonError, "dd-procmgrd status")
+	assert.Contains(t, report.DaemonError, "deadline exceeded")
+}
+
+func TestReportListFailureKeepsDaemonState(t *testing.T) {
+	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
+		daemon:  DaemonSnapshot{Reachable: true, Ready: true},
+		listErr: errors.New("list failed"),
+	})
+
+	report := collector.Report(context.Background(), ScrubOptions{})
+
+	assert.True(t, report.Daemon.Reachable, "a failed list must not discard the status we did get")
+	assert.Empty(t, report.DaemonError)
+	assert.Contains(t, report.ProcessesError, "dd-procmgrd list")
+}
+
+func TestReportDescribeFailureFallsBackToListData(t *testing.T) {
+	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true},
+		processes: map[string]ProcessSnapshot{
+			"datadog-agent-process": {Name: "datadog-agent-process", State: ProcessStateRunning, PID: 42},
+		},
+		describeErr: errors.New("describe failed"),
+	})
+
+	report := collector.Report(context.Background(), ScrubOptions{})
+
+	process := reportProcessByName(t, report, "datadog-agent-process")
+	assert.Equal(t, uint32(42), process.PID, "a failed describe must keep the data List already gave us")
+	require.Len(t, report.Warnings, 1)
+	assert.Contains(t, report.Warnings[0], "describe datadog-agent-process")
+}
+
+// A gate-blocked process and an inert catalog entry are both Created, and auto_start is the only
+// field that separates them. It comes from Describe, so losing that call loses the distinction.
+func TestReportDistinguishesGatedProcessFromInertCatalogEntry(t *testing.T) {
+	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true},
+		processes: map[string]ProcessSnapshot{
+			"datadog-agent-process":  {Name: "datadog-agent-process", State: ProcessStateCreated},
+			"datadog-agent-sysprobe": {Name: "datadog-agent-sysprobe", State: ProcessStateCreated},
+		},
+		details: map[string]ProcessSnapshot{
+			"datadog-agent-process": {
+				Name:      "datadog-agent-process",
+				State:     ProcessStateCreated,
+				AutoStart: true,
+			},
+			"datadog-agent-sysprobe": {
+				Name:      "datadog-agent-sysprobe",
+				State:     ProcessStateCreated,
+				AutoStart: false,
+			},
+		},
+	})
+
+	report := collector.Report(context.Background(), ScrubOptions{})
+
+	gated := reportProcessByName(t, report, "datadog-agent-process")
+	assert.Equal(t, ProcessStateCreated, gated.State)
+	assert.True(t, gated.AutoStart, "auto_start is what marks this as blocked rather than inert")
+
+	inert := reportProcessByName(t, report, "datadog-agent-sysprobe")
+	assert.Equal(t, ProcessStateCreated, inert.State)
+	assert.False(t, inert.AutoStart)
+}
+
+func TestReportSeparatesCrashLoopFromFailedSpawn(t *testing.T) {
+	exitCode := int32(2)
+	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true},
+		processes: map[string]ProcessSnapshot{
+			"crash-looper": {
+				Name:         "crash-looper",
+				State:        ProcessStateCrashed,
+				RestartCount: 5,
+				LastExitCode: &exitCode,
+			},
+			"failed-spawn": {Name: "failed-spawn", State: ProcessStateFailed, RestartCount: 0},
+		},
+	})
+
+	report := collector.Report(context.Background(), ScrubOptions{})
+
+	looper := reportProcessByName(t, report, "crash-looper")
+	assert.Equal(t, uint32(5), looper.RestartCount)
+	require.NotNil(t, looper.LastExitCode, "a crash loop must carry the exit code that support needs")
+	assert.Equal(t, int32(2), *looper.LastExitCode)
+
+	spawn := reportProcessByName(t, report, "failed-spawn")
+	assert.Zero(t, spawn.RestartCount)
+	assert.Nil(t, spawn.LastExitCode, "never having exited must stay distinct from exiting with code 0")
+}
+
+// The report is only useful to support if a Stopped legacy service can be explained, which is
+// what the per-service management mode does.
+func TestReportServicesExplainStoppedLegacyService(t *testing.T) {
+	sysprobe, ok := serviceByID("sysprobe")
+	require.True(t, ok, "system-probe must be in the migratable catalog or its flare row is silent")
+	assert.Equal(t, "datadog-system-probe", sysprobe.LegacyWindowsService)
+
+	root := t.TempDir()
+	writeProcmgrConfigFixture(t, root, sysprobe)
+
+	collector := NewCollectorWithClient(root, &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true, RunningProcesses: 1},
+		processes: map[string]ProcessSnapshot{
+			sysprobe.ProcmgrProcessName: {Name: sysprobe.ProcmgrProcessName, State: ProcessStateRunning},
+		},
+	})
+
+	report := collector.Report(context.Background(), ScrubOptions{})
+
+	var found bool
+	for _, service := range report.Services {
+		if service.ID != "sysprobe" {
+			continue
+		}
+		found = true
+		assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
+		assert.Equal(t, ProcessStateRunning, service.ProcmgrState)
+	}
+	assert.True(t, found, "the report must carry a row for every migratable service")
+}
+
+func TestReportMarshalsToReadableJSON(t *testing.T) {
+	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true, Version: "1.2.3", UptimeSeconds: 90},
+		processes: map[string]ProcessSnapshot{
+			"datadog-agent-process": {Name: "datadog-agent-process", State: ProcessStateRunning, PID: 42},
+		},
+	})
+
+	raw, err := json.Marshal(collector.Report(context.Background(), ScrubOptions{}))
+	require.NoError(t, err)
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	assert.Contains(t, decoded, "daemon")
+	assert.Contains(t, decoded, "processes")
+	assert.Contains(t, decoded, "services")
+	assert.Contains(t, string(raw), `"uptime_seconds":90`, "keys must be snake_case for support readability")
+	assert.Contains(t, string(raw), `"management_mode"`)
+}
+
+func TestReportRedactsSecretArguments(t *testing.T) {
+	windowsCommand := `C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe`
+	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true},
+		processes: map[string]ProcessSnapshot{
+			"datadog-agent-process": {Name: "datadog-agent-process", State: ProcessStateRunning},
+		},
+		details: map[string]ProcessSnapshot{
+			"datadog-agent-process": {
+				Name:    "datadog-agent-process",
+				State:   ProcessStateRunning,
+				Command: windowsCommand,
+				Args: []string{
+					"--password", "separate-token-secret",
+					"--api_key=inline-secret",
+					"--config", `C:\Program Files\Datadog\datadog.yaml`,
+				},
+			},
+		},
+	})
+
+	proc := reportProcessByName(t, collector.Report(context.Background(), ScrubOptions{}), "datadog-agent-process")
+
+	// Asserted as the whole argv rather than as absences: NotContains compares whole elements, so a
+	// value that leaked only part of itself, which is how this went wrong before, would satisfy it.
+	assert.Equal(t, []string{
+		"--password", wantRedacted,
+		"--api_key=" + wantRedacted,
+		"--config", `C:\Program Files\Datadog\datadog.yaml`,
+	}, proc.Args, "both spellings are redacted and nothing around them is disturbed")
+
+	// The command is never part of what gets scrubbed, so it survives intact even here, where a
+	// redaction did happen. Its arguments are a different matter: see the test below.
+	assert.Equal(t, windowsCommand, proc.Command, "the executable path must survive intact")
+}
+
+// Redacting one value must not disturb the arguments around it. Scrubbing the command line as a
+// single joined string cost exactly this, because it re-split every element on spaces.
+func TestScrubProcessArgsLeavesSurroundingArgumentsIntact(t *testing.T) {
+	path := `C:\Program Files\Datadog\datadog.yaml`
+	processes := []ProcessSnapshot{{Args: []string{"--password", "s3cret", "--config", path}}}
+
+	scrubProcessArgs(processes, ScrubOptions{})
+
+	assert.Equal(t, []string{"--password", wantRedacted, "--config", path}, processes[0].Args,
+		"a path holding spaces stays one argument even when something else was redacted")
+}
+
+func TestScrubProcessArgsIsIdempotent(t *testing.T) {
+	processes := []ProcessSnapshot{{Args: []string{"--password", "s3cret", "--verbose"}}}
+
+	scrubProcessArgs(processes, ScrubOptions{})
+	once := append([]string{}, processes[0].Args...)
+	scrubProcessArgs(processes, ScrubOptions{})
+
+	assert.Equal(t, once, processes[0].Args)
+	assert.Equal(t, []string{"--password", wantRedacted, "--verbose"}, processes[0].Args)
+}
+
+// The shared word list spells these with underscores, but command lines just as often use hyphens,
+// and a value can be attached with ":" as well as "=". Both forms slipped through a scrubber that
+// matched the word list literally and split only on "=".
+func TestScrubProcessArgsHandlesFlagSpellingsAndDelimiters(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{
+			name: "hyphenated flag with a separate value",
+			args: []string{"--api-key", "leaked-by-spelling"},
+			want: []string{"--api-key", wantRedacted},
+		},
+		{
+			// procutil's defaults spell this one with an underscore as well, so it needs the same
+			// widening as the others or the hyphenated form a command line actually uses is missed.
+			name: "hyphenated mysql_pwd flag with a separate value",
+			args: []string{"--mysql-pwd", "leaked-by-spelling-too"},
+			want: []string{"--mysql-pwd", wantRedacted},
+		},
+		{
+			name: "colon delimiter keeps the value in the same token",
+			args: []string{"--password:leaked-by-delimiter", "--verbose"},
+			want: []string{"--password:" + wantRedacted, "--verbose"},
+		},
+		{
+			name: "uppercase flag",
+			args: []string{"--AUTH-TOKEN=leaked-by-case"},
+			want: []string{"--AUTH-TOKEN=" + wantRedacted},
+		},
+		{
+			// Everything after the flag goes, not just the first word of it. Handing the command
+			// line to procutil.ScrubCommand would keep "with spaces" here.
+			name: "a secret value containing spaces is redacted whole",
+			args: []string{"--password", "secret with spaces"},
+			want: []string{"--password", wantRedacted},
+		},
+		{
+			// A secret flag is not always followed by its value. Redacting the next element blindly
+			// overwrites the second flag, and classifying elements as they are rewritten then reads
+			// the placeholder instead of "--api-key", leaving the real credential in the flare.
+			name: "a secret flag following another does not lose its own value",
+			args: []string{"--password", "--api-key", "leaked-by-adjacency"},
+			want: []string{"--password", wantRedacted, wantRedacted},
+		},
+		{
+			// procutil redacts this, so a flare must too: a bare name is how "key value" style
+			// arguments are written, and nothing says a secret has to arrive behind a dash.
+			name: "a bare secret name carries its value in the next argument",
+			args: []string{"password", "leaked-by-bareness"},
+			want: []string{"password", wantRedacted},
+		},
+		{
+			// A value is not disqualified from being one by starting with a dash or a slash. Paths
+			// are ordinary values, and a token can start with either.
+			name: "a secret value spelled like a flag is still a value",
+			args: []string{"--password", "/etc/datadog-agent/leaked-by-slash"},
+			want: []string{"--password", wantRedacted},
+		},
+		{
+			name: "a secret value starting with a dash is still a value",
+			args: []string{"--api-key", "-leaked-by-dash"},
+			want: []string{"--api-key", wantRedacted},
+		},
+		{
+			// The value itself names a secret. Classifying every element before rewriting any of
+			// them means this one is examined, so it must be recognized as the value it is rather
+			// than as a flag whose own value needs redacting.
+			name: "a value that names a secret is redacted without disturbing what follows",
+			args: []string{"--password", "my-api-key-value", "--verbose"},
+			want: []string{"--password", wantRedacted, "--verbose"},
+		},
+		{
+			// Not every secret is spelled as a flag. This one carries its value on its own token,
+			// so it is redacted there rather than by consuming the argument after it.
+			name: "a secret named without a dash is still redacted",
+			args: []string{"password=leaked-without-a-dash", "--verbose"},
+			want: []string{"password=" + wantRedacted, "--verbose"},
+		},
+		{
+			name: "a value holding a Windows path is not a flag",
+			args: []string{"--config", `C:\Program Files\Datadog\datadog.yaml`},
+			want: []string{"--config", `C:\Program Files\Datadog\datadog.yaml`},
+		},
+		{
+			// procmgr reads args from a YAML list, where writing a flag and its value as one
+			// entry is an easy thing to do.
+			name: "flag and value in one token separated by a space",
+			args: []string{"--password leaked-by-space"},
+			want: []string{"--password " + wantRedacted},
+		},
+		{
+			// Classification only looks at text before the first delimiter of an element, so a
+			// secret buried later in the same string (a shell "-c" payload, a joined mini cmdline)
+			// would otherwise reach the flare. The in-element pass catches it without joining
+			// neighbouring argv entries.
+			name: "secret buried inside a shell -c payload",
+			args: []string{"-c", "exec worker --password hunter2"},
+			want: []string{"-c", "exec worker --password " + wantRedacted},
+		},
+		{
+			name: "hyphenated secret buried inside a compound argument",
+			args: []string{"-c", "run --api-key leaked-key-value"},
+			want: []string{"-c", "run --api-key " + wantRedacted},
+		},
+		{
+			name: "secret buried in a single-token mini cmdline",
+			args: []string{"worker --password hunter2"},
+			want: []string{"worker --password " + wantRedacted},
+		},
+		{
+			// Space-bearing values that are their own argv element still redacted whole: the
+			// in-element pass must not join across boundaries and re-open that leak.
+			name: "separate space-bearing secret still redacted whole after the compound pass",
+			args: []string{"--password", "secret with spaces", "--config", `C:\Program Files\Datadog\datadog.yaml`},
+			want: []string{"--password", wantRedacted, "--config", `C:\Program Files\Datadog\datadog.yaml`},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			processes := []ProcessSnapshot{{Args: append([]string{}, test.args...)}}
+			scrubProcessArgs(processes, ScrubOptions{})
+			assert.Equal(t, test.want, processes[0].Args)
+		})
+	}
+}
+
+// An operator who declared a word sensitive, or asked for arguments to be stripped, meant it for
+// flares as well: these settings live in the Agent config, which coat does not read, so they have
+// to arrive as options.
+func TestScrubProcessArgsHonoursOperatorSettings(t *testing.T) {
+	t.Run("a declared word matches whatever case it was written in", func(t *testing.T) {
+		processes := []ProcessSnapshot{{Args: []string{"--passphrase", "operator-declared-this-secret"}}}
+
+		scrubProcessArgs(processes, ScrubOptions{CustomSensitiveWords: []string{"PASSPHRASE"}})
+
+		assert.Equal(t, []string{"--passphrase", wantRedacted}, processes[0].Args)
+	})
+
+	t.Run("a declared word buried in a compound argument is still redacted", func(t *testing.T) {
+		processes := []ProcessSnapshot{{Args: []string{"-c", "start --PASSPHRASE s3cret"}}}
+
+		scrubProcessArgs(processes, ScrubOptions{CustomSensitiveWords: []string{"PASSPHRASE"}})
+
+		assert.Equal(t, []string{"-c", "start --PASSPHRASE " + wantRedacted}, processes[0].Args)
+	})
+
+	t.Run("a declared wildcard matches a prefixed flag", func(t *testing.T) {
+		processes := []ProcessSnapshot{{Args: []string{"--tenant-token", "operator-declared-this-secret"}}}
+
+		scrubProcessArgs(processes, ScrubOptions{CustomSensitiveWords: []string{"*token*"}})
+
+		assert.Equal(t, []string{"--tenant-token", wantRedacted}, processes[0].Args,
+			"wildcards are how operators declare a family of flags, so they have to be honoured")
+	})
+
+	t.Run("stripping drops every argument", func(t *testing.T) {
+		processes := []ProcessSnapshot{{
+			Command: "/opt/datadog-agent/embedded/bin/process-agent",
+			Args:    []string{"--config", "/etc/datadog-agent/datadog.yaml"},
+		}}
+
+		scrubProcessArgs(processes, ScrubOptions{StripArguments: true})
+
+		assert.Nil(t, processes[0].Args, "no argument should survive, not even a harmless one")
+		assert.NotEmpty(t, processes[0].Command, "the executable is not an argument and stays")
+	})
+}
+
+// Every leak found in this scrubber has been one instance of a single invariant: a flare must keep
+// nothing procutil would have redacted. The cases above pin the shapes known to have gone wrong,
+// which only ever catches the next one if somebody thinks to write it down. This asserts the
+// invariant itself over a corpus of argv shapes, so a value procutil removes and this package
+// leaves behind fails here whether or not anyone anticipated that spelling.
+func TestRedactionKeepsNothingProcutilWouldRedact(t *testing.T) {
+	corpus := [][]string{
+		{"--password", "s3cret"},
+		{"--password", "secret with spaces"},
+		{"--password", "/etc/datadog-agent/creds"},
+		{"--password", "-dash-leading-value"},
+		{"--password", "--api-key", "s3cret"},
+		{"--password", "my-api-key-value", "--verbose"},
+		{"--api_key=inline", "--config", `C:\Program Files\Datadog\datadog.yaml`},
+		{"--password:colon-delimited"},
+		{"--password bundled-in-one-token"},
+		{"password", "bare-name-value"},
+		{"password=bare-inline"},
+		{"PASSWORD", "upper-case-value"},
+		{"--AUTH-TOKEN=upper-inline"},
+		{"--passwd", "alias-value"},
+		{"--credentials", "creds-value"},
+		{"--mysql_pwd", "pwd-value"},
+		{"--mysql-pwd", "hyphen-spelled-pwd-value"},
+		{"--password"},
+		{"--verbose", "--config", "/etc/datadog-agent/datadog.yaml"},
+	}
+
+	scrubber := procutil.NewDefaultDataScrubber()
+	scrubber.AddCustomSensitiveWords(slices.Clone(hyphenSpelledSecretWords))
+
+	for _, args := range corpus {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			// procutil's own verdict on the same command line, used only to decide which text is
+			// secret. Its re-splitting is why this package does not use it to redact.
+			byProcutil, _ := scrubber.ScrubCommand(append([]string{"agent"}, args...))
+			procutilOutput := strings.Join(byProcutil, " ")
+
+			processes := []ProcessSnapshot{{Args: slices.Clone(args)}}
+			scrubProcessArgs(processes, ScrubOptions{})
+			ourOutput := strings.Join(processes[0].Args, " ")
+
+			for _, token := range args {
+				if strings.Contains(procutilOutput, token) {
+					continue // procutil kept it, so it is not a secret and we may keep it too
+				}
+				assert.NotContains(t, ourOutput, token,
+					"procutil redacted %q out of this command line, so the flare must not carry it", token)
+			}
+		})
+	}
+}
+
+// namesSecret probes procutil's patterns with a synthetic "<flag>=x", which assumes the shape of the
+// regexes procutil compiles. Nothing in procutil promises that shape. If it changed, the probe would
+// stop matching, every flag would look harmless and secrets would reach flares with all the tests
+// above still green. Cross-check the two so that change breaks the build instead, and confirm the
+// placeholder we write is the one procutil substitutes, since procutil does not export it.
+func TestNamesSecretAgreesWithProcutil(t *testing.T) {
+	scrubber := procutil.NewDefaultDataScrubber()
+	scrubber.AddCustomSensitiveWords(slices.Clone(hyphenSpelledSecretWords))
+
+	for _, flag := range []string{
+		"--password", "--api_key", "--api-key", "--auth_token", "--AUTH-TOKEN",
+		"--mysql_pwd", "--mysql-pwd",
+		"--config", "--verbose", "--sysprobe-config",
+	} {
+		t.Run(flag, func(t *testing.T) {
+			scrubbed, procutilRedacted := scrubber.ScrubCommand([]string{"agent", flag, "a-value"})
+
+			assert.Equal(t, procutilRedacted, namesSecret(scrubber.SensitivePatterns, flag),
+				"our decision about this flag must match what procutil itself would redact")
+
+			if procutilRedacted {
+				assert.Contains(t, scrubbed, wantRedacted,
+					"procutil's placeholder must still be the one this package writes")
+			}
+		})
+	}
+}
+
+// The operator's settings have to reach Report, not be applied to what it returns. Redacting a value
+// overwrites the argument that held it, so a pass with only the default words leaves a placeholder
+// where "--tenant-thing" was, and no later pass can recognize it as a name the operator declared
+// sensitive. A flare then ships the value.
+func TestReportHonoursOperatorWordsBesideDefaultOnes(t *testing.T) {
+	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true},
+		processes: map[string]ProcessSnapshot{
+			"datadog-agent-process": {Name: "datadog-agent-process", State: ProcessStateRunning},
+		},
+		details: map[string]ProcessSnapshot{
+			"datadog-agent-process": {
+				Name:  "datadog-agent-process",
+				State: ProcessStateRunning,
+				Args:  []string{"--password", "--tenant-thing", "leaked-beside-a-default-flag"},
+			},
+		},
+	})
+
+	report := collector.Report(context.Background(), ScrubOptions{CustomSensitiveWords: []string{"*tenant*"}})
+
+	proc := reportProcessByName(t, report, "datadog-agent-process")
+	assert.NotContains(t, strings.Join(proc.Args, " "), "leaked-beside-a-default-flag",
+		"a declared word must be honoured even when a default-word flag precedes it")
+}
+
+// Collection has to end before the caller stops waiting, because the flare framework abandons a
+// provider that overruns its deadline and then no file is written at all.
+//
+// Asserted on the deadline the context carries rather than by timing a call, so the budget is
+// checked without spending it.
+func TestFlareContextEndsBeforeTheCallerStopsWaiting(t *testing.T) {
+	t.Run("a caller without a deadline gets the collection budget", func(t *testing.T) {
+		ctx, cancel := flareContext(context.Background())
+		defer cancel()
+
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok, "collection is always bounded, even when the caller sets no limit")
+		assert.WithinDuration(t, time.Now().Add(flareCollectionBudget), deadline, time.Second)
+	})
+
+	t.Run("a generous caller deadline leaves the collection budget binding", func(t *testing.T) {
+		parent, cancelParent := context.WithTimeout(context.Background(), time.Hour)
+		defer cancelParent()
+		ctx, cancel := flareContext(parent)
+		defer cancel()
+
+		deadline, _ := ctx.Deadline()
+		assert.WithinDuration(t, time.Now().Add(flareCollectionBudget), deadline, time.Second)
+	})
+
+	t.Run("a tighter caller deadline binds instead, less the write margin", func(t *testing.T) {
+		callerDeadline := time.Now().Add(flareCollectionBudget / 2)
+		parent, cancelParent := context.WithDeadline(context.Background(), callerDeadline)
+		defer cancelParent()
+		ctx, cancel := flareContext(parent)
+		defer cancel()
+
+		deadline, _ := ctx.Deadline()
+		// The tolerance has to stay well under flareWriteMargin. Allowing a whole margin of slack
+		// would let this pass whether or not the margin was ever subtracted, which is the one thing
+		// it is here to check.
+		assert.WithinDuration(t, callerDeadline.Add(-flareWriteMargin), deadline, flareWriteMargin/4)
+		assert.True(t, deadline.Before(callerDeadline),
+			"there has to be time left to write the file after collection stops")
+	})
+}
+
+// The per-service supervisor checks are local, so they are the one part of the report still worth
+// having when dd-procmgrd is what failed. They share the collection context, and a context cannot
+// outlive an expired parent, so a daemon that hangs until the budget is gone would otherwise leave
+// every "systemctl is-active" failing on arrival and every service reporting management_mode "none".
+func TestDaemonCallsLeaveTimeForTheServiceSweep(t *testing.T) {
+	collection, cancel := flareContext(context.Background())
+	defer cancel()
+	collectionDeadline, ok := collection.Deadline()
+	require.True(t, ok)
+
+	daemon, cancelDaemon := daemonPhaseContext(collection)
+	defer cancelDaemon()
+
+	daemonDeadline, ok := daemon.Deadline()
+	require.True(t, ok, "the daemon calls must be bounded, or they can spend the whole budget")
+	assert.True(t, daemonDeadline.Before(collectionDeadline),
+		"the daemon calls must give up while the collection context still has time on it")
+	// Tolerance well under the reserve: at a tolerance of the reserve itself this would hold whether
+	// or not any time was actually held back.
+	assert.WithinDuration(t, collectionDeadline.Add(-serviceSweepReserve), daemonDeadline,
+		serviceSweepReserve/4)
+}
+
+// When the remaining budget is no larger than the reserve, carving it out would leave the daemon
+// calls already expired. Prefer giving them the full budget over failing every RPC on arrival.
+func TestDaemonPhaseSkipsReserveWhenBudgetIsNoLargerThanReserve(t *testing.T) {
+	parent, cancel := context.WithTimeout(context.Background(), serviceSweepReserve)
+	defer cancel()
+	parentDeadline, ok := parent.Deadline()
+	require.True(t, ok)
+
+	daemon, cancelDaemon := daemonPhaseContext(parent)
+	defer cancelDaemon()
+
+	daemonDeadline, ok := daemon.Deadline()
+	require.True(t, ok, "the daemon calls still inherit the caller's deadline")
+	assert.WithinDuration(t, parentDeadline, daemonDeadline, time.Millisecond,
+		"the reserve must not be subtracted when it would consume the whole budget")
+	assert.False(t, daemonDeadline.Before(time.Now()),
+		"the daemon calls must still have time left when the caller budget equals the reserve")
+}
+
+// blockingClient answers nothing until the context it was given is done, standing in for a
+// dd-procmgrd that has stopped responding. It records the budget it was handed so a test can assert
+// on what collection passed down rather than on how long the call took to return.
+type blockingClient struct {
+	deadline    time.Time
+	hasDeadline bool
+	errOnEntry  error
+}
+
+func (c *blockingClient) Connect(ctx context.Context) (ProcmgrSession, error) {
+	c.deadline, c.hasDeadline = ctx.Deadline()
+	c.errOnEntry = ctx.Err()
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+// A caller with almost no time left is the case that decides whether support gets a file. Collection
+// gives up immediately instead of consuming what remains, so the report still reaches the flare, and
+// it says which call failed.
+//
+// Asserted on the budget handed to the client rather than on the wall clock. Timing the call would
+// measure the machine: a loaded runner can stall this goroutine past any deadline chosen here and
+// fail on something the code under test does not control.
+func TestReportYieldsAReportWhenTheCallerIsAlmostOutOfTime(t *testing.T) {
+	callerDeadline := time.Now().Add(flareWriteMargin / 2)
+	ctx, cancel := context.WithDeadline(context.Background(), callerDeadline)
+	defer cancel()
+
+	client := &blockingClient{}
+	collector := NewCollectorWithClient(t.TempDir(), client)
+
+	report := collector.Report(ctx, ScrubOptions{})
+
+	require.True(t, client.hasDeadline, "collection must bound every call it makes")
+	assert.True(t, client.deadline.Before(callerDeadline),
+		"collection must stop before the caller does, or there is no time left to write the file")
+	assert.False(t, client.deadline.After(time.Now()),
+		"with less than the write margin left the collection budget is already spent on arrival")
+	// The reserve is not carved from an already-spent budget: that would only move an expired
+	// deadline further into the past. Short-budget reserve behaviour is covered by
+	// TestDaemonPhaseSkipsReserveWhenBudgetIsNoLargerThanReserve.
+	assert.Error(t, client.errOnEntry,
+		"with less than the write margin left there is no time to collect, so the budget is already spent on arrival")
+	assert.NotEmpty(t, report.DaemonError, "the report has to say why it is empty")
+	assert.NotEmpty(t, report.Notes, "and still carry the guidance for reading it")
+	assert.Len(t, report.Services, len(migratableServices),
+		"the catalog is read from disk, so it survives a daemon that never answered")
+}

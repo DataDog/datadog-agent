@@ -87,6 +87,7 @@ try {
         --env=BAZELISK_HOME `
         --env=BUILDBARN_ID_TOKEN `
         --env=CI `
+        --env=DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND `
         --env=XDG_CACHE_HOME `
         --mount="type=bind,src=${outputBase},dst=C:\bob" `
         --mount="type=bind,src=${env:XDG_CACHE_HOME},dst=${env:XDG_CACHE_HOME}" `

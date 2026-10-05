@@ -12,3 +12,7 @@ import "context"
 func detectLegacySupervisor(_ context.Context, _ MigratableService) ManagementMode {
 	return ManagementModeNone
 }
+
+func detectDaemonServiceState(_ context.Context) string {
+	return ""
+}

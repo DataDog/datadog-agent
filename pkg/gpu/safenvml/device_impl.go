@@ -569,6 +569,15 @@ func (d *safeDeviceImpl) GetMemoryErrorCounter(errorType nvml.MemoryErrorType, e
 	return count, NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", ret)
 }
 
+func (d *safeDeviceImpl) GetRetiredPagesCount(cause nvml.PageRetirementCause) (uint64, error) {
+	if err := d.lib.lookup(toNativeName("GetRetiredPages_v2")); err != nil {
+		return 0, err
+	}
+	// We only need the number of retired pages, not their addresses
+	addresses, _, ret := d.nvmlDevice.GetRetiredPages_v2(cause)
+	return uint64(len(addresses)), NewNvmlAPIErrorOrNil("GetRetiredPages_v2", ret)
+}
+
 func (d *safeDeviceImpl) GetSramEccErrorStatus() (nvml.EccSramErrorStatus, error) {
 	if err := d.lib.lookup(toNativeName("GetSramEccErrorStatus")); err != nil {
 		return nvml.EccSramErrorStatus{}, err

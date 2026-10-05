@@ -707,6 +707,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^org:agent-org$`,
 				`^parent-name:nginx$`,
+				`^service:nginx-from-annotation$`,
 				`^team:contp$`,
 			}, sourceCodeIntegrationTags),
 			AcceptUnexpectedTags: true,
@@ -768,7 +769,7 @@ func (suite *k8sSuite) TestNginx() {
 	// Test Nginx logs
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
-			Service: "apps-nginx-server",
+			Service: "nginx-from-annotation",
 			Tags: []string{
 				`^kube_namespace:workload-nginx$`,
 			},
@@ -798,6 +799,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^org:agent-org$`,
 				`^parent-name:nginx$`,
+				`^service:nginx-from-annotation$`,
 				`^team:contp$`,
 			}, sourceCodeIntegrationTags),
 			Message: `GET / HTTP/1\.1`,
@@ -1892,6 +1894,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			regexp.MustCompile(`^parent-name:nginx$`),
 			regexp.MustCompile(`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`),
 			regexp.MustCompile(`^pod_phase:(running|succeeded|failed)$`),
+			regexp.MustCompile(`^service:nginx-from-annotation$`),
 			regexp.MustCompile(`^team:contp$`),
 		}
 

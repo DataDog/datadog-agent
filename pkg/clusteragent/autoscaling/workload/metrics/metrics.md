@@ -37,10 +37,18 @@ Every metric carries the following base tags.
 
 #### `datadog.cluster_agent.autoscaling.workload.local.fallback_enabled`
 - **Type:** Gauge
-- **Tags:** base tags
+- **Tags:** base tags + `fallback_trigger`
 - **Description:** Indicates whether the local (in-cluster) fallback recommender is currently
   active for horizontal scaling. Value is `1` when the active horizontal source is `Local`,
   `0` otherwise. Always emitted.
+  The `fallback_trigger` tag says *why* the fallback would be used: `stale` for the default
+  behaviour, where the fallback engages once recommendations from the remote recommender go
+  stale, and `forced` when an operator set the
+  `autoscaling.datadoghq.com/force-fallback` annotation on the DPA, which is handled like
+  recommendations going stale. The tag reflects the annotation, so it is
+  present whatever the value of the metric — a DPA tagged
+  `fallback_trigger:forced` with value `0` is one where the fallback was forced but no usable
+  local recommendation exists yet.
 
 ---
 
@@ -59,6 +67,42 @@ Every metric carries the following base tags.
   one timeseries, a `count` over this metric yields the number of DPAs, and filtering on
   `dpa_dimension:horizontal` still matches multi-dimensional DPAs. Use this metric when you need
   to count or filter DPAs by preview/apply mode.
+
+#### `datadog.cluster_agent.autoscaling.workload.paused`
+- **Type:** Gauge
+- **Tags:** base tags
+- **Description:** Indicates whether the DPA is paused by the
+  `autoscaling.datadoghq.com/pause` annotation. Value is `1` when paused, `0` otherwise.
+  Always emitted, so that "not paused" is an alertable `0` rather than an absent series.
+  While paused the autoscaler keeps computing and reporting recommendations but applies
+  nothing: no horizontal scaling, no vertical rollout or in-place resize, and no POD patching
+  by the admission controller. Nothing expires a pause on its own, so
+  alerting on this metric staying `1` for an extended period is the intended way to catch a
+  pause that was set during an incident and never reverted.
+
+#### `datadog.cluster_agent.autoscaling.workload.force_replicas`
+- **Type:** Gauge
+- **Tags:** base tags
+- **Description:** The replica count pinned by the
+  `autoscaling.datadoghq.com/force-replicas` annotation. Only emitted while a valid count is
+  pinned: autoscalers without the annotation, or with an invalid value, send no series. A
+  pinned count overrides recommendations from every source and is deliberately **not**
+  clamped by `spec.constraints`, nor subject to the scale-up/scale-down rate rules or
+  stabilization, so this gauge can legitimately report a value outside the configured min/max.
+  While it is applied, the `HorizontalScalingLimited` status condition reports it. Nothing expires
+  it, so alerting on this series persisting is the intended way to catch an override that was
+  set during an incident and never reverted.
+
+#### `datadog.cluster_agent.autoscaling.workload.force_resources`
+- **Type:** Gauge
+- **Tags:** base tags
+- **Description:** Indicates whether container resources are overridden by the
+  `autoscaling.datadoghq.com/force-resources` annotation and the override is applied. Value is `1`
+  when the autoscaler is allowed to apply it, `0` when it is paused or its apply mode is not `Apply`.
+  Only emitted while a valid override is set: autoscalers without it, or with an invalid value, send
+  no series. Forced values are bounded by `spec.constraints` like any recommendation.
+  Nothing expires the override, so alerting on this metric staying `1` is the intended way to
+  catch an override that was set during an incident and never reverted.
 
 ---
 

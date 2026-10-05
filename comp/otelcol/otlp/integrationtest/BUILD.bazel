@@ -16,7 +16,6 @@ dd_agent_go_test(
     gotags_sets = [[
         "otlp",
         "zlib",
-        "zstd",
     ]],
     include_default = False,
     deps = select({

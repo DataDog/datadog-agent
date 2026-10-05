@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The standalone DDOT Collector (``DD_OTEL_STANDALONE=true``) no longer fails to
+    start in Kubernetes with ``unable to reliably determine the host name`` when
+    ``DD_HOSTNAME`` is not set. The trace agent now uses the hostname resolved by
+    the collector, and on EC2 nodes the collector falls back to the EC2 instance ID
+    when ``DD_KUBERNETES_KUBELET_HOST`` is not set.

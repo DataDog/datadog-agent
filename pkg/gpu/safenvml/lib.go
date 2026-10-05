@@ -102,6 +102,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetProcessUtilization"),
 		toNativeName("GetRepairStatus"),
 		toNativeName("GetRemappedRows"),
+		toNativeName("GetRetiredPages_v2"),
 		toNativeName("GetSamples"),
 		toNativeName("GetTemperature"),
 		toNativeName("GetTotalEnergyConsumption"),

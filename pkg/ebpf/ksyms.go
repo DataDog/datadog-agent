@@ -13,7 +13,6 @@ import (
 	"io"
 	"os"
 	"slices"
-	"sort"
 	"strconv"
 	"sync"
 
@@ -105,7 +104,7 @@ func (ec *existCache) verifyKernelFuncs(requiredKernelFuncs []string) (map[strin
 
 func findKernelFuncs(ksymsReader io.Reader, writeKsym func(string, uint64), check util.SSBytes) error {
 	if len(check) != 0 {
-		sort.Sort(check)
+		slices.SortFunc(check, bytes.Compare)
 
 		scanner := bufio.NewScanner(ksymsReader)
 		scanner.Split(bufio.ScanLines)

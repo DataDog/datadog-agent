@@ -12,6 +12,9 @@ pub enum ProcessState {
     Running,
     Stopping,
     Exited,
+    /// Died without returning a value: a signal on Unix, a fatal exception code
+    /// on Windows. Terminal and restartable, same shape as `Failed`.
+    Crashed,
     Failed,
     Stopped,
 }
@@ -30,13 +33,17 @@ impl ProcessState {
             (self, next),
             (Created, Starting)
                 | (Starting, Running)
+                // No (Starting, Crashed): a spawn that never produced a process
+                // image cannot have died without returning a value.
                 | (Starting, Failed)
                 | (Running, Stopping)
                 | (Running, Exited)
+                | (Running, Crashed)
                 | (Running, Failed)
                 | (Running, Stopped)
                 | (Stopping, Stopped)
                 | (Exited, Starting)
+                | (Crashed, Starting)
                 | (Failed, Starting)
                 | (Stopped, Starting)
         )
@@ -51,8 +58,39 @@ impl fmt::Display for ProcessState {
             ProcessState::Running => write!(f, "running"),
             ProcessState::Stopping => write!(f, "stopping"),
             ProcessState::Exited => write!(f, "exited"),
+            ProcessState::Crashed => write!(f, "crashed"),
             ProcessState::Failed => write!(f, "failed"),
             ProcessState::Stopped => write!(f, "stopped"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProcessState::*;
+
+    #[test]
+    fn crashed_is_reachable_from_running_and_restartable() {
+        assert!(Running.can_transition_to(Crashed));
+        assert!(Crashed.can_transition_to(Starting));
+    }
+
+    /// A spawn failure stays `Failed`: nothing ran, so nothing crashed. And a
+    /// crashed process reaches `Running` only by going through `Starting`,
+    /// which is what makes the restart spend a burst slot.
+    #[test]
+    fn crashed_rejects_spawn_failure_and_direct_resume() {
+        assert!(!Starting.can_transition_to(Crashed));
+        assert!(!Crashed.can_transition_to(Running));
+    }
+
+    #[test]
+    fn crashed_is_not_alive() {
+        assert!(!Crashed.is_alive());
+    }
+
+    #[test]
+    fn crashed_displays_lowercase() {
+        assert_eq!(Crashed.to_string(), "crashed");
     }
 }

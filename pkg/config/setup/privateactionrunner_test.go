@@ -6,10 +6,36 @@
 package setup
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestPrivateActionRunnerSplitModeDefaultsOnSupportedHosts(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "")
+
+	cfg := newTestConf(t)
+
+	assert.Equal(t, runtime.GOOS == "linux" || runtime.GOOS == "windows", cfg.GetBool("private_action_runner.split_enabled"))
+}
+
+func TestPrivateActionRunnerSplitModeDefaultsOffInContainers(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "true")
+
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.GetBool("private_action_runner.split_enabled"))
+}
+
+func TestPrivateActionRunnerSplitModeCanBeDisabledOnHosts(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "")
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "false")
+
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.GetBool("private_action_runner.split_enabled"))
+}
 
 func TestPrivateActionRunnerApiKeyOnlyEnrollmentDefaultTrue(t *testing.T) {
 	cfg := newTestConf(t)

@@ -14,6 +14,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/dd-policy-engine/go/policies"
 )
@@ -53,15 +55,15 @@ func podLabelPolicy(name, key, val string, inject bool, versions map[string]stri
 	}
 }
 
-// matchedTarget returns the matched target name and whether it came from a
-// remote-config policy.
+// matchedTarget returns the name of the target that would be injected and
+// whether it came from a remote-config policy. A blocked target injects nothing.
 func matchedTarget(t *testing.T, m *TargetMutator, pod *corev1.Pod) (string, bool) {
 	t.Helper()
-	target := m.getMatchingTarget(pod)
-	if target == nil {
+	resolved := m.getTarget(pod)
+	if resolved == nil {
 		return "", false
 	}
-	return target.name, target.fromPolicy
+	return resolved.plan.name, resolved.selectedBy == injectionSourceRemoteConfig
 }
 
 // TestRemotePolicies_AppliedOnEmptyBaseline verifies that remote policies match
@@ -71,7 +73,7 @@ func TestRemotePolicies_AppliedOnEmptyBaseline(t *testing.T) {
 	m := newMatchMutator(t, rcDisabledCfg, wmeta)
 
 	// No remote policies yet: nothing matches.
-	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "db"})))
+	require.Nil(t, m.resolveTarget(rcPod("ns", map[string]string{"app": "db"})))
 
 	require.NoError(t, m.SetRemotePolicies([]policies.Policy{
 		podLabelPolicy("remote-java", "app", "db", true, map[string]string{"java": "default"}),
@@ -81,7 +83,7 @@ func TestRemotePolicies_AppliedOnEmptyBaseline(t *testing.T) {
 	require.Equal(t, "remote-java", name)
 	require.True(t, fromPolicy)
 
-	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "other"})))
+	require.Nil(t, m.resolveTarget(rcPod("ns", map[string]string{"app": "other"})))
 }
 
 // TestRemotePolicies_OverrideStaticMatch verifies last-TRUE-wins across planes:
@@ -186,7 +188,7 @@ func TestOnRemoteConfigUpdate_ParsesAndApplies(t *testing.T) {
 
 	// An empty update clears remote policies (SSI off → nothing).
 	m.onRemoteConfigUpdate(map[string]state.RawConfig{}, apply)
-	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "db-user"})))
+	require.Nil(t, m.resolveTarget(rcPod("ns", map[string]string{"app": "db-user"})))
 }
 
 func TestOnRemoteConfigUpdate_OrdersPolicyIDsByNumericPrefix(t *testing.T) {
@@ -228,15 +230,102 @@ func TestOnRemoteConfigUpdate_OrdersPolicyIDsByNumericPrefix(t *testing.T) {
 		"datadog/2/APM_POLICIES/2.kubernetes.allow/config": {Config: []byte(allow)},
 	}, func(string, state.ApplyStatus) {})
 
-	remotePolicies := m.remotePolicies.Load()
-	require.NotNil(t, remotePolicies)
-	require.Len(t, remotePolicies.matcher.policies, 2)
+	remote := m.remoteSource.current.Load()
+	require.NotNil(t, remote)
+	require.Len(t, remote.matcher.policies, 2)
 	// Numeric prefix sorts 2.kubernetes.allow before 10.kubernetes.deny.
-	require.Equal(t, "allow", remotePolicies.matcher.policies[0].Name)
-	require.Equal(t, "deny", remotePolicies.matcher.policies[1].Name)
+	require.Equal(t, "allow", remote.matcher.policies[0].Name)
+	require.Equal(t, "deny", remote.matcher.policies[1].Name)
 
 	// Last-TRUE-wins: deny is after allow, both match app=db.
-	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "db"})))
+	resolved := m.resolveTarget(rcPod("ns", map[string]string{"app": "db"}))
+	require.NotNil(t, resolved)
+	require.Equal(t, "deny", resolved.plan.name)
+	require.True(t, resolved.plan.blocked)
+}
+
+// TestRemotePolicies_BlockedPodIsAnnotated verifies that a pod denied by a
+// remote-config policy is not injected but records the policy that blocked it.
+func TestRemotePolicies_BlockedPodIsAnnotated(t *testing.T) {
+	deny := podLabelPolicy("block-db", "app", "db", false, nil)
+	deny.ID = "a1b2"
+	deny.Version = 3
+
+	t.Run("deny annotates without injecting", func(t *testing.T) {
+		m := newMatchMutator(t, rcDisabledCfg, newMatchTestWmeta(t))
+		require.NoError(t, m.SetRemotePolicies([]policies.Policy{deny}))
+
+		pod := mutatecommon.FakePodSpec{NS: "ns", Labels: map[string]string{"app": "db"}}.Create()
+		require.False(t, m.ShouldMutatePod(pod))
+
+		// The webhook can be reinvoked: the result must be the same.
+		for range 2 {
+			mutated, err := m.MutatePod(pod, "ns", nil)
+			require.NoError(t, err)
+			require.False(t, mutated)
+		}
+
+		require.Equal(t, map[string]string{
+			annotation.AppliedPolicy:   `{"name":"block-db","id":"a1b2","version":3,"blocked":true}`,
+			annotation.InjectionStatus: annotation.InjectionStatusBlocked,
+		}, pod.Annotations)
+		require.Empty(t, pod.Spec.InitContainers)
+		require.Empty(t, pod.Spec.Volumes)
+		require.NotContains(t, podEnv(t, pod), AppliedPolicyEnvVar)
+	})
+
+	t.Run("deny overrides a static target", func(t *testing.T) {
+		m := newMatchMutator(t, rcCatchAllCfg, newMatchTestWmeta(t))
+		require.NoError(t, m.SetRemotePolicies([]policies.Policy{deny}))
+
+		pod := mutatecommon.FakePodSpec{NS: "ns", Labels: map[string]string{"app": "db"}}.Create()
+		require.False(t, m.ShouldMutatePod(pod))
+		mutated, err := m.MutatePod(pod, "ns", nil)
+		require.NoError(t, err)
+		require.False(t, mutated)
+		require.Equal(t, annotation.InjectionStatusBlocked, pod.Annotations[annotation.InjectionStatus])
+		require.Empty(t, pod.Spec.InitContainers)
+	})
+
+	t.Run("local library annotation wins over deny", func(t *testing.T) {
+		m := newMatchMutator(t, rcDisabledCfg, newMatchTestWmeta(t))
+		require.NoError(t, m.SetRemotePolicies([]policies.Policy{deny}))
+
+		pod := annotatedEnabledPod("ns", map[string]string{"app": "db"})
+		mutated, err := m.MutatePod(pod, "ns", nil)
+		require.NoError(t, err)
+		require.True(t, mutated)
+		require.NotContains(t, pod.Annotations, annotation.AppliedPolicy)
+		require.NotEqual(t, annotation.InjectionStatusBlocked, pod.Annotations[annotation.InjectionStatus])
+	})
+
+	t.Run("opt-out label wins and leaves no annotation", func(t *testing.T) {
+		m := newMatchMutator(t, rcDisabledCfg, newMatchTestWmeta(t))
+		require.NoError(t, m.SetRemotePolicies([]policies.Policy{deny}))
+
+		pod := mutatecommon.FakePodSpec{NS: "ns", Labels: map[string]string{
+			"app":                             "db",
+			"admission.datadoghq.com/enabled": "false",
+		}}.Create()
+		mutated, err := m.MutatePod(pod, "ns", nil)
+		require.NoError(t, err)
+		require.False(t, mutated)
+		require.NotContains(t, pod.Annotations, annotation.AppliedPolicy)
+		require.NotContains(t, pod.Annotations, annotation.InjectionStatus)
+	})
+
+	t.Run("allowed pod payload has no blocked field", func(t *testing.T) {
+		m := newMatchMutator(t, rcDisabledCfg, newMatchTestWmeta(t))
+		allow := podLabelPolicy("allow-db", "app", "db", true, nil)
+		require.NoError(t, m.SetRemotePolicies([]policies.Policy{allow}))
+
+		pod := mutatecommon.FakePodSpec{NS: "ns", Labels: map[string]string{"app": "db"}}.Create()
+		mutated, err := m.MutatePod(pod, "ns", nil)
+		require.NoError(t, err)
+		require.True(t, mutated)
+		require.Equal(t, `{"name":"allow-db"}`, pod.Annotations[annotation.AppliedPolicy])
+		require.NotEqual(t, annotation.InjectionStatusBlocked, pod.Annotations[annotation.InjectionStatus])
+	})
 }
 
 func TestOnRemoteConfigUpdate_KeepsOnlyKubernetesPolicyIDs(t *testing.T) {
@@ -300,7 +389,7 @@ func TestOnRemoteConfigUpdate_KeepsOnlyKubernetesPolicyIDs(t *testing.T) {
 	m.onRemoteConfigUpdate(map[string]state.RawConfig{
 		"datadog/2/APM_POLICIES/1.linux/config": {Config: []byte(linux)},
 	}, func(string, state.ApplyStatus) {})
-	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "db"})))
+	require.Nil(t, m.resolveTarget(rcPod("ns", map[string]string{"app": "db"})))
 }
 
 // TestOnRemoteConfigUpdate_InvalidPayloadKeepsBaseline verifies that one malformed

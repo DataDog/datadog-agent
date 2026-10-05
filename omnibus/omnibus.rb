@@ -37,11 +37,7 @@ else
 end
 ENV['PATH'] = "#{shim_dir}#{File::PATH_SEPARATOR}#{ENV['PATH']}"
 
-if ENV["WINDOWS_BUILD_32_BIT"]
-    windows_arch :x86
-else
-    windows_arch :x86_64
-end
+windows_arch :x86_64
 # Don't append a timestamp to the package version
 append_timestamp false
 
