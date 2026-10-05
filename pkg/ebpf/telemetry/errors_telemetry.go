@@ -32,7 +32,8 @@ const (
 	perfEventOutput
 	ringbufOutput
 	copyFromUser
-	mapErr = math.MaxInt
+	mapErr       = math.MaxInt
+	mapUpdateOps = math.MaxInt - 1
 )
 
 var helperNames = map[int]string{

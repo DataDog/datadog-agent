@@ -9,6 +9,14 @@ system_probe_config:
 network_config:
   enabled: true
   collect_tcp_v6: true
+  enable_cert_collection: true
+  enable_protocol_classification: true
+  enable_tcp_failed_connections: true
+  enable_ringbuffers: true
+  closed_buffer_wakeup_count: 4
+  closed_channel_size: 500
+  max_failed_connections_buffered: 131072
+
 
 ebpf_check:
   enabled: true

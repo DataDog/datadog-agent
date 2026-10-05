@@ -4,8 +4,13 @@
 package telemetry
 
 type mapErrTelemetry struct {
-	Count [64]uint64
+	Err_count  [64]uint64
+	Update_ops [128]updateOp
 }
 type helperErrTelemetry struct {
 	Count [448]uint64
+}
+type updateOp struct {
+	Count uint64
+	Pad   [56]int8
 }
