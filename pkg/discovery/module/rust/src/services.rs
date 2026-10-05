@@ -23,7 +23,7 @@ use crate::{service_name, tracer_metadata};
 
 /// Limits for strings derived from process data, matching the core agent
 /// normalization of service names (100 bytes) and tag values (200 bytes).
-pub(crate) const MAX_NAME_LEN: usize = 100;
+const MAX_NAME_LEN: usize = 100;
 pub(crate) const MAX_TAG_LEN: usize = 200;
 const MAX_ADDITIONAL_NAMES: usize = 32;
 

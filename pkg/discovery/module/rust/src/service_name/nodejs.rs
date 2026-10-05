@@ -4,7 +4,6 @@
 // Copyright 2025-present Datadog, Inc.
 
 use crate::service_name::{DetectionContext, ServiceNameMetadata, ServiceNameSource};
-use crate::services::{MAX_NAME_LEN, truncated};
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
@@ -127,23 +126,7 @@ fn find_package_json_name(entry_point: &Path, ctx: &DetectionContext) -> Option<
 
 #[derive(serde::Deserialize)]
 struct PackageJson {
-    #[serde(deserialize_with = "truncated_name")]
     name: String,
-}
-
-/// Copies only the first MAX_NAME_LEN bytes of the parsed string.
-fn truncated_name<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
-    struct TruncatedName;
-    impl serde::de::Visitor<'_> for TruncatedName {
-        type Value = String;
-        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            f.write_str("a string")
-        }
-        fn visit_str<E>(self, s: &str) -> Result<String, E> {
-            Ok(truncated(s, MAX_NAME_LEN))
-        }
-    }
-    d.deserialize_str(TruncatedName)
 }
 
 /// Parses package.json and extracts its non-empty "name" field, skipping other fields.
