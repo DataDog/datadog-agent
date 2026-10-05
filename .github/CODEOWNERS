@@ -321,6 +321,16 @@
 /cmd/agent/dist/conf.d/winkmem.d/                      @DataDog/windows-products
 /cmd/agent/dist/conf.d/winproc.d/                      @DataDog/windows-products
 /cmd/agent/dist/conf.d/wlan.d/                         @DataDog/windows-products
+/cmd/agent/dist/assets/cpu/                            @DataDog/agent-runtimes
+/cmd/agent/dist/assets/cri/                            @DataDog/container-integrations
+/cmd/agent/dist/assets/file_handle/                    @DataDog/agent-runtimes
+/cmd/agent/dist/assets/load/                           @DataDog/agent-runtimes
+/cmd/agent/dist/assets/network_path/                   @DataDog/network-path
+/cmd/agent/dist/assets/ntp/                            @DataDog/agent-runtimes
+/cmd/agent/dist/assets/systemd/                        @DataDog/agent-integrations
+/cmd/agent/dist/assets/uptime/                         @DataDog/agent-runtimes
+/cmd/agent/dist/assets/wincrashdetect/                 @DataDog/windows-products
+/cmd/agent/dist/assets/windows_certificate/            @DataDog/windows-products
 /cmd/agent/dist/protected/                             @DataDog/windows-products
 /cmd/agent/install*.sh                              @DataDog/agent-build
 /cmd/agent/macos/                                   @DataDog/windows-products
