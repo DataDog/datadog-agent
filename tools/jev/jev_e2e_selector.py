@@ -5,10 +5,12 @@ Decides, for each E2E test of a given suite (or a single test), whether it
 should be executed on the current PR, by asking a Jev (TypeSafe System One)
 model through the AI Gateway:
 
-    state  = PR title + description + changed files + owning team + test code
+    state  = PR title + description + changed files + full PR diff + owning team + test code
          (PR number, changed files with modification kinds, merge base, author
           and impacted targets come from the DDCI Metadata Service when
-          $DDCI_REQUEST_ID is set, else git merge-base + GitHub API fallback)
+          $DDCI_REQUEST_ID is set, else git merge-base + GitHub API fallback;
+          the diff is truncated per file and overall to stay below Jev's
+          per-question token cap)
     questions:
       - should_execute (noul)   : run the test on this PR?
       - relation (choice)       : why (direct code, shared infra, packaging/CI, unrelated)
@@ -50,6 +52,10 @@ DDCI_METADATA_URL = "https://cimetadataserver.us1.ddbuild.io/internal/ddci/metad
 MAX_TEST_CODE_BYTES = 24_000
 MAX_DESCRIPTION_BYTES = 4_000
 MAX_CHANGED_FILES = 300
+# Jev caps each question at ~32k tokens (~120KB of text); keep the whole
+# state well below that.
+MAX_DIFF_BYTES = 40_000
+MAX_DIFF_PER_FILE = 4_000
 
 QUESTIONS = {
     "should_execute": {
@@ -238,6 +244,47 @@ def changed_files(base: str, ddci: dict | None) -> tuple[list, str]:
     return files[:MAX_CHANGED_FILES], merge_base
 
 
+def pr_diff(merge_base: str) -> str:
+    """Full unified diff of the PR (merge base..HEAD), truncated to fit Jev.
+
+    Each file's patch is truncated to MAX_DIFF_PER_FILE bytes, and the whole
+    diff to MAX_DIFF_BYTES, so the state stays well below Jev's per-question
+    token cap. Returns "" when the diff cannot be computed.
+    """
+    try:
+        diff = git("diff", "--no-color", merge_base, "HEAD")
+    except RuntimeError as e:
+        print(f"[warn] could not compute the full PR diff: {e}")
+        return ""
+    if not diff:
+        return ""
+    # Split into per-file chunks, truncate each one, then cap the whole diff
+    chunks, current = [], []
+    for line in diff.splitlines(keepends=True):
+        if line.startswith("diff --git "):
+            if current:
+                chunks.append("".join(current))
+            current = [line]
+        else:
+            current.append(line)
+    if current:
+        chunks.append("".join(current))
+    parts = []
+    for chunk in chunks:
+        if len(chunk.encode()) <= MAX_DIFF_PER_FILE:
+            parts.append(chunk)
+        else:
+            header = chunk.splitlines()[0]
+            m = re.match(r"diff --git a/(.*?) b/", header)
+            path = m.group(1) if m else header
+            parts.append(truncate(chunk, MAX_DIFF_PER_FILE, f"diff of {path}"))
+            parts.append("\n")
+    full = "".join(parts)
+    if len(full.encode()) > MAX_DIFF_BYTES:
+        return full[:MAX_DIFF_BYTES] + "\n[... diff truncated, see the file list above for the remaining files ...]"
+    return full
+
+
 # ---------------------------------------------------------------- test discovery
 
 
@@ -378,6 +425,8 @@ def main() -> int:
     pr = fetch_pr_info(args.base, ddci)
     files, merge_base = changed_files(args.base, ddci)
     print(f"[info] {len(files)} changed files (merge base {str(merge_base)[:8]})")
+    diff = pr_diff(merge_base)
+    print(f"[info] full diff: {len(diff)} chars (per-file cap {MAX_DIFF_PER_FILE}, total cap {MAX_DIFF_BYTES})")
 
     suites = list_suites(suite_dir)
     if args.test:
@@ -409,13 +458,14 @@ def main() -> int:
             impacted = "\n\n## Impacted build targets (from DDCI build impact analysis)\n" + ", ".join(
                 ddci["impacted_targets"][:100]
             )
+        diff_section = f"\n## Full PR diff (per-file patches, truncated to fit)\n```diff\n{diff}\n```" if diff else ""
         state = (
             "## PR under review\n"
             f"Title: {pr.get('title') or '(unknown)'}{author}\n"
             f"Description:\n{truncate(pr.get('description') or '(none)', MAX_DESCRIPTION_BYTES, 'description')}\n"
             f"Owning team of the E2E suite: {team}\n\n"
             f"## Files changed in this PR (merge base {str(merge_base)[:12]}, {len(files)} files)\n"
-            f"{files_section}{impacted}\n\n"
+            f"{files_section}{diff_section}{impacted}\n\n"
             "## E2E test under evaluation\n"
             f"Test: {name}\n"
             f"Suite: {args.suite} ({path})\n"
