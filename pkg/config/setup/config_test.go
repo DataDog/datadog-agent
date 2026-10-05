@@ -771,8 +771,8 @@ infrastructure_mode: none
 }
 
 func TestInfrastructureModeUnknownValueAppliesNoOverride(t *testing.T) {
-	// A typo must behave as `full` rather than silently picking up the overrides
-	// of the mode the operator meant to set.
+	// A typo must apply no overrides rather than silently picking up those of
+	// the mode the operator meant to set.
 	config := confFromYAML(t, "infrastructure_mode: nonee")
 	applyInfrastructureModeOverrides(config)
 

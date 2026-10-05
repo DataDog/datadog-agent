@@ -973,12 +973,13 @@ func toggleDefaultPayloads(config pkgconfigmodel.Config) {
 func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	infraMode := config.GetString("infrastructure_mode")
 
-	// A value outside the declared set applies no override and carries no
-	// `infra_mode` mark, so report it rather than letting a typo look like a
-	// working configuration.
+	// A value outside the declared set applies no mode override and carries no
+	// `infra_mode` mark on the payloads, so report it rather than letting a typo
+	// look like a working configuration. Other readers of the raw setting still
+	// see the typo, so this does not claim the Agent behaves as `full`.
 	if infraMode != "" && !constants.IsKnownInfraMode(infraMode) {
-		log.Warnf("invalid value for 'infrastructure_mode': %q, expected one of %v (behaving as %q)",
-			infraMode, constants.KnownInfraModes, constants.InfraModeFull)
+		log.Warnf("invalid value for 'infrastructure_mode': %q, expected one of %v",
+			infraMode, constants.KnownInfraModes)
 	}
 
 	// Apply legacy alias: copy values from legacy key to integration.additional

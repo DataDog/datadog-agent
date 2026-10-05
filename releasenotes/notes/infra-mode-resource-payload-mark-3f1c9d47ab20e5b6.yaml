@@ -18,8 +18,8 @@ enhancements:
     unaffected.
 fixes:
   - |
-    The Agent now logs a warning when ``infrastructure_mode`` is set to a value
-    outside the declared set (``full``, ``basic``, ``end_user_device``,
-    ``cloud_cost_only``, ``none``). Such a value previously applied no mode
-    override without reporting anything, so a typo looked like a working
-    configuration.
+    The Agent now logs a warning at configuration load when
+    ``infrastructure_mode`` is set to a value outside the declared set
+    (``full``, ``basic``, ``end_user_device``, ``cloud_cost_only``, ``none``).
+    The same condition was previously reported only while building the Agent
+    inventory metadata, so a typo went unreported on Agents that do not send it.
