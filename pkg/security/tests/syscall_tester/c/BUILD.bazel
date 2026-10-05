@@ -1,6 +1,7 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
 load(":otel_tls.bzl", "TLS_DIALECT", "otel_tls_dsos")
 
 # The OTel thread context testers: the native ones, one per access model a
@@ -125,4 +126,43 @@ filegroup(
         ":otel_tls_exe_static_glibc",
     ],
     visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "syscall_tester",
+    srcs = ["syscall_tester.c"],
+    copts = ["-pthread"],
+    linkopts = [
+        "-static",
+        "-lpthread",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+# Needs a 32-bit sysroot; the hermetic x86_64 toolchain does not ship one.
+# Kept for the existing KMT/CI -m32 coverage once a i386 cc toolchain exists.
+cc_binary(
+    name = "syscall_x86_tester",
+    srcs = ["syscall_x86_tester.c"],
+    copts = ["-m32"],
+    linkopts = [
+        "-m32",
+        "-static",
+    ],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+ebpf_prog(
+    name = "ebpf_probe",
+    src = "ebpf_probe.c",
+    core = True,
+    extra_flags = ["-DBPF_NO_GLOBAL_DATA"],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:ebpf_c_headers"],
 )

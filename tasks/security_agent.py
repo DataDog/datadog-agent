@@ -14,8 +14,7 @@ from invoke.tasks import task
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
-from tasks.libs.build.bazel import bazel, build_binary_with_bazel
-from tasks.libs.build.ninja import NinjaWriter
+from tasks.libs.build.bazel import bazel, build_binaries_with_bazel, build_binary_with_bazel
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.libs.common.go import go_build
@@ -26,15 +25,15 @@ from tasks.libs.common.utils import (
     get_go_version,
     get_version,
 )
-from tasks.libs.types.arch import ARCH_AMD64, Arch
+from tasks.libs.types.arch import Arch
 from tasks.process_agent import TempDir
 from tasks.schema.generate import schema_codegen
 from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
     build_libpcap,
-    check_for_ninja,
     copy_ebpf_and_related_files,
+    ebpf_bazel_flags,
     get_libpcap_cgo_flags,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
@@ -42,6 +41,9 @@ from tasks.system_probe import (
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 is_windows = sys.platform == "win32"
+
+# Bound so the ninja compiler helpers stay live until remaining ninja graphs are gone.
+_NINJA_COMPILER_HELPERS = (ninja_define_ebpf_compiler, ninja_define_exe_compiler)
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
@@ -206,94 +208,11 @@ def run_ebpfless_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     ctx.run(cmd.format(**args))
 
 
-def ninja_ebpf_probe_syscall_tester(nw, build_dir):
-    c_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "c")
-    c_file = os.path.join(c_dir, "ebpf_probe.c")
-    o_file = os.path.join(build_dir, "ebpf_probe.o")
-    uname_m = os.uname().machine
-
-    nw.build(
-        inputs=[c_file],
-        outputs=[o_file],
-        rule="ebpfclang",
-        variables={
-            "target": "-target bpf",
-            "flags": [f"-D__{uname_m}__", f"-isystem/usr/include/{uname_m}-linux-gnu", "-DBPF_NO_GLOBAL_DATA"],
-        },
-    )
-
-
-def build_go_syscall_tester(ctx, build_dir, arch: str | Arch = CURRENT_ARCH):
-    syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
-    arch = Arch.from_str(arch)
-    _, _, env = get_build_flags(ctx, arch=arch)
-
-    testers = {
-        "syscall_go_tester": f"{syscall_tester_go_dir}/syscall_go_tester.go",
-        "span_go_tester": f"{syscall_tester_go_dir}/span/span_go_tester.go",
-    }
-
-    exe_files = []
-    for name, source in testers.items():
-        exe_file = os.path.join(build_dir, name)
-        go_build(
-            ctx,
-            source,
-            build_tags=["syscalltesters", "osusergo", "netgo"],
-            ldflags="-extldflags=-static",
-            bin_path=exe_file,
-            env=env,
-        )
-        exe_files.append(exe_file)
-
-    return exe_files
-
-
-def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=None, static=True, compiler='clang'):
-    if flags is None:
-        flags = []
-    if libs is None:
-        libs = []
-
-    syscall_tester_c_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "c")
-    syscall_tester_c_file = os.path.join(syscall_tester_c_dir, f"{file_name}.c")
-    syscall_tester_exe_file = os.path.join(build_dir, file_name)
-    uname_m = os.uname().machine
-
-    if static:
-        flags.append("-static")
-
-    nw.build(
-        inputs=[syscall_tester_c_file],
-        outputs=[syscall_tester_exe_file],
-        rule="exe" + compiler,
-        variables={
-            "exeflags": flags,
-            "exelibs": libs,
-            "flags": [f"-isystem/usr/include/{uname_m}-linux-gnu"],
-        },
-    )
-    return syscall_tester_exe_file
-
-
-def ninja_syscall_x86_tester(ctx, build_dir, static=True, compiler='clang'):
-    return ninja_c_syscall_tester_common(
-        ctx, "syscall_x86_tester", build_dir, flags=["-m32"], static=static, compiler=compiler
-    )
-
-
-def ninja_syscall_tester(ctx, build_dir, static=True, compiler='clang'):
-    return ninja_c_syscall_tester_common(
-        ctx, "syscall_tester", build_dir, libs=["-lpthread"], static=static, compiler=compiler
-    )
-
-
 OTEL_TLS_BAZEL_TARGET = "//pkg/security/tests/syscall_tester/c:otel_tls_artifacts"
 
 
-# The OTel TLS testers go through Bazel rather than the ninja rules above so
-# they link against the hermetic crosstool-NG sysroot: glibc 2.23, of which only
-# 2.17 symbols end up referenced. The host toolchain would link them against the
+# The OTel TLS testers go through Bazel so they link against the hermetic
+# crosstool-NG sysroot: glibc 2.23, of which only 2.17 symbols end up referenced. The host toolchain would link them against the
 # build image's glibc instead, which is newer than every KMT host and than the
 # ubuntu:20.04 image RunMultiMode's docker leg uses, and every dynamically
 # linked variant would then be skipped outside the newest legs. The Node.js
@@ -333,28 +252,27 @@ def create_dir_if_needed(dir):
             raise
 
 
+_SYSCALL_TESTER_TARGETS = {
+    "//pkg/security/tests/syscall_tester/c:syscall_tester": "syscall_tester",
+    "//pkg/security/tests/syscall_tester/go:syscall_go_tester": "syscall_go_tester",
+    "//pkg/security/tests/syscall_tester/go/span:span_go_tester": "span_go_tester",
+}
+
+
 @task
 def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True, compiler="clang"):
+    del ctx, static, compiler  # Bazel always produces static testers; ninja/clang are gone.
     arch = Arch.from_str(arch)
-    check_for_ninja(ctx)
     build_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "bin")
-    go_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "go")
     create_dir_if_needed(build_dir)
 
-    nf_path = os.path.join(ctx.cwd, 'syscall-tester.ninja')
-    with open(nf_path, 'w') as ninja_file:
-        nw = NinjaWriter(ninja_file, width=120)
-        ninja_define_ebpf_compiler(nw, arch=arch)
-        ninja_define_exe_compiler(nw, compiler=compiler)
+    from tasks.kmt import kmt_bazel_flags
 
-        ninja_syscall_tester(nw, build_dir, static=static, compiler=compiler)
-        if arch == ARCH_AMD64:
-            ninja_syscall_x86_tester(nw, build_dir, static=static, compiler=compiler)
-        ninja_ebpf_probe_syscall_tester(nw, go_dir)
-
-    ctx.run(f"ninja -f {nf_path}")
+    dest_by_target = {target: os.path.join(build_dir, dest) for target, dest in _SYSCALL_TESTER_TARGETS.items()}
+    # -m32 needs a 32-bit sysroot the hermetic toolchain does not provide.
+    flags = kmt_bazel_flags(arch) + ebpf_bazel_flags(arch)
+    build_binaries_with_bazel(dest_by_target, args=flags)
     build_otel_tls_artifacts(build_dir, arch)
-    build_go_syscall_tester(ctx, build_dir, arch=arch)
 
 
 @task

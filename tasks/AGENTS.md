@@ -183,3 +183,7 @@ py_binary(
   `cmd/test2json` is stdlib and still uses `go_build` with `get_build_flags` so cross-arch
   KMT keeps the right GOARCH. Copy `cudasample` *after* the testdata `copyextra` step so
   `cp -r` does not nest a pre-created testdata directory.
+
+- **CWS syscall testers** — `build_embed_syscall_tester` copies Bazel outputs into
+  `pkg/security/tests/syscall_tester/bin` for `//go:embed`. `syscall_x86_tester` stays
+  a `manual` cc_binary (`-m32`); the hermetic toolchain has no i386 sysroot.

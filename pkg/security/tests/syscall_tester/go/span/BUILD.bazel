@@ -1,0 +1,29 @@
+# gazelle:ignore
+
+load("@rules_go//go:def.bzl", "go_binary")
+
+go_binary(
+    name = "span_go_tester",
+    srcs = ["span_go_tester.go"],
+    gotags = [
+        "netgo",
+        "osusergo",
+        "syscalltesters",
+    ],
+    static = "on",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
+            "@com_github_vmihailenco_msgpack_v5//:msgpack",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
+            "@com_github_vmihailenco_msgpack_v5//:msgpack",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
