@@ -6,6 +6,7 @@
 package containers
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"regexp"
@@ -48,6 +49,8 @@ type testMetricArgs struct {
 	Filter   testMetricFilterArgs
 	Expect   testMetricExpectArgs
 	Optional testMetricExpectArgs
+	// Timeout is how long to wait for a matching metric. Defaults to 2 minutes.
+	Timeout time.Duration `yaml:"timeout,omitempty"`
 }
 
 type testMetricFilterArgs struct {
@@ -187,7 +190,7 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 					}),
 				)
 			}
-		}, 2*time.Minute, 10*time.Second, "Failed finding `%s` with proper tags and value", prettyMetricQuery)
+		}, cmp.Or(args.Timeout, 2*time.Minute), 10*time.Second, "Failed finding `%s` with proper tags and value", prettyMetricQuery)
 	})
 }
 

@@ -528,11 +528,14 @@ func (suite *ecsSuite) TestCPU() {
 				`^task_name:.*-stress-ng-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
+			// Successive samples can alternate far from 150M (up to 130M/170M) for a few
+			// minutes before settling, so wait long enough to catch a settled one.
 			Value: &testMetricExpectValueArgs{
-				Max: 155000000,
-				Min: 145000000,
+				Max: 160000000,
+				Min: 140000000,
 			},
 		},
+		Timeout: 6 * time.Minute,
 	})
 }
 

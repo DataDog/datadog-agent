@@ -1009,11 +1009,14 @@ func (suite *k8sSuite) TestCPU() {
 				`^runtime:` + regexp.QuoteMeta(suite.runtime) + `$`,
 				`^short_image:apps-stress-ng$`,
 			}, sourceCodeIntegrationTags),
+			// Successive samples can alternate far from 150M (up to 130M/170M) for a few
+			// minutes before settling, so wait long enough to catch a settled one.
 			Value: &testMetricExpectValueArgs{
-				Max: 155000000,
-				Min: 145000000,
+				Max: 160000000,
+				Min: 140000000,
 			},
 		},
+		Timeout: 6 * time.Minute,
 	})
 
 	suite.testMetric(&testMetricArgs{
