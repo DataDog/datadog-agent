@@ -137,7 +137,9 @@ func InitConfigFilesReader(paths []string) {
 			}
 		}
 
-		reader.readAndCacheAll()
+		// The scrubbed config formats are not needed at startup: skip building them to
+		// speed up the initial scan, they are built when first requested by ReadConfigFormats.
+		reader.readAndCacheAll(false)
 	})
 }
 
@@ -190,7 +192,7 @@ func ReadConfigFiles(keep FilterFunc) ([]integration.Config, map[string]string, 
 		}
 	} else {
 		// Cache miss, read again
-		configs, errs = reader.readAndCacheAll()
+		configs, errs = reader.readAndCacheAll(true)
 	}
 
 	return filterConfigs(configs, keep), errs, nil
@@ -204,7 +206,8 @@ func ReadConfigFormats() []ConfigFormatWrapper {
 
 	_, found := reader.cache.Get("configFormats")
 	if !found {
-		reader.readAndCacheAll()
+		// If configFormats is not present in cache, attempt to retrieve it again
+		reader.readAndCacheAll(true)
 	}
 	cachedFormats, found := reader.cache.Get("configFormats")
 	if !found {
@@ -230,17 +233,26 @@ func filterConfigs(configs []integration.Config, keep FilterFunc) []integration.
 	return filteredConfigs
 }
 
-func (r *configFilesReader) readAndCacheAll() ([]integration.Config, map[string]string) {
-	configs, configFormats, errors := r.read(GetAll)
+// readAndCacheAll scans the config files and caches the result. The scrubbed config formats are only
+// built (and cached) when withFormats is true.
+func (r *configFilesReader) readAndCacheAll(withFormats bool) ([]integration.Config, map[string]string) {
+	configs, configFormats, errors := r.read(GetAll, withFormats)
 	reader.cache.SetDefault("configs", configs)
 	reader.cache.SetDefault("errors", errors)
-	reader.cache.SetDefault("configFormats", configFormats)
+	if withFormats {
+		reader.cache.SetDefault("configFormats", configFormats)
+	} else {
+		// Drop the formats of a previous scan so that cached formats, when found,
+		// always match the cached configs.
+		reader.cache.Delete("configFormats")
+	}
 	return configs, errors
 }
 
 // read scans paths searching for configuration files. When found,
 // it parses the files and try to unmarshall Yaml contents into integration.Config instances.
-func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []ConfigFormatWrapper, map[string]string) {
+// The scrubbed config formats are only built when withFormats is true.
+func (r *configFilesReader) read(keep FilterFunc, withFormats bool) ([]integration.Config, []ConfigFormatWrapper, map[string]string) {
 	integrationErrors := map[string]string{}
 	configs := []integration.Config{}
 	configNames := make(map[string]struct{}) // use this map as a python set
@@ -288,10 +300,10 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 					fileEntry := entries[i]
 					// We support only one level of nesting for check configs
 					if fileEntry.IsDir() {
-						dirConfigs, dirActions := collectDir(path, fileEntry)
+						dirConfigs, dirActions := collectDir(path, fileEntry, withFormats)
 						results[i] = entryResult{isDir: true, dirConfigs: dirConfigs, dirActions: dirActions}
 					} else {
-						entry, entryAction := collectEntry(fileEntry, path, "")
+						entry, entryAction := collectEntry(fileEntry, path, "", withFormats)
 						results[i] = entryResult{entry: entry, entryAction: entryAction}
 					}
 				}
@@ -345,7 +357,9 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 				configNames[entry.name] = struct{}{}
 			}
 
-			configFormats = append(configFormats, entry.cfgFormat)
+			if withFormats {
+				configFormats = append(configFormats, entry.cfgFormat)
+			}
 		}
 	}
 
@@ -374,7 +388,8 @@ func applyErrorAction(integrationErrors map[string]string, action errorAction) {
 
 // collectEntry collects a file entry and return it's configuration if valid
 // the integrationName can be manually provided else it'll use the filename
-func collectEntry(file os.DirEntry, path string, integrationName string) (configEntry, *errorAction) {
+// its scrubbed config format is only built when withFormat is true
+func collectEntry(file os.DirEntry, path string, integrationName string, withFormat bool) (configEntry, *errorAction) {
 	const defaultExt string = ".default"
 	fileName := file.Name()
 	ext := filepath.Ext(fileName)
@@ -417,7 +432,7 @@ func collectEntry(file os.DirEntry, path string, integrationName string) (config
 	}
 
 	var err error
-	entry.conf, entry.cfgFormat, err = GetIntegrationConfigFromFile(integrationName, absPath)
+	entry.conf, entry.cfgFormat, err = getIntegrationConfigFromFile(integrationName, absPath, withFormat)
 	if err != nil {
 		if err.Error() == emptyFileError {
 			log.Debugf("skipping empty file: %s", absPath)
@@ -439,7 +454,7 @@ func collectEntry(file os.DirEntry, path string, integrationName string) (config
 	return entry, &errorAction{name: integrationName, clear: true}
 }
 
-func collectDir(parentPath string, folder os.DirEntry) (configPkg, []errorAction) {
+func collectDir(parentPath string, folder os.DirEntry, withFormats bool) (configPkg, []errorAction) {
 	configs := []integration.Config{}
 	defaultConfigs := []integration.Config{}
 	otherConfigs := []integration.Config{}
@@ -467,7 +482,7 @@ func collectDir(parentPath string, folder os.DirEntry) (configPkg, []errorAction
 	// try to load any config file in it
 	for _, sEntry := range subEntries {
 		if !sEntry.IsDir() {
-			entry, action := collectEntry(sEntry, dirPath, integrationName)
+			entry, action := collectEntry(sEntry, dirPath, integrationName, withFormats)
 			if action != nil {
 				actions = append(actions, *action)
 			}
@@ -485,7 +500,9 @@ func collectDir(parentPath string, folder os.DirEntry) (configPkg, []errorAction
 				configs = append(configs, entry.conf)
 			}
 
-			cfgFormats = append(cfgFormats, entry.cfgFormat)
+			if withFormats {
+				cfgFormats = append(cfgFormats, entry.cfgFormat)
+			}
 		}
 	}
 
@@ -496,6 +513,12 @@ const emptyFileError = "empty file"
 
 // GetIntegrationConfigFromFile returns an instance of integration.Config if `fpath` points to a valid config file
 func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, ConfigFormatWrapper, error) {
+	return getIntegrationConfigFromFile(name, fpath, true)
+}
+
+// getIntegrationConfigFromFile returns an instance of integration.Config if `fpath` points to a valid config file.
+// Its scrubbed ConfigFormatWrapper is only built when withFormat is true, an empty one is returned otherwise.
+func getIntegrationConfigFromFile(name, fpath string, withFormat bool) (integration.Config, ConfigFormatWrapper, error) {
 	cf := configFormat{}
 	conf := integration.Config{Name: name}
 
@@ -520,13 +543,16 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 		log.Warnf("reading config file %v: %v\n", fpath, strictErr)
 	}
 
-	serializedConfigFormat, err := yaml.Marshal(cf)
-	if err != nil {
-		return conf, ConfigFormatWrapper{}, err
-	}
-	scrubbedConfigFormat, err := scrubber.ScrubYamlString(string(serializedConfigFormat))
-	if err != nil {
-		return conf, ConfigFormatWrapper{}, err
+	var scrubbedConfigFormat string
+	if withFormat {
+		serializedConfigFormat, err := yaml.Marshal(cf)
+		if err != nil {
+			return conf, ConfigFormatWrapper{}, err
+		}
+		scrubbedConfigFormat, err = scrubber.ScrubYamlString(string(serializedConfigFormat))
+		if err != nil {
+			return conf, ConfigFormatWrapper{}, err
+		}
 	}
 
 	// If no valid instances were found & this is neither a metrics file, a logs file,
@@ -605,6 +631,10 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 	}
 
 	conf.Source = "file:" + fpath
+
+	if !withFormat {
+		return conf, ConfigFormatWrapper{}, err
+	}
 	hash := sha256.Sum256([]byte(scrubbedConfigFormat))
 
 	return conf, ConfigFormatWrapper{ConfigFormat: scrubbedConfigFormat, Filename: fpath, Hash: hex.EncodeToString(hash[:]), IsDiscovery: cf.Discovery != nil}, err
