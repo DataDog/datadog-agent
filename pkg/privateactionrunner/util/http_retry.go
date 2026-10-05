@@ -7,6 +7,7 @@ package util
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -30,13 +31,14 @@ type RetryHTTPOptions struct {
 //
 // 4xx responses are treated as permanent (no retry) since they typically
 // indicate a non-transient client problem (bad credentials, malformed payload).
-// Transport errors and 5xx responses are retried.
+// Transport errors and 5xx responses are retried. On a permanent failure the
+// error returned by op is returned as-is, without backoff's wrapper.
 func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opts RetryHTTPOptions) (T, error) {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = opts.InitialInterval
 	expBackoff.MaxInterval = opts.MaxInterval
 
-	return backoff.Retry(ctx, func() (T, error) {
+	result, err := backoff.Retry(ctx, func() (T, error) {
 		result, statusCode, err := op()
 		if err == nil {
 			return result, nil
@@ -50,4 +52,8 @@ func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opt
 		backoff.WithBackOff(expBackoff),
 		backoff.WithMaxElapsedTime(opts.MaxElapsedTime),
 	)
+	if re := backoff.AsRetryError(err); re != nil && errors.Is(re.Cause, backoff.ErrPermanent) {
+		return result, re.LastErr
+	}
+	return result, err
 }
