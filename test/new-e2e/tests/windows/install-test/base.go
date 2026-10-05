@@ -253,15 +253,19 @@ func (s *baseAgentMSISuite) waitForServiceRunning(vm *components.RemoteHost, ser
 
 // startXperf starts xperf tracing on the remote host
 func (s *baseAgentMSISuite) startXperf(vm *components.RemoteHost) {
-	err := vm.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
+	xperfPath := "C:/xperf/xperf.exe"
+	xperfExists, err := vm.FileExists(xperfPath)
 	s.Require().NoError(err)
 
-	// extract if C:/xperf dir does not exist
-	_, err = vm.Execute("if (-Not (Test-Path -Path C:/xperf)) { Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf }")
-	s.Require().NoError(err)
+	if !xperfExists {
+		err = vm.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
+		s.Require().NoError(err)
+
+		_, err = vm.Execute("Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf -Force")
+		s.Require().NoError(err)
+	}
 
 	outputPath := "C:/kernel.etl"
-	xperfPath := "C:/xperf/xperf.exe"
 	_, err = vm.Execute(fmt.Sprintf(`& "%s" -On Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f %s -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular`, xperfPath, outputPath))
 	s.Require().NoError(err)
 }

@@ -11,6 +11,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/remoteagent/def",
         "//comp/core/remoteagent/helper",
+        "//comp/core/telemetry/def",
         "//comp/def",
         "//pkg/proto/pbgo/core",
         "//pkg/util/flavor",

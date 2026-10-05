@@ -38,6 +38,7 @@ pub struct DaemonStatus {
     pub running_processes: u32,
     pub created_processes: u32,
     pub stopped_processes: u32,
+    pub crashed_processes: u32,
     pub failed_processes: u32,
     pub exited_processes: u32,
     pub starting_processes: u32,
@@ -353,6 +354,7 @@ pub enum ProcessExpect {
     Created,
     Running,
     Stopped,
+    Crashed,
     Failed,
     Exited,
 }
@@ -363,6 +365,7 @@ impl ProcessExpect {
             Self::Created => "Created",
             Self::Running => "Running",
             Self::Stopped => "Stopped",
+            Self::Crashed => "Crashed",
             Self::Failed => "Failed",
             Self::Exited => "Exited",
         }
@@ -436,6 +439,7 @@ pub struct StatusProcessesCount {
     pub running: Option<u32>,
     pub created: Option<u32>,
     pub stopped: Option<u32>,
+    pub crashed: Option<u32>,
     pub failed: Option<u32>,
     pub exited: Option<u32>,
     pub starting: Option<u32>,
@@ -449,6 +453,7 @@ impl StatusProcessesCount {
             running: Some(0),
             created: Some(0),
             stopped: Some(0),
+            crashed: Some(0),
             failed: Some(0),
             exited: Some(0),
             starting: Some(0),
@@ -486,6 +491,11 @@ impl DaemonStatus {
                 "stopped_processes",
                 self.stopped_processes,
                 expected.stopped,
+            ),
+            (
+                "crashed_processes",
+                self.crashed_processes,
+                expected.crashed,
             ),
             ("failed_processes", self.failed_processes, expected.failed),
             ("exited_processes", self.exited_processes, expected.exited),
@@ -1677,6 +1687,7 @@ fn process_matches_expect(process: &ProcessSnapshot, expected: ProcessExpect) ->
     match expected {
         ProcessExpect::Created
         | ProcessExpect::Stopped
+        | ProcessExpect::Crashed
         | ProcessExpect::Failed
         | ProcessExpect::Exited => process.pid == 0,
         ProcessExpect::Running => {

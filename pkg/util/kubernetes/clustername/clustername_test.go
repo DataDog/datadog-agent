@@ -7,12 +7,17 @@ package clustername
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestGetClusterName(t *testing.T) {
@@ -103,6 +108,7 @@ func TestGetClusterNameCLCRunner(t *testing.T) {
 }
 
 func TestGetClusterID(t *testing.T) {
+	clearClusterIDCache(t)
 	// missing env
 	cid, err := GetClusterID()
 	assert.Empty(t, cid)
@@ -126,4 +132,37 @@ func TestGetClusterID(t *testing.T) {
 	cid, err = GetClusterID()
 	assert.Equal(t, testID, cid)
 	assert.Nil(t, err)
+}
+
+func TestGetClusterIDClusterAgent(t *testing.T) {
+	flavor.SetTestFlavor(t, flavor.ClusterAgent)
+	// The env variable must not be used by the Cluster Agent.
+	t.Setenv(clusterIDEnv, "d801b2b1-4811-11ea-8618-121d4d0938a3")
+	previousLookup := getClusterAgentClusterID
+	t.Cleanup(func() { getClusterAgentClusterID = previousLookup })
+
+	lookupError := errors.New("Kubernetes unavailable")
+	for name, tc := range map[string]struct {
+		id  string
+		err error
+	}{
+		"success": {id: "226430c6-5e57-11ea-91d5-42010a8400c6"},
+		"failure": {err: lookupError},
+	} {
+		t.Run(name, func(t *testing.T) {
+			clearClusterIDCache(t)
+			getClusterAgentClusterID = func() (string, error) { return tc.id, tc.err }
+
+			id, err := GetClusterID()
+			require.ErrorIs(t, err, tc.err)
+			assert.Equal(t, tc.id, id)
+		})
+	}
+}
+
+func clearClusterIDCache(t *testing.T) {
+	t.Helper()
+	key := cache.BuildAgentKey(constants.ClusterIDCacheKey)
+	cache.Cache.Delete(key)
+	t.Cleanup(func() { cache.Cache.Delete(key) })
 }

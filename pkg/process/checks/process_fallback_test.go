@@ -46,7 +46,7 @@ func TestProcessByPID(t *testing.T) {
 			mockProbe.EXPECT().ProcessesByPID(mockConstantClock.Now(), mock.Anything).Return(nil, nil).Once()
 			// TESTING
 			// collectStats is irrelevant since it should not impact which functions are called
-			_, err := processCheck.processesByPID()
+			_, err := processCheck.processesByPID(mockConstantClock.Now())
 			assert.NoError(t, err)
 		})
 	}

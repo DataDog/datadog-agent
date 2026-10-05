@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    The Agent now reports the state of each process it supervises
+    (``starting``, ``running``, ``crashed``, ``failed``, and so on) as the
+    ``runtime.procmgr_process_state`` metric, tagged by process and state.
+
+    Previously only a boolean ``runtime.procmgr_process_running`` was sent,
+    so a process that was deliberately stopped could not be told apart from
+    one that was crash looping.

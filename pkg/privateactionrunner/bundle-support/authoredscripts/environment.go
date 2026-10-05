@@ -40,7 +40,7 @@ func (pkg *Package) BuildEnvironment(session *Session, parameters map[string]int
 		return nil, errors.New("authored-script session is required")
 	}
 
-	executablePath, err := buildExecutablePath(pkg.ToolPaths)
+	executablePath, err := buildExecutablePath(pkg.ExecutableDirectories)
 	if err != nil {
 		return nil, err
 	}
@@ -110,11 +110,10 @@ func addParameterEnvironment(environment map[string]string, parameterEnvMapping 
 	return nil
 }
 
-func buildExecutablePath(toolPaths []string) (string, error) {
-	seenDirectories := make(map[string]struct{}, len(toolPaths)+1)
-	executablePaths := make([]string, 0, len(toolPaths)+1)
-	for _, toolPath := range toolPaths {
-		directory := filepath.Dir(toolPath)
+func buildExecutablePath(executableDirectories []string) (string, error) {
+	seenDirectories := make(map[string]struct{}, len(executableDirectories)+1)
+	executablePaths := make([]string, 0, len(executableDirectories)+1)
+	for _, directory := range executableDirectories {
 		if strings.ContainsRune(directory, os.PathListSeparator) {
 			return "", fmt.Errorf("authored-script tool directory %q contains a path separator", directory)
 		}

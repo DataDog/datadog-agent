@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    CSPM (Cloud Security Posture Management) compliance findings and resource
+    configuration payloads now carry a ``host_ccrid`` field holding the
+    Canonical Cloud Resource ID of the host. The CCRID is resolved once, when
+    the compliance agent starts, and is left empty when the host does not run
+    on a supported cloud provider or when ``collect_ccrid`` is disabled.

@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	installerenv "github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	authoredscriptssupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
@@ -26,13 +27,13 @@ type RunAuthoredScriptHandler struct {
 }
 
 // NewRunAuthoredScriptHandler prepares authored-script execution.
-func NewRunAuthoredScriptHandler(catalog authoredscriptssupport.Catalog) *RunAuthoredScriptHandler {
+func NewRunAuthoredScriptHandler(catalog authoredscriptssupport.Catalog, agentHTTPClient *http.Client) *RunAuthoredScriptHandler {
 	handler := &RunAuthoredScriptHandler{
 		catalog: catalog,
 	}
 
 	environment := installerenv.FromEnv()
-	materializer, err := authoredscriptsoci.NewMaterializer(environment, environment.HTTPClient())
+	materializer, err := authoredscriptsoci.NewMaterializer(environment, agentHTTPClient)
 	if err == nil {
 		handler.artifactResolver, err = authoredscriptssupport.NewUserArtifactResolver(materializer)
 	}

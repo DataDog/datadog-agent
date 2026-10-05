@@ -176,10 +176,8 @@ func TestFilterListUpdateWithValidMetrics(t *testing.T) {
 	require.ElementsMatch([]string{"test.metric.1", "test.metric.2"}, metricNames)
 }
 
-// TestFilterListUpdateWithPrefixedMetrics tests that a metric name delivered by
-// RC and ending with `*` is a prefix pattern, exactly like one read from the
-// configuration file.
-func TestFilterListUpdateWithPrefixedMetrics(t *testing.T) {
+// blocked_metrics entries from RC stay exact; `*` is not a prefix marker.
+func TestFilterListUpdateBlockedMetricsStarIsLiteral(t *testing.T) {
 	require := require.New(t)
 
 	filterList, configComponent := newFilterList(t)
@@ -194,7 +192,7 @@ func TestFilterListUpdateWithPrefixedMetrics(t *testing.T) {
 			"blocked_metrics": {
 				"by_name": {
 					"values": [
-						{"metric_name": "test.prefixed.*"},
+						{"metric_name": "test.exactfoo*"},
 						{"metric_name": "test.exact"}
 					]
 				}
@@ -206,19 +204,255 @@ func TestFilterListUpdateWithPrefixedMetrics(t *testing.T) {
 	require.Len(results[state.ApplyStateAcknowledged], 1)
 	require.Len(results[state.ApplyStateError], 0)
 
-	// The pattern is stored as-is, so `agent config` reports what RC sent.
 	metricNames := configComponent.GetStringSlice("metric_filterlist")
-	require.ElementsMatch([]string{"test.prefixed.*", "test.exact"}, metricNames)
+	require.ElementsMatch([]string{"test.exactfoo", "test.exact"}, metricNames)
 
 	matcher := filterList.GetMetricFilterList()
-	require.True(matcher.Test("test.prefixed.anything"))
+	require.True(matcher.Test("test.exactfoo"))
+	require.False(matcher.Test("test.exactfooX"))
 	require.True(matcher.Test("test.exact"))
 	require.False(matcher.Test("test.exact.suffix"))
 	require.False(matcher.Test("test.other"))
+}
 
-	// The prefix entry is kept in the histogram subset used at flush time.
+// RC prefix rules are converted to the local config shape.
+func TestFilterListUpdateWithMetricPrefixRules(t *testing.T) {
+	require := require.New(t)
+
+	filterList, configComponent := newFilterList(t)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"metric_filterlist_prefix": {
+				"by_prefix": {
+					"values": [
+						{
+							"prefix": "test.prefixed.",
+							"except_prefix": [{"prefix": "test.prefixed.locks."}],
+							"except_exact": [{"name": "test.prefixed.keep"}]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.Len(results[state.ApplyStateError], 0)
+
+	var prefixEntries []MetricPrefixListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_filterlist_prefix", &prefixEntries)
+	require.NoError(err)
+	require.Len(prefixEntries, 1)
+	require.Equal(MetricPrefixListEntry{
+		Prefix:       "test.prefixed.",
+		ExceptPrefix: []string{"test.prefixed.locks."},
+		ExceptExact:  []string{"test.prefixed.keep"},
+	}, prefixEntries[0])
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("test.prefixed.anything"))
+	require.False(matcher.Test("test.prefixed.keep"), "except_exact entry should be kept")
+	require.False(matcher.Test("test.prefixed.locks.waiting"), "except_prefix entry should be kept")
+	require.False(matcher.Test("test.other"))
+
+	// Prefix rules also apply to histogram aggregates.
 	histo := filterList.GetHistoFilterList()
 	require.True(histo.Test("test.prefixed.histo.avg"))
+	require.False(histo.Test("test.prefixed.keep"))
+}
+
+func TestFilterListUpdateWithDuplicateMetricPrefixRulesPreservesBoth(t *testing.T) {
+	require := require.New(t)
+
+	filterList, configComponent := newFilterList(t)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"metric_filterlist_prefix": {
+				"by_prefix": {
+					"values": [
+						{
+							"prefix": "test.dup.",
+							"except_exact": [{"name": "test.dup.keep.one"}, {"name": "test.dup.keep.both"}]
+						},
+						{
+							"prefix": "test.dup.",
+							"except_exact": [{"name": "test.dup.keep.two"}, {"name": "test.dup.keep.both"}]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.Len(results[state.ApplyStateError], 0)
+
+	var prefixEntries []MetricPrefixListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_filterlist_prefix", &prefixEntries)
+	require.NoError(err)
+	require.Len(prefixEntries, 2)
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("test.dup.anything"))
+	require.False(matcher.Test("test.dup.keep.one"), "exceptions apply across duplicate rules")
+	require.False(matcher.Test("test.dup.keep.two"), "exceptions apply across duplicate rules")
+	require.False(matcher.Test("test.dup.keep.both"), "excepted by both duplicate rules")
+}
+
+// RC configs with only prefix rules are not empty.
+func TestFilterListUpdateWithOnlyPrefixRulesIsNotSkipped(t *testing.T) {
+	require := require.New(t)
+
+	filterList, _ := newFilterList(t)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"metric_filterlist_prefix": {
+				"by_prefix": {
+					"values": [{"prefix": "test.prefixed."}]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.Len(results[state.ApplyStateError], 0)
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("test.prefixed.anything"), "a config carrying only prefix rules must not be skipped")
+}
+
+// RC exact and prefix-rule fields fall back independently.
+func TestFilterListUpdateMetricNamesAndPrefixRulesAreIndependent(t *testing.T) {
+	require := require.New(t)
+
+	cfg := map[string]interface{}{
+		"metric_filterlist": []string{"local.exact"},
+		"metric_filterlist_prefix": []map[string]interface{}{
+			{"prefix": "local.prefixed."},
+		},
+	}
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	// Only prefix rules come from RC.
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"metric_filterlist_prefix": {
+				"by_prefix": {
+					"values": [{"prefix": "rc.prefixed."}]
+				}
+			}
+		}`)},
+	}
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("local.exact"), "metric_filterlist should fall back to local config")
+	require.True(matcher.Test("rc.prefixed.anything"), "metric_filterlist_prefix should come from RC")
+	require.False(matcher.Test("local.prefixed.anything"), "the local prefix rule should have been replaced by RC's")
+
+	// Now only exact names come from RC.
+	results = updateRes{}
+	updates = map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {
+				"by_name": {
+					"values": [{"metric_name": "rc.exact"}]
+				}
+			}
+		}`)},
+	}
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+
+	matcher = filterList.GetMetricFilterList()
+	require.True(matcher.Test("rc.exact"), "metric_filterlist should come from RC")
+	require.False(matcher.Test("local.exact"), "the local exact metric should have been replaced by RC's")
+	require.True(matcher.Test("local.prefixed.anything"), "metric_filterlist_prefix should fall back to local config")
+}
+
+// Empty RC prefix rules restore the local prefix rules.
+func TestFilterListUpdatePrefixRulesEmptyRestoresLocal(t *testing.T) {
+	require := require.New(t)
+
+	cfg := map[string]interface{}{
+		"metric_filterlist_prefix": []map[string]interface{}{
+			{"prefix": "local.prefixed."},
+		},
+	}
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"metric_filterlist_prefix": {
+				"by_prefix": {
+					"values": [{"prefix": "rc.prefixed."}]
+				}
+			}
+		}`)},
+	}
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("rc.prefixed.anything"))
+	require.False(matcher.Test("local.prefixed.anything"))
+
+	// No prefix rules in RC: fall back to local config.
+	results = updateRes{}
+	emptyUpdates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {
+				"by_name": {
+					"values": [{"metric_name": "still.here"}]
+				}
+			}
+		}`)},
+	}
+	filterList.onFilterListUpdateCallback(emptyUpdates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+
+	matcher = filterList.GetMetricFilterList()
+	require.False(matcher.Test("rc.prefixed.anything"), "RC's prefix rule should be gone")
+	require.True(matcher.Test("local.prefixed.anything"), "the local prefix rule should be restored")
+	require.True(matcher.Test("still.here"), "the exact metric from this same update should still apply")
 }
 
 // TestFilterListUpdateWithValidTags tests the callback with valid tag filter list updates
