@@ -5,10 +5,10 @@
 
 //go:build !python
 
-package discoverer
+package productcomposition
 
-// NewPythonBridge returns nil when the Agent is built without Python support.
-// The nil ConfigDiscoverer causes autodiscovery to skip the Worker entirely
-func NewPythonBridge() ConfigDiscoverer {
+import "go.uber.org/fx"
+
+func autodiscoveryOptions() []fx.Option {
 	return nil
 }

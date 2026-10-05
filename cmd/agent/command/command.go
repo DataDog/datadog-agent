@@ -12,6 +12,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -54,9 +55,14 @@ type GlobalParams struct {
 
 // ProductComposition contains product/flavor-specific composition choices for shared subcommands.
 //
-// It intentionally starts empty; fields should be added as feature migrations need
-// product-level control over reused subcommand composition.
-type ProductComposition struct{}
+// Fields should be added as feature migrations need product-level control over
+// reused subcommand composition. The zero value should remain valid for products
+// that do not include optional feature modules.
+type ProductComposition struct {
+	// AutodiscoveryOptions are product-specific Fx options included alongside the
+	// shared Autodiscovery module.
+	AutodiscoveryOptions []fx.Option
+}
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
 type SubcommandFactory func(globalParams *GlobalParams, product ProductComposition) []*cobra.Command

@@ -226,7 +226,7 @@ type cliParams struct {
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalParams *command.GlobalParams, _ command.ProductComposition) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams, product command.ProductComposition) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
@@ -249,7 +249,7 @@ func Commands(globalParams *command.GlobalParams, _ command.ProductComposition) 
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			logging.EnableFxLoggingOnDebug[log.Component](),
 			fxinstrumentation.Module(),
-			getSharedFxOption(),
+			getSharedFxOption(product),
 			getPlatformModules(),
 		)
 	}
@@ -416,7 +416,7 @@ func run(log log.Component,
 	return <-stopCh
 }
 
-func getSharedFxOption() fx.Option {
+func getSharedFxOption(product command.ProductComposition) fx.Option {
 	return fx.Options(
 		flare.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
@@ -501,6 +501,7 @@ func getSharedFxOption() fx.Option {
 		fleetfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		adfx.Module(),
+		fx.Options(product.AutodiscoveryOptions...),
 		fx.Supply(autodiscovery.Params{PreloadConfigsOnStart: true}),
 		networkpathrcproviderfx.Module(),
 		configfilesdiscoveryfx.Module(),
