@@ -2580,6 +2580,8 @@ func (p *EBPFProbe) isNeededForEventSampling(eventType eval.EventType) bool {
 		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType)
 	case model.ConnectEventType.String():
 		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType)
+	case model.BindEventType.String():
+		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType)
 	}
 	return false
 }
@@ -3378,6 +3380,18 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectThreshold),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_bind_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType)),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "sample_refresh_period_ns",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
 		},
@@ -3508,6 +3522,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
 		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType),
+		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType),
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType),
 		EventSamplingSyscallsEnabled:  p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType),
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,

@@ -203,24 +203,11 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_sample(
     return SAMPLED;
 }
 
-static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(struct bind_connect_sample_key_t *key, struct syscall_cache_t *syscall) {
-    // Sampling only feeds v2 profiles.
-    if (!is_security_profile_v2_enabled()) {
-        return DISCARDED;
-    }
-
-    u64 event_sampling_connect_enabled = 0;
-    LOAD_CONSTANT("event_sampling_connect_enabled", event_sampling_connect_enabled);
-    u64 event_sampling_connect_rate = 0;
-    LOAD_CONSTANT("event_sampling_connect_rate", event_sampling_connect_rate);
-    u64 event_sampling_connect_threshold = 40;
-    LOAD_CONSTANT("event_sampling_connect_threshold", event_sampling_connect_threshold);
+// approve_bind_connect_sample dedups bind/connect endpoints via the provided LRU map:
+// first hit is sampled, later hits only emit a refresh heartbeat.
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_connect_sample(void *samples, u64 event_type, u32 limiter_key, u16 rate, u8 threshold, struct bind_connect_sample_key_t *key, struct syscall_cache_t *syscall) {
     u64 sample_refresh_period_ns = 0;
     LOAD_CONSTANT("sample_refresh_period_ns", sample_refresh_period_ns);
-
-    if (!event_sampling_connect_enabled) {
-        return DISCARDED;
-    }
 
     if (key->family != AF_INET && key->family != AF_INET6) {
         return DISCARDED;
@@ -233,14 +220,14 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(
         return DISCARDED;
     }
 
-    monitor_event_sample_total(EVENT_CONNECT);
+    monitor_event_sample_total(event_type);
 
     u64 now = bpf_ktime_get_ns();
 
-    struct sample_entry_t *existing = bpf_map_lookup_elem(&connect_samples, key);
+    struct sample_entry_t *existing = bpf_map_lookup_elem(samples, key);
     if (existing != NULL) {
         if (sample_entry_is_stale(existing, now)) {
-            if (!sampling_admission_check(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, (u8)event_sampling_connect_threshold)) {
+            if (!sampling_admission_check(limiter_key, rate, threshold)) {
                 return DISCARDED;
             }
             existing->cookie = gen_sample_cookie();
@@ -248,7 +235,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(
             if (syscall != NULL) {
                 syscall->sample_cookie = existing->cookie;
             }
-            monitor_event_sample_sampled(EVENT_CONNECT);
+            monitor_event_sample_sampled(event_type);
             return SAMPLED;
         }
         if (sample_refresh_period_ns > 0 && syscall != NULL &&
@@ -260,7 +247,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(
         return DISCARDED;
     }
 
-    if (!sampling_admission_check(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, (u8)event_sampling_connect_threshold)) {
+    if (!sampling_admission_check(limiter_key, rate, threshold)) {
         return DISCARDED;
     }
 
@@ -268,7 +255,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(
         .cookie = gen_sample_cookie(),
         .last_refresh_ns = now,
     };
-    if (bpf_map_update_elem(&connect_samples, key, &new_entry, BPF_NOEXIST) < 0) {
+    if (bpf_map_update_elem(samples, key, &new_entry, BPF_NOEXIST) < 0) {
         return DISCARDED;
     }
 
@@ -276,8 +263,48 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(
         syscall->sample_cookie = new_entry.cookie;
     }
 
-    monitor_event_sample_sampled(EVENT_CONNECT);
+    monitor_event_sample_sampled(event_type);
     return SAMPLED;
+}
+
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(struct bind_connect_sample_key_t *key, struct syscall_cache_t *syscall) {
+    // Sampling only feeds v2 profiles.
+    if (!is_security_profile_v2_enabled()) {
+        return DISCARDED;
+    }
+
+    u64 event_sampling_connect_enabled = 0;
+    LOAD_CONSTANT("event_sampling_connect_enabled", event_sampling_connect_enabled);
+    u64 event_sampling_connect_rate = 0;
+    LOAD_CONSTANT("event_sampling_connect_rate", event_sampling_connect_rate);
+    u64 event_sampling_connect_threshold = 40;
+    LOAD_CONSTANT("event_sampling_connect_threshold", event_sampling_connect_threshold);
+
+    if (!event_sampling_connect_enabled) {
+        return DISCARDED;
+    }
+
+    return approve_bind_connect_sample(&connect_samples, EVENT_CONNECT, CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, (u8)event_sampling_connect_threshold, key, syscall);
+}
+
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(struct bind_connect_sample_key_t *key, struct syscall_cache_t *syscall) {
+    // Sampling only feeds v2 profiles.
+    if (!is_security_profile_v2_enabled()) {
+        return DISCARDED;
+    }
+
+    u64 event_sampling_bind_enabled = 0;
+    LOAD_CONSTANT("event_sampling_bind_enabled", event_sampling_bind_enabled);
+    u64 event_sampling_bind_rate = 0;
+    LOAD_CONSTANT("event_sampling_bind_rate", event_sampling_bind_rate);
+    u64 event_sampling_bind_threshold = 60;
+    LOAD_CONSTANT("event_sampling_bind_threshold", event_sampling_bind_threshold);
+
+    if (!event_sampling_bind_enabled) {
+        return DISCARDED;
+    }
+
+    return approve_bind_connect_sample(&bind_samples, EVENT_BIND, BIND_SAMPLE_LIMITER, event_sampling_bind_rate, (u8)event_sampling_bind_threshold, key, syscall);
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_by_auid(struct syscall_cache_t *syscall, u64 event_type) {
@@ -772,6 +799,31 @@ static enum SYSCALL_STATE __attribute__((always_inline)) connect_approvers(struc
         conn_key.addr[1] = syscall->connect.addr[1];
 
         if (approve_connect_sample(&conn_key, syscall) == SAMPLED) {
+            return SAMPLED;
+        }
+    }
+
+    return state;
+}
+
+static enum SYSCALL_STATE __attribute__((always_inline)) bind_approvers(struct syscall_cache_t *syscall) {
+    u32 key = 0;
+    struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&bind_addr_family_approvers, &key);
+    u64 family = syscall->bind.family;
+    enum SYSCALL_STATE state = flag_approver(filter, syscall->type, family);
+
+    if (state == DISCARDED) {
+        u32 pid = bpf_get_current_pid_tgid() >> 32;
+        struct bind_connect_sample_key_t bind_key;
+        __builtin_memset(&bind_key, 0, sizeof(bind_key));
+        bind_key.pid = pid;
+        bind_key.family = syscall->bind.family;
+        bind_key.port = syscall->bind.port;
+        bind_key.protocol = syscall->bind.protocol;
+        bind_key.addr[0] = syscall->bind.addr[0];
+        bind_key.addr[1] = syscall->bind.addr[1];
+
+        if (approve_bind_sample(&bind_key, syscall) == SAMPLED) {
             return SAMPLED;
         }
     }
