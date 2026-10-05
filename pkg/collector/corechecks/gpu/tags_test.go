@@ -369,6 +369,10 @@ func TestGetWorkloadTags(t *testing.T) {
 
 					assert.Equal(tt, testCase.expected[workload.workloadID], tags, "returned tags should match the expected tags")
 
+					cachedTags, cachedErr := cache.GetOrCreateWorkloadTags(workload.workloadID)
+					assert.Equal(tt, tags, cachedTags, "cache hit should return the same tags")
+					assert.Equal(tt, agenterrors.IsNotFound(err), agenterrors.IsNotFound(cachedErr), "cache hit should preserve the not found error")
+
 					cacheEntry, exists := cache.cache.Get(workload.workloadID)
 					require.True(tt, exists, "cache entry should always exist after querying") // the cache entry should always exist after querying
 					assert.NotNil(tt, cacheEntry)

@@ -1156,6 +1156,76 @@ func TestRunEmitsSharedProcessTags(t *testing.T) {
 	mockSender.AssertExpectations(t)
 }
 
+func TestRunEmitsSharedProcessTagsMultiGPUContainer(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
+
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2))
+
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, senderManager, nil)
+	mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
+
+	// One container assigned to two GPUs, with a different process using each of them
+	deviceUUIDs := []string{testutil.GPUUUIDs[0], testutil.GPUUUIDs[1]}
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{ID: "container0", Kind: workloadmeta.KindContainer},
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+			{Name: "nvidia.com/gpu", ID: deviceUUIDs[0]},
+			{Name: "nvidia.com/gpu", ID: deviceUUIDs[1]},
+		},
+	}
+	wmetaMock.Set(container)
+	containerTags := []string{"container_id:container0", "kube_namespace:ns"}
+	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, container.ID), "foo", containerTags, nil, nil, nil)
+
+	deviceTags := make([][]string, len(deviceUUIDs))
+	for i, deviceUUID := range deviceUUIDs {
+		deviceTags[i] = []string{"gpu_uuid:" + deviceUUID, "gpu_vendor:nvidia"}
+		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, deviceUUID), "foo", deviceTags[i], nil, nil, nil)
+
+		pid := int32(1000 + i)
+		wmetaMock.Set(&workloadmeta.GPU{
+			EntityID:   workloadmeta.EntityID{ID: deviceUUID, Kind: workloadmeta.KindGPU},
+			ActivePIDs: []int{int(pid)},
+		})
+
+		pidStr := strconv.Itoa(int(pid))
+		wmetaMock.Set(&workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{ID: pidStr, Kind: workloadmeta.KindProcess},
+			Owner:    &container.EntityID,
+			Pid:      pid,
+			NsPid:    pid,
+		})
+		processTags := []string{"service:svc", fmt.Sprintf("version:v%d", i), "gpu_uuid:" + deviceUUID}
+		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.Process, pidStr), "foo", processTags, nil, nil, nil)
+	}
+
+	check.collectors = []nvidia.Collector{
+		&mockCollector{
+			name:       "mockCollector",
+			deviceUUID: deviceUUIDs[0],
+			samples:    []nvidia.Sample{nvidia.NewMetric("device0_metric", 1, ddmetrics.GaugeType, 0, nil, nil)},
+		},
+		&mockCollector{
+			name:       "mockCollector",
+			deviceUUID: deviceUUIDs[1],
+			samples:    []nvidia.Sample{nvidia.NewMetric("device1_metric", 2, ddmetrics.GaugeType, 0, nil, nil)},
+		},
+	}
+
+	// Each device gets the container tags and the tags of its own process only
+	device0Tags := slices.Concat(deviceTags[0], containerTags, []string{"kube_namespace:ns", "service:svc", "version:v0"})
+	mockSender.On("GaugeWithTimestamp", "gpu.device0_metric", 1.0, "", mockMatchesTagSet(device0Tags), mock.Anything).Return()
+	device1Tags := slices.Concat(deviceTags[1], containerTags, []string{"kube_namespace:ns", "service:svc", "version:v1"})
+	mockSender.On("GaugeWithTimestamp", "gpu.device1_metric", 2.0, "", mockMatchesTagSet(device1Tags), mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	require.NoError(t, check.Run())
+
+	mockSender.AssertExpectations(t)
+}
+
 func TestGetGPUToProcessesMap(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	check := &Check{wmeta: wmetaMock}

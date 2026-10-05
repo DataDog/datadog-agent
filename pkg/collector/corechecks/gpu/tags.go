@@ -193,7 +193,9 @@ func (c *WorkloadTagCache) MarkStale() {
 // until the next MarkStale call. If errors happen, the partial result is returned (and cached)
 // along with the error. Note that processes with errors are still part of the intersection with
 // whatever partial tags they have, so a single process failing to resolve its container tags will
-// remove those tags from the result.
+// remove those tags from the result. The same applies to processes that service discovery has not
+// processed yet (it waits for processes to reach a minimum age), so tags such as service or env are
+// removed until all processes have them.
 func (c *WorkloadTagCache) GetOrCreateSharedProcessTags(pids []int32) ([]string, error) {
 	if len(pids) == 0 {
 		return nil, nil
