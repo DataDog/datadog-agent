@@ -7,6 +7,7 @@ package checks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -162,7 +163,7 @@ func TestProcessCheckDeferredNetworkID(t *testing.T) {
 				if found {
 					return "test-network", nil
 				}
-				return "", fmt.Errorf("metadata unavailable after retries")
+				return "", errors.New("metadata unavailable after retries")
 			})
 			require.Zero(t, calls, "creating the initializer must not query metadata")
 			require.Empty(t, check.networkID)
