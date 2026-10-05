@@ -388,6 +388,46 @@ func TestCollectProcessMemory_Error(t *testing.T) {
 	require.Greater(t, len(processMetrics), 0) // Should still get memory.limit metric
 }
 
+func TestProcessMemoryUsageSkipsUnknownMemoryLimit(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+		device.GetMemoryInfoFunc = func() (nvml.Memory, nvml.Return) {
+			return nvml.Memory{}, nvml.ERROR_UNKNOWN
+		}
+	}))
+
+	metrics := processMemoryUsage(device, nil, Medium)
+
+	require.Empty(t, metrics)
+}
+
+func TestDeviceMemoryV2SkipsUtilizationWithZeroTotal(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+		device.GetMemoryInfo_v2Func = func() (nvml.Memory_v2, nvml.Return) {
+			return nvml.Memory_v2{Free: 100, Reserved: 50, Used: 50}, nvml.SUCCESS
+		}
+	}))
+
+	var handler func(safenvml.Device, uint64) ([]Sample, uint64, error)
+	for _, api := range createStatelessAPIs(&CollectorDependencies{}) {
+		if api.Name == "device_memory_v2" {
+			handler = api.Handler
+			break
+		}
+	}
+	require.NotNil(t, handler)
+
+	samples, _, err := handler(device, 0)
+	require.NoError(t, err)
+	metrics := requireMetrics(t, samples)
+	metricNames := make([]string, 0, len(metrics))
+	for _, metric := range metrics {
+		metricNames = append(metricNames, metric.Name)
+	}
+	require.Contains(t, metricNames, "memory.free")
+	require.Contains(t, metricNames, "memory.reserved")
+	require.NotContains(t, metricNames, "memory.utilization")
+}
+
 // TestProcessMemoryMetricTags tests that process memory metrics have correct tags and priorities
 func TestProcessMemoryMetricTags(t *testing.T) {
 	// Override API factory to only include process memory
