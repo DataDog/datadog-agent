@@ -2004,8 +2004,13 @@ static int set_recv_timeout(int fd) {
 // network_probe_icmp_echo sends an ICMP echo request to the loopback address and returns 1 if the reply is received
 static int network_probe_icmp_echo(int family) {
     int fd = socket(family, SOCK_RAW, family == AF_INET ? IPPROTO_ICMP : IPPROTO_ICMPV6);
-    if (fd < 0 || set_recv_timeout(fd) < 0) {
+    if (fd < 0) {
         return -1;
+    }
+
+    if (set_recv_timeout(fd) < 0) {
+	close(fd);
+	return -1;
     }
 
     struct sockaddr_storage addr = {};
