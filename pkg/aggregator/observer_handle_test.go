@@ -41,6 +41,7 @@ type recordingHandle struct {
 type recordedCall struct {
 	name       string
 	value      float64
+	metricType metrics.MetricType
 	tags       []string
 	host       string
 	timestamp  int64
@@ -59,6 +60,7 @@ func (h *recordingHandle) observeMetric(v observer.MetricView, contextKey uint64
 	h.calls = append(h.calls, recordedCall{
 		name:       v.GetName(),
 		value:      v.GetValue(),
+		metricType: v.GetMetricType(),
 		tags:       tagsCopy,
 		host:       v.GetHost(),
 		timestamp:  v.GetTimestampUnix(),
@@ -120,6 +122,7 @@ func TestTimeSamplerObserverHandle(t *testing.T) {
 	require.Len(t, handle.calls, 2)
 	assert.Equal(t, "metric.a", handle.calls[0].name)
 	assert.Equal(t, 1.0, handle.calls[0].value)
+	assert.Equal(t, metrics.GaugeType, handle.calls[0].metricType)
 	assert.Equal(t, []string{"env:prod"}, handle.calls[0].tags)
 	assert.Equal(t, "host-a", handle.calls[0].host)
 	assert.Equal(t, int64(1000), handle.calls[0].timestamp)
@@ -127,6 +130,7 @@ func TestTimeSamplerObserverHandle(t *testing.T) {
 
 	assert.Equal(t, "metric.b", handle.calls[1].name)
 	assert.Equal(t, 2.5, handle.calls[1].value)
+	assert.Equal(t, metrics.CountType, handle.calls[1].metricType)
 	assertObservedContextKey(t, handle.calls[1])
 }
 
@@ -151,6 +155,7 @@ func TestTimeSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 
 	require.Len(t, handle.calls, 1)
 	assert.Equal(t, "host-a", handle.calls[0].host)
+	assert.Equal(t, metrics.CounterType, handle.calls[0].metricType)
 	assert.Equal(t, []string{"service:web"}, handle.calls[0].tags)
 	assertObservedContextKey(t, handle.calls[0])
 }

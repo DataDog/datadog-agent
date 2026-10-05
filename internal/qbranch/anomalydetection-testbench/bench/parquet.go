@@ -56,6 +56,7 @@ type fgmMetric struct {
 	RunID      string
 	Time       int64
 	MetricName string
+	MetricType string
 	ValueInt   *uint64
 	ValueFloat *float64
 	Tags       map[string]string
@@ -196,6 +197,7 @@ func extractMetricsFromRecord(rec arrow.Record) ([]fgmMetric, error) {
 	valueFloatIdx := findCol(schema, "valuefloat")
 	tagsIdx := findCol(schema, "tags")
 	droppedIdx := findCol(schema, "dropped")
+	metricTypeIdx := findCol(schema, "metrictype")
 
 	readTime := func(col arrow.Array, i int) int64 {
 		if col == nil || col.IsNull(i) {
@@ -211,6 +213,7 @@ func extractMetricsFromRecord(rec arrow.Record) ([]fgmMetric, error) {
 	}
 
 	var runIDCol, metricNameCol *array.String
+	var metricTypeCol *array.String
 	var valueFloatCol *array.Float64
 	var tagsCol *array.List
 	var droppedCol *array.Boolean
@@ -244,6 +247,11 @@ func extractMetricsFromRecord(rec arrow.Record) ([]fgmMetric, error) {
 			droppedCol = c
 		}
 	}
+	if metricTypeIdx >= 0 {
+		if c, ok := rec.Column(metricTypeIdx).(*array.String); ok {
+			metricTypeCol = c
+		}
+	}
 
 	// l_* label columns (FGM format)
 	type labelCol struct {
@@ -262,7 +270,7 @@ func extractMetricsFromRecord(rec arrow.Record) ([]fgmMetric, error) {
 	metrics := make([]fgmMetric, n)
 	for i := 0; i < n; i++ {
 		tags := make(map[string]string)
-		var runID, metricName string
+		var runID, metricName, metricType string
 		var valueFloat *float64
 		if runIDCol != nil && !runIDCol.IsNull(i) {
 			runID = runIDCol.Value(i)
@@ -270,6 +278,9 @@ func extractMetricsFromRecord(rec arrow.Record) ([]fgmMetric, error) {
 		ts := readTime(timeColRaw, i)
 		if metricNameCol != nil && !metricNameCol.IsNull(i) {
 			metricName = metricNameCol.Value(i)
+		}
+		if metricTypeCol != nil && !metricTypeCol.IsNull(i) {
+			metricType = metricTypeCol.Value(i)
 		}
 		if valueFloatCol != nil && !valueFloatCol.IsNull(i) {
 			v := valueFloatCol.Value(i)
@@ -305,6 +316,7 @@ func extractMetricsFromRecord(rec arrow.Record) ([]fgmMetric, error) {
 			RunID:      runID,
 			Time:       ts,
 			MetricName: metricName,
+			MetricType: metricType,
 			ValueFloat: valueFloat,
 			Tags:       tags,
 			Dropped:    dropped,
@@ -362,12 +374,13 @@ func metricDataFromFGM(metric fgmMetric) recorderdef.MetricData {
 		}
 	}
 	return recorderdef.MetricData{
-		Source:    metric.RunID,
-		Name:      metric.MetricName,
-		Value:     value,
-		Timestamp: metric.Time / 1000,
-		Tags:      tags,
-		Dropped:   metric.Dropped,
+		Source:     metric.RunID,
+		Name:       metric.MetricName,
+		MetricType: metric.MetricType,
+		Value:      value,
+		Timestamp:  metric.Time / 1000,
+		Tags:       tags,
+		Dropped:    metric.Dropped,
 	}
 }
 

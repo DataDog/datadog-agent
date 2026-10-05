@@ -27,6 +27,7 @@ import (
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -183,6 +184,8 @@ type Bench struct {
 
 	rawLogs                []observerdef.LogView
 	rawMetrics             []*parquetMetricView
+	metricTypesMu          sync.RWMutex
+	metricTypesBySeries    map[metricSeriesTypeKey]map[metrics.MetricType]struct{}
 	logAnomalies           []observerdef.Anomaly
 	logAnomaliesByDetector map[string][]observerdef.Anomaly
 
@@ -239,6 +242,7 @@ func New(obs observerdef.Component, debug observerimpl.DebugView, sseAccess test
 		settings:               cfg.ComponentSettings,
 		logAnomalies:           []observerdef.Anomaly{},
 		logAnomaliesByDetector: make(map[string][]observerdef.Anomaly),
+		metricTypesBySeries:    make(map[metricSeriesTypeKey]map[metrics.MetricType]struct{}),
 		sseStop:                stop,
 		replayKeyGenerator:     observerimpl.NewSliceKeyGenerator(),
 	}
@@ -371,6 +375,7 @@ func (tb *Bench) LoadScenario(name string) error {
 
 	tb.rawLogs = nil
 	tb.rawMetrics = nil
+	tb.resetMetricTypes()
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.liveAdvanceTimes = nil
@@ -498,8 +503,9 @@ func (tb *Bench) loadParquetDir(dir string) error {
 				droppedCount++
 				continue
 			}
-			view := newParquetMetricView(m.Name, m.Value, m.Tags, m.Timestamp)
+			view := newParquetMetricView(m.Name, m.Value, m.Tags, m.Timestamp, m.MetricType)
 			tb.rawMetrics = append(tb.rawMetrics, &view)
+			tb.recordMetricType(view)
 		}
 		if droppedCount > 0 {
 			fmt.Printf("  Skipped %d dropped observations from parquet\n", droppedCount)
@@ -544,8 +550,9 @@ func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) err
 				return nil
 			}
 
-			view := newParquetMetricView(metric.Name, metric.Value, metric.Tags, metric.Timestamp)
+			view := newParquetMetricView(metric.Name, metric.Value, metric.Tags, metric.Timestamp, metric.MetricType)
 			sort.Strings(view.tags)
+			tb.recordMetricType(view)
 			tb.streamInputMetricSeries[metricSeriesHash(view.name, view.host, view.tags)] = struct{}{}
 			tb.streamInputMetricsCount++
 			tb.extendStreamBounds(metric.Timestamp, metric.Timestamp)
@@ -629,18 +636,48 @@ func (tb *Bench) feedRawMetrics() {
 
 // parquetMetricView wraps a metric record to satisfy observerdef.MetricView.
 type parquetMetricView struct {
-	name      string
-	value     float64
-	host      string
-	tags      []string
-	timestamp int64
+	name       string
+	value      float64
+	metricType metrics.MetricType
+	host       string
+	tags       []string
+	timestamp  int64
 }
 
 // newParquetMetricView resolves the recorder's legacy host:* tag into the
 // separate host dimension. The remaining tags are the final tags from the replay input.
-func newParquetMetricView(name string, value float64, tags []string, timestamp int64) parquetMetricView {
+func newParquetMetricView(name string, value float64, tags []string, timestamp int64, metricType string) parquetMetricView {
 	host, metricTags := resolveParquetMetricHostAndTags(tags)
-	return parquetMetricView{name: name, value: value, host: host, tags: metricTags, timestamp: timestamp}
+	return parquetMetricView{name: name, value: value, metricType: parseMetricType(metricType), host: host, tags: metricTags, timestamp: timestamp}
+}
+
+func parseMetricType(name string) metrics.MetricType {
+	switch name {
+	case "Gauge":
+		return metrics.GaugeType
+	case "Rate":
+		return metrics.RateType
+	case "Count":
+		return metrics.CountType
+	case "MonotonicCount":
+		return metrics.MonotonicCountType
+	case "Counter":
+		return metrics.CounterType
+	case "Histogram":
+		return metrics.HistogramType
+	case "Historate":
+		return metrics.HistorateType
+	case "Set":
+		return metrics.SetType
+	case "Distribution":
+		return metrics.DistributionType
+	case "GaugeWithTimestamp":
+		return metrics.GaugeWithTimestampType
+	case "CountWithTimestamp":
+		return metrics.CountWithTimestampType
+	default:
+		return observerdef.UnknownType
+	}
 }
 
 func resolveParquetMetricHostAndTags(tags []string) (string, []string) {
@@ -690,14 +727,64 @@ func (tb *Bench) parquetMetricContextKey(metric *parquetMetricView) uint64 {
 	return uint64(tb.replayKeyGenerator.Generate(metric.name, metric.host, metric.tags))
 }
 
+type metricSeriesTypeKey struct {
+	name      string
+	host      string
+	tags      string
+	namespace string
+}
+
+func (tb *Bench) resetMetricTypes() {
+	tb.metricTypesMu.Lock()
+	tb.metricTypesBySeries = make(map[metricSeriesTypeKey]map[metrics.MetricType]struct{})
+	tb.metricTypesMu.Unlock()
+}
+
+func (tb *Bench) recordMetricType(metric parquetMetricView) {
+	tags := append([]string(nil), metric.tags...)
+	sort.Strings(tags)
+	key := metricSeriesTypeKey{name: metric.name, host: metric.host, tags: strings.Join(tags, "\x00"), namespace: "parquet"}
+	tb.metricTypesMu.Lock()
+	defer tb.metricTypesMu.Unlock()
+	if tb.metricTypesBySeries == nil {
+		tb.metricTypesBySeries = make(map[metricSeriesTypeKey]map[metrics.MetricType]struct{})
+	}
+	if tb.metricTypesBySeries[key] == nil {
+		tb.metricTypesBySeries[key] = make(map[metrics.MetricType]struct{})
+	}
+	tb.metricTypesBySeries[key][metric.metricType] = struct{}{}
+}
+
+func (tb *Bench) metricTypeNames(namespace, name, host string, tags []string) []string {
+	tagCopy := append([]string(nil), tags...)
+	sort.Strings(tagCopy)
+	key := metricSeriesTypeKey{name: name, host: host, tags: strings.Join(tagCopy, "\x00"), namespace: namespace}
+	tb.metricTypesMu.RLock()
+	types := tb.metricTypesBySeries[key]
+	result := make([]string, 0, len(types))
+	for metricType := range types {
+		if metricType == observerdef.UnknownType {
+			result = append(result, "Unknown")
+		} else if name := metricType.String(); name != "" {
+			result = append(result, name)
+		} else {
+			result = append(result, "Unknown")
+		}
+	}
+	tb.metricTypesMu.RUnlock()
+	sort.Strings(result)
+	return result
+}
+
 func (m *parquetMetricView) GetName() string   { return m.name }
 func (m *parquetMetricView) GetValue() float64 { return m.value }
 func (m *parquetMetricView) GetTags() tagset.CompositeTags {
 	return tagset.CompositeTagsFromSlice(m.tags)
 }
-func (m *parquetMetricView) GetHost() string         { return m.host }
-func (m *parquetMetricView) GetTimestampUnix() int64 { return m.timestamp }
-func (m *parquetMetricView) GetSampleRate() float64  { return 1.0 }
+func (m *parquetMetricView) GetHost() string                  { return m.host }
+func (m *parquetMetricView) GetTimestampUnix() int64          { return m.timestamp }
+func (m *parquetMetricView) GetSampleRate() float64           { return 1.0 }
+func (m parquetMetricView) GetMetricType() metrics.MetricType { return m.metricType }
 
 // unboundedStorageCfg returns a StorageConfig for testbench replay:
 // no point-retention or inactivity-eviction window (pre-loaded data stays in memory) and full
@@ -1358,6 +1445,7 @@ func (tb *Bench) loadDemoScenario() error {
 
 	tb.rawLogs = nil
 	tb.rawMetrics = nil
+	tb.resetMetricTypes()
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.ready = false
@@ -1395,8 +1483,9 @@ func (tb *Bench) loadDemoScenario() error {
 				{"connection.errors", getDemoConnectionErrorsValue(elapsed) * 0.6, []string{"service:worker"}},
 			}
 			for _, obs := range observations {
-				view := newParquetMetricView(obs.name, obs.value, obs.tags, timestamp)
+				view := newParquetMetricView(obs.name, obs.value, obs.tags, timestamp, "")
 				tb.rawMetrics = append(tb.rawMetrics, &view)
+				tb.recordMetricType(view)
 			}
 		}
 		fmt.Printf("  Generated %d seconds of demo data\n", totalSeconds)

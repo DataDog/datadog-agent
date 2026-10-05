@@ -63,28 +63,32 @@ func TestMetricParquetV1Format(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, w.WriteMetric(recorder.MetricData{
 		Source: "check", Name: "system.cpu", Value: 2.5, Timestamp: 1234,
-		Tags: []string{"host:test", "env:dev"}, Dropped: true,
+		Tags: []string{"host:test", "env:dev"}, Dropped: true, MetricType: "Gauge",
 	}))
 	require.True(t, w.WriteMetric(recorder.MetricData{
 		Source: "dogstatsd", Name: "request.count", Value: 7, Timestamp: 1235,
-		Tags: []string{"service:api"}, Dropped: false,
+		Tags: []string{"service:api"}, Dropped: false, MetricType: "Count",
 	}))
+	require.True(t, w.WriteMetric(recorder.MetricData{Source: "check", Name: "legacy", Timestamp: 1236}))
 	require.NoError(t, w.Close())
 
 	readOneBatch(t, filepath.Join(dir, "observer-metrics-*.parquet"), []string{"MetricName", "Tags.list.element"}, func(rec arrow.RecordBatch) {
-		require.Equal(t, []string{"RunID", "Time", "MetricName", "ValueFloat", "Tags", "Dropped"}, fieldNames(rec.Schema()))
-		require.Equal(t, []string{"utf8", "int64", "utf8", "float64", "list<element: utf8, nullable>", "bool"}, fieldTypes(rec.Schema()))
-		require.Equal(t, int64(2), rec.NumRows())
+		require.Equal(t, []string{"RunID", "Time", "MetricName", "ValueFloat", "Tags", "Dropped", "MetricType"}, fieldNames(rec.Schema()))
+		require.Equal(t, []string{"utf8", "int64", "utf8", "float64", "list<element: utf8, nullable>", "bool", "utf8"}, fieldTypes(rec.Schema()))
+		require.Equal(t, int64(3), rec.NumRows())
 		require.Equal(t, "check", rec.Column(0).(*array.String).Value(0))
 		require.Equal(t, int64(1234000), rec.Column(1).(*array.Int64).Value(0))
 		require.Equal(t, "system.cpu", rec.Column(2).(*array.String).Value(0))
 		require.Equal(t, 2.5, rec.Column(3).(*array.Float64).Value(0))
 		require.Equal(t, []string{"host:test", "env:dev"}, listValues(rec.Column(4).(*array.List), 0))
 		require.True(t, rec.Column(5).(*array.Boolean).Value(0))
+		require.Equal(t, "Gauge", rec.Column(6).(*array.String).Value(0))
 		require.Equal(t, "dogstatsd", rec.Column(0).(*array.String).Value(1))
 		require.Equal(t, int64(1235000), rec.Column(1).(*array.Int64).Value(1))
 		require.Equal(t, []string{"service:api"}, listValues(rec.Column(4).(*array.List), 1))
 		require.False(t, rec.Column(5).(*array.Boolean).Value(1))
+		require.Equal(t, "Count", rec.Column(6).(*array.String).Value(1))
+		require.Equal(t, "Unknown", rec.Column(6).(*array.String).Value(2))
 	})
 }
 
