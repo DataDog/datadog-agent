@@ -201,12 +201,14 @@ def build(
     static=False,
     fips_mode=False,
     glibc=True,
-    yara=False,
+    yara=True,
 ):
     """
     Build the system-probe
 
-    Pass --yara to link the libyara engine into the YARA exec scanner (opt-in, Linux only).
+    The YARA exec scanner's libyara engine is linked in by default on Linux (amd64/arm64);
+    pass --no-yara to build without it (e.g. where the libyara archive/headers can't be
+    provided). On Windows/macOS yara is never linked regardless of this flag.
     """
     if not is_macos:
         build_object_files(ctx)
@@ -250,7 +252,7 @@ def build_sysprobe_binary(
     fips_mode=False,
     static=False,
     glibc=True,
-    yara=False,
+    yara=True,
 ) -> None:
     arch_obj = Arch.from_str(arch)
 
@@ -286,6 +288,9 @@ def build_sysprobe_binary(
             else:
                 env[k] = v
 
+    # yara defaults to True (Linux only): the packaged agent/system-probe ships with the libyara
+    # engine linked in. The guard keeps Windows/macOS off (go-yara is Linux-only cgo here), and
+    # --no-yara (yara=False) opts a build out where the libyara archive/headers can't be provided.
     if yara and not is_windows and not is_macos:
         build_libyara(ctx)
         # go-yara links libyara through pkg-config by default; yara_no_pkg_config makes it use

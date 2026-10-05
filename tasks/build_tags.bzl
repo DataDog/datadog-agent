@@ -236,10 +236,14 @@ SYSTEM_PROBE_TAGS = set([
     "seclmax",
 ])
 
-# SYSTEM_PROBE_YARA_TAGS lists the opt-in tags that link the YARA exec scanner's libyara
-# engine into system-probe (dda inv system-probe.build --yara). They are not part of the
-# default system-probe build yet: the non-Bazel build paths (lint, KMT test builds, omnibus)
-# would need the libyara headers and archive first.
+# SYSTEM_PROBE_YARA_TAGS lists the tags that link the YARA exec scanner's libyara engine into
+# system-probe. They are NOT part of the static default tag set (SYSTEM_PROBE_TAGS / the Bazel
+# flavor configs): building the yara package with the `yara` tag needs the libyara archive and
+# headers present (go-yara is cgo). Instead, `dda inv system-probe.build` / `build-sysprobe-binary`
+# add these tags at build time on Linux (default on, `--no-yara` to opt out) after installing
+# libyara via Bazel (@libyara//:install) and setting the cgo flags. Paths that don't install
+# libyara (lint, unit/KMT test builds) keep the default tag set, so they compile the stand-in
+# engine (`//go:build linux && !yara`) and need no libyara.
 SYSTEM_PROBE_YARA_TAGS = set(["yara"])
 
 # TRACE_AGENT_TAGS lists the tags necessary to build the trace-agent
