@@ -15,7 +15,7 @@ import (
 
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"secret"},
 		showSecretInfo,
 		func(_ core.BundleParams) {})
@@ -23,7 +23,7 @@ func TestCommand(t *testing.T) {
 
 func TestRefreshCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"secret", "refresh"},
 		secretRefresh,
 		func(_ core.BundleParams) {})

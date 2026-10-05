@@ -17,7 +17,7 @@ import (
 
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"dogstatsd-replay", "-v"},
 		dogstatsdReplay,
 		func(cliParams *cliParams, _ core.BundleParams) {

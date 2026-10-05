@@ -60,7 +60,7 @@ type checkConfig struct {
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams, _ command.ProductComposition) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
