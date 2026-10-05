@@ -161,5 +161,27 @@ class TestPackageFromPath(unittest.TestCase):
         self.assertEqual(package_from_path(abs_path), "comp/core/config")
 
 
+class TestBuildBinariesWithBazel(unittest.TestCase):
+    @patch("tasks.libs.build.bazel._install_bazel_binary")
+    @patch("tasks.libs.build.bazel._bazel_output_path")
+    @patch("tasks.libs.build.bazel.bazel")
+    def test_batches_build_then_copies(self, bazel_fn, output_path, install):
+        from tasks.libs.build.bazel import build_binaries_with_bazel
+
+        output_path.side_effect = lambda target, args: f"/out/{target}"
+        dests = {"//pkg:a": "/dest/a", "//pkg:b": "/dest/b"}
+        build_binaries_with_bazel(dests, args=["--platforms=//bazel/platforms:linux_arm64"])
+
+        bazel_fn.assert_called_once_with("build", "//pkg:a", "//pkg:b", "--platforms=//bazel/platforms:linux_arm64")
+        self.assertEqual(install.call_count, 2)
+
+    @patch("tasks.libs.build.bazel.bazel")
+    def test_empty_is_noop(self, bazel_fn):
+        from tasks.libs.build.bazel import build_binaries_with_bazel
+
+        build_binaries_with_bazel({})
+        bazel_fn.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

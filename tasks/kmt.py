@@ -52,7 +52,7 @@ from tasks.kernel_matrix_testing.stacks import check_and_get_stack, check_and_ge
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, info, warn
 from tasks.kernel_matrix_testing.types import PlatformInfo, component_from_str
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, build_binaries_with_bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import (
     get_gitlab_job_dependencies,
@@ -62,6 +62,7 @@ from tasks.libs.ciproviders.gitlab_api import (
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_current_branch
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import GitlabJobStatus, loop_status
 from tasks.libs.releasing.json import load_release_json
@@ -74,7 +75,6 @@ from tasks.system_probe import (
     BPF_TAG,
     EMBEDDED_SHARE_DIR,
     NPM_TAG,
-    TEST_HELPER_CBINS,
     TEST_PACKAGES_LIST,
     bazel_build_ebpf,
     build_rust_binaries,
@@ -670,124 +670,113 @@ def ninja_define_rules(
         name="gobin",
         command="$chdir && $env $go build -o $out $tags $extra_arguments $ldflags $in $tool",
     )
-    nw.rule(name="copyfiles", command="mkdir -p $$(dirname $out) && install $in $out $mode")
-
-    nw.rule(
-        name="cbin",
-        command="$cc $cflags -o $out $in $ldflags",
-    )
 
 
-def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str, arch: Arch):
-    _, _, env = get_build_flags(ctx, arch=arch)
-    env_str = " ".join([f"{k}=\"{v.strip()}\"" for k, v in env.items()])
+_KMT_LINUX_PLATFORMS = {
+    "x86_64": "//bazel/platforms:linux_x86_64",
+    "arm64": "//bazel/platforms:linux_arm64",
+}
 
-    test_runner_files = glob("test/new-e2e/system-probe/test-runner/*.go")
-    nw.build(
-        rule="gobin",
-        pool="gobuild",
-        outputs=[os.path.join(kmt_paths.dependencies, "test-runner")],
-        implicit=test_runner_files,
-        variables={
-            "go": go_path,
-            "chdir": "cd test/new-e2e/system-probe/test-runner",
-            "env": env_str,
-        },
-    )
-    test_runner_config = glob("test/new-e2e/system-probe/test-runner/files/*.json")
-    for f in test_runner_config:
-        nw.build(
-            rule="copyfiles",
-            outputs=[f"{kmt_paths.arch_dir}/opt/{os.path.basename(f)}"],
-            inputs=[os.path.abspath(f)],
+# Shared KMT tooling binaries; dest is relative to KMTPaths.dependencies.
+_KMT_TOOL_TARGETS: dict[str, str] = {
+    "//test/new-e2e/system-probe/test-runner:test-runner": "test-runner",
+    "//test/new-e2e/system-probe/vm-metrics:vm-metrics": "vm-metrics",
+    "//test/new-e2e/system-probe/test-json-review:test-json-review": "test-json-review",
+    "//pkg/ebpf/verifier/calculator:calculator": "verifier-calculator",
+}
+
+# Per-package helpers copied next to the matching testsuite directory.
+# dest is relative to KMTPaths.sysprobe_tests.
+_KMT_PKG_HELPER_TARGETS: dict[str, str] = {
+    "//pkg/network/protocols/tls/gotls/testutil/gotls_client:gotls_client": (
+        "pkg/network/protocols/tls/gotls/testutil/gotls_client/gotls_client"
+    ),
+    "//pkg/network/protocols/tls/gotls/testutil/gotls_server:gotls_server": (
+        "pkg/network/protocols/tls/gotls/testutil/gotls_server/gotls_server"
+    ),
+    "//pkg/network/usm/testutil/grpc/grpc_external_server:grpc_external_server": (
+        "pkg/network/usm/testutil/grpc/grpc_external_server/grpc_external_server"
+    ),
+    "//pkg/network/tracer/testutil/proxy/external_unix_proxy_server:external_unix_proxy_server": (
+        "pkg/network/tracer/testutil/proxy/external_unix_proxy_server/external_unix_proxy_server"
+    ),
+    "//pkg/network/usm/sharedlibraries/testutil/fmapper:fmapper": (
+        "pkg/network/usm/sharedlibraries/testutil/fmapper/fmapper"
+    ),
+    "//pkg/network/usm/testutil/prefetch_file:prefetch_file": "pkg/network/usm/testutil/prefetch_file/prefetch_file",
+    "//pkg/discovery/module/testutil/fake_server:fake_server": "pkg/discovery/module/testutil/fake_server/fake_server",
+    "//pkg/ebpf/uprobes/testutil/standalone_attacher:standalone_attacher": (
+        "pkg/ebpf/uprobes/testutil/standalone_attacher/standalone_attacher"
+    ),
+    "//pkg/gpu/testdata:cudasample": "pkg/gpu/testdata/cudasample",
+}
+
+
+def kmt_linux_platform(arch: Arch) -> str:
+    return _KMT_LINUX_PLATFORMS[arch.kmt_arch]
+
+
+def kmt_bazel_flags(arch: Arch) -> list[str]:
+    return [f"--platforms={kmt_linux_platform(arch)}"]
+
+
+def stage_kmt_helper_binaries(ctx: Context, kmt_paths: KMTPaths, arch: Arch, *, include_pkg_helpers: bool) -> None:
+    """Build KMT helper binaries with Bazel and copy them into the KMT layout."""
+    flags = kmt_bazel_flags(arch)
+    dest_by_target = {target: str(kmt_paths.dependencies / dest) for target, dest in _KMT_TOOL_TARGETS.items()}
+    if include_pkg_helpers:
+        dest_by_target.update(
+            {target: str(kmt_paths.sysprobe_tests / dest) for target, dest in _KMT_PKG_HELPER_TARGETS.items()}
         )
 
-    vm_metrics_files = glob("test/new-e2e/system-probe/vm-metrics/*.go")
-    nw.build(
-        rule="gobin",
-        pool="gobuild",
-        outputs=[os.path.join(kmt_paths.dependencies, "vm-metrics")],
-        implicit=vm_metrics_files,
-        variables={
-            "go": go_path,
-            "chdir": "cd test/new-e2e/system-probe/vm-metrics",
-            "env": env_str,
-        },
+    info("[+] Building KMT helper binaries via Bazel...")
+    build_binaries_with_bazel(dest_by_target, args=flags)
+
+    # stdlib cmd/test2json has no workspace target. Match the old ninja env
+    # (GOARCH/CC) so cross-compiled KMT still gets a linux test2json.
+    _, _, env = get_build_flags(ctx, arch=arch)
+    env["CGO_ENABLED"] = "0"
+    test2json_path = kmt_paths.dependencies / "go/bin/test2json"
+    test2json_path.parent.mkdir(parents=True, exist_ok=True)
+    go_build(
+        ctx,
+        "cmd/test2json",
+        ldflags="-s -w",
+        bin_path=str(test2json_path),
+        env=env,
     )
 
-    test_json_files = glob("test/new-e2e/system-probe/test-json-review/*.go")
-    nw.build(
-        rule="gobin",
-        pool="gobuild",
-        outputs=[os.path.join(kmt_paths.dependencies, "test-json-review")],
-        implicit=test_json_files,
-        variables={
-            "go": go_path,
-            "chdir": "cd test/new-e2e/system-probe/test-json-review/",
-            "tags": "-tags=test",
-            "env": env_str,
-        },
-    )
-
-    nw.build(
-        outputs=[f"{kmt_paths.dependencies}/go/bin/test2json"],
-        rule="gobin",
-        pool="gobuild",
-        variables={
-            "go": go_path,
-            "ldflags": "-ldflags=\"-s -w\"",
-            "chdir": "true",
-            "tool": "cmd/test2json",
-            "env": f"{env_str} CGO_ENABLED=0",
-        },
-    )
-
-    nw.build(
-        rule="copyfiles",
-        outputs=[f"{kmt_paths.arch_dir}/opt/micro-vm-init.sh"],
-        inputs=[f"{os.getcwd()}/test/new-e2e/system-probe/test/micro-vm-init.sh"],
-        variables={"mode": "-m744"},
-    )
-
-    verifier_files = glob("pkg/ebpf/verifier/*")
-    nw.build(
-        rule="gobin",
-        pool="gobuild",
-        inputs=[os.path.abspath("./pkg/ebpf/verifier/calculator/main.go")],
-        outputs=[os.fspath(kmt_paths.dependencies / "verifier-calculator")],
-        implicit=[os.path.abspath(f) for f in verifier_files],
-        variables={
-            "go": go_path,
-            "chdir": "true",
-            "env": env_str,
-            "tags": f"-tags=\"{','.join(get_sysprobe_test_buildtags(False, False))}\"",
-        },
-    )
+    opt_dir = kmt_paths.arch_dir / "opt"
+    opt_dir.mkdir(parents=True, exist_ok=True)
+    for cfg in Path("test/new-e2e/system-probe/test-runner/files").glob("*.json"):
+        shutil.copy2(cfg, opt_dir / cfg.name)
+    init_sh = Path("test/new-e2e/system-probe/test/micro-vm-init.sh")
+    shutil.copy2(init_sh, opt_dir / init_sh.name)
+    os.chmod(opt_dir / init_sh.name, 0o744)
 
 
-def ninja_copy_ebpf_files(
-    nw: NinjaWriter,
+def copy_ebpf_files(
     component: Component,
     kmt_paths: KMTPaths,
     arch: Arch,
     filter_fn: Callable[[Path], bool] = lambda _: True,
-):
-    # copy ebpf files from build and runtime dirs
+) -> None:
+    """Copy Bazel-staged eBPF objects and runtime sources into the KMT test tree."""
     build_dir = get_ebpf_build_dir(arch).absolute()
     runtime_dir = get_ebpf_runtime_dir().absolute()
-
-    # Copy to the target directory, retaining the directory structure
     root = kmt_paths.secagent_tests if component == "security-agent" else kmt_paths.sysprobe_tests
     output = root / build_dir.relative_to(Path.cwd().absolute())
 
-    def filter(x: Path):
-        return filter_fn(x) and x.is_file()
+    def keep(path: Path) -> bool:
+        return filter_fn(path) and path.is_file()
 
-    to_copy = [(p, output / p.relative_to(build_dir)) for p in build_dir.glob("**/*.o") if filter(p)]
-    to_copy += [(p, output / "runtime" / p.relative_to(runtime_dir)) for p in runtime_dir.glob("**/*.c") if filter(p)]
+    to_copy = [(p, output / p.relative_to(build_dir)) for p in build_dir.glob("**/*.o") if keep(p)]
+    to_copy += [(p, output / "runtime" / p.relative_to(runtime_dir)) for p in runtime_dir.glob("**/*.c") if keep(p)]
 
     for source, target in to_copy:
-        nw.build(inputs=[os.fspath(source)], outputs=[os.fspath(target)], rule="copyfiles", variables={"mode": "-m744"})
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        os.chmod(target, 0o744)
 
 
 @task
@@ -815,29 +804,16 @@ def kmt_secagent_prepare(
         arch=arch,
     )
 
-    go_path = "go"
-    go_root = os.getenv("GOROOT")
-    if go_root:
-        go_path = os.path.join(go_root, "bin", "go")
-
-    nf_path = kmt_paths.arch_dir / "kmt-secagent.ninja"
-    with open(nf_path, 'w') as ninja_file:
-        nw = NinjaWriter(ninja_file)
-
-        ninja_define_rules(nw, debug=verbose, ci=ci)
-        ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
-        ninja_copy_ebpf_files(
-            nw,
-            "security-agent",
-            kmt_paths,
-            arch,
-            filter_fn=lambda x: os.path.basename(x).startswith("runtime-security"),
-        )
+    stage_kmt_helper_binaries(ctx, kmt_paths, arch, include_pkg_helpers=False)
+    copy_ebpf_files(
+        "security-agent",
+        kmt_paths,
+        arch,
+        filter_fn=lambda x: os.path.basename(x).startswith("runtime-security"),
+    )
 
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
-
-    ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
 @task
@@ -1128,8 +1104,6 @@ def kmt_sysprobe_prepare(
         env_str = env_str.rstrip()
 
         ninja_define_rules(nw, debug=True, ci=ci)
-        ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
-        ninja_copy_ebpf_files(nw, "system-probe", kmt_paths, arch)
         ninja_add_dyninst_test_programs(
             ctx,
             nw,
@@ -1180,59 +1154,16 @@ def kmt_sysprobe_prepare(
             if os.path.exists(testdata):
                 nw.build(inputs=[testdata], outputs=[os.path.join(target_path, "testdata")], rule="copyextra")
 
-            for gobin in [
-                "gotls_client",
-                "gotls_server",
-                "grpc_external_server",
-                "external_unix_proxy_server",
-                "fmapper",
-                "prefetch_file",
-                "fake_server",
-                "sample_service",
-                "standalone_attacher",
-            ]:
-                src_file_path = os.path.join(pkg, f"{gobin}.go")
-                if os.path.isdir(pkg) and os.path.isfile(src_file_path):
-                    binary_path = os.path.join(target_path, gobin)
-                    nw.build(
-                        inputs=[f"{pkg}/{gobin}.go"],
-                        outputs=[binary_path],
-                        rule="gobin",
-                        pool="gobuild",
-                        variables={
-                            "go": go_path,
-                            "chdir": "true",
-                            "tags": "-tags=\"test,bpf\"",
-                            "ldflags": "-ldflags=\"-extldflags '-static'\"",
-                            "env": env_str,
-                        },
-                    )
-
-            for cbin in TEST_HELPER_CBINS:
-                source = Path(pkg) / "testdata" / f"{cbin}.c"
-                if source.is_file():
-                    testdata_folder = os.path.join(target_path, "testdata")
-                    binary_path = os.path.join(testdata_folder, cbin)
-                    nw.build(
-                        inputs=[os.fspath(source)],
-                        outputs=[binary_path],
-                        # Ensure that the testdata folder is created before the
-                        # binary, to avoid races between this command and the
-                        # copy command
-                        implicit=[testdata_folder],
-                        rule="cbin",
-                        # helper binaries need to be compiled statically to avoid problems with
-                        # libc not being found in target VMs/containers (motivating case: running
-                        # these binaries in alpine docker images, which has musl instead of lib)
-                        variables={"cc": "clang", "cflags": "-static"},
-                    )
-
     info("[+] Compiling tests...")
 
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
     ctx.run(f"ninja -d explain -v -f {nf_path}")
+
+    # After testdata copy so cudasample lands in the copied testdata dir, not under it.
+    stage_kmt_helper_binaries(ctx, kmt_paths, arch, include_pkg_helpers=True)
+    copy_ebpf_files("system-probe", kmt_paths, arch)
 
 
 def images_matching_ci(_: Context, domains: list[LibvirtDomain]):

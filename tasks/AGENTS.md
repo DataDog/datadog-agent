@@ -177,3 +177,9 @@ py_binary(
 > (2-4 lines each) and include *why* the idiom is needed.
 
 <!-- Add new idioms below this line -->
+
+- **KMT helper binaries** — compile with Bazel (`build_binaries_with_bazel`) and copy into
+  `kmt-deps/<stack>/<arch>/…`. Do not add ninja `gobin`/`cbin` edges for those helpers.
+  `cmd/test2json` is stdlib and still uses `go_build` with `get_build_flags` so cross-arch
+  KMT keeps the right GOARCH. Copy `cudasample` *after* the testdata `copyextra` step so
+  `cp -r` does not nest a pre-created testdata directory.

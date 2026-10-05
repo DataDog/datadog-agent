@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from tasks.kernel_matrix_testing import platforms, vmconfig
@@ -90,3 +91,26 @@ class TestFilterByCIComponent(unittest.TestCase):
                         f"{component}: job {job.name} is missing microVMs for "
                         f"{job.kernels - set(by_set[test_set][job.arch].keys())}",
                     )
+
+
+class TestKMTHelperTargets(unittest.TestCase):
+    def test_linux_platforms(self):
+        from tasks.kmt import kmt_linux_platform
+
+        self.assertEqual(kmt_linux_platform(Arch.from_str("x86_64")), "//bazel/platforms:linux_x86_64")
+        self.assertEqual(kmt_linux_platform(Arch.from_str("arm64")), "//bazel/platforms:linux_arm64")
+
+    def test_helper_dests_are_unique_and_exist(self):
+        from tasks.kmt import _KMT_PKG_HELPER_TARGETS, _KMT_TOOL_TARGETS
+
+        dests = list(_KMT_TOOL_TARGETS.values()) + list(_KMT_PKG_HELPER_TARGETS.values())
+        self.assertEqual(len(dests), len(set(dests)))
+
+        repo = Path(__file__).resolve().parents[2]
+        for dest in _KMT_PKG_HELPER_TARGETS.values():
+            # dest is .../<pkg>/<binary>; the package dir must exist in the tree
+            pkg_dir = repo / Path(dest).parent
+            self.assertTrue(pkg_dir.is_dir(), pkg_dir)
+
+        self.assertTrue((repo / "pkg/gpu/testdata/cudasample.c").is_file())
+        self.assertTrue((repo / "pkg/gpu/testdata/BUILD.bazel").is_file())

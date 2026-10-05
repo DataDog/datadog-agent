@@ -1,0 +1,16 @@
+# gazelle:ignore
+
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+# Statically linked dummy CUDA runtime used by GPU KMT / functional tests.
+# Must not depend on host libc (alpine containers in the GPU test path).
+cc_binary(
+    name = "cudasample",
+    srcs = [
+        "common_functions.h",
+        "cudasample.c",
+    ],
+    linkopts = ["-static"],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
