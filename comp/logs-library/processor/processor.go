@@ -27,6 +27,8 @@ const (
 	// MRF logs settings
 	configMRFFailoverLogs     = "multi_region_failover.failover_logs"
 	configMRFServiceAllowlist = "multi_region_failover.logs_service_allowlist"
+	// ExperimentalCharacterizationEnabled enables aggregate-only pipeline ingress observation.
+	ExperimentalCharacterizationEnabled = "logs_config.experimental_characterization.enabled"
 )
 
 type failoverConfig struct {
@@ -53,6 +55,7 @@ type Processor struct {
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
 	instanceID      string
+	characterizer   *characterizationObserver
 }
 
 // New returns an initialized Processor with config support for failover notifications.
@@ -73,6 +76,10 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
+	}
+
+	if config != nil && config.GetBool(ExperimentalCharacterizationEnabled) {
+		p.characterizer = newCharacterizationObserver()
 	}
 
 	// Initialize cached failover config
@@ -121,6 +128,9 @@ func (p *Processor) updateFailoverConfig() {
 
 // Start starts the Processor.
 func (p *Processor) Start() {
+	if p.characterizer != nil {
+		p.characterizer.start()
+	}
 	go p.run()
 }
 
@@ -129,6 +139,9 @@ func (p *Processor) Start() {
 func (p *Processor) Stop() {
 	close(p.inputChan)
 	<-p.done
+	if p.characterizer != nil {
+		p.characterizer.stop()
+	}
 }
 
 // Flush processes synchronously the messages that this processor has to process.
@@ -173,6 +186,9 @@ func (p *Processor) run() {
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
+	if p.characterizer != nil {
+		p.characterizer.observe(msg, p.instanceID)
+	}
 	p.utilization.Start()
 	defer p.utilization.Stop()
 	defer p.pipelineMonitor.ReportComponentEgress(msg, metrics.ProcessorTlmName, p.instanceID)

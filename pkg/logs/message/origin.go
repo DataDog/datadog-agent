@@ -103,6 +103,27 @@ func AppendTagMetadataBytes(baseBytes int, tags []string) int {
 	return totalBytes
 }
 
+// TagMetadataStats returns the count and byte size of the tags that would be
+// attached to this origin plus additional parser tags. It does not allocate a
+// combined tag slice or retain any tag values.
+func (o *Origin) TagMetadataStats(additionalTags []string) (int, int) {
+	if o == nil || o.LogSource == nil {
+		return len(additionalTags), TagMetadataBytes(additionalTags)
+	}
+
+	count := len(o.tags) + len(o.LogSource.Config.Tags) + len(additionalTags)
+	bytes := TagMetadataBytes(o.tags, o.LogSource.Config.Tags, additionalTags)
+	if category := o.LogSource.Config.SourceCategory; category != "" {
+		const prefix = "sourcecategory:"
+		if count > 0 {
+			bytes++
+		}
+		count++
+		bytes += len(prefix) + len(category)
+	}
+	return count, bytes
+}
+
 // TagsToString encodes tags to a single string, in a comma separated format
 func (o *Origin) TagsToString() string {
 	tags := o.tagsToStringArray()
