@@ -753,6 +753,32 @@ properties:
             node_type: setting
             type: integer
             default: 2560
+          path_patterns:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                description: |
+                  Groups sibling files and directories that share a name shape
+                  (session IDs, PIDs, dates, random IDs) into a single typed
+                  pattern entry, such as sess-<num> or app-<date>.log.
+              min_date_group_size:
+                node_type: setting
+                type: integer
+                default: 2
+                description: |
+                  Minimum number of siblings needed to group names when only
+                  their date differs. Must be at least 2.
+              min_group_size:
+                node_type: setting
+                type: integer
+                default: 3
+                description: |
+                  Minimum number of siblings sharing a name shape needed to
+                  group them when the profile is saved. Must be at least 2.
           profile_reporting_delay:
             node_type: section
             type: object

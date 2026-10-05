@@ -22,20 +22,29 @@ import (
 // security profiles enable it, v1 profiles and activity dumps leave it
 // off.
 type PathPatternConfig struct {
-	Enabled                  bool
-	MaxChildren              int
-	MinClusterSize           int
-	MinClusterSizeOnFinalize int
+	Enabled bool
+	// MaxChildren is the child count above which an insert runs a merge
+	// pass with MinGroupSizeOnInsert.
+	MaxChildren          int
+	MinGroupSizeOnInsert int
+	// MinGroupSize is the threshold of the FinalizePatterns pass run when
+	// a profile is saved.
+	MinGroupSize int
+	// MinDateGroupSize lowers the group size needed when the template
+	// replaces a date: a dated name is already strong evidence of
+	// rotation. Ignored when not below the pass threshold.
+	MinDateGroupSize int
 }
 
 // DefaultPathPatternConfig returns the enabled configuration used by v2
 // security profiles.
 func DefaultPathPatternConfig() PathPatternConfig {
 	return PathPatternConfig{
-		Enabled:                  true,
-		MaxChildren:              15,
-		MinClusterSize:           5,
-		MinClusterSizeOnFinalize: 3,
+		Enabled:              true,
+		MaxChildren:          15,
+		MinGroupSizeOnInsert: 5,
+		MinGroupSize:         3,
+		MinDateGroupSize:     2,
 	}
 }
 
@@ -51,6 +60,7 @@ const (
 	classUUID
 	classAlpha
 	classAlnum
+	classDate
 )
 
 // minHexLen is the shortest piece classified as a hex identifier, so
@@ -71,6 +81,8 @@ var classes = [...]classInfo{
 	classHex:   {code: "H", placeholder: "<hex>", regex: `[0-9a-fA-F]{8,}`, width: 2},
 	classAlpha: {code: "A", placeholder: "<alpha>", regex: `[A-Za-z]+`, width: 3},
 	classAlnum: {code: "M", placeholder: "<alnum>", regex: `[0-9A-Za-z]*(?:[0-9][A-Za-z]|[A-Za-z][0-9])[0-9A-Za-z]*`, width: 4},
+	classDate: {code: "D", placeholder: "<date>", regex: `(?:19|20)[0-9]{2}[-_.]?(?:0[1-9]|1[0-2])[-_.]?(?:0[1-9]|[12][0-9]|3[01])` +
+		`(?:[T_-](?:[01][0-9]|2[0-3])[-_.:]?[0-5][0-9][-_.:]?[0-5][0-9]Z?)?`, width: 1},
 }
 
 var placeholderClasses = map[string]tokenClass{
@@ -79,6 +91,7 @@ var placeholderClasses = map[string]tokenClass{
 	classes[classHex].placeholder:   classHex,
 	classes[classAlpha].placeholder: classAlpha,
 	classes[classAlnum].placeholder: classAlnum,
+	classes[classDate].placeholder:  classDate,
 }
 
 type nameToken struct {
@@ -86,7 +99,7 @@ type nameToken struct {
 	class tokenClass
 }
 
-// tokenizeName splits name into separator, UUID and piece tokens.
+// tokenizeName splits name into separator, UUID, date and piece tokens.
 func tokenizeName(name string) []nameToken {
 	var out []nameToken
 	i := 0
@@ -99,6 +112,11 @@ func tokenizeName(name string) []nameToken {
 		if isUUIDAt(name, i) {
 			out = append(out, nameToken{text: name[i : i+36], class: classUUID})
 			i += 36
+			continue
+		}
+		if n := dateLenAt(name, i); n > 0 {
+			out = append(out, nameToken{text: name[i : i+n], class: classDate})
+			i += n
 			continue
 		}
 		j := i
@@ -189,6 +207,86 @@ func isUUIDAt(name string, i int) bool {
 		}
 	}
 	return true
+}
+
+// dateLenAt returns the length of the date starting at name[i], with an
+// optional time of day, or 0. Accepted forms: YYYY-MM-DD (or with _ or .),
+// YYYYMMDD, then optionally THHMMSS, -HH-MM-SS, _HH:MM:SS (Z allowed).
+// The year must be 19xx or 20xx and the month and day valid, so plain
+// numbers stay <num>. The date must end at a separator or the end of name.
+func dateLenAt(name string, i int) int {
+	n := calendarDateLen(name[i:])
+	if n == 0 {
+		return 0
+	}
+	if t := timeOfDayLen(name[i+n:]); t > 0 && isTokenEnd(name, i+n+t) {
+		return n + t
+	}
+	if isTokenEnd(name, i+n) {
+		return n
+	}
+	return 0
+}
+
+func calendarDateLen(s string) int {
+	if len(s) >= 10 && isSeparator(s[4]) && s[7] == s[4] &&
+		isYear(s[:4]) && isTwoDigitsIn(s[5:7], 1, 12) && isTwoDigitsIn(s[8:10], 1, 31) {
+		return 10
+	}
+	if len(s) >= 8 && isYear(s[:4]) && isTwoDigitsIn(s[4:6], 1, 12) && isTwoDigitsIn(s[6:8], 1, 31) {
+		return 8
+	}
+	return 0
+}
+
+func timeOfDayLen(s string) int {
+	if len(s) < 7 || (s[0] != 'T' && s[0] != '-' && s[0] != '_') || !isTwoDigitsIn(s[1:3], 0, 23) {
+		return 0
+	}
+	j := 3
+	var sep byte
+	if isTimeSeparator(s[j]) {
+		sep = s[j]
+		j++
+	}
+	if len(s) < j+2 || !isTwoDigitsIn(s[j:j+2], 0, 59) {
+		return 0
+	}
+	j += 2
+	if sep != 0 {
+		if len(s) <= j || s[j] != sep {
+			return 0
+		}
+		j++
+	}
+	if len(s) < j+2 || !isTwoDigitsIn(s[j:j+2], 0, 59) {
+		return 0
+	}
+	j += 2
+	if j < len(s) && s[j] == 'Z' {
+		j++
+	}
+	return j
+}
+
+func isYear(s string) bool {
+	return (s[:2] == "19" || s[:2] == "20") && isDigit(s[2]) && isDigit(s[3])
+}
+
+func isTwoDigitsIn(s string, lo, hi int) bool {
+	if !isDigit(s[0]) || !isDigit(s[1]) {
+		return false
+	}
+	v := int(s[0]-'0')*10 + int(s[1]-'0')
+	return lo <= v && v <= hi
+}
+
+func isTimeSeparator(c byte) bool {
+	return isSeparator(c) || c == ':'
+}
+
+func isTokenEnd(name string, j int) bool {
+	return j == len(name) || isSeparator(name[j])
 }
 
 func isDigit(c byte) bool {
@@ -374,9 +472,9 @@ func mostlyRandom(names []string) bool {
 
 // clusterMembers splits a signature bucket into the member sets to
 // template: one per affix family sharing letters with at least
-// minClusterSize members, then the remaining members together when they
+// minGroupSize members, then the remaining members together when they
 // are numerous enough and mostly look like generated IDs.
-func clusterMembers(members []string, minClusterSize int) [][]string {
+func clusterMembers(members []string, minGroupSize int) [][]string {
 	families := make(map[string][]string)
 	var keys []string
 	for _, m := range members {
@@ -392,13 +490,13 @@ func clusterMembers(members []string, minClusterSize int) [][]string {
 		rest []string
 	)
 	for _, k := range keys {
-		if len(families[k]) >= minClusterSize && hasSharedLetters(k) {
+		if len(families[k]) >= minGroupSize && hasSharedLetters(k) {
 			out = append(out, families[k])
 		} else {
 			rest = append(rest, families[k]...)
 		}
 	}
-	if len(rest) >= minClusterSize && mostlyRandom(rest) {
+	if len(rest) >= minGroupSize && mostlyRandom(rest) {
 		sort.Strings(rest)
 		out = append(out, rest)
 	}
@@ -693,25 +791,38 @@ func rewriteSubtreePaths(fn *FileNode, depthFromEnd int, template string) {
 }
 
 // mergeChildren runs one merge pass over children, collapsing every
-// signature bucket with at least minClusterSize members into a pattern
-// node. Returns the number of buckets collapsed.
-func mergeChildren(children map[string]*FileNode, minClusterSize int, stats *Stats) int {
-	if len(children) == 0 || minClusterSize < 2 {
+// signature bucket with at least minGroupSize members into a pattern
+// node. Templates that replace a date only need MinDateGroupSize
+// members. Returns the number of buckets collapsed.
+func mergeChildren(children map[string]*FileNode, minGroupSize int, stats *Stats) int {
+	if len(children) == 0 || minGroupSize < 2 {
 		return 0
 	}
+	dateGroupSize := minGroupSize
+	if n := pathPatternCfgFrom(stats).MinDateGroupSize; n >= 2 && n < minGroupSize {
+		dateGroupSize = n
+	}
+	datePlaceholder := classes[classDate].placeholder
 	collapsed := 0
 	for _, b := range groupChildrenBySignature(children) {
-		if len(b.members) < minClusterSize {
+		threshold := minGroupSize
+		if strings.Contains(b.signature, classes[classDate].code) {
+			threshold = dateGroupSize
+		}
+		if len(b.members) < threshold {
 			continue
 		}
-		for _, members := range clusterMembers(b.members, minClusterSize) {
+		for _, members := range clusterMembers(b.members, threshold) {
 			template := buildTemplate(members)
+			if len(members) < minGroupSize && !strings.Contains(template, datePlaceholder) {
+				continue
+			}
 			switch templateScopeOf(template) {
 			case scopeNone:
 				continue
 			case scopeDirectories:
 				members = directoryMembers(children, members)
-				if len(members) < minClusterSize || !mostlyRandom(members) {
+				if len(members) < minGroupSize || !mostlyRandom(members) {
 					continue
 				}
 				template = buildTemplate(members)
@@ -734,7 +845,7 @@ func maybeMergeChildren(children map[string]*FileNode, stats *Stats) int {
 	if !cfg.Enabled || cfg.MaxChildren <= 0 || len(children) <= cfg.MaxChildren {
 		return 0
 	}
-	return mergeChildren(children, cfg.MinClusterSize, stats)
+	return mergeChildren(children, cfg.MinGroupSizeOnInsert, stats)
 }
 
 // insertChildAndMerge stores child under name, runs the fan-out merge pass,

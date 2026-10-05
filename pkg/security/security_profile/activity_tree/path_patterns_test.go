@@ -27,7 +27,10 @@ func TestStructureSignature(t *testing.T) {
 		{"sess-42", "A-N"},
 		{"sess42", "M"},
 		{"pod-abc123-xyz", "A-M-A"},
-		{"2024-01-15.log", "N-N-N.A"},
+		{"2024-01-15.log", "D.A"},
+		{"app-20240115.log", "A-D.A"},
+		{"2024-13-15.log", "N-N-N.A"},
+		{"12345678", "N"},
 		{"1337", "N"},
 		{"config.json", "A.A"},
 		{"file_v2.tar", "A_M.A"},
@@ -61,7 +64,8 @@ func TestBuildTemplate(t *testing.T) {
 		{"no-separator-suffix", []string{"2024backup", "2025backup"}, "<num>backup"},
 		{"prefix-mixed-middle", []string{"pod7abc", "pod8xyz"}, "pod<alnum>"},
 		{"random-ids", []string{"a7k2x9", "q9w8e7", "z3x8c1"}, "<alnum>"},
-		{"dates", []string{"2024-01-15.log", "2024-01-16.log"}, "2024-01-<num>.log"},
+		{"dates", []string{"2024-01-15.log", "2024-01-16.log"}, "<date>.log"},
+		{"timestamps", []string{"app-2024-01-15T10-30-00.log", "app-20240201-093000.log"}, "app-<date>.log"},
 		{"pod-middle-only", []string{"pod-abc123-xyz", "pod-def456-xyz"}, "pod-<alnum>-xyz"},
 		{"numbers", []string{"1", "42", "1337"}, "<num>"},
 		{"hex", []string{"deadbeef", "3fa9c2e1"}, "<hex>"},
@@ -105,6 +109,12 @@ func TestPatternMatches(t *testing.T) {
 		{"<hex>", "cafe", false},
 		{"<uuid>", "123e4567-e89b-12d3-a456-426614174000", true},
 		{"<uuid>", "123e4567", false},
+		{"app-<date>.log", "app-2025-12-31.log", true},
+		{"app-<date>.log", "app-20251231.log", true},
+		{"app-<date>.log", "app-2025-12-31T23-59-59Z.log", true},
+		{"app-<date>.log", "app-2025-13-31.log", false},
+		{"app-<date>.log", "app-12345678.log", false},
+		{"app-<date>.log", "app-evil.log", false},
 		// literal regex metacharacters are escaped
 		{"a.b-<num>", "a.b-1", true},
 		{"a.b-<num>", "axb-1", false},
@@ -184,7 +194,7 @@ func TestMergeChildren_CollapsesSessSiblings(t *testing.T) {
 	assert.Equal(t, int64(2), stats.FileNodesMerged)
 }
 
-func TestMergeChildren_RespectsMinClusterSize(t *testing.T) {
+func TestMergeChildren_RespectsMinGroupSize(t *testing.T) {
 	children := map[string]*FileNode{
 		"sess-aaa": newTestFileLeaf("sess-aaa"),
 		"sess-bbb": newTestFileLeaf("sess-bbb"),
@@ -372,6 +382,81 @@ func TestMergeChildren_BareAlnumOnlyForDirectories(t *testing.T) {
 	}
 	_, ok = findChildWithPatternFallback(children, "Zq8wX7vB6n", true, stats)
 	assert.False(t, ok, "a directory-only pattern must not match a file")
+}
+
+func TestDateLenAt(t *testing.T) {
+	for name, want := range map[string]int{
+		"2024-01-15":          10,
+		"2024_01_15.log":      10,
+		"20240115":            8,
+		"2024-01-15T10-30-00": 19,
+		"20240115T103000Z":    16,
+		"2024-01-15_10:30:00": 19,
+		"2024-01-15-1.log":    10,
+		"2024-01-15abc":       0,
+		"2024-01-15T10-3000":  0,
+		"2024-13-01":          0,
+		"2024-01-32":          0,
+		"2024-01_15":          0,
+		"1824-01-15":          0,
+		"12345678":            0,
+		"202401151":           0,
+	} {
+		assert.Equal(t, want, dateLenAt(name, 0), name)
+	}
+}
+
+// Two dated siblings are enough when the date is what varies, and the
+// resulting template keeps matching later months and years.
+func TestMergeChildren_DatesNeedOnlyTwoMembers(t *testing.T) {
+	stats := enablePatternsTestStats()
+	children := map[string]*FileNode{}
+	for _, n := range []string{"app-2024-01-15.log", "app-2024-01-16.log", "app.log"} {
+		children[n] = newTestFileLeaf(n)
+	}
+
+	assert.Equal(t, 1, mergeChildren(children, 3, stats))
+	assert.Equal(t, []string{"app-<date>.log", "app.log"}, childrenNames(children))
+	c, ok := findChildWithPatternFallback(children, "app-2025-03-01.log", true, stats)
+	if assert.True(t, ok) {
+		assert.Equal(t, "app-<date>.log", c.Name)
+	}
+}
+
+// The lower threshold only applies when the date varies.
+func TestMergeChildren_LowDateThresholdNeedsVaryingDate(t *testing.T) {
+	stats := enablePatternsTestStats()
+	for _, names := range [][]string{
+		{"2024-01-15-a.log", "2024-01-15-b.log"},
+		{"sess-1", "sess-2"},
+	} {
+		children := map[string]*FileNode{}
+		for _, n := range names {
+			children[n] = newTestFileLeaf(n)
+		}
+		assert.Equal(t, 0, mergeChildren(children, 3, stats), "%v", names)
+	}
+}
+
+func TestInsertFileEvent_DatedLogsQuietNextMonth(t *testing.T) {
+	at := &ActivityTree{Stats: enablePatternsTestStats()}
+	pn := &ProcessNode{
+		Files:    make(map[string]*FileNode),
+		NodeBase: NewNodeBase(),
+	}
+	at.ProcessNodes = []*ProcessNode{pn}
+	for _, p := range []string{"/var/log/app/app-2024-01-15.log", "/var/log/app/app-2024-01-16.log"} {
+		insertTestPath(pn, p, at.Stats, false)
+	}
+
+	at.FinalizePatterns()
+
+	app := pn.Files["var"].Children["log"].Children["app"]
+	if !assert.Equal(t, []string{"app-<date>.log"}, childrenNames(app.Children)) {
+		return
+	}
+	assert.False(t, insertTestPath(pn, "/var/log/app/app-2024-02-01.log", at.Stats, true))
+	assert.True(t, insertTestPath(pn, "/var/log/app/app-evil.log", at.Stats, true))
 }
 
 func TestInsertFileEvent_BareAlnumDirectoryKeepsCheckingBelow(t *testing.T) {

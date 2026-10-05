@@ -1091,7 +1091,7 @@ func processSubtreeSizeBytes(pn *ProcessNode) int64 {
 }
 
 // FinalizePatterns runs a merge pass on every FileNode map in the tree
-// using MinClusterSizeOnFinalize as the threshold. No-op when pattern
+// using MinGroupSize as the threshold. No-op when pattern
 // mining is disabled on the tree. Idempotent.
 func (at *ActivityTree) FinalizePatterns() {
 	if at == nil {
@@ -1102,30 +1102,30 @@ func (at *ActivityTree) FinalizePatterns() {
 		return
 	}
 	for _, pn := range at.ProcessNodes {
-		at.finalizePatternsOnProcess(pn, cfg.MinClusterSizeOnFinalize)
+		at.finalizePatternsOnProcess(pn, cfg.MinGroupSize)
 	}
 }
 
-func (at *ActivityTree) finalizePatternsOnProcess(pn *ProcessNode, minClusterSize int) {
+func (at *ActivityTree) finalizePatternsOnProcess(pn *ProcessNode, minGroupSize int) {
 	if pn == nil {
 		return
 	}
-	mergeChildren(pn.Files, minClusterSize, at.Stats)
+	mergeChildren(pn.Files, minGroupSize, at.Stats)
 	for _, fn := range pn.Files {
-		at.finalizePatternsOnFile(fn, minClusterSize)
+		at.finalizePatternsOnFile(fn, minGroupSize)
 	}
 	for _, child := range pn.Children {
-		at.finalizePatternsOnProcess(child, minClusterSize)
+		at.finalizePatternsOnProcess(child, minGroupSize)
 	}
 }
 
-func (at *ActivityTree) finalizePatternsOnFile(fn *FileNode, minClusterSize int) {
+func (at *ActivityTree) finalizePatternsOnFile(fn *FileNode, minGroupSize int) {
 	if fn == nil || len(fn.Children) == 0 {
 		return
 	}
-	mergeChildren(fn.Children, minClusterSize, at.Stats)
+	mergeChildren(fn.Children, minGroupSize, at.Stats)
 	for _, child := range fn.Children {
-		at.finalizePatternsOnFile(child, minClusterSize)
+		at.finalizePatternsOnFile(child, minGroupSize)
 	}
 }
 

@@ -581,9 +581,10 @@ func (m *ManagerV2) persistProfile(p *profile.Profile) {
 
 	// Consolidate sibling FileNodes into path-pattern templates before
 	// encoding. This is the "learning → stable" finalize pass: merges run
-	// even on directories that never exceeded the MaxChildren fan-out
-	// threshold, so short-lived profiles persisted after only a handful
-	// of events still benefit from path pattern reduction.
+	// with MinGroupSize even on directories that never exceeded the
+	// MaxChildren fan-out threshold, so short-lived profiles persisted
+	// after only a handful of events still benefit from path pattern
+	// reduction.
 	if p.ActivityTree != nil {
 		p.ActivityTree.FinalizePatterns()
 	}
@@ -1271,6 +1272,16 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 	return secprof, nil
 }
 
+// pathPatternConfig returns the path-pattern mining configuration of v2
+// profiles: built-in defaults overridden by the user-facing settings.
+func (m *ManagerV2) pathPatternConfig() activity_tree.PathPatternConfig {
+	cfg := activity_tree.DefaultPathPatternConfig()
+	cfg.Enabled = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsEnabled
+	cfg.MinGroupSize = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsMinGroupSize
+	cfg.MinDateGroupSize = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsMinDateGroupSize
+	return cfg
+}
+
 // loadProfileFromStorage attempts to load a profile from local storage.
 // Returns the loaded profile and true if successful, otherwise nil and false.
 func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector, event *model.Event) (*profile.Profile, bool) {
@@ -1283,7 +1294,7 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
 		profile.WithSeededSyscalls(m.seededSyscalls()),
-		profile.WithPathPatterns(activity_tree.DefaultPathPatternConfig()),
+		profile.WithPathPatterns(m.pathPatternConfig()),
 	)
 
 	// Try to load from local storage
@@ -1338,7 +1349,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
 		profile.WithSeededSyscalls(m.seededSyscalls()),
-		profile.WithPathPatterns(activity_tree.DefaultPathPatternConfig()),
+		profile.WithPathPatterns(m.pathPatternConfig()),
 	)
 	secprof.SetTreeType(secprof, "security_profile")
 
