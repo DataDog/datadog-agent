@@ -185,8 +185,17 @@ func TestGetMetadataAsTagsGPUJobs(t *testing.T) {
 			groupType:                    "annotation",
 			podLabelsAsTags:              map[string]string{"example/run": "my_run", "app": "app"},
 			resourcesAnnotationsAsTag:    `{"pods":{"other":"other"}}`,
-			expectedPodLabelsAsTags:      map[string]string{"example/run": "my_run,training_run_id", "app": "app"},
+			expectedPodLabelsAsTags:      map[string]string{"example/run": "my_run", "app": "app"},
 			expectedPodAnnotationsAsTags: map[string]string{"other": "other", "example/group": "training_group_id"},
+		},
+		{
+			name:                    "run and group share a key",
+			gpuEnabled:              true,
+			runKey:                  "example/job",
+			runType:                 "label",
+			groupKey:                "example/job",
+			groupType:               "label",
+			expectedPodLabelsAsTags: map[string]string{"example/job": "training_run_id"},
 		},
 	}
 

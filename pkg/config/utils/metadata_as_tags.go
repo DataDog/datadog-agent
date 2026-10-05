@@ -39,8 +39,8 @@ const (
 // For example, if kubernetes_pod_labels_as_tags = {`l1`: `v1`, `l2`: `v2`} and kubernetes_resources_labels_as_tags = {`pods`: {`l1`: `x`}},
 // the resulting labels as tags for pods will be {`l1`: `x`, `l2`: `v2`}
 //
-// When gpu.enabled is true, the pod label/annotation configured in gpu.jobs is then added to the pod tags
-// alongside any tags already mapped to the same key.
+// When gpu.enabled is true, the pod label/annotation configured in gpu.jobs is then added to the pod tags,
+// unless that key is already mapped by one of the options above.
 type MetadataAsTags interface {
 	// GetPodLabelsAsTags returns pod labels as tags
 	GetPodLabelsAsTags() map[string]string
@@ -170,9 +170,10 @@ func (m *metadataAsTags) mergeGPUJobAsTag(cfg pkgconfigmodel.Reader, prefix stri
 	if podAsTags == nil {
 		podAsTags = map[string]string{}
 	}
-	// Keep any tag the user already maps this key to; multiple tags are comma separated
-	if existing := podAsTags[key]; existing != "" {
-		tag = existing + "," + tag
+	// An existing mapping for this key takes precedence, as not every consumer supports comma separated tags
+	if existing, found := podAsTags[key]; found {
+		log.Debugf("%s %q is already mapped to %q, not adding tag %q", prefix, key, existing, tag)
+		return
 	}
 	podAsTags[key] = tag
 	resourcesAsTags[pods] = podAsTags
