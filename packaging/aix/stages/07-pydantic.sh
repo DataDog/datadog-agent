@@ -100,11 +100,13 @@ log "Required pydantic version (from datadog_checks_base): $PYDANTIC_VERSION"
 # ─── Step 2: Set Rust environment ─────────────────────────────────────────────
 #
 # AIX-specific Rust build flags:
-#   CARGO_PROFILE_RELEASE_STRIP=none  — IBM Rust 1.92 bug: stripping .info section
+#   CARGO_PROFILE_RELEASE_STRIP=none  — IBM Rust SDK bug (observed with 1.92):
+#                                       stripping .info section
 #                                       from proc-macro artifacts breaks rustc
 #   CARGO_PROFILE_RELEASE_LTO=off     — LLVM fat LTO uses .ipa bitcode sections
 #                                       that do not exist in AIX XCOFF format;
-#                                       fails after 50+ minutes of compilation
+#                                       fails late in the build, after all
+#                                       crates are compiled
 #   CC=/opt/freeware/bin/gcc          — cc-rs defaults to IBM xlc which rejects GCC
 #                                       flags like -fPIC, -ffunction-sections, -maix64
 #   RUSTFLAGS="-C link-arg=-bbigtoc" — pydantic-core exceeds AIX ld's 64KB TOC limit;
@@ -126,9 +128,9 @@ log "  Rust toolchain: $(cargo --version 2>/dev/null || echo "cargo not found �
 # pydantic-core), the old cached wheel is not used — a new subdirectory is
 # created and a fresh Rust build is triggered automatically.
 #
-# pydantic-core takes ~52 minutes to build from source on POWER8. If a
-# pre-built wheel is present in the versioned cache directory, install from
-# it and skip the Rust build entirely.
+# pydantic-core builds from source via Cargo. If a pre-built wheel is
+# present in the versioned cache directory, install from it and skip the
+# Rust build entirely.
 
 WHEEL_CACHE_DIR="$WHEEL_CACHE/pydantic-$PYDANTIC_VERSION"
 mkdir -p "$WHEEL_CACHE_DIR"
@@ -147,29 +149,36 @@ if [ -n "$CACHED_WHEEL" ]; then
     log "pydantic and pydantic-core installed from cache successfully"
 else
     log "No cached wheel found for pydantic==$PYDANTIC_VERSION — building pydantic-core from source"
-    log "WARNING: This step takes approximately 52 minutes on POWER8."
-    log "         Disk space required: ~7 GB in /tmp, ~4 GB in /"
-    log "         Cache directory: $WHEEL_CACHE_DIR"
+    log "Disk space required: ~7 GB in /tmp, ~4 GB in /"
+    log "Cache directory: $WHEEL_CACHE_DIR"
+
+    # Scope pip's cache to a throwaway directory for this build: the default
+    # pip cache (~/.cache/pip) may hold a pydantic-core wheel built by an older
+    # Rust SDK, which pip would reuse — silently skipping the fresh Rust build.
+    # The throwaway cache is scraped for the built wheel below, then removed.
+    PIP_CACHE_DIR="$BUILD_DIR/buildtmp/pip-cache-$STAGE_NAME"
 
     CARGO_PROFILE_RELEASE_STRIP=none \
     CARGO_PROFILE_RELEASE_LTO=off \
     RUSTFLAGS="-C link-arg=-bbigtoc" \
     ARFLAGS="" \
+    PIP_CACHE_DIR="$PIP_CACHE_DIR" \
         $PIP install "pydantic==$PYDANTIC_VERSION" --no-binary pydantic-core
 
     log "pydantic-core build complete"
 
     # Cache the built wheel for next time. The cache is per-build-host — the wheel
     # is a native binary specific to this AIX version — but that is acceptable.
-    BUILT_WHEEL=$(find "${HOME}/.cache/pip" -name "pydantic_core-*.whl" 2>/dev/null | head -1)
+    BUILT_WHEEL=$(find "$PIP_CACHE_DIR" -name "pydantic_core-*.whl" 2>/dev/null | head -1)
     if [ -n "$BUILT_WHEEL" ]; then
         CACHE_NAME=$(basename "$BUILT_WHEEL")
         cp "$BUILT_WHEEL" "$WHEEL_CACHE_DIR/$CACHE_NAME"
         log "Cached wheel to $WHEEL_CACHE_DIR/$CACHE_NAME"
     else
         log "WARNING: could not locate built pydantic-core wheel in pip cache"
-        log "         Next build will rebuild from source (~52 minutes)"
+        log "         Next build will rebuild from source"
     fi
+    rm -rf "$PIP_CACHE_DIR"
 fi
 
 # ─── Step 4: Install typing_extensions ────────────────────────────────────────

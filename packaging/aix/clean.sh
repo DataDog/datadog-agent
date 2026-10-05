@@ -8,8 +8,8 @@
 #   - Temporary packaging files ($BUILD_DIR/.pkg_filelist.tmp, etc.)
 #
 # By default, PRESERVES:
-#   - Wheel cache ($BUILD_DIR/wheel-cache/) — pydantic-core (52-min Rust build),
-#     cryptography
+#   - Wheel cache ($BUILD_DIR/wheel-cache/) — pydantic-core and cryptography
+#     (native Rust builds)
 #   - Library cache ($BUILD_DIR/lib-cache/) — zlib, bzip2, OpenSSL, xz, libxml2
 #     compiled artifacts; avoids ~9-min native-libs rebuild
 #   - integrations-core checkout ($BUILD_DIR/integrations-core/) — avoids re-clone
