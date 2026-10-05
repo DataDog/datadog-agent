@@ -52,7 +52,7 @@ type ddInfra struct {
 	defaultDatadogPublicRegistry   string
 	useMacosCompatibleSubnets      bool // Some subnets are not compatible with macOS hosts. macOS hosts are supported only in us-east-1a and us-east-1b
 	leaseBucket                    string
-	trackSSHActivity               bool // Requires the instance profile to be allowed to call ec2:CreateTags on the instance itself
+	trackSSHActivity               bool // Enabled by create-vm. Requires the instance profile to be allowed to call ec2:CreateTags on the instance itself
 
 	ecs ddInfraECS
 	eks ddInfraEKS
@@ -186,7 +186,6 @@ func agentSandboxDefault() environmentDefault {
 			defaultDatadogPublicRegistry:   "669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/datadog",
 			useMacosCompatibleSubnets:      false,
 			leaseBucket:                    "datadog-agent-sandbox-e2e-pools",
-			trackSSHActivity:               true,
 			ecs: ddInfraECS{
 				execKMSKeyID:                "arn:aws:kms:us-east-1:376334461865:key/1d1fe533-a4f1-44ee-99ec-225b44fcb9ed",
 				fargateFakeintakeClusterArn: []string{"arn:aws:ecs:us-east-1:376334461865:cluster/fakeintake-ecs-2", "arn:aws:ecs:us-east-1:376334461865:cluster/fakeintake-ecs-3", "arn:aws:ecs:us-east-1:376334461865:cluster/fakeintake-ecs"},

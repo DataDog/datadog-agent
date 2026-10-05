@@ -336,8 +336,9 @@ func (e *Environment) DefaultLeaseBucket() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultLeaseBucket, e.envDefault.ddInfra.leaseBucket)
 }
 
-// TrackSSHActivity returns whether Linux VMs should keep their "last-activity" tag up to date while
-// used over SSH, so that test-infra-cleaner does not delete them while they are in use.
+// TrackSSHActivity returns whether Linux and Windows VMs should keep their "last-activity" tag up to
+// date while used over SSH, so that test-infra-cleaner does not delete them while they are in use.
+// Enabled by `dda inv aws.create-vm`, as test VMs do not outlive the cleaner's threshold.
 func (e *Environment) TrackSSHActivity() bool {
 	return e.GetBoolWithDefault(e.InfraConfig, DDInfraTrackSSHActivity, e.envDefault.ddInfra.trackSSHActivity)
 }

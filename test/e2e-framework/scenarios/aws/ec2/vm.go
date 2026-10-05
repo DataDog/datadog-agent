@@ -276,6 +276,12 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			c.Password = pulumi.ToSecret(randomPassword.Result).(pulumi.StringOutput)
 		}
 
+		if vmArgs.osInfo.Family() == os.WindowsFamily && e.TrackSSHActivity() {
+			if err := installWindowsSSHActivityTracking(e, c, opts); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	})
 }

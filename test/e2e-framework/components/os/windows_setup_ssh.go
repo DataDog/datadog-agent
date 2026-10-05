@@ -11,3 +11,6 @@ import (
 
 //go:embed scripts/setup-ssh.ps1
 var WindowsSetupSSHScriptContent string
+
+//go:embed scripts/track-ssh-activity.ps1
+var WindowsTrackSSHActivityScriptContent string
