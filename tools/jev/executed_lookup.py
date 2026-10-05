@@ -80,6 +80,7 @@ def fetch_executed_e2e_tests(query: str, days: int, allow_failure_jobs: set | No
 
     executed: dict = {}
     sample_names = []
+    known_flaky: set = set()
     skipped_subtests = skipped_empty = skipped_job = skipped_allow_failure = 0
     for item in events:
         attrs = item.get("attributes", {}).get("attributes", {})
@@ -103,6 +104,11 @@ def fetch_executed_e2e_tests(query: str, days: int, allow_failure_jobs: set | No
             # them from the executed set so they do not count as selection
             # misses
             skipped_allow_failure += 1
+            continue
+        # known-flaky runs (@test.is_known_flaky:true): the failure is already
+        # known to be flakiness rather than the PR's change - ignore the test
+        if test_attrs.get("is_known_flaky") in (True, "true"):
+            known_flaky.add(name)
             continue
             continue
         m = re.search(r"(Test\w+)\s*$", name)
@@ -141,10 +147,13 @@ def fetch_executed_e2e_tests(query: str, days: int, allow_failure_jobs: set | No
     # coverage selection's skips.
     coverage_skipped = {t: v["jobs"] for t, v in executed.items() if v["status"] == "skip"}
     executed = {t: v for t, v in executed.items() if v["status"] != "skip"}
+    # drop known-flaky tests entirely (their failures are not reliable signal)
+    executed = {t: v for t, v in executed.items() if t not in known_flaky}
+    coverage_skipped = {t: v for t, v in coverage_skipped.items() if t not in known_flaky}
     print(
         f"[info] CI Visibility result: {len(events)} test events over {pages} page(s) "
         f"(skipped: {skipped_subtests} sub-tests, {skipped_empty} without a name, {skipped_job} from non-e2e jobs, "
-        f"{skipped_allow_failure} events from allow_failure jobs); "
+        f"{skipped_allow_failure} events from allow_failure jobs, {len(known_flaky)} known-flaky tests ignored); "
         f"kept {len(executed)} executed root e2e tests and {len(coverage_skipped)} skipped by the coverage selection; "
         f"unmatched names: {sample_names[:3]}"
     )
