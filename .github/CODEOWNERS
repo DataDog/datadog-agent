@@ -415,7 +415,6 @@
 /deps/openscap/                                          @DataDog/agent-build @DataDog/agent-cspm @DataDog/agent-security
 /omnibus/config/software/datadog-agent-integrations-*.rb @DataDog/agent-integrations
 /deps/agent_integrations/                                @DataDog/agent-build @DataDog/agent-integrations
-/omnibus/resources/*/msi/                                @DataDog/windows-products
 
 /packages/                                               @DataDog/agent-build
 /packages/debian/                                        @DataDog/agent-build @DataDog/fleet
