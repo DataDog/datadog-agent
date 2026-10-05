@@ -51,6 +51,10 @@ new-e2e-cws:
       - EXTRA_PARAMS: --run TestAgentSuiteGCP
       - EXTRA_PARAMS: --run TestECSFargate
       - EXTRA_PARAMS: --run TestKindSuite
+      # Reproduces the terrapin / Kata system-probe <=> micro VM vsock topology on
+      # a single host. Unlike the suites above it does not use remote config, so it
+      # is safe on the FIPS pipeline.
+      - EXTRA_PARAMS: --run TestVSockForwardingSuite
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
