@@ -292,6 +292,8 @@ Sizes are relative: S ≈ a few days, M ≈ 1–2 weeks, L ≈ several weeks (mo
 **Status (2026-10-01):** M1 was folded into M2: the pipeline was wired with the stand-in engine, then validated directly with the real libyara engine on a local Lima VM (Ubuntu 24.04 arm64, real eBPF, system-probe standalone). Passed: marked ELF (1 scan, then identity hits), `#!` script, same content at a 2nd path (sha hit), rewrite in place (rescan), 2,000-exec storm (no rescans), exec in a container (match with container ID); ~97% of execs skipped without any read. M3 is blocked on push access to the repo; M4 not started.
 
 ### Staging validation (2026-10-02)
+**Default rules embedded (2026-10-05):** ~974 YARAify (abuse.ch) community rules compile-vetted against libyara and embedded via `//go:embed` as the default set; `rules_dir` augments. Binary ~71.6 MiB stripped (`yara` tag), +~1.9 MB from rules. A real embedded rule (`ItsSoEasy_Ransomware_basic`) matched a live exec on the staging build. Modules kept to elf/math/string/time — covers 974/1107; `pe` (+113) deferred.
+
 
 The full agent stack (system-probe `--yara` + security-agent, both built from this
 branch at the same commit) was run in a local Lima VM with a **staging** (`datad0g.com`)
