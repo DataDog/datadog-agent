@@ -5,7 +5,7 @@
 
 //go:build linux && bpf
 
-package runtime
+package protectedfile
 
 import (
 	"fmt"

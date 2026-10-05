@@ -45,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -470,7 +471,7 @@ func (p *EBPFProbe) sanityChecks() error {
 	// without these capable and netlink_capable hooks, the initial/host user ns capabilities fields stay empty
 	// which reads like a process that uses no capability in this user namespace rather than missing data, so better warn about this
 	if p.config.Probe.CapabilitiesMonitoringEnabled {
-		if missing, err := ddebpf.VerifyKernelFuncs("capable", "netlink_capable"); err != nil {
+		if missing, err := ksyms.VerifyKernelFuncs("capable", "netlink_capable"); err != nil {
 			seclog.Warnf("Unable to tell whether capabilities monitoring can report usage of the initial user namespace: %v", err)
 		} else if len(missing) > 0 {
 			seclog.Warnf("Capabilities monitoring cannot report which capabilities were used in the initial user namespace on this kernel: %v not available", slices.Sorted(maps.Keys(missing)))
@@ -3905,7 +3906,7 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 		return 1
 	}
 
-	check, err := ddebpf.VerifyKernelFuncs(patchSentinel)
+	check, err := ksyms.VerifyKernelFuncs(patchSentinel)
 	if err != nil {
 		return 0
 	}
