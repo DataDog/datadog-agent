@@ -60,6 +60,7 @@ func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.Conf
 		nil,
 		fileOpener,
 		fingerprinter,
+		false,
 	)
 	tracker := tailers.NewTailerTracker()
 

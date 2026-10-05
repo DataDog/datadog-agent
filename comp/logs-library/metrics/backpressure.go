@@ -337,9 +337,6 @@ var bottleneck = newBottleneckCache(clock.New())
 
 // currentBottleneckComponent names a stage saturated during the loss window, NoBottleneck
 // when no blocking component was observed saturated in it, or "" when attribution is unknown.
-func currentBottleneckComponent(pm PipelineMonitor, lossWindowStartedAt time.Time) string {
-	if pm == nil || pm != registeredPipelineMonitor() {
-		return ""
-	}
+func currentBottleneckComponent(lossWindowStartedAt time.Time) string {
 	return bottleneck.get(lossWindowStartedAt)
 }

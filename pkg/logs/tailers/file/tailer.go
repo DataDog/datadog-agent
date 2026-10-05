@@ -132,8 +132,8 @@ type Tailer struct {
 	fingerprinter   Fingerprinter
 	registry        auditor.Registry
 	CapacityMonitor *metrics.CapacityMonitor
-	pipelineMonitor metrics.PipelineMonitor
 	fileOpener      opener.FileOpener
+	skipMissedBytes bool
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -149,8 +149,8 @@ type TailerOptions struct {
 	Fingerprinter   Fingerprinter            // Required
 	Registry        auditor.Registry         // Required
 	CapacityMonitor *metrics.CapacityMonitor // Required
-	PipelineMonitor metrics.PipelineMonitor  // Optional: rotation losses are unattributed without it
 	FileOpener      opener.FileOpener        // Required
+	SkipMissedBytes bool                     // Optional: don't report rotation losses to the missed-bytes health issue
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -209,9 +209,9 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		fingerprint:                  opts.Fingerprint,
 		fingerprinter:                opts.Fingerprinter,
 		CapacityMonitor:              opts.CapacityMonitor,
-		pipelineMonitor:              opts.PipelineMonitor,
 		registry:                     opts.Registry,
 		fileOpener:                   opts.FileOpener,
+		skipMissedBytes:              opts.SkipMissedBytes,
 	}
 
 	if fileRotated {
@@ -252,8 +252,8 @@ func (t *Tailer) NewRotatedTailer(
 		Fingerprint:     fingerprint,
 		Fingerprinter:   fingerprinter,
 		Registry:        registry,
-		PipelineMonitor: t.pipelineMonitor,
 		FileOpener:      t.fileOpener,
+		SkipMissedBytes: t.skipMissedBytes,
 	}
 
 	return NewTailer(options)
@@ -334,7 +334,9 @@ func (t *Tailer) StopAfterFileRotation() {
 					if remainingBytes > 0 {
 						metrics.BytesMissed.Add(remainingBytes)
 						metrics.TlmBytesMissed.Add(float64(remainingBytes))
-						metrics.RecordMissedBytes(missedSource, missedService, remainingBytes, t.pipelineMonitor, lossWindowStartedAt)
+						if !t.skipMissedBytes {
+							metrics.RecordMissedBytes(missedSource, missedService, remainingBytes, lossWindowStartedAt)
+						}
 						log.Warnf("After rotation close timeout (%s), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
 					}
 				}
