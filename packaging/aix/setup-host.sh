@@ -105,8 +105,7 @@ if [ -x "$BUILD_DIR/bin/gotestsum" ]; then
 else
     log "Installing gotestsum"
     # Unset OBJECT_MODE for Go's external linker — gcc-8 picks the 32-bit
-    # crt0.o otherwise (see stages/04-agent.sh). The rest of the script
-    # needs it set.
+    # crt0.o otherwise (see stages/04-agent.sh).
     ( cd "$AGENT_SRC/internal/tools" && \
         unset OBJECT_MODE && \
         GOBIN="$BUILD_DIR/bin" \
