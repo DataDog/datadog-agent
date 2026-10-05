@@ -1067,6 +1067,9 @@ workflow:
       paths:
         - test/new-e2e/tests/process/**/*
         - cmd/process-agent/**/*
+        # The tagger is the source of the infra_mode mark the suites assert on
+        # the containers carried by the process payload.
+        - comp/core/tagger/**/*
         - comp/core/workloadmeta/collectors/internal/process/**/*
         - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
         - comp/process/**/*

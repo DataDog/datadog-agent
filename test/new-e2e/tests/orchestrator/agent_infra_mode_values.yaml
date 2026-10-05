@@ -1,10 +1,6 @@
 datadog:
   kubelet:
     tlsVerify: false
-  processAgent:
-    # The container check is what produces the container payload the mark has to
-    # reach, so pin it on rather than relying on the chart default.
-    containerCollection: true
   # envDict rather than env: Helm replaces a list-valued `env` wholesale across
   # values files, which would drop the fakeintake endpoints the framework
   # injects into datadog.env.

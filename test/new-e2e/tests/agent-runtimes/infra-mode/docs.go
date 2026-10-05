@@ -8,7 +8,8 @@
 //
 // These suites cover what a host emits: the infra_mode marker on the host-tags
 // payload, and which checks' metrics carry it. The marker on the resource
-// payloads the Agent produces (orchestrator resources, manifests, containers)
-// needs a cluster, so it is covered by TestKindInfraModeSuite in
-// test/new-e2e/tests/orchestrator.
+// payloads needs workloads to report on: orchestrator resources and manifests
+// need a cluster and are covered by TestKindInfraModeSuite in
+// test/new-e2e/tests/orchestrator, containers need a container runtime and are
+// covered by TestInfraModeSuite in test/new-e2e/tests/process.
 package inframode

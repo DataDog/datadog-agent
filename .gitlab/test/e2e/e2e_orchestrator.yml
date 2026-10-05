@@ -6,6 +6,9 @@
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        # The tagger is the source of the infra_mode mark the suites assert on
+        # the orchestrator payloads.
+        - comp/core/tagger/**/*
         - comp/forwarder/defaultforwarder/**/*
         - pkg/collector/corechecks/cluster/orchestrator/**/*
         - pkg/collector/corechecks/orchestrator/**/*

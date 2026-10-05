@@ -28,14 +28,16 @@ import (
 //go:embed agent_infra_mode_values.yaml
 var agentInfraModeValues string
 
-// infraModeTag is the mark an Agent running in cloud_cost_only mode stamps on
-// the payloads it produces, so that each backend consumer can tell them from
-// the payloads of a fully monitored host.
-const infraModeTag = "infra_mode:cloud_cost_only"
+// infrastructureModeTag is the mark an Agent running in cloud_cost_only mode
+// stamps on the payloads it produces, so that each backend consumer can tell
+// them from the payloads of a fully monitored host.
+const infrastructureModeTag = "infra_mode:cloud_cost_only"
 
-// k8sInfraModeSuite covers the mark on the payloads the orchestrator and
-// container checks emit. The host-side coverage of the same feature (host tags
-// and metrics) lives in test/new-e2e/tests/agent-runtimes/infra-mode.
+// k8sInfraModeSuite covers the mark on the payloads the orchestrator check
+// emits. The host-side coverage of the same feature (host tags and metrics)
+// lives in test/new-e2e/tests/agent-runtimes/infra-mode, and the containers the
+// Agent reports are covered by TestInfraModeSuite in
+// test/new-e2e/tests/process.
 //
 // It is a separate entry point rather than a set of methods on k8sSuite because
 // infrastructure_mode is Agent-wide: setting it on the shared suite would run
@@ -48,10 +50,9 @@ func TestKindInfraModeSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &k8sInfraModeSuite{},
 		// The demo workload is deliberately left out: the assertions below only
-		// need some pod and some container to exist, which the cluster's own
-		// namespaces provide. Deploying it quadruples the payload volume the
-		// fakeintake has to serve, past the point where a read completes within
-		// the client's timeout.
+		// need some pod to exist, which the cluster's own namespaces provide.
+		// Deploying it grows the payload volume past the point where a
+		// fakeintake read completes within the client's timeout.
 		e2e.WithProvisioner(awskindvm.Provisioner(
 			awskindvm.WithRunOptions(
 				scenariokindvm.WithAgentOptions(
@@ -68,9 +69,9 @@ func (suite *k8sInfraModeSuite) TestPodResourceCarriesInfraMode() {
 	expectAtLeastOneResource{
 		filter: &fakeintake.PayloadFilter{ResourceType: agentmodel.TypeCollectorPod},
 		test: func(payload *aggregator.OrchestratorPayload) bool {
-			return slices.Contains(payload.Tags, infraModeTag)
+			return slices.Contains(payload.Tags, infrastructureModeTag)
 		},
-		message: "find a pod payload tagged " + infraModeTag,
+		message: "find a pod payload tagged " + infrastructureModeTag,
 		timeout: defaultTimeout,
 	}.Assert(suite.T(), suite.Env().FakeIntake.Client())
 }
@@ -84,24 +85,8 @@ func (suite *k8sInfraModeSuite) TestManifestEnvelopeCarriesInfraMode() {
 
 		marked := slices.ContainsFunc(payloads, func(payload *aggregator.OrchestratorManifestPayload) bool {
 			return payload.ManifestParentCollector != nil &&
-				slices.Contains(payload.ManifestParentCollector.Tags, infraModeTag)
+				slices.Contains(payload.ManifestParentCollector.Tags, infrastructureModeTag)
 		})
-		assert.Truef(c, marked, "no manifest envelope tagged %s among %d payloads", infraModeTag, len(payloads))
-	}, defaultTimeout, 15*time.Second)
-}
-
-// TestContainerPayloadCarriesInfraMode covers the container payload, which the
-// process-agent produces and tags per container rather than per payload.
-func (suite *k8sInfraModeSuite) TestContainerPayloadCarriesInfraMode() {
-	suite.EventuallyWithT(func(c *assert.CollectT) {
-		payloads, err := suite.Env().FakeIntake.Client().GetContainers()
-		require.NoError(c, err)
-
-		marked := slices.ContainsFunc(payloads, func(payload *aggregator.ContainerPayload) bool {
-			return slices.ContainsFunc(payload.Containers, func(container *agentmodel.Container) bool {
-				return slices.Contains(container.Tags, infraModeTag)
-			})
-		})
-		assert.Truef(c, marked, "no container tagged %s among %d payloads", infraModeTag, len(payloads))
+		assert.Truef(c, marked, "no manifest envelope tagged %s among %d payloads", infrastructureModeTag, len(payloads))
 	}, defaultTimeout, 15*time.Second)
 }
