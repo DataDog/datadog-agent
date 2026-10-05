@@ -5,8 +5,8 @@
 
 //go:build kubeapiserver
 
-// Package patch implements the patching of Kubernetes deployments.
-package patch
+// Package rcpatch implements the patching of Kubernetes deployments.
+package rcpatch
 
 import (
 	"context"

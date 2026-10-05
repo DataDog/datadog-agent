@@ -5,15 +5,11 @@
 
 //go:build kubeapiserver
 
-package patch
+package rcpatch
 
 import (
 	"context"
 	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
-	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -23,6 +19,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 )
 
 func TestPatchDeployment(t *testing.T) {

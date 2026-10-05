@@ -5,17 +5,17 @@
 
 //go:build kubeapiserver
 
-package patch
+package rcpatch
 
 import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestProcess(t *testing.T) {

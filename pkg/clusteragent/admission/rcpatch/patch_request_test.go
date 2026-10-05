@@ -5,13 +5,14 @@
 
 //go:build kubeapiserver
 
-package patch
+package rcpatch
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 )
 
 func TestPatchRequestValidate(t *testing.T) {

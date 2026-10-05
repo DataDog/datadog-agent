@@ -5,15 +5,15 @@
 
 //go:build kubeapiserver
 
-package patch
+package rcpatch
 
 import (
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 )
 
 // ControllerContext holds necessary context for the patch controller

@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
-    name = "patch",
+    name = "rcpatch",
     srcs = [
         "file_provider.go",
         "patch_request.go",
@@ -11,7 +11,7 @@ go_library(
         "rc_provider.go",
         "start.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch",
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/rcpatch",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/clusteragent/admission/common",
@@ -33,7 +33,7 @@ go_library(
 )
 
 dd_agent_go_test(
-    name = "patch_test",
+    name = "rcpatch_test",
     srcs = [
         "file_provider_test.go",
         "patch_request_test.go",
@@ -41,7 +41,7 @@ dd_agent_go_test(
         "rc_provider_test.go",
     ],
     data = glob(["testdata/**"]),
-    embed = [":patch"],
+    embed = [":rcpatch"],
     gotags_sets = [[
         "cel",
         "clusterchecks",

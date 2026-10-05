@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package patch
+package rcpatch
 
 import (
 	"encoding/json"

@@ -96,7 +96,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
-	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
+	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/rcpatch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster"
