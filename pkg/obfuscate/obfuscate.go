@@ -343,6 +343,9 @@ func NewObfuscator(cfg Config) *Obfuscator {
 			cfg.FullLogger = debugLogger{debugLogger: cfg.Logger}
 		}
 	}
+	if cfg.Statsd == nil {
+		cfg.Statsd = &statsd.NoOpClient{}
+	}
 	optsStr := ""
 	optsBytes, err := json.Marshal(cfg.SQL)
 	if err == nil {
@@ -375,9 +378,6 @@ func NewObfuscator(cfg Config) *Obfuscator {
 	}
 	if cfg.CreditCard.Enabled {
 		o.ccObfuscator = newCCObfuscator(&cfg.CreditCard)
-	}
-	if cfg.Statsd == nil {
-		cfg.Statsd = &statsd.NoOpClient{}
 	}
 	return &o
 }

@@ -126,6 +126,7 @@ files:
         type: string
         example: "<METHOD>"
         default: "syn"
+        enum: ["syn", "sack", "prefer_sack", "syn_socket"]
       description: |
         Traceroute method used to monitor an endpoint via Network Path
         Available methods: syn, sack, prefer_sack, syn_socket (syn_socket only works on Windows OSes)

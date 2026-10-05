@@ -30,6 +30,7 @@ type reader uint32
 const (
 	readerOTel reader = iota
 	readerGoLabels
+	readerNodeJS
 	readerFill
 	readerLast
 )
@@ -40,6 +41,8 @@ func (r reader) String() string {
 		return "otel_tls"
 	case readerGoLabels:
 		return "go_labels"
+	case readerNodeJS:
+		return "nodejs_tls"
 	case readerFill:
 		return "fill"
 	default:

@@ -64,6 +64,7 @@ func startCompliance(ctx context.Context, senderManager sender.SenderManager, wm
 	reflectorStore.Run(ctx.Done())
 
 	agent := compliance.NewAgent(statsdClient, wmeta, filterStore, hname, compliance.AgentOptions{
+		HostCCRID:     compliance.FetchHostCCRID(ctx, pkgconfigsetup.Datadog()),
 		ConfigDir:     configDir,
 		Reporter:      reporter,
 		CheckInterval: checkInterval,

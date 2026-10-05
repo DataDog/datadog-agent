@@ -215,17 +215,6 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.host.ConfigureYumMirrors()
 	s.disableUnattendedUpgrades()
 	s.updateCurlOnUbuntu()
-	s.updatePythonOnSuse()
-}
-
-func (s *packageBaseSuite) updatePythonOnSuse() {
-	// Suse15 comes with Python3.6 by default which is too old for injection
-	if s.os.Flavor != e2eos.Suse {
-		return
-	}
-	s.host.Run("sudo zypper --non-interactive ar http://download.opensuse.org/distribution/leap/15.5/repo/oss/ oss || true")
-	s.host.Run("sudo zypper --non-interactive --gpg-auto-import-keys in python311")
-	s.host.Run("sudo ln -sf /usr/bin/python3.11 /usr/bin/python3")
 }
 
 func (s *packageBaseSuite) disableUnattendedUpgrades() {
@@ -382,7 +371,9 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 		s.Env().RemoteHost.MustExecute("sudo yum install -y python3.14 python3.14-pip && yes | pip3.14 install ansible")
 		pathPrefix = "/home/ec2-user/.local/bin/"
 	case e2eos.Suse:
-		s.Env().RemoteHost.MustExecute("sudo zypper install -y python3 python3-pip && sudo pip3 install ansible")
+		// ansible is pre-baked into the suse/15-4 AMI (installed via
+		// python3.11 -m pip), whose console scripts land in /usr/local/bin.
+		pathPrefix = "/usr/local/bin/"
 	default:
 		s.Env().RemoteHost.MustExecute("python3 -m ensurepip --upgrade && python3 -m pip install pipx==1.11.1 && python3 -m pipx ensurepath")
 		pathPrefix = "/usr/bin/"

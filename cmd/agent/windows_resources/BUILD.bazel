@@ -5,10 +5,7 @@ win_resource(
     src = "agent.rc",
     visibility = ["//cmd/agent:__subpackages__"],
     deps = [
-        "agent-py2.exe.manifest",
-        "agent-py3.exe.manifest",
-        "agent32-py2.exe.manifest",
-        "agent32-py3.exe.manifest",
+        "agent.exe.manifest",
         "version.h",
         "//tools/windows/DatadogAgentInstaller/WixSetup/assets:project.ico",
     ],

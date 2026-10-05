@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/contlcycle"
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -116,63 +117,26 @@ func (suite *k8sSuite) TestZZUpAndRunning() {
 }
 
 func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
-	ctx := suite.T().Context()
-
 	suite.Run("agent pods are ready and not restarting", func() {
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			linuxNodes, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
-				LabelSelector: fields.AndSelectors(
-					fields.OneTermEqualSelector("kubernetes.io/os", "linux"),
-					fields.OneTermNotEqualSelector("eks.amazonaws.com/compute-type", "fargate"),
-				).String(),
-			})
-			require.NoErrorf(c, err, "Failed to list Linux nodes")
-
-			windowsNodes, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "windows").String(),
-			})
-			require.NoErrorf(c, err, "Failed to list Windows nodes")
-
-			linuxPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
-			})
-			require.NoErrorf(c, err, "Failed to list Linux datadog agent pods")
-
-			windowsPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.WindowsNodeAgent.LabelSelectors["app"]).String(),
-			})
-			require.NoErrorf(c, err, "Failed to list Windows datadog agent pods")
-
-			clusterAgentPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
-			})
-			require.NoErrorf(c, err, "Failed to list datadog cluster agent pods")
-
-			clusterChecksPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterChecks.LabelSelectors["app"]).String(),
-			})
-			require.NoErrorf(c, err, "Failed to list datadog cluster checks runner pods")
-
-			dogstatsdPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("dogstatsd-standalone").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", "dogstatsd-standalone").String(),
-			})
-			require.NoErrorf(c, err, "Failed to list dogstatsd standalone pods")
-
-			assert.Len(c, linuxPods.Items, len(linuxNodes.Items))
-			assert.Len(c, windowsPods.Items, len(windowsNodes.Items))
-			assert.NotEmpty(c, clusterAgentPods.Items)
-			assert.NotEmpty(c, clusterChecksPods.Items)
-			assert.Len(c, dogstatsdPods.Items, len(linuxNodes.Items))
-
-			for _, podList := range []*corev1.PodList{linuxPods, windowsPods, clusterAgentPods, clusterChecksPods, dogstatsdPods} {
-				for _, pod := range podList.Items {
-					for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
-						assert.Truef(c, containerStatus.Ready, "Container %s of pod %s isn’t ready", containerStatus.Name, pod.Name)
-						assert.Zerof(c, containerStatus.RestartCount, "Container %s of pod %s has restarted", containerStatus.Name, pod.Name)
-					}
-				}
-			}
-		}, waitFor, 10*time.Second, "Not all agents eventually became ready in time.")
+		linuxNodeSelector := fields.AndSelectors(
+			fields.OneTermEqualSelector("kubernetes.io/os", "linux"),
+			fields.OneTermNotEqualSelector("eks.amazonaws.com/compute-type", "fargate"),
+		).String()
+		err := suite.Env().WaitForAgentReady(
+			suite.T().Context(),
+			environments.WithLinuxNodeAgentReady(),
+			environments.WithWindowsNodeAgentReady(),
+			environments.WithClusterAgentReady(),
+			environments.WithClusterChecksReady(),
+			environments.WithPodsReadyForNodes(
+				"dogstatsd standalone",
+				"dogstatsd-standalone",
+				fields.OneTermEqualSelector("app", "dogstatsd-standalone").String(),
+				linuxNodeSelector,
+			),
+			environments.WithAgentReadinessTimeout(waitFor),
+		)
+		suite.Require().NoError(err, "Not all agents eventually became ready in time.")
 	})
 }
 
@@ -725,8 +689,8 @@ func (suite *k8sSuite) TestNginx() {
 				`^container_id:`,
 				`^container_name:nginx$`,
 				`^display_container_name:nginx`,
-				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
-				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
+				"^image_id:.*/apps-nginx-server@sha256:",
+				"^image_name:.*/apps-nginx-server$",
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:nginx$`,
 				`^kube_deployment:nginx$`,
@@ -743,6 +707,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^org:agent-org$`,
 				`^parent-name:nginx$`,
+				`^service:nginx-from-annotation$`,
 				`^team:contp$`,
 			}, sourceCodeIntegrationTags),
 			AcceptUnexpectedTags: true,
@@ -804,7 +769,7 @@ func (suite *k8sSuite) TestNginx() {
 	// Test Nginx logs
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
-			Service: "apps-nginx-server",
+			Service: "nginx-from-annotation",
 			Tags: []string{
 				`^kube_namespace:workload-nginx$`,
 			},
@@ -816,8 +781,8 @@ func (suite *k8sSuite) TestNginx() {
 				`^dirname:/var/log/pods/workload-nginx_nginx-`,
 				`^display_container_name:nginx`,
 				`^filename:[[:digit:]]+.log$`,
-				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
-				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
+				"^image_id:.*/apps-nginx-server@sha256:",
+				"^image_name:.*/apps-nginx-server$",
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:nginx$`,
 				`^kube_deployment:nginx$`,
@@ -834,6 +799,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^org:agent-org$`,
 				`^parent-name:nginx$`,
+				`^service:nginx-from-annotation$`,
 				`^team:contp$`,
 			}, sourceCodeIntegrationTags),
 			Message: `GET / HTTP/1\.1`,
@@ -869,8 +835,8 @@ func (suite *k8sSuite) TestRedis() {
 				`^container_id:`,
 				`^container_name:redis$`,
 				`^display_container_name:redis`,
-				`^image_id:ghcr\.io/datadog/redis@sha256:`,
-				`^image_name:ghcr\.io/datadog/redis$`,
+				"^image_id:.*/redis@sha256:",
+				"^image_name:.*/redis$",
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:redis$`,
 				`^kube_deployment:redis$`,
@@ -955,8 +921,8 @@ func (suite *k8sSuite) TestRedis() {
 				`^dirname:/var/log/pods/workload-redis_redis-`,
 				`^display_container_name:redis`,
 				`^filename:[[:digit:]]+.log$`,
-				`^image_id:ghcr\.io/datadog/redis@sha256:`,
-				`^image_name:ghcr\.io/datadog/redis$`,
+				"^image_id:.*/redis@sha256:",
+				"^image_name:.*/redis$",
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:redis$`,
 				`^kube_deployment:redis$`,
@@ -1028,8 +994,8 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
-				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
+				"^image_id:.*/apps-stress-ng@sha256:",
+				"^image_name:.*/apps-stress-ng$",
 				`^image_tag:`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
@@ -1063,8 +1029,8 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
-				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
+				"^image_id:.*/apps-stress-ng@sha256:",
+				"^image_name:.*/apps-stress-ng$",
 				`^image_tag:`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
@@ -1098,8 +1064,8 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
-				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
+				"^image_id:.*/apps-stress-ng@sha256:",
+				"^image_name:.*/apps-stress-ng$",
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
@@ -1133,8 +1099,8 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
-				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
+				"^image_id:.*/apps-stress-ng@sha256:",
+				"^image_name:.*/apps-stress-ng$",
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
@@ -1336,8 +1302,8 @@ func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
 				`^container_id:`,
 				`^container_name:dogstatsd$`,
 				`^display_container_name:dogstatsd`,
-				`^image_id:ghcr\.io/datadog/apps-dogstatsd@sha256:`,
-				`^image_name:ghcr\.io/datadog/apps-dogstatsd$`,
+				"^image_id:.*/apps-dogstatsd@sha256:",
+				"^image_name:.*/apps-dogstatsd$",
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:dogstatsd$`,
 				`^kube_deployment:` + regexp.QuoteMeta(kubeDeployment) + `$`,
@@ -1380,8 +1346,8 @@ func (suite *k8sSuite) TestPrometheus() {
 				`^container_name:prometheus$`,
 				`^display_container_name:prometheus`,
 				`^endpoint:http://.*:8080/metrics$`,
-				`^image_id:ghcr\.io/datadog/apps-prometheus@sha256:`,
-				`^image_name:ghcr\.io/datadog/apps-prometheus$`,
+				"^image_id:.*/apps-prometheus@sha256:",
+				"^image_name:.*/apps-prometheus$",
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:prometheus$`,
 				`^kube_deployment:prometheus$`,
@@ -1428,8 +1394,8 @@ func (suite *k8sSuite) TestPrometheusWithConfigFromEtcd() {
 				`^container_name:prometheus$`,
 				`^display_container_name:prometheus`,
 				`^endpoint:http://.*:8080/metrics$`,
-				`^image_id:ghcr\.io/datadog/apps-prometheus@sha256:`,
-				`^image_name:ghcr\.io/datadog/apps-prometheus$`,
+				"^image_id:.*/apps-prometheus@sha256:",
+				"^image_name:.*/apps-prometheus$",
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:prometheus$`,
 				`^kube_deployment:prometheus$`,
@@ -1664,7 +1630,7 @@ func (suite *k8sSuite) TestContainerImage() {
 			Tags: []string{
 				"app:agent-new-e2e-tests-containers",
 				"cluster_name:" + suite.clusterName,
-				"contimage:ghcr.io/datadog/apps-nginx-server",
+				"contimage:apps-nginx-server",
 				"test:" + suite.T().Name(),
 			},
 		}); err != nil {
@@ -1674,7 +1640,7 @@ func (suite *k8sSuite) TestContainerImage() {
 
 	defer func() {
 		if suite.T().Failed() {
-			sendEvent("error", "Failed finding the `ghcr.io/datadog/apps-nginx-server` container image payload with proper tags")
+			sendEvent("error", "Failed finding the apps-nginx-server container image payload with proper tags")
 		} else {
 			sendEvent("success", "All good!")
 		}
@@ -1696,7 +1662,22 @@ func (suite *k8sSuite) TestContainerImage() {
 			}
 		}()
 
-		images, err := suite.Fakeintake.FilterContainerImages("ghcr.io/datadog/apps-nginx-server")
+		// The image name depends on the registry the workload apps are pulled
+		// from (the environment internal registry in CI, the public ghcr.io
+		// registry locally), so resolve the actual name from the received
+		// payloads instead of hardcoding it.
+		names, err := suite.Fakeintake.GetContainerImageNames()
+		require.NoErrorf(c, err, "Failed to query fake intake")
+		imageName := ""
+		for _, name := range names {
+			if strings.HasSuffix(name, "/apps-nginx-server") {
+				imageName = name
+				break
+			}
+		}
+		require.NotEmptyf(c, imageName, "No apps-nginx-server container image name yet")
+
+		images, err := suite.Fakeintake.FilterContainerImages(imageName)
 		require.NoErrorf(c, err, "Failed to query fake intake")
 		require.NotEmptyf(c, images, "No container_image yet")
 
@@ -1704,8 +1685,8 @@ func (suite *k8sSuite) TestContainerImage() {
 			regexp.MustCompile(`^architecture:(amd|arm)64$`),
 			regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
 			regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
-			regexp.MustCompile(`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`),
-			regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
+			regexp.MustCompile("^image_id:.*/apps-nginx-server@sha256:"),
+			regexp.MustCompile("^image_name:.*/apps-nginx-server$"),
 			regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 			regexp.MustCompile(`^os_name:linux$`),
 			regexp.MustCompile(`^short_image:apps-nginx-server$`),
@@ -1728,7 +1709,7 @@ func (suite *k8sSuite) TestSBOM() {
 			Tags: []string{
 				"app:agent-new-e2e-tests-containers",
 				"cluster_name:" + suite.clusterName,
-				"sbom:ghcr.io/datadog/apps-nginx-server",
+				"sbom:apps-nginx-server",
 				"test:" + suite.T().Name(),
 			},
 		}); err != nil {
@@ -1738,7 +1719,7 @@ func (suite *k8sSuite) TestSBOM() {
 
 	defer func() {
 		if suite.T().Failed() {
-			sendEvent("error", "Failed finding the `ghcr.io/datadog/apps-nginx-server` SBOM payload with proper tags")
+			sendEvent("error", "Failed finding the apps-nginx-server SBOM payload with proper tags")
 		} else {
 			sendEvent("success", "All good!")
 		}
@@ -1764,10 +1745,13 @@ func (suite *k8sSuite) TestSBOM() {
 		require.NoErrorf(c, err, "Failed to query fake intake")
 
 		sbomIDs = lo.Filter(sbomIDs, func(id string, _ int) bool {
-			return strings.HasPrefix(id, "ghcr.io/datadog/apps-nginx-server")
+			// The SBOM IDs are `<registry>/<repo>@sha256:<digest>`; the registry
+			// part depends on where the workload apps are pulled from, so match
+			// on the repository name followed by the digest marker.
+			return strings.Contains(id, "/apps-nginx-server@sha256:")
 		})
 
-		require.NotEmptyf(c, sbomIDs, "No SBOM for ghcr.io/datadog/apps-nginx-server yet")
+		require.NotEmptyf(c, sbomIDs, "No SBOM for apps-nginx-server yet")
 
 		images := lo.FlatMap(sbomIDs, func(id string, _ int) []*aggregator.SBOMPayload {
 			images, err := suite.Fakeintake.FilterSBOMs(id)
@@ -1801,8 +1785,8 @@ func (suite *k8sSuite) TestSBOM() {
 				regexp.MustCompile(`^architecture:(amd|arm)64$`),
 				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
 				regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
-				regexp.MustCompile(`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`),
-				regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
+				regexp.MustCompile("^image_id:.*/apps-nginx-server@sha256:"),
+				regexp.MustCompile("^image_name:.*/apps-nginx-server$"),
 				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^os_name:linux$`),
 				regexp.MustCompile(`^scan_method:(filesystem|tarball|overlayfs)$`),
@@ -1816,11 +1800,11 @@ func (suite *k8sSuite) TestSBOM() {
 			})
 
 			if assert.Contains(c, properties, "aquasecurity:trivy:RepoTag") {
-				assert.Equal(c, "ghcr.io/datadog/apps-nginx-server:"+apps.Version, properties["aquasecurity:trivy:RepoTag"])
+				assert.Regexp(c, ".*/apps-nginx-server:"+regexp.QuoteMeta(apps.Version)+"$", properties["aquasecurity:trivy:RepoTag"])
 			}
 
 			if assert.Contains(c, properties, "aquasecurity:trivy:RepoDigest") {
-				assert.Contains(c, properties["aquasecurity:trivy:RepoDigest"], "ghcr.io/datadog/apps-nginx-server@sha256:")
+				assert.Contains(c, properties["aquasecurity:trivy:RepoDigest"], "/apps-nginx-server@sha256:")
 			}
 		}
 	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
@@ -1839,7 +1823,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			Tags: []string{
 				"app:agent-new-e2e-tests-containers",
 				"cluster_name:" + suite.clusterName,
-				"contlcycle:ghcr.io/datadog/apps-nginx-server",
+				"contlcycle:apps-nginx-server",
 				"test:" + suite.T().Name(),
 			},
 		}); err != nil {
@@ -1849,7 +1833,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 
 	defer func() {
 		if suite.T().Failed() {
-			sendEvent("error", "Failed finding the `ghcr.io/datadog/apps-nginx-server` container lifecycle event")
+			sendEvent("error", "Failed finding the apps-nginx-server container lifecycle event")
 		} else {
 			sendEvent("success", "All good!")
 		}
@@ -1895,18 +1879,48 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 		events, err := suite.Fakeintake.GetContainerLifecycleEvents()
 		require.NoErrorf(c, err, "Failed to query fake intake")
 
+		// kube_service is optional: the tagger drops it once the pod stops being
+		// Ready, which can land before or after the Delete event is flushed.
+		expectedPodEventTags := []*regexp.Regexp{
+			regexp.MustCompile(`^domain:deployment$`),
+			regexp.MustCompile(`^kube_deployment:nginx$`),
+			regexp.MustCompile(`^kube_namespace:workload-nginx$`),
+			regexp.MustCompile(`^kube_ownerref_kind:replicaset$`),
+			regexp.MustCompile(`^kube_ownerref_name:nginx-[[:alnum:]]+$`),
+			regexp.MustCompile(`^kube_qos:Burstable$`),
+			regexp.MustCompile(`^kube_replica_set:nginx-[[:alnum:]]+$`),
+			regexp.MustCompile(`^mail:team-container-platform@datadoghq\.com$`),
+			regexp.MustCompile(`^org:agent-org$`),
+			regexp.MustCompile(`^parent-name:nginx$`),
+			regexp.MustCompile(`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`),
+			regexp.MustCompile(`^pod_phase:(running|succeeded|failed)$`),
+			regexp.MustCompile(`^service:nginx-from-annotation$`),
+			regexp.MustCompile(`^team:contp$`),
+		}
+
+		optionalPodEventTags := []*regexp.Regexp{
+			regexp.MustCompile(`^kube_service:nginx$`),
+		}
+
 		foundPodEvent := false
+		foundPodEventWithTags := false
+		var lastTagsErr error
 
 		for _, event := range events {
-			if podEvent := event.GetPod(); podEvent != nil {
-				if types.UID(podEvent.GetPodUID()) == nginxPod.UID {
-					foundPodEvent = true
-					break
+			if podEvent := event.GetPod(); podEvent != nil && types.UID(podEvent.GetPodUID()) == nginxPod.UID && event.GetEventType() == contlcycle.Event_Delete {
+				foundPodEvent = true
+
+				err := assertTags(event.GetTags(), expectedPodEventTags, optionalPodEventTags, false)
+				if err == nil {
+					foundPodEventWithTags = true
+				} else {
+					lastTagsErr = err
 				}
 			}
 		}
 
 		assert.Truef(c, foundPodEvent, "Failed to find the pod lifecycle event for pod %s/%s", nginxPod.Namespace, nginxPod.Name)
+		assert.Truef(c, foundPodEventWithTags, "Pod lifecycle event for pod %s/%s does not carry the expected dd_tags: %v", nginxPod.Namespace, nginxPod.Name, lastTagsErr)
 	}, 2*time.Minute, 10*time.Second, "Failed to find the pod lifecycle event for pod %s/%s", nginxPod.Namespace, nginxPod.Name)
 }
 
@@ -2012,7 +2026,7 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
 				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`),
 				regexp.MustCompile(`^image_id:`), // field is inconsistent. it can be a hash or an image + hash
-				regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-tracegen$`),
+				regexp.MustCompile("^image_name:.*/apps-tracegen$"),
 				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^kube_container_name:` + kubeDeployment + `$`),
 				regexp.MustCompile(`^kube_deployment:` + kubeDeployment + `$`),

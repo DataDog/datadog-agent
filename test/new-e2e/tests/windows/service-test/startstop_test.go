@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
@@ -32,6 +31,7 @@ import (
 
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -208,10 +208,11 @@ func (s *powerShellServiceCommandSuite) TestStopTimeout() {
 	services := []string{
 		// stop dependent services first since stopping them won't affect other services
 		"datadog-trace-agent",
-		// dd-procmgr supervises process-agent, so the legacy service is already Stopped
+		// dd-procmgr supervises process-agent and system-probe, so both legacy services are
+		// already Stopped. Stopping dd-procmgr-service is what stops those two workloads,
+		// including the system-probe shutdown that unloads the kernel drivers.
 		"dd-procmgr-service",
 		"datadog-security-agent",
-		"datadog-system-probe",
 		// stop core agent last since it will trigger stop of other services
 		"datadogagent",
 	}
@@ -340,6 +341,70 @@ func TestServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
 
 type agentServiceDisabledProcessAgentSuite struct {
 	agentServiceDisabledSuite
+}
+
+// TestProcessAgentNotRunningUnderProcmgrWhenDisabled is the procmgr half of what this suite
+// asserts. The legacy datadog-process-agent service staying Stopped is no longer evidence of
+// anything, because dd-procmgr supervises process-agent now and the core Agent suppresses that
+// service unconditionally. What still has to hold is that the config gate keeps process-agent
+// from running at all when every trigger is off.
+func (s *agentServiceDisabledProcessAgentSuite) TestProcessAgentNotRunningUnderProcmgrWhenDisabled() {
+	host := s.Env().RemoteHost
+	installPath, err := windowsAgent.GetInstallPathFromRegistry(host)
+	s.Require().NoError(err)
+	procmgrCLI := filepath.Join(installPath, "bin", "agent", "dd-procmgr.exe")
+
+	logsFolder, err := host.GetLogsFolder()
+	s.Require().NoError(err)
+	waitForLogLine := func(logFile, line, msg string) {
+		s.Require().EventuallyWithT(func(ct *assert.CollectT) {
+			content, err := host.ReadFile(filepath.Join(logsFolder, logFile))
+			if !assert.NoError(ct, err) {
+				return
+			}
+			assert.Contains(ct, string(content), line, msg)
+		}, time.Duration(2*s.timeoutScale)*time.Minute, 3*time.Second)
+	}
+
+	s.startAgent()
+	s.assertServiceState("Running", "dd-procmgr-service", nil)
+
+	// Two launchers could start process-agent, and each decides after dd-procmgr-service is
+	// already Running, so the checks below are only meaningful once both have written their
+	// decision. BeforeTest cleared the logs folder, so neither line can come from an earlier
+	// start.
+	//
+	// dd-procmgr writes this during its start pass while holding the process table's write
+	// lock. describe takes the read lock, so a describe issued after the line appears reports
+	// the state the pass left behind.
+	waitForLogLine("dd-procmgr.log", "[datadog-agent-process] condition_config_any not met",
+		"dd-procmgr should evaluate the process-agent config gate and find it closed")
+	// The core Agent writes this once it has decided not to start the legacy
+	// datadog-process-agent service, whether suppressed by install policy or disabled by config.
+	waitForLogLine("agent.log", "Service process is disabled, not starting",
+		"the core Agent should decide not to start the legacy process-agent service")
+
+	out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, procmgrCLI, "datadog-agent-process"))
+	s.Require().NoError(err)
+	s.Require().Equal("Created", procmgrDescribeField(out, "State"),
+		"dd-procmgr should leave a disabled process-agent unspawned: %s", out)
+
+	out, err = host.Execute(
+		`$p = Get-Process -Name 'process-agent' -ErrorAction SilentlyContinue; if ($null -eq $p) { 'Absent' } else { 'Present' }`)
+	s.Require().NoError(err)
+	s.Require().Equal("Absent", strings.TrimSpace(out),
+		"process-agent must not run when every process-agent config trigger is off")
+}
+
+// procmgrDescribeField pulls a single "Label: value" field out of dd-procmgr describe output.
+func procmgrDescribeField(output, label string) string {
+	prefix := label + ":"
+	for _, line := range strings.Split(output, "\n") {
+		if idx := strings.Index(line, prefix); idx >= 0 {
+			return strings.TrimSpace(line[idx+len(prefix):])
+		}
+	}
+	return ""
 }
 
 func TestServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
@@ -601,9 +666,6 @@ func (s *baseStartStopSuite) SetupSuite() {
 		windowsCommon.RebootAndWait(host, backoff.NewConstantBackOff(10*time.Second))
 	}
 
-	// TODO(WINA-1320): mark this crash as flaky while we investigate it
-	flake.MarkOnLog(s.T(), "Exception code: 0x40000015")
-
 	// Enable crash dumps
 	s.dumpFolder = werCrashDumpFolder
 	err := windowsCommon.EnableWERGlobalDumps(host, s.dumpFolder)
@@ -699,21 +761,27 @@ const xperfSCMSessionName = "scm-trace"
 // FileMode so that for tests with multiple start/stop iterations the trace captures
 // the tail of activity around whichever iteration fails.
 func (s *baseStartStopSuite) startXperf(host *components.RemoteHost) {
-	err := host.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
-	if !s.Assert().NoError(err, "should fetch xperf artifact") {
+	xperfPath := "C:/xperf/xperf.exe"
+	xperfExists, err := host.FileExists(xperfPath)
+	if !s.Assert().NoError(err, "should check whether xperf is already installed") {
 		return
 	}
 
-	// Extract if C:/xperf dir does not exist.
-	_, err = host.Execute("if (-Not (Test-Path -Path C:/xperf)) { Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf }")
-	if !s.Assert().NoError(err, "should expand xperf archive") {
-		return
+	if !xperfExists {
+		err = host.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
+		if !s.Assert().NoError(err, "should fetch xperf artifact") {
+			return
+		}
+
+		_, err = host.Execute("Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf -Force")
+		if !s.Assert().NoError(err, "should expand xperf archive") {
+			return
+		}
 	}
 
 	// Single xperf invocation starts both the NT Kernel Logger (-on <KernelGroups> -f kernel.etl ...)
 	// and a named user-mode session (-start scm-trace -on Microsoft-Windows-Services) per the
 	// MS TSS xperf SCM-tracing recipe. -d on stop will merge both into a single .etl.
-	xperfPath := "C:/xperf/xperf.exe"
 	cmd := fmt.Sprintf(
 		`& "%s" -on Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f C:/kernel.etl -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular -start %s -on Microsoft-Windows-Services`,
 		xperfPath, xperfSCMSessionName,
@@ -959,6 +1027,7 @@ func (s *baseStartStopSuite) stopAllServices() {
 func (s *baseStartStopSuite) legacySCMServices() []string {
 	return []string{
 		"datadog-process-agent",
+		"datadog-system-probe",
 	}
 }
 
