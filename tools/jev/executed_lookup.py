@@ -131,7 +131,11 @@ def fetch_executed_e2e_tests(query: str, days: int, allow_failure_jobs: set | No
             e["status"] = status
             e["flaky"] = flaky
             e["ts"] = ts
-        e["jobs"].append((attrs.get("ci", {}).get("job", {}) or {}).get("name", ""))
+        # dedupe: a test emits several events per job (attempts), and tests
+        # with the same entry name exist across suites - the job names
+        # disambiguate which suite's run this is
+        if job_name and job_name not in e["jobs"]:
+            e["jobs"].append(job_name)
     # Split by the latest attempt: only tests that actually ran (latest
     # status pass/fail) count as executed; latest-status-skip tests are the
     # coverage selection's skips.
@@ -292,7 +296,8 @@ def fetch_executed_from_gitlab(pipeline_id: str) -> tuple[dict, dict]:
                         if action in ("pass", "fail"):
                             e["status"] = action
                         e["ts"] = ts
-                    e["jobs"].append(job["name"])
+                    if job["name"] not in e["jobs"]:  # dedupe attempts (same job emits several lines)
+                        e["jobs"].append(job["name"])
                 elif action == "skip":
                     coverage_skipped.setdefault(test, []).append(job["name"])
     print(

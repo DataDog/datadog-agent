@@ -49,9 +49,15 @@ def main() -> int:
     flaky = sorted(t for t, v in executed.items() if v["flaky"])
     print(f"\n--- CI Visibility executed e2e tests for PR #{args.pr} ---")
     print(f"root tests executed: {len(executed)}")
-    print(f"failed:              {len(fails)} {fails}")
-    print(f"flaky failures:      {len(flaky)} {flaky}")
-    print(f"skipped by coverage selection: {len(coverage_skipped)} {sorted(coverage_skipped)[:10]}")
+    print(f"failed:              {len(fails)}")
+    for t in fails:
+        print(f"   [failed] {t} (jobs: {executed[t]['jobs']})")
+    print(f"flaky failures:      {len(flaky)}")
+    for t in flaky:
+        print(f"   [flaky] {t} (jobs: {executed[t]['jobs']})")
+    print(f"skipped by coverage selection: {len(coverage_skipped)}")
+    for t in sorted(coverage_skipped):
+        print(f"   [coverage-skip] {t} (jobs: {coverage_skipped[t][:3]})")
     print(f"first tests:         {sorted(executed)[:10]}")
     if not executed and not os.environ.get("DD_API_KEY"):
         print(

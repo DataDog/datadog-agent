@@ -286,10 +286,14 @@ def main() -> int:
     print(f"Jev would run / skip (all suites):          {len(would_run)} / {len(would_skip)}")
     print(f"Tests Jev skipped that actually ran:        {len(c['skipped_but_ran'])}")
     print(f"  - of which passed (correct skips):        {len(c['correctly_skipped'])}")
-    print(f"  - of which FAILED (flaky excluded):       {len(c['false_negatives'])} {c['false_negatives']}")
+    print(f"  - of which FAILED (flaky excluded):       {len(c['false_negatives'])}")
     print(f"  - of which failed but flaky:              {len(c['flaky_skipped'])}")
     print(f"Tests Jev would run that did not run:      {len(c['extra_runs'])}")
     print(f"Failures kept by Jev (ran & failed):       {len(c['kept_failures'])}")
+    for t in c["kept_failures"]:
+        print(f"   [kept-failure] {t} (jobs: {executed.get(t, {}).get('jobs', [])})")
+    for t in c["flaky_skipped"]:
+        print(f"   [flaky-skipped] {t} (jobs: {executed.get(t, {}).get('jobs', [])})")
     print(f"Savings (skipped share of executed):       {savings:.0f}%")
     if coverage_skipped:
         cov = report["comparison"]["coverage_selection"]
@@ -302,9 +306,9 @@ def main() -> int:
         for t in c["false_negatives"]:
             v = verdicts.get(t, {})
             print(
-                f"   {t}: suite={v.get('suite')} relation={v.get('relation')} "
-                f"should_execute={v.get('should_execute')} confidence={v.get('confidence')} "
-                f"failed in: {(executed.get(t) or {}).get('jobs', ['?'])[:1]}"
+                f"   {t} (jobs: {executed.get(t, {}).get('jobs', [])}) "
+                f"suite={v.get('suite')} relation={v.get('relation')} "
+                f"should_execute={v.get('should_execute')} confidence={v.get('confidence')}"
             )
     output = args.output or f"jev_e2e_eval_{pr_number}.json"
     with open(output, "w") as f:
