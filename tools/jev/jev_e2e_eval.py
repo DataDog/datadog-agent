@@ -201,11 +201,15 @@ def fetch_executed_e2e_tests(query: str, days: int) -> dict:
         entry = m.group(1)
         status = "pass" if test_attrs.get("status") == "pass" else "fail"
         flaky = test_attrs.get("agent_is_flaky_failure", "false") == "true"
-        e = executed.setdefault(entry, {"status": "pass", "flaky": False, "jobs": []})
-        if status == "fail":
-            e["status"] = "fail"
-        if flaky:
-            e["flaky"] = True
+        # Retry semantics: a test may emit several events (one per attempt,
+        # e.g. --max-retries). Only the LATEST attempt decides the status, so
+        # a fail that was retried to a pass counts as passed.
+        ts = str(item.get("attributes", {}).get("timestamp") or "")
+        e = executed.setdefault(entry, {"status": "pass", "flaky": False, "jobs": [], "ts": ""})
+        if ts >= e["ts"]:
+            e["status"] = status
+            e["flaky"] = flaky
+            e["ts"] = ts
         e["jobs"].append((attrs.get("ci", {}).get("job", {}) or {}).get("name", ""))
     print(
         f"[info] CI Visibility result: {len(events)} test events over {pages} page(s) "
@@ -297,9 +301,14 @@ def fetch_executed_from_gitlab(pipeline_id: str) -> tuple[dict, dict]:
                 if not test or "/" in test:  # root entry points only
                     continue
                 if action in ("pass", "fail", "run"):
-                    e = executed.setdefault(test, {"status": "pass", "flaky": False, "jobs": []})
-                    if action == "fail":
-                        e["status"] = "fail"
+                    # Retry semantics: only the latest attempt decides (see
+                    # fetch_executed_e2e_tests).
+                    ts = str(d.get("Time") or "")
+                    e = executed.setdefault(test, {"status": "pass", "flaky": False, "jobs": [], "ts": ""})
+                    if ts >= e["ts"]:
+                        if action in ("pass", "fail"):
+                            e["status"] = action
+                        e["ts"] = ts
                     e["jobs"].append(job["name"])
                 elif action == "skip":
                     coverage_skipped.setdefault(test, []).append(job["name"])
