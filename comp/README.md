@@ -1035,6 +1035,12 @@ versions, installation dates, and other relevant details for inventory tracking.
 Package syntheticstestscheduler defines a synthetics scheduler component to run
 network tests based on remote config.
 
+### [comp/triggerpayloads](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/triggerpayloads)
+
+*Datadog Team*: fleet-remediation
+
+Package triggerpayloads sends agent payloads on demand, without waiting for their next scheduled round
+
 ### [comp/workloadselection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/workloadselection)
 
 *Datadog Team*: injection-platform

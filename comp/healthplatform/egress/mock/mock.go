@@ -9,6 +9,8 @@
 package mock
 
 import (
+	"context"
+
 	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
 )
 
@@ -29,4 +31,9 @@ func New() egressdef.Component {
 // Status returns a healthy zero-value status.
 func (m *Mock) Status() egressdef.SendStatus {
 	return egressdef.SendStatus{Healthy: true}
+}
+
+// SendNow does nothing on the mock egress
+func (m *Mock) SendNow(_ context.Context) error {
+	return nil
 }

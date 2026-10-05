@@ -24,6 +24,10 @@ type Component interface {
 	// bypassing the metadata runner's first-run delay and interval gating. Nothing
 	// is submitted while not ready.
 	Submit()
+	// SendNow builds and submits the payload immediately, without waiting for the next collection. Unlike Submit, it
+	// keeps the first run delay after startup and returns an error if the payload is disabled, not ready, within that
+	// delay, or if the submission fails. A nil error means the payload was queued for sending.
+	SendNow() error
 }
 
 // Capabilities is an optional fx dependency letting an embedding binary adapt the

@@ -32,6 +32,9 @@ func (m *mockInventoryAgent) Get() map[string]interface{} {
 }
 func (m *mockInventoryAgent) SetReady(bool) {}
 func (m *mockInventoryAgent) Submit()       {}
+func (m *mockInventoryAgent) SendNow() error {
+	return nil
+}
 
 // Mock simple pour le lifecycle
 type mockLifecycle struct {

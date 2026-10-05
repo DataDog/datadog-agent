@@ -12,6 +12,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	settingsmock "github.com/DataDog/datadog-agent/comp/core/settings/mock"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -597,4 +599,79 @@ func TestAgentMRFConfigStatusStaysErrorAcrossSettings(t *testing.T) {
 		assert.Equal(t, state.ApplyStateError, statuses[cfgPath].State)
 		assert.True(t, cfg.GetBool(failoverAPMSetting), "the APM flag is still applied")
 	})
+}
+
+func TestAgentTaskUpdateCallback(t *testing.T) {
+	task := state.RawConfig{Config: []byte(`{"task_type":"trigger_payloads","uuid":"a_uuid","args":{}}`)}
+
+	tests := []struct {
+		name          string
+		listeners     []types.RCAgentTaskListener
+		expectedState state.ApplyState
+		expectedError string
+	}{
+		{
+			name: "success",
+			listeners: []types.RCAgentTaskListener{
+				func(types.TaskType, types.AgentTaskConfig) (bool, error) { return true, nil },
+			},
+			expectedState: state.ApplyStateAcknowledged,
+		},
+		{
+			name: "partial failure",
+			listeners: []types.RCAgentTaskListener{
+				func(types.TaskType, types.AgentTaskConfig) (bool, error) {
+					return true, types.NewPartialFailureError(errors.New("agent-health: boom"))
+				},
+			},
+			expectedState: state.ApplyStateAcknowledged,
+			expectedError: "partial failure: agent-health: boom",
+		},
+		{
+			name: "partial failure and failure",
+			listeners: []types.RCAgentTaskListener{
+				func(types.TaskType, types.AgentTaskConfig) (bool, error) {
+					return true, types.NewPartialFailureError(errors.New("agent-health: boom"))
+				},
+				func(types.TaskType, types.AgentTaskConfig) (bool, error) { return true, errors.New("other") },
+			},
+			expectedState: state.ApplyStateError,
+			expectedError: "partial failure: agent-health: boom: other",
+		},
+		{
+			name: "failure",
+			listeners: []types.RCAgentTaskListener{
+				func(types.TaskType, types.AgentTaskConfig) (bool, error) { return true, errors.New("boom") },
+			},
+			expectedState: state.ApplyStateError,
+			expectedError: "boom",
+		},
+		{
+			name: "not processed",
+			listeners: []types.RCAgentTaskListener{
+				func(types.TaskType, types.AgentTaskConfig) (bool, error) { return false, nil },
+			},
+			expectedState: state.ApplyStateUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rc := &rcClient{
+				m:             &sync.Mutex{},
+				taskProcessed: map[string]bool{},
+				taskListeners: tt.listeners,
+			}
+
+			var statuses []state.ApplyStatus
+			rc.agentTaskUpdateCallback(map[string]state.RawConfig{"path": task}, func(_ string, s state.ApplyStatus) {
+				statuses = append(statuses, s)
+			})
+
+			require.Len(t, statuses, 2)
+			assert.Equal(t, state.ApplyStateUnacknowledged, statuses[0].State)
+			assert.Equal(t, tt.expectedState, statuses[1].State)
+			assert.Equal(t, tt.expectedError, statuses[1].Error)
+		})
+	}
 }
