@@ -137,7 +137,7 @@ func NewComponent(deps Requires) Provides {
 	if deps.Capabilities != nil {
 		ia.skipCrossProcessEnrichment = deps.Capabilities.SkipCrossProcessEnrichment
 		ia.payloadUUID = deps.Capabilities.PayloadUUID
-		if deps.Capabilities.ForceEnabled {
+		if deps.Capabilities.EnableInventoryPayload {
 			ia.InventoryPayload.Enabled = true
 		}
 	}

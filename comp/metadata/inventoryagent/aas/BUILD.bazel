@@ -10,7 +10,7 @@ go_library(
         "//comp/core/config",
         "//comp/metadata/inventoryagent/def",
         "//pkg/config/model",
-        "//pkg/trace/traceutil",
+        "//pkg/util/log",
         "@com_github_google_uuid//:uuid",
         "@org_uber_go_fx//:fx",
     ],

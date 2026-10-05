@@ -11,6 +11,7 @@ package aas
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -21,7 +22,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const aasInventoryFlavor = "serverless-extension"
@@ -46,19 +47,22 @@ func IsEnabled() bool {
 
 // NewCapabilities returns the inventoryagent Capabilities for dogstatsd running
 // inside the AAS extension: skip cross-process enrichment (no sibling agent
-// processes), use a per-process UUID, and force the payload enabled so AAS
-// inventory works regardless of the enable_metadata_collection config flag.
+// processes), use a per-process UUID, and enable only this inventory payload.
+// The AAS extension's scoped gate does not enable unrelated metadata providers.
 func NewCapabilities() *inventoryagent.Capabilities {
 	id := uuid.New().String()
 	caps := inventoryagent.NewServerlessCapabilities(func() string { return id })
-	caps.ForceEnabled = true
+	caps.EnableInventoryPayload = true
 	return caps
 }
 
 // workloadType returns the downstream workload_type value for this AAS process.
 // Azure Function Apps set FUNCTIONS_WORKER_RUNTIME; plain Web Apps do not.
 func workloadType() string {
-	if _, ok := os.LookupEnv("FUNCTIONS_WORKER_RUNTIME"); ok {
+	if strings.TrimSpace(os.Getenv("WEBSITE_SITE_NAME")) == "" {
+		return ""
+	}
+	if strings.TrimSpace(os.Getenv("FUNCTIONS_WORKER_RUNTIME")) != "" {
 		return workloadTypeAzureFunction
 	}
 	return workloadTypeAzureAppService
@@ -76,10 +80,10 @@ func Inject(ia inventoryagent.Component, conf configmodel.Reader) bool {
 		return false
 	}
 
-	aasTags := traceutil.GetAppServicesTags()
+	aasMetadata := readAppServiceMetadata()
 	// Azure resource IDs are case-insensitive, while the casing returned by
 	// Azure APIs is inconsistent. REDAPL canonicalizes Azure keys to lowercase.
-	resourceID := canonicalResourceID(aasTags[traceutil.AASResourceID])
+	resourceID := canonicalResourceID(aasMetadata.resourceID)
 	if resourceID == "" {
 		// Cannot form a valid REDAPL key; skip rather than emit a dangling row.
 		return false
@@ -89,20 +93,84 @@ func Inject(ia inventoryagent.Component, conf configmodel.Reader) bool {
 	ia.Set("report_reason", reportReasonStartup)
 
 	ia.Set("resource_id", resourceID)
-	ia.Set("resource_name", aasTags[traceutil.AASSiteName])
+	ia.Set("resource_name", aasMetadata.siteName)
 	ia.Set("workload_type", workloadType())
 
 	ia.Set("region", os.Getenv("REGION_NAME"))
-	ia.Set("azure_subscription_id", aasTags[traceutil.AASSubscriptionID])
-	ia.Set("azure_resource_group", aasTags[traceutil.AASResourceGroup])
-	ia.Set("runtime", aasTags[traceutil.AASRuntime])
-	ia.Set("extension_version", aasTags[traceutil.AASExtensionVersion])
+	ia.Set("azure_subscription_id", aasMetadata.subscriptionID)
+	ia.Set("azure_resource_group", aasMetadata.resourceGroup)
+	ia.Set("runtime", aasMetadata.runtime)
+	ia.Set("extension_version", aasMetadata.extensionVersion)
 
 	ia.Set("dd_env", conf.GetString("env"))
 	ia.Set("dd_site", conf.GetString("site"))
 	ia.Set("dd_service", os.Getenv("DD_SERVICE"))
 	ia.Set("dd_version", os.Getenv("DD_VERSION"))
 	return true
+}
+
+type appServiceMetadata struct {
+	resourceID       string
+	siteName         string
+	subscriptionID   string
+	resourceGroup    string
+	runtime          string
+	extensionVersion string
+}
+
+// readAppServiceMetadata reads only the AAS values needed by this payload. This
+// keeps dogstatsd independent of traceutil and its trace protobuf dependencies.
+func readAppServiceMetadata() appServiceMetadata {
+	siteName := os.Getenv("WEBSITE_SITE_NAME")
+	resourceGroup := os.Getenv("WEBSITE_RESOURCE_GROUP")
+	ownerName := os.Getenv("WEBSITE_OWNER_NAME")
+	subscriptionID := ""
+	if parts := strings.SplitN(ownerName, "+", 2); len(parts) == 2 {
+		subscriptionID = parts[0]
+	}
+
+	resourceID := ""
+	if subscriptionID != "" && resourceGroup != "" && siteName != "" {
+		resourceID = fmt.Sprintf(
+			"/subscriptions/%s/resourcegroups/%s/providers/microsoft.web/sites/%s",
+			subscriptionID,
+			resourceGroup,
+			siteName,
+		)
+	}
+
+	return appServiceMetadata{
+		resourceID:       resourceID,
+		siteName:         siteName,
+		subscriptionID:   subscriptionID,
+		resourceGroup:    resourceGroup,
+		runtime:          appServiceRuntime(),
+		extensionVersion: firstNonEmptyEnv("DD_AAS_EXTENSION_VERSION", "DD_AAS_JAVA_EXTENSION_VERSION", "DD_AAS_DOTNET_EXTENSION_VERSION"),
+	}
+}
+
+func appServiceRuntime() string {
+	if runtime := strings.TrimSpace(os.Getenv("FUNCTIONS_WORKER_RUNTIME")); runtime != "" {
+		return runtime
+	}
+	if os.Getenv("WEBSITE_STACK") == "JAVA" {
+		return "Java"
+	}
+	if os.Getenv("WEBSITE_NODE_DEFAULT_VERSION") != "" {
+		return "Node.js"
+	}
+	// The Windows AAS extension supports .NET, Java, and Node.js. If neither
+	// Java nor Node.js is selected, the App Service runtime is .NET.
+	return ".NET"
+}
+
+func firstNonEmptyEnv(names ...string) string {
+	for _, name := range names {
+		if value := os.Getenv(name); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func canonicalResourceID(baseResourceID string) string {
@@ -194,8 +262,14 @@ func setupLifecycle(deps lifecycleDeps) {
 }
 
 func inventoryReportInterval(conf configmodel.Reader) time.Duration {
-	interval := time.Duration(conf.GetInt("inventories_max_interval")) * time.Second
+	configuredSeconds := conf.GetInt("inventories_max_interval")
+	interval := time.Duration(configuredSeconds) * time.Second
 	if interval <= 0 {
+		log.Debugf(
+			"AAS inventory: inventories_max_interval=%d is not positive; using default interval %s",
+			configuredSeconds,
+			defaultInventoryReportInterval,
+		)
 		return defaultInventoryReportInterval
 	}
 	return interval

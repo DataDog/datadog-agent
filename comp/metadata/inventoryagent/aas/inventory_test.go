@@ -95,7 +95,10 @@ func TestInjectSetsFieldsWebApp(t *testing.T) {
 	)
 	assert.Equal(t, "My-App", ia.fields["resource_name"])
 	assert.Equal(t, "East US", ia.fields["region"])
-	assert.Contains(t, ia.fields, "extension_version", "extension_version must be set for serverless_aas_extension_agent")
+	assert.Equal(t, "sub-123", ia.fields["azure_subscription_id"])
+	assert.Equal(t, "My-RG", ia.fields["azure_resource_group"])
+	assert.Equal(t, ".NET", ia.fields["runtime"])
+	assert.Equal(t, "3.12.0", ia.fields["extension_version"])
 	assert.Zero(t, ia.submits, "Inject must not call Submit")
 }
 
@@ -149,7 +152,7 @@ func TestInjectOmitsProductionDeploymentSlot(t *testing.T) {
 func TestInjectSkipsWhenResourceIDEmpty(t *testing.T) {
 	enableInventory(t)
 	// No WEBSITE_SITE_NAME / WEBSITE_OWNER_NAME / WEBSITE_RESOURCE_GROUP →
-	// traceutil.GetAppServicesTags() returns an empty resource_id.
+	// The required AAS identity variables are absent, so resource_id is empty.
 	conf := configmock.New(t)
 	ia := newFake()
 
@@ -204,8 +207,30 @@ func TestSubmitOnTicksStopsWithContext(t *testing.T) {
 }
 
 func TestWorkloadTypeDetection(t *testing.T) {
+	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "")
+	t.Setenv("WEBSITE_SITE_NAME", "")
+	assert.Empty(t, workloadType())
+
+	t.Setenv("WEBSITE_SITE_NAME", "my-app")
 	assert.Equal(t, workloadTypeAzureAppService, workloadType())
 
 	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "node")
 	assert.Equal(t, workloadTypeAzureFunction, workloadType())
+}
+
+func TestAppServiceRuntime(t *testing.T) {
+	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "")
+	t.Setenv("WEBSITE_STACK", "")
+	t.Setenv("WEBSITE_NODE_DEFAULT_VERSION", "")
+	assert.Equal(t, ".NET", appServiceRuntime())
+
+	t.Setenv("WEBSITE_STACK", "JAVA")
+	assert.Equal(t, "Java", appServiceRuntime())
+
+	t.Setenv("WEBSITE_STACK", "")
+	t.Setenv("WEBSITE_NODE_DEFAULT_VERSION", "~22")
+	assert.Equal(t, "Node.js", appServiceRuntime())
+
+	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "python")
+	assert.Equal(t, "python", appServiceRuntime())
 }

@@ -102,8 +102,11 @@ func TestSet(t *testing.T) {
 	assert.Equal(t, 1234, ia.data["test"])
 }
 
-func TestForceEnabledOverridesMetadataCollectionGate(t *testing.T) {
-	confOverrides := map[string]any{"enable_metadata_collection": false}
+func TestEnableInventoryPayloadOverridesOnlyInventoryPayloadGates(t *testing.T) {
+	confOverrides := map[string]any{
+		"enable_metadata_collection": false,
+		"inventories_enabled":        false,
+	}
 	assert.False(t, getTestInventoryPayload(t, confOverrides, nil).Enabled)
 
 	requires := makeRequires(fxutil.Test[testDeps](
@@ -117,7 +120,7 @@ func TestForceEnabledOverridesMetadataCollectionGate(t *testing.T) {
 		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 		hostnameimpl.MockModule(),
 	))
-	requires.Capabilities = &iainterface.Capabilities{ForceEnabled: true}
+	requires.Capabilities = &iainterface.Capabilities{EnableInventoryPayload: true}
 
 	provides := NewComponent(requires)
 	assert.True(t, provides.Comp.(*inventoryagent).Enabled)
