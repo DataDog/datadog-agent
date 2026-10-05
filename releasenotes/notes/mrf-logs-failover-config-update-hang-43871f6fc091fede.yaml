@@ -1,4 +1,8 @@
 ---
+enhancements:
+  - |
+    Enable `multi_region_failover.logs_service_allowlist`
+    configuration via Remote Config.
 fixes:
   - |
     Fixed an issue where changing the Multi-Region Failover logs settings could block
