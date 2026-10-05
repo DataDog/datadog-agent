@@ -38,6 +38,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -389,6 +390,21 @@ def ask_jev(args: argparse.Namespace, token: str, state: str) -> dict:
         raise RuntimeError(f"AI Gateway HTTP {e.code}: {body}") from e
 
 
+def print_collapsible(name: str, title: str, body: str) -> None:
+    """Print `body` under `title`, in a collapsed GitLab log section when in CI.
+
+    Uses the GitLab CI collapsible-section ANSI markers; falls back to plain
+    printing when not running in GitLab CI (e.g. local dry runs).
+    """
+    if os.environ.get("GITLAB_CI") or os.environ.get("CI_PIPELINE_ID"):
+        start = int(time.time())
+        print(f"\033[0Ksection_start:{start}:{name}[collapsed=true]\r\033[0K{title}")
+        print(body)
+        print(f"\033[0Ksection_end:{int(time.time())}:{name}\r\033[0K")
+    else:
+        print(f"--- {title} ---\n{body}")
+
+
 # ---------------------------------------------------------------- main
 
 
@@ -479,12 +495,14 @@ def main() -> int:
             decisions.append({"test": name, "dry_run": True})
             continue
 
-        # Print exactly what is sent to Jev for every call
-        print(f"\n--- Jev call for {name} ---")
-        print(f"endpoint: https://ai-gateway.{args.dc}{SYSTEMONE_PATH}  model: {args.model}  source: {args.source}")
-        print(f"state ({len(state)} chars):\n{state}")
-        print(f"questions: {json.dumps(QUESTIONS)}")
-        print("--- end of Jev call input ---")
+        # Print exactly what is sent to Jev for every call, in a collapsed section
+        section_name = "jev_call_" + re.sub(r"\W+", "_", name)
+        section_body = (
+            f"endpoint: https://ai-gateway.{args.dc}{SYSTEMONE_PATH}  model: {args.model}  source: {args.source}\n"
+            f"state ({len(state)} chars):\n{state}\n"
+            f"questions: {json.dumps(QUESTIONS)}"
+        )
+        print_collapsible(section_name, f"Jev call input: {name}", section_body)
 
         try:
             answer = ask_jev(args, token, state)
