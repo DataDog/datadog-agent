@@ -27,7 +27,6 @@ _TOOLS_JEV = os.path.join(_REPO_ROOT, "tools", "jev")
 if _TOOLS_JEV not in sys.path:  # standalone selector modules (stdlib only)
     sys.path.insert(0, _TOOLS_JEV)
 
-from gitlab_api import gitlab_pipeline_jobs  # noqa: E402
 from test_discovery import E2E_TESTS_DIR, list_suites  # noqa: E402
 
 try:
@@ -139,11 +138,17 @@ class JevTestUniverse:
         self._jobs: dict = {}
 
     def build(self) -> "JevTestUniverse":
+        # Jobs from the GitLab API through the canonical helper (tasks.libs.
+        # ciproviders.gitlab_api): lazy import, the module needs the invoke
+        # environment (python-gitlab + the token machinery)
+        from tasks.libs.ciproviders.gitlab_api import get_gitlab_api
+
         universe = all_e2e_entry_points()
-        for job in gitlab_pipeline_jobs(self.pipeline_id):
-            if not job["name"].startswith("new-e2e"):
+        project = get_gitlab_api().projects.get("DataDog/datadog-agent", lazy=True)
+        for job in project.jobs.list(pipeline_id=self.pipeline_id, scope=["success", "failed"]):
+            if not job.name.startswith("new-e2e"):
                 continue
-            self._jobs[job["name"]] = _candidates_for_job(job["name"], universe)
+            self._jobs[job.name] = _candidates_for_job(job.name, universe)
         print(f"[jev] universe: {len(self._jobs)} new-e2e jobs from pipeline {self.pipeline_id}")
         return self
 
