@@ -15,6 +15,8 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 )
 
 // stubPipelineMonitor can gate reads to exercise cache refresh and invalidation.
@@ -470,4 +472,11 @@ func TestRegisterPipelineMonitorDuringSnapshotRetriesWithNewMonitor(t *testing.T
 
 	assert.Equal(t, "processor", currentBottleneckComponent(newMonitor, time.Now().Add(-time.Minute)))
 	assert.Equal(t, int32(1), newMonitor.reads.Load(), "the replacement snapshot should be cached")
+}
+
+func TestCanBackpressureMatchesDestinationMonitorTag(t *testing.T) {
+	unreliable := client.NewDestinationMetadata("sender", "0", "unreliable", "1", "").MonitorTag()
+	reliable := client.NewDestinationMetadata("sender", "0", "reliable", "1", "").MonitorTag()
+	assert.False(t, canBackpressure(unreliable), unreliable)
+	assert.True(t, canBackpressure(reliable), reliable)
 }
