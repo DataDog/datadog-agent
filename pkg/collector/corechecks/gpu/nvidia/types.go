@@ -103,8 +103,7 @@ type Metric struct {
 	Type                ddmetrics.MetricType // Type holds the type of the metric.
 	RateCalculationMode RateCalculationMode  // RateCalculationMode is the mode of rate calculation for the metric.
 
-	// StrictInterval overrides the check interval. Negative disables fixed cadence
-	// and clears its prior schedule. Do not use with RateCalculationMode.
+	// StrictInterval overrides the check interval. Do not use with RateCalculationMode.
 	StrictInterval time.Duration
 
 	// Timestamp overrides the check execution time. Zero uses the execution time.

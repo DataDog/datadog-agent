@@ -298,11 +298,7 @@ func amdProcessSamples(m amd.Metrics, processes []amd.ProcessMemory) []nvidia.Sa
 		samples = append(samples, nvidia.NewMetric("process.memory.usage", float64(p.VRAMBytes), metrics.GaugeType, nvidia.Medium, nil, []workloadmeta.EntityID{workload}))
 	}
 	if m.VRAMTotalBytes.Valid {
-		limit := nvidia.NewMetric("memory.limit", m.VRAMTotalBytes.Value, metrics.GaugeType, nvidia.Medium, nil, allWorkloads)
-		// Workload membership is not static: emit at the observation time,
-		// rather than dropping short-lived workloads or backfilling their tags.
-		limit.StrictInterval = -1
-		samples = append(samples, limit)
+		samples = append(samples, nvidia.NewMetric("memory.limit", m.VRAMTotalBytes.Value, metrics.GaugeType, nvidia.Medium, nil, allWorkloads))
 	}
 	return samples
 }

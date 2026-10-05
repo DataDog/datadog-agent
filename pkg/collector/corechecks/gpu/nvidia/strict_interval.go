@@ -60,10 +60,6 @@ func (p *StrictIntervalProcessor) processSample(out []Sample, sample Sample, tim
 		metric.StrictInterval = p.staticMetricsInterval
 	}
 	if metric.StrictInterval <= 0 {
-		if metric.StrictInterval < 0 {
-			// Observation-time samples end the previous static cadence.
-			delete(p.lastEmitted, strictIntervalKey{metricName: metric.Name, gpuUUID: gpuUUID})
-		}
 		return append(out, metric)
 	}
 

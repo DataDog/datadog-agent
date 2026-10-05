@@ -567,7 +567,10 @@ func TestAMDPartialKFDTopologyDoesNotEmitUndercountedProcesses(t *testing.T) {
 	assertProcessMetrics()
 }
 
-func TestAMDProcessLimitsUseObservationTime(t *testing.T) {
+// Like NVIDIA's, the workload-attributed memory.limit follows the static
+// reporting cadence: process memory is reported on every run, and the limit
+// at the next static reporting point, carrying the workload tags.
+func TestAMDProcessLimitsFollowStaticCadence(t *testing.T) {
 	withoutNVML(t)
 	fs := amd.NewFakeSysfs(t)
 	fs.AddCard("card0", fs.AddPCIDevice("0000:c1:00.0", "amdgpu", amd.MI300XAttributes("00c0ffee00c0ffee")))
@@ -578,46 +581,27 @@ func TestAMDProcessLimitsUseObservationTime(t *testing.T) {
 	start := time.Unix(1000, 0)
 	require.NoError(t, check.emitMetrics(mockSender, nil, start))
 
-	// A workload first seen between static reporting points needs a limit
-	// immediately, and later runs must not backfill it before observation.
 	pid := os.Getpid()
 	fs.AddKFDProcess(pid, 4101, 42)
-	mockSender.ResetCalls()
-	for _, elapsed := range []time.Duration{5 * time.Second, 10 * time.Second, 40 * time.Second} {
-		require.NoError(t, check.emitMetrics(mockSender, nil, start.Add(elapsed)))
-	}
-	gauges := emittedGauges(mockSender)
-	for _, name := range []string{"gpu.memory.limit", "gpu.process.memory.usage"} {
-		var timestamps []float64
-		for _, call := range gauges[name] {
-			timestamps = append(timestamps, call.Arguments.Get(4).(float64))
-			assert.Contains(t, call.Arguments.Get(3), "pid:"+strconv.Itoa(pid))
+	timestamps := func(name string) []float64 {
+		var ts []float64
+		for _, call := range emittedGauges(mockSender)[name] {
+			ts = append(ts, call.Arguments.Get(4).(float64))
+			assert.Contains(t, call.Arguments.Get(3), "pid:"+strconv.Itoa(pid), name)
 		}
-		assert.Equal(t, []float64{1005, 1010, 1040}, timestamps, name)
+		return ts
 	}
 
-	// Returning idle starts a new static cadence, not a backfill across the
-	// process-attributed samples emitted while the workload was active.
-	require.NoError(t, os.RemoveAll(filepath.Join(fs.Root, "class/kfd/kfd/proc", strconv.Itoa(pid))))
 	mockSender.ResetCalls()
-	for _, elapsed := range []time.Duration{45 * time.Second, 50 * time.Second, 60 * time.Second} {
+	for _, elapsed := range []time.Duration{5 * time.Second, 10 * time.Second} {
 		require.NoError(t, check.emitMetrics(mockSender, nil, start.Add(elapsed)))
 	}
-	var idleTimestamps []float64
-	for _, call := range emittedGauges(mockSender)["gpu.memory.limit"] {
-		idleTimestamps = append(idleTimestamps, call.Arguments.Get(4).(float64))
-		assert.NotContains(t, call.Arguments.Get(3), "pid:"+strconv.Itoa(pid))
-	}
-	assert.Equal(t, []float64{1045, 1060}, idleTimestamps)
+	assert.Equal(t, []float64{1005, 1010}, timestamps("gpu.process.memory.usage"))
+	assert.Empty(t, timestamps("gpu.memory.limit"), "early static samples are dropped")
 
-	// The next workload must not wait for that new static reporting point.
-	fs.AddKFDProcess(pid, 4101, 84)
 	mockSender.ResetCalls()
-	require.NoError(t, check.emitMetrics(mockSender, nil, start.Add(65*time.Second)))
-	limits := emittedGauges(mockSender)["gpu.memory.limit"]
-	require.Len(t, limits, 1)
-	assert.Equal(t, float64(1065), limits[0].Arguments.Get(4))
-	assert.Contains(t, limits[0].Arguments.Get(3), "pid:"+strconv.Itoa(pid))
+	require.NoError(t, check.emitMetrics(mockSender, nil, start.Add(15*time.Second)))
+	assert.Equal(t, []float64{1015}, timestamps("gpu.memory.limit"))
 }
 
 func TestAMDProcessReadErrorsPreserveAvailableMetrics(t *testing.T) {
