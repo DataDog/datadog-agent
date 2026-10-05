@@ -368,7 +368,6 @@
 /cmd/host-profiler/                                 @DataDog/opentelemetry-agent @DataDog/profiling-full-host
 
 /dev/    @DataDog/agent-devx
-/devenv/ @DataDog/agent-devx
 
 /examples/ # do not notify anyone
 
