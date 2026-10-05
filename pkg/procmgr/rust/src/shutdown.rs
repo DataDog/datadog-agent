@@ -66,7 +66,9 @@ mod tests {
             test_helpers::test_uuid(),
             test_helpers::graceful_stop_test_config(),
         );
-        let (tx, mut exit_rx) = test_exit_channel();
+        let (tx, exit_rx) = test_exit_channel();
+        #[cfg(windows)]
+        let mut exit_rx = exit_rx;
         proc.spawn(tx).unwrap();
         assert!(proc.is_running());
 
