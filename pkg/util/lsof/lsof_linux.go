@@ -46,13 +46,14 @@ type procfsProc interface {
 }
 
 type socketInfo struct {
-	Description string
-	LocalAddr   net.IP
-	LocalPort   uint64
-	RemoteAddr  net.IP
-	RemotePort  uint64
-	State       string
-	Protocol    string
+	Protocol   string
+	State      string
+	LocalAddr  net.IP
+	LocalPort  uint64
+	RemoteAddr net.IP
+	RemotePort uint64
+	UnixType   procfs.NetUNIXType
+	Path       string
 }
 
 func openFiles(ctx context.Context, pid int) (Files, error) {
@@ -291,8 +292,8 @@ func stateStr(state uint64) string {
 }
 
 func (ofl *openFilesLister) renderSocketInfo(si socketInfo) string {
-	if si.Description != "" {
-		return si.Description
+	if si.Protocol == "unix" {
+		return fmt.Sprintf("%s:%s", si.UnixType, si.Path)
 	}
 
 	description := fmt.Sprintf("%s:%d->%s:%d", si.LocalAddr, si.LocalPort, si.RemoteAddr, si.RemotePort)
@@ -349,12 +350,12 @@ func readSocketInfo(procPIDPath string) map[uint64]socketInfo {
 		}
 		for _, entry := range addrs {
 			si[entry.Inode] = socketInfo{
+				Protocol:   protocol,
+				State:      stateStr(entry.St),
 				LocalAddr:  entry.LocalAddr,
 				LocalPort:  entry.LocalPort,
 				RemoteAddr: entry.RemAddr,
 				RemotePort: entry.RemPort,
-				State:      stateStr(entry.St),
-				Protocol:   protocol,
 			}
 		}
 	}
@@ -370,12 +371,12 @@ func readSocketInfo(procPIDPath string) map[uint64]socketInfo {
 		}
 		for _, entry := range addrs {
 			si[entry.Inode] = socketInfo{
+				Protocol:   protocol,
+				State:      stateStr(entry.St),
 				LocalAddr:  entry.LocalAddr,
 				LocalPort:  entry.LocalPort,
 				RemoteAddr: entry.RemAddr,
 				RemotePort: entry.RemPort,
-				State:      stateStr(entry.St),
-				Protocol:   protocol,
 			}
 		}
 	}
@@ -384,9 +385,10 @@ func readSocketInfo(procPIDPath string) map[uint64]socketInfo {
 	if err == nil {
 		for _, entry := range unix.Rows {
 			si[entry.Inode] = socketInfo{
-				Description: fmt.Sprintf("%s:%s", entry.Type, entry.Path),
-				State:       fmt.Sprintf("%s:%s", entry.State, entry.Flags),
-				Protocol:    "unix",
+				Protocol: "unix",
+				State:    fmt.Sprintf("%s:%s", entry.State, entry.Flags),
+				UnixType: entry.Type,
+				Path:     entry.Path,
 			}
 		}
 	} else {

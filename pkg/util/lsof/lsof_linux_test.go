@@ -218,18 +218,19 @@ func TestFDStat(t *testing.T) {
 			},
 			map[uint64]socketInfo{
 				456: {
-					Description: "127.0.0.1:42->127.0.0.1:43",
-					State:       "connected",
-					Protocol:    "tcp",
+					Protocol: "unix",
+					State:    "connected",
+					UnixType: procfs.NetUNIXType(1),
+					Path:     "/tmp/socket",
 				},
 			},
 			&File{
 				Fd:       "3",
-				Type:     "tcp",
+				Type:     "unix",
 				FilePerm: "connected",
 				OpenPerm: "rw",
 				Size:     0,
-				Name:     "127.0.0.1:42->127.0.0.1:43",
+				Name:     "stream:/tmp/socket",
 			},
 		},
 		{
@@ -378,14 +379,15 @@ func TestReadSocketInfo(t *testing.T) {
 				Protocol:   "tcp",
 			},
 			1987112: {
-				Description: "stream:/tmp/.X11-unix/X2",
-				State:       "unconnected:listen",
-				Protocol:    "unix",
+				Protocol: "unix",
+				State:    "unconnected:listen",
+				UnixType: procfs.NetUNIXType(1),
+				Path:     "/tmp/.X11-unix/X2",
 			},
 			2506353: {
-				Description: "stream:",
-				State:       "connected:default",
-				Protocol:    "unix",
+				Protocol: "unix",
+				State:    "connected:default",
+				UnixType: procfs.NetUNIXType(1),
 			},
 			3359554: newNetworkSocketInfo("20.199.39.224"),
 			3359555: newNetworkSocketInfo("20.199.39.225"),
@@ -412,12 +414,12 @@ func parseIPv4(addr string) net.IP {
 
 func newNetworkSocketInfo(remoteAddr string) socketInfo {
 	return socketInfo{
+		Protocol:   "tcp6",
+		State:      "ESTABLISHED",
 		LocalAddr:  parseIPv4("172.17.0.2"),
 		LocalPort:  44594,
 		RemoteAddr: parseIPv4(remoteAddr),
 		RemotePort: 443,
-		State:      "ESTABLISHED",
-		Protocol:   "tcp6",
 	}
 }
 
@@ -476,8 +478,12 @@ func TestRenderSocketInfo(t *testing.T) {
 			expected: "0.0.0.0:18777->0.0.0.0:0",
 		},
 		{
-			name:     "unix",
-			info:     socketInfo{Description: "stream:/tmp/socket"},
+			name: "unix",
+			info: socketInfo{
+				Protocol: "unix",
+				UnixType: procfs.NetUNIXType(1),
+				Path:     "/tmp/socket",
+			},
 			expected: "stream:/tmp/socket",
 		},
 	}
