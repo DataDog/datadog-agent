@@ -91,6 +91,9 @@ func (e *mrfEnv) Init(ctx common.Context) error {
 	return nil
 }
 
+// mrfProvisioner is a custom provisioner because the framework helpers provision a single fakeintake, and
+// telling the failover region apart from the main one needs two: fakeintake does not expose which API key a
+// parsed log was sent with.
 func mrfProvisioner() provisioners.Provisioner {
 	return provisioners.NewTypedPulumiProvisioner("aws-mrf-logs-service-allowlist", func(ctx *pulumi.Context, env *mrfEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
@@ -164,14 +167,12 @@ func TestMRFLogsServiceAllowlistSuite(t *testing.T) {
 	e2e.Run(t, &mrfLogsServiceAllowlistSuite{}, e2e.WithProvisioner(mrfProvisioner()))
 }
 
-// TestLogsServiceAllowlist drives logs failover through AGENT_FAILOVER Remote Config, as the DDR switch and the
-// HAMR worker do, and checks which services' logs reach the failover region. failover_logs alone turns logs
-// forwarding on or off; logs_service_allowlist only narrows it, and an empty or omitted list forwards every log.
-func (s *mrfLogsServiceAllowlistSuite) TestLogsServiceAllowlist() {
+// SetupSuite waits for the Agent to poll the failover fakeintake for AGENT_FAILOVER Remote Config.
+func (s *mrfLogsServiceAllowlistSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
 	if s.Env().Agent.FIPSEnabled {
-		s.T().Skip("Remote Config is not supported by the FIPS Agent")
+		return
 	}
-
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assert.True(c, s.Env().Agent.Client.IsReady())
 	}, mrfWaitFor, mrfTick)
@@ -180,42 +181,69 @@ func (s *mrfLogsServiceAllowlistSuite) TestLogsServiceAllowlist() {
 		assert.NoError(c, err)
 		assert.NotZero(c, stats.Polls, "the Agent did not poll the failover fakeintake for Remote Config")
 	}, mrfWaitFor, mrfTick)
+}
 
-	s.Run("logs failover disabled forwards nothing", func() {
-		s.assertForwarded()
-	})
+// BeforeTest resets both fakeintakes, so that each test only sees the logs it writes. Remote Config configs
+// are kept: each test sets the configs it needs.
+func (s *mrfLogsServiceAllowlistSuite) BeforeTest(suiteName, testName string) {
+	s.BaseSuite.BeforeTest(suiteName, testName)
+	if s.Env().Agent.FIPSEnabled {
+		s.T().Skip("Remote Config is not supported by the FIPS Agent")
+	}
+	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	require.NoError(s.T(), s.Env().FailoverIntake.Client().FlushServerAndResetAggregators())
+}
 
-	s.Run("logs failover enabled without allowlist forwards every service", func() {
-		s.addFailoverConfig(logsSwitchConfigID, `{"name": "DDR logs switch", "failover_logs": true}`)
-		s.waitForRemoteConfigSetting(failoverLogsSetting, "true")
-		s.assertForwarded(allowedService, excludedService)
-	})
+// The tests below drive logs failover through AGENT_FAILOVER Remote Config, as the DDR switch and the HAMR worker
+// do, and check which services' logs reach the failover region. failover_logs alone turns logs forwarding on or
+// off; logs_service_allowlist only narrows it, and an empty or omitted list forwards every log. Each test sets
+// the whole failover state it needs, so the tests do not depend on each other.
 
-	s.Run("allowlist forwards only the listed services", func() {
-		s.addFailoverConfig(logsAllowlistConfigID, `{"name": "HAMR Logs Service Allowlist", "logs_service_allowlist": ["`+allowedService+`"]}`)
-		s.waitForRemoteConfigSetting(logsServiceAllowlistSetting, "[mrf-allowed]")
-		s.assertForwarded(allowedService)
-	})
+func (s *mrfLogsServiceAllowlistSuite) TestFailoverDisabledForwardsNothing() {
+	s.setFailoverState(false, "")
+	s.assertForwarded()
+}
 
-	s.Run("allowlist omitted by every config forwards every service", func() {
+func (s *mrfLogsServiceAllowlistSuite) TestFailoverDisabledWithAllowlistForwardsNothing() {
+	s.setFailoverState(false, `["`+allowedService+`"]`)
+	s.assertForwarded()
+}
+
+func (s *mrfLogsServiceAllowlistSuite) TestFailoverWithoutAllowlistForwardsEveryService() {
+	s.setFailoverState(true, "")
+	s.assertForwarded(allowedService, excludedService)
+}
+
+func (s *mrfLogsServiceAllowlistSuite) TestFailoverWithAllowlistForwardsListedServices() {
+	s.setFailoverState(true, `["`+allowedService+`"]`)
+	s.assertForwarded(allowedService)
+}
+
+func (s *mrfLogsServiceAllowlistSuite) TestFailoverWithEmptyAllowlistForwardsEveryService() {
+	s.setFailoverState(true, `[]`)
+	s.assertForwarded(allowedService, excludedService)
+}
+
+// setFailoverState publishes the DDR logs switch and the HAMR logs service allowlist on the failover fakeintake,
+// and waits for the Agent to apply them. An empty allowlist argument removes the allowlist config, so that no
+// config sets the field.
+func (s *mrfLogsServiceAllowlistSuite) setFailoverState(failoverLogs bool, allowlist string) {
+	if allowlist == "" {
 		s.deleteFailoverConfig(logsAllowlistConfigID)
-		s.waitForSettingWithoutRemoteConfig(logsServiceAllowlistSetting)
-		s.assertForwarded(allowedService, excludedService)
-	})
+	} else {
+		s.addFailoverConfig(logsAllowlistConfigID, `{"name": "HAMR Logs Service Allowlist", "logs_service_allowlist": `+allowlist+`}`)
+	}
+	s.addFailoverConfig(logsSwitchConfigID, fmt.Sprintf(`{"name": "DDR logs switch", "failover_logs": %t}`, failoverLogs))
 
-	s.Run("empty allowlist forwards every service", func() {
-		s.addFailoverConfig(logsAllowlistConfigID, `{"name": "HAMR Logs Service Allowlist", "logs_service_allowlist": []}`)
-		s.waitForRemoteConfigSetting(logsServiceAllowlistSetting, "[]")
-		s.assertForwarded(allowedService, excludedService)
-	})
-
-	s.Run("logs failover disabled with an allowlist forwards nothing", func() {
-		s.addFailoverConfig(logsAllowlistConfigID, `{"name": "HAMR Logs Service Allowlist", "logs_service_allowlist": ["`+allowedService+`"]}`)
-		s.waitForRemoteConfigSetting(logsServiceAllowlistSetting, "[mrf-allowed]")
-		s.addFailoverConfig(logsSwitchConfigID, `{"name": "DDR logs switch", "failover_logs": false}`)
-		s.waitForRemoteConfigSetting(failoverLogsSetting, "false")
-		s.assertForwarded()
-	})
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		assert.Contains(c, s.settingWithSources(c, failoverLogsSetting), fmt.Sprintf("remote-config: %t\n", failoverLogs))
+		wantAllowlist := "<nil>"
+		if allowlist != "" {
+			wantAllowlist = strings.ReplaceAll(strings.Trim(allowlist, "[]"), `"`, "")
+			wantAllowlist = "[" + wantAllowlist + "]"
+		}
+		assert.Contains(c, s.settingWithSources(c, logsServiceAllowlistSetting), "remote-config: "+wantAllowlist+"\n")
+	}, mrfWaitFor, mrfTick)
 }
 
 // addFailoverConfig publishes or replaces an AGENT_FAILOVER config on the failover fakeintake.
@@ -223,7 +251,7 @@ func (s *mrfLogsServiceAllowlistSuite) addFailoverConfig(configID, config string
 	require.NoError(s.T(), s.Env().FailoverIntake.Client().RCAddConfig("", agentFailoverProduct, configID, failoverConfigName, []byte(config)))
 }
 
-// deleteFailoverConfig removes an AGENT_FAILOVER config from the failover fakeintake.
+// deleteFailoverConfig removes an AGENT_FAILOVER config from the failover fakeintake, if it is there.
 func (s *mrfLogsServiceAllowlistSuite) deleteFailoverConfig(configID string) {
 	failoverIntake := s.Env().FailoverIntake.Client()
 	configs, err := failoverIntake.RCListConfigs()
@@ -232,26 +260,8 @@ func (s *mrfLogsServiceAllowlistSuite) deleteFailoverConfig(configID string) {
 		if config.Product == agentFailoverProduct && config.ConfigID == configID {
 			key := strings.Join([]string{config.OrgID, config.Product, config.ConfigID, config.ConfigName}, "/")
 			require.NoError(s.T(), failoverIntake.RCDeleteConfig(key))
-			return
 		}
 	}
-	require.Failf(s.T(), "AGENT_FAILOVER config not found", "config %s", configID)
-}
-
-// waitForRemoteConfigSetting waits for the Agent to apply a value of the setting from Remote Config.
-func (s *mrfLogsServiceAllowlistSuite) waitForRemoteConfigSetting(setting, value string) {
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		output := s.settingWithSources(c, setting)
-		assert.Contains(c, output, fmt.Sprintf("%s is set to: %s\n", setting, value))
-		assert.Contains(c, output, fmt.Sprintf("remote-config: %s\n", value))
-	}, mrfWaitFor, mrfTick)
-}
-
-// waitForSettingWithoutRemoteConfig waits for the Agent to remove the Remote Config value of the setting.
-func (s *mrfLogsServiceAllowlistSuite) waitForSettingWithoutRemoteConfig(setting string) {
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		assert.Contains(c, s.settingWithSources(c, setting), "remote-config: <nil>\n")
-	}, mrfWaitFor, mrfTick)
 }
 
 func (s *mrfLogsServiceAllowlistSuite) settingWithSources(c *assert.CollectT, setting string) string {
@@ -264,7 +274,7 @@ func (s *mrfLogsServiceAllowlistSuite) settingWithSources(c *assert.CollectT, se
 // only the lines of the given services reach the failover region. Whether a log is forwarded is decided when the
 // Agent processes it, so the lines are written after the failover configuration was applied.
 func (s *mrfLogsServiceAllowlistSuite) assertForwarded(forwarded ...string) {
-	token := fmt.Sprintf("mrf-e2e-%d", time.Now().UnixNano())
+	token := s.T().Name()
 	services := []string{allowedService, excludedService}
 	for _, service := range services {
 		s.Env().Host.MustExecute(fmt.Sprintf("echo '%s %s' >> %s", token, service, logFiles[service]))
