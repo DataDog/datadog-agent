@@ -1559,6 +1559,64 @@ func TestWritebackBlockedByHigherPrioritySource(t *testing.T) {
 	assert.Equal(t, []string{"DELA(our-org-uuid, aws)"}, mockConfig.GetStringMapStringSlice("additional_endpoints")[domain])
 }
 
+func TestShadowedWritebackKeepsTrackingAfterHigherSourceIsUnset(t *testing.T) {
+	const directive = "DELA(our-org-uuid, aws)"
+
+	t.Run("map shape", func(t *testing.T) {
+		const domain = "https://our-org.datadoghq.com"
+		mockConfig := mock.New(t)
+		value := map[string][]string{domain: {directive}}
+		mockConfig.SetInTest("additional_endpoints", value)
+		mockConfig.Set("additional_endpoints", value, pkgconfigmodel.SourceAgentRuntime)
+		comp := &delegatedAuthComponent{config: mockConfig}
+		instance := &authInstance{
+			additionalEndpointDomain:     domain,
+			additionalEndpointsConfigKey: "additional_endpoints",
+			lastWrittenValue:             directive,
+			originalDirective:            directive,
+		}
+
+		// Both writes land in the secret layer but stay shadowed by the runtime layer.
+		require.ErrorIs(t, comp.mergeIntoAdditionalEndpoints(instance, "key-1", false), errWritebackBlocked)
+		require.ErrorIs(t, comp.mergeIntoAdditionalEndpoints(instance, "key-2", false), errWritebackBlocked)
+
+		mockConfig.UnsetForSource("additional_endpoints", pkgconfigmodel.SourceAgentRuntime)
+		assert.Equal(t, []string{"key-2"}, mockConfig.GetStringMapStringSlice("additional_endpoints")[domain])
+
+		require.NoError(t, comp.mergeIntoAdditionalEndpoints(instance, "key-3", false))
+		assert.Equal(t, []string{"key-3"}, mockConfig.GetStringMapStringSlice("additional_endpoints")[domain])
+	})
+
+	t.Run("list shape", func(t *testing.T) {
+		const configKey = "logs_config.additional_endpoints"
+		mockConfig := mock.New(t)
+		value := []any{map[string]any{"api_key": directive, "Host": "agent-http-intake.logs.datadoghq.com"}}
+		mockConfig.SetInTest(configKey, value)
+		mockConfig.Set(configKey, value, pkgconfigmodel.SourceAgentRuntime)
+		comp := &delegatedAuthComponent{config: mockConfig}
+		instance := &authInstance{
+			additionalEndpointsListConfigKey: configKey,
+			lastWrittenValue:                 directive,
+			originalDirective:                directive,
+		}
+		apiKey := func() any {
+			entries, ok := common.NormalizeListShapeEntries(mockConfig.Get(configKey))
+			require.True(t, ok)
+			require.Len(t, entries, 1)
+			return entries[0].(map[string]any)["api_key"]
+		}
+
+		require.ErrorIs(t, comp.mergeIntoAdditionalEndpointsList(instance, "key-1", false), errWritebackBlocked)
+		require.ErrorIs(t, comp.mergeIntoAdditionalEndpointsList(instance, "key-2", false), errWritebackBlocked)
+
+		mockConfig.UnsetForSource(configKey, pkgconfigmodel.SourceAgentRuntime)
+		assert.Equal(t, "key-2", apiKey())
+
+		require.NoError(t, comp.mergeIntoAdditionalEndpointsList(instance, "key-3", false))
+		assert.Equal(t, "key-3", apiKey())
+	})
+}
+
 func TestMergeIntoAdditionalEndpointsListPreservesPriorUpdate(t *testing.T) {
 	mockConfig := mock.New(t)
 	configKey := "logs_config.additional_endpoints"

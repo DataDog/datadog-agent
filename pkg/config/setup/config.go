@@ -760,9 +760,8 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 	// `kubernetes_node_annotations_as_tags`, etc. Since these arbitrary keys can
 	// contain a '.' character, we are unable to use the standard `config.Set` method.
 	// Instead, we remove trailing elements from the end of the path until we find a known
-	// config field, retrieve the compound object at that point, and then use the trailing
-	// elements to figure out how to modify that particular object, before setting it back
-	// on the config.
+	// config field, then modify the compound object at that point through config.Update,
+	// using the trailing elements to find the value to replace.
 	//
 	// Example with the follow configuration:
 	//
@@ -782,10 +781,10 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 	//
 	// This function will effectively do:
 	//
-	// var original map[string][]string = config.Get('process_config.additional_endpoints')
-	// var slice []string               = original['http://url.com']
-	// slice[0] = 'password'
-	// config.Set('process_config.additional_endpoints', original)
+	// config.Update('process_config.additional_endpoints', SourceSecret, func(original, _) {
+	//     original['http://url.com'][0] = 'password'
+	//     return original, true
+	// })
 
 	trailingElements := make([]string, 0, len(settingPath))
 	// copy the path and hold onto the original, useful for error messages

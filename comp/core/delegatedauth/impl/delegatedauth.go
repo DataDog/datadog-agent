@@ -877,6 +877,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 	configKey := instance.additionalEndpointsConfigKey
 	domain := instance.additionalEndpointDomain
 	var updateErr error
+	wrote := false
 	applied := d.config.Update(configKey, pkgconfigmodel.SourceSecret, func(currentValue interface{}, _ bool) (interface{}, bool) {
 		endpoints, err := cast.ToStringMapStringSliceE(currentValue)
 		if err != nil {
@@ -916,6 +917,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 		}
 		keys[matchIndex] = apiKey
 		merged[domain] = keys
+		wrote = true
 		return merged, true
 	})
 
@@ -923,10 +925,14 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 		log.Warnf("Could not update delegated auth value for additional endpoint '%s' at '%s': %v", domain, configKey, updateErr)
 		return updateErr
 	}
+	if wrote {
+		// The key is in the secret layer even when a higher layer shadows it; track it so the next
+		// write, or the value that surfaces once the higher layer goes away, still matches.
+		instance.lastWrittenValue = apiKey
+	}
 	if !applied {
 		return fmt.Errorf("%w: %s", errWritebackBlocked, configKey)
 	}
-	instance.lastWrittenValue = apiKey
 	if isFallback {
 		log.Infof("Using fallback API key for additional endpoint '%s' at '%s' (delegated auth unavailable), ending with: %s", domain, configKey, scrubber.HideKeyExceptLastChars(apiKey))
 	} else {
@@ -945,6 +951,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 	configKey := instance.additionalEndpointsListConfigKey
 
 	var updateErr error
+	wrote := false
 	applied := d.config.Update(configKey, pkgconfigmodel.SourceSecret, func(currentValue interface{}, _ bool) (interface{}, bool) {
 		entries, ok := common.NormalizeListShapeEntries(currentValue)
 		if !ok {
@@ -991,16 +998,20 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 		maps.Copy(newEntry, matchedEntry)
 		newEntry[apiKeyField] = apiKey
 		merged[matchIndex] = newEntry
+		wrote = true
 		return merged, true
 	})
 	if updateErr != nil {
 		log.Warnf("Could not update delegated auth value in list-shape additional endpoints at '%s': %v", configKey, updateErr)
 		return updateErr
 	}
+	if wrote {
+		// See mergeIntoAdditionalEndpoints: a shadowed write still lands in the secret layer.
+		instance.lastWrittenValue = apiKey
+	}
 	if !applied {
 		return fmt.Errorf("%w: %s", errWritebackBlocked, configKey)
 	}
-	instance.lastWrittenValue = apiKey
 
 	if isFallback {
 		log.Infof("Using fallback API key for additional endpoint entry at '%s' (delegated auth unavailable), ending with: %s", configKey, scrubber.HideKeyExceptLastChars(apiKey))
