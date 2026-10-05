@@ -111,7 +111,6 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		Name:           name,
 		GenerationType: generationType,
 		IsPattern:      strings.Contains(name, "*"),
-		Children:       make(map[string]*FileNode),
 	}
 	fan.NodeBase = NewNodeBase()
 	if event != nil {
@@ -230,6 +229,9 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		newEntry = true
 		if dryRun {
 			break
+		}
+		if currentFn.Children == nil {
+			currentFn.Children = make(map[string]*FileNode)
 		}
 		if len(currentPath) <= nextParentIndex+1 {
 			leafNode := NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
