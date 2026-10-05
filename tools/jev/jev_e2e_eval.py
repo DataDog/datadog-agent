@@ -429,9 +429,13 @@ def main() -> int:
                     #                           points only). The client-side
                     #                           root/new-e2e filter is kept as a
                     #                           safety net for query syntax quirks.
+                    # Note: no env filter - the e2e jobs tag their test events
+                    # with env:nativetest (see the .new_e2e_template), so
+                    # filtering on env:prod (as the dyntest evaluator does for
+                    # non-e2e jobs) would match nothing.
                     executed_future = pool.submit(
                         fetch_executed_e2e_tests,
-                        f"env:prod @ci.pipeline.name:{PIPELINE_NAME} {scope} @ci.job.name:new-e2e* -@test.name:*/*",
+                        f"@ci.pipeline.name:{PIPELINE_NAME} {scope} @ci.job.name:new-e2e* -@test.name:*/*",
                         args.days,
                     )
                 if args.concurrency <= 1:
