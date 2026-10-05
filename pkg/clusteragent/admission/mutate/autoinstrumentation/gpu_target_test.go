@@ -246,15 +246,20 @@ gpu:
 	m := newMatchMutator(t, cfg, newMatchTestWmeta(t))
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "ml", Labels: gpuPodLabels}}
 
-	target := m.getMatchingTarget(pod)
+	resolved := m.resolveTarget(pod)
 
+	require.NotNil(t, resolved)
+	require.Equal(t, injectionSourceGPU, resolved.selectedBy)
+	require.True(t, resolved.isSSI)
+	target := resolved.plan
 	require.NotNil(t, target)
+	require.False(t, target.blocked)
 	assert.Equal(t, []corev1.EnvVar{
 		{Name: "DD_INJECT_NATIVE", Value: "always"},
 		{Name: "DD_TRACE_HOOK_MODULES", Value: "gpu"},
 		{Name: "DD_TRAINING_RUN_ID", Value: "env:FOO"},
 		fieldRefEnvVar(trainingGroupIDEnvVar, "metadata.annotations['example/job-group-annotation']"),
-	}, target.envVars)
+	}, target.tracerEnvVars)
 }
 
 func TestLabelSelectorsGPUTracing(t *testing.T) {
