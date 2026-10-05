@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "config.go",
         "config_nix.go",
+        "config_rollback_windows.go",
         "config_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/config",
@@ -123,6 +124,7 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
@@ -133,6 +135,7 @@ dd_agent_go_test(
     name = "config_test",
     srcs = [
         "config_nix_test.go",
+        "config_rollback_windows_test.go",
         "config_test.go",
         "config_windows_test.go",
     ],
