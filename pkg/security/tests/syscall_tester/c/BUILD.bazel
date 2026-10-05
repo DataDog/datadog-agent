@@ -2,6 +2,7 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
+load(":musl_i686.bzl", "musl_i686_cc_binary")
 load(":otel_tls.bzl", "TLS_DIALECT", "otel_tls_dsos")
 
 # The OTel thread context testers: the native ones, one per access model a
@@ -140,17 +141,11 @@ cc_binary(
     visibility = ["//visibility:public"],
 )
 
-# Needs a 32-bit sysroot; the hermetic x86_64 toolchain does not ship one.
-# Kept for the existing KMT/CI -m32 coverage once a i386 cc toolchain exists.
-cc_binary(
+# Static i686 musl binary so TestChown32 can issue SYS_chown32. Bootlin gcc is
+# an x86_64 Linux ELF (exec_compatible_with); output runs on amd64 via ia32.
+musl_i686_cc_binary(
     name = "syscall_x86_tester",
     srcs = ["syscall_x86_tester.c"],
-    copts = ["-m32"],
-    linkopts = [
-        "-m32",
-        "-static",
-    ],
-    tags = ["manual"],
     target_compatible_with = [
         "@platforms//cpu:x86_64",
         "@platforms//os:linux",

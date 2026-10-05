@@ -185,8 +185,9 @@ py_binary(
   `cp -r` does not nest a pre-created testdata directory.
 
 - **CWS syscall testers** — `build_embed_syscall_tester` copies Bazel outputs into
-  `pkg/security/tests/syscall_tester/bin` for `//go:embed`. `syscall_x86_tester` stays
-  a `manual` cc_binary (`-m32`); the hermetic toolchain has no i386 sysroot.
+  `pkg/security/tests/syscall_tester/bin` for `//go:embed`. `syscall_x86_tester` is a
+  static i686 musl binary (`musl_i686_cc_binary`, Bootlin gcc); it only builds when
+  exec is Linux x86_64 (KMT compiler image) and `arch` is amd64.
 
 - **KMT testsuites** — `kmt_sysprobe_prepare` Bazel-builds the `{dir}_test` variant
   whose `gotags` best cover the KMT build tags (e.g. `gpu_test_bpf_nvml`, not

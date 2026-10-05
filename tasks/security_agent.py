@@ -25,7 +25,7 @@ from tasks.libs.common.utils import (
     get_go_version,
     get_version,
 )
-from tasks.libs.types.arch import Arch
+from tasks.libs.types.arch import ARCH_AMD64, Arch
 from tasks.process_agent import TempDir
 from tasks.schema.generate import schema_codegen
 from tasks.system_probe import (
@@ -269,7 +269,10 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
     from tasks.kmt import kmt_bazel_flags
 
     dest_by_target = {target: os.path.join(build_dir, dest) for target, dest in _SYSCALL_TESTER_TARGETS.items()}
-    # -m32 needs a 32-bit sysroot the hermetic toolchain does not provide.
+    if arch == ARCH_AMD64:
+        dest_by_target["//pkg/security/tests/syscall_tester/c:syscall_x86_tester"] = os.path.join(
+            build_dir, "syscall_x86_tester"
+        )
     flags = kmt_bazel_flags(arch) + ebpf_bazel_flags(arch)
     build_binaries_with_bazel(dest_by_target, args=flags)
     build_otel_tls_artifacts(build_dir, arch)
