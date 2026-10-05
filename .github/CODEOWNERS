@@ -241,6 +241,12 @@
 
 /cmd/                                               @DataDog/fleet-remediation
 /cmd/trace-agent/                                   @DataDog/agent-apm
+/cmd/agent/*.go                                     @DataDog/agent-runtimes
+/cmd/agent/BUILD.bazel                              @DataDog/agent-runtimes
+/cmd/agent/command/                                 @DataDog/agent-runtimes
+/cmd/agent/common/                                  @DataDog/agent-runtimes
+/cmd/agent/subcommands/subcommands.go               @DataDog/agent-runtimes
+/cmd/agent/subcommands/BUILD.bazel                  @DataDog/agent-runtimes
 /cmd/agent/subcommands/controlsvc                   @DataDog/windows-products
 /cmd/agent/subcommands/otel                         @DataDog/opentelemetry-agent
 /cmd/agent/subcommands/check                        @DataDog/agent-runtimes @DataDog/agent-integrations
@@ -265,6 +271,11 @@
 /cmd/agent/subcommands/configcheck                  @DataDog/container-platform
 /cmd/agent/subcommands/remotecommand                @DataDog/agent-runtimes
 /cmd/agent/subcommands/secret                       @DataDog/fleet-automation
+/cmd/agent/subcommands/diagnose                     @DataDog/fleet-remediation
+/cmd/agent/subcommands/flare                        @DataDog/fleet-remediation
+/cmd/agent/subcommands/health                       @DataDog/fleet-remediation
+/cmd/agent/subcommands/status                       @DataDog/fleet-remediation
+/cmd/agent/subcommands/launchgui                    @DataDog/windows-products
 /cmd/agent/windows                                  @DataDog/windows-products
 /cmd/agent/windows_resources                        @DataDog/windows-products
 /cmd/agent/dist/conf.d/agentcrashdetect.d/             @DataDog/windows-products
