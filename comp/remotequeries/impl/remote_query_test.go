@@ -529,25 +529,6 @@ func TestRemoteQueryMatchHandlerAmbiguousMatch(t *testing.T) {
 	assert.NotContains(t, body, "secret-two")
 }
 
-// TestRemoteQueryMatchHandlerBusyFailsFast proves the match diagnostic shares the
-// resolve/execute admission: while one remote query holds it, the sweep does not
-// run and the endpoint answers fail fast instead of queueing.
-func TestRemoteQueryMatchHandlerBusyFailsFast(t *testing.T) {
-	handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
-		fakeWrappedCheck{Check: matchTestRunner("file", nil)},
-	}}}
-
-	remoteQueryExecution.Lock()
-	defer remoteQueryExecution.Unlock()
-
-	recorder := callMatchHandler(handler, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"}}`)
-
-	assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
-	body := recorder.Body.String()
-	assert.Contains(t, body, `"status":"resolution_error"`)
-	assert.Contains(t, body, "another remote query is running on this Agent")
-}
-
 // TestAskIntegrationResolverConsumesPinnedPythonVerdictShapes proves the Agent's
 // per-check verdict classifier consumes the exact JSON the integrations-core
 // resolver emits — the shapes pinned by its own tests (postgres/tests/
@@ -1152,7 +1133,7 @@ func TestRemoteQueryExecuteServiceDispatchesPagedJSONRequest(t *testing.T) {
 	require.Nil(t, result.Error)
 	assert.Equal(t, runner.events, events)
 	// The resolution sweep asks the check once, then the execute dispatch runs once,
-	// both under one admission hold.
+	// within the same execution.
 	assert.Equal(t, 1, runner.resolveCalls)
 	assert.Equal(t, 1, runner.executeCalls)
 	assert.Equal(t, 2, runner.streamCalls)
@@ -1174,67 +1155,44 @@ func TestRemoteQueryExecuteServiceDispatchesPagedJSONRequest(t *testing.T) {
 	assert.NotContains(t, runner.streamSeen, "secret-value")
 }
 
-// Concurrent queries on different integrations must not allocate two page buffers,
-// and every runner exit must release admission for a subsequent execution.
-func TestRemoteQueryExecutionAdmission(t *testing.T) {
-	for _, exit := range []string{"success", "runner failure", "emitter failure"} {
-		t.Run(exit, func(t *testing.T) {
-			entered, release := make(chan struct{}), make(chan struct{})
-			var releaseOnce sync.Once
-			unblock := func() { releaseOnce.Do(func() { close(release) }) }
-			t.Cleanup(unblock)
-			postgres := &fakeStreamRunnerCheck{
-				fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\n"}},
-				run: func(emit func(check.RemoteQueryStreamEvent) error) error {
-					close(entered)
-					<-release
-					if exit == "runner failure" {
-						return assert.AnError
-					}
-					return emit(check.RemoteQueryStreamEvent{Type: "final", MetadataJSON: `{}`})
-				},
-			}
-			clickhouse := &fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck{name: "clickhouse", loader: "python", provider: "file", instance: "server: localhost\nport: 8123\ndb: default\n"}}}
-			// Separate service instances also share the process-wide admission boundary.
-			pgService := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{postgres}}, true, nil)
-			chService := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{clickhouse}}, true, nil)
-			pgReq, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
-			require.NoError(t, err)
-			chReq, err := NewRemoteQueryExecuteRequest("clickhouse", RemoteQueryExecuteTarget{Host: "localhost", Port: 8123, DBName: "default"}, "SELECT 1 AS value", false, pagedTestDelivery())
-			require.NoError(t, err)
-			done := make(chan RemoteQueryExecuteResult, 1)
-			go func() {
-				done <- pgService.ExecuteStream(context.Background(), pgReq, func(check.RemoteQueryStreamEvent) error {
-					if exit == "emitter failure" {
-						return assert.AnError
-					}
-					return nil
-				})
-			}()
-			select {
-			case <-entered:
-			case <-time.After(5 * time.Second):
-				t.Fatal("first execution did not start")
-			}
-			emit := func(check.RemoteQueryStreamEvent) error { return nil }
-			busy := chService.ExecuteStream(context.Background(), chReq, emit)
-			assert.Equal(t, http.StatusServiceUnavailable, busy.HTTPStatus)
-			assert.Zero(t, clickhouse.streamCalls)
-			unblock()
-			select {
-			case result := <-done:
-				assert.Equal(t, exit != "success", result.Error != nil)
-			case <-time.After(5 * time.Second):
-				t.Fatal("first execution did not return")
-			}
-			ctx, cancel := context.WithCancel(context.Background())
-			cancel()
-			assert.NotNil(t, chService.ExecuteStream(ctx, chReq, emit).Error)
-			assert.Zero(t, clickhouse.streamCalls)
-			assert.Nil(t, chService.ExecuteStream(context.Background(), chReq, emit).Error)
-			assert.Equal(t, 1, clickhouse.streamCalls)
-		})
+// Concurrent queries have no Agent-wide limit: two executions on different
+// integrations, through separate service instances, are both inside their runners at
+// the same time and both complete.
+func TestRemoteQueryExecuteStreamRunsConcurrently(t *testing.T) {
+	pgEntered, chEntered := make(chan struct{}), make(chan struct{})
+	newRunner := func(name, instance string, mine, other chan struct{}) *fakeStreamRunnerCheck {
+		return &fakeStreamRunnerCheck{
+			fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: name, loader: "python", provider: "file", instance: instance}},
+			run: func(emit func(check.RemoteQueryStreamEvent) error) error {
+				close(mine)
+				select {
+				case <-other:
+				case <-time.After(5 * time.Second):
+					return assert.AnError
+				}
+				return emit(check.RemoteQueryStreamEvent{Type: "final", MetadataJSON: `{}`})
+			},
+		}
 	}
+	postgres := newRunner("postgres", "host: localhost\nport: 5432\ndbname: postgres\n", pgEntered, chEntered)
+	clickhouse := newRunner("clickhouse", "server: localhost\nport: 8123\ndb: default\n", chEntered, pgEntered)
+	pgService := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{postgres}}, true, nil)
+	chService := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{clickhouse}}, true, nil)
+	pgReq, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
+	require.NoError(t, err)
+	chReq, err := NewRemoteQueryExecuteRequest("clickhouse", RemoteQueryExecuteTarget{Host: "localhost", Port: 8123, DBName: "default"}, "SELECT 1 AS value", false, pagedTestDelivery())
+	require.NoError(t, err)
+
+	emit := func(check.RemoteQueryStreamEvent) error { return nil }
+	var wg sync.WaitGroup
+	var pgResult, chResult RemoteQueryExecuteResult
+	wg.Add(2)
+	go func() { defer wg.Done(); pgResult = pgService.ExecuteStream(context.Background(), pgReq, emit) }()
+	go func() { defer wg.Done(); chResult = chService.ExecuteStream(context.Background(), chReq, emit) }()
+	wg.Wait()
+
+	assert.Nil(t, pgResult.Error)
+	assert.Nil(t, chResult.Error)
 }
 
 func TestRemoteQueryExecuteServiceDispatchesDatabaseInstanceTarget(t *testing.T) {
@@ -1283,7 +1241,7 @@ func TestRemoteQueryExecuteServiceForwardsArbitraryQuery(t *testing.T) {
 // through the same integration-owned sweep as resolve: every loaded postgres
 // check is asked once with a side-effect-free resolve_target request, only the
 // unique matched verdict executes, and the execute dispatch happens under the
-// same admission hold as the sweep. The raw instance config never narrows or
+// same execution as the sweep. The raw instance config never narrows or
 // widens the answer — the verdicts do.
 func TestRemoteQueryExecuteServicePostgresResolverSweep(t *testing.T) {
 	requestedTarget := RemoteQueryExecuteTarget{Host: "db.example.com", Port: 5432, DBName: "requested_db"}

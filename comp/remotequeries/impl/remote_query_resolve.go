@@ -48,8 +48,8 @@ type remoteQueryResolveHandler struct {
 // writer, and no upload credentials ever reach this service. It answers the
 // structured zero/one/many outcome, and is shared by the HTTP diagnostic endpoint
 // and the AgentSecure RemoteQueryResolve RPC. There is no resolve-time binding:
-// execute re-resolves the target fresh under the admission mutex instead of
-// revalidating a resolve-time answer.
+// execute re-resolves the target fresh instead of revalidating a resolve-time
+// answer.
 type RemoteQueryResolveService struct {
 	collector RemoteQueryCollector
 	enabled   bool
@@ -81,13 +81,10 @@ type RemoteQueryResolveResult struct {
 // Resolve answers the structured zero/one/many outcome for the requested target.
 // It reuses the exact resolution execute uses — never a second matcher — through the
 // integration-owned resolver sweep, so the diagnostic match-check, resolve, and
-// execute paths cannot disagree. The sweep runs under the same admission mutex
-// execute holds, acquired once for the complete per-check sweep and released before
-// the answer is built: resolve stays side-effect-free (no query, no page writer, no
-// upload credentials ever reach this service), and busy answers fail fast instead of
-// queueing. Internal and contract failures answer resolution_error with a sanitized
-// message, never a silent target miss: a malformed request cannot look like a missing
-// target.
+// execute paths cannot disagree. Resolve stays side-effect-free (no query, no page
+// writer, no upload credentials ever reach this service). Internal and contract
+// failures answer resolution_error with a sanitized message, never a silent target
+// miss: a malformed request cannot look like a missing target.
 func (s *RemoteQueryResolveService) Resolve(req RemoteQueryResolveRequest) RemoteQueryResolveResult {
 	if s == nil || !s.enabled {
 		return remoteQueryResolveErrorResult(http.StatusServiceUnavailable, statusResolutionError, "remote queries resolve bridge is disabled")
@@ -105,12 +102,6 @@ func (s *RemoteQueryResolveService) Resolve(req RemoteQueryResolveRequest) Remot
 		return remoteQueryResolveErrorResult(http.StatusBadRequest, statusResolutionError, err.Error())
 	}
 
-	if !remoteQueryExecutionAdmission() {
-		return remoteQueryResolveErrorResult(http.StatusServiceUnavailable, statusResolutionError, "another remote query is running on this Agent")
-	}
-	// Admission covers the sweep; the answer is built from values the sweep already
-	// captured, so the deferred release is panic-safe and still bounded.
-	defer remoteQueryExecution.Unlock()
 	resolution := resolveIntegrationTargets(s.collector, integration, target)
 	switch resolution.status {
 	case statusMatched:

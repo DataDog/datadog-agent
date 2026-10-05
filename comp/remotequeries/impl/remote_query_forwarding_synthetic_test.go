@@ -103,7 +103,7 @@ func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 
 	require.Nil(t, result.Error)
 	// The resolve sweep and the execute dispatch both reached the integration:
-	// one admission hold covers both.
+	// within the same execution.
 	assert.Equal(t, 1, runner.resolveCalls)
 	assert.Equal(t, 1, runner.executeCalls)
 

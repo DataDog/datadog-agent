@@ -36,7 +36,7 @@ func executeTestRequest(t *testing.T) RemoteQueryExecuteRequest {
 }
 
 // TestExecuteStreamAnswersPlainMatchOutcomes proves execute resolves the target
-// fresh under the execution admission with the plain zero/one/many outcomes of the
+// fresh with the plain zero/one/many outcomes of the
 // sweep — there is no resolve-time binding: a unique match executes even if the
 // check identity changed since any earlier resolve, a no-match sweep answers
 // target_not_found, and multiple matched verdicts answer ambiguous_target before

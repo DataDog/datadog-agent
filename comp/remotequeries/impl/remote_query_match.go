@@ -75,14 +75,6 @@ type remoteQueryMatchHandler struct {
 	enabled   bool
 }
 
-// remoteQueryExecutionAdmission guards one complete integration-owned candidate
-// sweep: fail fast when another remote query holds admission, never queue. It is
-// the same mutex execute holds through resolution and execution, so the sweep
-// never races concurrent Python bridge or check-state access.
-func remoteQueryExecutionAdmission() bool {
-	return remoteQueryExecution.TryLock()
-}
-
 // RemoteQueryCollector is the narrow collector surface Remote Queries needs.
 // The Agent command provides its collector.Component as this interface at the application boundary
 // so this package does not force Bazel onboarding for the full collector component package.
@@ -185,15 +177,7 @@ func (h *remoteQueryMatchHandler) handle(w http.ResponseWriter, r *http.Request)
 	}
 
 	// The diagnostic reuses the exact resolution execute uses — never a second
-	// matcher — so it sweeps the integration-owned resolver under the same
-	// admission the resolve and execute paths hold, and fails fast when busy.
-	if !remoteQueryExecutionAdmission() {
-		writeMatchResponse(w, http.StatusServiceUnavailable, statusResolutionError, 0, nil, "another remote query is running on this Agent")
-		return
-	}
-	// Admission covers the sweep; the answer is built from values the sweep already
-	// captured, so the deferred release is panic-safe and still bounded.
-	defer remoteQueryExecution.Unlock()
+	// matcher — so it sweeps the integration-owned resolver.
 	resolution := resolveIntegrationTargets(h.collector, req.Integration, req.Target)
 	switch resolution.status {
 	case statusMatched:

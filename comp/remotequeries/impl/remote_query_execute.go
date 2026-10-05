@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
-	"sync"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -217,7 +216,7 @@ type RemoteQueryResultDelivery struct {
 // RemoteQueryExecuteRequest is the typed request shared by the HTTP and gRPC callers. The
 // result contract is fixed: operation produce_json_pages with a required result delivery;
 // there is no inline result-byte path and no caller-provided format. There is no resolve-
-// time binding: execute resolves the target fresh under the admission mutex and executes
+// time binding: execute resolves the target fresh and executes
 // on a unique match, whatever the check identity is at execute time.
 type RemoteQueryExecuteRequest struct {
 	Integration    string
@@ -625,14 +624,6 @@ func (s *RemoteQueryExecuteService) Execute(_ RemoteQueryExecuteRequest) RemoteQ
 	return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "remote queries execute only over the AgentSecure streaming RPC")
 }
 
-// Shared across service instances/listeners and integration types: one admission
-// covers the complete integration-owned candidate sweep AND the execution itself.
-// Resolve holds it for its sweep only; execute acquires it before resolution and
-// retains it through the Python run, so there is no unlock/relock gap between the
-// revalidated match and customer SQL. Each execution also owns a page-sized Python
-// buffer. Admission is fail-fast, with no waiting request queue.
-var remoteQueryExecution sync.Mutex
-
 // ExecuteStream executes a paged-JSON request and emits metadata-only stream events. The
 // Agent is a control-plane forwarder: it carries the backend-injected upload instructions
 // through to the integration request JSON and passes the emit callback straight through.
@@ -654,13 +645,6 @@ func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req Remot
 	if req.ResultDelivery == nil {
 		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "result_delivery is required")
 	}
-
-	if !remoteQueryExecutionAdmission() {
-		return remoteQueryExecuteErrorResult(http.StatusServiceUnavailable, statusExecutorUnavailable, "another remote query is running on this Agent")
-	}
-	// Retain admission from the resolution sweep until Python actually returns, even
-	// if the RPC is cancelled.
-	defer remoteQueryExecution.Unlock()
 
 	internal := req.internal()
 	match, result := s.resolveExecutionTarget(internal)
@@ -687,8 +671,7 @@ func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req Remot
 	return RemoteQueryExecuteResult{HTTPStatus: http.StatusOK, Status: "SUCCEEDED"}
 }
 
-// resolveExecutionTarget resolves the execution target under the already-held
-// admission mutex: one complete integration-owned candidate sweep, then the plain
+// resolveExecutionTarget resolves the execution target: one complete integration-owned candidate sweep, then the plain
 // zero/one/many outcome. A unique match proceeds; zero matches answers
 // target_not_found and multiple matches answer ambiguous_target before
 // marshalExecuteRequest, any SQL dispatch, or any database work. There is no

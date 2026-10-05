@@ -151,8 +151,8 @@ func TestRemoteQueryResolveServiceDatabaseInstanceTarget(t *testing.T) {
 // TestRemoteQueryResolveServiceSweepFailuresAreResolutionErrors proves every
 // inability to establish the eligible set fails the aggregate resolution —
 // never a silent target miss: a loaded check without the bridge resolver, a
-// failed bridge call, an invalid verdict, and a busy admission all answer
-// resolution_error with sanitized messages.
+// failed bridge call, and an invalid verdict all answer resolution_error with
+// sanitized messages.
 func TestRemoteQueryResolveServiceSweepFailuresAreResolutionErrors(t *testing.T) {
 	t.Run("loaded check without the bridge resolver", func(t *testing.T) {
 		service := NewRemoteQueryResolveService(fakeCollector{checks: []check.Check{
@@ -196,20 +196,6 @@ func TestRemoteQueryResolveServiceSweepFailuresAreResolutionErrors(t *testing.T)
 		assert.Equal(t, http.StatusFailedDependency, result.HTTPStatus)
 		assert.Equal(t, statusResolutionError, result.Status)
 		assert.Equal(t, "remote query resolver returned an invalid verdict", result.Error.Message)
-	})
-
-	t.Run("busy admission fails fast", func(t *testing.T) {
-		service := NewRemoteQueryResolveService(resolveTestCollector(), true)
-
-		remoteQueryExecution.Lock()
-		defer remoteQueryExecution.Unlock()
-
-		result := service.Resolve(resolveTupleRequest())
-
-		assert.Equal(t, http.StatusServiceUnavailable, result.HTTPStatus)
-		assert.Equal(t, statusResolutionError, result.Status)
-		require.NotNil(t, result.Error)
-		assert.Equal(t, "another remote query is running on this Agent", result.Error.Message)
 	})
 }
 
