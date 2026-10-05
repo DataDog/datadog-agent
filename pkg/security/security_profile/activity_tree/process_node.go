@@ -635,9 +635,14 @@ nextCapability:
 		}
 
 		capable := evt.CapabilitiesUsage.Used&(1<<capability) != 0
+		attemptedHostUserNS := evt.CapabilitiesUsage.AttemptedHostUserNS&(1<<capability) != 0
+		capableHostUserNS := evt.CapabilitiesUsage.UsedHostUserNS&(1<<capability) != 0
 
 		for _, existingCapabilityNode := range pn.Capabilities {
-			if existingCapabilityNode.Capability == capability && existingCapabilityNode.Capable == capable {
+			if existingCapabilityNode.Capability == capability &&
+				existingCapabilityNode.Capable == capable &&
+				existingCapabilityNode.AttemptedHostUserNS == attemptedHostUserNS &&
+				existingCapabilityNode.CapableHostUserNS == capableHostUserNS {
 				existingCapabilityNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
 				continue nextCapability
 			}
@@ -648,7 +653,7 @@ nextCapability:
 			break
 		}
 
-		capabilityNode := NewCapabilityNode(capability, capable, evt.ResolveEventTime(), imageTagID, Runtime)
+		capabilityNode := NewCapabilityNode(capability, capable, attemptedHostUserNS, capableHostUserNS, evt.ResolveEventTime(), imageTagID, Runtime)
 		pn.Capabilities = append(pn.Capabilities, capabilityNode)
 		stats.CapabilityNodes++
 		stats.SizeBytes += capabilityNode.size()

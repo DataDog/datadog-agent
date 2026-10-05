@@ -189,6 +189,38 @@ func TestDeviceWithMissingSymbol(t *testing.T) {
 	require.Equal(t, nvml.ERROR_FUNCTION_NOT_FOUND, nvmlErr.NvmlErrorCode)
 }
 
+func TestGetRetiredPagesCountRequiresVersionedAPISymbol(t *testing.T) {
+	// Simulate an NVML library that does not contain nvmlDeviceGetRetiredPages_v2.
+	// The wrapper must return a function-not-found error without invoking the
+	// underlying NVIDIA API.
+	symbols := maps.Clone(allSymbols)
+	delete(symbols, toNativeName("GetRetiredPages_v2"))
+
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(symbols),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetRetiredPages_v2Func = func(_ nvml.PageRetirementCause) ([]uint64, []uint64, nvml.Return) {
+				t.Error("GetRetiredPages_v2 must not be called when the symbol is missing from the library")
+				return nil, nil, nvml.ERROR_FUNCTION_NOT_FOUND
+			}
+		})),
+	)
+
+	WithPartialMockNVML(t, mockNvml, symbols)
+
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
+	require.NoError(t, err)
+
+	count, err := device.GetRetiredPagesCount(nvml.PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR)
+	require.Error(t, err)
+	require.Equal(t, uint64(0), count)
+
+	var nvmlErr *NvmlAPIError
+	require.True(t, errors.As(err, &nvmlErr), "Expected error to be of type *NvmlAPIError")
+	require.Equal(t, toNativeName("GetRetiredPages_v2"), nvmlErr.APIName)
+	require.Equal(t, nvml.ERROR_FUNCTION_NOT_FOUND, nvmlErr.NvmlErrorCode)
+}
+
 func TestDeviceSafeMethodSuccess(t *testing.T) {
 	// Create mock with all symbols available
 	mockNvml := testutil.NewMockNVML(

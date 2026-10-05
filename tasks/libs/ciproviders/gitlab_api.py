@@ -974,6 +974,12 @@ def resolve_gitlab_ci_configuration(
             Whether to skip the gitlab `/lint` endpoint when resolving configs.
             In this case, only `include`s will be resolved, not `extend`s or `!reference`s
         git_ref: From which git ref to read the input config file. No effect if input config is passed as a dict.
+
+    The pipeline context of the lint dry run (which drives `rules` evaluation) is the configuration's baseline
+    branch, as defined by its $COMPARE_TO_BRANCH variable, so that the simulated pipeline is self-consistent
+    (e.g. a release branch configuration, where $COMPARE_TO_BRANCH is the release branch, is validated as a
+    pipeline running on that release branch rather than on the default branch). Configurations without a
+    $COMPARE_TO_BRANCH are linted in the project's default branch context.
     """
 
     # Read includes
@@ -984,7 +990,13 @@ def resolve_gitlab_ci_configuration(
         return input_config
 
     agent = get_gitlab_repo()
-    res = agent.ci_lint.create({"content": yaml.safe_dump(input_config), "dry_run": True, "include_jobs": True})
+    lint_request = {"content": yaml.safe_dump(input_config), "dry_run": True, "include_jobs": True}
+    # Lint the configuration in the context of its baseline branch ($COMPARE_TO_BRANCH), since the `rules` of
+    # the configuration are written against it, rather than in the context of the default branch
+    lint_ref = (input_config.get('variables') or {}).get('COMPARE_TO_BRANCH')
+    if lint_ref:
+        lint_request["ref"] = lint_ref
+    res = agent.ci_lint.create(lint_request)
 
     if not res.valid:
         errors = '; '.join(res.errors)
