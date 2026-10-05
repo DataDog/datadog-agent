@@ -127,6 +127,16 @@ pub(super) fn env_bool_for_key(key: &str) -> Option<bool> {
     env_string_for_key(key).map(|value| parse_bool_string(&value).unwrap_or(false))
 }
 
+/// Like [`env_bool_for_key`], but ignoring the Agent service environment: for keys a
+/// child reads from its own environment rather than through the Agent.
+pub(super) fn process_env_bool_for_key(key: &str) -> Option<bool> {
+    let value = match env_vars_for_key(key) {
+        [] => process_env_var_value(&auto_env_var_for_key(key)),
+        names => names.iter().find_map(|name| process_env_var_value(name)),
+    }?;
+    Some(parse_bool_string(&value).unwrap_or(false))
+}
+
 /// Whether any variable bound to `key` is set (mirrors the env source of Go `IsConfigured`).
 pub(super) fn env_configured_for_key(key: &str) -> bool {
     env_string_for_key(key).is_some()
@@ -140,6 +150,10 @@ pub(super) fn env_var_value(name: &str) -> Option<String> {
     if let Some(value) = agent_service_env_var(name) {
         return Some(value).filter(|value| !value.is_empty());
     }
+    process_env_var_value(name)
+}
+
+fn process_env_var_value(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|value| !value.is_empty())
 }
 

@@ -31,8 +31,9 @@
 //! Three keys do not follow that ladder directly. `system_probe_config.enabled` is
 //! module-derived at runtime, so it resolves through [`system_probe::derived_enabled`]
 //! instead. `process_config.enabled` is normalized by the transform to the resulting
-//! process-collection value. `data_plane.standalone_mode` skips fleet policy, because
-//! Agent Data Plane reads it from env and its own config file only.
+//! process-collection value. `data_plane.standalone_mode` skips fleet policy and the
+//! Agent service environment, because Agent Data Plane reads it from its own environment
+//! and config file only.
 //!
 //! # Keeping parity with Go
 //!
@@ -59,7 +60,9 @@ use serde_yaml::Value;
 
 use crate::agent_yaml;
 use crate::env::expand_env_vars;
-use env_bindings::{env_bool_for_key, env_configured_for_key, env_string_for_key};
+use env_bindings::{
+    env_bool_for_key, env_configured_for_key, env_string_for_key, process_env_bool_for_key,
+};
 
 #[cfg(any(test, feature = "test-helpers"))]
 pub use env_bindings::{gate_env_var_names, set_test_agent_service_env};
@@ -239,8 +242,8 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
         fleet_policy_file: AGENT_POLICY,
     },
     // ADP-only, absent from the Agent schema. ADP reads it from its local config file and
-    // environment before contacting the Agent, so fleet policy cannot set it; see
-    // [`GatedKeySpec::enabled`].
+    // its own environment before contacting the Agent, so neither fleet policy nor the
+    // Agent service environment can set it. See [`GatedKeySpec::enabled`].
     GatedKeySpec {
         kind: GatedKey::DataPlaneStandaloneMode,
         key: DATA_PLANE_STANDALONE_MODE_KEY,
@@ -351,8 +354,8 @@ impl GatedKeySpec {
             return system_probe::derived_enabled(base_path, yaml, os);
         }
         if self.kind == GatedKey::DataPlaneStandaloneMode {
-            return yaml
-                .resolve_bool_pre_fleet(base_path, self.key)
+            return process_env_bool_for_key(self.key)
+                .or_else(|| yaml.bool_at(base_path, self.key))
                 .unwrap_or(self.default);
         }
         if let Some(enabled) = yaml.resolve_bool(base_path, self.key, self.fleet_policy_file) {
@@ -545,14 +548,6 @@ impl YamlCache {
             return Some(text);
         }
         self.string_at(base_path, key)
-    }
-
-    /// Env, then base YAML, for a key whose reader never sees fleet policy.
-    fn resolve_bool_pre_fleet(&mut self, base_path: &str, key: &str) -> Option<bool> {
-        if let Some(enabled) = env_bool_for_key(key) {
-            return Some(enabled);
-        }
-        self.bool_at(base_path, key)
     }
 
     /// Whether `infrastructure_mode` selected end-user-device at the point
@@ -2098,5 +2093,30 @@ process_config:
             let agent = fx.agent(&format!("data_plane:\n  standalone_mode: {local}\n"));
             fx.assert_key(&agent, DATA_PLANE_STANDALONE_MODE_KEY, expected);
         }
+    }
+
+    /// The Agent service environment reaches ADP's `enabled` through the Agent's config
+    /// stream, but ADP is not spawned with it, so it cannot see standalone mode set there.
+    #[test]
+    fn agent_service_env_drives_only_data_plane_enabled() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.service_env(&[
+            ("DD_DATA_PLANE_ENABLED", "true"),
+            ("DD_DATA_PLANE_STANDALONE_MODE", "true"),
+        ]);
+        fx.assert_key(&agent, DATA_PLANE_ENABLED_KEY, true);
+        fx.assert_key(&agent, DATA_PLANE_STANDALONE_MODE_KEY, false);
+    }
+
+    /// An Agent service entry shadows dd-procmgr's own value for Agent keys, but must not
+    /// shadow the environment ADP actually inherits.
+    #[test]
+    fn agent_service_env_does_not_shadow_data_plane_standalone_mode() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.service_env(&[("DD_DATA_PLANE_STANDALONE_MODE", "false")]);
+        fx.env("DD_DATA_PLANE_STANDALONE_MODE", "true");
+        fx.assert_key(&agent, DATA_PLANE_STANDALONE_MODE_KEY, true);
     }
 }
