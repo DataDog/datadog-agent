@@ -6,7 +6,7 @@
 use serde::Serialize;
 use std::collections::HashMap;
 
-use crate::services::truncate_field;
+use crate::services::{MAX_TAG_LEN, truncate_utf8};
 
 #[derive(Debug, Default, Serialize)]
 pub struct UST {
@@ -20,9 +20,18 @@ impl UST {
     /// Extracts DD_SERVICE, DD_ENV, and DD_VERSION from the provided environment map.
     pub fn from_envs(envs: &HashMap<String, String>) -> Self {
         UST {
-            service: envs.get("DD_SERVICE").cloned().map(truncate_field),
-            env: envs.get("DD_ENV").cloned().map(truncate_field),
-            version: envs.get("DD_VERSION").cloned().map(truncate_field),
+            service: envs
+                .get("DD_SERVICE")
+                .cloned()
+                .map(|v| truncate_utf8(v, MAX_TAG_LEN)),
+            env: envs
+                .get("DD_ENV")
+                .cloned()
+                .map(|v| truncate_utf8(v, MAX_TAG_LEN)),
+            version: envs
+                .get("DD_VERSION")
+                .cloned()
+                .map(|v| truncate_utf8(v, MAX_TAG_LEN)),
         }
     }
 }
@@ -65,6 +74,6 @@ mod tests {
 
         let ust = UST::from_envs(&envs);
 
-        assert_eq!(ust.service.map(|s| s.len()), Some(256));
+        assert_eq!(ust.service.map(|s| s.len()), Some(MAX_TAG_LEN));
     }
 }

@@ -21,17 +21,17 @@ use crate::tracer_metadata::TracerMetadata;
 use crate::ust::UST;
 use crate::{service_name, tracer_metadata};
 
-/// Maximum length in bytes of a string field derived from process data
-/// (cmdline, environment, files). Downstream normalization truncates service
-/// names to 100 bytes and tag values to 200, so this cap loses no information
-/// but bounds the response size.
-const MAX_FIELD_LEN: usize = 256;
+/// Maximum lengths in bytes of strings derived from process data (cmdline,
+/// environment, files). They match the core agent normalization limits for
+/// service names (100) and tag values (200), so no information is lost.
+pub(crate) const MAX_NAME_LEN: usize = 100;
+pub(crate) const MAX_TAG_LEN: usize = 200;
 /// Maximum number of additional generated names reported per service.
 const MAX_ADDITIONAL_NAMES: usize = 32;
 
-/// Truncates `s` to at most `MAX_FIELD_LEN` bytes on a UTF-8 char boundary.
-pub(crate) fn truncate_field(mut s: String) -> String {
-    s.truncate(s.floor_char_boundary(MAX_FIELD_LEN));
+/// Truncates `s` to at most `max` bytes on a UTF-8 char boundary.
+pub(crate) fn truncate_utf8(mut s: String, max: usize) -> String {
+    s.truncate(s.floor_char_boundary(max));
     s
 }
 
@@ -179,9 +179,9 @@ fn get_service(
     // tagger's comparison between both still matches.
     let tracer_metadata =
         get_newest_tracer_metadata(&open_files_info.tracer_memfds).map(|mut tm| {
-            tm.service_name = tm.service_name.map(truncate_field);
-            tm.service_env = tm.service_env.map(truncate_field);
-            tm.service_version = tm.service_version.map(truncate_field);
+            tm.service_name = tm.service_name.map(|v| truncate_utf8(v, MAX_TAG_LEN));
+            tm.service_env = tm.service_env.map(|v| truncate_utf8(v, MAX_TAG_LEN));
+            tm.service_version = tm.service_version.map(|v| truncate_utf8(v, MAX_TAG_LEN));
             tm
         });
     let language = tracer_metadata
@@ -209,14 +209,14 @@ fn get_service(
         pid,
         generated_name: name_metadata
             .as_ref()
-            .map(|meta| truncate_field(meta.name.clone())),
+            .map(|meta| truncate_utf8(meta.name.clone(), MAX_NAME_LEN)),
         generated_name_source: name_metadata.as_ref().map(|meta| meta.source.clone()),
         additional_generated_names: name_metadata
             .map(|meta| {
                 meta.additional_names
                     .into_iter()
                     .take(MAX_ADDITIONAL_NAMES)
-                    .map(truncate_field)
+                    .map(|name| truncate_utf8(name, MAX_NAME_LEN))
                     .collect()
             })
             .unwrap_or_default(),
@@ -266,12 +266,15 @@ mod tests {
     use crate::params::Params;
 
     #[test]
-    fn test_truncate_field() {
-        assert_eq!(truncate_field("short".to_string()), "short");
-        assert_eq!(truncate_field("A".repeat(900_000)).len(), MAX_FIELD_LEN);
+    fn test_truncate_utf8() {
+        assert_eq!(truncate_utf8("short".to_string(), MAX_NAME_LEN), "short");
+        assert_eq!(
+            truncate_utf8("A".repeat(900_000), MAX_NAME_LEN).len(),
+            MAX_NAME_LEN
+        );
         // A 2-byte char straddling the limit is dropped rather than split.
-        let s = format!("{}é", "A".repeat(MAX_FIELD_LEN - 1));
-        assert_eq!(truncate_field(s), "A".repeat(MAX_FIELD_LEN - 1));
+        let s = format!("{}é", "A".repeat(MAX_NAME_LEN - 1));
+        assert_eq!(truncate_utf8(s, MAX_NAME_LEN), "A".repeat(MAX_NAME_LEN - 1));
     }
 
     #[cfg(target_os = "linux")]
