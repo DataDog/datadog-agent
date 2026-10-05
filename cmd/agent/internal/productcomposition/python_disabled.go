@@ -17,6 +17,14 @@ func hostMetadataOptions() []fx.Option {
 	return nil
 }
 
+func collectorOptions() []fx.Option {
+	return nil
+}
+
+func checkOptions() []fx.Option {
+	return nil
+}
+
 func statusOptions() []fx.Option {
 	return nil
 }
