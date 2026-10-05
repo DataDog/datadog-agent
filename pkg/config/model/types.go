@@ -100,6 +100,15 @@ type DirectSetting struct {
 	Source Source
 }
 
+// ConfigTypeConversion describes a successful loader conversion without storing the configured value.
+type ConfigTypeConversion struct {
+	Key      string `json:"key"`
+	Path     string `json:"path"` // JSON pointer relative to the setting; empty for the setting itself.
+	Source   Source `json:"source"`
+	FromType string `json:"from_type"`
+	ToType   string `json:"to_type"`
+}
+
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
 type ValueWithSource struct {
 	Source Source
@@ -166,6 +175,7 @@ type Reader interface {
 
 	GetSource(key string) Source
 	GetAllSources(key string) []ValueWithSource
+	GetConfigTypeConversions() []ConfigTypeConversion
 
 	ConfigFileUsed() string
 	ExtraConfigFilesUsed() []string
