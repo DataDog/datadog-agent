@@ -12,6 +12,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/internal/productcomposition"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/remotecommand"
 	"github.com/DataDog/datadog-agent/cmd/agent/windows/service"
@@ -25,12 +26,12 @@ func main() {
 	// then just execute that.  Used when the service is executing the executable,
 	// for instance to trigger a restart.
 	if len(os.Args) == 1 && servicemain.RunningAsWindowsService() {
-		servicemain.Run(service.NewWindowsService())
+		servicemain.Run(service.NewWindowsService(productcomposition.CoreAgent()))
 		return
 	}
 	defer log.Flush()
 
-	rootCmd := command.MakeCommand(subcommands.AgentSubcommands())
+	rootCmd := command.MakeCommandWithProductComposition(subcommands.AgentSubcommands(), productcomposition.CoreAgent())
 	if err := remotecommand.Prepare(rootCmd, os.Args[1:]); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

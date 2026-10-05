@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/internal/productcomposition"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/remotecommand"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
@@ -30,7 +31,7 @@ func registerAgent(names []string, getCommand func() *cobra.Command) {
 }
 
 func coreAgentMain() *cobra.Command {
-	return command.MakeCommand(subcommands.AgentSubcommands())
+	return command.MakeCommandWithProductComposition(subcommands.AgentSubcommands(), productcomposition.CoreAgent())
 }
 
 func init() {

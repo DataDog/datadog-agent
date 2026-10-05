@@ -20,7 +20,7 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalParams *command.GlobalParams, _ command.ProductComposition) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams, product command.ProductComposition) []*cobra.Command {
 	cmd := check.MakeCommand(func() check.GlobalParams {
 		return check.GlobalParams{
 			ConfFilePath:         globalParams.ConfFilePath,
@@ -35,7 +35,9 @@ func Commands(globalParams *command.GlobalParams, _ command.ProductComposition) 
 		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) {
 			proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 		}),
-	))
+	),
+		product.AutodiscoveryOptions...,
+	)
 
 	return []*cobra.Command{cmd}
 }

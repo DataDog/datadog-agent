@@ -54,19 +54,31 @@ const configDiscoveryTag = "dd_config_discovery:true"
 
 // initDiscoveryWorker wires the workqueue-backed discovery worker into cm.
 func initDiscoveryWorker(cm *reconcilingConfigManager, disco discoverer.ConfigDiscoverer) {
+	if disco == nil {
+		return
+	}
 	cm.discoveredCh = make(chan integration.ConfigChanges, discoveredChangesBuffer)
 	cm.discoveryWorker = discoverer.NewWorker(disco, cmServiceLookup{cm}, cm.onDiscoveryResult, discoverer.Config{}, cm.telemetryStore)
 }
 
 func (cm *reconcilingConfigManager) scheduleDiscovery(svcID, tplDigest, integrationName string) {
+	if cm.discoveryWorker == nil {
+		return
+	}
 	cm.discoveryWorker.Enqueue(svcID, tplDigest, integrationName)
 }
 
 func (cm *reconcilingConfigManager) start() {
+	if cm.discoveryWorker == nil {
+		return
+	}
 	cm.discoveryWorker.Start()
 }
 
 func (cm *reconcilingConfigManager) stop() {
+	if cm.discoveryWorker == nil {
+		return
+	}
 	cm.discoveryWorker.Stop()
 }
 
