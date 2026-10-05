@@ -425,9 +425,16 @@ def main() -> int:
             "plausibly affects what this test verifies."
         )
         if args.dry_run:
-            print(f"--- state for {name} ---\n{state}\n")
+            print(f"--- state for {name} (dry run, not sent) ---\n{state}\n")
             decisions.append({"test": name, "dry_run": True})
             continue
+
+        # Print exactly what is sent to Jev for every call
+        print(f"\n--- Jev call for {name} ---")
+        print(f"endpoint: https://ai-gateway.{args.dc}{SYSTEMONE_PATH}  model: {args.model}  source: {args.source}")
+        print(f"state ({len(state)} chars):\n{state}")
+        print(f"questions: {json.dumps(QUESTIONS)}")
+        print("--- end of Jev call input ---")
 
         try:
             answer = ask_jev(args, token, state)
