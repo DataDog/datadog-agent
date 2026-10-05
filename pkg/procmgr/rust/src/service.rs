@@ -158,6 +158,10 @@ fn run_service_inner() -> Result<()> {
 
     info!("dd-procmgrd starting (SCM mode)");
 
+    // Before any process can be spawned or stopped, so `inherit` resolves against the
+    // stdio this service actually started with (nothing, under SCM).
+    platform::capture_startup_stdio();
+
     let runtime = tokio::runtime::Runtime::new().context("failed to create tokio runtime")?;
 
     set_service_status(
@@ -231,6 +235,9 @@ fn run_console_fallback() -> Result<()> {
     .context("failed to initialize logging")?;
 
     info!("dd-procmgrd starting (console mode)");
+
+    // Pins the launching terminal as the inherit target for the process lifetime.
+    platform::capture_startup_stdio();
 
     let runtime = tokio::runtime::Runtime::new().context("failed to create tokio runtime")?;
     runtime.block_on(async {

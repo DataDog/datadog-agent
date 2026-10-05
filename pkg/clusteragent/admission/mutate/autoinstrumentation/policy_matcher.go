@@ -8,8 +8,11 @@
 package autoinstrumentation
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/dd-policy-engine/go/policies"
@@ -82,6 +85,15 @@ func (m *policyMatcher) matchIndex(pod *corev1.Pod) int {
 		}
 	}
 	return matched
+}
+
+func getNamespaceLabels(wmeta workloadmeta.Component, name string) (map[string]string, error) {
+	id := util.GenerateKubeMetadataEntityID("", "namespaces", "", name)
+	ns, err := wmeta.GetKubernetesMetadata(id)
+	if err != nil {
+		return nil, fmt.Errorf("error getting namespace metadata for ns=%s: %w", name, err)
+	}
+	return ns.EntityMeta.Labels, nil
 }
 
 func nodeUsesNamespaceLabels(n *policies.Node) bool {

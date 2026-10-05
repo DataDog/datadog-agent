@@ -18,6 +18,9 @@
 /* Define to 1 if using `alloca.c'. */
 /* #undef C_ALLOCA */
 
+/* Enable versioned cursor library */
+/* #undef DEFINE_CURSOR_LIB_VER */
+
 /* Lib directory */
 #define DEFLIB_PATH "/usr/local/lib"
 
@@ -67,6 +70,9 @@
 /* Define to 1 if you have the `atoll' function. */
 #define HAVE_ATOLL 1
 
+/* Define to 1 if you have the `clock_gettime' function. */
+#define HAVE_CLOCK_GETTIME 1
+
 /* Define to 1 if you have the `closedir' function. */
 #define HAVE_CLOSEDIR 1
 
@@ -114,14 +120,29 @@
 /* Define to 1 if the system has the type `error_t'. */
 #define HAVE_ERROR_T 1
 
+/* Define to 1 if you have the `fseeko' function. */
+#define HAVE_FSEEKO 1
+
 /* Define to 1 if you have the `ftime' function. */
 #define HAVE_FTIME 1
 
 /* Define to 1 if you have the `ftok' function. */
 /* #undef HAVE_FTOK */
 
+/* Define to 1 if you have the four-argument form of getpwuid_r(). */
+/* #undef HAVE_FUNC_GETPWUID_R_4 */
+
+/* Define to 1 if you have the five-argument form of getpwuid_r(). */
+#define HAVE_FUNC_GETPWUID_R_5 1
+
+/* Define to 1 if you have the `getpid' function. */
+#define HAVE_GETPID 1
+
 /* Define to 1 if you have the `getpwuid' function. */
 #define HAVE_GETPWUID 1
+
+/* Define to 1 if you have some form of getpwuid_r(). */
+#define HAVE_GETPWUID_R 1
 
 /* Define to 1 if you have the `gettimeofday' function. */
 #define HAVE_GETTIMEOFDAY 1
@@ -131,6 +152,9 @@
 
 /* Define if you have the iconv() function. */
 #define HAVE_ICONV 1
+
+/* Define to 1 if the system has the type `intptr_t'. */
+#define HAVE_INTPTR_T 1
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
@@ -231,6 +255,9 @@
 /* Define to 1 if you have the `setlocale' function. */
 #define HAVE_SETLOCALE 1
 
+/* Define to 1 if you have the `setvbuf' function. */
+#define HAVE_SETVBUF 1
+
 /* Define if you have the shl_load function. */
 /* #undef HAVE_SHL_LOAD */
 
@@ -274,10 +301,10 @@
 #define HAVE_STRING_H 1
 
 /* Define to 1 if you have the `strlcat' function. */
-#define HAVE_STRLCAT 1
+/* #undef HAVE_STRLCAT */
 
 /* Define to 1 if you have the `strlcpy' function. */
-#define HAVE_STRLCPY 1
+/* #undef HAVE_STRLCPY */
 
 /* Define to 1 if you have the `strncasecmp' function. */
 #define HAVE_STRNCASECMP 1
@@ -384,6 +411,9 @@
 /* Define to the shared archive member specification, say "(shr.o)". */
 /* #undef LT_SHARED_LIB_MEMBER */
 
+/* ODBC driver search path */
+/* #undef MODULEDIR */
+
 /* Define if you need semundo union */
 /* #undef NEED_SEMUNDO_UNION */
 
@@ -403,7 +433,7 @@
 #define PACKAGE_NAME "unixODBC"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "unixODBC 2.3.9"
+#define PACKAGE_STRING "unixODBC 2.3.14"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "unixODBC"
@@ -412,7 +442,7 @@
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "2.3.9"
+#define PACKAGE_VERSION "2.3.14"
 
 /* Platform is 64 bit */
 #define PLATFORM64 /**/
@@ -471,10 +501,16 @@
 #define UNIXODBC_SOURCE /**/
 
 /* Version number of package */
-#define VERSION "2.3.9"
+#define VERSION "2.3.14"
 
 /* Work with IBM drivers that use 32 bit handles on 64 bit platforms */
 /* #undef WITH_HANDLE_REDIRECT */
+
+/* Using shared env handle */
+/* #undef WITH_SHARDENV */
+
+/* Using utf8 ini encoding */
+/* #undef WITH_UTF8_INI */
 
 /* Define to 1 if `lex' declares `yytext' as a `char *' by default, not a
    `char[]'. */
@@ -482,6 +518,20 @@
 
 /* Build flag for AIX */
 /* #undef _ALL_SOURCE */
+
+/* Enable large inode numbers on Mac OS X 10.5.  */
+#ifndef _DARWIN_USE_64_BIT_INODE
+# define _DARWIN_USE_64_BIT_INODE 1
+#endif
+
+/* Number of bits in a file offset, on hosts where this is settable. */
+/* #undef _FILE_OFFSET_BITS */
+
+/* Define to 1 to make fseeko visible on some hosts (e.g. glibc 2.2). */
+/* #undef _LARGEFILE_SOURCE */
+
+/* Define for large files, on AIX-style hosts. */
+/* #undef _LARGE_FILES */
 
 /* Build flag for AIX */
 /* #undef _LONG_LONG */
@@ -500,6 +550,10 @@
 
 /* Define to `int' if <sys/types.h> doesn't define. */
 /* #undef gid_t */
+
+/* Define to the type of a signed integer type wide enough to hold a pointer,
+   if such a type exists, and if the system does not define it. */
+/* #undef intptr_t */
 
 /* Define to `unsigned int' if <sys/types.h> does not define. */
 /* #undef size_t */
