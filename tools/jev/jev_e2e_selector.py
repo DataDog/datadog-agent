@@ -93,6 +93,35 @@ def git(*args: str) -> str:
     return run_cmd(["git", *args])
 
 
+def current_branch() -> str:
+    """Current branch name, robust to detached-HEAD checkouts (GitLab CI).
+
+    In CI the clone is a detached HEAD, where `git rev-parse --abbrev-ref HEAD`
+    returns "HEAD"; prefer the CI-provided branch name in that case.
+    """
+    for env in ("CI_COMMIT_BRANCH", "CI_COMMIT_REF_NAME"):
+        if os.environ.get(env) and os.environ[env] != "HEAD":
+            return os.environ[env]
+    branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    return branch if branch != "HEAD" else ""
+
+
+def resolve_ref(base: str) -> str:
+    """Resolve a branch name to a ref present in this clone.
+
+    CI clones usually have no local `main` branch, only `origin/main`.
+    """
+    for candidate in (base, f"origin/{base}", f"refs/remotes/origin/{base}", f"refs/heads/{base}"):
+        try:
+            git("rev-parse", "--verify", "--quiet", candidate + "^{commit}")
+            return candidate
+        except RuntimeError:
+            continue
+    print(f"[info] ref '{base}' not found locally, fetching from origin")
+    git("fetch", "origin", base)
+    return f"origin/{base}"
+
+
 def truncate(text: str, limit: int, label: str) -> str:
     if len(text.encode()) <= limit:
         return text
@@ -146,7 +175,7 @@ def fetch_ddci_metadata() -> dict | None:
 
 def fetch_pr_info(base: str, ddci: dict | None) -> dict:
     """PR title/description from the GitHub API (uses GITHUB_TOKEN if present)."""
-    branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    branch = current_branch()
     number = ddci.get("pr_number") if ddci else None
     token = os.environ.get("GITHUB_TOKEN")
     pr: dict = {"branch": branch, "title": "", "description": ""}
@@ -161,12 +190,15 @@ def fetch_pr_info(base: str, ddci: dict | None) -> dict:
             f"{GITHUB_API}/pulls/{number}",
             headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
         )
-    else:
-        print(f"[warn] no DDCI PR number, looking up PR by branch {branch}")
+    elif branch:
+        print(f"[info] no DDCI PR number, looking up PR by branch {branch}")
         req = urllib.request.Request(
             f"{GITHUB_API}/pulls?head={REPO.split(':')[0]}:{urllib.parse.quote(branch)}&state=open&per_page=1",
             headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
         )
+    else:
+        print("[warn] cannot determine branch name (detached HEAD, no CI env), cannot look up PR")
+        return pr
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             payload = json.load(resp)
@@ -192,10 +224,11 @@ def changed_files(base: str, ddci: dict | None) -> tuple[list, str]:
     if ddci and ddci.get("changed_files") is not None:
         files = ddci["changed_files"][:MAX_CHANGED_FILES]
         return files, ddci.get("base_commit") or base
+    ref = resolve_ref(base)
     try:
-        merge_base = git("merge-base", "HEAD", base)
+        merge_base = git("merge-base", "HEAD", ref)
     except RuntimeError:
-        merge_base = base
+        merge_base = ref
     files = [(f, "") for f in git("diff", "--name-only", merge_base, "HEAD").splitlines()]
     return files[:MAX_CHANGED_FILES], merge_base
 
