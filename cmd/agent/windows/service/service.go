@@ -11,6 +11,7 @@ package service
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	runcmd "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
@@ -20,11 +21,12 @@ type service struct {
 	servicemain.DefaultSettings
 	errChan <-chan error
 	ctxChan chan context.Context
+	product command.ProductComposition
 }
 
 // NewWindowsService returns the service entry  for the core agent
-func NewWindowsService() servicemain.Service {
-	return &service{}
+func NewWindowsService(product command.ProductComposition) servicemain.Service {
+	return &service{product: product}
 }
 
 func (s *service) Name() string {
@@ -37,7 +39,7 @@ func (s *service) Init() error {
 
 	s.ctxChan = make(chan context.Context)
 
-	errChan, err := runcmd.StartAgentWithDefaults(s.ctxChan)
+	errChan, err := runcmd.StartAgentWithDefaults(s.ctxChan, s.product)
 	if err != nil {
 		return err
 	}

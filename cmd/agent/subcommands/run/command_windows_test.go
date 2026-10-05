@@ -11,15 +11,17 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestStartAgentWithDefaults(t *testing.T) {
 	fxutil.TestOneShot(t,
 		func() {
 			ctxChan := make(<-chan context.Context)
-			_, err := StartAgentWithDefaults(ctxChan)
+			_, err := StartAgentWithDefaults(ctxChan, command.ProductComposition{})
 			require.NoError(t, err)
 		})
 }

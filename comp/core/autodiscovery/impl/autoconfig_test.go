@@ -203,7 +203,7 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 }
 
 func getAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logsComp log.Component, telemetryComp telemetry.Component, filterComp workloadfilter.Component) *AutoConfig {
-	ac := createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logsComp, telemetryComp, filterComp, hpnoopimpl.NewNoopComponent(), nil)
+	ac := createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logsComp, telemetryComp, filterComp, hpnoopimpl.NewNoopComponent(), nil, nil)
 	go ac.serviceListening()
 	return ac
 }
@@ -832,7 +832,7 @@ func TestSecretRefreshesAreCoalescedByOrigin(t *testing.T) {
 		},
 	}}
 
-	ac := createNewAutoConfig(schedulerController, resolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp, hpnoopimpl.NewNoopComponent(), nil)
+	ac := createNewAutoConfig(schedulerController, resolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp, hpnoopimpl.NewNoopComponent(), nil, nil)
 	changes := ac.processNewConfig(config)
 	require.Len(t, changes.Schedule, 1)
 
