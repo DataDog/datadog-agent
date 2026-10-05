@@ -1,0 +1,52 @@
+# Compare the E2E tests executed in this pipeline with the ones the Jev-based
+# selector (tools/jev/jev_e2e_selector.py, AI Gateway System One) would have
+# picked for this PR, and report the differences:
+#   - executed set: the e2e_test_output.json artifacts of the new-e2e* jobs of
+#     this pipeline (GitLab API, no CI Visibility keys needed); also reports
+#     what the coverage-based --impacted selection skipped
+#   - Jev set: tools/jev/jev_e2e_eval.py replayed on the current PR
+#   - comparison: savings (skipped-and-passed), false negatives
+#     (skipped-but-failed, flaky excluded), extra runs, and disagreements with
+#     the coverage-based selection
+#
+# Runs automatically when the new-e2e test framework changes, manual otherwise.
+jev-e2e-selection-eval:
+  stage: dynamic_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  rules:
+    # Only on dev branch pipelines (PR context): the comparison replays the
+    # PR, and merge-queue pipelines check out a merge commit instead.
+    - !reference [.on_dev_branches]
+    - changes:
+        paths:
+          - test/new-e2e/**/*
+        compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+    - when: manual
+      allow_failure: true
+  interruptible: true
+  script:
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read)
+    # authanywhere serves both the AI Gateway token (rapid-ai-platform
+    # audience) and the GitLab API token (sdm audience, via the bti-ci-api
+    # short-lived token service, like tasks/libs/ciproviders/gitlab_api.py)
+    - |
+      if [ "$(uname -m)" = "x86_64" ]; then AAA="amd64"; else AAA="arm64"; fi
+      curl -sSfL -o authanywhere "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${AAA}"
+      chmod +x authanywhere
+    # Replaying all e2e suites (~376 entry points) takes under a minute at
+    # the default concurrency of 8.
+    - |
+      python3 -u tools/jev/jev_e2e_eval.py \
+        --from-artifacts "$CI_PIPELINE_ID" \
+        --model datadoginternal/openjev-medium \
+        --dc us1.ddbuild.io \
+        --token-cmd "$(pwd)/authanywhere --audience rapid-ai-platform --raw --dc us1.ddbuild.io"
+  artifacts:
+    when: always
+    paths:
+      - jev_e2e_eval_*.json
