@@ -33,6 +33,8 @@ const (
 	remoteIssuesResourceType     = "agent_health_issue_ids"
 	remoteIssuesHTTPTimeout      = 10 * time.Second
 	remoteIssuesMaxResponse      = 10 * 1024 * 1024
+	remoteIssuesIDRetryInterval  = 200 * time.Millisecond
+	remoteIssuesIDResolveTimeout = 10 * time.Second
 	jsonAPIContentType           = "application/vnd.api+json"
 )
 
@@ -42,6 +44,9 @@ type remoteIssueLoader struct {
 	resourceID func() string
 	baseURL    string
 	httpClient *http.Client
+
+	resourceIDRetryInterval  time.Duration
+	resourceIDResolveTimeout time.Duration
 }
 
 type remoteIssuesResponse struct {
@@ -76,10 +81,12 @@ type remoteResourceIdentity interface {
 func newRemoteIssueLoader(cfg config.Component, agentType string, resourceID func() string) *remoteIssueLoader {
 	site := strings.TrimSpace(cfg.GetString("site"))
 	return &remoteIssueLoader{
-		config:     cfg,
-		agentType:  agentType,
-		resourceID: resourceID,
-		baseURL:    configutils.BuildURLWithPrefix(remoteIssuesEndpointPrefix, site),
+		config:                   cfg,
+		agentType:                agentType,
+		resourceID:               resourceID,
+		baseURL:                  configutils.BuildURLWithPrefix(remoteIssuesEndpointPrefix, site),
+		resourceIDRetryInterval:  remoteIssuesIDRetryInterval,
+		resourceIDResolveTimeout: remoteIssuesIDResolveTimeout,
 		httpClient: &http.Client{
 			Timeout:       remoteIssuesHTTPTimeout,
 			Transport:     httputils.CreateHTTPTransport(cfg),
@@ -130,9 +137,9 @@ func (r *remoteIssueLoader) load(ctx context.Context) (*remoteIssueSnapshot, err
 		return nil, errors.New("API key is required for remote issue restoration")
 	}
 
-	resourceID := strings.TrimSpace(r.resourceID())
-	if resourceID == "" {
-		return nil, errors.New("resource ID is required for remote issue restoration")
+	resourceID, err := r.resolveResourceID(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	endpoint := strings.TrimRight(r.baseURL, "/") + fmt.Sprintf(remoteIssuesEndpointPath, url.PathEscape(resourceID))
@@ -210,6 +217,26 @@ func (r *remoteIssueLoader) load(ctx context.Context) (*remoteIssueSnapshot, err
 	}
 
 	return snapshot, nil
+}
+
+func (r *remoteIssueLoader) resolveResourceID(ctx context.Context) (string, error) {
+	resolveCtx, cancel := context.WithTimeout(ctx, r.resourceIDResolveTimeout)
+	defer cancel()
+
+	retryTicker := time.NewTicker(r.resourceIDRetryInterval)
+	defer retryTicker.Stop()
+
+	for {
+		if resourceID := strings.TrimSpace(r.resourceID()); resourceID != "" {
+			return resourceID, nil
+		}
+
+		select {
+		case <-resolveCtx.Done():
+			return "", fmt.Errorf("resource ID is required for remote issue restoration: %w", resolveCtx.Err())
+		case <-retryTicker.C:
+		}
+	}
 }
 
 func (s *remoteIssueSnapshot) contains(agentIssueID string) bool {
