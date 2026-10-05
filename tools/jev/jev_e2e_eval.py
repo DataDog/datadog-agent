@@ -38,7 +38,12 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from diff_utils import _annotate_diff, files_from_diff
-from executed_lookup import PIPELINE_NAME, fetch_executed_e2e_tests, fetch_executed_from_gitlab
+from executed_lookup import (
+    PIPELINE_NAME,
+    allow_failure_jobs,
+    fetch_executed_e2e_tests,
+    fetch_executed_from_gitlab,
+)
 from jev_client import DEFAULT_RUN_THRESHOLD, ask_jev, build_state, decide, fail_open, get_ai_gateway_token
 from pr_context import detect_pr_number, fetch_pr, fetch_pr_diff, git
 from test_discovery import E2E_TESTS_DIR, list_suites, suite_definition
@@ -194,6 +199,9 @@ def main() -> int:
                     executed_future = pool.submit(fetch_executed_from_gitlab, args.from_artifacts)
                 else:
                     scope = f"@ci.pipeline.id:{args.pipeline_id}" if args.pipeline_id else f"@git.commit.sha:{head}"
+                    # exclude allow_failure jobs: their failures do not gate
+                    # the pipeline, counting them would overstate selection risk
+                    af_jobs = allow_failure_jobs(args.pipeline_id, head)
                     # Query-side filtering: e2e jobs only (see executed_lookup
                     # for the full filter rationale, incl. the env:nativetest
                     # caveat).
@@ -201,6 +209,7 @@ def main() -> int:
                         fetch_executed_e2e_tests,
                         f"@ci.pipeline.name:{PIPELINE_NAME} {scope} @ci.job.name:new-e2e* -@test.name:*/*",
                         args.days,
+                        af_jobs,
                     )
                 if args.concurrency <= 1:
                     decisions = []

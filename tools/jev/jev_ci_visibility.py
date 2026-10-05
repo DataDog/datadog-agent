@@ -21,7 +21,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from executed_lookup import PIPELINE_NAME, fetch_executed_e2e_tests
+from executed_lookup import PIPELINE_NAME, allow_failure_jobs, fetch_executed_e2e_tests
 from pr_context import fetch_pr
 
 
@@ -42,7 +42,8 @@ def main() -> int:
     scope = f"@ci.pipeline.id:{args.pipeline_id}" if args.pipeline_id else f"@git.commit.sha:{head}"
     query = f"@ci.pipeline.name:{PIPELINE_NAME} {scope} @ci.job.name:new-e2e* -@test.name:*/*"
 
-    executed, coverage_skipped = fetch_executed_e2e_tests(query, args.days)
+    af_jobs = allow_failure_jobs(args.pipeline_id, head)
+    executed, coverage_skipped = fetch_executed_e2e_tests(query, args.days, af_jobs)
 
     fails = sorted(t for t, v in executed.items() if v["status"] == "fail")
     flaky = sorted(t for t, v in executed.items() if v["flaky"])
