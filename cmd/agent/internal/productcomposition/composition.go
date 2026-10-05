@@ -14,6 +14,7 @@ func CoreAgent() command.ProductComposition {
 		AutodiscoveryOptions: autodiscoveryOptions(),
 		HostMetadataOptions:  hostMetadataOptions(),
 		CollectorOptions:     collectorOptions(),
+		GUIOptions:           guiOptions(),
 		PythonVersionGetFunc: pythonVersionGetFunc,
 	}
 }

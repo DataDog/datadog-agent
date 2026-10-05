@@ -21,4 +21,8 @@ func collectorOptions() []fx.Option {
 	return nil
 }
 
+func guiOptions() []fx.Option {
+	return nil
+}
+
 var pythonVersionGetFunc func() string

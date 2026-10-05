@@ -71,6 +71,10 @@ type ProductComposition struct {
 	// shared collector module.
 	CollectorOptions []fx.Option
 
+	// GUIOptions are product-specific Fx options included alongside the shared GUI
+	// module.
+	GUIOptions []fx.Option
+
 	// PythonVersionGetFunc returns the Python version string for status output.
 	// Leave nil for products without Python support.
 	PythonVersionGetFunc func() string
