@@ -136,7 +136,7 @@ def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: 
                     "service:dynamic_test_evaluator",
                     # executors may carry extra tags identifying the selection
                     # (e.g. selector:jev) - the coverage executors carry none
-                    *getattr(executor, "telemetry_tags", []),
+                    *(getattr(executor, "telemetry_tags", None) or []),
                 ]
             ),
         )
