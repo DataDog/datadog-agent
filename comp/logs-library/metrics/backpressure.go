@@ -26,9 +26,6 @@ const (
 // NoBottleneck labels a loss with no observed saturation in a blocking component.
 const NoBottleneck = "none"
 
-// A read fresher than the utilization sampler's interval cannot contain new information.
-const bottleneckCacheTTL = utilizationSampleInterval
-
 // ComponentBackpressure is one pipeline component's saturation.
 type ComponentBackpressure struct {
 	Component           string  `json:"component"`
@@ -178,6 +175,8 @@ func DeriveBackpressure(snaps []ComponentSnapshot) BackpressureSummary {
 	return summary
 }
 
+var monitorClock clock.Clock = clock.New()
+
 // Process-wide because runner.HealthCheckFunc takes no arguments.
 var registeredMonitor struct {
 	sync.RWMutex
@@ -190,20 +189,18 @@ func RegisterPipelineMonitor(pm PipelineMonitor) {
 	registeredMonitor.Lock()
 	defer registeredMonitor.Unlock()
 	registeredMonitor.pm = pm
-	registeredMonitor.at = bottleneck.clk.Now()
-	bottleneck.invalidate()
+	registeredMonitor.at = monitorClock.Now()
 }
 
 func registeredPipelineMonitor() PipelineMonitor {
-	registeredMonitor.RLock()
-	defer registeredMonitor.RUnlock()
-	return registeredMonitor.pm
+	pm, _ := registeredPipelineMonitorSince()
+	return pm
 }
 
-func registeredSince() time.Time {
+func registeredPipelineMonitorSince() (PipelineMonitor, time.Time) {
 	registeredMonitor.RLock()
 	defer registeredMonitor.RUnlock()
-	return registeredMonitor.at
+	return registeredMonitor.pm, registeredMonitor.at
 }
 
 // BackpressureSnapshot summarises the registered pipeline monitor, or returns the zero value
@@ -214,31 +211,6 @@ func BackpressureSnapshot() BackpressureSummary {
 		return BackpressureSummary{}
 	}
 	return DeriveBackpressure(pm.Snapshots())
-}
-
-// bottleneckCache memoizes the derived summary: deriving it walks every component's rolling
-// history, while correlating the result with a rotation window is cheap.
-type bottleneckCache struct {
-	// Only cache misses take refreshMu. Snapshot derivation must not hold mu, since
-	// registration invalidates the cache while holding registeredMonitor's lock.
-	refreshMu  sync.Mutex
-	mu         sync.Mutex
-	clk        clock.Clock
-	summary    BackpressureSummary
-	readAt     time.Time
-	generation uint64
-	valid      bool
-}
-
-func newBottleneckCache(clk clock.Clock) *bottleneckCache {
-	return &bottleneckCache{clk: clk}
-}
-
-func (c *bottleneckCache) invalidate() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.generation++
-	c.valid = false
 }
 
 // bottleneckDuringLoss names a component that saturated inside the loss window, which brackets
@@ -287,67 +259,12 @@ func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now 
 	return ""
 }
 
-// get returns the bottleneck's component name without its instance, bounding cardinality.
-func (c *bottleneckCache) get(lossWindowStartedAt time.Time) string {
-	now := c.clk.Now()
-	c.mu.Lock()
-	if c.fresh(lossWindowStartedAt, now) {
-		summary := c.summary
-		c.mu.Unlock()
-		return bottleneckDuringLoss(summary, lossWindowStartedAt, now)
-	}
-	c.mu.Unlock()
-
-	// Coalesce concurrent misses, then recheck freshness: another rotation may have
-	// already refreshed the cache while this caller waited. Ingestion never takes this lock.
-	c.refreshMu.Lock()
-	defer c.refreshMu.Unlock()
-
-	// Bounded: a pipeline registering in a loop must not spin a rotating tailer.
-	for attempt := 0; attempt < 2; attempt++ {
-		now := c.clk.Now()
-
-		c.mu.Lock()
-		generation := c.generation
-		if c.fresh(lossWindowStartedAt, now) {
-			summary := c.summary
-			c.mu.Unlock()
-			return bottleneckDuringLoss(summary, lossWindowStartedAt, now)
-		}
-		c.mu.Unlock()
-
-		// Registration can invalidate an in-flight read without waiting for derivation.
-		summary := BackpressureSnapshot()
-
-		c.mu.Lock()
-		if generation != c.generation {
-			// The pipeline changed mid-derivation: the stopped one must reach neither the
-			// caller nor the cache.
-			c.mu.Unlock()
-			continue
-		}
-		c.summary = summary
-		c.readAt = now
-		c.valid = true
-		c.mu.Unlock()
-
-		return bottleneckDuringLoss(summary, lossWindowStartedAt, now)
-	}
-	return ""
-}
-
-// fresh requires c.mu to be held.
-func (c *bottleneckCache) fresh(lossWindowStartedAt, now time.Time) bool {
-	return c.valid && now.Sub(c.readAt) < bottleneckCacheTTL && !c.readAt.Before(lossWindowStartedAt)
-}
-
-var bottleneck = newBottleneckCache(clock.New())
-
 // currentBottleneckComponent names a stage saturated during the loss window, NoBottleneck
 // when no blocking component was observed saturated in it, or "" when attribution is unknown.
 func currentBottleneckComponent(lossWindowStartedAt time.Time) string {
-	if lossWindowStartedAt.Before(registeredSince()) {
+	pm, since := registeredPipelineMonitorSince()
+	if pm == nil || lossWindowStartedAt.Before(since) {
 		return ""
 	}
-	return bottleneck.get(lossWindowStartedAt)
+	return bottleneckDuringLoss(DeriveBackpressure(pm.Snapshots()), lossWindowStartedAt, monitorClock.Now())
 }

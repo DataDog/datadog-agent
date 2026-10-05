@@ -16,7 +16,7 @@ func ResetMissedBytesForTest() {
 	logsAgentRunning.Store(false)
 }
 
-// ResetPipelineMonitorForTest clears the registered pipeline monitor and the memoized bottleneck.
+// ResetPipelineMonitorForTest clears the registered pipeline monitor.
 func ResetPipelineMonitorForTest() {
 	RegisterPipelineMonitor(nil)
 }

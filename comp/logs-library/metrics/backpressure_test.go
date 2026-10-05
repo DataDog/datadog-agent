@@ -7,8 +7,6 @@ package metrics
 
 import (
 	"fmt"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,25 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 )
 
-// stubPipelineMonitor can gate reads to exercise cache refresh and invalidation.
 type stubPipelineMonitor struct {
 	NoopPipelineMonitor
-	snaps   []ComponentSnapshot
-	reads   atomic.Int32
-	started chan struct{}
-	release chan struct{}
+	snaps []ComponentSnapshot
 }
 
-func (s *stubPipelineMonitor) Snapshots() []ComponentSnapshot {
-	s.reads.Add(1)
-	if s.started != nil {
-		s.started <- struct{}{}
-	}
-	if s.release != nil {
-		<-s.release
-	}
-	return s.snaps
-}
+func (s *stubPipelineMonitor) Snapshots() []ComponentSnapshot { return s.snaps }
 
 func saturatedSnapshot(name string, ratio float64, sat1m, sat30m time.Duration, currently bool) ComponentSnapshot {
 	return ComponentSnapshot{
@@ -268,9 +253,9 @@ func TestDeriveBackpressureKeepsBottleneckFirst(t *testing.T) {
 func useMockBottleneckClock(t *testing.T) *clock.Mock {
 	t.Helper()
 	clk := clock.NewMock()
-	prev := bottleneck.clk
-	bottleneck.clk = clk
-	t.Cleanup(func() { bottleneck.clk = prev })
+	prev := monitorClock
+	monitorClock = clk
+	t.Cleanup(func() { monitorClock = prev })
 	return clk
 }
 
@@ -380,44 +365,8 @@ func TestBottleneckDuringLossWarning(t *testing.T) {
 	}
 }
 
-func TestCurrentBottleneckComponentCoalescesConcurrentMisses(t *testing.T) {
-	const callers = 32
-	clk := clock.NewMock()
-	cache := newBottleneckCache(clk)
-	monitor := &stubPipelineMonitor{snaps: []ComponentSnapshot{saturatedSnapshot("worker", 0.95, 0, time.Minute, true)}}
-	RegisterPipelineMonitor(monitor)
-	t.Cleanup(ResetPipelineMonitorForTest)
-	window := clk.Now().Add(-time.Minute)
-
-	// Exercise both a cold cache and an expired one with an unchanged monitor.
-	for wave := 1; wave <= 2; wave++ {
-		monitor.started = make(chan struct{}, callers)
-		monitor.release = make(chan struct{})
-		start := make(chan struct{})
-		results := make(chan string, callers)
-		var ready sync.WaitGroup
-		ready.Add(callers)
-		for i := 0; i < callers; i++ {
-			go func() {
-				ready.Done()
-				<-start
-				results <- cache.get(window)
-			}()
-		}
-		ready.Wait()
-		close(start)
-		<-monitor.started
-		close(monitor.release)
-		for i := 0; i < callers; i++ {
-			assert.Equal(t, "worker", <-results)
-		}
-		assert.Equal(t, int32(wave), monitor.reads.Load(), "one snapshot per burst")
-		clk.Add(bottleneckCacheTTL)
-	}
-}
-
 // A transport switch builds a new pipeline; the previous one's bottleneck is stale.
-func TestRegisterPipelineMonitorInvalidatesCache(t *testing.T) {
+func TestRegisterPipelineMonitorReplacesAttribution(t *testing.T) {
 	clk := useMockBottleneckClock(t)
 	ResetPipelineMonitorForTest()
 	t.Cleanup(ResetPipelineMonitorForTest)
@@ -452,50 +401,6 @@ func TestCurrentBottleneckComponentRequiresMonitorBeforeWindow(t *testing.T) {
 
 	clk.Add(2 * time.Minute)
 	assert.Equal(t, NoBottleneck, currentBottleneckComponent(clk.Now().Add(-time.Minute)), "registered before the window")
-}
-
-// A transport restart can replace the registered monitor while a tailer is deriving a
-// snapshot. The old result must neither reach that tailer nor repopulate the invalidated cache.
-func TestRegisterPipelineMonitorDuringSnapshotRetriesWithNewMonitor(t *testing.T) {
-	clk := useMockBottleneckClock(t)
-	ResetPipelineMonitorForTest()
-	t.Cleanup(ResetPipelineMonitorForTest)
-
-	oldMonitor := &stubPipelineMonitor{
-		snaps:   []ComponentSnapshot{saturatedSnapshot("strategy", 0.95, 0, time.Minute, true)},
-		started: make(chan struct{}),
-		release: make(chan struct{}),
-	}
-	RegisterPipelineMonitor(oldMonitor)
-	clk.Add(2 * time.Minute)
-	window := clk.Now().Add(-time.Minute)
-
-	result := make(chan string, 1)
-	go func() {
-		result <- currentBottleneckComponent(window)
-	}()
-
-	select {
-	case <-oldMonitor.started:
-	case <-time.After(time.Second):
-		t.Fatal("old monitor snapshot did not start")
-	}
-
-	newMonitor := &stubPipelineMonitor{
-		snaps: []ComponentSnapshot{saturatedSnapshot("processor", 0.99, 0, time.Minute, true)},
-	}
-	RegisterPipelineMonitor(newMonitor)
-	close(oldMonitor.release)
-
-	select {
-	case component := <-result:
-		assert.Equal(t, "processor", component)
-	case <-time.After(time.Second):
-		t.Fatal("bottleneck lookup did not retry after monitor replacement")
-	}
-
-	assert.Equal(t, "processor", currentBottleneckComponent(clk.Now()))
-	assert.Equal(t, int32(1), newMonitor.reads.Load(), "the replacement snapshot should be cached")
 }
 
 func TestCanBackpressureMatchesDestinationMonitorTag(t *testing.T) {
