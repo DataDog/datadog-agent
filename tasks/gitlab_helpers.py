@@ -123,81 +123,6 @@ def print_gitlab_object(get_object, ctx, ids, repo='DataDog/datadog-agent', jq: 
 
 
 @task
-def print_pipeline(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True, force: bool = False):
-    """Prints one or more Gitlab pipelines in JSON and potentially query them with jq.
-
-    Usage:
-        $ dda inv gitlab.print-pipeline 1234
-        $ dda inv gitlab.print-pipeline 1234 -j .source
-        $ dda inv gitlab.print-pipeline 1234 -j .duration,.ref,.status,.sha
-    """
-    if not force:
-        different_repo = '' if repo == 'DataDog/datadog-agent' else f"cd {repo.split('/')[-1]} && "
-        jq_suffix = f" | jq '{jq}'" if jq else ""
-        commands = "\n".join(
-            f"     {different_repo}ddgl pipelines get --pipeline {id} --json{jq_suffix}     "
-            for id in ids.split(",")
-            if id
-        )
-        text = (
-            "WARNING: This task has been deprecated, and will be removed on Oct 05 2026.\n"
-            + "Please use `ddgl` (https://github.com/DataDog/ddgl-cli) instead:\n"
-            + f"{commands}\n"
-            + "If `ddgl` is not available, either install it manually or run it in a dev env\n"
-            + "by prefixing with `dda env dev run --`.\n"
-            + "Re-run with `--force` to force execution of this task."
-        )
-        print(color_message(text, Color.ORANGE))
-        return
-
-    def get_pipeline(repo, id):
-        return repo.pipelines.get(id)
-
-    print_gitlab_object(get_pipeline, ctx, ids, repo, jq, jq_colors)
-
-
-@task
-def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True, force: bool = False):
-    """Prints one or more Gitlab jobs in JSON and potentially query them with jq.
-
-    Usage:
-        $ dda inv gitlab.print-job 1234
-        $ dda inv gitlab.print-job 1234 -j '.commit.id'
-        $ dda inv gitlab.print-job 1234 -j '.pipeline.id'
-        $ dda inv gitlab.print-job 1234 -j '.web_url.stage,.ref,.duration,.status'
-        $ dda inv gitlab.print-job 1234 -j '.artifacts | length'
-    """
-    if not force:
-        different_repo = '' if repo == 'DataDog/datadog-agent' else f"cd {repo.split('/')[-1]} && "
-        # `ddgl jobs get --json` always emits an array, so user filters need a `.[] |` prefix.
-        jq_suffix = f" | jq '.[] | {jq}'" if jq else ""
-        commands = "\n".join(
-            f"     {different_repo}ddgl jobs get --job {id} --json{jq_suffix}     " for id in ids.split(",") if id
-        )
-        text = (
-            "WARNING: This task has been deprecated, and will be removed on Oct 05 2026.\n"
-            + "Please use `ddgl` (https://github.com/DataDog/ddgl-cli) instead:\n"
-            + f"{commands}\n"
-            + "`ddgl` can also select jobs without knowing their IDs, which is usually what you want:\n"
-            + f"     {different_repo}ddgl jobs get --name '<job_name_regex>' --json     \n"
-            + f"     {different_repo}ddgl jobs get --stage <stage> --json     \n"
-            + f"     {different_repo}ddgl jobs get --failed --json     \n"
-            + "Note that `ddgl` reports a curated subset of the job fields, so filters on\n"
-            + "`commit`, `pipeline` or `artifacts` will not carry over; use `--force` for the raw Gitlab JSON.\n"
-            + "If `ddgl` is not available, either install it manually or run it in a dev env\n"
-            + "by prefixing with `dda env dev run --`.\n"
-            + "Re-run with `--force` to force execution of this task."
-        )
-        print(color_message(text, Color.ORANGE))
-        return
-
-    def get_job(repo, id):
-        return repo.jobs.get(id)
-
-    print_gitlab_object(get_job, ctx, ids, repo, jq, jq_colors)
-
-
-@task
 @experimental(
     'This task takes into account only explicit dependencies (job `needs` / `dependencies`), implicit dependencies (stages order) are ignored'
 )
@@ -271,28 +196,6 @@ def gen_config_subset(ctx, jobs, dry_run=False, force=False):
             f.write(content)
 
         print(color_message('The .gitlab-ci.yml file has been updated', Color.GREEN))
-
-
-@task
-def print_job_trace(_, job_id, repo='DataDog/datadog-agent', force: bool = False):
-    """Prints the trace (the log) of a Gitlab job."""
-    if not force:
-        different_repo = '' if repo == 'DataDog/datadog-agent' else f"cd {repo.split('/')[-1]} && "
-        text = (
-            "WARNING: This task has been deprecated, and will be removed on Oct 05 2026.\n"
-            + "Please use `ddgl` (https://github.com/DataDog/ddgl-cli) instead:\n"
-            + f"     {different_repo}ddgl logs --job {job_id}     \n"
-            + "If `ddgl` is not available, either install it manually or run it in a dev env\n"
-            + "by prefixing with `dda env dev run --`.\n"
-            + "Re-run with `--force` to force execution of this task."
-        )
-        print(color_message(text, Color.ORANGE))
-        return
-
-    repo = get_gitlab_repo(repo)
-    trace = str(repo.jobs.get(job_id, lazy=True).trace(), 'utf-8')
-
-    print(trace)
 
 
 @task
