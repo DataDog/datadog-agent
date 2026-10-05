@@ -20,7 +20,7 @@ import (
 // RetryHTTPOptions controls the retry policy for RetryHTTPRequest.
 //
 // MaxElapsedTime == 0 disables the elapsed-time cap, meaning retries continue
-// until the request succeeds, hits a permanent failure (4xx other than 429), or the caller's
+// until the request succeeds, hits a permanent failure (see IsRetryableHTTPStatus), or the caller's
 // context is cancelled.
 type RetryHTTPOptions struct {
 	InitialInterval time.Duration
@@ -34,7 +34,7 @@ type RetryHTTPOptions struct {
 //
 // 4xx responses are treated as permanent (no retry) since they typically
 // indicate a non-transient client problem (bad credentials, malformed payload).
-// Transport errors, 5xx and 429 responses are retried. op can wrap a 429 error
+// Transport errors, 5xx, 408, 425 and 429 responses are retried. op can wrap a 429 error
 // with WithRetryAfter to wait for the server-requested delay instead of the
 // next backoff interval.
 func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opts RetryHTTPOptions) (T, error) {
@@ -47,7 +47,7 @@ func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opt
 		if err == nil {
 			return result, nil
 		}
-		if statusCode >= 400 && statusCode < 500 && statusCode != http.StatusTooManyRequests {
+		if statusCode != 0 && !IsRetryableHTTPStatus(statusCode) {
 			return result, backoff.Permanent(err)
 		}
 		log.FromContext(ctx).Warnf("HTTP request failed, will retry: %v", err)
@@ -60,6 +60,17 @@ func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opt
 		return result, re.LastErr
 	}
 	return result, err
+}
+
+// IsRetryableHTTPStatus reports whether a non-2xx response may succeed if the
+// same request is sent again: 5xx, and the 4xx that only mean "not now" (408
+// Request Timeout, 425 Too Early, 429 Too Many Requests).
+func IsRetryableHTTPStatus(statusCode int) bool {
+	switch statusCode {
+	case http.StatusRequestTimeout, http.StatusTooEarly, http.StatusTooManyRequests:
+		return true
+	}
+	return statusCode < 400 || statusCode >= 500
 }
 
 // WithRetryAfter wraps err so that RetryHTTPRequest waits for the delay given
