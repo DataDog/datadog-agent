@@ -29,15 +29,13 @@ jev-e2e-selection-eval:
     - when: manual
       allow_failure: true
   interruptible: true
+  before_script:
+    # authanywhere (installed once) serves both the AI Gateway token
+    # (rapid-ai-platform audience) and the GitLab API token (sdm audience,
+    # via the bti-ci-api short-lived token service)
+    - !reference [.install_authanywhere]
   script:
     - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read)
-    # authanywhere serves both the AI Gateway token (rapid-ai-platform
-    # audience) and the GitLab API token (sdm audience, via the bti-ci-api
-    # short-lived token service, like tasks/libs/ciproviders/gitlab_api.py)
-    - |
-      if [ "$(uname -m)" = "x86_64" ]; then AAA="amd64"; else AAA="arm64"; fi
-      curl -sSfL -o authanywhere "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${AAA}"
-      chmod +x authanywhere
     # Replaying all e2e suites (~376 entry points) takes under a minute at
     # the default concurrency of 8.
     - |
@@ -45,7 +43,7 @@ jev-e2e-selection-eval:
         --from-artifacts "$CI_PIPELINE_ID" \
         --model datadoginternal/openjev-medium \
         --dc us1.ddbuild.io \
-        --token-cmd "$(pwd)/authanywhere --audience rapid-ai-platform --raw --dc us1.ddbuild.io"
+        --token-cmd "authanywhere --audience rapid-ai-platform --raw --dc us1.ddbuild.io"
   artifacts:
     when: always
     paths:

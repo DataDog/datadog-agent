@@ -1,22 +1,16 @@
 """Jev-based (System One) test selection, integrated with the dynamic tests.
 
-Runs the standalone selector (tools/jev/jev_e2e_selector.py) for the suite of
-the current e2e job and returns its run/skip decision. Used by the
-new-e2e-tests.run --impacted path, gated by the JEV_SELECTION environment
-variable:
+Provides JevDynTestExecutor, a DynTestExecutor implementation whose
+selection decisions come from the standalone Jev selector
+(tools/jev/jev_e2e_selector.py) instead of the coverage index: usable
+wherever a DynTestExecutor is accepted, e.g. the evaluate-index task with
+--selector jev (see tasks/dyntest.py). Always fails open: any error returns
+an empty selection, so nothing is skipped.
 
-- JEV_SELECTION=shadow: compute, log and measure the Jev decision, but do not
-  enforce it (comparison only - the same rollout strategy the coverage-based
-  selection used in its PR #39364 evaluation phase)
-- JEV_SELECTION=enforce: additionally return the skips so the caller extends
-  the go test --skip list
-
-Always fails open: any error returns an empty selection, so the e2e job runs
-its static test set.
-
-Local testing (macOS, no linux authanywhere): override with
-  JEV_TOKEN_CMD='ddtool auth token rapid-ai-platform --datacenter us1.staging.dog'
-  JEV_DC='us1.staging.dog'
+Tokens: an installed authanywhere is preferred (CI jobs install it via the
+.install_authanywhere template, laptops via `brew install datadog/tap/ddr &&
+brew install authanywhere`); $JEV_TOKEN_CMD/$JEV_DC override, and the linux
+binary is downloaded as a last resort.
 """
 
 from __future__ import annotations
@@ -46,11 +40,19 @@ except ImportError:  # standalone use (no invoke): duck-type the same interface
 _SELECTOR = os.path.join(_TOOLS_JEV, "jev_e2e_selector.py")
 
 
-def _token_cmd(tmp: str) -> str:
-    """Command producing the raw AI Gateway internal auth token."""
+def _auth(tmp: str) -> tuple[str, str]:
+    """(token command, AI Gateway dc) for the Jev selector.
+
+    Prefers an installed authanywhere (CI: the .install_authanywhere template
+    puts it on the workspace PATH; laptops: brew), falls back to
+    $JEV_TOKEN_CMD/$JEV_DC, and downloads the linux binary as a last resort
+    (CI jobs without the install step).
+    """
     if os.environ.get("JEV_TOKEN_CMD"):
-        return os.environ["JEV_TOKEN_CMD"]
-    # CI: download authanywhere (see the DDCI Metadata / Authanywhere docs)
+        return os.environ["JEV_TOKEN_CMD"], os.environ.get("JEV_DC", "us1.ddbuild.io")
+    if shutil.which("authanywhere"):
+        return "authanywhere --audience rapid-ai-platform --raw --dc us1.ddbuild.io", "us1.ddbuild.io"
+    # last resort: download the linux binary
     arch = "amd64" if os.uname().machine == "x86_64" else "arm64"
     path = os.path.join(tmp, "authanywhere")
     subprocess.run(
@@ -65,7 +67,7 @@ def _token_cmd(tmp: str) -> str:
         timeout=60,
     )
     os.chmod(path, 0o755)
-    return f"{path} --audience rapid-ai-platform --raw --dc us1.ddbuild.io"
+    return f"{path} --audience rapid-ai-platform --raw --dc us1.ddbuild.io", "us1.ddbuild.io"
 
 
 def jev_selection(targets: list[str], team: str | None = None) -> dict:
@@ -81,6 +83,7 @@ def jev_selection(targets: list[str], team: str | None = None) -> dict:
     tmp = tempfile.mkdtemp(prefix="jev-selection-")
     try:
         out = os.path.join(tmp, "decisions.json")
+        token_cmd, dc = _auth(tmp)
         cmd = [
             "python3",
             _SELECTOR,
@@ -88,11 +91,11 @@ def jev_selection(targets: list[str], team: str | None = None) -> dict:
             suite,
             "--output",
             out,
+            "--dc",
+            dc,
             "--token-cmd",
-            _token_cmd(tmp),
+            token_cmd,
         ]
-        if os.environ.get("JEV_DC"):
-            cmd += ["--dc", os.environ["JEV_DC"]]
         if team:
             cmd += ["--team", team]
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=_REPO_ROOT)
