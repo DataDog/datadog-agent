@@ -12,6 +12,7 @@ mod xml_parser;
 use crate::fs::{SubDirFs, UnverifiedZipArchive};
 use crate::procfs::Cmdline;
 use crate::service_name::{DetectionContext, ServiceNameSource};
+use crate::services::{MAX_NAME_LEN, truncated};
 use normalize_path::NormalizePath;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -344,12 +345,15 @@ fn standard_extract_context_from_war_name(file_name: &str) -> Option<String> {
     Some(without_ext.to_string())
 }
 
+/// Maximum number of context roots reported as additional service names.
+const MAX_CONTEXT_ROOTS: usize = 32;
+
 /// normalize_context_root applies the same normalization the java tracer does
-/// by removing the first / on the context-root if present.
+/// by removing the first / on the context-root if present, and truncates it.
 fn normalize_context_root(context_roots: Vec<String>) -> Vec<String> {
     context_roots
         .into_iter()
-        .map(|cr| cr.strip_prefix('/').unwrap_or(&cr).to_string())
+        .map(|cr| truncated(cr.strip_prefix('/').unwrap_or(&cr), MAX_NAME_LEN))
         .collect()
 }
 
@@ -464,12 +468,14 @@ pub fn extract_names(
         }
     };
 
-    // Extract context roots from deployments
-    let mut context_roots = Vec::new();
-    for deployment in deployments {
-        let roots = extract_context_roots_from_deployment(vendor, &deployment, ctx.fs);
-        context_roots.extend(normalize_context_root(roots));
-    }
+    // Extract context roots from deployments, stopping once enough are found
+    let context_roots = deployments
+        .iter()
+        .flat_map(|d| {
+            normalize_context_root(extract_context_roots_from_deployment(vendor, d, ctx.fs))
+        })
+        .take(MAX_CONTEXT_ROOTS)
+        .collect();
 
     (source, context_roots)
 }

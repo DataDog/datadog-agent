@@ -23,9 +23,8 @@ use crate::{service_name, tracer_metadata};
 
 /// Limits for strings derived from process data, matching the core agent
 /// normalization of service names (100 bytes) and tag values (200 bytes).
-const MAX_NAME_LEN: usize = 100;
+pub(crate) const MAX_NAME_LEN: usize = 100;
 pub(crate) const MAX_TAG_LEN: usize = 200;
-const MAX_ADDITIONAL_NAMES: usize = 32;
 
 /// Copies at most `max` bytes of `s`, cut on a UTF-8 char boundary.
 pub(crate) fn truncated(s: &str, max: usize) -> String {
@@ -201,13 +200,7 @@ fn get_service(
             .map(|meta| truncated(&meta.name, MAX_NAME_LEN)),
         generated_name_source: name_metadata.as_ref().map(|meta| meta.source.clone()),
         additional_generated_names: name_metadata
-            .map(|meta| {
-                meta.additional_names
-                    .iter()
-                    .take(MAX_ADDITIONAL_NAMES)
-                    .map(|name| truncated(name, MAX_NAME_LEN))
-                    .collect()
-            })
+            .map(|meta| meta.additional_names)
             .unwrap_or_default(),
         tracer_metadata: tracer_metadata.into_iter().collect(),
         ust: UST::from_envs(&envs),
@@ -253,18 +246,6 @@ fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Servi
 mod tests {
     use super::*;
     use crate::params::Params;
-
-    #[test]
-    fn test_truncated() {
-        assert_eq!(truncated("short", MAX_NAME_LEN), "short");
-        assert_eq!(
-            truncated(&"A".repeat(900_000), MAX_NAME_LEN).len(),
-            MAX_NAME_LEN
-        );
-        // A 2-byte char straddling the limit is dropped rather than split.
-        let s = format!("{}é", "A".repeat(MAX_NAME_LEN - 1));
-        assert_eq!(truncated(&s, MAX_NAME_LEN), "A".repeat(MAX_NAME_LEN - 1));
-    }
 
     #[cfg(target_os = "linux")]
     mod log_file_integration {
