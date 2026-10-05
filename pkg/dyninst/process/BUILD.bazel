@@ -7,6 +7,15 @@ go_library(
         "info.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/process",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = ["//pkg/dyninst/ir"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/ir",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/ir",
+        ],
+        "//conditions:default": [],
+    }),
 )

@@ -1,9 +1,15 @@
 ---
+agents:
+  enabled: false
+clusterChecksRunner:
+  enabled: false
 clusterAgent:
   admissionController:
     configMode: "hostip"
 
 datadog:
+  kubeStateMetricsCore:
+    useClusterCheckRunners: false
   csi:
     # Required: otherwise at the end of TestInjectionMode the CSI driver is removed before
     # the apps that use it, so those apps fail to terminate.

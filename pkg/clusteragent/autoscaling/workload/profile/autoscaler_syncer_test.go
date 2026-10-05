@@ -24,14 +24,14 @@ import (
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
-func newTestSyncer() (*AutoscalerSyncer, *autoscaling.Store[model.PodAutoscalerProfileInternal], *autoscaling.Store[model.PodAutoscalerInternal]) {
-	profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-	dpaStore := autoscaling.NewStore[model.PodAutoscalerInternal]()
+func newTestSyncer() (*AutoscalerSyncer, *autoscalingstore.Store[model.PodAutoscalerProfileInternal], *autoscalingstore.Store[model.PodAutoscalerInternal]) {
+	profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+	dpaStore := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 	s := &AutoscalerSyncer{
 		profileStore: profileStore,
 		dpaStore:     dpaStore,
@@ -89,7 +89,8 @@ func TestAutoscalerSyncerCreatesDPA(t *testing.T) {
 
 	ref := testRef("prod", "web-app")
 	prof := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	s.reconcile()
 
@@ -97,7 +98,7 @@ func TestAutoscalerSyncerCreatesDPA(t *testing.T) {
 	require.Len(t, workloads, 1)
 
 	for dpaKey := range workloads {
-		pai, found := dpaStore.Get(dpaKey)
+		pai, found := dpaStore.Peek(dpaKey)
 		require.True(t, found, "Expected DPA store entry %s", dpaKey)
 		assert.Equal(t, "high-cpu", pai.ProfileName())
 		assert.True(t, pai.IsProfileManaged())
@@ -115,7 +116,8 @@ func TestAutoscalerSyncerUpdateDPAOnTemplateChange(t *testing.T) {
 
 	ref := testRef("prod", "web-app")
 	prof := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	s.reconcile()
 
@@ -132,12 +134,13 @@ func TestAutoscalerSyncerUpdateDPAOnTemplateChange(t *testing.T) {
 		Spec:       datadoghq.DatadogPodAutoscalerProfileSpec{Template: newTmpl},
 	})
 	updatedProf.UpdateWorkloads([]model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", updatedProf, "test")
+	updatedProfItem, _ := profileStore.Get("high-cpu")
+	updatedProfItem.Upsert(updatedProf, "test")
 
 	s.reconcile()
 
 	for dpaKey := range updatedProf.Workloads() {
-		pai, found := dpaStore.Get(dpaKey)
+		pai, found := dpaStore.Peek(dpaKey)
 		require.True(t, found)
 		assert.Equal(t, &newMax, pai.Spec().Constraints.MaxReplicas)
 	}
@@ -148,7 +151,8 @@ func TestAutoscalerSyncerMarksDPADeletedWhenWorkloadRemoved(t *testing.T) {
 
 	ref := testRef("prod", "web-app")
 	prof := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	s.reconcile()
 
@@ -156,16 +160,17 @@ func TestAutoscalerSyncerMarksDPADeletedWhenWorkloadRemoved(t *testing.T) {
 	for k := range prof.Workloads() {
 		dpaKey = k
 	}
-	_, found := dpaStore.Get(dpaKey)
+	_, found := dpaStore.Peek(dpaKey)
 	require.True(t, found, "DPA should exist before removal")
 
 	// Remove workloads from profile.
 	prof.UpdateWorkloads(nil)
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ = profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	s.reconcile()
 
-	pai, found := dpaStore.Get(dpaKey)
+	pai, found := dpaStore.Peek(dpaKey)
 	require.True(t, found)
 	assert.True(t, pai.Deleted(), "DPA should be marked deleted when workload ref is removed")
 	assert.Empty(t, s.dpaOwnership, "Ownership should be cleared")
@@ -176,7 +181,8 @@ func TestAutoscalerSyncerMarksDPADeletedWhenProfileDeleted(t *testing.T) {
 
 	ref := testRef("prod", "web-app")
 	prof := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	s.reconcile()
 
@@ -186,13 +192,49 @@ func TestAutoscalerSyncerMarksDPADeletedWhenProfileDeleted(t *testing.T) {
 	}
 
 	// Delete the profile.
-	profileStore.Delete("high-cpu", "test")
+	delItem, _ := profileStore.Get("high-cpu")
+	delItem.Delete("test")
 
 	s.reconcile()
 
-	pai, found := dpaStore.Get(dpaKey)
+	pai, found := dpaStore.Peek(dpaKey)
 	require.True(t, found)
 	assert.True(t, pai.Deleted(), "DPA should be marked deleted when profile is deleted")
+}
+
+// TestAutoscalerSyncerReclaimsDeletedDPAStillDesired covers the partial-profile-state
+// hazard: because ProcessAll notifies the syncer per profile during a workload-watcher
+// pass, a reconcile can run mid-pass and spuriously mark a still-desired DPA deleted.
+// A subsequent reconcile (profile still desires the workload) must re-claim it.
+func TestAutoscalerSyncerReclaimsDeletedDPAStillDesired(t *testing.T) {
+	s, profileStore, dpaStore := newTestSyncer()
+
+	ref := testRef("prod", "web-app")
+	prof := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
+
+	s.reconcile()
+
+	var dpaKey string
+	for k := range prof.Workloads() {
+		dpaKey = k
+	}
+
+	// Simulate a reconcile that ran against partial profile-store state and marked the
+	// still-desired DPA deleted (profile/template otherwise unchanged).
+	item, found := dpaStore.Get(dpaKey)
+	require.True(t, found)
+	pai := item.Value()
+	pai.SetDeleted()
+	item.Upsert(pai, "test")
+
+	s.reconcile()
+
+	got, found := dpaStore.Peek(dpaKey)
+	require.True(t, found)
+	assert.False(t, got.Deleted(), "a still-desired DPA must not remain flagged deleted after reconcile")
+	assert.Equal(t, "high-cpu", s.dpaOwnership[dpaKey])
 }
 
 func TestAutoscalerSyncerLabelChangeNoDeleteCreate(t *testing.T) {
@@ -201,8 +243,10 @@ func TestAutoscalerSyncerLabelChangeNoDeleteCreate(t *testing.T) {
 	ref := testRef("prod", "web-app")
 	profA := testProfileWithWorkloads("profile-a", []model.NamespacedObjectReference{ref})
 	profB := testProfileWithWorkloads("profile-b", nil)
-	profileStore.Set("profile-a", profA, "test")
-	profileStore.Set("profile-b", profB, "test")
+	profAItem, _ := profileStore.Get("profile-a")
+	profAItem.Upsert(profA, "test")
+	profBItem, _ := profileStore.Get("profile-b")
+	profBItem.Upsert(profB, "test")
 
 	s.reconcile()
 
@@ -210,19 +254,21 @@ func TestAutoscalerSyncerLabelChangeNoDeleteCreate(t *testing.T) {
 	for k := range profA.Workloads() {
 		dpaKey = k
 	}
-	paiBeforeSwitch, found := dpaStore.Get(dpaKey)
+	paiBeforeSwitch, found := dpaStore.Peek(dpaKey)
 	require.True(t, found)
 	assert.Equal(t, "profile-a", paiBeforeSwitch.ProfileName())
 
 	// Simulate label change: workload moves from profile-a to profile-b.
 	profA.UpdateWorkloads(nil)
 	profB.UpdateWorkloads([]model.NamespacedObjectReference{ref})
-	profileStore.Set("profile-a", profA, "test")
-	profileStore.Set("profile-b", profB, "test")
+	profAItem, _ = profileStore.Get("profile-a")
+	profAItem.Upsert(profA, "test")
+	profBItem, _ = profileStore.Get("profile-b")
+	profBItem.Upsert(profB, "test")
 
 	s.reconcile()
 
-	paiAfterSwitch, found := dpaStore.Get(dpaKey)
+	paiAfterSwitch, found := dpaStore.Peek(dpaKey)
 	require.True(t, found)
 	assert.Equal(t, "profile-b", paiAfterSwitch.ProfileName(), "Profile should switch without delete/create")
 	assert.False(t, paiAfterSwitch.Deleted(), "DPA should NOT be deleted on label change")
@@ -234,7 +280,8 @@ func TestAutoscalerSyncerConflictWithUserDPA(t *testing.T) {
 
 	ref := testRef("prod", "web-app")
 	prof := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	// User creates a DPA targeting the same workload.
 	userDPA := model.FakePodAutoscalerInternal{
@@ -247,12 +294,13 @@ func TestAutoscalerSyncerConflictWithUserDPA(t *testing.T) {
 			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
 		},
 	}.Build()
-	dpaStore.Set("prod/user-dpa", userDPA, "dpa-c")
+	userDPAItem, _ := dpaStore.Get("prod/user-dpa")
+	userDPAItem.Upsert(userDPA, "dpa-c")
 
 	s.reconcile()
 
 	for dpaKey := range prof.Workloads() {
-		_, found := dpaStore.Get(dpaKey)
+		_, found := dpaStore.Peek(dpaKey)
 		assert.False(t, found, "Should NOT create profile-managed DPA when user DPA conflicts")
 	}
 	assert.Empty(t, s.dpaOwnership)
@@ -263,7 +311,8 @@ func TestAutoscalerSyncerConflictRemovesExistingProfileDPA(t *testing.T) {
 
 	ref := testRef("prod", "web-app")
 	prof := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	// First reconcile creates the DPA.
 	s.reconcile()
@@ -272,7 +321,7 @@ func TestAutoscalerSyncerConflictRemovesExistingProfileDPA(t *testing.T) {
 	for k := range prof.Workloads() {
 		dpaKey = k
 	}
-	_, found := dpaStore.Get(dpaKey)
+	_, found := dpaStore.Peek(dpaKey)
 	require.True(t, found, "DPA should exist after first reconcile")
 
 	// Now user creates a conflicting DPA.
@@ -286,11 +335,12 @@ func TestAutoscalerSyncerConflictRemovesExistingProfileDPA(t *testing.T) {
 			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
 		},
 	}.Build()
-	dpaStore.Set("prod/user-dpa", userDPA, "dpa-c")
+	userDPAItem, _ := dpaStore.Get("prod/user-dpa")
+	userDPAItem.Upsert(userDPA, "dpa-c")
 
 	s.reconcile()
 
-	pai, found := dpaStore.Get(dpaKey)
+	pai, found := dpaStore.Peek(dpaKey)
 	require.True(t, found)
 	assert.True(t, pai.Deleted(), "Existing profile-managed DPA should be marked deleted when user DPA conflicts")
 	assert.Empty(t, s.dpaOwnership)
@@ -305,12 +355,13 @@ func TestAutoscalerSyncerMultipleWorkloads(t *testing.T) {
 		testRef("staging", "web-3"),
 	}
 	prof := testProfileWithWorkloads("high-cpu", refs)
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	s.reconcile()
 
 	for dpaKey, ref := range prof.Workloads() {
-		pai, found := dpaStore.Get(dpaKey)
+		pai, found := dpaStore.Peek(dpaKey)
 		require.True(t, found, "Expected DPA for %s", ref.Name)
 		assert.Equal(t, "high-cpu", pai.ProfileName())
 		assert.Equal(t, ref.Name, pai.Spec().TargetRef.Name)
@@ -324,7 +375,8 @@ func TestAutoscalerSyncerInvalidProfileMarksExistingDPAsDeleted(t *testing.T) {
 
 	ref := testRef("prod", "web-app")
 	prof := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	s.reconcile()
 
@@ -346,11 +398,12 @@ func TestAutoscalerSyncerInvalidProfileMarksExistingDPAsDeleted(t *testing.T) {
 		},
 	})
 	invalidProf.UpdateWorkloads([]model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", invalidProf, "test")
+	invalidProfItem, _ := profileStore.Get("high-cpu")
+	invalidProfItem.Upsert(invalidProf, "test")
 
 	s.reconcile()
 
-	pai, found := dpaStore.Get(dpaKey)
+	pai, found := dpaStore.Peek(dpaKey)
 	require.True(t, found)
 	assert.True(t, pai.Deleted(), "DPA should be marked deleted for invalid profile")
 }
@@ -360,7 +413,8 @@ func TestAutoscalerSyncerIdempotent(t *testing.T) {
 
 	ref := testRef("prod", "web-app")
 	prof := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	s.reconcile()
 	s.reconcile()
@@ -370,7 +424,7 @@ func TestAutoscalerSyncerIdempotent(t *testing.T) {
 	for k := range prof.Workloads() {
 		dpaKey = k
 	}
-	pai, found := dpaStore.Get(dpaKey)
+	pai, found := dpaStore.Peek(dpaKey)
 	require.True(t, found)
 	assert.False(t, pai.Deleted())
 	assert.Equal(t, "high-cpu", pai.ProfileName())
@@ -381,7 +435,8 @@ func TestAutoscalerSyncerPreservesExistingDPAState(t *testing.T) {
 
 	ref := testRef("prod", "web-app")
 	prof := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	s.reconcile()
 
@@ -391,26 +446,27 @@ func TestAutoscalerSyncerPreservesExistingDPAState(t *testing.T) {
 	}
 
 	// Simulate the DPA controller setting generation.
-	pai, _, unlock := dpaStore.LockRead(dpaKey, false)
+	item, _ := dpaStore.Get(dpaKey)
+	pai := item.Value()
 	pai.SetGeneration(5)
-	dpaStore.UnlockSet(dpaKey, pai, "dpa-c")
-	_ = unlock
+	item.Upsert(pai, "dpa-c")
 
 	// Run reconcile again — should not reset the generation.
 	s.reconcile()
 
-	pai2, found := dpaStore.Get(dpaKey)
+	pai2, found := dpaStore.Peek(dpaKey)
 	require.True(t, found)
 	assert.Equal(t, int64(5), pai2.Generation(), "Generation should be preserved across reconciles")
 }
 
 func TestAutoscalerSyncerWaitsForReadyDeps(t *testing.T) {
-	profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-	dpaStore := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+	dpaStore := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 
 	ref := testRef("prod", "web-app")
 	prof := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	var ready atomic.Bool
 	s := NewAutoscalerSyncer(profileStore, dpaStore, func() bool { return true }, ready.Load)
@@ -427,7 +483,7 @@ func TestAutoscalerSyncerWaitsForReadyDeps(t *testing.T) {
 	// Give the syncer time to potentially reconcile (it shouldn't).
 	time.Sleep(200 * time.Millisecond)
 	for dpaKey := range prof.Workloads() {
-		_, found := dpaStore.Get(dpaKey)
+		_, found := dpaStore.Peek(dpaKey)
 		assert.False(t, found, "DPA should not be created before deps are ready")
 	}
 
@@ -438,7 +494,7 @@ func TestAutoscalerSyncerWaitsForReadyDeps(t *testing.T) {
 		dpaKeys = append(dpaKeys, k)
 	}
 	assert.Eventually(t, func() bool {
-		_, found := dpaStore.Get(dpaKeys[0])
+		_, found := dpaStore.Peek(dpaKeys[0])
 		return found
 	}, 5*time.Second, 50*time.Millisecond, "Syncer should reconcile after deps become ready")
 
@@ -449,20 +505,22 @@ func TestAutoscalerSyncerWaitsForReadyDeps(t *testing.T) {
 }
 
 func TestAutoscalerSyncerRebuildOwnershipCleansOrphans(t *testing.T) {
-	profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-	dpaStore := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+	dpaStore := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 
 	// Simulate restart: the DPA store already has a profile-managed DPA
 	// (loaded by the DPA controller from K8s), but the workload no longer
 	// has the profile label, so the profile has empty workloads.
 	prof := testProfileWithWorkloads("high-cpu", nil) // no workloads
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	targetRef := autoscalingv2.CrossVersionObjectReference{
 		Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
 	}
 	orphanDPA := model.NewPodAutoscalerFromProfile("prod", "web-app-9526aeb3", "high-cpu", prof.Template(), targetRef, prof.TemplateHash(), "")
-	dpaStore.Set("prod/web-app-9526aeb3", orphanDPA, "dpa-c")
+	orphanDPAItem, _ := dpaStore.Get("prod/web-app-9526aeb3")
+	orphanDPAItem.Upsert(orphanDPA, "dpa-c")
 
 	s := &AutoscalerSyncer{
 		profileStore: profileStore,
@@ -479,20 +537,21 @@ func TestAutoscalerSyncerRebuildOwnershipCleansOrphans(t *testing.T) {
 	// The first reconcile should mark it deleted since desired is empty.
 	s.reconcile()
 
-	pai, found := dpaStore.Get("prod/web-app-9526aeb3")
+	pai, found := dpaStore.Peek("prod/web-app-9526aeb3")
 	require.True(t, found)
 	assert.True(t, pai.Deleted(), "Orphaned DPA should be marked deleted after ownership rebuild + reconcile")
 	assert.Empty(t, s.dpaOwnership, "Ownership should be cleared after deletion")
 }
 
 func TestAutoscalerSyncerRebuildOwnershipKeepsActiveDPAs(t *testing.T) {
-	profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-	dpaStore := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+	dpaStore := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 
 	// Simulate normal restart: workload still has the label, everything matches.
 	ref := testRef("prod", "web-app")
 	prof := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	var dpaKey string
 	for k := range prof.Workloads() {
@@ -504,7 +563,8 @@ func TestAutoscalerSyncerRebuildOwnershipKeepsActiveDPAs(t *testing.T) {
 	}
 	_, dpaName, _ := cache.SplitMetaNamespaceKey(dpaKey)
 	existingDPA := model.NewPodAutoscalerFromProfile("prod", dpaName, "high-cpu", prof.Template(), targetRef, prof.TemplateHash(), "")
-	dpaStore.Set(dpaKey, existingDPA, "dpa-c")
+	existingDPAItem, _ := dpaStore.Get(dpaKey)
+	existingDPAItem.Upsert(existingDPA, "dpa-c")
 
 	s := &AutoscalerSyncer{
 		profileStore: profileStore,
@@ -519,7 +579,7 @@ func TestAutoscalerSyncerRebuildOwnershipKeepsActiveDPAs(t *testing.T) {
 
 	s.reconcile()
 
-	pai, found := dpaStore.Get(dpaKey)
+	pai, found := dpaStore.Peek(dpaKey)
 	require.True(t, found)
 	assert.False(t, pai.Deleted(), "Active DPA should NOT be deleted after rebuild + reconcile")
 	assert.Equal(t, "high-cpu", s.dpaOwnership[dpaKey])
@@ -550,12 +610,13 @@ func TestAutoscalerSyncerBurstableAnnotationPropagatedToDPA(t *testing.T) {
 	ref := testRef("prod", "web-app")
 	prof := testProfileWithWorkloadsAndAnnotations("high-cpu", []model.NamespacedObjectReference{ref},
 		map[string]string{model.PreviewAnnotationKey: `{"burstable":true}`})
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	s.reconcile()
 
 	for dpaKey := range prof.Workloads() {
-		pai, found := dpaStore.Get(dpaKey)
+		pai, found := dpaStore.Peek(dpaKey)
 		require.True(t, found)
 		assert.True(t, pai.IsBurstable(), "generated DPA should be burstable when profile carries the annotation")
 		assert.Equal(t, `{"burstable":true}`, pai.PreviewAnnotation(),
@@ -574,33 +635,36 @@ func TestAutoscalerSyncerBurstableHashChangeTriggersUpdate(t *testing.T) {
 
 	// First reconcile: burstable=false
 	prof := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 	s.reconcile()
 
 	var dpaKey string
 	for k := range prof.Workloads() {
 		dpaKey = k
 	}
-	pai, found := dpaStore.Get(dpaKey)
+	pai, found := dpaStore.Peek(dpaKey)
 	require.True(t, found)
 	assert.False(t, pai.IsBurstable())
 
 	// Second reconcile: burstable=true — hash changes, update must be triggered
 	burstableProf := testProfileWithWorkloadsAndAnnotations("high-cpu", []model.NamespacedObjectReference{ref},
 		map[string]string{model.PreviewAnnotationKey: `{"burstable":true}`})
-	profileStore.Set("high-cpu", burstableProf, "test")
+	burstableProfItem, _ := profileStore.Get("high-cpu")
+	burstableProfItem.Upsert(burstableProf, "test")
 	s.reconcile()
 
-	pai, found = dpaStore.Get(dpaKey)
+	pai, found = dpaStore.Peek(dpaKey)
 	require.True(t, found)
 	assert.True(t, pai.IsBurstable(), "DPA should become burstable after profile annotation is added")
 
 	// Third reconcile: burstable removed — hash reverts, update must be triggered again
 	nonBurstableProf := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", nonBurstableProf, "test")
+	nonBurstableProfItem, _ := profileStore.Get("high-cpu")
+	nonBurstableProfItem.Upsert(nonBurstableProf, "test")
 	s.reconcile()
 
-	pai, found = dpaStore.Get(dpaKey)
+	pai, found = dpaStore.Peek(dpaKey)
 	require.True(t, found)
 	assert.False(t, pai.IsBurstable(), "DPA should revert to non-burstable when annotation is removed from profile")
 }
@@ -616,7 +680,8 @@ func TestAutoscalerSyncerOrphanByLabelRemoval(t *testing.T) {
 
 	ref := testRef("prod", "web-app")
 	prof := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
-	profileStore.Set("high-cpu", prof, "test")
+	profItem, _ := profileStore.Get("high-cpu")
+	profItem.Upsert(prof, "test")
 
 	// Initial reconcile: syncer creates the DPA and owns it.
 	s.reconcile()
@@ -625,22 +690,22 @@ func TestAutoscalerSyncerOrphanByLabelRemoval(t *testing.T) {
 	for k := range prof.Workloads() {
 		dpaKey = k
 	}
-	pai, found := dpaStore.Get(dpaKey)
+	pai, found := dpaStore.Peek(dpaKey)
 	require.True(t, found)
 	assert.True(t, pai.IsProfileManaged())
 	assert.Equal(t, "high-cpu", s.dpaOwnership[dpaKey])
 
 	// Simulate the DPA controller clearing profileName after the customer
 	// removed the profile label from the K8s object.
-	pai, _, unlock := dpaStore.LockRead(dpaKey, false)
+	item, _ := dpaStore.Get(dpaKey)
+	pai = item.Value()
 	pai.SetProfileName("")
-	dpaStore.UnlockSet(dpaKey, pai, "dpa-c")
-	_ = unlock
+	item.Upsert(pai, "dpa-c")
 
 	// Next reconcile: syncer should orphan the DPA.
 	s.reconcile()
 
-	pai, found = dpaStore.Get(dpaKey)
+	pai, found = dpaStore.Peek(dpaKey)
 	require.True(t, found, "Orphaned DPA should still exist in the store")
 	assert.False(t, pai.Deleted(), "Orphaned DPA should NOT be marked deleted")
 	assert.False(t, pai.IsProfileManaged(), "Orphaned DPA should no longer be profile-managed")

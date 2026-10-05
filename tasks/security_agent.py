@@ -11,13 +11,12 @@ from subprocess import check_output
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-import tasks.libs.cws.backend_doc_gen as backend_doc_gen
-import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.build.ninja import NinjaWriter
+from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -29,6 +28,7 @@ from tasks.libs.common.utils import (
 )
 from tasks.libs.types.arch import ARCH_AMD64, Arch
 from tasks.process_agent import TempDir
+from tasks.schema.generate import schema_codegen
 from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
@@ -47,6 +47,8 @@ BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
 CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
 
+BAZEL_TARGET = "//cmd/security-agent:security-agent"
+
 
 @task(iterable=["build_tags"])
 def build(
@@ -58,10 +60,25 @@ def build(
     go_mod="readonly",
     static=False,
     fips_mode=False,
+    enable_bazel=False,
 ):
     """
     Build the security agent
     """
+
+    if enable_bazel:
+        if build_tags:
+            raise NotImplementedError("--enable-bazel does not support --build-tags.")
+        if race:
+            raise NotImplementedError("--enable-bazel does not support --race.")
+        if install_path is not None:
+            raise NotImplementedError("--enable-bazel does not support --install-path.")
+        if static:
+            raise NotImplementedError("--enable-bazel does not support --static.")
+
+        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
+        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=BIN_PATH)
+        return
 
     ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
 
@@ -149,11 +166,11 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
 
 
 @task()
-def gen_mocks(ctx):
+def gen_mocks(_):
     """
     Generate mocks.
     """
-    ctx.run("mockery")
+    bazel("run", "//internal/tools:mockery")
 
 
 @task
@@ -208,19 +225,28 @@ def ninja_ebpf_probe_syscall_tester(nw, build_dir):
 
 def build_go_syscall_tester(ctx, build_dir, arch: str | Arch = CURRENT_ARCH):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
-    syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
     arch = Arch.from_str(arch)
     _, _, env = get_build_flags(ctx, arch=arch)
 
-    go_build(
-        ctx,
-        f"{syscall_tester_go_dir}/syscall_go_tester.go",
-        build_tags=["syscalltesters", "osusergo", "netgo"],
-        ldflags="-extldflags=-static",
-        bin_path=syscall_tester_exe_file,
-        env=env,
-    )
-    return syscall_tester_exe_file
+    testers = {
+        "syscall_go_tester": f"{syscall_tester_go_dir}/syscall_go_tester.go",
+        "span_go_tester": f"{syscall_tester_go_dir}/span/span_go_tester.go",
+    }
+
+    exe_files = []
+    for name, source in testers.items():
+        exe_file = os.path.join(build_dir, name)
+        go_build(
+            ctx,
+            source,
+            build_tags=["syscalltesters", "osusergo", "netgo"],
+            ldflags="-extldflags=-static",
+            bin_path=exe_file,
+            env=env,
+        )
+        exe_files.append(exe_file)
+
+    return exe_files
 
 
 def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=None, static=True, compiler='clang'):
@@ -262,6 +288,43 @@ def ninja_syscall_tester(ctx, build_dir, static=True, compiler='clang'):
     )
 
 
+OTEL_TLS_BAZEL_TARGET = "//pkg/security/tests/syscall_tester/c:otel_tls_artifacts"
+
+
+# The OTel TLS testers go through Bazel rather than the ninja rules above so
+# they link against the hermetic crosstool-NG sysroot: glibc 2.23, of which only
+# 2.17 symbols end up referenced. The host toolchain would link them against the
+# build image's glibc instead, which is newer than every KMT host and than the
+# ubuntu:20.04 image RunMultiMode's docker leg uses, and every dynamically
+# linked variant would then be skipped outside the newest legs. The Node.js
+# tester is Bazel-built the same way, alongside the native one; it is glibc-only,
+# so there is no musl counterpart to build.
+#
+# musl is covered by TestResolveOTelTLSMuslDTV in
+# pkg/security/resolvers/process/otel_tls_test.go instead: the only thing musl
+# changes is the DTV layout its libc reports, which is resolved entirely in
+# user space and needs neither eBPF nor a VM.
+def build_otel_tls_artifacts(build_dir, arch: Arch):
+    if arch.is_cross_compiling():
+        # Both crosstool-NG toolchains are exec_compatible_with their own CPU,
+        # so there is no toolchain that targets the other architecture.
+        print("Skipping the OTel TLS glibc testers while cross-compiling")
+        return
+
+    bazel("build", OTEL_TLS_BAZEL_TARGET)
+
+    # The filegroup is the one list of artifacts; asking Bazel for its files
+    # keeps this from drifting from the BUILD file.
+    execroot = bazel("info", "execution_root", capture_output=True).strip()
+    artifacts = bazel("cquery", "--output=files", OTEL_TLS_BAZEL_TARGET, capture_output=True).split()
+
+    for artifact in artifacts:
+        src = os.path.join(execroot, artifact)
+        dst = os.path.join(build_dir, os.path.basename(artifact))
+        shutil.copy2(src, dst)
+        os.chmod(dst, 0o755)
+
+
 def create_dir_if_needed(dir):
     try:
         os.makedirs(dir)
@@ -290,6 +353,7 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
     ctx.run(f"ninja -f {nf_path}")
+    build_otel_tls_artifacts(build_dir, arch)
     build_go_syscall_tester(ctx, build_dir, arch=arch)
 
 
@@ -332,7 +396,7 @@ def build_functional_tests(
     build_tags.append("test")
     build_tags.append("seclmax")
     if not is_windows:
-        build_tags.append("linux_bpf")
+        build_tags.append("bpf")
         build_tags.append("trivy")
         build_tags.append("containerd")
 
@@ -357,7 +421,7 @@ def build_functional_tests(
         results, _ = run_golangci_lint(ctx, base_path="", targets=targets, build_tags=build_tags)
         for result in results:
             # golangci exits with status 1 when it finds an issue
-            if result.exited != 0:
+            if result.returncode != 0:
                 raise Exit(code=1)
         print("golangci-lint found no issues")
 
@@ -377,6 +441,9 @@ def build_functional_tests(
         "repo_path": REPO_PATH,
         "src_path": srcpath,
     }
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
 
     ctx.run(cmd.format(**args), env=env)
 
@@ -494,123 +561,54 @@ def docker_functional_tests(
 
 @task
 def generate_cws_documentation(ctx):
-    # secl docs
-    secl_doc_gen.generate_secl_documentation(
-        "./docs/cloud-workload-security/secl_linux.json",
-        "./docs/cloud-workload-security/linux_expressions.md",
-        "./linux_expressions.md",
-    )
-    secl_doc_gen.generate_secl_documentation(
-        "./docs/cloud-workload-security/secl_windows.json",
-        "./docs/cloud-workload-security/windows_expressions.md",
-        "./windows_expressions.md",
-    )
-    # backend event docs
-    backend_doc_gen.generate_backend_documentation(
-        "./docs/cloud-workload-security/backend_linux.schema.json",
-        "./docs/cloud-workload-security/backend_linux.md",
-        "./backend_linux.md",
-    )
-    backend_doc_gen.generate_backend_documentation(
-        "./docs/cloud-workload-security/backend_windows.schema.json",
-        "./docs/cloud-workload-security/backend_windows.md",
-        "./backend_windows.md",
-    )
+    bazel("run", "//docs/cloud-workload-security:cws_docs")
 
 
 @task
-def cws_go_generate(ctx, verbose=False):
-    # run different `go generate` for pkg/security/secl and pkg/security
-    ctx.run("go install golang.org/x/tools/cmd/stringer@v0.44.0")
-    ctx.run("go install github.com/mailru/easyjson/easyjson@v0.9.1")
-    # CWS codegens migrated to Bazel keep their //go:generate directives so a future
-    # Gazelle extension can pick them up; we just skip them in `go generate` here.
-    # See ABLD-420.
-    bazel(ctx, "run", "//pkg/security/secl/compiler/eval:eval_operators")
-    bazel(ctx, "run", "//pkg/security/secl/model:consts_map_names_linux")
-    bazel(ctx, "run", "//pkg/security/secl/model:accessors_unix")
-    bazel(ctx, "run", "//pkg/security/secl/model:accessors_windows")
-    bazel(ctx, "run", "//pkg/security/secl/model:event_deep_copy_unix")
-    bazel(ctx, "run", "//pkg/security/secl/model:event_deep_copy_windows")
-    bazel(ctx, "run", "//docs/cloud-workload-security:secl_linux")
-    bazel(ctx, "run", "//docs/cloud-workload-security:secl_windows")
-    skip = "operators|bpf_maps_generator|accessors|event_deep_copy"
-    with ctx.cd("./pkg/security/secl"):
-        if sys.platform == "linux":
-            ctx.run(f"GOOS=windows go generate -run=-tag.+windows -skip='{skip}' ./...")
-        elif is_windows:
-            ctx.run(f'set "GOOS=linux" && go generate -run=-tag.+unix -skip="{skip}" ./...')
-        cmd = f"go generate -skip='{skip}'"
-        if verbose:
-            cmd += " -v"
-        ctx.run(cmd + " ./...")
-
-    if sys.platform == "linux":
-        shutil.copy(
-            "./pkg/security/serializers/serializers_linux_easyjson.mock",
-            "./pkg/security/serializers/serializers_linux_easyjson.go",
-        )
-
-    ctx.run("go generate ./pkg/security/probe/remediations_linux.go")
-    ctx.run("go generate ./pkg/security/probe/custom_events.go")
-    ctx.run(f"go generate -skip='{skip}' -tags=linux_bpf,cws_go_generate ./pkg/security/...")
-
-    # synchronize the seclwin package from the secl package
-    bazel(ctx, "run", "//pkg/security/seclwin:sync")
-    bazel(ctx, "run", "//pkg/security/seclwin/model:sync")
-
-    # generate documentation
-    generate_cws_documentation(ctx)
+def cws_go_generate(ctx, windows=False):
+    # CWS codegens keep their //go:generate directives so a future Gazelle
+    # extension can emit the matching Bazel targets from them (ABLD-475).
+    # Off Windows, cws_codegen renders backend_windows.md from the committed
+    # schema, so refresh that first.
+    if windows and sys.platform == "linux":
+        bazel("run", "//docs/cloud-workload-security:backend_windows_schema")
+    bazel("run", "//pkg/security:cws_codegen")
 
 
 @task
 def generate_syscall_table(ctx):
-    def single_run(ctx, table_url, output_file, output_string_file, abis=None):
-        if abis:
-            abis = f"-abis {abis}"
-        ctx.run(
-            f"go run github.com/DataDog/datadog-agent/pkg/security/generators/syscall_table_generator -table-url {table_url} -output {output_file} -output-string {output_string_file} {abis}"
-        )
+    """Regenerate secl model syscall enums from the pinned Linux kernel tables.
 
-    linux_version = "v6.13"
-    single_run(
-        ctx,
-        f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl",
-        "pkg/security/secl/model/syscalls_linux_amd64.go",
-        "pkg/security/secl/model/syscalls_string_linux_amd64.go",
-        abis="common,64",
-    )
-    single_run(
-        ctx,
-        f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/include/uapi/asm-generic/unistd.h",
-        "pkg/security/secl/model/syscalls_linux_arm64.go",
-        "pkg/security/secl/model/syscalls_string_linux_arm64.go",
-    )
+    Tables are fetched as http_file repos in MODULE.bazel (same pins as
+    utils_syscall_table). Bumping the kernel version means updating those
+    URLs and sha256 entries.
+    """
+    bazel("run", "//pkg/security/secl/model:syscall_table")
 
 
 @task
 def generate_utils_syscall_table(ctx):
     # The kernel files are fetched as `http_file` repos pinned in MODULE.bazel;
     # bumping the kernel version means updating those URLs and sha256 entries.
-    bazel(ctx, "run", "//pkg/security/utils:utils_syscall_table")
+    bazel("run", "//pkg/security/utils:utils_syscall_table")
 
 
 DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/constants.json"
-DEFAULT_BTFHUB_CONSTANTS_ARM64_PATH = "./pkg/security/probe/constantfetch/btfhub/constants_arm64.json"
-DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH = "./pkg/security/probe/constantfetch/btfhub/constants_amd64.json"
+DEFAULT_BTFHUB_CONSTANTS_ARM64_PATH = "./pkg/security/probe/constantfetch/constants_arm64.json"
+DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH = "./pkg/security/probe/constantfetch/constants_amd64.json"
 
 
 @task
 def generate_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
     ctx.run(
-        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
+        f"go run -tags bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
     )
 
 
 @task
 def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
     ctx.run(
-        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -combine -archive-root {archive_path} -output {output_path}",
+        f"go run -tags bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -combine -archive-root {archive_path} -output {output_path}",
     )
 
 
@@ -651,7 +649,16 @@ def split_btfhub_constants(ctx):
 
 @task
 def generate_cws_proto(ctx):
-    bazel(ctx, "run", "//pkg/security/proto/api:write_pb_go")
+    print(
+        color_message(
+            """DEPRECATED - use one of the following instead:
+- bazel run //pkg/security/proto/api:write_pb_go
+- bazel run //:write_all
+""",
+            "orange",
+        )
+    )
+    bazel("run", "//pkg/security/proto/api:write_pb_go")
 
 
 def get_git_dirty_files():
@@ -669,42 +676,19 @@ def get_git_dirty_files():
     return paths
 
 
-class FailingTask:
-    def __init__(self, name, dirty_files):
-        self.name = name
-        self.dirty_files = dirty_files
-
-
 @task
 def go_generate_check(ctx):
-    tasks = [
-        [cws_go_generate],
-        [generate_cws_proto],
-        [gen_mocks],
-    ]
-    failing_tasks = []
-    previous_dirty = set()
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
 
-    for task_entry in tasks:
-        task, args = task_entry[0], task_entry[1:]
-        task(ctx, *args)
-        # when running a non-interactive session, python may buffer too much data and thus mix stderr and stdout
-        # this is especially visible in the Gitlab job logs
-        # we flush to ensure correct separation between steps
-        sys.stdout.flush()
-        sys.stderr.flush()
-        dirty_files = [f for f in get_git_dirty_files() if f not in previous_dirty]
-        if dirty_files:
-            failing_tasks.append(FailingTask(task.__name__, dirty_files))
-
-        previous_dirty.update(dirty_files)
-
-    if failing_tasks:
-        for ft in failing_tasks:
-            task = ft.name.replace("_", "-")
-            print(f"Task `dda inv security-agent.{task}` resulted in dirty files, please re-run it:")
-            for file in ft.dirty_files:
-                print(f"* {file}")
+    # The other CWS generated files are guarded by their Bazel diff tests;
+    # mockery has none yet.
+    gen_mocks(ctx)
+    dirty_files = get_git_dirty_files()
+    if dirty_files:
+        print("Task `dda inv security-agent.gen-mocks` resulted in dirty files, please re-run it:")
+        for file in dirty_files:
+            print(f"* {file}")
         raise Exit(code=1)
 
 
@@ -768,6 +752,9 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
     args = '-args'
     if trace:
         args += " -trace"
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
 
     ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args} {testflags}", env=env)
 

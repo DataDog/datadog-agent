@@ -1,0 +1,5 @@
+filegroup(
+    name = "wheel_fixtures",
+    srcs = glob(["*.whl"]),
+    visibility = ["//cmd/agent/subcommands/integrations:__pkg__"],
+)

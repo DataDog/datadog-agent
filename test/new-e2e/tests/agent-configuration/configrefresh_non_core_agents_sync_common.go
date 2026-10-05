@@ -13,10 +13,11 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
@@ -41,6 +42,15 @@ var (
 	apiKey1 = strings.Repeat("1", 32)
 	apiKey2 = strings.Repeat("2", 32)
 )
+
+// assertAgentsEventuallyUseKey retries assertAgentsUseKey until every agent reports the
+// expected key, tolerating transient errors while the non-core agents finish starting up.
+func assertAgentsEventuallyUseKey(t *testing.T, host *components.RemoteHost, authtoken, key string) {
+	t.Helper()
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assertAgentsUseKey(c, host, authtoken, key)
+	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
+}
 
 // assertAgentsUseKey checks that all agents are using the given key.
 func assertAgentsUseKey(t assert.TestingT, host *components.RemoteHost, authtoken, key string) {

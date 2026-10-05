@@ -1,13 +1,12 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("//bazel/tools:generate_module_bazel.bzl", "generate_module_bazel")
-
-VERSION = "8.20.0"
+load(":overlay/lib_contents.bzl", "VERSION")
 
 generate_module_bazel(
     name = "curl_module_bazel_new",
     out = "curl.MODULE.bazel.new",
     module = "curl",
-    sha256 = "fc5819cad3f9f5482669adcdc49a782c15f36d2a0715b395b06d9173593d2dc0",
+    sha256 = "d54dd598bf05927a726deb38df31c6a255ba83ff1de57c5d1464dac3ed8f44a1",
     strip_prefix = "curl-%s" % VERSION,
     tags = ["manual"],
     url = "https://curl.haxx.se/download/curl-%s.tar.gz" % VERSION,

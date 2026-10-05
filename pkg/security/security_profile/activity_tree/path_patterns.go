@@ -404,6 +404,19 @@ func maybeMergeChildren(children map[string]*FileNode, stats *Stats) int {
 	return mergeChildren(children, cfg.MinClusterSize, stats)
 }
 
+// insertChildAndMerge stores child under name, runs the fan-out merge pass,
+// and returns the node that now owns name: child itself, or the pattern node
+// it was folded into.
+func insertChildAndMerge(children map[string]*FileNode, name string, child *FileNode, stats *Stats) *FileNode {
+	children[name] = child
+	maybeMergeChildren(children, stats)
+	if owner, ok := findChildWithPatternFallback(children, name, stats); ok {
+		return owner
+	}
+	children[name] = child
+	return child
+}
+
 // findChildWithPatternFallback returns the exact-name child if present,
 // otherwise a sibling pattern node whose template matches name. When a
 // pattern carries a non-empty PatternSignature, name must share it. A

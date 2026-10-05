@@ -1,0 +1,30 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Neither macOS nor AIX support any system-probe modules, so no connection to
+// system-probe is attempted in these tests.
+//go:build darwin || aix
+
+package flare
+
+import (
+	"strings"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+)
+
+// InjectConnectionFailures injects a failure in TestReadProfileDataErrors.
+func InjectConnectionFailures(_ model.Config, _ model.Config) {
+	// macOS and AIX don't currently support any system-probe modules
+}
+
+// CheckExpectedConnectionFailures checks the expected errors after simulated
+// connection failures.
+func CheckExpectedConnectionFailures(c *commandTestSuite, err error) {
+	// System probe by default is disabled and no connection is attempted for it in the test.
+	require.Equal(c.T(), 4, strings.Count(err.Error(), "\n")+1)
+}

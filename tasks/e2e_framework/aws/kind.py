@@ -108,10 +108,7 @@ def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboa
     tool.info(f"kubectl configured — run the following to use it in other terminals:\n\n  {export_cmd}\n")
 
     if copy_to_clipboard:
-        import pyperclip
-
-        input("Press a key to copy command to clipboard...")
-        pyperclip.copy(export_cmd)
+        tool.copy_to_clipboard_if_supported(export_cmd, prompt="Press a key to copy command to clipboard...")
 
 
 @task(

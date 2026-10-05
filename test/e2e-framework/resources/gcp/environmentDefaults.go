@@ -23,6 +23,7 @@ type gcpProvider struct {
 
 type ddInfra struct {
 	defaultInstanceType     string
+	defaultGKENodeCount     int
 	defaultNetworkName      string
 	defaultSubnetName       string
 	defaultVMServiceAccount string
@@ -58,6 +59,7 @@ func agentSandboxDefault() environmentDefault {
 		},
 		ddInfra: ddInfra{
 			defaultInstanceType:     "e2-standard-2",
+			defaultGKENodeCount:     1,
 			defaultNetworkName:      "datadog-agent-sandbox-us-central1",
 			defaultSubnetName:       "datadog-agent-sandbox-us-central1-private",
 			defaultVMServiceAccount: "vmserviceaccount@datadog-agent-sandbox.iam.gserviceaccount.com",
@@ -76,6 +78,7 @@ func agentQaDefault() environmentDefault {
 		},
 		ddInfra: ddInfra{
 			defaultInstanceType:     "e2-standard-2",
+			defaultGKENodeCount:     1,
 			defaultNetworkName:      "datadog-agent-qa-us-central1",
 			defaultSubnetName:       "datadog-agent-qa-us-central1-private",
 			defaultVMServiceAccount: "vmserviceaccount@datadog-agent-qa.iam.gserviceaccount.com",

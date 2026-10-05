@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "config",
@@ -9,9 +10,9 @@ go_library(
         "adjust_security.go",
         "adjust_usm.go",
         "config.go",
+        "config_bpf.go",
         "config_darwin.go",
         "config_linux.go",
-        "config_linux_bpf.go",
         "config_unix.go",
         "config_unsupported.go",
         "config_windows.go",
@@ -43,19 +44,22 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "config_test",
     srcs = [
         "adjust_discovery_test.go",
         "adjust_npm_test.go",
-        "config_linux_bpf_test.go",
+        "config_bpf_test.go",
+        "config_darwin_test.go",
         "config_test.go",
+        "config_traceroute_test.go",
     ],
     embed = [":config"],
-    gotags = ["test"],
+    gotags_sets = [["bpf"]],
     deps = [
         "//pkg/config/mock",
         "//pkg/config/model",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ] + select({

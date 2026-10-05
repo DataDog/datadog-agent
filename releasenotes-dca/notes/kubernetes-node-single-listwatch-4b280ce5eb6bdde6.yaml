@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The Cluster Agent now uses a single ``ListWatch`` call to track Kubernetes
+    Node metadata, instead of one call per node.

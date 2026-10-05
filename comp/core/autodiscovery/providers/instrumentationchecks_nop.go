@@ -10,9 +10,9 @@ package providers
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 // NewInstrumentationChecksConfigProvider returns a new ConfigProvider collecting
 // instrumentation check configurations from the cluster-agent.
-var NewInstrumentationChecksConfigProvider func(providerConfig *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error)
+var NewInstrumentationChecksConfigProvider func(providerConfig *constants.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error)

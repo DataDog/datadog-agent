@@ -12,6 +12,7 @@ import (
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -78,6 +79,53 @@ func (f *extendedJobFactory) MetricFamilyGenerators() []generator.FamilyGenerato
 				}
 			}),
 		),
+		*generator.NewFamilyGeneratorWithStability(
+			"kube_job_complete_start_time",
+			"Start time of a Job whose Complete condition is true, used to order CronJob runs",
+			metric.Gauge,
+			basemetrics.ALPHA,
+			"",
+			wrapJobFunc(func(j *batchv1.Job) *metric.Family {
+				return jobConditionStartTimeFamily(j, batchv1.JobComplete)
+			}),
+		),
+		*generator.NewFamilyGeneratorWithStability(
+			"kube_job_failed_start_time",
+			"Start time of a Job whose Failed condition is true, used to order CronJob runs",
+			metric.Gauge,
+			basemetrics.ALPHA,
+			"",
+			wrapJobFunc(func(j *batchv1.Job) *metric.Family {
+				return jobConditionStartTimeFamily(j, batchv1.JobFailed)
+			}),
+		),
+	}
+}
+
+// jobConditionStartTimeFamily returns the Job start time if the given condition
+// is true. The creation timestamp is used when the Job has no start time.
+// CompletionTime can't be used here because Kubernetes only sets it on success.
+func jobConditionStartTimeFamily(j *batchv1.Job, conditionType batchv1.JobConditionType) *metric.Family {
+	ms := []*metric.Metric{}
+
+	for _, c := range j.Status.Conditions {
+		if c.Type != conditionType || c.Status != corev1.ConditionTrue {
+			continue
+		}
+
+		start := j.CreationTimestamp.Unix()
+		if j.Status.StartTime != nil {
+			start = j.Status.StartTime.Unix()
+		}
+
+		ms = append(ms, &metric.Metric{
+			Value: float64(start),
+		})
+		break
+	}
+
+	return &metric.Family{
+		Metrics: ms,
 	}
 }
 
@@ -108,13 +156,12 @@ func (f *extendedJobFactory) ExpectedType() interface{} {
 // ListWatch returns a ListerWatcher for batchv1.Job
 func (f *extendedJobFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(kubernetes.Interface)
-	ctx := context.Background()
 	return &cache.ListWatch{
-		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+		ListWithContextFunc: func(ctx context.Context, opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
 			return client.BatchV1().Jobs(ns).List(ctx, opts)
 		},
-		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+		WatchFuncWithContext: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
 			return client.BatchV1().Jobs(ns).Watch(ctx, opts)
 		},

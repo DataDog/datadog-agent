@@ -6,11 +6,12 @@
 package agenttelemetryimpl
 
 import (
-	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/proto"
 )
 
 // select only supported metric types
@@ -87,21 +88,18 @@ func aggregateMetric(mt dto.MetricType, aggm *dto.Metric, srcm *dto.Metric) {
 		*aggm.Gauge.Value += srcm.Gauge.GetValue()
 	case dto.MetricType_HISTOGRAM:
 		if aggm.Histogram == nil {
-			// Histogram is a complex structure and hard to initialize completlty and properly
-			// howwever we are using and interested only in its buckets but in future additional fields
-			// may be used and should be initialized properly
-			aggm.Histogram = &dto.Histogram{}
-			// just copy the buckets from the source metric on first iteration
-			aggm.Histogram.Bucket = append(aggm.Histogram.Bucket, srcm.Histogram.Bucket...)
-			// reset buckets specific Label (just in case - it is not used in the current code or Agent)
-			for _, aggmb := range aggm.Histogram.Bucket {
+			sampleCount := srcm.Histogram.GetSampleCount()
+			aggm.Histogram = &dto.Histogram{
+				SampleCount: &sampleCount,
+				Bucket:      make([]*dto.Bucket, len(srcm.Histogram.Bucket)),
+			}
+			for i, srcb := range srcm.Histogram.Bucket {
+				aggmb := proto.Clone(srcb).(*dto.Bucket)
 				if aggmb.Exemplar != nil {
 					aggmb.Exemplar.Label = nil
 				}
+				aggm.Histogram.Bucket[i] = aggmb
 			}
-
-			// copy the sample count (it is implicit "+Inf" bucket)
-			aggm.Histogram.SampleCount = srcm.Histogram.SampleCount
 		} else {
 			// for the same metric family bucket structure is the same
 			for i, srcb := range srcm.Histogram.Bucket {
@@ -125,17 +123,20 @@ func cloneLabelsSorted(labels []*dto.LabelPair) []*dto.LabelPair {
 	return sorted
 }
 
-// Make string key from LabelPair
-func makeLabelPairKey(l *dto.LabelPair) string {
-	return fmt.Sprintf("%s:%s:", l.GetName(), l.GetValue())
-}
-
-// Sort and serialize labels into a string
-func convertLabelsToKey(labels []*dto.LabelPair) string {
-	sortedLabels := cloneLabelsSorted(labels)
-	var sb strings.Builder
-	for _, tag := range sortedLabels {
-		sb.WriteString(makeLabelPairKey(tag))
+// Prometheus preserves ':' in label values, so delimiter-only concatenation
+// can encode distinct sorted label sets identically. Length prefixes make each
+// name/value boundary unambiguous.
+func encodeSortedLabels(labels []*dto.LabelPair) string {
+	var key strings.Builder
+	for _, label := range labels {
+		name := label.GetName()
+		value := label.GetValue()
+		key.WriteString(strconv.Itoa(len(name)))
+		key.WriteByte(':')
+		key.WriteString(name)
+		key.WriteString(strconv.Itoa(len(value)))
+		key.WriteByte(':')
+		key.WriteString(value)
 	}
-	return sb.String()
+	return key.String()
 }

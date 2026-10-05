@@ -11,35 +11,52 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/http/impl/internal/reader"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
-// sketchData implements metrics.SketchData from reader-provided sketch columns and summary.
+// sketchData holds one sketch point's reader-provided columns and summary.
 type sketchData struct {
+	ts                 int64
 	k                  []int32
 	n                  []uint32
 	cnt                int64
 	min, max, sum, avg float64
 }
 
-func (s *sketchData) Cols() ([]int32, []uint32) {
-	return s.k, s.n
+type dogstatsdSketchSeries struct {
+	metrics.DistributionMetadata
+	Points []sketchData
 }
 
-func (s *sketchData) BasicStats() (int64, float64, float64, float64, float64) {
-	return s.cnt, s.min, s.max, s.sum, s.avg
+// GetName returns the metric name.
+func (s *dogstatsdSketchSeries) GetName() string {
+	return s.Name
+}
+
+// WriteTo emits the buffered points to the writer's DDSketch flavor. May be
+// called multiple times on the same value; iteration always starts over.
+func (s *dogstatsdSketchSeries) WriteTo(w metrics.DistributionWriter) error {
+	return w.WriteDDSketch(s.DistributionMetadata, len(s.Points), s)
+}
+
+// GetDDSketchPoint returns the buffered sketch point at index i.
+func (s *dogstatsdSketchSeries) GetDDSketchPoint(i int) (ts, cnt int64, min, max, sum, avg float64, k []int32, n []uint32) {
+	p := s.Points[i]
+	return p.ts, p.cnt, p.min, p.max, p.sum, p.avg, p.k, p.n
 }
 
 type sketchIterator struct {
 	iteratorCommon
-	buffer metrics.SketchSeries
+	buffer dogstatsdSketchSeries
 }
 
-func newSketchIterator(payload *pb.Payload, origin origin, hostname string) (*sketchIterator, error) {
+func newSketchIterator(payload *pb.Payload, origin origin, hostname string, filterList metricname.Matcher) (*sketchIterator, error) {
 	it := &sketchIterator{
 		iteratorCommon: iteratorCommon{
-			reader:   reader.NewMetricDataReader(payload.MetricData),
-			origin:   origin,
-			hostname: hostname,
+			reader:     reader.NewMetricDataReader(payload.MetricData),
+			origin:     origin,
+			hostname:   hostname,
+			filterList: filterList,
 		},
 	}
 	return it, it.reader.Initialize()
@@ -47,16 +64,7 @@ func newSketchIterator(payload *pb.Payload, origin origin, hostname string) (*sk
 
 // MoveNext reads one entire sketch metric record from the dogstatsd payload into the internal buffer.
 func (it *sketchIterator) MoveNext() bool {
-	if it.err != nil {
-		return false
-	}
-
-	if !it.reader.HaveMoreMetrics() {
-		return false
-	}
-
-	it.err = it.reader.NextMetric()
-	if it.err != nil {
+	if !it.nextUnfilteredMetric() {
 		return false
 	}
 
@@ -92,9 +100,9 @@ func (it *sketchIterator) MoveNext() bool {
 		if cnt > 0 {
 			avg = sum / float64(cnt)
 		}
-		b.Points = append(b.Points, metrics.SketchPoint{
-			Ts: it.reader.Timestamp(),
-			Sketch: &sketchData{
+		b.Points = append(b.Points,
+			sketchData{
+				ts:  it.reader.Timestamp(),
 				k:   k,
 				n:   n,
 				cnt: int64(cnt),
@@ -102,15 +110,17 @@ func (it *sketchIterator) MoveNext() bool {
 				max: max,
 				sum: sum,
 				avg: avg,
-			},
-		})
+			})
 	}
+
+	it.stats.metrics++
+	it.stats.points += uint64(len(b.Points))
 
 	return true
 }
 
 // Current returns the internal sketch series buffer, populated by MoveNext.
-func (it *sketchIterator) Current() *metrics.SketchSeries {
+func (it *sketchIterator) Current() metrics.Distribution {
 	return &it.buffer
 }
 

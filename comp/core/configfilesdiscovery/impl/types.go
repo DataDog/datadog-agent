@@ -7,8 +7,13 @@ package configfilesdiscoveryimpl
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"path"
 	"strings"
+	"unicode"
 
+	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
@@ -32,29 +37,209 @@ type target struct {
 
 // ConfigFile is the content read from a runtime-specific config file path.
 type ConfigFile struct {
-	Path      string
-	Content   []byte
-	Truncated bool
+	Path          string
+	Content       []byte
+	Truncated     bool
+	PayloadFormat agentdiscovery.AgentDiscoveryConfigFilePayloadFormat
 }
 
-// TargetCommandline is the command line used to start the target service.
+// ConfigEnvVar is an environment variable relevant to a collected integration.
+type ConfigEnvVar struct {
+	Name  string
+	Value string
+}
+
+// ConfigEnvVarPredicate returns whether an environment variable should be read.
+type ConfigEnvVarPredicate func(name string) bool
+
+// CollectedConfig is the config data collected for one integration target.
+type CollectedConfig struct {
+	Integration string
+	Runtime     RuntimeType
+	RuntimeID   string
+	ConfigFiles []ConfigFile
+	EnvVars     []ConfigEnvVar
+}
+
+// TargetCommandline is a candidate process command line associated with the target.
 type TargetCommandline struct {
 	Args       []string
 	WorkingDir string
 }
 
-// ConfigReader is the runtime-specific config access layer used by config collectors.
+// VerifiedConfigFilePath is a cleaned absolute config file path without parent
+// traversal or control characters. Its fields are private so values can only
+// be created through VerifyConfigFilePath.
+type VerifiedConfigFilePath struct {
+	value string
+}
+
+// VerifyConfigFilePath validates and cleans path, returning a value safe to
+// pass to a runtime reader.
+func VerifyConfigFilePath(unverified string) (VerifiedConfigFilePath, error) {
+	value, err := verifyConfigFileLocation(unverified)
+	if err != nil {
+		return VerifiedConfigFilePath{}, err
+	}
+	return VerifiedConfigFilePath{value: value}, nil
+}
+
+// String returns the cleaned absolute path.
+func (p VerifiedConfigFilePath) String() string {
+	return p.value
+}
+
+// Dir returns the verified parent directory of the path.
+func (p VerifiedConfigFilePath) Dir() VerifiedConfigFilePath {
+	return VerifiedConfigFilePath{value: path.Dir(p.value)}
+}
+
+// UnverifiedConfigFilePattern is a config file search pattern that has not
+// crossed the runtime reader's path-validation boundary.
+type UnverifiedConfigFilePattern string
+
+// VerifiedConfigFilePattern is a cleaned absolute config file search pattern
+// without parent traversal or control characters. Its fields are private so
+// values can only be created through VerifyConfigFilePattern.
+type VerifiedConfigFilePattern struct {
+	value string
+}
+
+// VerifyConfigFilePattern validates and cleans pattern, returning a value safe
+// to pass to a runtime reader.
+func VerifyConfigFilePattern(unverified UnverifiedConfigFilePattern) (VerifiedConfigFilePattern, error) {
+	value, err := verifyConfigFileLocation(string(unverified))
+	if err != nil {
+		return VerifiedConfigFilePattern{}, err
+	}
+	return VerifiedConfigFilePattern{value: value}, nil
+}
+
+// String returns the cleaned absolute pattern.
+func (p VerifiedConfigFilePattern) String() string {
+	return p.value
+}
+
+// ConfigFileSearch confines a verified file pattern to a verified root
+// directory. Its fields are private so values can only be created through
+// NewConfigFileSearch.
+type ConfigFileSearch struct {
+	root    VerifiedConfigFilePath
+	pattern VerifiedConfigFilePattern
+}
+
+// NewConfigFileSearch returns a search whose pattern is confined to root.
+func NewConfigFileSearch(root VerifiedConfigFilePath, pattern VerifiedConfigFilePattern) (ConfigFileSearch, error) {
+	if !isConfigFilePathWithin(pattern.String(), root.String()) {
+		return ConfigFileSearch{}, fmt.Errorf("config file pattern %q is outside root directory %q", pattern.String(), root.String())
+	}
+	return ConfigFileSearch{root: root, pattern: pattern}, nil
+}
+
+// Root returns the verified root directory for the search.
+func (s ConfigFileSearch) Root() VerifiedConfigFilePath {
+	return s.root
+}
+
+// Pattern returns the verified pattern confined by the search.
+func (s ConfigFileSearch) Pattern() VerifiedConfigFilePattern {
+	return s.pattern
+}
+
+// Contains returns whether filePath is confined to the search root.
+func (s ConfigFileSearch) Contains(filePath VerifiedConfigFilePath) bool {
+	return isConfigFilePathWithin(filePath.String(), s.root.String())
+}
+
+// ConfigFileReadResult represents one matched path and either its bounded file
+// contents or the error that prevented the runtime reader from reading it.
+type ConfigFileReadResult struct {
+	path    VerifiedConfigFilePath
+	file    ConfigFile
+	readErr error
+}
+
+// NewConfigFileReadResult returns a successful read result for path.
+func NewConfigFileReadResult(path VerifiedConfigFilePath, file ConfigFile) ConfigFileReadResult {
+	file.Path = path.String()
+	return ConfigFileReadResult{path: path, file: file}
+}
+
+// NewConfigFileReadError returns a failed read result for path. A nil error is
+// replaced so the result cannot represent an invalid failed state.
+func NewConfigFileReadError(path VerifiedConfigFilePath, err error) ConfigFileReadResult {
+	if err == nil {
+		err = errors.New("config file read failed without an error")
+	}
+	return ConfigFileReadResult{path: path, readErr: err}
+}
+
+// Path returns the verified path associated with the result.
+func (r ConfigFileReadResult) Path() VerifiedConfigFilePath {
+	return r.path
+}
+
+// Read returns the config file or the runtime read error.
+func (r ConfigFileReadResult) Read() (ConfigFile, error) {
+	if r.readErr != nil {
+		return ConfigFile{}, r.readErr
+	}
+	return r.file, nil
+}
+
+// isConfigFilePathWithin returns whether filePath is root or one of its
+// descendants, respecting path-component boundaries.
+func isConfigFilePathWithin(filePath string, root string) bool {
+	return root == "/" || filePath == root || strings.HasPrefix(filePath, root+"/")
+}
+
+// verifyConfigFileLocation returns a cleaned absolute path or pattern after
+// rejecting inputs unsafe to pass to a container runtime.
+func verifyConfigFileLocation(value string) (string, error) {
+	if value == "" {
+		return "", errors.New("empty config file path")
+	}
+	if !path.IsAbs(value) {
+		return "", fmt.Errorf("config file path %q is not absolute", value)
+	}
+	for _, element := range strings.Split(value, "/") {
+		if element == ".." {
+			return "", fmt.Errorf("config file path %q contains parent traversal", value)
+		}
+	}
+	for _, character := range value {
+		if unicode.IsControl(character) {
+			return "", fmt.Errorf("config file path %q contains a control character", value)
+		}
+	}
+	return path.Clean(value), nil
+}
+
+// ConfigFilePathMatcher returns whether a verified config file path should be
+// included in file-discovery results.
+type ConfigFilePathMatcher func(VerifiedConfigFilePath) (bool, error)
+
+// ConfigReader is the runtime-specific config access layer managed by the scheduler.
 type ConfigReader interface {
 	Runtime() RuntimeType
-	ReadFile(context.Context, string) (ConfigFile, error)
-	ReadEnvVars(context.Context, []string) (map[string]string, error)
-	ReadCommandline(context.Context) (TargetCommandline, error)
+	ReadFile(context.Context, VerifiedConfigFilePath) (ConfigFile, error)
+	// ReadMatchingFiles reads regular files accepted by matches within search in
+	// lexical order. It returns at most maxMatches files and reports whether
+	// additional matches were omitted.
+	ReadMatchingFiles(ctx context.Context, search ConfigFileSearch, maxMatches int, matches ConfigFilePathMatcher) (results []ConfigFileReadResult, limited bool, err error)
+	ReadEnvVars(context.Context, ConfigEnvVarPredicate) (map[string]string, error)
+	ReadRuntimeCommandline(context.Context) (TargetCommandline, error)
+	ReadLiveProcessCommandlines(context.Context) []TargetCommandline
+	Close()
 }
 
 type configReaderFactory func(target) (ConfigReader, error)
 
-type configCollector interface {
-	Collect(context.Context, ConfigReader) ([]ConfigFile, error)
+// ConfigCollector reads integration-specific config data through a collector reader.
+type ConfigCollector interface {
+	// CanCollectFromProcess returns whether the collector can use the process command line for collection.
+	CanCollectFromProcess(TargetCommandline) bool
+	Collect(context.Context, ConfigReader) (CollectedConfig, error)
 }
 
 type targetResolver struct {
@@ -83,23 +268,29 @@ func (r targetResolver) Resolve(config integration.Config) (target, bool) {
 		return resolvedTarget, true
 	case "docker":
 		resolvedTarget.runtime = RuntimeDocker
-	case "kubernetes_pod":
-		resolvedTarget.runtime = RuntimeKubernetes
 		return resolvedTarget, true
+	case "kubernetes_pod":
+		return target{}, false
 	}
 
-	// container:// IDs need workloadmeta to distinguish Kubernetes-owned
-	// containers from standalone Docker containers and unsupported runtimes.
+	if runtime != "container" && runtime != "containerd" {
+		return target{}, false
+	}
+
+	// Concrete container IDs need workloadmeta to distinguish Kubernetes-owned
+	// containerd containers from standalone Docker containers and unsupported
+	// runtimes. Pod-level IDs are intentionally skipped until there is a clear
+	// single-container selection rule.
 	if r.store == nil {
-		return resolvedTarget, resolvedTarget.runtime == RuntimeDocker
+		return target{}, false
 	}
 
 	// AD schedules container services for Kubernetes pods as container://<id>;
-	// prefer the Kubernetes reader when workloadmeta links the container to a pod.
+	// use the Kubernetes reader only for containerd-backed pod containers.
 	pod, err := r.store.GetKubernetesPodForContainer(id)
 	if err != nil || pod == nil {
 		if runtime != "container" {
-			return resolvedTarget, resolvedTarget.runtime == RuntimeDocker
+			return target{}, false
 		}
 
 		// Standalone container:// services only map to the Docker reader today.
@@ -111,6 +302,13 @@ func (r targetResolver) Resolve(config integration.Config) (target, bool) {
 
 		resolvedTarget.runtime = RuntimeDocker
 		return resolvedTarget, true
+	}
+
+	if runtime == "container" {
+		container, err := r.store.GetContainer(id)
+		if err != nil || container == nil || container.Runtime != workloadmeta.ContainerRuntimeContainerd {
+			return target{}, false
+		}
 	}
 
 	resolvedTarget.runtime = RuntimeKubernetes

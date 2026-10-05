@@ -322,6 +322,79 @@ func TestAgentTaskFlareStreamLogsArgs(t *testing.T) {
 	})
 }
 
+func TestAgentTaskFlareSourceAndTags(t *testing.T) {
+	// Do NOT use setupMockBuilder here: the mock builder's Save() returns an error, which would
+	// cause CreateWithArgs to fail before ever reaching Send. We use the real fbFactory so that
+	// a real (empty) flare archive is created, and intercept sendToFunc to capture the source.
+	testCfg := map[string]interface{}{
+		"site": "localhost", // Prevent accidental external sends
+	}
+
+	scenarios := []struct {
+		name           string
+		task           string
+		expFlareSource string
+		expTags        []string
+	}{
+		{
+			name:           "source and tags provided",
+			task:           `{"args":{"case_id":"1","user_handle":"u@d.com","source":"automation","tags":"[\"env:prod\",\"team:platform\"]"},"task_type":"flare","uuid":"a_uuid"}`,
+			expFlareSource: "automation",
+			expTags:        []string{"env:prod", "team:platform"},
+		},
+		{
+			name:           "only source provided",
+			task:           `{"args":{"case_id":"1","user_handle":"u@d.com","source":"support-bot"},"task_type":"flare","uuid":"a_uuid"}`,
+			expFlareSource: "support-bot",
+			expTags:        nil,
+		},
+		{
+			name:           "only tags provided",
+			task:           `{"args":{"case_id":"1","user_handle":"u@d.com","tags":"[\"k:v\"]"},"task_type":"flare","uuid":"a_uuid"}`,
+			expFlareSource: "",
+			expTags:        []string{"k:v"},
+		},
+		{
+			name:           "neither source nor tags provided",
+			task:           `{"args":{"case_id":"1","user_handle":"u@d.com"},"task_type":"flare","uuid":"a_uuid"}`,
+			expFlareSource: "",
+			expTags:        nil,
+		},
+		{
+			name:           "malformed tags JSON - should be ignored without error",
+			task:           `{"args":{"case_id":"1","user_handle":"u@d.com","tags":"not-json"},"task_type":"flare","uuid":"a_uuid"}`,
+			expFlareSource: "",
+			expTags:        nil,
+		},
+	}
+
+	origSendTo := sendToFunc
+	t.Cleanup(func() { sendToFunc = origSendTo })
+
+	for _, s := range scenarios {
+		t.Run(s.name, func(t *testing.T) {
+			flareComp := getFlare(t, testCfg)
+			// Nil out providers so no side-effectful work runs inside the flare archive.
+			flareComp.providers = nil
+
+			var capturedSource helpers.FlareSource
+			sendToFunc = func(_ model.Reader, _, _, _, _, _ string, src helpers.FlareSource) (string, error) {
+				capturedSource = src
+				return "ok", nil
+			}
+
+			atc, err := rcclienttypes.ParseConfigAgentTask([]byte(s.task), state.Metadata{})
+			require.NoError(t, err)
+
+			_, taskErr := flareComp.onAgentTaskEvent(rcclienttypes.TaskFlare, atc)
+			require.NoError(t, taskErr)
+
+			expSource := helpers.NewRemoteConfigFlareSource("a_uuid").WithFlareSourceTags(s.expFlareSource, s.expTags)
+			assert.Equal(t, expSource, capturedSource)
+		})
+	}
+}
+
 func TestSendRemovesArchiveAfterSuccess(t *testing.T) {
 	tmpDir := t.TempDir()
 	archivePath := filepath.Join(tmpDir, "flare.zip")

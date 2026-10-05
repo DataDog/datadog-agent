@@ -9,6 +9,7 @@ package kubeapiserver
 
 import (
 	"context"
+	"maps"
 	"testing"
 	"time"
 
@@ -122,6 +123,50 @@ func TestShouldHavePodStore(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			cfg := config.NewMockWithOverrides(t, test.cfg)
 			assert.Equal(t, test.expected, shouldHavePodStore(cfg))
+		})
+	}
+}
+
+func TestShouldHaveKueueMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      map[string]interface{}
+		expected bool
+	}{
+		{
+			name:     "kueue disabled",
+			cfg:      map[string]interface{}{},
+			expected: false,
+		},
+		{
+			name: "kueue enabled",
+			cfg: map[string]interface{}{
+				"cluster_agent.kueue.enabled": true,
+			},
+			expected: true,
+		},
+		{
+			name: "kubernetes tags collection does not enable kueue collection",
+			cfg: map[string]interface{}{
+				"cluster_agent.collect_kubernetes_tags": true,
+				"cluster_agent.kueue.enabled":           false,
+			},
+			expected: false,
+		},
+		{
+			name: "metadata collection disabled does not disable kueue collection",
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled": false,
+				"cluster_agent.kueue.enabled":                    true,
+			},
+			expected: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := config.NewMockWithOverrides(t, test.cfg)
+			assert.Equal(t, test.expected, shouldHaveKueueMetadata(cfg))
 		})
 	}
 }
@@ -490,6 +535,71 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets apps/statefulsetsy",
 			},
 		},
+		{
+			name: "resource served only on a non-preferred group version is discovered",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "datadoghq.com/v2alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogagents",
+							Kind:       "DatadogAgent",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "datadoghq.com/v1alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogslos",
+							Kind:       "DatadogSLO",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{
+				{Resource: "datadogagents", Group: "datadoghq.com", Version: "v2alpha1"},
+				{Resource: "datadogslos", Group: "datadoghq.com", Version: "v1alpha1"},
+			},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "datadoghq.com/datadogagents datadoghq.com/datadogslos",
+			},
+		},
+		{
+			name: "resource served on both preferred and non-preferred versions resolves to preferred",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "datadoghq.com/v2alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogagents",
+							Kind:       "DatadogAgent",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "datadoghq.com/v1alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogagents",
+							Kind:       "DatadogAgent",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{
+				{Resource: "datadogagents", Group: "datadoghq.com", Version: "v2alpha1"},
+			},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "datadoghq.com/datadogagents",
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -522,7 +632,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "",
 			},
-			expectedResources: []string{"//nodes"},
+			expectedResources: nil,
 		},
 		{
 			name: "duplicate versions for the same group/resource should not be allowed",
@@ -530,7 +640,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsets apps//deployments apps/v1/statefulsets apps/v1/daemonsets",
 			},
-			expectedResources: []string{"//nodes", "apps/v1/daemonsets"},
+			expectedResources: []string{"apps/v1/daemonsets"},
 		},
 		{
 			name: "with generic resource tagging based on annotations and/or labels configured",
@@ -542,7 +652,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"kubernetes_resources_labels_as_tags":              `{"deployments.apps": {"x-team": "team"}, "custom.example.com": {"x-team": "team"}}`,
 				"kubernetes_resources_annotations_as_tags":         `{"namespaces": {"x-team": "team"}}`,
 			},
-			expectedResources: []string{"//nodes", "//namespaces", "example.com//custom"},
+			expectedResources: []string{"//namespaces", "example.com//custom"},
 		},
 		{
 			name: "generic resources tagging should be exclude invalid resources",
@@ -554,7 +664,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"kubernetes_resources_labels_as_tags":              `{"-invalid": {"x-team": "team"}, "invalid.exa_mple.com": {"x-team": "team"}}`,
 				"kubernetes_resources_annotations_as_tags":         `{"in valid.example.com": {"x-team": "team"}, "invalid.example.com-": {"x-team": "team"}}`,
 			},
-			expectedResources: []string{"//nodes"},
+			expectedResources: nil,
 		},
 		{
 			name: "deployments should be excluded from metadata collection",
@@ -564,7 +674,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets apps/deployments",
 			},
-			expectedResources: []string{"apps//daemonsets", "//nodes"},
+			expectedResources: []string{"apps//daemonsets"},
 		},
 		{
 			name: "pods should be excluded from metadata collection",
@@ -573,7 +683,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets pods",
 			},
-			expectedResources: []string{"apps//daemonsets", "//nodes"},
+			expectedResources: []string{"apps//daemonsets"},
 		},
 		{
 			name: "resources explicitly requested",
@@ -581,7 +691,27 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsets example.com/custom",
 			},
-			expectedResources: []string{"//nodes", "apps//statefulsets", "example.com//custom"},
+			expectedResources: []string{"apps//statefulsets", "example.com//custom"},
+		},
+		{
+			name: "non-core resources whose name merely ends in nodes should not be excluded",
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "storage.k8s.io/csinodes metrics.k8s.io/nodes",
+			},
+			expectedResources: []string{"storage.k8s.io//csinodes", "metrics.k8s.io//nodes"},
+		},
+		{
+			name: "core nodes are excluded from metadata collection even with node labels/annotations as tags configured",
+			cfg: map[string]interface{}{
+				"kubernetes_node_labels_as_tags": map[string]string{
+					"label1": "tag1",
+				},
+				"kubernetes_node_annotations_as_tags": map[string]string{
+					"annotation1": "tag1",
+				},
+			},
+			expectedResources: nil,
 		},
 		{
 			name: "namespaces needed for namespace labels as tags",
@@ -590,7 +720,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 					"label1": "tag1",
 				},
 			},
-			expectedResources: []string{"//nodes", "//namespaces"},
+			expectedResources: []string{"//namespaces"},
 		},
 		{
 			name: "namespaces needed for namespace annotations as tags",
@@ -599,7 +729,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 					"annotation1": "tag1",
 				},
 			},
-			expectedResources: []string{"//nodes", "//namespaces"},
+			expectedResources: []string{"//namespaces"},
 		},
 		{
 			name: "namespaces needed for namespace labels and annotations as tags",
@@ -607,7 +737,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"kubernetes_namespace_labels_as_tags":      `{"label1": "tag1"}`,
 				"kubernetes_namespace_annotations_as_tags": `{"annotation1": "tag2"}`,
 			},
-			expectedResources: []string{"//nodes", "//namespaces"},
+			expectedResources: []string{"//namespaces"},
 		},
 		{
 			name: "resources explicitly requested and also needed for namespace labels as tags",
@@ -616,7 +746,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.resources": "namespaces apps/deployments",
 				"kubernetes_namespace_labels_as_tags":              `{"label1": "tag1"}`,
 			},
-			expectedResources: []string{"//nodes", "//namespaces"}, // namespaces are not duplicated
+			expectedResources: []string{"//namespaces"}, // namespaces are not duplicated
 		},
 		{
 			name: "resources explicitly requested with apm enabled and also needed for namespace labels as tags",
@@ -626,20 +756,47 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.resources":                       "namespaces apps/deployments",
 				"kubernetes_namespace_labels_as_tagkubernetes_namespace_labels_as_tagss": `{"label1": "tag1"}`,
 			},
-			expectedResources: []string{"//nodes", "//namespaces"}, // namespaces are not duplicated
+			expectedResources: []string{"//namespaces"}, // namespaces are not duplicated
 		},
 		{
 			name: "apm enabled enables namespace collection",
 			cfg: map[string]interface{}{
 				"apm_config.instrumentation.enabled": true,
 			},
-			expectedResources: []string{"//nodes", "//namespaces"},
+			expectedResources: []string{"//namespaces"},
+		},
+		{
+			name: "apm on demand enables namespace collection",
+			cfg: map[string]interface{}{
+				"apm_config.instrumentation.enabled":   false,
+				"apm_config.instrumentation.on_demand": true,
+			},
+			expectedResources: []string{"//namespaces"},
+		},
+		{
+			name: "apm enabled and on demand do not duplicate namespaces",
+			cfg: map[string]interface{}{
+				"apm_config.instrumentation.enabled":   true,
+				"apm_config.instrumentation.on_demand": true,
+			},
+			expectedResources: []string{"//namespaces"},
+		},
+		{
+			name: "apm disabled and not on demand disables namespace collection",
+			cfg: map[string]interface{}{
+				"apm_config.instrumentation.enabled":   false,
+				"apm_config.instrumentation.on_demand": false,
+			},
+			expectedResources: nil,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cfg := config.NewMockWithOverrides(t, test.cfg)
+			// on_demand defaults to true, which would add namespaces to every case.
+			overrides := map[string]interface{}{"apm_config.instrumentation.on_demand": false}
+			maps.Copy(overrides, test.cfg)
+			cfg := config.NewMockWithOverrides(t, overrides)
 			assert.ElementsMatch(t, test.expectedResources, resourcesWithMetadataCollectionEnabled(cfg))
 		})
 	}

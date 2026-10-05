@@ -34,6 +34,7 @@ type minimalTranslator struct {
 	attributesTranslator *attributes.Translator
 	cfg                  translatorConfig
 	mapper               mapper
+	unitMapper           *attributes.UnitMapper
 }
 
 // NewMinimalTranslator creates a new minimal translator for OTLP metrics.
@@ -71,6 +72,7 @@ func NewMinimalTranslator(logger *zap.Logger, attributesTranslator *attributes.T
 		attributesTranslator: attributesTranslator,
 		cfg:                  cfg,
 		mapper:               newLossLessMapper(cfg, logger),
+		unitMapper:           attributes.NewUnitMapper(),
 	}, nil
 }
 
@@ -88,7 +90,7 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 
 		var host string
 		if src.Kind == source.HostnameKind {
-			host = src.Identifier
+			host = src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			// Don't consume the host yet, first check if we have any nonAPM metrics.
 		}
 
@@ -129,7 +131,8 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				}
 				if _, ok := runtimeMetricsMappings[md.Name()]; ok && t.cfg.withRuntimeRemapping {
 					metadata.Languages = extractLanguageTag(md.Name(), metadata.Languages)
-				} else {
+				}
+				if !isRuntimeMetric(md.Name()) {
 					seenNonAPMMetrics = true
 				}
 				err := t.mapToDDFormat(ctx, md, consumer, additionalTags, host, scopeName, rattrs)
@@ -148,9 +151,23 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 					c.ConsumeHost(host)
 				}
 			case source.AWSECSFargateKind:
-				if c, ok := consumer.(TagsConsumer); ok {
-					c.ConsumeTag(src.Tag())
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("fargate", []string{src.Tag()})
 				}
+			case source.AzureContainerAppsKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(src.SourceIdentifier.Dimensions))
+				}
+			case source.AzureAppServiceKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azureappservices", tagsFromDimensions(src.SourceIdentifier.Dimensions))
+				}
+			case source.AzureFunctionsKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azurefunctions", tagsFromDimensions(src.SourceIdentifier.Dimensions))
+				}
+			case source.GCPCloudRunKind, source.GCPCloudFunctionsKind:
+				consumeGCPServerlessSource(consumer, src)
 			}
 		}
 	}
@@ -188,6 +205,11 @@ func (t *minimalTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric
 		originProduct:       t.cfg.originProduct,
 		originSubProduct:    OriginSubProductOTLP,
 		originProductDetail: originProductDetailFromScopeName(scopeName),
+	}
+	if t.cfg.withUnits {
+		if unit, ok := t.unitMapper.Map(md.Unit()); ok {
+			baseDims.unit = unit
+		}
 	}
 	if isUnsupportedMetric(md) {
 		// Skip unsupported metrics (cumulative monotonic sums, cumulative histograms)

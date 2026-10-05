@@ -1,4 +1,6 @@
 network_path:
+  remote_config:
+    enabled: true
   connections_monitoring:
     enabled: true
   collector:
@@ -8,5 +10,3 @@ network_path:
     filters:
       - match_domain: '*'
         type: exclude
-      - match_domain: 'httpbin.dynamic-netpath.test'
-        type: include

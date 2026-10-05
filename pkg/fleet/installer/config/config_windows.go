@@ -54,7 +54,7 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 		return errors.New("there is already an experiment in progress")
 	}
 	// Clear and recreate the experiment/backup directory
-	err = os.RemoveAll(d.ExperimentPath)
+	err = paths.RemoveAll(ctx, d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error removing experiment directory: %w", err)
 	}
@@ -79,7 +79,7 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 }
 
 // PromoteExperiment promotes the experiment to the stable.
-func (d *Directories) PromoteExperiment(_ context.Context) error {
+func (d *Directories) PromoteExperiment(ctx context.Context) error {
 	_, err := os.Stat(d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error checking for experiment directory: %w", err)
@@ -92,7 +92,7 @@ func (d *Directories) PromoteExperiment(_ context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error renaming deployment ID file: %w", err)
 	}
-	err = os.RemoveAll(d.ExperimentPath)
+	err = paths.RemoveAll(ctx, d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error removing experiment directory: %w", err)
 	}
@@ -111,9 +111,14 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 	// Skip copying deployment ID during rollback - we want to preserve stable's deployment ID
 	err = backupOrRestoreDirectory(ctx, d.ExperimentPath, d.StablePath)
 	if err != nil {
-		return fmt.Errorf("error backing up stable directory: %w", err)
+		return fmt.Errorf("error restoring stable directory: %w", err)
 	}
-	err = os.RemoveAll(d.ExperimentPath)
+	// robocopy does not carry ACLs, so re-grant Everyone read on application_monitoring.yaml
+	// (the only world-readable config file) after restoring the stable directory.
+	if err := grantApplicationMonitoringReadAccess(d.StablePath); err != nil {
+		return fmt.Errorf("error applying application_monitoring.yaml permissions: %w", err)
+	}
+	err = paths.RemoveAll(ctx, d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error removing experiment directory: %w", err)
 	}
@@ -179,8 +184,32 @@ func secureCreateTargetDirectoryWithSourcePermissions(sourcePath, targetPath str
 	return paths.SecureCreateDirectory(targetPath, sddl)
 }
 
-// setFileOwnershipAndPermissions is a no-op on Windows as file ownership and permissions
-// are handled differently through ACLs, not POSIX ownership and modes.
-func setFileOwnershipAndPermissions(_ context.Context, _ *os.Root, _ string, _ *configFileSpec) error {
-	return nil
+// setFileOwnershipAndPermissions sets ACLs for a config file based on its configFileSpec.
+//
+// Windows has no POSIX ownership; ACLs are inherited from C:\ProgramData\Datadog, which is
+// restricted to Administrators and ddagentuser. For files Linux makes world-readable
+// (mode 0644 — only application_monitoring.yaml), we grant Everyone read so non-admin
+// identities (e.g. IIS App Pool) can read fleet config. Restricted files (mode 0640) keep the
+// inherited admin/ddagentuser-only ACL — we only ever grant, never modify other files' ACLs.
+func setFileOwnershipAndPermissions(_ context.Context, root *os.Root, path string, spec *configFileSpec) error {
+	if spec.mode&0o004 == 0 {
+		return nil
+	}
+	return paths.SetFileReadableByEveryone(filepath.Join(root.Name(), path))
+}
+
+// grantApplicationMonitoringReadAccess re-grants Everyone read on application_monitoring.yaml
+// under stablePath, if it exists. application_monitoring.yaml is the only world-readable config
+// file, and robocopy (used to restore the stable directory during a rollback) does not carry
+// ACLs, so the ACE must be reapplied afterward.
+func grantApplicationMonitoringReadAccess(stablePath string) error {
+	appMonitoringPath := filepath.Join(stablePath, "application_monitoring.yaml")
+	_, err := os.Stat(appMonitoringPath)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("error checking application_monitoring.yaml: %w", err)
+	}
+	return paths.SetFileReadableByEveryone(appMonitoringPath)
 }

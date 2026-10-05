@@ -6,17 +6,15 @@
 package processor
 
 import (
-	"bytes"
 	"context"
-	"regexp"
 	"slices"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -89,7 +87,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 }
 
 // onLogsFailoverSettingChanged is called when any config value changes
-func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64) {
+func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64, _ pkgconfigmodel.Source) {
 	// Only update if the changed setting affects failover configuration
 	var MRFConfigFields = []string{configMRFFailoverLogs, configMRFServiceAllowlist}
 	if slices.Contains(MRFConfigFields, setting) {
@@ -268,12 +266,10 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 			}
 			msg.RecordProcessingRule(rule.Type, rule.Name)
 		case config.MaskSequences:
-			if isMatchingLiteralPrefix(rule.Regex, content) {
-				originalContent := content
-				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
-				if !bytes.Equal(originalContent, content) {
-					msg.RecordProcessingRule(rule.Type, rule.Name)
-				}
+			var matched bool
+			content, matched = config.ApplyMaskSequence(content, rule)
+			if matched {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
 			}
 		case config.ExcludeTruncated:
 			if msg.IsTruncated {
@@ -295,17 +291,6 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 
 	msg.SetContent(content)
 	return true // we want to send this message
-}
-
-// isMatchingLiteralPrefix uses a potential literal prefix from the given regex
-// to indicate if the contant even has a chance of matching the regex
-func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
-	prefix, _ := r.LiteralPrefix()
-	if prefix == "" {
-		return true
-	}
-
-	return bytes.Contains(content, []byte(prefix))
 }
 
 // GetHostname returns the hostname to applied the given log message

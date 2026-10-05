@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-Trap { Write-Host "Error in install.ps1: $_" }
+Trap { Write-Host "Error in install.ps1: $_"; break }
 
 function Install-Service {
   param(
@@ -12,25 +12,30 @@ function Install-Service {
   } else {
       New-Service -Name $SvcName -StartupType Manual -BinaryPathName $BinPath
   }
-  $eventSourceData = new-object System.Diagnostics.EventSourceCreationData("$SvcName", "Application")  
+  $eventSourceData = new-object System.Diagnostics.EventSourceCreationData("$SvcName", "Application")
   $eventSourceData.CategoryResourceFile = $BinPath
   $eventSourceData.MessageResourceFile = $BinPath
 
   If (![System.Diagnostics.EventLog]::SourceExists($eventSourceData.Source))
-  {      
-  [System.Diagnostics.EventLog]::CreateEventSource($eventSourceData)  
-  } 
+  {
+  [System.Diagnostics.EventLog]::CreateEventSource($eventSourceData)
+  }
 }
 
 if ("$env:WITH_JMX" -ne "false") {
+    . ./install-utils.ps1
     $JDK_UPSTREAM = "https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.25%2B9"
     $JDK_FILENAME = "OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip"
     $JDK_DIR = "jdk-11.0.25+9-jre"
     $JDK_SHA256 = "052f09448d5b8d9afb7a8e5049d40d7fafa8f5884afe6043bb2359787fd41e84"
 
     $JDK_DOWNLOAD_URL = if ($env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL) {"${env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/openjdk"} else {$JDK_UPSTREAM}
-    Invoke-WebRequest -OutFile jre.zip "${JDK_DOWNLOAD_URL}/${JDK_FILENAME}"
-    (Get-FileHash -Algorithm SHA256 jre.zip).Hash -eq "$JDK_SHA256"
+    Invoke-WebRequestWithRetry -OutFile jre.zip "${JDK_DOWNLOAD_URL}/${JDK_FILENAME}"
+    if ((Get-FileHash -Algorithm SHA256 jre.zip).Hash -eq "$JDK_SHA256") {
+        Write-Host "JDK checksum match"
+    } else {
+        Write-Error "JDK checksum mismatch"
+    }
     Expand-Archive -Path jre.zip -DestinationPath C:/
     Remove-Item jre.zip
     Move-Item "C:/$JDK_DIR/" C:/java

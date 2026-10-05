@@ -6,6 +6,7 @@ exporters:
             dd-api-key: test_api_key_123
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
             x-custom-routing: some-value
             x-datadog-profiling-metadata: workspace:peterg17,env:staging
 extensions:

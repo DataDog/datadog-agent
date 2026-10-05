@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build trivy || (windows && wmi)
+//go:build trivy || windows
 
 package sbom
 
@@ -41,7 +41,9 @@ func (br *batchRefresher) tick() <-chan time.Time {
 
 // step performs a single refresh step
 func (br *batchRefresher) step() {
+	running := runningImages(br.wmStore)
+
 	for _, img := range br.wmStore.ListImages() {
-		br.proc.processImageSBOM(img)
+		br.proc.processImageSBOM(img, running)
 	}
 }

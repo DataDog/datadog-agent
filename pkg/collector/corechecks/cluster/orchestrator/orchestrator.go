@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -35,6 +35,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -107,12 +108,13 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, c
 		cfg:         cfg,
 		stopCh:      make(chan struct{}),
 		groupID:     atomic.NewInt32(rand.Int31()),
-		isCLCRunner: pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
+		isCLCRunner: helper.IsCLCRunner(pkgconfigsetup.Datadog()),
 		agentVersion: &model.AgentVersion{
 			Major:  agentVersion.Major,
 			Minor:  agentVersion.Minor,
 			Patch:  agentVersion.Patch,
 			Pre:    agentVersion.Pre,
+			Meta:   agentVersion.Meta,
 			Commit: agentVersion.Commit,
 		},
 	}

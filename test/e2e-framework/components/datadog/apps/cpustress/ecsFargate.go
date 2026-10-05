@@ -30,7 +30,7 @@ func FargateAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, apiK
 
 	stressContainer := &ecs.TaskDefinitionContainerDefinitionArgs{
 		Name:  pulumi.String("stress-ng"),
-		Image: pulumi.String("ghcr.io/datadog/apps-stress-ng:" + apps.Version),
+		Image: pulumi.String(apps.Image(&e, "apps-stress-ng")),
 		DockerLabels: pulumi.StringMap{
 			"com.datadoghq.ad.tags": pulumi.String("[\"ecs_launch_type:fargate\"]"),
 		},
@@ -39,7 +39,7 @@ func FargateAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, apiK
 			pulumi.String("--cpu-load=15"),
 		},
 		Cpu:    pulumi.IntPtr(200),
-		Memory: pulumi.IntPtr(64),
+		Memory: pulumi.IntPtr(128),
 	}
 
 	stressTaskDef, err := ecsClient.FargateTaskDefinitionWithAgent(e, "stress-ng-fg", pulumi.String("stress-ng-fg"), 1024, 2048,

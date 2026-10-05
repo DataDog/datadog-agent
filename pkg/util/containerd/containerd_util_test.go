@@ -12,13 +12,15 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	v1 "github.com/containerd/cgroups/v3/cgroup1/stats"
-	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
-	"github.com/containerd/containerd/cio"
-	"github.com/containerd/containerd/containers"
-	"github.com/containerd/containerd/oci"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/containers"
+	"github.com/containerd/containerd/v2/pkg/cio"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
+	"github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/containerd/typeurl/v2"
 	prototypes "github.com/gogo/protobuf/types"
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -341,4 +343,23 @@ func makeCtn(value v1.Metrics, typeURL string, taskMetricsError error) container
 		},
 	}
 	return ctn
+}
+
+// TestCleanupContextOutlivesCaller checks that the containerd namespace
+// survives and the caller's cancellation does not.
+func TestCleanupContextOutlivesCaller(t *testing.T) {
+	ctx, cancel := context.WithCancel(namespaces.WithNamespace(context.Background(), "k8s.io"))
+	cancel()
+
+	releaseCtx, releaseCancel := cleanupContext(ctx)
+	defer releaseCancel()
+
+	require.NoError(t, releaseCtx.Err())
+	ns, ok := namespaces.Namespace(releaseCtx)
+	require.True(t, ok)
+	require.Equal(t, "k8s.io", ns)
+
+	deadline, ok := releaseCtx.Deadline()
+	require.True(t, ok)
+	require.WithinDuration(t, time.Now().Add(cleanupTimeout), deadline, time.Minute)
 }

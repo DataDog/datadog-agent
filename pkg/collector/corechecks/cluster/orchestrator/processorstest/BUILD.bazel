@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "processorstest",
+    srcs = [
+        "context.go",
+        "fake_tagger.go",
+        "resource.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/origindetection",
+        "//comp/core/tagger/types",
+        "//pkg/orchestrator/config",
+        "//pkg/orchestrator/model",
+        "//pkg/tagger/types",
+        "//pkg/tagset",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

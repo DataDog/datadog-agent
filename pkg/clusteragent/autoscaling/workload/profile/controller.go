@@ -22,12 +22,13 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	controllerID autoscaling.SenderID = "dpap-c"
+	controllerID autoscalingstore.SenderID = "dpap-c"
 
 	maxRetry = 1
 )
@@ -41,7 +42,7 @@ var (
 )
 
 type (
-	profileStore = autoscaling.Store[model.PodAutoscalerProfileInternal]
+	profileStore = autoscalingstore.Store[model.PodAutoscalerProfileInternal]
 )
 
 // Controller watches DatadogPodAutoscalerClusterProfile CRDs, validates them, and
@@ -131,31 +132,34 @@ func (c *Controller) processProfile(ctx context.Context, name string) (autoscali
 	// If the object is present in Kubernetes, we will update our local version
 	// Otherwise, we clear it from our local store
 	if profile != nil {
-		pi, found, storeUnlock := c.store.LockRead(name, true)
+		item, found := c.store.Get(name)
+		defer item.Release()
 		if found {
+			pi := item.Value()
 			err := pi.UpdateFromProfile(profile)
 			if err != nil {
-				storeUnlock()
 				return autoscaling.Requeue, err
 			}
-			c.store.UnlockSet(name, pi, c.ID)
+			item.Upsert(pi, c.ID)
 		} else {
 			pi, err := model.NewPodAutoscalerProfileInternal(profile)
 			if err != nil {
-				storeUnlock()
 				return autoscaling.Requeue, err
 			}
-			c.store.UnlockSet(name, pi, c.ID)
+			item.Upsert(pi, c.ID)
 		}
 	} else {
-		c.store.Delete(name, c.ID)
+		// Delete on a missing key releases the lock without notifying, so no found check is needed.
+		item, _ := c.store.Get(name)
+		item.Delete(c.ID)
 	}
 
 	return autoscaling.NoRequeue, nil
 }
 
 func (c *Controller) syncProfile(ctx context.Context, name string, profile *datadoghq.DatadogPodAutoscalerClusterProfile) (autoscaling.ProcessResult, error) {
-	profileInternal, profileInternalfound, storeUnlock := c.store.LockRead(name, true)
+	item, profileInternalfound := c.store.Get(name)
+	defer item.Release()
 
 	// Object is missing from our store
 	if !profileInternalfound {
@@ -164,29 +168,28 @@ func (c *Controller) syncProfile(ctx context.Context, name string, profile *data
 			log.Debugf("Creating internal PodAutoscalerClusterProfile: %s from Kubernetes object", name)
 			profileInternal, err := model.NewPodAutoscalerProfileInternal(profile)
 			if err != nil {
-				storeUnlock()
 				return autoscaling.Requeue, err
 			}
 
-			c.store.UnlockSet(name, profileInternal, c.ID)
+			item.Upsert(profileInternal, c.ID)
 			return autoscaling.Requeue, nil
 		}
 
 		// If podAutoscaler == nil, both objects are nil, nothing to do
 		log.Debugf("Reconciling object: %s but object is not present in Kubernetes nor in internal store, nothing to do", name)
-		storeUnlock()
 		return autoscaling.NoRequeue, nil
 	}
 
 	// Object is not present in Kubernetes, we delete it
 	if profile == nil {
-		c.store.UnlockDelete(name, c.ID)
+		item.Delete(c.ID)
 		return autoscaling.NoRequeue, nil
 	}
 
 	// Object is present in both our store and Kubernetes, we need to sync them
+	profileInternal := item.Value()
 	err := profileInternal.UpdateFromProfile(profile)
-	return autoscaling.NoRequeue, c.updateAutoscalerStatusAndUnlock(ctx, name, err, profileInternal, profile)
+	return autoscaling.NoRequeue, c.updateAutoscalerStatusAndUpsert(ctx, item, err, profileInternal, profile)
 }
 
 func (c *Controller) updateProfileStatus(ctx context.Context, profileInternal model.PodAutoscalerProfileInternal, profile *datadoghq.DatadogPodAutoscalerClusterProfile) error {
@@ -216,7 +219,7 @@ func (c *Controller) updateProfileStatus(ctx context.Context, profileInternal mo
 	return nil
 }
 
-func (c *Controller) updateAutoscalerStatusAndUnlock(ctx context.Context, name string, err error, profileInternal model.PodAutoscalerProfileInternal, profile *datadoghq.DatadogPodAutoscalerClusterProfile) error {
+func (c *Controller) updateAutoscalerStatusAndUpsert(ctx context.Context, item *autoscalingstore.LockedItem[model.PodAutoscalerProfileInternal], err error, profileInternal model.PodAutoscalerProfileInternal, profile *datadoghq.DatadogPodAutoscalerClusterProfile) error {
 	// Update status based on latest state
 	statusErr := c.updateProfileStatus(ctx, profileInternal, profile)
 	if statusErr != nil {
@@ -228,6 +231,6 @@ func (c *Controller) updateAutoscalerStatusAndUnlock(ctx context.Context, name s
 		}
 	}
 
-	c.store.UnlockSet(name, profileInternal, c.ID)
+	item.Upsert(profileInternal, c.ID)
 	return err
 }

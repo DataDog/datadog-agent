@@ -29,8 +29,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	guidef "github.com/DataDog/datadog-agent/comp/core/gui/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
@@ -38,6 +40,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
+
+// intentTokenTTL bounds how long a single-use intent token stays valid. Intent
+// tokens are handed to the OS URL-opener as part of a query string and can end
+// up exposed in a child process's argv (e.g. /proc/<pid>/cmdline); a short TTL
+// limits how long that exposure is exploitable.
+const intentTokenTTL = 30 * time.Second
 
 type gui struct {
 	logger log.Component
@@ -47,8 +55,10 @@ type gui struct {
 	router   *http.ServeMux
 
 	auth         authenticator
-	intentTokens map[string]bool
+	intentTokens map[string]time.Time // token -> expiration time
 	intentMu     sync.Mutex
+
+	sysprobeConfig sysprobeconfig.Component
 
 	// To compute uptime
 	startTimestamp int64
@@ -68,12 +78,14 @@ type Payload struct {
 type Requires struct {
 	compdef.In
 
-	Log      log.Component
-	Config   config.Component
-	Flare    flare.Component
-	Status   status.Component
-	Lc       compdef.Lifecycle
-	Hostname hostnameinterface.Component
+	Log            log.Component
+	Config         config.Component
+	Flare          flare.Component
+	Status         status.Component
+	Lc             compdef.Lifecycle
+	Hostname       hostnameinterface.Component
+	Ipc            ipc.Component
+	SysprobeConfig sysprobeconfig.Component
 }
 
 // Provides defines the output of the gui component.
@@ -104,9 +116,10 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	g := gui{
-		address:      net.JoinHostPort(guiHost, guiPort),
-		logger:       deps.Log,
-		intentTokens: make(map[string]bool),
+		address:        net.JoinHostPort(guiHost, guiPort),
+		logger:         deps.Log,
+		intentTokens:   make(map[string]time.Time),
+		sysprobeConfig: deps.SysprobeConfig,
 	}
 
 	publicRouter := http.NewServeMux()
@@ -120,16 +133,17 @@ func NewComponent(deps Requires) Provides {
 
 	sessionExpiration := deps.Config.GetDuration("GUI_session_expiration")
 	g.auth = newAuthenticator(authToken, sessionExpiration)
+	socketPath := deps.SysprobeConfig.GetString("system_probe_config.sysprobe_socket")
 
 	// register the public routes
-	publicRouter.HandleFunc("GET /{$}", renderIndexPage)
+	publicRouter.HandleFunc("GET /{$}", g.renderIndexPage)
 	publicRouter.HandleFunc("GET /auth", g.getAccessToken)
 	// Mount our filesystem at the view/{path} route
 	publicRouter.Handle("/view/", http.StripPrefix("/view/", http.HandlerFunc(serveAssets)))
 
 	// Set up handlers for the API, guarded by auth middleware
 	agentMux := http.NewServeMux()
-	agentHandler(agentMux, deps.Flare, deps.Status, deps.Config, deps.Hostname, g.startTimestamp)
+	agentHandler(agentMux, deps.Flare, deps.Status, deps.Config, deps.Hostname, g.startTimestamp, deps.Ipc.GetAuthToken, socketPath)
 
 	checkMux := http.NewServeMux()
 	checkHandler(checkMux)
@@ -187,11 +201,22 @@ func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
 	token := base64.RawURLEncoding.EncodeToString(key)
 	g.intentMu.Lock()
 	defer g.intentMu.Unlock()
-	g.intentTokens[token] = true
+	g.purgeExpiredIntentTokensLocked()
+	g.intentTokens[token] = time.Now().Add(intentTokenTTL)
 	w.Write([]byte(token))
 }
 
-func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
+// purgeExpiredIntentTokensLocked removes expired intent tokens. Callers must hold intentMu.
+func (g *gui) purgeExpiredIntentTokensLocked() {
+	now := time.Now()
+	for token, expiresAt := range g.intentTokens {
+		if now.After(expiresAt) {
+			delete(g.intentTokens, token)
+		}
+	}
+}
+
+func (g *gui) renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 	data, err := templatesFS.ReadFile("views/templates/index.tmpl")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -213,7 +238,7 @@ func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 		RestartEnabled bool
 		DocURL         template.URL
 	}{
-		RestartEnabled: restartEnabled(),
+		RestartEnabled: restartEnabled(g.sysprobeConfig),
 		DocURL:         docURL,
 	})
 	if e != nil {
@@ -262,15 +287,14 @@ func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	g.intentMu.Lock()
-	_, ok := g.intentTokens[intentToken]
-	if !ok {
-		g.intentMu.Unlock()
+	expiresAt, ok := g.intentTokens[intentToken]
+	// Remove single use token from map (atomic with validation), whether or not it's expired
+	delete(g.intentTokens, intentToken)
+	g.intentMu.Unlock()
+	if !ok || time.Now().After(expiresAt) {
 		http.Error(w, "invalid intentToken", http.StatusUnauthorized)
 		return
 	}
-	// Remove single use token from map (atomic with validation)
-	delete(g.intentTokens, intentToken)
-	g.intentMu.Unlock()
 
 	// generate accessToken
 	accessToken := g.auth.GenerateAccessToken()
@@ -281,6 +305,7 @@ func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 		Value:    accessToken,
 		Path:     "/",
 		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
 		MaxAge:   31536000, // 1 year
 	})
 	http.Redirect(w, r, "/", http.StatusFound)
@@ -291,6 +316,17 @@ func (g *gui) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Disable caching
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			if origin := r.Header.Get("Origin"); origin != "" {
+				expectedFromListener := "http://" + g.address
+				expectedFromRequest := "http://" + r.Host
+				if origin != expectedFromListener && origin != expectedFromRequest {
+					http.Error(w, "invalid origin", http.StatusForbidden)
+					return
+				}
+			}
+		}
 
 		cookie, _ := r.Cookie("accessToken")
 		if cookie == nil {

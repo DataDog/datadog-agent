@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic/fake"
 	"k8s.io/utils/ptr"
 
@@ -23,7 +24,9 @@ import (
 	admissioncommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/ssi"
 	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
 )
 
@@ -35,10 +38,19 @@ const (
 
 var defaultContainerNames = []string{defaultTestContainer}
 
+func ddiTarget(cr types.NamespacedName, enabled bool, tracerVersions map[string]string, tracerConfigs []corev1.EnvVar) ssi.DDIAPMConfig {
+	return ssi.DDIAPMConfig{
+		CR:             cr,
+		Enabled:        enabled,
+		TracerVersions: tracerVersions,
+		TracerConfigs:  tracerConfigs,
+	}
+}
+
 var defaultLibraries = map[string]string{
 	"dotnet": "v3",
 	"java":   "v1",
-	"js":     "v5",
+	"js":     "v6",
 	"php":    "v1",
 	"python": "v4",
 	"ruby":   "v2",
@@ -88,14 +100,15 @@ func TestAutoinstrumentation(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		config       map[string]any
-		pod          *corev1.Pod
-		namespaces   []workloadmeta.KubernetesMetadata
-		deployments  []common.MockDeployment
-		shouldMutate bool
-		expected     *expected
+		config           map[string]any
+		pod              *corev1.Pod
+		namespaces       []workloadmeta.KubernetesMetadata
+		deployments      []common.MockDeployment
+		ddiTargetEntries map[ssi.DDICRTarget]ssi.DDIAPMConfig
+		shouldMutate     bool
+		expected         *expected
 	}{
-		"default configuration should not mutate": {
+		"default on-demand configuration should not mutate without a matching rule": {
 			pod: common.FakePodSpec{
 				Name:       defaultTestContainer,
 				NS:         "application",
@@ -1271,6 +1284,129 @@ func TestAutoinstrumentation(t *testing.T) {
 			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
+		"CRD target mutates pod when static instrumentation is disabled": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			ddiTargetEntries: map[ssi.DDICRTarget]ssi.DDIAPMConfig{
+				{Kind: "Deployment", Namespace: "application", Name: "deployment"}: ddiTarget(
+					types.NamespacedName{Namespace: "default", Name: "ddi-deployment"}, true,
+					map[string]string{"python": "v4"}, []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
+				),
+			},
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"python": "v4",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
+					"DD_LOGS_INJECTION":               "true",
+					"DD_RUNTIME_METRICS_ENABLED":      "true",
+					"DD_SERVICE":                      "web",
+					"DD_TRACE_ENABLED":                "true",
+					"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
+				},
+				expectedAnnotations: map[string]string{
+					"internal.apm.datadoghq.com/applied-target": `{"name":"datadoginstrumentation:default/ddi-deployment","workload":{"Kind":"Deployment","Namespace":"application","Name":"deployment"},"ddTraceVersions":{"python":"v4"},"ddTraceConfigs":[{"name":"DD_SERVICE","value":"web"}]}`,
+				},
+			},
+		},
+		"annotation takes precedence over CRD target": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			ddiTargetEntries: map[ssi.DDICRTarget]ssi.DDIAPMConfig{
+				{Kind: "Deployment", Namespace: "application", Name: "deployment"}: ddiTarget(
+					types.NamespacedName{Namespace: "default", Name: "ddi-deployment"}, true,
+					map[string]string{"python": "v4"}, nil,
+				),
+			},
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"java": "v1",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
+					"DD_TRACE_ENABLED":                "true",
+					"DD_LOGS_INJECTION":               "true",
+				},
+			},
+		},
+		"CRD target takes precedence over static target": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.targets": []autoinstrumentation.Target{
+					{
+						Name: "test-target",
+						TracerVersions: map[string]string{
+							"ruby": "v2",
+						},
+						NamespaceSelector: &autoinstrumentation.NamespaceSelector{
+							MatchNames: []string{
+								"application",
+							},
+						},
+					},
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			ddiTargetEntries: map[ssi.DDICRTarget]ssi.DDIAPMConfig{
+				{Kind: "Deployment", Namespace: "application", Name: "deployment"}: ddiTarget(
+					types.NamespacedName{Namespace: "default", Name: "ddi-deployment"}, true,
+					map[string]string{"python": "v4"}, nil,
+				),
+			},
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"python": "v4",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
+				},
+				expectedAnnotations: map[string]string{
+					"internal.apm.datadoghq.com/applied-target": `{"name":"datadoginstrumentation:default/ddi-deployment","workload":{"Kind":"Deployment","Namespace":"application","Name":"deployment"},"ddTraceVersions":{"python":"v4"}}`,
+				},
+			},
+		},
 		"targets with matching rule and local sdk injection favors local sdk version": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
@@ -1307,6 +1443,67 @@ func TestAutoinstrumentation(t *testing.T) {
 				injectorVersion: defaultInjectorVersion,
 				libraryVersions: map[string]string{
 					"ruby": "v3",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		"local sdk injection with tracer-configs annotation injects env vars": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/ruby-lib.version":          "v3",
+					"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"DD_PROFILING_ENABLED","value":"true"},{"name":"DD_DATA_JOBS_ENABLED","value":"true"}]`,
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"ruby": "v3",
+				},
+				requiredEnvs: map[string]string{
+					"DD_PROFILING_ENABLED": "true",
+					"DD_DATA_JOBS_ENABLED": "true",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		"inject-all annotation with tracer-configs annotation injects env vars": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/all-lib.version":           "latest",
+					"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"DD_PROFILING_ENABLED","value":"true"}]`,
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: defaultLibraries,
+				requiredEnvs: map[string]string{
+					"DD_PROFILING_ENABLED": "true",
 				},
 				containerNames: defaultContainerNames,
 			},
@@ -2641,7 +2838,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
-				libraryVersions: defaultLibraries, // Should resolve to v1, v3, v4, v2, v5, v1
+				libraryVersions: defaultLibraries, // Should resolve to v1, v3, v4, v2, v6, v1
 				containerNames:  defaultContainerNames,
 			},
 		},
@@ -2715,7 +2912,15 @@ func TestAutoinstrumentation(t *testing.T) {
 				mockMeta.(workloadmetamock.Mock).Set(&ns)
 			}
 
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
+			var ddiTargets *instrumentationhandlers.APMTargetStore
+			if len(test.ddiTargetEntries) > 0 {
+				ddiTargets = instrumentationhandlers.NewAPMTargetStore()
+				for workload, entry := range test.ddiTargetEntries {
+					ddiTargets.UpsertTarget(workload, entry)
+				}
+			}
+
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil, ddiTargets)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2783,7 +2988,7 @@ func TestAutoinstrumentation_LocalLibInjectionPerContainerOnlyMountsLibraryOnTar
 		mockMeta.(workloadmetamock.Mock).Set(&ns)
 	}
 
-	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
+	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	pod := common.FakePodSpec{
@@ -2946,7 +3151,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -3145,7 +3350,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.

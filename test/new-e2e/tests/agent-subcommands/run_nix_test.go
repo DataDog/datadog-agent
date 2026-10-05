@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
@@ -26,7 +27,7 @@ type linuxRunSuite struct {
 
 func TestLinuxRunSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxRunSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
+	e2e.Run(t, &linuxRunSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))))
 }
 
 func (s *linuxRunSuite) TestRunWhenAgentAlreadyRunning() {

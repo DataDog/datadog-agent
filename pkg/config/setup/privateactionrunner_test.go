@@ -6,23 +6,49 @@
 package setup
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPrivateActionRunnerApiKeyOnlyEnrollmentDefaultFalse(t *testing.T) {
+func TestPrivateActionRunnerSplitModeDefaultsOnSupportedHosts(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "")
+
 	cfg := newTestConf(t)
 
-	assert.False(t, cfg.GetBool(PARApiKeyOnlyEnrollment))
+	assert.Equal(t, runtime.GOOS == "linux" || runtime.GOOS == "windows", cfg.GetBool("private_action_runner.split_enabled"))
 }
 
-func TestPrivateActionRunnerApiKeyOnlyEnrollmentFromEnv(t *testing.T) {
-	t.Setenv("DD_PRIVATE_ACTION_RUNNER_API_KEY_ONLY_ENROLLMENT", "true")
+func TestPrivateActionRunnerSplitModeDefaultsOffInContainers(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "true")
 
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.GetBool("private_action_runner.split_enabled"))
+}
+
+func TestPrivateActionRunnerSplitModeCanBeDisabledOnHosts(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "")
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "false")
+
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.GetBool("private_action_runner.split_enabled"))
+}
+
+func TestPrivateActionRunnerApiKeyOnlyEnrollmentDefaultTrue(t *testing.T) {
 	cfg := newTestConf(t)
 
 	assert.True(t, cfg.GetBool(PARApiKeyOnlyEnrollment))
+}
+
+func TestPrivateActionRunnerApiKeyOnlyEnrollmentFromEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_API_KEY_ONLY_ENROLLMENT", "false")
+
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.GetBool(PARApiKeyOnlyEnrollment))
 }
 
 func TestPrivateActionRunnerActionsAllowlistFromEnv(t *testing.T) {
@@ -116,6 +142,39 @@ func TestPrivateActionRunnerRestrictedShellAllowedCommandsEmptyEnv(t *testing.T)
 	assert.Equal(t, []string{"rshell:*"}, cfg.GetStringSlice(PARRestrictedShellAllowedCommands))
 }
 
+func TestPrivateActionRunnerRestrictedShellAllowedSystemServicesUnsetByDefault(t *testing.T) {
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.IsConfigured(PARRestrictedShellAllowedSystemServices))
+	assert.Empty(t, cfg.GetStringMapStringSlice(PARRestrictedShellAllowedSystemServices))
+}
+
+func TestPrivateActionRunnerRestrictedShellAllowedSystemServicesFromEnv(t *testing.T) {
+	t.Setenv(
+		"DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_SYSTEM_SERVICES",
+		`{"mysql.service":["read","restart"],"nginx.service":["read"]}`,
+	)
+
+	cfg := newTestConf(t)
+
+	assert.True(t, cfg.IsConfigured(PARRestrictedShellAllowedSystemServices))
+	assert.Equal(t, map[string][]string{
+		"mysql.service": {"read", "restart"},
+		"nginx.service": {"read"},
+	}, cfg.GetStringMapStringSlice(PARRestrictedShellAllowedSystemServices))
+}
+
+func TestPrivateActionRunnerRestrictedShellAllowedSystemServicesEmptyEnvMap(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_SYSTEM_SERVICES", `{}`)
+
+	cfg := newTestConf(t)
+
+	assert.True(t, cfg.IsConfigured(PARRestrictedShellAllowedSystemServices))
+	services := cfg.GetStringMapStringSlice(PARRestrictedShellAllowedSystemServices)
+	assert.NotNil(t, services)
+	assert.Empty(t, services)
+}
+
 // TestPrivateActionRunnerRestrictedShellAllowedPathsJSONArrayEnv covers the
 // JSON-array form for env vars, which gives parity with YAML and
 // — crucially — lets operators express the kill-switch via "[]".
@@ -162,6 +221,22 @@ func TestPrivateActionRunnerRestrictedShellAllowedCommandsJSONArrayEnv(t *testin
 			assert.Equal(t, tc.want, cfg.GetStringSlice(PARRestrictedShellAllowedCommands))
 		})
 	}
+}
+
+func TestPrivateActionRunnerRestrictedShellDisableDetailedTelemetryUnsetByDefault(t *testing.T) {
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.IsConfigured(PARRestrictedShellDisableDetailedTelemetry))
+	assert.False(t, cfg.GetBool(PARRestrictedShellDisableDetailedTelemetry))
+}
+
+func TestPrivateActionRunnerRestrictedShellDisableDetailedTelemetryFromEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_DISABLE_DETAILED_TELEMETRY", "true")
+
+	cfg := newTestConf(t)
+
+	assert.True(t, cfg.IsConfigured(PARRestrictedShellDisableDetailedTelemetry))
+	assert.True(t, cfg.GetBool(PARRestrictedShellDisableDetailedTelemetry))
 }
 
 // TestPrivateActionRunnerRestrictedShellAllowedPathsInvalidJSONEnv pins

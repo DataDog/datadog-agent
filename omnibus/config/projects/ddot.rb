@@ -38,15 +38,7 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR")
   Omnibus::Config.git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
 end
 
-if windows_target?
-  # Note: this is the path used by Omnibus to build the agent, the final install
-  # dir will be determined by the Windows installer. This path must not contain
-  # spaces because Omnibus doesn't quote the Git commands it launches.
-  INSTALL_DIR = 'C:/opt/datadog-agent'
-else
-  INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
-end
-
+INSTALL_DIR = ENV["INSTALL_DIR"] || raise('INSTALL_DIR must be set in tasks/omnibus.py')
 install_dir INSTALL_DIR
 
 third_party_licenses_path "LICENSES-ddot"

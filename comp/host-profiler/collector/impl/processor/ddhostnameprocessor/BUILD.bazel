@@ -1,0 +1,77 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "ddhostnameprocessor",
+    srcs = [
+        "config.go",
+        "factory.go",
+        "processor.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/processor/ddhostnameprocessor",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/hostname",
+            "@io_opentelemetry_go_collector_component//:component",
+            "@io_opentelemetry_go_collector_consumer//:consumer",
+            "@io_opentelemetry_go_collector_consumer_xconsumer//:xconsumer",
+            "@io_opentelemetry_go_collector_pdata//pcommon",
+            "@io_opentelemetry_go_collector_pdata//plog",
+            "@io_opentelemetry_go_collector_pdata//pmetric",
+            "@io_opentelemetry_go_collector_pdata//ptrace",
+            "@io_opentelemetry_go_collector_pdata_pprofile//:pprofile",
+            "@io_opentelemetry_go_collector_processor//:processor",
+            "@io_opentelemetry_go_collector_processor_processorhelper//:processorhelper",
+            "@io_opentelemetry_go_collector_processor_processorhelper_xprocessorhelper//:xprocessorhelper",
+            "@io_opentelemetry_go_collector_processor_xprocessor//:xprocessor",
+            "@org_uber_go_zap//:zap",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/hostname",
+            "@io_opentelemetry_go_collector_component//:component",
+            "@io_opentelemetry_go_collector_consumer//:consumer",
+            "@io_opentelemetry_go_collector_consumer_xconsumer//:xconsumer",
+            "@io_opentelemetry_go_collector_pdata//pcommon",
+            "@io_opentelemetry_go_collector_pdata//plog",
+            "@io_opentelemetry_go_collector_pdata//pmetric",
+            "@io_opentelemetry_go_collector_pdata//ptrace",
+            "@io_opentelemetry_go_collector_pdata_pprofile//:pprofile",
+            "@io_opentelemetry_go_collector_processor//:processor",
+            "@io_opentelemetry_go_collector_processor_processorhelper//:processorhelper",
+            "@io_opentelemetry_go_collector_processor_processorhelper_xprocessorhelper//:xprocessorhelper",
+            "@io_opentelemetry_go_collector_processor_xprocessor//:xprocessor",
+            "@org_uber_go_zap//:zap",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "ddhostnameprocessor_test",
+    srcs = ["processor_test.go"],
+    embed = [":ddhostnameprocessor"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_opentelemetry_go_collector_pdata//pcommon",
+            "@io_opentelemetry_go_collector_pdata//plog",
+            "@io_opentelemetry_go_collector_pdata//pmetric",
+            "@io_opentelemetry_go_collector_pdata//ptrace",
+            "@io_opentelemetry_go_collector_pdata_pprofile//:pprofile",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_opentelemetry_go_collector_pdata//pcommon",
+            "@io_opentelemetry_go_collector_pdata//plog",
+            "@io_opentelemetry_go_collector_pdata//pmetric",
+            "@io_opentelemetry_go_collector_pdata//ptrace",
+            "@io_opentelemetry_go_collector_pdata_pprofile//:pprofile",
+        ],
+        "//conditions:default": [],
+    }),
+)

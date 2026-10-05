@@ -9,6 +9,7 @@ package software
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -344,6 +345,7 @@ func TestSoftwareTypeConstants(t *testing.T) {
 		softwareTypeSysExt,
 		softwareTypeHomebrew,
 		softwareTypeMacPorts,
+		softwareTypeOS,
 	}
 
 	// Check uniqueness
@@ -363,6 +365,37 @@ func TestSoftwareTypeConstants(t *testing.T) {
 	assert.Equal(t, "sysext", softwareTypeSysExt)
 	assert.Equal(t, "homebrew", softwareTypeHomebrew)
 	assert.Equal(t, "macports", softwareTypeMacPorts)
+	assert.Equal(t, "os", softwareTypeOS)
+}
+
+// TestOSCollectorIntegration verifies against the real host that the operating system
+// entry reports the same version and build as sw_vers.
+func TestOSCollectorIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	productVersion, err := exec.Command("sw_vers", "-productVersion").Output()
+	require.NoError(t, err)
+	buildVersion, err := exec.Command("sw_vers", "-buildVersion").Output()
+	require.NoError(t, err)
+
+	expected := osVersionString(strings.TrimSpace(string(productVersion)), string(buildVersion))
+
+	entries, warnings, err := (&osCollector{}).Collect()
+	require.NoError(t, err)
+	assert.Empty(t, warnings)
+	require.Len(t, entries, 1, "the operating system is exactly one entry")
+
+	entry := entries[0]
+	assert.Equal(t, softwareTypeOS, entry.Source)
+	assert.Equal(t, osDisplayName, entry.DisplayName)
+	assert.Equal(t, osProductCode, entry.ProductCode)
+	assert.Equal(t, applePublisher, entry.Publisher)
+	assert.Equal(t, expected, entry.Version)
+	assert.Empty(t, entry.InstallDate)
+
+	t.Logf("Running %s", entry.Version)
 }
 
 // TestInstallSourceConstants verifies that install source constants (pkg, mas,

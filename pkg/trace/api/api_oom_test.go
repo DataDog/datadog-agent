@@ -10,6 +10,7 @@ package api
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"net/http"
 	"sync"
 	"testing"
@@ -33,15 +34,20 @@ func TestOOMKill(t *testing.T) {
 		kills.Inc()
 	}
 
-	port := testutil.FreeTCPPort(t)
+	ln := testutil.TCPListener(t)
+	tcpAddr := ln.Addr().(*net.TCPAddr)
 
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
 	conf.WatchdogInterval = time.Millisecond
 	conf.MaxMemory = 0.1 * 1000 * 1000 // 100KB
-	conf.ReceiverPort = port
+	conf.ReceiverPort = tcpAddr.Port
+	// Bind and dial the same concrete address; see newTestReceiverConfig.
+	conf.ReceiverHost = tcpAddr.IP.String()
+	conf.MaxConnections = 1000 // default value of apm_config.max_connections
 
 	r := newTestReceiverFromConfig(conf)
+	r.SetTCPListener(ln)
 	r.Start()
 	defer r.Stop()
 	go func() {
@@ -61,7 +67,7 @@ func TestOOMKill(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			resp, err := http.Post(fmt.Sprintf("http://localhost:%d/v0.4/traces", port), "application/msgpack", bytes.NewReader(data))
+			resp, err := http.Post(fmt.Sprintf("http://%s/v0.4/traces", r.Addr()), "application/msgpack", bytes.NewReader(data))
 			if err != nil {
 				t.Log("Error posting payload", err)
 				return

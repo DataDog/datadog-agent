@@ -9,15 +9,60 @@ namespace Datadog.CustomActions
 {
     public class CleanUpFilesCustomAction
     {
+        /// <summary>
+        /// Removes generated install artifacts (embedded2/embedded3, python-scripts, session-generated paths).
+        /// Used before InstallFiles, during uninstall, and on rollback.
+        /// </summary>
+        public static ActionResult CleanupFiles(Session session)
+        {
+            return CleanupFiles(new SessionWrapper(session));
+        }
+
+        /// <summary>
+        /// Rollback-only: drop an otherwise-empty install root left by a failed fresh install.
+        /// </summary>
+        public static ActionResult RemoveEmptyInstallDirOnRollback(Session session)
+        {
+            return RemoveEmptyInstallDirOnRollback(new SessionWrapper(session));
+        }
+
+        /// <summary>
+        /// Uninstall tail: drop empty processes.d and empty install root after MSI components are removed.
+        /// </summary>
+        public static ActionResult RemoveEmptyInstallDirAfterUninstall(Session session)
+        {
+            return RemoveEmptyInstallDirAfterUninstall(new SessionWrapper(session));
+        }
+
         private static ActionResult CleanupFiles(ISession session)
         {
-            var projectLocation = session.Property("PROJECTLOCATION");
+            RemoveGeneratedArtifactPaths(session, session.Property("PROJECTLOCATION"));
+            return ActionResult.Success;
+        }
+
+        private static ActionResult RemoveEmptyInstallDirOnRollback(ISession session)
+        {
+            TryRemoveEmptyInstallDir(session, session.Property("PROJECTLOCATION"));
+            return ActionResult.Success;
+        }
+
+        private static ActionResult RemoveEmptyInstallDirAfterUninstall(ISession session)
+        {
+            TryRemoveEmptyInstallDir(session, session.Property("PROJECTLOCATION"));
+            return ActionResult.Success;
+        }
+
+        private static void RemoveGeneratedArtifactPaths(ISession session, string projectLocation)
+        {
             var toDelete = new[]
             {
                 // may contain python files created outside of install
                 Path.Combine(projectLocation, "embedded2"),
                 Path.Combine(projectLocation, "embedded3"),
                 Path.Combine(projectLocation, "python-scripts"),
+                // fleet postinst writes processes.d/*.yaml (untracked by MSI); RemoveFolderEx owns
+                // uninstall, this covers install/upgrade/repair rollback and the repair pre-clean.
+                Path.Combine(projectLocation, "processes.d"),
             }
             // installation specific files
             .Concat(session.GeneratedPaths());
@@ -48,13 +93,43 @@ namespace Datadog.CustomActions
                     // we may brick the installation.
                 }
             }
-
-            return ActionResult.Success;
         }
 
-        public static ActionResult CleanupFiles(Session session)
+        private static void TryRemoveEmptyInstallDir(ISession session, string projectLocation)
         {
-            return CleanupFiles(new SessionWrapper(session));
+            if (string.IsNullOrEmpty(projectLocation))
+            {
+                return;
+            }
+
+            try
+            {
+                if (!Directory.Exists(projectLocation))
+                {
+                    return;
+                }
+
+                var processesDir = Path.Combine(projectLocation, "processes.d");
+                if (Directory.Exists(processesDir) && !Directory.EnumerateFileSystemEntries(processesDir).Any())
+                {
+                    session.Log($"Deleting empty directory \"{processesDir}\"");
+                    Directory.Delete(processesDir);
+                }
+
+                if (Directory.EnumerateFileSystemEntries(projectLocation).Any())
+                {
+                    session.Log($"{projectLocation} is not empty, skip deletion.");
+                    return;
+                }
+
+                session.Log($"Deleting empty install directory \"{projectLocation}\"");
+                Directory.Delete(projectLocation);
+            }
+            catch (Exception e)
+            {
+                session.Log($"Error while deleting empty install directory: {e}");
+            }
         }
+
     }
 }

@@ -211,11 +211,10 @@ func readAllMetricsV2(dir string) ([]recorderdef.MetricData, error) {
 		return nil, fmt.Errorf("reading contexts: %w", err)
 	}
 
-	files, err := filepath.Glob(filepath.Join(dir, "metrics-*.parquet"))
+	files, err := findMetricParquetFilesV2(dir)
 	if err != nil {
-		return nil, fmt.Errorf("listing metrics files: %w", err)
+		return nil, err
 	}
-	sort.Strings(files)
 
 	var out []recorderdef.MetricData
 	collect := func(m recorderdef.MetricData) error {
@@ -227,17 +226,49 @@ func readAllMetricsV2(dir string) ([]recorderdef.MetricData, error) {
 			pkglog.Warnf("[parquet-v2] Skipping %s: %v", f, err)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Timestamp < out[j].Timestamp })
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Timestamp < out[j].Timestamp })
 	return out, nil
+}
+
+func findMetricParquetFilesV2(dir string) ([]string, error) {
+	files, err := filepath.Glob(filepath.Join(dir, "metrics-*.parquet"))
+	if err != nil {
+		return nil, fmt.Errorf("listing metrics files: %w", err)
+	}
+	sort.Strings(files)
+	return files, nil
+}
+
+func streamAllMetricsV2(dir string, fn func(string, recorderdef.MetricData) error) error {
+	contexts, err := readContextsFileV2(filepath.Join(dir, "contexts.parquet"))
+	if err != nil {
+		return fmt.Errorf("reading contexts: %w", err)
+	}
+	return streamAllMetricsV2WithContexts(dir, contexts, fn)
+}
+
+func streamAllMetricsV2WithContexts(dir string, contexts map[uint64]contextEntryV2, fn func(string, recorderdef.MetricData) error) error {
+	files, err := findMetricParquetFilesV2(dir)
+	if err != nil {
+		return err
+	}
+	for _, filePath := range files {
+		if err := streamMetricFileV2(filePath, contexts, func(metric recorderdef.MetricData) error {
+			return fn(filePath, metric)
+		}); err != nil {
+			return fmt.Errorf("streaming %s: %w", filePath, err)
+		}
+	}
+	return nil
 }
 
 func streamMetricFileV2(filePath string, contexts map[uint64]contextEntryV2, fn func(recorderdef.MetricData) error) error {
 	info, err := os.Stat(filePath)
 	if err != nil {
-		return nil
+		return fmt.Errorf("statting %s: %w", filePath, err)
 	}
 	if info.Size() < minParquetFileSize {
-		return nil
+		return fmt.Errorf("%s is too small to be parquet (%d bytes)", filePath, info.Size())
 	}
 
 	f, err := os.Open(filePath)
@@ -259,7 +290,7 @@ func streamMetricFileV2(filePath string, contexts map[uint64]contextEntryV2, fn 
 	sourceIdx := findParquetColIdxV2(pf, "source")
 
 	if ctxKeyIdx < 0 || valueIdx < 0 || tsIdx < 0 {
-		return nil // not a v2 metrics file
+		return fmt.Errorf("missing one or more required columns: context_key, value, timestamp_ns")
 	}
 
 	ctxKeyMaxDef := s.Column(ctxKeyIdx).MaxDefinitionLevel()
@@ -400,6 +431,27 @@ func readAllLogsV2(dir string) ([]recorderdef.LogData, error) {
 		return nil, fmt.Errorf("reading contexts: %w", err)
 	}
 
+	files, err := findLogParquetFilesV2(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []recorderdef.LogData
+	collect := func(l recorderdef.LogData) error {
+		out = append(out, l)
+		return nil
+	}
+	for _, f := range files {
+		if err := streamLogFileV2(f, contexts, collect); err != nil {
+			pkglog.Warnf("[parquet-v2] Skipping %s: %v", f, err)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].TimestampMs < out[j].TimestampMs })
+	pkglog.Infof("[parquet-v2] Loaded %d logs from %s", len(out), dir)
+	return out, nil
+}
+
+func findLogParquetFilesV2(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -414,29 +466,39 @@ func readAllLogsV2(dir string) ([]recorderdef.LogData, error) {
 		}
 	}
 	sort.Strings(files)
+	return files, nil
+}
 
-	var out []recorderdef.LogData
-	collect := func(l recorderdef.LogData) error {
-		out = append(out, l)
-		return nil
+func streamAllLogsV2(dir string, fn func(string, recorderdef.LogData) error) error {
+	contexts, err := readContextsFileV2(filepath.Join(dir, "contexts.parquet"))
+	if err != nil {
+		return fmt.Errorf("reading contexts: %w", err)
 	}
-	for _, f := range files {
-		if err := streamLogFileV2(f, contexts, collect); err != nil {
-			pkglog.Warnf("[parquet-v2] Skipping %s: %v", f, err)
+	return streamAllLogsV2WithContexts(dir, contexts, fn)
+}
+
+func streamAllLogsV2WithContexts(dir string, contexts map[uint64]contextEntryV2, fn func(string, recorderdef.LogData) error) error {
+	files, err := findLogParquetFilesV2(dir)
+	if err != nil {
+		return fmt.Errorf("listing v2 log parquet files: %w", err)
+	}
+	for _, filePath := range files {
+		if err := streamLogFileV2(filePath, contexts, func(entry recorderdef.LogData) error {
+			return fn(filePath, entry)
+		}); err != nil {
+			return fmt.Errorf("streaming %s: %w", filePath, err)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].TimestampMs < out[j].TimestampMs })
-	pkglog.Infof("[parquet-v2] Loaded %d logs from %s", len(out), dir)
-	return out, nil
+	return nil
 }
 
 func streamLogFileV2(filePath string, contexts map[uint64]contextEntryV2, fn func(recorderdef.LogData) error) error {
 	info, err := os.Stat(filePath)
 	if err != nil {
-		return nil
+		return fmt.Errorf("statting %s: %w", filePath, err)
 	}
 	if info.Size() < minParquetFileSize {
-		return nil
+		return fmt.Errorf("%s is too small to be parquet (%d bytes)", filePath, info.Size())
 	}
 
 	f, err := os.Open(filePath)
@@ -457,7 +519,7 @@ func streamLogFileV2(filePath string, contexts map[uint64]contextEntryV2, fn fun
 	tsIdx := findParquetColIdxV2(pf, "timestamp_ns")
 
 	if ctxKeyIdx < 0 || contentIdx < 0 || tsIdx < 0 {
-		return nil // not a v2 log file
+		return fmt.Errorf("missing one or more required columns: context_key, content, timestamp_ns")
 	}
 
 	var ctxKeyMaxDef, contentMaxDef, tsMaxDef int16

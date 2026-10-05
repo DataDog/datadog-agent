@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/containerd/containerd/protobuf/proto"
+	"github.com/containerd/containerd/v2/pkg/protobuf/proto"
 )
 
 // DumpDiscarders handles discarder dump requests
@@ -319,8 +319,10 @@ func (a *SBOMAPIServer) collectSBOMS() {
 		if err := sbomResolver.RegisterListener(sbom.SBOMComputed, func(sbom *sbompkg.ScanResult) {
 			select {
 			case a.sboms <- sbom:
+				sbomResolver.CountEnrichedSBOMForwarded()
 				seclog.Debugf("SBOM for %s sent to APIServer channel", sbom.RequestID)
 			default:
+				sbomResolver.CountEnrichedSBOMForwardDropped()
 				seclog.Warnf("dropping SBOM event")
 			}
 		}); err != nil {

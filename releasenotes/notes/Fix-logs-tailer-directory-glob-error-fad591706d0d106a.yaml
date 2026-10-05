@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Logs file tailer: directory entries returned by a configured ``path``
+    glob are now skipped instead of being opened as files. Previously the
+    tailer attempted to open the directory and surfaced a misleading
+    ``Access is denied`` error from the OS (on Windows in particular),
+    which sent troubleshooting toward permissions. A non-wildcard
+    ``path`` that resolves to a directory now returns a descriptive
+    error explaining that a file or glob is required.

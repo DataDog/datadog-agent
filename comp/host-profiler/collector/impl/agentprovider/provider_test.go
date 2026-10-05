@@ -37,7 +37,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol/otelcoltest"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 var updateGolden = flag.Bool("update", false, "update golden test files")
@@ -231,14 +231,9 @@ func TestProvider(t *testing.T) {
 			expectedOTel: "provider/add-headers-debug/otel.yaml",
 		},
 		{
-			name:         "ddprofiling-enabled",
-			agentConfig:  "provider/ddprofiling-enabled/agent.yaml",
-			expectedOTel: "provider/ddprofiling-enabled/otel.yaml",
-		},
-		{
-			name:         "ddprofiling-period",
-			agentConfig:  "provider/ddprofiling-period/agent.yaml",
-			expectedOTel: "provider/ddprofiling-period/otel.yaml",
+			name:         "ddprofiling",
+			agentConfig:  "provider/ddprofiling/agent.yaml",
+			expectedOTel: "provider/ddprofiling/otel.yaml",
 		},
 		{
 			name:         "health-metrics-disabled",

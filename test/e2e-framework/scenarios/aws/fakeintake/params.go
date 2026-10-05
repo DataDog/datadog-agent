@@ -5,7 +5,10 @@
 
 package fakeintake
 
-import "github.com/DataDog/datadog-agent/test/e2e-framework/common"
+import (
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
+)
 
 type Params struct {
 	LoadBalancerEnabled bool
@@ -20,9 +23,11 @@ type Option = func(*Params) error
 
 // NewParams returns a new instance of Fakeintake Params
 func NewParams(options ...Option) (*Params, error) {
+	// The fakeintake runs on Fargate, where the ECS control plane pulls the image as part
+	// of the service definition, so the pull-through cache is unreachable.
 	params := &Params{
 		LoadBalancerEnabled: false,
-		ImageURL:            "public.ecr.aws/datadog/fakeintake:latest",
+		ImageURL:            fakeintake.ImageURL("public.ecr.aws/datadog/fakeintake"),
 		CPU:                 512,
 		Memory:              1024,
 		DDDevForwarding:     true,

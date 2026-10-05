@@ -1,14 +1,18 @@
 import unittest
-from pathlib import Path
 
 from tasks import build_tags
 from tasks.build_tags import (
     ALL_TAGS,
+    AUTO_TEST_TAGS,
+    BASE_TEST_TAGS,
     COMMON_TAGS,
+    DEP_ONLY_TAGS,
     GAZELLE_BUILD_TAGS,
     GAZELLE_EXTRA_TAGS,
     GAZELLE_OMIT_TAGS,
+    TEST_FEATURE_TAGS,
     UNIT_TEST_TAGS,
+    compute_build_tags_for_flavor,
 )
 from tasks.flavor import AgentFlavor
 
@@ -22,7 +26,6 @@ class TestCodegenPayloadSchema(unittest.TestCase):
         "common_tags",
         "unit_test_tags",
         "linux_only_tags",
-        "windows_included_tags",
         "windows_excluded_tags",
         "darwin_excluded_tags",
         "flavor_specific_tags",
@@ -50,16 +53,37 @@ class TestCodegenPayloadSchema(unittest.TestCase):
 
 
 class TestCodegenPayloadData(unittest.TestCase):
+    def test_recorder_flavor_is_base_agent_plus_recorder_tag(self):
+        base = set(build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform="linux"))
+        recorder = set(build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.recorder, platform="linux"))
+        self.assertEqual(recorder, base | {"anomalydetection_recorder"})
+
+    def test_recorder_flavor_keeps_other_binaries_at_base_tags(self):
+        for build in ("trace-agent", "process-agent", "privateactionrunner"):
+            with self.subTest(build=build):
+                self.assertEqual(
+                    build_tags.get_default_build_tags(build=build, flavor=AgentFlavor.recorder, platform="linux"),
+                    build_tags.get_default_build_tags(build=build, flavor=AgentFlavor.base, platform="linux"),
+                )
+
+    def test_recorder_tag_survives_agent_build_tag_computation(self):
+        tags = compute_build_tags_for_flavor(
+            build="agent", flavor=AgentFlavor.recorder, build_include=None, build_exclude=None, platform="linux"
+        )
+        self.assertIn("anomalydetection_recorder", tags)
+
+    def test_recorder_test_tag_sets_extend_agent(self):
+        expected = build_tags.AGENT_RECORDER_TAGS.union(UNIT_TEST_TAGS).difference(build_tags.UNIT_TEST_EXCLUDED_TAGS)
+        for build in ("lint", "unit-tests"):
+            with self.subTest(build=build):
+                recorder = build_tags.build_tags[AgentFlavor.recorder][build]
+                self.assertEqual(recorder, expected)
+
     def test_fips_includes_goexperiment_systemcrypto(self):
         self.assertIn("goexperiment.systemcrypto", _payload()["flavor_specific_tags"]["fips"])
 
     def test_base_excludes_requirefips(self):
         self.assertNotIn("requirefips", _payload()["flavor_specific_tags"]["base"])
-
-    def test_wmi_in_windows_included_not_in_linux_only(self):
-        payload = _payload()
-        self.assertIn("wmi", payload["windows_included_tags"])
-        self.assertNotIn("wmi", payload["linux_only_tags"])
 
     def test_common_tags_disjoint_from_flavor_specific(self):
         # The .bzl/.go consumers compose flavor tag sets as
@@ -82,36 +106,15 @@ class TestCodegenPayloadData(unittest.TestCase):
     def test_common_tags_payload_matches_constant(self):
         self.assertEqual(_payload()["common_tags"], sorted(COMMON_TAGS))
 
+    def test_base_test_tags_are_minimal(self):
+        self.assertEqual(BASE_TEST_TAGS, sorted(UNIT_TEST_TAGS))
 
-def _bzl_flavor_unit_test_tags():
-    """Exec build_tags.bzl (valid Python) and return its FLAVOR_UNIT_TEST_TAGS."""
-    path = Path(build_tags.__file__).with_name("build_tags.bzl")
-    namespace = {}
-    exec(path.read_text(), namespace)  # noqa: S102 - trusted in-repo data file
-    return namespace["FLAVOR_UNIT_TEST_TAGS"]
+    def test_auto_test_tags_exclude_dependency_only_tags(self):
+        self.assertFalse(set(AUTO_TEST_TAGS) & DEP_ONLY_TAGS)
 
-
-class TestFlavorUnitTestTags(unittest.TestCase):
-    """FLAVOR_UNIT_TEST_TAGS lives in build_tags.bzl (the single source consumed
-    by the dd_agent_go_test macro and its generated tags.go) but duplicates the
-    flavor->set composition expressed by the build_tags[...]["unit-tests"] dict
-    here. These assert the two cannot drift apart."""
-
-    def setUp(self):
-        self.bzl = _bzl_flavor_unit_test_tags()
-        self.expected = {
-            flavor.name: sorted(build_tags.build_tags[flavor]["unit-tests"] | COMMON_TAGS)
-            for flavor in AgentFlavor
-            if "unit-tests" in build_tags.build_tags.get(flavor, {})
-        }
-
-    def test_flavor_keys_match(self):
-        self.assertEqual(set(self.bzl), set(self.expected))
-
-    def test_flavor_tag_sets_match_build_tags(self):
-        for flavor, expected_tags in self.expected.items():
-            with self.subTest(flavor=flavor):
-                self.assertEqual(self.bzl[flavor], expected_tags)
+    def test_auto_test_tags_match_classification(self):
+        expected = sorted(TEST_FEATURE_TAGS - DEP_ONLY_TAGS - UNIT_TEST_TAGS - build_tags.UNIT_TEST_EXCLUDED_TAGS)
+        self.assertEqual(AUTO_TEST_TAGS, expected)
 
 
 if __name__ == "__main__":

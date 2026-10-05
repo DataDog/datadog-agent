@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    APM: Fixed Dynamic Instrumentation snapshot and log-probe uploads failing
+    with a connection reset when the Logs product is disabled
+    (``logs_enabled: false``). The debugger proxy now drains the request body
+    before responding, so these uploads are dropped cleanly instead of
+    resetting the tracer's connection.

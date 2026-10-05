@@ -186,7 +186,7 @@ func ExpectedRunningServices() []string {
 	return []string{
 		"datadogagent",
 		"datadog-trace-agent",
-		"datadog-process-agent",
+		// datadog-process-agent is not listed: dd-procmgr supervises process-agent, so the legacy service stays Stopped
 	}
 }
 
@@ -199,6 +199,13 @@ func quotePathIfContainsSpaces(path string) string {
 		return fmt.Sprintf(`"%s"`, path)
 	}
 	return path
+}
+
+func normalizeBackslashes(s string) string {
+	for strings.Contains(s, "\\\\") {
+		s = strings.ReplaceAll(s, "\\\\", "\\")
+	}
+	return s
 }
 
 // iterServiceConfigMaps iterates over the expected and actual service config maps and calls the provided function for each element.
@@ -222,7 +229,13 @@ func iterServiceConfigMaps(t *testing.T, expected windowsCommon.ServiceConfigMap
 func AssertEqualServiceConfigValues(t *testing.T, expected windowsCommon.ServiceConfigMap, actual windowsCommon.ServiceConfigMap) bool {
 	return iterServiceConfigMaps(t, expected, actual, func(expected *windowsCommon.ServiceConfig, actual *windowsCommon.ServiceConfig) bool {
 		assert.Equal(t, expected.DisplayName, actual.DisplayName, "service %s DisplayName should match", actual.ServiceName)
-		assert.Equal(t, expected.ImagePath, actual.ImagePath, "service %s ImagePath should match", actual.ServiceName)
+		assert.Equal(
+			t,
+			normalizeBackslashes(expected.ImagePath),
+			normalizeBackslashes(actual.ImagePath),
+			"service %s ImagePath should match (normalized)",
+			actual.ServiceName,
+		)
 		assert.Equal(t, expected.StartType, actual.StartType, "service %s StartType should match", actual.ServiceName)
 		assert.Equal(t, expected.ServiceType, actual.ServiceType, "service %s ServiceType should match", actual.ServiceName)
 		// Compare UserSID rather than UserNames to avoid needing to handle name formatting differences

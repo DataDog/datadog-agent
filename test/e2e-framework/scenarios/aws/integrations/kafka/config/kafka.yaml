@@ -1,0 +1,14 @@
+## Kafka (JMX) integration config for the e2e lab.
+## The Datadog Agent runs on the host with JMXFetch; the Kafka broker runs in a
+## local Docker Compose stack publishing its JMX port on localhost:9999.
+init_config:
+  is_jmx: true
+  collect_default_metrics: true
+
+instances:
+  - host: localhost
+    port: 9999
+    name: kafka_lab_broker
+    tags:
+      - lab:kafka
+      - kafka_deployment:kraft-single-broker

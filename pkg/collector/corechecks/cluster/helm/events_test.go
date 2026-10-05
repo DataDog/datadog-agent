@@ -278,7 +278,7 @@ func TestSendEvents(t *testing.T) {
 
 	events.addEventForNewRelease(&rel, testTags())
 
-	sender := mocksender.NewMockSender("1")
+	sender := mocksender.NewMockSender(t, "1")
 	sender.SetupAcceptAll()
 	events.sendEvents(sender)
 

@@ -66,7 +66,7 @@ func Dump() *AutoscalersInfo {
 		return nil
 	}
 
-	datadogPodAutoscalers := defaultDumper.store.GetAll()
+	datadogPodAutoscalers := defaultDumper.store.List(nil)
 
 	log.Debugf("Found %d pod autoscalers", len(datadogPodAutoscalers))
 

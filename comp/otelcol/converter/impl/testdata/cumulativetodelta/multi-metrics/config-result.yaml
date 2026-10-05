@@ -1,0 +1,13 @@
+processors:
+  cumulativetodelta/dd-autoconfigured:
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [cumulativetodelta/dd-autoconfigured]
+      exporters: [datadog]
+    metrics/2:
+      receivers: [otlp]
+      processors: [cumulativetodelta/dd-autoconfigured]
+      exporters: [datadog]

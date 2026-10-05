@@ -66,6 +66,10 @@ func newLogSamplerFromConfig(cfg pkgconfigmodel.Reader, onDropped func(source, p
 		maxRateMedium: cfg.GetFloat64("anomaly_detection.logs.containers.max_rate_medium_priority"),
 		maxRateLow:    cfg.GetFloat64("anomaly_detection.logs.containers.max_rate_low_priority"),
 	}
+	logsfilter.WarnRateLimitDiscrepancies("anomaly_detection.logs.kubelet", kubelet.maxRateLow, kubelet.maxRateMedium, kubelet.maxRateHigh)
+	logsfilter.WarnRateLimitDiscrepancies("anomaly_detection.logs.containers", containers.maxRateLow, containers.maxRateMedium, containers.maxRateHigh)
+	logsfilter.WarnInvalidMinSeverity("anomaly_detection.logs.kubelet.min_severity", kubelet.minSeverity)
+	logsfilter.WarnInvalidMinSeverity("anomaly_detection.logs.containers.min_severity", containers.minSeverity)
 	return newLogSampler(kubelet, containers, onDropped)
 }
 

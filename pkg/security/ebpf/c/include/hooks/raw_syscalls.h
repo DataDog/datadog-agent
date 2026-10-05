@@ -3,7 +3,11 @@
 
 #include "structs/security_profile.h"
 #include "helpers/activity_dump.h"
+#include "helpers/approvers.h"
+#include "helpers/process.h"
 #include "helpers/raw_syscalls.h"
+#include "helpers/span.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
 SEC("tracepoint/raw_syscalls/sys_enter")
@@ -15,14 +19,27 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
 
     send_signal(pid);
 
-    struct syscall_monitor_event_t event = {};
-    struct proc_cache_t *proc_cache_entry = fill_process_context(&event.process);
-    fill_cgroup_context(proc_cache_entry, &event.cgroup);
+    // syscall_monitor_event_t lives in a per-CPU map rather than on the stack.
+    // We're reusing the SPAN_FILL per-CPU map instead of using another one, but we're
+    // not filling the span context here: this event represents a batch of syscall,
+    // the span context is not useful here
+    struct syscall_monitor_event_t *event = SPAN_FILL_EVENT(struct syscall_monitor_event_t, EVENT_SYSCALLS);
+    if (!event) {
+        return 0;
+    }
+
+    struct proc_cache_t *proc_cache_entry = fill_process_context(&event->process);
+    fill_cgroup_context(proc_cache_entry, &event->cgroup);
+
+    u8 drift_active = 0;
+    u8 dump_active = 0;
+    u8 drift_reason = SYSCALL_MONITOR_REASON_NONE;
+    u8 dump_reason = SYSCALL_MONITOR_REASON_NONE;
 
     // check if this event should trigger a syscall drift event
     if (is_anomaly_syscalls_enabled()) {
         // fetch the profile for the current cgroup
-        struct security_profile_t *profile = bpf_map_lookup_elem(&security_profiles, &event.cgroup.path_key.ino);
+        struct security_profile_t *profile = bpf_map_lookup_elem(&security_profiles, &event->cgroup.path_key.ino);
         if (profile) {
             u64 cookie = profile->cookie;
             struct security_profile_syscalls_t *syscalls = bpf_map_lookup_elem(&secprofs_syscalls, &cookie);
@@ -33,13 +50,12 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
                     // should never happen
                     return 0;
                 }
+                drift_active = 1;
                 // is the current syscall in the profile ?
                 if (!syscall_mask_contains(syscalls->syscalls, args->id)) {
                     syscall_monitor_entry_insert(entry, args->id);
                 }
-                // send an event if need be
-                event.event.flags = EVENT_FLAGS_ANOMALY_DETECTION_EVENT;
-                send_or_skip_syscall_monitor_event(args, &event, entry, &zero, SYSCALL_MONITOR_TYPE_DRIFT);
+                drift_reason = syscall_monitor_should_send(args, entry, now);
             }
         }
     }
@@ -54,11 +70,71 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
                 // should never happen
                 return 0;
             }
+            dump_active = 1;
             // insert the current syscall in the map
             syscall_monitor_entry_insert(entry, args->id);
-            // send an event if need be
-            event.event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
-            send_or_skip_syscall_monitor_event(args, &event, entry, &zero, SYSCALL_MONITOR_TYPE_DUMP);
+            dump_reason = syscall_monitor_should_send(args, entry, now);
+        }
+    }
+
+    // A NULL peek means another thread exited and dropped the entry: nothing to flush.
+    if (drift_active) {
+        struct syscall_monitor_entry_t *drift_entry = peek_syscall_monitor_entry(pid, SYSCALL_MONITOR_TYPE_DRIFT);
+        if (drift_entry != NULL) {
+            if (drift_reason) {
+                event->event.flags = EVENT_FLAGS_ANOMALY_DETECTION_EVENT;
+                event->event_reason = drift_reason;
+                syscall_monitor_flush_entry(event, drift_entry, &zero, now, SYSCALL_MONITOR_TYPE_DRIFT);
+                send_event_ptr(args, EVENT_SYSCALLS, event);
+            }
+            syscall_monitor_post_syscall(args, drift_entry, &zero, now, SYSCALL_MONITOR_TYPE_DRIFT);
+        }
+    }
+
+    if (dump_active) {
+        struct syscall_monitor_entry_t *dump_entry = peek_syscall_monitor_entry(pid, SYSCALL_MONITOR_TYPE_DUMP);
+        if (dump_entry != NULL) {
+            if (dump_reason) {
+                event->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+                event->event_reason = dump_reason;
+                syscall_monitor_flush_entry(event, dump_entry, &zero, now, SYSCALL_MONITOR_TYPE_DUMP);
+                send_event_ptr(args, EVENT_SYSCALLS, event);
+            }
+            syscall_monitor_post_syscall(args, dump_entry, &zero, now, SYSCALL_MONITOR_TYPE_DUMP);
+        }
+    }
+
+    // Workload profiles v2 syscall sampler: sample every cgroup unless userspace excluded it
+    // (host/systemd). Gated up front so we skip the per-syscall map lookups when disabled.
+    if (is_event_sampling_syscalls_enabled()) {
+        // Key must live on the stack (event is a per-CPU map value).
+        u64 cgroup_ino = event->cgroup.path_key.ino;
+        if (!event->process.is_kworker && bpf_map_lookup_elem(&excluded_cgroups, &cgroup_ino) == NULL) {
+            // Fast-exit high-frequency, low-signal syscalls (read/write/futex/poll/...). Userspace
+            // seeds them into profiles so a KILL-default seccomp profile stays valid.
+            struct syscall_table_key_t ignore_key = {
+                .id = args->id,
+                .syscall_key = SAMPLING_IGNORED_SYSCALL_KEY,
+            };
+            struct pid_cache_t *pid_entry = is_syscall(&ignore_key) ? NULL : get_pid_cache(pid);
+            if (pid_entry != NULL) {
+                u64 sample_cookie = 0;
+                u32 refresh_needed = 0;
+                enum SYSCALL_STATE state = approve_syscall_sample(pid_entry->cookie, args->id, &sample_cookie, &refresh_needed);
+                if (state == SAMPLED) {
+                    event->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+                    event->event_reason = SYSCALL_MONITOR_REASON_SAMPLE;
+                    __builtin_memset(event->syscalls, 0, sizeof(event->syscalls));
+                    event->syscall_id = args->id;
+                    event->sample_cookie = sample_cookie;
+                    fill_span_context(&event->span, &event->go_labels);
+                    send_event_ptr(args, EVENT_SYSCALLS, event);
+                } else if (refresh_needed) {
+                    struct sample_refresh_event_t ev = {};
+                    ev.cookie = sample_cookie;
+                    send_event(args, EVENT_SAMPLE_REFRESH, ev);
+                }
+            }
         }
     }
 

@@ -16,11 +16,14 @@ import (
 	"io"
 	"math/big"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -87,6 +90,113 @@ func (t *tracerouteRunner) Run(ctx context.Context, cfg config.Config) (payload.
 	return t.fn(ctx, cfg)
 }
 
+func Test_SyntheticsTestScheduler_TriggeredPollPreservesEnrichment(t *testing.T) {
+	const enrichment = `{"execution":{"origin":"network-ephemeral","metadata":{"attempt":1}},"future":{"large":9007199254740993}}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "test-api-key", r.Header.Get("DD-API-KEY"))
+		assert.Equal(t, "test-hostname", r.URL.Query().Get("agent_hostname"))
+		assert.Equal(t, "7.99.0-test", r.URL.Query().Get("agent_version"))
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, `{"tests":[{
+			"version":1,"type":"network","subtype":"TCP","org_id":99,"public_id":"triggered-test",
+			"result_id":"backend-result-id","run_type":"triggered","enrichment":%s,
+			"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"SYN"}}
+		}]}`, enrichment)
+	}))
+	defer server.Close()
+
+	logger := newTestLogger(t)
+	fixedTime := time.UnixMilli(1756901488589)
+	poller := &testPoller{
+		httpClient:      server.Client(),
+		endpoint:        server.URL,
+		apiKey:          "test-api-key",
+		agentVersion:    "7.99.0-test",
+		hostNameService: &mockHostname{},
+		log:             logger,
+		timeNowFn:       func() time.Time { return fixedTime },
+		TestsChan:       make(chan SyntheticsTestCtx, 1),
+		done:            make(chan struct{}),
+		healthy:         true,
+	}
+
+	tests, err := poller.fetchTests(context.Background())
+	require.NoError(t, err)
+	require.Len(t, tests, 1)
+	require.Equal(t, common.RunTypeTriggered, tests[0].RunType)
+	require.Equal(t, "backend-result-id", tests[0].ResultID)
+	require.Equal(t, json.RawMessage(enrichment), tests[0].Enrichment)
+
+	schedulerPoller := newStubPoller(t, logger)
+	testDir := t.TempDir()
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("run_path", testDir)
+
+	ctrl := gomock.NewController(t)
+	mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+	messages := make(chan []byte, 1)
+	mockEpForwarder.EXPECT().
+		SendEventPlatformEventBlocking(gomock.Any(), eventplatform.EventTypeSynthetics).
+		DoAndReturn(func(msg *message.Message, _ string) error {
+			messages <- append([]byte(nil), msg.GetContent()...)
+			return nil
+		}).
+		Times(1)
+
+	scheduler := newSyntheticsTestScheduler(
+		&schedulerConfigs{workers: 1, flushInterval: 100 * time.Millisecond, syntheticsSchedulerEnabled: true},
+		mockEpForwarder,
+		logger,
+		&mockHostname{},
+		func() time.Time { return fixedTime },
+		&teststatsd.Client{},
+		&tracerouteRunner{func(_ context.Context, cfg config.Config) (payload.NetworkPath, error) {
+			return payload.NetworkPath{
+				TestRunID:   "network-path-run-id",
+				Protocol:    cfg.Protocol,
+				Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, Port: cfg.DestPort},
+			}, nil
+		}},
+		schedulerPoller,
+	)
+	scheduler.generateTestResultID = func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
+		t.Error("result ID should come from the triggered polling request")
+		return "generated-result-id", nil
+	}
+
+	require.NoError(t, scheduler.start(context.Background()))
+	t.Cleanup(scheduler.stop)
+	schedulerPoller.TestsChan <- SyntheticsTestCtx{nextRun: fixedTime, cfg: tests[0]}
+
+	var payloadBytes []byte
+	select {
+	case payloadBytes = <-messages:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for Synthetics result")
+	}
+
+	var got struct {
+		Enrichment json.RawMessage `json:"enrichment"`
+		Result     struct {
+			ID        string `json:"id"`
+			InitialID string `json:"initialId"`
+			RunType   string `json:"runType"`
+			Netpath   struct {
+				TestResultID string `json:"test_result_id"`
+				TestRunType  string `json:"test_run_type"`
+			} `json:"netpath"`
+		} `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal(payloadBytes, &got))
+	assert.Equal(t, json.RawMessage(enrichment), got.Enrichment)
+	assert.Equal(t, "backend-result-id", got.Result.ID)
+	assert.Equal(t, "backend-result-id", got.Result.InitialID)
+	assert.Equal(t, common.RunTypeTriggered, got.Result.RunType)
+	assert.Equal(t, "backend-result-id", got.Result.Netpath.TestResultID)
+	assert.Equal(t, common.RunTypeTriggered, got.Result.Netpath.TestRunType)
+}
+
 func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 	type testCase struct {
 		name                  string
@@ -97,13 +207,13 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 
 	testCases := []testCase{
 		{
-			name: "one test provided",
+			name: "CI test emits a triggered Network Path result",
 			testJSON: `{
 					"version":1,"type":"network","subtype":"TCP",
 					"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"SYN","probe_count":3,"traceroute_count":1,"max_ttl":30,"timeout":5,"source_service":"frontend","destination_service":"backend"}},
-					"org_id":12345,"main_dc":"us1.staging.dog","public_id":"puf-9fm-c89","run_type":"scheduled"
+					"org_id":12345,"main_dc":"us1.staging.dog","public_id":"puf-9fm-c89","run_type":"ci"
 				}`,
-			expectedEventJSON: `{"location":{"id":"agent:test-hostname"},"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488589,"assertions":[],"failure":null,"duration":1,"config":{"assertions":[],"request":{"destinationService":"backend","port":443,"maxTtl":30,"host":"example.com","tracerouteQueries":1,"e2eQueries":3,"sourceService":"frontend","timeout":5,"tcpMethod":"SYN"}},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":null,"latency":null,"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":1756901488592,"agent_version":"","namespace":"","test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","test_run_id":"test-run-id-111-example.com","origin":"synthetics","test_run_type":"scheduled","source_product":"synthetics","collector_type":"agent","protocol":"TCP","source":{"name":"test-hostname","display_name":"test-hostname","hostname":"test-hostname"},"destination":{"hostname":"example.com","port":443},"traceroute":{"runs":[{"run_id":"1","source":{"ip_address":"","port":0},"destination":{"ip_address":"","port":0},"hops":[{"ttl":0,"ip_address":"1.1.1.1","reachable":false},{"ttl":0,"ip_address":"1.1.1.2","reachable":false}]}],"hop_count":{"avg":0,"min":0,"max":0}},"e2e_probe":{"rtts":null,"packets_sent":0,"packets_received":0,"packet_loss_percentage":0,"jitter":0,"rtt":{"avg":0,"min":0,"max":0}}},"status":"passed","runType":"scheduled"},"test":{"id":"puf-9fm-c89","subType":"tcp","type":"network","version":1},"v":1}`,
+			expectedEventJSON: `{"location":{"id":"agent:test-hostname"},"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488591,"testStartedAt":1756901488590,"testTriggeredAt":1756901488589,"assertions":[],"failure":null,"duration":1,"config":{"assertions":[],"request":{"destinationService":"backend","port":443,"maxTtl":30,"host":"example.com","tracerouteQueries":1,"e2eQueries":3,"sourceService":"frontend","timeout":5,"tcpMethod":"SYN"}},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":null,"latency":null,"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":1756901488591,"agent_version":"","namespace":"","test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","test_run_id":"test-run-id-111-example.com","origin":"synthetics","test_run_type":"triggered","source_product":"synthetics","collector_type":"agent","protocol":"TCP","source":{"name":"test-hostname","display_name":"test-hostname","hostname":"test-hostname"},"destination":{"hostname":"example.com","port":443},"traceroute":{"runs":[{"run_id":"1","source":{"ip_address":"","port":0},"destination":{"ip_address":"","port":0},"hops":[{"ttl":0,"ip_address":"1.1.1.1","reachable":false},{"ttl":0,"ip_address":"1.1.1.2","reachable":false}]}],"hop_count":{"avg":0,"min":0,"max":0}},"e2e_probe":{"rtts":null,"packets_sent":0,"packets_received":0,"packet_loss_percentage":0,"jitter":0,"rtt":{"avg":0,"min":0,"max":0}}},"status":"passed","runType":"ci"},"test":{"id":"puf-9fm-c89","subType":"tcp","type":"network","version":1},"v":1}`,
 			expectedRunTraceroute: func(_ context.Context, cfg config.Config) (payload.NetworkPath, error) {
 				return payload.NetworkPath{
 					TestRunID:   "test-run-id-111-" + cfg.DestHostname,
@@ -122,6 +232,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			},
 		},
 	}
+
 	configs := &schedulerConfigs{
 		workers:                    6,
 		flushInterval:              100 * time.Millisecond,

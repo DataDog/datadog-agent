@@ -43,14 +43,15 @@ func CreatePod(pod *workloadmeta.KubernetesPod) *workloadfilter.Pod {
 			Name:        pod.Name,
 			Namespace:   pod.Namespace,
 			Annotations: pod.Annotations,
-			Rootowner:   resolveRootOwner(pod.Owners),
+			Labels:      pod.Labels,
+			Rootowner:   resolveRootOwner(pod.Owners, pod.Labels),
 		},
 	}
 }
 
 // resolveRootOwner determines the root owner of a pod by walking the owner chain.
 // For example, a pod owned by a ReplicaSet resolves to the parent Deployment.
-func resolveRootOwner(owners []workloadmeta.KubernetesPodOwner) *core.FilterRootOwner {
+func resolveRootOwner(owners []workloadmeta.KubernetesPodOwner, podLabels map[string]string) *core.FilterRootOwner {
 	if len(owners) == 0 {
 		return nil
 	}
@@ -63,22 +64,8 @@ func resolveRootOwner(owners []workloadmeta.KubernetesPodOwner) *core.FilterRoot
 		}
 	}
 
-	switch owner.Kind {
-	case kubernetes.ReplicaSetKind:
-		if deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name); deployment != "" {
-			return &core.FilterRootOwner{Kind: kubernetes.DeploymentKind, Name: deployment}
-		}
-		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
-	case kubernetes.JobKind:
-		if cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name); cronjob != "" {
-			return &core.FilterRootOwner{Kind: kubernetes.CronJobKind, Name: cronjob}
-		}
-		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
-	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind:
-		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
-	default:
-		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
-	}
+	rootKind, rootName := kubernetes.ResolvePodRootOwner(owner.Kind, owner.Name, podLabels)
+	return &core.FilterRootOwner{Kind: rootKind, Name: rootName}
 }
 
 // CreateProcess creates a Filterable Process object from a workloadmeta.Process.

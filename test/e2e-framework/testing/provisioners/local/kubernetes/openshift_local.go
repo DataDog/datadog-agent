@@ -49,7 +49,12 @@ func openShiftLocalRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, pa
 		return err
 	}
 
-	cluster, err := kubeComp.NewLocalOpenShiftCluster(&localEnv, params.name, localEnv.OpenShiftPullSecretPath())
+	cluster, err := kubeComp.NewLocalOpenShiftCluster(&localEnv, params.name, kubeComp.OpenShiftClusterArgs{
+		PullSecretPath: localEnv.OpenShiftPullSecretPath(),
+		CPUs:           localEnv.OpenShiftCPUs(),
+		Memory:         localEnv.OpenShiftMemory(),
+		Disk:           localEnv.OpenShiftDisk(),
+	})
 	if err != nil {
 		return err
 	}

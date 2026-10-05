@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+# gazelle:dd_agent_go_test on
+
 go_library(
     name = "collectors",
     srcs = ["testutil.go"],
@@ -8,14 +10,14 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//comp/core/config",
+            "//comp/core/workloadmeta/collectors/internal/nvml",
             "//comp/core/workloadmeta/def",
-            "@//comp/core/workloadmeta/collectors/internal/nvml",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/config",
+            "//comp/core/workloadmeta/collectors/internal/nvml",
             "//comp/core/workloadmeta/def",
-            "@//comp/core/workloadmeta/collectors/internal/nvml",
             "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],

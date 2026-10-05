@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "check",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/check",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core/tagger/def",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadmeta/collectors/catalog-core",
+        "//comp/core/workloadmeta/def",
+        "//pkg/cli/subcommands/check",
+        "//pkg/process/util/containers",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)

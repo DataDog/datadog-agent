@@ -54,7 +54,7 @@ instances:
     ## @param authProtocol - string - optional
     ## Authentication type to use when connecting to your SNMP devices.
     ## Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
-    ## Default to MD5 when `authKey` is specified.
+    ## Default to MD5 when `authKey` is specified, or SHA256 in FIPS mode.
     #
     authProtocol: "%%extra_auth_protocol%%"
 
@@ -66,7 +66,7 @@ instances:
     ## @param privProtocol - string - optional
     ## Privacy type to use when connecting to your SNMP devices.
     ## Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
-    ## Default to DES when `privKey` is specified.
+    ## Default to DES when `privKey` is specified, or AES in FIPS mode.
     #
     privProtocol: "%%extra_priv_protocol%%"
 
@@ -130,6 +130,17 @@ instances:
     ## Enable collection of VPN tunnels and route table data
     #
     collect_vpn: "%%extra_collect_vpn%%"
+
+    ## @param device_tags_source - string - optional - default: resource
+    ## Where the device tags on metrics come from.
+    ## `resource`: only the resource tag is sent and the backend attaches the device tags from
+    ## the metadata payload.
+    ## `agent`: the Agent attaches the device tags to every metric it submits and no resource
+    ## tag is sent, so the backend does not enrich the metrics.
+    ## `both`: the Agent attaches the device tags and the backend enrichment applies on top.
+    ## This has no effect when `collect_device_metadata` is disabled.
+    #
+    device_tags_source: "%%extra_device_tags_source%%"
 
     ## @param namespace - string - optional - default: default
     ## Namespace can be used to disambiguate devices with same IPs.

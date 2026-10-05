@@ -326,3 +326,36 @@ func (r *RemoteWindowsHostAssertions) HasDDAgentUserFileAccess(args ...string) *
 
 	return r
 }
+
+// HasGlobalReadAccess verifies that the file at the given path grants read access to the
+// Everyone group (S-1-1-0). This mirrors the Linux world-readable (0644) behavior and ensures
+// non-admin identities (e.g. an IIS App Pool identity) can read fleet config such as
+// application_monitoring.yaml.
+func (r *RemoteWindowsHostAssertions) HasGlobalReadAccess(path string) *RemoteWindowsHostAssertions {
+	r.context.T().Helper()
+
+	exists, err := r.remoteHost.FileExists(path)
+	r.require.NoError(err, "should check if file exists")
+	r.require.True(exists, "path %s should exist", path)
+
+	security, err := common.GetSecurityInfoForPath(r.remoteHost, path)
+	r.require.NoError(err, "should get security info for %s", path)
+
+	everyone := common.GetIdentityForSID(common.EveryoneSID)
+	everyoneRules := common.FilterRulesForIdentity(security.Access, everyone)
+	r.require.NotEmpty(everyoneRules, "Everyone should have access rules on %s", path)
+
+	hasReadAccess := false
+	for _, rule := range everyoneRules {
+		// Accept either the expanded file-specific read mask or the generic GENERIC_READ
+		// bit: the ACL is written as SDDL "(A;;GR;;;WD)", and Get-Acl may surface it either
+		// as the raw generic mask (0x80000000) or as expanded FILE_GENERIC_READ bits.
+		if rule.IsAllow() && ((rule.Rights&common.FileRead) == common.FileRead || (rule.Rights&common.GENERIC_READ) != 0) {
+			hasReadAccess = true
+			break
+		}
+	}
+	r.require.True(hasReadAccess, "%s should grant Everyone read access", path)
+
+	return r
+}

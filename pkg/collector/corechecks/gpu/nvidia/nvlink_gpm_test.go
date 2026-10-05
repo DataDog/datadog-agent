@@ -8,7 +8,6 @@
 package nvidia
 
 import (
-	"errors"
 	"fmt"
 	"testing"
 
@@ -16,6 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -28,8 +29,8 @@ func TestNVLinkGPMCollectorGetOrCreateGpmCollector(t *testing.T) {
 	expectedTxMetricID := nvml.GPM_METRIC_NVLINK_L1_TX_PER_SEC
 	requestedMetricIDs := make(map[uint32]struct{})
 
-	mockLib := &mockGpmNvml{
-		metricsGetFunc: func(metrics *nvml.GpmMetricsGetType) nvml.Return {
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmMetricsGetCallback(func(metrics *nvml.GpmMetricsGetType) nvml.Return {
 			require.Equal(t, uint32(1), metrics.NumMetrics)
 			for i := range metrics.Metrics[:metrics.NumMetrics] {
 				require.Contains(t, []uint32{uint32(expectedRxMetricID), uint32(expectedTxMetricID)}, metrics.Metrics[i].MetricId)
@@ -37,14 +38,10 @@ func TestNVLinkGPMCollectorGetOrCreateGpmCollector(t *testing.T) {
 				metrics.Metrics[i].NvmlReturn = uint32(nvml.SUCCESS)
 			}
 			return nvml.SUCCESS
-		},
-	}
-	mockDevice := &mockGpmDevice{
-		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
-		uuid:       "test-uuid-nvlink-gpm",
-	}
-
-	safenvml.WithMockNVML(t, mockLib)
+		}),
+		testutil.WithGpmSupport(true),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
 	collector := &nvlinkGpmCollector{
 		perPortCollector: make(map[int]*gpmCollector),
@@ -78,27 +75,14 @@ func TestNVLinkGPMCollectorGetOrCreateGpmCollectorRejectsOutOfRangePort(t *testi
 func TestNVLinkGPMCollectorGetPortMetricsConvertsValuesAndSetsPriority(t *testing.T) {
 	rxMetricID := nvml.GpmMetricId(int(baseNvlinkRxGpm) + 2)
 	txMetricID := nvml.GpmMetricId(int(baseNvlinkTxGpm) + 2)
-	mockLib := &mockGpmNvml{
-		metricsGetFunc: func(metrics *nvml.GpmMetricsGetType) nvml.Return {
-			for i := range metrics.Metrics[:metrics.NumMetrics] {
-				metrics.Metrics[i].NvmlReturn = uint32(nvml.SUCCESS)
-				switch nvml.GpmMetricId(metrics.Metrics[i].MetricId) {
-				case rxMetricID:
-					metrics.Metrics[i].Value = 1.5
-				case txMetricID:
-					metrics.Metrics[i].Value = 2.25
-				default:
-					t.Fatalf("unexpected GPM metric ID %d", metrics.Metrics[i].MetricId)
-				}
-			}
-			return nvml.SUCCESS
-		},
-	}
-	mockDevice := &mockGpmDevice{
-		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
-		uuid:       "test-uuid-nvlink-gpm",
-	}
-	safenvml.WithMockNVML(t, mockLib)
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
+			rxMetricID: {Value: 1.5, Return: nvml.SUCCESS},
+			txMetricID: {Value: 2.25, Return: nvml.SUCCESS},
+		}),
+		testutil.WithGpmSupport(true),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 	safeLib, err := safenvml.GetSafeNvmlLib()
 	require.NoError(t, err)
 	collector := &nvlinkGpmCollector{
@@ -106,7 +90,7 @@ func TestNVLinkGPMCollectorGetPortMetricsConvertsValuesAndSetsPriority(t *testin
 			1: {
 				lib:     safeLib,
 				device:  mockDevice,
-				samples: [sampleBufferSize]nvml.GpmSample{&gpmSample{id: 1}, &gpmSample{id: 2}},
+				samples: allocTestGPMSamples(t, mockLib),
 				metricsToCollect: map[nvml.GpmMetricId]gpmMetric{
 					rxMetricID: {name: "nvlink.throughput.data.rx", metricType: metrics.GaugeType},
 					txMetricID: {name: "nvlink.throughput.data.tx", metricType: metrics.GaugeType},
@@ -116,15 +100,15 @@ func TestNVLinkGPMCollectorGetPortMetricsConvertsValuesAndSetsPriority(t *testin
 		device: mockDevice,
 	}
 
-	collectedMetrics, err := collector.getPortMetrics(1)
+	collectedSamples, err := collector.getPortMetrics(1)
 	require.NoError(t, err)
-	require.Len(t, collectedMetrics, 2)
+	require.Len(t, collectedSamples, 2)
 
-	valuesByName := make(map[string]float64, len(collectedMetrics))
-	for _, metric := range collectedMetrics {
+	valuesByName := make(map[string]float64, len(collectedSamples))
+	for _, metric := range requireMetrics(t, collectedSamples) {
 		require.Equal(t, metrics.GaugeType, metric.Type)
-		require.Equal(t, High, metric.Priority)
-		require.Contains(t, metric.Tags, "nvlink_port:1")
+		require.Equal(t, High, metric.Priority())
+		require.Contains(t, metric.Tags(), "nvlink_port:1")
 		valuesByName[metric.Name] = metric.Value
 	}
 	require.Equal(t, 1.5*1024, valuesByName["nvlink.throughput.data.rx"])
@@ -136,8 +120,8 @@ func TestNVLinkGPMCollectorCalculateGpmMetricsReturnsPartialMetricsOnNVMLFailure
 	txMetricID := nvml.GpmMetricId(int(baseNvlinkTxGpm) + 2)
 	failingMetricID := nvml.GpmMetricId(int(baseNvlinkRxGpm) + 4)
 
-	mockLib := &mockGpmNvml{
-		metricsGetFunc: func(metrics *nvml.GpmMetricsGetType) nvml.Return {
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmMetricsGetCallback(func(metrics *nvml.GpmMetricsGetType) nvml.Return {
 			require.Equal(t, uint32(1), metrics.NumMetrics)
 
 			switch nvml.GpmMetricId(metrics.Metrics[0].MetricId) {
@@ -154,16 +138,17 @@ func TestNVLinkGPMCollectorCalculateGpmMetricsReturnsPartialMetricsOnNVMLFailure
 			}
 
 			return nvml.SUCCESS
-		},
-	}
-	safenvml.WithMockNVML(t, mockLib)
+		}),
+		testutil.WithGpmSupport(true),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 	safeLib, err := safenvml.GetSafeNvmlLib()
 	require.NoError(t, err)
 
 	collector := &gpmCollector{
 		lib:     safeLib,
-		device:  &mockGpmDevice{gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1}, uuid: "test-uuid-nvlink-gpm"},
-		samples: [sampleBufferSize]nvml.GpmSample{&gpmSample{id: 1}, &gpmSample{id: 2}},
+		device:  mockDevice,
+		samples: allocTestGPMSamples(t, mockLib),
 		metricsToCollect: map[nvml.GpmMetricId]gpmMetric{
 			rxMetricID:      {name: "nvlink.throughput.data.rx", metricType: metrics.GaugeType},
 			txMetricID:      {name: "nvlink.throughput.data.tx", metricType: metrics.GaugeType},
@@ -191,39 +176,37 @@ func TestNVLinkGPMCollectorCalculateGpmMetricsReturnsPartialMetricsOnNVMLFailure
 
 func TestNVLinkGPMCollectorCollectReturnsPartialMetricsAndErrors(t *testing.T) {
 	metricID := nvml.GpmMetricId(int(baseNvlinkRxGpm) + 2)
-	mockLib := &mockGpmNvml{
-		metricsGetFunc: func(metrics *nvml.GpmMetricsGetType) nvml.Return {
-			for i := range metrics.Metrics[:metrics.NumMetrics] {
-				metrics.Metrics[i].NvmlReturn = uint32(nvml.SUCCESS)
-				metrics.Metrics[i].Value = 1
-			}
-			return nvml.SUCCESS
-		},
-	}
-	safenvml.WithMockNVML(t, mockLib)
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
+			metricID: {Value: 1, Return: nvml.SUCCESS},
+		}),
+		testutil.WithDeviceOptions(0, testutil.WithGpmSupport(true)),
+		testutil.WithDeviceOptions(1,
+			testutil.WithGpmSupport(true),
+			testutil.WithGpmSampleGetCallback(func(_ *testutil.MockGpmSample) nvml.Return {
+				return nvml.ERROR_UNKNOWN
+			}),
+		),
+	)
 	safeLib, err := safenvml.GetSafeNvmlLib()
 	require.NoError(t, err)
+	firstDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
+	secondDevice := nvmltestutil.PhysicalDevice(t, mockLib, 1)
 
 	collector := &nvlinkGpmCollector{
 		perPortCollector: map[int]*gpmCollector{
 			1: {
 				lib:     safeLib,
-				device:  &mockGpmDevice{gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1}, uuid: "test-uuid-nvlink-gpm"},
-				samples: [sampleBufferSize]nvml.GpmSample{&gpmSample{id: 1}, &gpmSample{id: 2}},
+				device:  firstDevice,
+				samples: allocTestGPMSamples(t, mockLib),
 				metricsToCollect: map[nvml.GpmMetricId]gpmMetric{
 					metricID: {name: "nvlink.throughput.data.rx", metricType: metrics.GaugeType},
 				},
 			},
 			2: {
-				lib: safeLib,
-				device: &mockGpmDevice{
-					gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
-					GpmSampleGetFunc: func(_ nvml.GpmSample) error {
-						return errors.New("sample unavailable")
-					},
-					uuid: "test-uuid-nvlink-gpm",
-				},
-				samples: [sampleBufferSize]nvml.GpmSample{&gpmSample{id: 3}, &gpmSample{id: 4}},
+				lib:     safeLib,
+				device:  secondDevice,
+				samples: allocTestGPMSamples(t, mockLib),
 				metricsToCollect: map[nvml.GpmMetricId]gpmMetric{
 					metricID: {name: "nvlink.throughput.data.rx", metricType: metrics.GaugeType},
 				},
@@ -231,10 +214,12 @@ func TestNVLinkGPMCollectorCollectReturnsPartialMetricsAndErrors(t *testing.T) {
 		},
 	}
 
-	collectedMetrics, err := collector.Collect()
+	collectedSamples, err := collector.Collect()
 	require.Error(t, err)
 	require.ErrorContains(t, err, "get port metrics for port 2")
-	require.ErrorContains(t, err, "sample unavailable")
+	require.ErrorContains(t, err, nvml.ErrorString(nvml.ERROR_UNKNOWN))
+	collectedMetrics := requireMetrics(t, collectedSamples)
 	require.Len(t, collectedMetrics, 1)
-	require.Equal(t, "nvlink.throughput.data.rx", collectedMetrics[0].Name)
+	metric := collectedMetrics[0]
+	require.Equal(t, "nvlink.throughput.data.rx", metric.Name)
 }

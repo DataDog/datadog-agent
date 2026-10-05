@@ -10,26 +10,32 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	compos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
+
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 const (
 	defaultVMName = "vm"
 )
 
+type preAgentInstallHook func(*aws.Environment, *remote.Host) (pulumi.Resource, error)
+
 // Params is a set of parameters for the Host environment.
 type Params struct {
 	Name string
 
-	instanceOptions    []VMOption
-	agentOptions       []agentparams.Option
-	agentClientOptions []agentclientparams.Option
-	fakeintakeOptions  []fakeintake.Option
-	installDocker      bool
-	installUpdater     bool
+	instanceOptions      []VMOption
+	agentOptions         []agentparams.Option
+	agentClientOptions   []agentclientparams.Option
+	fakeintakeOptions    []fakeintake.Option
+	preAgentInstallHooks []preAgentInstallHook
+	installDocker        bool
+	installUpdater       bool
 }
 
 func newParams() *Params {
@@ -98,6 +104,8 @@ func ParamsFromEnvironment(e aws.Environment) *Params {
 
 	// Nothing to set for installDocker from environment at the moment.
 
+	p.instanceOptions = append(p.instanceOptions, WithInternetAccess())
+
 	return p
 }
 
@@ -144,6 +152,14 @@ func WithFakeIntakeOptions(opts ...fakeintake.Option) Option {
 	}
 }
 
+// WithPreAgentInstallHook adds a callback after the host is ready and before the Agent package is installed.
+func WithPreAgentInstallHook(cb preAgentInstallHook) Option {
+	return func(params *Params) error {
+		params.preAgentInstallHooks = append(params.preAgentInstallHooks, cb)
+		return nil
+	}
+}
+
 // WithoutFakeIntake disables the creation of the FakeIntake.
 func WithoutFakeIntake() Option {
 	return func(params *Params) error {
@@ -168,7 +184,9 @@ func WithUpdater() Option {
 	}
 }
 
-// WithDocker installs docker on the VM
+// WithDocker provisions a docker.Manager on the VM. Docker itself is
+// pre-baked into the AWS e2e AMI; the Manager configures the daemon and
+// asserts docker-compose is present at the expected version.
 func WithDocker() Option {
 	return func(params *Params) error {
 		params.installDocker = true

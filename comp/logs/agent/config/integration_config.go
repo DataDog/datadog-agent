@@ -107,12 +107,21 @@ type LogsConfig struct {
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message" yaml:"process_raw_message"`
 
-	// SIEMParsing enables CEF/LEEF header detection and extraction within syslog
-	// message bodies. When true (the default once syslog ingestion is wired up),
-	// syslog messages whose body starts with "CEF:" or "LEEF:" are parsed into
-	// structured SIEM fields. Set to false to skip this detection and treat the
-	// message body as plain text. See IsSIEMParsingEnabled() for nil handling.
-	SIEMParsing *bool `mapstructure:"siem_parsing" json:"siem_parsing" yaml:"siem_parsing"`
+	// AttributeParsing controls whether the full syslog parser is active for
+	// this source. When true, incoming lines are parsed into structured syslog
+	// messages with metadata extraction, CEF/LEEF detection, and processing
+	// rule support (e.g. remap_source). When false, a no-op parser is used
+	// and lines pass through as raw text. When nil (unconfigured), it is
+	// auto-enabled if any remap_source processing rule is defined, and
+	// defaults to off otherwise. See IsAttributeParsingEnabled().
+	AttributeParsing *bool `mapstructure:"attribute_parsing" json:"attribute_parsing" yaml:"attribute_parsing"`
+
+	// DebugAttrParsing controls whether the syslog parser renders structured
+	// JSON output (with "message", "syslog", and optionally "siem" keys) or
+	// passes through the original log line as-is. When false (the default),
+	// only the raw message is sent to intake. Set to true to include the full
+	// structured envelope.
+	DebugAttrParsing *bool `mapstructure:"debug_attr_parsing" json:"debug_attr_parsing" yaml:"debug_attr_parsing"`
 
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection" yaml:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size" yaml:"auto_multi_line_sample_size"`
@@ -138,6 +147,10 @@ type LogsConfig struct {
 	IntegrationSource string `mapstructure:"integration_source" json:"integration_source" yaml:"integration_source"`
 	// IntegrationFileIndex is the index of the integration file that contains this source.
 	IntegrationSourceIndex int `mapstructure:"integration_source_index" json:"integration_source_index" yaml:"integration_source_index"`
+
+	// NoFollow rejects symbolic links in every path component. It is set internally
+	// and cannot be enabled through user configuration.
+	NoFollow bool `json:"-" yaml:"-" mapstructure:"-"`
 }
 
 // SourceAutoMultiLineOptions defines per-source auto multi-line detection overrides.
@@ -145,33 +158,33 @@ type LogsConfig struct {
 // for a specific log source, potentially overriding global configurations.
 type SourceAutoMultiLineOptions struct {
 	// EnableJSONDetection allows to enable or disable the detection of multi-line JSON logs for this source.
-	EnableJSONDetection *bool `mapstructure:"enable_json_detection" json:"enable_json_detection" yaml:"enable_json_detection"`
+	EnableJSONDetection *bool `mapstructure:"enable_json_detection" json:"enable_json_detection,omitempty" yaml:"enable_json_detection"`
 
 	// EnableDatetimeDetection allows to enable or disable the detection of multi-lines based on leading datetime stamps for this source.
-	EnableDatetimeDetection *bool `mapstructure:"enable_datetime_detection" json:"enable_datetime_detection" yaml:"enable_datetime_detection"`
+	EnableDatetimeDetection *bool `mapstructure:"enable_datetime_detection" json:"enable_datetime_detection,omitempty" yaml:"enable_datetime_detection"`
 
 	// MatchThreshold sets the similarity threshold to consider a pattern match for this source.
-	TimestampDetectorMatchThreshold *float64 `mapstructure:"timestamp_detector_match_threshold" json:"timestamp_detector_match_threshold" yaml:"timestamp_detector_match_threshold"`
+	TimestampDetectorMatchThreshold *float64 `mapstructure:"timestamp_detector_match_threshold" json:"timestamp_detector_match_threshold,omitempty" yaml:"timestamp_detector_match_threshold"`
 
 	// TokenizerMaxInputBytes sets the maximum number of bytes the tokenizer will read for this source.
-	TokenizerMaxInputBytes *int `mapstructure:"tokenizer_max_input_bytes" json:"tokenizer_max_input_bytes" yaml:"tokenizer_max_input_bytes"`
+	TokenizerMaxInputBytes *int `mapstructure:"tokenizer_max_input_bytes" json:"tokenizer_max_input_bytes,omitempty" yaml:"tokenizer_max_input_bytes"`
 
 	// PatternTableMaxSize sets the number of patterns auto multi line can use
-	PatternTableMaxSize *int `mapstructure:"pattern_table_max_size" json:"pattern_table_max_size" yaml:"pattern_table_max_size"`
+	PatternTableMaxSize *int `mapstructure:"pattern_table_max_size" json:"pattern_table_max_size,omitempty" yaml:"pattern_table_max_size"`
 
 	// PatternTableMatchThreshold sets the threshold for pattern table match for this source.
-	PatternTableMatchThreshold *float64 `mapstructure:"pattern_table_match_threshold" json:"pattern_table_match_threshold" yaml:"pattern_table_match_threshold"`
+	PatternTableMatchThreshold *float64 `mapstructure:"pattern_table_match_threshold" json:"pattern_table_match_threshold,omitempty" yaml:"pattern_table_match_threshold"`
 
 	// EnableJSONAggregation allows to enable or disable the aggregation of multi-line JSON logs for this source.
-	EnableJSONAggregation *bool `mapstructure:"enable_json_aggregation" json:"enable_json_aggregation" yaml:"enable_json_aggregation"`
+	EnableJSONAggregation *bool `mapstructure:"enable_json_aggregation" json:"enable_json_aggregation,omitempty" yaml:"enable_json_aggregation"`
 
 	// TagAggregatedJSON allows to enable or disable the tagging of aggregated JSON logs for this source.
-	TagAggregatedJSON *bool `mapstructure:"tag_aggregated_json" json:"tag_aggregated_json" yaml:"tag_aggregated_json"`
+	TagAggregatedJSON *bool `mapstructure:"tag_aggregated_json" json:"tag_aggregated_json,omitempty" yaml:"tag_aggregated_json"`
 
 	// StackTraceParsers overrides the list of enabled stack trace parsers for this source.
 	// Valid names match keys in the parser registry (e.g. "go"). An empty list disables
 	// stack trace aggregation for this source.
-	StackTraceParsers *[]string `mapstructure:"stack_trace_parsers" json:"stack_trace_parsers" yaml:"stack_trace_parsers"`
+	StackTraceParsers *[]string `mapstructure:"stack_trace_parsers" json:"stack_trace_parsers,omitempty" yaml:"stack_trace_parsers"`
 }
 
 // SourceAdaptiveSamplingOptions defines per-source overrides for the experimental adaptive sampler.
@@ -421,35 +434,53 @@ func (c *LogsConfig) Dump(multiline bool) string {
 func (c *LogsConfig) PublicJSON() ([]byte, error) {
 	// Export only fields that are explicitly documented in the public documentation
 	return json.Marshal(&struct {
-		Type              string                   `json:"type,omitempty"`
-		Port              int                      `json:"port,omitempty"`           // Network
-		Path              string                   `json:"path,omitempty"`           // File, Journald
-		Encoding          string                   `json:"encoding,omitempty"`       // File
-		ExcludePaths      []string                 `json:"exclude_paths,omitempty"`  // File
-		TailingMode       string                   `json:"start_position,omitempty"` // File
-		ChannelPath       string                   `json:"channel_path,omitempty"`   // Windows Event
-		Service           string                   `json:"service,omitempty"`
-		Source            string                   `json:"source,omitempty"`
-		SourceCategory    string                   `json:"source_category,omitempty"`
-		Tags              []string                 `json:"tags,omitempty"`
-		ProcessingRules   []*ProcessingRule        `json:"log_processing_rules,omitempty"`
-		AutoMultiLine     *bool                    `json:"auto_multi_line_detection,omitempty"`
-		FingerprintConfig *types.FingerprintConfig `json:"fingerprint_config,omitempty"`
+		Type                        string                      `json:"type,omitempty"`
+		Port                        int                         `json:"port,omitempty"`           // Network
+		Path                        string                      `json:"path,omitempty"`           // File, Journald
+		Encoding                    string                      `json:"encoding,omitempty"`       // File
+		ExcludePaths                []string                    `json:"exclude_paths,omitempty"`  // File
+		TailingMode                 string                      `json:"start_position,omitempty"` // File
+		Format                      string                      `json:"format,omitempty"`         // Parsing format
+		ChannelPath                 string                      `json:"channel_path,omitempty"`   // Windows Event
+		Query                       string                      `json:"query,omitempty"`          // Windows Event
+		Service                     string                      `json:"service,omitempty"`
+		Source                      string                      `json:"source,omitempty"`
+		SourceCategory              string                      `json:"source_category,omitempty"`
+		Tags                        []string                    `json:"tags,omitempty"`
+		ProcessingRules             []*ProcessingRule           `json:"log_processing_rules,omitempty"`
+		ProcessRawMessage           *bool                       `json:"process_raw_message,omitempty"`
+		AttributeParsing            *bool                       `json:"attribute_parsing,omitempty"`
+		DebugAttrParsing            *bool                       `json:"debug_attr_parsing,omitempty"`
+		AutoMultiLine               *bool                       `json:"auto_multi_line_detection,omitempty"`
+		AutoMultiLineSampleSize     int                         `json:"auto_multi_line_sample_size,omitempty"`
+		AutoMultiLineMatchThreshold float64                     `json:"auto_multi_line_match_threshold,omitempty"`
+		AutoMultiLineOptions        *SourceAutoMultiLineOptions `json:"auto_multi_line,omitempty"`
+		MaxMessageSizeBytes         *int                        `json:"max_message_size_bytes,omitempty"`
+		FingerprintConfig           *types.FingerprintConfig    `json:"fingerprint_config,omitempty"`
 	}{
-		Type:              c.Type,
-		Port:              c.Port,
-		Path:              c.Path,
-		Encoding:          c.Encoding,
-		ExcludePaths:      c.ExcludePaths,
-		TailingMode:       c.TailingMode,
-		ChannelPath:       c.ChannelPath,
-		Service:           c.Service,
-		Source:            c.Source,
-		SourceCategory:    c.SourceCategory,
-		Tags:              c.Tags,
-		ProcessingRules:   c.ProcessingRules,
-		AutoMultiLine:     c.AutoMultiLine,
-		FingerprintConfig: c.FingerprintConfig,
+		Type:                        c.Type,
+		Port:                        c.Port,
+		Path:                        c.Path,
+		Encoding:                    c.Encoding,
+		ExcludePaths:                c.ExcludePaths,
+		TailingMode:                 c.TailingMode,
+		Format:                      c.Format,
+		ChannelPath:                 c.ChannelPath,
+		Query:                       c.Query,
+		Service:                     c.Service,
+		Source:                      c.Source,
+		SourceCategory:              c.SourceCategory,
+		Tags:                        c.Tags,
+		ProcessingRules:             c.ProcessingRules,
+		ProcessRawMessage:           c.ProcessRawMessage,
+		AttributeParsing:            c.AttributeParsing,
+		DebugAttrParsing:            c.DebugAttrParsing,
+		AutoMultiLine:               c.AutoMultiLine,
+		AutoMultiLineSampleSize:     c.AutoMultiLineSampleSize,
+		AutoMultiLineMatchThreshold: c.AutoMultiLineMatchThreshold,
+		AutoMultiLineOptions:        c.AutoMultiLineOptions,
+		MaxMessageSizeBytes:         c.MaxMessageSizeBytes,
+		FingerprintConfig:           c.FingerprintConfig,
 	})
 }
 
@@ -666,7 +697,17 @@ func (c *LogsConfig) AutoMultiLineStatus(coreConfig pkgconfigmodel.Reader) (enab
 // considering both the agent-wide logs_config.auto_multi_line_detection and any config for this
 // particular log source.
 func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader) bool {
-	enabled, _ := c.AutoMultiLineStatus(coreConfig)
+	enabled, isDefault := c.AutoMultiLineStatus(coreConfig)
+	if c.Type == UDPType {
+		if isDefault {
+			// UDP datagrams are documented as complete messages; don't let them
+			// silently inherit the global auto-multi-line default.
+			return false
+		}
+		if enabled {
+			log.Warn("Auto multi line detection is not supported for UDP sources, but it has been enabled for log source:", c.Source)
+		}
+	}
 	return enabled
 }
 
@@ -685,13 +726,43 @@ func (c *LogsConfig) ShouldProcessRawMessage() bool {
 	return true // default behaviour when nothing's been configured
 }
 
-// IsSIEMParsingEnabled returns whether CEF/LEEF header detection is enabled
-// for this source. When SIEMParsing is nil (unconfigured), it defaults to true.
-func (c *LogsConfig) IsSIEMParsingEnabled() bool {
-	if c.SIEMParsing != nil {
-		return *c.SIEMParsing
+// IsAttributeParsingEnabled returns whether the full syslog parser should be
+// active for this source. When AttributeParsing is explicitly set, that value
+// is used. When nil (unconfigured), it is auto-enabled if debug_attr_parsing is
+// on or if any remap_source processing rule — either per-source or global — is
+// defined, and defaults to false otherwise.
+func (c *LogsConfig) IsAttributeParsingEnabled(coreConfig pkgconfigmodel.Reader) bool {
+	if c.AttributeParsing != nil {
+		return *c.AttributeParsing
 	}
-	return true
+	// Debug rendering requires the syslog parser to run: enabling
+	// debug_attr_parsing without attribute_parsing would otherwise install the
+	// noop parser and silently emit raw text instead of the structured envelope.
+	if c.DebugAttrParsing != nil && *c.DebugAttrParsing {
+		return true
+	}
+	for _, rule := range c.ProcessingRules {
+		if rule.Type == RemapSource {
+			return true
+		}
+	}
+	globalRules, _ := GlobalProcessingRules(coreConfig)
+	for _, rule := range globalRules {
+		if rule.Type == RemapSource {
+			return true
+		}
+	}
+	return false
+}
+
+// IsDebugAttrParsingEnabled returns whether the syslog parser should render
+// the full structured JSON envelope (message + syslog + siem keys). When nil
+// (unconfigured), it defaults to false — only the raw message is rendered.
+func (c *LogsConfig) IsDebugAttrParsingEnabled() bool {
+	if c.DebugAttrParsing != nil {
+		return *c.DebugAttrParsing
+	}
+	return false
 }
 
 // GetMaxMessageSizeBytes returns the per-source max message size if configured,

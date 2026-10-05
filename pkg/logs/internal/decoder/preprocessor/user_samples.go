@@ -112,7 +112,7 @@ func NewUserSamples(cfgRdr model.Reader, sourceSamples []*config.AutoMultilineSa
 // ProcessAndContinue applies a user sample to a log message. If it matches, a label is assigned.
 // This implements the Heuristic interface - so we should stop processing if we detect a user pattern by returning false.
 func (j *UserSamples) ProcessAndContinue(context *messageContext) bool {
-	if context.tokens == nil {
+	if context.tokens.Empty() {
 		log.Error("Tokens are required to process user samples")
 		return true
 	}
@@ -124,7 +124,7 @@ func (j *UserSamples) ProcessAndContinue(context *messageContext) bool {
 				context.labelAssignedBy = "user_sample"
 				return false
 			}
-		} else if IsMatch(sample.tokens, context.tokens, sample.matchThreshold) {
+		} else if IsMatch(sample.tokens, context.tokens.Borrow(), sample.matchThreshold) {
 			context.label = sample.label
 			context.labelAssignedBy = "user_sample"
 			return false

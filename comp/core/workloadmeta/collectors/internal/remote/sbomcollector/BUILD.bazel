@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "sbomcollector",
@@ -16,6 +17,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/proto/pbgo/sbom",
+        "//pkg/sbom",
         "//pkg/util/flavor",
         "//pkg/util/grpc",
         "//pkg/util/log",
@@ -29,14 +31,12 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "sbomcollector_test",
     srcs = ["sbom_collector_test.go"],
     embed = [":sbomcollector"],
-    gotags = [
-        "test",
-        "trivy",
-    ],
+    gotags_sets = [["trivy"]],
+    include_default = False,
     deps = [
         "//comp/core/workloadmeta/collectors/sbomutil",
         "//comp/core/workloadmeta/def",

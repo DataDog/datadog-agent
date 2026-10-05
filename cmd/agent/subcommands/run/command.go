@@ -16,7 +16,6 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
-	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
@@ -32,17 +31,21 @@ import (
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
 	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
-	recordernoopfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
+	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx"
 	reporterfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datasecurity"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
+	dataplanepreflightmodefx "github.com/DataDog/datadog-agent/comp/dataplane/preflightmode/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	networkconfigmanagementfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/fx"
+	networkdevicesfx "github.com/DataDog/datadog-agent/comp/networkdevices/fx"
+	networkpathrcproviderfx "github.com/DataDog/datadog-agent/comp/networkpath/rcprovider/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
@@ -65,6 +68,8 @@ import (
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
+	dogstatsdclientdropdetectorfx "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector/fx"
+	dogstatsdclienttelemetryfx "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
@@ -75,7 +80,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configfilesdiscoveryfx "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/fx"
 	configstreamfx "github.com/DataDog/datadog-agent/comp/core/configstream/fx"
@@ -130,7 +134,7 @@ import (
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
+	orchestratorForwarderFx "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 
@@ -151,6 +155,7 @@ import (
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	securityagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
 	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
+	metriclookbackdef "github.com/DataDog/datadog-agent/comp/metriclookback/def"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
@@ -163,6 +168,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	processagentstatusfx "github.com/DataDog/datadog-agent/comp/process/status/fx"
+	procmgrFlareFx "github.com/DataDog/datadog-agent/comp/procmgr/flare/fx"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
@@ -182,7 +188,6 @@ import (
 	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
@@ -230,9 +235,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		configOpts := []func(*config.Params){
 			config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
 			config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
-		}
-		if globalParams.CommonRoot != "" {
-			configOpts = append(configOpts, config.WithCLIOverride("common_root", globalParams.CommonRoot))
 		}
 		return fxutil.OneShot(run,
 			fx.Invoke(func(_ log.Component) {
@@ -286,6 +288,7 @@ func run(log log.Component,
 	rcclient rcclient.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
+	metricLookback metriclookbackdef.Component,
 	_ serializer.MetricSerializer,
 	_ option.Option[logsAgent.Component],
 	_ statsd.Component,
@@ -372,6 +375,7 @@ func run(log log.Component,
 		ac,
 		rcclient,
 		demultiplexer,
+		metricLookback,
 		invChecks,
 		logReceiver,
 		collector,
@@ -403,7 +407,7 @@ func run(log log.Component,
 		"Establish if the agent is running",
 	)
 
-	// agentStarted and agentRunning are metrics used for Cross-org Agent Telemetry (COAT)
+	// agentStarted and agentRunning are metrics used for internal agent telemetry
 	// for more details on the scheduling config check comp/core/agenttelemetry/impl/config.go
 	agentStarted.Inc()
 	agentRunning.Set(1)
@@ -470,6 +474,9 @@ func getSharedFxOption() fx.Option {
 		grpcAgentfx.Module(),
 		commonendpoints.Module(),
 		filterlist.Module(),
+		metriclookbackModule(),
+		dogstatsdclientdropdetectorfx.Module(),
+		dogstatsdclienttelemetryfx.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
@@ -482,6 +489,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		otelcol.Bundle(),
 		hostProfilerFlareFx.Module(),
+		procmgrFlareFx.Module(),
 		rctelemetryreporterfx.Module(),
 		rcprotocoltestfx.Module(),
 		rcservicefx.Module(),
@@ -491,6 +499,7 @@ func getSharedFxOption() fx.Option {
 		fleetfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		adfx.Module(),
+		networkpathrcproviderfx.Module(),
 		configfilesdiscoveryfx.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
@@ -510,7 +519,7 @@ func getSharedFxOption() fx.Option {
 			lc.Append(fx.Hook{
 				OnStart: func(_ context.Context) error {
 					//  setup the AutoConfig instance
-					common.LoadComponents(ac, cfg.GetString("confd_path"))
+					common.LoadComponents(ac, cfg)
 					return nil
 				},
 			})
@@ -518,11 +527,11 @@ func getSharedFxOption() fx.Option {
 		logs.Bundle(),
 		observerfx.Module(),
 		logssourcefx.Module(),
-		recordernoopfx.Module(),
+		recorderfx.Module(),
 		reporterfx.Module(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
-		orchestratorForwarderImpl.Module(orchestratordef.NewDefaultParams()),
+		orchestratorForwarderFx.Module(orchestratordef.NewDefaultParams()),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
 
@@ -541,6 +550,7 @@ func getSharedFxOption() fx.Option {
 		snmpscanfx.Module(),
 		snmpscanmanagerfx.Module(),
 		networkconfigmanagementfx.Module(),
+		networkdevicesfx.Module(),
 		collectorimpl.Module(),
 		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux, hostname)
@@ -596,6 +606,7 @@ func getSharedFxOption() fx.Option {
 		logondurationfx.Module(),
 		healthplatform.Bundle(),
 		tracetelemetryfx.Module(),
+		dataplanepreflightmodefx.Module(),
 	)
 }
 
@@ -611,6 +622,7 @@ func startAgent(
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
 	demultiplexer demultiplexer.Component,
+	metricLookback metriclookbackdef.Component,
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
 	collectorComponent collector.Component,
@@ -672,12 +684,9 @@ func startAgent(
 		actionsController := datastreams.NewActionsController(ac, rcclient)
 		ac.AddConfigProvider(actionsController, false, 0)
 
-		if cfg.GetBool("remote_configuration.agent_integrations.enabled") {
-			// Spin up the config provider to schedule integrations through remote-config
-			rcProvider := providers.NewRemoteConfigProvider()
-			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
-			// LoadAndRun is called later on
-			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
+		if configUtils.IsDataSecurityEnabled(cfg) {
+			dataSecurityController := datasecurity.NewController(ac, rcclient)
+			ac.AddConfigProvider(dataSecurityController, false, 0)
 		}
 	}
 
@@ -714,7 +723,9 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore), true)
+	checkScheduler := pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore)
+	checkScheduler.SetMetricLookbackShadowSenderManager(metricLookback.NewSenderManager(ctx, hostnameDetected))
+	ac.AddScheduler("check", checkScheduler, true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
@@ -759,9 +770,9 @@ func startAgent(
 	})
 
 	// start dependent services
-	// must run in background go command because the agent might be in service start pending
+	// runs in the background because the agent might be in service start pending
 	// and not service running yet, and as such, the call will block or fail
-	go startDependentServices(cfg, sysprobeConf)
+	startDependentServicesAsync(cfg, sysprobeConf)
 
 	return nil
 }

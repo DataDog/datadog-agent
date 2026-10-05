@@ -2,10 +2,11 @@
 #define _HOOKS_SETSOCKOPT_H_
 
 #include "constants/syscall_macro.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 #include "helpers/process.h"
 #include <uapi/linux/filter.h>
-#include <helpers/approvers.h>
+#include "helpers/approvers.h"
 
 static long __attribute__((always_inline)) trace__sys_setsock_opt(void *ctx, u8 async, int socket_fd, int level, int optname) {
     if (is_discarded_by_pid()) {
@@ -27,20 +28,20 @@ static long __attribute__((always_inline)) trace__sys_setsock_opt(void *ctx, u8 
     return 0;
 }
 
-static int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_SETSOCKOPT);
+static int __attribute__((always_inline)) sys_set_sock_opt_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_SETSOCKOPT);
     if (!syscall) {
         return 0;
     }
     if (approve_syscall(syscall, setsockopt_approvers) == DISCARDED) {
-        return 0;
+        goto pop_and_exit;
     }
     int key = 0;
     struct setsockopt_event_t *event = bpf_map_lookup_elem(&setsockopt_event,&key);
 
     if (!event) {
-    return 0;  
-}
+        goto pop_and_exit;
+    }
     event->syscall.retval = retval;
     event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
     event->socket_type = syscall->setsockopt.socket_type;
@@ -52,14 +53,25 @@ static int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int re
     event->truncated = syscall->setsockopt.truncated;
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
-    fill_span_context(&event->span);
     int size_to_sent = (syscall->setsockopt.filter_size_to_send >= MAX_BPF_FILTER_SIZE )
         ? MAX_BPF_FILTER_SIZE
         : syscall->setsockopt.filter_size_to_send;
+    pop_syscall(EVENT_SETSOCKOPT);
+
     event->sent_size = size_to_sent;
-    send_event_with_size_ptr(ctx, EVENT_SETSOCKOPT, event, (offsetof(struct setsockopt_event_t, bpf_filters_buffer) + size_to_sent));
-    
+
+    // The span context is attached and the event emitted (with its partial
+    // header+filter size, read back from event->sent_size) by the setsockopt
+    // span-fill program matching this caller's program type.
+    span_fill_tail_call_key(ctx, prog_type, SPAN_FILL_KEY_SETSOCKOPT);
+
+pop_and_exit:
+    pop_syscall(EVENT_SETSOCKOPT);
     return 0;
+}
+
+static int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
+    return sys_set_sock_opt_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_ENTRY3(setsockopt, int, socket, int, level, int, optname) {
@@ -94,7 +106,9 @@ static int hook_security_socket_setsockopt(ctx_t *ctx) {
     }
     struct socket *sock = (struct socket *)CTX_PARM1(ctx);
     short socket_type;
-    bpf_probe_read(&socket_type, sizeof(socket_type), &sock->type);
+    u64 socket_type_offset;
+    LOAD_CONSTANT("socket_type_offset", socket_type_offset);
+    bpf_probe_read(&socket_type, sizeof(socket_type), (char *)sock + socket_type_offset);
     if (socket_type) {
         syscall->setsockopt.socket_type = socket_type;
     }
@@ -102,7 +116,7 @@ static int hook_security_socket_setsockopt(ctx_t *ctx) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_setsockopt_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_set_sock_opt_ret(args, args->ret);
+    return sys_set_sock_opt_ret_impl(args, args->ret, TRACEPOINT_TYPE);
 }
 HOOK_ENTRY("release_sock")
 static int hook_release_sock(ctx_t *ctx) {
@@ -148,12 +162,12 @@ static int rethook_release_sock(ctx_t *ctx) {
         return 0;
     }
     if (syscall->setsockopt.filter_size_to_send >= MAX_BPF_FILTER_SIZE) {
-        bpf_probe_read(&event->bpf_filters_buffer, MAX_BPF_FILTER_SIZE, prog.filter); 
+        bpf_probe_read(&event->bpf_filters_buffer, MAX_BPF_FILTER_SIZE, prog.filter);
         syscall->setsockopt.truncated = 1;
         syscall->setsockopt.filter_size_to_send = MAX_BPF_FILTER_SIZE;
     }
     else if (syscall->setsockopt.filter_size_to_send >= sizeof(struct sock_filter)) {
-        bpf_probe_read(&event->bpf_filters_buffer, syscall->setsockopt.filter_size_to_send, prog.filter); 
+        bpf_probe_read(&event->bpf_filters_buffer, syscall->setsockopt.filter_size_to_send, prog.filter);
         syscall->setsockopt.truncated = 0;
     }
     else {

@@ -9,16 +9,71 @@ import (
 	"fmt"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // sampleNoSource implements MetricView only — no sourceProvider.
 type sampleNoSource struct{ name string }
 
-func (s *sampleNoSource) GetName() string         { return s.name }
-func (s *sampleNoSource) GetValue() float64       { return 0 }
-func (s *sampleNoSource) GetRawTags() []string    { return nil }
-func (s *sampleNoSource) GetTimestampUnix() int64 { return 0 }
-func (s *sampleNoSource) GetSampleRate() float64  { return 1 }
+func (s *sampleNoSource) GetName() string               { return s.name }
+func (s *sampleNoSource) GetValue() float64             { return 0 }
+func (s *sampleNoSource) GetTags() tagset.CompositeTags { return tagset.CompositeTags{} }
+func (s *sampleNoSource) GetHost() string               { return "" }
+func (s *sampleNoSource) GetTimestampUnix() int64       { return 0 }
+func (s *sampleNoSource) GetSampleRate() float64        { return 1 }
+
+// testContextKeyFor derives a key from test fixture fields without calling
+// GetTags. This preserves lazy-tag-read assertions in filter tests while every
+// production metric path must supply its pipeline-generated key.
+func testContextKeyFor(sample observerdef.MetricView) uint64 {
+	switch sample := sample.(type) {
+	case *metricObs:
+		return testContextKeyForCompositeIdentity(sample.name, sample.host, sample.tags)
+	case *tagsTrackingMetric:
+		return testContextKeyForIdentity(sample.name, "", sample.tags)
+	case *sampleNoSource:
+		return testContextKeyForIdentity(sample.name, "", nil)
+	case *precheckOnlyMetricView:
+		// The name-only rule rejects this fixture before its key is used.
+		return 1
+	default:
+		panic(fmt.Sprintf("testContextKeyFor: unsupported metric fixture %T", sample))
+	}
+}
+
+func testContextKeyForIdentity(name, host string, tags []string) uint64 {
+	return uint64(NewSliceKeyGenerator().Generate(name, host, tags))
+}
+
+func testContextKeyForCompositeIdentity(name, host string, tags tagset.CompositeTags) uint64 {
+	return uint64(NewSliceKeyGenerator().GenerateComposite(name, host, tags))
+}
+
+func testCompositeTags(tags []string) tagset.CompositeTags {
+	return tagset.CompositeTagsFromSlice(tags)
+}
+
+func testStorageKeyForMetric(namespace string, sample observerdef.MetricView) uint64 {
+	return storageKeyForContextKey(namespace, testContextKeyFor(sample))
+}
+
+func prepareTestMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
+	return prepareMetricIngest(source, testContextKeyFor(sample), sample, filter)
+}
+
+func (o *observerImpl) ingestTestMetricSync(source string, sample observerdef.MetricView) {
+	o.IngestMetricSync(source, sample, testContextKeyFor(sample))
+}
+
+func testObserveMetric(h observerdef.Handle, sample observerdef.MetricView) {
+	h.ObserveMetric(sample, testContextKeyFor(sample))
+}
+
+func testObserveMetricAndReportDrop(h interface {
+	ObserveMetricAndReportDrop(observerdef.MetricView, uint64) bool
+}, sample observerdef.MetricView) bool {
+	return h.ObserveMetricAndReportDrop(sample, testContextKeyFor(sample))
+}
 
 // countingHandle records how many MetricView and LogView observations it receives.
 type countingHandle struct {
@@ -26,8 +81,8 @@ type countingHandle struct {
 	logReceived int
 }
 
-func (h *countingHandle) ObserveMetric(_ observerdef.MetricView) { h.received++ }
-func (h *countingHandle) ObserveLog(_ observerdef.LogView)       { h.logReceived++ }
+func (h *countingHandle) ObserveMetric(_ observerdef.MetricView, _ uint64) { h.received++ }
+func (h *countingHandle) ObserveLog(_ observerdef.LogView)                 { h.logReceived++ }
 
 // mockLogView implements observer.LogView for testing.
 type mockLogView struct {
@@ -52,13 +107,14 @@ type dynamicAnomalyDetector struct {
 }
 
 func (d *dynamicAnomalyDetector) Name() string { return "dynamic_anomaly_detector" }
+func (*dynamicAnomalyDetector) Ready() bool    { return true }
 func (d *dynamicAnomalyDetector) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: []observerdef.Anomaly{
 			{
 				Source:       observerdef.SeriesDescriptor{Name: fmt.Sprintf("%s%d", d.prefix, d.currentIndex), Aggregate: observerdef.AggregateAverage},
+				SourceRef:    &observerdef.QueryHandle{Ref: observerdef.SeriesRef(d.currentIndex), Aggregate: observerdef.AggregateAverage},
 				DetectorName: d.Name(),
-				Title:        fmt.Sprintf("anomaly_%d", d.currentIndex),
 				Timestamp:    dataTime,
 			},
 		},
@@ -71,9 +127,10 @@ type dynamicCorrelator struct {
 	currentIndex int
 }
 
-func (c *dynamicCorrelator) Name() string                         { return "dynamic_correlator" }
-func (c *dynamicCorrelator) ProcessAnomaly(_ observerdef.Anomaly) {}
-func (c *dynamicCorrelator) Advance(_ int64)                      {}
+func (c *dynamicCorrelator) Name() string                                 { return "dynamic_correlator" }
+func (c *dynamicCorrelator) ProcessAnomaly(_ observerdef.Anomaly)         {}
+func (c *dynamicCorrelator) Advance(_ int64)                              {}
+func (c *dynamicCorrelator) PendingEvents() []observerdef.CorrelatorEvent { return nil }
 func (c *dynamicCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	return []observerdef.ActiveCorrelation{
 		{
@@ -85,15 +142,6 @@ func (c *dynamicCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation
 }
 func (c *dynamicCorrelator) Reset() { c.currentIndex = 0 }
 
-// noopLogExtractor is a LogMetricsExtractor that returns no metrics.
-// This simulates a log at a timestamp that produces no virtual metrics.
-type noopLogExtractor struct{}
-
-func (e *noopLogExtractor) Name() string { return "noop_extractor" }
-func (e *noopLogExtractor) ProcessLog(_ observerdef.LogView) observerdef.LogMetricsExtractorOutput {
-	return observerdef.LogMetricsExtractorOutput{}
-}
-
 type sharedTagsExtractor struct{}
 
 func (e *sharedTagsExtractor) Name() string { return "shared_tags_extractor" }
@@ -101,8 +149,8 @@ func (e *sharedTagsExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	tags := log.Tags()
 	return observerdef.LogMetricsExtractorOutput{
 		Metrics: []observerdef.MetricOutput{
-			{Name: "metric.a", Value: 1, Tags: tags},
-			{Name: "metric.b", Value: 1, Tags: tags},
+			{Name: "metric.a", Value: 1, Tags: tagset.CompositeTagsFromSlice(tags)},
+			{Name: "metric.b", Value: 1, Tags: tagset.CompositeTagsFromSlice(tags)},
 		},
 	}
 }

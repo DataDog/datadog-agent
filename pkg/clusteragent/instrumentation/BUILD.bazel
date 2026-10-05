@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "instrumentation",
@@ -7,11 +8,13 @@ go_library(
         "conversion.go",
         "events.go",
         "status.go",
+        "telemetry.go",
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/telemetry/def",
         "//pkg/util/log",
         "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
         "@io_k8s_api//autoscaling/v2:autoscaling",
@@ -28,7 +31,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "instrumentation_test",
     srcs = [
         "controller_test.go",
@@ -37,11 +40,16 @@ go_test(
         "status_test.go",
     ],
     embed = [":instrumentation"],
-    gotags = [
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
         "kubeapiserver",
-        "test",
-    ],
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
+        "//comp/core/telemetry/mock",
         "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -22,7 +22,7 @@ import (
 	"runtime"
 	"unsafe"
 
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
@@ -341,6 +341,33 @@ func setFakeDiscoverConfigException(message string) error {
 fake_check.discover_config_return = "[]"
 fake_check.discover_config_exception = %q
 fake_check.discover_config_service_json = None`, message)
+
+	_, err := runString(code)
+	return err
+}
+
+func setFakeDiscoverConfigExceptionLoneSurrogate() error {
+	// Python source escape, not a Go UTF-8 string: a lone surrogate is not valid UTF-8.
+	code := `import fake_check
+fake_check.discover_config_return = "[]"
+fake_check.discover_config_exception = "bad \ud800 data"
+fake_check.discover_config_service_json = None`
+
+	_, err := runString(code)
+	return err
+}
+
+func setFakeRunExceptionLoneSurrogate() error {
+	code := `import fake_check
+fake_check.run_exception = "\ud800"`
+
+	_, err := runString(code)
+	return err
+}
+
+func resetFakeRunException() error {
+	code := `import fake_check
+fake_check.run_exception = None`
 
 	_, err := runString(code)
 	return err

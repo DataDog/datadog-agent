@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf && nvml
+//go:build linux && bpf && nvml
 
 package gpu
 
@@ -18,7 +18,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
@@ -33,7 +33,7 @@ func getMetricsEntry(key model.ProcessStatsKey, stats *model.GPUStats) *model.Ut
 }
 
 func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, *streamCollection, int64) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmltestutil.SetupMockNVML(t)
 	sysCtx := getTestSystemContext(t)
 
 	ktime, err := ddebpf.NowNanoseconds()

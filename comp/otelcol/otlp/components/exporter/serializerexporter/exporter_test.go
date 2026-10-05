@@ -9,24 +9,48 @@ package serializerexporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxevent"
+	"go.uber.org/zap"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
+	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	source "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 )
@@ -47,7 +71,7 @@ func (r *metricRecorder) SendSketch(s metrics.SketchesSource) error {
 		if c == nil {
 			continue
 		}
-		r.sketchSeriesList = append(r.sketchSeriesList, c)
+		r.sketchSeriesList = append(r.sketchSeriesList, c.(*metrics.SketchSeries))
 	}
 	return nil
 }
@@ -237,7 +261,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			cfg.Metrics.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags = tt.instrumentationScopeMetadataAsTags
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
@@ -354,7 +378,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				ctx,
@@ -405,7 +429,7 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 	ctx := context.Background()
 	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 		return "", nil
-	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,
@@ -437,6 +461,367 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 		}
 	}
 	t.Errorf("%s not found in metrics", outName)
+}
+
+func TestRunningMetricForPayloadContents(t *testing.T) {
+	tests := []struct {
+		name        string
+		setup       func(m pmetric.Metric)
+		wantRunning bool
+	}{
+		{
+			name: "apm stats only",
+			setup: func(m pmetric.Metric) {
+				m.SetName("dd.internal.stats.payload")
+				m.SetEmptySum()
+			},
+			wantRunning: false,
+		},
+		{
+			name: "real metric",
+			setup: func(m pmetric.Metric) {
+				m.SetName("my.metric")
+				m.SetEmptyGauge().DataPoints().AppendEmpty().SetDoubleValue(1)
+			},
+			wantRunning: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := newDefaultConfig().(*ExporterConfig)
+
+			set := exportertest.NewNopSettings(component.MustNewType("datadog"))
+			attributesTranslator, err := attributes.NewTranslator(set.TelemetrySettings)
+			require.NoError(t, err)
+			hostGetter := SourceProviderFunc(func(context.Context) (string, error) { return "test-hostname", nil })
+			tr, err := translatorFromConfig(set.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil)
+			require.NoError(t, err)
+
+			createConsumer := func([]string, string, component.BuildInfo) SerializerConsumer {
+				return &collectorConsumer{
+					serializerConsumer: &serializerConsumer{},
+					seenHosts:          make(map[string]struct{}),
+					seenTagSets:        make(map[tagSetKey][]string),
+					getPushTime:        func() uint64 { return 0 },
+				}
+			}
+
+			rec := &metricRecorder{}
+			exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector, false)
+			require.NoError(t, err)
+
+			md := pmetric.NewMetrics()
+			m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+			tt.setup(m)
+
+			require.NoError(t, exp.ConsumeMetrics(t.Context(), md))
+
+			var names []string
+			for _, serie := range rec.series {
+				names = append(names, serie.Name)
+			}
+			if tt.wantRunning {
+				assert.Contains(t, names, "otel.datadog_exporter.metrics.running")
+			} else {
+				assert.NotContains(t, names, "otel.datadog_exporter.metrics.running")
+				assert.NotContains(t, names, "otel.datadog_exporter.metrics.running.fargate")
+			}
+		})
+	}
+}
+
+func TestDDOTRunningMetricForPayloadContents(t *testing.T) {
+	tests := []struct {
+		name        string
+		setup       func(m pmetric.Metric)
+		wantRunning bool
+	}{
+		{
+			name: "apm stats only",
+			setup: func(m pmetric.Metric) {
+				m.SetName("dd.internal.stats.payload")
+				m.SetEmptySum()
+			},
+			wantRunning: false,
+		},
+		{
+			name: "real metric",
+			setup: func(m pmetric.Metric) {
+				m.SetName("my.metric")
+				m.SetEmptyGauge().DataPoints().AppendEmpty().SetDoubleValue(1)
+			},
+			wantRunning: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := newDefaultConfig().(*ExporterConfig)
+
+			set := exportertest.NewNopSettings(component.MustNewType("datadog"))
+			attributesTranslator, err := attributes.NewTranslator(set.TelemetrySettings)
+			require.NoError(t, err)
+			hostGetter := SourceProviderFunc(func(context.Context) (string, error) { return "test-hostname", nil })
+			tr, err := translatorFromConfig(set.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil)
+			require.NoError(t, err)
+
+			createConsumer := func(extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializerConsumer {
+				return &serializerConsumer{
+					extraTags:       extraTags,
+					apmReceiverAddr: apmReceiverAddr,
+					ipath:           ddot,
+					hosts:           make(map[string]struct{}),
+					buildInfo:       buildInfo,
+					standalone:      true,
+				}
+			}
+
+			rec := &metricRecorder{}
+			exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ddot, true)
+			require.NoError(t, err)
+
+			md := pmetric.NewMetrics()
+			m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+			tt.setup(m)
+
+			require.NoError(t, exp.ConsumeMetrics(t.Context(), md))
+
+			var names []string
+			for _, serie := range rec.series {
+				names = append(names, serie.Name)
+			}
+			if tt.wantRunning {
+				assert.Contains(t, names, "otel.ddot_collector.metrics.running")
+			} else {
+				assert.NotContains(t, names, "otel.ddot_collector.metrics.running")
+			}
+		})
+	}
+}
+
+func TestAzureAppServiceRunningMetric(t *testing.T) {
+	cfg := newDefaultConfig().(*ExporterConfig)
+	set := exportertest.NewNopSettings(component.MustNewType("datadog"))
+	attributesTranslator, err := attributes.NewTranslator(set.TelemetrySettings)
+	require.NoError(t, err)
+	hostGetter := SourceProviderFunc(func(context.Context) (string, error) { return "test-hostname", nil })
+	tr, err := translatorFromConfig(set.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil)
+	require.NoError(t, err)
+
+	createConsumer := func([]string, string, component.BuildInfo) SerializerConsumer {
+		return &collectorConsumer{
+			serializerConsumer: &serializerConsumer{},
+			seenHosts:          make(map[string]struct{}),
+			seenTagSets:        make(map[tagSetKey][]string),
+			getPushTime:        func() uint64 { return 0 },
+		}
+	}
+
+	rec := &metricRecorder{}
+	exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector, false)
+	require.NoError(t, err)
+
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	require.NoError(t, rm.Resource().Attributes().FromRaw(map[string]any{
+		"cloud.platform":            "azure.app_service",
+		"service.name":              "my-app",
+		"cloud.account.id":          "sub-123",
+		"azure.resource_group.name": "my-rg",
+		"service.instance.id":       "instance-1",
+	}))
+	metric := rm.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+	metric.SetName("my.metric")
+	metric.SetEmptyGauge().DataPoints().AppendEmpty().SetDoubleValue(1)
+
+	require.NoError(t, exp.ConsumeMetrics(t.Context(), md))
+
+	var running *metrics.Serie
+	for _, serie := range rec.series {
+		if serie.Name == "otel.datadog_exporter.metrics.running.azureappservices" {
+			running = serie
+			break
+		}
+	}
+	require.NotNil(t, running)
+	assert.Empty(t, running.Host)
+	assert.ElementsMatch(t, []string{
+		"name:my-app",
+		"subscription_id:sub-123",
+		"resource_group:my-rg",
+	}, running.Tags.UnsafeToReadOnlySliceString())
+}
+
+func newCollectorRunningMetricTestExporter(t *testing.T) (*Exporter, *metricRecorder) {
+	t.Helper()
+	cfg := newDefaultConfig().(*ExporterConfig)
+	set := exportertest.NewNopSettings(component.MustNewType("datadog"))
+	attributesTranslator, err := attributes.NewTranslator(set.TelemetrySettings)
+	require.NoError(t, err)
+	hostGetter := SourceProviderFunc(func(context.Context) (string, error) { return "collector-fallback-host", nil })
+	tr, err := translatorFromConfig(set.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil)
+	require.NoError(t, err)
+	createConsumer := func([]string, string, component.BuildInfo) SerializerConsumer {
+		return &collectorConsumer{
+			serializerConsumer: &serializerConsumer{},
+			seenHosts:          make(map[string]struct{}),
+			seenTagSets:        make(map[tagSetKey][]string),
+			getPushTime:        func() uint64 { return 0 },
+		}
+	}
+	rec := &metricRecorder{}
+	exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector, false)
+	require.NoError(t, err)
+	return exp, rec
+}
+
+func TestGCPServerlessRunningMetric(t *testing.T) {
+	tests := []struct {
+		name       string
+		platform   string
+		metricName string
+		wantName   string
+	}{
+		{
+			name:       "Cloud Run service",
+			platform:   "gcp_cloud_run",
+			metricName: "my.metric",
+			wantName:   "otel.datadog_exporter.metrics.running.cloudrun",
+		},
+		{
+			name:       "Cloud Functions v2",
+			platform:   "gcp_cloud_functions",
+			metricName: "my.metric",
+			wantName:   "otel.datadog_exporter.metrics.running.cloudrunfunctions",
+		},
+		{
+			name:       "APM stats only",
+			platform:   "gcp_cloud_run",
+			metricName: "dd.internal.stats.payload",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exp, rec := newCollectorRunningMetricTestExporter(t)
+			md := pmetric.NewMetrics()
+			rm := md.ResourceMetrics().AppendEmpty()
+			require.NoError(t, rm.Resource().Attributes().FromRaw(map[string]any{
+				"cloud.provider":   "gcp",
+				"cloud.platform":   tt.platform,
+				"cloud.account.id": "project-1",
+				"cloud.region":     "us-central1",
+				"faas.name":        "my-service",
+				"faas.instance":    "instance-1",
+				"faas.version":     "revision-1",
+				"host.name":        "resource-host",
+			}))
+			metric := rm.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+			metric.SetName(tt.metricName)
+			if tt.metricName == "dd.internal.stats.payload" {
+				metric.SetEmptySum()
+			} else {
+				metric.SetEmptyGauge().DataPoints().AppendEmpty().SetDoubleValue(1)
+			}
+
+			require.NoError(t, exp.ConsumeMetrics(t.Context(), md))
+
+			var running []*metrics.Serie
+			for _, serie := range rec.series {
+				if serie.Name == tt.wantName && tt.wantName != "" {
+					running = append(running, serie)
+				}
+				assert.NotEqual(t, "otel.datadog_exporter.metrics.running", serie.Name)
+			}
+			if tt.wantName == "" {
+				for _, serie := range rec.series {
+					assert.False(t, strings.HasPrefix(serie.Name, "otel.datadog_exporter.metrics.running."))
+				}
+				return
+			}
+
+			require.Len(t, running, 1)
+			assert.Empty(t, running[0].Host)
+			assert.ElementsMatch(t, []string{
+				"instance:instance-1",
+				"service_name:my-service",
+				"project_id:project-1",
+				"location:us-central1",
+			}, running[0].Tags.UnsafeToReadOnlySliceString())
+
+			var applicationMetric *metrics.Serie
+			for _, serie := range rec.series {
+				if serie.Name == "my.metric" {
+					applicationMetric = serie
+					break
+				}
+			}
+			require.NotNil(t, applicationMetric)
+			assert.Empty(t, applicationMetric.Host)
+			for _, tag := range []string{
+				"instance:instance-1",
+				"service_name:my-service",
+				"project_id:project-1",
+				"location:us-central1",
+				"revision_name:revision-1",
+			} {
+				assert.Contains(t, applicationMetric.Tags.UnsafeToReadOnlySliceString(), tag)
+			}
+		})
+	}
+}
+
+func TestGCPServerlessRunningMetricIdentityDedup(t *testing.T) {
+	exp, rec := newCollectorRunningMetricTestExporter(t)
+	md := pmetric.NewMetrics()
+	identities := []struct {
+		project  string
+		location string
+		service  string
+		instance string
+		revision string
+	}{
+		{project: "project-1", location: "location-1", service: "service-1", instance: "instance-1", revision: "revision-1"},
+		// A revision change does not change the approved four-tag running identity.
+		{project: "project-1", location: "location-1", service: "service-1", instance: "instance-1", revision: "revision-2"},
+		{project: "project-2", location: "location-1", service: "service-1", instance: "instance-1", revision: "revision-1"},
+		{project: "project-1", location: "location-2", service: "service-1", instance: "instance-1", revision: "revision-1"},
+		{project: "project-1", location: "location-1", service: "service-2", instance: "instance-1", revision: "revision-1"},
+		{project: "project-1", location: "location-1", service: "service-1", instance: "instance-2", revision: "revision-1"},
+	}
+	for _, identity := range identities {
+		rm := md.ResourceMetrics().AppendEmpty()
+		require.NoError(t, rm.Resource().Attributes().FromRaw(map[string]any{
+			"cloud.provider":   "gcp",
+			"cloud.platform":   "gcp_cloud_run",
+			"cloud.account.id": identity.project,
+			"cloud.region":     identity.location,
+			"faas.name":        identity.service,
+			"faas.instance":    identity.instance,
+			"faas.version":     identity.revision,
+		}))
+		metric := rm.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+		metric.SetName("my.metric")
+		metric.SetEmptyGauge().DataPoints().AppendEmpty().SetDoubleValue(1)
+	}
+
+	require.NoError(t, exp.ConsumeMetrics(t.Context(), md))
+
+	var running []*metrics.Serie
+	for _, serie := range rec.series {
+		if serie.Name == "otel.datadog_exporter.metrics.running.cloudrun" {
+			running = append(running, serie)
+		}
+	}
+	require.Len(t, running, 5, "only resources with all four identity tags equal should deduplicate")
+	for _, serie := range running {
+		assert.Empty(t, serie.Host)
+		assert.Len(t, serie.Tags.UnsafeToReadOnlySliceString(), 4)
+		for _, tag := range serie.Tags.UnsafeToReadOnlySliceString() {
+			assert.False(t, strings.HasPrefix(tag, "revision_name:"))
+		}
+	}
 }
 
 func newMetrics(
@@ -547,7 +932,7 @@ func TestUsageMetric_DDOT(t *testing.T) {
 
 	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 		return "agent-host", nil
-	}, nil, otel.NewDisabledGatewayUsage(), store, nil)
+	}, nil, otel.NewDisabledGatewayUsage(), store, nil, false)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,
@@ -618,7 +1003,7 @@ func usageMetricGW(t *testing.T, gwUsage otel.GatewayUsage, expGwUsage float64, 
 
 	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 		return "agent-host", nil
-	}, nil, gwUsage, store, nil)
+	}, nil, gwUsage, store, nil, false)
 
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
@@ -749,7 +1134,7 @@ func TestMetricRemapping(t *testing.T) {
 			rec := &metricRecorder{}
 			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				t.Context(),
@@ -826,7 +1211,7 @@ func TestDeltaSumAsRateAttribute(t *testing.T) {
 			rec := &metricRecorder{}
 			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				t.Context(),
@@ -859,4 +1244,280 @@ func TestDeltaSumAsRateAttribute(t *testing.T) {
 			assert.True(t, found, "metric %s not found in recorded series", tt.wantName)
 		})
 	}
+}
+
+// TestSyncForwarder_PropagatesErrors is the headline test for OTAGENT-1024:
+// when the sync forwarder is on, a 5xx response from intake must surface back
+// through ConsumeMetrics rather than be silently swallowed.
+// Simulates DDOT: OTelSyncForwarder is injected via initSyncSerializerForTest,
+// mirroring cmd/otel-agent/subcommands/run/command.go.
+func TestSyncForwarder_PropagatesErrors(t *testing.T) {
+	restore := setSyncForwarderGate(t, true)
+	defer restore()
+
+	intake := newFakeIntake(http.StatusInternalServerError)
+	defer intake.Close()
+
+	cfg := benchExporterConfig(t, intake.URL)
+	exp := buildBenchExporter(t, cfg)
+	defer func() { _ = exp.Shutdown(context.Background()) }()
+
+	mc, ok := exp.(metricsConsumer)
+	require.True(t, ok)
+
+	err := mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(50))
+	require.Error(t, err, "5xx from intake must surface back through ConsumeMetrics")
+	require.GreaterOrEqual(t, intake.requests.Load(), int64(1), "intake should have received at least one request")
+}
+
+// TestSyncForwarder_PermanentError verifies that a non-retryable intake
+// response (400/403/413) is wrapped in consumererror.NewPermanent so the
+// exporterhelper queue does not retry it. Exercises the allSendsPermanent
+// true-branch in ConsumeMetrics, which TestSyncForwarder_PropagatesErrors
+// (5xx, transient) never reaches.
+func TestSyncForwarder_PermanentError(t *testing.T) {
+	restore := setSyncForwarderGate(t, true)
+	defer restore()
+
+	intake := newFakeIntake(http.StatusBadRequest)
+	defer intake.Close()
+
+	cfg := benchExporterConfig(t, intake.URL)
+	exp := buildBenchExporter(t, cfg)
+	defer func() { _ = exp.Shutdown(context.Background()) }()
+
+	mc, ok := exp.(metricsConsumer)
+	require.True(t, ok)
+
+	err := mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(50))
+	require.Error(t, err, "400 from intake must surface back through ConsumeMetrics")
+	require.True(t, consumererror.IsPermanent(err), "400 is non-retryable and must be wrapped as a permanent error")
+	requestsAfterFirstAttempt := intake.requests.Load()
+
+	err = mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(50))
+	require.Error(t, err, "400 from intake must surface back through ConsumeMetrics")
+	require.True(t, consumererror.IsPermanent(err))
+	require.Equal(t, requestsAfterFirstAttempt*2, intake.requests.Load(),
+		"a second ConsumeMetrics call should issue the same number of requests as the first, with no exporterhelper retries in between")
+}
+
+// TestSyncForwarder_RetryOnTransientError verifies that the OTel
+// exporterhelper retry layer retries on transient 5xx responses and that
+// ConsumeMetrics ultimately returns nil once the intake starts succeeding.
+func TestSyncForwarder_RetryOnTransientError(t *testing.T) {
+	restore := setSyncForwarderGate(t, true)
+	defer restore()
+
+	const failFirst = 2
+	intake := newFakeIntakeWithHandler(func(n int64, w http.ResponseWriter, _ *http.Request) {
+		if n <= failFirst {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+	defer intake.Close()
+
+	cfg := retryExporterConfig(t, intake.URL)
+	exp := buildBenchExporter(t, cfg)
+	defer func() { _ = exp.Shutdown(context.Background()) }()
+
+	mc, ok := exp.(metricsConsumer)
+	require.True(t, ok)
+
+	err := mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(10))
+	require.NoError(t, err, "ConsumeMetrics should succeed after retries")
+	require.GreaterOrEqual(t, intake.requests.Load(), int64(failFirst+1),
+		"intake should have received at least %d requests (failures + success)", failFirst+1)
+}
+
+// TestSyncForwarder_RetryBudgetExhausted verifies that when the sync
+// forwarder is on and the intake consistently fails, the error surfaces
+// through ConsumeMetrics once the retry budget is exhausted.
+func TestSyncForwarder_RetryBudgetExhausted(t *testing.T) {
+	restore := setSyncForwarderGate(t, true)
+	defer restore()
+
+	intake := newFakeIntake(http.StatusInternalServerError)
+	defer intake.Close()
+
+	cfg := retryExporterConfig(t, intake.URL)
+	cfg.RetryConfig.MaxElapsedTime = 200 * time.Millisecond
+	exp := buildBenchExporter(t, cfg)
+	defer func() { _ = exp.Shutdown(context.Background()) }()
+
+	mc, ok := exp.(metricsConsumer)
+	require.True(t, ok)
+
+	err := mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(10))
+	require.Error(t, err, "ConsumeMetrics should return error after retry budget is exhausted")
+	require.GreaterOrEqual(t, intake.requests.Load(), int64(1),
+		"intake should have received at least one request before budget was exhausted")
+}
+
+// TestSyncForwarder_RetryConfig_Respected verifies that a RetryConfig with a
+// short MaxElapsedTime is honoured: the exporter gives up faster than one with
+// a longer budget.
+func TestSyncForwarder_RetryConfig_Respected(t *testing.T) {
+	restore := setSyncForwarderGate(t, true)
+	defer restore()
+
+	intake := newFakeIntake(http.StatusInternalServerError)
+	defer intake.Close()
+
+	cfgShort := retryExporterConfig(t, intake.URL)
+	cfgShort.RetryConfig.MaxElapsedTime = 50 * time.Millisecond
+
+	cfgLong := retryExporterConfig(t, intake.URL)
+	cfgLong.RetryConfig.MaxElapsedTime = 300 * time.Millisecond
+
+	expShort := buildBenchExporter(t, cfgShort)
+	defer func() { _ = expShort.Shutdown(context.Background()) }()
+
+	mcShort, ok := expShort.(metricsConsumer)
+	require.True(t, ok)
+	require.Error(t, mcShort.ConsumeMetrics(context.Background(), makeGaugeMetrics(10)))
+	reqsAfterShort := intake.requests.Load()
+
+	expLong := buildBenchExporter(t, cfgLong)
+	defer func() { _ = expLong.Shutdown(context.Background()) }()
+
+	mcLong, ok := expLong.(metricsConsumer)
+	require.True(t, ok)
+	require.Error(t, mcLong.ConsumeMetrics(context.Background(), makeGaugeMetrics(10)))
+	reqsAfterLong := intake.requests.Load()
+
+	require.Greater(t, reqsAfterLong, reqsAfterShort,
+		"longer retry budget should produce more intake requests (short=%d, long=%d)",
+		reqsAfterShort, reqsAfterLong-reqsAfterShort)
+}
+
+// TestDefaultForwarder_SwallowsErrors documents the legacy behavior the
+// feature gate exists to fix: with the gate off, intake 5xx is hidden from
+// ConsumeMetrics. If this test ever starts failing, the legacy path has
+// converged with the sync path and the feature gate can be retired.
+func TestDefaultForwarder_SwallowsErrors(t *testing.T) {
+	restore := setSyncForwarderGate(t, false)
+	defer restore()
+
+	intake := newFakeIntake(http.StatusInternalServerError)
+	defer intake.Close()
+
+	cfg := benchExporterConfig(t, intake.URL)
+	exp := buildBenchExporter(t, cfg)
+	defer func() { _ = exp.Shutdown(context.Background()) }()
+
+	mc, ok := exp.(metricsConsumer)
+	require.True(t, ok)
+
+	// Default async forwarder enqueues the payload and returns nil immediately.
+	require.NoError(t, mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(50)))
+}
+
+// TestOSSSyncForwarder_PropagatesErrors verifies that the OSS Datadog exporter
+// path (NewFactoryForOSSExporter, f.s == nil) also uses OTelSyncForwarder when
+// the UseSyncForwarder gate is on, and propagates intake errors back to the caller.
+func TestOSSSyncForwarder_PropagatesErrors(t *testing.T) {
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("http_proxy")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("no_proxy")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
+
+	restore := setSyncForwarderGate(t, true)
+	defer restore()
+
+	intake := newFakeIntake(http.StatusInternalServerError)
+	defer intake.Close()
+
+	cfg := benchExporterConfig(t, intake.URL)
+	f := NewFactoryForOSSExporter(component.MustNewType("datadog"), nil)
+	exp, err := f.CreateMetrics(
+		context.Background(),
+		exportertest.NewNopSettings(component.MustNewType("datadog")),
+		cfg,
+	)
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(context.Background(), componenttest.NewNopHost()))
+	defer func() { _ = exp.Shutdown(context.Background()) }()
+
+	mc, ok := exp.(metricsConsumer)
+	require.True(t, ok)
+
+	err = mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(50))
+	require.Error(t, err, "5xx from intake must surface back through ConsumeMetrics on the OSS exporter path")
+	require.GreaterOrEqual(t, intake.requests.Load(), int64(1), "intake should have received at least one request")
+}
+
+// initSyncSerializerForTest creates a serializer backed by OTelSyncForwarder
+// via a mini-Fx app. This simulates the DDOT production path where
+// cmd/otel-agent/subcommands/run/command.go injects OTelSyncForwarder into the
+// shared serializer (OTAGENT-1024). Not for use outside of tests.
+func initSyncSerializerForTest(t testing.TB, logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider, httpClient *http.Client) (*serializer.Serializer, *defaultforwarderimpl.OTelSyncForwarder, error) {
+	var f defaultforwarder.Forwarder
+	var s *serializer.Serializer
+
+	opts := []fx.Option{
+		fx.WithLogger(func(log *zap.Logger) fxevent.Logger {
+			return &fxevent.ZapLogger{Logger: log}
+		}),
+		fx.Supply(logger),
+		fxutil.FxAgentBase(),
+		fx.Provide(func() coreconfig.Component {
+			pkgconfig := configmock.New(t)
+			pkgconfig.Set("api_key", string(cfg.API.Key), pkgconfigmodel.SourceFile)
+			pkgconfig.Set("site", cfg.API.Site, pkgconfigmodel.SourceFile)
+			if cfg.Metrics.Metrics.TCPAddrConfig.Endpoint != "" {
+				pkgconfig.Set("dd_url", cfg.Metrics.Metrics.TCPAddrConfig.Endpoint, pkgconfigmodel.SourceFile)
+			}
+			setupSerializer(pkgconfig, cfg)
+			setupForwarder(pkgconfig)
+			pkgconfig.Set("skip_ssl_validation", cfg.ClientConfig.InsecureSkipVerify, pkgconfigmodel.SourceFile)
+			pkgconfig.Set("logging_frequency", int64(0), pkgconfigmodel.SourceAgentRuntime)
+			return pkgconfig
+		}),
+		fx.Provide(func(log *zap.Logger) (logdef.Component, error) {
+			zp := &datadog.Zaplogger{Logger: log}
+			return zp, nil
+		}),
+		fx.Provide(func() string {
+			s, err := sourceProvider.Source(context.TODO())
+			if err != nil {
+				return ""
+			}
+			return s.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+		}),
+		fx.Provide(newOrchestratorinterfaceimpl),
+		fx.Provide(serializer.NewSerializer),
+		metricscompressionfx.Module(),
+		fx.Provide(func(c metricscompression.Component) compression.Compressor {
+			return c
+		}),
+		fx.Provide(func() secrets.Component { return &secretnooptypes.SecretNoop{} }),
+		delegatedauthnoopfx.Module(),
+		fx.Populate(&f),
+		fx.Populate(&s),
+		fx.Provide(func(c coreconfig.Component, l logdef.Component, sec secrets.Component) (defaultforwarder.Forwarder, error) {
+			eds, err := configutils.GetMultipleEndpoints(c)
+			if err != nil {
+				return nil, err
+			}
+			return defaultforwarderimpl.NewOTelSyncForwarder(c, l, sec, eds, httpClient)
+		}),
+	}
+
+	app := fx.New(opts...)
+	if err := app.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	sf, ok := f.(*defaultforwarderimpl.OTelSyncForwarder)
+	if !ok {
+		return nil, nil, errors.New("failed to cast forwarder to *defaultforwarderimpl.OTelSyncForwarder")
+	}
+	return s, sf, nil
 }

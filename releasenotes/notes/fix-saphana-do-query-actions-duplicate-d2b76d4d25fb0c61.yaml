@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix a bug where a SAP HANA instance targeted by a Data Observability query
+    action could run as multiple duplicate check instances at once, causing
+    duplicate database monitoring collection. The targeted instance is now
+    correctly excluded from the remaining file-provider configuration.

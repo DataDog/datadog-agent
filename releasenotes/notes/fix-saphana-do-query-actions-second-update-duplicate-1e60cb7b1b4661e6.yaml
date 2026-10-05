@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix a bug where editing an active Data Observability query action's
+    monitor (e.g. changing its query count) could cause the previously
+    excluded database instance to run as a duplicate check instance again,
+    alongside its Data Observability check, causing duplicate database
+    monitoring collection.

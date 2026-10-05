@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The Dynamic Instrumentation proxy in the trace-agent no longer drops
+    debugger data when ``logs_enabled`` is left unset. Data is only dropped
+    when ``logs_enabled`` (or the deprecated ``log_enabled``) is explicitly
+    set to ``false``.

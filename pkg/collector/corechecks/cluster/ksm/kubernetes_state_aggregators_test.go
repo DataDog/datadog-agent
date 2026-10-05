@@ -176,7 +176,7 @@ func Test_counterAggregator(t *testing.T) {
 	ksmCheck := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
 
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 
 		t.Run(tt.name, func(t *testing.T) {
@@ -196,6 +196,17 @@ func Test_counterAggregator(t *testing.T) {
 }
 
 func Test_lastCronJobAggregator(t *testing.T) {
+	// jobStartTime builds a kube_job_{complete,failed}_start_time metric
+	jobStartTime := func(jobName string, startTime float64) ksmstore.DDMetric {
+		return ksmstore.DDMetric{
+			Labels: map[string]string{
+				"namespace": "foo",
+				"job_name":  jobName,
+			},
+			Val: startTime,
+		}
+	}
+
 	tests := []struct {
 		name            string
 		metricsComplete []ksmstore.DDMetric
@@ -205,32 +216,11 @@ func Test_lastCronJobAggregator(t *testing.T) {
 		{
 			name: "Last job succeeded",
 			metricsComplete: []ksmstore.DDMetric{
-				{
-					Labels: map[string]string{
-						"namespace": "foo",
-						"job_name":  "bar-112",
-						"condition": "true",
-					},
-					Val: 1,
-				},
-				{
-					Labels: map[string]string{
-						"namespace": "foo",
-						"job_name":  "bar-114",
-						"condition": "true",
-					},
-					Val: 1,
-				},
+				jobStartTime("bar-112", 1000),
+				jobStartTime("bar-114", 1120),
 			},
 			metricsFailed: []ksmstore.DDMetric{
-				{
-					Labels: map[string]string{
-						"namespace": "foo",
-						"job_name":  "bar-113",
-						"condition": "true",
-					},
-					Val: 1,
-				},
+				jobStartTime("bar-113", 1060),
 			},
 			expected: &serviceCheck{
 				name:    "kubernetes_state.cronjob.complete",
@@ -242,36 +232,67 @@ func Test_lastCronJobAggregator(t *testing.T) {
 		{
 			name: "Last job failed",
 			metricsFailed: []ksmstore.DDMetric{
-				{
-					Labels: map[string]string{
-						"namespace": "foo",
-						"job_name":  "bar-112",
-						"condition": "true",
-					},
-					Val: 1,
-				},
-				{
-					Labels: map[string]string{
-						"namespace": "foo",
-						"job_name":  "bar-114",
-						"condition": "true",
-					},
-					Val: 1,
-				},
+				jobStartTime("bar-112", 1000),
+				jobStartTime("bar-114", 1120),
 			},
 			metricsComplete: []ksmstore.DDMetric{
-				{
-					Labels: map[string]string{
-						"namespace": "foo",
-						"job_name":  "bar-113",
-						"condition": "true",
-					},
-					Val: 1,
-				},
+				jobStartTime("bar-113", 1060),
 			},
 			expected: &serviceCheck{
 				name:    "kubernetes_state.cronjob.complete",
 				status:  servicecheck.ServiceCheckCritical,
+				tags:    []string{"namespace:foo", "cronjob:bar"},
+				message: "",
+			},
+		},
+		{
+			// A manually created Job (e.g. named by Argo CD with a yymmddHHMM
+			// suffix) has a much higher suffix than the scheduled Jobs, which
+			// use minutes since epoch. Its failure must not outlive later
+			// successful scheduled runs.
+			name: "Manual job with higher suffix failed before later scheduled jobs succeeded",
+			metricsFailed: []ksmstore.DDMetric{
+				jobStartTime("bar-2601011200", 1000),
+			},
+			metricsComplete: []ksmstore.DDMetric{
+				jobStartTime("bar-29000001", 1060),
+				jobStartTime("bar-29000002", 1120),
+				jobStartTime("bar-29000003", 1180),
+			},
+			expected: &serviceCheck{
+				name:    "kubernetes_state.cronjob.complete",
+				status:  servicecheck.ServiceCheckOK,
+				tags:    []string{"namespace:foo", "cronjob:bar"},
+				message: "",
+			},
+		},
+		{
+			name: "Manual job with higher suffix succeeded before a later scheduled job failed",
+			metricsComplete: []ksmstore.DDMetric{
+				jobStartTime("bar-29000001", 1000),
+				jobStartTime("bar-2601011200", 1060),
+			},
+			metricsFailed: []ksmstore.DDMetric{
+				jobStartTime("bar-29000002", 1120),
+			},
+			expected: &serviceCheck{
+				name:    "kubernetes_state.cronjob.complete",
+				status:  servicecheck.ServiceCheckCritical,
+				tags:    []string{"namespace:foo", "cronjob:bar"},
+				message: "",
+			},
+		},
+		{
+			name: "Same start time falls back to the job name suffix",
+			metricsComplete: []ksmstore.DDMetric{
+				jobStartTime("bar-113", 1000),
+			},
+			metricsFailed: []ksmstore.DDMetric{
+				jobStartTime("bar-112", 1000),
+			},
+			expected: &serviceCheck{
+				name:    "kubernetes_state.cronjob.complete",
+				status:  servicecheck.ServiceCheckOK,
 				tags:    []string{"namespace:foo", "cronjob:bar"},
 				message: "",
 			},
@@ -282,7 +303,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 	ksmCheck := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
 
 	for _, tt := range tests {
-		s := mocksender.NewMockSender("ksm")
+		s := mocksender.NewMockSender(t, "ksm")
 		s.SetupAcceptAll()
 
 		t.Run(tt.name, func(t *testing.T) {

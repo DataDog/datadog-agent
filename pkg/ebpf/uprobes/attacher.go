@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package uprobes
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"maps"
@@ -19,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -54,7 +56,9 @@ var (
 	// ErrNoMatchingRule is returned when no rule matches the shared library path.
 	ErrNoMatchingRule = errors.New("no matching rule")
 	// regex that defines internal DataDog processes
-	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace|otel)-agent|system-probe|agent)")
+	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace|otel)-agent|host-profiler|system-probe|agent)")
+
+	zeroByte = []byte{'0'}
 )
 
 // AttachTarget defines the target to which we should attach the probes, libraries or executables
@@ -652,6 +656,7 @@ func (ua *UprobeAttacher) shouldLogRegistryError(err error) bool {
 	if errors.As(err, &unknownErr) {
 		return ua.attachLimiter.ShouldLog()
 	}
+
 	return false
 }
 
@@ -701,6 +706,29 @@ func (ua *UprobeAttacher) buildRegisterCallbacks(matchingRules []*AttachRule, pr
 	return registerCB, unregisterCB
 }
 
+func resolveExecutable(procInfo *ProcInfo) (string, error) {
+	binPath, err := procInfo.Exe()
+	if err == nil || errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
+		return binPath, err
+	}
+	return "", utils.NewUnknownAttachmentError(err)
+}
+
+func (ua *UprobeAttacher) rejectInternalProcess(procInfo *ProcInfo) error {
+	if (ua.config.ExcludeTargets & ExcludeInternal) == 0 {
+		return nil
+	}
+
+	binPath, err := resolveExecutable(procInfo)
+	if err != nil {
+		return err
+	}
+	if internalProcessRegex.MatchString(binPath) {
+		return ErrInternalDDogProcessRejected
+	}
+	return nil
+}
+
 // AttachLibrary attaches the probes to the given library, opened by a given PID
 func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) (err error) {
 	defer func() {
@@ -720,7 +748,12 @@ func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) (err error) {
 		return ErrNoMatchingRule
 	}
 
-	registerCB, unregisterCB := ua.buildRegisterCallbacks(matchingRules, NewProcInfo(ua.config.ProcRoot, pid))
+	procInfo := NewProcInfo(ua.config.ProcRoot, pid)
+	if err := ua.rejectInternalProcess(procInfo); err != nil {
+		return err
+	}
+
+	registerCB, unregisterCB := ua.buildRegisterCallbacks(matchingRules, procInfo)
 
 	return ua.fileRegistry.Register(path, pid, registerCB, unregisterCB, utils.IgnoreCB)
 }
@@ -749,15 +782,6 @@ func (ua *UprobeAttacher) getRulesForExecutable(path string, procInfo *ProcInfo)
 	return matchedRules
 }
 
-// getExecutablePath resolves the executable of the given PID looking in procfs.
-// Will return an error if the path cannot be resolved
-func (ua *UprobeAttacher) getExecutablePath(pid uint32) (string, error) {
-	pidAsStr := strconv.FormatUint(uint64(pid), 10)
-	exePath := filepath.Join(ua.config.ProcRoot, pidAsStr, "exe")
-
-	return os.Readlink(exePath)
-}
-
 const optionAttachToLibs = true
 
 // AttachPID attaches the corresponding probes to a given pid
@@ -779,26 +803,17 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) (e
 	}
 
 	procInfo := NewProcInfo(ua.config.ProcRoot, pid)
+	if err := ua.rejectInternalProcess(procInfo); err != nil {
+		return err
+	}
 
-	// Only compute the binary path if we are going to need it. It's better to do these two checks
-	// (which are cheap, the handlesExecutables function is cached) than to do the syscall
-	// every time
 	var binPath string
-	if ua.handlesExecutables() || (ua.config.ExcludeTargets&ExcludeInternal) != 0 {
-		binPath, err = procInfo.Exe()
+	if ua.handlesExecutables() {
+		binPath, err = resolveExecutable(procInfo)
 		if err != nil {
-			if !errors.Is(err, os.ErrNotExist) {
-				return utils.NewUnknownAttachmentError(err)
-			}
 			return err
 		}
-	}
 
-	if (ua.config.ExcludeTargets&ExcludeInternal) != 0 && internalProcessRegex.MatchString(binPath) {
-		return ErrInternalDDogProcessRejected
-	}
-
-	if ua.handlesExecutables() {
 		matchingRules := ua.getRulesForExecutable(binPath, procInfo)
 		if len(matchingRules) != 0 {
 			registerCB, unregisterCB := ua.buildRegisterCallbacks(matchingRules, procInfo)
@@ -1078,16 +1093,21 @@ func (ua *UprobeAttacher) getLibrariesFromMapsFile(pid int) ([]string, error) {
 	}
 	defer mapsFile.Close()
 
-	scanner := bufio.NewScanner(bufio.NewReader(mapsFile))
+	scanner := bufio.NewScanner(mapsFile)
+	scanner.Buffer(make([]byte, 128), bufio.MaxScanTokenSize)
 	libs := make(map[string]struct{})
 	for scanner.Scan() {
-		line := scanner.Text()
-		cols := strings.Fields(line)
+		cols := bytes.Fields(scanner.Bytes())
 		// ensuring we have exactly 6 elements (skip '(deleted)' entries) in the line, and the 4th element (inode) is
 		// not zero (indicates it is a path, and not an anonymous path).
-		if len(cols) == 6 && cols[4] != "0" {
-			libs[cols[5]] = struct{}{}
+		if len(cols) == 6 && !bytes.Equal(cols[4], zeroByte) {
+			if _, ok := libs[string(cols[5])]; !ok {
+				libs[string(cols[5])] = struct{}{}
+			}
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("scan maps file at %s: %w", mapsPath, err)
 	}
 
 	return slices.Collect(maps.Keys(libs)), nil
@@ -1100,6 +1120,7 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
 	if err != nil {
 		return utils.NewUnknownAttachmentError(err)
 	}
+
 	for _, libpath := range libs {
 		err := ua.AttachLibrary(libpath, pid)
 
@@ -1114,10 +1135,10 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
 		if len(registerErrors) == 0 {
 			return nil // No libraries found to attach
 		}
-		return utils.NewUnknownAttachmentError(fmt.Errorf("no rules matched for pid %d, errors: %v", pid, registerErrors))
+		return fmt.Errorf("no rules matched for pid %d: %w", pid, errors.Join(registerErrors...))
 	}
 	if len(registerErrors) > 0 {
-		return utils.NewUnknownAttachmentError(fmt.Errorf("partially hooked (%v), errors while attaching pid %d: %v", successfulMatches, pid, registerErrors))
+		return fmt.Errorf("partially hooked (%v), errors while attaching pid %d: %w", successfulMatches, pid, errors.Join(registerErrors...))
 	}
 	return nil
 }

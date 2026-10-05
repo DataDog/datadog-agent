@@ -41,6 +41,16 @@ const (
 	customAttributeValue = "true"
 	log1Body             = "getting random date"
 	log2Body             = "random date"
+
+	// customLabelKey is a pod label on the calendar app that the base Helm
+	// values (see kubernetesResourcesLabelsAsTags in buildLinuxHelmValues) map
+	// to the "domain" tag via labels-as-tags -- i.e. a tag that is NOT part of
+	// the curated OTel resource attribute conventions the infraattributes
+	// processor always keeps as resource attributes. This is used to validate
+	// the logs_tags_as_ddtags option, which only affects tags like this one.
+	customLabelKey   = "x-parent-type"
+	customLabelValue = "e2e-test"
+	customLabelTag   = "domain"
 )
 
 // OTelTestSuite is an interface for the OTel e2e test suite.
@@ -59,6 +69,19 @@ type IAParams struct {
 
 	// Cardinality represents the tag cardinality used by this test
 	Cardinality types.TagCardinality
+
+	// LogsTagsAsDDTags indicates whether the infraattributes processor's
+	// logs_tags_as_ddtags option is enabled for this test, i.e. whether
+	// custom tagger-derived tags (e.g. customLabelTag) are expected as real
+	// log tags instead of log attributes.
+	LogsTagsAsDDTags bool
+
+	// SkipCustomLabelTag skips testCustomLabelAsTag. Set this for deployments
+	// that don't configure kubernetesResourcesLabelsAsTags (e.g. the
+	// standalone otel-agent DaemonSet, which has no Helm chart / Cluster
+	// Agent backing the tagger's labels-as-tags mapping), where customLabelTag
+	// is never produced regardless of LogsTagsAsDDTags.
+	SkipCustomLabelTag bool
 }
 
 // TestTraces tests that OTLP traces are received through OTel pipelines as expected
@@ -298,6 +321,46 @@ func TestMetrics(s OTelTestSuite, iaParams IAParams) {
 	}
 }
 
+// TestMetricsAttributesAsTags verifies that when the infraattributes processor's
+// metrics_attributes_as_tags option is enabled, a custom tagger-derived tag
+// (customLabelTag) is promoted onto metrics as a real Datadog tag -- surviving
+// the metrics translator's allowlist -- WITHOUT enabling resource_attributes_as_tags.
+//
+// This is intentionally a separate helper from TestMetrics: TestMetrics asserts
+// against OTel resource-attribute conventions (custom.attribute, k8s.pod.name,
+// k8s.namespace.name, ...) that only surface as metric tags when
+// resource_attributes_as_tags is enabled. metrics_attributes_as_tags is the
+// targeted alternative to that broad, high-cardinality lever, so its suites do
+// not enable it -- and enabling it would make the promotion assertion below
+// meaningless, since customLabelTag would then appear regardless of this option.
+func TestMetricsAttributesAsTags(s OTelTestSuite) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+
+	var metrics []*aggregator.MetricSeries
+	s.T().Log("Waiting for metrics")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter",
+			fakeintake.WithTags[*aggregator.MetricSeries]([]string{
+				fmt.Sprintf("service:%v", CalendarService),
+				"kube_ownerref_kind:replicaset",
+			}))
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics)
+	}, 5*time.Minute, 10*time.Second)
+	s.T().Log("Got metrics", s.T().Name(), metrics)
+
+	for _, metricSeries := range metrics {
+		tags := getTagMapFromSlice(s.T(), metricSeries.Tags)
+		assert.Equal(s.T(), CalendarService, tags["service"])
+		// The custom tagger-derived tag is promoted under the
+		// `datadog.container.tag.` prefix by the processor and surfaced as a real
+		// metric tag by the translator only when metrics_attributes_as_tags is on.
+		assert.Equal(s.T(), customLabelValue, tags[customLabelTag],
+			"expected %q to be promoted to a metric tag when metrics_attributes_as_tags is enabled", customLabelTag)
+	}
+}
+
 // TestLogs tests that OTLP logs are received through OTel pipelines as expected
 func TestLogs(s OTelTestSuite, iaParams IAParams) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -334,6 +397,9 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 		// Verify container tags from infraattributes processor
 		if iaParams.InfraAttributes {
 			testInfraTags(s.T(), tags, iaParams)
+			if !iaParams.SkipCustomLabelTag {
+				testCustomLabelAsTag(s.T(), log, iaParams.LogsTagsAsDDTags)
+			}
 		}
 	}
 }
@@ -381,6 +447,87 @@ func TestHosts(s OTelTestSuite) {
 	assert.Equal(s.T(), logHostname, metricHostname)
 }
 
+// SignalCompression describes an intake endpoint and the compression algorithm
+// its payloads are expected to use on the wire.
+type SignalCompression struct {
+	// Name is a human-readable signal label used in assertion messages.
+	Name string
+	// Endpoint is the intake route the signal is submitted to.
+	Endpoint string
+	// Encoding is the expected Content-Encoding recorded by fakeintake for
+	// every payload on Endpoint (e.g. "zstd", "gzip").
+	Encoding string
+	// Required indicates the standard e2e workload reliably produces this
+	// signal, so the test waits until at least one payload is observed. When
+	// false, any observed payload is still asserted, but the signal need not be
+	// present — e.g. sketches depend on the workload emitting histograms, and
+	// APM stats may be absent depending on the deployed config.
+	Required bool
+}
+
+// DefaultDDOTCompression returns the expected on-the-wire compression for a DDOT
+// deployment running its default configuration: zstd for metrics (series and
+// sketches), traces, and logs; gzip for APM stats — the deliberate exception,
+// hardcoded in the trace stats writer (pkg/trace/writer/stats.go).
+//
+// Compression is configurable per signal type, so a suite that deploys a
+// non-default config must build its own []SignalCompression (see TestCompression)
+// rather than reuse this — the assertion tracks the configured compressor, it
+// does not assume zstd.
+func DefaultDDOTCompression() []SignalCompression {
+	return []SignalCompression{
+		{Name: "metrics", Endpoint: "/api/v2/series", Encoding: "zstd", Required: true},
+		{Name: "sketches", Endpoint: "/api/beta/sketches", Encoding: "zstd", Required: false},
+		{Name: "traces", Endpoint: "/api/v0.2/traces", Encoding: "zstd", Required: true},
+		{Name: "logs", Endpoint: "/api/v2/logs", Encoding: "zstd", Required: true},
+		{Name: "apm stats", Endpoint: "/api/v0.2/stats", Encoding: "gzip", Required: false},
+	}
+}
+
+// TestCompression verifies that DDOT ships each signal to the intake using the
+// expected compression algorithm, guarding against per-signal divergence on the
+// wire (and, for the default zstd config, confirming the v2 series intake
+// accepts zstd). The expected compressor is passed in per signal rather than
+// assumed, so the assertion tracks the deployed configuration — compression is
+// configurable per signal type. Pass DefaultDDOTCompression() for a default
+// deployment, or a custom slice when a suite configures a non-default compressor.
+//
+// Signals flagged Required must produce at least one payload within the poll
+// window; others are asserted only if present (their emission depends on the
+// workload/config). The set of observed payloads is logged at the end so an
+// absent optional signal is visible rather than silently "passing".
+func TestCompression(s OTelTestSuite, signals []SignalCompression) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+
+	s.T().Log("Waiting for correctly-compressed payloads on all signal endpoints")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		for _, sig := range signals {
+			payloads, err := s.Env().FakeIntake.Client().GetRawPayloads(sig.Endpoint)
+			if !assert.NoErrorf(c, err, "getting raw payloads for %s (%s)", sig.Name, sig.Endpoint) {
+				continue
+			}
+			if sig.Required && !assert.NotEmptyf(c, payloads, "no %s payloads received on %s yet", sig.Name, sig.Endpoint) {
+				continue
+			}
+			for _, p := range payloads {
+				assert.Equalf(c, sig.Encoding, p.Encoding, "%s payloads must be %s-compressed (endpoint %s)", sig.Name, sig.Encoding, sig.Endpoint)
+			}
+		}
+	}, 5*time.Minute, 10*time.Second)
+
+	// Report what was actually observed so optional signals that produced no
+	// payloads (e.g. sketches when the workload emits no histograms) are not
+	// mistaken for validated coverage.
+	for _, sig := range signals {
+		payloads, err := s.Env().FakeIntake.Client().GetRawPayloads(sig.Endpoint)
+		if err != nil {
+			continue
+		}
+		s.T().Logf("compression: %s (%s) — %d payload(s) observed, expected %q", sig.Name, sig.Endpoint, len(payloads), sig.Encoding)
+	}
+}
+
 // TestSampling tests that APM stats are correct when using probabilistic sampling
 func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
 	s.T().Log("Waiting for APM stats")
@@ -413,6 +560,113 @@ func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
 		require.True(c, hasStatsForService)
 	}, 5*time.Minute, 10*time.Second)
 	s.T().Log("Got APM stats", stats)
+}
+
+// TestSpanDerivedPrimaryTags validates that keys listed under the Datadog
+// connector's traces.span_derived_primary_tags are resolved off each span (or,
+// failing that, its resource) and attached to the emitted APM stats as
+// ClientGroupedStats.AdditionalMetricTags.
+//
+// The accompanying config (config/span-derived-primary-tags.yml) configures two
+// keys, one per lookup path:
+//   - "team" is stamped as a SPAN attribute by an attributes processor upstream
+//     of the connector, covering the span-attribute path.
+//   - "custom.attribute" is a RESOURCE attribute set by the calendar app,
+//     covering the resource-attribute fallback path.
+//
+// "k8s.pod.name" is present on the spans but deliberately not configured, so it
+// serves as a negative control: an unlisted key must not leak into the stats.
+func TestSpanDerivedPrimaryTags(s OTelTestSuite) {
+	const (
+		wantSpanAttrTag = "team:checkout"
+		wantResAttrTag  = customAttribute + ":" + customAttributeValue
+		unlistedKey     = "k8s.pod.name"
+	)
+
+	s.T().Log("Waiting for APM stats with span-derived primary tags")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		stats, err := s.Env().FakeIntake.Client().GetAPMStats()
+		require.NoError(c, err)
+		require.NotEmpty(c, stats)
+
+		hasTaggedStats := false
+		for _, payload := range stats {
+			for _, csp := range payload.StatsPayload.Stats {
+				for _, bucket := range csp.Stats {
+					for _, cgs := range bucket.Stats {
+						if cgs.Service != CalendarService {
+							continue
+						}
+						if assert.ObjectsAreEqual([]string{wantSpanAttrTag, wantResAttrTag}, cgs.AdditionalMetricTags) ||
+							assert.ObjectsAreEqual([]string{wantResAttrTag, wantSpanAttrTag}, cgs.AdditionalMetricTags) {
+							hasTaggedStats = true
+						}
+						// Negative control: an unconfigured key must never be
+						// aggregated, on any bucket.
+						for _, tag := range cgs.AdditionalMetricTags {
+							assert.NotEqual(c, unlistedKey, strings.SplitN(tag, ":", 2)[0],
+								"unconfigured key %v must not be aggregated as a primary tag", unlistedKey)
+						}
+					}
+				}
+			}
+		}
+		require.True(c, hasTaggedStats,
+			"no APM stats for service %v carrying both %v and %v in AdditionalMetricTags", CalendarService, wantSpanAttrTag, wantResAttrTag)
+	}, 5*time.Minute, 10*time.Second)
+}
+
+// TestHeadBasedSamplingScaling validates that the Datadog connector scales APM
+// stats up by the W3C tracestate head-sampling weight.
+//
+// The accompanying config (config/sampling-head-based.yml) runs two connectors
+// over the same OTLP stream:
+//   - datadog/unsampled sees 100% of traffic (service "calendar-rest-go"), so
+//     its Hits are the ground-truth volume.
+//   - datadog/sampled sits behind a 50% proportional probabilistic_sampler that
+//     stamps an "ot=th:" tracestate; its service is renamed to
+//     "calendar-rest-go-sampled". It observes only the sampled subset and must
+//     recover the sampling weight from the tracestate to scale its Hits back up.
+//
+// With correct scaling the sampled connector's Hits approximate the unsampled
+// baseline (ratio ~1.0). Without scaling they would be roughly half (~0.5), so
+// the ratio band below both requires the fix and tolerates 50% sampling variance.
+func TestHeadBasedSamplingScaling(s OTelTestSuite) {
+	const sampledService = CalendarService + "-sampled"
+	s.T().Log("Waiting for head-based-sampling APM stats")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		stats, err := s.Env().FakeIntake.Client().GetAPMStats()
+		require.NoError(c, err)
+		require.NotEmpty(c, stats)
+
+		var unsampledHits, sampledHits uint64
+		for _, payload := range stats {
+			for _, csp := range payload.StatsPayload.Stats {
+				for _, bucket := range csp.Stats {
+					for _, cgs := range bucket.Stats {
+						switch cgs.Service {
+						case CalendarService:
+							unsampledHits += cgs.Hits
+						case sampledService:
+							sampledHits += cgs.Hits
+						}
+					}
+				}
+			}
+		}
+		s.T().Logf("head-based sampling hits: unsampled=%d sampled=%d", unsampledHits, sampledHits)
+
+		// Require enough volume on both branches before comparing, so the ratio
+		// is not dominated by sampling variance at low counts.
+		require.Greater(c, unsampledHits, uint64(20), "not enough baseline volume yet")
+		require.Greater(c, sampledHits, uint64(20), "not enough sampled volume yet")
+
+		ratio := float64(sampledHits) / float64(unsampledHits)
+		assert.Greater(c, ratio, 0.65,
+			"sampled connector Hits should be scaled up to ~unsampled baseline (ratio %.2f); a ratio near 0.5 means the tracestate head-sampling weight was not applied", ratio)
+		assert.Less(c, ratio, 1.5,
+			"sampled connector Hits unexpectedly high (ratio %.2f)", ratio)
+	}, 5*time.Minute, 10*time.Second)
 }
 
 const (
@@ -672,6 +926,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool, service s
 						"app.kubernetes.io/instance":   name,
 						"app.kubernetes.io/version":    "0.15",
 						"app.kubernetes.io/managed-by": "Helm",
+						customLabelKey:                 customLabelValue,
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -795,6 +1050,28 @@ func testInfraTags(t *testing.T, tags map[string]string, iaParams IAParams) {
 	if iaParams.Cardinality == types.HighCardinality && iaParams.EKS {
 		assert.NotNil(t, tags["display_container_name"])
 	}
+}
+
+// testCustomLabelAsTag verifies that the custom tagger-derived tag
+// customLabelTag (from labels-as-tags on the calendar app's customLabelKey
+// pod label) is surfaced as a real log tag when logsTagsAsDDTags is enabled,
+// and as a log attribute (not a tag) otherwise -- this is the default,
+// unchanged behavior of the infraattributes processor.
+func testCustomLabelAsTag(t *testing.T, log *aggregator.Log, logsTagsAsDDTags bool) {
+	tagMap := getTagMapFromSlice(t, log.Tags)
+	var attrs map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(log.Message), &attrs))
+
+	if logsTagsAsDDTags {
+		assert.Equal(t, customLabelValue, tagMap[customLabelTag])
+		_, hasAttr := attrs[customLabelTag]
+		assert.False(t, hasAttr, "expected %q to not be a log attribute when logs_tags_as_ddtags is enabled", customLabelTag)
+		return
+	}
+
+	_, hasTag := tagMap[customLabelTag]
+	assert.False(t, hasTag, "expected %q to not be a log tag by default", customLabelTag)
+	assert.Equal(t, customLabelValue, fmt.Sprint(attrs[customLabelTag]))
 }
 
 func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {

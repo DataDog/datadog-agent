@@ -101,7 +101,7 @@
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
       SECRET_GENERIC_CONNECTOR_REPOSITORY: ci/datadog-agent/secret-generic-connector-release
-      IMG_REGISTRIES: internal-aws-ddbuild
+      IMG_REGISTRIES: ddbuild
 
 # Same as on_deploy_manual_final, except the job is used to publish images
 # to our internal registries.
@@ -119,7 +119,7 @@
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
       SECRET_GENERIC_CONNECTOR_REPOSITORY: ci/datadog-agent/secret-generic-connector-release
-      IMG_REGISTRIES: internal-aws-ddbuild
+      IMG_REGISTRIES: ddbuild
 
 .on_deploy_stable_or_beta_repo_branch_manual:
   - <<: *if_not_stable_or_beta_repo_branch
@@ -163,7 +163,7 @@
     # Windows runners don't support the s3 strategy
     # Clone is required since cancelled Windows jobs with fetch strategy
     # can cause CIEXE-1152 which makes the runner unusable.
-    OVERRIDE_GIT_STRATEGY: "clone"
+    GIT_STRATEGY: "clone"
     # Avoid using ~/.aws/credentials to avoid conflicts with other CI jobs
     # this env var is understood by both ci-identities-gitlab-job-client.exe and aws.exe
     AWS_SHARED_CREDENTIALS_FILE: ${CI_PROJECT_DIR}\.aws\credentials-by-job-id\${CI_JOB_ID}
@@ -182,7 +182,7 @@
     # Windows runners don't support the s3 strategy
     # Clone is required since cancelled Windows jobs with fetch strategy
     # can cause CIEXE-1152 which makes the runner unusable.
-    OVERRIDE_GIT_STRATEGY: "clone"
+    GIT_STRATEGY: "clone"
     # Avoid using ~/.aws/credentials to avoid conflicts with other CI jobs
     # this env var is understood by both ci-identities-gitlab-job-client.exe and aws.exe
     AWS_SHARED_CREDENTIALS_FILE: ${CI_PROJECT_DIR}\.aws\credentials-by-job-id\${CI_JOB_ID}
@@ -204,7 +204,7 @@
     # Windows runners don't support the s3 strategy
     # Clone is required since cancelled Windows jobs with fetch strategy
     # can cause CIEXE-1152 which makes the runner unusable.
-    OVERRIDE_GIT_STRATEGY: "clone"
+    GIT_STRATEGY: "clone"
     # Avoid using ~/.aws/credentials to avoid conflicts with other CI jobs
     # this env var is understood by both ci-identities-gitlab-job-client.exe and aws.exe
     AWS_SHARED_CREDENTIALS_FILE: ${CI_PROJECT_DIR}\.aws\credentials-by-job-id\${CI_JOB_ID}
@@ -220,3 +220,5 @@
 # Current default: Windows Server 2022
 .windows_docker_default:
   extends: .windows_docker_v2_2022
+  variables:
+    DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND: C:\devtools\ci-identities-gitlab-job-client.exe secrets read feature-flags-client token

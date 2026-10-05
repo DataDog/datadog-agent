@@ -18,10 +18,23 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 )
+
+func defaultAuthGosnmpProtocol(t *testing.T) gosnmp.SnmpV3AuthProtocol {
+	protocol, err := gosnmplib.GetAuthProtocol(defaultAuthProtocol())
+	require.NoError(t, err)
+	return protocol
+}
+
+func defaultPrivGosnmpProtocol(t *testing.T) gosnmp.SnmpV3PrivProtocol {
+	protocol, err := gosnmplib.GetPrivProtocol(defaultPrivProtocol())
+	require.NoError(t, err)
+	return protocol
+}
 
 func Test_snmpSession_Configure(t *testing.T) {
 	tests := []struct {
@@ -174,9 +187,9 @@ func Test_snmpSession_Configure(t *testing.T) {
 			expectedMsgFlags: gosnmp.AuthPriv,
 			expectedSecurityParameters: &gosnmp.UsmSecurityParameters{
 				UserName:                 "myUser",
-				AuthenticationProtocol:   gosnmp.MD5,
+				AuthenticationProtocol:   defaultAuthGosnmpProtocol(t),
 				AuthenticationPassphrase: "myAuthKey",
-				PrivacyProtocol:          gosnmp.DES,
+				PrivacyProtocol:          defaultPrivGosnmpProtocol(t),
 				PrivacyPassphrase:        "myPrivKey",
 			},
 		},
@@ -192,7 +205,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			expectedMsgFlags: gosnmp.AuthPriv,
 			expectedSecurityParameters: &gosnmp.UsmSecurityParameters{
 				UserName:                 "myUser",
-				AuthenticationProtocol:   gosnmp.MD5,
+				AuthenticationProtocol:   defaultAuthGosnmpProtocol(t),
 				AuthenticationPassphrase: "myAuthKey",
 				PrivacyProtocol:          gosnmp.AES,
 				PrivacyPassphrase:        "myPrivKey",
@@ -212,7 +225,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 				UserName:                 "myUser",
 				AuthenticationProtocol:   gosnmp.SHA,
 				AuthenticationPassphrase: "myAuthKey",
-				PrivacyProtocol:          gosnmp.DES,
+				PrivacyProtocol:          defaultPrivGosnmpProtocol(t),
 				PrivacyPassphrase:        "myPrivKey",
 			},
 		},
@@ -494,4 +507,42 @@ func TestUseUnconnectedUDPSocketPropagation(t *testing.T) {
 				"UseUnconnectedUDPSocket should be propagated to gosnmp instance")
 		})
 	}
+}
+
+// Test_snmpSession_v3DefaultProtocols_FIPSCompatible documents that the default
+// v3 auth/priv protocols always produce usable USM keys, whether or not FIPS
+// mode is active.
+//
+// defaultAuthProtocol/defaultPrivProtocol select MD5/DES outside FIPS mode
+// and SHA256/AES under FIPS mode, since MD5/DES key derivation silently produces
+// an empty key under FIPS mode.
+//
+// NewGosnmpSession only fills the security-parameter struct; the crypto is not
+// exercised until USM key derivation runs. During a real collection that
+// happens lazily inside sess.GetNext (gosnmp's v3 discovery), but that path
+// needs a live device and would time out identically with or without FIPS. So
+// we drive the exact same key-derivation code directly via InitSecurityKeys.
+//
+// Run with GODEBUG=fips140=only to exercise the FIPS branch (SHA256/AES);
+// without it, this exercises the default branch (MD5/DES), which also
+// succeeds since MD5/DES work fine outside FIPS mode.
+func Test_snmpSession_v3DefaultProtocols_FIPSCompatible(t *testing.T) {
+	config := checkconfig.CheckConfig{
+		IPAddress: "1.2.3.4",
+		Port:      uint16(1234),
+		User:      "myUser",
+		AuthKey:   "myAuthKey", // defaults AuthProtocol via defaultAuthProtocol()
+		PrivKey:   "myPrivKey", // defaults PrivProtocol via defaultPrivProtocol()
+	}
+	s, err := NewGosnmpSession(&config)
+	require.NoError(t, err)
+
+	usm := s.(*GosnmpSession).gosnmpInst.SecurityParameters.(*gosnmp.UsmSecurityParameters)
+	// An authoritative engine ID is normally learned during discovery; set one
+	// so key localization runs without a live device.
+	usm.AuthoritativeEngineID = "myEngineID"
+
+	require.NoError(t, usm.InitSecurityKeys())
+	require.NotEmpty(t, usm.SecretKey, "auth key derivation produced no key (FIPS mode?)")
+	require.NotEmpty(t, usm.PrivacyKey, "priv key derivation produced no key (FIPS mode?)")
 }

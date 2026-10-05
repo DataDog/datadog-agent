@@ -10,14 +10,13 @@ import (
 	"fmt"
 	"strings"
 
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -210,13 +209,6 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	case names.Container, names.Kubernetes, names.KubeContainer, names.ProcessLog, names.InstrumentationChecks:
 		// config attached to a container label, a pod annotation, or an instrumentation check
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
-	case names.RemoteConfig:
-		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
-			// config supplied by remote config
-			configs, err = logsConfig.ParseJSON(config.LogsConfig)
-		} else {
-			log.Warnf("parsing logs config from %v is disabled. You can enable it by setting remote_configuration.agent_integrations.allow_log_config_scheduling to true", names.RemoteConfig)
-		}
 	default:
 		// invalid provider
 		err = fmt.Errorf("parsing logs config from %v is not supported yet", config.Provider)
@@ -262,12 +254,17 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 
 		cfg.IntegrationSourceIndex = index
 		cfg.IntegrationSource = config.Source
+		if config.Provider == names.ProcessLog && cfg.Type == logsConfig.FileType {
+			// process_log paths identify already-open files. Reject symlinks introduced
+			// at those paths after discovery.
+			cfg.NoFollow = true
+		}
 
 		if service != nil {
 			// a config defined in a container label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType || cfg.Type == logsConfig.IntegrationType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType || config.Provider == names.ProcessLog) {
-				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
+			if preservesExplicitLogType(config.Provider, cfg.Type) {
+				// cfg.Type is not overwritten as tailing a file from a Docker, Kubernetes, or DDI AD configuration
 				// is explicitly supported (other combinations may be supported later)
 				cfg.Identifier = service.Identifier
 			} else {
@@ -287,12 +284,27 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 		sources = append(sources, source)
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)
-			source.Status.Error(err)
+			source.Status().Error(err)
 			continue
 		}
 	}
 
 	return sources, nil
+}
+
+func preservesExplicitLogType(provider, logType string) bool {
+	switch logType {
+	case logsConfig.FileType, logsConfig.TCPType, logsConfig.UDPType, logsConfig.IntegrationType:
+	default:
+		return false
+	}
+
+	switch provider {
+	case names.Kubernetes, names.Container, names.KubeContainer, logsConfig.FileType, names.ProcessLog, names.InstrumentationChecks:
+		return true
+	default:
+		return false
+	}
 }
 
 // toService creates a new service for an integrationConfig.

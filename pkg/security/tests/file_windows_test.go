@@ -21,20 +21,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+var _ = declare(TestBasicFileTest, testOpts{enableFIM: true})
+
 func TestBasicFileTest(t *testing.T) {
 	//ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_create_file",
 		Expression: `create.file.name =~ "test.bad" && create.file.path =~ "C:\Temp\**" && create.file.extension == ".bad"`,
 	}
-	opts := testOpts{
-		enableFIM: true,
-	}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{cfn}, withStaticOpts(opts))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{cfn})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTestAndMonitor()
 	// Wait for ETW to be ready (signaled on first event received)
 	if !test.WaitForETWReady(30 * time.Second) {
 		t.Fatal("Timeout waiting for ETW to be ready")
@@ -65,20 +64,19 @@ func TestBasicFileTest(t *testing.T) {
 
 }
 
+var _ = declare(TestRenameFileEvent, testOpts{enableFIM: true})
+
 func TestRenameFileEvent(t *testing.T) {
 	// ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_rename_file",
 		Expression: `rename.file.name =~ "test.bad" && rename.file.path =~ "C:\Temp\**" && rename.file.extension == ".bad"`,
 	}
-	opts := testOpts{
-		enableFIM: true,
-	}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{cfn}, withStaticOpts(opts))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{cfn})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTestAndMonitor()
 	// Wait for ETW to be ready (signaled on first event received)
 	if !test.WaitForETWReady(30 * time.Second) {
 		t.Fatal("Timeout waiting for ETW to be ready")
@@ -103,20 +101,19 @@ func TestRenameFileEvent(t *testing.T) {
 	})
 }
 
+var _ = declare(TestDeleteFileEvent, testOpts{enableFIM: true})
+
 func TestDeleteFileEvent(t *testing.T) {
 	// ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_delete_file",
 		Expression: `delete.file.name =~ "test.bad" && delete.file.path =~ "C:\Temp\**" && delete.file.extension == ".bad"`,
 	}
-	opts := testOpts{
-		enableFIM: true,
-	}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{cfn}, withStaticOpts(opts))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{cfn})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTestAndMonitor()
 	// Wait for ETW to be ready (signaled on first event received)
 	if !test.WaitForETWReady(30 * time.Second) {
 		t.Fatal("Timeout waiting for ETW to be ready")
@@ -140,20 +137,19 @@ func TestDeleteFileEvent(t *testing.T) {
 	})
 }
 
+var _ = declare(TestWriteFileEvent, testOpts{enableFIM: true})
+
 func TestWriteFileEvent(t *testing.T) {
 	// ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_write_file",
 		Expression: `write.file.name =~ "test.bad" && write.file.path =~ "C:\Temp\**" && write.file.extension == ".bad"`,
 	}
-	opts := testOpts{
-		enableFIM: true,
-	}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{cfn}, withStaticOpts(opts))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{cfn})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTestAndMonitor()
 	// Wait for ETW to be ready (signaled on first event received)
 	if !test.WaitForETWReady(30 * time.Second) {
 		t.Fatal("Timeout waiting for ETW to be ready")
@@ -184,6 +180,8 @@ func TestWriteFileEvent(t *testing.T) {
 	})
 }
 
+var _ = declare(TestWriteFileEventWithCreate, testOpts{enableFIM: true})
+
 func TestWriteFileEventWithCreate(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -195,14 +193,11 @@ func TestWriteFileEventWithCreate(t *testing.T) {
 			Expression: `write.file.name =~ "test.bad" && write.file.path =~ "C:\Temp\**" && write.file.extension == ".bad"`,
 		},
 	}
-	opts := testOpts{
-		enableFIM: true,
-	}
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(opts))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTestAndMonitor()
 	// Wait for ETW to be ready (signaled on first event received)
 	if !test.WaitForETWReady(30 * time.Second) {
 		t.Fatal("Timeout waiting for ETW to be ready")

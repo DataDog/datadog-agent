@@ -95,12 +95,14 @@ func resourceDDName(resource string, allowedResources map[string]struct{}) (ddna
 func defaultMetricTransformers(k *KSMCheck) map[string]metricTransformerFunc {
 	transformers := map[string]metricTransformerFunc{
 		"kube_pod_created":                                podCreationTransformer,
+		"kube_pod_deletion_timestamp":                     podTerminatingTransformer,
 		"kube_pod_start_time":                             podStartTimeTransformer,
 		"kube_pod_status_phase":                           podPhaseTransformer,
 		"kube_pod_container_status_waiting_reason":        containerWaitingReasonTransformer,
 		"kube_pod_container_status_terminated_reason":     containerTerminatedReasonTransformer,
 		"kube_pod_container_extended_resource_requests":   containerResourceRequestsTransformer,
-		"kube_pod_container_resource_requests":            containerResourceRequestsTransformer,
+		"kube_pod_container_effective_resource_requests":  containerResourceRequestsTransformer,
+		"kube_pod_container_resource_requests":            containerSpecResourceRequestsTransformer,
 		"kube_pod_container_resource_limits":              containerResourceLimitsTransformer,
 		"kube_pod_container_extended_resource_limits":     containerResourceLimitsTransformer,
 		"kube_pod_init_container_status_waiting_reason":   initcontainerWaitingReasonTransformer,
@@ -122,6 +124,7 @@ func defaultMetricTransformers(k *KSMCheck) map[string]metricTransformerFunc {
 		"kube_node_status_capacity":                       nodeCapacityTransformer,
 		"kube_node_status_extended_capacity":              nodeCapacityTransformer,
 		"kube_node_created":                               nodeCreationTransformer,
+		"kube_resourceclaim_created":                      resourceClaimCreationTransformer,
 		"kube_resourcequota":                              resourcequotaTransformer,
 		"kube_limitrange":                                 limitrangeTransformer,
 		"kube_persistentvolume_status_phase":              pvPhaseTransformer,
@@ -249,9 +252,25 @@ func nodeCreationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric
 	submitAge(s, ksmMetricPrefix+"node.age", metric, hostname, tags, currentTime)
 }
 
+// resourceClaimCreationTransformer generates the pending age of a DRA
+// ResourceClaim from its creation timestamp. The generator publishes a
+// timestamp rather than an elapsed value because the KSM store builds a metric
+// family when the informer sees the object, not when it is scraped; the
+// subtraction has to happen here, at submit time, exactly as it does for pods
+// and nodes.
+func resourceClaimCreationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
+	submitAge(s, ksmMetricPrefix+"resourceclaim.pending.age", metric, hostname, tags, currentTime)
+}
+
 // podCreationTransformer generates the pod age metric based on the creation timestamp
 func podCreationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
 	submitAge(s, ksmMetricPrefix+"pod.age", metric, hostname, tags, currentTime)
+}
+
+// podTerminatingTransformer emits a sparse value-1 gauge for every pod whose
+// deletion timestamp is set. kube_pod_deletion_timestamp is absent otherwise.
+func podTerminatingTransformer(s sender.Sender, _ string, _ ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	s.Gauge(ksmMetricPrefix+"pod.terminating", 1, hostname, tags)
 }
 
 // podStartTimeTransformer generates the pod uptime metric based on the start time timestamp
@@ -318,6 +337,19 @@ func submitContainerTerminatedReasonTransformer(s sender.Sender, metric ksmstore
 
 // containerResourceRequestsTransformer transforms the generic ksm resource request metrics into resource-specific metrics
 func containerResourceRequestsTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	submitContainerResourceMetric(s, name, metric, hostname, tags, "requested", crs.Standard)
+}
+
+// containerSpecResourceRequestsTransformer preserves resource metrics that are
+// only available from the pod spec. CPU and memory are emitted by
+// kube_pod_container_effective_resource_requests instead so they can account
+// for in-place vertical scaling without producing duplicate series.
+func containerSpecResourceRequestsTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	resource := metric.Labels["resource"]
+	if resource == "cpu" || resource == "memory" {
+		return
+	}
+
 	submitContainerResourceMetric(s, name, metric, hostname, tags, "requested", crs.Standard)
 }
 
@@ -622,6 +654,11 @@ func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric
 // In KSM v2.14 the separate kube_endpoint_address_available and
 // kube_endpoint_address_not_ready metrics were removed and replaced by
 // kube_endpoint_address with a "ready" label ("true" or "false").
+// As of v2.14 KSM only emits a row for addresses that exist in that ready
+// state, so a healthy endpoint has no ready="false" sample and a fully
+// unready endpoint has no ready="true" sample. Emit the other metric as 0
+// so both address_available and address_not_ready still report instead of
+// going sparse.
 func endpointAddressTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	ready, found := metric.Labels["ready"]
 	if !found {
@@ -633,7 +670,9 @@ func endpointAddressTransformer(s sender.Sender, _ string, metric ksmstore.DDMet
 	switch ready {
 	case "true":
 		s.Gauge(ksmMetricPrefix+"endpoint.address_available", metric.Val, hostname, tags)
+		s.Gauge(ksmMetricPrefix+"endpoint.address_not_ready", 0, hostname, tags)
 	case "false":
+		s.Gauge(ksmMetricPrefix+"endpoint.address_available", 0, hostname, tags)
 		s.Gauge(ksmMetricPrefix+"endpoint.address_not_ready", metric.Val, hostname, tags)
 	}
 }

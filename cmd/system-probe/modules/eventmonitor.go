@@ -133,7 +133,11 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	}
 
 	gpucfg := gpuconfig.New()
-	if gpucfg.Enabled {
+	// Only the eBPF probes consume these events, so skip the consumer entirely
+	// when they are disabled. Kept in sync with the module gate in
+	// pkg/system-probe/config, which does not enable the event monitor for GPU
+	// monitoring unless the probes are enabled too.
+	if gpucfg.Enabled && gpucfg.EnableEBPFProbes {
 		err := createGPUProcessEventConsumer(evm)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create event consumer for GPU: %w", err)

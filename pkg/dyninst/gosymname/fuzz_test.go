@@ -9,8 +9,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 )
 
 func FuzzParse(f *testing.F) {

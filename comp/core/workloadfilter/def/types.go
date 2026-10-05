@@ -71,6 +71,42 @@ func (rt ResourceType) ToSingular() ResourceType {
 	return rt
 }
 
+// ToProtoMessage converts a resource type to its equivalent proto message.
+func (rt ResourceType) ToProtoMessage() proto.Message {
+	switch rt {
+	case ContainerType:
+		return &Container{}
+	case PodType:
+		return &Pod{}
+	case KubeServiceType:
+		return &KubeService{}
+	case KubeEndpointType:
+		return &KubeEndpoint{}
+	case ProcessType:
+		return &Process{}
+	default:
+		return nil
+	}
+}
+
+// ToProtoTypeString converts the resource type to its corresponding proto type string.
+func (rt ResourceType) ToProtoTypeString() string {
+	switch rt {
+	case ContainerType:
+		return "datadog.workloadfilter.FilterContainer"
+	case PodType:
+		return "datadog.workloadfilter.FilterPod"
+	case KubeServiceType:
+		return "datadog.workloadfilter.FilterKubeService"
+	case KubeEndpointType:
+		return "datadog.workloadfilter.FilterKubeEndpoint"
+	case ProcessType:
+		return "datadog.workloadfilter.FilterProcess"
+	default:
+		return ""
+	}
+}
+
 // GetAllResourceTypes returns all defined resource types.
 func GetAllResourceTypes() []ResourceType {
 	return []ResourceType{
@@ -323,7 +359,7 @@ func (p *Pod) ToBytes() ([]byte, error) {
 }
 
 // CreatePod creates a Filterable Pod object.
-func CreatePod(id, name, namespace string, annotations map[string]string, rootOwner *core.FilterRootOwner) *Pod {
+func CreatePod(id, name, namespace string, annotations, labels map[string]string, rootOwner *core.FilterRootOwner) *Pod {
 	return &Pod{
 		FilterPod: &core.FilterPod{
 			Id:          id,
@@ -331,6 +367,7 @@ func CreatePod(id, name, namespace string, annotations map[string]string, rootOw
 			Namespace:   namespace,
 			Annotations: annotations,
 			Rootowner:   rootOwner,
+			Labels:      labels,
 		},
 	}
 }
@@ -369,12 +406,13 @@ type KubeService struct {
 }
 
 // CreateKubeService creates a Filterable KubeService object
-func CreateKubeService(name, namespace string, annotations map[string]string) *KubeService {
+func CreateKubeService(name, namespace string, annotations, labels map[string]string) *KubeService {
 	return &KubeService{
 		FilterKubeService: &core.FilterKubeService{
 			Name:        name,
 			Namespace:   namespace,
 			Annotations: annotations,
+			Labels:      labels,
 		},
 	}
 }
@@ -430,12 +468,13 @@ type KubeEndpoint struct {
 }
 
 // CreateKubeEndpoint creates a Filterable KubeEndpoint object
-func CreateKubeEndpoint(name, namespace string, annotations map[string]string) *KubeEndpoint {
+func CreateKubeEndpoint(name, namespace string, annotations, labels map[string]string) *KubeEndpoint {
 	return &KubeEndpoint{
 		FilterKubeEndpoint: &core.FilterKubeEndpoint{
 			Name:        name,
 			Namespace:   namespace,
 			Annotations: annotations,
+			Labels:      labels,
 		},
 	}
 }

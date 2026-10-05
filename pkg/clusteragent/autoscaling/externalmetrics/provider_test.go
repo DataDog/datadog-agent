@@ -96,9 +96,35 @@ func TestGetExternalMetrics(t *testing.T) {
 				},
 			},
 			queryMetricName: "datadogmetric@ns:metric0",
+			queryNamespace:  "ns",
 			expectedExternalMetrics: []external_metrics.ExternalMetricValue{
 				{
 					MetricName:   "datadogmetric@ns:metric0",
+					MetricLabels: nil,
+					Timestamp:    defaultMetaUpdateTime,
+					Value:        resource.MustParse(fmt.Sprintf("%v", 42.0)),
+				},
+			},
+		},
+		{
+			desc: "Test nominal case - DatadogMetric reference without namespace",
+			storeContent: []ddmWithQuery{
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:       "ns/metric0",
+						DataTime: defaultUpdateTime,
+						Valid:    true,
+						Error:    nil,
+						Value:    42.0,
+					},
+					query: "query-metric0",
+				},
+			},
+			queryMetricName: "datadogmetric@metric0",
+			queryNamespace:  "ns",
+			expectedExternalMetrics: []external_metrics.ExternalMetricValue{
+				{
+					MetricName:   "datadogmetric@metric0",
 					MetricLabels: nil,
 					Timestamp:    defaultMetaUpdateTime,
 					Value:        resource.MustParse(fmt.Sprintf("%v", 42.0)),
@@ -120,6 +146,7 @@ func TestGetExternalMetrics(t *testing.T) {
 				},
 			},
 			queryMetricName:         "datadogmetric@ns:metric0",
+			queryNamespace:          "ns",
 			expectedExternalMetrics: nil,
 			expectedError:           fmt.Errorf("DatadogMetric is stale, last updated: %v. Check datadog-cluster-agent logs for errors", defaultUpdateTime.Add(-time.Hour)),
 		},
@@ -138,6 +165,7 @@ func TestGetExternalMetrics(t *testing.T) {
 				},
 			},
 			queryMetricName:         "datadogmetric@ns:metric0",
+			queryNamespace:          "ns",
 			expectedExternalMetrics: nil,
 			expectedError:           errors.New("Some error"),
 		},
@@ -155,6 +183,7 @@ func TestGetExternalMetrics(t *testing.T) {
 				},
 			},
 			queryMetricName:         "datadogmetric@ns:metric0",
+			queryNamespace:          "ns",
 			expectedExternalMetrics: nil,
 			expectedError:           errors.New("DatadogMetric is invalid, missing error details"),
 		},
@@ -173,11 +202,12 @@ func TestGetExternalMetrics(t *testing.T) {
 				},
 			},
 			queryMetricName:         "datadogmetric@ns:metric1",
+			queryNamespace:          "ns",
 			expectedExternalMetrics: nil,
 			expectedError:           errors.New("DatadogMetric not found for metric name: datadogmetric@ns:metric1, datadogmetricid: ns/metric1"),
 		},
 		{
-			desc: "Test DatadogMetric not found",
+			desc: "Test DatadogMetric not found in request namespace",
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
@@ -191,8 +221,28 @@ func TestGetExternalMetrics(t *testing.T) {
 				},
 			},
 			queryMetricName:         "datadogmetric@ns:metric1",
+			queryNamespace:          "ns",
 			expectedExternalMetrics: nil,
 			expectedError:           errors.New("DatadogMetric not found for metric name: datadogmetric@ns:metric1, datadogmetricid: ns/metric1"),
+		},
+		{
+			desc: "Test DatadogMetric reference namespace is ignored, DatadogMetric is not readable from another namespace",
+			storeContent: []ddmWithQuery{
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:       "ns/metric0",
+						DataTime: defaultUpdateTime,
+						Valid:    true,
+						Error:    nil,
+						Value:    42.0,
+					},
+					query: "query-metric0",
+				},
+			},
+			queryMetricName:         "datadogmetric@ns:metric0",
+			queryNamespace:          "tenant-b",
+			expectedExternalMetrics: nil,
+			expectedError:           errors.New("DatadogMetric not found for metric name: datadogmetric@ns:metric0, datadogmetricid: tenant-b/metric0"),
 		},
 		{
 			desc: "Test ExternalMetric use wrong DatadogMetric format",
@@ -208,9 +258,9 @@ func TestGetExternalMetrics(t *testing.T) {
 					query: "query-metric0",
 				},
 			},
-			queryMetricName:         "datadogmetric@metric1",
+			queryMetricName:         "datadogmetric@metric_1",
 			expectedExternalMetrics: nil,
-			expectedError:           errors.New("ExternalMetric does not follow DatadogMetric format: datadogmetric@metric1"),
+			expectedError:           errors.New("ExternalMetric does not follow DatadogMetric format: datadogmetric@metric_1"),
 		},
 		{
 			desc: "Test ExternalMetric does not use DatadogMetric format",

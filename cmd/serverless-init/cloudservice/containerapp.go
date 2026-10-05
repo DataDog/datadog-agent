@@ -12,6 +12,8 @@ import (
 	"os"
 	"strings"
 
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -176,6 +178,11 @@ func NewContainerApp() *ContainerApp {
 	}
 }
 
+// Run uses the default run behaviour for ContainerApp.
+func (c *ContainerApp) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
+	return defaultRun(modeConf, logConfig)
+}
+
 // Init initializes ContainerApp specific code
 func (c *ContainerApp) Init(_ *TracingContext) error {
 	// For ContainerApp, the customers must set DD_AZURE_SUBSCRIPTION_ID
@@ -199,8 +206,8 @@ func (c *ContainerApp) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for ContainerApp
-func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
-	if enhancedMetricsEnabled {
+func (c *ContainerApp) Shutdown(metricAgent *serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
+	if metricAgent != nil && enhancedMetricsEnabled {
 		metricAgent.AddEnhancedMetric(containerAppShutdownMetricName, 1.0, c.GetSource(), 0)
 		metricAgent.AddLegacyEnhancedMetric(containerAppLegacyShutdownMetricName, 1.0, c.GetSource())
 	}
@@ -209,11 +216,6 @@ func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 func (c *ContainerApp) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
 	metricAgent.AddEnhancedMetric(containerAppStartMetricName, 1.0, c.GetSource(), 0)
 	metricAgent.AddLegacyEnhancedMetric(containerAppLegacyStartMetricName, 1.0, c.GetSource())
-}
-
-// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
-func (c *ContainerApp) ShouldForceFlushAllOnForceFlushToSerializer() bool {
-	return false
 }
 
 func isContainerAppService() bool {

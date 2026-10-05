@@ -8,6 +8,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/exec.h"
 #include "helpers/iouring.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
 // pid_tgid == 0 selects SYNC_SYSCALL with the current task; a non-zero pid_tgid
@@ -86,6 +87,11 @@ int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
         return 0;
     }
 
+    // Skip opens the filesystem performs on its own private mounts
+    if (is_internal_mount(get_path_vfsmount(path))) {
+        return 0;
+    }
+
     struct path_key_t path_key = get_dentry_key_path(dentry, path);
     if (path_key.ino == 0) {
         return 0;
@@ -130,7 +136,19 @@ int __attribute__((always_inline)) handle_truncate_path(ctx_t *ctx, struct path 
 
 HOOK_ENTRY("do_truncate")
 int hook_do_truncate(ctx_t *ctx) {
+    // filp is the 4th argument on older kernels; the idmapped-mounts series (kernel 5.12) prepended
+    // an idmap/user_namespace argument to do_truncate, shifting filp to the 5th position. This is
+    // detected specifically for do_truncate, as its argument gained the idmap argument independently
+    // of the security_* hooks.
+    u64 do_truncate_has_idmap_arg;
+    LOAD_CONSTANT("do_truncate_has_idmap_arg", do_truncate_has_idmap_arg);
+
     struct file *f = (struct file *)CTX_PARM4(ctx);
+    if (do_truncate_has_idmap_arg) {
+        // prevent the verifier from whining
+        bpf_probe_read(&f, sizeof(f), &f);
+        f = (struct file *)CTX_PARM5(ctx);
+    }
     if (f == NULL) {
         return 0;
     }
@@ -221,60 +239,90 @@ int hook_io_openat2(ctx_t *ctx) {
     return trace_io_openat(ctx);
 }
 
+// io_ftruncate (IORING_OP_FTRUNCATE, kernel 6.9+) calls do_ftruncate -> do_truncate, which
+// is already hooked (hook_do_truncate). As with the ftruncate syscall, we model it as an
+// open with O_TRUNC and let the do_truncate hook resolve the path from the file.
+HOOK_ENTRY("io_ftruncate")
+int hook_io_ftruncate(ctx_t *ctx) {
+    void *raw_req = (void *)CTX_PARM1(ctx);
+    u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
+    int flags = O_CREAT | O_WRONLY | O_TRUNC;
+    return trace__sys_openat2(ctx, NULL, flags, 0, pid_tgid);
+}
+
 // used by both tail call callback and directly for tracepoints
-int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache_t *syscall) {
+int __attribute__((always_inline)) _sys_open_ret_impl(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (IS_UNHANDLED_ERROR(syscall->retval)) {
-        return 0;
+        goto pop_and_exit;
+    }
+
+    // emit a sample refresh if the dedup map flagged one
+    if (syscall->state == DISCARDED && (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED)) {
+        struct sample_refresh_event_t ev = {};
+        ev.cookie = syscall->sample_cookie;
+        send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_OPEN);
     if (syscall->state == DISCARDED) {
-        return 0;
+        goto pop_and_exit;
     }
 
     if (syscall->resolver.ret == DENTRY_INVALID) {
-        return 0;
+        goto pop_and_exit;
     }
 
-    struct open_event_t event = {
-        .syscall.retval = syscall->retval,
-        .syscall_ctx.id = syscall->ctx_id,
-        .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
-                       (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP ? EVENT_FLAGS_SAVED_BY_AD : 0) |
-                       (syscall->resolver.flags & RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING ? EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE : 0) |
-                       (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0),
-        .file = syscall->open.file,
-        .flags = syscall->open.flags,
-        .mode = syscall->open.mode,
-    };
+    struct open_event_t *event = SPAN_FILL_EVENT(struct open_event_t, EVENT_OPEN);
+    if (!event) {
+        goto pop_and_exit;
+    }
+    event->syscall.retval = syscall->retval;
+    event->syscall_ctx.id = syscall->ctx_id;
+    event->event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
+                         (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP ? EVENT_FLAGS_SAVED_BY_AD : 0) |
+                         (syscall->resolver.flags & RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING ? EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE : 0) |
+                         (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0);
+    event->file = syscall->open.file;
+    event->flags = syscall->open.flags;
+    event->mode = syscall->open.mode;
+    event->sample_cookie = syscall->sample_cookie;
 
-    fill_file(syscall->open.dentry, &event.file);
+    fill_file(syscall->open.dentry, &event->file);
 
     // INTERNAL cgroupfs events are forwarded only to feed the userspace cgroup resolver,
     // which only cares about directory entries; drop the rest.
-    if (syscall->state == INTERNAL && !S_ISDIR(event.file.metadata.mode)) {
-        return 0;
+    if (syscall->state == INTERNAL && !S_ISDIR(event->file.metadata.mode)) {
+        goto pop_and_exit;
     }
 
     struct proc_cache_t *entry;
     if (syscall->open.pid_tgid != 0) {
-        entry = fill_process_context_with_pid_tgid(&event.process, syscall->open.pid_tgid);
+        entry = fill_process_context_with_pid_tgid(&event->process, syscall->open.pid_tgid);
     } else {
-        entry = fill_process_context(&event.process);
+        entry = fill_process_context(&event->process);
     }
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    fill_cgroup_context(entry, &event->cgroup);
 
-    send_event(ctx, EVENT_OPEN, event);
+    pop_syscall(EVENT_OPEN);
 
+    span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_OPEN);
     return 0;
 }
 
+int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache_t *syscall) {
+    return _sys_open_ret_impl(ctx, syscall, KPROBE_OR_FENTRY_TYPE);
+}
+
 TAIL_CALL_FNC(sys_open_ret_cb, void *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall || !syscall->open.dentry) {
+        pop_syscall(EVENT_OPEN);
         return 0;
     }
+    // the entry is released inside _sys_open_ret_impl, after its last read
     return _sys_open_ret(ctx, syscall);
 }
 
@@ -307,6 +355,18 @@ HOOK_SYSCALL_COMPAT_EXIT(ftruncate) {
     return sys_open_ret(ctx);
 }
 
+HOOK_EXIT("io_ftruncate")
+int rethook_io_ftruncate(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
+    if (!syscall || !syscall->open.dentry) {
+        pop_syscall(EVENT_OPEN);
+        return 0;
+    }
+    syscall->retval = CTX_PARMRET(ctx);
+    // the entry is released inside _sys_open_ret_impl, after its last read
+    return _sys_open_ret(ctx, syscall);
+}
+
 HOOK_SYSCALL_COMPAT_EXIT(open) {
     return sys_open_ret(ctx);
 }
@@ -320,21 +380,25 @@ HOOK_SYSCALL_EXIT(openat2) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_open_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall || !syscall->open.dentry) {
+        pop_syscall(EVENT_OPEN);
         return 0;
     }
     syscall->retval = args->ret;
-    return _sys_open_ret(args, syscall);
+    // the entry is released inside _sys_open_ret_impl, after its last read
+    return _sys_open_ret_impl(args, syscall, TRACEPOINT_TYPE);
 }
 
 HOOK_EXIT("io_openat2")
 int rethook_io_openat2(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall || !syscall->open.dentry) {
+        pop_syscall(EVENT_OPEN);
         return 0;
     }
     syscall->retval = CTX_PARMRET(ctx);
+    // the entry is released inside _sys_open_ret_impl, after its last read
     return _sys_open_ret(ctx, syscall);
 }
 

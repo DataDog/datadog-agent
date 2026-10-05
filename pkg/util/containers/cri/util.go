@@ -35,6 +35,7 @@ var (
 type CRIClient interface {
 	ListContainerStats() (map[string]*criv1.ContainerStats, error)
 	GetContainerStats(containerID string) (*criv1.ContainerStats, error)
+	ExecSync(ctx context.Context, containerID string, cmd []string, timeout time.Duration) ([]byte, []byte, int32, error)
 	GetRuntime() string
 	GetRuntimeVersion() string
 }
@@ -147,6 +148,23 @@ func (c *CRIUtil) GetContainerStats(containerID string) (*criv1.ContainerStats, 
 // ListContainerStats sends a ListContainerStatsRequest to the server, and parses the returned response
 func (c *CRIUtil) ListContainerStats() (map[string]*criv1.ContainerStats, error) {
 	return c.listContainerStatsWithFilter(&criv1.ContainerStatsFilter{})
+}
+
+// ExecSync runs a command in a container synchronously through CRI.
+func (c *CRIUtil) ExecSync(ctx context.Context, containerID string, cmd []string, timeout time.Duration) ([]byte, []byte, int32, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.queryTimeout)
+	defer cancel()
+
+	resp, err := c.clientV1.ExecSync(ctx, &criv1.ExecSyncRequest{
+		ContainerId: containerID,
+		Cmd:         cmd,
+		Timeout:     int64(timeout.Seconds()),
+	})
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	return resp.GetStdout(), resp.GetStderr(), resp.GetExitCode(), nil
 }
 
 // GetRuntime returns the CRI runtime

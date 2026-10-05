@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kindmonocontainer",
+    srcs = ["run.go"],
+    embedsrcs = [
+        "cluster_agent_service.yaml",
+        "rbac.yaml",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/local/kindmonocontainer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/datadog/agent",
+        "//test/e2e-framework/components/datadog/apps/cpustress",
+        "//test/e2e-framework/components/datadog/apps/nginx",
+        "//test/e2e-framework/components/datadog/apps/redis",
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/resources/local",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/apps/v1:apps",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/core/v1:core",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/meta/v1:meta",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/yaml",
+        "@com_github_pulumi_pulumi_random_sdk_v4//go/random",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

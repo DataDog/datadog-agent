@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	healthplatform "github.com/DataDog/agent-payload/v5/healthplatform"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,6 +25,7 @@ func TestBuildIssue_BasicFields(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, IssueID, issue.Id)
 	assert.Equal(t, issueName, issue.IssueName)
+	assert.Equal(t, issueType, issue.IssueType)
 	assert.Equal(t, "Admission Controller Unreachable", issue.Title)
 	assert.Contains(t, issue.Description, "webhook not reachable")
 	assert.Equal(t, "availability", issue.Category)
@@ -75,7 +77,7 @@ func TestBuildIssue_Extra(t *testing.T) {
 }
 
 func TestNewModule(t *testing.T) {
-	m := NewModule(nil)
+	m := NewModule(issues.ModuleDeps{})
 	assert.Equal(t, IssueName, m.IssueName())
 	issue, err := m.BuildIssue(map[string]string{})
 	require.NoError(t, err)

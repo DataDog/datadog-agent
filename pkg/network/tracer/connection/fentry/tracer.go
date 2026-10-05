@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package fentry
 
@@ -18,7 +18,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
+	ddfeatures "github.com/DataDog/datadog-agent/pkg/ebpf/features"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -46,17 +46,13 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		return nil, nil, ErrorDisabled
 	}
 
-	hasPotentialFentryDeadlock, err := bugs.HasTasksRCUExitLockSymbol()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to check HasTasksRCUExitLockSymbol: %w", err)
-	}
-	if hasPotentialFentryDeadlock {
-		return nil, nil, fmt.Errorf("%w: this kernel version has a potential deadlock (fixed in kernel v6.9+)", ErrorUnsupported)
+	if err := ddfeatures.SupportsFentry("tcp_recvmsg"); err != nil {
+		return nil, nil, fmt.Errorf("%w: %s", ErrorUnsupported, err)
 	}
 
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
 	var closeFn func()
-	err = ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
+	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
@@ -128,7 +124,7 @@ func protocolClassificationTailCalls() []manager.TailCallRoute {
 
 // initFentryTracer sets up and initializes the fentry tracer
 func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config.Config, m *ddebpf.Manager) (func(), error) {
-	isClassificationSupported := classificationSupported(config)
+	isClassificationSupported := ClassificationSupported(config)
 
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes, err := enabledPrograms(config, isClassificationSupported)

@@ -1,5 +1,11 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+exports_files([
+    "fixtures/datadog-agent.yaml",
+    "fixtures/system-probe.yaml",
+    "fixtures/security-agent.yaml",
+])
+
 go_library(
     name = "flare",
     srcs = [

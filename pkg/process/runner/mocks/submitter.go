@@ -17,10 +17,19 @@ func NewSubmitter(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *Submitter {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &Submitter{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
@@ -53,7 +62,7 @@ type Submitter_Submit_Call struct {
 //   - start time.Time
 //   - name string
 //   - messages *types.Payload
-func (_e *Submitter_Expecter) Submit(start interface{}, name interface{}, messages interface{}) *Submitter_Submit_Call {
+func (_e *Submitter_Expecter) Submit(start any, name any, messages any) *Submitter_Submit_Call {
 	return &Submitter_Submit_Call{Call: _e.mock.On("Submit", start, name, messages)}
 }
 

@@ -258,6 +258,38 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	}
 }
 
+// TestOTLPSampleRateFromTracestate verifies that a head-based sampling
+// probability encoded in the W3C tracestate (ot=th:8 → 50%) is decoded during
+// OTLP ingestion and set as _sample_rate=0.5 on the emitted pb.Span, so the
+// downstream Concentrator scales APM stats by the head-sampling weight. Covers
+// the V2 (transform.OtelSpanToDDSpan) receiver path.
+func TestOTLPSampleRateFromTracestate(t *testing.T) {
+	cfg := NewTestConfig(t)
+	out := make(chan *Payload, 1)
+	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+		{
+			LibName:    "libname",
+			LibVersion: "1.2",
+			Attributes: map[string]interface{}{},
+			Spans: []*testutil.OTLPSpan{
+				{Name: "sampled", TraceState: "ot=th:8"},
+			},
+		},
+	}).Traces().ResourceSpans().At(0), http.Header{}, nil)
+	timeout := time.After(500 * time.Millisecond)
+	select {
+	case <-timeout:
+		t.Fatal("timed out")
+	case p := <-out:
+		span := p.TracerPayload.Chunks[0].Spans[0]
+		assert.Equal(t, "ot=th:8", span.Meta["w3c.tracestate"])
+		rate, ok := span.Metrics["_sample_rate"]
+		require.True(t, ok, "_sample_rate must be set from tracestate")
+		assert.InDelta(t, 0.5, rate, 1e-9)
+	}
+}
+
 func TestOTLPSpanNameV2(t *testing.T) {
 	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
 		testOTLPSpanNameV2(false, t)
@@ -442,7 +474,14 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("aws-api.server.request", out.Chunks[0].Spans[0].Name)
+				// V2 goes through transform.OtelSpanToDDSpan, which normalizes the
+				// name (dashes become underscores); V1 uses the legacy convertSpan
+				// path, which does not.
+				if enableReceiveResourceSpansV2 {
+					require.Equal("aws_api.server.request", out.Chunks[0].Spans[0].Name)
+				} else {
+					require.Equal("aws-api.server.request", out.Chunks[0].Spans[0].Name)
+				}
 			},
 		},
 		{
@@ -1209,6 +1248,45 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 	})
 }
 
+// TestOTLPReceiveDoesNotHoistSDKOtlpExport guards the design invariant that the
+// OTLP receiver never hoists "_dd.sdk.otlp_export" to TracerPayload.Tags. The
+// OTLP receiver builds one payload from many resources, so hoisting one span's
+// value would stamp it onto every chunk and mis-tag payloads mixing export
+// modes. OTLP-origin spans carry the value in span meta only.
+func TestOTLPReceiveDoesNotHoistSDKOtlpExport(t *testing.T) {
+	cfg := NewTestConfig(t)
+	out := make(chan *Payload, 1)
+	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+	rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+		{
+			LibName:    "libname",
+			LibVersion: "1.2",
+			// The value arrives the way an OTLP payload really carries it: as a
+			// resource attribute and on the spans themselves.
+			Attributes: map[string]interface{}{"_dd.sdk.otlp_export": "true"},
+			Spans: []*testutil.OTLPSpan{
+				{Name: "first", Attributes: map[string]interface{}{"_dd.sdk.otlp_export": "true"}},
+				{Name: "second", Attributes: map[string]interface{}{"_dd.sdk.otlp_export": "true"}},
+			},
+		},
+	}).Traces().ResourceSpans().At(0)
+	rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
+
+	select {
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timed out")
+	case p := <-out:
+		tp := p.TracerPayload
+		_, ok := tp.Tags["_dd.sdk.otlp_export"]
+		require.False(t, ok, "OTLP receiver must not populate TracerPayload.Tags[_dd.sdk.otlp_export], got %#v", tp.Tags)
+		// The value is still reachable per-span, which is the OTLP carrier.
+		require.NotEmpty(t, tp.Chunks)
+		require.NotEmpty(t, tp.Chunks[0].Spans)
+		require.Equal(t, "true", tp.Chunks[0].Spans[0].Meta["_dd.sdk.otlp_export"])
+	}
+}
+
 func TestOTLPSetAttributes(t *testing.T) {
 	t.Run("SetMetaOTLP", func(t *testing.T) {
 		s := &pb.Span{Meta: make(map[string]string), Metrics: make(map[string]float64)}
@@ -1361,7 +1439,7 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			},
 		}).Traces().ResourceSpans().At(0), http.Header{}, nil)
 		assert.Equal(t, src.Kind, source.HostnameKind)
-		assert.Equal(t, src.Identifier, tt.out)
+		assert.Equal(t, src.Identifier, tt.out) //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		timeout := time.After(500 * time.Millisecond)
 		select {
 		case <-timeout:
@@ -1721,6 +1799,8 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"env":                           "staging",
 					"otel.status_code":              "Error",
 					"otel.status_description":       "Error",
+					"otel.scope.name":               "ddtracer",
+					"otel.scope.version":            "v2",
 					"otel.library.name":             "ddtracer",
 					"otel.library.version":          "v2",
 					"service.version":               "v1.2.3",
@@ -1845,6 +1925,8 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":              "Error",
 					"otel.status_description":       "Error",
+					"otel.scope.name":               "ddtracer",
+					"otel.scope.version":            "v2",
 					"otel.library.name":             "ddtracer",
 					"otel.library.version":          "v2",
 					"service.version":               "v1.2.3",
@@ -1982,6 +2064,8 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"env":                           "staging",
 					"otel.status_code":              "Error",
 					"otel.status_description":       "Error",
+					"otel.scope.name":               "ddtracer",
+					"otel.scope.version":            "v2",
 					"otel.library.name":             "ddtracer",
 					"otel.library.version":          "v2",
 					"service.version":               "v1.2.3",
@@ -2062,6 +2146,8 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"http.method":                       "GET",
 					"http.route":                        "/path",
 					"otel.status_code":                  "Unset",
+					"otel.scope.name":                   "ddtracer",
+					"otel.scope.version":                "v2",
 					"otel.library.name":                 "ddtracer",
 					"otel.library.version":              "v2",
 					"name":                              "john",
@@ -2120,6 +2206,8 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				Error:    1,
 				Meta: map[string]string{
 					"env":                  "staging",
+					"otel.scope.name":      "ddtracer",
+					"otel.scope.version":   "v2",
 					"otel.library.name":    "ddtracer",
 					"otel.library.version": "v2",
 					"otel.status_code":     "Error",
@@ -2182,6 +2270,8 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				Error:    1,
 				Meta: map[string]string{
 					"env":                  "staging",
+					"otel.scope.name":      "ddtracer",
+					"otel.scope.version":   "v2",
 					"otel.library.name":    "ddtracer",
 					"otel.library.version": "v2",
 					"otel.status_code":     "Error",
@@ -2316,6 +2406,8 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"name":                          "john",
 					"otel.status_code":              "Error",
 					"otel.status_description":       "Error",
+					"otel.scope.name":               "ddtracer",
+					"otel.scope.version":            "v2",
 					"otel.library.name":             "ddtracer",
 					"otel.library.version":          "v2",
 					"service.version":               "v1.2.3",
@@ -2394,6 +2486,8 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"service.version":     "0.123.0",
 					"version":             "0.123.0",
 
+					"otel.scope.name":        "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc",
+					"otel.scope.version":     "0.60.0",
 					"otel.library.name":      "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc",
 					"otel.library.version":   "0.60.0",
 					"otelcol.component.id":   "otlp",
@@ -2455,11 +2549,11 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				},
 			}),
 			operationNameV1: "res_op",
-			operationNameV2: "span-op",
+			operationNameV2: "span_op",
 			resourceNameV1:  "res-res",
 			resourceNameV2:  "span-res",
 			out: &pb.Span{
-				Name:     "span-op",
+				Name:     "span_op",
 				Resource: "span-res",
 				Service:  "span-service",
 				TraceID:  2594128270069917171,
@@ -2472,6 +2566,8 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"deployment.environment": "span-env",
 					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":       "Unset",
+					"otel.scope.name":        "ddtracer",
+					"otel.scope.version":     "v2",
 					"otel.library.name":      "ddtracer",
 					"otel.library.version":   "v2",
 					"service.version":        "span-service-version",
@@ -3622,6 +3718,8 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 					"deployment.environment": "prod",
 					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":       "Unset",
+					"otel.scope.name":        "ddtracer",
+					"otel.scope.version":     "v2",
 					"otel.library.name":      "ddtracer",
 					"otel.library.version":   "v2",
 					"service.version":        "v1.2.3",
@@ -3670,6 +3768,8 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 					"deployment.environment": "prod",
 					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":       "Unset",
+					"otel.scope.name":        "ddtracer",
+					"otel.scope.version":     "v2",
 					"otel.library.name":      "ddtracer",
 					"otel.library.version":   "v2",
 					"service.version":        "v1.2.3",
@@ -3717,6 +3817,8 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 					"deployment.environment": "prod",
 					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":       "Unset",
+					"otel.scope.name":        "ddtracer",
+					"otel.scope.version":     "v2",
 					"otel.library.name":      "ddtracer",
 					"otel.library.version":   "v2",
 					"service.version":        "v1.2.3",
@@ -3765,6 +3867,8 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 					"deployment.environment": "prod",
 					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":       "Unset",
+					"otel.scope.name":        "ddtracer",
+					"otel.scope.version":     "v2",
 					"otel.library.name":      "ddtracer",
 					"otel.library.version":   "v2",
 					"service.version":        "v1.2.3",
@@ -3812,6 +3916,8 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 					"deployment.environment": "prod",
 					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":       "Unset",
+					"otel.scope.name":        "ddtracer",
+					"otel.scope.version":     "v2",
 					"otel.library.name":      "ddtracer",
 					"otel.library.version":   "v2",
 					"service.version":        "v1.2.3",
@@ -3858,6 +3964,8 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 					"deployment.environment":   "prod",
 					"otel.trace_id":            "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":         "Unset",
+					"otel.scope.name":          "ddtracer",
+					"otel.scope.version":       "v2",
 					"otel.library.name":        "ddtracer",
 					"otel.library.version":     "v2",
 					"service.version":          "v1.2.3",
@@ -3904,6 +4012,8 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 					"deployment.environment":   "prod",
 					"otel.trace_id":            "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":         "Unset",
+					"otel.scope.name":          "ddtracer",
+					"otel.scope.version":       "v2",
 					"otel.library.name":        "ddtracer",
 					"otel.library.version":     "v2",
 					"service.version":          "v1.2.3",

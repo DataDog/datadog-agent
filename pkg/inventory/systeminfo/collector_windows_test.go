@@ -66,6 +66,20 @@ func TestGetChassisTypeName_NonVirtualMachines(t *testing.T) {
 			manufacturer: "Dell Inc.",
 			expected:     "Desktop",
 		},
+		{
+			name:         "Convertible 2-in-1",
+			chassisType:  31,
+			model:        "HP EliteBook x360",
+			manufacturer: "HP",
+			expected:     "Laptop",
+		},
+		{
+			name:         "Detachable 2-in-1",
+			chassisType:  32,
+			model:        "Surface Pro",
+			manufacturer: "Microsoft Corporation",
+			expected:     "Laptop",
+		},
 	}
 
 	for _, tc := range nonVMCases {

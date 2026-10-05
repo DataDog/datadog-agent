@@ -9,7 +9,6 @@ package remoteagentregistryimpl
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,7 +27,7 @@ import (
 
 const (
 	// emitterMetricTagName is the label added to all metrics forwarded from a remote agent
-	// to identify which agent produced them. Value is the agent display name (e.g. "adp", "system-probe").
+	// to identify which agent produced them. Its value is the registered sanitized display name.
 	emitterMetricTagName = "emitter"
 )
 
@@ -72,7 +71,15 @@ func (ra *remoteAgentRegistry) fillFlare(_ context.Context, builder flarebuilder
 	}
 	processor := func(details remoteagentregistry.RegisteredAgent, resp *pb.GetFlareFilesResponse, err error) *remoteagentregistry.FlareData {
 		if err != nil {
-			return nil
+			// The remote agent is registered but unreachable (crashed, gRPC failure, timeout).
+			// Surface the error as UNREACHABLE.txt without blocking the rest of the flare.
+			log.Warnf("Remote agent %q could not be reached during flare collection: %v", details.DisplayName, err)
+			return &remoteagentregistry.FlareData{
+				RegisteredAgent: details,
+				Files: map[string][]byte{
+					"UNREACHABLE.txt": []byte(fmt.Sprintf("%s could not be reached: %v\n", details.DisplayName, err)),
+				},
+			}
 		}
 		return &remoteagentregistry.FlareData{
 			RegisteredAgent: details,
@@ -130,7 +137,7 @@ func (c *registryCollector) GetRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 			return struct{}{}
 		}
 		if promText, ok := resp.Payload.(*pb.GetTelemetryResponse_PromText); ok {
-			collectFromPromText(ch, promText.PromText, details.SanitizedDisplayName)
+			collectFromPromText(ch, promText.PromText, details.SanitizedDisplayName, c.registry.telemetry.CanonicalMetricHelp)
 		}
 		return struct{}{}
 	}
@@ -140,7 +147,7 @@ func (c *registryCollector) GetRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 }
 
 // Retrieve the telemetry data in exposition format from the remote agent
-func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAgentName string) {
+func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAgentName string, canonicalMetricHelp func(string) (string, bool)) {
 	parser := expfmt.NewTextParser(model.LegacyValidation)
 	metricFamilies, err := parser.TextToMetricFamilies(strings.NewReader(promText))
 	if err != nil {
@@ -153,30 +160,19 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 		if mf.Help != nil {
 			help = *mf.Help
 		}
+		// Prometheus requires one HELP string per metric family, so same-name local and remote
+		// metrics with divergent HELP make the combined gather fail. The injected emitter label
+		// separates samples but does not affect family metadata.
+		if canonicalHelp, found := canonicalMetricHelp(mf.GetName()); found {
+			help = canonicalHelp
+		}
 
 		for _, metric := range mf.Metric {
 			if metric == nil {
 				continue
 			}
 
-			// Check if the metric already has an emitter label.
-			// With explicit agent identity, metrics should already have the correct value.
-			// We only add the label if it's missing (for backward compatibility).
-			hasEmitterLabel := slices.ContainsFunc(metric.Label, func(label *dto.LabelPair) bool {
-				return *label.Name == emitterMetricTagName
-			})
-
-			labelNames := make([]string, 0, len(metric.Label)+1)
-			labelValues := make([]string, 0, len(metric.Label)+1)
-			// Only add emitter label if the metric doesn't already have one
-			if !hasEmitterLabel {
-				labelNames = append(labelNames, emitterMetricTagName)
-				labelValues = append(labelValues, remoteAgentName)
-			}
-			for _, label := range metric.Label {
-				labelNames = append(labelNames, *label.Name)
-				labelValues = append(labelValues, *label.Value)
-			}
+			labelNames, labelValues := canonicalMetricLabels(metric.Label, remoteAgentName)
 
 			desc := prometheus.NewDesc(*mf.Name, help, labelNames, nil)
 
@@ -224,4 +220,19 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 			}
 		}
 	}
+}
+
+func canonicalMetricLabels(incoming []*dto.LabelPair, registeredEmitter string) ([]string, []string) {
+	labelNames := make([]string, 0, len(incoming)+1)
+	labelValues := make([]string, 0, len(incoming)+1)
+	labelNames = append(labelNames, emitterMetricTagName)
+	labelValues = append(labelValues, registeredEmitter)
+	for _, label := range incoming {
+		if label.GetName() == emitterMetricTagName {
+			continue
+		}
+		labelNames = append(labelNames, label.GetName())
+		labelValues = append(labelValues, label.GetValue())
+	}
+	return labelNames, labelValues
 }

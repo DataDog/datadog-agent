@@ -16,6 +16,7 @@ import (
 	"runtime/pprof"
 	"strings"
 	"syscall"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -32,6 +33,7 @@ import (
 	workloadfilterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetadef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/bench"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -42,10 +44,12 @@ type CLIParams struct {
 	ComponentSettings observerimpl.ComponentSettings
 
 	// Headless mode: run a scenario and exit (no HTTP server)
-	Headless   string // scenario name to run (empty = interactive mode)
-	Output     string // path for observer JSON output
-	Verbose    bool   // include full detail in JSON output (headless mode only)
-	MemProfile string // path to write heap profile after headless run (empty = disabled)
+	Headless                 string // scenario name to run (empty = interactive mode)
+	Output                   string // path for observer JSON output
+	Verbose                  bool   // include full detail in JSON output (headless mode only)
+	IncludeDetectorAnomalies bool   // include all pre-pipeline detector outputs in JSON (headless mode only)
+	MemProfile               string // path to write heap profile after headless run (empty = disabled)
+	CPUProfile               string // path to write CPU profile during headless run (empty = disabled)
 
 	// SendAnomalyEvent mode: run scenario and send one Datadog event per correlation
 	SendAnomalyEvent string // scenario name to run (empty = disabled)
@@ -57,6 +61,9 @@ type CLIParams struct {
 
 	// ParquetFormat selects the parquet file layout. Empty string = auto-detect.
 	ParquetFormat bench.ParquetFormat
+
+	// RetainParquet retains and sorts raw metric and log rows in headless mode.
+	RetainParquet bool
 }
 
 func main() {
@@ -69,11 +76,16 @@ func main() {
 	headless := flag.String("headless", "", "Run scenario in headless mode (no HTTP server) and exit")
 	output := flag.String("output", "", "Path for eval JSON output (headless mode only)")
 	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
+	includeDetectorAnomalies := flag.Bool("include-detector-anomalies", false, "Include every pre-pipeline detector anomaly in JSON output (headless mode only)")
 	memProfile := flag.String("memprofile", "", "Write heap profile to this file after headless run (headless mode only)")
+	cpuProfile := flag.String("cpuprofile", "", "Write CPU profile during headless run (headless mode only)")
 	sendAnomalyEvent := flag.String("send-anomaly-event", "", "Run scenario and send one Datadog event per correlation, then exit")
 	skipDropped := flag.Bool("skip-dropped", true, "Skip metrics marked as dropped by the live observer's channel during parquet load")
 	logsOnly := flag.Bool("logs-only", false, "Load only log rows from scenarios; skip parquet metrics and trace stats (interactive and headless)")
 	parquetFormat := flag.String("parquet-format", "", "Parquet layout: v1 (observer-metrics-*/observer-logs-*), v2 (contexts.parquet + metrics-*/logs-*), or empty to auto-detect")
+	retainParquet := flag.Bool("retain-parquet", false, "Retain and sort all parquet rows instead of streaming them (headless mode only)")
+	baselineDuration := flag.String("baseline-duration", "", "Baseline analysis window duration (e.g. \"7m\", \"0\" to disable). Default: enabled with 2m window.")
+	muteNoisyMetrics := flag.Bool("mute-noisy-metrics", true, "Mute metrics that fire anomalies during the baseline window")
 	flag.Parse()
 
 	// --config takes full precedence over --enable/--disable/--only.
@@ -122,12 +134,44 @@ func main() {
 		componentSettings = observerimpl.ComponentSettings{Enabled: overrides}
 	}
 
+	if *baselineDuration == "0" || *baselineDuration == "disabled" {
+		componentSettings.Baseline = observerimpl.BaselineConfig{Enabled: false}
+	} else if *baselineDuration != "" {
+		dur, err := time.ParseDuration(*baselineDuration)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid --baseline-duration %q: %v\n", *baselineDuration, err)
+			os.Exit(1)
+		}
+		componentSettings.Baseline = observerimpl.BaselineConfig{
+			Enabled:          true,
+			DurationSec:      int64(dur.Seconds()),
+			MuteNoisyMetrics: *muteNoisyMetrics,
+		}
+	} else {
+		componentSettings.Baseline = observerimpl.BaselineConfig{
+			Enabled:          true,
+			DurationSec:      120,
+			MuteNoisyMetrics: *muteNoisyMetrics,
+		}
+	}
+	componentSettings = observerimpl.ApplyTestbenchDefaults(componentSettings)
+
 	if *headless == "" {
 		fmt.Printf("Observer Test Bench\n")
 		fmt.Printf("  Scenarios dir: %s\n", *scenariosDir)
 		fmt.Printf("  HTTP address:  %s\n", *httpAddr)
 		if *logsOnly {
 			fmt.Printf("  Logs-only:     true (parquet metrics and trace stats are not loaded)\n")
+		}
+		b := componentSettings.Baseline
+		if b.Enabled {
+			mode := "mute"
+			if !b.MuteNoisyMetrics {
+				mode = "observe"
+			}
+			fmt.Printf("  Baseline:      %dm window, mode=%s\n", b.DurationSec/60, mode)
+		} else {
+			fmt.Printf("  Baseline:      disabled\n")
 		}
 		fmt.Println()
 	}
@@ -141,22 +185,37 @@ func main() {
 		fx.Supply(option.None[workloadfilterdef.Component]()),
 		fx.Supply(option.None[taggerdef.Component]()),
 		core.Bundle(),
+		// The testbench drives the engine directly via DebugView, so it needs the
+		// full observerImpl, not the disabled stub that NewComponent returns when
+		// no observer gate is active. Force scorer dry-run on; replay is driven by
+		// DebugView.Reset with the testbench's own ComponentSettings, so this does
+		// not change scenario results. Keep the agent-internal log tap off so
+		// pkg/util/log messages (e.g. from parquet loading) are never ingested as
+		// scenario data — the testbench feeds the engine exclusively via DebugView.
+		fx.Decorate(func(c config.Component) config.Component {
+			c.Set("anomaly_detection.anomaly_scorer.dry_run.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+			c.Set("anomaly_detection.logs.internal.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			return c
+		}),
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewAgentParams(""),
 			LogParams:    log.ForOneShot("", "off", true),
 		}),
 		fx.Supply(CLIParams{
-			ScenariosDir:       *scenariosDir,
-			HTTPAddr:           *httpAddr,
-			ComponentSettings:  componentSettings,
-			Headless:           *headless,
-			Output:             *output,
-			Verbose:            *verbose,
-			MemProfile:         *memProfile,
-			SendAnomalyEvent:   *sendAnomalyEvent,
-			SkipDroppedMetrics: *skipDropped,
-			LogsOnly:           *logsOnly,
-			ParquetFormat:      bench.ParquetFormat(*parquetFormat),
+			ScenariosDir:             *scenariosDir,
+			HTTPAddr:                 *httpAddr,
+			ComponentSettings:        componentSettings,
+			Headless:                 *headless,
+			Output:                   *output,
+			Verbose:                  *verbose,
+			IncludeDetectorAnomalies: *includeDetectorAnomalies,
+			MemProfile:               *memProfile,
+			CPUProfile:               *cpuProfile,
+			SendAnomalyEvent:         *sendAnomalyEvent,
+			SkipDroppedMetrics:       *skipDropped,
+			LogsOnly:                 *logsOnly,
+			ParquetFormat:            bench.ParquetFormat(*parquetFormat),
+			RetainParquet:            *retainParquet,
 		}),
 	)
 	if err != nil {
@@ -172,20 +231,26 @@ func run(
 	logger log.Component,
 	params CLIParams,
 ) error {
+	if err := validateCLIParams(params); err != nil {
+		return err
+	}
+
 	debug, ok := obs.(observerimpl.DebugView)
 	if !ok {
 		return fmt.Errorf("observer does not implement DebugView")
 	}
 
 	tb, err := bench.New(obs, debug, sseAccess, bench.Config{
-		ScenariosDir:       params.ScenariosDir,
-		HTTPAddr:           params.HTTPAddr,
-		Cfg:                cfg,
-		Logger:             logger,
-		ComponentSettings:  params.ComponentSettings,
-		SkipDroppedMetrics: params.SkipDroppedMetrics,
-		LogsOnly:           params.LogsOnly,
-		ParquetFormat:      params.ParquetFormat,
+		ScenariosDir:             params.ScenariosDir,
+		HTTPAddr:                 params.HTTPAddr,
+		Cfg:                      cfg,
+		Logger:                   logger,
+		ComponentSettings:        params.ComponentSettings,
+		SkipDroppedMetrics:       params.SkipDroppedMetrics,
+		LogsOnly:                 params.LogsOnly,
+		ParquetFormat:            params.ParquetFormat,
+		StreamParquet:            params.Headless != "" && !params.RetainParquet,
+		IncludeDetectorAnomalies: params.IncludeDetectorAnomalies,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create test bench: %v\n", err)
@@ -199,8 +264,33 @@ func run(
 
 	// Headless mode: run scenario, write output, exit (no HTTP server)
 	if params.Headless != "" {
+		var stopCPUProfile func()
+		if params.CPUProfile != "" {
+			f, err := os.Create(params.CPUProfile)
+			if err != nil {
+				return fmt.Errorf("could not create CPU profile: %w", err)
+			}
+			if err := pprof.StartCPUProfile(f); err != nil {
+				_ = f.Close()
+				return fmt.Errorf("could not start CPU profile: %w", err)
+			}
+			stopCPUProfile = func() {
+				pprof.StopCPUProfile()
+				_ = f.Close()
+				fmt.Printf("CPU profile written to %s\n", params.CPUProfile)
+			}
+			defer func() {
+				if stopCPUProfile != nil {
+					stopCPUProfile()
+				}
+			}()
+		}
 		if err := tb.RunHeadless(params.Headless, params.Output, params.Verbose); err != nil {
 			return err
+		}
+		if stopCPUProfile != nil {
+			stopCPUProfile()
+			stopCPUProfile = nil
 		}
 		if params.MemProfile != "" {
 			f, err := os.Create(params.MemProfile)
@@ -287,5 +377,15 @@ func run(
 		fmt.Fprintf(os.Stderr, "Error during shutdown: %v\n", err)
 	}
 
+	return nil
+}
+
+func validateCLIParams(params CLIParams) error {
+	if params.RetainParquet && params.Headless == "" {
+		return fmt.Errorf("--retain-parquet requires --headless")
+	}
+	if params.IncludeDetectorAnomalies && params.Headless == "" {
+		return fmt.Errorf("--include-detector-anomalies requires --headless")
+	}
 	return nil
 }

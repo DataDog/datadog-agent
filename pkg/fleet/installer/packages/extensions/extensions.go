@@ -29,6 +29,9 @@ var errExtensionNotInPackage = errors.New("extension not in package")
 // ExtensionsDBDir is the path to the extensions database, overridden in tests
 var ExtensionsDBDir = paths.RunPath
 
+// ExtensionsPackagesPath is the base directory for extension files, overridden in tests
+var ExtensionsPackagesPath = paths.PackagesPath
+
 // ExtensionRegistry holds per-extension registry override settings.
 type ExtensionRegistry struct {
 	URL      string
@@ -172,12 +175,13 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 
 		// Process each extension in this group
 		for _, extension := range group.extensions {
-			if stored, exists := dbPkg.Extensions[extension]; exists && stored == newDigestStr {
+			stored, exists := dbPkg.Extensions[extension]
+			if exists && stored == newDigestStr {
 				log.Debugf("Extension %s already installed at digest %s, skipping", extension, stored)
 				continue
 			}
 
-			err := installSingle(ctx, pkg, extension, isExperiment, hooks)
+			err := installSingle(ctx, pkg, extension, isExperiment, hooks, exists)
 			if err != nil {
 				if !errors.Is(err, errExtensionNotInPackage) {
 					installErrors = append(installErrors, fmt.Errorf("extension %s: %w", extension, err))
@@ -199,29 +203,29 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 }
 
 // installSingle installs a single extension for a package.
-func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension string, isExperiment bool, hooks ExtensionHooks) (err error) {
+func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension string, isExperiment bool, hooks ExtensionHooks, replace bool) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "extensions.install_single")
 	defer func() { span.Finish(err) }()
 	span.SetTag("extension", extension)
 	span.SetTag("package_name", pkg.Name)
 	span.SetTag("package_version", pkg.Version)
 
-	// TODO: Remove previous extension if it exists
+	extensionsPath := getExtensionsPath(pkg.Name, pkg.Version)
+	extensionPath := filepath.Join(extensionsPath, extension)
 
-	// Pre-install hook
-	err = hooks.PreInstallExtension(ctx, pkg.Name, extension)
-	if err != nil {
-		return fmt.Errorf("could not prepare extension: %w", err)
+	if _, statErr := os.Stat(extensionPath); statErr == nil && !replace {
+		log.Debugf("Extension %s already installed and replace is disabled, skipping", extension)
+		return nil
 	}
 
 	// Extract to a temporary directory first
-	tmpDir, err := os.MkdirTemp(paths.PackagesPath, pkg.Name+"-extension-")
+	tmpDir, err := os.MkdirTemp(ExtensionsPackagesPath, pkg.Name+"-extension-")
 	if err != nil {
 		return fmt.Errorf("could not create temp directory for %s: %w", extension, err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	err = pkg.ExtractLayers(oci.DatadogPackageExtensionLayerMediaType, tmpDir, oci.LayerAnnotation{Key: "com.datadoghq.package.extension.name", Value: extension})
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageExtensionLayerMediaType, tmpDir, oci.LayerAnnotation{Key: "com.datadoghq.package.extension.name", Value: extension})
 	if err != nil {
 		if errors.Is(err, oci.ErrNoLayerMatchesAnnotations) {
 			// The extension is not available in the package, skip it.
@@ -233,32 +237,67 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 	}
 
 	// Move to the final location
-	extensionsPath := getExtensionsPath(pkg.Name, pkg.Version)
 	if err := os.MkdirAll(extensionsPath, 0755); err != nil {
 		return fmt.Errorf("could not create directory for %s: %w", extension, err)
 	}
-	extensionPath := filepath.Join(extensionsPath, extension)
 
-	// Track whether we've moved files to final location
+	// moved tracks whether new content has been placed at extensionPath.
+	// backupDir, when non-empty, holds the previous installation for rollback.
 	moved := false
+	var backupDir string
 
-	// Defer cleanup of final location if we fail after moving
+	// On failure: remove new (partial) content, then restore the previous installation.
 	defer func() {
-		if err != nil && moved {
-			log.Warnf("Installation failed for %s, cleaning up files at %s", extension, extensionPath)
-			if cleanupErr := os.RemoveAll(extensionPath); cleanupErr != nil {
-				log.Errorf("Failed to cleanup extension files at %s: %v", extensionPath, cleanupErr)
-				// Add cleanup error to the returned error
-				err = fmt.Errorf("%w; cleanup failed: %v", err, cleanupErr)
+		if err != nil {
+			if moved {
+				log.Warnf("Installation failed for %s, cleaning up files at %s", extension, extensionPath)
+				if cleanupErr := os.RemoveAll(extensionPath); cleanupErr != nil {
+					log.Errorf("Failed to cleanup extension files at %s: %v", extensionPath, cleanupErr)
+					err = fmt.Errorf("%w; cleanup failed: %v", err, cleanupErr)
+				}
+			}
+			if backupDir != "" {
+				if hookErr := hooks.PreInstallExtension(ctx, pkg.Name, extension); hookErr != nil {
+					log.Errorf("Failed pre-install hook during rollback for extension %s: %v", extension, hookErr)
+				}
+				if renameErr := paths.Rename(ctx, backupDir, extensionPath); renameErr != nil {
+					log.Errorf("Failed to restore previous extension %s from %s: %v", extension, backupDir, renameErr)
+				} else if hookErr := hooks.PostInstallExtension(ctx, pkg.Name, extension, isExperiment); hookErr != nil {
+					log.Errorf("Failed post-install hook during rollback for extension %s: %v", extension, hookErr)
+				}
 			}
 		}
+		if backupDir != "" {
+			os.RemoveAll(backupDir)
+		}
 	}()
+
+	if replace {
+		// Copy the current installation to a backup and remove previous installation
+		backupDir, err = os.MkdirTemp(filepath.Dir(extensionPath), extension+"-backup-")
+		if err != nil {
+			return fmt.Errorf("could not create backup directory for extension %s: %w", extension, err)
+		}
+		if err = os.CopyFS(backupDir, os.DirFS(extensionPath)); err != nil {
+			os.RemoveAll(backupDir)
+			backupDir = "" // no backup; prevent restore attempt in defer
+			return fmt.Errorf("could not copy extension %s to backup: %w", extension, err)
+		}
+		if err = removeSingle(ctx, pkg.Name, pkg.Version, extension, hooks); err != nil {
+			return fmt.Errorf("could not remove existing extension %s: %w", extension, err)
+		}
+	}
+
+	// Pre-install hook
+	if err = hooks.PreInstallExtension(ctx, pkg.Name, extension); err != nil {
+		return fmt.Errorf("could not prepare extension: %w", err)
+	}
 
 	err = paths.Rename(ctx, tmpDir, extensionPath)
 	if err != nil {
 		return fmt.Errorf("could not move %s to final location: %w", extension, err)
 	}
-	moved = true // Track that files are now in final location
+	moved = true
 
 	if err := os.Chmod(extensionPath, 0755); err != nil {
 		return fmt.Errorf("could not set permissions on extension directory %s: %w", extensionPath, err)
@@ -497,7 +536,7 @@ func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downlo
 // For OCI-installed agents, extensions live under the OCI packages directory.
 // For DEB/RPM-installed agents on Linux, the OCI directory doesn't exist, so we fall back to /opt/datadog-agent.
 func getExtensionsPath(pkg, version string) string {
-	basePath := filepath.Join(paths.PackagesPath, pkg, version)
+	basePath := filepath.Join(ExtensionsPackagesPath, pkg, version)
 	if pkg == "datadog-agent" && runtime.GOOS == "linux" {
 		if _, err := os.Stat(basePath); os.IsNotExist(err) {
 			basePath = "/opt/datadog-agent"

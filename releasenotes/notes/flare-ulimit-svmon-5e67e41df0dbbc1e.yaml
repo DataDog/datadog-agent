@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The Agent flare now includes ``ulimit.log`` (the running Agent process'
+    resource limits, on non-Windows platforms) and, on AIX, ``svmon.log`` (a
+    per-segment virtual memory breakdown from ``svmon -P``). These help
+    diagnose resource-exhaustion issues without requiring a separate manual
+    collection step from the host.

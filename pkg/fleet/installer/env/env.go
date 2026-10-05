@@ -38,6 +38,8 @@ const (
 	envApmLibraries          = "DD_APM_INSTRUMENTATION_LIBRARIES"
 	envAgentMajorVersion     = "DD_AGENT_MAJOR_VERSION"
 	envAgentMinorVersion     = "DD_AGENT_MINOR_VERSION"
+	envAgentDistChannel      = "DD_AGENT_DIST_CHANNEL"
+	envAgentPipelineID       = "DD_AGENT_PIPELINE_ID"
 	envApmLanguages          = "DD_APM_INSTRUMENTATION_LANGUAGES"
 	envTags                  = "DD_TAGS"
 	envExtraTags             = "DD_EXTRA_TAGS"
@@ -49,6 +51,7 @@ const (
 	envDDNoProxy             = "DD_PROXY_NO_PROXY"
 	envNoProxy               = "NO_PROXY"
 	envIsFromDaemon          = "DD_INSTALLER_FROM_DAEMON"
+	envProcessManagerEnabled = "DD_PROCESS_MANAGER_ENABLED"
 	// envFIPSMode is the canonical FIPS toggle, also recognized by
 	// pkg/fleet/installer/setup/defaultscript/default_script.go.
 	envFIPSMode = "DD_FIPS_MODE"
@@ -90,11 +93,12 @@ const (
 )
 
 var defaultEnv = Env{
-	APIKey:               "",
-	Site:                 "datadoghq.com",
-	RemoteUpdates:        false,
-	OTelCollectorEnabled: false,
-	Mirror:               "",
+	APIKey:                "",
+	Site:                  "datadoghq.com",
+	RemoteUpdates:         false,
+	OTelCollectorEnabled:  false,
+	ProcessManagerEnabled: true,
+	Mirror:                "",
 
 	RegistryOverride:            "",
 	RegistryAuthOverride:        "",
@@ -184,11 +188,12 @@ type InstallScriptEnv struct {
 
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey               string
-	Site                 string
-	RemoteUpdates        bool
-	OTelCollectorEnabled bool
-	ConfigID             string
+	APIKey                string
+	Site                  string
+	RemoteUpdates         bool
+	OTelCollectorEnabled  bool
+	ProcessManagerEnabled bool
+	ConfigID              string
 
 	Mirror                      string
 	RegistryOverride            string
@@ -207,6 +212,8 @@ type Env struct {
 
 	AgentMajorVersion string
 	AgentMinorVersion string
+	AgentDistChannel  string
+	AgentPipelineID   string
 
 	MsiParams MsiParamsEnv // windows only
 
@@ -282,18 +289,13 @@ func FromEnv() *Env {
 	splitFunc := func(c rune) bool {
 		return c == ','
 	}
-	// thisBinaryIsFips is true when the installer is running as the FIPS-compiled agent binary
-	// (embedded/bin/installer is a symlink to the agent binary in DEB/RPM packages).
-	thisBinaryIsFips, _ := pkgfips.Enabled()
-	// fipsIsRequested is true when the caller explicitly sets DD_FIPS_MODE=true,
-	// which is the signal used by the fleet OCI install path.
-	fipsIsRequested := strings.ToLower(os.Getenv(envFIPSMode)) == "true"
 
 	return &Env{
-		APIKey:               getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:                 getEnvOrDefault(envSite, defaultEnv.Site),
-		RemoteUpdates:        strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
-		OTelCollectorEnabled: strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
+		APIKey:                getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
+		Site:                  getEnvOrDefault(envSite, defaultEnv.Site),
+		RemoteUpdates:         strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
+		OTelCollectorEnabled:  strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
+		ProcessManagerEnabled: processManagerEnabledFromEnv(),
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -312,6 +314,8 @@ func FromEnv() *Env {
 
 		AgentMajorVersion: os.Getenv(envAgentMajorVersion),
 		AgentMinorVersion: os.Getenv(envAgentMinorVersion),
+		AgentDistChannel:  os.Getenv(envAgentDistChannel),
+		AgentPipelineID:   os.Getenv(envAgentPipelineID),
 
 		MsiParams: MsiParamsEnv{
 			AgentUserName:            getEnvOrDefault(envAgentUserName, os.Getenv(envAgentUserNameCompat)),
@@ -358,7 +362,7 @@ func FromEnv() *Env {
 
 		IsCentos6:    DetectCentos6(),
 		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
-		FIPSMode:     fipsIsRequested || thisBinaryIsFips,
+		FIPSMode:     pkgfips.BuiltForFIPS() || strings.ToLower(os.Getenv(envFIPSMode)) == "true",
 	}
 }
 
@@ -565,6 +569,14 @@ func getBoolEnv(env string) *bool {
 	default:
 		return nil
 	}
+}
+
+func processManagerEnabledFromEnv() bool {
+	v := strings.TrimSpace(os.Getenv(envProcessManagerEnabled))
+	if v == "" {
+		return defaultEnv.ProcessManagerEnabled
+	}
+	return !strings.EqualFold(v, "false")
 }
 
 func getProxySetting(ddEnv string, env string) string {

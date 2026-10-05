@@ -30,8 +30,6 @@ const (
 	ProductAgentTask Product = "AGENT_TASK"
 	// ProductAgentConfig is to receive agent configurations, like the log level
 	ProductAgentConfig = "AGENT_CONFIG"
-	// ProductAgentIntegrations is to receive integrations to schedule
-	ProductAgentIntegrations = "AGENT_INTEGRATIONS"
 	// ProductContainerAutoscalingSettings receives definition of container autoscaling
 	ProductContainerAutoscalingSettings = "CONTAINER_AUTOSCALING_SETTINGS"
 	// ProductContainerAutoscalingValues receives values for container autoscaling
@@ -46,6 +44,10 @@ const (
 	ProductAgentFlags = "AGENT_REMOTE_FLAGS"
 	// ProductDOQueryActions is to execute database queries remotely for Data Observability
 	ProductDOQueryActions Product = "DO_QUERY_ACTIONS"
+	// ProductNetworkPath is to configure Network Path scheduled tests
+	ProductNetworkPath Product = "NETWORK_PATH"
+	// ProductDataSecurityDBScanTasks is used to remotely trigger Data Security DB scan tasks
+	ProductDataSecurityDBScanTasks Product = "DATA_SECURITY_DB_SCAN_TASKS"
 )
 
 // ProductListToString converts a product list to string list

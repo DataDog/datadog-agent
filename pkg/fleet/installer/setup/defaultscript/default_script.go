@@ -29,7 +29,7 @@ var (
 	defaultLibraryVersions = map[string]string{
 		common.DatadogAPMLibraryJavaPackage:   "1",
 		common.DatadogAPMLibraryRubyPackage:   "2",
-		common.DatadogAPMLibraryJSPackage:     "5",
+		common.DatadogAPMLibraryJSPackage:     "6",
 		common.DatadogAPMLibraryDotNetPackage: "3",
 		common.DatadogAPMLibraryPythonPackage: "3",
 		common.DatadogAPMLibraryPHPPackage:    "1",
@@ -43,7 +43,6 @@ var (
 		"DD_INSTALLER",
 		"DD_AGENT_FLAVOR",
 		"DD_UPGRADE",
-		"DD_INSTALL_ONLY",
 		"DD_FIPS_MODE",
 	}
 
@@ -52,6 +51,7 @@ var (
 	supportedEnvVars = []string{
 		"DD_ENV",
 		"DD_SITE",
+		"DD_LOG_LEVEL",
 		"DD_TAGS",
 		"DD_HOST_TAGS",
 		"DD_URL",
@@ -88,7 +88,7 @@ var (
 func SetupDefaultScript(s *common.Setup) error {
 	// Telemetry
 	telemetrySupportedEnvVars(s, supportedEnvVars...)
-	if err := exitOnUnsupportedEnvVars(unsupportedEnvVars...); err != nil {
+	if err := exitOnUnsupportedEnvVars(unsupportedEnvVarsForPlatform()...); err != nil {
 		return err
 	}
 
@@ -324,6 +324,16 @@ func getLibraryVersion(env *env.Env, library string) string {
 		return versionTag + "-1"
 	}
 	return versionTag
+}
+
+// unsupportedEnvVarsForPlatform returns the environment variables rejected by the
+// default script on the current platform. DD_INSTALL_ONLY is supported only by
+// the Windows executable setup flow.
+func unsupportedEnvVarsForPlatform() []string {
+	if runtime.GOOS == "windows" {
+		return unsupportedEnvVars
+	}
+	return append(unsupportedEnvVars, "DD_INSTALL_ONLY")
 }
 
 func exitOnUnsupportedEnvVars(envVars ...string) error {

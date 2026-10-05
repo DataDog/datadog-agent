@@ -64,9 +64,11 @@ type Spec struct {
 
 // PodSecurityContextSpec contains fields for unmarshalling a Pod.Spec.SecurityContext
 type PodSecurityContextSpec struct {
-	RunAsUser  int32 `json:"runAsUser,omitempty"`
-	RunAsGroup int32 `json:"runAsGroup,omitempty"`
-	FsGroup    int32 `json:"fsGroup,omitempty"`
+	RunAsUser      int32               `json:"runAsUser,omitempty"`
+	RunAsGroup     int32               `json:"runAsGroup,omitempty"`
+	FsGroup        int32               `json:"fsGroup,omitempty"`
+	RunAsNonRoot   *bool               `json:"runAsNonRoot,omitempty"`
+	SeccompProfile *SeccompProfileSpec `json:"seccompProfile,omitempty"`
 }
 
 // ContainerSpec contains fields for unmarshalling a Pod.Spec.Containers
@@ -153,9 +155,12 @@ type ContainerProbe struct {
 
 // ContainerSecurityContextSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext
 type ContainerSecurityContextSpec struct {
-	Capabilities   *CapabilitiesSpec   `json:"capabilities,omitempty"`
-	Privileged     *bool               `json:"privileged,omitempty"`
-	SeccompProfile *SeccompProfileSpec `json:"seccompProfile,omitempty"`
+	Capabilities             *CapabilitiesSpec   `json:"capabilities,omitempty"`
+	Privileged               *bool               `json:"privileged,omitempty"`
+	SeccompProfile           *SeccompProfileSpec `json:"seccompProfile,omitempty"`
+	RunAsNonRoot             *bool               `json:"runAsNonRoot,omitempty"`
+	AllowPrivilegeEscalation *bool               `json:"allowPrivilegeEscalation,omitempty"`
+	ReadOnlyRootFilesystem   *bool               `json:"readOnlyRootFilesystem,omitempty"`
 }
 
 // CapabilitiesSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.Capabilities
@@ -266,6 +271,13 @@ type ContainerAllocatedResource struct {
 
 	// ID is the unique ID of that resource. The format will depend on the resource provider
 	ID string `json:"id,omitempty"`
+
+	// PoolName is the DRA pool the device was allocated from (DRA only).
+	PoolName string `json:"poolName,omitempty"`
+
+	// CdiDevices are the fully-qualified CDI device names for the allocated
+	// resource (DRA only), e.g. "k8s.gpu.nvidia.com/claim=<uid>-gpu-0".
+	CdiDevices []string `json:"cdiDevices,omitempty"`
 }
 
 // IsPending returns if the container doesn't have an ID
@@ -308,6 +320,8 @@ type ContainerStateTerminated struct {
 // ConfigSpec is the kubelet configuration, only the
 // necessary fields are stored
 type ConfigSpec struct {
+	APIVersion       string `json:"apiVersion,omitempty"`
+	Kind             string `json:"kind,omitempty"`
 	CPUManagerPolicy string `json:"cpuManagerPolicy"`
 }
 

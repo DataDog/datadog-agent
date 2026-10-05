@@ -9,11 +9,13 @@
 package tests
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 )
 
@@ -21,12 +23,28 @@ import (
 var syscallTesterFS embed.FS
 
 func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, error) {
+	binPath, err := loadSyscallTesterArtifact(test, binary)
+	if err != nil {
+		return "", err
+	}
+
+	if err := checkSyscallTester(t, binPath); err != nil {
+		return "", err
+	}
+
+	return binPath, nil
+}
+
+// loadSyscallTesterArtifact drops an embedded artifact next to the test's other
+// files without running it: the OTel TLS variants materialize shared objects,
+// which cannot be run at all, and drivers that need an argument before `check`.
+func loadSyscallTesterArtifact(test *testModule, binary string) (string, error) {
 	testerBin, err := syscallTesterFS.ReadFile("syscall_tester/bin/" + binary)
 	if err != nil {
 		return "", err
 	}
 
-	perm := 0o700
+	const perm = 0o700
 	binPath, _, _ := test.CreateWithOptions(binary, -1, -1, perm)
 
 	f, err := os.OpenFile(binPath, os.O_WRONLY|os.O_CREATE, os.FileMode(perm))
@@ -40,18 +58,15 @@ func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, e
 	}
 	f.Close()
 
-	if err := checkSyscallTester(t, binPath); err != nil {
-		return "", err
-	}
-
 	return binPath, nil
 }
 
 func checkSyscallTester(t *testing.T, path string) error {
 	t.Helper()
 	sideTester := exec.Command(path, "check")
-	if _, err := sideTester.CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot run syscall tester check: %w", err)
+	output, err := sideTester.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("cannot run syscall tester check %s: %w (output: %s)", filepath.Base(path), err, bytes.TrimSpace(output))
 	}
 	return nil
 }

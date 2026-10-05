@@ -1,0 +1,16 @@
+---
+fixes:
+  - |
+    APM: Fix a trace-agent crash when a ``/v1.0/traces`` trace chunk carries a
+    trace ID that is not 16 bytes long. Chunk trace IDs are now normalized to
+    16 bytes during normalization instead of panicking on an out-of-bounds
+    slice in the score and probabilistic samplers.
+  - |
+    APM: ProbabilisticSampler now properly uses the lower order bits of the
+    trace ID on v1 traces.
+  - |
+    APM: Fix a trace-agent crash from unbounded recursion when decoding deeply
+    nested attribute values; nesting depth is now bounded.
+  - |
+    APM: Fix a trace-agent crash when a span event attribute declares an array
+    type but carries a missing array or array element.

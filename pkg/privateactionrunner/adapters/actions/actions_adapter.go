@@ -16,6 +16,15 @@ func SplitFQN(fqn string) (string, string) {
 	}
 	return fqn[:index], fqn[index+1:]
 }
+
+func GetRootBundle(bundleID string) string {
+	parts := strings.SplitN(bundleID, ".", 4)
+	if len(parts) < 3 {
+		return bundleID
+	}
+	return strings.Join(parts[:3], ".")
+}
+
 func IsHttpBundle(bundleId string) bool {
 	return bundleId == "com.datadoghq.http"
 }

@@ -1,0 +1,4 @@
+# This declares the package defining our setup for openssl_fips.
+# The BUILD file for openssl_fips itself is openssl_fips.BUILD.bazel
+
+package(default_visibility = ["//visibility:private"])

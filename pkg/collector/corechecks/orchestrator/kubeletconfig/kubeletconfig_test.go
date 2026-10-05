@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
@@ -67,7 +66,6 @@ type KubeletConfigTestSuite struct {
 func (suite *KubeletConfigTestSuite) SetupSuite() {
 	kubelet.ResetGlobalKubeUtil()
 	kubelet.ResetCache()
-	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetInTest("cluster_agent.enabled", true)
 	mockConfig.SetInTest("kubernetes_kubelet_host", "127.0.0.1")
@@ -115,6 +113,39 @@ func (suite *KubeletConfigTestSuite) TearDownSuite() {
 
 func TestKubeletConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(KubeletConfigTestSuite))
+}
+
+func TestResolveManifestTypeMeta(t *testing.T) {
+	const realAPIVersion = "kubelet.config.k8s.io/v1beta1"
+	const realKind = "KubeletConfiguration"
+
+	tests := []struct {
+		name           string
+		spec           workloadmeta.KubeletConfigSpec
+		wantKind       string
+		wantAPIVersion string
+	}{
+		{
+			name:           "apiVersion populated + kind populated (modern kubelet)",
+			spec:           workloadmeta.KubeletConfigSpec{APIVersion: realAPIVersion, Kind: realKind},
+			wantKind:       realKind,
+			wantAPIVersion: realAPIVersion,
+		},
+		{
+			name:           "apiVersion empty + kind empty (legacy kubelet)",
+			spec:           workloadmeta.KubeletConfigSpec{},
+			wantKind:       kubeletVirtualKind,
+			wantAPIVersion: kubeletVirtualAPIVersion,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gotKind, gotAPIVersion := resolveManifestTypeMeta(tc.spec)
+			require.Equal(t, tc.wantKind, gotKind)
+			require.Equal(t, tc.wantAPIVersion, gotAPIVersion)
+		})
+	}
 }
 
 func (suite *KubeletConfigTestSuite) TestKubeletConfigCheck() {

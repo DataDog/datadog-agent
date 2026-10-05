@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package procsubscribe
 
@@ -16,7 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe/procscan"
 )
 
-const DefaultScanInterval = defaultScanInterval
+const (
+	DefaultScanInterval = defaultScanInterval
+	MinScanRestMultiple = minScanRestMultiple
+)
 
 // WithScanner overrides the scanner used to discover processes.
 func WithProcessScanner(scanner processScanner) Option {
@@ -33,13 +36,12 @@ func (f ProcessScannerFunc) Scan() ([]procscan.DiscoveredProcess, []procscan.Pro
 	return f()
 }
 
+// LiveProcesses implements the ProcessScanner interface.
+func (f ProcessScannerFunc) LiveProcesses() []procscan.ProcessID { return nil }
+
 // WithClock overrides the clock used for scheduling scans.
 func WithClock(clk clock.Clock) Option {
 	return optionFunc(func(c *config) { c.clk = clk })
-}
-
-func WithJitterFactor(factor float64) Option {
-	return optionFunc(func(c *config) { c.jitterFactor = factor })
 }
 
 func WithWaitFunc(waitFunc func(ctx context.Context, duration time.Duration) error) Option {

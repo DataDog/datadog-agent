@@ -21,20 +21,19 @@ build do
     license :project_license
 
     output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
-    flavor_arg = ENV['AGENT_FLAVOR']
     # TODO too many things done here, should be split
     block do
         # Push all the pieces built with Bazel.
 
-        # TODO: flavor can be defaulted and set from the bazel wrapper based on the environment.
-        command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/install_dir:install",
+        command "bazel run #{omnibazel_flags} -- //packages/install_dir:install --destdir=#{install_dir}",
             :live_stream => Omnibus.logger.live_stream(:info)
 
         if linux_target?
-            command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/linux:license_files_install --destdir=#{install_dir}",
+            license_files_install_target = heroku_target? ? "//packages/heroku:license_files_install" : "//packages/agent/linux:license_files_install"
+            command "bazel run #{omnibazel_flags} -- #{license_files_install_target} --destdir=#{install_dir}",
                 :live_stream => Omnibus.logger.live_stream(:info)
         elsif osx_target?
-            command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/dependencies:license_files_install --destdir=#{install_dir}",
+            command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:license_files_install --destdir=#{install_dir}",
                 :live_stream => Omnibus.logger.live_stream(:info)
         end
 
@@ -45,9 +44,6 @@ build do
 
             # load isn't supported by windows
             delete "#{confd_dir}/load.d"
-
-            # Remove .pyc files from embedded Python
-            command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         end
 
         if linux_target? || osx_target?
@@ -97,6 +93,17 @@ build do
             mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
             mkdir "/var/log/datadog"
 
+            # Move the built-in shared-library checks into the package's checks.d,
+            # strip them to reduce size, then re-assert root/root-group-only (0550)
+            # perms. Group-readable so init containers can copy them on OpenShift,
+            # where containers run with a random UID in the root group.
+            Dir.glob("#{install_dir}/etc/datadog-agent/checks.d/libdatadog-agent-*.so").each do |lib|
+              dest = "#{output_config_dir}/etc/datadog-agent/checks.d/#{File.basename(lib)}"
+              move lib, dest, :force => true
+              command "strip --strip-unneeded #{dest}"
+              command "chmod 0550 #{dest}"
+            end
+
             # Process manager config directory (read-only, under install dir)
             mkdir "#{install_dir}/processes.d"
 
@@ -109,9 +116,6 @@ build do
 
             # cleanup clutter
             delete "#{install_dir}/etc"
-
-            # Python bytecode caches (pyc files) are generated at runtime and should not be shipped.
-            command "find #{install_dir}/embedded -type d -name __pycache__ -prune -exec rm -rf {} +"
 
             # The prerm and preinst scripts of the package will use this list to detect which files
             # have been setup by the installer, this way, on removal, we'll be able to delete only files
@@ -144,6 +148,9 @@ build do
             # removing the local folder to reduce package size by ~0.5MB
             delete "#{install_dir}/embedded/share/locale"
 
+            # removing ensurepip from the embedded Python to reduce package size by ~1.8MB
+            delete "#{install_dir}/embedded/lib/python*/ensurepip"
+
             # Drop bundled unit-test directories from embedded Python wheels/deps (not used at agent runtime).
             # Deepest paths first so nested tests/ trees are removed safely.
             command "find #{install_dir}/embedded/lib -path '*/site-packages/*' -depth -type d -name tests -exec rm -rf {} +"
@@ -171,8 +178,16 @@ build do
 
             # Edit rpath from a true path to relative path for each binary if install_dir contains /opt/datadog-packages
             if install_dir.include?("/opt/datadog-packages")
+              # FIPS installer children run with different real/effective IDs and need an absolute library path.
+              # Keep this version's libraries; promotion deletes /opt/datadog-agent.
+              installer_bin = "#{install_dir}/embedded/bin/installer"
+              preserve_installer_rpath = fips_mode? && File.exist?(installer_bin)
+              rpath_args = preserve_installer_rpath ? " --preserve-rpath #{installer_bin}" : ""
               # The healthcheck will fail as the rpath doesn't contain install_dir
-              command "inv omnibus.rpath-edit #{install_dir} #{install_dir}", cwd: Dir.pwd
+              command "inv omnibus.rpath-edit #{install_dir} #{install_dir}#{rpath_args}", cwd: Dir.pwd
+              if preserve_installer_rpath
+                command "test \"$(patchelf --print-rpath #{installer_bin})\" = '#{install_dir}/embedded/lib'"
+              end
             end
         end
 
@@ -186,8 +201,10 @@ build do
             # remove docker configuration
             delete "#{install_dir}/etc/conf.d/docker.d"
 
-            # Edit rpath from a true path to relative path for each binary
-            command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
+            # Edit rpath from a true path to relative path for the non-Bazel-built binaries
+            # that still carry an absolute rpath to the embedded lib directory.
+            command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos --search-root #{install_dir}/bin/agent", cwd: Dir.pwd, :live_stream => Omnibus.logger.live_stream(:info)
+            command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos --search-root #{install_dir}/embedded/bin", cwd: Dir.pwd, :live_stream => Omnibus.logger.live_stream(:info)
 
             if code_signing_identity
                 # Re-unlock the keychain right before signing.  The keychain
@@ -244,7 +261,6 @@ build do
             # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
             allow_list = [
               "libddwaf\\.dylib",
-              "secret-generic-connector",
             ]
             command_on_repo_root "./omnibus/scripts/check_macos_version.sh",
                                  live_stream: Omnibus.logger.live_stream(:info),

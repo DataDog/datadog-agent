@@ -8,61 +8,19 @@
 package integrationtests
 
 import (
-	"strings"
 	"testing"
+	"time"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
-	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
-	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 )
 
-// TestNVMLDeviceEnumeration tests that NVML can enumerate GPU devices on the current system.
-// This validates the check's ability to discover and interact with GPUs.
-func TestNVMLDeviceEnumeration(t *testing.T) {
-	testutil.RequireGPU(t)
-
-	lib, err := safenvml.GetSafeNvmlLib()
-	require.NoError(t, err, "NVML library should be available")
-	require.NotNil(t, lib, "NVML library should not be nil")
-
-	deviceCount, err := lib.DeviceGetCount()
-	require.NoError(t, err, "Should be able to get device count")
-	require.Greater(t, deviceCount, 0, "Should have at least one GPU")
-
-	for i := 0; i < deviceCount; i++ {
-		device, err := lib.DeviceGetHandleByIndex(i)
-		require.NoError(t, err, "Should be able to get device handle for index %d", i)
-		require.NotNil(t, device, "Device handle should not be nil")
-
-		name, err := device.GetName()
-		require.NoError(t, err, "Should be able to get device name")
-		t.Logf("GPU %d: %s", i, name)
-
-		uuid, err := device.GetUUID()
-		require.NoError(t, err, "Should be able to get device UUID")
-		t.Logf("GPU %d UUID: %s", i, uuid)
-	}
-}
-
-func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
-	testutil.RequireGPU(t)
-	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
-
-	specs, err := gpuspec.LoadSpecs()
-	require.NoError(t, err)
-
+func physicalDevices(t *testing.T) []safenvml.Device {
+	t.Helper()
 	lib, err := safenvml.GetSafeNvmlLib()
 	require.NoError(t, err)
 
@@ -72,95 +30,58 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 	devices, err := cache.AllPhysicalDevices()
 	require.NoError(t, err)
 	require.NotEmpty(t, devices)
+	return devices
+}
 
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	gpu.SetupWorkloadmetaGPUs(t, wmetaMock, fakeTagger, gpuspec.DeviceModePhysical, false)
+func TestSpec(t *testing.T) {
+	testutil.RequireGPU(t)
+	testutil.RequireSmi(t)
+	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
-	checkInstance := gpu.NewCheck(fakeTagger, testutil.GetTelemetryMock(t), wmetaMock)
-	mockSender := mocksender.NewMockSenderWithSenderManager(checkInstance.ID(), senderManager)
-	mockSender.SetupAcceptAll()
-
-	gpu.WithGPUConfigEnabled(t)
-
-	checkInternal, ok := checkInstance.(*gpu.Check)
-	require.True(t, ok)
-	checkInternal.SetContainerProvider(mock_containers.NewMockContainerProvider(gomock.NewController(t)))
-
-	err = checkInstance.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider")
+	specs, err := gpuspec.LoadSpecs()
 	require.NoError(t, err)
-	t.Cleanup(func() { checkInstance.Cancel() })
-
-	err = checkInstance.Run()
-	require.NoError(t, err, "Check.Run() should not return an error")
-
-	// Inject XID events for each device to ensure the errors.xid.total metric is emitted.
-	for _, device := range devices {
-		deviceUUID := device.GetDeviceInfo().UUID
-		require.NoError(t, checkInternal.InjectXIDEventsForTest(deviceUUID, []safenvml.DeviceEventData{{
-			DeviceUUID: deviceUUID,
-			EventType:  nvml.EventTypeXidCriticalError,
-			EventData:  31,
-		}}))
+	devices := physicalDevices(t)
+	configsByUUID, smiOptionsByUUID := physicalDeviceConfigs(t, specs, devices)
+	uuids := make([]string, len(devices))
+	for i, device := range devices {
+		uuids[i] = device.GetDeviceInfo().UUID
 	}
 
-	// Run the check a second time so rate-derived field metrics such as NVLink
-	// throughput have a previous sample to compare against and can be emitted.
-	mockSender.ResetCalls()
-	err = checkInstance.Run()
-	require.NoError(t, err, "Second Check.Run() should not return an error")
-
-	metricsByName := gpu.GetEmittedGPUMetrics(mockSender)
-	require.NotEmpty(t, metricsByName)
-
-	metricsByUUID := make(map[string]map[string][]gpuspec.MetricObservation, len(devices))
-	for metricName, emittedSamples := range metricsByName {
-		for _, sample := range emittedSamples {
-			uuids := gpuspec.TagsToKeyValues(sample.Tags)["gpu_uuid"]
-			if len(uuids) == 0 {
-				continue
-			}
-			deviceUUID := strings.ToLower(uuids[0])
-			if metricsByUUID[deviceUUID] == nil {
-				metricsByUUID[deviceUUID] = make(map[string][]gpuspec.MetricObservation)
-			}
-
-			metricsByUUID[deviceUUID][metricName] = append(metricsByUUID[deviceUUID][metricName], sample)
-		}
-	}
-
-	for _, device := range devices {
-		deviceInfo := device.GetDeviceInfo()
-		deviceUUID := strings.ToLower(deviceInfo.UUID)
-		archName := gpuutil.ArchToString(deviceInfo.Architecture)
-		if archName == "unknown" || archName == "invalid" {
-			t.Logf("Skipping GPU %s with unsupported architecture enum %v", deviceUUID, deviceInfo.Architecture)
-			continue
-		}
-
-		archSpec, ok := specs.Architectures.Architectures[archName]
-		require.True(t, ok, "architecture %s missing from architectures spec", archName)
-		require.True(t, gpuspec.IsModeSupportedByArchitecture(archSpec, gpuspec.DeviceModePhysical), "physical mode should be supported for architecture %s", archName)
-
-		deviceMetrics := metricsByUUID[deviceUUID]
-		require.NotEmpty(t, deviceMetrics, "expected emitted metrics for GPU %s", deviceUUID)
-
-		capabilities := archSpec.EffectiveCapabilities(gpuspec.DeviceModePhysical)
-		capabilities.NVLink = archSpec.SupportedNVLinkGeneration()
-		nvlinkLinkCount := linkCount(t, device, "NVLink", nvidia.GetNVLinkCount)
-		if linkCount(t, device, "C2C", nvidia.GetC2CLinkCount) == 0 {
-			capabilities.C2C = false
-		}
-		gpuConfig := gpuspec.GPUConfig{Architecture: archName, DeviceMode: gpuspec.DeviceModePhysical, Capabilities: capabilities, NVLinkLinkCount: nvlinkLinkCount}
-		validationOptions := gpuspec.ValidationOptions{
-			WorkloadActive: false,
-			IgnoreMetrics:  map[string]bool{"fan_speed": true, "memory.temperature": true}, // not all devices have fans or memory temperature sensors
-		}
-		t.Run("gpu="+deviceUUID, func(t *testing.T) {
-			gpu.ValidateEmittedMetricsAgainstSpec(t, specs, gpuConfig, deviceMetrics, nil, validationOptions)
+	t.Run("idle", func(t *testing.T) {
+		metricsByUUID, smiSamples := collectCheckAndNvidiaSmiMetrics(t, checkCollectionOptions{
+			passes:           1,
+			interval:         time.Second,
+			smiOptionsByUUID: smiOptionsByUUID,
+			injectXIDDevices: devices,
 		})
-	}
+		validateCollectedMetrics(t, specs, uuids, configsByUUID, metricsByUUID, smiSamples, nil, gpuspec.ValidationOptions{
+			// This test does not configure system-probe.
+			ConfigFeatures: nil,
+		})
+	})
+
+	t.Run("with-workloads", func(t *testing.T) {
+		// The idle check's cleanup shuts down the shared NVML singleton.
+		lib, err := safenvml.GetSafeNvmlLib()
+		require.NoError(t, err)
+
+		indices := make([]int, len(devices))
+		for index := range devices {
+			indices[index] = index
+		}
+		calibratedValuesByUUID := startCalibratedWorkload(t, lib, indices, 100)
+		metricsByUUID, smiSamples := collectCheckAndNvidiaSmiMetrics(t, checkCollectionOptions{
+			passes:           gpuBurnerCollectionPasses,
+			interval:         gpuBurnerCollectionInterval,
+			smiOptionsByUUID: smiOptionsByUUID,
+			injectXIDDevices: devices,
+		})
+		validateCollectedMetrics(t, specs, uuids, configsByUUID, metricsByUUID, smiSamples, calibratedValuesByUUID, gpuspec.ValidationOptions{
+			WorkloadActive:  true,
+			ConfigFeatures:  nil,
+			WorkloadTagsets: map[string]bool{"process": true},
+		})
+	})
 }
 
 func linkCount(t *testing.T, device safenvml.Device, name string, countFunc func(safenvml.Device) (int, error)) int {

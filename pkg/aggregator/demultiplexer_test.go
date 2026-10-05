@@ -27,7 +27,7 @@ import (
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
+	orchestratorForwarderFx "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/fx"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
@@ -198,8 +198,8 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	// in its select before shutting it down, unfortunately, there is no other
 	// way today than giving it some time to run
 	go func() {
-		time.Sleep(250 * time.Millisecond)
-		demux.aggregator.stopChan <- struct{}{}
+		assert.Eventually(t, demux.aggregator.IsInputQueueEmpty, time.Second, time.Millisecond)
+		demux.aggregator.Stop()
 	}()
 	demux.aggregator.run()
 
@@ -295,7 +295,7 @@ func createDemuxDepsWithOrchestratorFwd(
 		defaultforwardermock.MockModule(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
-		orchestratorForwarderImpl.Module(orchestratorParams),
+		orchestratorForwarderFx.Module(orchestratorParams),
 		eventplatformfx.Module(eventPlatformParams),
 		eventplatformreceiverimpl.Module(),
 		logscompressionmock.MockModule(),

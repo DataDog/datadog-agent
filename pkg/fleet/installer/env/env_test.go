@@ -13,6 +13,16 @@ import (
 )
 
 func TestFromEnv(t *testing.T) {
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("http_proxy")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("no_proxy")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
+
 	tests := []struct {
 		name     string
 		envVars  map[string]string
@@ -24,6 +34,7 @@ func TestFromEnv(t *testing.T) {
 			expected: &Env{
 				APIKey:                         "",
 				Site:                           "datadoghq.com",
+				ProcessManagerEnabled:          true,
 				Mirror:                         "",
 				RegistryOverride:               "",
 				RegistryAuthOverride:           "",
@@ -43,7 +54,7 @@ func TestFromEnv(t *testing.T) {
 				Hostname:   "",
 				HTTPProxy:  "",
 				HTTPSProxy: "",
-				NoProxy:    os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
+				NoProxy:    "",
 			},
 		},
 		{
@@ -82,16 +93,21 @@ func TestFromEnv(t *testing.T) {
 				envAppKey:                                     "app_key_123",
 				envPAREnabled:                                 "true",
 				envPARActionsAllowlist:                        "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
+				envAgentMajorVersion:                          "7",
+				envAgentMinorVersion:                          "79.0~rc.2",
+				envAgentDistChannel:                           "beta",
+				envAgentPipelineID:                            "118008542",
 			},
 			expected: &Env{
-				APIKey:               "123456",
-				Site:                 "datadoghq.eu",
-				Mirror:               "https://mirror.example.com",
-				RemoteUpdates:        true,
-				RegistryOverride:     "registry.example.com",
-				RegistryAuthOverride: "auth",
-				RegistryUsername:     "username",
-				RegistryPassword:     "password",
+				APIKey:                "123456",
+				Site:                  "datadoghq.eu",
+				Mirror:                "https://mirror.example.com",
+				RemoteUpdates:         true,
+				ProcessManagerEnabled: true,
+				RegistryOverride:      "registry.example.com",
+				RegistryAuthOverride:  "auth",
+				RegistryUsername:      "username",
+				RegistryPassword:      "password",
 				RegistryOverrideByImage: map[string]string{
 					"image":         "another.registry.example.com",
 					"another-image": "yet.another.registry.example.com",
@@ -136,6 +152,10 @@ func TestFromEnv(t *testing.T) {
 				AppKey:              "app_key_123",
 				PAREnabled:          true,
 				PARActionsAllowlist: "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
+				AgentMajorVersion:   "7",
+				AgentMinorVersion:   "79.0~rc.2",
+				AgentDistChannel:    "beta",
+				AgentPipelineID:     "118008542",
 			},
 		},
 		{
@@ -146,6 +166,7 @@ func TestFromEnv(t *testing.T) {
 			expected: &Env{
 				APIKey:                         "",
 				Site:                           "datadoghq.com",
+				ProcessManagerEnabled:          true,
 				RegistryOverride:               "",
 				RegistryAuthOverride:           "",
 				RegistryOverrideByImage:        map[string]string{},
@@ -163,8 +184,7 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
-				Tags:    []string{},
-				NoProxy: os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
+				Tags: []string{},
 			},
 		},
 		{
@@ -175,8 +195,9 @@ func TestFromEnv(t *testing.T) {
 				envApmInstrumentationEnabled: "all",
 			},
 			expected: &Env{
-				APIKey: "123456",
-				Site:   "datadoghq.com",
+				APIKey:                "123456",
+				Site:                  "datadoghq.com",
+				ProcessManagerEnabled: true,
 				ApmLibraries: map[ApmLibLanguage]ApmLibVersion{
 					"java":   "",
 					"dotnet": "",
@@ -193,17 +214,23 @@ func TestFromEnv(t *testing.T) {
 				DefaultPackagesVersionOverride: map[string]string{},
 				Tags:                           []string{},
 				Hostname:                       "",
-				NoProxy:                        os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
 			},
 		},
+	}
+
+	// Some CI runners inject an egress-proxy sidecar that sets these (and their
+	// lowercase forms, which getProxySetting also falls back to) in the pod
+	// environment; clear them so the ambient environment can't leak into expectations.
+	for _, key := range []string{envHTTPProxy, envHTTPSProxy, envNoProxy, "http_proxy", "https_proxy", "no_proxy"} {
+		t.Setenv(key, "")
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, value := range tt.envVars {
-				os.Setenv(key, value)
-				defer os.Unsetenv(key)
+				t.Setenv(key, value)
 			}
+			tt.expected.FIPSMode = pkgfips.BuiltForFIPS()
 			result := FromEnv()
 			assert.Equal(t, tt.expected, result, "failed %v", tt.name)
 		})
@@ -340,8 +367,7 @@ func TestToEnv(t *testing.T) {
 }
 
 func TestFromEnvFIPSMode(t *testing.T) {
-	thisBinaryIsFips, _ := pkgfips.Enabled()
-	if thisBinaryIsFips {
+	if pkgfips.BuiltForFIPS() {
 		t.Skip("DD_FIPS_MODE env var is irrelevant when the binary itself is FIPS-compiled")
 	}
 	tests := []struct {

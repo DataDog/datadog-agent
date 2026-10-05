@@ -40,8 +40,10 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 
 	opts = append(opts, pulumi.Parent(k8sComponent))
 
-	ns, err := corev1.NewNamespace(e.Ctx(), namespace, &corev1.NamespaceArgs{
-		Metadata: metav1.ObjectMetaArgs{
+	// Create namespace if necessary, with patching to reconcile ownership
+	// since https://github.com/pulumi/pulumi-kubernetes/releases/tag/v4.29.0
+	ns, err := corev1.NewNamespacePatch(e.Ctx(), namespace, &corev1.NamespacePatchArgs{
+		Metadata: &metav1.ObjectMetaPatchArgs{
 			Name: pulumi.String(namespace),
 		},
 	}, opts...)
@@ -88,7 +90,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("redis"),
-							Image: pulumi.String("ghcr.io/datadog/redis:" + apps.Version),
+							Image: pulumi.String(apps.Image(e, "redis")),
 							Args: pulumi.StringArray{
 								pulumi.String("--loglevel"),
 								pulumi.String("verbose"),
@@ -376,7 +378,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("query"),
-							Image: pulumi.String("ghcr.io/datadog/apps-redis-client:" + apps.Version),
+							Image: pulumi.String(apps.Image(e, "apps-redis-client")),
 							Args: pulumi.StringArray{
 								pulumi.String("-min-tps"),
 								pulumi.String("1"),

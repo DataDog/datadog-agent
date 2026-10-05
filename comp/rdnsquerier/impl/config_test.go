@@ -343,3 +343,21 @@ reverse_dns_enrichment:
 		})
 	}
 }
+
+func TestConfigEnabledForBasicNetworkPathTests(t *testing.T) {
+	mockConfig := mock.NewFromYAML(t, `
+network_path:
+  connections_monitoring:
+    basic_tests_enabled: true
+`)
+
+	assert.True(t, newConfig(mockConfig).enabled)
+}
+
+func TestConfigEnabledForEUDMBasicNetworkPathTests(t *testing.T) {
+	config := mock.NewFromYAML(t, "infrastructure_mode: end_user_device\n")
+	assert.True(t, newConfig(config).enabled)
+
+	config.SetInTest("network_path.connections_monitoring.eudm_basic_tests_enabled", false)
+	assert.False(t, newConfig(config).enabled)
+}

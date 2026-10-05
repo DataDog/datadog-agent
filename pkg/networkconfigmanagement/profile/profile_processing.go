@@ -61,6 +61,17 @@ type ExtractedMetadata struct {
 	Author     string
 }
 
+// ProcessedConfig holds the results of a profile processing a config.
+type ProcessedConfig struct {
+	// Raw is the raw config, after preprocessing to remove console noise.
+	Raw []byte
+	// Redacted is the config after running various redaction rules to hide
+	// sensitive data (passwords, etc.)
+	Redacted []byte
+	// Metadata is the metadata extracted from the config.
+	Metadata *ExtractedMetadata
+}
+
 // ExtractMetadata extracts available metadata from the given config output
 func (p *NCMProfile) ExtractMetadata(config []byte) (*ExtractedMetadata, error) {
 	result := &ExtractedMetadata{}
@@ -129,18 +140,40 @@ func Redact(config []byte, rules []RedactionRule) ([]byte, error) {
 	return scrub.ScrubBytes(config)
 }
 
-// ProcessConfig is for applying redactions and extracting metadata from a configuration pulled from a device
-func (p *NCMProfile) ProcessConfig(config []byte) ([]byte, *ExtractedMetadata, error) {
-	normalizedOutput := normalizeOutput(config)
-	redactedOutput, err := Redact(normalizedOutput, p.Redactions)
+// preprocessConfig applies preprocessing rules to remove extraneous CLI noise.
+func (p *NCMProfile) preprocessConfig(config []byte) ([]byte, error) {
+	// Apply preproc rules
+	config, err := Redact(config, p.Preprocessing)
 	if err != nil {
-		return []byte{}, nil, err
+		return []byte{}, err
 	}
+	// strip all leading/trailing whitespace.
+	config = bytes.Trim(config, " \n\t")
+	return config, nil
+}
+
+// ProcessConfig is for applying redactions and extracting metadata from a configuration pulled from a device
+func (p *NCMProfile) ProcessConfig(config []byte) (*ProcessedConfig, error) {
+	normalizedOutput := normalizeOutput(config)
+	preprocessedOutput, err := p.preprocessConfig(normalizedOutput)
+	if err != nil {
+		return nil, err
+	}
+	redactedOutput, err := Redact(preprocessedOutput, p.Redactions)
+	if err != nil {
+		return nil, err
+	}
+	// extract metadata from the un-preprocessed output because preprocessing
+	// usually removes lines like "!Time: ..."
 	metadata, err := p.ExtractMetadata(normalizedOutput)
 	if err != nil {
-		return []byte{}, nil, err
+		return nil, err
 	}
-	return redactedOutput, metadata, nil
+	return &ProcessedConfig{
+		Raw:      preprocessedOutput,
+		Redacted: redactedOutput,
+		Metadata: metadata,
+	}, nil
 }
 
 func normalizeOutput(output []byte) []byte {

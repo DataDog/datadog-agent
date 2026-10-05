@@ -40,8 +40,15 @@ const (
 	expectedSessionsWithCustomQueries = 6
 )
 
-func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
-	handleRealConnection := func(userType int) config.ConnectionConfig {
+func getConnectData(t testing.TB, userType int) config.ConnectionConfig {
+	t.Helper()
+	connection, err := getTestConnectionConfig(userType)
+	require.NoError(t, err)
+	return connection
+}
+
+func getTestConnectionConfig(userType int) (config.ConnectionConfig, error) {
+	handleRealConnection := func(userType int) (config.ConnectionConfig, error) {
 		var userEnvVariable string
 		var passwordEnvVariable string
 
@@ -88,12 +95,11 @@ func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 			port = 1521
 		}
 
-		if t != nil {
-			require.NotEqualf(t, "", username, "Please set the %s environment variable", userEnvVariable)
-			require.NotEqualf(t, "", password, "Please set the %s environment variable", passwordEnvVariable)
-			require.NotEqualf(t, "", server, "Please set the %s environment variable", serverEnvVariable)
-			require.NotEqualf(t, "", serviceName, "Please set the %s environment variable", serviceNameEnvVariable)
-			require.NotEqualf(t, 0, port, "Please set the %s environment variable", portEnvVariable)
+		if username == "" {
+			return config.ConnectionConfig{}, fmt.Errorf("please set the %s environment variable", userEnvVariable)
+		}
+		if password == "" {
+			return config.ConnectionConfig{}, fmt.Errorf("please set the %s environment variable", passwordEnvVariable)
 		}
 
 		return config.ConnectionConfig{
@@ -102,7 +108,7 @@ func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 			Server:      server,
 			Port:        port,
 			ServiceName: serviceName,
-		}
+		}, nil
 
 	}
 
@@ -118,7 +124,7 @@ func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 			Server:      "localhost",
 			Port:        60000,
 			ServiceName: doesNotExist,
-		}
+		}, nil
 	default:
 		return handleRealConnection(useDefaultUser)
 	}
@@ -131,41 +137,30 @@ func getSysConnection(t *testing.T) (*sql.DB, error) {
 	return conn, err
 }
 
-func newTestCheck(t *testing.T, connectConfig config.ConnectionConfig, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {
+func newTestCheck(t testing.TB, connectConfig config.ConnectionConfig, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {
 	var err error
 	c := Check{}
 
 	connectYaml, err := yaml.Marshal(connectConfig)
-	if t != nil {
-		require.NoError(t, err)
-	}
+	require.NoError(t, err)
 	instanceConfig := string(connectYaml)
 	if instanceConfigAddition != "" {
 		instanceConfig = fmt.Sprintf("%s\n%s", instanceConfig, instanceConfigAddition)
 	}
 	rawInstanceConfig := []byte(instanceConfig)
 	rawInitConfig := []byte(initConfig)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err = c.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "oracle_test", "")
-	if t != nil {
-		require.NoError(t, err)
-	}
+	require.NoError(t, err)
 
 	sender := mocksender.NewMockSenderWithSenderManager(c.ID(), senderManager)
 	sender.SetupAcceptAll()
-	if t != nil {
-		assert.Equal(t, c.config.InstanceConfig.Server, connectConfig.Server)
-		assert.Equal(t, c.config.InstanceConfig.Port, connectConfig.Port)
-		assert.Equal(t, c.config.InstanceConfig.Username, connectConfig.Username)
-		assert.Equal(t, c.config.InstanceConfig.Password, connectConfig.Password)
-		assert.Equal(t, c.config.InstanceConfig.ServiceName, connectConfig.ServiceName)
-		assert.Contains(t, c.configTags, dbmsTag, "c.configTags doesn't contain static tags")
-	}
-
-	if oracleLibDir := os.Getenv("ORACLE_TEST_ORACLE_CLIENT_LIB_DIR"); oracleLibDir != "" {
-		c.config.InstanceConfig.OracleClientLibDir = oracleLibDir
-		c.config.InstanceConfig.OracleClient = true
-	}
+	assert.Equal(t, c.config.InstanceConfig.Server, connectConfig.Server)
+	assert.Equal(t, c.config.InstanceConfig.Port, connectConfig.Port)
+	assert.Equal(t, c.config.InstanceConfig.Username, connectConfig.Username)
+	assert.Equal(t, c.config.InstanceConfig.Password, connectConfig.Password)
+	assert.Equal(t, c.config.InstanceConfig.ServiceName, connectConfig.ServiceName)
+	assert.Contains(t, c.configTags, dbmsTag, "c.configTags doesn't contain static tags")
 
 	return c, sender
 }
@@ -186,7 +181,7 @@ func newDefaultCheck(t *testing.T, instanceConfigAddition string, initConfig str
 	return c, m
 }
 
-func newSysCheck(t *testing.T, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {
+func newSysCheck(t testing.TB, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {
 	return newTestCheck(t, getConnectData(t, useSysUser), instanceConfigAddition, initConfig)
 }
 

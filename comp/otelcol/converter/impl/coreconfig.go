@@ -68,7 +68,7 @@ func addEnv(conf *confmap.Conf, coreCfg config.Component) {
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
-// addAPIKeySite adds the API key and site from core config to github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config.APIConfig.
+// addAPIKeySite adds the API key and site from core config to github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig.APIConfig.
 func addAPIKeySite(conf *confmap.Conf, coreCfg config.Component, compType string, compName string) {
 	stringMapConf := conf.ToStringMap()
 	components, ok := stringMapConf[compType]

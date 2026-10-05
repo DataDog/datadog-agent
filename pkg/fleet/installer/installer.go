@@ -263,7 +263,11 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 			return fmt.Errorf("could not create temporary directory: %w", err)
 		}
 		defer os.RemoveAll(tmpDir)
-		msiName := fmt.Sprintf("datadog-agent-%s-x86_64.msi", version.AgentPackageVersion)
+		msiProduct := packageDatadogAgent
+		if i.env.FIPSMode {
+			msiProduct = "datadog-fips-agent"
+		}
+		msiName := fmt.Sprintf("%s-%s-x86_64.msi", msiProduct, version.AgentPackageVersion)
 		err = paths.CopyFile(path, filepath.Join(tmpDir, msiName))
 		if err != nil {
 			return fmt.Errorf("could not copy installer: %w", err)
@@ -341,11 +345,11 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 		return fmt.Errorf("could not remove package installation in db: %w", err)
 	}
 	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
-	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
 	}
-	err = pkg.ExtractLayers(oci.DatadogPackageConfigLayerMediaType, configDir)
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageConfigLayerMediaType, configDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package config layer: %w", err)
 	}
@@ -399,14 +403,14 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	}
 	defer os.RemoveAll(tmpDir)
 	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
-	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrDownloadFailed,
 			fmt.Errorf("could not extract package layer: %w", err),
 		)
 	}
-	err = pkg.ExtractLayers(oci.DatadogPackageConfigLayerMediaType, configDir)
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageConfigLayerMediaType, configDir)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrDownloadFailed,
@@ -821,7 +825,8 @@ func (i *installerImpl) InstallExtensions(ctx context.Context, url string, exten
 		return fmt.Errorf("could not install extensions: %w", err)
 	}
 
-	// Special case for Linux & datadog-agent: restart the Agent after installing Agent extensions.
+	// Restart agent services after extension hooks so the core agent (and dependents like
+	// dd-procmgr) pick up new files and config — same on Linux and Windows for datadog-agent.
 	if pkg.Name == packageDatadogAgent {
 		return packages.RestartDatadogAgent(ctx)
 	}
@@ -849,7 +854,7 @@ func (i *installerImpl) RemoveExtensions(ctx context.Context, pkg string, extens
 		return fmt.Errorf("could not remove extensions: %w", err)
 	}
 
-	// Special case for Linux & datadog-agent: restart the Agent after removing Agent extensions.
+	// Restart agent services after extension removal so dependents reload without removed extensions.
 	if pkg == packageDatadogAgent {
 		return packages.RestartDatadogAgent(ctx)
 	}

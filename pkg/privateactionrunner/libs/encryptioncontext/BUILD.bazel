@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "encryptioncontext",
+    srcs = [
+        "decrypt.go",
+        "store.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_jellydator_ttlcache_v3//:ttlcache",
+    ],
+)
+
+dd_agent_go_test(
+    name = "encryptioncontext_test",
+    srcs = [
+        "decrypt_test.go",
+        "store_test.go",
+    ],
+    embed = [":encryptioncontext"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

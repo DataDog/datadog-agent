@@ -153,10 +153,6 @@ func getTextStatusOutput(pid int, goVersion string, arch string, flavor string, 
 	res += "  Log File: " + conf.GetString("log_file") + "\n"
 	res += "  Log Level: info\n"
 
-	if conf.GetLibType() != "viper" {
-		res += "  Configuration lib used: " + conf.GetLibType() + "\n"
-	}
-
 	res += fmt.Sprintf(`
   Paths
   =====
@@ -181,13 +177,11 @@ func getTextStatusOutput(pid int, goVersion string, arch string, flavor string, 
 func TestGetStatus(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
 		startTimeProvider = pkgconfigsetup.StartTime
-		os.Setenv("TZ", originalTZ)
 	}()
 
 	conf := config.NewMock(t)
@@ -493,13 +487,11 @@ X Section
 func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
 		startTimeProvider = pkgconfigsetup.StartTime
-		os.Setenv("TZ", originalTZ)
 	}()
 
 	conf := config.NewMock(t)
@@ -546,13 +538,11 @@ Section
 func TestGetStatusWithErrors(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
 		startTimeProvider = pkgconfigsetup.StartTime
-		os.Setenv("TZ", originalTZ)
 	}()
 
 	conf := config.NewMock(t)
@@ -805,13 +795,11 @@ X Section
 func TestGetStatusBySectionsWithErrors(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
 		startTimeProvider = pkgconfigsetup.StartTime
-		os.Setenv("TZ", originalTZ)
 	}()
 
 	conf := config.NewMock(t)
@@ -935,13 +923,11 @@ Status render errors
 func TestGetStatusByMultipleSections(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
 		startTimeProvider = pkgconfigsetup.StartTime
-		os.Setenv("TZ", originalTZ)
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
@@ -1063,13 +1049,11 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 func TestFlareProvider(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
 		startTimeProvider = pkgconfigsetup.StartTime
-		os.Setenv("TZ", originalTZ)
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(

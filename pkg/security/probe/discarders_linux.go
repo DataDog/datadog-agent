@@ -39,7 +39,7 @@ const (
 	maxParentDiscarderDepth = 3
 
 	// allEventTypes is a mask to match all the events
-	allEventTypes = math.MaxUint32 //nolint:deadcode,unused
+	allEventTypes = math.MaxUint32 //nolint:unused
 
 	// inode/mountid that won't be resubmitted
 	maxRecentlyAddedCacheSize = uint64(64)

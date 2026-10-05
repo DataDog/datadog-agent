@@ -4,6 +4,7 @@
 #include "constants/offsets/filesystem.h"
 #include "helpers/filesystem.h"
 #include "helpers/selinux.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *file, const char *buf, size_t count, enum selinux_source_event_t source_event) {
@@ -78,30 +79,40 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
 }
 
 int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_SELINUX);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_SELINUX);
     if (!syscall) {
         return 0;
     }
 
     if (syscall->resolver.ret == DENTRY_INVALID) {
-        return 0;
+        goto pop_and_exit;
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_SELINUX);
     if (syscall->state == DISCARDED) {
-        return 0;
+        goto pop_and_exit;
     }
 
-    struct selinux_event_t event = {};
-    event.event_kind = syscall->selinux.event_kind;
-    event.file = syscall->selinux.file;
-    event.payload = syscall->selinux.payload;
+    struct selinux_event_t *event = SPAN_FILL_EVENT(struct selinux_event_t, EVENT_SELINUX);
+    if (!event) {
+        goto pop_and_exit;
+    }
+    event->event_kind = syscall->selinux.event_kind;
+    event->file = syscall->selinux.file;
+    event->payload = syscall->selinux.payload;
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    pop_syscall(EVENT_SELINUX);
 
-    send_event(ctx, EVENT_SELINUX, event);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
+
+    // Snapshot the Go pprof labels and emit the event from the shared tail-call
+    // target. Everything above must be built into the event before this point,
+    // because the tail call never returns here.
+    bpf_tail_call_compat(ctx, &span_fill_progs, 0);
+
+pop_and_exit:
+    pop_syscall(EVENT_SELINUX);
     return 0;
 }
 

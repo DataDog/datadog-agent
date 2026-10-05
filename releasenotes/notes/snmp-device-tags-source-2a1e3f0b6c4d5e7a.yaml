@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Added the ``device_tags_source`` option to the SNMP check, controlling where the device tags
+    on metrics come from. ``resource`` (default) sends only the device resource tag and lets the
+    backend attach the device tags from the metadata payload. ``agent`` has the Agent attach the
+    device tags to every metric and omits the resource tag, so no backend enrichment happens.
+    ``both`` sends the device tags and the resource tag. Has no effect when
+    ``collect_device_metadata`` is disabled.

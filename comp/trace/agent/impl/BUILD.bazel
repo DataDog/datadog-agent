@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -14,15 +15,18 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/trace-agent/config/remote",
+        "//comp/api/api/apiimpl/observability",
         "//comp/core/ipc/def",
         "//comp/core/secrets/def",
         "//comp/core/tagger/def",
+        "//comp/core/telemetry/def",
         "//comp/dogstatsd/statsd/def",
         "//comp/trace/agent/def",
         "//comp/trace/compression/def",
         "//comp/trace/compression/impl-zstd",
         "//comp/trace/config/def",
         "//pkg/config/env",
+        "//pkg/config/helper",
         "//pkg/config/remote/client",
         "//pkg/config/setup",
         "//pkg/config/utils",
@@ -49,14 +53,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "agent_test.go",
         "run_test.go",
     ],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "//pkg/config/mock",
         "//pkg/trace/config",

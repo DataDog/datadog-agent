@@ -57,7 +57,7 @@ func (l *Launcher) run() {
 			listener, err := NewTCPListener(l.pipelineProvider, source, l.frameSize)
 			if err != nil {
 				log.Errorf("Can't create TCP listener: %v", err)
-				source.Status.Error(err)
+				source.Status().Error(err)
 				continue
 			}
 			listener.Start()
@@ -66,7 +66,7 @@ func (l *Launcher) run() {
 			listener, err := NewUDPListener(l.pipelineProvider, source, l.frameSize)
 			if err != nil {
 				log.Errorf("Can't create UDP listener: %v", err)
-				source.Status.Error(err)
+				source.Status().Error(err)
 				continue
 			}
 			listener.Start()

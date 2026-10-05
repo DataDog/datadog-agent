@@ -95,7 +95,7 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
-	mockSenderManager := mocksender.CreateDefaultDemultiplexer()
+	mockSenderManager := mocksender.CreateDefaultDemultiplexer(t)
 	_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
 	orchCheck.apiClient = cl
 
@@ -160,7 +160,7 @@ func TestOrchCheckExtraTags(t *testing.T) {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	mockSenderManager := mocksender.CreateDefaultDemultiplexer()
+	mockSenderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	t.Run("with no tags", func(t *testing.T) {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -204,7 +204,7 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	mockSenderManager := mocksender.CreateDefaultDemultiplexer()
+	mockSenderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	setupMockAPIClient := func(orchCheck *OrchestratorCheck) {
 		client := fake.NewSimpleClientset()

@@ -6,6 +6,7 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -145,6 +146,7 @@ type Config struct {
 // Test represents the definition of a test including metadata and version.
 type Test struct {
 	ID      string `json:"id"`
+	Name    string `json:"name,omitempty"`
 	SubType string `json:"subType"`
 	Type    string `json:"type"`
 	Version int    `json:"version"`
@@ -153,12 +155,16 @@ type Test struct {
 // TestResult represents the full test execution result including metadata.
 type TestResult struct {
 	Location struct {
-		ID string `json:"id"`
+		ID          string `json:"id"`
+		Name        string `json:"name,omitempty"`
+		DisplayName string `json:"displayName,omitempty"`
 	} `json:"location"`
-	DD     map[string]interface{} `json:"_dd"` // TestRequestInternalFields
-	Result Result                 `json:"result"`
-	Test   Test                   `json:"test"`
-	V      int                    `json:"v"` // Major result version
+	DD map[string]interface{} `json:"_dd"` // TestRequestInternalFields
+	// Enrichment is opaque metadata copied from the Synthetics test request.
+	Enrichment json.RawMessage `json:"enrichment,omitempty"`
+	Result     Result          `json:"result"`
+	Test       Test            `json:"test"`
+	V          int             `json:"v"` // Major result version
 }
 
 // APIErrorCode represents a specific error code returned by the API.

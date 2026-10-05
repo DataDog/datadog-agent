@@ -44,6 +44,8 @@ message Process {
   uint32 restart_count = 7;
   optional int32 last_exit_code = 8;
   optional int32 last_signal = 9;
+  string profile = 10;
+  string user = 11;
 }
 
 message ListResponse {
@@ -74,6 +76,9 @@ message ProcessDetail {
   uint32 restart_count = 17;
   optional int32 last_exit_code = 18;
   optional int32 last_signal = 19;
+  string profile = 20;
+  string user = 21;
+  string runtime_user = 22;
 }
 
 message DescribeResponse {
@@ -143,6 +148,7 @@ message GetStatusResponse {
   uint32 exited_processes = 9;
   uint32 starting_processes = 10;
   uint32 stopping_processes = 11;
+  uint32 crashed_processes = 12;
 }
 
 message GetConfigRequest {}

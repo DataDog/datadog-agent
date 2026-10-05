@@ -152,7 +152,7 @@ func excludeFeatures(detectedFeatures FeatureMap, excludedFeatures []string) {
 	}
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func registerFeature(f Feature) {
 	knownFeatures[f] = struct{}{}
 }

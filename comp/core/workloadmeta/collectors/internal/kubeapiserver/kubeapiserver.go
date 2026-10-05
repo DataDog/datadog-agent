@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -43,7 +44,7 @@ type dependencies struct {
 }
 
 // storeGenerator returns a new store specific to a given resource
-type storeGenerator func(context.Context, workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
+type storeGenerator func(workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
 func shouldHavePodStore(cfg config.Reader) bool {
 	return podsRequiredAtStartup(cfg) || cfg.GetBool("autoscaling.workload.enabled")
@@ -83,15 +84,20 @@ func resourcesWithMetadataCollectionEnabled(cfg config.Reader) []string {
 }
 
 // resourcesWithRequiredMetadataCollection returns the list of resources that we
-// need to collect metadata from in order to make other enabled features work
+// need to collect metadata from in order to make other enabled features work.
+// Pods, Deployments and Nodes are excluded here because they have their own
+// dedicated stores and informers in workloadmeta, and tag extraction for
+// labels/annotations-as-tags reads directly from those (e.g. KindKubernetesNode)
+// instead of the generic metadata store.
 func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
-	res := []string{"nodes"} // nodes are always needed
+	// resources that we need to collect metadata from in order to make other enabled features work
+	var res []string
 
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)
 
 	for groupResource, labelsAsTags := range metadataAsTags.GetResourcesLabelsAsTags() {
 
-		if strings.HasPrefix(groupResource, "pods") || strings.HasPrefix(groupResource, "deployments") || len(labelsAsTags) == 0 {
+		if strings.HasPrefix(groupResource, "pods") || strings.HasPrefix(groupResource, "deployments") || groupResource == "nodes" || len(labelsAsTags) == 0 {
 			continue
 		}
 		requestedResource := groupResourceToGVRString(groupResource)
@@ -101,7 +107,7 @@ func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 	}
 
 	for groupResource, annotationsAsTags := range metadataAsTags.GetResourcesAnnotationsAsTags() {
-		if strings.HasPrefix(groupResource, "pods") || strings.HasPrefix(groupResource, "deployments") || len(annotationsAsTags) == 0 {
+		if strings.HasPrefix(groupResource, "pods") || strings.HasPrefix(groupResource, "deployments") || groupResource == "nodes" || len(annotationsAsTags) == 0 {
 			continue
 		}
 		requestedResource := groupResourceToGVRString(groupResource)
@@ -130,7 +136,7 @@ func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 // resourcesWithExplicitMetadataCollectionEnabled returns the list of resources
 // to collect metadata from according to the config options that configure
 // metadata collection
-// Pods and/or Deployments are excluded if they have their separate stores and informers
+// Pods, Deployments and Nodes are excluded if they have their separate stores and informers
 // in order to avoid having two collectors collecting the same data.
 func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string {
 	if !cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
@@ -150,6 +156,11 @@ func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string 
 			continue
 		}
 
+		if group, _, resourceName := parseRequestedResource(resource); group == "" && resourceName == "nodes" {
+			log.Debugf("skipping nodes from metadata collection because a separate node store is initialised in workload metadata store.")
+			continue
+		}
+
 		resources = append(resources, resource)
 	}
 
@@ -158,13 +169,12 @@ func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string 
 
 // resourcesForAPMConfig returns the list of resources to collect metadata from
 // for the auto instrumentation configuration. Namespaces are collected in order
-// to utilize namespace labels for target based configuration and to determine
-// pod security policies to apply to restricted namespaces.
+// to utilize namespace labels for target and remote policy matching, and to
+// determine pod security policies to apply to restricted namespaces.
 func resourcesForAPMConfig(cfg config.Reader) []string {
-	// If APM is not enabled, we don't need to collect any resources for the
-	// auto instrumentation configuration.
-	apmEnabled := cfg.GetBool("apm_config.instrumentation.enabled")
-	if !apmEnabled {
+	// Both implicit and on-demand instrumentation can inject pods, so both need
+	// namespace labels.
+	if !cfg.GetBool("apm_config.instrumentation.enabled") && !cfg.GetBool("apm_config.instrumentation.on_demand") {
 		return nil
 	}
 
@@ -233,11 +243,15 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		log.Errorf("failed to discover Group and Version of requested resources: %v", err)
 	} else {
 		for _, gvr := range gvrs {
-			reflector, store := newMetadataStore(ctx, wlmetaStore, c.config, metadataclient, gvr)
+			reflector, store := newMetadataStore(wlmetaStore, c.config, metadataclient, gvr)
 			objectStores = append(objectStores, store)
 			go reflector.Run(ctx.Done())
 		}
 	}
+
+	nodeReflector, nodeStore := newNodeStore(wlmetaStore, c.config, client)
+	objectStores = append(objectStores, nodeStore)
+	go nodeReflector.Run(ctx.Done())
 
 	if shouldHavePodStore(c.config) {
 		autoscalingEnabled := c.config.GetBool("autoscaling.workload.enabled")
@@ -248,7 +262,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			// block the startup readiness check.
 			go c.startPodStoreOnGate(ctx, wlmetaStore, client, newPodStore)
 		} else {
-			reflector, store := newPodStore(ctx, wlmetaStore, c.config, client)
+			reflector, store := newPodStore(wlmetaStore, c.config, client)
 			objectStores = append(objectStores, store)
 			go reflector.Run(ctx.Done())
 			if autoscalingEnabled {
@@ -258,9 +272,61 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	}
 
 	if shouldHaveDeploymentStore(c.config) {
-		reflector, store := newDeploymentStore(ctx, wlmetaStore, c.config, client)
+		reflector, store := newDeploymentStore(wlmetaStore, c.config, client)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
+	}
+
+	if shouldHaveKueueMetadata(c.config) {
+		gvrs, err := getGVRsForRequestedResources(client.Discovery(), kueueQueueGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover Kueue queue resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				queueType, err := kubernetesresourceparsers.QueueTypeForKueueResource(gvr.Resource)
+				if err != nil {
+					log.Errorf("failed to get Kueue queue type for %s: %v", gvr.Resource, err)
+					continue
+				}
+				reflector, store, err := newKueueQueueStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr, queueType)
+				if err != nil {
+					log.Errorf("failed to create Kueue queue store for %s: %v", gvr.Resource, err)
+					continue
+				}
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
+
+		gvrs, err = getGVRsForRequestedResources(client.Discovery(), kueueResourceFlavorGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover Kueue ResourceFlavor resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				reflector, store, err := newKueueResourceFlavorStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				if err != nil {
+					log.Errorf("failed to create Kueue ResourceFlavor store for %s: %v", gvr.Resource, err)
+					continue
+				}
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
+
+		gvrs, err = getGVRsForRequestedResources(client.Discovery(), kueueWorkloadGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover Kueue Workload resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				reflector, store, err := newKueueWorkloadStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				if err != nil {
+					log.Errorf("failed to create Kueue Workload store for %s: %v", gvr.Resource, err)
+					continue
+				}
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
 	}
 
 	if c.config.GetBool("cluster_checks.crd_collection") {
@@ -288,7 +354,7 @@ func (c *collector) startPodStoreOnGate(ctx context.Context, wlmetaStore workloa
 	}
 
 	log.Debug("Autoscaling gate enabled, starting workloadmeta pod reflector lazily")
-	reflector, store := newStore(ctx, wlmetaStore, c.config, client)
+	reflector, store := newStore(wlmetaStore, c.config, client)
 	go reflector.Run(ctx.Done())
 
 	c.markPodCollectionSyncedWhenReady(ctx, store)

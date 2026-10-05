@@ -10,6 +10,7 @@ import (
 	"errors"
 	"time"
 
+	googleGrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
@@ -30,6 +31,7 @@ import (
 	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
@@ -60,12 +62,20 @@ type serverSecure struct {
 	autodiscovery        autodiscovery.Component
 	configComp           config.Component
 	configStreamServer   *configstreamServer.Server
+	healthPlatformStore  healthplatformstore.Component
 }
 
 // remoteAgentServer implements the dedicated RemoteAgent gRPC service, which owns the remote agent lifecycle
 // (registration and refresh) and the reporting of operational events back to the Core Agent.
 type remoteAgentServer struct {
 	pb.UnimplementedRemoteAgentServer
+	remoteAgentRegistry remoteagentregistry.Component
+}
+
+// remoteCommandProviderServer implements the RemoteCommandProvider gRPC service, which allows the Core Agent CLI
+// to discover and execute commands exposed by registered remote agents.
+type remoteCommandProviderServer struct {
+	pb.UnimplementedRemoteCommandProviderServer
 	remoteAgentRegistry remoteagentregistry.Component
 }
 
@@ -303,6 +313,53 @@ func refreshRemoteAgent(registry remoteagentregistry.Component, in *pb.RefreshRe
 	return &pb.RefreshRemoteAgentResponse{}, nil
 }
 
+func (s *serverSecure) validateSessionID(sessionID string) error {
+	if sessionID == "" {
+		return nil
+	}
+	if s.remoteAgentRegistry == nil {
+		return status.Error(codes.Unavailable, "remote agent registry not available")
+	}
+	if found := s.remoteAgentRegistry.RefreshRemoteAgent(sessionID); !found {
+		return status.Error(codes.Unauthenticated, "invalid or expired remote agent session")
+	}
+	return nil
+}
+
+func (s *serverSecure) ReportHealthIssue(_ context.Context, in *pb.ReportHealthIssueRequest) (*emptypb.Empty, error) {
+	if err := s.validateSessionID(in.GetRemoteAgentSessionId()); err != nil {
+		return nil, err
+	}
+
+	issue := in.GetIssue()
+	if issue == nil {
+		return nil, status.Error(codes.InvalidArgument, "issue cannot be nil")
+	}
+	if issue.GetId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "issue id cannot be empty")
+	}
+	if issue.GetIssueName() == "" {
+		return nil, status.Error(codes.InvalidArgument, "issue_name cannot be empty")
+	}
+
+	if err := s.healthPlatformStore.ReportIssue(issue); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to store issue: %v", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (s *serverSecure) ResolveHealthIssue(_ context.Context, in *pb.ResolveHealthIssueRequest) (*emptypb.Empty, error) {
+	if err := s.validateSessionID(in.GetRemoteAgentSessionId()); err != nil {
+		return nil, err
+	}
+	if in.GetIssueId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "issue_id cannot be empty")
+	}
+
+	s.healthPlatformStore.ResolveIssue(in.GetIssueId())
+	return &emptypb.Empty{}, nil
+}
+
 func (s *serverSecure) AutodiscoveryStreamConfig(_ *emptypb.Empty, out pb.AgentSecure_AutodiscoveryStreamConfigServer) error {
 	return autodiscoverystream.Config(s.autodiscovery, out)
 }
@@ -331,4 +388,26 @@ func (s *serverSecure) CreateConfigSubscription(stream pb.AgentSecure_CreateConf
 
 func (s *serverSecure) WorkloadFilterEvaluate(ctx context.Context, req *pb.WorkloadFilterEvaluateRequest) (*pb.WorkloadFilterEvaluateResponse, error) {
 	return s.workloadfilterServer.WorkloadFilterEvaluate(ctx, req)
+}
+
+// ListCommands returns all commands exposed by registered remote agents that advertise the command provider service.
+func (s *remoteCommandProviderServer) ListCommands(ctx context.Context, _ *pb.ListCommandsRequest) (*pb.ListCommandsResponse, error) {
+	if s.remoteAgentRegistry == nil {
+		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
+	}
+
+	return &pb.ListCommandsResponse{Providers: s.remoteAgentRegistry.ListCommands(ctx)}, nil
+}
+
+// ExecuteCommand routes a command execution request to the selected remote provider and forwards its output frames.
+func (s *remoteCommandProviderServer) ExecuteCommand(in *pb.ExecuteCommandRequest, stream googleGrpc.ServerStreamingServer[pb.ExecuteCommandResponse]) error {
+	if s.remoteAgentRegistry == nil {
+		return status.Error(codes.Unimplemented, "remote agent registry not enabled")
+	}
+
+	if len(in.GetCommandPath()) == 0 {
+		return status.Error(codes.InvalidArgument, "command_path is required")
+	}
+
+	return s.remoteAgentRegistry.ExecuteCommand(stream.Context(), in, stream.Send)
 }

@@ -207,11 +207,9 @@ func TestCreateHTTP2Transport(t *testing.T) {
 	transport := CreateHTTPTransport(c, WithHTTP2())
 	require.NotNil(t, transport)
 
-	assert.NotNil(t, transport.TLSNextProto)
-	assert.Contains(t, transport.TLSNextProto, "h2", "TLSNextProto should indicate HTTP/2 support")
-
-	assert.Contains(t, transport.TLSClientConfig.NextProtos, "h2", "NextProtos should prefer HTTP/2")
-	assert.Contains(t, transport.TLSClientConfig.NextProtos, "http/1.1", "NextProtos should allow fallback to HTTP/1.1")
+	require.NotNil(t, transport.Protocols)
+	assert.True(t, transport.Protocols.HTTP2(), "Protocols should indicate HTTP/2 support")
+	assert.True(t, transport.Protocols.HTTP1(), "Protocols should allow HTTP/1.1 fallback")
 }
 
 func TestNoProxyWarningMap(t *testing.T) {

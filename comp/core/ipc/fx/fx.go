@@ -17,7 +17,7 @@ import (
 func ModuleReadWrite() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			ipcimpl.NewReadWriteComponent,
+			ipcimpl.NewComponent,
 		),
 	)
 }

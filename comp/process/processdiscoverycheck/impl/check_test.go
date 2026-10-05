@@ -73,7 +73,7 @@ func TestProcessDiscoveryIsEnabled(t *testing.T) {
 			c := fxutil.Test[processdiscoverycheck.Component](t, fx.Options(
 				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, tc.configs) }),
 				fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
-				fxutil.ProvideComponentConstructor(NewCheck),
+				fxutil.ProvideComponentConstructor(NewComponent),
 			))
 			assert.Equal(t, tc.enabled, c.Object().IsEnabled())
 		})

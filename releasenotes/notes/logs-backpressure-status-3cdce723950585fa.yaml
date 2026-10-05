@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    The ``agent status`` command now includes a "Logs Agent Backpressure"
+    section reporting per-component utilization of the logs pipeline and an
+    overall ``HEALTHY``/``WARNING``/``SATURATED`` state, making it easier to
+    see which pipeline stage is the bottleneck when logs are delayed.

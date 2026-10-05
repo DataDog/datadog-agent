@@ -15,7 +15,7 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 
@@ -36,7 +36,7 @@ func TestVariableAnyField(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var filename1 string
 
@@ -79,7 +79,7 @@ func TestVariablePrivateField(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var filename string
 
@@ -92,7 +92,7 @@ func TestVariablePrivateField(t *testing.T) {
 	}
 	defer os.Remove(filename)
 
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		msg := test.msgSender.getMsg("test_rule_private_variable")
 		if msg == nil {
 			return errors.New("message not found")
@@ -108,7 +108,7 @@ func TestVariablePrivateField(t *testing.T) {
 		})
 
 		return nil
-	})
+	}, backoff.WithMaxTries(10))
 	if err != nil {
 		t.Error(err)
 	}
@@ -120,8 +120,6 @@ func TestVariablePrivateField(t *testing.T) {
 // subreaper - i.e. that the inherited value is snapshotted onto the grandchild
 // before its parent link changes.
 func TestVariableInheritanceReparenting(t *testing.T) {
-	t.Skip("Need to re-introduce subreaper reparenting")
-
 	SkipIfNotAvailable(t)
 
 	if ebpfLessEnabled {
@@ -155,7 +153,7 @@ func TestVariableInheritanceReparenting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {

@@ -62,7 +62,7 @@ func loadColSpec(t *testing.T) *ebpf.CollectionSpec {
 		t.Fatal(err)
 	}
 
-	loader := secebpf.NewProbeLoader(&config.Config{}, useSyscallWrapper, false, false)
+	loader := secebpf.NewProbeLoader(&config.Config{}, useSyscallWrapper, false, false, false)
 	reader, _, err := loader.Load()
 	if err != nil {
 		t.Fatal(err)

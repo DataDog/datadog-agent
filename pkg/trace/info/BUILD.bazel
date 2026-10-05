@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "info",
@@ -15,6 +16,7 @@ go_library(
         "//pkg/trace/config",
         "//pkg/trace/log",
         "//pkg/trace/sampler",
+        "//pkg/trace/semantics",
         "//pkg/trace/watchdog",
         "//pkg/util/scrubber",
         "@com_github_datadog_datadog_go_v5//statsd",
@@ -22,21 +24,22 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "info_test",
     srcs = [
         "helper_test.go",
         "info_test.go",
         "stats_test.go",
+        "trace_semantics_test.go",
         "writer_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":info"],
-    gotags = ["test"],
     deps = [
         "//pkg/trace/config",
         "//pkg/trace/log",
         "//pkg/trace/sampler",
+        "//pkg/trace/semantics",
         "//pkg/trace/teststatsd",
         "//pkg/trace/watchdog",
         "@com_github_stretchr_testify//assert",

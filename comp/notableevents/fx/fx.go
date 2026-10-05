@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build windows
+//go:build windows || darwin
 
 // Package fx provides fx wiring for the notable events component
 package fx

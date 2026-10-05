@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path"
 	"runtime"
 	"strings"
@@ -21,27 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
-// defaultCommonRoot is the default path used when --common-root or DD_COMMON_ROOT
-// is specified without a value
-const defaultCommonRoot = "/opt/datadog-agent"
-
 // setupConfig loads additional configuration data from yaml files, fleet policies, and command-line options
 func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, p Params) error {
 	confFilePath := p.ConfFilePath
 	configName := p.configName
 	defaultConfPath := p.defaultConfPath
-
-	// Check for common_root early - before determining config file paths.
-	// CLI flag takes precedence over environment variable.
-	commonRoot := getCommonRoot(p.cliOverride)
-
-	// If common_root is set, transform the default config path to use the new layout
-	// and set the common root in defaultpaths so all getter functions return transformed paths
-	if commonRoot != "" {
-		defaultConfPath = defaultpaths.GetDefaultConfPath()
-		// Also set common_root in config early so SetCommonRootPaths can use it later
-		config.Set("common_root", commonRoot, pkgconfigmodel.SourceCLI)
-	}
 
 	if configName != "" {
 		config.SetConfigName(configName)
@@ -100,8 +83,10 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 			}
 		}
 		// Fleet policies are merged after LoadDatadog's override pass, so re-run
-		// suppression logic that depends on values fleet policies may set.
+		// ADP overrides that depend on values fleet policies may set.
 		pkgconfigsetup.ApplyUseDogstatsdSuppression(config)
+		pkgconfigsetup.ComputeDataPlaneStopTimeout(config)
+		pkgconfigsetup.SanitizeDataPlaneConfig(config)
 	}
 
 	for k, v := range p.cliOverride {
@@ -114,27 +99,4 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 // GetInstallPath returns the install path for the agent
 func GetInstallPath() string {
 	return defaultpaths.GetInstallPath()
-}
-
-// getCommonRoot determines the common root path from CLI flags or environment.
-// CLI flag (--common-root) takes precedence over environment variable (DD_COMMON_ROOT).
-// Returns empty string if the feature is not enabled.
-func getCommonRoot(cliOverride map[string]interface{}) string {
-	// Check CLI flag first (highest precedence)
-	if val, ok := cliOverride["common_root"]; ok {
-		if strVal, ok := val.(string); ok {
-			if strVal != "" {
-				return strVal
-			}
-			// CLI flag present but empty - use default
-			return defaultCommonRoot
-		}
-	}
-
-	// Check environment variable
-	if envVal, found := os.LookupEnv("DD_COMMON_ROOT"); found && envVal != "" {
-		return envVal
-	}
-
-	return ""
 }

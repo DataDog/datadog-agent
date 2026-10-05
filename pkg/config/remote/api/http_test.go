@@ -50,9 +50,10 @@ func TestUserAgent(t *testing.T) {
 	case ua := <-userAgentCh:
 		// Regex explained:
 		//   * ^datadog-agent\/ == must start with "datadog-agent/"
-		//   * (unknown|\d+\.\d+\.\d+) == either "unknown" or a semver string
-		//   * \(go\d+\.\d+\.\d+\)$ == ends in " (go1.2.3)" where 1.2.3 is a semver string
-		uaRegex := regexp.MustCompile(`^datadog-agent\/(.+) \(go\d+\.\d+\.\d+\)$`)
+		//   * (.+) == agent version: either "unknown" or a semver string
+		//   * \(go...\)$ == ends with the Go toolchain version in parens, which is
+		//     either a stable release (go1.26.4) or a release candidate (go1.27rc1).
+		uaRegex := regexp.MustCompile(`^datadog-agent\/(.+) \(go\d+\.\d+(?:\.\d+|rc\d+)\)$`)
 		parts := uaRegex.FindStringSubmatch(ua)
 		assert.Len(parts, 2) // Original string + the extracted group.
 

@@ -49,6 +49,29 @@ export interface StatusResponse {
   scenarioEnd?: number;
   episodeInfo?: EpisodeInfo;
   serverConfig: ServerConfig;
+  baseline?: {
+    enabled: boolean;
+    durationSec: number;
+    muteNoisyMetrics: boolean;
+    started: boolean;
+    startSec?: number;
+    analyzedThroughSec?: number;
+    allComplete: boolean;
+    mutedCount: number;
+    active: boolean;
+    windowEndSec?: number;
+    mutedSeries?: string[];
+    detectors?: BaselineDetectorStatus[];
+  };
+}
+
+export interface BaselineDetectorStatus {
+  name: string;
+  ready: boolean;
+  warmupEndSec?: number;
+  baselineEndSec?: number;
+  completed: boolean;
+  mutedCount: number;
 }
 
 export interface ScenarioInfo {
@@ -69,10 +92,11 @@ export interface ComponentInfo {
 }
 
 export interface SeriesInfo {
-  id: SeriesID;
-  namespace: string;
-  name: string;
-  tags: string[];
+	id: SeriesID;
+	namespace: string;
+	name: string;
+	host?: string;
+	tags: string[];
   pointCount: number;
   /** True when the series lives in an extractor storage namespace (log-derived metrics). */
   virtual?: boolean;
@@ -94,10 +118,11 @@ export interface AnomalyMarker {
 }
 
 export interface SeriesData {
-  id: SeriesID;
-  namespace: string;
-  name: string;
-  tags: string[];
+	id: SeriesID;
+	namespace: string;
+	name: string;
+	host?: string;
+	tags: string[];
   points: Point[];
   anomalies: AnomalyMarker[];
 }
@@ -110,10 +135,8 @@ export interface AnomalyDebugInfo {
   baselineStddev?: number;
   baselineMAD?: number;
   threshold: number;
-  slackParam?: number;
   currentValue: number;
   deviationSigma: number;
-  cusumValues?: number[];
 }
 
 export interface Anomaly {
@@ -122,8 +145,9 @@ export interface Anomaly {
   detectorName: string;
   detectorComponent?: string;
   title: string;
-  description: string;
-  tags: string[];
+	description: string;
+	host?: string;
+	tags: string[];
   timestamp: number;
   debugInfo?: AnomalyDebugInfo;
 }
@@ -185,6 +209,7 @@ export interface Correlation {
     title: string;
     description: string;
     timestamp: number;
+    host?: string;
     tags: string[];
   }[];
   firstSeen: number;
@@ -261,6 +286,54 @@ export interface ReplayStats {
   input_metrics_cardinality: number;
   input_logs_count: number;
   input_anomalies_count: number;
+}
+
+// ---- Scoring pipeline telemetry (matches observer/def ScoreState in Go) ----
+
+/** Tunable parameters for the anomaly scoring pipeline. */
+export interface ScorerConfig {
+  alpha: number;
+  saturation_k: number;
+  low_threshold: number;
+  high_threshold: number;
+  margin_pct: number;
+  /** Minimum seconds between de-escalation callbacks. Included in /api/scores/config response. */
+  cooldown_secs: number;
+  /** Per-detector score-to-level thresholds: [low, medium, high, xhigh]. */
+  detector_thresholds?: Record<string, [number, number, number, number]>;
+}
+
+/** Per-second telemetry bucket from the Go scorer. */
+export interface ScoreBucket {
+  second: number;
+  bins: [number, number, number, number, number]; // [VeryLow, Low, Medium, High, XHigh]
+  count: number;
+  weight_sum: number;
+  ewma: number;
+}
+
+/** A severity state-machine transition. */
+export interface SeverityEvent {
+  timestamp: number;
+  from_level: number;
+  to_level: number;
+}
+
+/** Contributor report captured when the scorer opens an episode. */
+export interface ScorerReport {
+  timestamp: number;
+  contributors: Array<{
+    name: string;
+    share: number;
+  }>;
+}
+
+/** Full snapshot of the scorer's state — what /api/scores returns. */
+export interface ScoreState {
+  buckets: ScoreBucket[];
+  events: SeverityEvent[];
+  reports?: ScorerReport[];
+  config: ScorerConfig;
 }
 
 class ApiClient {
@@ -384,6 +457,22 @@ class ApiClient {
 
   async getBenchmarkStats(): Promise<ReplayStats> {
     return this.fetch('/benchmark');
+  }
+
+  async getScores(): Promise<ScoreState> {
+    return this.fetch('/scores');
+  }
+
+  async getScoresConfig(): Promise<ScorerConfig> {
+    return this.fetch('/scores/config');
+  }
+
+  async replayScores(config: ScorerConfig): Promise<ScoreState> {
+    return this.fetch('/scores/replay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
   }
 
 }

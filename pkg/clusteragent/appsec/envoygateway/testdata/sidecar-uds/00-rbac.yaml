@@ -1,0 +1,59 @@
+# RBAC required by the cluster-agent AppSec injector for Envoy Gateway sidecar (UDS) mode.
+#
+# Apply this BEFORE the Gateway manifests when validating with a locally-built cluster-agent
+# or a Datadog Helm chart version that predates the AppSec-injector RBAC block. The published
+# Datadog chart's `datadog.appsec.injector.enabled` rules currently grant
+# `envoyextensionpolicies` under gateway.envoyproxy.io but NOT `backends` — which UDS sidecar
+# mode requires (it creates/deletes a Backend per Gateway namespace). See the handover note in
+# the DataDog/helm-charts repo.
+#
+# Bind to the cluster-agent ServiceAccount. The default Helm release uses
+# `datadog-cluster-agent` in the `datadog` namespace — adjust the subject below to match your
+# actual release name/namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: datadog-cluster-agent-appsec-eg
+rules:
+  # Gateway informer (Namespace() == NamespaceAll → cluster-wide list/watch) and the
+  # "is this the last Gateway in the namespace?" List in Deleted().
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["gateways"]
+    verbs: ["get", "list", "watch"]
+  # UDS Backend lifecycle: createBackend (Create) / deleteBackend (Delete). THIS IS THE RULE
+  # MISSING FROM THE CHART TODAY.
+  - apiGroups: ["gateway.envoyproxy.io"]
+    resources: ["backends"]
+    verbs: ["get", "create", "delete"]
+  # EnvoyExtensionPolicy lifecycle: Get (existence check) / Create / Delete.
+  - apiGroups: ["gateway.envoyproxy.io"]
+    resources: ["envoyextensionpolicies"]
+    verbs: ["get", "create", "delete"]
+  # External (Service/TCP) mode only: cross-namespace ReferenceGrant lifecycle. Harmless to
+  # grant in sidecar mode (never exercised there).
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["referencegrants"]
+    verbs: ["get", "create", "delete"]
+  # IsInjectionPossible() probes CRD presence (EnvoyExtensionPolicy / Gateway / ReferenceGrant).
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get"]
+  # enableBackend detection reads the `envoy-gateway-config` ConfigMap in envoy-gateway-system
+  # (read-only — never modified). The DCA usually already holds broad configmap access; this is
+  # listed for completeness.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: datadog-cluster-agent-appsec-eg
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: datadog-cluster-agent-appsec-eg
+subjects:
+  - kind: ServiceAccount
+    name: datadog-cluster-agent
+    namespace: datadog

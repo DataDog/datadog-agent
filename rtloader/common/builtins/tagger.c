@@ -177,6 +177,9 @@ static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, TAGGER_MODULE_NA
 PyMODINIT_FUNC PyInit_tagger(void)
 {
     PyObject *module = PyModule_Create(&module_def);
+    if (module == NULL) {
+        return NULL;
+    }
     add_constants(module);
     return module;
 }

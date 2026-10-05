@@ -7,12 +7,8 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	coreimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Module defines the fx options for this component
@@ -21,8 +17,5 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			coreimpl.NewComponent,
 		),
-		fx.Provide(func(hp healthplatformdef.Component) option.Option[healthplatformdef.Component] {
-			return option.New(hp)
-		}),
 	)
 }

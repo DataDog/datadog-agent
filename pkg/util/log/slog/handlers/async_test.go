@@ -7,13 +7,16 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAsyncHandlerHandle(t *testing.T) {
@@ -458,4 +461,151 @@ func TestAsyncHandlerDerivedHandlerClose(t *testing.T) {
 
 	records = capture.getRecords()
 	assert.Equal(t, 1, len(records))
+}
+
+// TestAsyncHandlerSnapshotsAnyAttrsImmediately checks that a KindAny value is snapshotted
+// before Handle() returns, so a mutation right after doesn't leak into the logged output.
+func TestAsyncHandlerSnapshotsAnyAttrsImmediately(t *testing.T) {
+	capture := &recordCapture{}
+	inner := NewFormat(capture.formatter, io.Discard)
+	handler := NewAsync(inner)
+	defer handler.Close()
+
+	type mutable struct {
+		Field string
+	}
+	obj := &mutable{Field: "before"}
+
+	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
+	record.AddAttrs(slog.Any("obj", obj))
+	require.NoError(t, handler.Handle(context.Background(), record))
+
+	obj.Field = "after"
+
+	handler.Flush()
+
+	records := capture.getRecords()
+	require.Len(t, records, 1)
+	attrs := collectAttrs(records[0])
+	require.Len(t, attrs, 1)
+	assert.Equal(t, slog.KindString, attrs[0].Value.Kind())
+	assert.Equal(t, fmt.Sprint(&mutable{Field: "before"}), attrs[0].Value.String())
+}
+
+func TestAsyncHandlerLeavesSafeAttrsUnchanged(t *testing.T) {
+	capture := &recordCapture{}
+	inner := NewFormat(capture.formatter, io.Discard)
+	handler := NewAsync(inner)
+	defer handler.Close()
+
+	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
+	record.AddAttrs(slog.Int("count", 42), slog.String("name", "foo"))
+	require.NoError(t, handler.Handle(context.Background(), record))
+
+	handler.Flush()
+
+	records := capture.getRecords()
+	require.Len(t, records, 1)
+	attrs := collectAttrs(records[0])
+	require.Len(t, attrs, 2)
+	assert.Equal(t, slog.KindInt64, attrs[0].Value.Kind())
+	assert.Equal(t, int64(42), attrs[0].Value.Int64())
+	assert.Equal(t, slog.KindString, attrs[1].Value.Kind())
+	assert.Equal(t, "foo", attrs[1].Value.String())
+}
+
+// TestAsyncHandlerHandleRaceWithMutation reproduces the production race: log a mutable
+// object then mutate it right after, while the background goroutine formats it. Run with
+// -race.
+func TestAsyncHandlerHandleRaceWithMutation(t *testing.T) {
+	inner := NewFormat(func(_ context.Context, r slog.Record) string {
+		var sb strings.Builder
+		r.Attrs(func(a slog.Attr) bool {
+			sb.WriteString(a.Value.String())
+			return true
+		})
+		return sb.String()
+	}, io.Discard)
+	handler := NewAsync(inner)
+	defer handler.Close()
+
+	type mutable struct {
+		Field string
+	}
+
+	for i := range 1000 {
+		obj := &mutable{Field: "before"}
+		record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
+		record.AddAttrs(slog.Any("obj", obj))
+		require.NoError(t, handler.Handle(context.Background(), record))
+
+		obj.Field = fmt.Sprintf("after-%d", i)
+	}
+
+	handler.Flush()
+}
+
+// TestAsyncHandlerWithAttrsSnapshotsMutableAttrsImmediately checks that a KindAny value
+// passed to WithAttrs is snapshotted before WithAttrs returns, so a mutation right after
+// doesn't leak into the logged output.
+func TestAsyncHandlerWithAttrsSnapshotsMutableAttrsImmediately(t *testing.T) {
+	capture := &recordCapture{}
+	inner := NewFormat(capture.formatter, io.Discard)
+	handler := NewAsync(inner)
+	defer handler.Close()
+
+	type mutable struct {
+		Field string
+	}
+	obj := &mutable{Field: "before"}
+
+	derivedHandler := handler.WithAttrs([]slog.Attr{slog.Any("obj", obj)})
+
+	obj.Field = "after"
+
+	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
+	require.NoError(t, derivedHandler.Handle(context.Background(), record))
+
+	handler.Flush()
+
+	records := capture.getRecords()
+	require.Len(t, records, 1)
+	attrs := collectAttrs(records[0])
+	require.Len(t, attrs, 1)
+	assert.Equal(t, "obj", attrs[0].Key)
+	assert.Equal(t, slog.KindString, attrs[0].Value.Kind())
+	assert.Equal(t, fmt.Sprint(&mutable{Field: "before"}), attrs[0].Value.String())
+}
+
+// TestAsyncHandlerWithAttrsRaceWithMutation reproduces the same race as
+// TestAsyncHandlerHandleRaceWithMutation, but through the WithAttrs path: a mutable object
+// is bound via WithAttrs and mutated right after, while the background goroutine formats
+// it. Run with -race.
+func TestAsyncHandlerWithAttrsRaceWithMutation(t *testing.T) {
+	inner := NewFormat(func(_ context.Context, r slog.Record) string {
+		var sb strings.Builder
+		r.Attrs(func(a slog.Attr) bool {
+			sb.WriteString(a.Value.String())
+			return true
+		})
+		return sb.String()
+	}, io.Discard)
+	handler := NewAsync(inner)
+	defer handler.Close()
+
+	type mutable struct {
+		Field string
+	}
+
+	for i := range 1000 {
+		obj := &mutable{Field: "before"}
+		derivedHandler := handler.WithAttrs([]slog.Attr{slog.Any("obj", obj)})
+
+		record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
+		require.NoError(t, derivedHandler.Handle(context.Background(), record))
+
+		obj.Field = fmt.Sprintf("after-%d", i)
+	}
+
+	handler.Flush()
 }

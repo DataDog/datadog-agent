@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "listener.go",
+        "mock_listener.go",
+        "test_helpers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/listener/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer/def",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/snmptraps/config/def",
+        "//comp/snmptraps/listener/def",
+        "//comp/snmptraps/packet",
+        "//comp/snmptraps/status/def",
+        "//pkg/aggregator/sender",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["listener_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/snmptraps/config/def",
+        "//comp/snmptraps/config/fx",
+        "//comp/snmptraps/listener/def",
+        "//comp/snmptraps/packet",
+        "//comp/snmptraps/senderhelper",
+        "//comp/snmptraps/status/def",
+        "//comp/snmptraps/status/fx",
+        "//pkg/aggregator/mocksender",
+        "//pkg/networkdevice/testutils",
+        "//pkg/util/fxutil",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -14,6 +14,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -27,6 +28,17 @@ const (
 
 	minProcEntries = 16384
 	maxProcEntries = 131072
+)
+
+// Sizes of the event sampling dedup maps. The userspace sample cookie LRU is sized from
+// these.
+const (
+	OpenSamplesMaxEntries    = 20000
+	ConnectSamplesMaxEntries = 10000
+	SyscallSamplesMaxEntries = 20000
+	// ExcludedCgroupsMaxEntries sizes the excluded_cgroups LRU: it holds host/systemd cgroup
+	// inodes the v2 syscall sampler skips, so it must cover a host's active non-container cgroups.
+	ExcludedCgroupsMaxEntries = 4096
 )
 
 var (
@@ -63,9 +75,9 @@ func appendSyscallProbes(probes []*manager.Probe, fentry bool, flag int, compat 
 	return probes
 }
 
-// computeDefaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
+// ComputeDefaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
 // Must be a power of 2 and a multiple of the page size
-func computeDefaultEventsRingBufferSize() uint32 {
+func ComputeDefaultEventsRingBufferSize() uint32 {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		numCPU = 1
@@ -200,20 +212,21 @@ type MapSpecEditorOpts struct {
 	TracedCgroupSize              int
 	UseMmapableMaps               bool
 	UseRingBuffers                bool
+	UseSyscallTaskStorage         bool
 	RingBufferSize                uint32
 	PathResolutionEnabled         bool
 	SecurityProfileMaxCount       int
 	ReducedProcPidCacheSize       bool
 	NetworkFlowMonitorEnabled     bool
 	NetworkSkStorageEnabled       bool
+	NetworkSkLookupPidEnabled     bool
 	SpanTrackMaxCount             int
 	CapabilitiesMonitoringEnabled bool
 	CgroupSocketEnabled           bool
 	SecurityProfileSyscallAnomaly bool
 	EventSamplingOpenEnabled      bool
 	EventSamplingConnectEnabled   bool
-	EventSamplingBindEnabled      bool
-	EventSamplingDNSEnabled       bool
+	EventSamplingSyscallsEnabled  bool
 	BasenameApproversSize         int
 }
 
@@ -245,10 +258,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	}
 
 	editors := map[string]manager.MapSpecEditor{
-		"syscalls": {
-			MaxEntries: 8192,
-			EditorFlag: manager.EditMaxEntries,
-		},
 		"proc_cache": {
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
@@ -273,7 +282,11 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: uint32(opts.SecurityProfileMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"span_tls": {
+		"go_labels_procs": {
+			MaxEntries: uint32(opts.SpanTrackMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"otel_tls": {
 			MaxEntries: uint32(opts.SpanTrackMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
@@ -283,6 +296,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		},
 		"capabilities_contexts": {
 			MaxEntries: capabilitiesContextsMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"basename_approvers": {
+			MaxEntries: uint32(opts.BasenameApproversSize),
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}
@@ -300,21 +317,25 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			EditorFlag: manager.EditMaxEntries,
 		}
 		editors["open_samples"] = manager.MapSpecEditor{
-			MaxEntries: 20000,
-			EditorFlag: manager.EditMaxEntries,
-		}
-	}
-
-	if opts.EventSamplingBindEnabled {
-		editors["bind_samples"] = manager.MapSpecEditor{
-			MaxEntries: 10000,
+			MaxEntries: OpenSamplesMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
 
 	if opts.EventSamplingConnectEnabled {
 		editors["connect_samples"] = manager.MapSpecEditor{
-			MaxEntries: 10000,
+			MaxEntries: ConnectSamplesMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
+	if opts.EventSamplingSyscallsEnabled {
+		editors["syscall_samples"] = manager.MapSpecEditor{
+			MaxEntries: SyscallSamplesMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["excluded_cgroups"] = manager.MapSpecEditor{
+			MaxEntries: ExcludedCgroupsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
@@ -353,7 +374,7 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	}
 	if opts.UseRingBuffers {
 		if opts.RingBufferSize == 0 {
-			opts.RingBufferSize = computeDefaultEventsRingBufferSize()
+			opts.RingBufferSize = ComputeDefaultEventsRingBufferSize()
 		}
 		editors["events"] = manager.MapSpecEditor{
 			MaxEntries: opts.RingBufferSize,
@@ -392,6 +413,20 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 	}
 
+	if !opts.NetworkSkLookupPidEnabled {
+		// Transform the sk_storage_pid SK_Storage map into a basic hash map so it can be loaded by
+		// kernels that don't support sk-local storage or bpf_sk_lookup. Dead code elimination removes
+		// the code working with it before the verifier runs.
+		editors["sk_storage_pid"] = manager.MapSpecEditor{
+			Type:       ebpf.Hash,
+			KeySize:    1,
+			ValueSize:  1,
+			MaxEntries: 1,
+			Flags:      unix.BPF_ANY,
+			EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries | manager.EditFlags,
+		}
+	}
+
 	if !kv.HasSafeBPFMemoryAllocations() {
 		editors["active_flows"] = manager.MapSpecEditor{
 			MaxEntries: activeFlowsMaxEntries,
@@ -403,11 +438,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			Flags:      unix.BPF_ANY,
 			EditorFlag: manager.EditMaxEntries | manager.EditFlags,
 		}
-		editors["basename_approvers"] = manager.MapSpecEditor{
-			MaxEntries: uint32(opts.BasenameApproversSize),
-			Flags:      unix.BPF_ANY,
-			EditorFlag: manager.EditMaxEntries,
-		}
 	} else {
 		editors["active_flows"] = manager.MapSpecEditor{
 			MaxEntries: activeFlowsMaxEntries,
@@ -417,8 +447,20 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: superReducedProcPidCacheSize,
 			EditorFlag: manager.EditMaxEntries,
 		}
-		editors["basename_approvers"] = manager.MapSpecEditor{
-			MaxEntries: uint32(opts.BasenameApproversSize),
+	}
+
+	if opts.UseSyscallTaskStorage {
+		editors["syscalls"] = manager.MapSpecEditor{
+			Type:       ebpf.TaskStorage,
+			MaxEntries: 0,
+			KeySize:    4, // sizeof(unsigned int)
+			Key:        &btf.Int{Name: "unsigned int", Size: 4, Encoding: btf.Unsigned},
+			Flags:      unix.BPF_F_NO_PREALLOC,
+			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKey | manager.EditFlags,
+		}
+	} else {
+		editors["syscalls"] = manager.MapSpecEditor{
+			MaxEntries: 8192,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
@@ -450,6 +492,7 @@ func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, networkFlowMonit
 
 	routes = append(routes, getOpenTailCallRoutes()...)
 	routes = append(routes, getExecTailCallRoutes()...)
+	routes = append(routes, getSpanFillTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes(eRPCDentryResolutionEnabled, supportMmapableMaps)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
 	routes = append(routes, getCacheSyscallTailCallRoutes()...)

@@ -1,1 +1,26 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testutil",
+    srcs = ["testutil.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "//pkg/util/testutil",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/network/usm/testutil",
+            "//pkg/util/log",
+            "//pkg/util/testutil",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

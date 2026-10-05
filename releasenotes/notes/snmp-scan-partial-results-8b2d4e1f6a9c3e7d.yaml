@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    SNMP device scans now report results incrementally while the scan is running
+    instead of only after it completes, so large devices surface OIDs sooner.

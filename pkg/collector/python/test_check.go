@@ -477,7 +477,7 @@ func testRunErrorReturn(t *testing.T) {
 }
 
 func testRun(t *testing.T) {
-	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
 	sender.SetupAcceptAll()
 
 	mockRtloader(t)
@@ -509,7 +509,7 @@ func testRun(t *testing.T) {
 }
 
 func testRunSimple(t *testing.T) {
-	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
 	sender.SetupAcceptAll()
 
 	mockRtloader(t)
@@ -543,7 +543,7 @@ func testRunSimple(t *testing.T) {
 func testConfigure(t *testing.T) {
 	mockRtloader(t)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	c, err := NewPythonFakeCheck(senderManager)
 	if !assert.Nil(t, err) {
 		return
@@ -579,7 +579,7 @@ func testConfigure(t *testing.T) {
 func testConfigureDeprecated(t *testing.T) {
 	mockRtloader(t)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	c, err := NewPythonFakeCheck(senderManager)
 	if !assert.Nil(t, err) {
 		return

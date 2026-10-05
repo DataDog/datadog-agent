@@ -72,6 +72,7 @@ type FakePodAutoscalerInternal struct {
 	AppliedProfileHash                 string
 	TargetGVK                          schema.GroupVersionKind
 	CustomRecommenderConfiguration     *RecommenderConfiguration
+	Paused                             bool
 }
 
 // Build creates a PodAutoscalerInternal object from the FakePodAutoscalerInternal.
@@ -104,21 +105,12 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 		upstreamCR.Annotations[PreviewAnnotationKey] = f.PreviewAnnotationKey
 	}
 
-	// Mirror UpdateFromPodAutoscaler: cache the metadata fingerprint so equality checks
-	// against a PodAutoscalerInternal that came through the real code path match.
-	// Only populate when the test passes an explicit local-owner UpstreamCR — settings-driven
-	// shells (and non-local owners) do not go through the gated path in production.
-	var metadataHash uint64
-	if f.UpstreamCR != nil && f.UpstreamCR.Spec.Owner == datadoghqcommon.DatadogPodAutoscalerLocalOwner {
-		metadataHash = computePodAutoscalerMetadataHash(upstreamCR)
-	}
-
 	return PodAutoscalerInternal{
+		paused:                             f.Paused,
 		namespace:                          f.Namespace,
 		name:                               f.Name,
 		generation:                         f.Generation,
 		upstreamCR:                         upstreamCR,
-		metadataHash:                       metadataHash,
 		settingsTimestamp:                  f.SettingsTimestamp,
 		creationTimestamp:                  f.CreationTimestamp,
 		scalingValues:                      f.ScalingValues,

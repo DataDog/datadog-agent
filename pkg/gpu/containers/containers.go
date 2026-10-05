@@ -28,6 +28,7 @@ import (
 // ErrCannotMatchDevice is returned when a device cannot be matched to a container
 var ErrCannotMatchDevice = errors.New("cannot find matching device")
 var numberedResourceRegex = regexp.MustCompile(`^nvidia([0-9]+)$`)
+var draDeviceNameRegex = regexp.MustCompile(`^gpu-([0-9]+)$`)
 
 const (
 	nvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
@@ -62,20 +63,40 @@ func HasGPUs(container *workloadmeta.Container) bool {
 // MatchContainerDevices matches the devices assigned to a container to the list of available devices
 // It returns a list of devices that are assigned to the container, and an error if any of the devices cannot be matched
 func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.Device) ([]ddnvml.Device, error) {
-	// ECS: Use GPUDeviceIDs (UUID format) extracted from container config at discovery time
-	// This is checked first because ECS uses Docker runtime but needs UUID-based matching
-	if len(container.GPUDeviceIDs) > 0 {
-		return matchByGPUDeviceIDs(container.GPUDeviceIDs, devices)
-	}
-
 	switch container.Runtime {
 	case workloadmeta.ContainerRuntimeDocker:
+		// A Kubernetes node can run the Docker runtime (cri-dockerd), and there
+		// GPUDeviceIDs means something different: the NVML collector fills it
+		// for the container's DRA devices only. Treating that as the whole
+		// allocation would drop any device-plugin GPU the same container holds,
+		// so anything carrying Kubernetes allocated resources goes through the
+		// union path regardless of runtime.
+		if hasKubernetesGPUResources(container) {
+			return matchKubernetesDevices(container, devices)
+		}
+		// ECS: GPUDeviceIDs (UUID format) is populated by the Docker collector
+		// at discovery time. ECS uses the Docker runtime but needs UUID-based
+		// matching, so it takes precedence over the env-var inspection.
+		if len(container.GPUDeviceIDs) > 0 {
+			return matchByGPUDeviceIDs(container.GPUDeviceIDs, devices)
+		}
 		return matchDockerDevices(container, devices)
 	default:
 		// We have no specific support for other runtimes, so fall back to the Kubernetes device
 		// assignment if it's there
 		return matchKubernetesDevices(container, devices)
 	}
+}
+
+// hasKubernetesGPUResources reports whether the container carries NVIDIA GPUs
+// in its Kubernetes allocated resources, which an ECS task never does.
+func hasKubernetesGPUResources(container *workloadmeta.Container) bool {
+	for _, resource := range container.ResolvedAllocatedResources {
+		if gpuutil.IsNvidiaKubernetesResource(resource.Name) {
+			return true
+		}
+	}
+	return false
 }
 
 func getDockerVisibleDevicesEnv(container *workloadmeta.Container) (string, error) {
@@ -178,24 +199,80 @@ func matchKubernetesDevices(container *workloadmeta.Container, devices []ddnvml.
 	var filteredDevices []ddnvml.Device
 	var multiErr error
 
+	// The NVML collector publishes a Container<->GPU mapping for DRA devices,
+	// resolving them -- MIG instances included -- to their real NVML UUID via
+	// the node-local CDI/mig-minors chain. The regex guess below cannot do
+	// that on a MIG-partitioned node, so take the mapping first. It is a
+	// union rather than a short-circuit: a container can hold both DRA and
+	// device-plugin resources, and only the DRA ones appear in the mapping.
+	mapped := len(container.GPUDeviceIDs)
+	if mapped > 0 {
+		matched, err := matchByGPUDeviceIDs(container.GPUDeviceIDs, devices)
+		multiErr = errors.Join(multiErr, err)
+		filteredDevices = append(filteredDevices, matched...)
+	}
+
+	// The mapping resolves one UUID per DRA device, so it accounts for every
+	// DRA resource only when it has at least as many entries as there are DRA
+	// resources. Suppressing on "the mapping is non-empty" instead would hide
+	// the error for a pod whose second claim failed to resolve, leaving it
+	// attributed to half its GPUs with no telemetry saying so.
+	draResources := 0
+	for _, resource := range container.ResolvedAllocatedResources {
+		if resource.Name == string(gpuutil.GpuNvidiaDRA) {
+			draResources++
+		}
+	}
+	draFullyMapped := draResources > 0 && mapped >= draResources
+
 	for _, resource := range container.ResolvedAllocatedResources {
 		// Only consider NVIDIA GPUs
 		if !gpuutil.IsNvidiaKubernetesResource(resource.Name) {
 			continue
 		}
 
-		matchingDevice, err := findDeviceForResourceName(devices, resource.ID)
+		// A DRA resource must not go through the index-based guess when the
+		// CDI mapping resolved any device: the two paths use different
+		// identifiers (CDI resolves to the real device; the index guess
+		// parses a number from the pool name and matches it against NVML's
+		// enumeration), and a partial resolution must not append a guessed
+		// device alongside the correctly resolved one -- the guess would
+		// tag another workload's metrics with this container. Unresolved
+		// allocations are reported rather than guessed. The fallback runs
+		// only when the CDI mapping resolved nothing (e.g. the CDI spec
+		// is unreadable), where guessing is better than losing attribution.
+		if resource.Name == string(gpuutil.GpuNvidiaDRA) && mapped > 0 {
+			if !draFullyMapped {
+				multiErr = errors.Join(multiErr, fmt.Errorf("DRA allocation %q not fully resolved by CDI mapping (%d of %d devices)", resource.ID, mapped, draResources))
+			}
+			continue
+		}
+
+		var matchingDevice ddnvml.Device
+		var err error
+		if resource.Name == string(gpuutil.GpuNvidiaDRA) {
+			matchingDevice, err = findDeviceForDRAResourceName(devices, resource.ID)
+		} else {
+			matchingDevice, err = findDeviceForResourceName(devices, resource.ID)
+		}
 		if err != nil {
 			multiErr = errors.Join(multiErr, err)
 			continue
 		}
 
-		filteredDevices = append(filteredDevices, matchingDevice)
+		if !slices.Contains(filteredDevices, matchingDevice) {
+			filteredDevices = append(filteredDevices, matchingDevice)
+		}
 	}
 
 	// K8s can return the devices in a random order. However, NVIDIA will see them exposed
 	// based on their actual device index in the system. Ensure that order is respected.
-	slices.SortFunc(filteredDevices, func(a, b ddnvml.Device) int {
+	//
+	// Stable, because Index is not a total order across device kinds: for a MIG
+	// child it is the index within its parent, so two children of different
+	// parents can tie and an unstable sort would order them arbitrarily between
+	// runs.
+	slices.SortStableFunc(filteredDevices, func(a, b ddnvml.Device) int {
 		aInfo := a.GetDeviceInfo()
 		bInfo := b.GetDeviceInfo()
 
@@ -224,6 +301,25 @@ func findDeviceForResourceName(devices []ddnvml.Device, resourceID string) (ddnv
 	}
 
 	// Match -> GKE device plugin
+	return findDeviceByIndex(devices, match[1])
+}
+
+func findDeviceForDRAResourceName(devices []ddnvml.Device, deviceName string) (ddnvml.Device, error) {
+	match := draDeviceNameRegex.FindStringSubmatch(deviceName)
+	if len(match) == 0 {
+		return nil, fmt.Errorf("%w with DRA device name %s", ErrCannotMatchDevice, deviceName)
+	}
+
+	// DRA device names are mapped to physical NVML indexes. This mapping does
+	// not identify individual MIG devices.
+	for _, device := range devices {
+		physicalDevice, isPhysicalDevice := device.(*ddnvml.PhysicalDevice)
+		_, isMigDevice := device.(*ddnvml.MIGDevice)
+		if isMigDevice || (isPhysicalDevice && len(physicalDevice.MIGChildren) > 0) {
+			return nil, errors.New("MIG devices are not supported for DRA index matching")
+		}
+	}
+
 	return findDeviceByIndex(devices, match[1])
 }
 

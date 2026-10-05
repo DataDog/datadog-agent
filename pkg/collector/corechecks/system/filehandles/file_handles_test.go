@@ -48,7 +48,7 @@ func TestFhCheckLinux(t *testing.T) {
 	// (and append it to the aggregator, which is automatically done in NewMockSender)
 	// because the FinalizeCheckServiceTag is called in Configure.
 	// Hopefully, the check ID is an empty string while running unit tests;
-	mock := mocksender.NewMockSender("")
+	mock := mocksender.NewMockSender(t, "")
 	mock.On("FinalizeCheckServiceTag").Return()
 
 	fileHandleCheck := new(fhCheck)

@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Stop the Agent from attempting to reach a Kubelet when running as a
+    Cluster Checks Runner. Cluster Checks Runners are Deployment replicas,
+    not DaemonSets, so they never have a locally-reachable Kubelet, since a CCR
+    doesn't correspond to any one node. This removes the recurring
+    ``Impossible to reach Kubelet through HTTPS`` warning
+    logged by Cluster Checks Runner pods. There is no change in behavior on
+    the node Agent or Cluster Agent.

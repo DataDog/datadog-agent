@@ -1,0 +1,670 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+package aws
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
+	"sync/atomic"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
+)
+
+// TestResolveCredentials_StaticEnvVarsReturned verifies the static-env provider is selected
+// and returns the credentials.
+func TestResolveCredentials_StaticEnvVarsReturned(t *testing.T) {
+	isolateAWSEnv(t)
+	t.Setenv("AWS_ACCESS_KEY_ID", "EKSTATICKEY")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "EKSTATICSECRET")
+	t.Setenv("AWS_SESSION_TOKEN", "EKSTATICTOKEN")
+
+	auth := &AWSAuth{region: "eu-west-1"}
+	got, err := auth.resolveCredentials(context.Background(), configmock.New(t))
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, creds.SourceEnvironment, auth.LastCredentialSource())
+	assert.Equal(t, "EKSTATICKEY", got.AccessKeyID)
+	assert.Equal(t, "EKSTATICSECRET", got.SecretAccessKey)
+	assert.Equal(t, "EKSTATICTOKEN", got.Token)
+}
+
+// TestResolveCredentials_ProviderFailureIsAttributed verifies a failing provider yields an error
+// naming the credential mechanism that was tried, and that the mechanism is recorded for the status
+// page even though the attempt failed. It forces a deterministic web-identity failure via a missing
+// token file rather than falling through to the IMDS provider, which would make a live metadata
+// call on an EC2 host or CI runner.
+func TestResolveCredentials_ProviderFailureIsAttributed(t *testing.T) {
+	isolateAWSEnv(t)
+	t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/example")
+	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", filepath.Join(t.TempDir(), "no-such-token"))
+
+	auth := &AWSAuth{region: "us-east-1"}
+	got, err := auth.resolveCredentials(context.Background(), configmock.New(t))
+	require.Error(t, err)
+	assert.Nil(t, got)
+	assert.Contains(t, err.Error(), creds.SourceWebIdentity)
+	assert.Equal(t, creds.SourceWebIdentity, auth.LastCredentialSource())
+}
+
+// TestResolveCredentials_EmptyCredentialsAreAnError verifies a provider that succeeds but hands
+// back blank credentials is treated as a failure. The Agent's IMDS helper unmarshals whatever JSON
+// the metadata endpoint returns, so an error document served with a 200 produces exactly this
+// shape; without the check the caller would log a successful resolution and then fail to sign.
+func TestResolveCredentials_EmptyCredentialsAreAnError(t *testing.T) {
+	isolateAWSEnv(t)
+
+	auth := &AWSAuth{region: "us-east-1"}
+	// Drive the IMDS leg with an injected fetch so no live metadata call is made.
+	provider := imdsProvider{fetch: func(context.Context) (*creds.SecurityCredentials, error) {
+		return &creds.SecurityCredentials{}, nil
+	}}
+	sdkCreds, err := provider.Retrieve(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, sdkCreds.AccessKeyID)
+
+	// resolveCredentials rejects that result rather than passing it on.
+	got, err := auth.resolveCredentialsFrom(context.Background(), provider, creds.SourceIMDS)
+	require.Error(t, err)
+	assert.Nil(t, got)
+	assert.Contains(t, err.Error(), "empty credentials")
+}
+
+// TestResolveRegion_EC2 covers the region precedence used for the IRSA STS call. The IRSA-only
+// case (no configured region, no AWS_REGION/AWS_DEFAULT_REGION) must still yield a region,
+// otherwise the web-identity STS call fails endpoint resolution.
+func TestResolveRegion_EC2(t *testing.T) {
+	t.Run("configured region wins", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_REGION", "ap-southeast-2")
+		assert.Equal(t, "eu-west-1", (&AWSAuth{region: "eu-west-1"}).resolveRegion())
+	})
+	t.Run("AWS_REGION when unconfigured", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_REGION", "ap-southeast-2")
+		assert.Equal(t, "ap-southeast-2", (&AWSAuth{}).resolveRegion())
+	})
+	t.Run("AWS_DEFAULT_REGION fallback", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_DEFAULT_REGION", "us-west-2")
+		assert.Equal(t, "us-west-2", (&AWSAuth{}).resolveRegion())
+	})
+	t.Run("defaultRegion when nothing set (IRSA-only pod)", func(t *testing.T) {
+		isolateAWSEnv(t)
+		assert.Equal(t, defaultRegion, (&AWSAuth{}).resolveRegion())
+	})
+}
+
+// TestCredentialProvider_Selection verifies the env-driven provider selection follows the
+// SDK precedence: static env -> IRSA web identity -> container -> IMDS.
+func TestCredentialProvider_Selection(t *testing.T) {
+	t.Run("static env", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_ACCESS_KEY_ID", "k")
+		t.Setenv("AWS_SECRET_ACCESS_KEY", "s")
+		p, source, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
+		require.NoError(t, err)
+		assert.Equal(t, creds.SourceEnvironment, source)
+		assert.IsType(t, staticProvider{}, p)
+	})
+	t.Run("IRSA web identity", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/example")
+		t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/eks.amazonaws.com/serviceaccount/token")
+		p, source, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
+		require.NoError(t, err)
+		assert.Equal(t, creds.SourceWebIdentity, source)
+		assert.IsType(t, &webIdentityProvider{}, p)
+	})
+	t.Run("container credentials", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "/v2/credentials/abc")
+		p, source, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
+		require.NoError(t, err)
+		assert.Equal(t, creds.SourceContainer, source)
+		assert.IsType(t, &containerProvider{}, p)
+	})
+	t.Run("IMDS default", func(t *testing.T) {
+		isolateAWSEnv(t)
+		p, source, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
+		require.NoError(t, err)
+		assert.Equal(t, creds.SourceIMDS, source)
+		assert.IsType(t, imdsProvider{}, p)
+	})
+}
+
+// TestIMDSProvider_Retrieve verifies the IMDS adapter maps the Agent IMDS helper's credentials
+// onto aws.Credentials (notably Token -> SessionToken) and propagates fetch errors. The IMDS leg
+// cannot be exercised end-to-end off an EC2 instance, so this covers the mapping directly.
+func TestIMDSProvider_Retrieve(t *testing.T) {
+	t.Run("maps fields", func(t *testing.T) {
+		p := imdsProvider{fetch: func(context.Context) (*creds.SecurityCredentials, error) {
+			return &creds.SecurityCredentials{AccessKeyID: "AKID", SecretAccessKey: "SK", Token: "TK"}, nil
+		}}
+		got, err := p.Retrieve(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, "AKID", got.AccessKeyID)
+		assert.Equal(t, "SK", got.SecretAccessKey)
+		assert.Equal(t, "TK", got.SessionToken)
+		assert.Equal(t, "DelegatedAuthIMDS", got.Source)
+	})
+	t.Run("propagates fetch error", func(t *testing.T) {
+		p := imdsProvider{fetch: func(context.Context) (*creds.SecurityCredentials, error) {
+			return nil, errors.New("imds unreachable")
+		}}
+		got, err := p.Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Empty(t, got.AccessKeyID)
+	})
+}
+
+// TestWebIdentityProvider_Retrieve verifies the hand-rolled AssumeRoleWithWebIdentity call: it
+// POSTs the query-API form with the token from the file and parses credentials from the STS XML.
+func TestWebIdentityProvider_Retrieve(t *testing.T) {
+	const respXML = `<AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <AssumeRoleWithWebIdentityResult>
+    <Credentials>
+      <AccessKeyId>ASIAEXAMPLE</AccessKeyId>
+      <SecretAccessKey>secretexample</SecretAccessKey>
+      <SessionToken>tokenexample</SessionToken>
+      <Expiration>2030-01-01T00:00:00Z</Expiration>
+    </Credentials>
+  </AssumeRoleWithWebIdentityResult>
+</AssumeRoleWithWebIdentityResponse>`
+
+	var gotForm url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		gotForm = r.PostForm
+		w.Header().Set("Content-Type", "text/xml")
+		_, _ = io.WriteString(w, respXML)
+	}))
+	defer srv.Close()
+
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("the-web-identity-jwt"), 0o600))
+
+	p := &webIdentityProvider{
+		roleARN:     "arn:aws:iam::123456789012:role/example",
+		tokenFile:   tokenFile,
+		sessionName: "my-session",
+		stsURL:      srv.URL,
+		client:      srv.Client(),
+	}
+	got, err := p.Retrieve(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "ASIAEXAMPLE", got.AccessKeyID)
+	assert.Equal(t, "secretexample", got.SecretAccessKey)
+	assert.Equal(t, "tokenexample", got.SessionToken)
+	assert.True(t, got.CanExpire)
+
+	// The request carried the right STS action, role, session name, and the token read from the file.
+	assert.Equal(t, "AssumeRoleWithWebIdentity", gotForm.Get("Action"))
+	assert.Equal(t, "arn:aws:iam::123456789012:role/example", gotForm.Get("RoleArn"))
+	assert.Equal(t, "my-session", gotForm.Get("RoleSessionName"))
+	assert.Equal(t, "the-web-identity-jwt", gotForm.Get("WebIdentityToken"))
+}
+
+// TestCredentialProvider_WebIdentitySessionName verifies the RoleSessionName follows
+// AWS_ROLE_SESSION_NAME when set and falls back to the default otherwise.
+func TestCredentialProvider_WebIdentitySessionName(t *testing.T) {
+	t.Run("honors AWS_ROLE_SESSION_NAME", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/example")
+		t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/token")
+		t.Setenv("AWS_ROLE_SESSION_NAME", "caller-supplied")
+		p, _, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
+		require.NoError(t, err)
+		assert.Equal(t, "caller-supplied", p.(*webIdentityProvider).sessionName)
+	})
+	t.Run("falls back to default", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/example")
+		t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/token")
+		p, _, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
+		require.NoError(t, err)
+		assert.Equal(t, defaultWebIdentitySessionName, p.(*webIdentityProvider).sessionName)
+	})
+}
+
+// TestContainerCredentialsEndpoint_Precedence verifies the AWS contract: the relative URI wins
+// over the full URI when both are set, so a stale full URI does not override the ECS task role.
+func TestContainerCredentialsEndpoint_Precedence(t *testing.T) {
+	t.Run("relative wins over full", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "/v2/credentials/abc")
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "https://stale.example/creds")
+		got, err := containerCredentialsEndpoint()
+		require.NoError(t, err)
+		assert.Equal(t, ecsContainerEndpoint+"/v2/credentials/abc", got)
+	})
+	t.Run("full used when relative unset", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "https://creds.internal.example/v1")
+		got, err := containerCredentialsEndpoint()
+		require.NoError(t, err)
+		assert.Equal(t, "https://creds.internal.example/v1", got)
+	})
+	t.Run("relative URI not starting with slash is rejected", func(t *testing.T) {
+		isolateAWSEnv(t)
+		// Would otherwise become http://169.254.170.2@attacker.example/creds (host attacker.example),
+		// bypassing the allowlist and leaking the container authorization token.
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "@attacker.example/creds")
+		_, err := containerCredentialsEndpoint()
+		require.Error(t, err)
+	})
+}
+
+// TestContainerCredentialsHTTPClient_NoProxy verifies the container credential client never routes
+// through an environment proxy: the link-local/loopback endpoint is unreachable via a proxy and the
+// authorization token must not be sent to one.
+func TestContainerCredentialsHTTPClient_NoProxy(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "http://proxy.example:3128")
+	t.Setenv("HTTPS_PROXY", "http://proxy.example:3128")
+
+	client := containerCredentialsHTTPClient()
+	transport, ok := client.Transport.(*http.Transport)
+	require.True(t, ok)
+	assert.Nil(t, transport.Proxy, "container credential client must not consult environment proxies")
+	assert.Positive(t, client.Timeout, "container credential client must have a timeout so a stalled endpoint cannot hang the fetch")
+}
+
+// TestContainerCredentialsProvider_HostAllowlist verifies the SSRF guard on an http
+// AWS_CONTAINER_CREDENTIALS_FULL_URI: link-local ECS/EKS and loopback hosts are accepted, an
+// arbitrary host is rejected, and https is trusted as-is.
+func TestContainerCredentialsProvider_HostAllowlist(t *testing.T) {
+	t.Run("EKS Pod Identity link-local accepted", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "http://169.254.170.23/v1/credentials")
+		_, err := containerCredentialsProvider()
+		assert.NoError(t, err)
+	})
+	t.Run("arbitrary http host rejected", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "http://169.254.169.254/latest/meta-data")
+		_, err := containerCredentialsProvider()
+		assert.Error(t, err)
+	})
+	t.Run("external https host trusted", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "https://creds.internal.example/v1")
+		_, err := containerCredentialsProvider()
+		assert.NoError(t, err)
+	})
+}
+
+// TestWebIdentityProvider_Retrieve_NoExpiration verifies that an STS response without an
+// <Expiration> yields non-expiring credentials (CanExpire false), which the caller relies on.
+func TestWebIdentityProvider_Retrieve_NoExpiration(t *testing.T) {
+	const respXML = `<AssumeRoleWithWebIdentityResponse><AssumeRoleWithWebIdentityResult><Credentials>` +
+		`<AccessKeyId>AKID</AccessKeyId><SecretAccessKey>SK</SecretAccessKey><SessionToken>TK</SessionToken>` +
+		`</Credentials></AssumeRoleWithWebIdentityResult></AssumeRoleWithWebIdentityResponse>`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, respXML)
+	}))
+	defer srv.Close()
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("jwt"), 0o600))
+
+	got, err := (&webIdentityProvider{roleARN: "r", tokenFile: tokenFile, stsURL: srv.URL, client: srv.Client()}).Retrieve(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "AKID", got.AccessKeyID)
+	assert.False(t, got.CanExpire)
+}
+
+// TestWebIdentityProvider_Retrieve_Errors verifies error paths: a non-200 STS response and a
+// missing token file both return an error and no credentials.
+func TestWebIdentityProvider_Retrieve_Errors(t *testing.T) {
+	t.Run("STS non-200", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = io.WriteString(w, `<ErrorResponse><Error><Message>not authorized</Message></Error></ErrorResponse>`)
+		}))
+		defer srv.Close()
+		tokenFile := filepath.Join(t.TempDir(), "token")
+		require.NoError(t, os.WriteFile(tokenFile, []byte("jwt"), 0o600))
+		got, err := (&webIdentityProvider{roleARN: "r", tokenFile: tokenFile, stsURL: srv.URL, client: srv.Client()}).Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Empty(t, got.AccessKeyID)
+	})
+	t.Run("missing token file", func(t *testing.T) {
+		got, err := (&webIdentityProvider{roleARN: "r", tokenFile: "/no/such/token", stsURL: "https://sts.us-east-1.amazonaws.com/", client: http.DefaultClient}).Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Empty(t, got.AccessKeyID)
+	})
+}
+
+// TestContainerProvider_Retrieve covers the hand-rolled ECS/EKS container credential fetch that
+// replaced credentials/endpointcreds: the request it sends, the document it accepts, and the
+// failures it must surface rather than turn into blank credentials.
+func TestContainerProvider_Retrieve(t *testing.T) {
+	t.Run("fetches and maps the credential document", func(t *testing.T) {
+		var gotAuth, gotAccept, gotPath string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotAuth, gotAccept, gotPath = r.Header.Get("Authorization"), r.Header.Get("Accept"), r.URL.Path
+			w.Write([]byte(`{"AccessKeyId":"AKID","SecretAccessKey":"SECRET","Token":"TOKEN","Expiration":"2030-01-01T00:00:00Z"}`))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{
+			endpoint: srv.URL + "/v2/credentials/abc",
+			client:   srv.Client(),
+			token:    func() (string, error) { return "tok-1", nil },
+		}
+		got, err := p.Retrieve(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, "AKID", got.AccessKeyID)
+		assert.Equal(t, "SECRET", got.SecretAccessKey)
+		assert.Equal(t, "TOKEN", got.SessionToken)
+		assert.Equal(t, "DelegatedAuthContainer", got.Source)
+		assert.Equal(t, "tok-1", gotAuth)
+		assert.Equal(t, "application/json", gotAccept)
+		assert.Equal(t, "/v2/credentials/abc", gotPath)
+	})
+
+	t.Run("omits Authorization when no token is configured", func(t *testing.T) {
+		seen := true
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, seen = r.Header["Authorization"]
+			w.Write([]byte(`{"AccessKeyId":"A","SecretAccessKey":"S"}`))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		_, err := p.Retrieve(context.Background())
+		require.NoError(t, err)
+		assert.False(t, seen, "Authorization header must be absent when no token is configured")
+	})
+
+	// EKS Pod Identity rotates the token file, so the value must be re-read per request rather than
+	// captured once when the provider is built.
+	t.Run("re-reads the token file on every retrieve", func(t *testing.T) {
+		isolateAWSEnv(t)
+		var gotAuth []string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotAuth = append(gotAuth, r.Header.Get("Authorization"))
+			w.Write([]byte(`{"AccessKeyId":"A","SecretAccessKey":"S"}`))
+		}))
+		defer srv.Close()
+
+		tokenFile := filepath.Join(t.TempDir(), "token")
+		require.NoError(t, os.WriteFile(tokenFile, []byte("first\n"), 0o600))
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", srv.URL)
+		t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", tokenFile)
+
+		// Build through the production path so this covers the real token wiring, including the
+		// TrimSpace that keeps a trailing newline in the file out of the Authorization header.
+		provider, err := containerCredentialsProvider()
+		require.NoError(t, err)
+		p := provider.(*containerProvider)
+		p.client = srv.Client()
+		_, err = p.Retrieve(context.Background())
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(tokenFile, []byte("second"), 0o600))
+		_, err = p.Retrieve(context.Background())
+		require.NoError(t, err)
+
+		require.Len(t, gotAuth, 2)
+		assert.NotEqual(t, gotAuth[0], gotAuth[1], "rotated token file must produce a new Authorization value")
+	})
+
+	t.Run("surfaces a non-200 with the body", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte("no role associated"))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		_, err := p.Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "403")
+		assert.Contains(t, err.Error(), "no role associated")
+	})
+
+	t.Run("rejects a malformed document", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write([]byte("not json"))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		_, err := p.Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "parse container credentials response")
+	})
+
+	// A 200 carrying an error document unmarshals cleanly into zero values; resolveCredentialsFrom
+	// is what must catch that, so confirm the pair behaves rather than reporting a false success.
+	t.Run("blank credentials are rejected by the caller", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write([]byte(`{"Code":"InternalError"}`))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		auth := &AWSAuth{}
+		_, err := auth.resolveCredentialsFrom(context.Background(), p, creds.SourceContainer)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "returned empty credentials")
+	})
+}
+
+// TestContainerProvider_Retrieve_Non200Success confirms the whole 2xx range is accepted, matching
+// credentials/endpointcreds, rather than only a literal 200.
+func TestContainerProvider_Retrieve_Non200Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNonAuthoritativeInfo) // 203
+		w.Write([]byte(`{"AccessKeyId":"AKID","SecretAccessKey":"SECRET"}`))
+	}))
+	defer srv.Close()
+
+	p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+	got, err := p.Retrieve(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "AKID", got.AccessKeyID)
+}
+
+// TestContainerCredentialsProvider_TokenPrecedence mirrors the endpointcreds contract: when both
+// AWS_CONTAINER_AUTHORIZATION_TOKEN and AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE are set, the file
+// wins, and a failure reading it surfaces rather than silently falling back to the literal token.
+func TestContainerCredentialsProvider_TokenPrecedence(t *testing.T) {
+	t.Run("token file wins over the literal token", func(t *testing.T) {
+		isolateAWSEnv(t)
+		var gotAuth string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotAuth = r.Header.Get("Authorization")
+			w.Write([]byte(`{"AccessKeyId":"A","SecretAccessKey":"S"}`))
+		}))
+		defer srv.Close()
+
+		tokenFile := filepath.Join(t.TempDir(), "token")
+		require.NoError(t, os.WriteFile(tokenFile, []byte("from-file"), 0o600))
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", srv.URL)
+		t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN", "from-env")
+		t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", tokenFile)
+
+		provider, err := containerCredentialsProvider()
+		require.NoError(t, err)
+		p := provider.(*containerProvider)
+		p.client = srv.Client()
+		_, err = p.Retrieve(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, "from-file", gotAuth)
+	})
+
+	t.Run("an unreadable token file is an error", func(t *testing.T) {
+		isolateAWSEnv(t)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write([]byte(`{"AccessKeyId":"A","SecretAccessKey":"S"}`))
+		}))
+		defer srv.Close()
+
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", srv.URL)
+		t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN", "from-env")
+		t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", filepath.Join(t.TempDir(), "missing"))
+
+		provider, err := containerCredentialsProvider()
+		require.NoError(t, err)
+		p := provider.(*containerProvider)
+		p.client = srv.Client()
+		_, err = p.Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read authorization token")
+	})
+}
+
+// TestContainerProvider_Retrieve_ContextCancellation confirms the request honors the caller's
+// context, so a shutdown mid-refresh aborts the fetch instead of blocking on the endpoint.
+func TestContainerProvider_Retrieve_ContextCancellation(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		<-release
+		w.Write([]byte(`{"AccessKeyId":"A","SecretAccessKey":"S"}`))
+	}))
+	defer srv.Close()
+	defer close(release)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+	_, err := p.Retrieve(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+// TestContainerProvider_Retrieve_ResponseIsBounded confirms the read cap holds. A wedged endpoint
+// streaming without end must fail the parse rather than grow the Agent's heap without limit.
+func TestContainerProvider_Retrieve_ResponseIsBounded(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		chunk := bytes.Repeat([]byte("a"), 4096)
+		for i := 0; i < (containerCredentialsMaxResponseBytes/len(chunk))+8; i++ {
+			if _, err := w.Write(chunk); err != nil {
+				return
+			}
+		}
+	}))
+	defer srv.Close()
+
+	p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+	_, err := p.Retrieve(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parse container credentials response")
+}
+
+// The container endpoint's failures are retried in-provider because the caller's fallback is the
+// delegated-auth refresh loop, whose backoff starts at refresh_interval_mins (60 by default). A
+// single transient response must not cost an hour without an API key.
+func TestContainerProvider_RetriesTransientFailures(t *testing.T) {
+	t.Run("retries a 503 and then succeeds", func(t *testing.T) {
+		var calls int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if atomic.AddInt32(&calls, 1) == 1 {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+			w.Write([]byte(`{"AccessKeyId":"AKID","SecretAccessKey":"SECRET"}`))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		got, err := p.Retrieve(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, "AKID", got.AccessKeyID)
+		assert.Equal(t, int32(2), atomic.LoadInt32(&calls), "should have retried exactly once")
+	})
+
+	t.Run("retries a 429", func(t *testing.T) {
+		var calls int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if atomic.AddInt32(&calls, 1) == 1 {
+				w.WriteHeader(http.StatusTooManyRequests)
+				return
+			}
+			w.Write([]byte(`{"AccessKeyId":"A","SecretAccessKey":"S"}`))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		_, err := p.Retrieve(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
+	})
+
+	// A 4xx other than 429 is a configuration problem (ex: a wrong authorization token). Retrying
+	// cannot fix it and would only delay the error.
+	t.Run("does not retry a 403", func(t *testing.T) {
+		var calls int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			atomic.AddInt32(&calls, 1)
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		_, err := p.Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "403")
+		assert.Equal(t, int32(1), atomic.LoadInt32(&calls), "a 403 must not be retried")
+	})
+
+	// A malformed document is not transient either.
+	t.Run("does not retry an unparseable body", func(t *testing.T) {
+		var calls int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			atomic.AddInt32(&calls, 1)
+			w.Write([]byte("not json"))
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		_, err := p.Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
+	})
+
+	t.Run("gives up after the attempt cap and returns the last error", func(t *testing.T) {
+		var calls int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			atomic.AddInt32(&calls, 1)
+			w.WriteHeader(http.StatusBadGateway)
+		}))
+		defer srv.Close()
+
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		_, err := p.Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "502")
+		assert.Equal(t, int32(containerCredentialsMaxAttempts), atomic.LoadInt32(&calls))
+	})
+
+	t.Run("stops immediately when the context is cancelled", func(t *testing.T) {
+		var calls int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			atomic.AddInt32(&calls, 1)
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}))
+		defer srv.Close()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
+		cancel()
+		_, err := p.Retrieve(ctx)
+		require.Error(t, err)
+	})
+}

@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/gpu.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/gpu.yaml
 node_type: section
 type: object
 visibility: public
@@ -8,7 +8,6 @@ description: |-
   Both this section and the gpu_monitoring section in system-probe.yaml must be configured.
 tags:
 - template_section:Common
-- full-agent-only:true
 properties:
   enabled:
     node_type: setting
@@ -19,8 +18,15 @@ properties:
       Set to true to enable the GPU check in the core Agent.
       Required for GPU monitoring on non-containerized Linux hosts.
       Must be used together with gpu_monitoring.enabled: true in system-probe.yaml.
-    tags:
-    - template_section:Common
+  legacy_sm_active:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      Set to true to restore the legacy mapping of GPM SM utilization to
+      gpu.sm_active, matching the behavior of DCGM. On GPM-capable GPUs, the high-priority GPM value is
+      reported as both gpu.sm_active and gpu.sm_utilization.
   nccl:
     node_type: section
     type: object
@@ -40,9 +46,6 @@ properties:
         default: false
         visibility: public
         description: Enable the NCCL collective performance check.
-        tags:
-        - template_section:Common
-        comment: NCCL
       host_socket_path:
         node_type: setting
         type: string
@@ -51,8 +54,6 @@ properties:
         description: |-
           Host directory containing the Agent's NCCL socket. Must match the
           hostPath volume mounted into training pods.
-        tags:
-        - template_section:Common
         comment: |-
           host_socket_path is read by the helm chart and operator to decide whether
           to mount /var/run/datadog into the agent pod. For DSD/APM-enabled deployments
@@ -65,29 +66,164 @@ properties:
         description: |-
           Full path to the Unix domain socket the Agent listens on for NCCL events.
           Must be under host_socket_path.
-        tags:
-        - template_section:Common
+  collection_interval_override:
+    node_type: setting
+    type: integer
+    default: 0
+    comment: |-
+      gpu.collection_interval_override (seconds) overrides the gpu check scheduling
+      cadence when > 0, taking precedence over the instance's min_collection_interval.
+      Binds DD_GPU_COLLECTION_INTERVAL_OVERRIDE.
+  static_metrics_reporting_interval:
+    node_type: setting
+    type: string
+    default: 15s
+    format: duration
+    visibility: public
+    tags:
+    - golang_type:duration
+    description: |-
+      Reporting interval for static GPU metrics, including gpu.device.total,
+      gpu.memory.limit, gpu.core.limit, and gpu.memory.bar1.total. Samples received
+      early are dropped and missing intervals are filled. Use the same value on every
+      host in a Datadog organization to avoid inaccurate weighted sums as workloads change.
+      Set to 0 to report on every check run.
   disabled_collectors:
     node_type: setting
     type: array
     default: []
     items:
       type: string
+  excluded_devices:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+    comment: |-
+      GPU device UUIDs to exclude from metric collection. UUID matching is case-insensitive.
+      MIG devices can only be excluded by their own UUID, not by the parent device UUID.
   integrate_with_workloadmeta_processes:
     node_type: setting
     type: boolean
     default: true
+  jobs:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Identify the training job a GPU workload belongs to. The Agent reads the
+      configured pod label, pod annotation, or environment variable and attaches
+      its value as a tag on GPU metrics.
+    properties:
+      run:
+        node_type: section
+        type: object
+        visibility: public
+        description: |-
+          Where to find the unique ID of a single training run.
+        properties:
+          key:
+            node_type: setting
+            type: string
+            default: ''
+            visibility: public
+            description: |-
+              Name of the pod label, pod annotation, or environment variable holding
+              the run ID, for example _RAY_SUBMISSION_ID. Leave empty to disable run tagging.
+          type:
+            node_type: setting
+            type: string
+            default: label
+            enum:
+            - label
+            - annotation
+            - env
+            visibility: public
+            description: |-
+              Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+              (environment variable of the process using the GPU).
+      group:
+        node_type: section
+        type: object
+        visibility: public
+        description: |-
+          Where to find the ID of the group of related training runs.
+        properties:
+          key:
+            node_type: setting
+            type: string
+            default: ''
+            visibility: public
+            description: |-
+              Name of the pod label, pod annotation, or environment variable holding
+              the group ID, for example example/job-group-annotation. Leave empty to
+              disable group tagging.
+          type:
+            node_type: setting
+            type: string
+            default: label
+            enum:
+            - label
+            - annotation
+            - env
+            visibility: public
+            description: |-
+              Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+              (environment variable of the process using the GPU).
+  nvlink:
+    node_type: section
+    type: object
+    properties:
+      fec_light_error_threshold:
+        node_type: setting
+        type: integer
+        default: 3
   nvml_lib_path:
     node_type: setting
     type: string
     default: ''
+  parallel_collectors:
+    node_type: setting
+    type: boolean
+    default: false
   sp_process_metrics_request_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 3s
     format: duration
     tags:
     - golang_type:duration
+  tracing:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Configure the tracers injected into GPU workloads. The fields match an
+      apm_config.instrumentation.targets entry of Single Step Instrumentation.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Set to true to inject tracers into GPU workloads.
+      ddTraceVersions:
+        node_type: setting
+        type: object
+        default:
+          c: '0'
+        additionalProperties:
+          type: string
+        env_parser: json
+        visibility: public
+        description: |-
+          Map of tracer language to the tracer version to inject, for example c: "0.24.0".
+          Defaults to the latest major version 0 of the C tracer.
+        example: |2-
+
+            c: "0.24.0"
   use_sp_process_metrics:
     node_type: setting
     type: boolean

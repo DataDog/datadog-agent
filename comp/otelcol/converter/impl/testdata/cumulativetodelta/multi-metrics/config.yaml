@@ -1,0 +1,12 @@
+# Two metrics pipelines both exporting to datadog: the processor is injected into
+# each, and added to the top-level processors section exactly once.
+processors:
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      exporters: [datadog]
+    metrics/2:
+      receivers: [otlp]
+      exporters: [datadog]

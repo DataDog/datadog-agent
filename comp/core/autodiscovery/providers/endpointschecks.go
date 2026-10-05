@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -36,7 +37,7 @@ type EndpointsChecksConfigProvider struct {
 // NewEndpointsChecksConfigProvider returns a new ConfigProvider collecting
 // endpoints check configurations from the cluster-agent.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewEndpointsChecksConfigProvider(providerConfig *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error) {
+func NewEndpointsChecksConfigProvider(providerConfig *constants.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error) {
 	c := &EndpointsChecksConfigProvider{
 		degradedDuration: defaultDegradedDeadline,
 	}

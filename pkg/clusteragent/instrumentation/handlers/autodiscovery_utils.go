@@ -10,7 +10,6 @@ package handlers
 import (
 	"fmt"
 	"hash/fnv"
-	"sort"
 	"sync"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
@@ -142,9 +141,10 @@ type CheckStore struct {
 // NewCheckStore creates a new CheckStore.
 func NewCheckStore() *CheckStore {
 	return &CheckStore{
-		configs:    make(map[string][]integration.Config),
-		states:     make(map[string]string),
-		configHash: fnv.New64a().Sum64(),
+		configs: make(map[string][]integration.Config),
+		states:  make(map[string]string),
+		// configHash is the XOR of all per-entry hashes; the empty set hashes to 0.
+		configHash: 0,
 	}
 }
 
@@ -171,38 +171,42 @@ func (c *CheckStore) Hash() uint64 {
 func (c *CheckStore) writeConfigs(key string, cr *datadoghq.DatadogInstrumentation, configs []integration.Config) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// Remove the previous entry's contribution before applying the change, then add the
+	// new one.
+	if old, ok := c.states[key]; ok {
+		c.configHash ^= entryHash(key, old)
+	}
 	if len(configs) == 0 {
 		delete(c.configs, key)
 		delete(c.states, key)
 	} else {
 		c.configs[key] = configs
-		c.states[key] = fmt.Sprintf("%s:%d", cr.UID, cr.Generation)
+		state := fmt.Sprintf("%s:%d", cr.UID, cr.Generation)
+		c.states[key] = state
+		c.configHash ^= entryHash(key, state)
 	}
-	c.configHash = c.hashStates()
 }
 
 func (c *CheckStore) deleteConfigs(key string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if old, ok := c.states[key]; ok {
+		c.configHash ^= entryHash(key, old)
+	}
 	delete(c.configs, key)
 	delete(c.states, key)
-	c.configHash = c.hashStates()
 }
 
-// hashStates computes a deterministic hash from the sorted set of
-// "key:uid:generation" entries in the store. Including the UID ensures that a
-// recreation of a CR with the same namespace/name is detected even when
-// the new CR starts at generation 1.
-func (c *CheckStore) hashStates() uint64 {
-	keys := make([]string, 0, len(c.states))
-	for k := range c.states {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+// entryHash returns the hash contribution of a single "key/state" entry. writeConfigs and
+// deleteConfigs maintain CheckStore.configHash by XOR-combining these per-entry hashes; XOR is
+// commutative, so the result is independent of the order entries are applied and identical across
+// cluster agent replicas with the same CR state.
+func entryHash(key, state string) uint64 {
 	h := fnv.New64a()
-	for _, k := range keys {
-		fmt.Fprintf(h, "%s:%s\n", k, c.states[k]) //nolint:errcheck
-	}
+	_, _ = h.Write([]byte(key))
+	// The 0 separator keeps ("ab", "c") distinct from ("a", "bc").
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(state))
 	return h.Sum64()
 }
 

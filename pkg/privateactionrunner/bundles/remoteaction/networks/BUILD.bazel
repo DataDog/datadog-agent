@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "networks",
@@ -11,7 +12,7 @@ go_library(
     deps = [
         "//comp/forwarder/eventplatform/def",
         "//comp/networkpath/traceroute/def",
-        "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/logs/message",
         "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/config",
@@ -20,14 +21,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "networks_test",
     srcs = ["run_network_path_test.go"],
     embed = [":networks"],
-    gotags = ["test"],
     deps = [
         "//comp/forwarder/eventplatform/def",
-        "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/logs/message",
         "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/config",

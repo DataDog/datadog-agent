@@ -104,6 +104,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_LOG_LEVEL")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Custom WindowsBuild property since MSI caps theirs at 9600
                 new Property("DDAGENT_WINDOWSBUILD")
                 {
@@ -160,6 +164,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 new Property("KEEP_INSTALLED_PACKAGES")
                 {
                     AttributesDefinition = "Secure=yes"
@@ -199,22 +207,6 @@ namespace WixSetup.Datadog_Agent
                     // which can cause the directory to be added to the CreateFolder table.
                     new RegValue("InstallPath", "[PROJECTLOCATION]") { Win64 = true, AttributesDefinition = "KeyPath=yes" },
                     new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
-                )
-                {
-                    Win64 = true
-                },
-                new RegKey(
-                    _agentFeatures.MainApplication,
-                    RegistryHive.LocalMachine, @"Software\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_prompt_logger.native_host",
-                    new RegValue("", @"[AGENT]dist\com.datadoghq.ai_prompt_logger.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
-                )
-                {
-                    Win64 = true
-                },
-                new RegKey(
-                    _agentFeatures.MainApplication,
-                    RegistryHive.LocalMachine, @"Software\WOW6432Node\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_prompt_logger.native_host",
-                    new RegValue("", @"[AGENT]dist\com.datadoghq.ai_prompt_logger.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
                 )
                 {
                     Win64 = true
@@ -359,12 +351,12 @@ namespace WixSetup.Datadog_Agent
 
                 // WiX 5 migration: Convert StandardDirectory to Directory with explicit Name attribute.
                 // This is required for MSI administrative install (msiexec /a) to work correctly.
-                // 
+                //
                 // Background: WiX 5 uses StandardDirectory for well-known folders like ProgramFiles64Folder.
-                // During admin install, StandardDirectory produces a short name (e.g., "PFiles64") instead 
+                // During admin install, StandardDirectory produces a short name (e.g., "PFiles64") instead
                 // of the full name ("ProgramFiles64Folder") because it doesn't populate the Name attribute.
-                // 
-                // The datadog-installer bootstrap uses admin install to extract files from the MSI and 
+                //
+                // The datadog-installer bootstrap uses admin install to extract files from the MSI and
                 // expects the path: ...\ProgramFiles64Folder\Datadog\Datadog Agent\bin\datadog-installer.exe
                 // See: pkg/fleet/installer/paths/installer_paths_windows.go - GetAdminInstallerBinaryPath()
                 var standardDir = document.FindAll("StandardDirectory")
@@ -698,13 +690,16 @@ namespace WixSetup.Datadog_Agent
                     EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.PrivateActionRunner)}",
                     AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                 });
+
+                agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ParControl));
             }
             var procmgrService = GenerateDependentServiceInstaller(
                 new Id("ddagentprocmgrservice"),
                 Constants.ProcmgrServiceName,
                 "Datadog Process Manager",
                 "Manage Datadog agent processes",
-                "LocalSystem");
+                "LocalSystem",
+                null);
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcmgrService, procmgrService));
             agentBinDir.Add(new EventSource
             {
@@ -715,9 +710,7 @@ namespace WixSetup.Datadog_Agent
             });
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.Procmgr));
 
-            // AI usage Chrome native messaging host (Rust). Plain non-service file in bin\agent.
-            // Explicit Id only on the .exe so future custom actions can reference it via [#ai_prompt_logger_native_host].
-            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AiPromptLoggerNativeHostId, _agentBinaries.AiPromptLoggerNativeHost));
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane));
 
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
@@ -774,7 +767,8 @@ namespace WixSetup.Datadog_Agent
             var appData = new Dir(new Id("APPLICATIONDATADIRECTORY"), "Datadog",
                 new DirFiles($@"{EtcSource}\*.yaml.example"),
                 new Dir("checks.d"),
-                new Dir("protected"),
+                new Dir("protected",
+                    new DirFiles($@"{EtcSource}\protected\*")),
                 new Dir("run"),
                 new Dir("logs"),
                 new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",

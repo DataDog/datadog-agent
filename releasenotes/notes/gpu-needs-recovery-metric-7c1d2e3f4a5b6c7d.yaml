@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    GPU: add the ``gpu.device.needs_recovery`` metric, which reports whether a
+    GPU requires a recovery action (such as a reset or node reboot) as exposed
+    by NVML's GPU recovery action field. The value is ``0`` when no action is
+    needed and ``1`` otherwise, and the metric is tagged with ``recovery_action``
+    (``none``, ``reset``, ``reboot``, ``drain`` or ``drain_and_reset``).

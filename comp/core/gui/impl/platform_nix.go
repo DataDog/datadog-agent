@@ -10,6 +10,7 @@ package guiimpl
 import (
 	"errors"
 
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
 )
 
@@ -22,10 +23,10 @@ const instructionTemplate = `{{define "loginInstruction" }}
 <p>Note: If you would like to adjust the GUI session timeout, you can modify the <code>GUI_session_expiration</code> parameter in <code>datadog.yaml</code>
 {{end}}`
 
-func restartEnabled() bool {
+func restartEnabled(_ sysprobeconfig.Component) bool {
 	return false
 }
 
-func restart() error {
+func restart(_ func() string, _ string) error {
 	return errors.New("restarting the agent is not implemented on non-windows platforms")
 }

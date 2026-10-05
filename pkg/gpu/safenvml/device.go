@@ -8,11 +8,45 @@
 package safenvml
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// migProfileRegexp matches the MIG profile embedded in a MIG device name and
+// captures its GPU-instance-level part. NVIDIA's profile names vary by
+// generation: a plain "1g.35gb", suffixed variants such as "1g.24gb+me",
+// "1g.24gb-me", "1g.24gb+me.all" or "1g.24gb+gfx" (Blackwell), and, when a GPU
+// instance is split into several compute instances, a leading compute-slice
+// count as in "1c.3g.20gb". The tag describes the GPU instance, so that
+// leading "<n>c." is matched but not captured.
+var migProfileRegexp = regexp.MustCompile(`^(?:[0-9]+c\.)?([0-9]+g\.[0-9]+gb(?:[+-][a-z]+(?:\.[a-z]+)*)?)$`)
+
+// ParseMIGProfileFromDeviceName extracts the GPU-instance-level MIG profile
+// name (e.g. "1g.35gb", "1g.24gb+me.all", or "3g.20gb" from a split-CI
+// "1c.3g.20gb") from a MIG device name. NVML reports MIG device names as
+// "<GPU name> MIG <profile>" (e.g. "NVIDIA H200 MIG 1g.35gb", verified on
+// driver 580). This costs no NVML calls beyond the GetName the device cache
+// already performs, and needs no privileges. Returns "" when the name does
+// not carry a recognizable profile.
+func ParseMIGProfileFromDeviceName(name string) string {
+	idx := strings.LastIndex(name, " MIG ")
+	if idx < 0 {
+		return ""
+	}
+	m := migProfileRegexp.FindStringSubmatch(strings.TrimSpace(name[idx+len(" MIG "):]))
+	if m == nil {
+		return ""
+	}
+	return m[1]
+}
 
 // SafeDevice represents a safe wrapper around NVML device operations.
 // It ensures that operations are only performed when the corresponding
@@ -50,10 +84,28 @@ type SafeDevice interface {
 	// GetGpuInstanceId returns the GPU instance ID for MIG devices
 	//nolint:revive // Maintaining consistency with go-nvml API naming
 	GetGpuInstanceId() (int, error)
+	// GetComputeInstanceId returns the compute instance ID for MIG devices
+	//nolint:revive // Maintaining consistency with go-nvml API naming
+	GetComputeInstanceId() (int, error)
 	// GetGpuInstanceProfileInfo returns the profile info for the given GPU instance profile ID
 	GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanceProfileInfo, error)
+	// GetMIGInstanceProfileName returns the canonical MIG profile name (e.g. "1g.35gb")
+	// of the GPU instance with the given ID, as reported by the driver. Only
+	// meaningful when called on the parent physical device of a MIG device.
+	// Requires a privileged agent: nvml.h marks nvmlDeviceGetGpuInstanceById
+	// as "Requires privileged user", so this fails on default non-privileged
+	// core-agent deployments. Returns an error if the driver does not support
+	// the versioned GPU instance profile info API.
+	GetMIGInstanceProfileName(gpuInstanceID int) (string, error)
+	// GetGpuFabricInfo returns the NVLink fabric information for the device.
+	GetGpuFabricInfo() (nvml.GpuFabricInfo_v2, error)
 	// GetIndex returns the index of the device
 	GetIndex() (int, error)
+
+	// GetMinorNumber returns the device's minor number, which is the N in the
+	// /dev/nvidiaN device node. This is distinct from the enumeration index
+	// returned by GetIndex and the two are not guaranteed to agree.
+	GetMinorNumber() (int, error)
 	// GetMaxClockInfo returns the maximum clock speed for the given clock type
 	GetMaxClockInfo(clockType nvml.ClockType) (uint32, error)
 	// GetMaxMigDeviceCount returns the maximum number of MIG devices that can be created
@@ -72,10 +124,16 @@ type SafeDevice interface {
 	GetName() (string, error)
 	// GetNvLinkState returns the state of the specified NVLink
 	GetNvLinkState(link int) (nvml.EnableState, error)
+	// GetNvLinkVersion returns the version of the specified NVLink.
+	GetNvLinkVersion(link int) (int, error)
+	// GetNvLinkErrorCounter returns the specified NVLink error counter for a link.
+	GetNvLinkErrorCounter(link int, counter nvml.NvLinkErrorCounter) (uint64, error)
 	// GetNumGpuCores returns the number of GPU cores in the device
 	GetNumGpuCores() (int, error)
 	// GetNumFans returns the number of fans in the device
 	GetNumFans() (int, error)
+	// GetPciInfo returns PCI information of the device
+	GetPciInfo() (nvml.PciInfo, error)
 	// GetPcieThroughput returns the PCIe throughput in bytes/sec
 	GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error)
 	// GetCurrPcieLinkGeneration returns the current PCIe generation
@@ -124,6 +182,10 @@ type SafeDevice interface {
 	RegisterEvents(evtTypes uint64, evtSet nvml.EventSet) error
 	// GetMemoryErrorCounter retrieves the requested memory error counter for the device.
 	GetMemoryErrorCounter(errorType nvml.MemoryErrorType, eccCounterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, error)
+	// GetRetiredPagesCount retrieves the number of memory pages the driver has
+	// retired, or will retire on the next driver reload, for the given retirement
+	// cause. Only the number of retired pages is exposed, not their addresses.
+	GetRetiredPagesCount(cause nvml.PageRetirementCause) (uint64, error)
 	// GetSramEccErrorStatus retrieves the detailed SRAM ECC error status for the device.
 	GetSramEccErrorStatus() (nvml.EccSramErrorStatus, error)
 }
@@ -139,11 +201,19 @@ type DeviceEventData struct {
 
 // DeviceInfo holds common cached properties for a GPU device
 type DeviceInfo struct {
-	SMVersion    uint32
-	UUID         string
-	Name         string
-	CoreCount    int
-	Architecture nvml.DeviceArchitecture
+	SMVersion          uint32
+	UUID               string
+	Name               string
+	CoreCount          int
+	Architecture       nvml.DeviceArchitecture
+	VirtualizationMode nvml.GpuVirtualizationMode
+	// PCIBusID is the normalized PCI BDF from the last successful enumeration.
+	PCIBusID string
+
+	// NVLinkLinkCount is the number of NVLink links available on the device.
+	NVLinkLinkCount int
+	// NVLinkVersion is the version reported by the device's NVLink links.
+	NVLinkVersion string
 
 	// Index of the device in the host. For MIG devices, this is the index of the MIG device in the parent device.
 	Index int
@@ -171,6 +241,14 @@ type PhysicalDevice struct {
 
 	// MIGChildren is a list of MIG devices that are children of this physical device
 	MIGChildren []*MIGDevice
+
+	// MinorNumber is the N in this device's /dev/nvidiaN node. -1 when the
+	// driver does not expose it (the API is non-critical). Anything resolving
+	// a device-node path to a GPU must match on this rather than on Index:
+	// the two coincide on ordinary configurations but are separate NVML
+	// concepts, and a mismatch silently attributes a container to the wrong
+	// physical card.
+	MinorNumber int
 }
 
 var _ Device = &PhysicalDevice{}
@@ -185,6 +263,17 @@ type MIGDevice struct {
 
 	// MIGInstanceID is the instance ID of the MIG device
 	MIGInstanceID int
+
+	// Profile is the canonical MIG profile name of the device (e.g. "1g.35gb",
+	// "1g.18gb+me"), parsed from the device name when it carries one and
+	// otherwise resolved through the GPU instance handle (which requires a
+	// privileged agent). Empty when neither source resolves.
+	Profile string
+
+	// ComputeInstanceID is the compute instance ID of the MIG device. -1 when
+	// the driver does not expose it (older drivers / non-critical API missing);
+	// 0 is a real compute instance ID (the first CI), never "unknown".
+	ComputeInstanceID int
 }
 
 var _ Device = &MIGDevice{}
@@ -205,6 +294,9 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 	// Create the device with embedded safe device
 	device := &PhysicalDevice{
 		SafeDevice: safeDev,
+		// "Unknown" until the query below succeeds: 0 is a real minor number
+		// (/dev/nvidia0), never "unavailable".
+		MinorNumber: -1,
 	}
 
 	if err := device.fillBasicDataFromNVML(safeDev); err != nil {
@@ -213,6 +305,19 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 
 	if err := device.fillPhysicalDeviceData(safeDev); err != nil {
 		return nil, fmt.Errorf("error filling physical device data: %w", err)
+	}
+
+	// Queried after the required fills, so a device that is already unusable
+	// fails on that rather than here. Non-fatal in its own right: GetMinorNumber
+	// is a non-critical API and only device-node matching needs it, which checks
+	// for -1.
+	if minor, err := safeDev.GetMinorNumber(); err == nil {
+		device.MinorNumber = minor
+	} else if logLimiter.ShouldLog() {
+		// -1 will silently disable device-node matching (CDI → /dev/nvidiaN
+		// resolution), so a warning makes the cause findable when that path
+		// stops working.
+		log.Warnf("could not get minor number for device %s: %v", device.GetDeviceInfo().UUID, err)
 	}
 
 	migEnabled, _, err := safeDev.GetMigMode()
@@ -295,6 +400,10 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		migChildDevice.SMVersion = d.SMVersion
 		migChildDevice.Parent = d
 		migChildDevice.Architecture = d.Architecture
+		// MIG instances share their parent's PCI function.
+		migChildDevice.PCIBusID = d.PCIBusID
+		// MIG slices do not have NVLink ports; keep the parent's protocol version for tags.
+		migChildDevice.NVLinkVersion = d.NVLinkVersion
 		migChildDevice.CoreCount *= coresPerMultiprocessor(d.Architecture)
 
 		gpuInstanceID, err := migChildDevice.GetGpuInstanceId()
@@ -302,6 +411,37 @@ func (d *PhysicalDevice) fillMigChildren() error {
 			return fmt.Errorf("error getting MIG device GPU instance ID: %w", err)
 		}
 		migChildDevice.MIGInstanceID = gpuInstanceID
+
+		// Primary source: the profile is embedded in the device's own name
+		// ("<GPU name> MIG <profile>") and is already fetched by NewMIGDevice,
+		// so this costs no additional NVML calls and needs no privileges.
+		migChildDevice.Profile = ParseMIGProfileFromDeviceName(migChildDevice.Name)
+
+		// Fallback for names without a recognizable profile: resolve through
+		// the GPU instance handle, which needs a privileged agent. Best effort
+		if migChildDevice.Profile == "" {
+			if profile, err := d.SafeDevice.GetMIGInstanceProfileName(gpuInstanceID); err != nil {
+				if logLimiter.ShouldLog() {
+					log.Infof("MIG device %s (GPU instance %d on %s): the gpu_mig_profile tag is unavailable because its name carries no profile and resolving it through the GPU instance handle requires a privileged agent (nvmlDeviceGetGpuInstanceById): %v", migChildDevice.UUID, gpuInstanceID, d.UUID, err)
+				}
+			} else {
+				migChildDevice.Profile = profile
+			}
+		}
+
+		// Compute instance ID is a non-critical API: on drivers where the symbol
+		// is unavailable (or the call fails) we must degrade gracefully rather
+		// than abort the whole MIG enumeration — GetGpuInstanceId above is
+		// critical, this one is not. Mark it -1 ("unknown") and log; callers
+		// that need CI (e.g. the DRA Container<->GPU resolution) then fall back
+		// to GI-only matching for that child. 0 is a real compute instance ID,
+		// never used as the unknown marker.
+		if computeInstanceID, err := migChildDevice.GetComputeInstanceId(); err == nil {
+			migChildDevice.ComputeInstanceID = computeInstanceID
+		} else {
+			migChildDevice.ComputeInstanceID = -1
+			log.Debugf("MIG device %s: cannot get compute instance ID: %s", migChildDevice.GetDeviceInfo().UUID, err)
+		}
 
 		d.MIGChildren = append(d.MIGChildren, migChildDevice)
 	}
@@ -318,6 +458,10 @@ func (d *PhysicalDevice) GetDeviceInfo() *DeviceInfo {
 func NewMIGDevice(dev SafeDevice) (*MIGDevice, error) {
 	device := &MIGDevice{
 		SafeDevice: dev,
+		// "Unknown" until fillMigChildren queries it: 0 is a real compute
+		// instance ID, so the zero value would claim CI 0 rather than admit it
+		// does not know.
+		ComputeInstanceID: -1,
 	}
 
 	if err := device.fillBasicDataFromNVML(dev); err != nil {
@@ -375,7 +519,101 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 	}
 	d.SMVersion = uint32(major*10 + minor)
 
+	if virtualizationMode, err := dev.GetVirtualizationMode(); err == nil {
+		d.VirtualizationMode = virtualizationMode
+	} else {
+		singleton.logDeviceWarning(d.UUID, "cannot get virtualization mode: %v", err)
+	}
+
+	pciInfo, err := dev.GetPciInfo()
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("cannot get PCI info: %v", err)
+		}
+	} else {
+		d.PCIBusID = gpuutil.PCIInfoToBusID(pciInfo)
+	}
+
+	d.fillNVLinkDataFromNVML(dev)
+
 	return nil
+}
+
+func (d *DeviceInfo) fillNVLinkDataFromNVML(dev SafeDevice) {
+	fields := []nvml.FieldValue{{FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT}}
+	if err := dev.GetFieldValues(fields); err != nil {
+		singleton.logDeviceWarning(d.UUID, "cannot get NVLink link count: %v", err)
+		return
+	}
+	if ret := nvml.Return(fields[0].NvmlReturn); ret != nvml.SUCCESS {
+		singleton.logDeviceWarning(d.UUID, "cannot get NVLink link count: %s", nvml.ErrorString(ret))
+		return
+	}
+
+	linkCount, err := nvmlFieldValueToInt(fields[0])
+	if err != nil {
+		singleton.logDeviceWarning(d.UUID, "cannot parse NVLink link count: %v", err)
+		return
+	}
+	if linkCount < 0 {
+		singleton.logDeviceWarning(d.UUID, "NVLink link count %d is negative", linkCount)
+		return
+	}
+
+	d.NVLinkLinkCount = linkCount
+	for link := range d.NVLinkLinkCount {
+		version, err := dev.GetNvLinkVersion(link)
+		if err != nil {
+			singleton.logDeviceWarning(d.UUID, "cannot get NVLink version for link %d: %v", link, err)
+			continue
+		}
+
+		if d.NVLinkVersion == "" {
+			d.NVLinkVersion = nvlinkVersionString(version)
+		} else if d.NVLinkVersion != nvlinkVersionString(version) {
+			singleton.logDeviceWarning(d.UUID, "NVLink version %s for link %d differs from version %s reported by another link", nvlinkVersionString(version), link, d.NVLinkVersion)
+		}
+	}
+}
+
+func nvmlFieldValueToInt(fv nvml.FieldValue) (int, error) {
+	switch nvml.ValueType(fv.ValueType) {
+	case nvml.VALUE_TYPE_UNSIGNED_INT:
+		return int(binary.LittleEndian.Uint32(fv.Value[:4])), nil
+	case nvml.VALUE_TYPE_UNSIGNED_LONG, nvml.VALUE_TYPE_UNSIGNED_LONG_LONG:
+		value := binary.LittleEndian.Uint64(fv.Value[:])
+		if value > uint64(^uint(0)>>1) {
+			return 0, fmt.Errorf("NVLink field value %d exceeds maximum integer value", value)
+		}
+		return int(value), nil
+	case nvml.VALUE_TYPE_SIGNED_INT:
+		return int(int32(binary.LittleEndian.Uint32(fv.Value[:4]))), nil
+	case nvml.VALUE_TYPE_SIGNED_LONG_LONG:
+		return int(int64(binary.LittleEndian.Uint64(fv.Value[:]))), nil
+	default:
+		return 0, fmt.Errorf("unsupported NVML value type %d", fv.ValueType)
+	}
+}
+
+func nvlinkVersionString(version int) string {
+	switch version {
+	case 1:
+		return "1.0"
+	case 2:
+		return "2.0"
+	case 3:
+		return "2.2"
+	case 4:
+		return "3.0"
+	case 5:
+		return "3.1"
+	case 6:
+		return "4.0"
+	case 7:
+		return "5.0"
+	default:
+		return fmt.Sprintf("unknown_%d", version)
+	}
 }
 
 // coresPerMultiprocessor returns the number of cores per multiprocessor for a given SM version. It's a fallback

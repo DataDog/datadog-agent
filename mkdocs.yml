@@ -4,13 +4,15 @@ site_author: Datadog
 site_url: https://datadoghq.dev/datadog-agent/
 repo_name: datadog/datadog-agent
 repo_url: https://github.com/DataDog/datadog-agent
-edit_uri: blob/main/docs/public
+edit_uri: blob/main/doc
 copyright: Copyright &copy; Datadog, Inc. 2024-present
 
-docs_dir: docs/public
+docs_dir: doc
 site_dir: site
 theme:
   name: material
+  custom_dir: doc/.overrides
+  variant: classic
   language: en
   font:
     text: Roboto
@@ -59,7 +61,12 @@ nav:
   - Test:
     - Unit tests: how-to/test/unit.md
     - Static analysis: how-to/test/static-analysis.md
-    - End-to-end tests: how-to/test/e2e.md
+    - End-to-end tests:
+      - how-to/test/e2e/index.md
+      - Running tests: how-to/test/e2e/running.md
+      - Writing tests: how-to/test/e2e/writing.md
+      - Test dependencies: how-to/test/e2e/dependencies.md
+      - Custom AMIs: how-to/test/e2e/custom-amis.md
     - Manual QA: 
       - how-to/test/manual-qa/index.md
       - AWS: 
@@ -75,6 +82,17 @@ nav:
       
   - Go:
     - Add nested modules: how-to/go/modules.md
+  - Component framework:
+    - Use components in binaries: how-to/components/using-components.md
+    - Create bundles: how-to/components/creating-bundles.md
+    - Use optional dependencies: how-to/components/optional-dependencies.md
+    - Add flare data: how-to/components/flares.md
+    - Add a status provider: how-to/components/status.md
+  - Agent schema:
+    - Add and document settings: how-to/agent-schema/settings.md
+    - Validate and generate output: how-to/agent-schema/workflows.md
+  - Checks:
+    - Run JMXFetch: how-to/run-jmxfetch.md
   - Debug agents:
     - how-to/debug-agents/index.md
     - Linux: how-to/debug-agents/linux.md
@@ -85,6 +103,9 @@ nav:
     - Python: how-to/memory-profiling/python.md
     - C++: how-to/memory-profiling/c++.md
 - Tutorials:
+  - Component framework:
+    - Create a component: tutorials/components/creating-components.md
+    - Test a component: tutorials/components/testing.md
   - Develop:
     - Environment usage: tutorials/dev/env.md
     - Lab environments:
@@ -93,6 +114,7 @@ nav:
 - Guidelines:
   - Contributing: guidelines/contributing.md
   - Documentation: guidelines/docs.md
+  - Component framework: guidelines/components.md
   - Languages:
     - Go: guidelines/languages/go.md
     - Rust: guidelines/languages/RUST.md
@@ -100,47 +122,31 @@ nav:
     - Test categories: guidelines/testing/test-categories.md
   - Conventions:
     - Logging: guidelines/conventions/logging.md
-- Components:
-  - Overview: components/overview.md
-  - Components:
-    - Creating components: components/creating-components.md
-    - Testing components: components/testing.md
-    # - Creating bundles: components/creating-bundles.md
-    - Using components: components/using-components.md
-    # - Common patterns: components/common-patterns.md
-  - Shared features from components:
-    # - Integrating with other components: components/migration.md
-    - Features:
-      - Flare: components/shared_features/flares.md
-      -  Status: components/shared_features/status.md
-  #     - TODO Remote Config: components/shared_features/remote_config.md
-  #     - TODO Metadata: components/shared_features/metadata.md
-  #     - TODO workloadmeta: components/shared_features/workloadmeta.md
-  #     - TODO more ?: TMP
-  # - Fx overview: components/fx.md
-  # - JMXFetch overview: components/jmxfetch.md
-  # - FAQ: components/faq.md
-- Agent Schema:
-  - Introduction: agent-schema/index.md
-  - Keyword Reference: agent-schema/keywords.md
-  - Examples: agent-schema/examples.md
-  - FAQ: agent-schema/faq.md
-- Architecture:
-  - DogStatsD:
-    - Internals: architecture/dogstatsd/internals.md
 - Reference:
+  - Component framework:
+    - Status providers: reference/components/status.md
+  - Agent schema:
+    - Keywords: reference/agent-schema/keywords.md
+    - CLI commands: reference/agent-schema/cli.md
   - Images:
     - Developer environment: reference/images/dev.md
     - Builders: reference/images/builders.md
   - Agent buildables:
     - Agent components: reference/builds/components.md
+  - Developer docs: reference/docs.md
+- Architecture:
+  - Home: architecture/index.md
+  - Component framework:
+    - architecture/components/index.md
+    - Fx: architecture/components/fx.md
+  - Agent schema:
+    - architecture/agent-schema/index.md
+    - Annotated examples: architecture/agent-schema/examples.md
+  - DogStatsD:
+    - Internals: architecture/dogstatsd/internals.md
 
 watch:
 - .go-version
-
-hooks:
-- docs/public/.hooks/plugin_register.py
-- docs/public/.hooks/title_from_content.py
 
 plugins:
   # Enable for bug reports
@@ -149,17 +155,22 @@ plugins:
   search: {}
   # Extra
   glightbox: {}
-  minify:
-    minify_html: true
-  git-revision-date-localized:
-    type: date
-    strict: false
-  redirects:
-    redirect_maps:
-      setup.md: setup/required.md
 
 markdown_extensions:
 # Built-in
+- zensical.extensions.macros:
+    module_name: doc/.hooks/inject_variables
+    on_error_fail: true
+    on_undefined: strict
+    # Macros are rendered before code blocks are extracted, so every delimiter must be a sequence
+    # that never appears in quoted code. Jinja's defaults collide with Go composite literals,
+    # GitHub Actions expressions and `attr_list` identifiers such as `{#custom-id}`.
+    j2_variable_start_string: "<<<"
+    j2_variable_end_string: ">>>"
+    j2_block_start_string: "<<%"
+    j2_block_end_string: "%>>"
+    j2_comment_start_string: "<<#"
+    j2_comment_end_string: "#>>"
 - markdown.extensions.abbr:
 - markdown.extensions.attr_list:
 - markdown.extensions.footnotes:
@@ -223,10 +234,10 @@ markdown_extensions:
 - pymdownx.critic:
 - pymdownx.details:
 - pymdownx.emoji:
-    # https://github.com/twitter/twemoji
-    # https://raw.githubusercontent.com/facelessuser/pymdown-extensions/master/pymdownx/twemoji_db.py
-    emoji_index: !!python/name:material.extensions.emoji.twemoji
-    emoji_generator: !!python/name:material.extensions.emoji.to_svg
+    # Zensical's helpers support inlining icons and emoji:
+    # https://zensical.org/docs/setup/extensions/python-markdown-extensions/#emoji
+    emoji_index: !!python/name:zensical.extensions.emoji.twemoji
+    emoji_generator: !!python/name:zensical.extensions.emoji.to_svg
 - pymdownx.highlight:
     anchor_linenums: true
     line_spans: __span
@@ -250,7 +261,10 @@ markdown_extensions:
 - pymdownx.snippets:
     check_paths: true
     base_path:
-    - docs/public/.snippets
+    - doc/.snippets
+    # Repo root, so docs pages can embed a section of a normative in-repo file
+    # (e.g. a codereview_guideline.md) rather than restating it.
+    - .
     auto_append:
     - links.txt
     - abbrs.txt
@@ -260,6 +274,10 @@ markdown_extensions:
 - pymdownx.tilde:
 
 extra:
+  navigation_roots:
+  - url: architecture/
+    back_label: Back to main docs
+    back_key: b
   social:
   - icon: fontawesome/solid/blog
     link: https://www.datadoghq.com/blog/engineering/
@@ -272,3 +290,5 @@ extra:
 extra_css:
 - assets/css/custom.css
 - https://cdn.jsdelivr.net/npm/firacode@6.2.0/distr/fira_code.css
+extra_javascript:
+- assets/javascripts/navigation-roots.js

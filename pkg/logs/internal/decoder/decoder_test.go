@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -291,6 +292,118 @@ func TestDecoderWithSinglelineKubernetes(t *testing.T) {
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
 	assert.Equal(t, "", output.ParsingExtra.Timestamp)
+}
+
+func decodeLinesForTest(t *testing.T, parser parsers.Parser, lines []string, outputCount int) []*message.Message {
+	t.Helper()
+
+	d := InitializeDecoderForTest(sources.NewLogSource("", &config.LogsConfig{}), parser)
+	d.Start()
+
+	inputDone := make(chan struct{})
+	go func() {
+		defer close(inputDone)
+		for _, line := range lines {
+			d.InputChan() <- NewInput([]byte(line))
+		}
+	}()
+
+	outputs := make([]*message.Message, 0, outputCount)
+	for range outputCount {
+		outputs = append(outputs, <-d.OutputChan())
+	}
+	<-inputDone
+
+	d.Stop()
+	for output := range d.OutputChan() {
+		t.Fatalf("unexpected decoder output after stop: %q", output.GetContent())
+	}
+
+	return outputs
+}
+
+func TestDecoderWithInterleavedPartialStreams(t *testing.T) {
+	tests := []struct {
+		name            string
+		parser          parsers.Parser
+		lines           []string
+		expectedContent []string
+		expectedStatus  []string
+		expectedTime    []string
+	}{
+		{
+			name:   "CRI stderr partial interrupted by stdout",
+			parser: kubernetes.New(),
+			lines: []string{
+				"2024-01-01T00:00:00.000000000Z stderr P stderr part 1\n",
+				"2024-01-01T00:00:00.000000001Z stdout F stdout full\n",
+				"2024-01-01T00:00:00.000000002Z stderr F stderr part 2\n",
+			},
+			expectedContent: []string{"stdout full", "stderr part 1stderr part 2"},
+			expectedStatus:  []string{message.StatusInfo, message.StatusError},
+			expectedTime:    []string{"2024-01-01T00:00:00.000000001Z", "2024-01-01T00:00:00.000000002Z"},
+		},
+		{
+			name:   "CRI stdout partial interrupted by stderr",
+			parser: kubernetes.New(),
+			lines: []string{
+				"2024-01-01T00:00:00.000000000Z stdout P stdout part 1\n",
+				"2024-01-01T00:00:00.000000001Z stderr F stderr full\n",
+				"2024-01-01T00:00:00.000000002Z stdout F stdout part 2\n",
+			},
+			expectedContent: []string{"stderr full", "stdout part 1stdout part 2"},
+			expectedStatus:  []string{message.StatusError, message.StatusInfo},
+			expectedTime:    []string{"2024-01-01T00:00:00.000000001Z", "2024-01-01T00:00:00.000000002Z"},
+		},
+		{
+			name:   "both CRI streams partial",
+			parser: kubernetes.New(),
+			lines: []string{
+				"2024-01-01T00:00:00.000000000Z stderr P stderr part 1\n",
+				"2024-01-01T00:00:00.000000001Z stdout P stdout part 1\n",
+				"2024-01-01T00:00:00.000000002Z stderr F stderr part 2\n",
+				"2024-01-01T00:00:00.000000003Z stdout F stdout part 2\n",
+			},
+			expectedContent: []string{"stderr part 1stderr part 2", "stdout part 1stdout part 2"},
+			expectedStatus:  []string{message.StatusError, message.StatusInfo},
+			expectedTime:    []string{"2024-01-01T00:00:00.000000002Z", "2024-01-01T00:00:00.000000003Z"},
+		},
+		{
+			name:   "Docker JSON stderr partial interrupted by stdout",
+			parser: dockerfile.New(),
+			lines: []string{
+				`{"log":"stderr part 1","stream":"stderr","time":"2024-01-01T00:00:00.000000000Z"}` + "\n",
+				`{"log":"stdout full\n","stream":"stdout","time":"2024-01-01T00:00:00.000000001Z"}` + "\n",
+				`{"log":"stderr part 2\n","stream":"stderr","time":"2024-01-01T00:00:00.000000002Z"}` + "\n",
+			},
+			expectedContent: []string{"stdout full", "stderr part 1stderr part 2"},
+			expectedStatus:  []string{message.StatusInfo, message.StatusError},
+			expectedTime:    []string{"2024-01-01T00:00:00.000000001Z", "2024-01-01T00:00:00.000000002Z"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			outputs := decodeLinesForTest(t, test.parser, test.lines, len(test.expectedContent))
+			for i := range outputs {
+				require.Equal(t, test.expectedContent[i], string(outputs[i].GetContent()))
+				require.Equal(t, test.expectedStatus[i], outputs[i].Status)
+				require.Equal(t, test.expectedTime[i], outputs[i].ParsingExtra.Timestamp)
+			}
+
+			// The first completed stream is physically preceded by a record that
+			// remains buffered, so it must not advance the file checkpoint. Once
+			// the other stream completes, the checkpoint can cover every input
+			// record. A crash between those outputs therefore causes duplication,
+			// never a skipped partial message.
+			require.Zero(t, outputs[0].RawDataLenForCheckpoint())
+			totalRawDataLen := 0
+			for _, line := range test.lines {
+				totalRawDataLen += len(line)
+			}
+			require.Equal(t, totalRawDataLen, outputs[len(outputs)-1].RawDataLenForCheckpoint())
+		})
+	}
 }
 
 func TestDecoderWithMultilineKubernetes(t *testing.T) {
@@ -614,6 +727,111 @@ func TestResolveSamplerMode(t *testing.T) {
 	}
 }
 
+func TestSmartSeverityProfileDiscrepancies(t *testing.T) {
+	profiles := func(low, medium, high preprocessor.SamplerProfile) [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile {
+		return [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile{
+			severityeventsdef.SeverityLow:    low,
+			severityeventsdef.SeverityMedium: medium,
+			severityeventsdef.SeverityHigh:   high,
+		}
+	}
+
+	for _, tc := range []struct {
+		name     string
+		profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile
+		want     string
+	}{
+		{
+			name:     "valid profiles",
+			profiles: profiles(preprocessor.SamplerProfile{RateLimit: 1, BurstSize: 1}, preprocessor.SamplerProfile{RateLimit: 2, BurstSize: 2}, preprocessor.SamplerProfile{RateLimit: 3, BurstSize: 3, PassThrough: true}),
+		},
+		{
+			name:     "rate limit regression",
+			profiles: profiles(preprocessor.SamplerProfile{RateLimit: 2}, preprocessor.SamplerProfile{RateLimit: 1}, preprocessor.SamplerProfile{RateLimit: 3}),
+			want:     "rate limits",
+		},
+		{
+			name:     "burst size regression",
+			profiles: profiles(preprocessor.SamplerProfile{BurstSize: 2}, preprocessor.SamplerProfile{BurstSize: 3}, preprocessor.SamplerProfile{BurstSize: 1}),
+			want:     "burst sizes",
+		},
+		{
+			name:     "pass through regression",
+			profiles: profiles(preprocessor.SamplerProfile{}, preprocessor.SamplerProfile{PassThrough: true}, preprocessor.SamplerProfile{}),
+			want:     "pass_through",
+		},
+		{
+			name:     "pass through makes rate and burst unlimited",
+			profiles: profiles(preprocessor.SamplerProfile{RateLimit: 10, BurstSize: 10}, preprocessor.SamplerProfile{RateLimit: 1, BurstSize: 1, PassThrough: true}, preprocessor.SamplerProfile{RateLimit: 1, BurstSize: 1, PassThrough: true}),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			discrepancies := smartSeverityProfileDiscrepancies(tc.profiles)
+			if tc.want == "" {
+				assert.Empty(t, discrepancies)
+				return
+			}
+			assert.Contains(t, strings.Join(discrepancies, "\n"), tc.want)
+		})
+	}
+}
+
+func TestSmartSeverityProfileWarningRegistry(t *testing.T) {
+	profiles := func(low, medium, high preprocessor.SamplerProfile) [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile {
+		return [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile{
+			severityeventsdef.SeverityLow:    low,
+			severityeventsdef.SeverityMedium: medium,
+			severityeventsdef.SeverityHigh:   high,
+		}
+	}
+
+	registry := newSmartSeverityProfileWarningRegistry()
+	global := profiles(
+		preprocessor.SamplerProfile{RateLimit: 2, BurstSize: 2},
+		preprocessor.SamplerProfile{RateLimit: 1, BurstSize: 3},
+		preprocessor.SamplerProfile{RateLimit: 3, BurstSize: 4},
+	)
+	var warnings []string
+	registry.warnGlobal(global, func(discrepancy string) { warnings = append(warnings, discrepancy) })
+	registry.warnGlobal(global, func(discrepancy string) { warnings = append(warnings, discrepancy) })
+	assert.Len(t, warnings, 1, "global discrepancies should be reported once")
+
+	globalSourceDiscrepancy := sourceSmartSeverityProfileDiscrepancies(global)
+	require.Len(t, globalSourceDiscrepancy, 1)
+	assert.False(t, registry.markSourceProfile(global[severityeventsdef.SeverityLow]), "the global low-to-medium discrepancy should not be repeated for a source")
+
+	burstOnly := profiles(
+		preprocessor.SamplerProfile{RateLimit: 1, BurstSize: 4},
+		preprocessor.SamplerProfile{RateLimit: 2, BurstSize: 2},
+		preprocessor.SamplerProfile{RateLimit: 3, BurstSize: 3},
+	)
+	burstDiscrepancy := sourceSmartSeverityProfileDiscrepancies(burstOnly)
+	require.Len(t, burstDiscrepancy, 1)
+	assert.True(t, registry.markSourceProfile(burstOnly[severityeventsdef.SeverityLow]), "a distinct source profile should be reported")
+	assert.False(t, registry.markSourceProfile(burstOnly[severityeventsdef.SeverityLow]), "an identical source profile should be deduplicated")
+
+	passThrough := profiles(
+		preprocessor.SamplerProfile{RateLimit: 10, BurstSize: 10},
+		preprocessor.SamplerProfile{RateLimit: 1, BurstSize: 1, PassThrough: true},
+		preprocessor.SamplerProfile{RateLimit: 1, BurstSize: 1, PassThrough: true},
+	)
+	assert.Empty(t, sourceSmartSeverityProfileDiscrepancies(passThrough))
+}
+
+func TestAdaptiveSamplingSourceDetails(t *testing.T) {
+	assert.Equal(t,
+		`log source "redis", integration config "/etc/datadog-agent/conf.d/redisdb.d/conf.yaml" (index 2)`,
+		adaptiveSamplingSourceDetails(sources.NewLogSource("redis", &config.LogsConfig{
+			IntegrationSource:      "/etc/datadog-agent/conf.d/redisdb.d/conf.yaml",
+			IntegrationSourceIndex: 2,
+		})),
+	)
+	assert.Equal(t,
+		`log source "container", type "docker"`,
+		adaptiveSamplingSourceDetails(sources.NewLogSource("container", &config.LogsConfig{Type: "docker"})),
+	)
+}
+
 func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.Set("logs_config.experimental_adaptive_sampling.max_patterns", 100, pkgconfigmodel.SourceAgentRuntime)
@@ -741,6 +959,107 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 		assert.Equal(t, 0.8, got.MatchThreshold)
 		assert.True(t, got.DetectionOnly)
 	})
+
+	t.Run("smart severity profiles enabled: unconfigured medium/high fall back to the base (low) values", func(t *testing.T) {
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+		defer mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+
+		got := resolveAdaptiveSamplerConfig(nil, preprocessor.NewTokenizer(0))
+
+		assert.True(t, got.SmartSeverityProfilesEnabled)
+		low := preprocessor.SamplerProfile{RateLimit: got.RateLimit, BurstSize: got.BurstSize}
+		assert.Equal(t, low, got.Profiles[severityeventsdef.SeverityLow])
+		assert.Equal(t, low, got.Profiles[severityeventsdef.SeverityMedium])
+		assert.Equal(t, low, got.Profiles[severityeventsdef.SeverityHigh])
+	})
+
+	// Must run before any subtest that Sets (and later resets) medium.burst_size:
+	// mockConfig has no true "unset", so a prior Set — even one whose deferred
+	// cleanup restores the default value — permanently marks the key as
+	// configured for every subtest that follows.
+	t.Run("smart severity profiles enabled: high cascades a partially-configured medium field-by-field", func(t *testing.T) {
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.rate_limit", 5.0, pkgconfigmodel.SourceAgentRuntime)
+		defer func() {
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.rate_limit", 1.0, pkgconfigmodel.SourceAgentRuntime)
+		}()
+
+		got := resolveAdaptiveSamplerConfig(nil, preprocessor.NewTokenizer(0))
+
+		want := preprocessor.SamplerProfile{RateLimit: 5.0, BurstSize: got.BurstSize}
+		assert.Equal(t, want, got.Profiles[severityeventsdef.SeverityMedium])
+		assert.Equal(t, want, got.Profiles[severityeventsdef.SeverityHigh], "high's unconfigured rate_limit must cascade from medium, not revert to low, so high is never less permissive than medium")
+	})
+
+	t.Run("smart severity profiles enabled: unset high falls back to configured medium", func(t *testing.T) {
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.pass_through", true, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.rate_limit", 5.0, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.burst_size", 200.0, pkgconfigmodel.SourceAgentRuntime)
+		defer func() {
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.pass_through", false, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.rate_limit", 1.0, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.burst_size", 1000.0, pkgconfigmodel.SourceAgentRuntime)
+		}()
+
+		got := resolveAdaptiveSamplerConfig(nil, preprocessor.NewTokenizer(0))
+
+		assert.Equal(t, preprocessor.SamplerProfile{RateLimit: 5.0, BurstSize: 200.0, PassThrough: true}, got.Profiles[severityeventsdef.SeverityMedium])
+		assert.Equal(t, got.Profiles[severityeventsdef.SeverityMedium], got.Profiles[severityeventsdef.SeverityHigh], "high must fall back to medium's full profile, including PassThrough")
+	})
+
+	t.Run("smart severity profiles enabled: explicit medium/high overrides win", func(t *testing.T) {
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.pass_through", true, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.rate_limit", 5.0, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.burst_size", 200.0, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.pass_through", true, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.rate_limit", 20.0, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.burst_size", 500.0, pkgconfigmodel.SourceAgentRuntime)
+		defer func() {
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.pass_through", false, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.rate_limit", 1.0, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.burst_size", 1000.0, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.pass_through", false, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.rate_limit", 1.0, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.burst_size", 1000.0, pkgconfigmodel.SourceAgentRuntime)
+		}()
+
+		got := resolveAdaptiveSamplerConfig(nil, preprocessor.NewTokenizer(0))
+
+		assert.Equal(t, preprocessor.SamplerProfile{RateLimit: 2.5, BurstSize: 50.0}, got.Profiles[severityeventsdef.SeverityLow])
+		assert.Equal(t, preprocessor.SamplerProfile{RateLimit: 5.0, BurstSize: 200.0, PassThrough: true}, got.Profiles[severityeventsdef.SeverityMedium])
+		assert.Equal(t, preprocessor.SamplerProfile{RateLimit: 20.0, BurstSize: 500.0, PassThrough: true}, got.Profiles[severityeventsdef.SeverityHigh])
+	})
+
+	t.Run("smart severity profiles enabled: a non-positive configured burst size is clamped to 1", func(t *testing.T) {
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.burst_size", 0.0, pkgconfigmodel.SourceAgentRuntime)
+		defer func() {
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.burst_size", 1000.0, pkgconfigmodel.SourceAgentRuntime)
+		}()
+
+		got := resolveAdaptiveSamplerConfig(nil, preprocessor.NewTokenizer(0))
+
+		assert.Equal(t, preprocessor.SamplerProfile{RateLimit: 1.0, BurstSize: 1.0}, got.Profiles[severityeventsdef.SeverityHigh])
+	})
+
+	t.Run("smart severity profiles enabled: a negative configured burst size is clamped to 1", func(t *testing.T) {
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.burst_size", -50.0, pkgconfigmodel.SourceAgentRuntime)
+		defer func() {
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.burst_size", 1000.0, pkgconfigmodel.SourceAgentRuntime)
+		}()
+
+		got := resolveAdaptiveSamplerConfig(nil, preprocessor.NewTokenizer(0))
+
+		assert.Equal(t, preprocessor.SamplerProfile{RateLimit: 1.0, BurstSize: 1.0}, got.Profiles[severityeventsdef.SeverityHigh])
+	})
 }
 
 func TestDecoderWithDockerJSONPartialLineDetectionOnlyMarksOversizedLogicalLineTruncated(t *testing.T) {
@@ -768,4 +1087,377 @@ func TestDecoderWithDockerJSONPartialLineDetectionOnlyMarksOversizedLogicalLineT
 	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Contains(t, output.ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
 	assert.Equal(t, len(line1)+len(line2), output.RawDataLen)
+}
+
+// TestDecoderKubernetesGoStackTraceAggregatesBlankLine is a regression test for
+// blank lines being silently dropped on the partial-line parser path used by
+// container/CRI log sources (Kubernetes, Docker JSON file). The Go stack trace
+// aggregator relies on the blank line that separates a panic header from its
+// goroutine block; when the MultiLineParser dropped that blank line the parser
+// state machine could not transition and abandoned aggregation, emitting the
+// crash as many individual lines instead of one combined message.
+func TestDecoderKubernetesGoStackTraceAggregatesBlankLine(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.Set("logs_config.auto_multi_line_detection", true, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_multi_line.stack_trace_parsers", []string{"go"}, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.tag_multi_line_logs", true, pkgconfigmodel.SourceAgentRuntime)
+
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	d := InitializeDecoderForTest(source, kubernetes.New())
+	d.Start()
+
+	// A Go panic exactly as a container runtime would emit it in CRI format:
+	// '<timestamp> <stream> <flag> <content>'. Note the blank line (empty
+	// content) between the panic header and the goroutine block.
+	criLine := func(content string) string {
+		return "2024-01-01T00:00:00.000000000Z stderr F " + content + "\n"
+	}
+	panicLines := []string{
+		"panic: something went wrong",
+		"",
+		"goroutine 1 [running]:",
+		"main.plainPanic(...)",
+		"\t/path/main.go:81",
+		"main.main()",
+		"\t/path/main.go:46 +0x5b4",
+	}
+	var input []byte
+	for _, l := range panicLines {
+		input = append(input, []byte(criLine(l))...)
+	}
+	d.InputChan() <- NewInput(input)
+
+	// Closing the input flushes the stack trace aggregator, emitting the
+	// combined crash as a single message.
+	d.Stop()
+
+	var outputs []*message.Message
+	for output := range d.OutputChan() {
+		outputs = append(outputs, output)
+	}
+
+	require.Len(t, outputs, 1, "expected the whole Go panic to aggregate into a single message")
+	combined := outputs[0]
+	assert.True(t, combined.ParsingExtra.IsMultiLine, "expected the combined crash to be tagged multi-line")
+	assert.Contains(t, combined.ParsingExtra.Tags, message.MultiLineSourceTag("go_stack"))
+	content := string(combined.GetContent())
+	assert.Contains(t, content, "panic: something went wrong")
+	assert.Contains(t, content, "goroutine 1 [running]:")
+	assert.Contains(t, content, "main.main()")
+}
+
+// TestDecoderGoStackTraceDisabledWithEmptyParsers confirms that even with auto
+// multi-line detection enabled, an empty logs_config.auto_multi_line.stack_trace_parsers
+// override disables Go stack trace aggregation: the same panic that combines into
+// a single go_stack-tagged message in TestDecoderKubernetesGoStackTraceAggregatesBlankLine
+// is instead emitted line-by-line, with no message carrying the go_stack tag.
+func TestDecoderGoStackTraceDisabledWithEmptyParsers(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.Set("logs_config.auto_multi_line_detection", true, pkgconfigmodel.SourceAgentRuntime)
+	// Empty override: no stack trace parsers -> feature disabled.
+	mockConfig.Set("logs_config.auto_multi_line.stack_trace_parsers", []string{}, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.tag_multi_line_logs", true, pkgconfigmodel.SourceAgentRuntime)
+
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	d := InitializeDecoderForTest(source, kubernetes.New())
+	d.Start()
+
+	criLine := func(content string) string {
+		return "2024-01-01T00:00:00.000000000Z stderr F " + content + "\n"
+	}
+	panicLines := []string{
+		"panic: something went wrong",
+		"",
+		"goroutine 1 [running]:",
+		"main.plainPanic(...)",
+		"\t/path/main.go:81",
+		"main.main()",
+		"\t/path/main.go:46 +0x5b4",
+	}
+	var input []byte
+	for _, l := range panicLines {
+		input = append(input, []byte(criLine(l))...)
+	}
+	d.InputChan() <- NewInput(input)
+
+	d.Stop()
+
+	var outputs []*message.Message
+	for output := range d.OutputChan() {
+		outputs = append(outputs, output)
+	}
+
+	// With the feature disabled the panic is NOT combined: it comes through as
+	// multiple individual messages, and none of them carry the go_stack tag.
+	require.Greater(t, len(outputs), 1, "expected the panic to NOT be aggregated into a single message")
+	for _, out := range outputs {
+		assert.NotContains(t, out.ParsingExtra.Tags, message.MultiLineSourceTag("go_stack"),
+			"no message should be tagged go_stack when stack_trace_parsers is empty")
+	}
+	// The panic header line is still present in the (un-aggregated) output.
+	var sawPanicHeader bool
+	for _, out := range outputs {
+		if string(out.GetContent()) == "panic: something went wrong" {
+			sawPanicHeader = true
+		}
+	}
+	assert.True(t, sawPanicHeader, "expected the panic header to be emitted as its own message")
+}
+
+// TestGoStackTraceParsersEmptyListFromYAML confirms that the exact YAML string
+// "[]" for logs_config.auto_multi_line.stack_trace_parsers overrides the ["go"]
+// default with an empty slice (rather than being ignored and falling back to the
+// default), which is what disables Go stack trace aggregation.
+func TestGoStackTraceParsersEmptyListFromYAML(t *testing.T) {
+	// Sanity check: with the key absent, the default is ["go"].
+	defaultCfg := configmock.NewFromYAML(t, "logs_config:\n  auto_multi_line_detection: true\n")
+	require.Equal(t, []string{"go"},
+		defaultCfg.GetStringSlice("logs_config.auto_multi_line.stack_trace_parsers"),
+		"expected the built-in default to be [\"go\"] when the key is not set")
+
+	// The exact string "[]" in YAML must parse to an empty slice, overriding the default.
+	yaml := "logs_config:\n" +
+		"  auto_multi_line_detection: true\n" +
+		"  auto_multi_line:\n" +
+		"    stack_trace_parsers: []\n"
+	cfg := configmock.NewFromYAML(t, yaml)
+	got := cfg.GetStringSlice("logs_config.auto_multi_line.stack_trace_parsers")
+	assert.Empty(t, got, "expected YAML \"[]\" to produce an empty slice, got %#v", got)
+
+	// End-to-end: an empty slice yields the no-op aggregator (feature disabled).
+	agg := preprocessor.NewStackTraceAggregatorFromNames(got, 1000, true)
+	assert.True(t, agg.IsEmpty())
+	out := agg.Process(message.NewMessage([]byte("panic: boom"), nil, "", 0))
+	require.Len(t, out, 1, "no-op aggregator should pass the panic through unchanged")
+	assert.NotContains(t, out[0].ParsingExtra.Tags, message.MultiLineSourceTag("go_stack"))
+}
+
+// TestGoStackTraceParsersFromEnvVar confirms that
+// DD_LOGS_CONFIG_AUTO_MULTI_LINE_STACK_TRACE_PARSERS is the correct environment
+// variable binding for logs_config.auto_multi_line.stack_trace_parsers, and that
+// list values are provided space-separated.
+func TestGoStackTraceParsersFromEnvVar(t *testing.T) {
+	const key = "logs_config.auto_multi_line.stack_trace_parsers"
+
+	// Multiple values: space-separated, as the agent parses env string slices.
+	t.Setenv("DD_LOGS_CONFIG_AUTO_MULTI_LINE_STACK_TRACE_PARSERS", "go java")
+	cfg := configmock.New(t)
+	assert.Equal(t, []string{"go", "java"}, cfg.GetStringSlice(key),
+		"env var should override the default and parse as a space-separated list")
+
+	// Single value.
+	t.Setenv("DD_LOGS_CONFIG_AUTO_MULTI_LINE_STACK_TRACE_PARSERS", "go")
+	cfg = configmock.New(t)
+	assert.Equal(t, []string{"go"}, cfg.GetStringSlice(key))
+}
+
+// TestGoStackTraceParsersDisableViaEnvVar probes which env var VALUE actually
+// disables the feature, documenting the empty-string gotcha.
+func TestGoStackTraceParsersDisableViaEnvVar(t *testing.T) {
+	const key = "logs_config.auto_multi_line.stack_trace_parsers"
+	const envName = "DD_LOGS_CONFIG_AUTO_MULTI_LINE_STACK_TRACE_PARSERS"
+
+	// A real (enabled) aggregator buffers a "panic:" start line and emits
+	// nothing yet; the no-op (disabled) aggregator passes it straight through.
+	disabled := func(cfg pkgconfigmodel.Reader) bool {
+		agg := preprocessor.NewStackTraceAggregatorFromNames(
+			cfg.GetStringSlice(key), 1000, true)
+		out := agg.Process(message.NewMessage([]byte("panic: boom"), nil, "", 0))
+		return len(out) == 1 && agg.IsEmpty()
+	}
+
+	// Gotcha: an empty-string env var is treated as unset and falls back to the
+	// ["go"] default, so it does NOT disable the feature.
+	t.Run("empty string falls back to default", func(t *testing.T) {
+		t.Setenv(envName, "")
+		cfg := configmock.New(t)
+		assert.Equal(t, []string{"go"}, cfg.GetStringSlice(key))
+		assert.False(t, disabled(cfg), "empty-string env falls back to default, not disabled")
+	})
+
+	// To disable via env, provide a non-empty value with no known parser names.
+	// Unknown names are skipped, leaving zero parsers -> the no-op aggregator.
+	t.Run("sentinel value disables", func(t *testing.T) {
+		t.Setenv(envName, "none")
+		cfg := configmock.New(t)
+		assert.Equal(t, []string{"none"}, cfg.GetStringSlice(key))
+		assert.True(t, disabled(cfg), "an unknown parser name resolves to no parsers -> disabled")
+	})
+
+	// The literal string "[]" is recognized as JSON-style empty-list syntax and
+	// parsed to an empty slice, cleanly disabling the feature (no unknown-parser
+	// warning), unlike an empty string which falls back to the default.
+	t.Run("literal brackets string", func(t *testing.T) {
+		t.Setenv(envName, "[]")
+		cfg := configmock.New(t)
+		assert.Empty(t, cfg.GetStringSlice(key), "\"[]\" should parse to an empty slice")
+		assert.True(t, disabled(cfg), "\"[]\" -> empty slice -> disabled")
+	})
+
+	t.Run("known value stays enabled", func(t *testing.T) {
+		t.Setenv(envName, "go")
+		cfg := configmock.New(t)
+		assert.False(t, disabled(cfg), "'go' should keep the feature enabled")
+	})
+}
+
+// TestDecoderBlankLineNewlineHandling verifies how blank lines emitted on the
+// container/CRI partial-line path are represented after the fix: standalone
+// blanks vs blanks embedded in an aggregated Go stack trace, and whether a
+// trailing blank produces a trailing (escaped) newline.
+func TestDecoderBlankLineNewlineHandling(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.Set("logs_config.auto_multi_line_detection", true, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_multi_line.stack_trace_parsers", []string{"go"}, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.tag_multi_line_logs", true, pkgconfigmodel.SourceAgentRuntime)
+
+	criLine := func(content string) string {
+		return "2024-01-01T00:00:00.000000000Z stderr F " + content + "\n"
+	}
+	run := func(_ *testing.T, lines []string) []*message.Message {
+		source := sources.NewLogSource("", &config.LogsConfig{})
+		d := InitializeDecoderForTest(source, kubernetes.New())
+		d.Start()
+		var input []byte
+		for _, l := range lines {
+			input = append(input, []byte(criLine(l))...)
+		}
+		d.InputChan() <- NewInput(input)
+		d.Stop()
+		var outs []*message.Message
+		for o := range d.OutputChan() {
+			outs = append(outs, o)
+		}
+		return outs
+	}
+
+	// A standalone blank line (not part of any aggregate) becomes its own
+	// message with EMPTY content. It is NOT merged into or appended to the
+	// neighbouring messages, so no embedded/trailing newline appears in them.
+	// Downstream, tailers drop empty messages via HasContent() before the
+	// processor, so it never reaches the backend.
+	t.Run("standalone blank line yields empty message, not embedded newline", func(t *testing.T) {
+		outs := run(t, []string{"hello", "", "world"})
+		require.Len(t, outs, 3)
+		assert.Equal(t, "hello", string(outs[0].GetContent()))
+		assert.Empty(t, outs[1].GetContent(), "blank line is its own empty message")
+		assert.False(t, outs[1].GetContent() != nil && len(outs[1].GetContent()) > 0)
+		assert.False(t, outs[1].HasContent(), "empty message is dropped by tailers before the processor")
+		assert.Equal(t, "world", string(outs[2].GetContent()))
+	})
+
+	// A blank line WITHIN an aggregated trace is preserved as an embedded
+	// (escaped) newline in the middle of the combined message — never a real
+	// newline, and no trailing newline.
+	t.Run("blank line inside stack trace is embedded, no trailing newline", func(t *testing.T) {
+		outs := run(t, []string{
+			"panic: boom",
+			"",
+			"goroutine 1 [running]:",
+			"main.main()",
+			"\t/app/main.go:14 +0x2c",
+		})
+		require.Len(t, outs, 1)
+		content := string(outs[0].GetContent())
+		assert.Contains(t, content, `\n\n`, "the blank line survives as an embedded escaped newline")
+		assert.NotContains(t, content, "\n", "no real newline bytes are embedded")
+		assert.False(t, strings.HasSuffix(content, `\n`), "no trailing escaped newline")
+	})
+
+	// EDGE CASE: when an aggregated trace ENDS with a blank line, that trailing
+	// blank is currently included, producing a trailing escaped "\n" in the
+	// combined message. This matches the pre-existing file-source (SingleLineParser)
+	// behavior; the fix brings the container path to parity. It is an escaped
+	// "\n", never a real newline.
+	t.Run("trailing blank line produces a trailing escaped newline", func(t *testing.T) {
+		outs := run(t, []string{
+			"panic: boom",
+			"",
+			"goroutine 1 [running]:",
+			"main.main()",
+			"\t/app/main.go:14 +0x2c",
+			"",
+		})
+		require.Len(t, outs, 1)
+		content := string(outs[0].GetContent())
+		assert.True(t, strings.HasSuffix(content, `\n`), "trailing blank is kept as an escaped newline")
+		assert.NotContains(t, content, "\n", "still no real newline bytes")
+	})
+}
+
+// TestDecoderAutoMultilineTimestampBlankLine exercises the DEFAULT auto-multiline
+// path (timestamp-based combiningAggregator, NOT the stack trace aggregator) to
+// observe how blank lines behave there.
+func TestDecoderAutoMultilineTimestampBlankLine(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.Set("logs_config.auto_multi_line_detection", true, pkgconfigmodel.SourceAgentRuntime)
+	// Isolate the timestamp-based path: no stack trace parsers.
+	mockConfig.Set("logs_config.auto_multi_line.stack_trace_parsers", []string{}, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.tag_multi_line_logs", true, pkgconfigmodel.SourceAgentRuntime)
+
+	criLine := func(content string) string {
+		return "2024-01-01T00:00:00.000000000Z stderr F " + content + "\n"
+	}
+	run := func(_ *testing.T, lines []string) []*message.Message {
+		source := sources.NewLogSource("", &config.LogsConfig{})
+		d := InitializeDecoderForTest(source, kubernetes.New())
+		d.Start()
+		var input []byte
+		for _, l := range lines {
+			input = append(input, []byte(criLine(l))...)
+		}
+		d.InputChan() <- NewInput(input)
+		d.Stop()
+		var outs []*message.Message
+		for o := range d.OutputChan() {
+			outs = append(outs, o)
+		}
+		return outs
+	}
+
+	// A blank line following a timestamped log has no timestamp, so the timestamp
+	// detector leaves it labeled "aggregate": it folds into the preceding group as a
+	// trailing escaped newline and flips that log to multi-line. The next timestamped
+	// line starts a fresh group. This confirms grouping is driven by timestamp presence,
+	// and that the blank line is carried through (not dropped) as an escaped newline.
+	t.Run("blank between two timestamped lines folds into the preceding group", func(t *testing.T) {
+		outs := run(t, []string{
+			"2024-03-28 13:45:30 line one",
+			"",
+			"2024-03-28 13:45:31 line two",
+		})
+		require.Len(t, outs, 2)
+
+		first := string(outs[0].GetContent())
+		assert.Equal(t, `2024-03-28 13:45:30 line one\n`, first)
+		assert.True(t, outs[0].ParsingExtra.IsMultiLine, "the folded-in blank line makes this a multi-line log")
+		assert.Contains(t, outs[0].ParsingExtra.Tags, "multiline:auto_multiline")
+		assert.NotContains(t, first, "\n", "no real newline bytes, only the escaped sequence")
+
+		second := string(outs[1].GetContent())
+		assert.Equal(t, "2024-03-28 13:45:31 line two", second)
+		assert.False(t, outs[1].ParsingExtra.IsMultiLine)
+	})
+
+	// A blank line in the middle of a timestamp-grouped block becomes an embedded
+	// escaped newline (\n\n) rather than splitting the group or being dropped.
+	t.Run("blank in middle of a timestamped group is embedded as an escaped newline", func(t *testing.T) {
+		outs := run(t, []string{
+			"2024-03-28 13:45:30 ERROR boom",
+			"    at Foo",
+			"",
+			"    at Bar",
+			"2024-03-28 13:45:31 INFO next",
+		})
+		require.Len(t, outs, 2)
+
+		grouped := string(outs[0].GetContent())
+		assert.Equal(t, `2024-03-28 13:45:30 ERROR boom\n    at Foo\n\n    at Bar`, grouped)
+		assert.True(t, outs[0].ParsingExtra.IsMultiLine)
+		assert.Contains(t, outs[0].ParsingExtra.Tags, "multiline:auto_multiline")
+		assert.NotContains(t, grouped, "\n", "no real newline bytes, only escaped sequences")
+
+		assert.Equal(t, "2024-03-28 13:45:31 INFO next", string(outs[1].GetContent()))
+		assert.False(t, outs[1].ParsingExtra.IsMultiLine)
+	})
 }

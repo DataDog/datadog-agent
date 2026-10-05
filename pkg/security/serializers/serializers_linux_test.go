@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	modelutils "github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/schemas"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -345,6 +346,41 @@ func TestCustomEventVariables_AncestorVariables(t *testing.T) {
 	assert.Equal(t, false, s.ProcessContextSerializer.Variables["is_suspicious"])
 }
 
+func TestProcessSerializer_ContainerPodUID(t *testing.T) {
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.ExecEventType)
+
+	proc := &event.ProcessContext.Process
+	proc.Pid = 1234
+	proc.Tid = 1234
+	proc.PPid = 1
+	proc.Comm = "test"
+	proc.FileEvent.PathnameStr = "/usr/bin/test"
+	proc.FileEvent.BasenameStr = "test"
+	proc.FileEvent.Inode = 12345
+	proc.FileEvent.MountID = 1
+	proc.FileEvent.FileFields.Mode = 0o755
+	proc.ContainerContext.ContainerID = "container-123"
+	proc.ContainerContext.PodUID = "48d25824-cbe2-4fdc-9928-5bb49e05473d"
+	proc.ContainerContext.ContainerSource = model.ContainerSourceEvent
+	proc.CGroup.CGroupID = "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod48d25824_cbe2_4fdc_9928_5bb49e05473d.slice/cri-containerd-container-123.scope"
+	proc.CGroup.CGroupSource = model.CGroupSourceEvent
+
+	ps := newProcessSerializer(proc, event)
+	require.NotNil(t, ps.Container)
+	assert.Equal(t, "container-123", ps.Container.ID)
+	assert.Equal(t, "48d25824-cbe2-4fdc-9928-5bb49e05473d", ps.Container.PodUID)
+	data, err := json.Marshal(ps)
+	require.NoError(t, err)
+
+	var raw map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &raw))
+
+	container, ok := raw["container"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "48d25824-cbe2-4fdc-9928-5bb49e05473d", container["pod_uid"])
+}
+
 func TestProcessSerializer_IsExecFields(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.ExecEventType)
@@ -491,4 +527,50 @@ func TestProcessSerializer_IsExecFields_Ancestors(t *testing.T) {
 	data, err := json.Marshal(pcs.Ancestors[0])
 	require.NoError(t, err)
 	validateProcessSchemaFields(t, string(data))
+}
+
+func TestTraceSerializer_AbsentWithoutSpanContext(t *testing.T) {
+	// An event with no APM span context (the common case) must not emit the
+	// "trace" / "dd" keys at all, so consumers can rely on their presence as
+	// a signal that APM correlation data exists.
+	event := newAnomalyEvent()
+
+	s := NewEventSerializer(event, nil, newTestScrubber(t))
+	assert.Nil(t, s.Trace, "Trace serializer should be nil without a span context")
+	assert.Nil(t, s.DD, "DD serializer should be nil without a span context")
+
+	data, err := json.Marshal(s)
+	require.NoError(t, err)
+
+	var raw map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &raw))
+
+	_, hasTrace := raw["trace"]
+	assert.False(t, hasTrace, "trace key should be absent when there is no span context")
+	_, hasDD := raw["dd"]
+	assert.False(t, hasDD, "dd key should be absent when there is no span context")
+}
+
+func TestTraceSerializer_PresentWithSpanContext(t *testing.T) {
+	// When the event carries a span context, both the "trace" and "dd" keys
+	// must be present and populated.
+	event := newAnomalyEvent()
+	event.SpanContext.SpanID = 42
+	event.SpanContext.TraceID = modelutils.TraceID{Hi: 1, Lo: 2}
+
+	s := NewEventSerializer(event, nil, newTestScrubber(t))
+	require.NotNil(t, s.Trace, "Trace serializer should be set with a span context")
+	assert.Equal(t, "42", s.Trace.SpanID)
+	assert.Equal(t, event.SpanContext.TraceID.HexString(), s.Trace.TraceID)
+
+	data, err := json.Marshal(s)
+	require.NoError(t, err)
+
+	var raw map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &raw))
+
+	_, hasTrace := raw["trace"]
+	assert.True(t, hasTrace, "trace key should be present when there is a span context")
+	_, hasDD := raw["dd"]
+	assert.True(t, hasDD, "dd key should be present when there is a span context")
 }

@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Workload autoscaling: fixed a bug where, when running the Cluster Agent in
+    high-availability mode (multiple replicas), the burstable mode of a
+    ``DatadogPodAutoscaler`` could leave the CPU limit in place on a random
+    subset of pods. The CPU-limit removal is now re-derived from the autoscaler
+    spec in the admission controller, so every replica applies it consistently
+    regardless of which one handles the admission request.

@@ -8,6 +8,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
 from tasks.libs.common.utils import TestsNotSupportedError, gitlab_section
+from tasks.schema.generate import schema_codegen
 
 
 @dataclass
@@ -80,12 +81,15 @@ def containerized_integration_tests(
 
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(integration_tests_config.go_build_tags),
+        "go_build_tags": ",".join(integration_tests_config.go_build_tags),
         "race_opt": "-race" if race else "",
         "timeout_opt": f"-timeout {timeout}" if timeout else "",
     }
 
     go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}"'.format(**test_args)  # noqa: FS002
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
 
     for it in integration_tests_config.tests:
         if it.dir:

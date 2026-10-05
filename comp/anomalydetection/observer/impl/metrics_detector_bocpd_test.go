@@ -27,6 +27,19 @@ func TestBOCPDDetector_Name(t *testing.T) {
 	assert.Equal(t, "bocpd", d.Name())
 }
 
+func TestBOCPDDetector_EnsuresWarmupFitsRunLength(t *testing.T) {
+	config := DefaultBOCPDConfig()
+	assert.Equal(t, 120, config.MaxRunLength)
+	config.WarmupPoints = 40
+	config.MaxRunLength = 20
+	d := NewBOCPDDetector(config)
+	assert.Equal(t, 40, d.config.MaxRunLength)
+
+	config.MaxRunLength = 0
+	d = NewBOCPDDetector(config)
+	assert.Equal(t, 120, d.config.MaxRunLength)
+}
+
 func TestBOCPDDetector_NotEnoughPoints(t *testing.T) {
 	d := testBOCPDDetector()
 	storage := newTimeSeriesStorage()
@@ -34,6 +47,32 @@ func TestBOCPDDetector_NotEnoughPoints(t *testing.T) {
 
 	result := d.Detect(storage, 1)
 	assert.Empty(t, result.Anomalies)
+	assert.Empty(t, d.series, "cold series must not allocate state")
+}
+
+func TestBOCPDDetector_ActivationSurvivesRetention(t *testing.T) {
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 3
+	d := NewBOCPDDetector(config)
+	storage := newDetectorTestStorage()
+
+	storage.Add("ns", "test.metric", 1, 1, nil)
+	storage.Add("ns", "test.metric", 2, 2, nil)
+	d.Detect(storage, 2)
+	require.Empty(t, d.series)
+
+	storage.Add("ns", "test.metric", 3, 3, nil)
+	d.Detect(storage, 3)
+	key := bocpdStateKey{ref: 0, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state, "series must activate at the warmup threshold")
+	require.True(t, state.initialized, "activation must replay retained warmup points")
+
+	storage.cfg.PointRetentionSecs = 1
+	storage.Add("ns", "test.metric", 4, 4, nil)
+	d.Detect(storage, 4)
+	require.Same(t, state, d.series[key], "retention below warmup must not reset active state")
+	require.Equal(t, int64(4), state.lastProcessedTime, "active state must continue processing after retention")
 }
 
 func TestBOCPDDetector_StableData(t *testing.T) {
@@ -62,7 +101,9 @@ func TestBOCPDDetector_DetectsStepChange(t *testing.T) {
 	result := d.Detect(storage, 40)
 
 	require.NotEmpty(t, result.Anomalies, "should detect step change")
-	assert.Contains(t, result.Anomalies[0].Title, "BOCPD")
+	title, description := observer.FormatAnomaly(result.Anomalies[0])
+	assert.Equal(t, "BOCPD changepoint detected: test.metric:avg", title)
+	assert.Contains(t, description, "exceeded threshold")
 	assert.GreaterOrEqual(t, result.Anomalies[0].Timestamp, int64(21))
 }
 
@@ -80,8 +121,9 @@ func TestBOCPDDetector_DetectsDownwardStepChange(t *testing.T) {
 	result := d.Detect(storage, 50)
 
 	require.NotEmpty(t, result.Anomalies, "should detect downward step change")
-	assert.Contains(t, result.Anomalies[0].Title, "BOCPD")
-	assert.Contains(t, result.Anomalies[0].Description, "exceeded threshold")
+	title, description := observer.FormatAnomaly(result.Anomalies[0])
+	assert.Equal(t, "BOCPD changepoint detected: test.metric:avg", title)
+	assert.Contains(t, description, "exceeded threshold")
 }
 
 func TestBOCPDDetector_DetectsSustainedShiftViaShortRunMass(t *testing.T) {
@@ -107,7 +149,8 @@ func TestBOCPDDetector_DetectsSustainedShiftViaShortRunMass(t *testing.T) {
 	result := d.Detect(storage, 60)
 
 	require.NotEmpty(t, result.Anomalies, "should detect sustained shift")
-	assert.Contains(t, result.Anomalies[0].Description, "short-run posterior mass")
+	_, description := observer.FormatAnomaly(result.Anomalies[0])
+	assert.Contains(t, description, "short-run posterior mass")
 }
 
 func TestBOCPDDetector_SustainedIncidentEmitsOnce(t *testing.T) {
@@ -243,9 +286,9 @@ func TestBOCPDDetector_DefaultAggregations(t *testing.T) {
 	assert.Equal(t, []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, cfg.Aggregations)
 }
 
-func TestBOCPDDetector_DefaultWarmup120(t *testing.T) {
+func TestBOCPDDetector_DefaultWarmup60(t *testing.T) {
 	cfg := DefaultBOCPDConfig()
-	assert.Equal(t, 120, cfg.WarmupPoints, "default warmup should be 120 points")
+	assert.Equal(t, 60, cfg.WarmupPoints, "default warmup should be 60 points")
 }
 
 func TestBOCPDConfig_DefaultMinVarianceIsPositive(t *testing.T) {
@@ -462,6 +505,30 @@ func TestFindingM7_WarmupPointsOneCausesNaN(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestBOCPDDebugInfoRetainsTriggerEvidence(t *testing.T) {
+	b := NewBOCPDDetector(DefaultBOCPDConfig())
+	state := &bocpdSeriesState{baselineMean: 10, baselineStddev: 2}
+	point := observer.Point{Timestamp: 42, Value: 16}
+	series := &observer.Series{Namespace: "ns", Name: "metric"}
+
+	shortRun := b.makeAnomaly(state, point, series, observer.AggregateAverage, 0.2, 0.7)
+	require.NotNil(t, shortRun)
+	require.NotNil(t, shortRun.DebugInfo)
+	assert.Equal(t, observer.BOCPDTriggerShortRunMass, shortRun.DebugInfo.BOCPDTrigger)
+	assert.Equal(t, 0.2, shortRun.DebugInfo.BOCPDChangePointProb)
+	assert.Equal(t, 0.7, shortRun.DebugInfo.BOCPDShortRunMass)
+	assert.Equal(t, b.config.ShortRunLength, shortRun.DebugInfo.BOCPDShortRunLength)
+	_, shortRunDescription := observer.FormatAnomaly(*shortRun)
+	assert.Contains(t, shortRunDescription, "short-run posterior mass")
+
+	changePoint := b.makeAnomaly(state, point, series, observer.AggregateAverage, b.config.CPThreshold, 0.7)
+	require.NotNil(t, changePoint)
+	require.NotNil(t, changePoint.DebugInfo)
+	assert.Equal(t, observer.BOCPDTriggerChangePointProbability, changePoint.DebugInfo.BOCPDTrigger)
+	_, changePointDescription := observer.FormatAnomaly(*changePoint)
+	assert.Contains(t, changePointDescription, "changepoint probability")
 }
 
 func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {

@@ -32,13 +32,7 @@ type istioGatewaySidecarPattern struct {
 	*istioInjectionPattern
 }
 
-func (e *istioGatewaySidecarPattern) ShouldMutatePod(pod *corev1.Pod) bool {
-	// Check if sidecar already exists
-	if sidecar.HasProcessorSidecar(pod) {
-		e.logger.Debugf("Pod %s already has appsec processor sidecar", mutatecommon.PodString(pod))
-		return false
-	}
-
+func (e *istioGatewaySidecarPattern) IsPodEligible(pod *corev1.Pod, _ string) bool {
 	gatewayClassName := pod.Labels[gatewayClassNamePodLabel]
 	if gatewayClassName == "" {
 		return false
@@ -58,14 +52,9 @@ func (e *istioGatewaySidecarPattern) ShouldMutatePod(pod *corev1.Pod) bool {
 	return true
 }
 
-func (e *istioGatewaySidecarPattern) IsNamespaceEligible(string) bool {
-	// We want to inject sidecar in all namespaces
-	return true
-}
-
-func (e *istioGatewaySidecarPattern) PodDeleted(*corev1.Pod, string, dynamic.Interface) (bool, error) {
-	// We don't care about a pod being deleted here
-	return false, nil
+func (e *istioGatewaySidecarPattern) PodDeleted(*corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+	// PodDeleted is a no-op; the returned outcome is only consulted for the DELETE admission error path (the metric is not emitted on delete).
+	return appsecconfig.MutationMutated, nil
 }
 
 func (e *istioGatewaySidecarPattern) MatchCondition() admissionregistrationv1.MatchCondition {
@@ -80,15 +69,19 @@ func (e *istioGatewaySidecarPattern) Added(context.Context, *unstructured.Unstru
 }
 
 // MutatePod wait for the first pod created by a certain gateway class to arrive to add our envoy filter to the mix.
-func (e *istioGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+func (e *istioGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+	if sidecar.HasProcessorSidecar(pod) {
+		return appsecconfig.MutationSkipped, &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonAlreadySidecar}
+	}
+
 	gatewayClassName := pod.Labels[gatewayClassNamePodLabel]
 
 	gateway, err := e.client.Resource(gatewayClassGVR).Get(context.TODO(), gatewayClassName, metav1.GetOptions{})
 	if err != nil {
-		return false, fmt.Errorf("error getting gatewayclass %s: %w", gatewayClassName, err)
+		return appsecconfig.MutationError, fmt.Errorf("error getting gatewayclass %s: %w", gatewayClassName, err)
 	}
 	if err := e.istioInjectionPattern.Added(context.TODO(), gateway); err != nil {
-		return false, err
+		return appsecconfig.MutationError, err
 	}
 
 	// Build and inject processor container
@@ -97,5 +90,5 @@ func (e *istioGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dyna
 
 	e.logger.Infof("Injected appsec processor sidecar into pod %s", mutatecommon.PodString(pod))
 
-	return true, nil
+	return appsecconfig.MutationMutated, nil
 }

@@ -321,9 +321,12 @@ func (h *RemoteConfigHandler) onSemanticCoreUpdate(
 			pkglog.Errorf("semantic-core RC: failed to load embedded registry while reverting: %v", err)
 			return
 		}
-		if !semantics.RegistryEqual(embedded, semantics.DefaultRegistry()) {
+		live := semantics.DefaultRegistry()
+		if semantics.RegistryEqual(embedded, live) {
+			pkglog.Debug("semantic-core RC: embedded content already matches the live registry; nothing was swapped and the live registry source is unchanged")
+		} else {
 			semantics.UpdateRegistry(embedded)
-			pkglog.Infof("semantic-core RC: empty payload received; reverted to embedded registry version=%s", embedded.Version())
+			pkglog.Infof("semantic-core RC: empty payload received; reverted to embedded registry: content_hash=%s, version=%s, source=%s", embedded.ContentHash(), embedded.Version(), embedded.Source())
 		}
 		return
 	}
@@ -355,15 +358,15 @@ func (h *RemoteConfigHandler) onSemanticCoreUpdate(
 	}
 
 	if chosen != nil {
-		if semantics.RegistryEqual(chosen, semantics.DefaultRegistry()) {
-			// Same registry version as the one already live: skip the swap.
-			// Downstream consumers detect registry replacement themselves by
-			// comparing the live registry's version against their own cached
-			// state, so we don't need to notify them explicitly.
-			pkglog.Debugf("semantic-core RC payload %s matches the live registry version; no-op", chosenPath)
+		live := semantics.DefaultRegistry()
+		if semantics.RegistryEqual(chosen, live) {
+			pkglog.Debugf("semantic-core RC payload %s carries the same content as the live registry; it was accepted but not swapped, and the live registry source is unchanged", chosenPath)
 		} else {
+			// Downstream consumers invalidate derived state by comparing against
+			// the live registry's fingerprint rather than by being notified of a
+			// registry replacement.
 			semantics.UpdateRegistry(chosen)
-			pkglog.Infof("semantic-core registry updated via RC: version=%s, cfgPath=%s", chosen.Version(), chosenPath)
+			pkglog.Infof("semantic-core registry updated via RC: content_hash=%s, version=%s, source=%s, cfgPath=%s", chosen.ContentHash(), chosen.Version(), chosen.Source(), chosenPath)
 		}
 	}
 

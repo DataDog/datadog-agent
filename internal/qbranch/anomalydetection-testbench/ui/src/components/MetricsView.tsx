@@ -11,16 +11,16 @@ import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 import { TagFilterGroups } from './TagFilterGroups';
 
-const AGGREGATION_TYPES = ['avg', 'count', 'sum', 'min', 'max'] as const;
+const AGGREGATION_TYPES = ['avg', 'count', 'sum'] as const;
 type AggregationType = typeof AGGREGATION_TYPES[number];
 
 function getBaseMetricName(name: string): string {
-  const match = name.match(/^(.+):(avg|sum|count|min|max)$/);
+  const match = name.match(/^(.+):(avg|sum|count)$/);
   return match ? match[1] : name;
 }
 
 function getAggregationType(name: string): AggregationType | null {
-  const match = name.match(/:(avg|sum|count|min|max)$/);
+  const match = name.match(/:(avg|sum|count)$/);
   return match ? (match[1] as AggregationType) : null;
 }
 
@@ -32,9 +32,15 @@ function getDetectorComponent(anomaly: { detectorName: string; detectorComponent
   return anomaly.detectorComponent ?? anomaly.detectorName;
 }
 
-function formatSeriesLabel(tags: string[]): string {
-  if (!tags || tags.length === 0) return 'untagged';
-  return tags.join(', ');
+function effectiveSeriesTags(tags: string[] | null | undefined, host?: string): string[] {
+	const baseTags = tags ?? [];
+	return host ? [`host:${host}`, ...baseTags] : baseTags;
+}
+
+function formatSeriesLabel(tags: string[] | null | undefined, host?: string): string {
+	const displayTags = effectiveSeriesTags(tags, host);
+	if (displayTags.length === 0) return 'untagged';
+	return displayTags.join(', ');
 }
 
 /** Prefix sum of per-bucket deltas (time-ordered) — total from scenario start. */
@@ -214,7 +220,7 @@ export function MetricsView({
   }, [allAnomalies]);
 
   const tagGroups = useMemo(() => {
-    const all = extractTagGroups(allSeries.map((s) => s.tags));
+	const all = extractTagGroups(allSeries.map((s) => effectiveSeriesTags(s.tags, s.host)));
     return new Map([...all.entries()].filter(([k]) => MAIN_TAG_FILTER_KEYS.has(k)));
   }, [allSeries]);
 
@@ -491,6 +497,32 @@ export function MetricsView({
           </div>
         </div>
 
+        {state.status?.baseline?.enabled && (
+          <div className="p-4 border-b border-slate-700">
+            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              Baseline analysis
+            </h2>
+            {state.status.baseline.active ? (
+              <div className="flex items-center gap-2 text-xs text-amber-400">
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                <span>Window active · {Math.round(state.status.baseline.durationSec / 60)}m</span>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-xs text-slate-300">
+                  <span className="text-green-400">✓</span>
+                  <span>
+                    {(state.status.baseline.mutedSeries?.length ?? 0)} series muted from anomaly detection
+                  </span>
+                </div>
+                {(state.status.baseline.mutedSeries?.length ?? 0) > 0 && (
+                  <MutedSeriesList series={state.status.baseline.mutedSeries!} />
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="p-4 border-b border-slate-700 space-y-3">
           <div>
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
@@ -698,7 +730,7 @@ export function MetricsView({
                       const dataList = groupSeriesData.get(groupKey) ?? [];
                       if (dataList.length === 0) return null;
                       const tagFiltered = (tagFilter.include.size > 0 || tagFilter.exclude.size > 0)
-                        ? dataList.filter((d) => matchesTagFilter(d.tags ?? [], tagFilter))
+						? dataList.filter((d) => matchesTagFilter(effectiveSeriesTags(d.tags ?? [], d.host), tagFilter))
                         : dataList;
                       const chartSeries = showAnomalyOnlySeriesLines
                         ? tagFiltered.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
@@ -708,7 +740,7 @@ export function MetricsView({
                       const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
                       const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
                       const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
-                        label: formatSeriesLabel(d.tags),
+							label: formatSeriesLabel(d.tags, d.host),
                         points: d.points,
                         seriesId: d.id,
                       }));
@@ -771,7 +803,7 @@ export function MetricsView({
                             viewMode === 'rate-min' ? toRatePerMinSeries :
                             (pts: Point[]) => pts;
                           const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
-                            label: formatSeriesLabel(d.tags),
+								label: formatSeriesLabel(d.tags, d.host),
                             points: transformPoints(d.points),
                             seriesId: d.id,
                           }));
@@ -883,7 +915,7 @@ export function MetricsView({
                           const mapPoints = (pts: Point[]) =>
                             isCounterTelemetry ? cumulativeFromStart(pts) : pts;
                           const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
-                            label: formatSeriesLabel(d.tags),
+								label: formatSeriesLabel(d.tags, d.host),
                             points: mapPoints(d.points),
                             seriesId: d.id,
                           }));
@@ -916,6 +948,27 @@ export function MetricsView({
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function MutedSeriesList({ series }: { series: string[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const preview = series.slice(0, 3);
+  const rest = series.length - preview.length;
+  return (
+    <div className="text-xs text-slate-500 font-mono space-y-0.5 ml-4">
+      {(expanded ? series : preview).map((s) => (
+        <div key={s} className="truncate opacity-60" title={s}>{s}</div>
+      ))}
+      {!expanded && rest > 0 && (
+        <button
+          className="text-slate-400 hover:text-slate-200 transition-colors"
+          onClick={() => setExpanded(true)}
+        >
+          +{rest} more
+        </button>
+      )}
     </div>
   );
 }

@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/httpclient"
@@ -110,6 +111,9 @@ func createHash(algorithm string) (hash.Hash, error) {
 	case "md5":
 		return md5.New(), nil
 	case "sha1":
+		if fips.BuiltForFIPS() {
+			return nil, errors.New("sha1 is not a FIPS-approved hash algorithm")
+		}
 		return sha1.New(), nil
 	case "sha256":
 		return sha256.New(), nil

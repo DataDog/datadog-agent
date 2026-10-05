@@ -354,6 +354,45 @@ func TestProcessEndpointSliceNilPorts(t *testing.T) {
 	assert.Equal(t, 0, len(ports))
 }
 
+func TestProcessEndpointSliceConditions(t *testing.T) {
+	boolPtr := func(b bool) *bool { return &b }
+
+	slice := &discv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "myservice-abc",
+			Namespace: "default",
+			Labels: map[string]string{
+				"kubernetes.io/service-name": "myservice",
+			},
+		},
+		Endpoints: []discv1.Endpoint{
+			// Ready
+			{Addresses: []string{"10.0.0.1"}, Conditions: discv1.EndpointConditions{Ready: boolPtr(true)}},
+			// Not ready
+			{Addresses: []string{"10.0.0.2"}, Conditions: discv1.EndpointConditions{Ready: boolPtr(false)}},
+			// Terminating but still serving
+			{Addresses: []string{"10.0.0.3"}, Conditions: discv1.EndpointConditions{Ready: boolPtr(true), Serving: boolPtr(true), Terminating: boolPtr(true)}},
+			// Unknown conditions, considered ready
+			{Addresses: []string{"10.0.0.4"}},
+		},
+	}
+
+	entities := func(eps []*KubeEndpointService) []string {
+		ids := make([]string, 0, len(eps))
+		for _, ep := range eps {
+			ids = append(ids, ep.GetServiceID())
+		}
+		sort.Strings(ids)
+		return ids
+	}
+
+	eps := processEndpointSlice(slice, []string{}, workloadfilterfxmock.SetupMockFilter(t))
+	assert.Equal(t, []string{
+		"kube_endpoint_uid://default/myservice/10.0.0.1",
+		"kube_endpoint_uid://default/myservice/10.0.0.4",
+	}, entities(eps))
+}
+
 func TestKubeEndpointSlicesFiltering(t *testing.T) {
 	kubeEndpointExcludeConfig := `
 cel_workload_exclude:
@@ -775,4 +814,45 @@ func TestReconcilesServiceOnUpdatedTags(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, newTags, "env:staging")
 	assert.NotContains(t, newTags, "env:prod")
+}
+
+// TestEndpointSlicesServiceUpdatedPrometheusAnnotations verifies that changes to prometheus
+// scrape annotations trigger endpoint service emission.
+func TestEndpointSlicesServiceUpdatedPrometheusAnnotations(t *testing.T) {
+	slice := &discv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "nginx-svc-abc",
+			Namespace: "default",
+			UID:       types.UID("slice-1"),
+			Labels:    map[string]string{"kubernetes.io/service-name": "nginx-svc"},
+		},
+		Endpoints: []discv1.Endpoint{
+			{Addresses: []string{"10.0.0.1"}},
+			{Addresses: []string{"10.0.0.2"}},
+		},
+	}
+
+	t.Run("annotation added", func(t *testing.T) {
+		svcOld := &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "nginx-svc", Namespace: "default"}}
+		l, svcIndexer, newCh, _ := newTrackerTestListener(t, nil, svcOld, slice)
+
+		svcNew := svcOld.DeepCopy()
+		svcNew.Annotations = map[string]string{"prometheus.io/scrape": "true"}
+		require.NoError(t, svcIndexer.Update(svcNew))
+		l.serviceUpdated(svcOld, svcNew)
+
+		require.Len(t, newCh, 2, "endpoint services should be emitted when prometheus annotation is added")
+	})
+
+	t.Run("scrape annotation value changed", func(t *testing.T) {
+		svcOld := &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "nginx-svc", Namespace: "default", Annotations: map[string]string{"prometheus.io/scrape": "false"}}}
+		l, svcIndexer, newCh, _ := newTrackerTestListener(t, nil, svcOld, slice)
+
+		svcNew := svcOld.DeepCopy()
+		svcNew.Annotations["prometheus.io/scrape"] = "true"
+		require.NoError(t, svcIndexer.Update(svcNew))
+		l.serviceUpdated(svcOld, svcNew)
+
+		require.Len(t, newCh, 2, "endpoint services should be emitted when scrape annotation value changes")
+	})
 }

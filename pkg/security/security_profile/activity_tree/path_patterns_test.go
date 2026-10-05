@@ -342,7 +342,7 @@ func TestInsertFileEvent_AnomalyDryRunQuietOnVariants(t *testing.T) {
 
 	// Dry-run insert: no new FileNode should be created.
 	before := stats.FileNodes
-	isNew := pn.InsertFileEvent(&newVariant.Open.File, newVariant, uint64(1), Unknown, stats, true, nil, nil)
+	isNew, _ := pn.InsertFileEvent(&newVariant.Open.File, newVariant, uint64(1), Unknown, stats, true, nil, nil)
 	assert.True(t, isNew == false || stats.FileNodes == before,
 		"dry-run insert on pattern variant should not create new nodes")
 	// The pattern-lookup-hit counter should have fired at least once.
@@ -627,7 +627,7 @@ func TestInsertFileEvent_R2_AnomalyRaisedOnCrossClassVariant(t *testing.T) {
 			PathnameStr:           "/var/log/job/malicious_binary",
 		}},
 	}
-	isNew := pn.InsertFileEvent(&anomaly.Open.File, anomaly, uint64(1), Unknown, stats, true, nil, nil)
+	isNew, _ := pn.InsertFileEvent(&anomaly.Open.File, anomaly, uint64(1), Unknown, stats, true, nil, nil)
 	assert.True(t, isNew, "cross-class candidate must surface as a new entry")
 }
 
@@ -661,7 +661,7 @@ func TestInsertFileEvent_R2_SameShapeStillQuiet(t *testing.T) {
 		}},
 	}
 	before := stats.FilePatternLookupHits
-	isNew := pn.InsertFileEvent(&variant.Open.File, variant, uint64(1), Unknown, stats, true, nil, nil)
+	isNew, _ := pn.InsertFileEvent(&variant.Open.File, variant, uint64(1), Unknown, stats, true, nil, nil)
 	assert.False(t, isNew, "same-shape numeric variant must match the trained pattern")
 	assert.Greater(t, stats.FilePatternLookupHits, before)
 }

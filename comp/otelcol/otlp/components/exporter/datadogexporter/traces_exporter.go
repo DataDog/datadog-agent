@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
-	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -88,9 +88,9 @@ func (exp *traceExporter) consumeTraces(
 		}
 		switch src.Kind {
 		case source.HostnameKind:
-			hosts[src.Identifier] = struct{}{}
+			hosts[src.Identifier] = struct{}{} //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		case source.AWSECSFargateKind:
-			ecsFargateArns[src.Identifier] = struct{}{}
+			ecsFargateArns[src.Identifier] = struct{}{} //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		case source.InvalidKind:
 		}
 	}

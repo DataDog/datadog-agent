@@ -8,12 +8,13 @@
 package winkmem
 
 import (
+	"cmp"
 	"encoding/binary"
 	"fmt"
-	"sort"
+	"slices"
 	"unsafe"
 
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -193,11 +194,9 @@ type sortKey struct {
 }
 type sortKeyList []sortKey
 
-func (p sortKeyList) Len() int { return len(p) }
-func (p sortKeyList) Swap(i, j int) {
-	p[j], p[i] = p[i], p[j]
+func sortDescending(list sortKeyList) {
+	slices.SortFunc(list, func(a, b sortKey) int { return cmp.Compare(b.Key, a.Key) })
 }
-func (p sortKeyList) Less(i, j int) bool { return p[i].Key < p[j].Key }
 
 func getpoolinfo() (*systemPoolInformation, error) {
 	firstbuffer := make([]uint8, cEmptySystemInformationStructSize) // magic size of empty structure in C land
@@ -249,10 +248,10 @@ func getpoolinfo() (*systemPoolInformation, error) {
 		spi.nonPagedPoolAllocsOutstanding = append(spi.nonPagedPoolAllocsOutstanding, sortKey{uint64(pt.nonPagedAllocs) - uint64(pt.nonPagedFrees), i})
 		spi.spti.poolTags = append(spi.spti.poolTags, *pt)
 	}
-	sort.Sort(sort.Reverse(spi.pagedPoolBytes))
-	sort.Sort(sort.Reverse(spi.nonPagedPoolBytes))
-	sort.Sort(sort.Reverse(spi.pagedPoolAllocsOutstanding))
-	sort.Sort(sort.Reverse(spi.nonPagedPoolAllocsOutstanding))
+	sortDescending(spi.pagedPoolBytes)
+	sortDescending(spi.nonPagedPoolBytes)
+	sortDescending(spi.pagedPoolAllocsOutstanding)
+	sortDescending(spi.nonPagedPoolAllocsOutstanding)
 
 	return spi, nil
 }

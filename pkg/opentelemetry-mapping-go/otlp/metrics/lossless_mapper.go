@@ -21,9 +21,9 @@ import (
 //	This mapper emits raw values from OTLP cumulative monotonic Sums as Datadog Gauges,
 //	instead of computing deltas and reporting them as Datadog Counts.
 type lossLessMapper struct {
-	cfg                  translatorConfig
-	logger               *zap.Logger
-	warnedRateAttrErrors sync.Map
+	cfg           translatorConfig
+	logger        *zap.Logger
+	warnedMetrics sync.Map
 }
 
 // newLossLessMapper creates a new lossLessMapper without a cache.
@@ -39,7 +39,7 @@ func newLossLessMapper(cfg translatorConfig, logger *zap.Logger) mapper {
 
 // MapNumberMetrics maps number datapoints to Datadog metrics.
 func (m *lossLessMapper) MapNumberMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, dt DataType, slice pmetric.NumberDataPointSlice) {
-	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, &m.warnedRateAttrErrors)
+	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, &m.warnedMetrics)
 }
 
 const (
@@ -48,12 +48,13 @@ const (
 	deltaSumRateAttributeKey = "datadog.metric.as_type"
 )
 
-// rateAttrErrors tracks which one-shot errors have been emitted for a
+// metricWarnings tracks which one-shot errors have been emitted for a
 // given metric name so that each error type fires at most once.
-type rateAttrErrors struct {
-	wrongType    atomic.Bool
-	zeroInterval atomic.Bool
-	unknownValue atomic.Bool
+type metricWarnings struct {
+	wrongType          atomic.Bool
+	zeroInterval       atomic.Bool
+	unknownValue       atomic.Bool
+	bucketCountTooHigh atomic.Bool
 }
 
 // mapNumberMetrics maps number datapoints into Datadog metrics.
@@ -66,7 +67,7 @@ func mapNumberMetrics(
 	slice pmetric.NumberDataPointSlice,
 	logger *zap.Logger,
 	inferInterval bool,
-	warnedRateAttrErrors *sync.Map,
+	warnedMetrics *sync.Map,
 ) {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
@@ -107,8 +108,8 @@ func mapNumberMetrics(
 					if interval > 0 {
 						val = val / float64(interval)
 					} else {
-						w, _ := warnedRateAttrErrors.LoadOrStore(pointDims.name, &rateAttrErrors{})
-						if re := w.(*rateAttrErrors); !re.zeroInterval.Swap(true) {
+						w, _ := warnedMetrics.LoadOrStore(pointDims.name, &metricWarnings{})
+						if re := w.(*metricWarnings); !re.zeroInterval.Swap(true) {
 							logger.Error("datadog.metric.as_type=rate on delta sum but interval is 0; value will not be divided by interval. "+
 								"Enable the exporter.datadogexporter.InferIntervalForDeltaMetrics feature gate and ensure the metric has a valid StartTimestamp.",
 								zap.String("metric name", pointDims.name),
@@ -117,8 +118,8 @@ func mapNumberMetrics(
 					}
 
 				} else {
-					w, _ := warnedRateAttrErrors.LoadOrStore(pointDims.name, &rateAttrErrors{})
-					if re := w.(*rateAttrErrors); !re.wrongType.Swap(true) {
+					w, _ := warnedMetrics.LoadOrStore(pointDims.name, &metricWarnings{})
+					if re := w.(*metricWarnings); !re.wrongType.Swap(true) {
 						logger.Error("datadog.metric.as_type=rate is only supported on delta sum metrics, ignoring",
 							zap.String("metric name", pointDims.name),
 						)
@@ -127,8 +128,8 @@ func mapNumberMetrics(
 			case "count", "gauge":
 				// explicit no-op: the metric keeps its original type
 			default:
-				w, _ := warnedRateAttrErrors.LoadOrStore(pointDims.name, &rateAttrErrors{})
-				if re := w.(*rateAttrErrors); !re.unknownValue.Swap(true) {
+				w, _ := warnedMetrics.LoadOrStore(pointDims.name, &metricWarnings{})
+				if re := w.(*metricWarnings); !re.unknownValue.Swap(true) {
 					logger.Error("unsupported datadog.metric.as_type value, ignoring; accepted values are \"rate\", \"count\", \"gauge\"",
 						zap.String("metric name", pointDims.name),
 						zap.String("value", asType.Str()),
@@ -155,7 +156,8 @@ func (m *lossLessMapper) MapSummaryMetrics(ctx context.Context, consumer Consume
 		pointDims := dims.WithAttributeMap(p.Attributes())
 
 		// Emit count as a Gauge (raw value, no delta conversion)
-		countDims := pointDims.WithSuffix("count")
+		// `.count` counts observations, so we drop the unit.
+		countDims := pointDims.WithSuffix("count").WithoutUnit()
 		consumer.ConsumeTimeSeries(ctx, countDims, Gauge, ts, 0, float64(p.Count()))
 
 		// Emit sum as a Gauge (raw value, no delta conversion)
@@ -178,6 +180,8 @@ func (m *lossLessMapper) MapSummaryMetrics(ctx context.Context, consumer Consume
 	}
 }
 
+// Histograms are forwarded unvalidated on purpose: the limits depend on the
+// backend that will consume them, which is not settled yet (OTAGENT-1131).
 func (m *lossLessMapper) MapHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.HistogramDataPointSlice, _ bool) error {
 	consumer.ConsumeExplicitBoundHistogram(ctx, dims, slice)
 	return nil

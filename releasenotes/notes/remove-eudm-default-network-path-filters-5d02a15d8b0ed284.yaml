@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    End User Device Monitoring no longer applies a preconfigured set of SaaS
+    domain filters to ``network_path.collector.filters``. Network Path
+    filters are now empty by default in ``end_user_device`` mode, and
+    user-configured filters are preserved unchanged.

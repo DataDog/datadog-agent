@@ -10,17 +10,10 @@ use std::path::{Path, PathBuf};
 use tokio::net::UnixListener;
 use tokio_stream::wrappers::UnixListenerStream;
 
-const DEFAULT_SOCKET_PATH: &str = "/var/run/datadog-procmgrd/dd-procmgrd.sock";
 const SOCKET_PERMISSIONS: u32 = 0o660;
 
-/// Placeholder URI for tonic Endpoint when connecting over UDS.
-/// The actual address is irrelevant because `connect_with_connector` bypasses it.
-pub const DUMMY_ENDPOINT: &str = "http://[::]:50051";
-
 pub fn ipc_path() -> PathBuf {
-    std::env::var("DD_PM_SOCKET_PATH")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(DEFAULT_SOCKET_PATH))
+    dd_procmgr_client::ipc_path()
 }
 
 pub fn prepare(path: &Path) -> Result<()> {
@@ -70,22 +63,6 @@ where
     info!("gRPC server stopped");
     cleanup(&path);
     Ok(())
-}
-
-pub async fn connect(path: &Path) -> Result<tonic::transport::Channel> {
-    let path = path.to_path_buf();
-    let channel = tonic::transport::Endpoint::from_static(DUMMY_ENDPOINT)
-        .connect_with_connector(tower::service_fn(move |_| {
-            let p = path.clone();
-            async move {
-                tokio::net::UnixStream::connect(p)
-                    .await
-                    .map(hyper_util::rt::TokioIo::new)
-            }
-        }))
-        .await
-        .context("failed to connect to Unix socket")?;
-    Ok(channel)
 }
 
 pub fn cleanup(path: &Path) {

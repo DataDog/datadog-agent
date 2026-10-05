@@ -8,6 +8,8 @@
 package config
 
 import (
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,6 +31,7 @@ func TestValidateSidecarConfig_Valid(t *testing.T) {
 				ImageTag:             "v1.0",
 				Port:                 8080,
 				HealthPort:           8081,
+				RunAsUser:            65532,
 				CPURequest:           "100m",
 				CPULimit:             "200m",
 				MemoryRequest:        "128Mi",
@@ -42,6 +45,7 @@ func TestValidateSidecarConfig_Valid(t *testing.T) {
 				Image:      "datadog/appsec-processor:latest",
 				Port:       8080,
 				HealthPort: 9090,
+				RunAsUser:  65532,
 			},
 		},
 		{
@@ -50,6 +54,7 @@ func TestValidateSidecarConfig_Valid(t *testing.T) {
 				Image:      "datadog/appsec-processor:latest",
 				Port:       1,
 				HealthPort: 65535,
+				RunAsUser:  65532,
 			},
 		},
 	}
@@ -297,6 +302,139 @@ func TestFromComponent_DefaultsToSidecar(t *testing.T) {
 
 	// Should default to sidecar mode
 	assert.Equal(t, InjectionModeSidecar, config.Mode)
+}
+
+func TestFromComponent_SidecarUDSDefaults(t *testing.T) {
+	mockConfig := common.FakeConfigWithValues(t, map[string]any{
+		"cluster_agent.appsec.injector.mode":              "sidecar",
+		"admission_controller.appsec.sidecar.image":       "datadog/appsec:latest",
+		"admission_controller.appsec.sidecar.port":        8080,
+		"admission_controller.appsec.sidecar.health_port": 8081,
+		"appsec.proxy.enabled":                            true,
+		"appsec.proxy.proxies":                            []string{"envoy-gateway"},
+		"cluster_agent.appsec.injector.enabled":           true,
+	})
+
+	mockLogger := logmock.New(t)
+	cfg := FromComponent(mockConfig, mockLogger)
+
+	assert.Equal(t, "/var/run/datadog/extproc.sock", cfg.Sidecar.UDSPath)
+	assert.Equal(t, int64(65532), cfg.Sidecar.RunAsUser)
+}
+
+func TestValidateSidecarConfig_UDSPath(t *testing.T) {
+	base := Sidecar{
+		Image:      "datadog/appsec:latest",
+		Port:       8080,
+		HealthPort: 8081,
+		RunAsUser:  65532,
+	}
+
+	t.Run("relative path is rejected", func(t *testing.T) {
+		cfg := base
+		cfg.UDSPath = "relative/path"
+		err := validateSidecarConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "sidecar.uds_path must be an absolute path")
+	})
+
+	t.Run("path over 100 chars is rejected", func(t *testing.T) {
+		cfg := base
+		cfg.UDSPath = "/" + strings.Repeat("a", 119)
+		err := validateSidecarConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "sidecar.uds_path must be at most 100 characters")
+	})
+
+	t.Run("root directory path is rejected", func(t *testing.T) {
+		cfg := base
+		cfg.UDSPath = "/sock.sock"
+		err := validateSidecarConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "sidecar.uds_path must be inside a non-root directory")
+	})
+
+	t.Run("zero run_as_user is rejected", func(t *testing.T) {
+		cfg := base
+		cfg.RunAsUser = 0
+		err := validateSidecarConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "sidecar.run_as_user must be greater than 0")
+	})
+
+	t.Run("negative run_as_user is rejected", func(t *testing.T) {
+		cfg := base
+		cfg.RunAsUser = -1
+		err := validateSidecarConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "sidecar.run_as_user must be greater than 0")
+	})
+
+	t.Run("valid uds config passes", func(t *testing.T) {
+		cfg := base
+		cfg.UDSPath = "/var/run/datadog/extproc.sock"
+		cfg.RunAsUser = 65532
+		err := validateSidecarConfig(cfg)
+		assert.NoError(t, err)
+	})
+}
+
+func TestAllProxyTypes_ContainsGKEGateway(t *testing.T) {
+	assert.True(t, slices.Contains(AllProxyTypes, ProxyTypeGKEGateway),
+		"AllProxyTypes should contain ProxyTypeGKEGateway")
+}
+
+func TestFromComponent_GKEGatewayClasses(t *testing.T) {
+	mockConfig := common.FakeConfigWithValues(t, map[string]any{
+		"cluster_agent.appsec.injector.mode":    "external",
+		"appsec.proxy.gke.gateway_classes":      []string{"foo"},
+		"appsec.proxy.enabled":                  true,
+		"cluster_agent.appsec.injector.enabled": true,
+	})
+
+	mockLogger := logmock.New(t)
+	cfg := FromComponent(mockConfig, mockLogger)
+
+	assert.Equal(t, []string{"foo"}, cfg.Product.GKE.GatewayClasses)
+}
+
+func TestFromComponent_ProxiesUnknownTypeDropped(t *testing.T) {
+	tests := []struct {
+		name            string
+		proxies         []string
+		wantContains    []ProxyType
+		wantNotContains []ProxyType
+	}{
+		{
+			name:            "known gke-gateway kept, bogus-proxy dropped",
+			proxies:         []string{"gke-gateway", "bogus-proxy"},
+			wantContains:    []ProxyType{ProxyTypeGKEGateway},
+			wantNotContains: []ProxyType{ProxyType("bogus-proxy")},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := common.FakeConfigWithValues(t, map[string]any{
+				"cluster_agent.appsec.injector.mode":    "external",
+				"appsec.proxy.proxies":                  tt.proxies,
+				"appsec.proxy.enabled":                  true,
+				"cluster_agent.appsec.injector.enabled": true,
+			})
+
+			mockLogger := logmock.New(t)
+			cfg := FromComponent(mockConfig, mockLogger)
+
+			for _, pt := range tt.wantContains {
+				_, ok := cfg.Product.Proxies[pt]
+				assert.True(t, ok, "Proxies should contain %q", pt)
+			}
+			for _, pt := range tt.wantNotContains {
+				_, ok := cfg.Product.Proxies[pt]
+				assert.False(t, ok, "Proxies should NOT contain %q", pt)
+			}
+		})
+	}
 }
 
 func TestProcessorString(t *testing.T) {

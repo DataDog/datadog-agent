@@ -1,0 +1,71 @@
+exporters:
+    datadog:
+        api:
+            key: abcde12345
+    datadog/2:
+        api:
+            key: abcde12345
+extensions:
+    datadog/user-defined: null
+    ddflare/user-defined: null
+    health_check/user-defined: null
+    pprof/user-defined: null
+    zpages/user-defined:
+        endpoint: localhost:55679
+processors:
+    cumulativetodelta/dd-autoconfigured: null
+    infraattributes/user-defined: null
+receivers:
+    otlp: null
+    prometheus/user-defined:
+        config:
+            scrape_configs:
+                - fallback_scrape_protocol: PrometheusText0.0.4
+                  job_name: datadog-agent
+                  metric_name_escaping_scheme: underscores
+                  metric_name_validation_scheme: legacy
+                  scrape_interval: 60s
+                  scrape_protocols:
+                    - PrometheusText0.0.4
+                  static_configs:
+                    - targets:
+                        - 0.0.0.0:8888
+service:
+    extensions:
+        - pprof/user-defined
+        - zpages/user-defined
+        - health_check/user-defined
+        - ddflare/user-defined
+        - datadog/user-defined
+    pipelines:
+        logs:
+            exporters:
+                - datadog
+            processors:
+                - infraattributes/user-defined
+            receivers:
+                - nop
+        metrics:
+            exporters:
+                - datadog
+            processors:
+                - infraattributes/user-defined
+                - cumulativetodelta/dd-autoconfigured
+            receivers:
+                - nop
+                - prometheus/user-defined
+        metrics/2:
+            exporters:
+                - datadog/2
+            processors:
+                - infraattributes/user-defined
+                - cumulativetodelta/dd-autoconfigured
+            receivers:
+                - prometheus/user-defined
+        traces:
+            exporters:
+                - datadog
+            processors:
+                - infraattributes/user-defined
+            receivers:
+                - nop

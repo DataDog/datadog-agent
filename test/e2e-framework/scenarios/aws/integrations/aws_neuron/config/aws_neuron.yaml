@@ -1,0 +1,12 @@
+## AWS Neuron OpenMetricsBaseCheckV2 check configuration.
+##
+## The aws_neuron integration scrapes the Prometheus endpoint exposed by
+## AWS Neuron Monitor (`neuron-monitor --prometheus` / neuron-monitor-prometheus.py)
+## which runs on the same host as the Agent. The metric selection (METRIC_MAP
+## allowlist mapped to aws_neuron.* namespace) is applied by the check itself, so
+## only the required `openmetrics_endpoint` instance option needs to be set here.
+init_config:
+
+instances:
+  - openmetrics_endpoint: http://localhost:8000/metrics
+    min_collection_interval: 15

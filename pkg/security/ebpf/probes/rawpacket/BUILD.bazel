@@ -1,5 +1,11 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+# The `pcap`-tagged file (pcap.go) is intentionally omitted: the default Bazel
+# build does not enable the `pcap` build tag (mirroring how
+# //pkg/security/secl/model excludes oo_packet_filter_unix.go), so only the
+# build-tag-default sources are listed here.
+# gazelle:exclude pcap.go
+
 go_library(
     name = "rawpacket",
     srcs = [

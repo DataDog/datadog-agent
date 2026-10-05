@@ -76,32 +76,60 @@ func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadog
 func (hr *horizontalController) performScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal, gr schema.GroupResource, scale *autoscalingv1.Scale) (autoscaling.ProcessResult, error) {
 	autoscalerSpec := autoscalerInternal.Spec()
 
-	// No Horizontal scaling, nothing to do
 	scalingValues := autoscalerInternal.ScalingValues()
-	if scalingValues.Horizontal == nil {
+	forcedReplicas, forced := autoscalerInternal.ForcedReplicas()
+
+	// No Horizontal scaling, nothing to do. A limit reported by the last action, e.g. a replica count
+	// pinned by an annotation that was removed since, no longer applies.
+	if scalingValues.Horizontal == nil && !forced {
+		autoscalerInternal.ClearHorizontalLimitReason()
 		return autoscaling.NoRequeue, nil
 	}
 
 	currentDesiredReplicas := scale.Spec.Replicas
-	replicasFromRec := scalingValues.Horizontal.Replicas
 
-	// Handling min/max replicas
-	specConstraints := autoscalerSpec.Constraints
-	minReplicas := defaultMinReplicas
-	if specConstraints != nil && specConstraints.MinReplicas != nil {
-		minReplicas = *specConstraints.MinReplicas
-	}
+	var horizontalAction *datadoghqcommon.DatadogPodAutoscalerHorizontalAction
+	var nextEvalAfter time.Duration
+	var err error
+	var source datadoghqcommon.DatadogPodAutoscalerValueSource
 
-	maxReplicas := defaultMaxReplicas
-	if specConstraints != nil && specConstraints.MaxReplicas != nil && *specConstraints.MaxReplicas >= minReplicas {
-		maxReplicas = *specConstraints.MaxReplicas
-	}
+	if forced {
+		// Break-glass override: reach the pinned count in a single step, without the spec
+		// constraints, the scaling rules and the stabilization windows, and even when the target
+		// was scaled to zero or one scaling direction is disabled, so that an operator adding
+		// capacity during an incident does not also have to change the spec or wait out a rule
+		// period. The apply-mode gate below still runs, so pause and Preview keep suppressing it
+		// like any other action, and disabling both directions disables horizontal scaling.
+		horizontalAction = &datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
+			FromReplicas:        currentDesiredReplicas,
+			ToReplicas:          forcedReplicas,
+			RecommendedReplicas: &forcedReplicas,
+			Time:                metav1.NewTime(hr.clock.Now()),
+			LimitedReason:       pointer.Ptr(fmt.Sprintf("replica count pinned to %d by the %s annotation", forcedReplicas, model.ForceReplicasAnnotationKey)),
+		}
+		source = datadoghqcommon.DatadogPodAutoscalerManualValueSource
+	} else {
+		replicasFromRec := scalingValues.Horizontal.Replicas
+		source = scalingValues.Horizontal.Source
 
-	// Compute the desired number of replicas based on recommendations, rules and constraints
-	horizontalAction, nextEvalAfter, err := hr.computeScaleAction(autoscalerInternal, scalingValues.Horizontal.Source, currentDesiredReplicas, replicasFromRec, minReplicas, maxReplicas)
-	if err != nil {
-		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
-		return autoscaling.NoRequeue, nil
+		// Handling min/max replicas
+		specConstraints := autoscalerSpec.Constraints
+		minReplicas := defaultMinReplicas
+		if specConstraints != nil && specConstraints.MinReplicas != nil {
+			minReplicas = *specConstraints.MinReplicas
+		}
+
+		maxReplicas := defaultMaxReplicas
+		if specConstraints != nil && specConstraints.MaxReplicas != nil && *specConstraints.MaxReplicas >= minReplicas {
+			maxReplicas = *specConstraints.MaxReplicas
+		}
+
+		// Compute the desired number of replicas based on recommendations, rules and constraints
+		horizontalAction, nextEvalAfter, err = hr.computeScaleAction(autoscalerInternal, source, currentDesiredReplicas, replicasFromRec, minReplicas, maxReplicas)
+		if err != nil {
+			autoscalerInternal.UpdateFromHorizontalAction(nil, err)
+			return autoscaling.NoRequeue, nil
+		}
 	}
 	// Target replicas has not changed because we are already scaled or due to scaling rules
 	if horizontalAction.FromReplicas == horizontalAction.ToReplicas {
@@ -112,14 +140,19 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 		return autoscaling.NoRequeue, nil
 	}
 
-	// Final gate: check if the apply mode allows this action
-	if allowed, reason := isApplyModeAllowed(autoscalerSpec, scalingValues.Horizontal.Source); !allowed {
+	// Final gates: the pause annotation and the apply mode can never be bypassed
+	if autoscalerInternal.IsPaused() {
+		autoscalerInternal.UpdateFromHorizontalAction(nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonPolicyRestricted, "horizontal scaling disabled: autoscaling locally paused by the %s annotation", model.PauseAnnotationKey))
+		return autoscaling.NoRequeue, nil
+	}
+	if allowed, reason := isApplyModeAllowed(autoscalerSpec, source); !allowed {
 		autoscalerInternal.UpdateFromHorizontalAction(nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonPolicyRestricted, "%s", reason))
 		return autoscaling.NoRequeue, nil
 	}
 
-	scale.Spec.Replicas = horizontalAction.ToReplicas
-	_, err = hr.scaler.update(ctx, gr, scale)
+	newScale := scale.DeepCopy()
+	newScale.Spec.Replicas = horizontalAction.ToReplicas
+	_, err = hr.scaler.update(ctx, gr, newScale)
 	if err != nil {
 		err = autoscaling.NewConditionError(autoscaling.ConditionReasonScaleFailed, fmt.Errorf("failed to scale target: %s/%s to %d replicas, err: %w", scale.Namespace, scale.Name, horizontalAction.ToReplicas, err))
 		hr.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedScaleEventReason, err.Error())

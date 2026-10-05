@@ -265,6 +265,20 @@
           },
           "type": "array",
           "description": "Capabilities that the process successfully used since it started running"
+        },
+        "caps_attempted_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace"
+        },
+        "caps_used_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Capabilities that the process successfully used since it started running, through checks that always target the initial user namespace"
         }
       },
       "additionalProperties": false,
@@ -301,6 +315,10 @@
           "type": "string",
           "description": "Container ID"
         },
+        "pod_uid": {
+          "type": "string",
+          "description": "Kubernetes pod UID"
+        },
         "source": {
           "type": "string",
           "description": "Source of the container entry (event or procfs)"
@@ -318,21 +336,6 @@
       "additionalProperties": false,
       "type": "object",
       "description": "ContainerContextSerializer serializes a container context to JSON"
-    },
-    "DDContext": {
-      "properties": {
-        "span_id": {
-          "type": "string",
-          "description": "Span ID used for APM correlation"
-        },
-        "trace_id": {
-          "type": "string",
-          "description": "Trace ID used for APM correlation"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "description": "DDContextSerializer serializes a span context to JSON"
     },
     "DNSEvent": {
       "properties": {
@@ -906,6 +909,10 @@
           "type": "string",
           "description": "server is the server header of a response"
         },
+        "credential_source": {
+          "type": "string",
+          "description": "credential_source is the credential endpoint that served the IMDS event"
+        },
         "aws": {
           "$ref": "#/$defs/AWSIMDSEvent",
           "description": "AWS holds the AWS specific data parsed from the IMDS event"
@@ -1419,6 +1426,20 @@
           "type": "array",
           "description": "CapsUsed lists the capabilities that this process effectively made use of"
         },
+        "caps_attempted_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace"
+        },
+        "caps_used_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace"
+        },
         "user_session": {
           "$ref": "#/$defs/UserSessionContext",
           "description": "Context of the user session for this event"
@@ -1501,8 +1522,8 @@
           "description": "List of AWS Security Credentials that the process had access to"
         },
         "tracer": {
-          "$ref": "#/$defs/TracerMetadata",
-          "description": "Metadata from APM tracer instrumentation"
+          "$ref": "#/$defs/Tracer",
+          "description": "Tracer bundles the per-process APM tracer state: the captured span\n(trace_id / span_id / attributes) under \"trace\", and the tracer\nmetadata under \"metadata\". For a process that fork+exec'd a\nsubprocess, .trace carries the parent's span captured by\nfill_span_context at sched_process_fork; the top-level event\n\"dd\"/\"trace\" fields are built by newTraceSerializer which walks the\nancestor lineage to find the same value."
         },
         "variables": {
           "$ref": "#/$defs/Variables",
@@ -1602,6 +1623,20 @@
           "type": "array",
           "description": "CapsUsed lists the capabilities that this process effectively made use of"
         },
+        "caps_attempted_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace"
+        },
+        "caps_used_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace"
+        },
         "user_session": {
           "$ref": "#/$defs/UserSessionContext",
           "description": "Context of the user session for this event"
@@ -1684,8 +1719,8 @@
           "description": "List of AWS Security Credentials that the process had access to"
         },
         "tracer": {
-          "$ref": "#/$defs/TracerMetadata",
-          "description": "Metadata from APM tracer instrumentation"
+          "$ref": "#/$defs/Tracer",
+          "description": "Tracer bundles the per-process APM tracer state: the captured span\n(trace_id / span_id / attributes) under \"trace\", and the tracer\nmetadata under \"metadata\". For a process that fork+exec'd a\nsubprocess, .trace carries the parent's span captured by\nfill_span_context at sched_process_fork; the top-level event\n\"dd\"/\"trace\" fields are built by newTraceSerializer which walks the\nancestor lineage to find the same value."
         },
         "variables": {
           "$ref": "#/$defs/Variables",
@@ -1958,6 +1993,10 @@
         "event_type_state": {
           "type": "string",
           "description": "State of the event type in this profile"
+        },
+        "profile_already_sent": {
+          "type": "boolean",
+          "description": "True if the profile had already been persisted to the backend when this event was emitted"
         }
       },
       "additionalProperties": false,
@@ -1967,7 +2006,8 @@
         "version",
         "tags",
         "event_in_profile",
-        "event_type_state"
+        "event_type_state",
+        "profile_already_sent"
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },
@@ -1975,15 +2015,11 @@
       "properties": {
         "socket_type": {
           "type": "string",
-          "description": "Socket file descriptor"
+          "description": "Socket type"
         },
         "socket_family": {
           "type": "string",
           "description": "Socket family"
-        },
-        "filter_len": {
-          "type": "integer",
-          "description": "Length of the filter"
         },
         "socket_protocol": {
           "type": "string",
@@ -1997,17 +2033,21 @@
           "type": "string",
           "description": "Name of the option being set"
         },
+        "filter_len": {
+          "type": "integer",
+          "description": "Length of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
+        },
         "is_filter_truncated": {
           "type": "boolean",
-          "description": "Filter truncated"
+          "description": "Filter truncation flag (available when OptName == SO_ATTACH_FILTER)"
         },
         "filter": {
           "type": "string",
-          "description": "Filter instructions"
+          "description": "Instructions of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
         },
         "filter_hash": {
           "type": "string",
-          "description": "Filter hash"
+          "description": "Hash of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
         }
       },
       "additionalProperties": false,
@@ -2282,6 +2322,43 @@
       "type": "object",
       "description": "TLSContextSerializer defines a tls context serializer"
     },
+    "Trace": {
+      "properties": {
+        "span_id": {
+          "type": "string",
+          "description": "Span ID used for APM correlation"
+        },
+        "trace_id": {
+          "type": "string",
+          "description": "Trace ID used for APM correlation"
+        },
+        "attributes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Custom OTel thread-local attributes from the span context"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "TraceSerializer serializes a span context to JSON"
+    },
+    "Tracer": {
+      "properties": {
+        "trace": {
+          "$ref": "#/$defs/Trace",
+          "description": "Captured APM span context for this process."
+        },
+        "metadata": {
+          "$ref": "#/$defs/TracerMetadata",
+          "description": "Metadata from APM tracer instrumentation (for example, schema version,\nlanguage, or version)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "TracerSerializer groups the per-process APM tracer information surfaced under the \"tracer\" key in the serialized process: the captured span context (.trace) and the static tracer metadata (.metadata)."
+    },
     "TracerMetadata": {
       "properties": {
         "schema_version": {
@@ -2326,6 +2403,20 @@
         "tracer_version",
         "hostname"
       ]
+    },
+    "UnshareEvent": {
+      "properties": {
+        "flags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Namespace flags requested by the unshare call"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "UnshareEventSerializer serializes an unshare event"
     },
     "UserContext": {
       "properties": {
@@ -2448,7 +2539,12 @@
       "$ref": "#/$defs/NetworkContext"
     },
     "dd": {
-      "$ref": "#/$defs/DDContext"
+      "$ref": "#/$defs/Trace",
+      "description": "DD holds the APM correlation span context under the \"dd\" key, the\nshape the Datadog backend expects at ingest. This field is consumed\nby the intake and not surfaced back to end users."
+    },
+    "trace": {
+      "$ref": "#/$defs/Trace",
+      "description": "Trace is the same span/trace/attributes payload, exposed under a\nuser-facing key. Built from newTraceSerializer just like the \"dd\"\nfield above — the two pointers reference the same serializer\ninstance, so the two views can never drift."
     },
     "security_profile": {
       "$ref": "#/$defs/SecurityProfileContext"
@@ -2533,6 +2629,9 @@
     },
     "socket": {
       "$ref": "#/$defs/SocketEvent"
+    },
+    "unshare": {
+      "$ref": "#/$defs/UnshareEvent"
     }
   },
   "additionalProperties": false,

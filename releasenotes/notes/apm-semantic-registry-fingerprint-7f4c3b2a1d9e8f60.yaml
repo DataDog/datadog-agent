@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    APM peer-tag aggregation now refreshes derived tag keys when Remote
+    Configuration changes semantic registry mappings without changing the
+    producer-declared content hash.

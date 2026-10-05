@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -161,7 +161,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 	_, err := backoff.Retry(c.ctx, func() (any, error) {
 		select {
 		case <-c.ctx.Done():
-			return nil, &backoff.PermanentError{Err: errWorkloadmetaStreamNotStarted}
+			return nil, backoff.Permanent(errWorkloadmetaStreamNotStarted)
 		default:
 		}
 
@@ -180,6 +180,9 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 
 		c.stream, err = c.client.StreamEntities(c.streamCtx)
 		if err != nil {
+			// Cancel the context created for this failed attempt so it is not
+			// leaked when the next retry overwrites c.streamCancel.
+			c.streamCancel()
 			log.Infof("unable to establish stream, will possibly retry: %s", err)
 			return nil, err
 		}

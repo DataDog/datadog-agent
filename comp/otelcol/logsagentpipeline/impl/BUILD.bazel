@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -15,13 +16,13 @@ go_library(
         "//comp/core/secrets/noop-impl",
         "//comp/logs-library/client",
         "//comp/logs-library/client/http",
+        "//comp/logs-library/diagnostic",
         "//comp/logs-library/pipeline",
         "//comp/logs-library/sender",
         "//comp/logs/agent/config",
         "//comp/otelcol/logsagentpipeline/def",
         "//comp/serializer/logscompression/def",
         "//pkg/config/model",
-        "//pkg/logs/diagnostic",
         "//pkg/logs/status/statusinterface",
         "//pkg/util/option",
         "//pkg/util/startstop",
@@ -30,11 +31,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = ["agent_test.go"],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/log/mock",

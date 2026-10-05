@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix chassis type detection on Windows for convertible and detachable
+    2-in-1 devices (SMBIOS codes 31 and 32), which were previously reported
+    as ``Other``.

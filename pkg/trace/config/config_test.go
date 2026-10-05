@@ -166,7 +166,7 @@ func TestEnableOPMFetchDefault(t *testing.T) {
 
 func TestConfiguredPeerTagsUsesLiveRegistry(t *testing.T) {
 	// Custom registry: ConceptPeerService maps to "x.custom.peer" instead of "peer.service".
-	customJSON := `{"version":"test","concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.custom.peer","provider":"datadog","type":"string"}]}}}`
+	customJSON := `{"version":"test","metadata":{"content_hash":"hash-a"},"concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.custom.peer","provider":"datadog","type":"string"}]}}}`
 	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
 	require.NoError(t, err)
 	original, err := semantics.NewEmbeddedRegistry()
@@ -179,4 +179,44 @@ func TestConfiguredPeerTagsUsesLiveRegistry(t *testing.T) {
 	tags := cfg.ConfiguredPeerTags()
 	assert.Contains(t, tags, "x.custom.peer")
 	assert.NotContains(t, tags, "peer.service")
+}
+
+func TestWriterEndpoints(t *testing.T) {
+	main := &Endpoint{Host: "https://main", APIKey: "k1"}
+	additional := &Endpoint{Host: "https://additional", APIKey: "k2"}
+	mrf := &Endpoint{Host: "https://mrf", APIKey: "k3", IsMRF: true}
+
+	t.Run("default", func(t *testing.T) {
+		c := &AgentConfig{Endpoints: []*Endpoint{main, additional}}
+		assert.Equal(t, []*Endpoint{main, additional}, c.WriterEndpoints())
+		assert.True(t, c.HasWriterDestination())
+		assert.Equal(t, "k1", c.APIKey())
+	})
+	t.Run("skip-main", func(t *testing.T) {
+		c := &AgentConfig{Endpoints: []*Endpoint{main, additional}, SkipMainEndpoint: true}
+		assert.Equal(t, []*Endpoint{additional}, c.WriterEndpoints())
+		assert.True(t, c.HasWriterDestination())
+		// The main endpoint's key is still the one exposed to the proxies.
+		assert.Equal(t, "k1", c.APIKey())
+	})
+	t.Run("skip-main-keeps-mrf-and-additional", func(t *testing.T) {
+		c := &AgentConfig{Endpoints: []*Endpoint{main, mrf, additional}, SkipMainEndpoint: true}
+		assert.Equal(t, []*Endpoint{mrf, additional}, c.WriterEndpoints())
+		assert.True(t, c.HasWriterDestination())
+	})
+	t.Run("skip-main-no-destination", func(t *testing.T) {
+		c := &AgentConfig{Endpoints: []*Endpoint{main}, SkipMainEndpoint: true}
+		assert.Empty(t, c.WriterEndpoints())
+		assert.False(t, c.HasWriterDestination())
+	})
+	t.Run("skip-main-mrf-only-is-not-a-destination", func(t *testing.T) {
+		c := &AgentConfig{Endpoints: []*Endpoint{main, mrf}, SkipMainEndpoint: true}
+		assert.Equal(t, []*Endpoint{mrf}, c.WriterEndpoints())
+		assert.False(t, c.HasWriterDestination())
+	})
+	t.Run("empty", func(t *testing.T) {
+		c := &AgentConfig{SkipMainEndpoint: true}
+		assert.Empty(t, c.WriterEndpoints())
+		assert.False(t, c.HasWriterDestination())
+	})
 }

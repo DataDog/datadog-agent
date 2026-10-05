@@ -25,9 +25,9 @@ import (
 
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
+	hpnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const testNamespace = "test-probe-ns"
@@ -38,18 +38,18 @@ func newTestProbe(client *fakeclientset.Clientset) *Probe {
 		namespace:      testNamespace,
 		isLeaderFunc:   func() bool { return true },
 		logLimiter:     log.NewLogLimit(10, time.Minute),
-		healthPlatform: option.None[healthplatformdef.Component](),
+		healthPlatform: hpnoopimpl.NewNoopComponent(),
 	}
 }
 
 func newTestProbeWithHP(t *testing.T, client *fakeclientset.Clientset) (*Probe, healthplatformdef.Component) {
-	hp := healthplatformmock.Mock(t)
+	hp := healthplatformmock.New(t)
 	return &Probe{
 		k8sClient:      client,
 		namespace:      testNamespace,
 		isLeaderFunc:   func() bool { return true },
 		logLimiter:     log.NewLogLimit(10, time.Minute),
-		healthPlatform: option.New[healthplatformdef.Component](hp),
+		healthPlatform: hp,
 	}, hp
 }
 

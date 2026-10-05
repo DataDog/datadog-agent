@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Add the ``kube_argo_rollout`` tag to pod metrics emitted by the Kubernetes
+    State Core check for pods managed by Argo Rollouts.

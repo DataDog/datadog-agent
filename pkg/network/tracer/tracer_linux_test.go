@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package tracer
 
@@ -31,6 +31,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -46,14 +47,18 @@ import (
 	"go4.org/intern"
 	"golang.org/x/sys/unix"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -734,7 +739,7 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 
 		cfg := testConfig()
 		cfg.EnableGatewayLookup = true
-		tr, err := newTracer(cfg, nil, nil)
+		tr, err := newTracer(cfg, telemetryimpl.NewMock(t), nil)
 		require.NoError(t, err)
 		require.NotNil(t, tr)
 		t.Cleanup(tr.Stop)
@@ -841,7 +846,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	// create the tracer without starting it
-	tr, err := newTracer(cfg, nil, nil)
+	tr, err := newTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	t.Cleanup(tr.Stop)
@@ -911,7 +916,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
-	tr, err := newTracer(cfg, nil, nil)
+	tr, err := newTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	t.Cleanup(tr.Stop)
@@ -1861,9 +1866,6 @@ func (s *TracerSuite) TestSendfileRegression() {
 }
 
 func httpSupported() bool {
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		return false
-	}
 	return kv >= usmconfig.MinimumKernelVersion
 }
 
@@ -1884,7 +1886,7 @@ func skipCOREIfBTFFieldMissing(t *testing.T, fields ...string) {
 	if ebpftest.GetBuildMode() != ebpftest.CORE {
 		return
 	}
-	spec, err := ddebpf.GetKernelSpec()
+	spec, err := ddbtf.GetKernelSpec()
 	if err != nil {
 		t.Skipf("BTF not available: %v", err)
 	}
@@ -2930,6 +2932,53 @@ func (s *TracerSuite) TestTLSClassification() {
 			},
 		})
 	}
+	// A connection_protocol entry can outlive its connection, so a new connection reusing the same tuple can start
+	// with the encryption layer already known. Its handshake must still be parsed so the new connection gets TLS tags.
+	tests = append(tests, tlsTest{
+		name: "Stale-TLS-Entry",
+		postTracerSetup: func(t *testing.T) (uint16, uint16) {
+			scenario := uint16(tls.VersionTLS12)
+			// IPv4 explicitly: localhost can resolve to ::1, and setConnectionProtocol seeds an IPv4 tuple.
+			srv := usmtestutil.NewTLSServerWithSpecificVersion("127.0.0.1:0", func(conn net.Conn) {
+				defer conn.Close()
+				tracertestutil.SetTestDeadline(conn)
+				_, _ = io.Copy(conn, conn)
+			}, scenario)
+			done := make(chan struct{})
+			require.NoError(t, srv.Run(done))
+			t.Cleanup(func() { close(done) })
+
+			addr := srv.Address()
+			_, portStr, err := net.SplitHostPort(addr)
+			require.NoError(t, err)
+			portInt, err := strconv.Atoi(portStr)
+			require.NoError(t, err)
+
+			conn, err := tracertestutil.DialTCP("tcp", addr)
+			require.NoError(t, err)
+			defer conn.Close()
+
+			// Simulate the leaked entry: mark the tuple as TLS before any payload is sent.
+			setConnectionProtocol(t, tr, conn, netebpf.ProtocolStack{
+				Encryption: protocols.FromProtocolType(protocols.TLS),
+			})
+
+			tlsConn := tls.Client(conn, &tls.Config{
+				MinVersion:             scenario,
+				MaxVersion:             scenario,
+				InsecureSkipVerify:     true,
+				SessionTicketsDisabled: true,
+			})
+			require.NoError(t, tlsConn.Handshake())
+
+			return uint16(portInt), scenario
+		},
+		validation: func(t *testing.T, tr *Tracer, port uint16, scenario uint16) {
+			require.EventuallyWithT(t, func(ct *assert.CollectT) {
+				require.True(ct, validateTLSTags(ct, tr, port, scenario), "TLS tags not set")
+			}, 3*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", port)
+		},
+	})
 	tests = append(tests, tlsTest{
 		name: "Invalid-TLS-Handshake",
 		postTracerSetup: func(t *testing.T) (uint16, uint16) {
@@ -3005,6 +3054,38 @@ func (s *TracerSuite) TestTLSClassification() {
 			tt.validation(t, tr, port, scenario)
 		})
 	}
+}
+
+// setConnectionProtocol writes stack into the connection_protocol map for both directions of an IPv4 TCP conn, keyed
+// the way the socket filter looks it up (no PID or netns).
+func setConnectionProtocol(t *testing.T, tr *Tracer, conn net.Conn, stack netebpf.ProtocolStack) {
+	t.Helper()
+	connProtocolMap, err := tr.GetMap(probes.ConnectionProtocolMap)
+	require.NoError(t, err)
+
+	local := conn.LocalAddr().(*net.TCPAddr)
+	remote := conn.RemoteAddr().(*net.TCPAddr)
+	// An IPv4 key on an IPv6 conn would never be looked up, silently turning the caller's test into a no-op.
+	require.NotNil(t, local.IP.To4(), "setConnectionProtocol only supports IPv4 connections, got %v", local)
+	require.NotNil(t, remote.IP.To4(), "setConnectionProtocol only supports IPv4 connections, got %v", remote)
+	localLow, localHigh := util.ToLowHigh(util.AddressFromNetIP(local.IP))
+	remoteLow, remoteHigh := util.ToLowHigh(util.AddressFromNetIP(remote.IP))
+	value := netebpf.ProtocolStackWrapper{Updated: 1, Stack: stack}
+
+	key := netebpf.ConnTuple{
+		Saddr_h:  localHigh,
+		Saddr_l:  localLow,
+		Daddr_h:  remoteHigh,
+		Daddr_l:  remoteLow,
+		Sport:    uint16(local.Port),
+		Dport:    uint16(remote.Port),
+		Metadata: uint32(netebpf.TCP) | uint32(netebpf.IPv4),
+	}
+	require.NoError(t, connProtocolMap.Put(unsafe.Pointer(&key), unsafe.Pointer(&value)))
+
+	key.Saddr_h, key.Saddr_l, key.Daddr_h, key.Daddr_l = remoteHigh, remoteLow, localHigh, localLow
+	key.Sport, key.Dport = uint16(remote.Port), uint16(local.Port)
+	require.NoError(t, connProtocolMap.Put(unsafe.Pointer(&key), unsafe.Pointer(&value)))
 }
 
 func validateTLSTags(t *assert.CollectT, tr *Tracer, port uint16, scenario uint16) bool {

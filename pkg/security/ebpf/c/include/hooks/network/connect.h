@@ -4,6 +4,8 @@
 #include "constants/offsets/netns.h"
 #include "constants/syscall_macro.h"
 #include "helpers/discarders.h"
+#include "helpers/span_fill.h"
+#include "hooks/network/flow.h"
 
 int __attribute__((always_inline)) sys_connect(void *ctx, u64 pid_tgid) {
     struct policy_t policy = fetch_policy(EVENT_CONNECT);
@@ -27,53 +29,80 @@ HOOK_SYSCALL_ENTRY3(connect, int, socket, struct sockaddr *, addr, unsigned int,
     return sys_connect(ctx, 0);
 }
 
-int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_CONNECT);
+int __attribute__((always_inline)) sys_connect_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_CONNECT);
     if (!syscall) {
         return 0;
     }
 
+    // Bail out on failed connects before the approvers, otherwise a dropped event would still
+    // pollute connect_samples and suppress later successful connects to the same endpoint.
+    // EAGAIN may be returned on Fedora 37 (kernel 6.0.7-301.fc37.x86_64).
+    if (IS_UNHANDLED_ERROR(retval) && retval != -EINPROGRESS && retval != -EAGAIN) {
+        goto pop_and_exit;
+    }
+
     approve_syscall(syscall, connect_approvers);
 
-    // EAGAIN may be returned on Fedora 37 (kernel 6.0.7-301.fc37.x86_64)
-    if (IS_UNHANDLED_ERROR(retval) && retval != -EINPROGRESS && retval != -EAGAIN) {
-        return 0;
+    register_connecting_flow(syscall->connect.sk, syscall->connect.pid_tgid ? syscall->connect.pid_tgid : bpf_get_current_pid_tgid());
+
+    // these probes are also loaded with the network probes, only send the event when a rule asks for it
+    if (!is_event_enabled(EVENT_CONNECT)) {
+        goto pop_and_exit;
+    }
+
+    // emit a sample refresh if the dedup map flagged one
+    if (syscall->state == DISCARDED && (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED)) {
+        struct sample_refresh_event_t ev = {};
+        ev.cookie = syscall->sample_cookie;
+        send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
     }
 
     if (syscall->state == DISCARDED) {
-        return 0;
+        goto pop_and_exit;
     }
 
     /* pre-fill the event */
-    struct connect_event_t event = {
-        .syscall.retval = retval,
-        .addr[0] = syscall->connect.addr[0],
-        .addr[1] = syscall->connect.addr[1],
-        .family = syscall->connect.family,
-        .port = syscall->connect.port,
-        .protocol = syscall->connect.protocol,
-        .event.flags = (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP ? (EVENT_FLAGS_SAVED_BY_AD | EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE) : 0),
-    };
+    struct connect_event_t *event = SPAN_FILL_EVENT(struct connect_event_t, EVENT_CONNECT);
+    if (!event) {
+        goto pop_and_exit;
+    }
+    event->syscall.retval = retval;
+    event->addr[0] = syscall->connect.addr[0];
+    event->addr[1] = syscall->connect.addr[1];
+    event->family = syscall->connect.family;
+    event->port = syscall->connect.port;
+    event->protocol = syscall->connect.protocol;
+    event->event.flags = (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP ? (EVENT_FLAGS_SAVED_BY_AD | EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE) : 0);
+    event->sample_cookie = syscall->sample_cookie;
 
     struct proc_cache_t *entry;
     if (syscall->connect.pid_tgid != 0) {
-        entry = fill_process_context_with_pid_tgid(&event.process, syscall->connect.pid_tgid);
+        entry = fill_process_context_with_pid_tgid(&event->process, syscall->connect.pid_tgid);
     } else {
-        entry = fill_process_context(&event.process);
+        entry = fill_process_context(&event->process);
     }
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+
+    pop_syscall(EVENT_CONNECT);
+    fill_cgroup_context(entry, &event->cgroup);
 
     // v1: check if this PID is traced by an activity dump
-    struct activity_dump_config *config = lookup_or_delete_traced_pid(event.process.pid, bpf_ktime_get_ns(), NULL);
+    struct activity_dump_config *config = lookup_or_delete_traced_pid(event->process.pid, bpf_ktime_get_ns(), NULL);
     if (config) {
         if (mask_has_event(config->event_mask, EVENT_CONNECT)) {
-            event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+            event->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
         }
     }
 
-    send_event(ctx, EVENT_CONNECT, event);
+    span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_CONNECT);
     return 0;
+}
+
+int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
+    return sys_connect_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(connect) {
@@ -104,14 +133,15 @@ int hook_security_socket_connect(ctx_t *ctx) {
         bpf_probe_read(&syscall->connect.port, sizeof(addr_in6->sin6_port), &addr_in6->sin6_port);
         bpf_probe_read(&syscall->connect.addr, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
     }
-    
+
     struct sock *sk = get_sock_from_socket(sock);
     syscall->connect.protocol = get_protocol_from_sock(sk);
+    syscall->connect.sk = sk;
     return 0;
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_connect_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_connect_ret(args, args->ret);
+    return sys_connect_ret_impl(args, args->ret, TRACEPOINT_TYPE);
 }
 
 HOOK_ENTRY("io_connect")

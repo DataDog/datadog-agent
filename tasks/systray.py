@@ -7,6 +7,7 @@ import sys
 
 from invoke import task
 
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
 from tasks.libs.releasing.version import get_version_numeric_only
@@ -17,7 +18,7 @@ AGENT_TAG = "datadog/agent:master"
 
 
 @task
-def build(ctx, debug=False, console=False, rebuild=False, race=False, go_mod="readonly"):
+def build(ctx, debug=False, console=False, rebuild=False, race=False, go_mod="readonly", enable_bazel=False):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -28,6 +29,20 @@ def build(ctx, debug=False, console=False, rebuild=False, race=False, go_mod="re
 
     if not sys.platform == 'win32':
         print("Systray only available on Windows")
+        return
+
+    if enable_bazel:
+        if console:
+            raise NotImplementedError(
+                "--enable-bazel does not support --console (the Bazel target hardcodes the windows subsystem)."
+            )
+        if debug:
+            raise NotImplementedError(
+                "--enable-bazel does not support --debug (stripping is tied to Bazel's release mode, not this flag)."
+            )
+        if race:
+            raise NotImplementedError("--enable-bazel does not support --race.")
+        build_binary_with_bazel("//cmd/systray:systray", bin_path=os.path.join(BIN_PATH, bin_name("ddtray")))
         return
 
     # This generates the manifest resource. The manifest resource is necessary for

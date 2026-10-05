@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/containerd/containerd/oci"
+	"github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/containerd/typeurl/v2"
 	"google.golang.org/protobuf/types/known/anypb"
 

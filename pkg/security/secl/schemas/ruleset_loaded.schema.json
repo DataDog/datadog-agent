@@ -163,6 +163,13 @@
         "action": {
             "type": "object",
             "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": ["loaded", "rejected"]
+                },
+                "message": {
+                    "type": "string"
+                },
                 "filter": {
                     "type": "string"
                 },
@@ -188,8 +195,7 @@
                             "type": "boolean"
                         },
                         "scope": {
-                            "type": "string",
-                            "enum": ["process", "container", "cgroup"]
+                            "type": "string"
                         },
                         "size": {
                             "type": "integer"
@@ -206,8 +212,7 @@
                             "type": "string"
                         },
                         "scope": {
-                            "type": "string",
-                            "enum": ["process", "container"]
+                            "type": "string"
                         }
                     }
                 },

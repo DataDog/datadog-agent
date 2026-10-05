@@ -133,7 +133,7 @@ func TestQuery(t *testing.T) {
 
 			kc := &kubeletClient{
 				client: http.Client{},
-				config: kubeletClientConfig{
+				config: &kubeletClientConfig{
 					useAPIServer:  tt.useAPIServer,
 					apiServerHost: APIServer.URL,
 					nodeName:      "abc",

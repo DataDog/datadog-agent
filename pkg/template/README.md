@@ -10,7 +10,6 @@ The [text](./text) directory contains the code from `text/template`, the [html](
 
 ## Code Generation
 The code in this directory can be re-generated using `bazel run //pkg/template:generate`.
-(`invoke -e pkg-template.generate` works as a backwards-compatible alias)
 
 ## Go version
 The code is from the Go version pinned in the [.go-version](/.go-version) file.

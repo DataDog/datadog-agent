@@ -36,5 +36,11 @@ func getMMapProbes() []*manager.Probe {
 				EBPFFuncName: "hook_get_unmapped_area",
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook___get_unmapped_area",
+			},
+		},
 	}
 }

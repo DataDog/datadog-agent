@@ -16,11 +16,13 @@ import (
 	"go.uber.org/multierr"
 
 	"github.com/go-viper/mapstructure/v2"
+	"github.com/spf13/cast"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
 )
 
@@ -81,6 +83,9 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	tracesEnabled := cfg.GetBool(coreconfig.OTLPTracesEnabled)
 	logsEnabled := cfg.GetBool(coreconfig.OTLPLogsEnabled)
 	TracesInfraAttributesEnabled := cfg.GetBool(coreconfig.OTLPTracesInfraAttrEnabled)
+	tracesContainerTagPromotion := cfg.GetString(coreconfig.OTLPTracesInfraAttrContainerTagPromotion)
+	logsTagsAsDDTags := cfg.GetBool(coreconfig.OTLPLogsInfraAttrTagsAsDDTags)
+	metricsInfraAttrsAsTags := cfg.GetBool(coreconfig.OTLPMetricsInfraAttrAsTags)
 
 	if !metricsEnabled && !tracesEnabled && !logsEnabled {
 		errs = append(errs, errors.New("at least one OTLP signal needs to be enabled"))
@@ -101,12 +106,32 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	if tags != "" {
 		metricsConfigMap["tags"] = tags
 	}
+
+	// resource_attributes_as_tags promotes every resource attribute onto metrics as a
+	// tag, which already surfaces the custom tagger-derived tags that
+	// infra_attributes.as_tags targets -- making the two options redundant. Worse,
+	// enabling both leaks the internal `datadog.container.tag.` namespace as literal
+	// metric tags (the promoted prefixed copy gets dumped verbatim). They are therefore
+	// mutually exclusive: resource_attributes_as_tags wins and promotion is disabled.
+	if metricsInfraAttrsAsTags && cast.ToBool(metricsConfigMap["resource_attributes_as_tags"]) {
+		log.Warn("otlp_config.metrics.infra_attributes.as_tags is ignored because otlp_config.metrics.resource_attributes_as_tags is enabled: the latter already promotes custom tags onto metrics")
+		metricsInfraAttrsAsTags = false
+	}
 	mc, err := normalizeMetricsConfig(metricsConfigMap, false)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("failed to normalize metrics config: %w", err))
 	}
 
 	debugConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPDebug)
+	debugMap := debugConfig.ToStringMap()
+	// If the user explicitly declares the otlp_config.debug section but does not set a
+	// verbosity, attach the debug exporter using the default verbosity. When the section
+	// is absent entirely, verbosity is left unset so the debug exporter is not attached.
+	if _, ok := debugMap["verbosity"]; !ok {
+		if cfg.HasSection(coreconfig.OTLPDebug) || cfg.IsConfigured(coreconfig.OTLPDebug) {
+			debugMap["verbosity"] = cfg.GetString(coreconfig.OTLPDebug + ".verbosity")
+		}
+	}
 
 	return PipelineConfig{
 		OTLPReceiverConfig:           otlpReceiverConfigMap,
@@ -116,9 +141,12 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 		LogsEnabled:                  logsEnabled,
 		Metrics:                      mc,
 		TracesInfraAttributesEnabled: TracesInfraAttributesEnabled,
+		TracesContainerTagPromotion:  tracesContainerTagPromotion,
+		LogsTagsAsDDTags:             logsTagsAsDDTags,
+		MetricsInfraAttrsAsTags:      metricsInfraAttrsAsTags,
 		MetricsBatch:                 metricsBatchConfig.ToStringMap(),
 		Logs:                         logsConfig.ToStringMap(),
-		Debug:                        debugConfig.ToStringMap(),
+		Debug:                        debugMap,
 	}, multierr.Combine(errs...)
 }
 

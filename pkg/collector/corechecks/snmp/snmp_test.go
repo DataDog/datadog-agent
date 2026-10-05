@@ -541,7 +541,7 @@ metrics:
     OID: 1.2.3.4.5.2
     name: SomeCounter64Metric
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -1007,7 +1007,7 @@ collect_device_metadata: false
 ip_address: 1.2.3.4
 community_string: public
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -1056,7 +1056,7 @@ network_address: 10.10.10.0/24
 community_string: abc
 namespace: nsSubnet
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := check1.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig1, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 	err = check2.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig2, []byte(``), "test", "provider")
@@ -1315,7 +1315,7 @@ metrics:
     OID: 1.2.3
     name: myMetric
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -2717,7 +2717,7 @@ namespace: namespace
 		DeviceIP: "2.2.2.2",
 	}, false).Once()
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := check1.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig1, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 	err = check2.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig2, []byte(``), "test", "provider")

@@ -38,8 +38,8 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 The host provisioner (`gpuHostProvisioner`):
 1. Creates EC2 GPU instance (g4dn.xlarge)
 2. Validates GPU devices are present
-3. Installs ECR credentials helper
-4. Installs Docker
+3. Configures ECR authentication using the pre-baked credentials helper
+4. Configures pre-baked Docker
 5. Pre-pulls test images
 6. Validates Docker can run CUDA workloads
 7. Installs Datadog agent
@@ -49,8 +49,8 @@ The host provisioner (`gpuHostProvisioner`):
 The Kubernetes provisioner (`gpuK8sProvisioner`):
 1. Creates EC2 GPU instance
 2. Validates GPU devices
-3. Installs ECR credentials helper
-4. **Installs Docker** (required for pre-pulling CUDA image)
+3. Configures ECR authentication using the pre-baked credentials helper
+4. **Configures pre-baked Docker** (required for pre-pulling CUDA image)
 5. **Pre-pulls CUDA sanity check image** (avoids ECR auth issues)
 6. Creates Kind cluster with NVIDIA GPU operator
 7. Deploys Datadog agent via Helm
@@ -75,7 +75,7 @@ The Kubernetes provisioner (`gpuK8sProvisioner`):
    ```
 2. Ensure you're authenticated with the correct account:
    ```bash
-   aws-vault login sso-agent-sandbox-account-admin
+   aws-vault login sso-agent-sandbox-account-admin-8h
    ```
 3. The default environment is `agent-sandbox` (see `test/new-e2e/pkg/runner/local_profile.go`). If you're in a different account, EC2 instances won't have the correct IAM permissions.
 
@@ -109,14 +109,18 @@ Each system has specific configuration:
 
 ```go
 gpuSystemUbuntu2204: {
-    ami:                          "ami-03ee78da2beb5b622",
+    amiDescriptor:                os.NewDescriptor(os.Ubuntu, "22-04-gpu"),
     os:                           os.Ubuntu2204,
     cudaSanityCheckImage:         "nvidia/cuda:12.6.3-base-ubuntu22.04",
-    hasEcrCredentialsHelper:      false, // needs to be installed
     hasAllNVMLCriticalAPIs:       true,
     supportsSystemProbeComponent: true,
 }
 ```
+
+GPU AMI IDs are maintained in `test/e2e-framework/resources/aws/platforms.json`
+under Ubuntu x86_64 (`22-04-gpu`, `18-04-gpu-driver-430`, and
+`18-04-gpu-driver-510`). Both provisioners resolve `amiDescriptor` through
+`aws.GetAMI`; the separate `os` field preserves runtime compatibility settings.
 
 ## GPU Instance Type
 

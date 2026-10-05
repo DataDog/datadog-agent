@@ -53,7 +53,7 @@ _STACK_NAME = os.environ.get("GENSIM_STACK_NAME", f"{_USER}-gensim-eks")
 # All paths derived from stack name -- override via env vars if needed.
 KUBECONFIG = os.environ.get("KUBECONFIG", f"{_STACK_NAME}-kubeconfig.yaml")
 PULUMI_STATE = os.path.expanduser(os.environ.get("PULUMI_STATE", f"~/.pulumi/stacks/{_STACK_NAME}.json"))
-AWS_VAULT_PREFIX = os.environ.get("AWS_VAULT_PROFILE", "sso-agent-sandbox-account-admin").split()
+AWS_VAULT_PREFIX = os.environ.get("AWS_VAULT_PROFILE", "sso-agent-sandbox-account-admin-8h").split()
 AWS_VAULT_PREFIX = ["aws-vault", "exec", *AWS_VAULT_PREFIX, "--"]
 EKS_CLUSTER_NAME = os.environ.get("EKS_CLUSTER_NAME", _STACK_NAME)
 EKS_REGION = os.environ.get("EKS_REGION", "us-east-1")

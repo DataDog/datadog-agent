@@ -11,6 +11,7 @@ package model
 import (
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 // DeepCopy creates a deep copy of the Event where the copy shares nothing with the original
@@ -97,7 +98,7 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
 	copied.PPid = fieldToCopy.PPid
 	copied.ScrubbedCmdLineResolved = fieldToCopy.ScrubbedCmdLineResolved
-	copied.TracerMetadata = deepCopyTracerMetadata(fieldToCopy.TracerMetadata)
+	copied.Tracer = deepCopyTracer(fieldToCopy.Tracer)
 	copied.User = fieldToCopy.User
 	return copied
 }
@@ -126,6 +127,7 @@ func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied.ContainerID = fieldToCopy.ContainerID
 	copied.ContainerSource = fieldToCopy.ContainerSource
 	copied.CreatedAt = fieldToCopy.CreatedAt
+	copied.PodUID = fieldToCopy.PodUID
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
 	return copied
@@ -154,6 +156,13 @@ func deepCopyFileEvent(fieldToCopy FileEvent) FileEvent {
 	copied.PathnameStr = fieldToCopy.PathnameStr
 	return copied
 }
+func deepCopyTracer(fieldToCopy Tracer) Tracer {
+	copied := Tracer{}
+	copied.Metadata = deepCopyTracerMetadata(fieldToCopy.Metadata)
+	copied.ThreadlocalAttributeKeys = deepCopystringArr(fieldToCopy.ThreadlocalAttributeKeys)
+	copied.Trace = deepCopySpanContext(fieldToCopy.Trace)
+	return copied
+}
 func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermetadata.TracerMetadata {
 	copied := tracermetadata.TracerMetadata{}
 	copied.ContainerID = fieldToCopy.ContainerID
@@ -168,6 +177,28 @@ func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermet
 	copied.TracerLanguage = fieldToCopy.TracerLanguage
 	copied.TracerVersion = fieldToCopy.TracerVersion
 	return copied
+}
+func deepCopySpanContext(fieldToCopy SpanContext) SpanContext {
+	copied := SpanContext{}
+	copied.Attributes = deepCopystringMap(fieldToCopy.Attributes)
+	copied.ExtraAttrsID = fieldToCopy.ExtraAttrsID
+	copied.HasExtraAttrs = fieldToCopy.HasExtraAttrs
+	copied.SpanID = fieldToCopy.SpanID
+	copied.TraceID = deepCopyTraceID(fieldToCopy.TraceID)
+	return copied
+}
+func deepCopystringMap(fieldToCopy map[string]string) map[string]string {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := make(map[string]string, len(fieldToCopy))
+	for k, v := range fieldToCopy {
+		copied[k] = v
+	}
+	return copied
+}
+func deepCopyTraceID(fieldToCopy utils.TraceID) utils.TraceID {
+	return fieldToCopy
 }
 func deepCopyProcess(fieldToCopy Process) Process {
 	copied := Process{}
@@ -186,7 +217,7 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
 	copied.PPid = fieldToCopy.PPid
 	copied.ScrubbedCmdLineResolved = fieldToCopy.ScrubbedCmdLineResolved
-	copied.TracerMetadata = deepCopyTracerMetadata(fieldToCopy.TracerMetadata)
+	copied.Tracer = deepCopyTracer(fieldToCopy.Tracer)
 	copied.User = fieldToCopy.User
 	return copied
 }
@@ -239,16 +270,6 @@ func deepCopyMatchedRulePtrArr(fieldToCopy []*MatchedRule) []*MatchedRule {
 	}
 	return copied
 }
-func deepCopystringMap(fieldToCopy map[string]string) map[string]string {
-	if fieldToCopy == nil {
-		return nil
-	}
-	copied := make(map[string]string, len(fieldToCopy))
-	for k, v := range fieldToCopy {
-		copied[k] = v
-	}
-	return copied
-}
 func deepCopyMatchedRulePtr(fieldToCopy *MatchedRule) *MatchedRule {
 	if fieldToCopy == nil {
 		return nil
@@ -266,6 +287,7 @@ func deepCopySecurityProfileContext(fieldToCopy SecurityProfileContext) Security
 	copied.EventTypeState = fieldToCopy.EventTypeState
 	copied.EventTypes = deepCopyEventTypeArr(fieldToCopy.EventTypes)
 	copied.Name = fieldToCopy.Name
+	copied.ProfileAlreadySent = fieldToCopy.ProfileAlreadySent
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
 	copied.Version = fieldToCopy.Version
 	return copied

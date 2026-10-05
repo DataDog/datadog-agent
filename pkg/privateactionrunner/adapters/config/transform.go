@@ -8,24 +8,34 @@ package config
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-func FromDDConfig(config config.Component) (*Config, error) {
+// FromDDConfig builds the runner Config from the Agent config. The metrics client
+// is supplied by the caller (the standalone runner builds one with NewMetricsClient;
+// the Cluster Agent passes an in-process adapter; callers that emit no metrics, such
+// as the identity-rotation commands, may pass nil). A nil client defaults to no-op.
+func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface) (*Config, error) {
+	if metricsClient == nil {
+		metricsClient = &statsd.NoOpClient{}
+	}
 	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
 	ddHost := getDatadogHost(mainEndpoint)
 	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
@@ -62,43 +72,65 @@ func FromDDConfig(config config.Component) (*Config, error) {
 	if v := config.GetInt32(setup.PARHttpTimeoutSeconds); v != 0 {
 		httpTimeout = time.Duration(v) * time.Second
 	}
+	agentHTTPClient := &http.Client{
+		Transport: httputils.CreateHTTPTransport(config),
+	}
 
 	return &Config{
-		MaxBackoff:                maxBackoff,
-		MinBackoff:                minBackoff,
-		MaxAttempts:               maxAttempts,
-		WaitBeforeRetry:           waitBeforeRetry,
-		LoopInterval:              loopInterval,
-		OpmsRequestTimeout:        opmsRequestTimeout,
-		RunnerPoolSize:            config.GetInt32(setup.PARTaskConcurrency),
-		HealthCheckInterval:       healthCheckInterval,
-		HttpServerReadTimeout:     defaultHTTPServerReadTimeout,
-		HttpServerWriteTimeout:    defaultHTTPServerWriteTimeout,
-		HTTPTimeout:               httpTimeout,
-		TaskTimeoutSeconds:        taskTimeoutSeconds,
-		RunnerAccessTokenHeader:   runnerAccessTokenHeader,
-		RunnerAccessTokenIdHeader: runnerAccessTokenIDHeader,
-		Port:                      defaultPort,
-		JWTRefreshInterval:        defaultJwtRefreshInterval,
-		HealthCheckEndpoint:       defaultHealthCheckEndpoint,
-		HeartbeatInterval:         heartbeatInterval,
-		Version:                   version.AgentVersion,
-		MetricsClient:             &statsd.NoOpClient{},
-		ActionsAllowlist:          makeActionsAllowlist(config),
-		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
-		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
-		RShellAllowedPaths:        rshellAllowedPaths(config),
-		RShellAllowedCommands:     rshellAllowedCommands(config),
-		OpmsExtraHeaders:          config.GetStringMapString(setup.PAROpmsExtraHeaders),
-		DDHost:                    ddHost,
-		DDApiHost:                 "api." + ddSite,
-		Modes:                     []modes.Mode{modes.ModePull},
-		OrgId:                     orgID,
-		PrivateKey:                privateKey,
-		RunnerId:                  runnerID,
-		Urn:                       urn,
-		DatadogSite:               ddSite,
+		MaxBackoff:                         maxBackoff,
+		MinBackoff:                         minBackoff,
+		MaxAttempts:                        maxAttempts,
+		WaitBeforeRetry:                    waitBeforeRetry,
+		LoopInterval:                       loopInterval,
+		OpmsRequestTimeout:                 opmsRequestTimeout,
+		RunnerPoolSize:                     config.GetInt32(setup.PARTaskConcurrency),
+		HealthCheckInterval:                healthCheckInterval,
+		HttpServerReadTimeout:              defaultHTTPServerReadTimeout,
+		HttpServerWriteTimeout:             defaultHTTPServerWriteTimeout,
+		HTTPTimeout:                        httpTimeout,
+		TaskTimeoutSeconds:                 taskTimeoutSeconds,
+		RunnerAccessTokenHeader:            runnerAccessTokenHeader,
+		RunnerAccessTokenIdHeader:          runnerAccessTokenIDHeader,
+		Port:                               defaultPort,
+		JWTRefreshInterval:                 defaultJwtRefreshInterval,
+		HealthCheckEndpoint:                defaultHealthCheckEndpoint,
+		HeartbeatInterval:                  heartbeatInterval,
+		Version:                            version.AgentVersion,
+		MetricsClient:                      metricsClient,
+		AgentHTTPClient:                    agentHTTPClient,
+		ActionsAllowlist:                   makeActionsAllowlist(config),
+		Allowlist:                          config.GetStringSlice(setup.PARHttpAllowlist),
+		AllowIMDSEndpoint:                  config.GetBool(setup.PARHttpAllowImdsEndpoint),
+		KubernetesAllowedCustomResources:   kubernetesAllowedCustomResources(config),
+		RShellAllowedPaths:                 rshellAllowedPaths(config),
+		RShellAllowedCommands:              rshellAllowedCommands(config),
+		RShellAllowedSystemServices:        rshellAllowedSystemServices(config),
+		RShellDisableDetailedTelemetry:     config.GetBool(setup.PARRestrictedShellDisableDetailedTelemetry),
+		RShellPrivilegedEnabled:            config.GetBool(setup.PARRestrictedShellPrivilegedEnabled),
+		RShellPrivilegedSocket:             config.GetString(setup.PARRestrictedShellPrivilegedSocket),
+		RShellPrivilegedElevatableCommands: rshellElevatableCommands(config),
+		RShellAllowedCommandsConfigured:    config.IsConfigured(setup.PARRestrictedShellAllowedCommands),
+		RShellAllowedPathsConfigured:       config.IsConfigured(setup.PARRestrictedShellAllowedPaths),
+		OpmsExtraHeaders:                   config.GetStringMapString(setup.PAROpmsExtraHeaders),
+		DDHost:                             ddHost,
+		DDApiHost:                          "api." + ddSite,
+		Modes:                              []modes.Mode{modes.ModePull},
+		OrgId:                              orgID,
+		PrivateKey:                         privateKey,
+		RunnerId:                           runnerID,
+		Urn:                                urn,
+		DatadogSite:                        ddSite,
 	}, nil
+}
+
+// kubernetesAllowedCustomResources preserves nil for an unset allowlist so custom
+// resource actions can distinguish compatibility mode from an explicit
+// empty-list deny-all policy.
+func kubernetesAllowedCustomResources(config config.Component) []string {
+	if !config.IsConfigured(setup.PARKubernetesAllowedCustomResources) {
+		return nil
+	}
+	return config.GetStringSlice(setup.PARKubernetesAllowedCustomResources)
 }
 
 func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
@@ -111,6 +143,13 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 		} else {
 			actionFqns = append(actionFqns, DefaultActionFQNs...)
 		}
+	}
+
+	// When the kubeactions subsystem is enabled, auto-allow its bundle so the
+	// kubernetes-actions backend (dispatching via wf-actions-server) works
+	// without operators having to set actions_allowlist manually.
+	if config.GetBool("kubeactions.enabled") {
+		actionFqns = append(actionFqns, KubeActionsActionFQNs...)
 	}
 
 	for _, fqn := range actionFqns {
@@ -143,16 +182,33 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 // AND the backend's allowed commands list. (intersection operation)
 func rshellAllowedCommands(config config.Component) []string {
 	commands := config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
-	warnUnnamespacedCommands(commands)
+	warnUnnamespacedCommands(setup.PARRestrictedShellAllowedCommands, commands)
 	return commands
 }
 
-func warnUnnamespacedCommands(commands []string) {
+// Nil means unset; a configured empty map is the explicit deny-all policy.
+func rshellAllowedSystemServices(config config.Component) map[string][]string {
+	if !config.IsConfigured(setup.PARRestrictedShellAllowedSystemServices) {
+		return nil
+	}
+	return config.GetStringMapStringSlice(setup.PARRestrictedShellAllowedSystemServices)
+}
+
+func rshellElevatableCommands(config config.Component) []string {
+	if !config.IsConfigured(setup.PARRestrictedShellPrivilegedElevatableCommands) {
+		return nil
+	}
+	commands := config.GetStringSlice(setup.PARRestrictedShellPrivilegedElevatableCommands)
+	warnUnnamespacedCommands(setup.PARRestrictedShellPrivilegedElevatableCommands, commands)
+	return commands
+}
+
+func warnUnnamespacedCommands(key string, commands []string) {
 	for _, c := range commands {
 		if !strings.HasPrefix(c, RshellCommandNamespacePrefix) {
 			log.Warnf(
 				"%s entry %q is missing the %q prefix and will never match a backend command; use %q instead",
-				setup.PARRestrictedShellAllowedCommands,
+				key,
 				c,
 				RshellCommandNamespacePrefix,
 				RshellCommandNamespacePrefix+c,
@@ -230,4 +286,15 @@ func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[strin
 	}
 
 	return result
+}
+
+// NewMetricsClient builds a DogStatsD client from the Agent's configured
+// host/port endpoint.
+func NewMetricsClient(config config.Component, statsdComp statsdcomp.Component) (statsd.ClientInterface, error) {
+	port := config.GetInt("dogstatsd_port")
+	client, err := statsdComp.CreateForHostPort(configutils.GetBindHost(config), port)
+	if err != nil {
+		return &statsd.NoOpClient{}, fmt.Errorf("failed to create DogStatsD client: %w", err)
+	}
+	return client, nil
 }

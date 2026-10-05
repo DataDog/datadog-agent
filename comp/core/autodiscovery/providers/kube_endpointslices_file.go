@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -75,7 +75,7 @@ type KubeEndpointSlicesFileConfigProvider struct {
 }
 
 // NewKubeEndpointSlicesFileConfigProvider returns a new KubeEndpointSlicesFileConfigProvider
-func NewKubeEndpointSlicesFileConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error) {
+func NewKubeEndpointSlicesFileConfigProvider(_ *constants.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error) {
 	templates, _, err := ReadConfigFiles(WithAdvancedADOnly)
 	if err != nil {
 		return nil, err
@@ -255,7 +255,7 @@ func (s *endpointSliceStore) matchesAnyCELTemplate(slice *discv1.EndpointSlice) 
 		return false
 	}
 
-	filterableEp := workloadfilter.CreateKubeEndpoint(serviceName, slice.Namespace, slice.GetAnnotations())
+	filterableEp := workloadfilter.CreateKubeEndpoint(serviceName, slice.Namespace, slice.GetAnnotations(), slice.GetLabels())
 	for _, tpl := range celEpSliceConfig.templates {
 		if tpl.IsMatched(filterableEp) {
 			return true
@@ -392,6 +392,10 @@ func endpointSliceChecksFromTemplate(tpl integration.Config, slice *discv1.Endpo
 	resolveFunc := getEndpointResolveFuncForSlice(resolveMode, slice.Namespace, serviceName)
 
 	for _, endpoint := range slice.Endpoints {
+		if !apiserver.IsEndpointServing(&endpoint) {
+			continue
+		}
+
 		for _, ip := range endpoint.Addresses {
 			entity := apiserver.EntityForEndpoints(slice.Namespace, serviceName, ip)
 			config := &integration.Config{

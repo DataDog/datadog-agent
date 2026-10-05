@@ -1,0 +1,79 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "net",
+    srcs = [
+        "common.go",
+        "common_all.go",
+        "common_linux.go",
+        "common_unsupported.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/net",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/process/encoding",
+            "//pkg/process/encoding/request",
+            "//pkg/proto/pbgo/process",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/process/encoding",
+            "//pkg/process/encoding/request",
+            "//pkg/proto/pbgo/process",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/process/encoding",
+            "//pkg/process/encoding/request",
+            "//pkg/proto/pbgo/process",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "//conditions:default": [],
+    }),
+)

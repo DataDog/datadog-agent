@@ -3,19 +3,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// CWS is not supported on AIX.
+//go:build !aix
+
 // Package monitor holds rules related files
 package monitor
 
 import (
+	"encoding/json"
+	"math"
 	"os"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/Masterminds/semver/v3"
 	gocmp "github.com/google/go-cmp/cmp"
 
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -32,6 +39,8 @@ type testCase struct {
 	name                 string
 	policies             []*testPolicy
 	expectedPolicyStates []*PolicyState
+	model                *model.Model
+	eventTypeEnabled     map[eval.EventType]bool
 }
 
 func TestPolicyMonitorPolicyState(t *testing.T) {
@@ -72,6 +81,132 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							ID:         "rule_a",
 							Expression: `exec.file.path == "/etc/foo/bar"`,
 							Status:     "loaded",
+						},
+					},
+				},
+			},
+		},
+		{
+			// the capture pattern is what distinguishes an action storing part of a
+			// field from one storing the whole of it, so it has to be reported
+			name: "rule with a capture set action",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Actions: []*rules.ActionDefinition{
+									{
+										Set: &rules.SetDefinition{
+											Name:    "artifact",
+											Field:   "process.file.path", // use field available for both Linux and Windows
+											Capture: "/orchestration/([^/]+)/",
+											Scope:   "process",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Actions: []RuleAction{
+								{
+									Status: ActionStatusLoaded,
+									Set: &RuleSetAction{
+										Name:    "artifact",
+										Field:   "process.file.path",
+										Capture: "/orchestration/([^/]+)/",
+										Scope:   "process",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "rule with an invalid action",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Actions: []*rules.ActionDefinition{
+									{
+										Kill: &rules.KillDefinition{
+											Signal: "SIGKILL",
+										},
+										Hash: &rules.HashDefinition{},
+									},
+									{
+										Log: &rules.LogDefinition{
+											Level:   "info",
+											Message: "hello",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Actions: []RuleAction{
+								{
+									Status: ActionStatusLoaded,
+									Log: &LogAction{
+										Level:   "info",
+										Message: "hello",
+									},
+								},
+								{
+									Status:  ActionStatusRejected,
+									Message: "only one action can be specified",
+									Kill: &RuleKillAction{
+										Signal: "SIGKILL",
+									},
+									Hash: &HashAction{
+										Enabled: true,
+									},
+								},
+							},
 						},
 					},
 				},
@@ -377,6 +512,62 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							Message:                "this agent version doesn't support this rule",
 							FilterType:             string(rules.FilterTypeAgentVersion),
 							AgentVersionConstraint: "< 0.0.2",
+						},
+					},
+				},
+			},
+		},
+		{
+			// a `null` entry in the YAML actions list yields a nil action definition
+			name: "filtered rule with a null action",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:                     "rule_a",
+								Expression:             `exec.file.path == "/etc/foo/bar"`,
+								AgentVersionConstraint: "< 0.0.1",
+								Actions: []*rules.ActionDefinition{
+									nil,
+									{
+										Kill: &rules.KillDefinition{
+											Signal: "SIGKILL",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusFullyFiltered,
+					Rules: []*RuleState{
+						{
+							ID:                     "rule_a",
+							Expression:             `exec.file.path == "/etc/foo/bar"`,
+							Status:                 "filtered",
+							Message:                "this agent version doesn't support this rule",
+							FilterType:             string(rules.FilterTypeAgentVersion),
+							AgentVersionConstraint: "< 0.0.1",
+							Actions: []RuleAction{
+								{
+									Status: ActionStatusRejected,
+									Kill: &RuleKillAction{
+										Signal: "SIGKILL",
+									},
+								},
+							},
 						},
 					},
 				},
@@ -889,6 +1080,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							Status:     "loaded",
 							Actions: []RuleAction{
 								{
+									Status: ActionStatusLoaded,
 									Kill: &RuleKillAction{
 										Signal: "SIGKILL",
 									},
@@ -916,6 +1108,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							Status:     "loaded",
 							Actions: []RuleAction{
 								{
+									Status: ActionStatusLoaded,
 									Kill: &RuleKillAction{
 										Signal: "SIGKILL",
 									},
@@ -1025,12 +1218,14 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							Version:    "0.0.3",
 							Actions: []RuleAction{
 								{
+									Status: ActionStatusLoaded,
 									Kill: &RuleKillAction{
 										Signal: "SIGKILL",
 										Scope:  "container",
 									},
 								},
 								{
+									Status: ActionStatusLoaded,
 									Hash: &HashAction{
 										Enabled: true,
 										Field:   "exec.file",
@@ -1067,12 +1262,14 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							Version:    "0.0.3",
 							Actions: []RuleAction{
 								{
+									Status: ActionStatusLoaded,
 									Kill: &RuleKillAction{
 										Signal: "SIGKILL",
 										Scope:  "container",
 									},
 								},
 								{
+									Status: ActionStatusLoaded,
 									Hash: &HashAction{
 										Enabled: true,
 										Field:   "exec.file",
@@ -1110,12 +1307,14 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							Version:    "0.0.3",
 							Actions: []RuleAction{
 								{
+									Status: ActionStatusLoaded,
 									Kill: &RuleKillAction{
 										Signal: "SIGKILL",
 										Scope:  "container",
 									},
 								},
 								{
+									Status: ActionStatusLoaded,
 									Hash: &HashAction{
 										Enabled: true,
 										Field:   "exec.file",
@@ -1140,10 +1339,590 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "same default rule and custom rules with conflicting set action fields",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:         "Default-A",
+						Source:       "test",
+						InternalType: rules.DefaultPolicyType,
+						Version:      "0.0.3",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Actions: []*rules.ActionDefinition{
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_path_qwuUJ",
+											Field:   "process.file.path", // use field available for both Linux and Windows
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "process",
+											Private: true,
+										},
+									},
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_parent_qwuUJ",
+											Field:   "process.parent.file.path",
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "process",
+											Private: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					info: rules.PolicyInfo{
+						Name:         "Custom-B",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+						Version:      "0.0.2",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Combine:    "override",
+								OverrideOptions: rules.OverrideOptions{
+									Fields: []rules.OverrideField{
+										"actions",
+									},
+								},
+								Actions: []*rules.ActionDefinition{
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_path_qwuUJ",
+											Field:   "process.file.path", // use field available for both Linux and Windows
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "process",
+											Private: false,
+										},
+									},
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_parent_qwuUJ",
+											Field:   "process.parent.file.path",
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "process",
+											Private: false,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					info: rules.PolicyInfo{
+						Name:         "Custom-C",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+						Version:      "0.0.1",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Combine:    "override",
+								OverrideOptions: rules.OverrideOptions{
+									Fields: []rules.OverrideField{
+										"actions",
+									},
+								},
+								Actions: []*rules.ActionDefinition{
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_path_qwuUJ",
+											Field:   "process.file.path", // use field available for both Linux and Windows
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "process",
+											Private: false,
+										},
+									},
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_parent_qwuUJ",
+											Field:   "process.parent.file.path",
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "process",
+											Private: false,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:    "Custom-B",
+						Source:  "test",
+						Version: "0.0.2",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Version:    "0.0.2",
+							ModifiedBy: []*PolicyMetadata{
+								{
+									Name:    "Custom-C",
+									Source:  "test",
+									Version: "0.0.1",
+								},
+							},
+							Actions: []RuleAction{
+								{
+									Status: ActionStatusLoaded,
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_path_qwuUJ",
+										Field:   "process.file.path", // use field available for both Linux and Windows
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "process",
+										Private: true,
+									},
+								},
+								{
+									Status: ActionStatusLoaded,
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_parent_qwuUJ",
+										Field:   "process.parent.file.path",
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "process",
+										Private: true,
+									},
+								},
+								{
+									Status:  ActionStatusRejected,
+									Message: "conflicting private flag for variable 'process.rtl_process_path_qwuUJ'",
+									Filter:  &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:   "rtl_process_path_qwuUJ",
+										Field:  "process.file.path",
+										TTL:    "1h0m0s",
+										Append: true,
+										Scope:  "process",
+									},
+								},
+								{
+									Status:  ActionStatusRejected,
+									Message: "conflicting private flag for variable 'process.rtl_process_parent_qwuUJ'",
+									Filter:  &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:   "rtl_process_parent_qwuUJ",
+										Field:  "process.parent.file.path",
+										TTL:    "1h0m0s",
+										Append: true,
+										Scope:  "process",
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:    "Custom-C",
+						Source:  "test",
+						Version: "0.0.1",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Version:    "0.0.2",
+							ModifiedBy: []*PolicyMetadata{
+								{
+									Name:    "Custom-B",
+									Source:  "test",
+									Version: "0.0.2",
+								},
+							},
+							Actions: []RuleAction{
+								{
+									Status: ActionStatusLoaded,
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_path_qwuUJ",
+										Field:   "process.file.path", // use field available for both Linux and Windows
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "process",
+										Private: true,
+									},
+								},
+								{
+									Status: ActionStatusLoaded,
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_parent_qwuUJ",
+										Field:   "process.parent.file.path",
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "process",
+										Private: true,
+									},
+								},
+								{
+									Status:  ActionStatusRejected,
+									Message: "conflicting private flag for variable 'process.rtl_process_path_qwuUJ'",
+									Filter:  &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:   "rtl_process_path_qwuUJ",
+										Field:  "process.file.path",
+										TTL:    "1h0m0s",
+										Append: true,
+										Scope:  "process",
+									},
+								},
+								{
+									Status:  ActionStatusRejected,
+									Message: "conflicting private flag for variable 'process.rtl_process_parent_qwuUJ'",
+									Filter:  &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:   "rtl_process_parent_qwuUJ",
+										Field:  "process.parent.file.path",
+										TTL:    "1h0m0s",
+										Append: true,
+										Scope:  "process",
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:    "Default-A",
+						Source:  "test",
+						Version: "0.0.3",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Version:    "0.0.2",
+							ModifiedBy: []*PolicyMetadata{
+								{
+									Name:    "Custom-B",
+									Source:  "test",
+									Version: "0.0.2",
+								},
+								{
+									Name:    "Custom-C",
+									Source:  "test",
+									Version: "0.0.1",
+								},
+							},
+							Actions: []RuleAction{
+								{
+									Status: ActionStatusLoaded,
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_path_qwuUJ",
+										Field:   "process.file.path", // use field available for both Linux and Windows
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "process",
+										Private: true,
+									},
+								},
+								{
+									Status: ActionStatusLoaded,
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_parent_qwuUJ",
+										Field:   "process.parent.file.path",
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "process",
+										Private: true,
+									},
+								},
+								{
+									Status:  ActionStatusRejected,
+									Message: "conflicting private flag for variable 'process.rtl_process_path_qwuUJ'",
+									Filter:  &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:   "rtl_process_path_qwuUJ",
+										Field:  "process.file.path",
+										TTL:    "1h0m0s",
+										Append: true,
+										Scope:  "process",
+									},
+								},
+								{
+									Status:  ActionStatusRejected,
+									Message: "conflicting private flag for variable 'process.rtl_process_parent_qwuUJ'",
+									Filter:  &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:   "rtl_process_parent_qwuUJ",
+										Field:  "process.parent.file.path",
+										TTL:    "1h0m0s",
+										Append: true,
+										Scope:  "process",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// an invalid set action (here an unknown scope) is not loaded but doesn't prevent the rule
+			// from loading, so the rule must be reported as loaded and the action as an error
+			name: "rule loaded despite an invalid set action scope",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Actions: []*rules.ActionDefinition{
+									{
+										Set: &rules.SetDefinition{
+											Name:  "my_var",
+											Value: "foo",
+											Scope: "invalid_scope",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Actions: []RuleAction{
+								{
+									Status:  ActionStatusRejected,
+									Message: "invalid scope 'invalid_scope'",
+									Set: &RuleSetAction{
+										Name:  "my_var",
+										Value: "foo",
+										Scope: "invalid_scope",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "rule with variable type error",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy A",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+						Version:      "0.0.1",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar" && exec.file.path != ${ratelimiter_var}`,
+								Actions: []*rules.ActionDefinition{
+									{
+										Set: &rules.SetDefinition{
+											Name:         "ratelimiter_var",
+											Field:        "exec.file.path",
+											DefaultValue: "",
+											TTL:          &rules.HumanReadableDuration{Duration: 10 * time.Minute},
+											Append:       true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:    "Policy A",
+						Version: "0.0.1",
+						Source:  "test",
+					},
+					Status: PolicyStatusFullyRejected,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar" && exec.file.path != ${ratelimiter_var}`,
+							Status:     "syntax_error",
+							Message:    "rule syntax error: string expected: 1:55: exec.file.path == \"/etc/foo/bar\" && exec.file.path != ${ratelimiter_var}\n                                                      ^",
+							Version:    "0.0.1",
+							Actions: []RuleAction{
+								{
+									Status: ActionStatusLoaded,
+									Set: &RuleSetAction{
+										Name:         "ratelimiter_var",
+										Field:        "exec.file.path",
+										DefaultValue: "",
+										TTL:          "10m0s",
+										Append:       true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "rule with disabled event type",
+			model: &model.Model{
+				ExtraValidateFieldFnc: func(field eval.Field, _ eval.FieldValue) error {
+					if field == "exec.file.path" {
+						return rules.ErrEventTypeNotEnabled
+					}
+					return nil
+				},
+			},
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy A",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+						Version:      "0.0.1",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:    "Policy A",
+						Version: "0.0.1",
+						Source:  "test",
+					},
+					Status: PolicyStatusFullyRejected,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "event_type_disabled",
+							Message:    "rule compilation error: event type not enabled",
+							Version:    "0.0.1",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	if runtime.GOOS == "linux" {
 		testCases = append(testCases, []*testCase{
+			{
+				name: "rule targeting an event type disabled by its feature flag",
+				eventTypeEnabled: map[eval.EventType]bool{
+					model.ExecEventType.String():         true,
+					model.CapabilitiesEventType.String(): false,
+				},
+				policies: []*testPolicy{
+					{
+						info: rules.PolicyInfo{
+							Name:   "Policy A",
+							Source: "test",
+						},
+						def: rules.PolicyDef{
+							Rules: []*rules.RuleDefinition{
+								{
+									ID:         "rule_a",
+									Expression: `exec.file.path == "/etc/foo/bar"`,
+								},
+								{
+									ID:         "rule_b",
+									Expression: `capabilities.used > 0`,
+								},
+							},
+						},
+					},
+				},
+				expectedPolicyStates: []*PolicyState{
+					{
+						PolicyMetadata: PolicyMetadata{
+							Name:   "Policy A",
+							Source: "test",
+						},
+						Status: PolicyStatusPartiallyLoaded,
+						Rules: []*RuleState{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Status:     "loaded",
+							},
+							{
+								ID:         "rule_b",
+								Expression: `capabilities.used > 0`,
+								Status:     string(rules.EventTypeNotEnabledErrType),
+								Message:    rules.ErrEventTypeNotEnabled.Error(),
+							},
+						},
+					},
+				},
+			},
 			{
 				name: "policy with os filters",
 				policies: []*testPolicy{
@@ -1280,11 +2059,19 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 	eventCtor := func() eval.Event {
 		return &model.Event{}
 	}
-	ruleOpts, evalOpts := rules.NewBothOpts(map[eval.EventType]bool{"*": true})
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			rs := rules.NewRuleSet(&model.Model{}, eventCtor, ruleOpts, evalOpts)
+			m := tc.model
+			if m == nil {
+				m = &model.Model{}
+			}
+			eventTypeEnabled := tc.eventTypeEnabled
+			if eventTypeEnabled == nil {
+				eventTypeEnabled = map[eval.EventType]bool{"*": true}
+			}
+			ruleOpts, evalOpts := rules.NewBothOpts(eventTypeEnabled)
+			rs := rules.NewRuleSet(m, eventCtor, ruleOpts, evalOpts)
 			loader := rules.NewPolicyLoader(newTestPolicyProvider(tc.policies...))
 			filteredRules, errs := rs.LoadPolicies(loader, rules.PolicyLoaderOpts{MacroFilters: macroFilters, RuleFilters: ruleFilters})
 			policyStates := NewPoliciesState(rs, filteredRules, errs, false)
@@ -1292,6 +2079,63 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 			assert.True(t, gocmp.Equal(tc.expectedPolicyStates, policyStates), gocmp.Diff(tc.expectedPolicyStates, policyStates))
 		})
 	}
+}
+
+func TestRulesetLoadedEventUnserializableSetValues(t *testing.T) {
+	policy := &testPolicy{
+		info: rules.PolicyInfo{
+			Name:   "Policy A",
+			Source: "test",
+		},
+		def: rules.PolicyDef{
+			Rules: []*rules.RuleDefinition{
+				{
+					ID:         "rule_a",
+					Expression: `exec.file.path == "/etc/foo/bar"`,
+					Actions: []*rules.ActionDefinition{
+						{
+							Set: &rules.SetDefinition{
+								Name:  "nan_value",
+								Value: math.NaN(),
+							},
+						},
+						{
+							Set: &rules.SetDefinition{
+								Name:  "map_value",
+								Value: map[interface{}]interface{}{1: "a"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(map[eval.EventType]bool{"*": true})
+	rs := rules.NewRuleSet(&model.Model{}, func() eval.Event { return &model.Event{} }, ruleOpts, evalOpts)
+	loader := rules.NewPolicyLoader(newTestPolicyProvider(policy))
+	filteredRules, errs := rs.LoadPolicies(loader, rules.PolicyLoaderOpts{})
+
+	evt := RulesetLoadedEvent{Policies: NewPoliciesState(rs, filteredRules, errs, false)}
+	data, err := evt.ToJSON()
+	require.NoError(t, err)
+
+	var decoded RulesetLoadedEvent
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	require.Len(t, decoded.Policies, 1)
+	require.Len(t, decoded.Policies[0].Rules, 1)
+
+	rule := decoded.Policies[0].Rules[0]
+	assert.Equal(t, "loaded", rule.Status)
+	require.Len(t, rule.Actions, 2)
+	for _, action := range rule.Actions {
+		assert.Equal(t, ActionStatusRejected, action.Status)
+		assert.NotEmpty(t, action.Message)
+		require.NotNil(t, action.Set)
+		assert.IsType(t, "", action.Set.Value)
+	}
+	assert.Equal(t, "NaN", rule.Actions[0].Set.Value)
+	assert.Equal(t, "map[1:a]", rule.Actions[1].Set.Value)
 }
 
 type testPolicyProvider struct {

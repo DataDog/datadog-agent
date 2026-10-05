@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 	"sync"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -28,17 +29,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
-// ProgramKey is used to uniquely identify a tc program
+// ProgramKey is used to uniquely identify a tc program. It must hold exactly the fields that make
+// up the probe identification pair of the eBPF manager: keying on anything else (the device name
+// for instance, which changes when a veth is renamed by the container runtime) makes us clone a
+// program that the manager already knows about, and the clone is rejected.
 type ProgramKey struct {
 	UID              string
 	FuncName         string
-	NetDevice        model.NetDevice
+	IfIndex          uint32
+	NetNS            uint32
 	NetworkDirection manager.TrafficType
 }
 
 // Key return an identifier
 func (t *ProgramKey) Key() string {
-	return t.UID + "_" + t.FuncName + "_" + t.NetDevice.GetKey()
+	return t.UID + "_" + t.FuncName + "_" + strconv.FormatUint(uint64(t.IfIndex), 10) + "_" + strconv.FormatUint(uint64(t.NetNS), 10)
 }
 
 // programEntry holds a TC program entry
@@ -46,8 +51,9 @@ func (t *ProgramKey) Key() string {
 // in case the probe is removed from the manager, or reset, to be
 // able to clean up ddebpf mappings
 type programEntry struct {
-	programID uint32
-	probe     *manager.Probe
+	programID  uint32
+	probe      *manager.Probe
+	deviceName string
 }
 
 // Resolver defines a TC resolver
@@ -110,12 +116,16 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 		progKey := ProgramKey{
 			UID:              tcProbe.UID,
 			FuncName:         tcProbe.EBPFFuncName,
-			NetDevice:        device,
+			IfIndex:          device.IfIndex,
+			NetNS:            device.NetNS,
 			NetworkDirection: tcProbe.NetworkDirection,
 		}
-		// skip if probe already attached
-		_, ok := tcr.programs[progKey]
-		if ok {
+		// skip if probe already attached, but keep track of the latest name of the interface
+		if entry, ok := tcr.programs[progKey]; ok {
+			if entry.deviceName != device.Name {
+				entry.deviceName = device.Name
+				tcr.programs[progKey] = entry
+			}
 			continue
 		}
 
@@ -151,8 +161,9 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 			_ = multierror.Append(&combinedErr, fmt.Errorf("couldn't clone %s: %w", tcProbe.ProbeIdentificationPair, err))
 		} else {
 			entry := programEntry{
-				programID: newProbe.ID(),
-				probe:     newProbe,
+				programID:  newProbe.ID(),
+				probe:      newProbe,
+				deviceName: device.Name,
 			}
 
 			tcr.programs[progKey] = entry
@@ -188,7 +199,7 @@ func (tcr *Resolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Mana
 	defer tcr.Unlock()
 
 	for tcKey, entry := range tcr.programs {
-		if tcKey.NetDevice.NetNS == namespaceID {
+		if tcKey.NetNS == namespaceID {
 			tcr.detachHook(tcKey, entry, m)
 		}
 	}
@@ -215,7 +226,7 @@ func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string)
 			}
 			// ignore interfaces that are lazily deleted
 			if link.Attrs().HardwareAddr.String() != "" && !isLazy(linkName) {
-				probesCountNoLazyDeletion[tcKey.NetDevice.NetNS]++
+				probesCountNoLazyDeletion[tcKey.NetNS]++
 			}
 		}
 	}
@@ -228,9 +239,9 @@ func (tcr *Resolver) ResolveNetworkDeviceIfName(ifIndex, netNS uint32) (string, 
 	tcr.RLock()
 	defer tcr.RUnlock()
 
-	for key := range tcr.programs {
-		if key.NetDevice.IfIndex == ifIndex && key.NetDevice.NetNS == netNS {
-			return key.NetDevice.Name, true
+	for key, entry := range tcr.programs {
+		if key.IfIndex == ifIndex && key.NetNS == netNS {
+			return entry.deviceName, true
 		}
 	}
 

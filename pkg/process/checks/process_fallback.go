@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux
+//go:build !linux || !systemprobechecks
 
 package checks
 
 import (
+	"time"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -21,8 +23,8 @@ func (p *ProcessCheck) WLMProcessCollectionEnabled() bool {
 }
 
 // processesByPID returns the processes by pid from the process probe for non-linux platforms
-func (p *ProcessCheck) processesByPID() (map[int32]*procutil.Process, error) {
-	procs, err := p.probe.ProcessesByPID(p.clock.Now(), true)
+func (p *ProcessCheck) processesByPID(now time.Time) (map[int32]*procutil.Process, error) {
+	procs, err := p.probe.ProcessesByPID(now, true)
 	if err != nil {
 		return nil, err
 	}

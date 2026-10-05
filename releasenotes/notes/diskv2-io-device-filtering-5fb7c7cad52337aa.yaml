@@ -1,0 +1,9 @@
+fixes:
+  - |
+    Fixed a bug in the Go-native disk check (diskv2) where disk IO metrics
+    (such as ``system.disk.read_time``, ``system.disk.write_time``,
+    ``system.disk.read_time_pct``, and ``system.disk.write_time_pct``) were
+    reported for every device regardless of the ``device_include`` and
+    ``device_exclude`` settings. IO metrics are emitted only for devices
+    whose partitions pass the configured device filters, matching the behavior
+    of partition metrics and of the Python disk check.

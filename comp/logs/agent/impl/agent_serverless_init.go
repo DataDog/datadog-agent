@@ -12,11 +12,11 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/channel"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
@@ -44,7 +44,7 @@ func (a *logAgent) SetupPipeline(
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(streamlogs.Formatter{}, a.hostname, a.config)
 	destinationsCtx := client.NewDestinationsContext()
 
-	// setup the pipeline provider that provides pairs of processor and sender
+	// setup the pipeline provider that Provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(
 		a.config.GetInt("logs_config.pipelines"),
 		a.auditor,
@@ -68,7 +68,7 @@ func (a *logAgent) SetupPipeline(
 	fileScanPeriod := time.Duration(a.config.GetFloat64("logs_config.file_scan_period") * float64(time.Second))
 	fileWildcardSelectionMode := a.config.GetString("logs_config.file_wildcard_selection_mode")
 	fileOpener := opener.NewFileOpener()
-	fingerprinter := file.NewFingerprinter(fingerprintConfig, fileOpener)
+	fingerprinter := file.NewFingerprinterWithUnreliableMount(fingerprintConfig, fileOpener, config.UnreliableMountEnabled(a.config))
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
 		fileLimits,
 		filelauncher.DefaultSleepDuration,

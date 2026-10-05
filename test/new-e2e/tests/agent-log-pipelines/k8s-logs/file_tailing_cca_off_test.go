@@ -73,7 +73,7 @@ func (v *k8sCCAOffSuite) TestADAnnotations() {
 	_, err = v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpec, metav1.CreateOptions{})
 	require.NoError(v.T(), err, "Could not create autodiscovery job")
 
-	_, err = k8sutils.WaitForJobPodRunning(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "annotations-job", 30*time.Second)
+	_, err = k8sutils.WaitForJobPodRunning(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "annotations-job", jobPodStartTimeout)
 	if err != nil {
 		require.Fail(v.T(), "Annotations job pod failed to start",
 			"%v\n%s", err, k8sutils.DescribeJob(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "annotations-job"))
@@ -135,7 +135,7 @@ func (v *k8sCCAOffSuite) TestCCAOff() {
 	_, err = v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpec, metav1.CreateOptions{})
 	require.NoError(v.T(), err, "Could not create CCA-off job")
 
-	_, err = k8sutils.WaitForJobPodRunning(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "cca-off-job", 30*time.Second)
+	_, err = k8sutils.WaitForJobPodRunning(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "cca-off-job", jobPodStartTimeout)
 	if err != nil {
 		require.Fail(v.T(), "CCA-off job pod failed to start",
 			"%v\n%s", err, k8sutils.DescribeJob(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "cca-off-job"))

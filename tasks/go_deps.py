@@ -1,6 +1,9 @@
 import datetime
+import json
 import os
+import shlex
 import shutil
+import sys
 import tempfile
 from collections.abc import Iterable
 
@@ -107,6 +110,34 @@ BINARIES: dict[str, dict] = {
 
 METRIC_GO_DEPS_DIFF = "datadog.agent.go_dependencies.difference"
 
+_CHECKOUT_BUILD_TAGS_SCRIPT = """
+import json, sys
+from tasks.build_tags import get_default_build_tags
+from tasks.flavor import AgentFlavor
+targets = json.loads(sys.argv[1])
+print(json.dumps([get_default_build_tags(build=b, flavor=AgentFlavor[f], platform=p) for b, f, p in targets]))
+"""
+
+
+def _checkout_build_tags(ctx: Context) -> dict[tuple[str, str, str], list[str]]:
+    """Default build tags of every BINARIES target, keyed by (build, flavor name, platform).
+
+    tasks.build_tags is already imported from the revision the task started on, so the
+    tags of the currently checked-out revision have to be computed in a fresh interpreter.
+    """
+    targets = sorted(
+        {
+            (details.get("build", binary), details.get("flavor", AgentFlavor.base).name, combo.split("/")[0])
+            for binary, details in BINARIES.items()
+            for combo in details["platforms"]
+        }
+    )
+    res = ctx.run(
+        f"{shlex.quote(sys.executable)} -c {shlex.quote(_CHECKOUT_BUILD_TAGS_SCRIPT)} {shlex.quote(json.dumps(targets))}",
+        hide=True,
+    )
+    return dict(zip(targets, json.loads(res.stdout.splitlines()[-1]), strict=True))
+
 
 @task
 def diff(
@@ -154,6 +185,7 @@ def diff(
             for branch_name, branch_ref in branches.items():
                 if branch_ref:
                     ctx.run(f"git checkout -q {branch_ref}")
+                checkout_tags = _checkout_build_tags(ctx)
 
                 # Run all go list commands in parallel for this branch
                 promises = []
@@ -167,7 +199,7 @@ def diff(
                             depsfile = os.path.join(tmpdir, f"{target}-{branch_name}")
                             flavor = details.get("flavor", AgentFlavor.base)
                             build = details.get("build", binary)
-                            build_tags = get_default_build_tags(build=build, platform=platform, flavor=flavor)
+                            build_tags = checkout_tags[(build, flavor.name, platform)]
                             # need to explicitly enable CGO to also include CGO-only deps when checking different platforms
                             env = {
                                 "GOOS": goos,
@@ -176,7 +208,7 @@ def diff(
                                 "GOTOOLCHAIN": f"go{dot_go_version(ctx)}",
                             }
                             promise = ctx.run(
-                                f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}",
+                                f"{dep_cmd} -tags \"{','.join(build_tags)}\" > {depsfile}",
                                 env=env,
                                 asynchronous=True,
                             )
@@ -535,7 +567,7 @@ def graph(
 
     cmd = f"goda graph {stdarg} {clusterarg} \"{expr}\""
 
-    env = {"GOOS": os, "GOARCH": arch}
+    env = {"GOOS": os, "GOARCH": arch, "CGO_ENABLED": "1"}
     res = ctx.run(cmd, env=env, hide='out')
     assert res
 

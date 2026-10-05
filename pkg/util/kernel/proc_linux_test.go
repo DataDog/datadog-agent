@@ -10,9 +10,13 @@ package kernel
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 func oldWithAllProcs(procRoot string, fn func(int) error) error {
@@ -126,4 +130,76 @@ func TestGetEnvVariableFromBuffer(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A memfd is found wherever it sits in the descriptor table, including past the
+// first chunk of the directory, which is the case the quick path misses.
+func TestFindMemFdFilePath(t *testing.T) {
+	const memFdName = "dd_test_memfd_search"
+
+	for i := 0; i < fdChunkSize+16; i++ {
+		f, err := os.Open(os.DevNull)
+		require.NoError(t, err)
+		t.Cleanup(func() { f.Close() })
+	}
+
+	fd, err := unix.MemfdCreate(memFdName, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { unix.Close(fd) })
+	// Otherwise the search would find it without ever paging the directory.
+	require.Greater(t, fd, fdChunkSize)
+
+	path, found := findMemFdFilePath(os.Getpid(), "/proc", memFdName)
+	require.True(t, found)
+	require.Equal(
+		t,
+		filepath.Join("/proc", strconv.Itoa(os.Getpid()), "fd", strconv.Itoa(fd)),
+		path,
+	)
+
+	_, found = findMemFdFilePath(os.Getpid(), "/proc", "dd_test_memfd_absent")
+	require.False(t, found)
+}
+
+func TestIsZombiePid(t *testing.T) {
+	cases := []struct {
+		name     string
+		status   string
+		expected bool
+	}{
+		{
+			name:     "Running",
+			status:   "Name:\tsleep\nState:\tR (running)\nPid:\t1234\n",
+			expected: false,
+		},
+		{
+			name:     "Sleeping",
+			status:   "Name:\tsleep\nState:\tS (sleeping)\nPid:\t1234\n",
+			expected: false,
+		},
+		{
+			name:     "Zombie",
+			status:   "Name:\tsleep\nState:\tZ (zombie)\nPid:\t1234\n",
+			expected: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			procRoot := t.TempDir()
+			pidDir := filepath.Join(procRoot, "1234")
+			require.NoError(t, os.MkdirAll(pidDir, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(pidDir, "status"), []byte(tc.status), 0o644))
+
+			zombie, err := IsZombiePid(procRoot, 1234)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, zombie)
+		})
+	}
+
+	t.Run("NonExistentPid", func(t *testing.T) {
+		procRoot := t.TempDir()
+		_, err := IsZombiePid(procRoot, 9999)
+		require.Error(t, err)
+	})
 }

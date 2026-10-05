@@ -6,7 +6,9 @@
 package containers
 
 import (
+	"context"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
@@ -15,6 +17,8 @@ import (
 	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilversion "k8s.io/apimachinery/pkg/util/version"
 )
 
 type kindSuite struct {
@@ -25,6 +29,9 @@ func TestKindSuite(t *testing.T) {
 	helmValues := `
 datadog:
     logLevel: DEBUG
+    envDict:
+        # These tests require image-derived tags on the first check configuration.
+        DD_AD_TAG_COMPLETENESS_MAX_WAIT: "60"
 clusterAgent:
     envDict:
         DD_CLUSTER_AGENT_LANGUAGE_DETECTION_PATCHER_BASE_BACKOFF: "10s"
@@ -57,6 +64,81 @@ clusterAgent:
 func (suite *kindSuite) SetupSuite() {
 	suite.k8sSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
+}
+
+func (suite *kindSuite) TestDynamoGraphDeploymentTagOnContainerMetric() {
+	const (
+		deploymentLabel = "nvidia.com/dynamo-graph-deployment-name"
+		deploymentName  = "my-model"
+		namespace       = "workload-cpustress"
+	)
+
+	ctx := suite.T().Context()
+	pods := suite.Env().KubernetesCluster.Client().CoreV1().Pods(namespace)
+	list, err := pods.List(ctx, metav1.ListOptions{})
+	suite.Require().NoError(err)
+
+	var podName string
+	for _, pod := range list.Items {
+		if strings.HasPrefix(pod.Name, "stress-ng-") {
+			podName = pod.Name
+			break
+		}
+	}
+	suite.Require().NotEmpty(podName, "no stress-ng pod found for Dynamo tag test")
+
+	setLabel := func(ctx context.Context, value string) error {
+		pod, err := pods.Get(ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if value == "" {
+			delete(pod.Labels, deploymentLabel)
+		} else {
+			pod.Labels[deploymentLabel] = value
+		}
+		_, err = pods.Update(ctx, pod, metav1.UpdateOptions{})
+		return err
+	}
+	suite.Require().NoError(setLabel(ctx, deploymentName))
+	defer func() {
+		suite.Require().NoError(setLabel(context.Background(), ""), "restore stress-ng pod labels")
+	}()
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.usage",
+			Tags: []string{
+				`^kube_namespace:` + namespace + `$`,
+				`^pod_name:` + regexp.QuoteMeta(podName) + `$`,
+				`^dynamo_graph_deployment:` + deploymentName + `$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:stress-ng$`,
+				`^display_container_name:stress-ng`,
+				`^dynamo_graph_deployment:` + deploymentName + `$`,
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`,
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
+				`^image_id:.*/apps-stress-ng@sha256:`,
+				`^image_name:.*/apps-stress-ng$`,
+				`^image_tag:`,
+				`^kube_container_name:stress-ng$`,
+				`^kube_deployment:stress-ng$`,
+				`^kube_namespace:` + namespace + `$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:stress-ng-[[:alnum:]]+$`,
+				`^kube_qos:Guaranteed$`,
+				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
+				`^pod_name:` + regexp.QuoteMeta(podName) + `$`,
+				`^pod_phase:running$`,
+				`^runtime:containerd$`,
+				`^short_image:apps-stress-ng$`,
+			},
+		},
+	})
 }
 
 func (suite *kindSuite) TestControlPlane() {
@@ -113,6 +195,27 @@ func (suite *kindSuite) TestControlPlane() {
 			AcceptUnexpectedTags: true,
 		},
 	})
+
+	serverVersion, err := suite.Env().KubernetesCluster.KubernetesClient.K8sClient.Discovery().ServerVersion()
+	suite.Require().NoError(err, "failed to request the Kubernetes server version")
+	k8sVersion, err := utilversion.ParseGeneric(serverVersion.GitVersion)
+	suite.Require().NoError(err, "failed to parse the Kubernetes server version")
+
+	// apiserver_storage_objects was deprecated in Kubernetes 1.34 and is hidden starting in 1.37.
+	// Its replacement, apiserver_resource_objects, is Alpha and intentionally unsupported here.
+	if !k8sVersion.AtLeast(utilversion.MajorMinor(1, 37)) {
+		suite.testMetric(&testMetricArgs{
+			Filter: testMetricFilterArgs{
+				Name: "kube_apiserver.storage_objects",
+			},
+			Expect: testMetricExpectArgs{
+				Tags: &[]string{
+					`^resource:.*`,
+				},
+				AcceptUnexpectedTags: true,
+			},
+		})
+	}
 
 	// Test `kube_controller_manager` check is properly working
 	suite.testMetric(&testMetricArgs{

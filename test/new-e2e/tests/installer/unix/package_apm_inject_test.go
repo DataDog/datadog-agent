@@ -13,16 +13,33 @@ import (
 	"strings"
 	"time"
 
-	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
+
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 const (
-	injectOCIPath = "/opt/datadog-packages/datadog-apm-inject"
-	injectDebPath = "/opt/datadog/apm"
+	injectOCIPath                 = "/opt/datadog-packages/datadog-apm-inject"
+	injectDebPath                 = "/opt/datadog/apm"
+	appArmorBaseProfile           = "/etc/apparmor.d/abstractions/base"
+	appArmorBaseDInjectorProfile  = "/etc/apparmor.d/abstractions/base.d/datadog"
+	appArmorLegacyInjectorProfile = "/etc/apparmor.d/abstractions/datadog.d/injector"
+	appArmorLegacyInclude         = "include if exists <abstractions/datadog.d>"
+	// injectTmpfsLauncher is the launcher entry written to /etc/ld.so.preload
+	// for OCI host instrumentation on systemd hosts: a symlink on tmpfs that
+	// auto-vanishes on reboot. See apminject.defaultTmpfsInjectDir.
+	injectTmpfsLauncher = "/run/datadog-apm-inject/launcher.preload.so"
 )
+
+func injectTmpfsLauncherFor(arch e2eos.Architecture) string {
+	if arch == e2eos.AMD64Arch {
+		return strings.Replace(injectTmpfsLauncher, "/launcher.preload.so", "/$LIB/launcher.preload.so", 1)
+	}
+	return injectTmpfsLauncher
+}
 
 type packageApmInjectSuite struct {
 	packageBaseSuite
@@ -44,12 +61,12 @@ func (s *packageApmInjectSuite) SetupTest() {
 }
 
 func (s *packageApmInjectSuite) TestInstall() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
-	s.host.StartExamplePythonApp()
+	s.host.StartExamplePythonApp(s.injectionPython())
 	defer s.host.StopExamplePythonApp()
 	s.host.StartExamplePythonAppInDocker()
 	defer s.host.StopExamplePythonAppInDocker()
@@ -67,8 +84,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	state.AssertFileExists("/usr/bin/dd-container-install", 0755, "root", "root")
 	state.AssertDirExists("/etc/datadog-agent/inject", 0755, "root", "root")
 	if s.os == e2eos.Ubuntu2404 || s.os == e2eos.Debian12 {
-		state.AssertDirExists("/etc/apparmor.d/abstractions/datadog.d", 0755, "root", "root")
-		state.AssertFileExists("/etc/apparmor.d/abstractions/datadog.d/injector", 0644, "root", "root")
+		s.assertAppArmorProfile()
 	}
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
@@ -85,7 +101,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 }
 
 func (s *packageApmInjectSuite) TestUninstall() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	s.Purge()
 
@@ -95,11 +111,12 @@ func (s *packageApmInjectSuite) TestUninstall() {
 	state := s.host.State()
 	state.AssertPathDoesNotExist("/usr/bin/dd-host-install")
 	state.AssertPathDoesNotExist("/usr/bin/dd-container-install")
-	state.AssertPathDoesNotExist("/etc/apparmor.d/abstractions/datadog.d/injector")
+	state.AssertPathDoesNotExist(appArmorLegacyInjectorProfile)
+	state.AssertPathDoesNotExist(appArmorBaseDInjectorProfile)
 }
 
 func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	// Broken /etc/docker/daemon.json syntax
 	s.host.SetBrokenDockerConfig()
 	defer s.host.RemoveBrokenDockerConfig()
@@ -111,7 +128,7 @@ func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
 }
 
 func (s *packageApmInjectSuite) TestDockerBrokenJSON() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	// Additional fields in /etc/docker/daemon.json
 	s.host.SetBrokenDockerConfigAdditionalFields()
 	defer s.host.RemoveBrokenDockerConfig()
@@ -123,7 +140,7 @@ func (s *packageApmInjectSuite) TestDockerBrokenJSON() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDocker() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=docker", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
@@ -149,7 +166,7 @@ func (s *packageApmInjectSuite) TestInstrumentProfilingEnabled() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDefault() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
@@ -158,7 +175,7 @@ func (s *packageApmInjectSuite) TestInstrumentDefault() {
 }
 
 func (s *packageApmInjectSuite) TestSystemdReload() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript()
 	defer s.Purge()
 
@@ -179,7 +196,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 		s.T().Skip("Ansible doesn't support upgrading from OCI to DEB")
 	}
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	// Deb install using today's defaults
 	s.RunInstallScript(
@@ -222,7 +239,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 		s.T().Skip("Ansible doesn't support upgrading from OCI to DEB")
 	}
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	// OCI install
 	s.RunInstallScript(
@@ -253,23 +270,31 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 }
 
 func (s *packageApmInjectSuite) TestVersionBump() {
-	s.host.InstallDocker()
+	prevApmInjectVersion := previousApmInjectVersion()
+	prevApmInjectVersionDir := strings.TrimSuffix(prevApmInjectVersion, "-1")
+	pinnedApmInjectVersion := pinnedApmInjectVersion()
+	pinnedApmInjectVersionDir := strings.TrimSuffix(pinnedApmInjectVersion, "-1")
+
+	prevApmLibraryPythonVersion := previousApmLibraryPythonVersion()
+	pinnedApmLibraryPythonVersion := pinnedApmLibraryPythonVersion()
+
+	s.host.PrepareDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=python:2.8.5",
-		envForceVersion("datadog-apm-inject", "0.39.0-1"),
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python:"+prevApmLibraryPythonVersion,
+		envForceVersion("datadog-apm-inject", prevApmInjectVersion),
 	)
 	defer s.Purge()
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	state := s.host.State()
-	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/2.8.5", 0755, "root", "root")
-	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-library-python/stable", "/opt/datadog-packages/datadog-apm-library-python/2.8.5", "root", "root")
+	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/"+prevApmLibraryPythonVersion, 0755, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-library-python/stable", "/opt/datadog-packages/datadog-apm-library-python/"+prevApmLibraryPythonVersion, "root", "root")
 
-	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/0.39.0", 0755, "root", "root")
-	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/0.39.0", "root", "root")
+	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/"+prevApmInjectVersionDir, 0755, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/"+prevApmInjectVersionDir, "root", "root")
 
-	s.host.StartExamplePythonApp()
+	s.host.StartExamplePythonApp(s.injectionPython())
 	defer s.host.StopExamplePythonApp()
 
 	traceID := rand.Uint64()
@@ -279,20 +304,20 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	// Re-run the install script with the latest tracer version
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=python:2.9.2",
-		envForceVersion("datadog-apm-inject", "0.40.0-1"),
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python:"+pinnedApmLibraryPythonVersion,
+		envForceVersion("datadog-apm-inject", pinnedApmInjectVersion),
 	)
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	// Today we expect the previous dir to be fully removed and the new one to be symlinked
 	state = s.host.State()
-	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-library-python/2.8.5")
-	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/2.9.2", 0755, "root", "root")
-	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-library-python/stable", "/opt/datadog-packages/datadog-apm-library-python/2.9.2", "root", "root")
+	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-library-python/" + prevApmLibraryPythonVersion)
+	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/"+pinnedApmLibraryPythonVersion, 0755, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-library-python/stable", "/opt/datadog-packages/datadog-apm-library-python/"+pinnedApmLibraryPythonVersion, "root", "root")
 
-	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-inject/0.39.0")
-	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/0.40.0", 0755, "root", "root")
-	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/0.40.0", "root", "root")
+	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-inject/" + prevApmInjectVersionDir)
+	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/"+pinnedApmInjectVersionDir, 0755, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/"+pinnedApmInjectVersionDir, "root", "root")
 
 	s.host.StartExamplePythonAppInDocker()
 	defer s.host.StopExamplePythonAppInDocker()
@@ -316,7 +341,7 @@ func (s *packageApmInjectSuite) TestInstrument() {
 	s.assertSocketPath()
 	s.assertDockerdNotInstrumented()
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer apm instrument docker")
 	assert.NoError(s.T(), err)
@@ -327,12 +352,14 @@ func (s *packageApmInjectSuite) TestInstrument() {
 }
 
 func (s *packageApmInjectSuite) TestPackagePinning() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
+
+	prevApmLibraryPythonVersion := previousApmLibraryPythonVersion()
 
 	// Deb install using today's defaults
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=python:2.8.5,dotnet",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python:"+prevApmLibraryPythonVersion+",dotnet",
 	)
 	defer s.Purge()
 	defer s.purgeInjectorDebInstall()
@@ -342,11 +369,11 @@ func (s *packageApmInjectSuite) TestPackagePinning() {
 	s.assertDockerdInstrumented(injectOCIPath)
 
 	s.host.AssertPackageInstalledByInstaller("datadog-apm-library-python", "datadog-apm-library-dotnet")
-	s.host.AssertPackageVersion("datadog-apm-library-python", "2.8.5")
+	s.host.AssertPackageVersion("datadog-apm-library-python", prevApmLibraryPythonVersion)
 }
 
 func (s *packageApmInjectSuite) TestUninstrument() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
@@ -377,7 +404,7 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 		s.T().Skip("Ansible doesn't support upgrading from OCI to DEB")
 	}
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	// Deb install using today's defaults
 	s.RunInstallScript(
@@ -417,13 +444,13 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.Env().RemoteHost.MustExecute("sudo systemctl stop docker")
 
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
-	s.host.InstallDocker() // Restart docker cleanly
+	s.host.PrepareDocker() // Restart docker cleanly
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
@@ -447,32 +474,56 @@ func (s *packageApmInjectSuite) TestInstallWithUmask() {
 
 func (s *packageApmInjectSuite) TestAppArmor() {
 	if s.os != e2eos.Ubuntu2404 && s.os != e2eos.Debian12 {
+		s.T().Skip("AppArmor abstraction test only applies to Debian-based hosts")
+	}
+	if output, err := s.Env().RemoteHost.Execute("sudo aa-enabled"); err != nil || !strings.Contains(output, "Yes") {
 		s.T().Skip("AppArmor not installed by default")
 	}
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
+	baseBefore, err := s.host.ReadFile(appArmorBaseProfile)
+	require.NoError(s.T(), err)
+	supportsBaseD := appArmorBaseSupportsDropIns(string(baseBefore))
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 	)
 	defer s.Purge()
 	s.assertAppArmorProfile()
+	baseAfter, err := s.host.ReadFile(appArmorBaseProfile)
+	require.NoError(s.T(), err)
+	if supportsBaseD {
+		assert.Equal(s.T(), baseBefore, baseAfter, "base.d hosts must leave the package-owned base profile unchanged")
+	} else {
+		assert.Equal(s.T(), string(baseBefore)+"\n"+appArmorLegacyInclude, string(baseAfter))
+	}
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
 	s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y isc-dhcp-client")
 	res := s.Env().RemoteHost.MustExecute("sudo DD_APM_INSTRUMENTATION_DEBUG=true /usr/sbin/dhclient 2>&1")
 	assert.Contains(s.T(), res, "not injecting")
+
+	s.Purge()
+	baseAfterPurge, err := s.host.ReadFile(appArmorBaseProfile)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), baseBefore, baseAfterPurge)
+	state := s.host.State()
+	state.AssertPathDoesNotExist(appArmorLegacyInjectorProfile)
+	state.AssertPathDoesNotExist(appArmorBaseDInjectorProfile)
 }
 
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
 	found := assert.Eventually(s.T(), func() bool {
 		tracePayloads, err := s.Env().FakeIntake.Client().GetTraces()
 		assert.NoError(s.T(), err)
+		// The convert-traces feature is enabled by default, so the agent
+		// serializes tracer payloads in the v1 string-indexed idx format
+		// (AgentPayload.IdxTracerPayloads) and leaves the legacy
+		// TracerPayloads field empty. The trace ID lives on the chunk as the
+		// full 128 bits; its lowest 8 bytes are the legacy 64-bit trace ID.
 		for _, tracePayload := range tracePayloads {
-			for _, tracerPayload := range tracePayload.TracerPayloads {
+			for _, tracerPayload := range tracePayload.IdxTracerPayloads {
 				for _, chunk := range tracerPayload.Chunks {
-					for _, span := range chunk.Spans {
-						if span.TraceID == traceID {
-							return true
-						}
+					if fakeintakeclient.IdxChunkTraceID(chunk) == traceID {
+						return true
 					}
 				}
 			}
@@ -487,10 +538,38 @@ func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
 	}
 }
 
-func (s *packageApmInjectSuite) assertLDPreloadInstrumented(libPath string) {
+// isSystemdPID1 reports whether systemd is the init system (PID 1) on the host.
+// This — not the mere presence of the systemctl binary — is what decides whether
+// the injector is systemd-managed, and hence whether it uses the reboot-safe
+// tmpfs launcher path or writes /etc/ld.so.preload directly with the persistent
+// path.
+func (s *packageApmInjectSuite) isSystemdPID1() bool {
+	_, err := s.Env().RemoteHost.Execute(`test "$(cat /proc/1/comm 2>/dev/null)" = systemd`)
+	return err == nil
+}
+
+// assertLDPreloadInstrumented checks that /etc/ld.so.preload references the
+// launcher for the given injector flavor (injectOCIPath or injectDebPath).
+//
+// On a systemd-managed host, OCI host instrumentation references the launcher
+// through the reboot-safe tmpfs symlink (/run/...): the datadog-apm-inject
+// service recreates the symlink on every boot. We then require the tmpfs entry
+// AND the absence of the persistent path — a lingering persistent entry would
+// survive a reboot and defeat the safety guarantee. Without systemd, OCI falls
+// back to writing the persistent path directly. The deb injector always keeps
+// its own persistent path.
+func (s *packageApmInjectSuite) assertLDPreloadInstrumented(injectorRoot string) {
 	content, err := s.host.ReadFile("/etc/ld.so.preload")
 	assert.NoError(s.T(), err)
-	assert.Contains(s.T(), string(content), libPath)
+
+	if injectorRoot == injectOCIPath && s.isSystemdPID1() {
+		ociPersistentLauncher := filepath.Join(injectorRoot, "stable", "inject", "launcher.preload.so")
+		assert.Contains(s.T(), string(content), injectTmpfsLauncherFor(s.arch))
+		assert.NotContains(s.T(), string(content), ociPersistentLauncher,
+			"systemd-managed OCI host must not keep the persistent launcher path in ld.so.preload")
+		return
+	}
+	assert.Contains(s.T(), string(content), injectorRoot)
 }
 
 func (s *packageApmInjectSuite) assertStableConfig(expectedConfigs map[string]interface{}) {
@@ -511,8 +590,17 @@ func (s *packageApmInjectSuite) assertStableConfig(expectedConfigs map[string]in
 	assert.Equal(s.T(), expectedConfigs, actualStableConfig["apm_configuration_default"])
 }
 
+func (s *packageApmInjectSuite) injectionPython() string {
+	if s.os.Flavor == e2eos.Suse {
+		// Python 3.11 is pre-baked into the AMI. Keep the system Python 3.6
+		// unchanged: zypper's susecloud plugin depends on its cloudregister module.
+		return "/usr/bin/python3.11"
+	}
+	return "python3"
+}
+
 func (s *packageApmInjectSuite) assertSocketPath() {
-	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
+	output := s.host.Run(fmt.Sprintf("sh -c '%s -c \"import os; print(os.environ)\"'", s.injectionPython()))
 	assert.Contains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'") // this is an env var set by the injector
 }
 
@@ -524,8 +612,13 @@ func (s *packageApmInjectSuite) assertLDPreloadNotInstrumented() {
 		assert.NoError(s.T(), err)
 		assert.NotContains(s.T(), string(content), injectOCIPath)
 		assert.NotContains(s.T(), string(content), injectDebPath)
+		// Also assert the tmpfs path is gone: a dangling /run entry (e.g. left by a
+		// failed instrument-start after a reboot wiped /run) does not contain
+		// injectOCIPath, so without this check it would slip through — yet ld.so
+		// prints a "cannot be preloaded ... ignored" warning for it on every exec.
+		assert.NotContains(s.T(), string(content), injectTmpfsLauncherFor(s.arch))
 	}
-	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
+	output := s.host.Run(fmt.Sprintf("sh -c '%s -c \"import os; print(os.environ)\"'", s.injectionPython()))
 	assert.NotContains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'")
 }
 
@@ -555,12 +648,29 @@ func (s *packageApmInjectSuite) assertDockerdNotInstrumented() {
 }
 
 func (s *packageApmInjectSuite) assertAppArmorProfile() {
-	content, err := s.host.ReadFile("/etc/apparmor.d/abstractions/datadog.d/injector")
+	base, err := s.host.ReadFile(appArmorBaseProfile)
+	require.NoError(s.T(), err)
+	profilePath := appArmorLegacyInjectorProfile
+	if appArmorBaseSupportsDropIns(string(base)) {
+		profilePath = appArmorBaseDInjectorProfile
+	}
+	content, err := s.host.ReadFile(profilePath)
 	assert.NoError(s.T(), err)
 	assert.Equal(s.T(), string(content), `/opt/datadog-packages/** rix,
 /proc/@{pid}/** rix,
 /run/datadog/apm.socket rw,`)
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
+}
+
+func appArmorBaseSupportsDropIns(profile string) bool {
+	for _, line := range strings.Split(profile, "\n") {
+		switch strings.TrimSpace(line) {
+		case "#include <abstractions/base.d>", "include <abstractions/base.d>",
+			"include if exists <abstractions/base.d>":
+			return true
+		}
+	}
+	return false
 }
 
 // TestSystemdService verifies that on a host with systemd, the datadog-apm-inject.service
@@ -599,10 +709,10 @@ func (s *packageApmInjectSuite) TestSystemdService() {
 	s.assertLDPreloadNotInstrumented()
 }
 
-// crashyConstructorSrc is a tiny C source compiled into a shared library
-// whose ELF constructor calls _exit(1) — but only when the library was
-// loaded via the LD_PRELOAD environment variable (i.e., the deliberate
-// "is this .so loadable?" probe that verifySharedLib runs via
+// crashyConstructorGuardedSrc is a tiny C source compiled into a shared
+// library whose ELF constructor calls _exit(1) — but only when the
+// library was loaded via the LD_PRELOAD environment variable (i.e., the
+// deliberate "is this .so loadable?" probe that verifySharedLib runs via
 // `LD_PRELOAD=lib echo 1`). When the library is loaded via
 // /etc/ld.so.preload alone, the constructor returns without crashing,
 // because /etc/ld.so.preload entries do not propagate into the loading
@@ -613,15 +723,14 @@ func (s *packageApmInjectSuite) TestSystemdService() {
 // not set in its environment — so the test can actually invoke
 // `systemctl stop` after the bad lib is in place.
 //
-// The unconditional-crash variant (no getenv guard) is what the
-// production bug actually requires for the brick to occur, because
-// during shutdown systemd execs ExecStop with no /bin/sh wrapper and
-// the static installer doesn't consult ld.so at all. Reproducing that
-// here would also kill the test's own ssh/sudo/systemctl chain, so it
-// can only be exercised via a real shutdown — covered by the no-shell
-// unit-file unit test (TestSystemdServiceManager_writeServiceFile_NoShWrapper)
-// and by manual / pre-merge reboot testing.
-const crashyConstructorSrc = `#include <stdlib.h>
+// The unconditional-crash variant (crashyConstructorUnconditionalSrc)
+// is what the production bug actually requires for the brick to occur,
+// because on the next boot init(1) is launched by the kernel with
+// /etc/ld.so.preload still pointing at the bad lib. That variant is
+// only safe to use in tests that go through a real reboot — see
+// TestSystemdServiceRebootBrokenInjector in
+// package_apm_inject_reboot_test.go.
+const crashyConstructorGuardedSrc = `#include <stdlib.h>
 #include <unistd.h>
 __attribute__((constructor)) static void crash(void) {
     const char *p = getenv("LD_PRELOAD");
@@ -636,26 +745,27 @@ func (s *packageApmInjectSuite) installGCC() {
 	switch s.os.Flavor {
 	case e2eos.Ubuntu, e2eos.Debian:
 		host.MustExecute("sudo apt-get update -qq && sudo apt-get install -y gcc libc6-dev")
-	case e2eos.Suse:
-		host.MustExecute("sudo zypper --non-interactive install -y gcc glibc-devel")
 	default:
 		s.T().Skipf("test does not know how to install gcc on %s", s.os.Flavor)
 	}
 }
 
-// buildCrashyInjectorSO writes crashyConstructorSrc to a temp file,
-// compiles it as a shared library, and places the resulting .so at dst.
-// The result is a real, ld.so-loadable ELF — not a missing file or a
-// junk-content blob — which matches the user-facing failure shape: the
-// library is on disk and looks fine to ld.so, but its constructor
-// rejects the verifySharedLib probe.
-func (s *packageApmInjectSuite) buildCrashyInjectorSO(dst string) {
+// buildCrashyInjectorSO compiles src as a shared library and places the
+// resulting .so at dst. The result is a real, ld.so-loadable ELF — not a
+// missing file or a junk-content blob — which matches the user-facing
+// failure shape: the library is on disk and looks fine to ld.so, but
+// its constructor rejects the verifySharedLib probe. Callers choose
+// between the guarded source (safe to leave in /etc/ld.so.preload while
+// running tests in-process) and the unconditional source (only safe for
+// tests that go through a real reboot before any process tries to use
+// the lib).
+func (s *packageApmInjectSuite) buildCrashyInjectorSO(dst, src string) {
 	s.T().Helper()
 	s.installGCC()
 	host := s.Env().RemoteHost
-	host.MustExecute("sudo tee /tmp/crashy.c >/dev/null <<'CRASHY_EOF'\n" + crashyConstructorSrc + "CRASHY_EOF")
+	host.MustExecute("sudo tee /tmp/crashy.c >/dev/null <<'CRASHY_EOF'\n" + src + "CRASHY_EOF")
 	host.MustExecute("sudo gcc -shared -fPIC -o " + dst + " /tmp/crashy.c")
-	host.MustExecute("sudo chmod 0755 " + dst)
+	//host.MustExecute("sudo chmod 0755 " + dst)
 }
 
 // TestSystemdServiceStopBrokenInjector verifies the safety property the unit
@@ -668,11 +778,11 @@ func (s *packageApmInjectSuite) buildCrashyInjectorSO(dst string) {
 // execve — the static, CGO_ENABLED=0 installer does not consult
 // /etc/ld.so.preload, so a broken injector on disk never blocks cleanup.
 //
-// See crashyConstructorSrc's commentary for why the fixture crashes
-// selectively (via LD_PRELOAD env var only, not via /etc/ld.so.preload)
-// rather than unconditionally.
+// See crashyConstructorGuardedSrc's commentary for why the fixture
+// crashes selectively (via LD_PRELOAD env var only, not via
+// /etc/ld.so.preload) rather than unconditionally.
 func (s *packageApmInjectSuite) TestSystemdServiceStopBrokenInjector() {
-	if _, err := s.Env().RemoteHost.Execute("test \"$(cat /proc/1/comm 2>/dev/null)\" = systemd"); err != nil {
+	if !s.isSystemdPID1() {
 		s.T().Skip("systemd is not running as PID 1 on this host")
 	}
 
@@ -691,7 +801,7 @@ func (s *packageApmInjectSuite) TestSystemdServiceStopBrokenInjector() {
 	launcherPath := filepath.Join(injectOCIPath, "stable", "inject", "launcher.preload.so")
 	host := s.Env().RemoteHost
 	host.MustExecute(fmt.Sprintf("sudo mv %[1]s %[1]s.bak", launcherPath))
-	s.buildCrashyInjectorSO(launcherPath)
+	s.buildCrashyInjectorSO(launcherPath, crashyConstructorGuardedSrc)
 	defer host.Execute(fmt.Sprintf("sudo mv -f %[1]s.bak %[1]s 2>/dev/null || true", launcherPath)) //nolint:errcheck
 
 	// Confirm the shared object actually crashes the same probe
@@ -716,8 +826,15 @@ func (s *packageApmInjectSuite) TestSystemdServiceStopBrokenInjector() {
 // TestInstrumentHost_NoSystemd verifies that host instrumentation writes directly to
 // /etc/ld.so.preload when systemd is not the init system, without creating a service file.
 // This test only runs on hosts where systemd is not PID 1; TestSystemdService covers the systemd path.
+//
+// NOTE: every flavor in the current e2e matrix (Ubuntu/Debian/RHEL/CentOS/Amazon
+// Linux/SUSE) boots systemd as PID 1, so this test SKIPS everywhere today — the
+// non-systemd path is not actually exercised in CI. Covering it (and a reboot
+// variant, which on a non-systemd host is near-trivial since /etc/ld.so.preload
+// is a plain persistent file with no service to clear or recreate it) requires
+// adding a non-systemd host to the matrix; tracked separately.
 func (s *packageApmInjectSuite) TestInstrumentHost_NoSystemd() {
-	if _, err := s.Env().RemoteHost.Execute("test \"$(cat /proc/1/comm 2>/dev/null)\" = systemd"); err == nil {
+	if s.isSystemdPID1() {
 		s.T().Skip("systemd is PID 1 on this host; TestSystemdService covers that path")
 	}
 

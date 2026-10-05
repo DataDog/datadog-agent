@@ -20,16 +20,20 @@ int __attribute__((always_inline)) get_resolver_flags(struct syscall_cache_t *sy
 }
 
 void __attribute__((always_inline)) apply_dentry_resolution_outcome(struct syscall_cache_t *syscall, u64 event_type) {
-    if (syscall->state != ACCEPTED) {
-        // Discarders take priority over basename approvers: a parent basename may match an approver,
-        // but a discarder set on any ancestor inode must still discard the whole path.
-        if (syscall->resolver.ret == DENTRY_DISCARDED) {
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        if (syscall->state != ACCEPTED) {
             syscall->state = DISCARDED;
             monitor_discarded(event_type);
-        } else if (syscall->resolver.flags & RESOLVER_FLAG_BASENAME_APPROVED) {
-            syscall->state = APPROVED;
-            monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
         }
+        return;
+    }
+
+    if (syscall->resolver.flags & RESOLVER_FLAG_BASENAME_APPROVED) {
+        syscall->resolver.flags &= ~RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
+        if (syscall->state != ACCEPTED) {
+            syscall->state = APPROVED;
+        }
+        monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
     }
 }
 
@@ -37,7 +41,6 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     struct path_leaf_t map_value = {};
     struct path_key_t key = input->key;
     struct path_key_t next_key = input->key;
-    struct qstr qstr;
     struct dentry *dentry = input->dentry;
     struct dentry *d_parent = NULL;
     unsigned long ino_parent = 0;
@@ -59,14 +62,20 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         return DENTRY_INVALID;
     }
 
+    u64 dentry_name_offset = get_dentry_name_offset();
+    u64 dentry_d_inode_offset;
+    LOAD_CONSTANT("dentry_d_inode_offset", dentry_d_inode_offset);
+    u64 inode_ino_offset;
+    LOAD_CONSTANT("inode_ino_offset", inode_ino_offset);
+
 #ifndef USE_FENTRY
 #pragma unroll
 #endif
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
-        bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
+        read_dentry_parent(dentry, &d_parent);
 
         key = next_key;
-        ino_parent = get_dentry_ino(d_parent);
+        ino_parent = get_dentry_ino_at(d_parent, dentry_d_inode_offset, inode_ino_offset);
         if (dentry != d_parent) {
             next_key.ino = ino_parent;
         } else {
@@ -88,9 +97,9 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             }
         }
 
-        bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
+        const char *name = get_dentry_name_ptr_at(dentry, dentry_name_offset);
 
-        long len = bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)qstr.name);
+        long len = bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)name);
         if (len < 0) {
             len = 0;
         }
@@ -108,7 +117,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             // It's not expected to have 2 different dentries with the same inode in the same mount
             // In case of btrfs, it might be the root of the subvolume
             struct dentry *d_parent_parent = NULL;
-            bpf_probe_read(&d_parent_parent, sizeof(d_parent_parent), &d_parent->d_parent);
+            read_dentry_parent(d_parent, &d_parent_parent);
             if (d_parent == d_parent_parent) {
                 update = 0;
             }
@@ -147,7 +156,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     return DR_MAX_ITERATION_DEPTH;
 }
 
-void __attribute__((always_inline)) dentry_resolver_kern_recursive(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type, struct dentry_resolver_input_t* resolver) {
+static void __attribute__((always_inline)) dentry_resolver_kern_recursive(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type, struct dentry_resolver_input_t* resolver) {
     resolver->iteration++;
     resolver->ret = resolve_dentry_tail_call(ctx, resolver);
 
@@ -171,7 +180,7 @@ void __attribute__((always_inline)) dentry_resolver_kern_recursive(void *ctx, en
     }
 }
 
-void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+static void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
     if (!syscall)
         return;

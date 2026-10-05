@@ -14,12 +14,12 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/content"
-	containerdevents "github.com/containerd/containerd/events"
-	"github.com/containerd/containerd/images"
-	"github.com/containerd/containerd/namespaces"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/content"
+	containerdevents "github.com/containerd/containerd/v2/core/events"
+	"github.com/containerd/containerd/v2/core/images"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"google.golang.org/protobuf/proto"
 
@@ -418,8 +418,12 @@ func extractFromConfigBlob(ctx context.Context, img containerd.Image, manifest o
 	// If we are able to read config, override with values from config if any
 	extractPlatform(&ocispecImage.Platform, outImage)
 
+	if ocispecImage.Created != nil {
+		outImage.Created = *ocispecImage.Created
+	}
 	outImage.Layers = getLayersWithHistory(ocispecImage, manifest)
 	outImage.Labels = getImageLabels(img, ocispecImage)
+	outImage.Annotations = getImageAnnotations(img, manifest)
 	return nil
 }
 
@@ -521,4 +525,19 @@ func getImageLabels(img containerd.Image, ocispecImage ocispec.Image) map[string
 	maps.Copy(labels, ocispecImage.Config.Labels)
 
 	return labels
+}
+
+func getImageAnnotations(img containerd.Image, manifest ocispec.Manifest) map[string]string {
+	// OCI annotations live on the image descriptors rather than in the config
+	// blob. The target descriptor may carry index-level annotations, while the
+	// platform-specific manifest carries manifest-level annotations (for
+	// example, the containerd.io/snapshot/nydus-* keys). Manifest annotations
+	// take precedence when a key is present in both.
+	annotations := map[string]string{}
+
+	maps.Copy(annotations, img.Target().Annotations)
+
+	maps.Copy(annotations, manifest.Annotations)
+
+	return annotations
 }

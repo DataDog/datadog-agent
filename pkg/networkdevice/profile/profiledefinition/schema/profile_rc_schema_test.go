@@ -6,9 +6,10 @@
 package schema
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/santhosh-tekuri/jsonschema/v5"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io/fs"
@@ -87,7 +88,15 @@ func Test_Schema_TextCases(t *testing.T) {
 }
 
 func assertAgainstSchema(t *testing.T, instanceJSON string) error {
-	sch, err := jsonschema.CompileString("schema.json", string(GetDeviceProfileRcConfigJsonschema()))
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(GetDeviceProfileRcConfigJsonschema()))
+	require.NoError(t, err)
+
+	const loc = "schema.json"
+	c := jsonschema.NewCompiler()
+	err = c.AddResource(loc, doc)
+	require.NoError(t, err)
+
+	sch, err := c.Compile(loc)
 	require.NoError(t, err)
 
 	var v interface{}

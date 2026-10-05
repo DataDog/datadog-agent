@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 )
 
-// SchedulerProvider provides a scheduler for the log Agent.
+// SchedulerProvider Provides a scheduler for the log Agent.
 type SchedulerProvider struct {
 	compdef.Out
 

@@ -41,6 +41,24 @@ __attribute__((always_inline)) struct sock* get_sock_from_socket(struct socket *
     return sk;
 }
 
+__attribute__((always_inline)) u64 get_io_socket_domain_offset() {
+    u64 offset;
+    LOAD_CONSTANT("io_socket_domain_offset", offset);
+    return offset;
+}
+
+__attribute__((always_inline)) u64 get_io_socket_type_offset() {
+    u64 offset;
+    LOAD_CONSTANT("io_socket_type_offset", offset);
+    return offset;
+}
+
+__attribute__((always_inline)) u64 get_io_socket_protocol_offset() {
+    u64 offset;
+    LOAD_CONSTANT("io_socket_protocol_offset", offset);
+    return offset;
+}
+
 __attribute__((always_inline)) u64 get_flowi4_saddr_offset() {
     u64 flowi4_saddr_offset;
     LOAD_CONSTANT("flowi4_saddr_offset", flowi4_saddr_offset);

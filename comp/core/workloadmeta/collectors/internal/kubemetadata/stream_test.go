@@ -9,6 +9,7 @@ package kubemetadata
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,17 +18,49 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	taggercollectors "github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 type expectedPod struct {
 	services      []string
 	nsLabels      map[string]string
 	nsAnnotations map[string]string
+}
+
+type expectedKueueQueue struct {
+	namespace        string
+	name             string
+	clusterQueueName string
+	labels           map[string]string
+	annotations      map[string]string
+	uid              string
+}
+
+type expectedKueueResourceFlavor struct {
+	name               string
+	nodeAffinityLabels map[string]string
+	labels             map[string]string
+	annotations        map[string]string
+	uid                string
+}
+
+type expectedKueueWorkload struct {
+	namespace         string
+	name              string
+	queueName         string
+	clusterQueueName  string
+	labels            map[string]string
+	annotations       map[string]string
+	uid               string
+	podSetAssignments []workloadmeta.KueuePodSetAssignment
 }
 
 // This is a simple test for run(). Exhaustive tests for the individual
@@ -386,11 +419,14 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 		preExistingEvents []workloadmeta.CollectorEvent
 		initialSeenPods   map[string]string
 
-		update       streamUpdate
-		expectedPods map[string]expectedPod
+		update                       streamUpdate
+		expectedPods                 map[string]expectedPod
+		expectedKueueQueues          map[string]expectedKueueQueue
+		expectedKueueResourceFlavors map[string]expectedKueueResourceFlavor
+		expectedKueueWorkloads       map[string]expectedKueueWorkload
 	}{
 		{
-			name: "full state re-enriches all seen pods",
+			name: "full state emits Kueue queue entities and re-enriches all seen pods",
 			dcaResponse: &pb.KubeMetadataStreamResponse{
 				IsFullState: true,
 				Mappings: []*pb.PodServiceMapping{
@@ -413,6 +449,43 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 						Labels:      map[string]string{"l1": "v1"},
 						Annotations: map[string]string{"a1": "v1"},
 						Type:        pb.KubeMetadataEventType_SET,
+					},
+				},
+				KueueQueues: []*pb.KueueQueue{
+					{
+						Namespace:    "default",
+						Name:         "batch",
+						QueueType:    pb.KueueQueueType_LOCAL_QUEUE,
+						ClusterQueue: "cluster-batch",
+						Labels:       map[string]string{"queue": "batch"},
+						Annotations:  map[string]string{"owner": "team-a"},
+						Uid:          "queue-uid",
+						Type:         pb.KubeMetadataEventType_SET,
+					},
+				},
+				KueueResourceFlavors: []*pb.KueueResourceFlavor{
+					{
+						Name:               "a100",
+						Labels:             map[string]string{"flavor": "gpu"},
+						Annotations:        map[string]string{"owner": "team-a"},
+						Uid:                "flavor-uid",
+						NodeAffinityLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+						Type:               pb.KubeMetadataEventType_SET,
+					},
+				},
+				KueueWorkloads: []*pb.KueueWorkload{
+					{
+						Namespace:    "default",
+						Name:         "job-sample",
+						Queue:        "batch",
+						ClusterQueue: "cluster-batch",
+						Labels:       map[string]string{"workload": "sample"},
+						Annotations:  map[string]string{"owner": "team-a"},
+						Uid:          "workload-uid",
+						PodSetAssignments: []*pb.KueuePodSetAssignment{
+							{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+						},
+						Type: pb.KubeMetadataEventType_SET,
 					},
 				},
 			},
@@ -449,7 +522,18 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 				},
 			},
 			initialSeenPods: map[string]string{"default/pod1": "uid-1", "default/pod2": "uid-2"},
-			update:          streamUpdate{updateIsFullState: true},
+			update: streamUpdate{
+				updateIsFullState: true,
+				updatedKueueQueues: map[string]struct{}{
+					"localqueue/default/batch": {},
+				},
+				updatedKueueResourceFlavors: map[string]struct{}{
+					"a100": {},
+				},
+				updatedKueueWorkloads: map[string]struct{}{
+					"default/job-sample": {},
+				},
+			},
 			expectedPods: map[string]expectedPod{
 				"uid-1": {
 					services:      []string{"svc-a"},
@@ -460,6 +544,39 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 					services:      []string{"svc-b"},
 					nsLabels:      map[string]string{"l1": "v1"},
 					nsAnnotations: map[string]string{"a1": "v1"},
+				},
+			},
+			expectedKueueQueues: map[string]expectedKueueQueue{
+				"localqueue/default/batch": {
+					namespace:        "default",
+					name:             "batch",
+					clusterQueueName: "cluster-batch",
+					labels:           map[string]string{"queue": "batch"},
+					annotations:      map[string]string{"owner": "team-a"},
+					uid:              "queue-uid",
+				},
+			},
+			expectedKueueResourceFlavors: map[string]expectedKueueResourceFlavor{
+				"a100": {
+					name:               "a100",
+					labels:             map[string]string{"flavor": "gpu"},
+					annotations:        map[string]string{"owner": "team-a"},
+					uid:                "flavor-uid",
+					nodeAffinityLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+				},
+			},
+			expectedKueueWorkloads: map[string]expectedKueueWorkload{
+				"default/job-sample": {
+					namespace:        "default",
+					name:             "job-sample",
+					queueName:        "batch",
+					clusterQueueName: "cluster-batch",
+					labels:           map[string]string{"workload": "sample"},
+					annotations:      map[string]string{"owner": "team-a"},
+					uid:              "workload-uid",
+					podSetAssignments: []workloadmeta.KueuePodSetAssignment{
+						{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+					},
 				},
 			},
 		},
@@ -608,6 +725,91 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 			},
 			expectedPods: map[string]expectedPod{},
 		},
+		{
+			name: "Kueue queue unset removes local entity",
+			preExistingEvents: []workloadmeta.CollectorEvent{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceClusterOrchestrator,
+					Entity: &workloadmeta.KubernetesKueueQueue{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesKueueQueue,
+							ID:   "localqueue/default/batch",
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "batch",
+							Namespace: "default",
+						},
+						QueueType:        workloadmeta.KueueLocalQueue,
+						ClusterQueueName: "cluster-batch",
+					},
+				},
+			},
+			update: streamUpdate{
+				updatedKueueQueues: map[string]struct{}{
+					"localqueue/default/batch": {},
+				},
+			},
+			expectedPods:        map[string]expectedPod{},
+			expectedKueueQueues: map[string]expectedKueueQueue{},
+		},
+		{
+			name: "Kueue ResourceFlavor unset removes local entity",
+			preExistingEvents: []workloadmeta.CollectorEvent{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceClusterOrchestrator,
+					Entity: &workloadmeta.KubernetesKueueResourceFlavor{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+							ID:   "a100",
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name: "a100",
+						},
+						NodeAffinityLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+					},
+				},
+			},
+			update: streamUpdate{
+				updatedKueueResourceFlavors: map[string]struct{}{
+					"a100": {},
+				},
+			},
+			expectedPods:                 map[string]expectedPod{},
+			expectedKueueResourceFlavors: map[string]expectedKueueResourceFlavor{},
+		},
+		{
+			name: "Kueue Workload unset removes local entity",
+			preExistingEvents: []workloadmeta.CollectorEvent{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceClusterOrchestrator,
+					Entity: &workloadmeta.KubernetesKueueWorkload{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesKueueWorkload,
+							ID:   "default/job-sample",
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "job-sample",
+							Namespace: "default",
+						},
+						QueueName:        "batch",
+						ClusterQueueName: "cluster-batch",
+						PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
+							{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+						},
+					},
+				},
+			},
+			update: streamUpdate{
+				updatedKueueWorkloads: map[string]struct{}{
+					"default/job-sample": {},
+				},
+			},
+			expectedPods:           map[string]expectedPod{},
+			expectedKueueWorkloads: map[string]expectedKueueWorkload{},
+		},
 	}
 
 	for _, test := range tests {
@@ -648,6 +850,299 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 				assert.Equal(t, expected.nsLabels, pod.NamespaceLabels)
 				assert.Equal(t, expected.nsAnnotations, pod.NamespaceAnnotations)
 			}
+			assertKueueQueues(t, wmetaMock, test.expectedKueueQueues)
+			assertKueueResourceFlavors(t, wmetaMock, test.expectedKueueResourceFlavors)
+			assertKueueWorkloads(t, wmetaMock, test.expectedKueueWorkloads)
+		})
+	}
+}
+
+func TestStreamingProvider_handleDCAStreamUpdate_FlavorReenrichesJoinedPod(t *testing.T) {
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	provider := &streamingProvider{
+		dcaStream:                   newDCAStreamClient("node-a", nil),
+		wmeta:                       wmetaMock,
+		collectNamespaceLabels:      true,
+		collectNamespaceAnnotations: true,
+	}
+
+	// Seed the DCA stream: a workload referencing flavor "a100", plus service
+	// mappings for both pods. Re-enrichment is observable because a re-enriched
+	// pod picks up its KubeServices from this cache.
+	provider.dcaStream.applyResponse(&pb.KubeMetadataStreamResponse{
+		IsFullState: true,
+		Mappings: []*pb.PodServiceMapping{
+			{Namespace: "default", PodName: "pod-joined", ServiceNames: []string{"svc-joined"}, Type: pb.KubeMetadataEventType_SET},
+			{Namespace: "default", PodName: "pod-unrelated", ServiceNames: []string{"svc-unrelated"}, Type: pb.KubeMetadataEventType_SET},
+		},
+		KueueWorkloads: []*pb.KueueWorkload{
+			{
+				Namespace: "default",
+				Name:      "job-sample",
+				PodSetAssignments: []*pb.KueuePodSetAssignment{
+					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+				},
+				Type: pb.KubeMetadataEventType_SET,
+			},
+		},
+	})
+	provider.dcaStream.drainPendingUpdate()
+
+	// pod-joined joins the workload via the Kueue workload annotation; pod-unrelated does not.
+	wmetaMock.Notify([]workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceNodeOrchestrator,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "uid-joined"},
+				EntityMeta: workloadmeta.EntityMeta{Name: "pod-joined", Namespace: "default", Annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "job-sample"}},
+				Ready:      true,
+			},
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceNodeOrchestrator,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "uid-unrelated"},
+				EntityMeta: workloadmeta.EntityMeta{Name: "pod-unrelated", Namespace: "default"},
+				Ready:      true,
+			},
+		},
+	})
+
+	seenPods := map[string]string{"default/pod-joined": "uid-joined", "default/pod-unrelated": "uid-unrelated"}
+
+	// Only a ResourceFlavor changed. The joined pod must be re-enriched
+	// (transitively through its workload); the unrelated pod must not.
+	provider.handleDCAStreamUpdate(streamUpdate{
+		updatedKueueResourceFlavors: map[string]struct{}{"a100": {}},
+	}, seenPods)
+
+	joined, err := wmetaMock.GetKubernetesPod("uid-joined")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"svc-joined"}, joined.KubeServices)
+
+	unrelated, err := wmetaMock.GetKubernetesPod("uid-unrelated")
+	require.NoError(t, err)
+	assert.Empty(t, unrelated.KubeServices)
+}
+
+// Reproduces a bug where the tagger computes the pod's tags while the Kueue
+// Workload is not yet in workloadmeta, so the Workload-derived tags are never
+// added to the pod and its containers.
+func TestStreamingProvider_KueueWorkloadTagsAfterWorkloadArrivesLate(t *testing.T) {
+	const (
+		podUID       = "pod-uid"
+		containerID  = "container-id"
+		namespace    = "default"
+		workloadName = "job-sample"
+		workloadUID  = "workload-uid"
+	)
+
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	provider := &streamingProvider{
+		dcaStream: newDCAStreamClient("node-a", nil),
+		wmeta:     wmetaMock,
+	}
+
+	// Start the tagger. It listens to workloadmeta and we record the tags it
+	// generates for each entity.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tags := &recordingTagProcessor{latest: make(map[taggertypes.EntityID]*taggertypes.TagInfo)}
+	go taggercollectors.NewWorkloadMetaCollector(ctx, configmock.New(t), wmetaMock, tags).Run(ctx)
+
+	// The container runtime reports the pod's container to workloadmeta. We
+	// wait until the tagger tags it, so we know the tagger is listening.
+	containerEntityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
+	wmetaMock.Notify([]workloadmeta.CollectorEvent{{
+		Type:   workloadmeta.EventTypeSet,
+		Source: workloadmeta.SourceRuntime,
+		Entity: &workloadmeta.Container{
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+			EntityMeta: workloadmeta.EntityMeta{Name: "main"},
+			Owner:      &workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podUID},
+		},
+	}})
+	require.Eventually(t, func() bool { return tags.get(containerEntityID) != nil }, 5*time.Second, 10*time.Millisecond)
+
+	// The Cluster Agent sends its first full state, which includes the Kueue
+	// Workload. The stream client stores it, but does not send it to
+	// workloadmeta yet.
+	provider.dcaStream.applyResponse(&pb.KubeMetadataStreamResponse{
+		IsFullState: true,
+		KueueWorkloads: []*pb.KueueWorkload{{
+			Namespace:    namespace,
+			Name:         workloadName,
+			Uid:          workloadUID,
+			Queue:        "lq",
+			ClusterQueue: "cq",
+			PodSetAssignments: []*pb.KueuePodSetAssignment{
+				{Name: "main", Flavors: map[string]string{"cpu": "default-flavor"}},
+			},
+			Type: pb.KubeMetadataEventType_SET,
+		}},
+	})
+
+	// The kubelet reports the pod to workloadmeta. The tagger tags it without
+	// the Workload tags, because the Workload is not in workloadmeta yet.
+	kubeletPod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podUID},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        "pod",
+			Namespace:   namespace,
+			Annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: workloadName},
+		},
+		Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "main"}},
+		Ready:      true,
+	}
+	wmetaMock.Notify([]workloadmeta.CollectorEvent{{
+		Type:   workloadmeta.EventTypeSet,
+		Source: workloadmeta.SourceNodeOrchestrator,
+		Entity: kubeletPod,
+	}})
+
+	// At node-agent startup, run() can handle these two things in either order. We use
+	// the order that breaks tagging:
+	//  1. It handles the pod from the kubelet and sends it to workloadmeta. The
+	//     tagger tags it again, still without the Workload tags.
+	//  2. It handles the Cluster Agent update. It sends the Workload to
+	//     workloadmeta, then sends the pod again. This pod is the same as the
+	//     one from step 1.
+	seenPods := make(map[string]string)
+	provider.handleWmetaPodEvents(makePodBundle(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: kubeletPod,
+	}), seenPods)
+	provider.handleDCAStreamUpdate(provider.dcaStream.drainPendingUpdate(), seenPods)
+
+	// Workloadmeta has the Workload now.
+	_, err := wmetaMock.GetKubernetesKueueWorkload(workloadmeta.GenerateKueueWorkloadEntityID(namespace, workloadName))
+	require.NoError(t, err, "Workload should be in workloadmeta after the DCA update")
+
+	// The pod and its container should have the Workload tags now.
+	for _, entityID := range []taggertypes.EntityID{
+		taggertypes.NewEntityID(taggertypes.KubernetesPodUID, podUID),
+		containerEntityID,
+	} {
+		tagInfo := tags.get(entityID)
+		require.NotNil(t, tagInfo, "no tags for %s", entityID)
+		assert.Contains(t, tagInfo.OrchestratorCardTags, "kueue_workload_uid:"+workloadUID, "tags for %s", entityID)
+		assert.Contains(t, tagInfo.OrchestratorCardTags, "kueue_workload:"+workloadName, "tags for %s", entityID)
+	}
+}
+
+// recordingTagProcessor keeps the latest TagInfo per entity, as the tagger
+// store would for a single source.
+type recordingTagProcessor struct {
+	mu     sync.Mutex
+	latest map[taggertypes.EntityID]*taggertypes.TagInfo
+}
+
+func (p *recordingTagProcessor) ProcessTagInfo(tagInfos []*taggertypes.TagInfo) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, tagInfo := range tagInfos {
+		p.latest[tagInfo.EntityID] = tagInfo
+	}
+}
+
+func (p *recordingTagProcessor) get(entityID taggertypes.EntityID) *taggertypes.TagInfo {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.latest[entityID]
+}
+
+func TestStreamingProvider_podAffectedByKueueUpdate(t *testing.T) {
+	provider := &streamingProvider{
+		dcaStream: newDCAStreamClient("node-a", nil),
+	}
+	// Seed the DCA stream cache with a Workload that references flavor "a100"
+	// so transitive ResourceFlavor updates can be resolved.
+	provider.dcaStream.applyResponse(&pb.KubeMetadataStreamResponse{
+		IsFullState: true,
+		KueueWorkloads: []*pb.KueueWorkload{
+			{
+				Namespace: "default",
+				Name:      "job-sample",
+				PodSetAssignments: []*pb.KueuePodSetAssignment{
+					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+				},
+				Type: pb.KubeMetadataEventType_SET,
+			},
+		},
+	})
+	provider.dcaStream.drainPendingUpdate()
+
+	podWithWorkloadAnnotation := &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{
+			Namespace:   "default",
+			Annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "job-sample"},
+		},
+	}
+	podWithPodGroupLabel := &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{
+			Namespace: "default",
+			Labels:    map[string]string{kubernetes.KueuePodGroupNameLabelKey: "job-sample"},
+		},
+	}
+	podWithoutKueue := &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{Namespace: "default"},
+	}
+
+	tests := []struct {
+		name     string
+		pod      *workloadmeta.KubernetesPod
+		update   streamUpdate
+		expected bool
+	}{
+		{
+			name:     "pod not managed by Kueue is never affected",
+			pod:      podWithoutKueue,
+			update:   streamUpdate{updatedKueueWorkloads: map[string]struct{}{"default/job-sample": {}}},
+			expected: false,
+		},
+		{
+			name:     "pod joins updated Workload via annotation",
+			pod:      podWithWorkloadAnnotation,
+			update:   streamUpdate{updatedKueueWorkloads: map[string]struct{}{"default/job-sample": {}}},
+			expected: true,
+		},
+		{
+			name:     "pod joins updated Workload via pod-group label",
+			pod:      podWithPodGroupLabel,
+			update:   streamUpdate{updatedKueueWorkloads: map[string]struct{}{"default/job-sample": {}}},
+			expected: true,
+		},
+		{
+			name:     "pod joins a different Workload than the updated one",
+			pod:      podWithWorkloadAnnotation,
+			update:   streamUpdate{updatedKueueWorkloads: map[string]struct{}{"default/other": {}}},
+			expected: false,
+		},
+		{
+			name:     "pod affected transitively by updated ResourceFlavor",
+			pod:      podWithWorkloadAnnotation,
+			update:   streamUpdate{updatedKueueResourceFlavors: map[string]struct{}{"a100": {}}},
+			expected: true,
+		},
+		{
+			name:     "pod not affected by unrelated ResourceFlavor update",
+			pod:      podWithWorkloadAnnotation,
+			update:   streamUpdate{updatedKueueResourceFlavors: map[string]struct{}{"h100": {}}},
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, provider.podAffectedByKueueUpdate(test.pod, test.update))
 		})
 	}
 }
@@ -892,6 +1387,7 @@ func TestDCAStreamClient_ApplyResponse(t *testing.T) {
 			sc := &dcaStreamClient{
 				podServices: test.initialPodServices,
 				namespaces:  test.initialNamespaces,
+				kueueQueues: make(map[string]*workloadmeta.KubernetesKueueQueue),
 				initialized: test.initialActive,
 				readyCh:     make(chan struct{}),
 				updateCh:    make(chan struct{}, 1),
@@ -903,6 +1399,139 @@ func TestDCAStreamClient_ApplyResponse(t *testing.T) {
 			assert.Equal(t, test.expectedPodServices, sc.podServices)
 			assert.Equal(t, test.expectedNamespaces, sc.namespaces)
 		})
+	}
+}
+
+func TestDCAStreamClient_ApplyResponse_KueueWorkloads(t *testing.T) {
+	sc := newDCAStreamClient("node-a", nil)
+
+	// Full state seeds the workload cache.
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{
+		IsFullState: true,
+		KueueWorkloads: []*pb.KueueWorkload{
+			{
+				Namespace:    "default",
+				Name:         "job-a",
+				Queue:        "batch",
+				ClusterQueue: "cluster-batch",
+				Type:         pb.KubeMetadataEventType_SET,
+			},
+		},
+	})
+	update := sc.drainPendingUpdate()
+	assert.True(t, update.updateIsFullState)
+	assert.Contains(t, update.updatedKueueWorkloads, "default/job-a")
+	require.Contains(t, sc.kueueWorkloads, "default/job-a")
+	assert.Equal(t, "batch", sc.kueueWorkloads["default/job-a"].QueueName)
+
+	// Incremental SET of a new workload adds to the cache.
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{
+		KueueWorkloads: []*pb.KueueWorkload{
+			{
+				Namespace: "default",
+				Name:      "job-b",
+				Queue:     "gpu",
+				Type:      pb.KubeMetadataEventType_SET,
+			},
+		},
+	})
+	update = sc.drainPendingUpdate()
+	assert.False(t, update.updateIsFullState)
+	assert.Contains(t, update.updatedKueueWorkloads, "default/job-b")
+	assert.Contains(t, sc.kueueWorkloads, "default/job-b")
+	assert.Contains(t, sc.kueueWorkloads, "default/job-a")
+
+	// Incremental UNSET removes it from the cache but still reports it as updated.
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{
+		KueueWorkloads: []*pb.KueueWorkload{
+			{
+				Namespace: "default",
+				Name:      "job-b",
+				Type:      pb.KubeMetadataEventType_UNSET,
+			},
+		},
+	})
+	update = sc.drainPendingUpdate()
+	assert.Contains(t, update.updatedKueueWorkloads, "default/job-b")
+	assert.NotContains(t, sc.kueueWorkloads, "default/job-b")
+	assert.Contains(t, sc.kueueWorkloads, "default/job-a")
+}
+
+func TestDCAStreamClient_ApplyResponse_IncrementalWorkloadBeforeFullStateIgnored(t *testing.T) {
+	sc := newDCAStreamClient("node-a", nil)
+	// Not initialized yet: an incremental workload update must be ignored.
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{
+		KueueWorkloads: []*pb.KueueWorkload{
+			{
+				Namespace: "default",
+				Name:      "job-a",
+				Type:      pb.KubeMetadataEventType_SET,
+			},
+		},
+	})
+
+	assert.False(t, sc.initialized)
+	assert.Empty(t, sc.kueueWorkloads)
+	update := sc.drainPendingUpdate()
+	assert.Empty(t, update.updatedKueueWorkloads)
+}
+
+func assertKueueQueues(t *testing.T, wmetaMock workloadmetamock.Mock, expected map[string]expectedKueueQueue) {
+	t.Helper()
+
+	entities := wmetaMock.DumpStructured().Entities[string(workloadmeta.KindKubernetesKueueQueue)]
+	assert.Len(t, entities, len(expected))
+
+	for _, entity := range entities {
+		queue := entity.(*workloadmeta.KubernetesKueueQueue)
+		expectedQueue, found := expected[queue.EntityID.ID]
+		require.True(t, found)
+		assert.Equal(t, expectedQueue.namespace, queue.Namespace)
+		assert.Equal(t, expectedQueue.name, queue.Name)
+		assert.Equal(t, workloadmeta.KueueLocalQueue, queue.QueueType)
+		assert.Equal(t, expectedQueue.clusterQueueName, queue.ClusterQueueName)
+		assert.Equal(t, expectedQueue.labels, queue.Labels)
+		assert.Equal(t, expectedQueue.annotations, queue.Annotations)
+		assert.Equal(t, expectedQueue.uid, queue.UID)
+	}
+}
+
+func assertKueueResourceFlavors(t *testing.T, wmetaMock workloadmetamock.Mock, expected map[string]expectedKueueResourceFlavor) {
+	t.Helper()
+
+	entities := wmetaMock.DumpStructured().Entities[string(workloadmeta.KindKubernetesKueueResourceFlavor)]
+	assert.Len(t, entities, len(expected))
+
+	for _, entity := range entities {
+		flavor := entity.(*workloadmeta.KubernetesKueueResourceFlavor)
+		expectedFlavor, found := expected[flavor.EntityID.ID]
+		require.True(t, found)
+		assert.Equal(t, expectedFlavor.name, flavor.Name)
+		assert.Equal(t, expectedFlavor.nodeAffinityLabels, flavor.NodeAffinityLabels)
+		assert.Equal(t, expectedFlavor.labels, flavor.Labels)
+		assert.Equal(t, expectedFlavor.annotations, flavor.Annotations)
+		assert.Equal(t, expectedFlavor.uid, flavor.UID)
+	}
+}
+
+func assertKueueWorkloads(t *testing.T, wmetaMock workloadmetamock.Mock, expected map[string]expectedKueueWorkload) {
+	t.Helper()
+
+	entities := wmetaMock.DumpStructured().Entities[string(workloadmeta.KindKubernetesKueueWorkload)]
+	assert.Len(t, entities, len(expected))
+
+	for _, entity := range entities {
+		workload := entity.(*workloadmeta.KubernetesKueueWorkload)
+		expectedWorkload, found := expected[workload.EntityID.ID]
+		require.True(t, found)
+		assert.Equal(t, expectedWorkload.namespace, workload.Namespace)
+		assert.Equal(t, expectedWorkload.name, workload.Name)
+		assert.Equal(t, expectedWorkload.queueName, workload.QueueName)
+		assert.Equal(t, expectedWorkload.clusterQueueName, workload.ClusterQueueName)
+		assert.Equal(t, expectedWorkload.labels, workload.Labels)
+		assert.Equal(t, expectedWorkload.annotations, workload.Annotations)
+		assert.Equal(t, expectedWorkload.uid, workload.UID)
+		assert.Equal(t, expectedWorkload.podSetAssignments, workload.PodSetAssignments)
 	}
 }
 

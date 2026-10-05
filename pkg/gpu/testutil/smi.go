@@ -1,0 +1,192 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+//go:build linux && test
+
+package testutil
+
+import (
+	"fmt"
+	"os/exec"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	nvidiaSmi           = "nvidia-smi"
+	standardMetricCount = 12
+	GrEngineActiveID    = "1001"
+)
+
+// SmiSample is a sample of metrics from the dmon subcommand of nividia-smi. The values returned from dmon might not
+// exist
+type SmiSample struct {
+	Index            int
+	PowerWatts       *float64
+	GPUTempC         *float64
+	MemTempC         *float64
+	SMUtilPct        *float64
+	MemUtilPct       *float64
+	EncoderPct       *float64
+	DecoderPct       *float64
+	JPEGPct          *float64
+	OFAPct           *float64
+	MemClockMHz      *float64
+	ProcClockMHz     *float64
+	GraphicsActivity *float64
+}
+
+// SmiCollectionOption configures nvidia-smi sample collection.
+type SmiCollectionOption func(*smiCollectionConfig)
+
+type smiCollectionConfig struct {
+	includeGPM   bool
+	delaySeconds int
+}
+
+// WithGPM requests the graphics activity GPM metric.
+func WithGPM() SmiCollectionOption {
+	return func(config *smiCollectionConfig) {
+		config.includeGPM = true
+	}
+}
+
+// WithDelay sets the time between dmon samples. dmon only supports whole seconds,
+// so the delay is rounded to the nearest second, with a minimum of one second.
+func WithDelay(delay time.Duration) SmiCollectionOption {
+	return func(config *smiCollectionConfig) {
+		config.delaySeconds = max(1, int(delay.Round(time.Second)/time.Second))
+	}
+}
+
+// RequireSmi ensures the nvidia-smi binary exists on the system path.
+func RequireSmi(t *testing.T) {
+	_, err := exec.LookPath(nvidiaSmi)
+	require.NoError(t, err)
+}
+
+// CollectSmiSample runs nvidia-smi dmon for the given device and returns the parsed sample.
+func CollectSmiSample(deviceID string, options ...SmiCollectionOption) (*SmiSample, error) {
+	config := smiCollectionConfig{}
+	for _, option := range options {
+		option(&config)
+	}
+
+	gpmMetrics := []string{}
+	if config.includeGPM {
+		gpmMetrics = append(gpmMetrics, "1") // Graphics Activity
+	}
+	// GPM metrics are a delta between consecutive samples, so the first dmon
+	// cycle always reports "-". Run multiple cycles and read a later line.
+	args := []string{"dmon", "--id", deviceID, "-c", "3", "--format", "csv,noheader,nounit"}
+	if config.delaySeconds > 0 {
+		args = append(args, "-d", strconv.Itoa(config.delaySeconds))
+	}
+	if len(gpmMetrics) > 0 {
+		args = append(args, "--gpm-metrics", strings.Join(gpmMetrics, ","))
+	}
+	cmd := exec.Command(nvidiaSmi, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("run nvidia-smi dmon: %w\noutput: %s", err, out)
+	}
+
+	// One data line per monitoring cycle (single device via --id). Read the
+	// third line so the GPM metrics have two prior samples to diff against.
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) < 3 {
+		return nil, fmt.Errorf("expected at least 3 sample lines, got %d:\n%s", len(lines), string(out))
+	}
+
+	values := strings.Split(strings.TrimSpace(lines[2]), ",")
+	if want := standardMetricCount + len(gpmMetrics); len(values) != want {
+		return nil, fmt.Errorf("invalid output: expected %d fields, got %d: %q", want, len(values), lines[2])
+	}
+
+	idx, err := strconv.Atoi(strings.TrimSpace(values[0]))
+	if err != nil {
+		return nil, fmt.Errorf("bad gpu index %q: %w", values[0], err)
+	}
+	sample := &SmiSample{
+		Index:        idx,
+		PowerWatts:   parseFloatField(values[1]),
+		GPUTempC:     parseFloatField(values[2]),
+		MemTempC:     parseFloatField(values[3]),
+		SMUtilPct:    parseFloatField(values[4]),
+		MemUtilPct:   parseFloatField(values[5]),
+		EncoderPct:   parseFloatField(values[6]),
+		DecoderPct:   parseFloatField(values[7]),
+		JPEGPct:      parseFloatField(values[8]),
+		OFAPct:       parseFloatField(values[9]),
+		MemClockMHz:  parseFloatField(values[10]),
+		ProcClockMHz: parseFloatField(values[11]),
+	}
+	if config.includeGPM {
+		sample.GraphicsActivity = parseFloatField(values[12])
+	}
+	return sample, nil
+}
+
+// MetricValues returns SMI readings normalized to GPU core-check metric units.
+// gr_engine_active falls back to SM utilization when GPM graphics activity is
+// unavailable.
+func (s *SmiSample) MetricValues() map[string]*float64 {
+	if s == nil {
+		return nil
+	}
+
+	values := map[string]*float64{
+		"temperature":          s.GPUTempC,
+		"memory.temperature":   s.MemTempC,
+		"sm_active":            s.SMUtilPct,
+		"encoder_active":       s.EncoderPct,
+		"decoder_active":       s.DecoderPct,
+		"clock.speed.memory":   s.MemClockMHz,
+		"clock.speed.graphics": s.ProcClockMHz,
+		"gr_engine_active":     s.GraphicsActivity,
+	}
+	if values["gr_engine_active"] == nil {
+		values["gr_engine_active"] = s.SMUtilPct
+	}
+	if s.PowerWatts != nil {
+		milliwatts := *s.PowerWatts * 1000
+		values["power.usage"] = &milliwatts
+	} else {
+		values["power.usage"] = nil
+	}
+	return values
+}
+
+// NvidiaSMIMetricNames lists GPU spec metric names with an SMI adapter.
+func NvidiaSMIMetricNames() map[string]struct{} {
+	return map[string]struct{}{
+		"power.usage":          {},
+		"temperature":          {},
+		"memory.temperature":   {},
+		"sm_active":            {},
+		"encoder_active":       {},
+		"decoder_active":       {},
+		"clock.speed.memory":   {},
+		"clock.speed.graphics": {},
+		"gr_engine_active":     {},
+	}
+}
+
+// parseFloatField returns nil for "-" or unparseable values.
+func parseFloatField(s string) *float64 {
+	s = strings.TrimSpace(s)
+	if s == "-" || s == "" {
+		return nil
+	}
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return nil
+	}
+	return &v
+}

@@ -4,7 +4,6 @@ go_library(
     name = "fx",
     srcs = ["fx.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx",
-    tags = ["manual"],  # keep
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/impl",

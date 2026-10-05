@@ -115,7 +115,7 @@ func ValidateEmittedMetricsAgainstSpec(t *testing.T, specs *gpuspec.Specs, confi
 			assert.Zero(t, status.Unknown, "metric %s unknown in %d cases", metricName, status.Unknown)
 			assert.Zero(t, status.Unsupported, "metric %s unsupported in %d cases", metricName, status.Unsupported)
 			assert.Zero(t, status.WrongType, "metric %s wrong type in %d cases", metricName, status.WrongType)
-			assert.Zero(t, status.InvalidValue, "metric %s invalid in %d cases", metricName, status.InvalidValue)
+			assert.Zero(t, status.InvalidValue, "metric %s invalid in %d cases (samples: %v)", metricName, status.InvalidValue, status.InvalidValueSamples)
 
 			for tag, tagResult := range status.TagResults {
 				assert.Zero(t, tagResult.Missing, "metric %s: tag %s missing in %d cases", metricName, tag, tagResult.Missing)
@@ -134,6 +134,7 @@ func (c *Check) InjectXIDEventsForTest(uuid string, events []ddnvml.DeviceEventD
 func SetupWorkloadmetaGPUs(t *testing.T, wmetaMock workloadmetamock.Mock, fakeTagger taggermock.Mock, mode gpuspec.DeviceMode, validateDeviceCount bool) {
 	// Create the NVML collector to ensure we get the data in the same way as with real checks
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"gpu.enabled": true,
 		"gpu.integrate_with_workloadmeta_processes": false,
 	})
 	nvmlCollector := collectors.GetNvmlCollector(t, cfg)

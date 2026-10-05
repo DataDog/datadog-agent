@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "probe",
@@ -31,13 +32,12 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "probe_test",
     srcs = ["crashparse_test.go"],
     data = glob(["testdata/**"]),
     embed = [":probe"],
-    gotags = ["test"],
-    target_compatible_with = ["@platforms//os:windows"],  # keep
+    target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",

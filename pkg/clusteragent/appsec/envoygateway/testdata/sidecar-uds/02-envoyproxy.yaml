@@ -1,0 +1,70 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: datadog-appsec-sidecar-uds
+  namespace: envoy-gateway-system
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              template:
+                spec:
+                  securityContext:
+                    # The shared emptyDir is group-writable for the Envoy and
+                    # Datadog containers, both running as the upstream Envoy UID.
+                    fsGroup: 65532
+                    fsGroupChangePolicy: OnRootMismatch
+                  volumes:
+                    - name: datadog-appsec-uds
+                      emptyDir: {}
+                  containers:
+                    - name: envoy
+                      volumeMounts:
+                        - name: datadog-appsec-uds
+                          mountPath: /var/run/datadog
+                    - name: datadog-appsec
+                      image: ghcr.io/datadog/dd-trace-go/service-extensions-callout@sha256:d2a11c0346ee8a907749a7af5a7aba96546a0200cd9e4da34b1048e4c07c764f
+                      imagePullPolicy: IfNotPresent
+                      env:
+                        - name: DD_SERVICE_EXTENSION_UDS_PATH
+                          value: /var/run/datadog/extproc.sock
+                        - name: DD_SERVICE_EXTENSION_HEALTHCHECK_PORT
+                          value: "8081"
+                        - name: DD_SERVICE_EXTENSION_OBSERVABILITY_MODE
+                          value: "false"
+                        - name: DD_APM_TRACING_ENABLED
+                          value: "false"
+                        - name: DD_APPSEC_WAF_TIMEOUT
+                          value: 10ms
+                        # Optional for this local proof. Without an agent in the
+                        # pod, the sidecar logs connection-refused telemetry
+                        # warnings but still processes and blocks requests.
+                        - name: DD_TRACE_AGENT_URL
+                          value: http://127.0.0.1:8126
+                      ports:
+                        - name: health
+                          containerPort: 8081
+                      readinessProbe:
+                        httpGet:
+                          path: /
+                          port: health
+                        initialDelaySeconds: 1
+                        periodSeconds: 5
+                      livenessProbe:
+                        httpGet:
+                          path: /
+                          port: health
+                        initialDelaySeconds: 5
+                        periodSeconds: 10
+                      volumeMounts:
+                        - name: datadog-appsec-uds
+                          mountPath: /var/run/datadog
+                      securityContext:
+                        runAsUser: 65532
+                        runAsGroup: 65532
+                        allowPrivilegeEscalation: false

@@ -5,6 +5,7 @@
 #include "helpers/approvers.h"
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
 HOOK_ENTRY("vm_mmap_pgoff")
@@ -45,44 +46,71 @@ int hook_get_unmapped_area(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_MMAP);
+// Since kernel 6.13, get_unmapped_area is a static inline wrapper and can no longer be hooked.
+// It calls __get_unmapped_area, which keeps `pgoff` in the same argument position, so we hook it
+// as a fallback to still read the mmap offset.
+HOOK_ENTRY("__get_unmapped_area")
+int hook___get_unmapped_area(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
+    if (!syscall) {
+        return 0;
+    }
+
+    u64 offset = CTX_PARM4(ctx);
+    syscall->mmap.offset = offset;
+
+    return 0;
+}
+
+int __attribute__((always_inline)) sys_mmap_ret_impl(void *ctx, int retval, u64 addr, enum TAIL_CALL_PROG_TYPE prog_type) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
     if (!syscall) {
         return 0;
     }
 
     if (approve_syscall(syscall, mmap_approvers) == DISCARDED) {
-        return 0;
+        goto pop_and_exit;
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_MMAP);
     if (syscall->state == DISCARDED) {
-        return 0;
+        goto pop_and_exit;
     }
 
     if (retval != -1) {
         retval = 0;
     }
 
-    struct mmap_event_t event = {
-        .syscall.retval = retval,
-        .file = syscall->mmap.file,
-        .addr = addr,
-        .offset = syscall->mmap.offset,
-        .len = syscall->mmap.len,
-        .protection = syscall->mmap.protection,
-        .flags = syscall->mmap.flags,
-    };
+    struct mmap_event_t *event = SPAN_FILL_EVENT(struct mmap_event_t, EVENT_MMAP);
+    if (!event) {
+        goto pop_and_exit;
+    }
+    event->syscall.retval = retval;
+    event->file = syscall->mmap.file;
+    event->addr = addr;
+    event->offset = syscall->mmap.offset;
+    event->len = syscall->mmap.len;
+    event->protection = syscall->mmap.protection;
+    event->flags = syscall->mmap.flags;
 
     if (syscall->mmap.dentry != NULL) {
-        fill_file(syscall->mmap.dentry, &event.file);
+        fill_file(syscall->mmap.dentry, &event->file);
     }
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
 
-    send_event(ctx, EVENT_MMAP, event);
+    pop_syscall(EVENT_MMAP);
+
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
+
+    span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_MMAP);
     return 0;
+}
+
+int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr) {
+    return sys_mmap_ret_impl(ctx, retval, addr, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_EXIT("vm_mmap_pgoff")
@@ -119,7 +147,7 @@ int hook_security_mmap_file(ctx_t *ctx) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_mmap_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_mmap_ret(args, (int)args->ret, (u64)args->ret);
+    return sys_mmap_ret_impl(args, (int)args->ret, (u64)args->ret, TRACEPOINT_TYPE);
 }
 
 #endif

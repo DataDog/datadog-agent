@@ -30,7 +30,7 @@ from requests.adapters import HTTPAdapter
 from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.feature_flags import is_enabled
-from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
+from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_current_pr, get_default_branch
 from tasks.libs.common.utils import retry_function, running_in_ci
 from tasks.libs.linter.gitlab_exceptions import FailureLevel, SingleGitlabLintFailure
 from tasks.libs.types.types import JobDependency
@@ -62,24 +62,21 @@ def get_gitlab_oauth_token(ctx) -> str:
     return token
 
 
-def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
-    if not is_enabled(ctx, "agent-ci-gitlab-short-lived-tokens"):
-        if running_in_ci():
-            # Get the token from fetch_secrets
-            token_cmd = ctx.run(
-                f"{os.environ['CI_PROJECT_DIR']}/tools/ci/fetch_secret.sh gitlab-token write_api", hide=True
-            )
-            if not token_cmd.ok:
-                raise RuntimeError(
-                    f'Failed to retrieve Gitlab token, request failed with code {token_cmd.return_code}:\n{token_cmd.stderr}'
-                )
+def get_gitlab_token(ctx, repo='DataDog/datadog-agent', verbose=False) -> str:
+    # CI must not depend on feature-flag credentials to avoid using an expired legacy token.
+    if (
+        not running_in_ci()
+        and not is_enabled(ctx, "agent-ci-gitlab-short-lived-tokens")
+        and 'GITLAB_TOKEN' in os.environ
+    ):
+        return os.environ['GITLAB_TOKEN']
 
-            return token_cmd.stdout.strip()
-        elif 'GITLAB_TOKEN' in os.environ:
-            return os.environ['GITLAB_TOKEN']
+    owner, _, name = repo.rpartition('/')
+    if not owner:
+        raise Exit(f"Expected a full GitLab project path like 'DataDog/datadog-agent', got '{repo}'", code=1)
 
     infra_token = datadog_infra_token(ctx, audience="sdm")
-    url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
+    url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner={owner}&repository={name}"
 
     session = requests.Session()
     session.mount('https://', HTTPAdapter(max_retries=2))
@@ -98,7 +95,7 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
     return token
 
 
-def get_gitlab_api(token=None, repo='datadog-agent') -> gitlab.Gitlab:
+def get_gitlab_api(token=None, repo='DataDog/datadog-agent') -> gitlab.Gitlab:
     """Returns the gitlab api object with the api token.
 
     Args:
@@ -115,7 +112,7 @@ def get_gitlab_api(token=None, repo='datadog-agent') -> gitlab.Gitlab:
 
 
 def get_gitlab_repo(repo='DataDog/datadog-agent', token=None) -> Project:
-    api = get_gitlab_api(token, repo.split('/')[1])
+    api = get_gitlab_api(token, repo)
     repo = api.projects.get(repo)
 
     return repo
@@ -977,6 +974,12 @@ def resolve_gitlab_ci_configuration(
             Whether to skip the gitlab `/lint` endpoint when resolving configs.
             In this case, only `include`s will be resolved, not `extend`s or `!reference`s
         git_ref: From which git ref to read the input config file. No effect if input config is passed as a dict.
+
+    The pipeline context of the lint dry run (which drives `rules` evaluation) is the configuration's baseline
+    branch, as defined by its $COMPARE_TO_BRANCH variable, so that the simulated pipeline is self-consistent
+    (e.g. a release branch configuration, where $COMPARE_TO_BRANCH is the release branch, is validated as a
+    pipeline running on that release branch rather than on the default branch). Configurations without a
+    $COMPARE_TO_BRANCH are linted in the project's default branch context.
     """
 
     # Read includes
@@ -987,7 +990,13 @@ def resolve_gitlab_ci_configuration(
         return input_config
 
     agent = get_gitlab_repo()
-    res = agent.ci_lint.create({"content": yaml.safe_dump(input_config), "dry_run": True, "include_jobs": True})
+    lint_request = {"content": yaml.safe_dump(input_config), "dry_run": True, "include_jobs": True}
+    # Lint the configuration in the context of its baseline branch ($COMPARE_TO_BRANCH), since the `rules` of
+    # the configuration are written against it, rather than in the context of the default branch
+    lint_ref = (input_config.get('variables') or {}).get('COMPARE_TO_BRANCH')
+    if lint_ref:
+        lint_request["ref"] = lint_ref
+    res = agent.ci_lint.create(lint_request)
 
     if not res.valid:
         errors = '; '.join(res.errors)
@@ -1211,13 +1220,16 @@ def retrieve_all_paths(yaml):
 
 def gitlab_configuration_is_modified(ctx):
     branch = get_current_branch(ctx)
+    pr = get_current_pr(branch_name=branch)
+    target_branch = pr.base.ref if pr else "main"  # Fallback to main if PR cannot be found
+
     if branch == "main":
         # We usually squash merge on main so comparing only to the last commit
         diff = ctx.run("git diff HEAD^1..HEAD", hide=True).stdout.strip().splitlines()
     else:
         # On dev branch we compare all the new commits
-        ctx.run("git fetch origin main:main")
-        ancestor = get_common_ancestor(ctx, branch)
+        ctx.run(f"git fetch origin {target_branch}:{target_branch}")
+        ancestor = get_common_ancestor(ctx, branch, base=target_branch)
         diff = ctx.run(f"git diff {ancestor}..HEAD", hide=True).stdout.strip().splitlines()
     modified_files = re.compile(r"^diff --git a/(.*) b/(.*)")
     changed_lines = re.compile(r"^@@ -\d+,\d+ \+(\d+),(\d+) @@")

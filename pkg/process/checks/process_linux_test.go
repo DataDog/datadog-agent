@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && systemprobechecks
 
 package checks
 
@@ -113,7 +113,7 @@ func TestProcessesByPIDWLM(t *testing.T) {
 			mockProbe.EXPECT().StatsForPIDs(mock.Anything, mockConstantClock.Now()).Return(tc.statsByPid, nil).Once()
 
 			// TESTING
-			actual, err := processCheck.processesByPID()
+			actual, err := processCheck.processesByPID(mockConstantClock.Now())
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})

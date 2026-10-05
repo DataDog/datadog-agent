@@ -35,6 +35,9 @@ func NewNoopHealthPlatform() *NoopHealthPlatform {
 	return &NoopHealthPlatform{}
 }
 
+// RegisterIssuesObserver does nothing when the health platform is disabled.
+func (n *NoopHealthPlatform) RegisterIssuesObserver(_ healthplatform.IssuesObserver) {}
+
 // ReportIssue does nothing when the health platform is disabled.
 func (n *NoopHealthPlatform) ReportIssue(_ *healthplatformpayload.Issue) error {
 	return nil
@@ -61,6 +64,16 @@ func (n *NoopHealthPlatform) ResolveAllIssues() {
 // GetActiveIssueIDsByIssueName returns nil when the health platform is disabled.
 func (n *NoopHealthPlatform) GetActiveIssueIDsByIssueName(_ string) []string {
 	return nil
+}
+
+// IssueDiscriminator returns hostID unchanged when the health platform is disabled.
+func (n *NoopHealthPlatform) IssueDiscriminator(hostID string) string {
+	return hostID
+}
+
+// ResourceIdentity returns empty strings when the health platform is disabled.
+func (n *NoopHealthPlatform) ResourceIdentity(_ string) (string, string) {
+	return "", ""
 }
 
 // GetIssuesHandler handles GET /health-platform/issues when disabled.

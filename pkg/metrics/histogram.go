@@ -6,10 +6,13 @@
 package metrics
 
 import (
+	"cmp"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
+	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,10 +25,6 @@ type weightSample struct {
 }
 
 type weightSamples []weightSample
-
-func (w weightSamples) Len() int           { return len(w) }
-func (w weightSamples) Less(i, j int) bool { return w[i].value < w[j].value }
-func (w weightSamples) Swap(i, j int)      { w[i], w[j] = w[j], w[i] }
 
 // Histogram tracks the distribution of samples added over one flush period
 type Histogram struct {
@@ -51,6 +50,7 @@ const (
 )
 
 var (
+	defaultsOnce       sync.Once
 	defaultAggregates  = []string(nil)
 	defaultPercentiles = []int(nil)
 )
@@ -80,15 +80,13 @@ func ParsePercentiles(percentiles []string) []int {
 // NewHistogram returns a newly initialized histogram
 func NewHistogram(interval int64, config pkgconfigmodel.Config) *Histogram {
 	// we initialize default value on the first histogram creation
-	if defaultAggregates == nil {
+	defaultsOnce.Do(func() {
 		defaultAggregates = config.GetStringSlice("histogram_aggregates")
-	}
 
-	if defaultPercentiles == nil {
-		c := config.GetStringSlice("histogram_percentiles")
-		defaultPercentiles = ParsePercentiles(c)
-		sort.Ints(defaultPercentiles)
-	}
+		percentiles := ParsePercentiles(config.GetStringSlice("histogram_percentiles"))
+		sort.Ints(percentiles)
+		defaultPercentiles = percentiles
+	})
 
 	return &Histogram{
 		interval:    interval,
@@ -118,7 +116,7 @@ func neumaierAdd(s, c, x float64) (float64, float64) {
 
 // sampleSum computes sum(value*weight) over h.samples using compensated summation.
 //
-// Precondition: flush() calls sort.Sort(h.samples) before invoking sampleSum, so samples
+// Precondition: flush() sorts h.samples before invoking sampleSum, so samples
 // are in ascending order of .value.
 //
 // Algorithm (for uniform weights, which is the dominant DogStatsD shape — one sample rate
@@ -195,7 +193,6 @@ func (h *Histogram) sampleSum() float64 {
 	return (s + (c + cNeg + cPos)) * h.sharedWeight
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (h *Histogram) addSample(sample *MetricSample, _ float64) {
 	rate := sample.SampleRate
 	if rate == 0 {
@@ -222,7 +219,7 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 		return []*Serie{}, NoSerieError{}
 	}
 
-	sort.Sort(h.samples)
+	slices.SortFunc(h.samples, func(a, b weightSample) int { return cmp.Compare(a.value, b.value) })
 
 	series := make([]*Serie, 0, len(h.aggregates)+len(h.percentiles))
 

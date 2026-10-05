@@ -1,7 +1,14 @@
+private_action_runner:
+  enabled: true
+  actions_allowlist:
+    - com.datadoghq.remoteaction.rshell.runRemediationCommand
+  restricted_shell:
+    privileged:
+      enabled: true
 health_platform:
   enabled: true
   forwarder:
-    interval: 30s
+    interval: 5s
 logs_enabled: true
 logs_config:
   container_collect_all: true

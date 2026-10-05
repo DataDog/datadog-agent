@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed automatic multi-line Go stack trace aggregation for container-based log formats.

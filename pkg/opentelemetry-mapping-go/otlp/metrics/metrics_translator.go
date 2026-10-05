@@ -96,7 +96,7 @@ var _ source.Provider = (*noSourceProvider)(nil)
 type noSourceProvider struct{}
 
 func (*noSourceProvider) Source(context.Context) (source.Source, error) {
-	return source.Source{Kind: source.HostnameKind, Identifier: ""}, nil
+	return source.Source{Kind: source.HostnameKind}, nil
 }
 
 // defaultTranslator is the default metrics translator implementation.
@@ -107,6 +107,7 @@ type defaultTranslator struct {
 	attributesTranslator *attributes.Translator
 	cfg                  translatorConfig
 	mapper               mapper
+	unitMapper           *attributes.UnitMapper
 }
 
 // NewDefaultTranslator creates a new translator with the given options.
@@ -147,6 +148,7 @@ func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator 
 		logger:               logger,
 		attributesTranslator: attributesTranslator,
 		cfg:                  cfg,
+		unitMapper:           attributes.NewUnitMapper(),
 	}
 	// Use custom mapper if provided, otherwise create a defaultMapper
 	if cfg.customMapper != nil {
@@ -385,10 +387,42 @@ func getQuantileTag(quantile float64) string {
 	return "quantile:" + formatFloat(quantile)
 }
 
+// tagsFromDimensions converts a Source.SourceIdentifier.Dimensions map into a "key:value" tag slice
+func tagsFromDimensions(dims map[string]string) []string {
+	tags := make([]string, 0, len(dims))
+	for k, v := range dims {
+		tags = append(tags, k+":"+v)
+	}
+	slices.Sort(tags)
+	return tags
+}
+
+func consumeGCPServerlessSource(consumer Consumer, src source.Source) {
+	c, ok := consumer.(TagSetConsumer)
+	if !ok {
+		return
+	}
+	suffix := "cloudrun"
+	if src.Kind == source.GCPCloudFunctionsKind {
+		suffix = "cloudrunfunctions"
+	}
+	// Revision is useful on application metrics but is not part of the approved
+	// running-metric identity. Keep the running series keyed by four dimensions.
+	dims := src.SourceIdentifier.Dimensions
+	tags := make([]string, 0, 4)
+	for _, key := range []string{"instance", "service_name", "project_id", "location"} {
+		if dims[key] == "" {
+			return
+		}
+		tags = append(tags, key+":"+dims[key])
+	}
+	c.ConsumeTagSet(suffix, tags)
+}
+
 // resolveSource determines the source from resource attributes, falling back to the fallbackSourceProvider if no source is found.
 func resolveSource(ctx context.Context, attributesTranslator *attributes.Translator, res pcommon.Resource, fallbackSourceProvider source.Provider, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
 	src, hasSource := attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler)
-	if !hasSource {
+	if !hasSource && !attributes.IsGCPServerless(res.Attributes()) {
 		var err error
 		src, err = fallbackSourceProvider.Source(ctx)
 		if err != nil {
@@ -514,7 +548,7 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 
 		var host string
 		if src.Kind == source.HostnameKind {
-			host = src.Identifier
+			host = src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			// Don't consume the host yet, first check if we have any nonAPM metrics.
 		}
 
@@ -572,7 +606,8 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 							mapHistogramRuntimeMetricWithAttributes(md, newMetrics, mp)
 						}
 					}
-				} else {
+				}
+				if !isRuntimeMetric(md.Name()) {
 					// If we are here, we have a non-APM metric:
 					// it is not a stats metric, nor a runtime metric.
 					seenNonAPMMetrics = true
@@ -608,9 +643,23 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 					c.ConsumeHost(host)
 				}
 			case source.AWSECSFargateKind:
-				if c, ok := consumer.(TagsConsumer); ok {
-					c.ConsumeTag(src.Tag())
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("fargate", []string{src.Tag()})
 				}
+			case source.AzureContainerAppsKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(src.SourceIdentifier.Dimensions))
+				}
+			case source.AzureAppServiceKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azureappservices", tagsFromDimensions(src.SourceIdentifier.Dimensions))
+				}
+			case source.AzureFunctionsKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azurefunctions", tagsFromDimensions(src.SourceIdentifier.Dimensions))
+				}
+			case source.GCPCloudRunKind, source.GCPCloudFunctionsKind:
+				consumeGCPServerlessSource(consumer, src)
 			}
 		}
 	}
@@ -626,6 +675,11 @@ func (t *defaultTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric
 		originProduct:       t.cfg.originProduct,
 		originSubProduct:    OriginSubProductOTLP,
 		originProductDetail: originProductDetailFromScopeName(scopeName),
+	}
+	if t.cfg.withUnits {
+		if unit, ok := t.unitMapper.Map(md.Unit()); ok {
+			baseDims.unit = unit
+		}
 	}
 	switch md.Type() {
 	case pmetric.MetricTypeGauge:

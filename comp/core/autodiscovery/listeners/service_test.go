@@ -194,6 +194,13 @@ func TestServiceFilterTemplatesDiscovery(t *testing.T) {
 		Instances:     []integration.Data{[]byte("port: 80")},
 		Source:        "file:nginx/auto_conf.yaml",
 	}
+	unrelatedDiscoveryTpl := integration.Config{
+		Name:          "nginx",
+		Provider:      names.File,
+		ADIdentifiers: []string{"nginx"},
+		Discovery:     &integration.DiscoveryConfig{},
+		Source:        "file:nginx/auto_conf.yaml",
+	}
 
 	containsDigests := func(configs map[string]integration.Config, want ...integration.Config) []string {
 		t.Helper()
@@ -268,6 +275,45 @@ func TestServiceFilterTemplatesDiscovery(t *testing.T) {
 			"logs-only sibling should be kept")
 	})
 
+	t.Run("discovery dropped when generic integration sibling matches same service", func(t *testing.T) {
+		openmetricsSibling := integration.Config{
+			Name:          "openmetrics",
+			Provider:      names.File,
+			ADIdentifiers: []string{"redis"},
+			Instances:     []integration.Data{[]byte("namespace: unrelated-app\nopenmetrics_endpoint: http://%%host%%:9121/metrics")},
+			Source:        "file:openmetrics/conf.yaml",
+		}
+		configs := map[string]integration.Config{
+			discoveryTpl.Digest():          discoveryTpl,
+			openmetricsSibling.Digest():    openmetricsSibling,
+			unrelatedDiscoveryTpl.Digest(): unrelatedDiscoveryTpl,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.NotContains(t, configs, discoveryTpl.Digest(),
+			"discovery template should be dropped when any openmetrics config matches the same service, regardless of namespace or Name")
+		assert.Contains(t, configs, openmetricsSibling.Digest(), "openmetrics config should be kept")
+		assert.NotContains(t, configs, unrelatedDiscoveryTpl.Digest(),
+			"unrelated discovery template should ALSO be dropped: once a generic sibling is present, we assume the user already knows how to collect metrics for this whole service, not just the namespace it happens to use")
+	})
+
+	t.Run("discovery dropped when generic integration is configured host-wide with a matching namespace root", func(t *testing.T) {
+		// Simulates a static prometheus config with `namespace: redis`,
+		// whose root ("redis") the config manager would add to the same
+		// staticConfigIndex used for name-based matching.
+		idx := NewStaticConfigIndex()
+		idx.Add("redis")
+
+		configs := map[string]integration.Config{
+			discoveryTpl.Digest():          discoveryTpl,
+			unrelatedDiscoveryTpl.Digest(): unrelatedDiscoveryTpl,
+		}
+		mkSvc(idx).FilterTemplates(configs)
+		assert.NotContains(t, configs, discoveryTpl.Digest(),
+			"discovery template should be dropped when a prometheus config with a matching namespace root is scheduled host-wide")
+		assert.Contains(t, configs, unrelatedDiscoveryTpl.Digest(),
+			"unrelated discovery template should be kept: the match is scoped to the redis namespace, not every integration")
+	})
+
 	t.Run("instrumentation check overrides matched file check", func(t *testing.T) {
 		fileTpl := integration.Config{
 			Name:      "redis",
@@ -313,6 +359,81 @@ func TestServiceFilterTemplatesDiscovery(t *testing.T) {
 		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
 		assert.Contains(t, configs, fileTpl.Digest(), "file template should be kept when instrumentation check does not match the service")
 		assert.NotContains(t, configs, instrTpl.Digest(), "non-matching instrumentation template should be dropped")
+	})
+
+	krakendDiscoveryTpl := integration.Config{
+		Name:          "krakend",
+		Provider:      names.File,
+		ADIdentifiers: []string{"krakend"},
+		// Declares metrics_prefix explicitly (rooting to "krakend", same as
+		// the check name) so every subtest below also covers the case where
+		// an integration declares metrics_prefix even though it doesn't
+		// diverge from its own check name -- exercised alongside the
+		// dedicated divergence case using gearmand further down.
+		Discovery: &integration.DiscoveryConfig{MetricsPrefix: "krakend.api"},
+		Source:    "file:krakend/auto_conf.yaml",
+	}
+
+	t.Run("discovery dropped when static config index has a rooted-in namespace match", func(t *testing.T) {
+		// The config manager adds the *root* of a static generic-integration
+		// config's namespace (see listeners.NamespaceRoot) to the same
+		// StaticConfigIndex used for name-based matching, so simulate that
+		// here by adding the root directly rather than the raw "krakend.api".
+		idx := NewStaticConfigIndex()
+		idx.Add("krakend")
+
+		configs := map[string]integration.Config{
+			krakendDiscoveryTpl.Digest(): krakendDiscoveryTpl,
+		}
+		mkSvc(idx).FilterTemplates(configs)
+		assert.NotContains(t, configs, krakendDiscoveryTpl.Digest(),
+			"discovery template should be dropped when a host-wide static generic-integration config claims a rooted-in namespace")
+	})
+
+	t.Run("discovery kept when static config index has no matching namespace root", func(t *testing.T) {
+		idx := NewStaticConfigIndex()
+		idx.Add("myapp")
+
+		configs := map[string]integration.Config{
+			krakendDiscoveryTpl.Digest(): krakendDiscoveryTpl,
+		}
+		mkSvc(idx).FilterTemplates(configs)
+		assert.Contains(t, configs, krakendDiscoveryTpl.Digest(),
+			"discovery template should be kept when no tracked namespace root matches")
+	})
+
+	gearmandDiscoveryTpl := integration.Config{
+		Name:          "gearmand",
+		Provider:      names.File,
+		ADIdentifiers: []string{"gearmand"},
+		Discovery:     &integration.DiscoveryConfig{MetricsPrefix: "gearman"},
+		Source:        "file:gearmand/auto_conf.yaml",
+	}
+
+	t.Run("discovery dropped when static config index matches metrics_prefix root, not the check name", func(t *testing.T) {
+		idx := NewStaticConfigIndex()
+		idx.Add("gearman")
+
+		configs := map[string]integration.Config{
+			gearmandDiscoveryTpl.Digest(): gearmandDiscoveryTpl,
+		}
+		mkSvc(idx).FilterTemplates(configs)
+		assert.NotContains(t, configs, gearmandDiscoveryTpl.Digest(),
+			"discovery template should be dropped when a host-wide static config claims the metrics_prefix-rooted namespace")
+	})
+
+	t.Run("discovery dropped when static config index matches the check name, even with a diverging metrics_prefix", func(t *testing.T) {
+		// This is more a consequence of the current implementation than a requirement, but assert it
+		// so that any behavior change is deliberate.
+		idx := NewStaticConfigIndex()
+		idx.Add("gearmand")
+
+		configs := map[string]integration.Config{
+			gearmandDiscoveryTpl.Digest(): gearmandDiscoveryTpl,
+		}
+		mkSvc(idx).FilterTemplates(configs)
+		assert.NotContains(t, configs, gearmandDiscoveryTpl.Digest(),
+			"discovery template should still be dropped by the same-name static-config rule regardless of metrics_prefix")
 	})
 }
 

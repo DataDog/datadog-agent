@@ -43,18 +43,22 @@ type Kind string
 
 // Defined Kinds
 const (
-	KindContainer              Kind = "container"
-	KindKubernetesPod          Kind = "kubernetes_pod"
-	KindKubernetesMetadata     Kind = "kubernetes_metadata"
-	KindKubeletMetrics         Kind = "kubelet_metrics"
-	KindKubeCapabilities       Kind = "kubernetes_capabilities"
-	KindKubernetesDeployment   Kind = "kubernetes_deployment"
-	KindECSTask                Kind = "ecs_task"
-	KindContainerImageMetadata Kind = "container_image_metadata"
-	KindProcess                Kind = "process"
-	KindGPU                    Kind = "gpu"
-	KindKubelet                Kind = "kubelet"
-	KindCRD                    Kind = "crd"
+	KindContainer                     Kind = "container"
+	KindKubernetesPod                 Kind = "kubernetes_pod"
+	KindKubernetesMetadata            Kind = "kubernetes_metadata"
+	KindKubeletMetrics                Kind = "kubelet_metrics"
+	KindKubeCapabilities              Kind = "kubernetes_capabilities"
+	KindKubernetesDeployment          Kind = "kubernetes_deployment"
+	KindKubernetesNode                Kind = "kubernetes_node"
+	KindKubernetesKueueQueue          Kind = "kubernetes_kueue_queue"
+	KindKubernetesKueueResourceFlavor Kind = "kubernetes_kueue_resource_flavor"
+	KindKubernetesKueueWorkload       Kind = "kubernetes_kueue_workload"
+	KindECSTask                       Kind = "ecs_task"
+	KindContainerImageMetadata        Kind = "container_image_metadata"
+	KindProcess                       Kind = "process"
+	KindGPU                           Kind = "gpu"
+	KindKubelet                       Kind = "kubelet"
+	KindCRD                           Kind = "crd"
 )
 
 // Source is the source name of an entity.
@@ -540,10 +544,24 @@ type ContainerAllocatedResource struct {
 
 	// ID is the unique ID of the resource, the format depends on the provider
 	ID string
+
+	// PoolName is the DRA pool the device was allocated from (DRA only).
+	PoolName string
+
+	// CdiDevices are the fully-qualified CDI device names for the allocated
+	// resource (DRA only), e.g. "k8s.gpu.nvidia.com/claim=<uid>-gpu-0".
+	CdiDevices []string
 }
 
 func (c ContainerAllocatedResource) String() string {
-	return fmt.Sprintf("Name: %s, ID: %s", c.Name, c.ID)
+	s := fmt.Sprintf("Name: %s, ID: %s", c.Name, c.ID)
+	if c.PoolName != "" {
+		s += ", Pool: " + c.PoolName
+	}
+	if len(c.CdiDevices) > 0 {
+		s += ", CDI Devices: " + strings.Join(c.CdiDevices, " ")
+	}
+	return s
 }
 
 // OrchestratorContainer is a reference to a Container with
@@ -644,8 +662,8 @@ type Container struct {
 	// and that it would be impossible to compute later on
 	CollectorTags   []string
 	Owner           *EntityID
-	SecurityContext *ContainerSecurityContext `proto:"ignore"`
-	ReadinessProbe  *ContainerProbe           `proto:"ignore"`
+	SecurityContext *ContainerSecurityContext
+	ReadinessProbe  *ContainerProbe `proto:"ignore"`
 	Resources       ContainerResources
 	ResizePolicy    ContainerResizePolicy `proto:"ignore"`
 
@@ -653,9 +671,11 @@ type Container struct {
 	// PodResources API to query that data.
 	ResolvedAllocatedResources []ContainerAllocatedResource
 	// GPUDeviceIDs contains the GPU device UUIDs assigned to this container.
-	// Format: ["GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"]
-	// Note: Currently only reliably populated in ECS environments, where it is extracted
-	// from the NVIDIA_VISIBLE_DEVICES environment variable set by the ECS agent.
+	// Format: ["GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", "MIG-xxxxxxxx-..."]
+	// On ECS it is extracted from the NVIDIA_VISIBLE_DEVICES environment
+	// variable. On Kubernetes with DRA (Dynamic Resource Allocation), it is
+	// populated node-locally by resolving the container's CDI device
+	// allocations to NVML UUIDs (physical GPUs and MIG instances).
 	GPUDeviceIDs []string `proto:"ignore"`
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
@@ -769,18 +789,24 @@ func (c Container) String(verbose bool) string {
 	return sb.String()
 }
 
-// PodSecurityContext is the Security Context of a Kubernetes pod
+// PodSecurityContext is the Security Context of a Kubernetes pod. Containers
+// inherit RunAsNonRoot and SeccompProfile from here unless they set their own.
 type PodSecurityContext struct {
-	RunAsUser  int32
-	RunAsGroup int32
-	FsGroup    int32
+	RunAsUser      int32
+	RunAsGroup     int32
+	FsGroup        int32
+	RunAsNonRoot   *bool
+	SeccompProfile *SeccompProfile
 }
 
-// ContainerSecurityContext is the Security Context of a Container
+// ContainerSecurityContext is the Security Context of a Container.
 type ContainerSecurityContext struct {
 	*Capabilities
-	Privileged     bool
-	SeccompProfile *SeccompProfile
+	Privileged               bool
+	SeccompProfile           *SeccompProfile
+	RunAsNonRoot             *bool
+	AllowPrivilegeEscalation *bool
+	ReadOnlyRootFilesystem   *bool
 }
 
 // Capabilities is the capabilities a certain Container security context is capable of
@@ -828,16 +854,17 @@ type KubernetesPod struct {
 	RuntimeClass               string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
-	NamespaceAnnotations       map[string]string   `proto:"ignore"`
-	FinishedAt                 time.Time           `proto:"ignore"`
-	SecurityContext            *PodSecurityContext `proto:"ignore"`
-	Resources                  ContainerResources  `proto:"ignore"`
+	NamespaceAnnotations       map[string]string `proto:"ignore"`
+	FinishedAt                 time.Time         `proto:"ignore"`
+	SecurityContext            *PodSecurityContext
+	Resources                  ContainerResources `proto:"ignore"`
+	DeletionTimestamp          *time.Time         `proto:"ignore"`
+	ReadyTimestamp             *time.Time         `proto:"ignore"`
 
 	// The following fields are only needed for the kubelet check or KSM check
 	// when configured to emit pod metrics from the node agent. That means only
 	// the node agent needs them, so for now they're not added to the protobufs.
 	CreationTimestamp          time.Time                   `proto:"ignore"`
-	DeletionTimestamp          *time.Time                  `proto:"ignore"`
 	StartTime                  *time.Time                  `proto:"ignore"`
 	NodeName                   string                      `proto:"ignore"`
 	HostIP                     string                      `proto:"ignore"`
@@ -1199,6 +1226,66 @@ func (m *KubernetesMetadata) Merge(e Entity) error {
 	return merge(m, mm)
 }
 
+// KubernetesNodeStatus contains status information for a Kubernetes node.
+// Field names mirror the json tags of corev1.NodeSystemInfo for wire compatibility.
+type KubernetesNodeStatus struct {
+	KubeletVersion          string `json:"kubeletVersion"`
+	KernelVersion           string `json:"kernelVersion"`
+	OSImage                 string `json:"osImage"`
+	ContainerRuntimeVersion string `json:"containerRuntimeVersion"`
+	Architecture            string `json:"architecture"`
+	OperatingSystem         string `json:"operatingSystem"`
+}
+
+// KubernetesNode is an Entity representing a Kubernetes Node.
+type KubernetesNode struct {
+	EntityID
+	EntityMeta
+	Status KubernetesNodeStatus
+}
+
+// GetID implements Entity#GetID.
+func (n *KubernetesNode) GetID() EntityID {
+	return n.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (n *KubernetesNode) Merge(e Entity) error {
+	nn, ok := e.(*KubernetesNode)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesNode with different kind %T", e)
+	}
+
+	return merge(n, nn)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (n KubernetesNode) DeepCopy() Entity {
+	cn := deepcopy.Copy(n).(KubernetesNode)
+	return &cn
+}
+
+// String implements Entity#String.
+func (n KubernetesNode) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, n.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "----------- Node Status -----------")
+		_, _ = fmt.Fprintln(&sb, "KubeletVersion:", n.Status.KubeletVersion)
+		_, _ = fmt.Fprintln(&sb, "KernelVersion:", n.Status.KernelVersion)
+		_, _ = fmt.Fprintln(&sb, "OSImage:", n.Status.OSImage)
+		_, _ = fmt.Fprintln(&sb, "ContainerRuntimeVersion:", n.Status.ContainerRuntimeVersion)
+		_, _ = fmt.Fprintln(&sb, "Architecture:", n.Status.Architecture)
+		_, _ = fmt.Fprintln(&sb, "OperatingSystem:", n.Status.OperatingSystem)
+	}
+	return sb.String()
+}
+
+var _ Entity = &KubernetesNode{}
+
 // KubeletMetrics contains collection-level metrics from the kubelet
 type KubeletMetrics struct {
 	EntityID
@@ -1263,6 +1350,8 @@ var _ Entity = &KubernetesMetadata{}
 // KubeletConfigSpec is the kubelet configuration, only the
 // necessary fields are stored
 type KubeletConfigSpec struct {
+	APIVersion       string `json:"apiVersion,omitempty"`
+	Kind             string `json:"kind,omitempty"`
 	CPUManagerPolicy string `json:"cpuManagerPolicy"`
 }
 
@@ -1421,6 +1510,176 @@ func (d KubernetesDeployment) String(verbose bool) string {
 
 var _ Entity = &KubernetesDeployment{}
 
+// KueueQueueType identifies the Kueue queue resource type.
+type KueueQueueType string
+
+const (
+	// KueueLocalQueue is a namespaced Kueue LocalQueue.
+	KueueLocalQueue KueueQueueType = "localqueue"
+	// KueueClusterQueue is a cluster-scoped Kueue ClusterQueue.
+	KueueClusterQueue KueueQueueType = "clusterqueue"
+)
+
+// GenerateKueueQueueEntityID returns the workloadmeta entity ID for a Kueue queue.
+func GenerateKueueQueueEntityID(queueType KueueQueueType, namespace, name string) (string, error) {
+	switch queueType {
+	case KueueLocalQueue:
+		return string(queueType) + "/" + namespace + "/" + name, nil
+	case KueueClusterQueue:
+		return string(queueType) + "//" + name, nil
+	default:
+		return "", fmt.Errorf("unsupported Kueue queue type %q", queueType)
+	}
+}
+
+// KubernetesKueueQueue is an Entity representing a Kueue LocalQueue or ClusterQueue.
+type KubernetesKueueQueue struct {
+	EntityID
+	EntityMeta
+	QueueType        KueueQueueType
+	ClusterQueueName string
+}
+
+// GetID implements Entity#GetID.
+func (q *KubernetesKueueQueue) GetID() EntityID {
+	return q.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (q *KubernetesKueueQueue) Merge(e Entity) error {
+	qq, ok := e.(*KubernetesKueueQueue)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesKueueQueue with different kind %T", e)
+	}
+
+	return merge(q, qq)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (q KubernetesKueueQueue) DeepCopy() Entity {
+	cq := deepcopy.Copy(q).(KubernetesKueueQueue)
+	return &cq
+}
+
+// String implements Entity#String.
+func (q KubernetesKueueQueue) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, q.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, q.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Kueue Queue -----------")
+	_, _ = fmt.Fprintln(&sb, "Queue Type:", q.QueueType)
+	_, _ = fmt.Fprintln(&sb, "Cluster Queue:", q.ClusterQueueName)
+	return sb.String()
+}
+
+var _ Entity = &KubernetesKueueQueue{}
+
+// GenerateKueueResourceFlavorEntityID returns the workloadmeta entity ID for a Kueue ResourceFlavor.
+func GenerateKueueResourceFlavorEntityID(name string) string {
+	return name
+}
+
+// KubernetesKueueResourceFlavor is an Entity representing a Kueue ResourceFlavor.
+type KubernetesKueueResourceFlavor struct {
+	EntityID
+	EntityMeta
+	NodeAffinityLabels map[string]string
+}
+
+// GetID implements Entity#GetID.
+func (rf *KubernetesKueueResourceFlavor) GetID() EntityID {
+	return rf.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (rf *KubernetesKueueResourceFlavor) Merge(e Entity) error {
+	rrf, ok := e.(*KubernetesKueueResourceFlavor)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesKueueResourceFlavor with different kind %T", e)
+	}
+
+	return merge(rf, rrf)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (rf KubernetesKueueResourceFlavor) DeepCopy() Entity {
+	crf := deepcopy.Copy(rf).(KubernetesKueueResourceFlavor)
+	return &crf
+}
+
+// String implements Entity#String.
+func (rf KubernetesKueueResourceFlavor) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, rf.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, rf.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Kueue Resource Flavor -----------")
+	_, _ = fmt.Fprintln(&sb, "Node Affinity Labels:", rf.NodeAffinityLabels)
+	return sb.String()
+}
+
+var _ Entity = &KubernetesKueueResourceFlavor{}
+
+// GenerateKueueWorkloadEntityID returns the workloadmeta entity ID for a Kueue Workload.
+func GenerateKueueWorkloadEntityID(namespace, name string) string {
+	return namespace + "/" + name
+}
+
+// KueuePodSetAssignment is a Kueue Workload pod set assignment.
+type KueuePodSetAssignment struct {
+	Name    string
+	Flavors map[string]string
+}
+
+// KubernetesKueueWorkload is an Entity representing a Kueue Workload.
+type KubernetesKueueWorkload struct {
+	EntityID
+	EntityMeta
+	QueueName         string
+	ClusterQueueName  string
+	PodSetAssignments []KueuePodSetAssignment
+}
+
+// GetID implements Entity#GetID.
+func (w *KubernetesKueueWorkload) GetID() EntityID {
+	return w.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (w *KubernetesKueueWorkload) Merge(e Entity) error {
+	ww, ok := e.(*KubernetesKueueWorkload)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesKueueWorkload with different kind %T", e)
+	}
+
+	return merge(w, ww)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (w KubernetesKueueWorkload) DeepCopy() Entity {
+	cw := deepcopy.Copy(w).(KubernetesKueueWorkload)
+	return &cw
+}
+
+// String implements Entity#String.
+func (w KubernetesKueueWorkload) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, w.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, w.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Kueue Workload -----------")
+	_, _ = fmt.Fprintln(&sb, "Queue:", w.QueueName)
+	_, _ = fmt.Fprintln(&sb, "Cluster Queue:", w.ClusterQueueName)
+	_, _ = fmt.Fprintln(&sb, "Pod Set Assignments:", w.PodSetAssignments)
+	return sb.String()
+}
+
+var _ Entity = &KubernetesKueueWorkload{}
+
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"
 
@@ -1537,6 +1796,7 @@ type ContainerImageMetadata struct {
 	OSVersion    string
 	Architecture string
 	Variant      string
+	Created      time.Time
 	Layers       []ContainerImageLayer
 	SBOM         *CompressedSBOM
 }
@@ -1635,6 +1895,7 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "OS Version:", i.OSVersion)
 		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
+		_, _ = fmt.Fprintln(&sb, "Created:", i.Created)
 
 		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
 		if i.SBOM != nil {
@@ -2075,6 +2336,20 @@ type GPU struct {
 	// MemoryBusWidth is the width of the memory bus in bits.
 	MemoryBusWidth uint32
 
+	// PCIBusID is the PCI bus ID of the GPU in domain:bus:device.function format.
+	PCIBusID string
+
+	// FabricClusterUUID identifies the NVLink fabric cluster that contains the GPU.
+	// Empty when the GPU is not registered with a fabric cluster.
+	FabricClusterUUID string
+
+	// FabricCliqueID identifies the P2P clique within the NVLink fabric cluster.
+	// It is meaningful only when FabricClusterUUID is set.
+	FabricCliqueID uint32
+
+	// NVLinkVersion is the version reported by the GPU's NVLink links.
+	NVLinkVersion string
+
 	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
 	DeviceType GPUDeviceType
 
@@ -2084,11 +2359,21 @@ type GPU struct {
 	// Healthy indicates whether or not the GPU device is healthy
 	Healthy bool
 
+	// Lost indicates that the driver reports the GPU as lost (e.g., it fell off
+	// the bus). Attributes that require querying the device keep the values
+	// reported before the GPU was lost.
+	Lost bool
+
 	// ParentGPUUUID is the UUID of the parent GPU device. Empty string if the device does not have a parent.
 	ParentGPUUUID string
 
 	// ChildrenGPUUUIDs is the UUIDs of the child GPU devices. Empty slice if the device does not have children.
 	ChildrenGPUUUIDs []string
+
+	// MIGProfile is the canonical MIG profile name of the device (e.g. "1g.35gb"),
+	// as reported by the driver for the device's GPU instance. Empty for physical
+	// devices and for MIG devices on drivers that do not expose the profile name.
+	MIGProfile string
 }
 
 var _ Entity = &GPU{}
@@ -2147,6 +2432,9 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Memory Bus Width:", g.MemoryBusWidth)
 	_, _ = fmt.Fprintln(&sb, "Max SM Clock Rate:", g.MaxClockRates[GPUSM])
 	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[GPUMemory])
+	if g.Lost {
+		_, _ = fmt.Fprintln(&sb, "Lost: true")
+	}
 
 	// Do not show "physical" device type as it's the default and redundant information
 	if g.DeviceType == GPUDeviceTypeMIG {

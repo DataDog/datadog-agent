@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["common_endpoints.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/commonendpoints/impl",
+        "//pkg/util/fxutil",
+    ],
+)

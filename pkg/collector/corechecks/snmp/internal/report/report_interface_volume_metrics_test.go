@@ -419,7 +419,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+			sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
@@ -591,7 +591,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+			sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			ms := &MetricSender{
@@ -685,7 +685,7 @@ func Test_metricSender_sendInterfaceVolumeMetrics(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+			sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 			sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 

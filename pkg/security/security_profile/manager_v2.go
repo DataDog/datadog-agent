@@ -14,22 +14,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"slices"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	ebpfmanager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -48,6 +55,84 @@ type pendingProfile struct {
 	events    *list.List
 }
 
+// sampleCookieEntry maps a kernel dedup cookie to the profile and tree nodes it refreshes.
+type sampleCookieEntry struct {
+	profile       *profile.Profile
+	processNode   *activity_tree.ProcessNode
+	eventNodeBase *activity_tree.NodeBase
+	imageTag      string
+}
+
+// isOrphaned reports whether the nodes this cookie points at have been evicted. A
+// ProcessNode can outlive the node sampled under it, so the leaf is checked too.
+// Callers must hold e.profile's lock.
+func (e sampleCookieEntry) isOrphaned() bool {
+	if e.processNode == nil || e.processNode.SeenIsEmpty() {
+		return true
+	}
+	return e.eventNodeBase != nil && e.eventNodeBase.SeenIsEmpty()
+}
+
+// sampleCookieMapSize sums the enabled kernel dedup maps. The kernel assumes a cookie it
+// refreshes is still mapped here, so a smaller LRU turns refreshes into misses and lets
+// nodes of running workloads be evicted.
+func sampleCookieMapSize(cfg *config.Config) int {
+	var size int
+	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType) {
+		size += probes.OpenSamplesMaxEntries
+	}
+	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType) {
+		size += probes.ConnectSamplesMaxEntries
+	}
+	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+		size += probes.SyscallSamplesMaxEntries
+	}
+	if size == 0 {
+		// lru.New rejects non-positive sizes.
+		return 1
+	}
+	return size
+}
+
+const (
+	metricSourceRuntime = iota
+	metricSourceReplay
+	metricSourceRelated
+	metricSourceCount
+)
+
+// insertionErrorKey identifies an unexpected activity-tree insertion failure by
+// event type and a bounded error-type label.
+type insertionErrorKey struct {
+	eventType model.EventType
+	errorType string
+}
+
+// perEventTypeMetrics holds the precomputed statsd tags and the counters for a
+// (source, event_type) pair.
+type perEventTypeMetrics struct {
+	tags            []string
+	eventsReceived  *atomic.Uint64
+	eventsImmediate *atomic.Uint64
+	eventsDropped   *atomic.Uint64
+}
+
+// persistenceMetricsKey identifies a persistence metrics bucket by the storage
+// request attributes that make up its statsd tags.
+type persistenceMetricsKey struct {
+	format      config.StorageFormat
+	storageType config.StorageType
+	compression bool
+}
+
+// persistenceMetrics holds the precomputed statsd tags and the counters for a
+// given (format, storage_type, compression) persistence bucket.
+type persistenceMetrics struct {
+	tags              []string
+	sizeInBytes       *atomic.Uint64
+	persistedProfiles *atomic.Uint64
+}
+
 type ManagerV2 struct {
 	config        *config.Config
 	statsdClient  statsd.ClientInterface
@@ -58,11 +143,17 @@ type ManagerV2 struct {
 
 	hostname string
 
+	startTimeMono int64
+
 	profiles     map[cgroupModel.WorkloadSelector]*profile.Profile
 	profilesLock sync.Mutex
 	pathsReducer *activity_tree.PathsReducer
 
 	eventFiltering map[eventFilteringEntry]*atomic.Uint64
+
+	insertionErrors map[insertionErrorKey]*atomic.Uint64
+
+	eventMetrics [metricSourceCount]map[model.EventType]*perEventTypeMetrics
 
 	// storage
 	localStorage              *storage.Directory
@@ -84,11 +175,44 @@ type ManagerV2 struct {
 	pendingProfileRemovals     map[cgroupModel.WorkloadSelector]time.Time
 	pendingProfileRemovalsLock sync.Mutex
 
+	// Sample refresh: maps kernel dedup cookie → (process node, event node, imageTag)
+	sampleCookieMap       *lru.Cache[uint64, sampleCookieEntry]
+	sampleRefreshReceived *atomic.Uint64
+	sampleRefreshHits     *atomic.Uint64
+	sampleRefreshMisses   *atomic.Uint64
+
+	// Counters accumulated outside the SendStats path (ticker callbacks, tag
+	// resolution) and flushed once per SendStats cycle, like the other counters above.
+	tagResolutionEventsDropped  *atomic.Uint64
+	tagResolutionCgroupsExpired *atomic.Uint64
+	cleanupProfilesRemoved      *atomic.Uint64
+	evictionRuns                *atomic.Uint64
+	evictionNodesEvicted        *atomic.Uint64
+
+	// Per-(format, storage_type, compression) persistence counters, precomputed from
+	// the configured storage requests and flushed in SendStats.
+	persistenceMetrics map[persistenceMetricsKey]*persistenceMetrics
+
 	containerFilters workloadfilter.FilterBundle
 	imageExcluder    *imageExcluder
+
+	// excludedCgroupsMap holds host/systemd cgroup inodes the v2 syscall sampler must skip.
+	// The sampler samples every cgroup by default; userspace is the sole writer of exclusions.
+	excludedCgroupsMap *ebpf.Map
 }
 
-func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, filterStore workloadfilter.Component) (*ManagerV2, error) {
+func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, startTime time.Time, filterStore workloadfilter.Component) (*ManagerV2, error) {
+
+	excludedCgroupsMap, err := managerhelper.Map(ebpf, "excluded_cgroups")
+	if err != nil {
+		return nil, err
+	}
+
+	if cfg.RuntimeSecurity.SecurityProfileV2ClearLocalProfilesOnStart {
+		if err := storage.ClearLocalProfilesOnStart(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory); err != nil {
+			return nil, fmt.Errorf("couldn't clear local security profiles: %w", err)
+		}
+	}
 
 	localStorage, err := storage.NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
 	if err != nil {
@@ -117,6 +241,11 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		"",
 	))
 
+	cookieMap, err := lru.New[uint64, sampleCookieEntry](sampleCookieMapSize(cfg))
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate the sample cookie map: %w", err)
+	}
+
 	var containerFilter workloadfilter.FilterBundle
 	if filterStore != nil {
 		containerFilter = filterStore.GetContainerRuntimeSecurityFilters()
@@ -131,34 +260,51 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 	}
 
 	m := &ManagerV2{
-		config:                    cfg,
-		statsdClient:              statsdClient,
-		resolvers:                 resolvers,
-		kernelVersion:             kernelVersion,
-		profilePendingEvents:      make(map[containerutils.CGroupID]*pendingProfile),
-		queueSize:                 atomic.NewUint64(0),
-		pendingProfiles:           atomic.NewUint64(0),
-		pathsReducer:              activity_tree.NewPathsReducer(),
-		profiles:                  make(map[cgroupModel.WorkloadSelector]*profile.Profile),
-		localStorage:              localStorage,
-		remoteStorage:             remoteStorage,
-		configuredStorageRequests: perFormatStorageRequests(configuredStorageRequests),
-		hostname:                  hostname,
-		sendAnomalyDetection:      sendAnomalyDetection,
-		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
-		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
-		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
-		containerFilters:          containerFilter,
-		imageExcluder:             imgExcluder,
+		config:                      cfg,
+		statsdClient:                statsdClient,
+		resolvers:                   resolvers,
+		kernelVersion:               kernelVersion,
+		profilePendingEvents:        make(map[containerutils.CGroupID]*pendingProfile),
+		queueSize:                   atomic.NewUint64(0),
+		pendingProfiles:             atomic.NewUint64(0),
+		pathsReducer:                activity_tree.NewPathsReducer(),
+		profiles:                    make(map[cgroupModel.WorkloadSelector]*profile.Profile),
+		localStorage:                localStorage,
+		remoteStorage:               remoteStorage,
+		configuredStorageRequests:   perFormatStorageRequests(configuredStorageRequests),
+		hostname:                    hostname,
+		startTimeMono:               resolvers.TimeResolver.ComputeMonotonicTimestamp(startTime),
+		sendAnomalyDetection:        sendAnomalyDetection,
+		eventFiltering:              make(map[eventFilteringEntry]*atomic.Uint64),
+		insertionErrors:             make(map[insertionErrorKey]*atomic.Uint64),
+		resolvedCgroups:             make(map[containerutils.CGroupID]struct{}),
+		pendingProfileRemovals:      make(map[cgroupModel.WorkloadSelector]time.Time),
+		sampleCookieMap:             cookieMap,
+		sampleRefreshReceived:       atomic.NewUint64(0),
+		sampleRefreshHits:           atomic.NewUint64(0),
+		sampleRefreshMisses:         atomic.NewUint64(0),
+		tagResolutionEventsDropped:  atomic.NewUint64(0),
+		tagResolutionCgroupsExpired: atomic.NewUint64(0),
+		cleanupProfilesRemoved:      atomic.NewUint64(0),
+		evictionRuns:                atomic.NewUint64(0),
+		evictionNodesEvicted:        atomic.NewUint64(0),
+		containerFilters:            containerFilter,
+		imageExcluder:               imgExcluder,
+		excludedCgroupsMap:          excludedCgroupsMap,
 	}
 
 	m.initMetricsMap()
+	m.initEventMetrics()
+	m.initPersistenceMetrics()
 	return m, nil
 }
 
 // initMetricsMap initializes the event filtering metrics map with all combinations of event types, states, and results
 func (m *ManagerV2) initMetricsMap() {
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
+		for _, errorType := range activity_tree.InsertionErrorTypes {
+			m.insertionErrors[insertionErrorKey{eventType: i, errorType: errorType}] = atomic.NewUint64(0)
+		}
 		for _, state := range model.AllEventFilteringProfileState {
 			for _, result := range allEventFilteringResults {
 				m.eventFiltering[eventFilteringEntry{
@@ -171,6 +317,71 @@ func (m *ManagerV2) initMetricsMap() {
 	}
 }
 
+// initEventMetrics precomputes the {source, event_type} tags and counters for every source and
+// every configured profile event type. Event types that are never captured by V2 profiles are
+// filtered out in ProcessEvent, so there's no point allocating counters for them.
+func (m *ManagerV2) initEventMetrics() {
+	sources := [metricSourceCount]model.EventSource{
+		metricSourceRuntime: model.EventSourceRuntime,
+		metricSourceReplay:  model.EventSourceReplay,
+		metricSourceRelated: model.EventSourceRelated,
+	}
+	eventTypes := m.config.RuntimeSecurity.SecurityProfileV2EventTypes
+	for src, sourceName := range sources {
+		m.eventMetrics[src] = make(map[model.EventType]*perEventTypeMetrics, len(eventTypes))
+		for _, et := range eventTypes {
+			m.eventMetrics[src][et] = &perEventTypeMetrics{
+				tags:            []string{"source:" + string(sourceName), "event_type:" + et.String()},
+				eventsReceived:  atomic.NewUint64(0),
+				eventsImmediate: atomic.NewUint64(0),
+				eventsDropped:   atomic.NewUint64(0),
+			}
+		}
+	}
+}
+
+// initPersistenceMetrics precomputes the statsd tags and counters for every configured
+// persistence bucket, keyed by (format, storage_type, compression). Buckets are derived from
+// the same storage requests used when persisting, so sendPersistenceMetrics always finds an entry.
+func (m *ManagerV2) initPersistenceMetrics() {
+	m.persistenceMetrics = make(map[persistenceMetricsKey]*persistenceMetrics)
+	for _, requests := range m.configuredStorageRequests {
+		for _, request := range requests {
+			key := persistenceMetricsKey{
+				format:      request.Format,
+				storageType: request.Type,
+				compression: request.Compression,
+			}
+			if _, ok := m.persistenceMetrics[key]; ok {
+				continue
+			}
+			m.persistenceMetrics[key] = &persistenceMetrics{
+				tags: []string{
+					"format:" + request.Format.String(),
+					"storage_type:" + request.Type.String(),
+					"compression:" + strconv.FormatBool(request.Compression),
+				},
+				sizeInBytes:       atomic.NewUint64(0),
+				persistedProfiles: atomic.NewUint64(0),
+			}
+		}
+	}
+}
+
+// eventMetricsFor returns the metric counters for the given source/event type, or nil if the
+// event type isn't one of the configured profile event types. The three known sources (runtime,
+// replay, related) each map to their own shard so related traffic isn't misreported as runtime.
+func (m *ManagerV2) eventMetricsFor(source model.EventSource, et model.EventType) *perEventTypeMetrics {
+	src := metricSourceRuntime
+	switch source {
+	case model.EventSourceReplay:
+		src = metricSourceReplay
+	case model.EventSourceRelated:
+		src = metricSourceRelated
+	}
+	return m.eventMetrics[src][et]
+}
+
 func (m *ManagerV2) Start(ctx context.Context) {
 	sendTickerChan := m.setupPersistenceTicker()
 	nodeEvictionTickerChan := m.setupNodeEvictionTicker()
@@ -180,6 +391,19 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	// Register listener for cgroup deletions to track active cgroups
 	if err := m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, m.onCGroupDeleted); err != nil {
 		seclog.Errorf("failed to register cgroup deletion listener: %v", err)
+	}
+
+	// Register listener for cgroup creations to exclude host/systemd cgroups from the syscall sampler
+	if m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+		if err := m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupCreated, m.onCGroupCreated); err != nil {
+			seclog.Errorf("failed to register cgroup creation listener: %v", err)
+		} else {
+			// Exclude cgroups discovered before this registration (the resolver snapshot can run first).
+			m.resolvers.CGroupResolver.IterateCacheEntries(func(cgce *cgroupModel.CacheEntry) bool {
+				m.onCGroupCreated(cgce)
+				return false
+			})
+		}
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -241,9 +465,33 @@ func (m *ManagerV2) setupStalePurgeTicker() <-chan time.Time {
 	return time.NewTicker(10 * time.Second).C
 }
 
+// onCGroupCreated excludes host/systemd cgroups from the v2 syscall sampler and un-excludes
+// container cgroups (defensive against cgroup inode reuse).
+func (m *ManagerV2) onCGroupCreated(cgce *cgroupModel.CacheEntry) {
+	inode := cgce.GetCGroupInode()
+
+	if cgce.IsContainerContextNull() {
+		if err := m.excludedCgroupsMap.Put(inode, uint8(1)); err != nil {
+			seclog.Debugf("couldn't exclude cgroup inode %d from sampling: %v", inode, err)
+		}
+		return
+	}
+
+	if err := m.excludedCgroupsMap.Delete(inode); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+		seclog.Debugf("couldn't un-exclude container cgroup inode %d: %v", inode, err)
+	}
+}
+
 // onCGroupDeleted is called when a cgroup is deleted from the system
 func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	cgroupID := cgce.GetCGroupID()
+
+	if m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+		inode := cgce.GetCGroupInode()
+		if err := m.excludedCgroupsMap.Delete(inode); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			seclog.Debugf("couldn't remove cgroup inode %d from exclusion map: %v", inode, err)
+		}
+	}
 
 	// Remove from resolvedCgroups
 	m.resolvedCgroupsLock.Lock()
@@ -301,12 +549,12 @@ func (m *ManagerV2) cleanupPendingProfiles() {
 		}
 
 		seclog.Infof("removing profile [%s] after cleanup delay", selector.String())
+		m.purgeCookiesForProfile(prof)
 		delete(m.profiles, selector)
 		delete(m.pendingProfileRemovals, selector)
 
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2CleanupProfilesRemoved, 1, []string{}, 1.0); err != nil {
-			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2CleanupProfilesRemoved, err)
-		}
+		// Accumulate removed profiles count; flushed in SendStats
+		m.cleanupProfilesRemoved.Inc()
 	}
 }
 
@@ -329,12 +577,7 @@ func (m *ManagerV2) persistAllProfiles() {
 
 // persistProfile encodes and persists a single profile to all configured storage backends
 func (m *ManagerV2) persistProfile(p *profile.Profile) {
-	if !p.IsEnabled() {
-		return
-	}
-
-	format := config.Protobuf
-	requests := m.configuredStorageRequests[format]
+	enabled := p.IsEnabled()
 
 	// Consolidate sibling FileNodes into path-pattern templates before
 	// encoding. This is the "learning → stable" finalize pass: merges run
@@ -345,17 +588,32 @@ func (m *ManagerV2) persistProfile(p *profile.Profile) {
 		p.ActivityTree.FinalizePatterns()
 	}
 
-	data, err := p.Encode(format)
-	if err != nil {
-		seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
-		return
+	encoded := make(map[config.StorageFormat]*bytes.Buffer)
+	for format, requests := range m.configuredStorageRequests {
+		for _, request := range requests {
+			// Avoid sending a disabled profile to the backend
+			if !enabled && request.Type != config.LocalStorage {
+				continue
+			}
+
+			data, ok := encoded[format]
+			if !ok {
+				var err error
+				data, err = p.Encode(format)
+				if err != nil {
+					seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
+					break
+				}
+				encoded[format] = data
+			}
+
+			m.persistProfileToStorage(p, request, data)
+		}
 	}
 
-	for _, request := range requests {
-		m.persistProfileToStorage(p, request, data)
+	if enabled {
+		p.SetHasAlreadyBeenSent()
 	}
-
-	p.SetHasAlreadyBeenSent()
 }
 
 // persistProfileToStorage persists profile data to a specific storage backend
@@ -380,31 +638,50 @@ func (m *ManagerV2) persistProfileToStorage(p *profile.Profile, request config.S
 	m.sendPersistenceMetrics(request, data.Len())
 }
 
-// sendPersistenceMetrics sends metrics after successful profile persistence
+// sendPersistenceMetrics accumulates persistence metrics after successful profile persistence.
+// The counters are flushed once per SendStats cycle.
 func (m *ManagerV2) sendPersistenceMetrics(request config.StorageRequest, dataSize int) {
-	tags := []string{
-		"format:" + request.Format.String(),
-		"storage_type:" + request.Type.String(),
-		"compression:" + strconv.FormatBool(request.Compression),
+	pm := m.persistenceMetrics[persistenceMetricsKey{
+		format:      request.Format,
+		storageType: request.Type,
+		compression: request.Compression,
+	}]
+	if pm == nil {
+		return
 	}
 
-	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SizeInBytes, int64(dataSize), tags, 1.0); err != nil {
-		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2SizeInBytes, err)
+	pm.sizeInBytes.Add(uint64(dataSize))
+	pm.persistedProfiles.Inc()
+}
+
+func (m *ManagerV2) withinProfilingStartupDelay(nowMono uint64) bool {
+	delay := m.config.RuntimeSecurity.SecurityProfileV2ProfilingStartupDelay
+	if delay == 0 {
+		return false
 	}
-	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2PersistedProfiles, 1, tags, 1.0); err != nil {
-		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2PersistedProfiles, err)
-	}
+	return int64(nowMono)-m.startTimeMono < delay.Nanoseconds()
 }
 
 func (m *ManagerV2) ProcessEvent(event *model.Event) {
-
-	// Filter out events that are not in the configured V2 event types
-	if !slices.Contains(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.EventType(event.Type)) {
+	if m.withinProfilingStartupDelay(event.TimestampRaw) {
 		return
 	}
 
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
+		// A host/systemd cgroup that slipped a syscall sample through before being excluded: exclude it now.
+		if event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+			if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
+				if err := m.excludedCgroupsMap.Put(inode, uint8(1)); err != nil {
+					seclog.Debugf("couldn't exclude cgroup inode %d from sampling: %v", inode, err)
+				}
+			}
+		}
+		return
+	}
+
+	// Filter out events that are not in the configured V2 event types
+	if !slices.Contains(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.EventType(event.Type)) {
 		return
 	}
 
@@ -413,14 +690,12 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
-	// Resolve event source (runtime or replay) and event type
+	// Resolve event source and look up its precomputed (source, event_type) counters.
 	source := event.FieldHandlers.ResolveSource(event, &event.BaseEvent)
-	eventType := event.GetType()
-	metricTags := []string{"source:" + source, "event_type:" + eventType}
+	em := m.eventMetricsFor(source, model.EventType(event.Type))
 
-	// Emit metric for events that pass initial filters
-	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsReceived, 1, metricTags, 1.0); err != nil {
-		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsReceived, err)
+	if em != nil {
+		em.eventsReceived.Inc()
 	}
 
 	// Try to resolve tags for this workload
@@ -431,12 +706,12 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		// Set resolved tags on the event for downstream processing
 		event.ProcessContext.Process.ContainerContext.Tags = workloadTags
 
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsImmediate, 1, metricTags, 1.0); err != nil {
-			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsImmediate, err)
+		if em != nil {
+			em.eventsImmediate.Inc()
 		}
 		m.processEventWithResolvedTags(event)
 	} else {
-		m.queueEventForTagResolution(event, metricTags)
+		m.queueEventForTagResolution(event, em)
 	}
 }
 
@@ -451,19 +726,15 @@ func (m *ManagerV2) purgeStalePendingEvents(currentTimestamp time.Time) {
 			eventsLen := pendingEvents.events.Len()
 			if eventsLen > 0 {
 				m.queueSize.Sub(uint64(eventsLen))
-				// Emit dropped events metric (source unknown for queued events)
-				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(eventsLen), []string{}, 1.0); err != nil {
-					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionEventsDropped, err)
-				}
+				// Accumulate dropped events; flushed in SendStats (source unknown for queued events)
+				m.tagResolutionEventsDropped.Add(uint64(eventsLen))
 			}
 
 			delete(m.profilePendingEvents, cgroupID)
 			m.pendingProfiles.Dec()
 
-			// Emit metric for expired cgroup
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionCgroupsExpired, 1, []string{}, 1.0); err != nil {
-				seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionCgroupsExpired, err)
-			}
+			// Accumulate expired cgroup count; flushed in SendStats
+			m.tagResolutionCgroupsExpired.Inc()
 		}
 	}
 }
@@ -504,7 +775,7 @@ func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
 }
 
 // queueEventForTagResolution queues an event while waiting for tag resolution
-func (m *ManagerV2) queueEventForTagResolution(event *model.Event, tags []string) {
+func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventTypeMetrics) {
 	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
 
 	m.profilePendingEventsLock.Lock()
@@ -530,9 +801,8 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, tags []string
 			// Decrement queue size BEFORE clearing the list
 			m.queueSize.Sub(uint64(eventsLen))
 			pendingEvents.events.Init()
-			// Emit dropped metric
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(eventsLen), tags, 1.0); err != nil {
-				seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionEventsDropped, err)
+			if em != nil {
+				em.eventsDropped.Add(uint64(eventsLen))
 			}
 		}
 		return
@@ -545,10 +815,18 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, tags []string
 	m.queueSize.Inc()
 }
 
+func (m *ManagerV2) shouldSendAnomalyDetection(p *profile.Profile, now time.Time) bool {
+	if !m.config.RuntimeSecurity.SecurityProfileV2ProfileReportingDelayTimeBased {
+		return p.HasAlreadyBeenSent()
+	}
+
+	return now.Sub(p.Metadata.Start) >= m.config.RuntimeSecurity.SecurityProfileV2ProfileReportingDelayDuration
+}
+
 // onEventTagsResolved is called when an event has its tags resolved and is ready to be inserted into a profile
 func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 	profile, inserted := m.insertEventIntoProfile(event)
-	if !inserted || profile == nil || !profile.HasAlreadyBeenSent() {
+	if !inserted || profile == nil || !m.shouldSendAnomalyDetection(profile, event.ResolveEventTime()) {
 		return
 	}
 
@@ -570,13 +848,16 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 		m.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
 	}
 
+	event.SecurityProfileContext.ProfileAlreadySent = profile.HasAlreadyBeenSent()
+
 	if m.config.RuntimeSecurity.AnomalyDetectionEnabled {
+		// Flag as an anomaly so the serializer emits the sampled syscall (mirrors the V1 path).
+		event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
 		m.sendAnomalyDetection(event)
 	}
 }
 
 func (m *ManagerV2) SendStats() error {
-
 	// Tag resolution gauges
 	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2TagResolutionEventsQueued, float64(m.queueSize.Load()), []string{}, 1.0); err != nil {
 		return err
@@ -622,6 +903,64 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
+	// Sample refresh metrics
+	if value := m.sampleRefreshReceived.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SampleRefreshReceived, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.sampleRefreshHits.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SampleRefreshHits, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.sampleRefreshMisses.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SampleRefreshMisses, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+
+	// Tag resolution, cleanup and eviction counters accumulated outside SendStats
+	if value := m.tagResolutionEventsDropped.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.tagResolutionCgroupsExpired.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionCgroupsExpired, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.cleanupProfilesRemoved.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2CleanupProfilesRemoved, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.evictionRuns.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EvictionRuns, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.evictionNodesEvicted.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EvictionNodesEvictedPerProfile, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+
+	// Per-(format, storage_type, compression) persistence counters
+	for _, pm := range m.persistenceMetrics {
+		if value := pm.sizeInBytes.Swap(0); value > 0 {
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SizeInBytes, int64(value), pm.tags, 1.0); err != nil {
+				return err
+			}
+		}
+		if value := pm.persistedProfiles.Swap(0); value > 0 {
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2PersistedProfiles, int64(value), pm.tags, 1.0); err != nil {
+				return err
+			}
+		}
+	}
+
 	// Event filtering metrics
 	for entry, count := range m.eventFiltering {
 		tags := []string{
@@ -632,6 +971,37 @@ func (m *ManagerV2) SendStats() error {
 		if value := count.Swap(0); value > 0 {
 			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
 				return err
+			}
+		}
+	}
+
+	// Activity-tree insertion errors (unexpected failures only)
+	for key, count := range m.insertionErrors {
+		if value := count.Swap(0); value > 0 {
+			tags := []string{"event_type:" + key.eventType.String(), "error_type:" + key.errorType}
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2InsertionErrors, int64(value), tags, 1.0); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Per-(source, event_type) event counters.
+	for src := range m.eventMetrics {
+		for _, em := range m.eventMetrics[src] {
+			if value := em.eventsReceived.Swap(0); value > 0 {
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsReceived, int64(value), em.tags, 1.0); err != nil {
+					return err
+				}
+			}
+			if value := em.eventsImmediate.Swap(0); value > 0 {
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsImmediate, int64(value), em.tags, 1.0); err != nil {
+					return err
+				}
+			}
+			if value := em.eventsDropped.Swap(0); value > 0 {
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(value), em.tags, 1.0); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -723,10 +1093,6 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
 	// semantics for ActivityDump/legacy Manager paths.
 	// TODO: we should handle this in a better way
-	if !secprof.IsEnabled() {
-		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
-		return nil, false
-	}
 
 	if secprof.ComputeHeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
 		secprof.Disable()
@@ -735,17 +1101,45 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
-	// Ensure version context exists for this selector
-	m.ensureVersionContext(secprof, selector.Tag)
+	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
+	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+	if imageTag == "" {
+		seclog.Warnf("no image_tag for %s, falling back to 'latest'", secprof.GetSelectorStr())
+		imageTag = "latest"
+	}
+	m.ensureVersionContext(secprof, imageTag)
 
 	// Insert the event into the profile's activity tree
-	imageTag := secprof.GetTagValue("image_tag")
-	inserted, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
 		if !activity_tree.IsExpectedFilterError(err) {
+			m.incrementInsertionError(event.GetEventType(), err)
 			seclog.Debugf("couldn't insert event into profile: %v", err)
 		}
 		return nil, false
+	}
+
+	// Register the sample cookie → (process node, event node) mapping for sample refresh events
+	if processNode != nil {
+		var sampleCookie uint64
+		switch event.GetEventType() {
+		case model.FileOpenEventType:
+			sampleCookie = event.Open.SampleCookie
+		case model.BindEventType:
+			sampleCookie = event.Bind.SampleCookie
+		case model.ConnectEventType:
+			sampleCookie = event.Connect.SampleCookie
+		case model.SyscallsEventType:
+			sampleCookie = event.Syscalls.SampleCookie // 0 for drain events
+		}
+		if sampleCookie != 0 {
+			m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
+				profile:       secprof,
+				processNode:   processNode,
+				eventNodeBase: eventNodeBase,
+				imageTag:      imageTag,
+			})
+		}
 	}
 
 	return secprof, inserted
@@ -790,7 +1184,7 @@ func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel
 	}
 }
 
-// linkWorkloadToProfile adds a workload to a profile's Instances if not already tracked
+// linkWorkloadToProfile adds a workload to a profile's Instances if not already tracked.
 func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.Workload) {
 	if workload == nil {
 		return
@@ -808,6 +1202,8 @@ func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.
 	}
 
 	prof.Instances = append(prof.Instances, workload)
+
+	m.resolveAndSaveSecurityContext(prof, workload.GCroupCacheEntry.GetContainerID())
 }
 
 // unlinkWorkloadFromProfile removes a workload from a profile's Instances
@@ -846,7 +1242,7 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 	}
 
 	containerName, imageName, podNamespace := utils.GetContainerFilterTags(event.ProcessContext.Process.ContainerContext.Tags)
-	if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil))) {
+	if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil, nil))) {
 		seclog.Debugf("workload %s excluded by container filter (container=%s image=%s namespace=%s)", selector.String(), containerName, imageName, podNamespace)
 		return nil, errors.New("workload excluded")
 	}
@@ -885,6 +1281,8 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
+		profile.WithObservedRollups(),
+		profile.WithSeededSyscalls(m.seededSyscalls()),
 		profile.WithPathPatterns(activity_tree.DefaultPathPatternConfig()),
 	)
 
@@ -906,6 +1304,8 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 	secprof.Metadata.ContainerID = event.ProcessContext.Process.ContainerContext.ContainerID
 	secprof.Metadata.CGroupContext = event.ProcessContext.Process.CGroup
 
+	m.resolveAndSaveSecurityContext(secprof, event.ProcessContext.Process.ContainerContext.ContainerID)
+
 	// Apply eviction right away if configured
 	if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
 		workloadID := getWorkloadIDFromEvent(event)
@@ -919,6 +1319,9 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		)
 		if evicted > 0 {
 			seclog.Debugf("evicted %d unused nodes from loaded profile [%s]", evicted, selector.String())
+			if purged := m.purgeOrphanedCookies(); purged > 0 {
+				seclog.Debugf("purged %d orphaned sample cookies after loading profile [%s]", purged, selector.String())
+			}
 		}
 	}
 
@@ -933,6 +1336,8 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
+		profile.WithObservedRollups(),
+		profile.WithSeededSyscalls(m.seededSyscalls()),
 		profile.WithPathPatterns(activity_tree.DefaultPathPatternConfig()),
 	)
 	secprof.SetTreeType(secprof, "security_profile")
@@ -957,6 +1362,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		Start:             eventTime,
 		End:               eventTime,
 	}
+	m.resolveAndSaveSecurityContext(secprof, event.ProcessContext.Process.ContainerContext.ContainerID)
 	secprof.Header.Host = m.hostname
 	secprof.Header.Source = ActivityDumpSource
 
@@ -966,6 +1372,30 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 	}
 
 	return secprof, nil
+}
+
+// resolveAndSaveSecurityContext resolves the container's declared SecurityContext
+// and saves it under its workload-template key. For Localhost seccomp profiles it
+// also resolves the effective filter from the node's kubelet seccomp directory.
+func (m *ManagerV2) resolveAndSaveSecurityContext(secprof *profile.Profile, id containerutils.ContainerID) {
+	if m.resolvers == nil || m.resolvers.SecurityContextResolver == nil || len(id) == 0 {
+		return
+	}
+	key, sc := m.resolvers.SecurityContextResolver.Resolve(id)
+	if sc == nil || key.IsZero() {
+		return
+	}
+
+	if sc.Seccomp != nil && sc.Seccomp.Type == securitycontext.SeccompLocalhost {
+		filter, err := m.resolvers.SecurityContextResolver.ResolveSeccompFilter(sc.Seccomp)
+		if err != nil {
+			seclog.Warnf("seccomp filter resolution failed for container %s: %v", id, err)
+		} else if filter != nil {
+			sc.Seccomp.Filter = filter
+		}
+	}
+
+	secprof.SaveSecurityContext(key, sc)
 }
 
 // resolveAndAddProfileTags resolves tags for the profile's workload and adds them to the profile
@@ -1011,6 +1441,19 @@ func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string) {
 	secprof.AddVersionContext(tag, vCtx)
 }
 
+// seededSyscalls returns the sampler ignore-list ids for the running arch, or nil when off.
+func (m *ManagerV2) seededSyscalls() []uint32 {
+	if !m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+		return nil
+	}
+	ids := utils.SampledIgnoredSyscallIDsForArch(runtime.GOARCH)
+	out := make([]uint32, len(ids))
+	for i, id := range ids {
+		out[i] = uint32(id)
+	}
+	return out
+}
+
 // FillProfileContextFromWorkloadID fills the given ctx with workload id infos
 func (m *ManagerV2) FillProfileContextFromWorkloadID(id containerutils.WorkloadID, ctx *model.SecurityProfileContext, imageTag string) {
 	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
@@ -1046,12 +1489,19 @@ func (m *ManagerV2) incrementEventFilteringStat(eventType model.EventType, state
 	}
 }
 
+// incrementInsertionError records an unexpected activity-tree insertion failure for the given
+// event type, categorizing err into a bounded error-type label.
+func (m *ManagerV2) incrementInsertionError(eventType model.EventType, err error) {
+	key := insertionErrorKey{eventType: eventType, errorType: activity_tree.InsertionErrorType(err)}
+	if entry, ok := m.insertionErrors[key]; ok {
+		entry.Inc()
+	}
+}
+
 // evictUnusedNodes performs periodic eviction of non-touched nodes from all active profiles
 func (m *ManagerV2) evictUnusedNodes() {
-	// Emit eviction run metric
-	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EvictionRuns, 1, []string{}, 1.0); err != nil {
-		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EvictionRuns, err)
-	}
+	// Accumulate eviction run count; flushed in SendStats
+	m.evictionRuns.Inc()
 
 	evictionTime := time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout)
 	totalEvicted := 0
@@ -1063,7 +1513,7 @@ func (m *ManagerV2) evictUnusedNodes() {
 	defer m.profilesLock.Unlock()
 
 	for selector, profile := range m.profiles {
-		if profile == nil {
+		if profile == nil || !profile.IsEnabled() {
 			continue
 		}
 
@@ -1074,22 +1524,21 @@ func (m *ManagerV2) evictUnusedNodes() {
 		}
 		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
 		if evicted > 0 {
-			if !profile.IsEnabled() && profile.ActivityTree.Stats.HeapSize() < int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
-				profile.Enable()
-			}
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
 
-			// Emit per-profile eviction metric
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EvictionNodesEvictedPerProfile, int64(evicted), []string{}, 1.0); err != nil {
-				seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EvictionNodesEvictedPerProfile, err)
-			}
+			// Accumulate evicted node count; flushed in SendStats
+			m.evictionNodesEvicted.Add(uint64(evicted))
 		}
 		profile.Unlock()
 	}
 
 	if totalEvicted > 0 {
 		seclog.Infof("evicted %d total unused process nodes across all profiles", totalEvicted)
+		// Free cookies whose target subtree has been pruned.
+		if purged := m.purgeOrphanedCookies(); purged > 0 {
+			seclog.Debugf("purged %d orphaned sample cookies after eviction cycle", purged)
+		}
 	}
 }
 
@@ -1160,7 +1609,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 	}
 
 	for _, pid := range pids {
-		pce := pr.Resolve(pid, pid, 0, true, nil)
+		pce := pr.Resolve(pid, pid, 0, 0, true, nil)
 		if pce == nil {
 			continue
 		}
@@ -1235,7 +1684,7 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 		}
 
 		for _, pid := range pids {
-			pce := pr.Resolve(pid, pid, 0, true, nil)
+			pce := pr.Resolve(pid, pid, 0, 0, true, nil)
 			if pce == nil {
 				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
 				continue
@@ -1259,6 +1708,75 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 //
 // These methods will be removed once V2 is fully validated and V1 is deprecated.
 // ============================================================================
+
+// HandleSampleRefresh handles a sample refresh event from the kernel.
+// It updates the LastSeen timestamp of the process node associated with the given cookie.
+func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
+	m.sampleRefreshReceived.Inc()
+
+	entry, ok := m.sampleCookieMap.Get(cookie)
+	if !ok {
+		// Cookie never registered, usually because the first EVENT_SYSCALLS was dropped. Nothing
+		// to refresh; the kernel entry self-heals by re-sampling once it goes stale or is evicted.
+		m.sampleRefreshMisses.Inc()
+		return
+	}
+
+	m.sampleRefreshHits.Inc()
+
+	entry.profile.Lock()
+	defer entry.profile.Unlock()
+
+	if entry.isOrphaned() {
+		m.sampleCookieMap.Remove(cookie)
+		return
+	}
+
+	imageTagID := entry.profile.ActivityTree.GetImageTagID(entry.imageTag)
+	if imageTagID == 0 {
+		return
+	}
+
+	now := time.Now()
+	entry.processNode.AppendImageTagID(imageTagID, now)
+	if entry.eventNodeBase != nil {
+		entry.eventNodeBase.AppendImageTagID(imageTagID, now)
+	}
+}
+
+func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile) {
+	for _, key := range m.sampleCookieMap.Keys() {
+		if entry, ok := m.sampleCookieMap.Peek(key); ok && entry.profile == prof {
+			m.sampleCookieMap.Remove(key)
+		}
+	}
+}
+
+// purgeOrphanedCookies removes sampleCookieMap entries whose target nodes have been
+// evicted. Returns the number of entries removed.
+func (m *ManagerV2) purgeOrphanedCookies() int {
+	var removed int
+	for _, key := range m.sampleCookieMap.Keys() {
+		entry, ok := m.sampleCookieMap.Peek(key)
+		if !ok {
+			continue
+		}
+		if entry.profile == nil {
+			m.sampleCookieMap.Remove(key)
+			removed++
+			continue
+		}
+		// Entries can span profiles, so lock per entry.
+		entry.profile.Lock()
+		orphaned := entry.isOrphaned()
+		entry.profile.Unlock()
+		if orphaned {
+			m.sampleCookieMap.Remove(key)
+			removed++
+		}
+	}
+	return removed
+}
 
 // LookupEventInProfiles lookups event in profiles.
 // NO-OP in V2: Event filtering is handled differently through ProcessEvent which builds

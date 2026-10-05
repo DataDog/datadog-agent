@@ -84,6 +84,18 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult RemoveEmptyInstallDirOnRollback(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveEmptyInstallDirOnRollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveEmptyInstallDirAfterUninstall(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveEmptyInstallDirAfterUninstall(session);
+        }
+
+        [CustomAction]
         public static ActionResult DecompressPythonDistributions(Session session)
         {
             return Datadog.CustomActions.PythonDistributionCustomAction.DecompressPythonDistributions(session);
@@ -195,6 +207,18 @@ namespace Datadog.AgentCustomActions
         public static ActionResult DDCreateFolders(Session session)
         {
             return Datadog.CustomActions.ConfigCustomActions.DDCreateFolders(session);
+        }
+
+        [CustomAction]
+        public static ActionResult EnsureSecureConfigRoot(Session session)
+        {
+            return Datadog.CustomActions.PrerequisitesCustomActions.EnsureSecureConfigRoot(session);
+        }
+
+        [CustomAction]
+        public static ActionResult EnsureSecureConfigRootUI(Session session)
+        {
+            return Datadog.CustomActions.PrerequisitesCustomActions.EnsureSecureConfigRootUI(session);
         }
 
         [CustomAction]

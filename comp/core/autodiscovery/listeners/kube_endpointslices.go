@@ -201,6 +201,12 @@ func (l *KubeEndpointSlicesListener) serviceUpdated(old, obj interface{}) {
 		return
 	}
 
+	// Detect if prometheus annotations changed
+	if l.promInclAnnot.AnnotationsDiffer(svc.GetAnnotations(), oldSvc.GetAnnotations()) {
+		l.processServiceUpdate(svc.Namespace, svc.Name)
+		return
+	}
+
 	// Detect changes of AD labels for standard tags if the Service is annotated or tracked
 	tracked := l.serviceTracker != nil && l.serviceTracker.HasService(svc.Namespace, svc.Name)
 	if (isServiceAnnotated(svc, kubeEndpointSlicesID) || tracked) &&
@@ -382,7 +388,8 @@ func (l *KubeEndpointSlicesListener) isServiceTracked(slice *discv1.EndpointSlic
 }
 
 // processEndpointSlice parses a single kubernetes EndpointSlice object
-// and returns a slice of KubeEndpointService per endpoint IP
+// and returns a slice of KubeEndpointService per endpoint IP. Only ready and
+// non-terminating endpoints are returned.
 func processEndpointSlice(slice *discv1.EndpointSlice, tags []string, filterStore workloadfilter.Component) []*KubeEndpointService {
 	var eps []*KubeEndpointService
 
@@ -398,7 +405,7 @@ func processEndpointSlice(slice *discv1.EndpointSlice, tags []string, filterStor
 		return eps
 	}
 
-	filterableEndpoint := workloadfilter.CreateKubeEndpoint(serviceName, namespace, slice.GetAnnotations())
+	filterableEndpoint := workloadfilter.CreateKubeEndpoint(serviceName, namespace, slice.GetAnnotations(), slice.GetLabels())
 	metricsExcluded := filterStore.GetKubeEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableEndpoint)
 	globalExcluded := filterStore.GetKubeEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableEndpoint)
 
@@ -415,6 +422,10 @@ func processEndpointSlice(slice *discv1.EndpointSlice, tags []string, filterStor
 
 	// Iterate through endpoints (IP addresses)
 	for _, endpoint := range slice.Endpoints {
+		if !apiserver.IsEndpointServing(&endpoint) {
+			continue
+		}
+
 		for _, ip := range endpoint.Addresses {
 			// Create a separate AD service per IP
 			ep := &KubeEndpointService{

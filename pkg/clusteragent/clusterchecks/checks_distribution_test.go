@@ -147,7 +147,7 @@ func TestAddToLeastBusy(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			distribution := newConfigsDistribution(test.existingRunners, false, 4.0, 1.0)
+			distribution := newConfigsDistribution(test.existingRunners, false, 4.0, 1.0, 0.05)
 
 			for checkID, checkStatus := range test.existingChecks {
 				distribution.addConfig(checkID, checkStatus.CheckName, checkStatus.WorkersNeeded, checkStatus.Runner, false)
@@ -163,7 +163,7 @@ func TestAddToLeastBusy(t *testing.T) {
 func TestAddCheck(t *testing.T) {
 	distribution := newConfigsDistribution(map[string]int{
 		"runner1": 4,
-	}, false, 4.0, 1.0)
+	}, false, 4.0, 1.0, 0.05)
 
 	distribution.addConfig("check1", "check1", 3, "runner1", false)
 	assert.Equal(t, "runner1", distribution.runnerForConfig("check1"))
@@ -176,7 +176,7 @@ func TestChecksSortedByWorkersNeeded(t *testing.T) {
 		"runner1": 4,
 		"runner2": 4,
 		"runner3": 4,
-	}, false, 4.0, 1.0)
+	}, false, 4.0, 1.0, 0.05)
 
 	distribution.addConfig("check1", "check1", 3, "runner1", false)
 	distribution.addConfig("check2", "check2", 1, "runner1", false)
@@ -189,7 +189,7 @@ func TestChecksSortedByWorkersNeeded(t *testing.T) {
 	distribution = newConfigsDistribution(map[string]int{
 		"runner1": 4,
 		"runner2": 4,
-	}, false, 4.0, 1.0)
+	}, false, 4.0, 1.0, 0.05)
 
 	distribution.addConfig("check_B", "check_B", 1, "runner1", false)
 	distribution.addConfig("check_A", "check_A", 1, "runner2", false)
@@ -203,7 +203,7 @@ func TestNumEmptyRunners(t *testing.T) {
 	distribution := newConfigsDistribution(map[string]int{
 		"runner1": 4,
 		"runner2": 2,
-	}, false, 4.0, 1.0)
+	}, false, 4.0, 1.0, 0.05)
 	assert.Equal(t, 2, distribution.numEmptyRunners())
 
 	distribution.addConfig("check1", "check1", 1, "runner1", false)
@@ -217,7 +217,7 @@ func TestNumRunnersWithHighUtilization(t *testing.T) {
 	distribution := newConfigsDistribution(map[string]int{
 		"runner1": 4,
 		"runner2": 2,
-	}, false, 4.0, 1.0)
+	}, false, 4.0, 1.0, 0.05)
 	assert.Equal(t, 0, distribution.numRunnersWithHighUtilization())
 
 	distribution.addConfig("check1", "check1", 1, "runner1", false) // runner 1 at 25%
@@ -234,7 +234,7 @@ func TestAddConfigConflictTransfersAccumulatedWeight(t *testing.T) {
 	distribution := newConfigsDistribution(map[string]int{
 		"runner1": 4,
 		"runner2": 4,
-	}, false, 4.0, 1.0)
+	}, false, 4.0, 1.0, 0.05)
 
 	// Two instances of digestA are processed on runner1 first.
 	distribution.addConfig("digestA", "configA", 2.0, "runner1", false)
@@ -259,7 +259,7 @@ func TestUtilizationStdDev(t *testing.T) {
 		"runner1": 4,
 		"runner2": 4,
 		"runner3": 4,
-	}, false, 4.0, 1.0)
+	}, false, 4.0, 1.0, 0.05)
 	distribution.addConfig("check1", "check1", 1, "runner1", false)
 	distribution.addConfig("check2", "check2", 2, "runner1", false)
 	distribution.addConfig("check3", "check3", 2, "runner2", false)

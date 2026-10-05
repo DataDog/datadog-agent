@@ -12,6 +12,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 const (
@@ -39,9 +40,11 @@ type DetectorProcessingStats struct {
 type ReplayStats struct {
 	// DetectorStats holds per-detector processing-time statistics keyed by detector name.
 	DetectorStats map[string]DetectorProcessingStats `json:"detector_stats,omitempty"`
-	// InputMetricsCount is the total number of metric data points (samples) in the scenario.
+	// InputMetricsCount is the number of accepted parquet metric samples. It
+	// excludes virtual metrics derived from logs and filtered/dropped samples.
 	InputMetricsCount int64 `json:"input_metrics_count"`
-	// InputMetricsCardinality is the number of unique metric series (name + tag combinations).
+	// InputMetricsCardinality is the number of unique accepted parquet metric
+	// series (name + tag combinations), excluding log-derived series.
 	InputMetricsCardinality int `json:"input_metrics_cardinality"`
 	// InputLogsCount is the number of raw log entries present in the scenario.
 	InputLogsCount int `json:"input_logs_count"`
@@ -87,13 +90,14 @@ func sumStoredTelemetryCounter(sv observerimpl.StateView, name string) int {
 }
 
 // detectorNameFromTags extracts the detector name from a "detector:xxx" tag.
-func detectorNameFromTags(tags []string) string {
-	for _, t := range tags {
-		if strings.HasPrefix(t, "detector:") {
-			return strings.TrimPrefix(t, "detector:")
+func detectorNameFromTags(tags tagset.CompositeTags) string {
+	var name string
+	tags.ForEach(func(tag string) {
+		if name == "" && strings.HasPrefix(tag, "detector:") {
+			name = strings.TrimPrefix(tag, "detector:")
 		}
-	}
-	return ""
+	})
+	return name
 }
 
 // computeDetectorProcessingStatsFromStateView groups telemetry samples for

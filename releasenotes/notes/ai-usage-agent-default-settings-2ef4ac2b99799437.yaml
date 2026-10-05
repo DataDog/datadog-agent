@@ -1,0 +1,22 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    Change default EVP track for AI usage to ``eudm-intake`` and disable
+    AI usage agent desktop monitoring by default (the monitor stays in
+    idle mode).
+    AI usage agent's ``ai_usage_native_host.yaml`` configuration file is
+    now regenerated from the packaged template on every Agent install and
+    upgrade to ensure the default changes take effect. This is a deliberate
+    short-term measure: it forces already-installed machines onto the
+    updated defaults. Once the defaults are settled (expected within a few
+    Agent releases), the installer will go back to preserving an existing
+    ``ai_usage_native_host.yaml`` and only creating it when missing.
+    Note that any customization made to the config file is discarded on
+    every Agent install and upgrade, and must be re-applied afterwards.

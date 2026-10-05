@@ -9,6 +9,7 @@ package apminject
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,6 +18,110 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// fakeServiceManager is a test double for systemdServiceManager that records
+// Uninstall calls and returns canned results.
+type fakeServiceManager struct {
+	installerPath     string
+	tmpfsCompatible   bool
+	serviceFileExists bool
+	setupErr          error
+	setupCalls        int
+	uninstallCalls    int
+}
+
+func (f *fakeServiceManager) InstallerPath() string             { return f.installerPath }
+func (f *fakeServiceManager) TmpfsCompatible() bool             { return f.tmpfsCompatible }
+func (f *fakeServiceManager) ServiceFileExists() bool           { return f.serviceFileExists }
+func (f *fakeServiceManager) Setup(_ context.Context) error     { f.setupCalls++; return f.setupErr }
+func (f *fakeServiceManager) Uninstall(_ context.Context) error { f.uninstallCalls++; return nil }
+
+// TestSetupSystemdPreloadUnit covers the fallback branches: the function uses
+// tmpfs only when setup succeeds with a compatible installer, keeps a
+// successfully started service on version mismatch, and cleans up the unit
+// when setup fails so a unit that cannot start is never left enabled.
+func TestSetupSystemdPreloadUnit(t *testing.T) {
+	tests := []struct {
+		name              string
+		installerPath     string
+		serviceFileExists bool
+		setupErr          error
+		tmpfsCompatible   bool
+		wantUseTmpfs      bool
+		wantSetup         int
+		wantRollback      bool
+		wantUninstall     int
+	}{
+		{
+			name:          "no supported installer, nothing to clean up",
+			installerPath: "",
+			wantUseTmpfs:  false,
+			wantSetup:     0,
+			wantRollback:  false,
+			wantUninstall: 0,
+		},
+		{
+			name:              "no supported installer, stale unit removed",
+			installerPath:     "",
+			serviceFileExists: true,
+			wantUseTmpfs:      false,
+			wantSetup:         0,
+			wantRollback:      false,
+			wantUninstall:     1,
+		},
+		{
+			name:            "setup succeeds, rollback registered",
+			installerPath:   "/usr/bin/datadog-installer",
+			tmpfsCompatible: true,
+			wantUseTmpfs:    true,
+			wantSetup:       1,
+			wantRollback:    true,
+			wantUninstall:   0,
+		},
+		{
+			name:            "pre-tmpfs installer keeps service with persistent preload",
+			installerPath:   "/usr/bin/datadog-installer",
+			tmpfsCompatible: false,
+			wantUseTmpfs:    false,
+			wantSetup:       1,
+			wantRollback:    true,
+			wantUninstall:   0,
+		},
+		{
+			name:              "setup fails, unit cleaned up and falls back",
+			installerPath:     "/usr/bin/datadog-installer",
+			serviceFileExists: true,
+			setupErr:          errors.New("start failed"),
+			wantUseTmpfs:      false,
+			wantSetup:         1,
+			wantRollback:      false,
+			wantUninstall:     1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := &fakeServiceManager{
+				installerPath:     tt.installerPath,
+				tmpfsCompatible:   tt.tmpfsCompatible,
+				serviceFileExists: tt.serviceFileExists,
+				setupErr:          tt.setupErr,
+			}
+			a := &InjectorInstaller{}
+
+			useTmpfs := a.setupSystemdPreloadUnit(context.TODO(), fake)
+
+			assert.Equal(t, tt.wantUseTmpfs, useTmpfs, "useTmpfs return")
+			assert.Equal(t, tt.wantSetup, fake.setupCalls, "Setup call count")
+			assert.Equal(t, tt.wantUninstall, fake.uninstallCalls, "Uninstall call count")
+			if tt.wantRollback {
+				assert.Len(t, a.rollbacks, 1, "a rollback must be registered when the unit is running")
+			} else {
+				assert.Empty(t, a.rollbacks, "no rollback must be registered on the fallback paths")
+			}
+		})
+	}
+}
 
 func TestSetLDPreloadConfig(t *testing.T) {
 	a := &InjectorInstaller{
@@ -102,6 +207,122 @@ func TestRemoveLDPreloadConfig(t *testing.T) {
 
 }
 
+func TestSetLDPreloadConfig_TmpfsMigratesPersistentPath(t *testing.T) {
+	// When the active entry is the tmpfs symlink path, a stale persistent OCI
+	// entry must be migrated in place (not left behind, which would re-create
+	// the reboot hazard).
+	a := &InjectorInstaller{
+		installPath:    "/opt/datadog-packages/datadog-apm-inject/stable",
+		tmpfsInjectDir: "/run/datadog-apm-inject",
+		launcherDir:    "/run/datadog-apm-inject",
+	}
+
+	out, err := a.setLDPreloadConfigContent(context.TODO(),
+		[]byte("/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so\n"))
+	require.NoError(t, err)
+	assert.Equal(t, "/run/datadog-apm-inject/launcher.preload.so\n", string(out))
+
+	// Idempotent: the tmpfs entry already present returns unchanged.
+	out, err = a.setLDPreloadConfigContent(context.TODO(), out)
+	require.NoError(t, err)
+	assert.Equal(t, "/run/datadog-apm-inject/launcher.preload.so\n", string(out))
+}
+
+func TestRemoveLDPreloadConfig_TmpfsPath(t *testing.T) {
+	a := &InjectorInstaller{
+		installPath:    "/opt/datadog-packages/datadog-apm-inject/stable",
+		tmpfsInjectDir: "/run/datadog-apm-inject",
+	}
+	for input, expected := range map[string]string{
+		"/run/datadog-apm-inject/launcher.preload.so\n":                              "",
+		"/abc/def/preload.so\n/run/datadog-apm-inject/launcher.preload.so\n":         "/abc/def/preload.so\n",
+		"/run/datadog-apm-inject/$lib/launcher.preload.so":                           "",
+		"/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so": "",
+	} {
+		output, err := a.deleteLDPreloadConfigContent(context.TODO(), []byte(input))
+		assert.NoError(t, err)
+		assert.Equal(t, expected, string(output))
+	}
+}
+
+func TestLDPreloadEntryMultilib(t *testing.T) {
+	tests := []struct {
+		name           string
+		packageVersion string
+		arch           string
+		completeLayout bool
+		wantMultilib   bool
+	}{
+		{
+			name:           "released supported package",
+			packageVersion: "0.71.0-1",
+			arch:           "amd64",
+			completeLayout: true,
+			wantMultilib:   true,
+		},
+		{
+			name:           "older package",
+			packageVersion: "0.70.0-1",
+			arch:           "amd64",
+			completeLayout: true,
+		},
+		{
+			name:           "supported version with incomplete OCI layout",
+			packageVersion: "0.71.0-1",
+			arch:           "amd64",
+		},
+		{
+			name:           "non-amd64 package",
+			packageVersion: "0.71.0-1",
+			arch:           "arm64",
+			completeLayout: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			installPath := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(installPath, "version"), []byte(tt.packageVersion+"\n"), 0644))
+			if tt.completeLayout {
+				writeMultilibLayout(t, installPath)
+			}
+			a := &InjectorInstaller{installPath: installPath, goArch: tt.arch}
+
+			entry := a.ldPreloadEntry()
+			if tt.wantMultilib {
+				assert.Equal(t, filepath.Join(installPath, "inject", multilibDir, "launcher.preload.so"), entry)
+			} else {
+				assert.Equal(t, filepath.Join(installPath, "inject", "launcher.preload.so"), entry)
+			}
+		})
+	}
+}
+
+func TestSetLDPreloadConfigMigratesToMultilibTmpfsPath(t *testing.T) {
+	installPath := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(installPath, "version"), []byte("0.71.0-1\n"), 0644))
+	writeMultilibLayout(t, installPath)
+	a := &InjectorInstaller{
+		installPath:    installPath,
+		tmpfsInjectDir: "/run/datadog-apm-inject",
+		launcherDir:    "/run/datadog-apm-inject",
+		goArch:         "amd64",
+	}
+
+	out, err := a.setLDPreloadConfigContent(context.TODO(), []byte(filepath.Join(installPath, "inject", "launcher.preload.so")+"\n"))
+	require.NoError(t, err)
+	assert.Equal(t, "/run/datadog-apm-inject/$LIB/launcher.preload.so\n", string(out))
+}
+
+func writeMultilibLayout(t *testing.T, installPath string) {
+	t.Helper()
+	for _, relativePath := range multilibLauncherPaths {
+		launcherPath := filepath.Join(installPath, "inject", filepath.FromSlash(relativePath))
+		require.NoError(t, os.MkdirAll(filepath.Dir(launcherPath), 0755))
+		require.NoError(t, os.WriteFile(launcherPath, []byte("fixture"), 0644))
+	}
+}
+
 func TestShouldInstrumentHost(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -145,7 +366,7 @@ func TestInstrumentLDPreload_MissingLibrary(t *testing.T) {
 
 	a := newInstallerWithPaths(tmpDir, preloadFile)
 
-	err := a.InstrumentLDPreload(context.TODO())
+	err := a.InstrumentLDPreload(context.TODO(), ViaPersistentPath)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "launcher library not found")
 

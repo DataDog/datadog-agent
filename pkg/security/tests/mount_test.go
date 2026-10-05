@@ -9,10 +9,15 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
+	"runtime"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -25,6 +30,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
@@ -53,7 +59,7 @@ func TestMount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	mntPath := testDrive.Path("test-mount")
 	os.MkdirAll(mntPath, 0755)
@@ -63,7 +69,7 @@ func TestMount(t *testing.T) {
 	os.MkdirAll(dstMntPath, 0755)
 	defer os.RemoveAll(dstMntPath)
 
-	var mntID uint32
+	var mntID atomic.Uint32
 	t.Run("mount", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
 			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
@@ -71,20 +77,16 @@ func TestMount(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event) bool {
-			mntID = event.Mount.MountID
-			if !assert.Equal(t, "mount", event.GetType(), "wrong event type") {
-				return true
+			if event.ProcessContext.Pid != testSuitePid {
+				return false
 			}
+
+			mntID.Store(event.Mount.MountID)
 			if !ebpfLessEnabled {
 				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
 				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
 				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
 				assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
-			}
-
-			// filter by pid
-			if event.ProcessContext.Pid != testSuitePid {
-				return false
 			}
 
 			return assert.Equal(t, "/"+dstMntBasename, event.Mount.MountPointStr, "wrong mount point") &&
@@ -130,16 +132,11 @@ func TestMount(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event) bool {
-			if !assert.Equal(t, "umount", event.GetType(), "wrong event type") {
-				return true
-			}
-
-			// filter by process
 			if event.ProcessContext.Pid != testSuitePid {
 				return false
 			}
 
-			return ebpfLessEnabled || assert.Equal(t, mntID, event.Umount.MountID, "wrong mount id")
+			return ebpfLessEnabled || assert.Equal(t, mntID.Load(), event.Umount.MountID, "wrong mount id")
 		}, 3*time.Second, model.FileUmountEventType)
 		if err != nil {
 			t.Error(err)
@@ -155,6 +152,11 @@ func TestMount(t *testing.T) {
 		}, "test_rule_pending")
 	})
 }
+
+// withForceReload() at the newTestModule call is load-bearing: this test and
+// the two TestMountSnapshot* below share the inline-config run, so without it
+// they would reuse each other's module and snapshot the wrong mounts.
+var _ = declareInlineConfig(TestMountPropagated)
 
 func TestMountPropagated(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -175,7 +177,7 @@ func TestMountPropagated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	dir1Path, _, err := test.Path("dir1")
 	if err != nil {
@@ -335,7 +337,7 @@ func testMountSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -405,11 +407,15 @@ func testMountSnapshot(t *testing.T) {
 	assert.Equal(t, 1|2|4|8, mntResolved)
 }
 
+var _ = declareInlineConfig(TestMountSnapshotListmount)
+
 func TestMountSnapshotListmount(t *testing.T) {
 	SkipIfNotAvailable(t)
 	t.Setenv("DD_EVENT_MONITORING_CONFIG_SNAPSHOT_USING_LISTMOUNT", "true")
 	testMountSnapshot(t)
 }
+
+var _ = declareInlineConfig(TestMountSnapshotProcfs)
 
 func TestMountSnapshotProcfs(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -455,7 +461,7 @@ func TestMountEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	tmpfsMountPointPath := testDrive.Path(tmpfsMountPointName)
 	if err = os.Mkdir(tmpfsMountPointPath, 0755); err != nil {
@@ -613,4 +619,250 @@ func TestMountEvent(t *testing.T) {
 			t.Fatal(otherErr)
 		}
 	})
+}
+
+// mountSubdirEnv is a private tmpfs holding a sub directory, so that bind mounts of this sub directory have a mount
+// root different from "/"
+type mountSubdirEnv struct {
+	base   string
+	srcDir string
+	dstDir string
+}
+
+func newMountSubdirEnv(t *testing.T) *mountSubdirEnv {
+	base := t.TempDir()
+	if err := unix.Mount("tmpfs", base, "tmpfs", 0, "size=16M"); err != nil {
+		t.Fatalf("failed to mount tmpfs: %v", err)
+	}
+	t.Cleanup(func() { _ = unix.Unmount(base, unix.MNT_DETACH) })
+
+	if err := unix.Mount("", base, "", unix.MS_REC|unix.MS_PRIVATE, ""); err != nil {
+		t.Fatalf("failed to make tmpfs private: %v", err)
+	}
+
+	env := &mountSubdirEnv{
+		base:   base,
+		srcDir: filepath.Join(base, "src", "sub"),
+		dstDir: filepath.Join(base, "dst"),
+	}
+	for _, dir := range []string{env.srcDir, env.dstDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	return env
+}
+
+func copyTrue(t *testing.T, dst string) {
+	if err := copyFile(which(t, "true"), dst, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestMountOpenTreeSubdirMoveMount checks the path of a file under a clone of a sub directory, created by open_tree
+// and attached by move_mount, whose mount root is the sub directory
+func TestMountOpenTreeSubdirMoveMount(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !openTreeIsSupported() || !testutils.SyscallExists(unix.SYS_MOVE_MOUNT) {
+		t.Skip("open_tree/move_mount not supported")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_mount_open_tree_subdir_move_mount",
+		Expression: `exec.file.name == "mnt-open-tree-subdir"`,
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	env := newMountSubdirEnv(t)
+	copyTrue(t, filepath.Join(env.srcDir, "mnt-open-tree-subdir"))
+
+	fd, err := unix.OpenTree(unix.AT_FDCWD, env.srcDir, unix.OPEN_TREE_CLONE|unix.OPEN_TREE_CLOEXEC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(fd)
+
+	if err := unix.MoveMount(fd, "", unix.AT_FDCWD, env.dstDir, unix.MOVE_MOUNT_F_EMPTY_PATH); err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Unmount(env.dstDir, unix.MNT_DETACH)
+
+	expected := filepath.Join(env.dstDir, "mnt-open-tree-subdir")
+	test.WaitSignalFromRule(t, func() error {
+		return exec.Command(expected).Run()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assertFieldEqual(t, event, "exec.file.path", expected)
+	}, "test_mount_open_tree_subdir_move_mount")
+}
+
+// TestMountBindSubdirPivotRoot checks the path of a file under the new root of a mount namespace, when this root is a
+// bind mount of a sub directory, like the rootfs of a container that is a plain directory
+func TestMountBindSubdirPivotRoot(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_mount_bind_subdir_pivot_root",
+		Expression: `exec.file.name == "mnt-bind-subdir-pivot-root"`,
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	env := newMountSubdirEnv(t)
+	rootfs := env.srcDir
+
+	// the new root has no library, nor /dev/null
+	testerBin, err := syscallTesterFS.ReadFile("syscall_tester/bin/syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rootfs, "mnt-bind-subdir-pivot-root"), testerBin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(rootfs, "old"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	test.WaitSignalFromRule(t, func() error {
+		done := make(chan error, 1)
+		go func() {
+			// the thread is left in the pivoted mount namespace, the runtime terminates it when the goroutine exits
+			runtime.LockOSThread()
+
+			steps := []func() error{
+				func() error { return unix.Unshare(unix.CLONE_NEWNS | unix.CLONE_FS) },
+				func() error { return unix.Mount("", "/", "", unix.MS_REC|unix.MS_PRIVATE, "") },
+				func() error { return unix.Mount(rootfs, rootfs, "", unix.MS_BIND|unix.MS_REC, "") },
+				func() error { return unix.Chdir(rootfs) },
+				func() error { return unix.PivotRoot(".", "old") },
+				func() error { return unix.Chdir("/") },
+				func() error { return unix.Unmount("/old", unix.MNT_DETACH) },
+				func() error {
+					cmd := exec.Command("/mnt-bind-subdir-pivot-root")
+					cmd.Stdin = strings.NewReader("")
+					// syscall_tester exits with an error without argument
+					var exitErr *exec.ExitError
+					if _, err := cmd.CombinedOutput(); err != nil && !errors.As(err, &exitErr) {
+						return err
+					}
+					return nil
+				},
+			}
+			for _, step := range steps {
+				if err := step(); err != nil {
+					done <- err
+					return
+				}
+			}
+			done <- nil
+		}()
+		return <-done
+	}, func(event *model.Event, _ *rules.Rule) {
+		assertFieldEqual(t, event, "exec.file.path", "/mnt-bind-subdir-pivot-root")
+	}, "test_mount_bind_subdir_pivot_root")
+}
+
+// TestMountSubmountOfBindSubdir checks the path of a file under a mount whose mount point is inside a bind mount of a
+// sub directory
+func TestMountSubmountOfBindSubdir(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_mount_submount_of_bind_subdir",
+		Expression: `exec.file.name == "mnt-submount-of-bind-subdir"`,
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	env := newMountSubdirEnv(t)
+	if err := unix.Mount(env.srcDir, env.dstDir, "", unix.MS_BIND, ""); err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Unmount(env.dstDir, unix.MNT_DETACH)
+
+	inner := filepath.Join(env.dstDir, "inner")
+	if err := os.Mkdir(inner, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mount("tmpfs", inner, "tmpfs", 0, "size=8M"); err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Unmount(inner, unix.MNT_DETACH)
+
+	expected := filepath.Join(inner, "mnt-submount-of-bind-subdir")
+	copyTrue(t, expected)
+
+	test.WaitSignalFromRule(t, func() error {
+		return exec.Command(expected).Run()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assertFieldEqual(t, event, "exec.file.path", expected)
+	}, "test_mount_submount_of_bind_subdir")
+}
+
+var _ = declareInlineConfig(TestMountSnapshotSubmountOfMovedBindSubdir)
+
+// TestMountSnapshotSubmountOfMovedBindSubdir checks the path of a file under a mount known from the snapshot, once its
+// parent, a bind mount of a sub directory also known from the snapshot, is moved
+func TestMountSnapshotSubmountOfMovedBindSubdir(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	env := newMountSubdirEnv(t)
+	parent := filepath.Join(env.base, "a")
+	if err := os.Mkdir(parent, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mount(env.srcDir, parent, "", unix.MS_BIND, ""); err != nil {
+		t.Fatal(err)
+	}
+	inner := filepath.Join(parent, "inner")
+	if err := os.Mkdir(inner, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mount("tmpfs", inner, "tmpfs", 0, "size=8M"); err != nil {
+		t.Fatal(err)
+	}
+	copyTrue(t, filepath.Join(inner, "mnt-snapshot-moved-parent"))
+
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_mount_snapshot_submount_of_moved_bind_subdir",
+		Expression: `exec.file.name == "mnt-snapshot-moved-parent"`,
+	}}
+
+	// forces a new snapshot including the mounts above
+	test, err := newTestModule(t, nil, ruleDefs, withForceReload())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	moved := filepath.Join(env.base, "b")
+	if err := os.Mkdir(moved, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mount(parent, moved, "", unix.MS_MOVE, ""); err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Unmount(moved, unix.MNT_DETACH)
+	defer unix.Unmount(filepath.Join(moved, "inner"), unix.MNT_DETACH)
+
+	expected := filepath.Join(moved, "inner", "mnt-snapshot-moved-parent")
+	test.WaitSignalFromRule(t, func() error {
+		return exec.Command(expected).Run()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assertFieldEqual(t, event, "exec.file.path", expected)
+	}, "test_mount_snapshot_submount_of_moved_bind_subdir")
 }

@@ -7,6 +7,7 @@ package decoder
 
 import (
 	"bytes"
+	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
@@ -20,12 +21,15 @@ type LineParser interface {
 	// process handles a new line (message)
 	process(content *message.Message, rawDataLen int)
 
-	// flushChan returns a channel which will deliver a message when `flush` should be called.
+	// flushChan returns a channel which will deliver a message when flushTimedOut should be called.
 	flushChan() <-chan time.Time
 
-	// flush flushes partially-processed data.  It should be called either when flushChan has
-	// a message, or when the decoder is stopped.
+	// flush forces all partially-processed data downstream when the decoder stops.
 	flush()
+
+	// flushTimedOut flushes data whose aggregation timeout has elapsed. It should
+	// be called when flushChan delivers a message.
+	flushTimedOut()
 }
 
 // SingleLineParser makes sure that multiple lines from a same content
@@ -53,6 +57,10 @@ func (p *SingleLineParser) flush() {
 	// do nothing
 }
 
+func (p *SingleLineParser) flushTimedOut() {
+	// do nothing
+}
+
 func (p *SingleLineParser) process(input *message.Message, rawDataLen int) {
 	// Just parse and pass to the next step
 	input, err := p.parser.Parse(input)
@@ -63,18 +71,25 @@ func (p *SingleLineParser) process(input *message.Message, rawDataLen int) {
 	p.lineHandler.process(input)
 }
 
+type partialLineState struct {
+	bufferedMsg       *message.Message
+	buffer            bytes.Buffer
+	rawDataLen        int
+	isBufferTruncated bool
+	deadline          time.Time
+	sequence          uint64
+}
+
 // MultiLineParser makes sure that chunked lines are properly put together.
 type MultiLineParser struct {
 	lineHandler LineHandler
 
-	// used to reconstruct the message
-
-	bufferedMsg *message.Message
-	buffer      *bytes.Buffer
-	rawDataLen  int
-
-	// truncation tracking
-	isBufferTruncated bool
+	// Partial lines are accumulated independently by stream. Parsers that do not
+	// identify a stream use the empty-string entry and retain the original
+	// single-buffer behavior.
+	buffers           map[string]*partialLineState
+	nextSequence      uint64
+	pendingRawDataLen int
 
 	// configuration attributes
 
@@ -93,8 +108,7 @@ func NewMultiLineParser(
 ) *MultiLineParser {
 	return &MultiLineParser{
 		lineHandler:  lineHandler,
-		buffer:       bytes.NewBuffer(nil),
-		bufferedMsg:  nil,
+		buffers:      make(map[string]*partialLineState),
 		flushTimeout: flushTimeout,
 		flushTimer:   nil,
 		lineLimit:    lineLimit,
@@ -103,73 +117,146 @@ func NewMultiLineParser(
 }
 
 func (p *MultiLineParser) flushChan() <-chan time.Time {
-	if p.flushTimer != nil && p.buffer.Len() > 0 {
+	if p.flushTimer != nil && len(p.buffers) > 0 {
 		return p.flushTimer.C
 	}
 	return nil
 }
 
 func (p *MultiLineParser) flush() {
-	p.sendLine()
+	p.stopFlushTimer()
+	for _, stream := range p.bufferStreams() {
+		p.sendLine(stream)
+	}
+}
+
+func (p *MultiLineParser) flushTimedOut() {
+	p.stopFlushTimer()
+	now := time.Now()
+	for _, stream := range p.bufferStreams() {
+		if !p.buffers[stream].deadline.After(now) {
+			p.sendLine(stream)
+		}
+	}
+	p.resetFlushTimer()
 }
 
 // process buffers and aggregates partial lines
 func (p *MultiLineParser) process(input *message.Message, rawDataLen int) {
-	if p.flushTimer != nil && p.buffer.Len() > 0 {
-		// stop the flush timer, as we now have data
-		if !p.flushTimer.Stop() {
-			<-p.flushTimer.C
-		}
-	}
+	p.stopFlushTimer()
+	p.pendingRawDataLen += rawDataLen
+
 	msg, err := p.parser.Parse(input)
 	if err != nil {
 		log.Debug(err)
 	}
+
+	stream := msg.ParsingExtra.Stream
+	state, found := p.buffers[stream]
+	if !found {
+		state = &partialLineState{sequence: p.nextSequence}
+		p.nextSequence++
+		p.buffers[stream] = state
+	}
+
 	// track the raw data length and the timestamp so that the agent tails
 	// from the right place at restart
-	p.rawDataLen += rawDataLen
-	p.buffer.Write(msg.GetContent())
-	p.bufferedMsg = msg
+	state.rawDataLen += rawDataLen
+	state.buffer.Write(msg.GetContent())
+	state.bufferedMsg = msg
 
-	if p.buffer.Len() >= p.lineLimit {
+	if state.buffer.Len() >= p.lineLimit {
 		// buffer exceeds size cap — mark as truncated and let SingleLineHandler
 		// handle the ...TRUNCATED... byte markers and metric downstream
-		p.isBufferTruncated = true
+		state.isBufferTruncated = true
 	}
 
-	if !msg.ParsingExtra.IsPartial || p.buffer.Len() >= p.lineLimit {
+	if !msg.ParsingExtra.IsPartial || state.buffer.Len() >= p.lineLimit {
 		// the current chunk marks the end of an aggregated line
-		p.sendLine()
+		p.sendLine(stream)
+	} else {
+		state.deadline = time.Now().Add(p.flushTimeout)
 	}
-	if p.buffer.Len() > 0 {
-		// since there's buffered data, start the flush timer to flush it
-		if p.flushTimer == nil {
-			p.flushTimer = time.NewTimer(p.flushTimeout)
-		} else {
-			p.flushTimer.Reset(p.flushTimeout)
+
+	p.resetFlushTimer()
+}
+
+// sendLine forwards the content stored for one stream.
+func (p *MultiLineParser) sendLine(stream string) {
+	state, found := p.buffers[stream]
+	if !found {
+		return
+	}
+	delete(p.buffers, stream)
+
+	// Skip only when there is nothing to send. Complete but empty lines (empty
+	// content, non-zero rawDataLen) are still forwarded so downstream
+	// aggregators can observe blank lines.
+	if state.bufferedMsg == nil || state.rawDataLen == 0 {
+		return
+	}
+
+	content := make([]byte, state.buffer.Len())
+	copy(content, state.buffer.Bytes())
+	state.bufferedMsg.RawDataLen = state.rawDataLen
+	checkpointRawDataLen := 0
+	if len(p.buffers) == 0 {
+		// Every record read since the previous checkpoint now belongs to a
+		// completed message. Let this final output advance across the whole
+		// contiguous source range. Earlier outputs were allowed downstream with
+		// an explicit zero so a restart replays them instead of skipping a still
+		// buffered record.
+		checkpointRawDataLen = p.pendingRawDataLen
+		p.pendingRawDataLen = 0
+	}
+	state.bufferedMsg.SetRawDataLenForCheckpoint(checkpointRawDataLen)
+	state.bufferedMsg.SetContent(content)
+	state.bufferedMsg.ParsingExtra.IsTruncated = state.bufferedMsg.ParsingExtra.IsTruncated || state.isBufferTruncated
+	p.lineHandler.process(state.bufferedMsg)
+}
+
+func (p *MultiLineParser) bufferStreams() []string {
+	streams := make([]string, 0, len(p.buffers))
+	for stream := range p.buffers {
+		streams = append(streams, stream)
+	}
+	sort.Slice(streams, func(i, j int) bool {
+		return p.buffers[streams[i]].sequence < p.buffers[streams[j]].sequence
+	})
+	return streams
+}
+
+func (p *MultiLineParser) stopFlushTimer() {
+	if p.flushTimer == nil {
+		return
+	}
+	if !p.flushTimer.Stop() {
+		select {
+		case <-p.flushTimer.C:
+		default:
 		}
 	}
 }
 
-// sendBuffer forwards the content stored in the buffer
-func (p *MultiLineParser) sendLine() {
-	defer func() {
-		p.buffer.Reset()
-		p.bufferedMsg = nil
-		p.rawDataLen = 0
-		p.isBufferTruncated = false
-	}()
-
-	if p.bufferedMsg == nil || p.buffer.Len() == 0 {
+func (p *MultiLineParser) resetFlushTimer() {
+	if len(p.buffers) == 0 {
 		return
 	}
 
-	content := make([]byte, p.buffer.Len())
-	copy(content, p.buffer.Bytes())
-	if len(content) > 0 || p.rawDataLen > 0 {
-		p.bufferedMsg.RawDataLen = p.rawDataLen
-		p.bufferedMsg.SetContent(content)
-		p.bufferedMsg.ParsingExtra.IsTruncated = p.bufferedMsg.ParsingExtra.IsTruncated || p.isBufferTruncated
-		p.lineHandler.process(p.bufferedMsg)
+	var earliest time.Time
+	for _, state := range p.buffers {
+		if earliest.IsZero() || state.deadline.Before(earliest) {
+			earliest = state.deadline
+		}
+	}
+
+	delay := time.Until(earliest)
+	if delay < 0 {
+		delay = 0
+	}
+	if p.flushTimer == nil {
+		p.flushTimer = time.NewTimer(delay)
+	} else {
+		p.flushTimer.Reset(delay)
 	}
 }

@@ -20,10 +20,6 @@ COMMON_TAGS = set([
     # removes the import to golang.org/x/net/trace in github.com/grpc-ecosystem/go-grpc-middleware
     # which prevents dead code elimination, see https://github.com/golang/go/issues/62024
     "retrynotrace",
-    # Disables dynamic plugins in containerd v1, which removes the import to std "plugin" package on Linux amd64,
-    # which makes the agent significantly smaller.
-    # This can be removed when we start using containerd v2.1 or later.
-    "no_dynamic_plugins",
     # Remove some dependencies from Trivy to reduce binary size.
     "trivy_no_javadb",
 ])
@@ -31,6 +27,7 @@ COMMON_TAGS = set([
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
 ALL_TAGS = set([
+    "anomalydetection_recorder",  # development-only recorder image
     "bundle_installer",
     "clusterchecks",
     "consul",
@@ -48,10 +45,11 @@ ALL_TAGS = set([
     "jmx",
     "kubeapiserver",
     "kubelet",
-    "linux_bpf",
+    "bpf",
     "ncm",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "netgo",
+    "no_gogo",  # drops the gogo/protobuf compatibility shim in containerd/typeurl
     "npm",
     "nvml",  # used for the nvidia go-nvml library
     "oracle",
@@ -69,10 +67,8 @@ ALL_TAGS = set([
     "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
     "trivy",
-    "wmi",
     "zk",
     "zlib",
-    "zstd",
     "cel",
     "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
     "remove_all_sd",  # remove all discovery provider from prometheusreceiver components
@@ -87,6 +83,7 @@ GAZELLE_EXTRA_TAGS = set([
     "functionaltests",
     "manualtest",
     "private_runner_experimental",
+    "anomalydetectiontestbench",  # used to analyze anomaly-detection testbench-only packages
 ])
 
 # Tags in ALL_TAGS that we deliberately keep out of Gazelle's set, typically
@@ -130,9 +127,11 @@ AGENT_TAGS = set([
     "trivy",
     "zk",
     "zlib",
-    "zstd",
     "cel",
 ])
+
+# The recorder flavor is the base Agent with the recorder build marker.
+AGENT_RECORDER_TAGS = AGENT_TAGS.union(set(["anomalydetection_recorder"]))
 
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build
 AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
@@ -169,7 +168,6 @@ CLUSTER_AGENT_TAGS = set([
     "kubeapiserver",
     "orchestrator",
     "zlib",
-    "zstd",
     "ec2",
     "cel",
 ])
@@ -177,11 +175,14 @@ CLUSTER_AGENT_TAGS = set([
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "cel"])
 
-# DOGSTATSD_TAGS lists the tags needed when building dogstatsd
-DOGSTATSD_TAGS = set(["containerd", "docker", "kubelet", "podman", "zlib", "zstd"])
+# DOGSTATSD_TAGS lists the tags needed when building dogstatsd.
+# no_gogo drops the legacy gogo/protobuf compatibility shim in containerd/typeurl;
+# the containerd metric types dogstatsd unmarshals (cgroups/v3, hcsshim stats) all
+# use the modern google.golang.org/protobuf runtime, so the shim is dead weight.
+DOGSTATSD_TAGS = set(["containerd", "docker", "kubelet", "no_gogo", "podman", "zlib"])
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib", "zstd"])
+IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib"])
 
 # INSTALLER_TAGS lists the tags needed when building the installer
 INSTALLER_TAGS = set(["ec2"])
@@ -199,7 +200,6 @@ PROCESS_AGENT_TAGS = set([
     "netcgo",
     "podman",
     "zlib",
-    "zstd",
 ])
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
@@ -208,7 +208,6 @@ PROCESS_AGENT_HEROKU_TAGS = set([
     "fargateprocess",
     "netcgo",
     "zlib",
-    "zstd",
 ])
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
@@ -217,7 +216,6 @@ SECURITY_AGENT_TAGS = set([
     "datadog.no_waf",
     "docker",
     "zlib",
-    "zstd",
     "ec2",
 ])
 
@@ -236,13 +234,12 @@ SERVERLESS_TAGS = set(["serverless", "otlp"])
 SYSTEM_PROBE_TAGS = set([
     "datadog.no_waf",
     "ec2",
-    "linux_bpf",
+    "bpf",
     "netcgo",
     "npm",
     "nvml",
     "pcap",
     "zlib",
-    "zstd",
     "seclmax",
 ])
 
@@ -270,7 +267,7 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 
 CWS_INSTRUMENTATION_TAGS = set(["netgo", "osusergo"])
 
-OTEL_AGENT_TAGS = set(["otlp", "zlib", "zstd", "kubelet"])
+OTEL_AGENT_TAGS = set(["otlp", "zlib", "kubelet"])
 
 LOADER_TAGS = set()
 
@@ -278,7 +275,7 @@ LOADER_TAGS = set()
 # imported by https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/f963ab53ee55aeb56d58617ed12c840e8b07cc53/receiver/prometheusreceiver/factory.go#L10
 HOST_PROFILER_TAGS = set(["remove_all_sd", "docker", "kubelet"])
 
-PRIVATEACTIONRUNNER_TAGS = set(["zlib", "zstd"])
+PRIVATEACTIONRUNNER_TAGS = set(["zlib"])
 
 SECRET_GENERIC_CONNECTOR_TAGS = set()
 
@@ -288,7 +285,7 @@ AGENT_TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks"]))
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = set(["netcgo", "systemd", "jetson", "linux_bpf", "nvml", "pcap", "podman", "trivy", "crio"])
+LINUX_ONLY_TAGS = set(["netcgo", "systemd", "jetson", "bpf", "nvml", "pcap", "podman", "trivy", "crio"])
 
 # List of tags to always remove when building on AIX
 AIX_EXCLUDED_TAGS = set([
@@ -303,7 +300,7 @@ AIX_EXCLUDED_TAGS = set([
     "jmx",
     "kubeapiserver",
     "kubelet",
-    "linux_bpf",
+    "bpf",
     "netcgo",
     "npm",
     "nvml",
@@ -315,9 +312,6 @@ AIX_EXCLUDED_TAGS = set([
     "systemprobechecks",
     "trivy",
 ])
-
-# List of tags to always add when building on Windows
-WINDOWS_INCLUDED_TAGS = set(["wmi"])
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDED_TAGS = set([
@@ -333,24 +327,20 @@ UNIT_TEST_TAGS = set(["test"])
 # List of tags to always remove when running unit tests
 UNIT_TEST_EXCLUDED_TAGS = set(["datadog.no_waf", "pcap"])
 
-### Per-flavor unit-test tag sets
+# Tags that only change source selection in external dependencies. They are
+# useful for shipped binaries, but ordinary unit tests should not create a
+# separate configured dependency graph for them.
+DEP_ONLY_TAGS = COMMON_TAGS | set([
+    "datadog.no_waf",
+    "no_gogo",
+    "remove_all_sd",
+])
 
-def _unit_test_tags(flavor_tags):
-    return sorted(((flavor_tags | UNIT_TEST_TAGS) - UNIT_TEST_EXCLUDED_TAGS) | COMMON_TAGS)
+# Minimal tags applied to every Bazel Go unit test.
+BASE_TEST_TAGS = sorted(UNIT_TEST_TAGS)
 
-# FLAVOR_UNIT_TEST_TAGS maps each AgentFlavor name to the build tags used when
-# running its unit tests. It mirrors the build_tags[flavor]["unit-tests"] entries
-# in tasks/build_tags.py: the flavor's build set unioned with UNIT_TEST_TAGS,
-# minus UNIT_TEST_EXCLUDED_TAGS, then unioned with COMMON_TAGS (as
-# get_default_build_tags() does). LINUX_ONLY tags are kept here; per-platform
-# filtering is applied by flavor_gotags() in //bazel/flavors:defs.bzl. Consumed
-# by that macro (Starlark load) and, via tasks/build_tags.py, by the
-# dd_agent_go_test Gazelle extension's generated tags.go. Kept in sync with
-# build_tags.py by tasks/unit_tests/build_tags_tests.py.
-FLAVOR_UNIT_TEST_TAGS = {
-    "base": _unit_test_tags(AGENT_TEST_TAGS | PROCESS_AGENT_TAGS | CLUSTER_AGENT_TAGS),
-    "fips": _unit_test_tags(AGENT_TAGS | FIPS_TAGS),
-    "heroku": _unit_test_tags(AGENT_HEROKU_TAGS),
-    "iot": _unit_test_tags(IOT_AGENT_TAGS),
-    "dogstatsd": _unit_test_tags(DOGSTATSD_TAGS),
-}
+# Feature tags covered by the existing unit-test configurations.
+TEST_FEATURE_TAGS = AGENT_TEST_TAGS | PROCESS_AGENT_TAGS | CLUSTER_AGENT_TAGS | SYSTEM_PROBE_TAGS | FIPS_TAGS | AGENT_HEROKU_TAGS | IOT_AGENT_TAGS | DOGSTATSD_TAGS
+
+# Supported feature tags that a test source may opt into through //go:build.
+AUTO_TEST_TAGS = sorted(TEST_FEATURE_TAGS - DEP_ONLY_TAGS - UNIT_TEST_TAGS - UNIT_TEST_EXCLUDED_TAGS)

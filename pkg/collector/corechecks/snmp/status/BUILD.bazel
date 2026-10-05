@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "status",
+    srcs = ["status.go"],
+    embedsrcs = [
+        "status_templates/snmp.tmpl",
+        "status_templates/snmpHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/listeners",
+        "//comp/core/status",
+    ],
+)
+
+dd_agent_go_test(
+    name = "status_test",
+    srcs = ["status_test.go"],
+    embed = [":status"],
+    deps = [
+        "//comp/core/autodiscovery/listeners",
+        "//pkg/collector/corechecks/snmp/internal/checkconfig",
+        "//pkg/collector/corechecks/snmp/internal/discovery",
+        "//pkg/config/mock",
+        "//pkg/snmp",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

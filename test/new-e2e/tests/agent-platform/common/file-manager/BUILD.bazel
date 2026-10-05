@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "file-manager",
+    srcs = [
+        "client.go",
+        "types.go",
+        "unix.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager",
+    visibility = ["//visibility:public"],
+    deps = ["//test/e2e-framework/testing/components"],
+)

@@ -89,6 +89,7 @@ func persistIdentityToFile(cfg configModel.Reader, result *Result) error {
 		PrivateKey: base64.RawURLEncoding.EncodeToString(marshalledPrivateKey),
 		URN:        result.URN,
 		Hostname:   result.Hostname,
+		APIKeyHash: result.APIKeyHash,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal identity content to JSON: %w", err)

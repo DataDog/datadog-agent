@@ -22,6 +22,8 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // BenchAPI handles HTTP API requests for the bench.
@@ -60,6 +62,9 @@ func (api *BenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/benchmark", api.cors(api.handleBenchmark))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
 	mux.HandleFunc("/api/correlations/compressed", api.cors(api.handleCompressedCorrelations))
+	mux.HandleFunc("/api/scores", api.cors(api.handleScores))
+	mux.HandleFunc("/api/scores/config", api.cors(api.handleScoresConfig))
+	mux.HandleFunc("/api/scores/replay", api.cors(api.handleScoresReplay))
 
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -415,6 +420,7 @@ func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 		ID         string   `json:"id"`
 		Namespace  string   `json:"namespace"`
 		Name       string   `json:"name"`
+		Host       string   `json:"host,omitempty"`
 		Tags       []string `json:"tags"`
 		PointCount int      `json:"pointCount"`
 		Virtual    bool     `json:"virtual"`
@@ -454,7 +460,8 @@ func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 					ID:         compactID,
 					Namespace:  m.Namespace,
 					Name:       nameWithAgg,
-					Tags:       m.Tags,
+					Host:       m.Host,
+					Tags:       m.Tags.UnsafeToReadOnlySliceString(),
 					PointCount: pointCount,
 					Virtual:    virtual,
 					MetricKind: metricKind,
@@ -488,12 +495,12 @@ func (api *BenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	namespace, nameWithAgg, tags, ok := parseSeriesKey(seriesID)
+	namespace, nameWithAgg, host, tags, ok := parseSeriesKey(seriesID)
 	if !ok {
 		api.writeError(w, http.StatusBadRequest, "invalid series id")
 		return
 	}
-	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, tags, seriesID)
+	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, host, tags, seriesID)
 }
 
 // handleNumericSeriesData resolves a compact numeric ID to series data.
@@ -506,10 +513,6 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 		agg = observerdef.AggregateCount
 	case "sum":
 		agg = observerdef.AggregateSum
-	case "min":
-		agg = observerdef.AggregateMin
-	case "max":
-		agg = observerdef.AggregateMax
 	default:
 		api.writeError(w, http.StatusBadRequest, "invalid aggregation suffix")
 		return
@@ -539,6 +542,7 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 	sd := observerdef.SeriesDescriptor{
 		Namespace: meta.Namespace,
 		Name:      series.Name,
+		Host:      meta.Host,
 		Tags:      series.Tags,
 		Aggregate: agg,
 	}
@@ -558,12 +562,13 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 		if a.DetectorName == "" || a.Timestamp == 0 {
 			continue
 		}
+		title, _ := observerdef.FormatAnomaly(a)
 		markers = append(markers, anomalyMarker{
 			Timestamp:         a.Timestamp,
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
 			SourceSeriesID:    originalID,
-			Title:             a.Title,
+			Title:             title,
 		})
 	}
 
@@ -576,6 +581,7 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 		ID        string          `json:"id"`
 		Namespace string          `json:"namespace"`
 		Name      string          `json:"name"`
+		Host      string          `json:"host,omitempty"`
 		Tags      []string        `json:"tags"`
 		Points    []pointOutput   `json:"points"`
 		Anomalies []anomalyMarker `json:"anomalies"`
@@ -585,7 +591,8 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 		ID:        originalID,
 		Namespace: meta.Namespace,
 		Name:      nameWithAgg,
-		Tags:      series.Tags,
+		Host:      meta.Host,
+		Tags:      series.Tags.UnsafeToReadOnlySliceString(),
 		Points:    make([]pointOutput, len(series.Points)),
 		Anomalies: markers,
 	}
@@ -613,17 +620,16 @@ func (api *BenchAPI) handleSeriesData(w http.ResponseWriter, r *http.Request) {
 
 	namespace := parts[0]
 	nameWithAgg := parts[1]
-	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, nil, "")
+	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, "", nil, "")
 }
 
-func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg string, tags []string, requestedID string) {
+func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg, host string, tags []string, requestedID string) {
 	seriesID := requestedID
 
 	name := nameWithAgg
 	agg := observerdef.AggregateAverage
 	if idx := strings.LastIndex(nameWithAgg, ":"); idx != -1 {
 		suffix := nameWithAgg[idx+1:]
-		name = nameWithAgg[:idx]
 		switch suffix {
 		case "avg":
 			agg = observerdef.AggregateAverage
@@ -631,10 +637,13 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 			agg = observerdef.AggregateCount
 		case "sum":
 			agg = observerdef.AggregateSum
-		case "min":
-			agg = observerdef.AggregateMin
-		case "max":
-			agg = observerdef.AggregateMax
+		default:
+			// The colon may be part of the metric name rather than an aggregate
+			// suffix. Keep the full name and the default Average aggregate.
+			idx = -1
+		}
+		if idx != -1 {
+			name = nameWithAgg[:idx]
 		}
 	}
 
@@ -653,7 +662,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 		if m.Name != name {
 			continue
 		}
-		if tags == nil || tagsMatch(m.Tags, tags) {
+		if (requestedID == "" || m.Host == host) && (tags == nil || compositeTagsMatch(m.Tags, tags)) {
 			foundMeta = m
 			break
 		}
@@ -686,6 +695,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 	sd := observerdef.SeriesDescriptor{
 		Namespace: namespace,
 		Name:      name,
+		Host:      foundMeta.Host,
 		Tags:      foundMeta.Tags,
 		Aggregate: agg,
 	}
@@ -697,12 +707,13 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 				seriesID, a.DetectorName, a.Timestamp)
 			continue
 		}
+		title, _ := observerdef.FormatAnomaly(a)
 		markers = append(markers, anomalyMarker{
 			Timestamp:         a.Timestamp,
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
 			SourceSeriesID:    seriesID,
-			Title:             a.Title,
+			Title:             title,
 		})
 	}
 
@@ -715,6 +726,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 		ID        string          `json:"id"`
 		Namespace string          `json:"namespace"`
 		Name      string          `json:"name"`
+		Host      string          `json:"host,omitempty"`
 		Tags      []string        `json:"tags"`
 		Points    []pointOutput   `json:"points"`
 		Anomalies []anomalyMarker `json:"anomalies"`
@@ -724,7 +736,8 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 		ID:        seriesID,
 		Namespace: namespace,
 		Name:      nameWithAgg,
-		Tags:      foundMeta.Tags,
+		Host:      foundMeta.Host,
+		Tags:      foundMeta.Tags.UnsafeToReadOnlySliceString(),
 		Points:    make([]pointOutput, len(series.Points)),
 		Anomalies: markers,
 	}
@@ -745,17 +758,15 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 	detectorFilter := r.URL.Query().Get("detector")
 
 	type debugInfoResponse struct {
-		BaselineStart  int64     `json:"baselineStart"`
-		BaselineEnd    int64     `json:"baselineEnd"`
-		BaselineMean   float64   `json:"baselineMean,omitempty"`
-		BaselineMedian float64   `json:"baselineMedian,omitempty"`
-		BaselineStddev float64   `json:"baselineStddev,omitempty"`
-		BaselineMAD    float64   `json:"baselineMAD,omitempty"`
-		Threshold      float64   `json:"threshold"`
-		SlackParam     float64   `json:"slackParam,omitempty"`
-		CurrentValue   float64   `json:"currentValue"`
-		DeviationSigma float64   `json:"deviationSigma"`
-		CUSUMValues    []float64 `json:"cusumValues,omitempty"`
+		BaselineStart  int64   `json:"baselineStart"`
+		BaselineEnd    int64   `json:"baselineEnd"`
+		BaselineMean   float64 `json:"baselineMean,omitempty"`
+		BaselineMedian float64 `json:"baselineMedian,omitempty"`
+		BaselineStddev float64 `json:"baselineStddev,omitempty"`
+		BaselineMAD    float64 `json:"baselineMAD,omitempty"`
+		Threshold      float64 `json:"threshold"`
+		CurrentValue   float64 `json:"currentValue"`
+		DeviationSigma float64 `json:"deviationSigma"`
 	}
 
 	type anomalyResponse struct {
@@ -765,38 +776,25 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 		DetectorComponent string             `json:"detectorComponent"`
 		Title             string             `json:"title"`
 		Description       string             `json:"description"`
+		Host              string             `json:"host,omitempty"`
 		Tags              []string           `json:"tags"`
 		Timestamp         int64              `json:"timestamp"`
 		DebugInfo         *debugInfoResponse `json:"debugInfo,omitempty"`
 	}
 
 	detectorComponentMap := api.tb.GetDetectorComponentMap()
-	sv := api.tb.getStateView()
-
-	resolveCompactID := func(a observerdef.Anomaly) string {
-		if a.SourceRef != nil {
-			return a.SourceRef.CompactID()
-		}
-		if sv != nil && a.DetectorName != "" && a.Source.Name != "" {
-			storage := &stateViewStorage{sv: sv}
-			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-			key := seriesKey("telemetry", telemetryName+":avg", nil)
-			if compactID := storage.compactSeriesID(key); compactID != key {
-				return compactID
-			}
-		}
-		return a.Source.Key()
-	}
 
 	toResponse := func(a observerdef.Anomaly) anomalyResponse {
+		title, description := observerdef.FormatAnomaly(a)
 		resp := anomalyResponse{
 			Source:            a.Source.String(),
-			SourceSeriesID:    resolveCompactID(a),
+			SourceSeriesID:    a.SourceRef.CompactID(),
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
-			Title:             a.Title,
-			Description:       a.Description,
-			Tags:              a.Source.Tags,
+			Title:             title,
+			Description:       description,
+			Host:              a.Source.Host,
+			Tags:              a.Source.Tags.UnsafeToReadOnlySliceString(),
 			Timestamp:         a.Timestamp,
 		}
 		if a.DebugInfo != nil {
@@ -808,10 +806,8 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 				BaselineStddev: a.DebugInfo.BaselineStddev,
 				BaselineMAD:    a.DebugInfo.BaselineMAD,
 				Threshold:      a.DebugInfo.Threshold,
-				SlackParam:     a.DebugInfo.SlackParam,
 				CurrentValue:   a.DebugInfo.CurrentValue,
 				DeviationSigma: a.DebugInfo.DeviationSigma,
-				CUSUMValues:    a.DebugInfo.CUSUMValues,
 			}
 		}
 		return resp
@@ -866,12 +862,13 @@ func (api *BenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Request) 
 
 	response := make([]logAnomalyResponse, 0, len(anomalies))
 	for _, a := range anomalies {
+		title, description := observerdef.FormatAnomaly(a)
 		response = append(response, logAnomalyResponse{
 			Source:       a.Source.String(),
 			DetectorName: a.DetectorName,
-			Title:        a.Title,
-			Description:  a.Description,
-			Tags:         a.Source.Tags,
+			Title:        title,
+			Description:  description,
+			Tags:         a.Source.Tags.UnsafeToReadOnlySliceString(),
 			Timestamp:    a.Timestamp,
 			Score:        a.Score,
 		})
@@ -1021,6 +1018,7 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 		Description string   `json:"description"`
 		Timestamp   int64    `json:"timestamp"`
 		Score       *float64 `json:"score,omitempty"`
+		Host        string   `json:"host,omitempty"`
 		Tags        []string `json:"tags"`
 	}
 
@@ -1038,16 +1036,18 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 	for i, c := range correlations {
 		anomalies := make([]anomalyOutput, len(c.Anomalies))
 		for j, a := range c.Anomalies {
-			tgs := a.Source.Tags
+			tgs := a.Source.Tags.UnsafeToReadOnlySliceString()
 			if tgs == nil {
 				tgs = []string{}
 			}
+			title, description := observerdef.FormatAnomaly(a)
 			anomalies[j] = anomalyOutput{
 				Source:      a.Source.String(),
-				Title:       a.Title,
-				Description: a.Description,
+				Title:       title,
+				Description: description,
 				Timestamp:   a.Timestamp,
 				Score:       a.Score,
+				Host:        a.Source.Host,
 				Tags:        tgs,
 			}
 		}
@@ -1056,7 +1056,7 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 		for k, m := range c.Members {
 			// Find SourceRef for this member.
 			for _, a := range c.Anomalies {
-				if a.Source.Key() == m.Key() && a.SourceRef != nil {
+				if a.Source.Key() == m.Key() {
 					memberIDs[k] = a.SourceRef.CompactID()
 					break
 				}
@@ -1194,6 +1194,231 @@ func (api *BenchAPI) handleBenchmark(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	api.writeJSON(w, stats)
+}
+
+// handleScores returns the current AnomalyScoreState from the live scorer.
+// GET /api/scores
+func (api *BenchAPI) handleScores(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		api.writeError(w, http.StatusMethodNotAllowed, "use GET")
+		return
+	}
+	sv := api.tb.getStateView()
+	if sv == nil {
+		api.writeJSON(w, observerdef.AnomalyScoreState{})
+		return
+	}
+	api.writeJSON(w, sv.ScoreState())
+}
+
+// handleScoresConfig returns the server-side default AnomalyScorerConfig so the UI
+// never needs to hardcode threshold values. The response also includes
+// cooldown so the Scorer tab can initialise its replay form correctly.
+// GET /api/scores/config
+func (api *BenchAPI) handleScoresConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		api.writeError(w, http.StatusMethodNotAllowed, "use GET")
+		return
+	}
+	api.writeJSON(w, observerimpl.DefaultAnomalyScorerConfig())
+}
+
+// handleScoresReplay re-runs the scorer over the full retained raw-anomaly set
+// using a config provided in the POST body. This lets the UI inspect scorer
+// output without re-running detectors.
+//
+// The testbench simulates the live agent's 1-second timer: anomalies are sorted
+// by timestamp and fed second-by-second, with Advance called once per unique
+// second (and for any empty seconds in between).
+//
+// POST /api/scores/replay   body: { AnomalyScorerConfig fields... , "cooldown": N }
+func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.writeError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+
+	// replayRequest embeds the EWMA config fields at the top level and adds
+	// CooldownSecs for the subscription, preserving the flat JSON wire format
+	// the UI sends.
+	type replayRequest struct {
+		observerdef.AnomalyScorerConfig
+		CooldownSecs int64 `json:"cooldown_secs"`
+	}
+	type scorerReportContributor struct {
+		Name  string  `json:"name"`
+		Share float64 `json:"share"`
+	}
+	type scorerReport struct {
+		Timestamp    int64                     `json:"timestamp"`
+		Contributors []scorerReportContributor `json:"contributors"`
+	}
+	defaults := observerimpl.DefaultAnomalyScorerConfig()
+	req := replayRequest{AnomalyScorerConfig: defaults.AnomalyScorerConfig, CooldownSecs: defaults.CooldownSecs}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.writeError(w, http.StatusBadRequest, "invalid config: "+err.Error())
+		return
+	}
+	// Replay always keeps all buckets so the UI can render the full time range.
+	// math.MaxInt64 signals "unlimited" to the trim logic (which defaults to WindowSecs when 0).
+	req.AnomalyScorerConfig.MaxBuckets = math.MaxInt64
+
+	sv := api.tb.getStateView()
+	if sv == nil {
+		api.writeJSON(w, observerdef.AnomalyScoreState{})
+		return
+	}
+
+	// Include all anomalies with a valid timestamp, matching live-agent behaviour.
+	// Log anomalies have no entry in DetectorThresholds and fall through to the
+	// default level (Medium) — the same as any metric detector without explicit
+	// thresholds. Filtering them out would diverge from production.
+	raw := sv.Anomalies()
+	anomalies := make([]observerdef.Anomaly, 0, len(raw))
+	for _, a := range raw {
+		if a.Timestamp == 0 {
+			continue
+		}
+		anomalies = append(anomalies, a)
+	}
+	if len(anomalies) == 0 {
+		api.writeJSON(w, observerdef.AnomalyScoreState{Config: req.AnomalyScorerConfig})
+		return
+	}
+
+	// Sort anomalies by timestamp so the scorer processes time monotonically.
+	//
+	// Known limitation: scan detectors (scanmw, scanwelch) emit changepoint timestamps
+	// that are historically earlier than the engine tick at which the anomaly was
+	// produced. In the live agent, ProcessAnomaly clamps such anomalies to
+	// lastAdvancedSec+1 via the engine detection tick. Faithfully replicating that
+	// requires storing the engine arrival time alongside the anomaly timestamp, which
+	// Anomaly.Timestamp does not currently encode. Sorting by Timestamp places scan
+	// anomalies at their changepoint second rather than their detection second; this
+	// is a known approximation in the Scorer tab for scan-detector scenarios.
+	sorted := make([]observerdef.Anomaly, len(anomalies))
+	copy(sorted, anomalies)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Timestamp < sorted[j].Timestamp
+	})
+
+	scorerCfg := observerimpl.DefaultAnomalyScorerConfig()
+	scorerCfg.AnomalyScorerConfig = req.AnomalyScorerConfig
+	scorerCfg.CorrelationEvents = true
+	scorerCfg.CooldownSecs = req.CooldownSecs
+	scorer := observerimpl.NewAnomalyScorer(scorerCfg)
+
+	first := sorted[0].Timestamp
+	last := sorted[len(sorted)-1].Timestamp
+
+	collector := &scorerEventCollector{}
+	subscription, err := scorer.SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
+		CooldownSecs: req.CooldownSecs,
+	}, collector)
+	if err != nil {
+		api.writeError(w, http.StatusInternalServerError, "subscribe severity events: "+err.Error())
+		return
+	}
+	defer subscription.Unsubscribe()
+
+	ai := 0
+	var reports []scorerReport
+	storage := api.tb.debug.StorageReader()
+	for sec := first; sec <= last; sec++ {
+		for ai < len(sorted) && sorted[ai].Timestamp == sec {
+			scorer.ProcessAnomaly(sorted[ai])
+			ai++
+		}
+		scorer.Advance(sec)
+		for _, event := range scorer.PendingEvents() {
+			if event.Kind != observerdef.CorrelatorEventEpisodeStarted {
+				continue
+			}
+			report := scorerReport{Timestamp: event.Timestamp}
+			for _, contributor := range event.Contributors {
+				meta := storage.GetSeriesMeta(contributor.Handle.Ref)
+				if meta == nil {
+					continue
+				}
+				contextValue, hasContext := storage.GetContext(contributor.Handle.Ref)
+				var context *observerdef.MetricContext
+				if hasContext {
+					context = &contextValue
+				}
+				report.Contributors = append(report.Contributors, scorerReportContributor{
+					Name:  scorerReportContributorName(meta, context, contributor.Handle.Aggregate),
+					Share: contributor.Share,
+				})
+			}
+			reports = append(reports, report)
+		}
+	}
+
+	// Return a wrapper that adds the collected events alongside the state snapshot.
+	state := scorer.ScoreState()
+	api.writeJSON(w, struct {
+		observerdef.AnomalyScoreState
+		Events  []severityeventsdef.SeverityEvent `json:"events"`
+		Reports []scorerReport                    `json:"reports"`
+	}{AnomalyScoreState: state, Events: collector.events, Reports: reports})
+}
+
+// scorerReportContributorName presents log-derived metrics with the same
+// readable example/pattern used by reporter events. The scorer UI otherwise
+// displays the regular metric descriptor.
+func scorerReportContributorName(meta *observerdef.SeriesMeta, context *observerdef.MetricContext, aggregate observerdef.Aggregate) string {
+	if context != nil {
+		switch meta.Namespace {
+		case "log_metrics_extractor":
+			if example := strings.TrimSpace(context.Example); example != "" {
+				return logReportContributorName(example, meta.Host, meta.Tags)
+			}
+			if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+				return logReportContributorName(pattern, meta.Host, meta.Tags)
+			}
+		case "log_pattern_extractor":
+			if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+				return logReportContributorName(pattern, meta.Host, meta.Tags)
+			}
+		}
+	}
+	return observerdef.SeriesDescriptor{
+		Namespace: meta.Namespace,
+		Name:      meta.Name,
+		Host:      meta.Host,
+		Tags:      meta.Tags,
+		Aggregate: aggregate,
+	}.DisplayName()
+}
+
+func logReportContributorName(name, host string, tags tagset.CompositeTags) string {
+	name = "log: " + name
+	if tags.Len() == 0 && host == "" {
+		return name
+	}
+	var b strings.Builder
+	b.WriteString(name)
+	b.WriteString(" — {")
+	if host != "" && !tags.Find(func(tag string) bool { return tag == "host:"+host }) {
+		b.WriteString("host:")
+		b.WriteString(host)
+		if tags.Len() > 0 {
+			b.WriteByte(',')
+		}
+	}
+	b.WriteString(tags.Join(","))
+	b.WriteByte('}')
+	return b.String()
+}
+
+// scorerEventCollector implements severityeventsdef.SeverityEventListener, accumulating
+// every severity transition fired by the scorer's per-subscription state machine.
+type scorerEventCollector struct {
+	events []severityeventsdef.SeverityEvent
+}
+
+func (c *scorerEventCollector) OnSeverityTransition(evt severityeventsdef.SeverityEvent) {
+	c.events = append(c.events, evt)
 }
 
 // writeJSON writes a JSON response.

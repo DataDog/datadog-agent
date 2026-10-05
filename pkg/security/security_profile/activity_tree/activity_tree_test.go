@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -63,7 +64,7 @@ func TestInsertFileEvent(t *testing.T) {
 				},
 			},
 		}
-		pan.InsertFileEvent(&event.Open.File, event, uint64(666), Unknown, stats, false, nil, nil)
+		_, _ = pan.InsertFileEvent(&event.Open.File, event, uint64(666), Unknown, stats, false, nil, nil)
 	}
 
 	var builder strings.Builder
@@ -204,7 +205,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted := &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -236,7 +237,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted = &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -279,7 +280,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted := &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -311,7 +312,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted = &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -341,7 +342,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		oldTime := time.Now().Add(-2 * time.Hour)
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/expired",
 				},
@@ -377,7 +378,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		oldTime := time.Now().Add(-2 * time.Hour)
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/protected",
 				},
@@ -422,7 +423,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		protectedNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/protected",
 				},
@@ -433,7 +434,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		expiredNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/expired",
 				},
@@ -485,7 +486,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/multi-tag",
 				},
@@ -544,7 +545,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		node1 := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/node1",
 				},
@@ -555,7 +556,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		node2 := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/node2",
 				},
@@ -578,4 +579,133 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Equal(t, 2, evicted, "Expected 2 nodes to be evicted")
 		assert.Empty(t, tree.ProcessNodes, "Expected all process nodes to be removed from tree")
 	})
+}
+
+// The kernel delivers a syscall mask that only grows and is never reset between sends, so re-delivering
+// an unchanged mask must report no new syscalls.
+func TestInsertSyscalls_AccumulatingMask(t *testing.T) {
+	newSyscallsEvent := func(syscalls ...int) *model.Event {
+		evt := &model.Event{
+			BaseEvent: model.BaseEvent{FieldHandlers: &model.FakeFieldHandlers{}},
+		}
+		for _, s := range syscalls {
+			evt.Syscalls.Syscalls = append(evt.Syscalls.Syscalls, model.Syscall(s))
+		}
+		return evt
+	}
+
+	pn := &ProcessNode{NodeBase: NewNodeBase()}
+	stats := NewActivityTreeNodeStats()
+	syscallMask := make(map[int]int)
+	const tagID = uint64(1)
+
+	assert.True(t, pn.InsertSyscalls(newSyscallsEvent(1, 2), tagID, syscallMask, stats, false),
+		"the first delivery introduces new syscalls")
+	assert.Len(t, pn.Syscalls, 2)
+
+	assert.False(t, pn.InsertSyscalls(newSyscallsEvent(1, 2), tagID, syscallMask, stats, false),
+		"re-delivering the same mask must not report new syscalls")
+	assert.Len(t, pn.Syscalls, 2, "re-delivery must not duplicate nodes")
+
+	assert.True(t, pn.InsertSyscalls(newSyscallsEvent(1, 2, 3), tagID, syscallMask, stats, false),
+		"a grown mask reports the newly discovered syscall")
+	assert.Len(t, pn.Syscalls, 3, "only the genuinely new syscall is added")
+	assert.Equal(t, map[int]int{1: 1, 2: 2, 3: 3}, syscallMask)
+}
+
+func TestSyscallsByImageTagID(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+
+	v1 := tree.GetOrInsertImageTag("v1")
+	v2 := tree.GetOrInsertImageTag("v2")
+	now := time.Now()
+
+	// A syscall shared by both processes of v1, one exclusive to each tag, and a node carrying
+	// both tags at once.
+	parent := &ProcessNode{NodeBase: NewNodeBase()}
+	parent.Syscalls = map[int]*SyscallNode{
+		1:  NewSyscallNode(1, now, v1, Runtime),
+		60: NewSyscallNode(60, now, v2, Runtime),
+	}
+	child := &ProcessNode{NodeBase: NewNodeBase()}
+	child.Syscalls = map[int]*SyscallNode{
+		1: NewSyscallNode(1, now, v1, Runtime),
+		2: NewSyscallNode(2, now, v1, Runtime),
+	}
+	shared := NewSyscallNode(257, now, v1, Runtime)
+	shared.AppendImageTagID(v2, now)
+	child.Syscalls[shared.Syscall] = shared
+
+	parent.Children = []*ProcessNode{child}
+	tree.ProcessNodes = []*ProcessNode{parent}
+
+	rollup := tree.SyscallsByImageTagID()
+
+	assert.Equal(t, []uint32{1, 2, 257}, rollup[v1], "v1 unions both processes and dedups syscall 1")
+	assert.Equal(t, []uint32{60, 257}, rollup[v2], "v2 only sees its own syscalls plus the shared node")
+}
+
+// A node that only belongs to an evicted image tag must drop out of that tag's rollup.
+func TestSyscallsByImageTagID_AfterImageTagEviction(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+
+	v1 := tree.GetOrInsertImageTag("v1")
+	now := time.Now()
+
+	pn := &ProcessNode{NodeBase: NewNodeBase()}
+	pn.AppendImageTagID(v1, now)
+	pn.Syscalls = map[int]*SyscallNode{42: NewSyscallNode(42, now, v1, Runtime)}
+	tree.ProcessNodes = []*ProcessNode{pn}
+
+	require.Equal(t, []uint32{42}, tree.SyscallsByImageTagID()[v1])
+
+	tree.EvictImageTag("v1")
+
+	assert.Empty(t, tree.SyscallsByImageTagID()[v1], "an evicted image tag keeps no syscalls")
+}
+
+func TestProcessInfoMatches(t *testing.T) {
+	node := ProcessNode{
+		Process: ProcessInfo{
+			FileEvent: model.FileEvent{PathnameStr: "/usr/bin/curl"},
+			Argv0:     "curl",
+			Argv:      []string{"-s", "https://example.com"},
+		},
+	}
+
+	same := ProcessInfo{
+		FileEvent: model.FileEvent{PathnameStr: "/usr/bin/curl"},
+		Argv0:     "curl",
+		Argv:      []string{"-s", "https://example.com"},
+	}
+	assert.True(t, node.MatchesProcessInfo(&same, false, false))
+	assert.True(t, node.MatchesProcessInfo(&same, true, false))
+	assert.True(t, node.Process.Matches(&same, true, false))
+
+	differentPath := same
+	differentPath.FileEvent.PathnameStr = "/usr/bin/wget"
+	assert.False(t, node.MatchesProcessInfo(&differentPath, false, false))
+
+	differentArgs := same
+	differentArgs.Argv = []string{"-v", "https://example.com"}
+	assert.True(t, node.MatchesProcessInfo(&differentArgs, false, false))
+	assert.False(t, node.MatchesProcessInfo(&differentArgs, true, false))
+
+	busybox := ProcessNode{
+		Process: ProcessInfo{
+			FileEvent: model.FileEvent{PathnameStr: "/bin/busybox"},
+			Argv0:     "sh",
+		},
+	}
+	busyboxSame := ProcessInfo{FileEvent: model.FileEvent{PathnameStr: "/bin/busybox"}, Argv0: "sh"}
+	busyboxOther := ProcessInfo{FileEvent: model.FileEvent{PathnameStr: "/bin/busybox"}, Argv0: "ls"}
+	assert.True(t, busybox.MatchesProcessInfo(&busyboxSame, false, false))
+	assert.False(t, busybox.MatchesProcessInfo(&busyboxOther, false, false))
+
+	entry := &model.Process{
+		FileEvent: model.FileEvent{PathnameStr: "/usr/bin/curl"},
+		Argv0:     "curl",
+		Argv:      []string{"-s", "https://example.com"},
+	}
+	assert.True(t, node.Matches(entry, true, false))
 }

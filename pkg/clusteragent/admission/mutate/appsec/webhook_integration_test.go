@@ -39,8 +39,7 @@ const (
 // mockSidecarPattern implements appsecconfig.SidecarInjectionPattern for testing
 type mockSidecarPattern struct {
 	matchExpression     string
-	shouldMutate        bool
-	namespaceEligible   bool
+	podEligible         bool
 	injectSidecar       bool
 	injectSidecarErr    error
 	mutatePodCallCount  int
@@ -79,21 +78,17 @@ func (m *mockSidecarPattern) MatchCondition() admissionregistrationv1.MatchCondi
 	}
 }
 
-func (m *mockSidecarPattern) ShouldMutatePod(_ *corev1.Pod) bool {
-	return m.shouldMutate
+func (m *mockSidecarPattern) IsPodEligible(_ *corev1.Pod, _ string) bool {
+	return m.podEligible
 }
 
-func (m *mockSidecarPattern) IsNamespaceEligible(_ string) bool {
-	return m.namespaceEligible
-}
-
-func (m *mockSidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+func (m *mockSidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (appsecconfig.MutationOutcome, error) {
 	m.mutatePodCallCount++
 	if m.injectSidecarErr != nil {
-		return false, m.injectSidecarErr
+		return appsecconfig.MutationError, m.injectSidecarErr
 	}
 	if !m.injectSidecar {
-		return false, nil
+		return appsecconfig.MutationSkipped, &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonUnknown}
 	}
 
 	// Inject sidecar container
@@ -108,12 +103,12 @@ func (m *mockSidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Inte
 		},
 	}
 	pod.Spec.Containers = append(pod.Spec.Containers, sidecarContainer)
-	return true, nil
+	return appsecconfig.MutationMutated, nil
 }
 
-func (m *mockSidecarPattern) PodDeleted(_ *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+func (m *mockSidecarPattern) PodDeleted(_ *corev1.Pod, _ string, _ dynamic.Interface) (appsecconfig.MutationOutcome, error) {
 	m.podDeletedCallCount++
-	return true, nil
+	return appsecconfig.MutationMutated, nil
 }
 
 // noopMutator is a mutator that does nothing, used for testing
@@ -131,7 +126,7 @@ func newTestWebhook(patterns []appsecconfig.SidecarInjectionPattern) *Webhook {
 		endpoint:      "/appsec-proxies",
 		resources:     []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}},
 		operations:    []admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Delete},
-		patterns:      patterns,
+		patterns:      newTestPatternMap(patterns...),
 		configMutator: &noopMutator{},
 	}
 }
@@ -182,12 +177,11 @@ func TestAppsecWebhookIntegration(t *testing.T) {
 		"pod with gateway class label should be mutated": {
 			pod: newGatewayPod("gateway-pod", testNamespace, testGatewayClassName),
 			pattern: &mockSidecarPattern{
-				matchExpression:   "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
-				shouldMutate:      true,
-				namespaceEligible: true,
-				injectSidecar:     true,
-				sidecarImage:      "ghcr.io/datadog/appsec:latest",
-				sidecarPort:       8080,
+				matchExpression: "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
+				podEligible:     true,
+				injectSidecar:   true,
+				sidecarImage:    "ghcr.io/datadog/appsec:latest",
+				sidecarPort:     8080,
 			},
 			shouldMutate: true,
 			expected: &expected{
@@ -211,12 +205,11 @@ func TestAppsecWebhookIntegration(t *testing.T) {
 				},
 			},
 			pattern: &mockSidecarPattern{
-				matchExpression:   "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
-				shouldMutate:      false, // ShouldMutatePod returns false
-				namespaceEligible: true,
-				injectSidecar:     true,
-				sidecarImage:      "ghcr.io/datadog/appsec:latest",
-				sidecarPort:       8080,
+				matchExpression: "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
+				podEligible:     false,
+				injectSidecar:   true,
+				sidecarImage:    "ghcr.io/datadog/appsec:latest",
+				sidecarPort:     8080,
 			},
 			shouldMutate: false,
 			expected:     nil,
@@ -224,12 +217,11 @@ func TestAppsecWebhookIntegration(t *testing.T) {
 		"pod in ineligible namespace should not be mutated": {
 			pod: newGatewayPod("gateway-pod", "datadog", testGatewayClassName),
 			pattern: &mockSidecarPattern{
-				matchExpression:   "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
-				shouldMutate:      true,
-				namespaceEligible: false, // Namespace not eligible
-				injectSidecar:     true,
-				sidecarImage:      "ghcr.io/datadog/appsec:latest",
-				sidecarPort:       8080,
+				matchExpression: "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
+				podEligible:     false,
+				injectSidecar:   true,
+				sidecarImage:    "ghcr.io/datadog/appsec:latest",
+				sidecarPort:     8080,
 			},
 			shouldMutate: false,
 			expected:     nil,
@@ -244,12 +236,11 @@ func TestAppsecWebhookIntegration(t *testing.T) {
 				return pod
 			}(),
 			pattern: &mockSidecarPattern{
-				matchExpression:   "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
-				shouldMutate:      false, // ShouldMutatePod returns false (sidecar exists)
-				namespaceEligible: true,
-				injectSidecar:     true,
-				sidecarImage:      "ghcr.io/datadog/appsec:latest",
-				sidecarPort:       8080,
+				matchExpression: "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
+				podEligible:     false,
+				injectSidecar:   true,
+				sidecarImage:    "ghcr.io/datadog/appsec:latest",
+				sidecarPort:     8080,
 			},
 			shouldMutate: false,
 			expected:     nil,
@@ -257,12 +248,11 @@ func TestAppsecWebhookIntegration(t *testing.T) {
 		"pattern that returns false for inject should not add sidecar": {
 			pod: newGatewayPod("gateway-pod", testNamespace, testGatewayClassName),
 			pattern: &mockSidecarPattern{
-				matchExpression:   "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
-				shouldMutate:      true,
-				namespaceEligible: true,
-				injectSidecar:     false, // Pattern decides not to inject
-				sidecarImage:      "ghcr.io/datadog/appsec:latest",
-				sidecarPort:       8080,
+				matchExpression: "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
+				podEligible:     true,
+				injectSidecar:   false, // Pattern decides not to inject
+				sidecarImage:    "ghcr.io/datadog/appsec:latest",
+				sidecarPort:     8080,
 			},
 			shouldMutate: false,
 			expected: &expected{
@@ -274,12 +264,11 @@ func TestAppsecWebhookIntegration(t *testing.T) {
 		"sidecar injection with custom port": {
 			pod: newGatewayPod("gateway-pod", testNamespace, testGatewayClassName),
 			pattern: &mockSidecarPattern{
-				matchExpression:   "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
-				shouldMutate:      true,
-				namespaceEligible: true,
-				injectSidecar:     true,
-				sidecarImage:      "custom-registry/appsec-processor:v2.0",
-				sidecarPort:       9090,
+				matchExpression: "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
+				podEligible:     true,
+				injectSidecar:   true,
+				sidecarImage:    "custom-registry/appsec-processor:v2.0",
+				sidecarPort:     9090,
 			},
 			shouldMutate: true,
 			expected: &expected{
@@ -305,13 +294,21 @@ func TestAppsecWebhookIntegration(t *testing.T) {
 
 			// Mutate pod
 			in := test.pod.DeepCopy()
-			mutated, err := webhook.callPattern(in, in.Namespace, mockDynamic, appsecconfig.SidecarInjectionPattern.MutatePod)
-			require.NoError(t, err)
+			matched, _, outcome, err := webhook.callPattern(in, in.Namespace, mockDynamic, appsecconfig.SidecarInjectionPattern.MutatePod)
+			mutated := false
+			if matched {
+				var admErr error
+				mutated, admErr = appsecconfig.NormalizeOutcomeForAdmission(outcome, err)
+				require.NoError(t, admErr)
+			}
 
 			// Verify mutation occurred or not
 			if !test.shouldMutate {
 				if test.expected != nil && test.expected.mutatePodCalled {
+					assert.True(t, matched, "Pattern should own the pod")
 					assert.Equal(t, 1, test.pattern.mutatePodCallCount, "MutatePod should be called")
+				} else {
+					assert.False(t, matched, "No pattern should own the pod")
 				}
 				assert.False(t, mutated, "Pod should not be mutated")
 				return
@@ -353,18 +350,16 @@ func TestAppsecWebhookDeleteOperation(t *testing.T) {
 		"delete operation should call PodDeleted on matching pattern": {
 			pod: newGatewayPod("gateway-pod", testNamespace, testGatewayClassName),
 			pattern: &mockSidecarPattern{
-				matchExpression:   "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
-				shouldMutate:      true,
-				namespaceEligible: true,
+				matchExpression: "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
+				podEligible:     true,
 			},
 			expectPodDeleteCall: true,
 		},
 		"delete operation should not call PodDeleted on non-matching pattern": {
 			pod: newGatewayPod("gateway-pod", testNamespace, testGatewayClassName),
 			pattern: &mockSidecarPattern{
-				matchExpression:   "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
-				shouldMutate:      false, // Pattern doesn't match
-				namespaceEligible: true,
+				matchExpression: "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
+				podEligible:     false,
 			},
 			expectPodDeleteCall: false,
 		},
@@ -415,21 +410,19 @@ func TestAppsecWebhookDeleteOperation(t *testing.T) {
 func TestAppsecWebhookMultiplePatterns(t *testing.T) {
 	// First pattern doesn't match, second one does
 	pattern1 := &mockSidecarPattern{
-		matchExpression:   "'some-other-label' in object.metadata.labels",
-		shouldMutate:      false,
-		namespaceEligible: true,
-		injectSidecar:     true,
-		sidecarImage:      "pattern1:latest",
-		sidecarPort:       8080,
+		matchExpression: "'some-other-label' in object.metadata.labels",
+		podEligible:     false,
+		injectSidecar:   true,
+		sidecarImage:    "pattern1:latest",
+		sidecarPort:     8080,
 	}
 
 	pattern2 := &mockSidecarPattern{
-		matchExpression:   "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
-		shouldMutate:      true,
-		namespaceEligible: true,
-		injectSidecar:     true,
-		sidecarImage:      "pattern2:latest",
-		sidecarPort:       9090,
+		matchExpression: "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
+		podEligible:     true,
+		injectSidecar:   true,
+		sidecarImage:    "pattern2:latest",
+		sidecarPort:     9090,
 	}
 
 	webhook := newTestWebhook([]appsecconfig.SidecarInjectionPattern{pattern1, pattern2})
@@ -445,8 +438,11 @@ func TestAppsecWebhookMultiplePatterns(t *testing.T) {
 	in := pod.DeepCopy()
 
 	// Mutate pod
-	mutated, err := webhook.callPattern(in, in.Namespace, mockDynamic, appsecconfig.SidecarInjectionPattern.MutatePod)
+	matched, _, outcome, err := webhook.callPattern(in, in.Namespace, mockDynamic, appsecconfig.SidecarInjectionPattern.MutatePod)
 	require.NoError(t, err)
+	mutated, admErr := appsecconfig.NormalizeOutcomeForAdmission(outcome, err)
+	require.NoError(t, admErr)
+	assert.True(t, matched, "Pattern2 should own the pod")
 	assert.True(t, mutated, "Pod should be mutated")
 
 	// Verify pattern1 was not called, pattern2 was called
@@ -549,12 +545,11 @@ func TestAppsecWebhookNoPatterns(t *testing.T) {
 // TestAppsecWebhookCreateOperation tests the full CREATE operation flow
 func TestAppsecWebhookCreateOperation(t *testing.T) {
 	pattern := &mockSidecarPattern{
-		matchExpression:   "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
-		shouldMutate:      true,
-		namespaceEligible: true,
-		injectSidecar:     true,
-		sidecarImage:      "ghcr.io/datadog/appsec:latest",
-		sidecarPort:       8080,
+		matchExpression: "'" + gatewayClassNamePodLabel + "' in object.metadata.labels",
+		podEligible:     true,
+		injectSidecar:   true,
+		sidecarImage:    "ghcr.io/datadog/appsec:latest",
+		sidecarPort:     8080,
 	}
 
 	webhook := newTestWebhook([]appsecconfig.SidecarInjectionPattern{pattern})

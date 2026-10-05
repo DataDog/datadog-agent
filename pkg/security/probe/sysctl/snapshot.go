@@ -26,8 +26,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+const sysctlSnapshotFallbackSysFSRoot = "/host/root/sys"
+
 var (
 	redactedContent = "******"
+
+	// ErrRequiredSysctlSnapshotFileNotFound indicates that a sysfs file needed to
+	// build a sysctl snapshot is unavailable. Callers should disable snapshots
+	// rather than repeatedly retrying an unsupported host configuration.
+	ErrRequiredSysctlSnapshotFileNotFound = errors.New("required sysctl snapshot file not found")
 )
 
 // readFileContent reads a file and processes its content based on the given rules.
@@ -149,13 +156,32 @@ func (s *Snapshot) snapshotProcSys(ignoredBaseNames []string) error {
 	})
 }
 
+func readSnapshotSystemControl(primaryPath, fallbackPath string, ignoredBaseNames []string) ([]byte, error) {
+	value, err := readFileContent(primaryPath, ignoredBaseNames)
+	if err == nil {
+		return value, nil
+	}
+
+	fallbackValue, fallbackErr := readFileContent(fallbackPath, ignoredBaseNames)
+	if fallbackErr == nil {
+		return fallbackValue, nil
+	}
+
+	if errors.Is(err, fs.ErrNotExist) && errors.Is(fallbackErr, fs.ErrNotExist) {
+		return nil, fmt.Errorf("%w: %s and fallback %s: %w", ErrRequiredSysctlSnapshotFileNotFound, primaryPath, fallbackPath, fallbackErr)
+	}
+	return nil, fmt.Errorf("couldn't read %s or fallback %s: %w", primaryPath, fallbackPath, fallbackErr)
+}
+
 // snapshotSys reads security relevant files from the /sys filesystem
 func (s *Snapshot) snapshotSys(ignoredBaseNames []string) error {
 	for _, systemControl := range []string{
 		"/kernel/security/lockdown",
 		"/kernel/security/lsm",
 	} {
-		value, err := readFileContent(kernel.HostSys(systemControl), ignoredBaseNames)
+		primaryPath := kernel.HostSys(systemControl)
+		fallbackPath := filepath.Join(sysctlSnapshotFallbackSysFSRoot, strings.TrimPrefix(systemControl, "/"))
+		value, err := readSnapshotSystemControl(primaryPath, fallbackPath, ignoredBaseNames)
 		if err != nil {
 			return err
 		}

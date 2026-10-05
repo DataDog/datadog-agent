@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The kubelet check now collects ``kubelet.containers_per_pod`` (``.count`` and ``.sum``),
+    a histogram of the number of containers running per pod on a node. This provides
+    visibility into the distribution of container counts across pods, which can help
+    identify pods with unusually high sidecar/container density.

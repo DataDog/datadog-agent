@@ -51,8 +51,6 @@ const (
 	PrometheusServices = "prometheus-services"
 	// PrometheusServicesEndpointSlices discovers Prometheus targets from EndpointSlice-backed services.
 	PrometheusServicesEndpointSlices = "prometheus-services-endpointslices"
-	// RemoteConfig delivers check configurations pushed from the Datadog backend via Remote Configuration.
-	RemoteConfig = "remote-config"
 	// SNMP autodiscovers SNMP devices on configured subnets.
 	SNMP = "snmp"
 	// Zookeeper discovers check configurations stored in a Zookeeper ZNode tree.
@@ -61,12 +59,22 @@ const (
 	GPU = "gpu"
 	// DataStreamsKafkaActions provides one-off Kafka action configurations for Data Streams Monitoring.
 	DataStreamsKafkaActions = "dsm-kafka-actions"
+	// DataSecurity provides one-off Data Security check configurations triggered via Remote Configuration.
+	DataSecurity = "data-security"
 	// DOQueryActions provides check configurations for Database Observability query-level actions.
 	DOQueryActions = "do-query-actions"
 	// PrometheusHTTPSD discovers check configurations from a Prometheus HTTP Service Discovery endpoint.
 	PrometheusHTTPSD = "prometheus-http-sd"
 	// InstrumentationChecks pulls AD configurations derived from DatadogInstrumentation CRs via the cluster-agent.
 	InstrumentationChecks = "instrumentation-checks"
+	// NetworkPathRemoteConfig schedules Network Path checks from Remote Configuration.
+	NetworkPathRemoteConfig = "network-path-remote-config"
+	// ADContainerDiscovery is the source prefix for configuration discovery file templates resolved
+	// against non-process services (containers, k8s pods, etc.).
+	ADContainerDiscovery = "ad-container-discovery+file"
+	// ADProcessDiscovery is the source prefix for configuration discovery file templates resolved
+	// against process services.
+	ADProcessDiscovery = "ad-process-discovery+file"
 )
 
 // Internal Autodiscovery names for the config providers
@@ -89,6 +97,5 @@ const (
 	PrometheusServicesRegisterName    = "prometheus_services"
 	PrometheusHTTPSDRegisterName      = "prometheus_http_sd"
 	InstrumentationChecksRegisterName = "instrumentation_checks"
-	RemoteConfigRegisterName          = "remote_config"
 	ZookeeperRegisterName             = "zookeeper"
 )

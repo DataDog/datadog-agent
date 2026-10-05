@@ -15,42 +15,25 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-const (
-	// Note that gosnmp.walk uses ".1.3.6.1.2.1" as its base ID, but we
-	// sometimes want things like LLDP data that are under lower prefixes
-	// (LLDP goes under .1.0.*). So we just start as low as possible.
-	baseOID = ".0.0"
-	// Java SNMP uses 50, snmp-net uses 10
-	defaultMaxRepetitions = 50
-)
+// RootOIDs lists scan roots in the order they are tried when initial requests fail.
+// Start below gosnmp's default .1.3.6.1.2.1 to include lower prefixes such as LLDP.
+var RootOIDs = []string{".0.0", ".1.0"}
 
 // ConditionalWalk mimics gosnmp.GoSNMP.Walk, except that the walkFn can return
 // a next OID to walk from. Use e.g. SkipOIDRowsNaive to skip over additional rows.
+// Failed initial requests try RootOIDs in order.
 // This code is adapated directly from gosnmp's walk function.
 func ConditionalWalk(
 	ctx context.Context,
 	session *gosnmp.GoSNMP,
-	rootOID string,
-	useBulk bool,
 	callInterval time.Duration,
 	maxCallCount int,
 	walkFn func(dataUnit gosnmp.SnmpPDU) (string, error),
 ) error {
-	if rootOID == "" || rootOID == "." {
-		rootOID = baseOID
-	}
-
-	if !strings.HasPrefix(rootOID, ".") {
-		rootOID = "." + rootOID
-	}
-
-	oid := rootOID
+	rootOIDs := RootOIDs
+	rootIndex := 0
+	oid := rootOIDs[rootIndex]
 	requests := 0
-	maxReps := session.MaxRepetitions
-
-	if maxReps == 0 {
-		maxReps = defaultMaxRepetitions
-	}
 
 RequestLoop:
 	for {
@@ -71,21 +54,21 @@ RequestLoop:
 			return fmt.Errorf("exceeded the maximum request limit (%d)", maxCallCount)
 		}
 
-		var response *gosnmp.SnmpPacket
-		var err error
-		if useBulk {
-			response, err = session.GetBulk([]string{oid}, 0, maxReps)
-		} else {
-			response, err = session.GetNext([]string{oid})
-		}
-		if err != nil {
-			return NewConnectionError(err)
-		}
-		if len(response.Variables) == 0 {
+		response, err := session.GetNext([]string{oid})
+		if err != nil || response.Error != gosnmp.NoError {
+			if oid == rootOIDs[rootIndex] && rootIndex+1 < len(rootOIDs) {
+				rootIndex++
+				session.Logger.Printf("ConditionalWalk failed at %s, retrying from %s", oid, rootOIDs[rootIndex])
+				oid = rootOIDs[rootIndex]
+				continue
+			}
+			if err != nil {
+				return NewConnectionError(err)
+			}
+			session.Logger.Printf("ConditionalWalk terminated with %s", response.Error.String())
 			break RequestLoop
 		}
-		if response.Error != gosnmp.NoError {
-			session.Logger.Printf("ConditionalWalk terminated with %s", response.Error.String())
+		if len(response.Variables) == 0 {
 			break RequestLoop
 		}
 

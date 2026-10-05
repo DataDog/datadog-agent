@@ -169,6 +169,12 @@ def check_component_contents_and_file_hiearchy(comp):
     if comp.def_file == 'comp/api/api/def/component.go':
         return
 
+    # Definition file must be named 'component.go' for v2 components. This is found by content
+    # (its 'type Component' definition) rather than by name, so a wrongly-named file is reported
+    # here instead of silently failing to be recognized as the component's definition.
+    if comp.version == 2 and pathlib.Path(comp.def_file).name != 'component.go':
+        return f"** {comp.def_file} should be renamed to 'component.go'. See https://datadoghq.dev/datadog-agent/guidelines/components/#file-hierarchy"
+
     # Definition file `component.go` (v1) or `def/component.go` (v2) must use `package <compname>`
     pkgname = parse_package_name(comp.def_file)
     if pkgname != comp.name:
@@ -177,7 +183,7 @@ def check_component_contents_and_file_hiearchy(comp):
     # Definition file `component.go` (v1) or `def/component.go` (v2) must not contain a mock definition
     for mock_definition in mock_definitions:
         if any(line.startswith(mock_definition) for line in def_content):
-            return f"** {comp.def_file} defines '{mock_definition}' which should be in separate implementation. See https://datadoghq.dev/datadog-agent/components/creating-components/"
+            return f"** {comp.def_file} defines '{mock_definition}' which should be in separate implementation. See https://datadoghq.dev/datadog-agent/guidelines/components/#mocks"
 
     # Allowlist of components that do not use an implementation folder
     if comp.path in components_missing_implementation_folder:
@@ -186,7 +192,7 @@ def check_component_contents_and_file_hiearchy(comp):
     # Implementation folder or folders must exist
     impl_folders = locate_implementation_folders(comp)
     if len(impl_folders) == 0:
-        return f"** {comp.name} is missing the implementation folder in {comp.path}. See https://datadoghq.dev/datadog-agent/components/creating-components/"
+        return f"** {comp.name} is missing the implementation folder in {comp.path}. See https://datadoghq.dev/datadog-agent/guidelines/components/#file-hierarchy"
 
     if comp.version == 2:
         # Implementation source files should use correct package name, and shouldn't import fx (except tests)
@@ -369,15 +375,40 @@ def get_components_and_bundles():
     return sorted(components, key=lambda c: c.path), sorted(sorted_bundles, key=lambda b: b.path)
 
 
+def find_component_def_file(def_dir):
+    """
+    Return the Go file in def_dir that defines the Component interface, if any.
+
+    Components are expected to name this file 'component.go' (checked separately in
+    check_component_contents_and_file_hiearchy), but we locate it here by content so that a
+    misnamed file still gets picked up as a component - and reported with an actionable error -
+    instead of silently vanishing from component/codeowners generation.
+    """
+    for entry in sorted(def_dir.iterdir()):
+        if not entry.is_file() or not entry.name.endswith('.go') or entry.name.endswith('_test.go'):
+            continue
+        content = read_file_content(entry).split('\n')
+        if any(line.startswith('type Component interface') or line.startswith('type Component = ') for line in content):
+            return entry
+
+    return None
+
+
 def locate_component_def(dir):
     """
     Locate the component, if this directory contains a component
     """
     component_name = dir.name.replace('-', '').lower()
 
-    # v2 component: this folder is a component root if it contains 'def/component.go'
+    # v2 component: this folder is a component root if it contains 'def/component.go', or, failing
+    # that, another Go file in 'def' that defines the Component interface (see find_component_def_file)
     def_file = dir / 'def/component.go'
-    if def_file.is_file():
+    if not def_file.is_file():
+        def_subdir = dir / 'def'
+        if def_subdir.is_dir():
+            def_file = find_component_def_file(def_subdir)
+
+    if def_file is not None and def_file.is_file():
         # comp/api/api/def/component.go is a special case, it's not a component using version 2
         # PLEASE DO NOT ADD MORE EXCEPTIONS
         if to_posix_path(def_file) == "comp/api/api/def/component.go":

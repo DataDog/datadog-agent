@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package compiler is the runtime compiler for eBPF
 package compiler
@@ -27,7 +27,6 @@ import (
 var (
 	datadogAgentEmbeddedPath = filepath.Join(defaultpaths.GetInstallPath(), "embedded")
 	clangBinPath             = filepath.Join(datadogAgentEmbeddedPath, "bin/clang-bpf")
-	llcBinPath               = filepath.Join(datadogAgentEmbeddedPath, "bin/llc-bpf")
 
 	//go:embed stdarg.h
 	stdargHData []byte
@@ -136,35 +135,18 @@ func clang(cflags []string, options ...func(*exec.Cmd)) error {
 	return nil
 }
 
+// llc reproduces `llc -march=bpf -filetype=obj` output verbatim.
 func llc(in io.Reader, outputFile string) error {
-	var llcErr bytes.Buffer
-	llcCtx, llcCancel := context.WithTimeout(context.Background(), compilationStepTimeout)
-	defer llcCancel()
-
-	bcToObj := exec.CommandContext(llcCtx, llcBinPath, "-march=bpf", "-filetype=obj", "-o", outputFile, "-")
-	bcToObj.Stdin = in
-	bcToObj.Stdout = nil
-	bcToObj.Stderr = &llcErr
-
-	log.Debugf("running llc: %v", bcToObj.Args)
-
-	err := bcToObj.Run()
-	if err != nil {
-		var errMsg string
-		if llcCtx.Err() == context.DeadlineExceeded {
-			errMsg = "operation timed out"
-		} else if len(llcErr.String()) > 0 {
-			errMsg = llcErr.String()
-		} else {
-			errMsg = err.Error()
-		}
-		return fmt.Errorf("llc: %s", errMsg)
-	}
-
-	if len(llcErr.String()) > 0 {
-		log.Debugf("%s", llcErr.String())
-	}
-	return nil
+	return clang([]string{
+		"-O2",
+		"-Wno-override-module",
+		"-Xclang", "-disable-llvm-optzns",
+		"-c",
+		"-fno-addrsig",
+		"-o", outputFile,
+		"-target", "bpf",
+		"-x", "ir", "-",
+	}, WithStdin(in))
 }
 
 // Preprocess runs the clang preprocessor on `in` and writes the output to `out`

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go_msgp:defs.bzl", "go_msgp")
 load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
 
@@ -33,6 +34,8 @@ write_pb_go(
             "model.pb.go",
         ],
         "//pkg/proto/datadog/remoteagent:core_go_proto": [
+            "command.pb.go",
+            "command_grpc.pb.go",
             "flare.pb.go",
             "flare_grpc.pb.go",
             "remoteagent.pb.go",
@@ -62,6 +65,8 @@ go_library(
         "api.pb.go",
         "api_grpc.pb.go",
         "autodiscovery.pb.go",
+        "command.pb.go",
+        "command_grpc.pb.go",
         "echo.pb.go",
         "echo_grpc.pb.go",
         "flare.pb.go",
@@ -82,6 +87,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
     visibility = ["//visibility:public"],
     deps = [
+        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_tinylib_msgp//msgp",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
@@ -94,10 +100,9 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "core_test",
     srcs = ["remoteconfig_gen_test.go"],
     embed = [":core"],
-    gotags = ["test"],
     deps = ["@com_github_tinylib_msgp//msgp"],
 )

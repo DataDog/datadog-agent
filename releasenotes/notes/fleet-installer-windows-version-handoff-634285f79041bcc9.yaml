@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    On Windows, ``datadog-installer`` now honors the ``DD_AGENT_MAJOR_VERSION``
+    and ``DD_AGENT_MINOR_VERSION`` environment variables, matching the Linux
+    and macOS install scripts.

@@ -164,11 +164,15 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        private void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
+        internal void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
         {
             var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
             var isServiceAccount = _nativeMethods.IsServiceAccount(ddAgentUserSID);
-            if (!isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword))
+            // No password to give the services. Only reachable for domain accounts: local accounts
+            // always get a generated password, and IsServiceAccount covers gMSA and the well known
+            // accounts.
+            var passwordNotProvided = !isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword);
+            if (passwordNotProvided)
             {
                 _session.Log("Password not provided, will not change service user password");
                 // set to null so we don't modify the service config
@@ -213,15 +217,29 @@ namespace Datadog.CustomActions
             {
                 _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
             }
-
             // SYSTEM
             // LocalSystem is a SCM specific shorthand that doesn't need to be localized
             _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
-            _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcmgrServiceName, "LocalSystem", "");
+            EnableProcmgrService();
+            _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
 
             _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+        }
+
+        private void EnableProcmgrService()
+        {
+            try
+            {
+                _session.Log($"Setting {Constants.ProcmgrServiceName} start type to {ServiceStartMode.Manual}");
+                _serviceController.SetStartType(Constants.ProcmgrServiceName, ServiceStartMode.Manual);
+            }
+            catch (Exception e) when (IsServiceDoesNotExistError(e))
+            {
+                _session.Log(
+                    $"Service {Constants.ProcmgrServiceName} not found, not changing its start type: {e}");
+            }
         }
 
         private void UpdateAndLogAccessControl(string serviceName, CommonSecurityDescriptor securityDescriptor)
@@ -367,14 +385,19 @@ namespace Datadog.CustomActions
                 // ** some services are optionally included in the package at build time.  Including
                 // them here will simply cause a spurious "Service X not found" in the log if the
                 // installer is built without that component.
+                // The driver services must come after every process that opens their devices,
+                // otherwise the driver cannot unload and its stop waits out the timeout below.
+                // system-probe is one of those processes and dd-procmgr-service may be the one
+                // running it, in which case stopping the Windows service by name is a no-op and
+                // only stopping the supervisor takes the process down.
                 var ddservices = new[]
                 {
+                    Constants.ProcmgrServiceName,
                     Constants.SystemProbeServiceName,
                     Constants.NpmServiceName,
                     Constants.ProcmonServiceName,       // might not exist depending on compile time options**
                     Constants.SecurityAgentServiceName, // might not exist depending on compile time options**
                     Constants.PrivateActionRunnerServiceName,
-                    Constants.ProcmgrServiceName,
                     Constants.ProcessAgentServiceName,
                     Constants.TraceAgentServiceName,
                     Constants.InstallerServiceName,

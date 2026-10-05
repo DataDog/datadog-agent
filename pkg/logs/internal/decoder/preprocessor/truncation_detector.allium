@@ -1,0 +1,138 @@
+-- allium: 3
+-- truncation_detector.allium
+
+-- Scope: The per-decision truncation detection operation: observing
+--   whether input content exceeds a size threshold and producing an
+--   IsTruncated signal without adding marker bytes. Distinct from
+--   Truncatable (which decorates content with marker bytes and
+--   maintains carry-over state); the detector is the upstream signal
+--   source that Truncatable consumes via its upstream_truncated
+--   input. NOT fulfilled by any whole module today: the framer at
+--   pkg/logs/internal/framer is the canonical upstream signal
+--   source and its limit-enforcing matchers conform per-emission,
+--   but the framer as a whole DECLINES fulfils TruncationDetector
+--   because its non-enforcing matchers (dockerStreamMatcher,
+--   noFramingMatcher) emit found frames regardless of size with
+--   wasTruncated = false. See framer.allium for the per-framing
+--   @guarantees that capture actual observable behaviour.
+-- Includes: The TruncationDetector contract, the DetectionResult
+--   value type, the byte-boundary cut semantics, the flag-only
+--   guarantee.
+-- Excludes:
+--   - Marker byte decoration. The `...TRUNCATED...` marker bytes are
+--     not added by detection sites; they are added by Truncatable
+--     fulfillers downstream. This contract explicitly forbids marker
+--     addition (see FlagOnly).
+--   - Carry-over state across consecutive calls. Detection is a
+--     pure per-call decision; the detector holds no state. Stateful
+--     accumulators (e.g. MultiLineParser at
+--     pkg/logs/internal/decoder/line_parser.go) USE detection
+--     internally at emission boundaries but are not themselves
+--     TruncationDetector fulfillers — they are described in their
+--     own surface specs.
+--   - The threshold value, which is per-instance configuration
+--     supplied by the caller rather than part of the contract.
+--   - UTF-8-aware cutting. The framer cuts content at byte boundary;
+--     UTF-8 boundary awareness is a fulfiller-specific concern. The
+--     Windows event 128 KB truncation uses UTF-8-aware cutting and
+--     is described separately at windows_event_truncation.allium.
+--   - The mechanism by which the IsTruncated flag flows downstream
+--     (set on message metadata, consumed by Truncatable). The
+--     consuming side is described in truncation.allium under the
+--     UpstreamFlagPropagation invariant.
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value DetectionResult {
+    -- The output of applying detection to one piece of content.
+    --
+    -- content:      the (possibly cut) bytes to be emitted
+    --               downstream. When the input exceeds threshold,
+    --               this is the first `threshold` bytes of the
+    --               input (cut at byte boundary). When the input is
+    --               at or under threshold, this equals the input.
+    -- is_truncated: whether the input exceeded threshold. Mirrored
+    --               onto the emitted message's IsTruncated metadata
+    --               flag by fulfillers; consumed downstream by
+    --               Truncatable fulfillers via their
+    --               upstream_truncated input.
+    content: String
+    is_truncated: Boolean
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract TruncationDetector {
+    -- Determine whether input content exceeds a size threshold,
+    -- producing the (possibly cut) content along with an
+    -- is_truncated flag. The contract is per-call: each invocation
+    -- is a pure function of its inputs, with no carry-over state
+    -- between calls. Marker decoration is explicitly out of scope
+    -- (see FlagOnly).
+    --
+    -- This contract is the upstream half of the truncation pipeline.
+    -- The downstream half is Truncatable (at truncation.allium),
+    -- which consumes the is_truncated signal via its
+    -- upstream_truncated input and applies the `...TRUNCATED...`
+    -- marker bytes.
+    detect:
+        (content: String,
+         threshold: Integer) -> DetectionResult
+
+    @invariant PassThroughUnderThreshold
+        -- When the input content's length is at or under the
+        -- threshold, the output content equals the input content
+        -- (byte-for-byte) and is_truncated is false. The detector
+        -- does not modify under-threshold inputs.
+
+    @invariant CutAtThresholdOverLimit
+        -- When the input content's length exceeds the threshold,
+        -- the output content is the first `threshold` bytes of the
+        -- input (cut at byte boundary) and is_truncated is true.
+        -- The detector cuts at byte position threshold regardless
+        -- of multi-byte character boundaries; UTF-8 awareness is
+        -- not part of this contract.
+
+    @invariant FlagOnly
+        -- The detector adds no marker bytes to the content. The
+        -- only signal of detected truncation is the is_truncated
+        -- flag in DetectionResult. Fulfillers MUST NOT prepend or
+        -- append the `...TRUNCATED...` marker — that is the
+        -- exclusive responsibility of Truncatable fulfillers
+        -- downstream.
+
+    @invariant Determinism
+        -- Given identical (content, threshold) inputs, the
+        -- detector produces identical DetectionResult outputs.
+        -- The detector holds no state between calls.
+
+    @guidance
+        -- This contract describes the abstract per-decision
+        -- "cut at hard limit + flag" operation.
+        --
+        -- The framer at pkg/logs/internal/framer composes this
+        -- contract with non-conforming matcher behaviour: its
+        -- limit-enforcing matchers (oneByteNewLineMatcher,
+        -- twoByteNewLineMatcher, syslogFrameMatcher) and its
+        -- buffer-overflow force-cut fallback conform to this
+        -- contract on a per-emission basis, while its
+        -- non-enforcing matchers (dockerStreamMatcher,
+        -- noFramingMatcher) do NOT — they emit found frames
+        -- regardless of size with wasTruncated=false. The
+        -- framer as a whole therefore does not declare
+        -- fulfilment of this contract; see framer.allium for
+        -- the per-framing @guarantees that capture the actual
+        -- observable behaviour.
+        --
+        -- The MultiLineParser at
+        -- pkg/logs/internal/decoder/line_parser.go is a
+        -- stateful accumulator that propagates an
+        -- over-buffer-limit flag without cutting content. It
+        -- does not conform to this contract. Its accumulator
+        -- state, deferred-reset semantics, and buffer
+        -- lifecycle are described in its own surface spec.
+}

@@ -10,7 +10,6 @@ package oracle
 import (
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,72 +35,13 @@ func TestNoop(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	defer func() {
-		code := m.Run()
-		os.Exit(code)
-	}()
-
-	// Set
-	// "go.testEnvVars": {
-	// 	"SKIP_TEST_MAIN": "1"
-	//   }
-	// in your settings.json to skip integration test setup
-	if os.Getenv("SKIP_TEST_MAIN") == "1" {
-		return
-	}
-
-	print("Running initdb.d sql files...")
-	// This is a bit of a hack to get a db connection without a testing.T
-	// Ideally we should pull the connection logic out
-	// to make it more accessible for testing
-	sysCheck, _ := newSysCheck(nil, "", "")
-	sysCheck.Run()
-	_, err := sysCheck.db.Exec("SELECT 1 FROM dual")
-	if err != nil {
-		fmt.Printf("Error executing select check: %s\n", err)
-		os.Exit(1)
-	}
-
-	initDbPath := "./compose/initdb.d"
-	files, _ := os.ReadDir(initDbPath)
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-		filename := file.Name()
-		bytes, err := os.ReadFile(initDbPath + "/" + filename)
-		if err != nil {
-			fmt.Printf("Error reading file %s: %s\n", filename, err)
+	if os.Getenv("SKIP_TEST_MAIN") != "1" {
+		if err := setupTestDatabase(); err != nil {
+			fmt.Fprintf(os.Stderr, "Oracle test setup failed: %s\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("Executing %s\n", filename)
-		sql := string(bytes)
-		if strings.HasSuffix(filename, ".nosplit.sql") {
-			// For some inits we need to run functions without splitting
-			_, err = sysCheck.db.Exec(sql)
-			if err != nil {
-				fmt.Printf("Error executing as literal \n%s\n %s\n", sql, err)
-			}
-		} else {
-			// Oracle can't handle multiple SQL statements in a single exec
-			lines := strings.Split(sql, "\n")
-			for _, line := range lines {
-				if strings.HasPrefix(line, "--") {
-					continue
-				}
-				// It also hates semicolons
-				trimmed := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(line), ";"))
-				if trimmed == "" {
-					continue
-				}
-				fmt.Printf("Executing %s\n", trimmed)
-				_, err = sysCheck.db.Exec(trimmed)
-				if err != nil {
-					fmt.Printf("Error executing \n%s\n %s\n", trimmed, err)
-				}
-			}
-		}
 	}
+	os.Exit(m.Run())
 }
 
 func TestCreateDatabaseIdentifier(t *testing.T) {

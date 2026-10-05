@@ -99,7 +99,12 @@ func (fm *FileManager) CopyInlineFile(fileContent pulumi.StringInput, remotePath
 			return "", err
 		}
 		return tempFilePath, nil
-	}).(pulumi.StringInput)
+	}).(pulumi.StringOutput)
+
+	// The generated path does not contain the secret file contents. Avoid
+	// propagating their secrecy to CopyFile's triggers, as secret unknown arrays
+	// cannot be decoded by the command provider during previews.
+	localTempPath = pulumi.Unsecret(localTempPath).(pulumi.StringOutput)
 
 	return fm.CopyFile(remotePath, localTempPath, pulumi.String(remotePath), opts...)
 }

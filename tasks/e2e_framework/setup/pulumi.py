@@ -7,7 +7,7 @@ from invoke.context import Context
 from invoke.exceptions import UnexpectedExit
 
 from tasks.e2e_framework.config import Config
-from tasks.e2e_framework.tool import info, is_linux, is_windows, warn
+from tasks.e2e_framework.tool import info, is_linux, is_windows, run_pulumi, warn
 
 # Length matches Pulumi cloud-generated passphrases. token_urlsafe yields ~43 chars from 32 bytes.
 _PASSPHRASE_BYTES = 32
@@ -46,7 +46,9 @@ def pulumi_version(ctx: Context) -> tuple[str, bool]:
     Will return True if PULUMI_SKIP_UPDATE_CHECK=1
     """
     try:
-        out = ctx.run("pulumi version --logtostderr", hide=True)
+        # skip_update_check must stay off here: the update notice on stderr is what tells
+        # us whether pulumi is up to date.
+        out = run_pulumi(ctx, "version --logtostderr", project_dir=False, skip_update_check=False, hide=True)
     except UnexpectedExit:
         # likely pulumi command not found
         return "", False

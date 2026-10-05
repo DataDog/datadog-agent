@@ -18,7 +18,7 @@ import (
 )
 
 func TestNetworkProcessorExtension(t *testing.T) {
-	mockSender := mocksender.NewMockSender("network-extension")
+	mockSender := mocksender.NewMockSender(t, "network-extension")
 	mockSender.SetupAcceptAll()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)

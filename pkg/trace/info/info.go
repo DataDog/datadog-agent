@@ -26,6 +26,7 @@ import (
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -147,7 +148,8 @@ func UpdateReceiverStats(rs *ReceiverStats) {
 	}
 
 	ift.receiverStats = s
-	ift.languages = rs.Languages()
+	// rs' read lock is already held; Languages would re-acquire it.
+	ift.languages = rs.languagesLocked()
 }
 
 // Languages returns all the known languages seen
@@ -204,6 +206,23 @@ func publishWatchdogInfo() interface{} {
 
 func publishUptime() interface{} {
 	return int(time.Since(ift.start) / time.Second)
+}
+
+// TraceSemanticsInfo is the operator-facing snapshot of the live trace-semantics
+// registry, rendered in the APM Agent status section.
+type TraceSemanticsInfo struct {
+	ContentHash string
+	Version     string
+	Source      string
+}
+
+func publishTraceSemanticsInfo() interface{} {
+	live := semantics.DefaultRegistry()
+	return TraceSemanticsInfo{
+		ContentHash: live.ContentHash(),
+		Version:     live.Version(),
+		Source:      live.Source(),
+	}
 }
 
 type infoString string
@@ -361,6 +380,7 @@ func initInfo(conf *config.AgentConfig, ift *tracker) error {
 	expvar.Publish("ratebyservice", expvar.Func(publishRateByService))
 	expvar.Publish("ratebyservice_filtered", expvar.Func(publishRateByServiceFiltered))
 	expvar.Publish("watchdog", expvar.Func(publishWatchdogInfo))
+	expvar.Publish("trace_semantics", expvar.Func(publishTraceSemanticsInfo))
 
 	// copy the config to ensure we don't expose sensitive data such as API keys
 	c := *conf

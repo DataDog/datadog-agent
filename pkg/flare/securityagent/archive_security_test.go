@@ -8,6 +8,8 @@
 package securityagent
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"go.uber.org/fx"
@@ -30,8 +32,8 @@ func TestCreateSecurityAgentArchive(t *testing.T) {
 		statusimpl.MockModule(),
 	))
 
-	mockConfig.SetInTest("compliance_config.dir", "./test/compliance.d")
-	logFilePath := "./test/logs/agent.log"
+	complianceDir, logFilePath := setupSecurityAgentTestdata(t)
+	mockConfig.SetInTest("compliance_config.dir", complianceDir)
 
 	// Mock getLinuxKernelSymbols. It can take a long time to scrub when creating a flare.
 	defer func(f func(flaretypes.FlareBuilder) error) {
@@ -76,4 +78,27 @@ func TestCreateSecurityAgentArchive(t *testing.T) {
 			}
 		})
 	}
+}
+
+func setupSecurityAgentTestdata(t *testing.T) (string, string) {
+	t.Helper()
+
+	root := t.TempDir()
+	complianceDir := filepath.Join(root, "compliance.d")
+	logDir := filepath.Join(root, "logs")
+	if err := os.MkdirAll(complianceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(complianceDir, "cis-docker.yaml"), []byte("name: CIS Docker Generic\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	logFilePath := filepath.Join(logDir, "agent.log")
+	if err := os.WriteFile(logFilePath, []byte("agent log\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	return complianceDir, logFilePath
 }

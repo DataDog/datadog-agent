@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -23,6 +25,8 @@ import (
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 var (
@@ -31,7 +35,7 @@ var (
 `)
 
 	testSimpleConfResolved = `secret_backend_arguments:
-- password1
+    - password1
 `
 
 	testSimpleConfOrigin = handleToContext{
@@ -52,10 +56,10 @@ instances:
 `)
 
 	testConfResolved = `instances:
-- password: password1
-  user: test
-- password: password2
-  user: test2
+    - password: password1
+      user: test
+    - password: password2
+      user: test2
 `
 
 	testConfOrigin = handleToContext{
@@ -80,9 +84,9 @@ instances:
 `)
 
 	testConfSliceResolved = `additional_endpoints:
-  http://example.com:
-  - password1
-  - data
+    http://example.com:
+        - password1
+        - data
 `
 
 	testConfSliceOrigin = handleToContext{
@@ -104,12 +108,12 @@ more_endpoints:
 `)
 
 	testMultiUsageConfResolved = `instances:
-- password: password1
-  user: test
+    - password: password1
+      user: test
 more_endpoints:
-  http://example.com:
-  - password1
-  - data
+    http://example.com:
+        - password1
+        - data
 `
 
 	testConfDash = []byte(`---
@@ -119,7 +123,7 @@ keys_with_dash_string_value:
 `)
 
 	testConfResolvedDash = `keys_with_dash_string_value:
-  foo: '-'
+    foo: '-'
 some_encoded_password: password1
 `
 	testConfDashOrigin = handleToContext{
@@ -136,7 +140,7 @@ some_encoded_password: ENC[pass1]
 `)
 
 	testConfResolvedMultiline = `some_encoded_password: |
-  password1
+    password1
 `
 	testConfMultilineOrigin = handleToContext{
 		"pass1": []secretContext{
@@ -154,8 +158,8 @@ some:
 `)
 
 	testConfNestedResolved = `some:
-  encoded:
-    data: password1
+    encoded:
+        data: password1
 `
 	testConfNestedOrigin = handleToContext{
 		"pass1": []secretContext{
@@ -174,9 +178,9 @@ some:
 `)
 
 	testConfSiblingResolved = `some:
-  encoded:
-  - data: password1
-    sibling: text
+    encoded:
+        - data: password1
+          sibling: text
 `
 
 	testConfSiblingOrigin = handleToContext{
@@ -295,6 +299,25 @@ func TestConfigurePrecedence(t *testing.T) {
 	}
 }
 
+// TestConfigureEmbeddedConnectorPathClusterAgent verifies that when a native secret
+// backend is configured, the cluster-agent flavor resolves secret-generic-connector
+// under GetInstallPath()/bin rather than GetEmbeddedBinPath(), since the cluster-agent
+// image has no "embedded/" tree.
+func TestConfigureEmbeddedConnectorPathClusterAgent(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("cluster-agent does not ship on windows")
+	}
+
+	previousFlavor := flavor.GetFlavor()
+	t.Cleanup(func() { flavor.SetFlavor(previousFlavor) })
+
+	flavor.SetFlavor(flavor.ClusterAgent)
+	r := newResolver(t, secrets.ConfigParams{Type: "file.yaml"})
+
+	want := filepath.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector")
+	assert.Equal(t, want, r.backendCommand)
+}
+
 func TestResolveNoCommand(t *testing.T) {
 	// newResolver with no params leaves secretBackendMethod empty — Resolve must be a no-op.
 	resolver := newResolver(t, secrets.ConfigParams{})
@@ -347,6 +370,65 @@ func TestResolvePartialFailure(t *testing.T) {
 	assert.Contains(t, resolved, "password1", "resolved handle should be substituted")
 	assert.Contains(t, resolved, "ENC[unknown_handle]", "unresolved handle should remain as ENC[]")
 	assert.NotEmpty(t, resolver.unresolvedSecrets)
+}
+
+func TestRefreshRetriesUnresolvedIntegrationSecret(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+
+	requests := 0
+	resolver.commandHookFunc = func(string) ([]byte, error) {
+		requests++
+		if requests == 1 {
+			return []byte(`{}`), nil
+		}
+		return []byte(`{"retry_handle":{"value":"recovered"}}`), nil
+	}
+
+	type change struct {
+		oldValue string
+		newValue string
+	}
+	var changes []change
+	resolver.SubscribeToChanges(func(_, origin string, _ []string, oldValue, newValue any) {
+		if origin == "integration-config" {
+			changes = append(changes, change{oldValue: oldValue.(string), newValue: newValue.(string)})
+		}
+	})
+
+	config := []byte("password: ENC[retry_handle]\n")
+	resolved, err := resolver.Resolve(config, "integration-config", "", "", false)
+	require.Error(t, err)
+	assert.Contains(t, string(resolved), "ENC[retry_handle]")
+	require.Contains(t, resolver.origin, "retry_handle")
+
+	output, err := resolver.RefreshNow()
+	require.NoError(t, err)
+	assert.Equal(t, 2, requests)
+	assert.Contains(t, output, "'retry_handle'")
+	assert.Equal(t, []change{{oldValue: "", newValue: "recovered"}}, changes)
+}
+
+func TestRefreshSkipsUnresolvedSecretAfterOriginRemoval(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+
+	requests := 0
+	resolver.commandHookFunc = func(string) ([]byte, error) {
+		requests++
+		return []byte(`{}`), nil
+	}
+
+	_, err := resolver.Resolve([]byte("password: ENC[removed_handle]\n"), "removed-config", "", "", false)
+	require.Error(t, err)
+	require.Contains(t, resolver.origin, "removed_handle")
+
+	resolver.RemoveOrigin("removed-config")
+	_, err = resolver.RefreshNow()
+	require.NoError(t, err)
+	assert.Equal(t, 1, requests, "removed configs must not be retried")
 }
 
 // TestResolveMultiSecretBackendsNamed verifies that ENC[FILE;pass1] is routed to the
@@ -1331,10 +1413,10 @@ func TestSecretFiltering(t *testing.T) {
 				ScopeIntegrationToNamespace: true,
 			},
 			expectedConf: `instances:
-- some_obj:
-  - value1
-  - value2
-  - ENC[k8s_secret@default/sec1/key1]
+    - some_obj:
+        - value1
+        - value2
+        - ENC[k8s_secret@default/sec1/key1]
 `,
 		},
 		{
@@ -1343,10 +1425,10 @@ func TestSecretFiltering(t *testing.T) {
 				AllowedNamespace: []string{"namespace1", "namespace2"},
 			},
 			expectedConf: `instances:
-- some_obj:
-  - value1
-  - value2
-  - ENC[k8s_secret@default/sec1/key1]
+    - some_obj:
+        - value1
+        - value2
+        - ENC[k8s_secret@default/sec1/key1]
 `,
 		},
 		{
@@ -1358,10 +1440,10 @@ func TestSecretFiltering(t *testing.T) {
 				},
 			},
 			expectedConf: `instances:
-- some_obj:
-  - value1
-  - ENC[k8s_secret@namespace1/sec1/key1]
-  - value3
+    - some_obj:
+        - value1
+        - ENC[k8s_secret@namespace1/sec1/key1]
+        - value3
 `,
 		},
 	}
@@ -1393,10 +1475,10 @@ func TestSecretFiltering(t *testing.T) {
 			// This test verify that any secrets from non-container sources can still be resolved. Non-container
 			// configuration are datadog.yaml, system-probe.yaml, integrations from files, ...
 			expectedConf := `instances:
-- some_obj:
-  - value1
-  - value2
-  - value3
+    - some_obj:
+        - value1
+        - value2
+        - value3
 `
 			resolvedConf, err = resolver.Resolve(testSecretFiltering, "datadog.yaml", "", "", true)
 			assert.NoError(t, err)

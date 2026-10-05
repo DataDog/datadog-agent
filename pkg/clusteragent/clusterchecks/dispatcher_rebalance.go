@@ -8,14 +8,15 @@
 package clusterchecks
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -39,10 +40,6 @@ type Weight struct {
 
 // Weights is an array of node weights
 type Weights []Weight
-
-func (w Weights) Len() int           { return len(w) }
-func (w Weights) Less(i, j int) bool { return w[i].busyness > w[j].busyness }
-func (w Weights) Swap(i, j int)      { w[i], w[j] = w[j], w[i] }
 
 func (d *dispatcher) calculateAvg() (int, error) {
 	busyness := 0
@@ -276,7 +273,7 @@ func (d *dispatcher) rebalanceUsingBusyness() []types.RebalanceResponse {
 
 	checksMoved := []types.RebalanceResponse{}
 	diffMap, weights := d.getDiffAndWeights(totalAvg)
-	sort.Sort(weights)
+	slices.SortFunc(weights, func(a, b Weight) int { return cmp.Compare(b.busyness, a.busyness) })
 
 	for _, nodeWeight := range weights {
 		for diffMap[nodeWeight.nodeName] > 0 {
@@ -302,7 +299,7 @@ func (d *dispatcher) rebalanceUsingBusyness() []types.RebalanceResponse {
 				err = d.moveConfig(sourceNodeName, destNodeName, digest)
 				if err != nil {
 					log.Debugf("Cannot move config %s: %v", digest, err)
-					continue
+					break
 				}
 
 				successfulRebalancing.Inc(le.JoinLeaderValue)
@@ -385,7 +382,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	}()
 
 	currentConfigsDistribution := d.currentDistribution()
-	proposedDistribution := newConfigsDistribution(currentConfigsDistribution.runnerWorkers(), pkgconfigsetup.Datadog().GetBool("cluster_checks.experimental_stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.experimental_stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.experimental_stickiness_limit"))
+	proposedDistribution := newConfigsDistribution(currentConfigsDistribution.runnerWorkers(), pkgconfigsetup.Datadog().GetBool("cluster_checks.stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_upper_limit"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_lower_limit"))
 
 	// Place configs in proposed: pinned ones stay on their current runner,
 	for digest, config := range currentConfigsDistribution.Configs {
@@ -452,7 +449,7 @@ func (d *dispatcher) currentDistribution() configsDistribution {
 		currentWorkersPerRunner[nodeName] = nodeInfo.workers
 	}
 
-	distribution := newConfigsDistribution(currentWorkersPerRunner, pkgconfigsetup.Datadog().GetBool("cluster_checks.experimental_stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.experimental_stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.experimental_stickiness_limit"))
+	distribution := newConfigsDistribution(currentWorkersPerRunner, pkgconfigsetup.Datadog().GetBool("cluster_checks.stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_upper_limit"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_lower_limit"))
 
 	for nodeName, nodeStoreInfo := range d.store.nodes {
 		nodeStoreInfo.RLock()

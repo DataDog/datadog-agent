@@ -23,20 +23,27 @@ const (
 	ActionExecutionCompletedMetric = "datadog.actions.private_runner.executions.completed"
 	ActionExecutionLatencyMetric   = "datadog.actions.private_runner.executions.latency"
 
-	HealthCheckMetric = "datadog.actions.private_runner.health.check"
+	HealthCheckMetric   = "datadog.actions.private_runner.health.check"
+	RunnerRunningMetric = "datadog.actions.private_actions.runner.running"
 
 	KeysManagerStartupLatencyMetric = "datadog.actions.private_runner.keys_manager.startup_latency"
 )
 
 func ReportExecutionStart(metricsClient statsd.ClientInterface, client actionsclientpb.Client, fqn, taskID string, logger log.Logger) time.Time {
-	logger.Info("Running private action", log.String(ActionFqnTagName, fqn), log.String(ActionClientTagName, client.String()), log.String(TaskIDTagName, taskID))
+	// action_fqn and task_id are already bound on logger's context fields (see
+	// WorkflowRunner.handleTask), so only action_client is added here to avoid
+	// duplicate fields in the log output.
+	logger.Info("Running private action", log.String(ActionClientTagName, client.String()))
 	tags := []string{fmt.Sprintf("%s:%s", ActionClientTagName, client), fmt.Sprintf("%s:%s", ActionFqnTagName, fqn)}
 	_ = metricsClient.Incr(ActionExecutionStartedMetric, tags, 1.0)
 	return time.Now()
 }
 
 func ReportExecutionCompleted(metricsClient statsd.ClientInterface, client actionsclientpb.Client, fqn, taskId string, startTime time.Time, err error, logger log.Logger) {
-	logger = logger.With(log.String(ActionFqnTagName, fqn), log.String(ActionClientTagName, client.String()), log.String(TaskIDTagName, taskId))
+	// action_fqn and task_id are already bound on logger's context fields (see
+	// WorkflowRunner.handleTask), so only action_client is added here to avoid
+	// duplicate fields in the log output.
+	logger = logger.With(log.String(ActionClientTagName, client.String()))
 	tags := []string{fmt.Sprintf("%s:%s", ActionClientTagName, client), fmt.Sprintf("%s:%s", ActionFqnTagName, fqn)}
 	if err != nil {
 		logger.Warn("Private actions completed with failure", log.ErrorField(err))
@@ -47,6 +54,14 @@ func ReportExecutionCompleted(metricsClient statsd.ClientInterface, client actio
 	}
 	_ = metricsClient.Timing(ActionExecutionLatencyMetric, time.Since(startTime), tags, 1.0)
 	_ = metricsClient.Incr(ActionExecutionCompletedMetric, tags, 1.0)
+}
+
+func ReportHealthCheck(metricsClient statsd.ClientInterface) {
+	if metricsClient == nil {
+		return
+	}
+	_ = metricsClient.Gauge(RunnerRunningMetric, 1, []string{}, 1.0)
+	_ = metricsClient.Gauge(HealthCheckMetric, 1, []string{}, 1.0)
 }
 
 func ReportKeysManagerReady(client statsd.ClientInterface, logger log.Logger, startTime time.Time) {

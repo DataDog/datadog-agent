@@ -185,8 +185,9 @@ func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, output
 
 	p := message.NewPayload(messagesMetadata, b.encodedPayload.Bytes(), b.compression.ContentEncoding(), unencodedSize)
 
-	b.utilization.Stop()
+	// Stay in-use across the channel write: blocking here is downstream backpressure, not idle.
 	outputChan <- p
+	b.utilization.Stop()
 	b.pipelineMonitor.ReportComponentEgress(p, metrics.StrategyTlmName, b.instanceID)
 	b.pipelineMonitor.ReportComponentIngress(p, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
 }

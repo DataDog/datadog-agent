@@ -223,29 +223,30 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 	if cookie > 0 {
 		e.Cookie = cookie
 	}
-	e.PPid = binary.NativeEndian.Uint32(data[8:12])
-	// [12:16] padding
 
-	e.ForkTime = unmarshalTime(data[16:24])
-	e.ExitTime = unmarshalTime(data[24:32])
-	e.UserSession.K8SSessionID = binary.NativeEndian.Uint64(data[32:40])
-	e.ForkFlags = binary.NativeEndian.Uint64(data[40:48])
-	e.PIDContext.SID = binary.NativeEndian.Uint32(data[48:52])
-	// [52:56] padding_sid
+	e.ForkTime = unmarshalTime(data[8:16])
+	e.ExitTime = unmarshalTime(data[16:24])
+	if !e.ExitTime.IsZero() {
+		e.StopExecutionTime = e.ExitTime
+	}
+	e.UserSession.K8SSessionID = binary.NativeEndian.Uint64(data[24:32])
+	e.ForkFlags = binary.NativeEndian.Uint64(data[32:40])
+	e.PIDContext.SID = binary.NativeEndian.Uint32(data[40:44])
+	// [44:48] padding_sid
 
 	// Unmarshal the credentials contained in pid_cache_t
-	read, err := e.Credentials.UnmarshalBinary(data[56:])
+	read, err := e.Credentials.UnmarshalBinary(data[48:])
 	if err != nil {
 		return 0, err
 	}
-	read += 56
+	read += 48
 
 	return validateReadSize(size, read)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 308 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 300 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -513,6 +514,22 @@ func (e *UnshareMountNSEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
+func (e *UnshareEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Flags = binary.NativeEndian.Uint64(data[read : read+8])
+
+	return read + 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ChdirEvent) UnmarshalBinary(data []byte) (int, error) {
 	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 }
@@ -525,25 +542,28 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	data = data[n:]
-	if len(data) < 8 {
+	if len(data) < 16 {
 		return n, ErrNotEnoughData
 	}
 
 	e.Flags = binary.NativeEndian.Uint32(data[0:4])
 	e.Mode = binary.NativeEndian.Uint32(data[4:8])
-	return n + 8, nil
+	e.SampleCookie = binary.NativeEndian.Uint64(data[8:16])
+	return n + 16, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (s *SpanContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 24 {
+	if len(data) < 32 {
 		return 0, ErrNotEnoughData
 	}
 
 	s.SpanID = binary.NativeEndian.Uint64(data[0:8])
 	s.TraceID.Lo = binary.NativeEndian.Uint64(data[8:16])
 	s.TraceID.Hi = binary.NativeEndian.Uint64(data[16:24])
-	return 24, nil
+	s.ExtraAttrsID = binary.NativeEndian.Uint64(data[24:32])
+	s.HasExtraAttrs = s.ExtraAttrsID != 0
+	return 32, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -590,7 +610,7 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself, process_context_t kernel side
 func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 40 {
+	if len(data) < 48 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -599,11 +619,13 @@ func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	p.NetNS = binary.NativeEndian.Uint32(data[8:12])
 	p.MntNS = binary.NativeEndian.Uint32(data[12:16])
 	p.IsKworker = binary.NativeEndian.Uint32(data[16:20]) > 0
-	p.SID = binary.NativeEndian.Uint32(data[20:24])
-	p.ExecInode = binary.NativeEndian.Uint64(data[24:32])
-	p.UserSessionID = binary.NativeEndian.Uint64(data[32:40])
+	p.PPid = binary.NativeEndian.Uint32(data[20:24])
+	p.SID = binary.NativeEndian.Uint32(data[24:28])
+	// [28:32] padding_sid
+	p.ExecInode = binary.NativeEndian.Uint64(data[32:40])
+	p.UserSessionID = binary.NativeEndian.Uint64(data[40:48])
 
-	return 40, nil
+	return 48, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -644,6 +666,18 @@ func (e *SyscallEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SyscallContext) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+	e.ID = uint32(binary.NativeEndian.Uint32(data))
+
+	// padding
+
+	return 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *GoLabelsContext) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
@@ -1128,14 +1162,21 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 10 {
+	if len(data) < 4 {
+		return 0, ErrNotEnoughData
+	}
+	e.CredentialSource = binary.NativeEndian.Uint32(data[0:4])
+
+	// the HTTP payload captured by the kernel follows the credential source
+	body := data[4:]
+	if len(body) < 10 {
 		return 0, ErrNotEnoughData
 	}
 
-	firstWord := strings.SplitN(string(data[0:10]), " ", 2)
+	firstWord := strings.SplitN(string(body[0:10]), " ", 2)
 	switch {
 	case strings.HasPrefix(firstWord[0], "HTTP"):
-		resp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(data)), nil)
+		resp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(body)), nil)
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse IMDS response: %v", err)
 		}
@@ -1171,7 +1212,7 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 		http.MethodOptions,
 		http.MethodTrace,
 	}, firstWord[0]):
-		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBuffer(data)))
+		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBuffer(body)))
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse IMDS request: %v", err)
 		}
@@ -1206,9 +1247,11 @@ func (e *IMDSEvent) fillFromIMDSHeader(header http.Header, url string) {
 		} else {
 			e.CloudProvider = IMDSAWSCloudProvider
 
-			// check if this is an IMDSv2 request
-			e.AWS.IsIMDSv2 = len(header.Get("x-aws-ec2-metadata-token-ttl-seconds")) > 0 ||
-				len(header.Get("x-aws-ec2-metadata-token")) > 0
+			// v1/v2 only applies to the instance metadata service
+			if e.CredentialSource == uint32(CredentialSourceIMDS) {
+				e.AWS.IsIMDSv2 = len(header.Get("x-aws-ec2-metadata-token-ttl-seconds")) > 0 ||
+					len(header.Get("x-aws-ec2-metadata-token")) > 0
+			}
 		}
 	}
 }
@@ -1309,7 +1352,7 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 22 {
+	if len(data)-read < 32 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -1318,6 +1361,8 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.AddrFamily = binary.NativeEndian.Uint16(data[read+16 : read+18])
 	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
 	e.Protocol = binary.NativeEndian.Uint16(data[read+20 : read+22])
+	// read+22:read+24 is C struct padding to 8-align the u64 sample_cookie
+	e.SampleCookie = binary.NativeEndian.Uint64(data[read+24 : read+32])
 
 	// readjust IP size depending on the protocol
 	switch e.AddrFamily {
@@ -1327,7 +1372,7 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[:])
 	}
 
-	return read + 22, nil
+	return read + 32, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1337,7 +1382,7 @@ func (e *ConnectEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 22 {
+	if len(data)-read < 32 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -1346,6 +1391,8 @@ func (e *ConnectEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.AddrFamily = binary.NativeEndian.Uint16(data[read+16 : read+18])
 	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
 	e.Protocol = binary.NativeEndian.Uint16(data[read+20 : read+22])
+	// read+22:read+24 is C struct padding to 8-align the u64 sample_cookie
+	e.SampleCookie = binary.NativeEndian.Uint64(data[read+24 : read+32])
 
 	// readjust IP size depending on the protocol
 	switch e.AddrFamily {
@@ -1355,16 +1402,43 @@ func (e *ConnectEvent) UnmarshalBinary(data []byte) (int, error) {
 		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[:])
 	}
 
-	return read + 22, nil
+	return read + 32, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
+func (e *SampleRefreshEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Cookie = binary.NativeEndian.Uint64(data[0:8])
+	return 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *OTelProcessCtxEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 4 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Pid = binary.NativeEndian.Uint32(data[0:4])
+	return 4, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself.
 func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 72 {
+	if len(data) < 88 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.EventReason = SyscallDriftEventReason(binary.NativeEndian.Uint64(data[0:8]))
+
+	if e.EventReason == SampleReason {
+		e.SyscallID = binary.NativeEndian.Uint32(data[72:76])
+		// data[76:80] is C struct padding to 8-align the u64 sample_cookie
+		e.SampleCookie = binary.NativeEndian.Uint64(data[80:88])
+		return 88, nil
+	}
 
 	for i, b := range data[8:72] {
 		// compute the ID of the syscall
@@ -1374,7 +1448,7 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 			}
 		}
 	}
-	return 72, nil
+	return 88, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1600,15 +1674,18 @@ func (e *SetrlimitEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *CapabilitiesEvent) UnmarshalBinary(data []byte) (int, error) {
-	const size = 16
+	const size = 40
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
 
 	e.Attempted = binary.NativeEndian.Uint64(data[0:8])
 	e.Used = binary.NativeEndian.Uint64(data[8:16])
+	e.AttemptedHostUserNS = binary.NativeEndian.Uint64(data[16:24])
+	e.UsedHostUserNS = binary.NativeEndian.Uint64(data[24:32])
+	e.Cookie = binary.NativeEndian.Uint64(data[32:40])
 
-	return 16, nil
+	return size, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -1635,7 +1712,7 @@ func (e *PrCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 12, err
 	}
 
-	return 12 + int(sizeToRead), nil
+	return read + 12 + int(sizeToRead), nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

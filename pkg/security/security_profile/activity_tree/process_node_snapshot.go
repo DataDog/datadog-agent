@@ -22,16 +22,17 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // snapshot uses procfs to retrieve information about the current process
-func (pn *ProcessNode) snapshot(owner Owner, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
+func (pn *ProcessNode) snapshot(owner Owner, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer, containerID containerutils.ContainerID) {
 	// call snapshot for all the children of the current node
 	for _, child := range pn.Children {
-		child.snapshot(owner, stats, newEvent, reducer)
+		child.snapshot(owner, stats, newEvent, reducer, containerID)
 	}
 
 	// snapshot the current process
@@ -43,7 +44,7 @@ func (pn *ProcessNode) snapshot(owner Owner, stats *Stats, newEvent func() *mode
 
 	// snapshot files
 	if owner.IsEventTypeValid(model.FileOpenEventType) {
-		pn.snapshotAllFiles(p, stats, newEvent, reducer)
+		pn.snapshotAllFiles(p, stats, newEvent, reducer, containerID)
 	}
 
 	// snapshot sockets
@@ -56,7 +57,7 @@ func (pn *ProcessNode) snapshot(owner Owner, stats *Stats, newEvent func() *mode
 // this value was selected because it represents the default upper bound for the number of FDs a linux process can have
 const maxFDsPerProcessSnapshot = 1024
 
-func (pn *ProcessNode) snapshotAllFiles(p *process.Process, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
+func (pn *ProcessNode) snapshotAllFiles(p *process.Process, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer, containerID containerutils.ContainerID) {
 	// list the files opened by the process
 	fileFDs, err := p.OpenFiles()
 	if err != nil {
@@ -90,7 +91,7 @@ func (pn *ProcessNode) snapshotAllFiles(p *process.Process, stats *Stats, newEve
 		}
 	}
 	if isSampling {
-		seclog.Warnf("sampled open files while snapshotting (pid: %v): kept %d of %d files", p.Pid, len(files), len(fileFDs))
+		seclog.Infof("sampled open files while snapshotting (pid: %v): kept %d of %d files", p.Pid, len(files), len(fileFDs))
 	}
 
 	// list the mmaped files of the process
@@ -104,10 +105,10 @@ func (pn *ProcessNode) snapshotAllFiles(p *process.Process, stats *Stats, newEve
 		return
 	}
 
-	pn.addFiles(files, stats, newEvent, reducer)
+	pn.addFiles(files, stats, newEvent, reducer, containerID)
 }
 
-func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
+func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer, containerID containerutils.ContainerID) {
 	// list the mmaped files of the process
 	slices.Sort(files)
 	files = slices.Compact(files)
@@ -127,7 +128,7 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 		if evt.ProcessContext == nil {
 			evt.ProcessContext = &model.ProcessContext{}
 		}
-		evt.ProcessContext.Process = pn.Process
+		evt.ProcessContext.Process = pn.Process.ToModelProcess(containerID)
 
 		var fileStats unix.Statx_t
 		if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err != nil {
@@ -144,7 +145,7 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 
 			mode := utils.UnixStatModeToGoFileMode(stat.Mode)
 			if mode.IsRegular() {
-				evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &pn.Process, &evt.Open.File)
+				evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &evt.ProcessContext.Process, &evt.Open.File)
 			}
 		} else {
 			evt.Open.File.FileFields.Mode = uint16(fileStats.Mode)
@@ -161,7 +162,7 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 			evt.Open.File.MountID = uint32(fileStats.Mnt_id)
 
 			if (fileStats.Mode & syscall.S_IFREG) != 0 {
-				evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &pn.Process, &evt.Open.File)
+				evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &evt.ProcessContext.Process, &evt.Open.File)
 			}
 		}
 
@@ -181,7 +182,7 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
-		_ = pn.InsertFileEvent(&evt.Open.File, evt, 0, Snapshot, stats, false, reducer, nil)
+		_, _ = pn.InsertFileEvent(&evt.Open.File, evt, 0, Snapshot, stats, false, reducer, nil)
 	}
 }
 
@@ -228,5 +229,5 @@ func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, protoco
 	}
 	evt.Bind.Addr.Port = port
 
-	_ = pn.InsertBindEvent(evt, 0, Snapshot, stats, false)
+	_, _ = pn.InsertBindEvent(evt, 0, Snapshot, stats, false)
 }

@@ -5,19 +5,24 @@
 Invoke entrypoint, import here all the tasks we want to make available
 """
 
+import sys
+
 from invoke import Collection, Task
 
 from tasks import (
     agent,
     agent_ci_api,
+    ai_sandbox,
     ami,
     anomalydetection,
     auth,
+    bazel,
     bench,
     buildimages,
     claude,
     cluster_agent,
     cluster_agent_cloudfoundry,
+    code_review,
     collector,
     components,
     coverage,
@@ -62,7 +67,6 @@ from tasks import (
     owners,
     package,
     pipeline,
-    pkg_template,
     pre_commit,
     privateactionrunner,
     process_agent,
@@ -90,7 +94,7 @@ from tasks import (
     windows_dev_env,
     worktree,
 )
-from tasks.build_tags import audit_tag_impact, codegen_to_json, print_default_build_tags
+from tasks.build_tags import codegen_to_json, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.custom_task.custom_task import custom__call__
 
@@ -102,6 +106,7 @@ from tasks.e2e_framework import localpodman as e2e_localpodman
 from tasks.e2e_framework import test as e2e_test
 from tasks.e2e_framework.deploy import check_s3_image_exists
 from tasks.e2e_framework.setup import setup as e2e_setup
+from tasks.e2e_framework.vm import get_vm_password as e2e_get_vm_password
 from tasks.fuzz import fuzz
 from tasks.fuzz_infra import build_and_upload_fuzz
 from tasks.go import (
@@ -130,6 +135,7 @@ from tasks.gotest import (
     lint_go,
     send_unit_tests_stats,
     test,
+    test_legacy,
 )
 from tasks.install_tasks import (
     download_tools,
@@ -143,7 +149,6 @@ from tasks.licenses import (
     generate_rust_licenses,
     lint_rust_licenses,
 )
-from tasks.show_linters_issues.show_linters_issues import show_linters_issues
 from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
 
@@ -153,7 +158,15 @@ Task.__call__ = custom__call__
 ns = Collection()
 
 # add single tasks to the root
-ns.add_task(test)
+# AIX gets routed to the legacy task because it doesn't support bazel.
+# windows will be onboarded to bazel-by-default when ready
+if sys.platform in ("win32", "aix"):
+    ns.add_task(test_legacy, name="test")
+    ns.add_task(test, name="test-new")
+else:
+    ns.add_task(test)
+    ns.add_task(test_legacy)
+
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(deps_vendored)
@@ -164,10 +177,8 @@ ns.add_task(generate_rust_licenses)
 ns.add_task(lint_components)
 ns.add_task(lint_fxutil_oneshot_test)
 ns.add_task(reset)
-ns.add_task(show_linters_issues)
 ns.add_task(go_version)
 ns.add_task(update_go)
-ns.add_task(audit_tag_impact)
 ns.add_task(codegen_to_json)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
@@ -199,11 +210,14 @@ ns.add_task(lint_go)
 # add namespaced tasks to the root
 ns.add_collection(anomalydetection)
 ns.add_collection(auth)
+ns.add_collection(bazel)
 ns.add_collection(agent)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)
+ns.add_collection(ai_sandbox)
 ns.add_collection(buildimages)
 ns.add_collection(claude)
+ns.add_collection(code_review)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
@@ -275,7 +289,6 @@ ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
 ns.add_collection(schema)
 ns.add_collection(sbomgen)
-ns.add_collection(pkg_template)
 ns.add_collection(virustotal)
 ns.add_collection(files_inventory)
 
@@ -290,6 +303,7 @@ e2e_ns = Collection("e2e")
 e2e_ns.add_collection(e2e_setup)
 e2e_ns.add_collection(e2e_test)
 e2e_ns.add_task(check_s3_image_exists)
+e2e_ns.add_task(e2e_get_vm_password, name="get-vm-password")
 
 ns.add_collection(e2e_ns)
 ns.configure(

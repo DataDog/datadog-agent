@@ -64,7 +64,7 @@ func TestAgentWindowsSuite(t *testing.T) {
 						agentparams.WithSecurityAgentConfig(securityAgentConfig),
 						agentparams.WithSystemProbeConfig(systemProbeConfig),
 					),
-					ec2.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault), ec2.WithInstanceType("t3.xlarge")),
+					ec2.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault), ec2.WithInstanceType("t3.xlarge"), ec2.WithInternetAccess()),
 				),
 			),
 		),

@@ -8,19 +8,16 @@
   - tar -xf $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
   - mkdir -p /tmp/system-probe
   - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/clang-${CLANG_LLVM_VER}.${PACKAGE_ARCH}.${CLANG_BUILD_VERSION}" /tmp/system-probe/clang-bpf
-  - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/llc-${CLANG_LLVM_VER}.${PACKAGE_ARCH}.${CLANG_BUILD_VERSION}" /tmp/system-probe/llc-bpf
   - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
-  - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
+  - chmod 0744 /tmp/system-probe/clang-bpf
   - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
   - ls -la $OMNIBUS_PACKAGE_DIR
   - !reference [.upload_sbom_artifacts]
 
 .agent_build_common:
-  extends:
-    - .bazel:defs:cache:omnibus-transition
-    - .rust_internal_registry  # TODO(agent-build): bazelify
+  extends: [ .bazel:defs:cache:omnibus-transition ]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   script:
@@ -40,8 +37,8 @@
   needs: ["build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
     PACKAGE_ARCH: amd64
-    DD_CC: "x86_64-unknown-linux-gnu-gcc"
-    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+    DD_CC: "x86_64-linux-gnu-gcc"
+    DD_CXX: "x86_64-linux-gnu-g++"
 
 .agent_build_arm64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -50,8 +47,8 @@
     ["build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64"]
   variables:
     PACKAGE_ARCH: arm64
-    DD_CC: "aarch64-unknown-linux-gnu-gcc"
-    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+    DD_CC: "aarch64-linux-gnu-gcc"
+    DD_CXX: "aarch64-linux-gnu-g++"
 
 .agent_base_flavor:
   variables:
@@ -61,17 +58,35 @@
   variables:
     FLAVOR: fips
 
+.agent_recorder_flavor:
+  variables:
+    FLAVOR: recorder
+
 # build Agent 7 binaries for x86_64
 datadog-agent-7-x64:
   extends: [.agent_build_common, .agent_build_x86, .agent_base_flavor]
   rules:
     - when: on_success
 
+datadog-agent-7-x64-recorder:
+  extends: [.agent_build_common, .agent_build_x86, .agent_recorder_flavor]
+  rules:
+    - if: '$CI_COMMIT_BRANCH && ($ANOMALY_DETECTION_RECORDER != null || $RUN_ALL_BUILDS == "true" || $DEPLOY_AGENT == "true")'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
+      allow_failure: true
+    - when: never
+
 # build Agent 7 binaries for arm64
 datadog-agent-7-arm64:
   extends: [.agent_build_common, .agent_build_arm64, .agent_base_flavor]
   rules:
     - when: on_success
+
+datadog-agent-7-arm64-recorder:
+  extends: [.agent_build_common, .agent_build_arm64, .agent_recorder_flavor]
+  rules: !reference [datadog-agent-7-x64-recorder, rules]
 
 # build Agent 7 binaries for x86_64 with FIPS
 datadog-agent-7-x64-fips:
@@ -90,15 +105,15 @@ datadog-agent-7-arm64-fips:
   tags: ["arch:amd64", "specific:true"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   variables:
-    DD_CC: "x86_64-unknown-linux-gnu-gcc"
-    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+    DD_CC: "x86_64-linux-gnu-gcc"
+    DD_CXX: "x86_64-linux-gnu-g++"
 
 .toolchain-common-arm64:
   tags: ["arch:arm64", "specific:true"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   variables:
-    DD_CC: "aarch64-unknown-linux-gnu-gcc"
-    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+    DD_CC: "aarch64-linux-gnu-gcc"
+    DD_CXX: "aarch64-linux-gnu-g++"
 
 # ----- IoT -----
 
@@ -143,7 +158,7 @@ iot-agent-armhf:
   extends: .bazel:defs:cache:omnibus-transition
   needs: ["go_deps"]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   script:
@@ -179,7 +194,7 @@ dogstatsd-arm64:
   extends: .bazel:defs:cache:omnibus-transition
   needs: ["go_deps"]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   script:

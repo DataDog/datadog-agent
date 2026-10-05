@@ -36,6 +36,7 @@ type ListenerConfig struct {
 	CollectDeviceMetadata   bool                       `mapstructure:"collect_device_metadata"`
 	CollectTopology         bool                       `mapstructure:"collect_topology"`
 	CollectVPN              bool                       `mapstructure:"collect_vpn"`
+	DeviceTagsSource        string                     `mapstructure:"device_tags_source"`
 	MinCollectionInterval   uint                       `mapstructure:"min_collection_interval"`
 	Namespace               string                     `mapstructure:"namespace"`
 	UseDeviceISAsHostname   bool                       `mapstructure:"use_device_id_as_hostname"`
@@ -64,6 +65,7 @@ type UnmarshalledConfig struct {
 	CollectDeviceMetadata *bool                                        `mapstructure:"collect_device_metadata"`
 	CollectTopology       *bool                                        `mapstructure:"collect_topology"`
 	CollectVPN            *bool                                        `mapstructure:"collect_vpn"`
+	DeviceTagsSource      string                                       `mapstructure:"device_tags_source"`
 	Community             string                                       `mapstructure:"community_string"`
 	ContextEngineID       string                                       `mapstructure:"context_engine_id"`
 	ContextName           string                                       `mapstructure:"context_name"`
@@ -120,6 +122,7 @@ type Config struct {
 	CollectDeviceMetadata   bool
 	CollectTopology         bool
 	CollectVPN              bool
+	DeviceTagsSource        string
 	IgnoredIPAddresses      map[string]bool
 	UseDeviceIDAsHostname   bool
 	UseRemoteConfigProfiles bool
@@ -246,6 +249,12 @@ func NewListenerConfig() (ListenerConfig, error) {
 			config.CollectVPN = *unmarshalledConfig.CollectVPN
 		} else {
 			config.CollectVPN = snmpConfig.CollectVPN
+		}
+
+		if unmarshalledConfig.DeviceTagsSource != "" {
+			config.DeviceTagsSource = unmarshalledConfig.DeviceTagsSource
+		} else {
+			config.DeviceTagsSource = snmpConfig.DeviceTagsSource
 		}
 
 		if unmarshalledConfig.UseDeviceIDAsHostname != nil {

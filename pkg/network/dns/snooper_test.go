@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package dns
 
@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"syscall"
 	"testing"
@@ -285,8 +286,7 @@ func TestDNSOverNonPort53(t *testing.T) {
 	domains := []string{
 		"nonexistent.net.com",
 	}
-	shutdown, port := newTestServer(t, localhost, "udp")
-	defer shutdown()
+	port := newTestServer(t, localhost, "udp")
 
 	queryIP, queryPort, reps, err := testdns.SendDNSQueriesOnPort(domains, net.ParseIP(localhost), strconv.Itoa(int(port)), "udp")
 	require.NoError(t, err)
@@ -302,25 +302,24 @@ func TestDNSOverNonPort53(t *testing.T) {
 }
 
 func TestDNSOverCustomPort(t *testing.T) {
+	port := newTestServer(t, localhost, "udp")
+
 	cfg := testConfig()
 	cfg.CollectDNSStats = true
 	cfg.CollectLocalDNS = true
 	cfg.DNSTimeout = 1 * time.Second
-	// Add custom port 5353
-	cfg.DNSMonitoringPortList = []int{53, 5353}
+	// Add custom port
+	cfg.DNSMonitoringPortList = []int{53, int(port)}
 
 	rdns, err := NewReverseDNS(cfg, nil)
 	require.NoError(t, err)
 	err = rdns.Start()
 	require.NoError(t, err)
 	reverseDNS := rdns.(*dnsMonitor)
-	defer reverseDNS.Close()
-
+	t.Cleanup(reverseDNS.Close)
 	statKeeper := reverseDNS.statKeeper
-	domains := []string{"golang.org"}
-	shutdown, port := newTestServerOnPort(t, localhost, "udp", 5353)
-	defer shutdown()
 
+	domains := []string{"golang.org"}
 	queryIP, queryPort, reps, err := testdns.SendDNSQueriesOnPort(domains, net.ParseIP(localhost), strconv.Itoa(int(port)), "udp")
 	require.NoError(t, err)
 	require.NotNil(t, reps[0])
@@ -344,11 +343,22 @@ func TestDNSOverCustomPort(t *testing.T) {
 //   - traffic to one of the first 8 (sorted ascending) ports IS captured
 //   - traffic to a dropped port (slot index >= 8) is NOT captured
 func TestDNSExceedsMaxPortsTruncates(t *testing.T) {
-	// 9 distinct ports, sorted ascending: 53, 1001, 1002, ..., 1008.
-	// DNSPortsMax = 8, so port 1008 (slot index 8 after sort) is dropped.
+	// OS-assigned ephemeral ports, starting at 32768 on Linux, avoid conflicts
+	// with host services and sort well-after the fixed ports below.
+	var ports [2]uint16
+	for i := range ports {
+		port := newTestServer(t, localhost, "udp")
+		require.Greater(t, port, uint16(1006), "assumption about OS-assigned ports does not hold: got %d", port)
+		ports[i] = port
+	}
+	slices.Sort(ports[:])
+	portKept, portDropped := int(ports[0]), int(ports[1])
+
+	// 9 distinct ports, sorted ascending: 53, 1001, ..., 1006, N >1006, M >N.
+	// DNSPortsMax = 8, so `portDropped` (slot index 8 after sort) is dropped.
 	mock.NewSystemProbe(t).SetInTest(
 		"network_config.dns_monitoring_ports",
-		[]int{53, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008},
+		[]int{53, 1001, 1002, 1003, 1004, 1005, 1006, portKept, portDropped},
 	)
 	cfg := config.New()
 	cfg.CollectDNSStats = true
@@ -363,39 +373,36 @@ func TestDNSExceedsMaxPortsTruncates(t *testing.T) {
 	defer reverseDNS.Close()
 	statKeeper := reverseDNS.statKeeper
 
-	// Traffic to port 1007 (the last kept slot, index 7) MUST be captured.
-	shutdownKept, portKept := newTestServerOnPort(t, localhost, "udp", 1007)
-	defer shutdownKept()
-	queryIPKept, queryPortKept, repsKept, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(int(portKept)), "udp")
+	// Traffic to `portKept` (the last kept slot, index 7) MUST be captured.
+	queryIPKept, queryPortKept, repsKept, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(portKept), "udp")
 	require.NoError(t, err)
 	require.NotNil(t, repsKept[0])
 	keyKept := getKey(queryIPKept, queryPortKept, localhost, syscall.IPPROTO_UDP)
 	require.Eventually(t, func() bool {
 		return statKeeper.Snapshot()[keyKept] != nil
-	}, 3*time.Second, 10*time.Millisecond, "kept port 1007 (slot 7) should have been captured")
+	}, 3*time.Second, 10*time.Millisecond, "kept port %d (slot 7) should have been captured", portKept)
 
-	// Traffic to port 1008 (the dropped port) MUST NOT be captured.
-	shutdownDropped, portDropped := newTestServerOnPort(t, localhost, "udp", 1008)
-	defer shutdownDropped()
-	queryIPDropped, queryPortDropped, repsDropped, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(int(portDropped)), "udp")
+	// Traffic to `portDropped` (the dropped port) MUST NOT be captured.
+	queryIPDropped, queryPortDropped, repsDropped, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(portDropped), "udp")
 	require.NoError(t, err)
 	require.NotNil(t, repsDropped[0])
 	keyDropped := getKey(queryIPDropped, queryPortDropped, localhost, syscall.IPPROTO_UDP)
 	require.Never(t, func() bool {
 		return statKeeper.Snapshot()[keyDropped] != nil
-	}, 500*time.Millisecond, 10*time.Millisecond, "dropped port 1008 (beyond slot 7) should NOT be captured")
+	}, 500*time.Millisecond, 10*time.Millisecond, "dropped port %d (beyond slot 7) should NOT be captured", portDropped)
 }
 
 // TestDNSDeduplicatesPorts verifies that duplicate entries in
 // DNSMonitoringPortList do not consume LOAD_CONSTANT slots.
 func TestDNSDeduplicatesPorts(t *testing.T) {
-	// 33 raw entries, but only 2 distinct (53 ×32 + 5353 ×1). Must succeed
+	port := newTestServer(t, localhost, "udp")
+	// 33 raw entries, but only 2 distinct (53 ×32 + open port ×1). Must succeed
 	// because after deduplication only two slots are needed.
 	ports := make([]int, 0, 33)
 	for i := 0; i < 32; i++ {
 		ports = append(ports, 53)
 	}
-	ports = append(ports, 5353)
+	ports = append(ports, int(port))
 	mock.NewSystemProbe(t).SetInTest("network_config.dns_monitoring_ports", ports)
 	cfg := config.New()
 	cfg.CollectDNSStats = true
@@ -407,13 +414,11 @@ func TestDNSDeduplicatesPorts(t *testing.T) {
 	err = rdns.Start()
 	require.NoError(t, err)
 	reverseDNS := rdns.(*dnsMonitor)
-	defer reverseDNS.Close()
+	t.Cleanup(reverseDNS.Close)
 
 	// Send DNS to the duplicate-of-53 port and to the non-duplicate 5353
 	// to confirm both distinct ports actually made it into BPF slots.
 	statKeeper := reverseDNS.statKeeper
-	shutdown, port := newTestServerOnPort(t, localhost, "udp", 5353)
-	defer shutdown()
 	queryIP, queryPort, reps, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(int(port)), "udp")
 	require.NoError(t, err)
 	require.NotNil(t, reps[0])
@@ -444,8 +449,7 @@ func TestDNSOverLastSlot(t *testing.T) {
 	defer reverseDNS.Close()
 
 	statKeeper := reverseDNS.statKeeper
-	shutdown, port := newTestServerOnPort(t, localhost, "udp", 10053)
-	defer shutdown()
+	port := newTestServerOnPort(t, localhost, "udp", 10053)
 	queryIP, queryPort, reps, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(int(port)), "udp")
 	require.NoError(t, err)
 	require.NotNil(t, reps[0])
@@ -456,11 +460,11 @@ func TestDNSOverLastSlot(t *testing.T) {
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for port 10053 (slot index 7) — likely a regression in the unrolled is_dns_port scan or ConstantEditor emission")
 }
 
-func newTestServer(t *testing.T, ip string, protocol string) (func(), uint16) {
+func newTestServer(t *testing.T, ip string, protocol string) uint16 {
 	return newTestServerOnPort(t, ip, protocol, 0)
 }
 
-func newTestServerOnPort(t *testing.T, ip string, protocol string, port int) (func(), uint16) {
+func newTestServerOnPort(t *testing.T, ip string, protocol string, port int) uint16 {
 	t.Helper()
 	addr := net.JoinHostPort(ip, strconv.Itoa(port))
 	srv := &mdns.Server{
@@ -485,12 +489,13 @@ func newTestServerOnPort(t *testing.T, ip string, protocol string, port int) (fu
 
 	if err := <-initChan; err != nil {
 		t.Errorf("could not initialize DNS server: %s", err)
-		return func() {}, uint16(0)
+		return uint16(0)
 	}
 
-	return func() {
+	t.Cleanup(func() {
 		_ = srv.Shutdown()
-	}, uint16(srv.PacketConn.LocalAddr().(*net.UDPAddr).Port)
+	})
+	return uint16(srv.PacketConn.LocalAddr().(*net.UDPAddr).Port)
 }
 
 func TestDNSOverUDPTimeoutCount(t *testing.T) {
@@ -635,10 +640,8 @@ func TestDNSPortReconfiguration(t *testing.T) {
 	domains := []string{"golang.org"}
 
 	// Start test servers on both ports
-	shutdown5300, port5300 := newTestServerOnPort(t, localhost, "udp", 5300)
-	defer shutdown5300()
-	shutdown5301, port5301 := newTestServerOnPort(t, localhost, "udp", 5301)
-	defer shutdown5301()
+	port5300 := newTestServerOnPort(t, localhost, "udp", 5300)
+	port5301 := newTestServerOnPort(t, localhost, "udp", 5301)
 
 	// Send queries to port 5300 (should be captured)
 	queryIP5300, queryPort5300, reps, err := testdns.SendDNSQueriesOnPort(domains, net.ParseIP(localhost), strconv.Itoa(int(port5300)), "udp")

@@ -12,10 +12,11 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	httpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/http"
@@ -23,8 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -51,6 +51,8 @@ type Provider interface {
 	NextPipelineChan() chan *message.Message
 	GetOutputChan() chan *message.Message
 	NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor)
+	// GetPipelineMonitor returns the pipeline monitor owning this provider's component snapshots.
+	GetPipelineMonitor() metrics.PipelineMonitor
 	// Flush flushes all pipeline contained in this Provider
 	Flush(ctx context.Context)
 }
@@ -153,6 +155,7 @@ func tcpSender(
 		componentName,
 		queueCount,
 		workersPerQueue,
+		metrics.NewTelemetryPipelineMonitor(),
 	)
 }
 
@@ -184,9 +187,12 @@ func httpSender(
 		// worker counts low.
 		queueCount = sender.DefaultQueuesCount
 		workersPerQueue = sender.DefaultWorkersPerQueue
-		minSenderConcurrency = numberOfPipelines
-		maxSenderConcurrency = numberOfPipelines * maxConcurrencyPerPipeline
-		if endpoints.BatchMaxConcurrentSend != pkgconfigsetup.DefaultBatchMaxConcurrentSend {
+		// RTT fairness is retired: run a fixed sender concurrency (min == max, so the worker
+		// pool never scales with latency) instead of dynamically scaling with it. Operators who
+		// need to control the connection count should set the endpoint's batch_max_concurrent_send.
+		minSenderConcurrency = numberOfPipelines * maxConcurrencyPerPipeline
+		maxSenderConcurrency = minSenderConcurrency
+		if endpoints.BatchMaxConcurrentSend != constants.DefaultBatchMaxConcurrentSend {
 			// If the BatchMaxConcurrentSend parameter is set, we use it to control the concurrency of the destination.
 			// Legacy behavior ran numberOfPipelines senders, each with a concurrency of BatchMaxConcurrentSend, so
 			// we mimic that behavior here.
@@ -210,6 +216,7 @@ func httpSender(
 		minSenderConcurrency,
 		maxSenderConcurrency,
 		secretsComp,
+		metrics.NewTelemetryPipelineMonitor(),
 	)
 }
 
@@ -281,6 +288,12 @@ func (p *provider) Start() {
 // If failover is enabled, closes all router channels and waits for forwarder goroutines
 // to finish draining before stopping pipelines.
 func (p *provider) Stop() {
+	if p.sender == nil {
+		return
+	}
+	// Stop the sampler before pipelines so a flush blocked on a backed-up sender can't leak it.
+	p.sender.PipelineMonitor().Stop()
+
 	stopper := startstop.NewParallelStopper()
 
 	for _, ch := range p.routerChannels {
@@ -344,6 +357,15 @@ func (p *provider) NextPipelineChanWithMonitor() (chan *message.Message, *metric
 
 	index := p.currentRouterIndex.Inc() % uint32(len(p.routerChannels))
 	return p.routerChannels[index], nil
+}
+
+// GetPipelineMonitor returns the shared pipeline monitor that owns this provider's component
+// snapshots. Returns a no-op monitor when the provider has no sender (e.g. mock providers).
+func (p *provider) GetPipelineMonitor() metrics.PipelineMonitor {
+	if p.sender == nil {
+		return metrics.NewNoopPipelineMonitor("")
+	}
+	return p.sender.PipelineMonitor()
 }
 
 // forwardWithFailover reads messages from routerChannels[routerIndex] and routes

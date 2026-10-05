@@ -1,37 +1,40 @@
 """The trace loader."""
 
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
 load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",
     "pkg_files",
 )
+load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
+load("//tasks:build_tags.bzl", "LOADER_TAGS")
 
-package(default_visibility = ["//packages:__subpackages__"])
+package(
+    default_package_metadata = ["//:package_metadata"],
+    default_visibility = ["//packages:__subpackages__"],
+)
+
+exports_files(
+    ["main_noop.sh"],
+    visibility = ["//packages/heroku:__subpackages__"],
+)
 
 pkg_files(
-    name = "trace_loader",
+    name = "trace_loader_all_files",
     srcs = select({
         "//packages/agent:linux_default": [
-            "@trace_loader_binary//:trace_loader",
+            ":loader",
         ],
         "//packages/agent:linux_fips": [
-            "@trace_loader_binary//:trace_loader",
+            ":loader",
         ],
-        # This shouldn't be needed in practice, but it is used by the systemd
-        # service, which is used when installing the deb manually.
-        "//packages/agent:linux_heroku": [
-            "main_noop.sh",
+        "@platforms//os:macos": [
+            ":loader",
         ],
         "//conditions:default": [],
     }),
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
-    renames = select({
-        "//packages/agent:linux_heroku": {":main_noop.sh": "trace-loader"},
-        "//conditions:default": {},
-    }),
-    target_compatible_with = ["@platforms//os:linux"],
 )
 
 go_library(
@@ -108,10 +111,15 @@ go_library(
     }),
 )
 
-go_binary(
+dd_agent_go_binary(
     name = "loader",
+    basename = "trace-loader",
     embed = [":loader_lib"],
-    # keep
+    # LOADER_TAGS is actually empty. We're including it to keep a consistent style.
+    exact_gotags = list(LOADER_TAGS) + select({
+        "@platforms//os:linux": ["bpf"],
+        "//conditions:default": [],
+    }),
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],

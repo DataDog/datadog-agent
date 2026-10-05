@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "secrethelper",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/secrethelper",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//cmd/secrethelper",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)

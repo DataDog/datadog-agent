@@ -157,12 +157,19 @@ func (f Replacer) replaceAttributeAnyValue(re *regexp.Regexp, val *pb.AttributeA
 		replacedValue := re.ReplaceAllString(strconv.FormatBool(val.BoolValue), str)
 		return attributeAnyValFromString(replacedValue)
 	case pb.AttributeAnyValue_ARRAY_VALUE:
-		for _, value := range val.ArrayValue.Values {
-			*value = *f.replaceAttributeArrayValue(re, value, str) //todo test me
+		// Type and ArrayValue are independent fields, so an attribute may declare
+		// ARRAY_VALUE while carrying a nil ArrayValue; guard against that.
+		if val.ArrayValue != nil {
+			for _, value := range val.ArrayValue.Values {
+				if value == nil {
+					continue
+				}
+				*value = *f.replaceAttributeArrayValue(re, value, str)
+			}
 		}
 		return val
 	default:
-		log.Errorf("Unknown OTEL AttributeAnyValue type %v, replacer code must be updated, replacing unknown type with `?`")
+		log.Errorf("Unknown OTEL AttributeAnyValue type %v, replacer code must be updated, replacing unknown type with `?`", val.Type)
 		return &pb.AttributeAnyValue{
 			Type:        pb.AttributeAnyValue_STRING_VALUE,
 			StringValue: "?",
@@ -187,7 +194,7 @@ func (f Replacer) replaceAttributeArrayValue(re *regexp.Regexp, val *pb.Attribut
 		replacedValue := re.ReplaceAllString(strconv.FormatBool(val.BoolValue), str)
 		return attributeArrayValFromString(replacedValue)
 	default:
-		log.Errorf("Unknown OTEL AttributeArrayValue type %v, replacer code must be updated, replacing unknown type with `?`")
+		log.Errorf("Unknown OTEL AttributeArrayValue type %v, replacer code must be updated, replacing unknown type with `?`", val.Type)
 		return &pb.AttributeArrayValue{
 			Type:        pb.AttributeArrayValue_STRING_VALUE,
 			StringValue: "?",

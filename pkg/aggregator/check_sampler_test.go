@@ -22,8 +22,8 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
-	"github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
@@ -67,7 +67,7 @@ func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
 	checkSampler.addSample(&mSample1, tagmatcher)
 	checkSampler.addSample(&mSample2, tagmatcher)
 	checkSampler.addSample(&mSample3, tagmatcher)
-	matcher := strings.NewMatcher([]string{}, false)
+	matcher := metricname.NewMatcher([]string{}, false)
 	checkSampler.commit(12349.0, &matcher)
 	series, _ := checkSampler.flush()
 
@@ -134,7 +134,7 @@ func testCheckRateSampling(t *testing.T, store *tags.Store) {
 	checkSampler.addSample(&mSample2, tagmatcher)
 	checkSampler.addSample(&mSample3, tagmatcher)
 
-	matcher := strings.NewMatcher([]string{}, false)
+	matcher := metricname.NewMatcher([]string{}, false)
 	checkSampler.commit(12349.0, &matcher)
 	series, _ := checkSampler.flush()
 
@@ -161,7 +161,7 @@ func testHistogramCountSampling(t *testing.T, store *tags.Store) {
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
-	matcher := strings.NewMatcher([]string{}, false)
+	matcher := metricname.NewMatcher([]string{}, false)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -231,7 +231,7 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
-	matcher := strings.NewMatcher([]string{}, false)
+	matcher := metricname.NewMatcher([]string{}, false)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -257,8 +257,10 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name: "my.histogram",
-		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch},
 		},
@@ -289,8 +291,10 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 	assert.Equal(t, 1, len(flushed))
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name: "my.histogram",
-		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12400.0, Sketch: expSketch},
 		},
@@ -325,7 +329,7 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 	checkSampler.addBucket(bucket1, tagmatcher)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
 
-	matcher := strings.NewMatcher([]string{}, false)
+	matcher := metricname.NewMatcher([]string{}, false)
 	checkSampler.commit(12349.0, &matcher)
 	_, flushed := checkSampler.flush()
 	assert.Equal(t, 0, len(flushed))
@@ -352,8 +356,10 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 	assert.Equal(t, 1, len(flushed))
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name: "my.histogram",
-		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12400.0, Sketch: expSketch},
 		},
@@ -421,14 +427,18 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 
 	require.Len(t, flushed, 2)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name: "my.histogram",
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12410, Sketch: sketchOf(10, 20, 3)},
 		},
 	}, flushed[0], 0.01)
 
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name: "my.histogram",
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12420, Sketch: sketchOf(10, 20, 2)},
 		},
@@ -444,7 +454,7 @@ func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.S
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
-	matcher := strings.NewMatcher([]string{}, false)
+	matcher := metricname.NewMatcher([]string{}, false)
 
 	// Two buckets with the same name and tags (so they share a context key)
 	// but different bounds. MultipleBuckets: true forces addBucket to track
@@ -492,8 +502,10 @@ func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.S
 	expSketch.InsertInterpolate(10.0, 20.0, 4)
 	expSketch.InsertInterpolate(30.0, 40.0, 6)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name: "my.histogram",
-		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch.Finish()},
 		},
@@ -533,8 +545,10 @@ func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.S
 	expSketch.InsertInterpolate(10.0, 20.0, 3)
 	expSketch.InsertInterpolate(30.0, 40.0, 5)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name: "my.histogram",
-		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12400.0, Sketch: expSketch.Finish()},
 		},
@@ -561,7 +575,7 @@ func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
-	matcher := strings.NewMatcher([]string{}, false)
+	matcher := metricname.NewMatcher([]string{}, false)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -582,8 +596,10 @@ func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name: "my.histogram",
-		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch},
 		},
@@ -610,7 +626,7 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 	}
 
 	checkSampler.addSample(&mSample1, tagmatcher)
-	matcher := strings.NewMatcher([]string{}, false)
+	matcher := metricname.NewMatcher([]string{}, false)
 	checkSampler.commit(12349.0, &matcher)
 
 	_, sketches := checkSampler.flush()
@@ -619,8 +635,10 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 	expSketch.Insert(quantile.Default(), 1)
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		Name: "my.metric.name",
-		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.metric.name",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch},
 		},
@@ -685,7 +703,7 @@ func testFilteredMetrics(t *testing.T, store *tags.Store) {
 	checkSampler.addSample(&mSample5, tagmatcher)
 
 	// Filter out two and four
-	matcher := strings.NewMatcher([]string{"custom.metric.two", "custom.metric.four"}, false)
+	matcher := metricname.NewMatcher([]string{"custom.metric.two", "custom.metric.four"}, false)
 	checkSampler.commit(12346.0, &matcher)
 	series, _ := checkSampler.flush()
 
@@ -763,7 +781,7 @@ func testFilteredSketches(t *testing.T, store *tags.Store) {
 	checkSampler.addSample(&mSample5, tagmatcher)
 
 	// Filter out two and four
-	matcher := strings.NewMatcher([]string{"custom.distribution.two", "custom.distribution.four"}, false)
+	matcher := metricname.NewMatcher([]string{"custom.distribution.two", "custom.distribution.four"}, false)
 	checkSampler.commit(12346.0, &matcher)
 	_, sketches := checkSampler.flush()
 
@@ -771,7 +789,7 @@ func testFilteredSketches(t *testing.T, store *tags.Store) {
 	require.Equal(t, 3, len(sketches))
 	sketchNames := make(map[string]bool)
 	for _, sketch := range sketches {
-		sketchNames[sketch.Name] = true
+		sketchNames[sketch.GetName()] = true
 	}
 
 	assert.True(t, sketchNames["custom.distribution.one"])
@@ -803,7 +821,7 @@ func testNewSketchSeriesWithMissingContext(t *testing.T, store *tags.Store) {
 	// Before the fix, commitSketches would call newSketchSeries which would
 	// dereference a nil *Context, causing a panic. After the fix, it logs
 	// an error and skips the sketch.
-	matcher := strings.NewMatcher([]string{}, false)
+	matcher := metricname.NewMatcher([]string{}, false)
 	require.NotPanics(t, func() {
 		checkSampler.commit(12349.0, &matcher)
 	})
@@ -815,4 +833,34 @@ func testNewSketchSeriesWithMissingContext(t *testing.T, store *tags.Store) {
 
 func TestNewSketchSeriesWithMissingContext(t *testing.T) {
 	testWithTagsStore(t, testNewSketchSeriesWithMissingContext)
+}
+
+func testSketchSeriesSourcePreserved(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+
+	mSample := metrics.MetricSample{
+		Name:       "my.distribution",
+		Value:      1,
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"foo", "bar"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+		Source:     metrics.MetricSourceJmxCustom,
+	}
+
+	checkSampler.addSample(&mSample, tagmatcher)
+	matcher := metricname.NewMatcher([]string{}, false)
+	checkSampler.commit(12349.0, &matcher)
+	_, sketches := checkSampler.flush()
+
+	require.Len(t, sketches, 1)
+	assert.Equal(t, metrics.MetricSourceJmxCustom, sketches[0].Source,
+		"SketchSeries must carry the MetricSource set on the original sample")
+}
+
+func TestSketchSeriesSourcePreserved(t *testing.T) {
+	testWithTagsStore(t, testSketchSeriesSourcePreserved)
 }

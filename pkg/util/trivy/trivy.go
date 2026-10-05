@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
@@ -25,12 +26,13 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
-	"github.com/aquasecurity/trivy/pkg/scanner"
-	"github.com/aquasecurity/trivy/pkg/scanner/langpkg"
-	"github.com/aquasecurity/trivy/pkg/scanner/local"
-	"github.com/aquasecurity/trivy/pkg/scanner/ospkg"
+	"github.com/aquasecurity/trivy/pkg/scan"
+	"github.com/aquasecurity/trivy/pkg/scan/langpkg"
+	"github.com/aquasecurity/trivy/pkg/scan/local"
+	"github.com/aquasecurity/trivy/pkg/scan/ospkg"
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -200,7 +202,7 @@ func (c *Collector) Close() error {
 	}
 
 	if c.config.clearCacheOnClose {
-		if err := c.persistentCache.Clear(); err != nil {
+		if err := c.persistentCache.Clear(context.Background()); err != nil {
 			return fmt.Errorf("error when clearing trivy persistentCache: %w", err)
 		}
 	}
@@ -238,9 +240,9 @@ func (c *Collector) ScanFSTrivyReport(ctx context.Context, path string, scanOpti
 
 	artifactOption := getDefaultArtifactOption(scanOptions)
 
-	artifactType := artifact.TypeContainerImage
+	artifactType := ftypes.TypeContainerImage
 	if removeLayers {
-		artifactType = artifact.TypeFilesystem
+		artifactType = ftypes.TypeFilesystem
 	}
 	report, err := ddtrivy.ScanRootFS(ctx, artifactOption, cache, path, artifactType)
 	if err != nil {
@@ -252,10 +254,17 @@ func (c *Collector) ScanFSTrivyReport(ctx context.Context, path string, scanOpti
 
 // ScanFilesystem scans the specified directory and logs detailed scan steps.
 func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (*Report, error) {
+	return c.scanFilesystem(ctx, path, scanOptions, removeLayers, time.Time{})
+}
+
+// scanFilesystem scans path like ScanFilesystem and records imageCreated as
+// the build time of the image mounted there.
+func (c *Collector) scanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool, imageCreated time.Time) (*Report, error) {
 	trivyReport, err := c.ScanFSTrivyReport(ctx, path, scanOptions, removeLayers)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
+	trivyReport.Metadata.ImageConfig.Created = v1.Time{Time: imageCreated}
 
 	hasher := sha256.New()
 	encoder := json.NewEncoder(hasher)
@@ -268,8 +277,8 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 }
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier) (*types.Report, error) {
-	localScanner := local.NewScanner(applier, c.osScanner, c.langScanner, c.vulnClient)
-	s := scanner.NewScanner(localScanner, artifact)
+	localScanner := local.NewService(applier, c.osScanner, c.langScanner, c.vulnClient)
+	s := scan.NewService(localScanner, artifact)
 
 	trivyReport, err := s.ScanArtifact(ctx, types.ScanOptions{
 		ScanRemovedPackages: false,
