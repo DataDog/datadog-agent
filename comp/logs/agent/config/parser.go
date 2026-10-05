@@ -6,12 +6,14 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 type yamlLogsConfigsWrapper struct {
@@ -22,7 +24,9 @@ type yamlLogsConfigsWrapper struct {
 // returns an error if the parsing failed.
 func ParseJSON(data []byte) ([]*LogsConfig, error) {
 	var configs []*LogsConfig
-	log.Debugf("Parsing JSON logs config: %s", string(data))
+	if log.ShouldLog(log.DebugLvl) {
+		log.Debugf("Parsing JSON logs config: %s", scrubJSONForLog(data))
+	}
 	err := json.Unmarshal(data, &configs)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse JSON logs config: %v", err)
@@ -57,4 +61,20 @@ func ParseJSONOrYAML(data []byte) ([]*LogsConfig, error) {
 		return configs, nil
 	}
 	return nil, fmt.Errorf("could not parse logs config as JSON or YAML: %v", err)
+}
+
+// scrubJSONForLog returns data with its credentials (e.g. smb.password) masked. The log writer
+// scrubs every line, but its regexes miss compact JSON such as {"password":"x"}, so the JSON is
+// scrubbed as an object first.
+func scrubJSONForLog(data []byte) string {
+	scrubbed, err := scrubber.ScrubJSON(data)
+	if err != nil {
+		return "<could not scrub logs config>"
+	}
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, scrubbed); err != nil {
+		// not valid JSON: ScrubJSON already fell back to the line scrubber
+		return string(scrubbed)
+	}
+	return compact.String()
 }

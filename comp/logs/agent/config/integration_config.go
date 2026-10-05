@@ -32,6 +32,7 @@ const (
 	IntegrationType   = "integration"
 	WindowsEventType  = "windows_event"
 	StringChannelType = "string_channel"
+	SMBType           = "smb"
 
 	// SyslogFormat for syslog-formatted log files (format: syslog)
 	SyslogFormat string = "syslog"
@@ -59,7 +60,9 @@ type LogsConfig struct {
 	TLS        *TLSListenerConfig `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`
 	AllowedIPs StringSliceField   `mapstructure:"allowed_ips" json:"allowed_ips,omitempty" yaml:"allowed_ips,omitempty"` // Network (tcp, udp)
 	DeniedIPs  StringSliceField   `mapstructure:"denied_ips" json:"denied_ips,omitempty" yaml:"denied_ips,omitempty"`    // Network (tcp, udp)
-	Path       string             // File, Journald
+	Path       string             // File, Journald, SMB (glob relative to the share root)
+	// SMB holds the connection settings of an smb source. Its password is never printed or serialized.
+	SMB *SMBConfig `mapstructure:"smb" json:"smb,omitempty" yaml:"smb,omitempty"`
 
 	Encoding     string           `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
 	ExcludePaths StringSliceField `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`    // File
@@ -391,6 +394,12 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	case WindowsEventType:
 		fmt.Fprintf(&b, ws("ChannelPath: %#v,"), c.ChannelPath)
 		fmt.Fprintf(&b, ws("Query: %#v,"), c.Query)
+	case SMBType:
+		fmt.Fprintf(&b, ws("Path: %#v,"), c.Path)
+		fmt.Fprintf(&b, ws("TailingMode: %#v,"), c.TailingMode)
+		if c.SMB != nil {
+			fmt.Fprintf(&b, ws("SMB: %s,"), c.SMB.String())
+		}
 	case StringChannelType:
 		fmt.Fprintf(&b, ws("Channel: %p,"), c.Channel)
 		c.ChannelTagsMutex.Lock()
@@ -443,6 +452,7 @@ func (c *LogsConfig) PublicJSON() ([]byte, error) {
 		Format                      string                      `json:"format,omitempty"`         // Parsing format
 		ChannelPath                 string                      `json:"channel_path,omitempty"`   // Windows Event
 		Query                       string                      `json:"query,omitempty"`          // Windows Event
+		SMB                         *SMBConfig                  `json:"smb,omitempty"`            // SMB (SMBConfig.MarshalJSON redacts the password)
 		Service                     string                      `json:"service,omitempty"`
 		Source                      string                      `json:"source,omitempty"`
 		SourceCategory              string                      `json:"source_category,omitempty"`
@@ -467,6 +477,7 @@ func (c *LogsConfig) PublicJSON() ([]byte, error) {
 		Format:                      c.Format,
 		ChannelPath:                 c.ChannelPath,
 		Query:                       c.Query,
+		SMB:                         c.SMB,
 		Service:                     c.Service,
 		Source:                      c.Source,
 		SourceCategory:              c.SourceCategory,
@@ -550,6 +561,10 @@ func (c *LogsConfig) Validate() error {
 		return errors.New("tcp source must have a port")
 	case c.Type == UDPType && c.Port == 0:
 		return errors.New("udp source must have a port")
+	}
+
+	if err := c.validateSMB(); err != nil {
+		return err
 	}
 
 	if err := c.validateTLS(); err != nil {

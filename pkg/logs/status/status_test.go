@@ -6,12 +6,14 @@
 package status
 
 import (
+	"encoding/json"
 	"math"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -238,4 +240,45 @@ func TestGetBackpressureStatus_WarningPicksHighestSat1m(t *testing.T) {
 	bp := b.getBackpressureStatus(utils)
 	assert.Equal(t, "WARNING", bp.State)
 	assert.Contains(t, bp.Reason, "sender", "component with highest Saturated1mSeconds must appear in reason")
+}
+
+func TestSMBSourceConfigurationOmitsPassword(t *testing.T) {
+	defer Clear()
+	const password = "s3cr3t+Key/AbC=="
+	mockConfig := configmock.New(t)
+	InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{
+		sources.NewLogSource("demo", &config.LogsConfig{
+			Type:        config.SMBType,
+			Path:        "app/*.log",
+			TailingMode: "beginning",
+			Service:     "demo-app",
+			Source:      "demo",
+			SMB: &config.SMBConfig{
+				Host:     "myacct.file.core.windows.net",
+				Share:    "logs",
+				Username: "myacct",
+				Password: password,
+				Port:     1445,
+			},
+		}),
+	}))
+
+	status := Get(true)
+	require.Len(t, status.Integrations, 1)
+	require.Len(t, status.Integrations[0].Sources, 1)
+	assert.Equal(t, map[string]interface{}{
+		"Service":     "demo-app",
+		"Source":      "demo",
+		"Path":        "app/*.log",
+		"TailingMode": "beginning",
+		"Host":        "myacct.file.core.windows.net",
+		"Share":       "logs",
+		"Username":    "myacct",
+		"Port":        1445,
+	}, status.Integrations[0].Sources[0].Configuration)
+
+	// `agent status --json` serializes the same struct
+	statusJSON, err := json.Marshal(status)
+	require.NoError(t, err)
+	assert.NotContains(t, string(statusJSON), password)
 }
