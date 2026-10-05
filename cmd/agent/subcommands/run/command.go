@@ -553,6 +553,7 @@ func getSharedFxOption(product command.ProductComposition) fx.Option {
 		networkconfigmanagementfx.Module(),
 		networkdevicesfx.Module(),
 		collectorimpl.Module(),
+		fx.Options(product.CollectorOptions...),
 		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux, hostname)
 		}),

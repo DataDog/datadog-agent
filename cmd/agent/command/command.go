@@ -67,6 +67,10 @@ type ProductComposition struct {
 	// shared host metadata module.
 	HostMetadataOptions []fx.Option
 
+	// CollectorOptions are product-specific Fx options included alongside the
+	// shared collector module.
+	CollectorOptions []fx.Option
+
 	// PythonVersionGetFunc returns the Python version string for status output.
 	// Leave nil for products without Python support.
 	PythonVersionGetFunc func() string

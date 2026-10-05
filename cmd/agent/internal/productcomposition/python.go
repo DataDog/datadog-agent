@@ -10,6 +10,7 @@ package productcomposition
 import (
 	"go.uber.org/fx"
 
+	pythonruntimefx "github.com/DataDog/datadog-agent/comp/collector/collector/impl/pythonruntime/fx-python"
 	pythondiscoveryfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer/fx-python"
 	pythoninfofx "github.com/DataDog/datadog-agent/comp/metadata/host/impl/pythoninfo/fx-python"
 	collectorpython "github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -24,6 +25,12 @@ func autodiscoveryOptions() []fx.Option {
 func hostMetadataOptions() []fx.Option {
 	return []fx.Option{
 		pythoninfofx.Module(),
+	}
+}
+
+func collectorOptions() []fx.Option {
+	return []fx.Option{
+		pythonruntimefx.Module(),
 	}
 }
 

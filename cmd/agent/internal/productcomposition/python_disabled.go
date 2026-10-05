@@ -17,4 +17,8 @@ func hostMetadataOptions() []fx.Option {
 	return nil
 }
 
+func collectorOptions() []fx.Option {
+	return nil
+}
+
 var pythonVersionGetFunc func() string
