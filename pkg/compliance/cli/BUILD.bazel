@@ -9,6 +9,13 @@ go_library(
         "resolver_cluster_agent.go",
         "resolver_security_agent.go",
     ],
+    data = select({
+        "@platforms//os:linux": [
+            "@openscap//:openscap_pkg",
+            "@openscap//:openscap_sce_pkg",
+        ],
+        "//conditions:default": [],
+    }),
     importpath = "github.com/DataDog/datadog-agent/pkg/compliance/cli",
     visibility = ["//visibility:public"],
     deps = select({

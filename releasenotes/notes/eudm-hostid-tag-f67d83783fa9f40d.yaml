@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Add a ``hostid`` host tag on macOS and Windows when
+    ``infrastructure_mode`` is ``end_user_device``. The tag currently uses
+    the device serial number and is omitted when that value is unavailable.

@@ -51,6 +51,7 @@ go_library(
         "//pkg/compliance/types",
         "//pkg/compliance/utils",
         "//pkg/config/env",
+        "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/logs/message",
@@ -59,6 +60,7 @@ go_library(
         "//pkg/security/rules/filtermodel",
         "//pkg/security/secl/rules/filter",
         "//pkg/security/telemetry",
+        "//pkg/util/cloudproviders",
         "//pkg/util/docker",
         "//pkg/util/jsonquery",
         "//pkg/util/log",
@@ -191,6 +193,7 @@ go_library(
 dd_agent_go_test(
     name = "compliance_test",
     srcs = [
+        "agent_ccrid_test.go",
         "agent_race_test.go",
         "agent_test.go",
         "cri_test.go",
@@ -223,6 +226,7 @@ dd_agent_go_test(
         "//comp/logs-library/client",
         "//comp/logs/agent/config",
         "//comp/serializer/logscompression/fx-mock",
+        "//pkg/compliance/types",
         "//pkg/logs/message",
         "//pkg/logs/sources",
         "@com_github_stretchr_testify//assert",
