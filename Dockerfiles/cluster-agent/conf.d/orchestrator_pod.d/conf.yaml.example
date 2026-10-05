@@ -1,0 +1,28 @@
+## The orchestrator_pod check runs in node agents and reports the pods of the local node.
+## With node_selector it reports the pods of the nodes matching the label selector instead,
+## for example nodes without a node agent. The pods of each node are reported with the node as host.
+##
+## Enable it in the Cluster Agent by renaming this file to conf.yaml, only the leader reports.
+## Set cluster_check to true to dispatch it to cluster check runners instead.
+## node_selector is required here, and not supported in node agent configurations.
+##
+## To shard large clusters, configure several instances with disjoint node selectors,
+## for example one per zone with topology.kubernetes.io/zone. Overlapping selectors report nodes twice.
+## Instances of a cluster check run on the same runner unless cluster_checks.instance_sharding_enabled
+## is set in the Cluster Agent, or each instance is configured in a separate file.
+#
+# cluster_check: true
+
+init_config:
+
+instances:
+
+    ## @param node_selector - string - required
+    ## Label selector of the nodes whose pods the check reports.
+    #
+  - node_selector: kwok.x-k8s.io/node=fake
+
+  ## Sharding by zone:
+  #
+  # - node_selector: kwok.x-k8s.io/node=fake,topology.kubernetes.io/zone=us-east-1a
+  # - node_selector: kwok.x-k8s.io/node=fake,topology.kubernetes.io/zone=us-east-1b

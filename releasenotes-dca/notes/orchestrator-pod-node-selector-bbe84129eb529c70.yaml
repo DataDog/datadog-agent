@@ -1,0 +1,17 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The ``orchestrator_pod`` check supports a ``node_selector`` instance option
+    to report the pods of the nodes matching the label selector, for example nodes without a node agent.
+    The pods of each node are reported with the node as host.
+    With ``node_selector`` the check runs in the Cluster Agent, where only the leader reports,
+    or as a cluster check in cluster check runners.
+    ``node_selector`` is required in the Cluster Agent and in cluster checks,
+    and rejected in node agent configurations, where the check keeps reporting the pods of the local node.

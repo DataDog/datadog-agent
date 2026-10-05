@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-//go:build kubelet && orchestrator
+//go:build orchestrator && kubeapiserver
 
 // Package pod is used for the orchestrator pod check
 package pod
@@ -10,12 +10,17 @@ package pod
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/benbjohnson/clock"
 	"go.uber.org/atomic"
+	"go.yaml.in/yaml/v3"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -28,10 +33,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -48,19 +53,59 @@ func nextGroupID() int32 {
 	return groupID.Load()
 }
 
+// checkConfig is the check instance configuration.
+type checkConfig struct {
+	// NodeSelector is a label selector of nodes whose pods the check reports, see runForSelectedNodes.
+	// When empty the check reports the pods of the node the Agent runs on.
+	NodeSelector string `yaml:"node_selector"`
+}
+
+// parseNodeSelector parses the node_selector option, nil when it is not set.
+func parseNodeSelector(nodeSelector string) (labels.Selector, error) {
+	if nodeSelector == "" {
+		return nil, nil
+	}
+	selector, err := labels.Parse(nodeSelector)
+	if err != nil {
+		return nil, fmt.Errorf("invalid node_selector %q: %w", nodeSelector, err)
+	}
+	return selector, nil
+}
+
+// validateNodeSelectorPlacement checks that node_selector is set exactly where the check does not run for the local node.
+//
+// In the Cluster Agent and as a cluster check, which runs once in a cluster check runner or a node agent,
+// there is no local node to report, so node_selector is required.
+// In a node agent configuration it is rejected: every node agent would report the pods of the selected nodes.
+func validateNodeSelectorPlacement(provider string, hasNodeSelector bool) error {
+	selectedNodes := flavor.GetFlavor() == flavor.ClusterAgent || provider == names.ClusterChecks
+	switch {
+	case selectedNodes && !hasNodeSelector:
+		return errors.New("node_selector is required when the check runs in the Cluster Agent or as a cluster check")
+	case !selectedNodes && hasNodeSelector:
+		return errors.New("node_selector is not supported in node agents, configure the check in the Cluster Agent, optionally as a cluster check")
+	}
+	return nil
+}
+
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	hostName     string
-	clusterID    string
-	sender       sender.Sender
-	processor    *processors.Processor
-	config       *oconfig.OrchestratorConfig
-	systemInfo   *model.SystemInfo
-	store        workloadmeta.Component
-	cfg          config.Component
-	tagger       tagger.Component
-	agentVersion *model.AgentVersion
+	nodeSelector labels.Selector
+	// clusterName is the RFC1123 compliant cluster name used to build the hostnames of the selected nodes.
+	clusterName string
+	// clusterNameTags are added to the payloads of the selected nodes, as they have no host tags.
+	clusterNameTags []string
+	hostName        string
+	clusterID       string
+	sender          sender.Sender
+	processor       *processors.Processor
+	config          *oconfig.OrchestratorConfig
+	systemInfo      *model.SystemInfo
+	store           workloadmeta.Component
+	cfg             config.Component
+	tagger          tagger.Component
+	agentVersion    *model.AgentVersion
 }
 
 // Factory creates a new check factory
@@ -100,6 +145,18 @@ func (c *Check) Configure(
 		return err
 	}
 
+	var instanceConfig checkConfig
+	if err := yaml.Unmarshal(data, &instanceConfig); err != nil {
+		return err
+	}
+	c.nodeSelector, err = parseNodeSelector(instanceConfig.NodeSelector)
+	if err != nil {
+		return err
+	}
+	if err := validateNodeSelectorPlacement(provider, c.nodeSelector != nil); err != nil {
+		return err
+	}
+
 	err = c.config.Load()
 	if err != nil {
 		return err
@@ -127,6 +184,15 @@ func (c *Check) Configure(
 	if c.hostName == "" {
 		hname, _ := hostname.Get(context.TODO())
 		c.hostName = hname
+	}
+
+	if c.nodeSelector != nil {
+		c.clusterName = clustername.GetRFC1123CompliantClusterName(context.TODO(), c.hostName)
+		if !c.cfg.GetBool("disable_cluster_name_tag_key") {
+			if tag := clustername.GetClusterNameTagValue(context.TODO(), c.hostName); tag != "" {
+				c.clusterNameTags = []string{"cluster_name:" + tag}
+			}
+		}
 	}
 
 	c.systemInfo, err = checks.CollectSystemInfo()
@@ -164,16 +230,28 @@ func (c *Check) Run() error {
 		c.clusterID = clusterID
 	}
 
-	kubeUtil, err := kubelet.GetKubeUtil()
+	if c.nodeSelector != nil {
+		return c.runForSelectedNodes()
+	}
+
+	pods, err := listLocalPods(context.TODO())
 	if err != nil {
 		return err
 	}
 
-	podList, err := kubeUtil.GetRawLocalPodList(context.TODO())
-	if err != nil {
-		return err
+	listed, processed := c.processPods(pods, c.hostName, c.systemInfo, nil)
+	if processed == -1 {
+		return errors.New("unable to process pods: a panic occurred")
 	}
 
+	orchestrator.SetCacheStats(listed, processed, orchestrator.K8sPod)
+
+	return nil
+}
+
+// processPods processes the pods of a node and sends the resulting payloads.
+// hostName identifies the node, extraTags are added to the payload tags.
+func (c *Check) processPods(pods []*corev1.Pod, hostName string, systemInfo *model.SystemInfo, extraTags []string) (listed, processed int) {
 	groupID := nextGroupID()
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
@@ -187,22 +265,20 @@ func (c *Check) Run() error {
 			APIVersion:       utilTypes.PodVersion,
 			CollectorGroup:   utilTypes.PodGroup,
 			CollectorName:    utilTypes.PodName,
-			CollectorTags:    []string{"kube_api_version:" + utilTypes.PodVersion},
+			CollectorTags:    append([]string{"kube_api_version:" + utilTypes.PodVersion}, extraTags...),
 			AgentVersion:     c.agentVersion,
 		},
-		HostName:   c.hostName,
-		SystemInfo: c.systemInfo,
+		HostName:   hostName,
+		SystemInfo: systemInfo,
 	}
 
-	processResult, listed, processed := c.processor.Process(ctx, podList)
+	processResult, listed, processed := c.processor.Process(ctx, pods)
 	if processed == -1 {
-		return errors.New("unable to process pods: a panic occurred")
+		return listed, processed
 	}
-
-	orchestrator.SetCacheStats(listed, processed, ctx.NodeType)
 
 	c.sender.OrchestratorMetadata(processResult.MetadataMessages, c.clusterID, int(orchestrator.K8sPod))
 	c.sender.OrchestratorManifest(processResult.ManifestMessages, c.clusterID)
 
-	return nil
+	return listed, processed
 }
