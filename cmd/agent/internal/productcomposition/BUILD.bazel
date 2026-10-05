@@ -12,6 +12,7 @@ go_library(
     deps = [
         "//cmd/agent/command",
         "//comp/core/autodiscovery/discoverer/fx-python",
+        "//comp/metadata/host/impl/pythoninfo/fx-python",
         "@org_uber_go_fx//:fx",
     ],
 )

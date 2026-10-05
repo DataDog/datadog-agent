@@ -17,8 +17,8 @@ go_library(
     deps = [
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/metadata/host/impl/hosttags",
+        "//comp/metadata/host/impl/pythoninfo",
         "//comp/otelcol/otlp/configcheck",
-        "//pkg/collector/python",
         "//pkg/config/model",
         "//pkg/config/utils",
         "//pkg/fips",
@@ -104,7 +104,6 @@ dd_agent_go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
-        "//pkg/collector/python",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/logs/status",

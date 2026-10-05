@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/pythoninfo"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
@@ -27,13 +28,15 @@ type StatusProvider struct {
 	testServerURL string
 	config        config.Component
 	hostname      hostnameinterface.Component
+	pythonInfo    pythoninfo.Provider
 }
 
 // NewStatusProvider fetches the status
-func NewStatusProvider(Config config.Component, hostname hostnameinterface.Component) *StatusProvider {
+func NewStatusProvider(Config config.Component, hostname hostnameinterface.Component, pythonInfo pythoninfo.Provider) *StatusProvider {
 	return &StatusProvider{
-		config:   Config,
-		hostname: hostname,
+		config:     Config,
+		hostname:   hostname,
+		pythonInfo: pythonInfo,
 	}
 }
 
@@ -80,7 +83,7 @@ func (s StatusProvider) populateStatus() map[string]interface{} {
 		url = fmt.Sprintf("http://%s/debug/vars", net.JoinHostPort(ipcAddr, strconv.Itoa(port)))
 	}
 
-	agentStatus, err := processStatus.GetStatus(s.config, url, s.hostname)
+	agentStatus, err := processStatus.GetStatus(s.config, url, s.hostname, s.pythonInfo)
 	if err != nil {
 		status["error"] = err.Error()
 		return status

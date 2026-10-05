@@ -24,6 +24,7 @@ go_library(
         "//comp/core/status",
         "//comp/def",
         "//comp/metadata/host/def",
+        "//comp/metadata/host/impl/pythoninfo",
         "//comp/metadata/host/impl/utils",
         "//comp/metadata/resources/def",
         "//comp/metadata/runner/def",
@@ -35,24 +36,7 @@ go_library(
         "//pkg/util/http",
         "//pkg/util/scrubber",
         "@com_github_cenkalti_backoff_v7//:backoff",
-    ] + select({
-        "@rules_go//go/platform:dragonfly": [
-            "//pkg/serializer/marshaler",
-        ],
-        "@rules_go//go/platform:freebsd": [
-            "//pkg/serializer/marshaler",
-        ],
-        "@rules_go//go/platform:netbsd": [
-            "//pkg/serializer/marshaler",
-        ],
-        "@rules_go//go/platform:openbsd": [
-            "//pkg/serializer/marshaler",
-        ],
-        "@rules_go//go/platform:solaris": [
-            "//pkg/serializer/marshaler",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 dd_agent_go_test(

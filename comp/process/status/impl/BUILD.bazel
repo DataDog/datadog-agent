@@ -12,6 +12,7 @@ go_library(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/status",
         "//comp/def",
+        "//comp/metadata/host/impl/pythoninfo",
         "//pkg/process/util/status",
         "//pkg/util/log",
         "//pkg/util/system",
