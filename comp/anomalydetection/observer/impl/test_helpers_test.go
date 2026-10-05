@@ -69,13 +69,11 @@ func testObserveMetric(h observerdef.Handle, sample observerdef.MetricView) {
 	h.ObserveMetric(sample, testContextKeyFor(sample))
 }
 
-func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool {
-	return h.observeMetricAndReportDrop(sample, testContextKeyFor(sample))
+func testObserveMetricAndReportDrop(h interface {
+	ObserveMetricAndReportDrop(observerdef.MetricView, uint64) bool
+}, sample observerdef.MetricView) bool {
+	return h.ObserveMetricAndReportDrop(sample, testContextKeyFor(sample))
 }
-
-func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool { return true }
-
-func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool { return false }
 
 // countingHandle records how many MetricView and LogView observations it receives.
 type countingHandle struct {

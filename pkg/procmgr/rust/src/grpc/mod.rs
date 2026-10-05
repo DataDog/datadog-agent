@@ -521,6 +521,10 @@ mod tests {
         assert_eq!(resp.total_processes, 5);
         assert_eq!(resp.running_processes, 1);
         assert_eq!(resp.failed_processes, 1);
+        assert_eq!(
+            resp.crashed_processes, 0,
+            "a non-zero exit returned a value, so nothing here crashed"
+        );
         assert_eq!(resp.stopped_processes, 1);
         assert_eq!(resp.exited_processes, 1);
         assert_eq!(resp.created_processes, 1);

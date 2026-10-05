@@ -20,6 +20,7 @@ func main() {
 	var site string
 	var lookbackSeconds int64
 	var outputFile string
+	var agentVersion string
 	var metricFilter string
 
 	exitCode := 0
@@ -27,6 +28,7 @@ func main() {
 	flag.StringVar(&site, "site", "", "Datadog site")
 	flag.Int64Var(&lookbackSeconds, "lookback-seconds", 3600, "Metrics lookback window in seconds")
 	flag.StringVar(&outputFile, "output-file", "", "Write JSON results to the given file instead of stdout")
+	flag.StringVar(&agentVersion, "agent-version", "", "Agent image-tag wildcard used to select Kubernetes clusters")
 	flag.StringVar(&metricFilter, "metric-filter", "", "Additional Datadog metric filter expression, ANDed with the GPU config filter")
 	flag.Parse()
 
@@ -40,7 +42,7 @@ func main() {
 		log.Fatalf("gpu metrics validation failed: %v", err)
 	}
 
-	results, err := computeValidation(apiKey, appKey, site, lookbackSeconds, metricFilter)
+	results, err := computeValidation(apiKey, appKey, site, lookbackSeconds, agentVersion, metricFilter)
 	if err != nil {
 		log.Printf("gpu metrics validation failed: %v", err)
 		exitCode = 1

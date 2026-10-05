@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	ec2tags "github.com/DataDog/datadog-agent/pkg/util/ec2/tags"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -194,13 +195,19 @@ func ResetClusterName() {
 	resetClusterName(defaultClusterNameData)
 }
 
-// GetClusterID looks for an env variable which should contain the cluster ID.
-// This variable should come from a configmap, created by the cluster-agent.
-// This function is meant for the node-agent to call (cluster-agent should call GetOrCreateClusterID)
+// GetClusterID returns the Kubernetes cluster ID.
+// The Cluster Agent gets it from Kubernetes. Other agents use the
+// DD_ORCHESTRATOR_CLUSTER_ID env variable when it is set, otherwise the Cluster Agent API.
 func GetClusterID() (string, error) {
 	cacheClusterIDKey := cache.BuildAgentKey(constants.ClusterIDCacheKey)
 	if cachedClusterID, found := cache.Cache.Get(cacheClusterIDKey); found {
 		return cachedClusterID.(string), nil
+	}
+
+	// Do not call the Cluster Agent service from a Cluster Agent: a follower can
+	// call itself or another replica that is not ready.
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		return getClusterAgentClusterID()
 	}
 
 	// in older setups the cluster ID was exposed as an env var from a configmap created by the cluster agent

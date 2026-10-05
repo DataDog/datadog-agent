@@ -62,6 +62,7 @@ import (
 	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
 	inventoryhostfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/fx"
 	resourcesfx "github.com/DataDog/datadog-agent/comp/metadata/resources/fx"
+	procmgrFlareFx "github.com/DataDog/datadog-agent/comp/procmgr/flare/fx"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
@@ -138,6 +139,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				flare.Module(flareParams),
 				flareprofilerfx.Module(),
+				// A local flare is created when the Agent process could not be reached, which is
+				// exactly when knowing what dd-procmgrd is supervising matters most.
+				procmgrFlareFx.Module(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{

@@ -69,6 +69,8 @@ const (
 	InjectionStatusSkipped = "skipped"
 	// InjectionStatusError means a fatal error prevented the injector from running.
 	InjectionStatusError = "error"
+	// InjectionStatusBlocked means a remote-config policy denied injection.
+	InjectionStatusBlocked = "blocked"
 )
 
 // InjectionValidator validates injection-specific aspects of a pod.

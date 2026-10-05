@@ -834,6 +834,7 @@ type ContainerImageMetadata struct {
 	Variant       string                 `protobuf:"bytes,10,opt,name=variant,proto3" json:"variant,omitempty"`
 	Layers        []*ContainerImageLayer `protobuf:"bytes,11,rep,name=layers,proto3" json:"layers,omitempty"`
 	Sbom          *CompressedSBOM        `protobuf:"bytes,12,opt,name=sbom,proto3" json:"sbom,omitempty"`
+	Created       *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=created,proto3" json:"created,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -948,6 +949,13 @@ func (x *ContainerImageMetadata) GetLayers() []*ContainerImageLayer {
 func (x *ContainerImageMetadata) GetSbom() *CompressedSBOM {
 	if x != nil {
 		return x.Sbom
+	}
+	return nil
+}
+
+func (x *ContainerImageMetadata) GetCreated() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Created
 	}
 	return nil
 }
@@ -2874,7 +2882,7 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\tmediaType\x18\x01 \x01(\tR\tmediaType\x12\x16\n" +
 	"\x06diffID\x18\x02 \x01(\tR\x06diffID\x12\x1c\n" +
 	"\tsizeBytes\x18\x03 \x01(\x03R\tsizeBytes\x12\x12\n" +
-	"\x04urls\x18\x04 \x03(\tR\x04urls\"\x85\x04\n" +
+	"\x04urls\x18\x04 \x03(\tR\x04urls\"\xbb\x04\n" +
 	"\x16ContainerImageMetadata\x12F\n" +
 	"\bentityId\x18\x01 \x01(\v2*.datadog.workloadmeta.WorkloadmetaEntityIdR\bentityId\x12@\n" +
 	"\n" +
@@ -2890,7 +2898,8 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\avariant\x18\n" +
 	" \x01(\tR\avariant\x12A\n" +
 	"\x06layers\x18\v \x03(\v2).datadog.workloadmeta.ContainerImageLayerR\x06layers\x128\n" +
-	"\x04sbom\x18\f \x01(\v2$.datadog.workloadmeta.CompressedSBOMR\x04sbom\"S\n" +
+	"\x04sbom\x18\f \x01(\v2$.datadog.workloadmeta.CompressedSBOMR\x04sbom\x124\n" +
+	"\acreated\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\acreated\"S\n" +
 	"\rContainerPort\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\x05R\x04port\x12\x1a\n" +
@@ -3223,61 +3232,62 @@ var file_datadog_workloadmeta_workloadmeta_proto_depIdxs = []int32{
 	11, // 8: datadog.workloadmeta.ContainerImageMetadata.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
 	13, // 9: datadog.workloadmeta.ContainerImageMetadata.layers:type_name -> datadog.workloadmeta.ContainerImageLayer
 	16, // 10: datadog.workloadmeta.ContainerImageMetadata.sbom:type_name -> datadog.workloadmeta.CompressedSBOM
-	44, // 11: datadog.workloadmeta.CompressedSBOM.generationTime:type_name -> google.protobuf.Timestamp
-	4,  // 12: datadog.workloadmeta.ContainerState.status:type_name -> datadog.workloadmeta.ContainerStatus
-	5,  // 13: datadog.workloadmeta.ContainerState.health:type_name -> datadog.workloadmeta.ContainerHealth
-	20, // 14: datadog.workloadmeta.ContainerSecurityContext.capabilities:type_name -> datadog.workloadmeta.Capabilities
-	21, // 15: datadog.workloadmeta.ContainerSecurityContext.seccompProfile:type_name -> datadog.workloadmeta.SeccompProfile
-	10, // 16: datadog.workloadmeta.Container.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
-	11, // 17: datadog.workloadmeta.Container.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
-	39, // 18: datadog.workloadmeta.Container.envVars:type_name -> datadog.workloadmeta.Container.EnvVarsEntry
-	12, // 19: datadog.workloadmeta.Container.image:type_name -> datadog.workloadmeta.ContainerImage
-	40, // 20: datadog.workloadmeta.Container.networkIps:type_name -> datadog.workloadmeta.Container.NetworkIpsEntry
-	15, // 21: datadog.workloadmeta.Container.ports:type_name -> datadog.workloadmeta.ContainerPort
-	3,  // 22: datadog.workloadmeta.Container.runtime:type_name -> datadog.workloadmeta.Runtime
-	17, // 23: datadog.workloadmeta.Container.state:type_name -> datadog.workloadmeta.ContainerState
-	18, // 24: datadog.workloadmeta.Container.resolvedAllocatedResources:type_name -> datadog.workloadmeta.ContainerAllocatedResource
-	19, // 25: datadog.workloadmeta.Container.resources:type_name -> datadog.workloadmeta.ContainerResources
-	10, // 26: datadog.workloadmeta.Container.owner:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
-	22, // 27: datadog.workloadmeta.Container.securityContext:type_name -> datadog.workloadmeta.ContainerSecurityContext
-	21, // 28: datadog.workloadmeta.PodSecurityContext.seccompProfile:type_name -> datadog.workloadmeta.SeccompProfile
-	12, // 29: datadog.workloadmeta.OrchestratorContainer.image:type_name -> datadog.workloadmeta.ContainerImage
-	10, // 30: datadog.workloadmeta.KubernetesPod.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
-	11, // 31: datadog.workloadmeta.KubernetesPod.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
-	25, // 32: datadog.workloadmeta.KubernetesPod.owners:type_name -> datadog.workloadmeta.KubernetesPodOwner
-	26, // 33: datadog.workloadmeta.KubernetesPod.containers:type_name -> datadog.workloadmeta.OrchestratorContainer
-	41, // 34: datadog.workloadmeta.KubernetesPod.namespaceLabels:type_name -> datadog.workloadmeta.KubernetesPod.NamespaceLabelsEntry
-	26, // 35: datadog.workloadmeta.KubernetesPod.InitContainers:type_name -> datadog.workloadmeta.OrchestratorContainer
-	26, // 36: datadog.workloadmeta.KubernetesPod.ephemeralContainers:type_name -> datadog.workloadmeta.OrchestratorContainer
-	24, // 37: datadog.workloadmeta.KubernetesPod.securityContext:type_name -> datadog.workloadmeta.PodSecurityContext
-	10, // 38: datadog.workloadmeta.ECSTask.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
-	11, // 39: datadog.workloadmeta.ECSTask.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
-	42, // 40: datadog.workloadmeta.ECSTask.tags:type_name -> datadog.workloadmeta.ECSTask.TagsEntry
-	43, // 41: datadog.workloadmeta.ECSTask.containerInstanceTags:type_name -> datadog.workloadmeta.ECSTask.ContainerInstanceTagsEntry
-	6,  // 42: datadog.workloadmeta.ECSTask.launchType:type_name -> datadog.workloadmeta.ECSLaunchType
-	26, // 43: datadog.workloadmeta.ECSTask.containers:type_name -> datadog.workloadmeta.OrchestratorContainer
-	29, // 44: datadog.workloadmeta.Service.tracerMetadata:type_name -> datadog.workloadmeta.TracerMetadata
-	30, // 45: datadog.workloadmeta.Service.ust:type_name -> datadog.workloadmeta.UST
-	10, // 46: datadog.workloadmeta.Process.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
-	32, // 47: datadog.workloadmeta.Process.language:type_name -> datadog.workloadmeta.Language
-	10, // 48: datadog.workloadmeta.Process.owner:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
-	31, // 49: datadog.workloadmeta.Process.service:type_name -> datadog.workloadmeta.Service
-	7,  // 50: datadog.workloadmeta.Process.injectionState:type_name -> datadog.workloadmeta.InjectionState
-	10, // 51: datadog.workloadmeta.Crd.enity_id:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
-	11, // 52: datadog.workloadmeta.Crd.entity_meta:type_name -> datadog.workloadmeta.EntityMeta
-	2,  // 53: datadog.workloadmeta.WorkloadmetaEvent.type:type_name -> datadog.workloadmeta.WorkloadmetaEventType
-	23, // 54: datadog.workloadmeta.WorkloadmetaEvent.container:type_name -> datadog.workloadmeta.Container
-	27, // 55: datadog.workloadmeta.WorkloadmetaEvent.kubernetesPod:type_name -> datadog.workloadmeta.KubernetesPod
-	28, // 56: datadog.workloadmeta.WorkloadmetaEvent.ecsTask:type_name -> datadog.workloadmeta.ECSTask
-	33, // 57: datadog.workloadmeta.WorkloadmetaEvent.process:type_name -> datadog.workloadmeta.Process
-	34, // 58: datadog.workloadmeta.WorkloadmetaEvent.crd:type_name -> datadog.workloadmeta.Crd
-	14, // 59: datadog.workloadmeta.WorkloadmetaEvent.containerImageMetadata:type_name -> datadog.workloadmeta.ContainerImageMetadata
-	35, // 60: datadog.workloadmeta.WorkloadmetaStreamResponse.events:type_name -> datadog.workloadmeta.WorkloadmetaEvent
-	61, // [61:61] is the sub-list for method output_type
-	61, // [61:61] is the sub-list for method input_type
-	61, // [61:61] is the sub-list for extension type_name
-	61, // [61:61] is the sub-list for extension extendee
-	0,  // [0:61] is the sub-list for field type_name
+	44, // 11: datadog.workloadmeta.ContainerImageMetadata.created:type_name -> google.protobuf.Timestamp
+	44, // 12: datadog.workloadmeta.CompressedSBOM.generationTime:type_name -> google.protobuf.Timestamp
+	4,  // 13: datadog.workloadmeta.ContainerState.status:type_name -> datadog.workloadmeta.ContainerStatus
+	5,  // 14: datadog.workloadmeta.ContainerState.health:type_name -> datadog.workloadmeta.ContainerHealth
+	20, // 15: datadog.workloadmeta.ContainerSecurityContext.capabilities:type_name -> datadog.workloadmeta.Capabilities
+	21, // 16: datadog.workloadmeta.ContainerSecurityContext.seccompProfile:type_name -> datadog.workloadmeta.SeccompProfile
+	10, // 17: datadog.workloadmeta.Container.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
+	11, // 18: datadog.workloadmeta.Container.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
+	39, // 19: datadog.workloadmeta.Container.envVars:type_name -> datadog.workloadmeta.Container.EnvVarsEntry
+	12, // 20: datadog.workloadmeta.Container.image:type_name -> datadog.workloadmeta.ContainerImage
+	40, // 21: datadog.workloadmeta.Container.networkIps:type_name -> datadog.workloadmeta.Container.NetworkIpsEntry
+	15, // 22: datadog.workloadmeta.Container.ports:type_name -> datadog.workloadmeta.ContainerPort
+	3,  // 23: datadog.workloadmeta.Container.runtime:type_name -> datadog.workloadmeta.Runtime
+	17, // 24: datadog.workloadmeta.Container.state:type_name -> datadog.workloadmeta.ContainerState
+	18, // 25: datadog.workloadmeta.Container.resolvedAllocatedResources:type_name -> datadog.workloadmeta.ContainerAllocatedResource
+	19, // 26: datadog.workloadmeta.Container.resources:type_name -> datadog.workloadmeta.ContainerResources
+	10, // 27: datadog.workloadmeta.Container.owner:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
+	22, // 28: datadog.workloadmeta.Container.securityContext:type_name -> datadog.workloadmeta.ContainerSecurityContext
+	21, // 29: datadog.workloadmeta.PodSecurityContext.seccompProfile:type_name -> datadog.workloadmeta.SeccompProfile
+	12, // 30: datadog.workloadmeta.OrchestratorContainer.image:type_name -> datadog.workloadmeta.ContainerImage
+	10, // 31: datadog.workloadmeta.KubernetesPod.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
+	11, // 32: datadog.workloadmeta.KubernetesPod.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
+	25, // 33: datadog.workloadmeta.KubernetesPod.owners:type_name -> datadog.workloadmeta.KubernetesPodOwner
+	26, // 34: datadog.workloadmeta.KubernetesPod.containers:type_name -> datadog.workloadmeta.OrchestratorContainer
+	41, // 35: datadog.workloadmeta.KubernetesPod.namespaceLabels:type_name -> datadog.workloadmeta.KubernetesPod.NamespaceLabelsEntry
+	26, // 36: datadog.workloadmeta.KubernetesPod.InitContainers:type_name -> datadog.workloadmeta.OrchestratorContainer
+	26, // 37: datadog.workloadmeta.KubernetesPod.ephemeralContainers:type_name -> datadog.workloadmeta.OrchestratorContainer
+	24, // 38: datadog.workloadmeta.KubernetesPod.securityContext:type_name -> datadog.workloadmeta.PodSecurityContext
+	10, // 39: datadog.workloadmeta.ECSTask.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
+	11, // 40: datadog.workloadmeta.ECSTask.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
+	42, // 41: datadog.workloadmeta.ECSTask.tags:type_name -> datadog.workloadmeta.ECSTask.TagsEntry
+	43, // 42: datadog.workloadmeta.ECSTask.containerInstanceTags:type_name -> datadog.workloadmeta.ECSTask.ContainerInstanceTagsEntry
+	6,  // 43: datadog.workloadmeta.ECSTask.launchType:type_name -> datadog.workloadmeta.ECSLaunchType
+	26, // 44: datadog.workloadmeta.ECSTask.containers:type_name -> datadog.workloadmeta.OrchestratorContainer
+	29, // 45: datadog.workloadmeta.Service.tracerMetadata:type_name -> datadog.workloadmeta.TracerMetadata
+	30, // 46: datadog.workloadmeta.Service.ust:type_name -> datadog.workloadmeta.UST
+	10, // 47: datadog.workloadmeta.Process.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
+	32, // 48: datadog.workloadmeta.Process.language:type_name -> datadog.workloadmeta.Language
+	10, // 49: datadog.workloadmeta.Process.owner:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
+	31, // 50: datadog.workloadmeta.Process.service:type_name -> datadog.workloadmeta.Service
+	7,  // 51: datadog.workloadmeta.Process.injectionState:type_name -> datadog.workloadmeta.InjectionState
+	10, // 52: datadog.workloadmeta.Crd.enity_id:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
+	11, // 53: datadog.workloadmeta.Crd.entity_meta:type_name -> datadog.workloadmeta.EntityMeta
+	2,  // 54: datadog.workloadmeta.WorkloadmetaEvent.type:type_name -> datadog.workloadmeta.WorkloadmetaEventType
+	23, // 55: datadog.workloadmeta.WorkloadmetaEvent.container:type_name -> datadog.workloadmeta.Container
+	27, // 56: datadog.workloadmeta.WorkloadmetaEvent.kubernetesPod:type_name -> datadog.workloadmeta.KubernetesPod
+	28, // 57: datadog.workloadmeta.WorkloadmetaEvent.ecsTask:type_name -> datadog.workloadmeta.ECSTask
+	33, // 58: datadog.workloadmeta.WorkloadmetaEvent.process:type_name -> datadog.workloadmeta.Process
+	34, // 59: datadog.workloadmeta.WorkloadmetaEvent.crd:type_name -> datadog.workloadmeta.Crd
+	14, // 60: datadog.workloadmeta.WorkloadmetaEvent.containerImageMetadata:type_name -> datadog.workloadmeta.ContainerImageMetadata
+	35, // 61: datadog.workloadmeta.WorkloadmetaStreamResponse.events:type_name -> datadog.workloadmeta.WorkloadmetaEvent
+	62, // [62:62] is the sub-list for method output_type
+	62, // [62:62] is the sub-list for method input_type
+	62, // [62:62] is the sub-list for extension type_name
+	62, // [62:62] is the sub-list for extension extendee
+	0,  // [0:62] is the sub-list for field type_name
 }
 
 func init() { file_datadog_workloadmeta_workloadmeta_proto_init() }

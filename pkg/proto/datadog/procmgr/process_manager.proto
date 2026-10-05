@@ -148,6 +148,7 @@ message GetStatusResponse {
   uint32 exited_processes = 9;
   uint32 starting_processes = 10;
   uint32 stopping_processes = 11;
+  uint32 crashed_processes = 12;
 }
 
 message GetConfigRequest {}

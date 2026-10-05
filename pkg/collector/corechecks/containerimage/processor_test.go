@@ -61,6 +61,7 @@ func TestProcessEvents(t *testing.T) {
 						OS:           "DOS",
 						OSVersion:    "6.22",
 						Architecture: "80486DX",
+						Created:      time.Unix(1000, 1001),
 						Layers: []workloadmeta.ContainerImageLayer{
 							{
 								MediaType: "media",
@@ -136,8 +137,8 @@ func TestProcessEvents(t *testing.T) {
 						},
 					},
 					BuiltAt: &timestamp.Timestamp{
-						Seconds: 43,
-						Nanos:   44,
+						Seconds: 1000,
+						Nanos:   1001,
 					},
 				},
 				{
@@ -191,8 +192,8 @@ func TestProcessEvents(t *testing.T) {
 						},
 					},
 					BuiltAt: &timestamp.Timestamp{
-						Seconds: 43,
-						Nanos:   44,
+						Seconds: 1000,
+						Nanos:   1001,
 					},
 				},
 				{
@@ -246,8 +247,8 @@ func TestProcessEvents(t *testing.T) {
 						},
 					},
 					BuiltAt: &timestamp.Timestamp{
-						Seconds: 43,
-						Nanos:   44,
+						Seconds: 1000,
+						Nanos:   1001,
 					},
 				},
 			},
@@ -384,6 +385,7 @@ func TestProcessEvents(t *testing.T) {
 						OS:           "DOS",
 						OSVersion:    "6.22",
 						Architecture: "80486DX",
+						Created:      time.Unix(1000, 1001),
 						Layers: []workloadmeta.ContainerImageLayer{
 							{
 								MediaType: "media",
@@ -457,8 +459,8 @@ func TestProcessEvents(t *testing.T) {
 						},
 					},
 					BuiltAt: &timestamp.Timestamp{
-						Seconds: 43,
-						Nanos:   44,
+						Seconds: 1000,
+						Nanos:   1001,
 					},
 				},
 				{
@@ -510,8 +512,8 @@ func TestProcessEvents(t *testing.T) {
 						},
 					},
 					BuiltAt: &timestamp.Timestamp{
-						Seconds: 43,
-						Nanos:   44,
+						Seconds: 1000,
+						Nanos:   1001,
 					},
 				},
 			},

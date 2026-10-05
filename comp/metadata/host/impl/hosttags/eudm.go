@@ -60,11 +60,28 @@ func collectEUDMHardwareTags() []string {
 
 	sysInfo, err := systeminfo.Collect()
 	if err != nil {
-		log.Debugf("EUDM host tags: device_model unavailable: %v", err)
-	} else if sysInfo != nil && sysInfo.Identifier != "" {
-		tags = append(tags, "device_model:"+sanitizeEUDMTagValue(sysInfo.Identifier))
+		log.Debugf("EUDM host tags: system information unavailable: %v", err)
+	} else {
+		tags = append(tags, eudmSystemInfoTags(sysInfo)...)
 	}
 
+	return tags
+}
+
+// eudmSystemInfoTags returns the available device identifiers independently, since
+// a system can expose a serial number without a model identifier.
+func eudmSystemInfoTags(info *systeminfo.SystemInfo) []string {
+	if info == nil {
+		return nil
+	}
+	var tags []string
+	if info.Identifier != "" {
+		tags = append(tags, "device_model:"+sanitizeEUDMTagValue(info.Identifier))
+	}
+	// The device serial number is the current source of the EUDM host identifier.
+	if serial := sanitizeEUDMTagValue(info.SerialNumber); serial != "" {
+		tags = append(tags, "hostid:"+serial)
+	}
 	return tags
 }
 

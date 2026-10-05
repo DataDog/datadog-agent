@@ -29,22 +29,22 @@ static long __attribute__((always_inline)) trace__sys_socket(void *ctx, u16 doma
 }
 
 static int __attribute__((always_inline)) sys_socket_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_SOCKET);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_SOCKET);
     if (!syscall) {
         return 0;
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
+        goto pop_and_exit;
     }
 
     if (approve_syscall(syscall, socket_approvers) == DISCARDED) {
-        return 0;
+        goto pop_and_exit;
     }
 
     struct socket_event_t *event = SPAN_FILL_EVENT(struct socket_event_t, EVENT_SOCKET);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
@@ -58,9 +58,14 @@ static int __attribute__((always_inline)) sys_socket_ret_impl(void *ctx, int ret
     } else {
         entry = fill_process_context(&event->process);
     }
+
+    pop_syscall(EVENT_SOCKET);
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_SOCKET);
     return 0;
 }
 

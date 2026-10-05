@@ -652,9 +652,8 @@ func TestSeriesV3VectorOptIn(t *testing.T) {
 	}
 }
 
-// TestSeriesV3ForcedToV2WhenCompressorImplIsZlib covers the build-tag mismatch the old
-// config-string check missed: in a zlib-only build, serializer_compressor_kind="zstd" still
-// resolves to the zlib implementation (see pkg/util/compression/selector/zlib-no-zstd.go).
+// TestSeriesV3ForcedToV2WhenCompressorImplIsZlib covers a mismatch the old config-string
+// check missed: serializer_compressor_kind="zstd" while the injected compressor is zlib.
 // The guard inspects the actual compressor's ContentEncoding, so series must drop to v2 even
 // though the config string says zstd.
 func TestSeriesV3ForcedToV2WhenCompressorImplIsZlib(t *testing.T) {

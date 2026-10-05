@@ -39,7 +39,7 @@ func TestMetricHandoffSnapshotsReusableSampleFields(t *testing.T) {
 		timestamp: 123,
 	}
 
-	require.False(t, h.ObserveMetricAndReportDrop(sample))
+	require.False(t, testObserveMetricAndReportDrop(h, sample))
 
 	// Aggregator MetricSamples are reusable as soon as ObserveMetric returns.
 	// Mutating the scalar fields here must not change the queued observation.
@@ -69,7 +69,7 @@ func TestMetricHandoffRetainsImmutableCompositeTags(t *testing.T) {
 		timestamp: 123,
 	}
 
-	require.False(t, h.ObserveMetricAndReportDrop(sample))
+	require.False(t, testObserveMetricAndReportDrop(h, sample))
 	queued := <-ch
 
 	// Both stages retain the immutable view without flattening or sorting it.

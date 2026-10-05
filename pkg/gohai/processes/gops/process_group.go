@@ -8,7 +8,7 @@
 package gops
 
 import (
-	"sort"
+	"slices"
 )
 
 // ProcessNameGroup represents a group of processes, grouped by name
@@ -51,14 +51,14 @@ func (pg *ProcessNameGroup) VMS() uint64 {
 
 // Usernames returns a slice of the usernames, sorted alphabetically
 func (pg *ProcessNameGroup) Usernames() []string {
-	var usernameStringSlice sort.StringSlice
+	usernames := make([]string, 0, len(pg.usernames))
 	for username := range pg.usernames {
-		usernameStringSlice = append(usernameStringSlice, username)
+		usernames = append(usernames, username)
 	}
 
-	sort.Sort(usernameStringSlice)
+	slices.Sort(usernames)
 
-	return []string(usernameStringSlice)
+	return usernames
 }
 
 // NewProcessNameGroup returns a new empty ProcessNameGroup
@@ -95,24 +95,4 @@ func (pg *ProcessNameGroup) add(p *ProcessInfo) {
 	pg.pctMem += p.PctMem
 	pg.vms += p.VMS
 	pg.usernames[p.Username] = true
-}
-
-// Len returns the number of groups
-func (s ProcessNameGroups) Len() int {
-	return len(s)
-}
-
-// Swap swaps processes at index i and j
-func (s ProcessNameGroups) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
-// ByRSSDesc is used to sort groups by decreasing RSS.
-type ByRSSDesc struct {
-	ProcessNameGroups
-}
-
-// Less returns whether the group at index i uses more RSS than the one at index j.
-func (s ByRSSDesc) Less(i, j int) bool {
-	return s.ProcessNameGroups[i].RSS() > s.ProcessNameGroups[j].RSS()
 }

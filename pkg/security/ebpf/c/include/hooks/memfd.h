@@ -69,14 +69,14 @@ HOOK_SYSCALL_ENTRY2(memfd_create, const char *, uname, unsigned int, flags) {
 }
 
 HOOK_SYSCALL_EXIT(memfd_create) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_TRACER_MEMFD_CREATE);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_TRACER_MEMFD_CREATE);
     if (!syscall) {
         return 0;
     }
 
     int retval = SYSCALL_PARMRET(ctx);
     if (retval < 0) {
-        return 0;
+        goto pop_and_exit;
     }
 
     // Create tracking entry with PID and suffix as key, fd as value
@@ -95,6 +95,8 @@ HOOK_SYSCALL_EXIT(memfd_create) {
     u32 fd = (u32)retval;
     bpf_map_update_elem(&memfd_tracking, &key, &fd, BPF_ANY);
 
+pop_and_exit:
+    pop_syscall(EVENT_TRACER_MEMFD_CREATE);
     return 0;
 }
 

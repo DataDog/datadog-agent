@@ -1964,6 +1964,37 @@ func TestEnvVarLayerConvertsToDefaultType(t *testing.T) {
 	assert.Equal(t, expect, txt)
 }
 
+func TestEnvVarLayerDecodesJSONForMapDefaults(t *testing.T) {
+	t.Setenv("TEST_ENDPOINTS", `{"https://a.example":["k1","k2"]}`)
+	t.Setenv("TEST_LABELS", `{"app":"kube_app"}`)
+	t.Setenv("TEST_GENERIC_MAP", `{"a":{"b":1}}`)
+	t.Setenv("TEST_LIST_OF_MAPS", `[{"api_key":"k","Host":"h"}]`)
+	t.Setenv("TEST_NOT_JSON", `app:kube_app`)
+	t.Setenv("TEST_WRONG_SHAPE", `["a"]`)
+
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.BindEnvAndSetDefault("endpoints", map[string][]string{}, "TEST_ENDPOINTS")
+	cfg.BindEnvAndSetDefault("labels", map[string]string{}, "TEST_LABELS")
+	cfg.BindEnvAndSetDefault("generic_map", map[string]interface{}{}, "TEST_GENERIC_MAP")
+	cfg.BindEnvAndSetDefault("list_of_maps", []map[string]interface{}{}, "TEST_LIST_OF_MAPS")
+	cfg.BindEnvAndSetDefault("not_json", map[string]string{}, "TEST_NOT_JSON")
+	cfg.BindEnvAndSetDefault("wrong_shape", map[string]string{}, "TEST_WRONG_SHAPE")
+	cfg.BuildSchema()
+
+	assert.Equal(t, map[string][]string{"https://a.example": {"k1", "k2"}}, cfg.Get("endpoints"))
+	assert.Equal(t, map[string]string{"app": "kube_app"}, cfg.Get("labels"))
+	assert.Equal(t, map[string]interface{}{"a": map[string]interface{}{"b": float64(1)}}, cfg.Get("generic_map"))
+	assert.Equal(t, []interface{}{map[string]interface{}{"api_key": "k", "Host": "h"}}, cfg.Get("list_of_maps"))
+	assert.Equal(t, model.SourceEnvVar, cfg.GetSource("endpoints"))
+
+	// values that aren't JSON of the setting's shape are kept as raw strings
+	assert.Equal(t, "app:kube_app", cfg.Get("not_json"))
+	assert.Equal(t, `["a"]`, cfg.Get("wrong_shape"))
+
+	assert.Equal(t, map[string][]string{"https://a.example": {"k1", "k2"}}, cfg.GetStringMapStringSlice("endpoints"))
+	assert.Equal(t, map[string]string{"app": "kube_app"}, cfg.GetStringMapString("labels"))
+}
+
 // TestCheckKnownKeyConcurrentAccess verifies that concurrent getter calls with
 // unknown config keys do not crash the agent with "fatal error: concurrent map writes".
 // This reproduces the race condition where multiple goroutines call GetBool (or other

@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var forbiddenSymbols = regexp.MustCompile("[^a-zA-Z0-9_*]")
+
 const (
 	// regexSensitiveParamInJSON is using non greedy operators in the value capture
 	// group to work around missing support for look behind assertions in Go.
@@ -216,7 +218,6 @@ func (ds *DataScrubber) AddCustomSensitiveRegex(words []string) {
 // The word must contain only word characters ([a-zA-z0-9_]) or wildcards *
 func compileStringsToRegex(words []string) []*regexp.Regexp {
 	compiledRegexps := make([]*regexp.Regexp, 0, len(words))
-	forbiddenSymbols := regexp.MustCompile("[^a-zA-Z0-9_*]")
 
 	for _, word := range words {
 		if forbiddenSymbols.MatchString(word) {

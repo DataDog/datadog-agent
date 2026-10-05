@@ -29,6 +29,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
+type recordingDeviceCache struct {
+	ddnvml.DeviceCache
+	invalidated bool
+}
+
+func (c *recordingDeviceCache) Invalidate() {
+	c.invalidated = true
+}
+
 func newTestCollector(t *testing.T, store workloadmeta.Component) *collector {
 	t.Helper()
 
@@ -45,6 +54,17 @@ func TestStartDisabledWhenGPUMonitoringDisabled(t *testing.T) {
 	err := c.Start(context.Background(), nil)
 
 	require.Equal(t, dderrors.NewDisabled(componentName, "GPU monitoring is disabled"), err)
+}
+
+func TestPullInvalidatesDeviceCacheWhileNVMLReleased(t *testing.T) {
+	cache := &recordingDeviceCache{}
+	c := newTestCollector(t, nil)
+	c.deviceCache = cache
+
+	require.NoError(t, ddnvml.ReleaseNVML())
+	t.Cleanup(ddnvml.ReacquireNVML)
+	require.NoError(t, c.Pull(context.Background()))
+	require.True(t, cache.invalidated)
 }
 
 func TestPull(t *testing.T) {
@@ -239,6 +259,76 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 
 	for _, gpu := range gpus {
 		require.ElementsMatch(t, expectedActivePIDs, gpu.ActivePIDs)
+	}
+}
+
+func TestPullKeepsLostGPU(t *testing.T) {
+	const lostIndex = 0
+	lost := false
+
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithDeviceHandleByIndexCallback(func(index int, device nvml.Device) (nvml.Device, nvml.Return) {
+			if lost && index == lostIndex {
+				return nil, nvml.ERROR_GPU_IS_LOST
+			}
+			return device, nvml.SUCCESS
+		}),
+		testutil.WithDeviceOptions(lostIndex, testutil.WithCustomHook(func(d *testutil.MockDevice) {
+			getVirtualizationMode := d.GetVirtualizationModeFunc
+			d.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) {
+				if lost {
+					return 0, nvml.ERROR_GPU_IS_LOST
+				}
+				return getVirtualizationMode()
+			}
+			getMemoryBusWidth := d.GetMemoryBusWidthFunc
+			d.GetMemoryBusWidthFunc = func() (uint32, nvml.Return) {
+				if lost {
+					return 0, nvml.ERROR_GPU_IS_LOST
+				}
+				return getMemoryBusWidth()
+			}
+			getMaxClockInfo := d.GetMaxClockInfoFunc
+			d.GetMaxClockInfoFunc = func(clockType nvml.ClockType) (uint32, nvml.Return) {
+				if lost {
+					return 0, nvml.ERROR_GPU_IS_LOST
+				}
+				return getMaxClockInfo(clockType)
+			}
+		})),
+	)
+
+	c := newTestCollector(t, wmetaMock)
+	lostUUID := testutil.GPUUUIDs[lostIndex]
+
+	require.NoError(t, c.Pull(context.Background()))
+	gpuCount := len(wmetaMock.ListGPUs())
+	before, err := wmetaMock.GetGPU(lostUUID)
+	require.NoError(t, err)
+	require.False(t, before.Lost)
+	require.NotEmpty(t, before.VirtualizationMode)
+	require.NotZero(t, before.MemoryBusWidth)
+	require.NotZero(t, before.MaxClockRates[workloadmeta.GPUSM])
+
+	lost = true
+	// Pull twice while lost, so the attributes are also kept when copied from
+	// an entity that was already published as lost.
+	for pull := 2; pull <= 3; pull++ {
+		require.NoError(t, c.Pull(context.Background()))
+
+		require.Len(t, wmetaMock.ListGPUs(), gpuCount, "pull %d", pull)
+		after, err := wmetaMock.GetGPU(lostUUID)
+		require.NoError(t, err, "lost GPU must not be removed from workloadmeta on pull %d", pull)
+		require.True(t, after.Lost, "pull %d", pull)
+		require.Equal(t, before.Name, after.Name, "pull %d", pull)
+		require.Equal(t, before.Index, after.Index, "pull %d", pull)
+		require.Equal(t, before.PCIBusID, after.PCIBusID, "pull %d", pull)
+		require.Equal(t, before.VirtualizationMode, after.VirtualizationMode, "pull %d", pull)
+		require.Equal(t, before.MemoryBusWidth, after.MemoryBusWidth, "pull %d", pull)
+		require.Equal(t, before.FabricClusterUUID, after.FabricClusterUUID, "pull %d", pull)
+		require.Equal(t, before.FabricCliqueID, after.FabricCliqueID, "pull %d", pull)
+		require.Equal(t, before.MaxClockRates, after.MaxClockRates, "pull %d", pull)
 	}
 }
 

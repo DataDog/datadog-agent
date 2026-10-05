@@ -14,6 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+var (
+	uuidRegex                  = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	dateRegex                  = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`) // Date in YYYY-MM-DD format
+	numericRegex               = regexp.MustCompile(`^\d+$`)               // Any purely numeric subpath
+	hexRegex                   = regexp.MustCompile(`^[0-9a-fA-F]+$`)      // Hexadecimal pattern
+	patternsWithSeparatorRegex = regexp.MustCompile(`^\.*\d+([._-]\d+)*([._-]\d+)*$`)
+)
+
 // PathPatternMatchOpts PathPatternMatch options
 type PathPatternMatchOpts struct {
 	WildcardLimit      int // max number of wildcard in the pattern
@@ -308,12 +316,6 @@ func containsExceptions(path string) bool {
 
 // CheckForPatterns replace patterns like uuid with *
 func CheckForPatterns(path string) string {
-	uuidRegex := regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
-	dateRegex := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`) // Date in YYYY-MM-DD format
-	numericRegex := regexp.MustCompile(`^\d+$`)            // Any purely numeric subpath
-	hexRegex := regexp.MustCompile(`^[0-9a-fA-F]+$`)       // Hexadecimal pattern
-	patternsWithSeparatorRegex := regexp.MustCompile(`^\.*\d+([._-]\d+)*([._-]\d+)*$`)
-
 	// Split the path into subpaths
 	subpaths := strings.Split(path, "/")
 

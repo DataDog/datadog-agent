@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/debug"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/api/coverage"
@@ -61,7 +62,14 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 		mux.HandleFunc("/debug/selinux_semodule_list", debug.HandleSelinuxSemoduleList)
 	}
 
-	mux.Handle("POST /agent-restart", deps.Ipc.HTTPMiddleware(http.HandlerFunc(handleAgentRestart)))
+	// Instrument the token-authenticated endpoint with the same request telemetry as the
+	// core agent. The system-probe HTTP server listens on a plain (non-TLS) connection, so
+	// mTLS cannot be negotiated: all requests are tagged "no_tls".
+	telemetryMiddleware := observability.NewTelemetryMiddlewareFactory(deps.Telemetry, observability.NoTLSAuthTagGetter())
+	wrapTelemetry := telemetryMiddleware.Middleware("system_probe")
+
+	mux.Handle("POST /agent-restart", deps.Ipc.HTTPMiddleware(
+		wrapTelemetry(http.HandlerFunc(handleAgentRestart))))
 
 	// Register /coverage endpoint for computing code coverage (e2ecoverage build only).
 	coverage.SetupCoverageHandler(mux)

@@ -45,26 +45,28 @@ HOOK_SYSCALL_COMPAT_TIME_ENTRY2(futimesat, int, dirfd, const char *, filename) {
 }
 
 int __attribute__((always_inline)) sys_utimes_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_UTIME);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UTIME);
     if (!syscall) {
         return 0;
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
+        goto pop_and_exit;
     }
 
     set_file_layer(syscall->resolver.dentry, &syscall->setattr.file);
 
     struct utimes_event_t *event = SPAN_FILL_EVENT(struct utimes_event_t, EVENT_UTIME);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->syscall_ctx.id = syscall->ctx_id;
     event->atime = syscall->setattr.atime;
     event->mtime = syscall->setattr.mtime;
     event->file = syscall->setattr.file;
+
+    pop_syscall(EVENT_UTIME);
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
@@ -73,6 +75,8 @@ int __attribute__((always_inline)) sys_utimes_ret_impl(void *ctx, int retval, en
 
     span_fill_tail_call(ctx, prog_type);
 
+pop_and_exit:
+    pop_syscall(EVENT_UTIME);
     return 0;
 }
 

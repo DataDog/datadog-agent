@@ -36,33 +36,47 @@ func GetProcmgrProcessState(host *components.RemoteHost, installRoot, processNam
 	return windowsCommon.ProcmgrDescribeField(host, ProcmgrCLIPath(installRoot), processName, "State")
 }
 
-// AssertProcmgrProcessRunning fails the test unless dd-procmgrd reports processName as
-// stably Running.
+// AssertProcmgrProcessRunning fails the test unless dd-procmgrd reports processName as stably
+// Running as one unchanging OS process.
 //
-// Stably matters: a workload that starts and exits shortly after would satisfy a plain
-// "is it Running" check. system-probe does exactly that when it decides no module is
-// enabled, sleeping 5 seconds before exiting 0. The window is several times that sleep so
-// that neither poll jitter nor a lagging state update can land inside it.
+// Both halves are needed. A workload that starts and exits shortly after would satisfy a plain
+// "is it Running" check, so the state has to hold for a window several times longer than the 5
+// second sleep system-probe takes before exiting when it decides no module is enabled.
+//
+// The PID covers what the window alone cannot. A process crashing more slowly than its restart
+// burst limit is respawned indefinitely rather than left in Failed, and reads as Running on
+// nearly every poll, with a different PID each time. Restarting resets the window instead of
+// failing outright, so a single restart while an install settles still passes.
 func AssertProcmgrProcessRunning(t *testing.T, host *components.RemoteHost, processName string) {
 	t.Helper()
 	installRoot, err := GetInstallPathFromRegistry(host)
 	require.NoError(t, err, "should find the Agent install path")
+	cliPath := ProcmgrCLIPath(installRoot)
 
-	var runningSince time.Time
+	var (
+		runningSince time.Time
+		pid          string
+	)
 	const minRunningDuration = 20 * time.Second
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		state, err := GetProcmgrProcessState(host, installRoot, processName)
+		fields, out, err := windowsCommon.ProcmgrDescribe(host, cliPath, processName)
 		if !assert.NoError(c, err) ||
-			!assert.Equal(c, "Running", state, "%s should be running under dd-procmgrd", processName) {
-			runningSince = time.Time{}
+			!assert.Equal(c, "Running", fields["State"], "%s should be running under dd-procmgrd: %s", processName, out) {
+			runningSince, pid = time.Time{}, ""
 			return
 		}
-		if runningSince.IsZero() {
-			runningSince = time.Now()
+		current := fields["PID"]
+		if !assert.NotEmpty(c, current, "%s is Running but reports no PID: %s", processName, out) ||
+			!assert.NotEqual(c, "-", current, "%s is Running but reports no PID: %s", processName, out) {
+			runningSince, pid = time.Time{}, ""
+			return
+		}
+		if current != pid {
+			runningSince, pid = time.Now(), current
 		}
 		// EventuallyWithT treats a tick with no recorded failures as an immediate success, so
 		// the stability window has to be an assertion rather than a silent early return.
 		assert.GreaterOrEqual(c, time.Since(runningSince), minRunningDuration,
-			"%s has not been running long enough yet", processName)
+			"%s has not been running as PID %s long enough yet", processName, current)
 	}, 3*time.Minute, 5*time.Second)
 }

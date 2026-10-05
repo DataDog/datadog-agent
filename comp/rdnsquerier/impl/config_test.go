@@ -353,3 +353,11 @@ network_path:
 
 	assert.True(t, newConfig(mockConfig).enabled)
 }
+
+func TestConfigEnabledForEUDMBasicNetworkPathTests(t *testing.T) {
+	config := mock.NewFromYAML(t, "infrastructure_mode: end_user_device\n")
+	assert.True(t, newConfig(config).enabled)
+
+	config.SetInTest("network_path.connections_monitoring.eudm_basic_tests_enabled", false)
+	assert.False(t, newConfig(config).enabled)
+}

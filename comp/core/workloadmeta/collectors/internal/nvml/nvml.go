@@ -52,6 +52,10 @@ type collector struct {
 	integrateWithWorkloadmetaProcesses bool
 	gpuMonitoringEnabled               bool
 	lastCollectionTimestamp            time.Time
+	deviceCache                        ddnvml.DeviceCache
+	// lastPublishedGPUs keeps the last GPU entity published per UUID, so that
+	// lost GPUs keep the attributes that can no longer be queried from NVML.
+	lastPublishedGPUs map[string]*workloadmeta.GPU
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -103,12 +107,16 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 	}
 
 	c.fillNVMLAttributes(&gpuDeviceInfo, device)
-	c.fillProcesses(&gpuDeviceInfo, device)
+	if !gpuDeviceInfo.Lost {
+		c.fillProcesses(&gpuDeviceInfo, device)
+	}
 
 	return &gpuDeviceInfo, nil
 }
 
-// fillNVMLAttributes fills the attributes of the GPU device by querying NVML API
+// fillNVMLAttributes fills the attributes of the GPU device by querying NVML API.
+// If NVML reports the GPU as lost, it marks it as such and keeps the attributes
+// last published for it.
 func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
 	migDevice, isMig := device.(*ddnvml.MIGDevice)
 	physicalDevice := device
@@ -116,7 +124,20 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		physicalDevice = migDevice.Parent
 	}
 
+	gpuDeviceInfo.PCIBusID = physicalDevice.GetDeviceInfo().PCIBusID
+
 	virtMode, err := physicalDevice.GetVirtualizationMode()
+	if ddnvml.IsGPULost(err) {
+		gpuDeviceInfo.Lost = true
+		if prev, ok := c.lastPublishedGPUs[gpuDeviceInfo.EntityID.ID]; ok {
+			gpuDeviceInfo.VirtualizationMode = prev.VirtualizationMode
+			gpuDeviceInfo.MemoryBusWidth = prev.MemoryBusWidth
+			gpuDeviceInfo.FabricClusterUUID = prev.FabricClusterUUID
+			gpuDeviceInfo.FabricCliqueID = prev.FabricCliqueID
+			gpuDeviceInfo.MaxClockRates = prev.MaxClockRates
+		}
+		return
+	}
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
@@ -132,15 +153,6 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		}
 	} else {
 		gpuDeviceInfo.MemoryBusWidth = memBusWidth
-	}
-
-	pciInfo, err := physicalDevice.GetPciInfo()
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
-		}
-	} else {
-		gpuDeviceInfo.PCIBusID = gpuutil.PCIInfoToBusID(pciInfo)
 	}
 
 	fabricInfo, err := physicalDevice.GetGpuFabricInfo()
@@ -239,6 +251,7 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 		seenPIDsToGPUs:          make(map[int][]string),
 		seenContainerGPUs:       make(map[string]struct{}),
 		publishedContainerGPUs:  make(map[string][]string),
+		lastPublishedGPUs:       make(map[string]*workloadmeta.GPU),
 		store:                   store,
 		lastCollectionTimestamp: time.Now(),
 		gpuMonitoringEnabled:    true,
@@ -288,8 +301,10 @@ func (c *collector) Pull(ctx context.Context) error {
 	// the in-flight pull to finish instead of racing it. The gated helper
 	// keeps the library wrapper from escaping.
 	err := ddnvml.WithNVML(func(lib ddnvml.SafeNVML) error {
-		deviceCache := ddnvml.NewDeviceCache(ddnvml.WithDeviceCacheLib(lib))
-		if err := deviceCache.Refresh(); err != nil {
+		if c.deviceCache == nil {
+			c.deviceCache = ddnvml.NewDeviceCache()
+		}
+		if err := c.deviceCache.Refresh(); err != nil {
 			return fmt.Errorf("failed to initialize device cache: %w", err)
 		}
 
@@ -311,7 +326,7 @@ func (c *collector) Pull(ctx context.Context) error {
 		}
 
 		// note: the device list can change over time so we need to set/unset for reconciliation
-		allDevices, err := deviceCache.All()
+		allDevices, err := c.deviceCache.All()
 		if err != nil {
 			// Should not happen as we check the last init error for the library
 			return fmt.Errorf("failed to get all devices: %w", err)
@@ -335,6 +350,7 @@ func (c *collector) Pull(ctx context.Context) error {
 
 			uuid := dev.GetDeviceInfo().UUID
 			currentUUIDs[uuid] = struct{}{}
+			c.lastPublishedGPUs[uuid] = gpu
 			events = append(events, workloadmeta.CollectorEvent{
 				Source: workloadmeta.SourceNVML,
 				Type:   workloadmeta.EventTypeSet,
@@ -354,6 +370,7 @@ func (c *collector) Pull(ctx context.Context) error {
 				continue
 			}
 
+			delete(c.lastPublishedGPUs, uuid)
 			events = append(events, workloadmeta.CollectorEvent{
 				Source: workloadmeta.SourceNVML,
 				Type:   workloadmeta.EventTypeUnset,
@@ -372,7 +389,7 @@ func (c *collector) Pull(ctx context.Context) error {
 			events = append(events, c.createProcessEvents(pidToGPUs)...)
 		}
 
-		events = append(events, c.createContainerGPUEvents(deviceCache)...)
+		events = append(events, c.createContainerGPUEvents(c.deviceCache)...)
 
 		c.store.Notify(events)
 		c.lastCollectionTimestamp = timestamp
@@ -381,8 +398,13 @@ func (c *collector) Pull(ctx context.Context) error {
 	})
 	if err != nil {
 		// While NVML is deliberately released, skip quietly: the pull is
-		// retried on the next cycle.
+		// retried on the next cycle. Invalidate while new users are still
+		// rejected so the next successful pull cannot reuse pre-shutdown
+		// device handles.
 		if errors.Is(err, ddnvml.ErrNVMLReleased) {
+			if c.deviceCache != nil {
+				c.deviceCache.Invalidate()
+			}
 			return nil
 		}
 		// Do not consider an unloaded driver as an error more than once.

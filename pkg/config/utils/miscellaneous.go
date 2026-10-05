@@ -16,6 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var (
+	reFedSite = regexp.MustCompile(`(.+\.)?ddog-gov\.com`)
+	reFedURL  = regexp.MustCompile(`https://.+\.ddog-gov\.com`)
+)
+
 // ConfFileDirectory returns the absolute path to the folder containing the config
 // file used to populate the registry
 func ConfFileDirectory(c pkgconfigmodel.Reader) string {
@@ -86,11 +91,9 @@ func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
 
 // IsFed returns true if the Agent is running in a gov environment
 func IsFed(cfg pkgconfigmodel.Reader) bool {
-	reSite := regexp.MustCompile(`(.+\.)?ddog-gov\.com`)
-	reURL := regexp.MustCompile(`https://.+\.ddog-gov\.com`)
 	isFipsAgent, _ := pkgfips.Enabled()
 	return cfg.GetBool("fips.enabled") || isFipsAgent ||
-		reSite.MatchString(cfg.GetString("site")) || reURL.MatchString(cfg.GetString("dd_url"))
+		reFedSite.MatchString(cfg.GetString("site")) || reFedURL.MatchString(cfg.GetString("dd_url"))
 }
 
 // IsCloudProviderEnabled checks the cloud provider family provided in

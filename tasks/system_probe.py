@@ -137,7 +137,7 @@ def ninja_define_ebpf_compiler(
         depfile="$out.d",
     )
 
-    strip = "/opt/datadog-agent/embedded/bin/llvm-strip -g $out"
+    strip = "/opt/datadog-agent/embedded/bin/llvm-strip -g --remove-section=.rel.BTF.ext $out"
     strip_lbb = "/opt/datadog-agent/embedded/bin/llvm-strip -w -N \"LBB*\" $out"
     strip_part = f"&& {strip} && {strip_lbb}" if strip_object_files else ""
 
@@ -1023,14 +1023,12 @@ _NON_EBPF_TARGETS = frozenset(
 )
 
 
-def _ebpf_strip_targets(targets, strip):
-    """Append .stripped suffix to eBPF targets when strip is requested.
+def _ebpf_strip_targets(targets):
+    """Append .stripped suffix to eBPF targets.
 
     Non-eBPF targets (e.g. cc_binary) are returned unchanged since they
     don't have Bazel-side stripped variants.
     """
-    if not strip:
-        return list(targets)
     return [t + ".stripped" if t not in _NON_EBPF_TARGETS else t for t in targets]
 
 
@@ -1041,7 +1039,7 @@ def ebpf_bazel_flags(arch: Arch) -> list[str]:
     return []
 
 
-def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str, strip: bool = True) -> None:
+def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str) -> None:
     """Build all eBPF artifacts via a single ``bazel build``.
 
     Builds eBPF .o objects (prebuilt, CO-RE, inplace), runtime flattened .c
@@ -1056,9 +1054,9 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
     else:
         inplace_targets = _BAZEL_EBPF_INPLACE_TARGETS
 
-    prebuilt = _ebpf_strip_targets(_BAZEL_EBPF_PREBUILT_TARGETS, strip)
-    core = _ebpf_strip_targets(_BAZEL_EBPF_CORE_TARGETS, strip)
-    inplace = {_ebpf_strip_targets([t], strip)[0]: d for t, d in inplace_targets.items()}
+    prebuilt = _ebpf_strip_targets(_BAZEL_EBPF_PREBUILT_TARGETS)
+    core = _ebpf_strip_targets(_BAZEL_EBPF_CORE_TARGETS)
+    inplace = {_ebpf_strip_targets([t])[0]: d for t, d in inplace_targets.items()}
 
     ebpf_targets = prebuilt + core + list(inplace.keys())
     all_build_targets = ebpf_targets + list(_BAZEL_RUNTIME_FLAT_TARGETS) + list(_BAZEL_RUNTIME_GEN_TARGETS)

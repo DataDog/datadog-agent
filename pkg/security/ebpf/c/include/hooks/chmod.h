@@ -43,25 +43,27 @@ HOOK_SYSCALL_ENTRY4(fchmodat2, int, dirfd, const char *, filename, umode_t, mode
 }
 
 int __attribute__((always_inline)) sys_chmod_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_CHMOD);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_CHMOD);
     if (!syscall) {
         return 0;
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
+        goto pop_and_exit;
     }
 
     set_file_layer(syscall->resolver.dentry, &syscall->setattr.file);
 
     struct chmod_event_t *event = SPAN_FILL_EVENT(struct chmod_event_t, EVENT_CHMOD);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->syscall_ctx.id = syscall->ctx_id;
     event->file = syscall->setattr.file;
     event->mode = syscall->setattr.mode;
+
+    pop_syscall(EVENT_CHMOD);
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
@@ -70,6 +72,8 @@ int __attribute__((always_inline)) sys_chmod_ret_impl(void *ctx, int retval, enu
 
     span_fill_tail_call(ctx, prog_type);
 
+pop_and_exit:
+    pop_syscall(EVENT_CHMOD);
     return 0;
 }
 

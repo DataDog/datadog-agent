@@ -66,15 +66,28 @@ go_library(
 
 dd_agent_go_test(
     name = "offsetguess_test",
-    srcs = ["offsetguess_types_linux_test.go"],
+    srcs = [
+        "offsetguess_types_linux_test.go",
+        "tracer_rtt_test.go",
+    ],
     embed = [":offsetguess"],
     gotags_sets = [["bpf"]],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/ebpf/ebpftest:cgo_align",
+            "//pkg/ebpf/maps",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf/ebpftest:cgo_align",
+            "//pkg/ebpf/maps",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

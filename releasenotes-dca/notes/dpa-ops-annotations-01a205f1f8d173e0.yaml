@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Added the ``autoscaling.datadoghq.com/pause`` and ``autoscaling.datadoghq.com/force-fallback``
+    annotations on ``DatadogPodAutoscaler`` objects, to act on an autoscaler during an incident
+    without editing its ``spec``, whatever its owner. ``pause`` stops all actions of the
+    autoscaler, and ``force-fallback`` triggers the local fallback as if recommendations from
+    Datadog were stale.

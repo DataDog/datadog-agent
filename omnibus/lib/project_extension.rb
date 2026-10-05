@@ -79,18 +79,6 @@ module Omnibus
       end
     end
 
-    def external_package_path?(path)
-      expanded_path = File.expand_path(path)
-      project_root = File.expand_path(Omnibus::Config.project_root)
-      install_root = File.expand_path(install_dir)
-
-      !path_inside?(expanded_path, project_root) && !path_inside?(expanded_path, install_root)
-    end
-
-    def path_inside?(path, root)
-      path == root || path.start_with?("#{root}/")
-    end
-
     def normalize_path_permissions(path)
       return unless File.exist?(path)
 

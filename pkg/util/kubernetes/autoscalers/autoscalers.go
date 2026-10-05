@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var metricNamingConvention = regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9_.]{0,199}$")
+
 // InspectHPA returns the list of external metrics from the hpa to use for
 // autoscaling. It can handle v2beta1, v2beta2 and v2 versions of HPA.
 func InspectHPA(obj interface{}) []custommetrics.ExternalMetricValue {
@@ -222,7 +224,5 @@ func AutoscalerMetricsUpdate(new, old metav1.Object) bool {
 // IsValidMetricName will return true if the metric name follows the Datadog metric naming conventions.
 // See https://docs.datadoghq.com/developers/metrics/#naming-custom-metrics
 func IsValidMetricName(metricName string) bool {
-	metricNamingConvention := regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9_.]{0,199}$")
-
 	return metricNamingConvention.Match([]byte(metricName))
 }

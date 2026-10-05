@@ -57,8 +57,11 @@ const (
 
 func newConfig(agentConfig config.Component) *rdnsQuerierConfig {
 	netflowRDNSEnrichmentEnabled := agentConfig.GetBool("network_devices.netflow.reverse_dns_enrichment_enabled")
+	isEUDM := agentConfig.GetString("infrastructure_mode") == "end_user_device"
 	networkPathRDNSEnrichmentEnabled := agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled") &&
-		(agentConfig.GetBool("network_path.connections_monitoring.enabled") || agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled"))
+		(agentConfig.GetBool("network_path.connections_monitoring.enabled") ||
+			(!isEUDM && agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled")) ||
+			(isEUDM && agentConfig.GetBool("network_path.connections_monitoring.eudm_basic_tests_enabled")))
 
 	c := &rdnsQuerierConfig{
 		enabled:  netflowRDNSEnrichmentEnabled || networkPathRDNSEnrichmentEnabled,

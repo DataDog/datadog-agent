@@ -42,6 +42,8 @@ pkg_filegroup(
         ":trace_agent_binary",
         ":process_agent_binary",
         ":privateactionrunner_binary",
+        ":secret_generic_connector_binary",
+        ":security_agent_binary",
 
         # TODO: system-probe
         # TODO: system-probe - eBPF
@@ -50,12 +52,6 @@ pkg_filegroup(
         # TODO: cacerts
         # TODO: dependency 'datadog-agent-integrations-py3'
     ] + select({
-        "//packages/agent:linux_heroku": [],
-        "//conditions:default": [
-            ":secret_generic_connector_binary",
-            ":security_agent_binary",
-        ],
-    }) + select({
         "//packages/agent:linux_default": [
             ":cws_instrumentation_binary",
             ":installer_binary",
@@ -70,7 +66,6 @@ pkg_filegroup(
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
-        "//packages/agent:linux_heroku": [],
         "//conditions:default": [],
     }) + select({
         "@platforms//os:linux": [
@@ -144,10 +139,8 @@ pkg_files(
     name = "example_config",
     srcs = [
         "//pkg/config:agent_config",
+        "//pkg/config:security_agent_example_config_src",
     ] + select({
-        "//packages/agent:heroku_flavor": [],
-        "//conditions:default": ["//pkg/config:security_agent_example_config_src"],
-    }) + select({
         "@platforms//os:linux": ["//pkg/config:application_monitoring_example_config_src"],
         "//conditions:default": [],
     }),
@@ -179,10 +172,7 @@ pkg_install(
 rewrite_rpath(
     name = "agent_binary_rpath",
     destination = "{install_dir}/bin/agent",
-    inputs = select({
-        "//packages/agent:linux_heroku": ["//cmd/agent:agent-heroku"],
-        "//conditions:default": ["//cmd/agent"],
-    }),
+    inputs = ["//cmd/agent"],
     use_relative_rpaths = _USE_RELATIVE_RPATHS,
 )
 
@@ -191,10 +181,6 @@ pkg_files(
     srcs = [":agent_binary_rpath"],
     attributes = pkg_attributes(mode = "755"),
     prefix = "bin/agent",
-    renames = select({
-        "//packages/agent:linux_heroku": {":agent_binary_rpath": "agent"},
-        "//conditions:default": {},
-    }),
 )
 
 rewrite_rpath(
@@ -203,10 +189,7 @@ rewrite_rpath(
         "@platforms//os:windows": "{install_dir}/bin/agent",
         "//conditions:default": "{install_dir}/embedded/bin",
     }),
-    inputs = select({
-        "//packages/agent:linux_heroku": ["//cmd/process-agent:process-agent-heroku"],
-        "//conditions:default": ["//cmd/process-agent"],
-    }),
+    inputs = ["//cmd/process-agent"],
     use_relative_rpaths = _USE_RELATIVE_RPATHS,
 )
 
@@ -217,10 +200,6 @@ pkg_files(
     prefix = select({
         "@platforms//os:windows": "bin/agent",
         "//conditions:default": "embedded/bin",
-    }),
-    renames = select({
-        "//packages/agent:linux_heroku": {":process_agent_binary_rpath": "process-agent"},
-        "//conditions:default": {},
     }),
 )
 
@@ -235,16 +214,9 @@ pkg_files(
 
 pkg_files(
     name = "trace_agent_binary",
-    srcs = select({
-        "//packages/agent:linux_heroku": ["//cmd/trace-agent:trace-agent-heroku"],
-        "//conditions:default": ["//cmd/trace-agent"],
-    }),
+    srcs = ["//cmd/trace-agent"],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
-    renames = select({
-        "//packages/agent:linux_heroku": {"//cmd/trace-agent:trace-agent-heroku": "trace-agent"},
-        "//conditions:default": {},
-    }),
 )
 
 pkg_files(

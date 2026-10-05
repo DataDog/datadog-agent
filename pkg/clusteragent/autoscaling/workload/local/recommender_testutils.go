@@ -114,10 +114,10 @@ func newCPUUsageResult(podName, containerName string, utilization float64, curre
 	}
 }
 
-func newAutoscaler(fallbackEnabled bool) model.PodAutoscalerInternal {
+func newAutoscaler(name string, fallbackEnabled bool) model.PodAutoscalerInternal {
 	pai := model.FakePodAutoscalerInternal{
 		Namespace: "default",
-		Name:      "autoscaler1",
+		Name:      name,
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
 			TargetRef: autoscalingv2.CrossVersionObjectReference{
 				Kind:       "Deployment",
@@ -139,15 +139,15 @@ func newAutoscaler(fallbackEnabled bool) model.PodAutoscalerInternal {
 		},
 	}
 
-	if fallbackEnabled {
-		pai.Spec.Fallback = &datadoghq.DatadogFallbackPolicy{
-			Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
-				Enabled: true,
-				Triggers: datadoghq.HorizontalFallbackTriggers{
-					StaleRecommendationThresholdSeconds: 60,
-				},
+	// Always set the policy explicitly: a nil Fallback means "unset", which the recommender
+	// treats as enabled. Only an explicit Enabled: false opts the autoscaler out.
+	pai.Spec.Fallback = &datadoghq.DatadogFallbackPolicy{
+		Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+			Enabled: fallbackEnabled,
+			Triggers: datadoghq.HorizontalFallbackTriggers{
+				StaleRecommendationThresholdSeconds: 60,
 			},
-		}
+		},
 	}
 
 	return pai.Build()

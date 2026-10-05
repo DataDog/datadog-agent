@@ -2109,6 +2109,37 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts
 	return rs, errs
 }
 
+func TestRuleNullAction(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions: []*ActionDefinition{
+				nil,
+				{
+					Kill: &KillDefinition{
+						Signal: "SIGKILL",
+					},
+				},
+			},
+		}},
+	}
+
+	rs, errs := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+	require.Error(t, errs.ErrorOrNil())
+	require.Len(t, errs.Errors, 1)
+	assert.ErrorContains(t, errs.Errors[0], "rule `test_rule` error: action definition can't be null")
+
+	var aerr *ErrActionLoad
+	require.ErrorAs(t, errs.Errors[0], &aerr)
+	assert.Nil(t, aerr.Action)
+
+	rule := rs.GetRuleByID("test_rule")
+	require.NotNil(t, rule)
+	require.Len(t, rule.PolicyRule.Actions, 1)
+	assert.NotNil(t, rule.PolicyRule.Actions[0].Def.Kill)
+}
+
 func TestRuleErrorLoading(t *testing.T) {
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{

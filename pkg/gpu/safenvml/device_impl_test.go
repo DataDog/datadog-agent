@@ -157,6 +157,23 @@ func TestNewDeviceUUIDFailure(t *testing.T) {
 	require.Equal(t, nvml.ERROR_INVALID_ARGUMENT, nvmlErr.NvmlErrorCode)
 }
 
+func TestNewDeviceMemoryInfoFailureLeavesMemoryUnset(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetMemoryInfoFunc = func() (nvml.Memory, nvml.Return) {
+				return nvml.Memory{}, nvml.ERROR_UNKNOWN
+			}
+		})),
+	)
+	WithMockNVML(t, mockNvml)
+
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
+
+	require.NoError(t, err)
+	require.Zero(t, device.Memory)
+}
+
 func TestDeviceWithMissingSymbol(t *testing.T) {
 	// Create mock with MaxClockInfo symbol missing, not critical, should succeed
 	symbols := maps.Clone(allSymbols)
@@ -186,6 +203,38 @@ func TestDeviceWithMissingSymbol(t *testing.T) {
 	var nvmlErr *NvmlAPIError
 	require.True(t, errors.As(err, &nvmlErr), "Expected error to be of type *NvmlAPIError")
 	require.Equal(t, toNativeName("GetMaxClockInfo"), nvmlErr.APIName)
+	require.Equal(t, nvml.ERROR_FUNCTION_NOT_FOUND, nvmlErr.NvmlErrorCode)
+}
+
+func TestGetRetiredPagesCountRequiresVersionedAPISymbol(t *testing.T) {
+	// Simulate an NVML library that does not contain nvmlDeviceGetRetiredPages_v2.
+	// The wrapper must return a function-not-found error without invoking the
+	// underlying NVIDIA API.
+	symbols := maps.Clone(allSymbols)
+	delete(symbols, toNativeName("GetRetiredPages_v2"))
+
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(symbols),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetRetiredPages_v2Func = func(_ nvml.PageRetirementCause) ([]uint64, []uint64, nvml.Return) {
+				t.Error("GetRetiredPages_v2 must not be called when the symbol is missing from the library")
+				return nil, nil, nvml.ERROR_FUNCTION_NOT_FOUND
+			}
+		})),
+	)
+
+	WithPartialMockNVML(t, mockNvml, symbols)
+
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
+	require.NoError(t, err)
+
+	count, err := device.GetRetiredPagesCount(nvml.PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR)
+	require.Error(t, err)
+	require.Equal(t, uint64(0), count)
+
+	var nvmlErr *NvmlAPIError
+	require.True(t, errors.As(err, &nvmlErr), "Expected error to be of type *NvmlAPIError")
+	require.Equal(t, toNativeName("GetRetiredPages_v2"), nvmlErr.APIName)
 	require.Equal(t, nvml.ERROR_FUNCTION_NOT_FOUND, nvmlErr.NvmlErrorCode)
 }
 

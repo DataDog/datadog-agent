@@ -25,6 +25,8 @@ var (
 	ignoredHeaders  = map[string]struct{}{"vmlinux.h": {}}
 )
 
+var systemIncludeRegexp = regexp.MustCompile(`^\s*#include\s+<(.*)>`)
+
 func init() {
 	includeRegexp = regexp.MustCompile(CIncludePattern)
 }
@@ -32,7 +34,8 @@ func init() {
 // This program is intended to be called from go generate.
 // It will preprocess a .c file to replace all the `#include "file.h"` statements with the header files contents
 // while making sure to only include a file once.
-// This does not process includes using angle brackets, e.g. `#include <stdio>`.
+// This does not process includes using angle brackets, e.g. `#include <stdio>`, and rejects those
+// resolving to an include directory.
 // You may optionally specify additional include directories to search.
 func main() {
 	if len(os.Args[1:]) < 2 {
@@ -163,6 +166,13 @@ func processIncludes(path string, out io.Writer, ps *pathSearcher, includedFiles
 				return err
 			}
 			continue
+		}
+		if match := systemIncludeRegexp.FindSubmatch(scanner.Bytes()); len(match) == 2 {
+			for _, dir := range ps.includeDirs {
+				if fullPath, ok := isFilePresent(dir, string(match[1])); ok {
+					return fmt.Errorf("%s: <%s> resolves to %s, which won't be flattened: use quotes", path, match[1], fullPath)
+				}
+			}
 		}
 		out.Write(scanner.Bytes())
 		out.Write([]byte{'\n'})

@@ -23,6 +23,13 @@ func procmgrConfigPath(installRoot, configFile string) string {
 	return filepath.Join(installRoot, processesDirRel, configFile)
 }
 
+// daemonLogLocation names where dd-procmgrd's own log can be read. On Windows the SCM service
+// opens logs\dd-procmgr.log under the data root, and the flare's log directory sweep picks it up,
+// so the report can point at a file it actually ships.
+func daemonLogLocation() string {
+	return "logs/dd-procmgr.log in this flare"
+}
+
 // installMarkerPaths returns paths to check for an installed DDOT payload on Windows.
 // Relative markers get .exe under the install root; the fleet packages path is appended
 // when WindowsPackageName is set (see postInstallDDOTExtension / fleet layouts).

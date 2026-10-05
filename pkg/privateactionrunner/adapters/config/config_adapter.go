@@ -8,6 +8,7 @@ package config
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -23,6 +24,7 @@ type Config struct {
 	ActionsAllowlist                   map[string]sets.Set[string] // map of allowed bundle IDs to a set of allowed action names
 	Allowlist                          []string
 	AllowIMDSEndpoint                  bool
+	KubernetesAllowedCustomResources   []string
 	RShellAllowedPaths                 []string
 	RShellAllowedCommands              []string
 	RShellAllowedSystemServices        map[string][]string
@@ -70,7 +72,8 @@ type Config struct {
 
 	OpmsExtraHeaders map[string]string
 
-	MetricsClient statsd.ClientInterface
+	MetricsClient   statsd.ClientInterface
+	AgentHTTPClient *http.Client
 }
 
 func (c *Config) IsActionAllowed(bundleId, actionName string) bool {

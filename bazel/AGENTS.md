@@ -114,8 +114,10 @@ This repo uses **Bzlmod** (MODULE.bazel). WORKSPACE is fully removed in Bazel 9 
   extensions for complex logic.
 - Keep `use_repo(...)` lists accurate. Run `bazel mod tidy` after extension changes to update them automatically.
 - `bazel mod explain <module>` shows why a version is selected. `bazel mod graph` visualises the full dependency graph.
-- In CI, pass `--lockfile_mode=error` to fail the build if the lockfile would need updating — prevents stale lockfiles
-  from silently merging. Only `registryFileHashes` sections are safe to resolve manually in merge conflicts.
+- CI checks lock freshness with `bazel mod deps --lockfile_mode=refresh` followed by `git diff --exit-code`
+  (see `.gitlab/build/bazel/lint.yml`). Prefer that over `--lockfile_mode=error`, which can miss stale cached
+  repository checks and does not report discrepancies exhaustively. Only `registryFileHashes` sections are safe
+  to resolve manually in merge conflicts.
 
 ## Module extensions
 
@@ -746,7 +748,10 @@ host's. Follow the `backend_windows_schema_gen` pattern: a `go_cross_binary` of
 the generator for `windows_amd64`, a native `run_binary` and a Wine `run_binary`,
 and an `alias` that selects between them on `@platforms//os:windows`. `wine_run`
 only supports Linux x86_64 and aarch64 (4K pages), so on macOS the Wine target
-is skipped as incompatible.
+is skipped as incompatible. Wine is for local regeneration only (it is flaky
+under box64 on CI): tag the Wine target, the alias and its `write_source_file`
+`manual`, and check the committed output with a `diff_test` against the native
+target, which only runs on Windows.
 
 ## Depsets and rule performance
 

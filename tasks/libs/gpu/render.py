@@ -8,6 +8,7 @@ SPACER = "  "
 
 def color_status(status: GPUConfigValidationState) -> str:
     colors = {
+        GPUConfigValidationState.ERROR: Color.RED,
         GPUConfigValidationState.OK: Color.GREEN,
         GPUConfigValidationState.FAIL: Color.RED,
         GPUConfigValidationState.MISSING: Color.ORANGE,
@@ -35,11 +36,13 @@ def print_summary_table(title: str, results: list[GPUConfigValidationResult]) ->
         [
             row.config.architecture,
             row.config.device_mode,
+            row.config.nvlink_capable if row.config.nvlink_capable is not None else "n/a",
             color_status(row.state),
             row.device_count,
             color_metric_counts(row.missing_metrics, row.present_metrics, row.unknown_metrics),
             color_tag_failures(row.tag_failures),
             color_tag_failures(row.invalid_values),
+            len(row.retrieval_errors),
         ]
         for row in results
     ]
@@ -51,11 +54,13 @@ def print_summary_table(title: str, results: list[GPUConfigValidationResult]) ->
             headers=[
                 "architecture",
                 "device mode",
+                "NVLink capable",
                 "status",
                 "found devices",
                 "missing/known/unknown metrics",
                 "tag failures",
                 "invalid values",
+                "retrieval errors",
             ],
             tablefmt="github",
         )
@@ -63,12 +68,17 @@ def print_summary_table(title: str, results: list[GPUConfigValidationResult]) ->
 
 
 def print_result_details(results: list[GPUConfigValidationResult]) -> None:
-    print("\nValidation details (showing only failures on configs with devices present):")
+    print("\nValidation details (showing failures or retrieval errors on configs with devices present):")
     for result in results:
-        if result.state is not GPUConfigValidationState.FAIL or result.device_count == 0:
+        if (
+            result.state not in {GPUConfigValidationState.ERROR, GPUConfigValidationState.FAIL}
+            or result.device_count == 0
+        ):
             continue
 
-        print(f"\n-- {result.config.architecture} {result.config.device_mode} --")
+        nvlink_capable = result.config.nvlink_capable
+        nvlink_capability = "n/a" if nvlink_capable is None else str(nvlink_capable).lower()
+        print(f"\n-- {result.config.architecture} {result.config.device_mode} (NVLink capable: {nvlink_capability}) --")
         print(f"{SPACER}found devices: {result.device_count}")
         print(f"{SPACER}summary")
         print(f"{SPACER * 2}missing={result.missing_metrics}")
@@ -76,6 +86,12 @@ def print_result_details(results: list[GPUConfigValidationResult]) -> None:
         print(f"{SPACER * 2}unknown={result.unknown_metrics}")
         print(f"{SPACER * 2}tag failures={result.tag_failures}")
         print(f"{SPACER * 2}invalid values={result.invalid_values}")
+        print(f"{SPACER * 2}retrieval errors={len(result.retrieval_errors)}")
+
+        if result.retrieval_errors:
+            print(f"{SPACER}retrieval errors")
+            for error in result.retrieval_errors:
+                print(f"{SPACER * 2}- {error}")
 
         failing_metrics = [
             (metric_name, metric_status)

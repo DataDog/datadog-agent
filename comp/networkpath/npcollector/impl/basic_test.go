@@ -65,7 +65,7 @@ func scheduledBasicHosts(t *testing.T, collector *npCollectorImpl) []string {
 
 func TestBasicSelectorAccumulatesTrafficAcrossBootstrapWindow(t *testing.T) {
 	now := MockTimeNow()
-	selector := newBasicSelector()
+	selector := newBasicSelector(basicCandidateLimit, basicSelectionsPerWindow)
 	selector.add(basicPath("one"), 40, now)
 	selector.add(basicPath("two"), 90, now)
 	selector.add(basicPath("one"), 60, now.Add(time.Minute))
@@ -86,7 +86,7 @@ func TestBasicSelectorAccumulatesTrafficAcrossBootstrapWindow(t *testing.T) {
 
 func TestBasicSelectorUsesHourlyWindowsAfterBootstrap(t *testing.T) {
 	now := MockTimeNow()
-	selector := newBasicSelector()
+	selector := newBasicSelector(basicCandidateLimit, basicSelectionsPerWindow)
 	selector.add(basicPath("bootstrap"), 1, now)
 	require.Len(t, selector.flush(now.Add(5*time.Minute)), 1)
 
@@ -100,7 +100,7 @@ func TestBasicSelectorUsesHourlyWindowsAfterBootstrap(t *testing.T) {
 
 func TestBasicSelectorBoundsHeavyHitterCandidates(t *testing.T) {
 	now := MockTimeNow()
-	selector := newBasicSelector()
+	selector := newBasicSelector(basicCandidateLimit, basicSelectionsPerWindow)
 	selector.add(basicPath("heavy"), 10_000, now)
 	for i := 1; i <= basicCandidateLimit*4; i++ {
 		selector.add(basicPath(netip.AddrFrom4([4]byte{10, 0, byte(i / 255), byte(i % 255)}).String()), 1, now)
@@ -114,7 +114,7 @@ func TestBasicSelectorBoundsHeavyHitterCandidates(t *testing.T) {
 
 func TestBasicSelectorIgnoresZeroByteObservationsWhenFull(t *testing.T) {
 	now := MockTimeNow()
-	selector := newBasicSelector()
+	selector := newBasicSelector(basicCandidateLimit, basicSelectionsPerWindow)
 	originalHashes := make([]uint64, 0, basicCandidateLimit)
 	for i := 1; i <= basicCandidateLimit; i++ {
 		path := basicPath(netip.AddrFrom4([4]byte{10, 0, 0, byte(i)}).String())
@@ -135,7 +135,7 @@ func TestBasicSelectorIgnoresZeroByteObservationsWhenFull(t *testing.T) {
 
 func TestBasicSelectorBreaksTiesByPathHash(t *testing.T) {
 	now := MockTimeNow()
-	selector := newBasicSelector()
+	selector := newBasicSelector(basicCandidateLimit, basicSelectionsPerWindow)
 	paths := []common.Pathtest{basicPath("one"), basicPath("two"), basicPath("three")}
 	for _, path := range paths {
 		selector.add(path, 1, now)
@@ -181,6 +181,54 @@ func TestBasicCollectorEmitsOnlyAtWindowBoundary(t *testing.T) {
 	assert.Equal(t, []string{"10.0.0.6", "10.0.0.5", "10.0.0.4", "10.0.0.2", "10.0.0.3"}, scheduledBasicHosts(t, collector))
 	collector.flushBasicPaths(now.Add(time.Minute))
 	assert.Empty(t, collector.pathtestInputChan)
+}
+
+func TestEUDMBasicCollectorSelectsTwentyFilteredPaths(t *testing.T) {
+	_, collector := newTestNpCollector(t, map[string]any{
+		"infrastructure_mode":                              "end_user_device",
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters": []map[string]any{{
+			"type": "exclude", "match_ip": "10.0.0.25",
+		}},
+	}, &teststatsd.Client{}, nil)
+	require.NotNil(t, collector.basicSelector)
+	assert.Equal(t, 80, collector.basicSelector.candidateLimit)
+	assert.Equal(t, 20, collector.basicSelector.selectionLimit)
+
+	now := MockTimeNow()
+	collector.TimeNowFn = func() time.Time { return now }
+	conns := make([]npmodel.NetworkPathConnection, 0, 25)
+	for i := 1; i <= 25; i++ {
+		conns = append(conns, basicConn(netip.AddrFrom4([4]byte{10, 0, 0, byte(i)}).String(), uint64(i)))
+	}
+	collector.ScheduleNetworkPathTests(slices.Values(conns))
+	assert.Empty(t, collector.pathtestInputChan)
+	collector.flushBasicPaths(now.Add(basicBootstrapWindow))
+
+	hosts := scheduledBasicHosts(t, collector)
+	require.Len(t, hosts, 20)
+	assert.NotContains(t, hosts, "10.0.0.25")
+	assert.Equal(t, "10.0.0.24", hosts[0])
+	assert.Equal(t, "10.0.0.5", hosts[len(hosts)-1])
+	assert.Equal(t, payload.SourceProductEndUserDevice, collector.collectorConfigs.sourceProduct)
+}
+
+func TestEUDMBasicCollectorUsesConfiguredCandidateLimit(t *testing.T) {
+	_, collector := newTestNpCollector(t, map[string]any{
+		"infrastructure_mode": "end_user_device",
+		"network_path.connections_monitoring.eudm_basic_candidate_limit": 40,
+		"network_path.collector.monitor_ip_without_domain":               true,
+	}, &teststatsd.Client{}, nil)
+	now := MockTimeNow()
+	collector.TimeNowFn = func() time.Time { return now }
+	conns := make([]npmodel.NetworkPathConnection, 0, 50)
+	for i := 1; i <= 50; i++ {
+		conns = append(conns, basicConn(netip.AddrFrom4([4]byte{10, 0, 0, byte(i)}).String(), 1))
+	}
+	collector.ScheduleNetworkPathTests(slices.Values(conns))
+	assert.Len(t, collector.basicSelector.candidates, 40)
+	collector.flushBasicPaths(now.Add(basicBootstrapWindow))
+	assert.Len(t, scheduledBasicHosts(t, collector), 20)
 }
 
 func TestBasicCollectorRanksBySentAndReceivedBytes(t *testing.T) {
@@ -286,7 +334,7 @@ func TestStandardModeTakesPrecedenceOverBasic(t *testing.T) {
 }
 
 func TestBasicEmptyWindowSelectsNothing(t *testing.T) {
-	selector := newBasicSelector()
+	selector := newBasicSelector(basicCandidateLimit, basicSelectionsPerWindow)
 	selector.start(MockTimeNow())
 	assert.Empty(t, selector.flush(MockTimeNow().Add(basicBootstrapWindow)))
 }

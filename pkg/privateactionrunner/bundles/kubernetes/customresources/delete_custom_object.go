@@ -8,17 +8,15 @@ package com_datadoghq_kubernetes_customresources
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteCustomObjectHandler struct{}
+type DeleteCustomObjectHandler struct{ policy resourcePolicy }
 
-func NewDeleteCustomObjectHandler() *DeleteCustomObjectHandler {
-	return &DeleteCustomObjectHandler{}
+func NewDeleteCustomObjectHandler(policy resourcePolicy) *DeleteCustomObjectHandler {
+	return &DeleteCustomObjectHandler{policy: policy}
 }
 
 type DeleteCustomObjectInputs struct {
@@ -41,15 +39,14 @@ func (h *DeleteCustomObjectHandler) Run(
 		return nil, err
 	}
 
-	client, err := support.DynamicKubeClient(credential)
+	gvr, err := h.policy.groupVersionResource(inputs.Group, inputs.Version, inputs.Plural)
 	if err != nil {
 		return nil, err
 	}
 
-	gvr := schema.GroupVersionResource{
-		Group:    inputs.Group,
-		Version:  inputs.Version,
-		Resource: inputs.Plural,
+	client, err := support.DynamicKubeClient(credential)
+	if err != nil {
+		return nil, err
 	}
 
 	err = client.Resource(gvr).Namespace(inputs.Namespace).Delete(ctx, inputs.Name, support.MetaDelete(inputs.DeleteFields))

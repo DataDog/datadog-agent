@@ -19,6 +19,9 @@ import (
 type collectorConfigs struct {
 	connectionsMonitoringEnabled    bool
 	basicTestsEnabled               bool
+	eudmBasicTestsEnabled           bool
+	basicCandidateLimit             int
+	basicSelectionLimit             int
 	netflowMonitoringEnabled        bool
 	workers                         int
 	timeout                         time.Duration
@@ -53,9 +56,25 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 		logger.Errorf("Error unmarshalling network_path.collector.filters: %v", err)
 		filterConfigs = nil
 	}
+	infraMode := agentConfig.GetString("infrastructure_mode")
+	isEUDM := infraMode == "end_user_device"
+	eudmBasicTestsEnabled := isEUDM && agentConfig.GetBool("network_path.connections_monitoring.eudm_basic_tests_enabled")
+	candidateLimit := basicCandidateLimit
+	selectionLimit := basicSelectionsPerWindow
+	if eudmBasicTestsEnabled {
+		candidateLimit = agentConfig.GetInt("network_path.connections_monitoring.eudm_basic_candidate_limit")
+		if candidateLimit < eudmBasicSelectionsPerWindow || candidateLimit > maxEUDMBasicCandidateLimit {
+			logger.Warnf("network_path.connections_monitoring.eudm_basic_candidate_limit must be between %d and %d; using default %d", eudmBasicSelectionsPerWindow, maxEUDMBasicCandidateLimit, defaultEUDMBasicCandidateLimit)
+			candidateLimit = defaultEUDMBasicCandidateLimit
+		}
+		selectionLimit = eudmBasicSelectionsPerWindow
+	}
 	return &collectorConfigs{
 		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
-		basicTestsEnabled:            agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled"),
+		basicTestsEnabled:            !isEUDM && agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled"),
+		eudmBasicTestsEnabled:        eudmBasicTestsEnabled,
+		basicCandidateLimit:          candidateLimit,
+		basicSelectionLimit:          selectionLimit,
 		netflowMonitoringEnabled:     agentConfig.GetBool("network_path.netflow_monitoring.enabled"),
 		workers:                      agentConfig.GetInt("network_path.collector.workers"),
 		timeout:                      agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,
@@ -86,12 +105,16 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 		filterConfig:                    filterConfigs,
 		monitorIPWithoutDomain:          agentConfig.GetBool("network_path.collector.monitor_ip_without_domain"),
 		ddSite:                          agentConfig.GetString("site"),
-		sourceProduct:                   payload.GetSourceProduct(agentConfig.GetString("infrastructure_mode")),
+		sourceProduct:                   payload.GetSourceProduct(infraMode),
 	}
 }
 
 // networkPathCollectorEnabled checks if Network Path Collector should be enabled
 // Network Path Collector is expected to be enabled if a feature depend on it.
 func (c *collectorConfigs) networkPathCollectorEnabled() bool {
-	return c.connectionsMonitoringEnabled || c.basicTestsEnabled || c.netflowMonitoringEnabled
+	return c.connectionsMonitoringEnabled || c.basicModeEnabled() || c.netflowMonitoringEnabled
+}
+
+func (c *collectorConfigs) basicModeEnabled() bool {
+	return c.basicTestsEnabled || c.eudmBasicTestsEnabled
 }

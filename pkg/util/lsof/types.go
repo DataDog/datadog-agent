@@ -51,9 +51,9 @@ func (files Files) String() string {
 	var out bytes.Buffer
 	writer := tabwriter.NewWriter(&out, 1, 1, 1, ' ', 0)
 
-	fmt.Fprint(writer, "FD\tType\tSize\tOpenPerm\tFilePerm\tName\t\n")
+	fmt.Fprint(writer, "FD\tType\tSize\tOpenPerm\tFilePerm\tName\n")
 	for _, file := range files {
-		fmt.Fprintf(writer, "%s\t%s\t%d\t%s\t%s\t%s\t\n", file.Fd, file.Type, file.Size, file.OpenPerm, file.FilePerm, file.Name)
+		fmt.Fprintf(writer, "%s\t%s\t%d\t%s\t%s\t%s\n", file.Fd, file.Type, file.Size, file.OpenPerm, file.FilePerm, file.Name)
 	}
 
 	_ = writer.Flush()

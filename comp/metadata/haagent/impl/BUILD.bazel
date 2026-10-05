@@ -39,8 +39,10 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/mock",
+        "//comp/haagent/impl",
         "//comp/haagent/mock",
         "//pkg/serializer/mocks",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -62,6 +62,12 @@ type AgentOptions struct {
 	// internally. See resolver.go.
 	ResolverOptions
 
+	// HostCCRID is the Canonical Cloud Resource ID of the host running the
+	// agent. Resolving it requires querying the cloud provider metadata
+	// endpoints, so it is fetched only once at startup — see FetchHostCCRID —
+	// and stamped on every event and resource log the agent reports.
+	HostCCRID string
+
 	// ConfigDir is the directory in which benchmarks files and assets are
 	// defined.
 	ConfigDir string
@@ -561,6 +567,7 @@ func groupProcesses(procs []*process.Process, getKey func(*process.Process) (typ
 func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *ResourceLog) {
 	expireAt := time.Now().Add(2 * resourceTTL).Truncate(1 * time.Second)
 	resourceLog.ExpireAt = &expireAt
+	resourceLog.HostCCRID = a.opts.HostCCRID
 	if a.wmeta != nil && resourceLog.Container != nil {
 		if ctnr, _ := a.wmeta.GetContainer(resourceLog.Container.ContainerID); ctnr != nil {
 			resourceLog.Container.ImageID = ctnr.Image.ID
@@ -575,6 +582,7 @@ func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent
 	eventsExpireAt := time.Now().Add(2 * eventsTTL).Truncate(1 * time.Second)
 	for _, event := range events {
 		event.ExpireAt = &eventsExpireAt
+		event.HostCCRID = a.opts.HostCCRID
 		// Mutate event fully before updateEvent() publishes it into a.statuses.
 		if event.Result != CheckSkipped {
 			if a.wmeta != nil && event.Container != nil {
@@ -650,6 +658,9 @@ func (a *Agent) updateEvent(event *CheckEvent) {
 			"rule_id:" + event.RuleID,
 			"rule_result:" + string(event.Result),
 			"agent_version:" + event.AgentVersion,
+		}
+		if event.HostCCRID != "" {
+			tags = append(tags, "host_ccrid:"+event.HostCCRID)
 		}
 		if err := client.Gauge(metrics.MetricChecksStatuses, 1, tags, 1.0); err != nil {
 			log.Errorf("failed to send checks metric: %v", err)

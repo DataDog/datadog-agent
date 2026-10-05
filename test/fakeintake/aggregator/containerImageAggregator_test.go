@@ -24,6 +24,12 @@ func TestNewContainerImagePayloads(t *testing.T) {
 		require.Empty(t, payloads)
 	})
 
+	t.Run("parseContainerImagePayload connectivity check body should be skipped", func(t *testing.T) {
+		payloads, err := ParseContainerImagePayload(api.Payload{Data: []byte("{}"), Encoding: encodingEmpty})
+		require.NoError(t, err)
+		require.Empty(t, payloads)
+	})
+
 	t.Run("parseContainerImagePayload valid body should parse payloads", func(t *testing.T) {
 		payloads, err := ParseContainerImagePayload(api.Payload{Data: ContainerImageData, Encoding: encodingGzip})
 		require.NoError(t, err)

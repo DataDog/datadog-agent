@@ -52,6 +52,8 @@ func TestNewConfig(t *testing.T) {
 			expectedConfig: &collectorConfigs{
 				connectionsMonitoringEnabled: false,
 				basicTestsEnabled:            false,
+				basicCandidateLimit:          basicCandidateLimit,
+				basicSelectionLimit:          basicSelectionsPerWindow,
 				netflowMonitoringEnabled:     false,
 				workers:                      4,
 				timeout:                      1000 * time.Millisecond,
@@ -126,6 +128,8 @@ func TestNewConfig(t *testing.T) {
 			expectedConfig: &collectorConfigs{
 				connectionsMonitoringEnabled: false,
 				basicTestsEnabled:            false,
+				basicCandidateLimit:          basicCandidateLimit,
+				basicSelectionLimit:          basicSelectionsPerWindow,
 				netflowMonitoringEnabled:     false,
 				workers:                      8,
 				timeout:                      5000 * time.Millisecond,
@@ -176,6 +180,35 @@ func TestNewConfig(t *testing.T) {
 
 			require.NotNil(t, result)
 			assert.Equal(t, tt.expectedConfig, result)
+		})
+	}
+}
+
+func TestEUDMBasicConfig(t *testing.T) {
+	tests := []struct {
+		name           string
+		overrides      map[string]any
+		enabled        bool
+		candidateLimit int
+	}{
+		{name: "default on", overrides: map[string]any{"infrastructure_mode": "end_user_device"}, enabled: true, candidateLimit: 80},
+		{name: "explicit off", overrides: map[string]any{"infrastructure_mode": "end_user_device", "network_path.connections_monitoring.eudm_basic_tests_enabled": false}, candidateLimit: basicCandidateLimit},
+		{name: "custom capacity", overrides: map[string]any{"infrastructure_mode": "end_user_device", "network_path.connections_monitoring.eudm_basic_candidate_limit": 40}, enabled: true, candidateLimit: 40},
+		{name: "below minimum", overrides: map[string]any{"infrastructure_mode": "end_user_device", "network_path.connections_monitoring.eudm_basic_candidate_limit": 19}, enabled: true, candidateLimit: 80},
+		{name: "above maximum", overrides: map[string]any{"infrastructure_mode": "end_user_device", "network_path.connections_monitoring.eudm_basic_candidate_limit": 513}, enabled: true, candidateLimit: 80},
+		{name: "CNM flag ignored in EUDM", overrides: map[string]any{"infrastructure_mode": "end_user_device", "network_path.connections_monitoring.eudm_basic_tests_enabled": false, "network_path.connections_monitoring.basic_tests_enabled": true}, candidateLimit: basicCandidateLimit},
+		{name: "EUDM flag ignored in CNM", overrides: map[string]any{"network_path.connections_monitoring.eudm_basic_tests_enabled": true}, candidateLimit: basicCandidateLimit},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := newConfig(config.NewMockWithOverrides(t, test.overrides), logmock.New(t))
+			assert.Equal(t, test.enabled, cfg.basicModeEnabled())
+			assert.Equal(t, test.candidateLimit, cfg.basicCandidateLimit)
+			if test.enabled {
+				assert.Equal(t, eudmBasicSelectionsPerWindow, cfg.basicSelectionLimit)
+			} else {
+				assert.Equal(t, basicSelectionsPerWindow, cfg.basicSelectionLimit)
+			}
 		})
 	}
 }

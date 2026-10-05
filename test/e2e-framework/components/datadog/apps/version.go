@@ -9,7 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 )
 
-const Version = "v0.0.8"
+const Version = "v0.0.9"
 
 func Image(e config.Env, repo string) string {
 	if reg := e.InternalRegistry(); reg != "" && reg != "none" {

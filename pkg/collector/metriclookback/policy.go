@@ -41,7 +41,8 @@ func ShadowPolicyOptionsFromConfig(cfg model.Reader) ShadowPolicyOptions {
 	return ShadowPolicyOptions{
 		ShadowChecksEnabled: cfg.GetBool(enabledConfigKey),
 		ChecksToShadow:      cfg.GetStringSlice(enabledChecksConfigKey),
-		ShadowInterval:      normalizeShadowInterval(cfg.GetDuration(collectionIntervalKey)),
+		// Floor at defaultShadowCheckInterval, the scheduler's minimum recurring check interval.
+		ShadowInterval: max(cfg.GetDuration(collectionIntervalKey), defaultShadowCheckInterval),
 	}
 }
 
@@ -88,14 +89,6 @@ func SelectShadowCandidates(configs []integration.Config, opts ShadowPolicyOptio
 		}
 	}
 	return candidates
-}
-
-func normalizeShadowInterval(interval time.Duration) time.Duration {
-	// The default is also the scheduler's minimum recurring check interval.
-	if interval < defaultShadowCheckInterval {
-		return defaultShadowCheckInterval
-	}
-	return interval
 }
 
 func isSupportedCheckConfig(config integration.Config, opts ShadowPolicyOptions) bool {

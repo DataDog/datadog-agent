@@ -270,6 +270,10 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		return autoscaling.NoRequeue, nil
 	}
 
+	// Operational annotations are read for every owner, before the ownership-specific sync, so an
+	// operator can act locally during an incident even on a remote or profile-managed DPA.
+	podAutoscalerInternal.UpdateFromOpsAnnotations(podAutoscaler.Annotations)
+
 	// Object is present in both our store and Kubernetes, we need to sync depending on ownership.
 	// Implement info sync based on ownership.
 	if podAutoscaler.Spec.Owner == datadoghqcommon.DatadogPodAutoscalerRemoteOwner {
@@ -708,16 +712,21 @@ func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model
 		staleTimestampThreshold = time.Second * time.Duration(int64(podAutoscalerInternal.Spec().Fallback.Horizontal.Triggers.StaleRecommendationThresholdSeconds))
 	}
 
+	// Forcing the fallback is handled like product values going stale.
+	fallbackForced := podAutoscalerInternal.IsFallbackForced()
+
 	// If main scaling values are not stale, use those
-	if mainHorizontalScalingValues != nil && !isTimestampStale(currentTime, mainHorizontalScalingValues.Timestamp, staleTimestampThreshold) {
+	if !fallbackForced && mainHorizontalScalingValues != nil && !isTimestampStale(currentTime, mainHorizontalScalingValues.Timestamp, staleTimestampThreshold) {
 		return pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource), activeVerticalSource
 	}
 
 	// Check if one of the following conditions are met:
+	// 0. The fallback was forced by annotation
 	// 1. Main scaling values are stale
 	// 2. No main scaling values have been received, and last scaling values (updated from status in event of leader election change) are stale
 	// 3. No main scaling values have been received, no scaling values have been received from status, and the pod autoscaler was created more than (threshold) minutes ago
-	if (mainHorizontalScalingValues != nil && isTimestampStale(currentTime, mainHorizontalScalingValues.Timestamp, staleTimestampThreshold)) ||
+	if fallbackForced ||
+		(mainHorizontalScalingValues != nil && isTimestampStale(currentTime, mainHorizontalScalingValues.Timestamp, staleTimestampThreshold)) ||
 		(mainHorizontalScalingValues == nil && currentHorizontalScalingValues != nil && isTimestampStale(currentTime, currentHorizontalScalingValues.Timestamp, staleTimestampThreshold)) ||
 		(mainHorizontalScalingValues == nil && currentHorizontalScalingValues == nil && isTimestampStale(currentTime, podAutoscalerInternal.CreationTimestamp(), staleTimestampThreshold)) {
 

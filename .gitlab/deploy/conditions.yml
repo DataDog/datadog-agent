@@ -220,3 +220,5 @@
 # Current default: Windows Server 2022
 .windows_docker_default:
   extends: .windows_docker_v2_2022
+  variables:
+    DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND: C:\devtools\ci-identities-gitlab-job-client.exe secrets read feature-flags-client token

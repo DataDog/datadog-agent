@@ -50,32 +50,45 @@ func (c *Collector) Collect(ctx context.Context) Snapshot {
 	ctx, cancel := clientContext(ctx)
 	defer cancel()
 
+	// The daemon calls run on a tighter budget than the service sweep below them, which is local and
+	// still worth reporting when dd-procmgrd is the thing that failed.
+	daemonCtx, cancelDaemon := daemonPhaseContext(ctx)
+	defer cancelDaemon()
+
 	snapshot := Snapshot{
 		Services: make([]ServiceSnapshot, 0, len(migratableServices)),
 	}
 
 	var processes map[string]ProcessSnapshot
 
-	sess, err := c.client.Connect(ctx)
+	sess, err := c.client.Connect(daemonCtx)
 	if err != nil {
 		logCoatProcmgrErr("coat: dd-procmgrd connect", err)
 		snapshot.Daemon = DaemonSnapshot{}
 		processes = map[string]ProcessSnapshot{}
 	} else {
 		defer func() { _ = sess.Disconnect() }()
-		snapshot.Daemon, err = sess.Status(ctx)
+		snapshot.Daemon, err = sess.Status(daemonCtx)
 		if err != nil {
 			logCoatProcmgrErr("coat: dd-procmgrd status", err)
 			snapshot.Daemon = DaemonSnapshot{}
 			processes = map[string]ProcessSnapshot{}
 		} else {
-			processes, err = sess.List(ctx)
+			processes, err = sess.List(daemonCtx)
 			if err != nil {
 				logCoatProcmgrErr("coat: dd-procmgrd list", err)
 				processes = map[string]ProcessSnapshot{}
 			}
 		}
 	}
+
+	// The OS unit/SCM state does not go through dd-procmgrd, so it is collected whether or not the
+	// calls above succeeded: a unit that is stopped or failed is what COAT needs to see, and that is
+	// when the daemon cannot answer. It runs ahead of the service sweep, on a bounded slice of what
+	// the daemon phase left, so neither it nor the sweep hands the other an expired context.
+	serviceStateCtx, cancelServiceState := daemonServiceStateContext(ctx)
+	snapshot.Daemon.ServiceState = detectDaemonServiceState(serviceStateCtx)
+	cancelServiceState()
 
 	for _, service := range migratableServices {
 		snapshot.Services = append(snapshot.Services, c.collectService(ctx, service, processes))

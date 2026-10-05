@@ -116,20 +116,22 @@ func getAgentV1ContainerURLs(ctx context.Context) ([]string, error) {
 func testURLs(urls []string, timeout time.Duration) string {
 	client := &http.Client{Timeout: timeout}
 	for _, url := range urls {
-		r, err := client.Get(url)
-		if err != nil {
-			continue
-		}
-		defer r.Body.Close()
-		if r.StatusCode != http.StatusOK {
-			continue
-		}
-		var resp v1.Commands
-		if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
-			log.Debugf("Error decoding JSON response from '%s': %s", url, err)
-			continue
-		}
-		if len(resp.AvailableCommands) > 0 {
+		if found := func() bool {
+			r, err := client.Get(url)
+			if err != nil {
+				return false
+			}
+			defer r.Body.Close()
+			if r.StatusCode != http.StatusOK {
+				return false
+			}
+			var resp v1.Commands
+			if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
+				log.Debugf("Error decoding JSON response from '%s': %s", url, err)
+				return false
+			}
+			return len(resp.AvailableCommands) > 0
+		}(); found {
 			return url
 		}
 	}

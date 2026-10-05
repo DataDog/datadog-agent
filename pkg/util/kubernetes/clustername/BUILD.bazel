@@ -3,7 +3,11 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "clustername",
-    srcs = ["clustername.go"],
+    srcs = [
+        "clusterid_kubeapiserver.go",
+        "clusterid_nokubeapiserver.go",
+        "clustername.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername",
     visibility = ["//visibility:public"],
     deps = [
@@ -16,6 +20,8 @@ go_library(
         "//pkg/util/cloudproviders/gce",
         "//pkg/util/clusteragent",
         "//pkg/util/ec2/tags",
+        "//pkg/util/flavor",
+        "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/hostinfo",
         "//pkg/util/log",
     ],
@@ -25,9 +31,20 @@ dd_agent_go_test(
     name = "clustername_test",
     srcs = ["clustername_test.go"],
     embed = [":clustername"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     deps = [
         "//pkg/config/env",
         "//pkg/config/mock",
+        "//pkg/config/setup/constants",
+        "//pkg/util/cache",
+        "//pkg/util/flavor",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

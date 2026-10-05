@@ -1028,12 +1028,12 @@ func TestNameOnlyFilteredMetricDoesNotConsumeFullChannel(t *testing.T) {
 
 	h, ok := obs.GetHandle("dogstatsd").(*handle)
 	require.True(t, ok)
-	require.False(t, h.ObserveMetricAndReportDrop(&metricObs{
+	require.False(t, testObserveMetricAndReportDrop(h, &metricObs{
 		name:      "system.mem.used",
 		value:     1,
 		timestamp: 1000,
 	}))
-	require.False(t, h.ObserveMetricAndReportDrop(&metricObs{
+	require.False(t, testObserveMetricAndReportDrop(h, &metricObs{
 		name:      "system.cpu.user",
 		value:     2,
 		timestamp: 1000,
@@ -1064,12 +1064,12 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 
 	h, ok := obs.GetHandle("dogstatsd").(*handle)
 	require.True(t, ok)
-	assert.False(t, h.ObserveMetricAndReportDrop(&metricObs{
+	assert.False(t, testObserveMetricAndReportDrop(h, &metricObs{
 		name:      "system.mem.used",
 		value:     1,
 		timestamp: 1000,
 	}))
-	assert.True(t, h.ObserveMetricAndReportDrop(&metricObs{
+	assert.True(t, testObserveMetricAndReportDrop(h, &metricObs{
 		name:      "kubernetes.cpu.usage",
 		value:     2,
 		timestamp: 1000,
@@ -1086,7 +1086,7 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 	})
 	obs.Flush()
 
-	assert.False(t, h.ObserveMetricAndReportDrop(&metricObs{
+	assert.False(t, testObserveMetricAndReportDrop(h, &metricObs{
 		name:      "system.cpu.user",
 		value:     3,
 		timestamp: 1000,

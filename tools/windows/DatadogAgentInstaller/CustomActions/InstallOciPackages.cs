@@ -127,6 +127,12 @@ namespace Datadog.CustomActions
                 env["DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"] = parActionsAllowlist;
             }
 
+            var parSplitEnabled = _session.Property("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED");
+            if (!string.IsNullOrEmpty(parSplitEnabled))
+            {
+                env["DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"] = parSplitEnabled;
+            }
+
             return env;
         }
         private Dictionary<string, string> PurgeEnvironmentVariables()
