@@ -623,6 +623,44 @@ func TestRunCommandNoAllowedCommandsBlocksExecution(t *testing.T) {
 	assert.Contains(t, result.Stderr, "command not allowed")
 }
 
+func TestRunCommandWithoutSudoDoesNotRequirePrivilegedHelper(t *testing.T) {
+	for _, action := range []struct {
+		name       string
+		newHandler func(RunCommandHandlerConfig) *RunCommandHandler
+	}{
+		{name: "read-only", newHandler: NewRunCommandHandler},
+		{name: "remediation", newHandler: NewRunRemediationCommandHandler},
+	} {
+		t.Run(action.name, func(t *testing.T) {
+			for _, policy := range []struct {
+				name               string
+				elevatableCommands []string
+			}{
+				{name: "unused elevatable command", elevatableCommands: []string{"rshell:cat"}},
+				{name: "elevatable command without sudo", elevatableCommands: []string{"rshell:echo"}},
+			} {
+				t.Run(policy.name, func(t *testing.T) {
+					// The policy permits elevation, but this invocation does not request it.
+					// It must still work with the locally disabled helper (the default).
+					handler := action.newHandler(defaultRunCommandHandlerConfig())
+					task := makeTaskWithPaths("echo hello",
+						[]string{"rshell:echo", "rshell:cat"}, []string{t.TempDir()})
+					task.Data.Attributes.Inputs["effectivePermissions"] = privilegedhelper.EscalationAllowed
+					task.Data.Attributes.Inputs["elevatableCommands"] = policy.elevatableCommands
+
+					out, err := handler.Run(context.Background(), task, nil)
+
+					require.NoError(t, err)
+					result := out.(*RunCommandOutputs)
+					assert.Equal(t, 0, result.ExitCode)
+					assert.Equal(t, "hello\n", result.Stdout)
+					assert.Empty(t, result.Stderr)
+				})
+			}
+		})
+	}
+}
+
 func TestPrivilegedExecutionRequiresLocalOptIn(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -633,12 +671,57 @@ func TestPrivilegedExecutionRequiresLocalOptIn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			task := makeTask("sudo cat /root/secret", []string{"rshell:cat"})
-			task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
-			task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:cat"}
+			for _, script := range []struct {
+				name       string
+				command    string
+				wantStdout string
+			}{
+				{name: "literal sudo", command: "sudo echo unexpected"},
+				{name: "expanded sudo", command: "marker=sudo; $marker echo unexpected"},
+				{name: "ordinary command before sudo", command: "echo ordinary; sudo echo unexpected", wantStdout: "ordinary\n"},
+			} {
+				t.Run(script.name, func(t *testing.T) {
+					task := makeTask(script.command, []string{"rshell:echo"})
+					task.Data.Attributes.Inputs["effectivePermissions"] = privilegedhelper.EscalationAllowed
+					task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:echo"}
 
-			_, err := tt.handler.Run(context.Background(), task, nil)
-			require.ErrorContains(t, err, "disabled by local configuration")
+					out, err := tt.handler.Run(context.Background(), task, nil)
+
+					require.NoError(t, err)
+					result := out.(*RunCommandOutputs)
+					assert.Equal(t, 126, result.ExitCode)
+					assert.Equal(t, script.wantStdout, result.Stdout)
+					assert.Contains(t, result.Stderr, "sudo: echo: elevation not allowed")
+				})
+			}
+		})
+	}
+}
+
+func TestEnabledPrivilegedHelperFailureDoesNotFallBack(t *testing.T) {
+	cfg := defaultRunCommandHandlerConfig()
+	cfg.PrivilegedEnabled = true
+	cfg.PrivilegedSocket = filepath.Join(t.TempDir(), "missing-helper.sock")
+	for _, action := range []struct {
+		name    string
+		handler *RunCommandHandler
+	}{
+		{name: "read-only", handler: NewRunCommandHandler(cfg)},
+		{name: "remediation", handler: NewRunRemediationCommandHandler(cfg)},
+	} {
+		t.Run(action.name, func(t *testing.T) {
+			// This command would succeed locally, but an enabled helper's
+			// failure must be returned without retrying the script.
+			task := makeTask("echo unexpected", []string{"rshell:echo"})
+			task.Data.Attributes.Inputs["effectivePermissions"] = privilegedhelper.EscalationAllowed
+			task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:echo"}
+			task.Data.Attributes.SignedEnvelope = &privateactionspb.RemoteConfigSignatureEnvelope{}
+			task.Data.Attributes.VerificationKey = &types.TaskVerificationKey{DirectorProof: &types.DirectorKeyProof{}}
+
+			out, err := action.handler.Run(context.Background(), task, nil)
+
+			require.ErrorContains(t, err, "privileged rshell helper: connect to privileged helper")
+			assert.Nil(t, out)
 		})
 	}
 }
@@ -651,18 +734,20 @@ func TestRunPrivilegedLogsSettingsAtInfoLevel(t *testing.T) {
 	t.Cleanup(func() { log.SetupLogger(previousLogger, "info") })
 	log.SetupLogger(logger, "info")
 
-	handler := newDefaultRunCommandHandler()
+	cfg := defaultRunCommandHandlerConfig()
+	cfg.PrivilegedEnabled = true
+	handler := NewRunCommandHandler(cfg)
 	task := makeTask("sudo cat /root/secret", []string{"rshell:cat"})
 	task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
 	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:cat"}
 
 	_, err = handler.Run(context.Background(), task, nil)
-	require.ErrorContains(t, err, "disabled by local configuration")
+	require.ErrorContains(t, err, "privileged rshell socket is not configured")
 
 	logs := logBuffer.String()
 	assert.Contains(t, logs, "[INFO] rshell runPrivileged")
 	assert.Contains(t, logs, "elevatableCommands=[rshell:cat]")
-	assert.Contains(t, logs, "privilegedEnabled=false")
+	assert.Contains(t, logs, "privilegedEnabled=true")
 	assert.Contains(t, logs, "agentPolicy=<nil>")
 }
 
