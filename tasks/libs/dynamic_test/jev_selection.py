@@ -99,3 +99,62 @@ def jev_tests_to_skip(targets: list[str], team: str | None = None) -> tuple[list
     if not summary:
         return [], summary
     return summary.get("skip", []), summary
+
+
+def jev_tests_to_run_all() -> set:
+    """Run the Jev selection over every e2e suite; returns the entry points Jev
+    would RUN (bare test names, the same keying the dynamic test index uses)."""
+    run = set()
+    suites_root = os.path.join(_REPO_ROOT, "test", "new-e2e", "tests")
+    for suite in sorted(os.listdir(suites_root)):
+        if not os.path.isdir(os.path.join(suites_root, suite)):
+            continue
+        summary = jev_selection([f"./tests/{suite}"])
+        if summary:
+            run.update(summary.get("run", []))
+            print(f"[jev] suite {suite}: {len(summary.get('run', []))} run / {len(summary.get('skip', []))} skip")
+    return run
+
+
+class JevDynTestExecutor:
+    """DynTestExecutor-compatible prediction source backed by Jev, for DynTestEvaluator.
+
+    Wraps a coverage-based DynTestExecutor: the coverage index provides the
+    job/test universe (which jobs to evaluate, and which tests each job can
+    run), so the evaluator measures the Jev selection and the coverage
+    selection on exactly the same test universe with the same metrics - only
+    the prediction differs. Used by the evaluate-jev-index task.
+    """
+
+    def __init__(self, coverage_executor):
+        self._coverage = coverage_executor
+        self._jev_run_tests = None
+
+    # --- executor interface used by DynTestEvaluator ---------------------------------
+
+    @property
+    def commit_sha(self):
+        return self._coverage.commit_sha
+
+    def init_index(self):
+        self._coverage.init_index()
+
+    def index(self):
+        return self._coverage.index()
+
+    def tests_to_run_per_job(self, changes: list[str]) -> dict:
+        # NOTE: the Jev prediction ignores `changes`; the selector gathers its
+        # own, richer PR context (diff, description, team, test code).
+        run = self._jev_run()
+        return {job: run for job in self.index().to_dict().keys()}
+
+    def tests_to_skip(self, job_name: str, changes: list[str]) -> set:
+        indexed = set(self.index().get_indexed_tests_for_job(job_name) or [])
+        return indexed - self._jev_run()
+
+    # ---------------------------------------------------------------------------------
+
+    def _jev_run(self) -> set:
+        if self._jev_run_tests is None:
+            self._jev_run_tests = jev_tests_to_run_all()
+        return self._jev_run_tests
