@@ -280,23 +280,8 @@ def _chunk_annotation(chunk: str) -> str:
     return f"# {path}: {pct}% of the file modified ({changed} of {total} lines changed)\n"
 
 
-def pr_diff(merge_base: str) -> str:
-    """Full unified diff of the PR (merge base..HEAD), truncated to fit Jev.
-
-    Each file's patch is preceded by a `# <path>: X% of the file modified`
-    annotation, truncated to MAX_DIFF_PER_FILE bytes, and the whole diff to
-    MAX_DIFF_BYTES, so the state stays well below Jev's per-question token
-    cap. Returns "" when the diff cannot be computed.
-    """
-    try:
-        diff = git("diff", "--no-color", merge_base, "HEAD")
-        shortstat = git("diff", "--no-color", "--shortstat", merge_base, "HEAD")
-    except RuntimeError as e:
-        print(f"[warn] could not compute the full PR diff: {e}")
-        return ""
-    if not diff:
-        return ""
-    # Split into per-file chunks, truncate each one, then cap the whole diff
+def _split_diff_chunks(diff: str) -> list:
+    """Split a unified diff into per-file chunks."""
     chunks, current = [], []
     for line in diff.splitlines(keepends=True):
         if line.startswith("diff --git "):
@@ -307,6 +292,31 @@ def pr_diff(merge_base: str) -> str:
             current.append(line)
     if current:
         chunks.append("".join(current))
+    return chunks
+
+
+def files_from_diff(diff: str) -> list:
+    """(path, modification kind) pairs parsed from a unified diff, DDCI-style kinds."""
+    out = []
+    for chunk in _split_diff_chunks(diff):
+        path, _, _ = _diff_chunk_stats(chunk)
+        if "new file mode" in chunk:
+            kind = "added"
+        elif "deleted file mode" in chunk:
+            kind = "deleted"
+        else:
+            kind = "edited"
+        out.append((path, kind))
+    return out
+
+
+def _annotate_diff(diff: str, shortstat: str = "") -> str:
+    """Annotated, truncated diff text: per-file modified-percentage headers,
+    per-file and total size caps. File line counts are read from the CWD, so
+    run this with the PR head checked out."""
+    if not diff:
+        return ""
+    chunks = _split_diff_chunks(diff)
     parts = [f"# TOTAL: {shortstat.strip() or 'diff of the PR'}\n"]
     for chunk in chunks:
         parts.append(_chunk_annotation(chunk))
@@ -320,6 +330,17 @@ def pr_diff(merge_base: str) -> str:
     if len(full.encode()) > MAX_DIFF_BYTES:
         return full[:MAX_DIFF_BYTES] + "\n[... diff truncated, see the file list above for the remaining files ...]"
     return full
+
+
+def pr_diff(merge_base: str) -> str:
+    """Annotated, truncated full diff of the working tree vs `merge_base`."""
+    try:
+        diff = git("diff", "--no-color", merge_base, "HEAD")
+        shortstat = git("diff", "--no-color", "--shortstat", merge_base, "HEAD")
+    except RuntimeError as e:
+        print(f"[warn] could not compute the full PR diff: {e}")
+        return ""
+    return _annotate_diff(diff, shortstat)
 
 
 # ---------------------------------------------------------------- test discovery

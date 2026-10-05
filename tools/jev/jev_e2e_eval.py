@@ -43,8 +43,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from jev_e2e_selector import (  # noqa: E402
     GITHUB_API,
+    _annotate_diff,
     ask_jev,
     build_state,
+    files_from_diff,
     get_ai_gateway_token,
     list_suites,
     suite_definition,
@@ -65,6 +67,17 @@ def fetch_pr(pr_number: int) -> dict:
     req.add_header("Accept", "application/vnd.github+json")
     with urllib.request.urlopen(req, timeout=30) as resp:
         return json.load(resp)
+
+
+def fetch_pr_diff(pr_number: int) -> str:
+    """Full PR diff from the GitHub API (computed against the PR base, so it
+    does not depend on local git history — works in shallow clones)."""
+    req = urllib.request.Request(f"{GITHUB_API}/pulls/{pr_number}")
+    if os.environ.get("GITHUB_TOKEN"):
+        req.add_header("Authorization", f"Bearer {os.environ['GITHUB_TOKEN']}")
+    req.add_header("Accept", "application/vnd.github.diff")
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        return resp.read().decode(errors="ignore")
 
 
 def git(*args: str, cwd: str | None = None) -> str:
@@ -154,7 +167,6 @@ def main() -> int:
     parser.add_argument("--pr", type=int, required=True, help="PR number to replay")
     parser.add_argument("--suite", default=None, help="Restrict to one e2e suite (default: all)")
     parser.add_argument("--pipeline-id", default=None, help="GitLab pipeline id of the executed run to compare with")
-    parser.add_argument("--base", default="origin/main", help="Base ref used for the merge base in the worktree")
     parser.add_argument("--days", type=int, default=90, help="CI Visibility lookback window in days")
     parser.add_argument("--dry-run", action="store_true", help="Skip Jev calls and the executed lookup (debug)")
     parser.add_argument("--model", default="datadoginternal/openjev-medium")
@@ -181,16 +193,25 @@ def main() -> int:
         print("[info] local run without a token command: using the us1.staging.dog gateway (ddtool token)")
         args.dc = "us1.staging.dog"
 
-    # Checkout the PR head in a worktree to read the test code as of that PR
-    git("fetch", "origin", f"pull/{args.pr}/head")
+    # Checkout the PR head in a worktree (depth-1: only the test code is read
+    # from it; the diff comes from the GitHub API, so no history is needed and
+    # this works in shallow clones)
+    git("fetch", "--depth=1", "origin", f"pull/{args.pr}/head")
     worktree = tempfile.mkdtemp(prefix=f"jev-eval-pr{args.pr}-")
     git("worktree", "add", "--detach", worktree, "FETCH_HEAD")
     try:
-        merge_base = git("merge-base", "HEAD", args.base, cwd=worktree)
-        files = [(f, "") for f in git("diff", "--name-only", merge_base, "HEAD", cwd=worktree).splitlines()]
-        diff = pr_diff_module_diff(merge_base, worktree)
+        # Diff and changed files from the GitHub API (PR base as merge base)
+        raw_diff = fetch_pr_diff(args.pr)
+        merge_base = pr["base"]["sha"]
+        files = files_from_diff(raw_diff)
+        old = os.getcwd()
+        os.chdir(worktree)  # file line counts for the percentage annotations
+        try:
+            diff = _annotate_diff(raw_diff, f"{len(files)} files changed (GitHub PR diff)")
+        finally:
+            os.chdir(old)
         pr_info = {"branch": worktree, "title": title, "description": pr.get("body") or "", "author": pr["user"]["login"]}
-        print(f"[info] {len(files)} changed files, diff {len(diff)} chars (merge base {merge_base[:12]})")
+        print(f"[info] {len(files)} changed files, diff {len(diff)} chars (base {merge_base[:12]})")
 
         # Decide which suites to evaluate
         suites_root = os.path.join(worktree, E2E_TESTS_DIR)
@@ -294,18 +315,6 @@ def main() -> int:
         json.dump(report, f, indent=2)
     print(f"[info] full report written to {output}")
     return 0
-
-
-def pr_diff_module_diff(merge_base: str, cwd: str) -> str:
-    """pr_diff() from the selector, executed in the worktree directory."""
-    import jev_e2e_selector as sel
-
-    old = os.getcwd()
-    try:
-        os.chdir(cwd)
-        return sel.pr_diff(merge_base)
-    finally:
-        os.chdir(old)
 
 
 if __name__ == "__main__":
