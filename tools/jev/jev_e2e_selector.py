@@ -50,7 +50,8 @@ SYSTEMONE_PATH = "/v1/systemone"
 DDCI_METADATA_URL = "https://cimetadataserver.us1.ddbuild.io/internal/ddci/metadata"
 
 # Keep the state well below Jev's 32k tokens per question cap.
-MAX_TEST_CODE_BYTES = 24_000
+MAX_TEST_CODE_BYTES = 32_000
+MAX_SUITE_DEFINITION_BYTES = 8_000
 MAX_DESCRIPTION_BYTES = 4_000
 MAX_CHANGED_FILES = 300
 # Jev caps each question at ~32k tokens (~120KB of text); keep the whole
@@ -310,6 +311,39 @@ def extract_function(code: str, func_header: str) -> str:
     return "".join(out)
 
 
+def strip_license_header(code: str) -> str:
+    """Drop the Apache license header comment from a Go file (noise for the model)."""
+    m = re.search(r"^package ", code, re.MULTILINE)
+    return code[m.start():] if m else code
+
+
+def suite_definition(suite_dir: str) -> tuple[str, str]:
+    """Base suite definition of the e2e suite (the `suite/` subpackage).
+
+    E2e test suites embed a base suite (e.g. `suite.FleetSuite`) defined in
+    `test/new-e2e/tests/<suite>/suite/`: it declares what the suite provisions
+    (platforms, VMs, agent components, install method, backend), which is the
+    main signal for whether a PR can affect the suite. Returns (path, code).
+    """
+    suite_pkg = os.path.join(suite_dir, "suite")
+    if not os.path.isdir(suite_pkg):
+        return "", ""
+    chunks = []
+    for f in sorted(os.listdir(suite_pkg)):
+        if not f.endswith(".go"):
+            continue
+        try:
+            code = open(os.path.join(suite_pkg, f), encoding="utf-8", errors="ignore").read()
+        except OSError:
+            continue
+        code = strip_license_header(code)
+        chunks.append((f, code))
+    if not chunks:
+        return "", ""
+    full = "\n\n".join(f"// --- {f} ---\n{code}" for f, code in chunks)
+    return suite_pkg, truncate(full, MAX_SUITE_DEFINITION_BYTES, "suite definition")
+
+
 def find_test_code(suite_dir: str, test_name: str) -> tuple[str, str]:
     """Return (file_path, source) for a test entry point or suite method."""
     for root, _, go_files in os.walk(suite_dir):
@@ -344,6 +378,7 @@ def list_suites(suite_dir: str) -> list:
                 continue
             path = os.path.join(root, f)
             code = open(path, encoding="utf-8", errors="ignore").read()
+            code = strip_license_header(code)
             entries = re.findall(r"^func (Test\w+)\(", code, re.MULTILINE)
             for entry in entries:
                 suites.append((entry, path, code))
@@ -465,6 +500,10 @@ def main() -> int:
 
     token = None if args.dry_run else get_ai_gateway_token(args)
 
+    suite_def_path, suite_def_code = suite_definition(suite_dir)
+    if suite_def_code:
+        print(f"[info] suite definition included: {suite_def_path} ({len(suite_def_code)} chars)")
+
     decisions = []
     for name, path, code in suites:
         files_section = "\n".join(f"- {f} ({kind})" if kind else f"- {f}" for f, kind in files)
@@ -475,6 +514,10 @@ def main() -> int:
                 ddci["impacted_targets"][:100]
             )
         diff_section = f"\n## Full PR diff (per-file patches, truncated to fit)\n```diff\n{diff}\n```" if diff else ""
+        suite_def_section = (
+            f"\n## E2E suite provisioning definition (base suite: platforms, components, install method)\n"
+            f"```go\n{suite_def_code}\n```"
+        ) if suite_def_code else ""
         state = (
             "## PR under review\n"
             f"Title: {pr.get('title') or '(unknown)'}{author}\n"
@@ -485,7 +528,7 @@ def main() -> int:
             "## E2E test under evaluation\n"
             f"Test: {name}\n"
             f"Suite: {args.suite} ({path})\n"
-            f"Code:\n```go\n{truncate(code, MAX_TEST_CODE_BYTES, 'test code')}\n```\n\n"
+            f"Code:\n```go\n{truncate(code, MAX_TEST_CODE_BYTES, 'test code')}\n```{suite_def_section}\n\n"
             "Context: this is a test in the datadog-agent repository, a large Go monorepo. "
             "E2E tests provision real VMs and are expensive to run. Decide whether this PR "
             "plausibly affects what this test verifies."
