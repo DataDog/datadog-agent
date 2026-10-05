@@ -9,6 +9,7 @@ AGENT_CORECHECKS = [
     "container_lifecycle",
     "cpu",
     "cri",
+    "custom_probe",
     "datadog_csi_driver",
     "snmp",
     "docker",

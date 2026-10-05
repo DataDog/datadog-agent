@@ -1,0 +1,164 @@
+## This file is overwritten upon Agent upgrade.
+## Copy this file to conf.yaml and uncomment an instance to enable the check.
+
+init_config:
+  ## @param enable_remediation - boolean - optional - default: false
+  ## Operator-controlled gate: enable only in trusted Agent configuration to execute local remediation.
+  ## Only the local file provider can enable execution; annotation init_config always remains dry-run.
+  # enable_remediation: false
+
+instances:
+  ## @param name - string - required
+  ## Customer-defined service-check name and correlation identifier; choose a name avoiding existing checks.
+  # - name: postgres_replica_lag
+
+    ## @param type - string - required
+    ## Probe type: http, tcp, command, or file; only fields applicable to that type are accepted.
+    # type: http
+
+    ## @param service_check_name - string - optional - default: <name>
+    ## Override the emitted service-check name; names are not prefixed with custom_probe.
+    # service_check_name: postgres_replica_lag
+
+    ## @param timeout - integer - optional - default: 5
+    ## Positive timeout in seconds for HTTP, TCP, and command probes.
+    # timeout: 5
+
+    ## @param tags - list of strings - optional
+    ## Additional tags on the service check and event.
+    # tags: [service:postgres, env:production]
+
+    ## @param url - string - optional
+    ## Required for HTTP probes; an HTTP(S) endpoint contacted directly without an environment proxy.
+    # url: http://localhost:8080/replication
+
+    ## @param method - string - optional - default: GET
+    ## HTTP probe method.
+    # method: GET
+
+    ## @param json_path - string - optional
+    ## Numeric JSON field path with nested objects and array indices; '.' or '$' selects the root.
+    # json_path: replication.0.replay_lag_bytes
+
+    ## @param warning_above - double - optional
+    ## Emit WARNING at or above this value; requires json_path and must not exceed critical_above.
+    # warning_above: 16777216
+
+    ## @param critical_above - double - optional
+    ## Emit CRITICAL at or above this value; requires json_path.
+    # critical_above: 134217728
+
+    ## @param expected_status - integer - optional
+    ## Require this HTTP status; defaults to any 2xx. Outages and unexpected statuses emit CRITICAL.
+    # expected_status: 200
+
+    ## @param content_match - string - optional
+    ## Regular expression required in an HTTP response or file; HTTP bodies are limited to 5 MiB.
+    # content_match: '"replication"'
+
+    ## @param host - string - optional
+    ## Required for TCP probes; hostname or IP address. HTTP/TCP block 169.254.0.0/16 targets.
+    # host: localhost
+
+    ## @param port - integer - optional
+    ## Required for TCP probes; port between 1 and 65535.
+    # port: 5432
+
+    ## @param run - list of strings - optional
+    ## Requires trusted local file configuration; executable followed by arguments without implicit shell expansion.
+    # run: ["/usr/local/bin/check-replica", "--cluster", "orders"]
+
+    ## @param expected_exit - integer - optional - default: 0
+    ## Expected command exit code; missing executables emit UNKNOWN.
+    # expected_exit: 0
+
+    ## @param stdout_match - string - optional
+    ## Regular expression required in command standard output; output over 5 MiB emits UNKNOWN.
+    # stdout_match: '^healthy'
+
+    ## @param path - string - optional
+    ## Required for file probes; local file path from trusted local file configuration only.
+    # path: /var/lib/postgresql/replication-ready
+
+    ## @param must_exist - boolean - optional - default: true
+    ## Require the file to exist; false instead requires it to be absent.
+    # must_exist: true
+
+    ## @param max_age_seconds - integer - optional
+    ## Maximum file age in seconds since modification.
+    # max_age_seconds: 120
+
+    ## @param min_size_bytes - integer - optional
+    ## Minimum file size in bytes, inclusive.
+    # min_size_bytes: 1
+
+    ## @param max_size_bytes - integer - optional
+    ## Maximum file size in bytes, inclusive.
+    # max_size_bytes: 1048576
+
+    ## @param remediation - mapping - optional
+    ## Local action after CRITICAL, followed by one verification probe; never uses a backend.
+    # remediation:
+
+      ## @param type - string - required
+      ## Remediation type: command or http.
+      # type: command
+
+      ## @param run - list of strings - optional
+      ## Required for command remediation; runs locally with Agent privileges and no sandbox.
+      # run: ["/usr/local/bin/recover-replica", "--cluster", "orders"]
+
+      ## @param url - string - optional
+      ## Required for HTTP remediation; use a trusted local recovery endpoint.
+      # url: http://localhost:8080/recover
+
+      ## @param method - string - optional - default: POST
+      ## HTTP remediation method.
+      # method: POST
+
+      ## @param timeout - integer - optional - default: 5
+      ## Positive timeout in seconds for one remediation attempt.
+      # timeout: 5
+
+      ## @param max_attempts - integer - optional - default: 1
+      ## Maximum attempts before pausing; at most one action runs per check invocation.
+      # max_attempts: 1
+
+      ## @param backoff_seconds - integer - optional - default: 60
+      ## Reset the attempt budget after this many seconds without an attempt; state is in memory.
+      # backoff_seconds: 60
+
+      ## @param dry_run - boolean - optional - default: false
+      ## Emit 'would run' without executing even when the operator enables remediation.
+      # dry_run: false
+
+  ## HTTP example: Kafka consumer lag exported by a local application.
+  # - name: kafka_orders_lag
+  #   type: http
+  #   url: http://localhost:8080/consumer-health
+  #   json_path: consumers.0.lag
+  #   warning_above: 1000
+  #   critical_above: 10000
+  #   tags: [service:orders, broker:kafka]
+
+  ## TCP example: PostgreSQL listener availability.
+  # - name: postgres_listener
+  #   type: tcp
+  #   host: localhost
+  #   port: 5432
+
+  ## Command example: customer-supplied health utility.
+  # - name: orders_worker_ready
+  #   type: command
+  #   run: ["/usr/local/bin/check-worker", "--queue", "orders"]
+  #   expected_exit: 0
+  #   stdout_match: '^ready'
+
+  ## File example: heartbeat file updated by a local worker.
+  # - name: orders_worker_heartbeat
+  #   type: file
+  #   path: /var/run/orders-worker/heartbeat
+  #   must_exist: true
+  #   max_age_seconds: 120
+  #   min_size_bytes: 1
+  #   content_match: '^ready'

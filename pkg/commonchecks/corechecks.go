@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet"
+	customprobe "github.com/DataDog/datadog-agent/pkg/collector/corechecks/customprobe"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/process"
@@ -94,6 +95,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 		return telemetryCheck.Factory(telemetryForMode(ctx))
 	}))
 	corecheckLoader.RegisterCheck(ntp.CheckName, ntp.Factory())
+	corecheckLoader.RegisterCheck(customprobe.CheckName, customprobe.Factory())
 	corecheckLoader.RegisterCheck(wlan.CheckName, wlan.Factory())
 	corecheckLoader.RegisterCheck(snmp.CheckName, snmp.Factory(cfg, rcClient, snmpScanManager))
 	corecheckLoader.RegisterContextualCheck(networkpath.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {

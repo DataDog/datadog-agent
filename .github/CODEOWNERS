@@ -275,6 +275,7 @@
 /cmd/agent/dist/conf.d/container_lifecycle.d/          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/cpu.d/                          @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/cri.d/                          @DataDog/container-integrations
+/cmd/agent/dist/conf.d/custom_probe.d/                 @DataDog/fleet-remediation
 /cmd/agent/dist/conf.d/datadog_csi_driver.d/           @DataDog/container-platform
 /cmd/agent/dist/conf.d/discovery.d/                    @DataDog/agent-discovery
 /cmd/agent/dist/conf.d/disk.d/                         @DataDog/agent-runtimes
@@ -643,6 +644,7 @@
 /pkg/collector/corechecks/containers/csi_driver/                      @DataDog/container-platform
 /pkg/collector/corechecks/containerimage/                             @DataDog/container-integrations
 /pkg/collector/corechecks/containerlifecycle/                         @DataDog/container-integrations
+/pkg/collector/corechecks/customprobe/                                @DataDog/fleet-remediation
 /pkg/collector/corechecks/discovery/                                  @DataDog/agent-discovery
 /pkg/collector/corechecks/ebpf/                                       @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/ebpf*                                  @DataDog/ebpf-platform

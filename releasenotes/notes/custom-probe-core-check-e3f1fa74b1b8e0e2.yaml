@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Add the ``custom_probe`` core check for customer-named HTTP, TCP, command,
+    and file probes with service checks, correlation tags, and an event on each
+    run. Optional command or HTTP remediation runs locally only when the operator
+    enables ``init_config.enable_remediation``; otherwise it emits dry-run events.
+    Remediation has an in-memory attempt budget and backoff, and re-probes once
+    to verify recovery before emitting the final status.

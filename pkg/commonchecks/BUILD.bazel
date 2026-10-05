@@ -41,6 +41,7 @@ go_library(
         "//pkg/collector/corechecks/containers/generic",
         "//pkg/collector/corechecks/containers/kata",
         "//pkg/collector/corechecks/containers/kubelet",
+        "//pkg/collector/corechecks/customprobe",
         "//pkg/collector/corechecks/discovery",
         "//pkg/collector/corechecks/ebpf",
         "//pkg/collector/corechecks/ebpf/noisyneighbor",
