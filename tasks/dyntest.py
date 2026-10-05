@@ -15,6 +15,7 @@ from tasks.libs.dynamic_test.backend import S3Backend
 from tasks.libs.dynamic_test.evaluator import DatadogDynTestEvaluator
 from tasks.libs.dynamic_test.executor import DynTestExecutor
 from tasks.libs.dynamic_test.index import IndexKind
+from tasks.libs.dynamic_test.jev_evaluator import JevDatadogDynTestEvaluator
 from tasks.libs.dynamic_test.jev_selection import JevDynTestExecutor
 from tasks.libs.dynamic_test.telemetry import DatadogTelemetryHandler
 from tasks.libs.dynamic_test.indexers.e2e import (
@@ -100,28 +101,26 @@ def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: 
 
 @task(
     help={
-        "bucket-uri": "S3 bucket URI where the dynamic test index is stored",
-        "commit-sha": "Commit SHA to evaluate (the index of the closest ancestor is used)",
         "pipeline-id": "CI pipeline ID to evaluate against",
     }
 )
-def evaluate_jev_index(ctx, bucket_uri, commit_sha, pipeline_id):
+def evaluate_jev_index(ctx, pipeline_id):
     """Evaluate the accuracy of the Jev-based test skipping with the same evaluator as the coverage index.
 
-    Uses DynTestEvaluator with a Jev-backed executor: the coverage index provides
-    the job/test universe, and the prediction comes from the Jev selector
-    (tools/jev), so both selectors can be compared on identical pipelines with
-    identical metrics (not_executed_failing_count is the miss count; see
-    evaluate-index for the coverage-based one). Stats are tagged selector:jev.
+    Uses DynTestEvaluator with a Jev-backed executor. Unlike the coverage
+    evaluation, the test universe is NOT restricted to the tests present in
+    the coverage index: every e2e job that ran in the pipeline is evaluated
+    (GitLab API), and every test entry point under test/new-e2e/tests is
+    decidable - including tests without coverage data or brand new tests.
+    not_executed_failing_count is the miss count (executed, failing, and not
+    predicted); stats are tagged selector:jev.
 
-    Requires DD_SITE/DD_API_KEY/DD_APP_KEY (CI Visibility) and either
-    authanywhere (CI) or JEV_TOKEN_CMD/JEV_DC (local) for the Jev calls.
+    Requires DD_SITE/DD_API_KEY/DD_APP_KEY (CI Visibility), the GitLab token
+    (authanywhere in CI, GITLAB_TOKEN or ddtool locally) and the AI Gateway
+    token (authanywhere in CI, JEV_TOKEN_CMD/JEV_DC locally).
     """
-    backend = S3Backend(bucket_uri)
-
-    coverage_executor = DynTestExecutor(ctx, backend, IndexKind.DIFFED_PACKAGE, commit_sha)
-    jev_executor = JevDynTestExecutor(coverage_executor)
-    evaluator = DatadogDynTestEvaluator(
+    jev_executor = JevDynTestExecutor(pipeline_id)
+    evaluator = JevDatadogDynTestEvaluator(
         ctx,
         IndexKind.DIFFED_PACKAGE,
         jev_executor,
@@ -129,14 +128,15 @@ def evaluate_jev_index(ctx, bucket_uri, commit_sha, pipeline_id):
         telemetry_handler=DatadogTelemetryHandler(
             default_tags=[
                 f"pipeline_id:{pipeline_id}",
-                f"index_kind:{IndexKind.DIFFED_PACKAGE.value}",
+                "index_kind:diffed_package",
                 "service:dynamic_test_evaluator",
                 "selector:jev",
+                "universe:all-e2e-tests",
             ]
         ),
     )
     if not evaluator.initialize():
-        print(color_message("WARNING: Failed to initialize the index", Color.ORANGE))
+        print(color_message("WARNING: Failed to initialize the Jev test universe", Color.ORANGE))
         return
 
     changed_files = get_modified_files(ctx)
