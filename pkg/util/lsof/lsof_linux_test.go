@@ -421,7 +421,7 @@ func newNetworkSocketInfo(remoteAddr string) socketInfo {
 	}
 }
 
-func TestSocketInfoRender(t *testing.T) {
+func TestRenderSocketInfo(t *testing.T) {
 	lookupAddr := func(_ context.Context, addr string) ([]string, error) {
 		switch addr {
 		case "20.199.39.224":
@@ -484,13 +484,17 @@ func TestSocketInfoRender(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := tc.info.render(context.Background(), lookupAddr, make(map[string]string))
-			require.Equal(t, tc.expected, actual)
+			ofl := &openFilesLister{
+				ctx:             context.Background(),
+				lookupAddr:      lookupAddr,
+				remoteInfoCache: make(map[string]string),
+			}
+			require.Equal(t, tc.expected, ofl.renderSocketInfo(tc.info))
 		})
 	}
 }
 
-func TestSocketInfoRenderUsesContextAndCache(t *testing.T) {
+func TestRenderSocketInfoUsesContextAndCache(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -499,11 +503,15 @@ func TestSocketInfoRenderUsesContextAndCache(t *testing.T) {
 		lookups++
 		return nil, ctx.Err()
 	}
-	cache := make(map[string]string)
+	ofl := &openFilesLister{
+		ctx:             ctx,
+		lookupAddr:      lookupAddr,
+		remoteInfoCache: make(map[string]string),
+	}
 	info := newNetworkSocketInfo("20.199.39.224")
 
-	require.Equal(t, "172.17.0.2:44594->20.199.39.224:443 (unknown)", info.render(ctx, lookupAddr, cache))
-	require.Equal(t, "172.17.0.2:44594->20.199.39.224:443 (unknown)", info.render(context.Background(), lookupAddr, cache))
+	require.Equal(t, "172.17.0.2:44594->20.199.39.224:443 (unknown)", ofl.renderSocketInfo(info))
+	require.Equal(t, "172.17.0.2:44594->20.199.39.224:443 (unknown)", ofl.renderSocketInfo(info))
 	require.Equal(t, 1, lookups)
 }
 

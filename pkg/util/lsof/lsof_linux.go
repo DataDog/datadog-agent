@@ -250,7 +250,7 @@ func (ofl *openFilesLister) fdStat(fd uintptr) (File, bool) {
 	}
 
 	if info, ok := ofl.socketInfo[inode]; ok {
-		file.Name = info.render(ofl.ctx, ofl.lookupAddr, ofl.remoteInfoCache)
+		file.Name = ofl.renderSocketInfo(info)
 		file.FilePerm = info.State
 		file.Type = info.Protocol
 	} else {
@@ -290,7 +290,7 @@ func stateStr(state uint64) string {
 	return fmt.Sprintf("UNKNOWN(%d)", state)
 }
 
-func (si socketInfo) render(ctx context.Context, lookupAddr func(context.Context, string) ([]string, error), remoteInfoCache map[string]string) string {
+func (ofl *openFilesLister) renderSocketInfo(si socketInfo) string {
 	if si.Description != "" {
 		return si.Description
 	}
@@ -305,11 +305,11 @@ func (si socketInfo) render(ctx context.Context, lookupAddr func(context.Context
 	}
 
 	addr := si.RemoteAddr.String()
-	if remoteInfo, ok := remoteInfoCache[addr]; ok {
+	if remoteInfo, ok := ofl.remoteInfoCache[addr]; ok {
 		return description + remoteInfo
 	}
 
-	host, err := lookupAddr(ctx, addr)
+	host, err := ofl.lookupAddr(ofl.ctx, addr)
 	var remoteInfo string
 	if err == nil {
 		remoteInfo = fmt.Sprintf(" (%s)", strings.Join(host, ","))
@@ -322,7 +322,7 @@ func (si socketInfo) render(ctx context.Context, lookupAddr func(context.Context
 		}
 	}
 
-	remoteInfoCache[addr] = remoteInfo
+	ofl.remoteInfoCache[addr] = remoteInfo
 	return description + remoteInfo
 }
 
