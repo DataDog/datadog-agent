@@ -133,22 +133,28 @@ func matchTolerations(before, after []corev1.Toleration) ([]int, error) {
 		effect   corev1.TaintEffect
 	}
 	identity := func(t corev1.Toleration) selector { return selector{t.Key, t.Operator, t.Effect} }
+	return matchListEntries(before, after, identity)
+}
+
+// Match unchanged occurrences first, then pair remaining edits by identity in
+// original occurrence order. Typed snapshots cannot distinguish exact duplicates.
+func matchListEntries[T any, K comparable](before, after []T, identity func(T) K) ([]int, error) {
 	exact := make(map[string][]int, len(before))
-	bySelector := make(map[selector][]int, len(before))
-	for i, toleration := range before {
-		encoded, err := json.Marshal(toleration)
+	bySelector := make(map[K][]int, len(before))
+	for i, entry := range before {
+		encoded, err := json.Marshal(entry)
 		if err != nil {
 			return nil, err
 		}
 		exact[string(encoded)] = append(exact[string(encoded)], i)
-		key := identity(toleration)
+		key := identity(entry)
 		bySelector[key] = append(bySelector[key], i)
 	}
 	matches := make([]int, len(after))
 	used := make([]bool, len(before))
-	for i, toleration := range after {
+	for i, entry := range after {
 		matches[i] = -1
-		encoded, err := json.Marshal(toleration)
+		encoded, err := json.Marshal(entry)
 		if err != nil {
 			return nil, err
 		}
@@ -158,11 +164,11 @@ func matchTolerations(before, after []corev1.Toleration) ([]int, error) {
 			exact[key] = queue[1:]
 		}
 	}
-	for i, toleration := range after {
+	for i, entry := range after {
 		if matches[i] >= 0 {
 			continue
 		}
-		key := identity(toleration)
+		key := identity(entry)
 		queue := bySelector[key]
 		for len(queue) > 0 && used[queue[0]] {
 			queue = queue[1:]

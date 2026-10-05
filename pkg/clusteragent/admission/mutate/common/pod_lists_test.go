@@ -10,6 +10,7 @@ package common
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	jsonpatch "github.com/evanphx/json-patch/v5"
@@ -126,4 +127,102 @@ func TestMutateNormalizesThenEditsVolume(t *testing.T) {
 	actual, err := patch.Apply(raw)
 	require.NoError(t, err)
 	require.JSONEq(t, `{"spec":{"containers":[{"name":"app","image":"app:v1"}],"volumes":[{"name":"v","emptyDir":{"medium":"Memory"},"futureField":"first"}]}}`, string(actual))
+}
+
+func TestMutatePreservesDuplicateEnvs(t *testing.T) {
+	const env = `[{"name":"X","value":"first","futureField":"first","futureNumber":9007199254740993},{"name":"Y","value":"$(X)","futureField":"dependent"},{"name":"X","value":"last","futureField":"last"}]`
+	type object = map[string]any
+	tests := []struct {
+		name   string
+		mutate func([]corev1.EnvVar) []corev1.EnvVar
+		want   func([]any) []any
+	}{
+		{"prepend", func(env []corev1.EnvVar) []corev1.EnvVar {
+			return append([]corev1.EnvVar{{Name: "DD_AGENT_HOST", Value: "agent"}}, env...)
+		}, func(env []any) []any { return append([]any{object{"name": "DD_AGENT_HOST", "value": "agent"}}, env...) }},
+		{"edit first duplicate", func(env []corev1.EnvVar) []corev1.EnvVar {
+			env[0].Value = "updated"
+			return env
+		}, func(env []any) []any { env[0].(object)["value"] = "updated"; return env }},
+		{"edit last duplicate", func(env []corev1.EnvVar) []corev1.EnvVar {
+			env[2].Value = "updated"
+			return env
+		}, func(env []any) []any { env[2].(object)["value"] = "updated"; return env }},
+		{"remove first duplicate", func(env []corev1.EnvVar) []corev1.EnvVar { return env[1:] }, func(env []any) []any { return env[1:] }},
+		{"reorder duplicates", func(env []corev1.EnvVar) []corev1.EnvVar {
+			env[0], env[2] = env[2], env[0]
+			return env
+		}, func(env []any) []any { env[0], env[2] = env[2], env[0]; return env }},
+		{"remove all", func([]corev1.EnvVar) []corev1.EnvVar { return nil }, func([]any) []any { return nil }},
+	}
+	for _, field := range []string{"containers", "initContainers", "ephemeralContainers"} {
+		for _, tt := range tests {
+			t.Run(field+"/"+tt.name, func(t *testing.T) {
+				raw := []byte(fmt.Sprintf(`{"spec":{"%s":[{"name":"app","image":"app:v1","env":%s,"futureContainerField":true}]}}`, field, env))
+				patchBytes, err := Mutate(raw, "default", "test", func(p *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+					switch field {
+					case "containers":
+						p.Spec.Containers[0].Env = tt.mutate(p.Spec.Containers[0].Env)
+					case "initContainers":
+						p.Spec.InitContainers[0].Env = tt.mutate(p.Spec.InitContainers[0].Env)
+					case "ephemeralContainers":
+						p.Spec.EphemeralContainers[0].Env = tt.mutate(p.Spec.EphemeralContainers[0].Env)
+					}
+					return true, nil
+				}, nil)
+				require.NoError(t, err)
+				patch, err := jsonpatch.DecodePatch(patchBytes)
+				require.NoError(t, err)
+				actual, err := patch.Apply(raw)
+				require.NoError(t, err)
+				decode := func(data []byte) object {
+					var value object
+					decoder := json.NewDecoder(bytes.NewReader(data))
+					decoder.UseNumber()
+					require.NoError(t, decoder.Decode(&value))
+					return value
+				}
+				expected := decode(raw)
+				container := expected["spec"].(object)[field].([]any)[0].(object)
+				if want := tt.want(container["env"].([]any)); want != nil {
+					container["env"] = want
+				} else {
+					delete(container, "env")
+				}
+				require.Equal(t, expected, decode(actual))
+			})
+		}
+	}
+}
+
+func TestMutatePreservesEnvsWhenContainersMove(t *testing.T) {
+	raw := []byte(`{"spec":{"containers":[{"name":"app","image":"app:v1","env":[{"name":"X","value":"first","futureField":1},{"name":"Y","value":"$(X)"},{"name":"X","value":"last","futureField":2}]},{"name":"other","image":"other:v1","env":[{"name":"OTHER","value":"unchanged","futureField":true}]}]}}`)
+	patchBytes, err := Mutate(raw, "default", "test", func(p *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+		InjectEnv(p, corev1.EnvVar{Name: "DD_AGENT_HOST", Value: "agent"})
+		p.Spec.Containers[0], p.Spec.Containers[1] = p.Spec.Containers[1], p.Spec.Containers[0]
+		p.Spec.Containers = append([]corev1.Container{{Name: "new", Image: "new:v1", Env: []corev1.EnvVar{{Name: "NEW", Value: "new"}}}}, p.Spec.Containers...)
+		return true, nil
+	}, nil)
+	require.NoError(t, err)
+	patch, err := jsonpatch.DecodePatch(patchBytes)
+	require.NoError(t, err)
+	actual, err := patch.Apply(raw)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"spec":{"containers":[{"name":"new","image":"new:v1","resources":{},"env":[{"name":"NEW","value":"new"}]},{"name":"other","image":"other:v1","env":[{"name":"DD_AGENT_HOST","value":"agent"},{"name":"OTHER","value":"unchanged","futureField":true}]},{"name":"app","image":"app:v1","env":[{"name":"DD_AGENT_HOST","value":"agent"},{"name":"X","value":"first","futureField":1},{"name":"Y","value":"$(X)"},{"name":"X","value":"last","futureField":2}]}]}}`, string(actual))
+}
+
+func TestMutatePreservesUnnamedImagePullSecrets(t *testing.T) {
+	for _, references := range []string{`[{}]`, `[{"name":""},{"name":"registry","futureField":true}]`} {
+		raw := []byte(fmt.Sprintf(`{"spec":{"containers":[{"name":"app","image":"app:v1"}],"imagePullSecrets":%s}}`, references))
+		patchBytes, err := Mutate(raw, "default", "test", func(p *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+			AddAnnotation(p, "injection-status", "blocked")
+			return false, nil
+		}, nil)
+		require.NoError(t, err)
+		patch, err := jsonpatch.DecodePatch(patchBytes)
+		require.NoError(t, err)
+		actual, err := patch.Apply(raw)
+		require.NoError(t, err)
+		require.JSONEq(t, fmt.Sprintf(`{"metadata":{"annotations":{"injection-status":"blocked"}},"spec":{"containers":[{"name":"app","image":"app:v1"}],"imagePullSecrets":%s}}`, references), string(actual))
+	}
 }

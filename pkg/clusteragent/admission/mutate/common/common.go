@@ -75,12 +75,20 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 		return []byte("[]"), nil
 	}
 
-	// Volume normalization can remove duplicate merge keys. Apply its positional
-	// edits before strategic merge, which requires unique keys in named lists.
-	normalized, err := json.Marshal(normalizedPod)
+	// An empty imagePullSecrets name is accepted by Kubernetes, but strategic
+	// merge requires that key even on unchanged lists. Leave unchanged references
+	// out of the typed diff so their original JSON passes through untouched.
+	beforeMerge, afterMerge := *normalizedPod, pod
+	if reflect.DeepEqual(beforeMerge.Spec.ImagePullSecrets, afterMerge.Spec.ImagePullSecrets) {
+		beforeMerge.Spec.ImagePullSecrets = nil
+		afterMerge.Spec.ImagePullSecrets = nil
+	}
+	normalized, err := json.Marshal(beforeMerge)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the normalized Pod object: %v", err)
 	}
+	// Volume normalization can remove duplicate merge keys. Apply its positional
+	// edits before strategic merge, which requires unique keys in named lists.
 	normalizedRaw := rawPod
 	if normalizedPod != originalPod {
 		// Remove exactly the occurrences chosen by normalization. A JSON diff
@@ -106,7 +114,7 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 		}
 	}
 
-	bytes, err := json.Marshal(pod)
+	bytes, err := json.Marshal(afterMerge)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the mutated Pod object: %v", err)
 	}
@@ -114,17 +122,26 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 	// Apply only intentional edits to the original JSON. Strategic merge matches
 	// containers by name, preserving unknown fields when lists are reordered or
 	// sidecars are inserted, and handles parents absent from the original JSON.
-	changes, err := strategicpatch.CreateTwoWayMergePatch(normalized, bytes, corev1.Pod{})
+	schema, err := strategicpatch.NewPatchMetaFromStruct(corev1.Pod{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare the Pod merge schema: %v", err)
+	}
+	mergeSchema := podPatchMeta{schema}
+	changes, err := strategicpatch.CreateTwoWayMergePatchUsingLookupPatchMeta(normalized, bytes, mergeSchema)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare the Pod merge patch: %v", err)
 	}
-	preserved, err := strategicpatch.StrategicMergePatch(normalizedRaw, changes, corev1.Pod{})
+	preserved, err := strategicpatch.StrategicMergePatchUsingLookupPatchMeta(normalizedRaw, changes, mergeSchema)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply the Pod merge patch: %v", err)
 	}
 	preserved, err = preservePodLists(normalizedRaw, preserved, normalizedPod, &pod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to preserve Pod list fields: %v", err)
+	}
+	preserved, err = preservePodEnvs(normalizedRaw, preserved, normalizedPod, &pod)
+	if err != nil {
+		return nil, fmt.Errorf("failed to preserve Pod environment fields: %v", err)
 	}
 
 	patch, err := jsondiff.CompareJSON(rawPod, preserved, jsondiff.UnmarshalFunc(unmarshalExactNumbers)) // TODO: Try to generate the patch at the MutationFunc

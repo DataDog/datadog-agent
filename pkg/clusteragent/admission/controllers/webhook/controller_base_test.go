@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -167,11 +168,11 @@ func TestAutoInstrumentation(t *testing.T) {
 			))
 
 			apm, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, wmeta, nil, nil, nil, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// Create request.
 			podJSON, err := json.Marshal(tt.pod)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			t.Log(string(podJSON))
 			request := &admission.Request{
 				Object:    podJSON,
@@ -181,9 +182,11 @@ func TestAutoInstrumentation(t *testing.T) {
 			// Send request.
 			f := apm.WebhookFunc()
 			response := f(request)
+			require.True(t, response.Allowed)
+			require.Nil(t, response.Result)
 
 			// Check if the patch is expected.
-			emptyPatch := "null"
+			emptyPatch := "[]"
 			if tt.expectPatch {
 				assert.NotEqual(t, emptyPatch, string(response.Patch))
 			} else {
