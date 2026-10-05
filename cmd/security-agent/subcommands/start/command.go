@@ -63,7 +63,6 @@ import (
 	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -172,11 +171,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					// TODO - components: Do not remove complianceAgent ref until "github.com/DataDog/datadog-agent/pkg/compliance" is a component so they're not GCed
 					return status.NewInformationProvider(complianceAgent.StatusProvider()), complianceAgent, nil
 				}),
-				fx.Supply(
-					status.Params{
-						PythonVersionGetFunc: python.GetPythonVersion,
-					},
-				),
 				statusimpl.Module(),
 				configsyncfx.Module(configsync.NewDefaultParams()),
 				autoexitfx.Module(),

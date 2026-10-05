@@ -66,6 +66,10 @@ type ProductComposition struct {
 	// HostMetadataOptions are product-specific Fx options included alongside the
 	// shared host metadata module.
 	HostMetadataOptions []fx.Option
+
+	// StatusOptions are product-specific Fx options included alongside the
+	// shared status module.
+	StatusOptions []fx.Option
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.

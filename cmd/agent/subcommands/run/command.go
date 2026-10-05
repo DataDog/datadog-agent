@@ -187,7 +187,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -441,10 +440,8 @@ func getSharedFxOption(product command.ProductComposition) fx.Option {
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(defaults.DefaultParams()),
+		fx.Options(product.StatusOptions...),
 		fx.Supply(
-			status.Params{
-				PythonVersionGetFunc: python.GetPythonVersion,
-			},
 			status.NewHeaderInformationProvider(net.Provider{}),
 			status.NewInformationProvider(jmxStatus.Provider{}),
 			status.NewInformationProvider(endpointsStatus.Provider{}),

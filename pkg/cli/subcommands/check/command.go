@@ -204,11 +204,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option, ad
 				orchestratorForwarderFx.Module(orchestratordef.NewNoopParams()),
 				eventplatformfx.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
-				fx.Supply(
-					status.Params{
-						PythonVersionGetFunc: python.GetPythonVersion,
-					},
-				),
 				statusimpl.Module(),
 				// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
 				// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created

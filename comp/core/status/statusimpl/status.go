@@ -39,7 +39,7 @@ var templatesFS embed.FS
 type dependencies struct {
 	fx.In
 	Config config.Component
-	Params status.Params
+	Params status.Params `optional:"true"`
 	Log    log.Component
 
 	Providers       []status.Provider       `group:"status"`
