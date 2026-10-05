@@ -262,10 +262,14 @@
 /cmd/agent/subcommands/run/                         @DataDog/agent-runtimes
 /cmd/agent/subcommands/run/internal/clcrunnerapi/   @DataDog/container-platform
 /cmd/agent/subcommands/coverage                     @DataDog/agent-devx
+/cmd/agent/subcommands/configcheck                  @DataDog/container-platform
+/cmd/agent/subcommands/remotecommand                @DataDog/agent-runtimes
+/cmd/agent/subcommands/secret                       @DataDog/fleet-automation
 /cmd/agent/windows                                  @DataDog/windows-products
 /cmd/agent/windows_resources                        @DataDog/windows-products
 /cmd/agent/dist/conf.d/agentcrashdetect.d/             @DataDog/windows-products
 /cmd/agent/dist/conf.d/agentprofiling.d/               @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/apm.yaml.default               @DataDog/agent-apm
 /cmd/agent/dist/conf.d/battery.d/                      @DataDog/windows-products
 /cmd/agent/dist/conf.d/cisco_sdwan.d/                  @DataDog/ndm-integrations
 /cmd/agent/dist/conf.d/cloud_hostinfo.d/               @DataDog/agent-runtimes @DataDog/container-autoscaling
@@ -305,6 +309,7 @@
 /cmd/agent/dist/conf.d/orchestrator_pod.d/             @DataDog/kubernetes-experiences
 /cmd/agent/dist/conf.d/postgres.d/                     @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/powershell.d/                   @DataDog/windows-products
+/cmd/agent/dist/conf.d/process_agent.yaml.default     @DataDog/container-experiences
 /cmd/agent/dist/conf.d/sbom.d/                         @DataDog/agent-security @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/                         @DataDog/network-device-monitoring-core
 /cmd/agent/dist/conf.d/systemd.d/                      @DataDog/agent-integrations
@@ -332,8 +337,12 @@
 /cmd/agent/dist/assets/wincrashdetect/                 @DataDog/windows-products
 /cmd/agent/dist/assets/windows_certificate/            @DataDog/windows-products
 /cmd/agent/dist/protected/                             @DataDog/windows-products
+/cmd/agent/dist/checks/                               @DataDog/agent-integrations @DataDog/agent-runtimes
+/cmd/agent/dist/config.py                             @DataDog/agent-integrations @DataDog/agent-runtimes
+/cmd/agent/dist/utils/                                @DataDog/agent-integrations @DataDog/agent-runtimes
 /cmd/agent/install*.sh                              @DataDog/agent-build
 /cmd/agent/macos/                                   @DataDog/windows-products
+/cmd/agent/selinux/                                 @DataDog/ebpf-platform @DataDog/agent-build
 /cmd/ai_prompt_logger/                              @DataDog/windows-products
 /cmd/cluster-agent/                                 @DataDog/container-platform
 /cmd/cluster-agent/subcommands/autoscalerlist       @DataDog/container-autoscaling @DataDog/container-integrations
