@@ -45,6 +45,7 @@ dd_agent_go_test(
         "//comp/core/settings/mock",
         "//comp/core/sysprobeconfig/def",
         "//comp/remote-config/rcclient/def",
+        "//comp/remote-config/rcclient/types",
         "//pkg/config/helper",
         "//pkg/config/mock",
         "//pkg/config/model",
@@ -54,6 +55,7 @@ dd_agent_go_test(
         "//pkg/util/fxutil",
         "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
     ],
 )

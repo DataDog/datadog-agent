@@ -15,4 +15,6 @@ type Component interface {
 	Set(name string, value interface{})
 	// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
 	Get() map[string]interface{}
+	// SendNow builds and sends the payload immediately, returning the submission error if any.
+	SendNow() error
 }

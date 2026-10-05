@@ -50,6 +50,7 @@ import (
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	snmpscanmanagerfx "github.com/DataDog/datadog-agent/comp/snmpscanmanager/fx"
+	triggerpayloadsfx "github.com/DataDog/datadog-agent/comp/triggerpayloads/fx"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 	workloadselectionfx "github.com/DataDog/datadog-agent/comp/workloadselection/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -549,6 +550,7 @@ func getSharedFxOption() fx.Option {
 		getSnmptrapsOptions(),
 		snmpscanfx.Module(),
 		snmpscanmanagerfx.Module(),
+		triggerpayloadsfx.Module(),
 		networkconfigmanagementfx.Module(),
 		networkdevicesfx.Module(),
 		collectorimpl.Module(),

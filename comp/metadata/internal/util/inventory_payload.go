@@ -55,6 +55,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"time"
@@ -224,6 +225,37 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 		i.log.Errorf("unable to submit inventories payload, %s", err)
 	}
 	return i.MinInterval
+}
+
+// SendNow builds and sends a new payload immediately, without waiting for the next collection. It still waits for
+// the first run delay to have elapsed since startup (see collect) and returns an error otherwise.
+func (i *InventoryPayload) SendNow() error {
+	if !i.Enabled {
+		return errors.New("inventory payload is disabled")
+	}
+
+	i.m.Lock()
+	defer i.m.Unlock()
+	if i.serializer == nil {
+		return errors.New("serializer is nil")
+	}
+
+	if timeSince(i.createdAt) < i.firstRunDelay {
+		return fmt.Errorf("first payload not sent yet, retry after %s", i.firstRunDelay-timeSince(i.createdAt))
+	}
+
+	p := i.getPayload()
+	if p == nil {
+		i.log.Debugf("inventory payload is nil, skipping submission")
+		return nil
+	}
+	if err := i.serializer.SendMetadata(p); err != nil {
+		return fmt.Errorf("unable to submit inventories payload: %w", err)
+	}
+
+	i.forceRefresh.Store(false)
+	i.LastCollect = time.Now()
+	return nil
 }
 
 // Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.

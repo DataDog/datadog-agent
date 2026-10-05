@@ -24,6 +24,8 @@ const (
 	TaskFlare TaskType = "flare"
 	// TaskDeviceScan is the task sent to request a device scan for NDM device onboarding.
 	TaskDeviceScan TaskType = "ndm-device-scan"
+	// TaskTriggerPayloads is the task sent to request the agent to send some payloads immediately
+	TaskTriggerPayloads TaskType = "trigger_payloads"
 )
 
 // AgentTaskConfig is a deserialized agent task configuration file
@@ -35,9 +37,33 @@ type AgentTaskConfig struct {
 
 // agentTaskData is the content of a agent task configuration file
 type agentTaskData struct {
-	TaskType string            `json:"task_type"`
-	UUID     string            `json:"uuid"`
-	TaskArgs map[string]string `json:"args"`
+	TaskType string `json:"task_type"`
+	UUID     string `json:"uuid"`
+	// TaskArgs contains the string arguments of the task
+	TaskArgs map[string]string `json:"-"`
+	// RawTaskArgs contains all the arguments of the task, whatever their JSON type
+	RawTaskArgs map[string]json.RawMessage `json:"args"`
+}
+
+// UnmarshalJSON decodes the task arguments, keeping the string ones in TaskArgs
+func (d *agentTaskData) UnmarshalJSON(data []byte) error {
+	type alias agentTaskData
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*d = agentTaskData(a)
+
+	if d.RawTaskArgs != nil {
+		d.TaskArgs = make(map[string]string, len(d.RawTaskArgs))
+		for k, raw := range d.RawTaskArgs {
+			var str string
+			if err := json.Unmarshal(raw, &str); err == nil {
+				d.TaskArgs[k] = str
+			}
+		}
+	}
+	return nil
 }
 
 // ParseConfigAgentTask parses an agent task config
@@ -53,6 +79,25 @@ func ParseConfigAgentTask(data []byte, metadata state.Metadata) (AgentTaskConfig
 		Config:   d,
 		Metadata: metadata,
 	}, nil
+}
+
+// PartialFailureError is returned by a RCAgentTaskListener when the task was handled but partially failed.
+// The task is then acknowledged, with the error reported to remote-config.
+type PartialFailureError struct {
+	Err error
+}
+
+// NewPartialFailureError wraps err in a PartialFailureError
+func NewPartialFailureError(err error) error {
+	return &PartialFailureError{Err: err}
+}
+
+func (e *PartialFailureError) Error() string {
+	return "partial failure: " + e.Err.Error()
+}
+
+func (e *PartialFailureError) Unwrap() error {
+	return e.Err
 }
 
 // RCAgentTaskListener is the FX-compatible listener, so RC can push updates through it
