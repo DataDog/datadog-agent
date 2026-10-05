@@ -15,7 +15,6 @@ from tasks.libs.dynamic_test.backend import S3Backend
 from tasks.libs.dynamic_test.evaluator import DatadogDynTestEvaluator
 from tasks.libs.dynamic_test.executor import DynTestExecutor
 from tasks.libs.dynamic_test.index import IndexKind
-from tasks.libs.dynamic_test.jev_evaluator import JevDatadogDynTestEvaluator
 from tasks.libs.dynamic_test.jev_selection import JevDynTestExecutor
 from tasks.libs.dynamic_test.telemetry import DatadogTelemetryHandler
 from tasks.libs.dynamic_test.indexers.e2e import (
@@ -120,7 +119,7 @@ def evaluate_jev_index(ctx, pipeline_id):
     token (authanywhere in CI, JEV_TOKEN_CMD/JEV_DC locally).
     """
     jev_executor = JevDynTestExecutor(pipeline_id)
-    evaluator = JevDatadogDynTestEvaluator(
+    evaluator = DatadogDynTestEvaluator(
         ctx,
         IndexKind.DIFFED_PACKAGE,
         jev_executor,
@@ -145,6 +144,23 @@ def evaluate_jev_index(ctx, pipeline_id):
     results = evaluator.evaluate(changed_files)
     evaluator.print_summary(results)
     evaluator.send_stats_to_datadog(results)
+
+    # Sanity check: a vacuous evaluation (jobs evaluated, but zero executed
+    # tests found overall) is invisible in the metrics above and would look
+    # like a perfect selector with zero misses everywhere. If this fires, the
+    # executed-set queries matched no events - check the env tag of the e2e
+    # test events against the evaluator's query.
+    total_actual = sum(r.actual_count() for r in results)
+    if results and total_actual == 0:
+        print(
+            color_message(
+                "WARNING: no executed tests found for ANY of the "
+                f"{len(results)} evaluated jobs - the evaluation is vacuous. "
+                "The executed-test queries likely matched no CI Visibility events "
+                "(env tag mismatch: the e2e jobs tag their events env:nativetest).",
+                Color.RED,
+            )
+        )
 
 
 @task(
