@@ -148,9 +148,28 @@ type GlobalParams struct {
 	LoggerName           string
 }
 
+// CommandOptions contains optional product-specific configuration for the check command.
+type CommandOptions struct {
+	PythonVersionGetFunc func() string
+}
+
+// Option configures the check command.
+type Option func(*CommandOptions)
+
+// WithPythonVersionGetFunc configures the Python version function used by status output.
+func WithPythonVersionGetFunc(fn func() string) Option {
+	return func(opts *CommandOptions) {
+		opts.PythonVersionGetFunc = fn
+	}
+}
+
 // MakeCommand returns a `check` command to be used by agent binaries.
-func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *cobra.Command {
+func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option, options ...Option) *cobra.Command {
 	cliParams := &cliParams{}
+	commandOptions := CommandOptions{}
+	for _, option := range options {
+		option(&commandOptions)
+	}
 	cmd := &cobra.Command{
 		Use:   "check <check_name>",
 		Short: "Run the specified check",
@@ -206,7 +225,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				eventplatformreceiverimpl.Module(),
 				fx.Supply(
 					status.Params{
-						PythonVersionGetFunc: python.GetPythonVersion,
+						PythonVersionGetFunc: commandOptions.PythonVersionGetFunc,
 					},
 				),
 				statusimpl.Module(),

@@ -111,7 +111,6 @@ dd_agent_go_test(
         "//comp/core/secrets/def",
         "//comp/core/secrets/mock",
         "//comp/core/settings/mock",
-        "//comp/core/status",
         "//comp/core/status/statusimpl",
         "//comp/core/tagger/fx",
         "//comp/core/telemetry/mock",

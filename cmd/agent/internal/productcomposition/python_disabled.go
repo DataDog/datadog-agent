@@ -16,3 +16,5 @@ func autodiscoveryOptions() []fx.Option {
 func hostMetadataOptions() []fx.Option {
 	return nil
 }
+
+var pythonVersionGetFunc func() string

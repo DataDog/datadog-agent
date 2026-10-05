@@ -12,6 +12,7 @@ import (
 
 	pythondiscoveryfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer/fx-python"
 	pythoninfofx "github.com/DataDog/datadog-agent/comp/metadata/host/impl/pythoninfo/fx-python"
+	collectorpython "github.com/DataDog/datadog-agent/pkg/collector/python"
 )
 
 func autodiscoveryOptions() []fx.Option {
@@ -25,3 +26,5 @@ func hostMetadataOptions() []fx.Option {
 		pythoninfofx.Module(),
 	}
 }
+
+var pythonVersionGetFunc = collectorpython.GetPythonVersion

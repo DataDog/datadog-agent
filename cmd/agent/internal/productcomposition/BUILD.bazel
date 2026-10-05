@@ -13,6 +13,7 @@ go_library(
         "//cmd/agent/command",
         "//comp/core/autodiscovery/discoverer/fx-python",
         "//comp/metadata/host/impl/pythoninfo/fx-python",
+        "//pkg/collector/python",
         "@org_uber_go_fx//:fx",
     ],
 )

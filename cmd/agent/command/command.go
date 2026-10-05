@@ -66,6 +66,10 @@ type ProductComposition struct {
 	// HostMetadataOptions are product-specific Fx options included alongside the
 	// shared host metadata module.
 	HostMetadataOptions []fx.Option
+
+	// PythonVersionGetFunc returns the Python version string for status output.
+	// Leave nil for products without Python support.
+	PythonVersionGetFunc func() string
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.

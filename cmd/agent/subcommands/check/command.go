@@ -36,7 +36,7 @@ func Commands(globalParams *command.GlobalParams, product command.ProductComposi
 			proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 		}),
 		fx.Options(product.AutodiscoveryOptions...),
-	))
+	), check.WithPythonVersionGetFunc(product.PythonVersionGetFunc))
 
 	return []*cobra.Command{cmd}
 }
