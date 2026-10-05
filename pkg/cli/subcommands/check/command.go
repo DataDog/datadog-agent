@@ -34,6 +34,7 @@ import (
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	collectornoopimpl "github.com/DataDog/datadog-agent/comp/collector/collector/noop-impl"
+	"github.com/DataDog/datadog-agent/comp/collector/pythonruntime"
 	"github.com/DataDog/datadog-agent/comp/core"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
@@ -80,7 +81,6 @@ import (
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	sharedlibrarycheck "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -258,6 +258,12 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option, ad
 	return cmd
 }
 
+type pythonRuntimeDeps struct {
+	fx.In
+
+	PythonRuntime pythonruntime.Runtime `optional:"true"`
+}
+
 func run(
 	config config.Component,
 	cliParams *cliParams,
@@ -277,6 +283,7 @@ func run(
 	ipc ipc.Component,
 	traceroute traceroute.Component,
 	healthPlatform healthplatformdef.Component,
+	pythonDeps pythonRuntimeDeps,
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -301,9 +308,11 @@ func run(
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
-	python.SetHealthPlatform(healthPlatform)
-	if !config.GetBool("python_lazy_loading") {
-		python.InitPython(common.GetPythonPaths()...)
+	if pythonDeps.PythonRuntime != nil {
+		pythonDeps.PythonRuntime.SetHealthPlatform(healthPlatform)
+		if !config.GetBool("python_lazy_loading") {
+			pythonDeps.PythonRuntime.InitPython(common.GetPythonPaths()...)
+		}
 	}
 
 	if config.GetBool("shared_library_check.enabled") {
