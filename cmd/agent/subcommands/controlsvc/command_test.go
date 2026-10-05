@@ -17,7 +17,7 @@ import (
 
 func TestStartServiceCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"start-service"},
 		controlsvc.StartService,
 		func() {})
@@ -25,7 +25,7 @@ func TestStartServiceCommand(t *testing.T) {
 
 func TestStopServiceCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"stopservice"},
 		controlsvc.StopService,
 		func() {})
@@ -33,7 +33,7 @@ func TestStopServiceCommand(t *testing.T) {
 
 func TestRestartServiceCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"restart-service"},
 		controlsvc.RestartService,
 		func() {})

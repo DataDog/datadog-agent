@@ -15,6 +15,6 @@ import (
 )
 
 // Commands returns nil when compiling without the python build flag.
-func Commands(_ *command.GlobalParams) []*cobra.Command {
+func Commands(_ *command.GlobalParams, _ command.ProductComposition) []*cobra.Command {
 	return nil
 }

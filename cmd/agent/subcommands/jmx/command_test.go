@@ -33,7 +33,7 @@ func TestCollectCommand(t *testing.T) {
 
 	t.Run("with no args", func(t *testing.T) {
 		fxutil.TestOneShotSubcommand(t,
-			Commands(globalParams),
+			Commands(globalParams, command.ProductComposition{}),
 			[]string{"jmx", "collect"},
 			runJmxCommandConsole,
 			func(cliParams *cliParams, coreParams core.BundleParams) {
@@ -48,7 +48,7 @@ func TestCollectCommand(t *testing.T) {
 
 	t.Run("with --log-level", func(t *testing.T) {
 		fxutil.TestOneShotSubcommand(t,
-			Commands(globalParams),
+			Commands(globalParams, command.ProductComposition{}),
 			[]string{"jmx", "collect", "--log-level", "info"},
 			runJmxCommandConsole,
 			func(cliParams *cliParams, coreParams core.BundleParams) {
@@ -63,7 +63,7 @@ func TestCollectCommand(t *testing.T) {
 
 	t.Run("with --flare", func(t *testing.T) {
 		fxutil.TestOneShotSubcommand(t,
-			Commands(globalParams),
+			Commands(globalParams, command.ProductComposition{}),
 			[]string{"jmx", "collect", "--flare", "--log-level", "info"},
 			runJmxCommandConsole,
 			func(cliParams *cliParams, coreParams core.BundleParams) {
@@ -79,7 +79,7 @@ func TestCollectCommand(t *testing.T) {
 
 func TestListEverythingCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(newGlobalParamsTest(t)),
+		Commands(newGlobalParamsTest(t), command.ProductComposition{}),
 		[]string{"jmx", "list", "everything"},
 		runJmxCommandConsole,
 		func(cliParams *cliParams, _ core.BundleParams) {
@@ -89,7 +89,7 @@ func TestListEverythingCommand(t *testing.T) {
 
 func TestListMatchingCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(newGlobalParamsTest(t)),
+		Commands(newGlobalParamsTest(t), command.ProductComposition{}),
 		[]string{"jmx", "list", "matching"},
 		runJmxCommandConsole,
 		func(cliParams *cliParams, _ core.BundleParams) {
@@ -99,7 +99,7 @@ func TestListMatchingCommand(t *testing.T) {
 
 func TestListWithRateMetricsCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(newGlobalParamsTest(t)),
+		Commands(newGlobalParamsTest(t), command.ProductComposition{}),
 		[]string{"jmx", "list", "with-rate-metrics"},
 		runJmxCommandConsole,
 		func(cliParams *cliParams, _ core.BundleParams) {
@@ -109,7 +109,7 @@ func TestListWithRateMetricsCommand(t *testing.T) {
 
 func TestListLimitedCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(newGlobalParamsTest(t)),
+		Commands(newGlobalParamsTest(t), command.ProductComposition{}),
 		[]string{"jmx", "list", "limited"},
 		runJmxCommandConsole,
 		func(cliParams *cliParams, _ core.BundleParams) {
@@ -119,7 +119,7 @@ func TestListLimitedCommand(t *testing.T) {
 
 func TestListCollectedCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(newGlobalParamsTest(t)),
+		Commands(newGlobalParamsTest(t), command.ProductComposition{}),
 		[]string{"jmx", "list", "collected"},
 		runJmxCommandConsole,
 		func(cliParams *cliParams, _ core.BundleParams) {
@@ -129,7 +129,7 @@ func TestListCollectedCommand(t *testing.T) {
 
 func TestListNotMatchingCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(newGlobalParamsTest(t)),
+		Commands(newGlobalParamsTest(t), command.ProductComposition{}),
 		[]string{"jmx", "list", "not-matching"},
 		runJmxCommandConsole,
 		func(cliParams *cliParams, _ core.BundleParams) {

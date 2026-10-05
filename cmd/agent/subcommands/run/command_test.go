@@ -22,7 +22,7 @@ import (
 
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(newGlobalParamsTest(t)),
+		Commands(newGlobalParamsTest(t), command.ProductComposition{}),
 		[]string{"run"},
 		run,
 		func(_ pidimpl.Params, _ core.BundleParams) {})
@@ -30,7 +30,7 @@ func TestCommand(t *testing.T) {
 
 func TestCommandPidfile(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(newGlobalParamsTest(t)),
+		Commands(newGlobalParamsTest(t), command.ProductComposition{}),
 		[]string{"run", "--pidfile", "/pid/file"},
 		run,
 		func(pidParams pidimpl.Params, _ core.BundleParams) {
