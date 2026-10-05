@@ -3,25 +3,23 @@
 
 Replays the selection on a merged/closed PR: fetches the PR (head, title,
 description, diff), checks it out in a temporary git worktree, asks Jev for
-every E2E test entry point whether it should run, then compares with the
-tests that were actually executed in CI (Datadog CI Visibility), and reports:
-
-- tests Jev would run vs tests that actually ran
-- skipped-and-passed (savings), skipped-but-failed (false negatives),
-  flaky-skipped (excluded from false negatives)
-- extra runs Jev would add
+every E2E test entry point, then compares with the tests that actually
+executed in CI, and reports savings, false negatives and disagreements with
+the coverage-based selection. The run/skip decision comes from the single
+source in jev_client.decide, shared with the selector.
 
 Usage (from the repo root, a full git checkout):
-    GITHUB_TOKEN=... DD_API_KEY=... python3 tools/jev/jev_e2e_eval.py --pr 57508
+    GITHUB_TOKEN=... DD_API_KEY=... DD_APP_KEY=... python3 tools/jev/jev_e2e_eval.py --pr 57508
 
-Executed-test lookup: by default queries test events for the PR head commit
-(branch pipelines). Pass --pipeline-id <gitlab pipeline id> to evaluate a
-specific pipeline instead (e.g. the merge-queue pipeline, whose commit differs
-from the PR head).
+Executed-test lookup: by default queries CI Visibility by the PR head commit.
+Pass --pipeline-id <gitlab pipeline id> to scope to a specific pipeline, or
+--from-artifacts <pipeline id> to read the pipeline's e2e_test_output.json
+job artifacts instead (no CI Visibility keys needed).
 
 Environment:
     GITHUB_TOKEN   optional, avoids GitHub API rate limits
-    DD_API_KEY     Datadog API key, required for the executed-test lookup
+    DD_API_KEY     Datadog API key, for the CI Visibility lookup
+    DD_APP_KEY     Datadog app key, for the CI Visibility lookup
     (AI Gateway token: same as jev_e2e_selector.py --token/--token-cmd/ddtool)
 """
 
@@ -31,325 +29,32 @@ import argparse
 import concurrent.futures
 import json
 import os
-import re
 import shutil
 import sys
 import tempfile
 import threading
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 
-# make tools/jev and the repo root (for tasks.libs...) importable
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, REPO_ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from jev_e2e_selector import (  # noqa: E402
-    GITHUB_API,
-    _annotate_diff,
-    ask_jev,
-    build_state,
-    files_from_diff,
-    get_ai_gateway_token,
-    list_suites,
-    suite_definition,
-)
+from diff_utils import _annotate_diff, files_from_diff
+from executed_lookup import PIPELINE_NAME, fetch_executed_e2e_tests, fetch_executed_from_gitlab
+from jev_client import DEFAULT_RUN_THRESHOLD, ask_jev, build_state, decide, fail_open, get_ai_gateway_token
+from pr_context import detect_pr_number, fetch_pr, fetch_pr_diff, git
+from test_discovery import E2E_TESTS_DIR, list_suites, suite_definition
 
-E2E_TESTS_DIR = "test/new-e2e/tests"
-PIPELINE_NAME = "DataDog/datadog-agent"
-
-
-# ---------------------------------------------------------------- PR checkout
-
-
-def fetch_pr(pr_number: int) -> dict:
-    """PR metadata from the GitHub API (token optional for public repos)."""
-    req = urllib.request.Request(f"{GITHUB_API}/pulls/{pr_number}")
-    if os.environ.get("GITHUB_TOKEN"):
-        req.add_header("Authorization", f"Bearer {os.environ['GITHUB_TOKEN']}")
-    req.add_header("Accept", "application/vnd.github+json")
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.load(resp)
-
-
-def fetch_pr_diff(pr_number: int) -> str:
-    """Full PR diff from the GitHub API (computed against the PR base, so it
-    does not depend on local git history — works in shallow clones)."""
-    req = urllib.request.Request(f"{GITHUB_API}/pulls/{pr_number}")
-    if os.environ.get("GITHUB_TOKEN"):
-        req.add_header("Authorization", f"Bearer {os.environ['GITHUB_TOKEN']}")
-    req.add_header("Accept", "application/vnd.github.diff")
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return resp.read().decode(errors="ignore")
-
-
-def git(*args: str, cwd: str | None = None) -> str:
-    return run_cmd(["git", *args], cwd=cwd)
-
-
-def run_cmd(cmd: list[str], cwd: str | None = None) -> str:
-    import subprocess
-
-    res = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
-    if res.returncode != 0:
-        raise RuntimeError(f"command {' '.join(cmd)} failed: {res.stderr.strip()}")
-    return res.stdout.strip()
-
-
-def detect_pr_number() -> int | None:
-    """PR number of the current branch (CI env first, GitHub lookup fallback)."""
-    branch = None
-    for env in ("CI_COMMIT_BRANCH", "CI_COMMIT_REF_NAME"):
-        if os.environ.get(env) and os.environ[env] != "HEAD":
-            branch = os.environ[env]
-            break
-    if not branch:
-        branch = git("rev-parse", "--abbrev-ref", "HEAD")
-    if not branch or branch == "HEAD" or branch == "main":
-        return None
-    req = urllib.request.Request(
-        f"{GITHUB_API}/pulls?head={REPO.split(':')[0]}:{urllib.parse.quote(branch)}&state=open&per_page=1"
-    )
-    if os.environ.get("GITHUB_TOKEN"):
-        req.add_header("Authorization", f"Bearer {os.environ['GITHUB_TOKEN']}")
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        pulls = json.load(resp)
-    return pulls[0]["number"] if pulls else None
-
-
-# ---------------------------------------------------------------- executed tests
-
-
-def fetch_executed_e2e_tests(query: str, days: int) -> tuple[dict, dict]:
-    """Root-level e2e tests actually executed, from CI Visibility.
-
-    Self-contained implementation of the CI Visibility test events query
-    (same endpoint as datadog_api_client's list_ci_app_test_events, but
-    stdlib-only so the script runs on a bare laptop). Requires DD_API_KEY
-    and DD_APP_KEY in the environment.
-
-    Returns (executed, coverage_skipped) where executed maps entry points to
-    {"status": "pass|fail", "flaky": bool, "jobs": [..]} (only tests whose
-    latest attempt actually ran and passed/failed), and coverage_skipped maps
-    entry points to the jobs where the latest attempt was a skip (tests the
-    coverage-based --impacted selection skipped).
-    """
-    from datetime import datetime, timedelta, timezone
-
-    api_key = os.environ.get("DD_API_KEY")
-    app_key = os.environ.get("DD_APP_KEY") or os.environ.get("DD_APPLICATION_KEY")
-    if not api_key or not app_key:
-        print("[warn] DD_API_KEY / DD_APP_KEY not set, skipping the executed-test lookup")
-        return {}, {}
-    site = os.environ.get("DD_SITE", "datadoghq.com")
-    url = f"https://api.{site}/api/v2/ci/tests/events"
-    # query params as the datadog_api_client serializes them (bracket attributes)
-    params = {
-        "filter[query]": query,
-        "filter[from]": (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(),
-        "filter[to]": datetime.now(timezone.utc).isoformat(),
-        "page[limit]": 1000,
-        # chronological order (oldest first): with this sort, the last event
-        # seen for a test is its latest attempt, which makes the retry logic
-        # robust even when the timestamp attribute cannot be parsed
-        "sort": "timestamp",
-    }
-    headers = {
-        "DD-API-KEY": api_key,
-        "DD-APPLICATION-KEY": app_key,
-        "Accept": "application/json",
-    }
-
-    events = []
-    pages = 0
-    print(f"[info] CI Visibility query: {query}")
-    print(f"[info] CI Visibility request: GET {url} (lookback {days} days)")
-    while True:
-        req = urllib.request.Request(url + "?" + urllib.parse.urlencode(params), headers=headers)
-        try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                payload = json.load(resp)
-        except urllib.error.HTTPError as e:
-            body = e.read().decode(errors="ignore")[:500]
-            raise RuntimeError(f"CI Visibility API HTTP {e.code} on {url}: {body}") from e
-        events.extend(payload.get("data", []))
-        pages += 1
-        cursor = (payload.get("meta", {}).get("page", {}) or {}).get("after")
-        if not cursor:
-            break
-        params["page[cursor]"] = cursor
-
-    executed: dict = {}
-    sample_names = []
-    skipped_subtests = skipped_empty = skipped_job = 0
-    for item in events:
-        attrs = item.get("attributes", {}).get("attributes", {})
-        test_attrs = attrs.get("test", {})
-        job_name = ((attrs.get("ci", {}) or {}).get("job", {}) or {}).get("name", "")
-        name = test_attrs.get("name") or ""
-        # CI Visibility test names are bare names (e.g. "TestServiceBehaviorPowerShell"
-        # or "TestFleetConfig/linux/TestConfig" for sub-tests), with no package path,
-        # so the e2e check must use the job name, not the test name.
-        if not name:
-            skipped_empty += 1
-            continue
-        if "/" in name:  # sub-tests
-            skipped_subtests += 1
-            continue
-        if job_name and not job_name.startswith("new-e2e"):  # non-e2e job (query filter safety net)
-            skipped_job += 1
-            continue
-        m = re.search(r"(Test\w+)\s*$", name)
-        if not m:
-            if len(sample_names) < 5:
-                sample_names.append(name)
-            continue
-        entry = m.group(1)
-        # CI Visibility statuses: pass, fail, skip. Only the latest attempt
-        # decides (see below); a latest status of skip means the test did not
-        # run (the coverage-based --impacted selection skipped it in the job),
-        # it must not be counted as executed nor as a failure.
-        raw_status = test_attrs.get("status") or ""
-        status = raw_status if raw_status in ("pass", "skip") else "fail"
-        flaky = test_attrs.get("agent_is_flaky_failure", "false") == "true"
-        # Retry semantics: a test may emit several events (one per attempt,
-        # e.g. --max-retries). Only the LATEST attempt decides the status, so
-        # a fail that was retried to a pass counts as passed. The timestamp
-        # lives in the free-form attributes of the event (CIAppEventAttributes
-        # has no top-level timestamp), with outer/`@timestamp` fallbacks; the
-        # ascending sort guarantees chronological iteration order even when
-        # it cannot be found at all.
-        ts = str(attrs.get("timestamp") or item.get("attributes", {}).get("timestamp") or attrs.get("@timestamp") or "")
-        e = executed.setdefault(entry, {"status": "pass", "flaky": False, "jobs": [], "ts": ""})
-        if ts >= e["ts"]:
-            e["status"] = status
-            e["flaky"] = flaky
-            e["ts"] = ts
-        e["jobs"].append((attrs.get("ci", {}).get("job", {}) or {}).get("name", ""))
-    # Split by the latest attempt: only tests that actually ran (latest
-    # status pass/fail) count as executed; latest-status-skip tests are the
-    # coverage selection's skips.
-    coverage_skipped = {t: v["jobs"] for t, v in executed.items() if v["status"] == "skip"}
-    executed = {t: v for t, v in executed.items() if v["status"] != "skip"}
-    print(
-        f"[info] CI Visibility result: {len(events)} test events over {pages} page(s) "
-        f"(skipped: {skipped_subtests} sub-tests, {skipped_empty} without a name, {skipped_job} from non-e2e jobs); "
-        f"kept {len(executed)} executed root e2e tests and {len(coverage_skipped)} skipped by the coverage selection; "
-        f"unmatched names: {sample_names[:3]}"
-    )
-    print(f"[info] executed root e2e tests: {len(executed)}: {sorted(executed)[:10]}{' ...' if len(executed) > 10 else ''}")
-    if not executed:
-        print(f"[warn] no executed e2e tests matched; sample test names seen: {sample_names}")
-    return executed, coverage_skipped
-
-
-# ---------------------------------------------------------------- GitLab artifacts
-
-
-def get_gitlab_token() -> str:
-    """GitLab API token, for querying the pipeline's e2e job artifacts.
-
-    Uses the same mechanism as tasks.libs.ciproviders.gitlab_api.get_gitlab_token:
-    a short-lived token from the bti-ci-api service, authorized with an 'sdm'
-    infra token (authanywhere in CI, ddtool locally). $GITLAB_TOKEN overrides.
-    """
-    if os.environ.get("GITLAB_TOKEN"):
-        return os.environ["GITLAB_TOKEN"]
-    if os.environ.get("CI"):
-        cmd = ["./authanywhere"] if os.path.exists("./authanywhere") else ["authanywhere"]
-        out = run_cmd([*cmd, "--audience", "sdm"]).strip()
-    else:
-        out = run_cmd(
-            ["ddtool", "auth", "token", "sdm", "--datacenter", "us1.ddbuild.io", "--http-header"]
-        ).strip()
-    bearer = out.removeprefix("Authorization: ").strip()
-    req = urllib.request.Request(
-        "https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository=datadog-agent",
-        headers={"Authorization": bearer},
-    )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.load(resp)["token"]
-
-
-def fetch_executed_from_gitlab(pipeline_id: str) -> tuple[dict, dict]:
-    """Root e2e tests executed in a GitLab pipeline, from the e2e jobs'
-    e2e_test_output.json artifacts (same pipeline, no CI Visibility keys needed).
-
-    Returns ({entry: {"status": "pass|fail", "flaky": False, "jobs": [..]}},
-             {entry: [job names]}) where the second dict holds the tests the
-    coverage-based --impacted selection skipped in those jobs.
-    """
-    base = os.environ.get("CI_API_V4_URL", "https://gitlab.ddbuild.io/api/v4")
-    project = os.environ.get("CI_PROJECT_ID") or "DataDog%2Fdatadog-agent"
-    headers = {"PRIVATE-TOKEN": get_gitlab_token()}
-
-    # Only jobs that actually ran have artifacts; manual/canceled/created ones
-    # would just 404 on the artifact download.
-    jobs, page = [], 1
-    while True:
-        url = (
-            f"{base}/projects/{project}/pipelines/{pipeline_id}/jobs"
-            f"?per_page=100&page={page}&scope[]=success&scope[]=failed"
-        )
-        with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60) as resp:
-            batch = json.load(resp)
-        jobs.extend(batch)
-        if len(batch) < 100:
-            break
-        page += 1
-    e2e_jobs = [j for j in jobs if j["name"].startswith("new-e2e")]
-
-    def fetch_result_json(job: dict) -> tuple[dict, str]:
-        art = f"{base}/projects/{project}/jobs/{job['id']}/artifacts/e2e_test_output.json"
-        try:
-            with urllib.request.urlopen(urllib.request.Request(art, headers=headers), timeout=60) as resp:
-                return job, resp.read().decode(errors="ignore")
-        except urllib.error.HTTPError:
-            return job, ""
-
-    executed: dict = {}
-    coverage_skipped: dict = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
-        for job, content in pool.map(fetch_result_json, e2e_jobs):
-            if not content:
-                continue  # job has no result json (skipped job, other artifact shape)
-            for line in content.splitlines():
-                try:
-                    d = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                action, test = d.get("Action"), d.get("Test")
-                if not test or "/" in test:  # root entry points only
-                    continue
-                if action in ("pass", "fail", "run"):
-                    # Retry semantics: only the latest attempt decides (see
-                    # fetch_executed_e2e_tests).
-                    ts = str(d.get("Time") or "")
-                    e = executed.setdefault(test, {"status": "pass", "flaky": False, "jobs": [], "ts": ""})
-                    if ts >= e["ts"]:
-                        if action in ("pass", "fail"):
-                            e["status"] = action
-                        e["ts"] = ts
-                    e["jobs"].append(job["name"])
-                elif action == "skip":
-                    coverage_skipped.setdefault(test, []).append(job["name"])
-    print(
-        f"[info] {len(executed)} root e2e tests executed in pipeline {pipeline_id} "
-        f"({len(e2e_jobs)} new-e2e jobs, {len(coverage_skipped)} tests skipped by the coverage selection)"
-    )
-    return executed, coverage_skipped
-
-
-# ---------------------------------------------------------------- main
+REPO_URL = "https://github.com/DataDog/datadog-agent.git"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--pr", type=int, default=None, help="PR number to replay (default: detect from the current branch)")
     parser.add_argument(
-        "--from-artifacts", metavar="PIPELINE_ID", default=None,
+        "--pr", type=int, default=None, help="PR number to replay (default: detect from the current branch)"
+    )
+    parser.add_argument(
+        "--from-artifacts",
+        metavar="PIPELINE_ID",
+        default=None,
         help="Fetch the executed tests from the pipeline's e2e_test_output.json "
         "artifacts (GitLab API) instead of CI Visibility",
     )
@@ -357,13 +62,21 @@ def main() -> int:
     parser.add_argument("--pipeline-id", default=None, help="GitLab pipeline id of the executed run to compare with")
     parser.add_argument("--days", type=int, default=90, help="CI Visibility lookback window in days")
     parser.add_argument(
-        "--concurrency", type=int, default=8,
-        help="parallel Jev calls (the CI Visibility lookup runs concurrently too); 1 = sequential",
+        "--concurrency",
+        type=int,
+        default=8,
+        help="parallel Jev calls (the executed lookup runs concurrently too); 1 = sequential",
     )
     parser.add_argument("--dry-run", action="store_true", help="Skip Jev calls and the executed lookup (debug)")
     parser.add_argument("--model", default="datadoginternal/openjev-medium")
     parser.add_argument("--dc", default="us1.ddbuild.io", help="AI Gateway datacenter")
     parser.add_argument("--source", default="datadog-agent", help="source header for AI Gateway")
+    parser.add_argument(
+        "--run-threshold",
+        type=float,
+        default=DEFAULT_RUN_THRESHOLD,
+        help="should_execute threshold of the decision (see jev_client.decide)",
+    )
     parser.add_argument("--token", default=None)
     parser.add_argument("--token-cmd", default=None)
     parser.add_argument("--output", default=None, help="JSON output path (default jev_e2e_eval_<pr>.json)")
@@ -380,19 +93,14 @@ def main() -> int:
 
     # Local runs: no authanywhere in CI, so the token comes from ddtool for
     # us1.staging.dog; align the gateway DC so the token and the endpoint match.
-    if (
-        not args.token
-        and not args.token_cmd
-        and not os.environ.get("AI_GATEWAY_TOKEN")
-        and args.dc == "us1.ddbuild.io"
-    ):
+    if not args.token and not args.token_cmd and not os.environ.get("AI_GATEWAY_TOKEN") and args.dc == "us1.ddbuild.io":
         print("[info] local run without a token command: using the us1.staging.dog gateway (ddtool token)")
         args.dc = "us1.staging.dog"
 
     # Checkout the PR head in a worktree. The PR head is fetched from GitHub
     # directly (GitLab mirrors do not carry refs/pull/*), depth-1: only the
     # test code is read from it; the diff comes from the GitHub API.
-    git("fetch", "--depth=1", "https://github.com/DataDog/datadog-agent.git", f"pull/{pr_number}/head")
+    git("fetch", "--depth=1", REPO_URL, f"pull/{pr_number}/head")
     worktree = tempfile.mkdtemp(prefix=f"jev-eval-pr{pr_number}-")
     git("worktree", "add", "--detach", worktree, "FETCH_HEAD")
     try:
@@ -406,7 +114,12 @@ def main() -> int:
             diff = _annotate_diff(raw_diff, f"{len(files)} files changed (GitHub PR diff)")
         finally:
             os.chdir(old)
-        pr_info = {"branch": worktree, "title": title, "description": pr.get("body") or "", "author": pr["user"]["login"]}
+        pr_info = {
+            "branch": worktree,
+            "title": title,
+            "description": pr.get("body") or "",
+            "author": pr["user"]["login"],
+        }
         print(f"[info] {len(files)} changed files, diff {len(diff)} chars (base {merge_base[:12]})")
 
         # Decide which suites to evaluate
@@ -424,8 +137,7 @@ def main() -> int:
             _, suite_def_code = suite_definition(suite_dir)
             print(f"[info] suite {suite}: {len(entries)} tests")
             tasks.extend(
-                (suite, name, os.path.relpath(path, worktree), code, suite_def_code)
-                for name, path, code in entries
+                (suite, name, os.path.relpath(path, worktree), code, suite_def_code) for name, path, code in entries
             )
 
         token = None if args.dry_run else get_ai_gateway_token(args)
@@ -434,21 +146,28 @@ def main() -> int:
             """One Jev decision for one test entry point (thread-safe: pure inputs)."""
             suite, name, path, code, suite_def_code = entry
             state = build_state(
-                name, path, code, suite, suite, pr_info, files, merge_base, diff,
+                name,
+                path,
+                code,
+                suite,
+                suite,
+                pr_info,
+                files,
+                merge_base,
+                diff,
                 suite_def_code=suite_def_code,
             )
             try:
                 answer = ask_jev(args, token, state)
             except Exception as e:
-                return {"test": name, "suite": suite, "decision": "run", "error": str(e)}
-            a = answer["answers"]
-            should = a["should_execute"]["noul"]
-            relation = a["relation"]["choice"]
-            decision = "run" if should >= 0.5 or relation != "unrelated" else "skip"
+                # Single decision source, fail open: if Jev is unavailable, run
+                return {"test": name, "suite": suite, **fail_open(e)}
+            # Single decision source: jev_client.decide (shared with the selector)
             return {
-                "test": name, "suite": suite, "decision": decision,
-                "should_execute": should, "relation": relation,
-                "confidence": a["confidence"]["score"],
+                "test": name,
+                "suite": suite,
+                "usage": answer.get("usage"),
+                **decide(answer["answers"], args.run_threshold),
             }
 
         print_lock = threading.Lock()
@@ -475,16 +194,9 @@ def main() -> int:
                     executed_future = pool.submit(fetch_executed_from_gitlab, args.from_artifacts)
                 else:
                     scope = f"@ci.pipeline.id:{args.pipeline_id}" if args.pipeline_id else f"@git.commit.sha:{head}"
-                    # Query-side filtering to keep the payload small:
-                    #   @ci.job.name:new-e2e*  -> only the e2e suite jobs
-                    #   -@test.name:*/*        -> exclude sub-tests (root entry
-                    #                           points only). The client-side
-                    #                           root/new-e2e filter is kept as a
-                    #                           safety net for query syntax quirks.
-                    # Note: no env filter - the e2e jobs tag their test events
-                    # with env:nativetest (see the .new_e2e_template), so
-                    # filtering on env:prod (as the dyntest evaluator does for
-                    # non-e2e jobs) would match nothing.
+                    # Query-side filtering: e2e jobs only (see executed_lookup
+                    # for the full filter rationale, incl. the env:nativetest
+                    # caveat).
                     executed_future = pool.submit(
                         fetch_executed_e2e_tests,
                         f"@ci.pipeline.name:{PIPELINE_NAME} {scope} @ci.job.name:new-e2e* -@test.name:*/*",
@@ -514,7 +226,9 @@ def main() -> int:
                     executed, coverage_skipped = executed, {}
                 else:
                     executed, coverage_skipped = executed
-            print(f"[info] {len(decisions)} Jev decisions in {time.monotonic() - started:.0f}s (concurrency {args.concurrency})")
+            print(
+                f"[info] {len(decisions)} Jev decisions in {time.monotonic() - started:.0f}s (concurrency {args.concurrency})"
+            )
     finally:
         git("worktree", "remove", "--force", worktree)
         shutil.rmtree(worktree, ignore_errors=True)
@@ -525,10 +239,13 @@ def main() -> int:
     would_skip = {d["test"] for d in decisions if d["decision"] == "skip"}
     ran = set(executed)
     report = {
-        "pr": pr_number, "title": title, "head": head,
+        "pr": pr_number,
+        "title": title,
+        "head": head,
         "pipeline_id": args.pipeline_id,
         "jev": {
-            "run": sorted(would_run), "skip": sorted(would_skip),
+            "run": sorted(would_run),
+            "skip": sorted(would_skip),
             "decisions": decisions,
         },
         "executed": executed,
@@ -537,16 +254,13 @@ def main() -> int:
             "correctly_skipped": sorted(ran & would_skip - {t for t, v in executed.items() if v["status"] == "fail"}),
             "skipped_but_ran": sorted(ran & would_skip),
             "false_negatives": sorted(
-                t for t in (ran & would_skip)
-                if executed[t]["status"] == "fail" and not executed[t]["flaky"]
+                t for t in (ran & would_skip) if executed[t]["status"] == "fail" and not executed[t]["flaky"]
             ),
             "flaky_skipped": sorted(
                 t for t in (ran & would_skip) if executed[t]["status"] == "fail" and executed[t]["flaky"]
             ),
             "extra_runs": sorted(would_run - ran),
-            "kept_failures": sorted(
-                t for t in (ran & would_run) if executed[t]["status"] == "fail"
-            ),
+            "kept_failures": sorted(t for t in (ran & would_run) if executed[t]["status"] == "fail"),
         },
     }
     if coverage_skipped:

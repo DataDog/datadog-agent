@@ -16,23 +16,21 @@ agent e2e test events land - org 2, uploaded with agent-api-key-org-2):
 from __future__ import annotations  # python 3.9 compat
 
 import argparse
-import json
 import os
-import re
 import sys
-import urllib.request
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, REPO_ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from jev_e2e_eval import GITHUB_API, PIPELINE_NAME, fetch_executed_e2e_tests, fetch_pr  # noqa: E402
+from executed_lookup import PIPELINE_NAME, fetch_executed_e2e_tests
+from pr_context import fetch_pr
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--pr", type=int, required=True, help="PR number")
-    parser.add_argument("--pipeline-id", default=None, help="Scope by this GitLab pipeline id instead of the PR head commit")
+    parser.add_argument(
+        "--pipeline-id", default=None, help="Scope by this GitLab pipeline id instead of the PR head commit"
+    )
     parser.add_argument("--days", type=int, default=90, help="CI Visibility lookback window in days")
     args = parser.parse_args()
 
@@ -55,7 +53,10 @@ def main() -> int:
     print(f"skipped by coverage selection: {len(coverage_skipped)} {sorted(coverage_skipped)[:10]}")
     print(f"first tests:         {sorted(executed)[:10]}")
     if not executed and not os.environ.get("DD_API_KEY"):
-        print("\n[warn] DD_API_KEY is not set - the lookup was skipped entirely. Export DD_API_KEY and DD_APP_KEY (org where the agent e2e events land).")
+        print(
+            "\n[warn] DD_API_KEY is not set - the lookup was skipped entirely. "
+            "Export DD_API_KEY and DD_APP_KEY (org where the agent e2e events land)."
+        )
     return 0
 
 

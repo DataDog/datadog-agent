@@ -3,22 +3,10 @@
 
 Decides, for each E2E test of a given suite (or a single test), whether it
 should be executed on the current PR, by asking a Jev (TypeSafe System One)
-model through the AI Gateway:
-
-    state  = PR title + description + changed files + full PR diff + owning team + test code
-         (PR number, changed files with modification kinds, merge base, author
-          and impacted targets come from the DDCI Metadata Service when
-          $DDCI_REQUEST_ID is set, else git merge-base + GitHub API fallback;
-          the diff is truncated per file and overall to stay below Jev's
-          per-question token cap)
-    questions:
-      - should_execute (noul)   : run the test on this PR?
-      - relation (choice)       : why (direct code, shared infra, packaging/CI, unrelated)
-      - confidence (score)      : how confident in the decision
-
-Outputs go-test compatible --run/--skip patterns (same integration point as the
-coverage-based `--impacted` selection in tasks/new_e2e_tests.py), plus a JSON
-artifact with the full decisions.
+model through the AI Gateway. See tools/jev/jev_client.py for the questions
+and the run/skip decision (single source shared with the eval), and the
+sibling modules for context gathering (pr_context.py), diff processing
+(diff_utils.py) and test discovery (test_discovery.py).
 
 Usage (from repo root):
     GITHUB_TOKEN=... AI_GATEWAY_TOKEN=... python3 tools/jev/jev_e2e_selector.py \
@@ -36,513 +24,22 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
-import time
-import urllib.error
-import urllib.parse
-import urllib.request
 
-REPO = "DataDog/datadog-agent"
-GITHUB_API = f"https://api.github.com/repos/{REPO}"
-SYSTEMONE_PATH = "/v1/systemone"
-# https://datadoghq.atlassian.net/wiki/spaces/DEVX/pages/5423334716/DDCI+Metadata+Service
-DDCI_METADATA_URL = "https://cimetadataserver.us1.ddbuild.io/internal/ddci/metadata"
-
-# Keep the state well below Jev's 32k tokens per question cap.
-MAX_TEST_CODE_BYTES = 32_000
-MAX_SUITE_DEFINITION_BYTES = 8_000
-MAX_DESCRIPTION_BYTES = 4_000
-MAX_CHANGED_FILES = 300
-# Jev caps each question at ~32k tokens (~120KB of text); keep the whole
-# state well below that.
-MAX_DIFF_BYTES = 40_000
-MAX_DIFF_PER_FILE = 4_000
-
-QUESTIONS = {
-    "should_execute": {
-        "type": "noul",
-        "instructions": (
-            "Given this PR's changed files and stated intent, could this PR "
-            "plausibly affect what this e2e test verifies? 1.0 means the test "
-            "should be executed, 0.0 means it is safe to skip."
-        ),
-    },
-    "relation": {
-        "type": "choice",
-        "instructions": "What best describes the relationship between this PR and this e2e test?",
-        "criteria": {
-            "code_under_test": "The PR modifies code or behavior this test directly exercises",
-            "shared_infra": "The PR modifies shared infrastructure, framework or configuration the test depends on",
-            "packaging_ci": "The PR modifies build, packaging, dependencies or CI config affecting the test environment",
-            "unrelated": "No plausible relationship between this PR and this test",
-        },
-    },
-    "confidence": {
-        "type": "score",
-        "instructions": "How confident are you in your decision?",
-        "criteria": [
-            "Unsure, run the test to be safe",
-            "Moderately confident",
-            "Highly confident, decision is clear from the inputs",
-        ],
-    },
-}
-
-
-def run_cmd(cmd: list[str], env: dict | None = None) -> str:
-    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
-    if result.returncode != 0:
-        raise RuntimeError(f"command {cmd} failed: {result.stderr.strip()}")
-    return result.stdout.strip()
-
-
-def git(*args: str) -> str:
-    return run_cmd(["git", *args])
-
-
-def current_branch() -> str:
-    """Current branch name, robust to detached-HEAD checkouts (GitLab CI).
-
-    In CI the clone is a detached HEAD, where `git rev-parse --abbrev-ref HEAD`
-    returns "HEAD"; prefer the CI-provided branch name in that case.
-    """
-    for env in ("CI_COMMIT_BRANCH", "CI_COMMIT_REF_NAME"):
-        if os.environ.get(env) and os.environ[env] != "HEAD":
-            return os.environ[env]
-    branch = git("rev-parse", "--abbrev-ref", "HEAD")
-    return branch if branch != "HEAD" else ""
-
-
-def resolve_ref(base: str) -> str:
-    """Resolve a branch name to a ref present in this clone.
-
-    CI clones usually have no local `main` branch, only `origin/main`.
-    """
-    for candidate in (base, f"origin/{base}", f"refs/remotes/origin/{base}", f"refs/heads/{base}"):
-        try:
-            git("rev-parse", "--verify", "--quiet", candidate + "^{commit}")
-            return candidate
-        except RuntimeError:
-            continue
-    print(f"[info] ref '{base}' not found locally, fetching from origin")
-    git("fetch", "origin", base)
-    return f"origin/{base}"
-
-
-def truncate(text: str, limit: int, label: str) -> str:
-    if len(text.encode()) <= limit:
-        return text
-    out = text.encode()[:limit].decode(errors="ignore")
-    return f"{out}\n[... truncated {label} ...]"
-
-
-# ---------------------------------------------------------------- PR information
-
-
-def fetch_ddci_metadata() -> dict | None:
-    """PR/merge-base/changed-files metadata from the DDCI Metadata Service.
-
-    Available in CI when the $DDCI_REQUEST_ID env var is set (change analysis
-    for the PR). Returns None when unavailable (e.g. local run, no analysis)
-    so callers can fall back to git + GitHub API.
-    """
-    request_id = os.environ.get("DDCI_REQUEST_ID")
-    if not request_id:
-        print("[info] DDCI_REQUEST_ID not set, skipping DDCI metadata")
-        return None
-    try:
-        with urllib.request.urlopen(f"{DDCI_METADATA_URL}/{request_id}", timeout=15) as resp:
-            data = json.load(resp)
-    except Exception as e:
-        print(f"[warn] could not fetch DDCI metadata for request {request_id}: {e}")
-        return None
-    event = data.get("event", {})
-    if event.get("status") != "completed":
-        print(f"[warn] DDCI analysis status is '{event.get('status')}', not using it")
-        return None
-    req = event.get("request", {})
-    results = event.get("results") or {}
-    meta = {
-        "request_id": request_id,
-        "base_commit": req.get("base_commit"),
-        "head_commit": req.get("head_commit"),
-        "base_ref": req.get("base_ref"),
-        "ref": req.get("ref"),
-        "pr_number": (req.get("pull_request") or {}).get("number"),
-        "author": (req.get("user_info") or {}).get("github_handle"),
-        "changed_files": [
-            (f["path"], f.get("kind", "").replace("FILE_MODIFICATION_KIND_", "").lower())
-            for f in results.get("changed_files", [])
-        ],
-        "impacted_targets": [t["name"] for t in results.get("targets", [])],
-    }
-    print(
-        f"[info] DDCI metadata: PR #{meta['pr_number']}, merge base {str(meta['base_commit'])[:8]}, "
-        f"{len(meta['changed_files'])} changed files, {len(meta['impacted_targets'])} impacted targets"
-    )
-    return meta
-
-
-def fetch_pr_info(base: str, ddci: dict | None) -> dict:
-    """PR title/description from the GitHub API (uses GITHUB_TOKEN if present)."""
-    branch = current_branch()
-    number = ddci.get("pr_number") if ddci else None
-    token = os.environ.get("GITHUB_TOKEN")
-    pr: dict = {"branch": branch, "title": "", "description": ""}
-    if ddci:
-        pr["author"] = ddci.get("author")
-    if not token:
-        print("[warn] GITHUB_TOKEN not set, cannot fetch PR description")
-        return pr
-
-    if number:
-        req = urllib.request.Request(
-            f"{GITHUB_API}/pulls/{number}",
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
-        )
-    elif branch:
-        print(f"[info] no DDCI PR number, looking up PR by branch {branch}")
-        req = urllib.request.Request(
-            f"{GITHUB_API}/pulls?head={REPO.split(':')[0]}:{urllib.parse.quote(branch)}&state=open&per_page=1",
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
-        )
-    else:
-        print("[warn] cannot determine branch name (detached HEAD, no CI env), cannot look up PR")
-        return pr
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            payload = json.load(resp)
-    except Exception as e:
-        print(f"[warn] GitHub API request failed: {e}")
-        return pr
-    if isinstance(payload, list):
-        payload = payload[0] if payload else {}
-        if not payload:
-            print(f"[warn] no open PR found for branch {branch}")
-            return pr
-    print(f"[info] PR #{payload.get('number')}: {payload.get('title')}")
-    pr.update(
-        {"number": payload.get("number"), "title": payload.get("title", ""), "description": payload.get("body") or ""}
-    )
-    return pr
-
-
-def changed_files(base: str, ddci: dict | None) -> tuple[list, str]:
-    """Changed (path, modification_kind) pairs and the merge base used.
-
-    Prefers the DDCI metadata (GitHub-computed merge base + changed files with
-    modification kinds), falls back to a local git merge-base diff.
-    """
-    if ddci and ddci.get("changed_files") is not None:
-        files = ddci["changed_files"][:MAX_CHANGED_FILES]
-        return files, ddci.get("base_commit") or base
-    ref = resolve_ref(base)
-    try:
-        merge_base = git("merge-base", "HEAD", ref)
-    except RuntimeError:
-        merge_base = ref
-    files = [(f, "") for f in git("diff", "--name-only", merge_base, "HEAD").splitlines()]
-    return files[:MAX_CHANGED_FILES], merge_base
-
-
-def _diff_chunk_stats(chunk: str) -> tuple[str, int, int]:
-    """(path, added, deleted) for one per-file diff chunk."""
-    header = chunk.splitlines()[0]
-    m = re.match(r"diff --git a/(.*?) b/(.*)", header)
-    path = (m.group(2) if m else header).strip()
-    added = deleted = 0
-    for line in chunk.splitlines():
-        if line.startswith("+++") or line.startswith("---") or line.startswith("diff --git ") or line.startswith("index "):
-            continue
-        if line.startswith("+"):
-            added += 1
-        elif line.startswith("-"):
-            deleted += 1
-    return path, added, deleted
-
-
-def _chunk_annotation(chunk: str) -> str:
-    """One-line `# <path>: X% of the file modified` header for a diff chunk."""
-    path, added, deleted = _diff_chunk_stats(chunk)
-    changed = added + deleted
-    if "new file mode" in chunk:
-        return f"# {path}: new file ({added} lines added)\n"
-    if "Binary files" in chunk and changed == 0:
-        return f"# {path}: binary file changed\n"
-    try:
-        total = len(open(path, encoding="utf-8", errors="ignore").read().splitlines())
-    except OSError:
-        return f"# {path}: file deleted ({deleted} lines removed)\n"
-    if changed >= total:
-        return f"# {path}: file rewritten ({changed} lines changed, was {total} lines)\n"
-    pct = round(100 * changed / max(total, 1))
-    return f"# {path}: {pct}% of the file modified ({changed} of {total} lines changed)\n"
-
-
-def _split_diff_chunks(diff: str) -> list:
-    """Split a unified diff into per-file chunks."""
-    chunks, current = [], []
-    for line in diff.splitlines(keepends=True):
-        if line.startswith("diff --git "):
-            if current:
-                chunks.append("".join(current))
-            current = [line]
-        else:
-            current.append(line)
-    if current:
-        chunks.append("".join(current))
-    return chunks
-
-
-def files_from_diff(diff: str) -> list:
-    """(path, modification kind) pairs parsed from a unified diff, DDCI-style kinds."""
-    out = []
-    for chunk in _split_diff_chunks(diff):
-        path, _, _ = _diff_chunk_stats(chunk)
-        if "new file mode" in chunk:
-            kind = "added"
-        elif "deleted file mode" in chunk:
-            kind = "deleted"
-        else:
-            kind = "edited"
-        out.append((path, kind))
-    return out
-
-
-def _annotate_diff(diff: str, shortstat: str = "") -> str:
-    """Annotated, truncated diff text: per-file modified-percentage headers,
-    per-file and total size caps. File line counts are read from the CWD, so
-    run this with the PR head checked out."""
-    if not diff:
-        return ""
-    chunks = _split_diff_chunks(diff)
-    parts = [f"# TOTAL: {shortstat.strip() or 'diff of the PR'}\n"]
-    for chunk in chunks:
-        parts.append(_chunk_annotation(chunk))
-        if len(chunk.encode()) <= MAX_DIFF_PER_FILE:
-            parts.append(chunk)
-        else:
-            path, _, _ = _diff_chunk_stats(chunk)
-            parts.append(truncate(chunk, MAX_DIFF_PER_FILE, f"diff of {path}"))
-            parts.append("\n")
-    full = "".join(parts)
-    if len(full.encode()) > MAX_DIFF_BYTES:
-        return full[:MAX_DIFF_BYTES] + "\n[... diff truncated, see the file list above for the remaining files ...]"
-    return full
-
-
-def pr_diff(merge_base: str) -> str:
-    """Annotated, truncated full diff of the working tree vs `merge_base`."""
-    try:
-        diff = git("diff", "--no-color", merge_base, "HEAD")
-        shortstat = git("diff", "--no-color", "--shortstat", merge_base, "HEAD")
-    except RuntimeError as e:
-        print(f"[warn] could not compute the full PR diff: {e}")
-        return ""
-    return _annotate_diff(diff, shortstat)
-
-
-# ---------------------------------------------------------------- test discovery
-
-
-def extract_function(code: str, func_header: str) -> str:
-    """Extract a Go function body from `code`, from the header line to balanced braces."""
-    lines = code.splitlines(keepends=True)
-    start = None
-    for i, line in enumerate(lines):
-        if line.strip().startswith(func_header):
-            start = i
-            break
-    if start is None:
-        return func_header
-    out, depth, opened = [], 0, False
-    for line in lines[start:]:
-        out.append(line)
-        depth += line.count("{") - line.count("}")
-        if "{" in line:
-            opened = True
-        if opened and depth <= 0:
-            break
-    return "".join(out)
-
-
-def strip_license_header(code: str) -> str:
-    """Drop the Apache license header comment from a Go file (noise for the model)."""
-    m = re.search(r"^package ", code, re.MULTILINE)
-    return code[m.start():] if m else code
-
-
-def suite_definition(suite_dir: str) -> tuple[str, str]:
-    """Base suite definition of the e2e suite (the `suite/` subpackage).
-
-    E2e test suites embed a base suite (e.g. `suite.FleetSuite`) defined in
-    `test/new-e2e/tests/<suite>/suite/`: it declares what the suite provisions
-    (platforms, VMs, agent components, install method, backend), which is the
-    main signal for whether a PR can affect the suite. Returns (path, code).
-    """
-    suite_pkg = os.path.join(suite_dir, "suite")
-    if not os.path.isdir(suite_pkg):
-        return "", ""
-    chunks = []
-    for f in sorted(os.listdir(suite_pkg)):
-        if not f.endswith(".go"):
-            continue
-        try:
-            code = open(os.path.join(suite_pkg, f), encoding="utf-8", errors="ignore").read()
-        except OSError:
-            continue
-        code = strip_license_header(code)
-        chunks.append((f, code))
-    if not chunks:
-        return "", ""
-    full = "\n\n".join(f"// --- {f} ---\n{code}" for f, code in chunks)
-    return suite_pkg, truncate(full, MAX_SUITE_DEFINITION_BYTES, "suite definition")
-
-
-def find_test_code(suite_dir: str, test_name: str) -> tuple[str, str]:
-    """Return (file_path, source) for a test entry point or suite method."""
-    for root, _, go_files in os.walk(suite_dir):
-        for f in sorted(go_files):
-            if not f.endswith(".go") or f.endswith("_test_helpers.go"):
-                continue
-            path = os.path.join(root, f)
-            try:
-                code = open(path, encoding="utf-8", errors="ignore").read()
-            except OSError:
-                continue
-            for pattern in (rf"func {test_name}\(", rf"func \(s \*\w+\) {test_name}\("):
-                m = re.search(pattern, code)
-                if m:
-                    header = m.group(0)
-                    return path, extract_function(code, header)
-    return "", test_name  # not found: fall back to the bare name
-
-
-def list_suites(suite_dir: str) -> list:
-    """All test entry points in the suite dir, with the full source of their file.
-
-    Each e2e suite file defines one `func TestXxx(t *testing.T)` entry point that
-    runs a suite of `func (s *...) TestYyy()` methods, so evaluating per entry
-    point with the whole file gives Jev the complete test logic.
-    Returns a list of (entry_point, file_path, file_code).
-    """
-    suites = []
-    for root, _, go_files in os.walk(suite_dir):
-        for f in sorted(go_files):
-            if not f.endswith(".go"):
-                continue
-            path = os.path.join(root, f)
-            code = open(path, encoding="utf-8", errors="ignore").read()
-            code = strip_license_header(code)
-            entries = re.findall(r"^func (Test\w+)\(", code, re.MULTILINE)
-            for entry in entries:
-                suites.append((entry, path, code))
-    return sorted(suites)
-
-
-# ---------------------------------------------------------------- Jev client
-
-
-def get_ai_gateway_token(args: argparse.Namespace) -> str:
-    if args.token:
-        return args.token
-    if os.environ.get("AI_GATEWAY_TOKEN"):
-        return os.environ["AI_GATEWAY_TOKEN"]
-    if args.token_cmd:
-        return run_cmd(args.token_cmd.split()).strip()
-    # laptop fallback
-    # laptop fallback: ddtool prints the raw internal service token by default
-    return run_cmd(
-        ["ddtool", "auth", "token", "rapid-ai-platform", "--datacenter", "us1.staging.dog"]
-    ).strip()
-
-
-def ask_jev(args: argparse.Namespace, token: str, state: str) -> dict:
-    payload = {
-        "state": state,
-        "model": args.model,
-        "questions": QUESTIONS,
-    }
-    req = urllib.request.Request(
-        f"https://ai-gateway.{args.dc}{SYSTEMONE_PATH}",
-        data=json.dumps(payload).encode(),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-            "source": args.source,
-            "org-id": "2",
-            "x-dd-tag-ddagent-ci": "innovation-week-experiment",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            return json.load(resp)
-    except urllib.error.HTTPError as e:
-        body = e.read().decode(errors="ignore")
-        raise RuntimeError(f"AI Gateway HTTP {e.code}: {body}") from e
-
-
-def print_collapsible(name: str, title: str, body: str) -> None:
-    """Print `body` under `title`, in a collapsed GitLab log section when in CI.
-
-    Uses the GitLab CI collapsible-section ANSI markers; falls back to plain
-    printing when not running in GitLab CI (e.g. local dry runs).
-    """
-    if os.environ.get("GITLAB_CI") or os.environ.get("CI_PIPELINE_ID"):
-        start = int(time.time())
-        print(f"\033[0Ksection_start:{start}:{name}[collapsed=true]\r\033[0K{title}")
-        print(body)
-        print(f"\033[0Ksection_end:{int(time.time())}:{name}\r\033[0K")
-    else:
-        print(f"--- {title} ---\n{body}")
-
-
-def build_state(
-    name: str,
-    path: str,
-    code: str,
-    suite: str,
-    team: str,
-    pr: dict,
-    files: list,
-    merge_base: str,
-    diff: str,
-    ddci: dict | None = None,
-    suite_def_code: str = "",
-) -> str:
-    """Assemble the System One state sent to Jev for one test entry point."""
-    files_section = "\n".join(f"- {f} ({kind})" if kind else f"- {f}" for f, kind in files)
-    author = f", author: @{pr['author']}" if pr.get("author") else ""
-    impacted = ""
-    if ddci and ddci.get("impacted_targets"):
-        impacted = "\n\n## Impacted build targets (from DDCI build impact analysis)\n" + ", ".join(
-            ddci["impacted_targets"][:100]
-        )
-    diff_section = f"\n## Full PR diff (per-file patches, truncated to fit)\n```diff\n{diff}\n```" if diff else ""
-    suite_def_section = (
-        f"\n## E2E suite provisioning definition (base suite: platforms, components, install method)\n"
-        f"```go\n{suite_def_code}\n```"
-    ) if suite_def_code else ""
-    return (
-        "## PR under review\n"
-        f"Title: {pr.get('title') or '(unknown)'}{author}\n"
-        f"Description:\n{truncate(pr.get('description') or '(none)', MAX_DESCRIPTION_BYTES, 'description')}\n"
-        f"Owning team of the E2E suite: {team}\n\n"
-        f"## Files changed in this PR (merge base {str(merge_base)[:12]}, {len(files)} files)\n"
-        f"{files_section}{diff_section}{impacted}\n\n"
-        "## E2E test under evaluation\n"
-        f"Test: {name}\n"
-        f"Suite: {suite} ({path})\n"
-        f"Code:\n```go\n{truncate(code, MAX_TEST_CODE_BYTES, 'test code')}\n```{suite_def_section}\n\n"
-        "Context: this is a test in the datadog-agent repository, a large Go monorepo. "
-        "E2E tests provision real VMs and are expensive to run. Decide whether this PR "
-        "plausibly affects what this test verifies."
-    )
-
-
-# ---------------------------------------------------------------- main
+from diff_utils import MAX_DIFF_BYTES, MAX_DIFF_PER_FILE, pr_diff
+from jev_client import (
+    DEFAULT_RUN_THRESHOLD,
+    QUESTIONS,
+    SYSTEMONE_PATH,
+    ask_jev,
+    build_state,
+    decide,
+    fail_open,
+    get_ai_gateway_token,
+    print_collapsible,
+)
+from pr_context import changed_files, fetch_ddci_metadata, fetch_pr_info
+from test_discovery import E2E_TESTS_DIR, list_suites, suite_definition
 
 
 def main() -> int:
@@ -559,7 +56,10 @@ def main() -> int:
     parser.add_argument("--token", help="Raw internal auth token (default: $AI_GATEWAY_TOKEN)")
     parser.add_argument("--token-cmd", help="Command producing a raw token, e.g. authanywhere invocation")
     parser.add_argument(
-        "--run-threshold", type=float, default=0.5, help="should_execute value above which the test runs"
+        "--run-threshold",
+        type=float,
+        default=DEFAULT_RUN_THRESHOLD,
+        help="should_execute value above which the test runs (see jev_client.decide)",
     )
     parser.add_argument("--output", default="jev_e2e_decisions.json", help="JSON output path")
     parser.add_argument(
@@ -567,7 +67,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    suite_dir = os.path.join("test", "new-e2e", "tests", args.suite)
+    suite_dir = os.path.join(E2E_TESTS_DIR, args.suite)
     if not os.path.isdir(suite_dir):
         print(f"error: no e2e suite at {suite_dir}", file=sys.stderr)
         return 1
@@ -609,8 +109,17 @@ def main() -> int:
     decisions = []
     for name, path, code in suites:
         state = build_state(
-            name, path, code, args.suite, team, pr, files, merge_base, diff,
-            ddci=ddci, suite_def_code=suite_def_code,
+            name,
+            path,
+            code,
+            args.suite,
+            team,
+            pr,
+            files,
+            merge_base,
+            diff,
+            ddci=ddci,
+            suite_def_code=suite_def_code,
         )
         if args.dry_run:
             print(f"--- state for {name} (dry run, not sent) ---\n{state}\n")
@@ -630,26 +139,19 @@ def main() -> int:
             answer = ask_jev(args, token, state)
         except Exception as e:  # fail open: if Jev is unavailable, run the test
             print(f"[warn] Jev call failed for {name}: {e} -> defaulting to RUN")
-            decisions.append({"test": name, "should_execute": 1.0, "error": str(e), "decision": "run"})
+            decisions.append({"test": name, **fail_open(e)})
             continue
 
-        a = answer["answers"]
-        should = a["should_execute"]["noul"]
-        relation = a["relation"]["choice"]
-        confidence = a["confidence"]["score"]
-        decision = "run" if should >= args.run_threshold or relation != "unrelated" else "skip"
+        # Single decision source: jev_client.decide (shared with the eval)
         row = {
             "test": name,
-            "should_execute": should,
-            "relation": relation,
-            "confidence": confidence,
-            "decision": decision,
+            **decide(answer["answers"], args.run_threshold),
             "usage": answer.get("usage"),
         }
         decisions.append(row)
         print(
-            f"[jev] {name:<45} -> {decision.upper():4}  should_execute={should:.2f}  "
-            f"relation={relation}  confidence={confidence:.2f}"
+            f"[jev] {name:<45} -> {row['decision'].upper():4}  should_execute={row['should_execute']:.2f}  "
+            f"relation={row['relation']}  confidence={row['confidence']:.2f}"
         )
 
     if not args.dry_run:
