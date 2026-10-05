@@ -1,0 +1,15 @@
+---
+enhancements:
+  - |
+    Process collection now reports, for each parent process,
+    the number of zombie child processes it currently has
+    and the net rate at which it creates or reaps them.
+    Individual zombie processes continue to be collected.
+    The ``datadog-agent processchecks process`` output shows these values
+    as ``Zombie Children`` and ``Net Rate``.
+fixes:
+  - |
+    When ``process_config.ignore_zombie_processes`` is enabled, zombie processes
+    are no longer reported in real-time process collection.
+    Previously, zombie processes on macOS, and processes on Linux that became
+    zombies after being collected, could still appear.

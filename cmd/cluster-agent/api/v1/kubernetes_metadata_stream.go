@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -32,6 +34,17 @@ const (
 	// prevent the client from treating an idle stream as dead.
 	keepAliveInterval   = 9 * time.Minute
 	wmetaSubscriberName = "kube-metadata-stream"
+	// Keep a bounded history of shared diffs. Streams that fall behind receive
+	// a full state instead, so coalesced notifications cannot lose deletions.
+	metadataHistorySize = 128
+)
+
+var metadataStreamHistoryResyncs = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+	"metadata_streaming",
+	"history_resyncs",
+	nil,
+	"Number of full metadata states successfully sent because an agent fell behind the retained version history",
+	telemetry.Options{NoDoubleUnderscoreSep: true},
 )
 
 type podServiceEntry struct {
@@ -92,8 +105,11 @@ type KubeMetadataStreamServer struct {
 	store *controllers.MetaBundleStore
 	wmeta workloadmeta.Component
 
-	metadataMutex sync.RWMutex
-	metadata      metadataSnapshot
+	metadataMutex   sync.RWMutex
+	metadata        metadataSnapshot
+	metadataVersion uint64
+	// Responses are immutable after publication and shared by all streams.
+	metadataHistory [metadataHistorySize]*pb.KubeMetadataStreamResponse
 	// namespaceSubscribers holds notification channels per node name. A node
 	// can have multiple subscribers because more than one process (for example,
 	// the running agent plus "agent diagnose", "agent check", etc.) may stream
@@ -159,8 +175,8 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 
 	// Send initial full state
 	lastSentPodServicesState := srv.buildPodServiceMappingsSnapshot(nodeName)
-	lastSentMetadataState := srv.buildMetadataSnapshot()
-	initialResp := fullStateResponse(lastSentPodServicesState, lastSentMetadataState)
+	metadata, lastSentMetadataVersion := srv.buildMetadataSnapshotWithVersion()
+	initialResp := fullStateResponse(lastSentPodServicesState, metadata)
 	initialSendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_full_state",
 		tracer.ResourceName("sendFullState"),
 		tracer.Tag(ext.SpanKind, ext.SpanKindServer),
@@ -204,20 +220,28 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 			ticker.Reset(keepAliveInterval)
 
 		case <-namespacesNotifyCh:
-			currentMetadataState := srv.buildMetadataSnapshot()
-			metadataDiff := computeMetadataDiff(lastSentMetadataState, currentMetadataState)
-			if metadataDiff.isEmpty() {
-				continue
+			updates, version, ok := srv.metadataUpdatesSince(lastSentMetadataVersion)
+			if !ok {
+				// A full state replaces all client caches, including pod-service
+				// mappings. Refresh their baseline along with the metadata cursor.
+				lastSentPodServicesState = srv.buildPodServiceMappingsSnapshot(nodeName)
+				metadata, currentVersion := srv.buildMetadataSnapshotWithVersion()
+				updates = []*pb.KubeMetadataStreamResponse{fullStateResponse(lastSentPodServicesState, metadata)}
+				version = currentVersion
 			}
-			resp := metadataDiff.response(false)
-			if err := grpc.DoWithTimeout(func() error {
-				return stream.Send(resp)
-			}, streamSendTimeout); err != nil {
-				log.Warnf("Error sending metadata diff for node %s: %s", nodeName, err)
-				return err
+			for _, resp := range updates {
+				if err := grpc.DoWithTimeout(func() error {
+					return stream.Send(resp)
+				}, streamSendTimeout); err != nil {
+					log.Warnf("Error sending metadata update for node %s: %s", nodeName, err)
+					return err
+				}
+				if !ok {
+					metadataStreamHistoryResyncs.Inc()
+				}
+				ticker.Reset(keepAliveInterval)
 			}
-			lastSentMetadataState = currentMetadataState
-			ticker.Reset(keepAliveInterval)
+			lastSentMetadataVersion = version
 
 		case <-ticker.C:
 			// Send empty keepalive
@@ -241,6 +265,8 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 	srv.metadataMutex.Lock()
 	defer srv.metadataMutex.Unlock()
 
+	// Snapshot and compare once per bundle, not once per connected agent.
+	previous := srv.metadata.clone()
 	changed := false
 	for _, event := range events {
 		switch entity := event.Entity.(type) {
@@ -266,8 +292,32 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 	}
 
 	if changed {
-		srv.notifyNamespaceSubscribers()
+		diff := computeMetadataDiff(previous, srv.metadata)
+		if !diff.isEmpty() {
+			srv.metadataVersion++
+			srv.metadataHistory[srv.metadataVersion%metadataHistorySize] = diff.response(false)
+			srv.notifyNamespaceSubscribers()
+		}
 	}
+}
+
+// metadataUpdatesSince returns shared, ordered diffs up to the current version.
+// A false result means the cursor is too old and needs a full-state resync.
+func (srv *KubeMetadataStreamServer) metadataUpdatesSince(version uint64) ([]*pb.KubeMetadataStreamResponse, uint64, bool) {
+	srv.metadataMutex.RLock()
+	defer srv.metadataMutex.RUnlock()
+
+	if srv.metadataVersion-version > metadataHistorySize {
+		return nil, srv.metadataVersion, false
+	}
+	if version == srv.metadataVersion {
+		return nil, version, true
+	}
+	updates := make([]*pb.KubeMetadataStreamResponse, 0, srv.metadataVersion-version)
+	for next := version + 1; next <= srv.metadataVersion; next++ {
+		updates = append(updates, srv.metadataHistory[next%metadataHistorySize])
+	}
+	return updates, srv.metadataVersion, true
 }
 
 func (s *metadataSnapshot) processNamespaceEvent(eventType workloadmeta.EventType, metadata *workloadmeta.KubernetesMetadata) bool {
@@ -383,8 +433,8 @@ func (srv *KubeMetadataStreamServer) notifyNamespaceSubscribers() {
 		for _, ch := range channels {
 			select {
 			// Non-blocking send: if a signal is already pending, we drop it.
-			// This is safe because the consumer re-reads the full state from
-			// the store on each signal.
+			// The consumer replays shared diffs since its last version, or
+			// resyncs the full state if those diffs are no longer retained.
 			case ch <- struct{}{}:
 			default:
 			}
@@ -443,14 +493,23 @@ func (srv *KubeMetadataStreamServer) buildKueueWorkloadsSnapshot() map[string]ku
 }
 
 func (srv *KubeMetadataStreamServer) buildMetadataSnapshot() metadataSnapshot {
+	snapshot, _ := srv.buildMetadataSnapshotWithVersion()
+	return snapshot
+}
+
+func (srv *KubeMetadataStreamServer) buildMetadataSnapshotWithVersion() (metadataSnapshot, uint64) {
 	srv.metadataMutex.RLock()
 	defer srv.metadataMutex.RUnlock()
 
+	return srv.metadata.clone(), srv.metadataVersion
+}
+
+func (s metadataSnapshot) clone() metadataSnapshot {
 	snapshot := newMetadataSnapshot()
-	maps.Copy(snapshot.namespaces, srv.metadata.namespaces)
-	maps.Copy(snapshot.kueueQueues, srv.metadata.kueueQueues)
-	maps.Copy(snapshot.kueueResourceFlavors, srv.metadata.kueueResourceFlavors)
-	maps.Copy(snapshot.kueueWorkloads, srv.metadata.kueueWorkloads)
+	maps.Copy(snapshot.namespaces, s.namespaces)
+	maps.Copy(snapshot.kueueQueues, s.kueueQueues)
+	maps.Copy(snapshot.kueueResourceFlavors, s.kueueResourceFlavors)
+	maps.Copy(snapshot.kueueWorkloads, s.kueueWorkloads)
 	return snapshot
 }
 

@@ -95,9 +95,7 @@ def versioninfo_vars(ctx):
     build_maj, build_min, build_patch = ver.split(".")
 
     return {
-        'PY3_RUNTIME': 1,
         'MAJ_VER': build_maj,
         'MIN_VER': build_min,
         'PATCH_VER': build_patch,
-        'BUILD_ARCH_x64': 1,
     }
