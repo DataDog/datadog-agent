@@ -55,7 +55,7 @@ func TestModule_LogsEnabledWithLossReports(t *testing.T) {
 		t.Run(yaml, func(t *testing.T) {
 			logsmetrics.ResetMissedBytesForTest()
 			logsmetrics.MarkLogsAgentRunning()
-			logsmetrics.RecordMissedBytes("nginx", "web", 4096, time.Now())
+			logsmetrics.RecordMissedBytes("nginx", "web", 4096, nil, time.Now())
 
 			n, err := runModule(t, yaml)
 

@@ -49,7 +49,7 @@ func reportBackpressure(t *testing.T, ctx map[string]string) backpressureWire {
 // issues as "everything resolved".
 func TestCheck_LogsAgentNotRunningErrors(t *testing.T) {
 	c := newTestChecker(t, "host-a")
-	logsmetrics.RecordMissedBytes("nginx", "web", 1024, time.Now())
+	logsmetrics.RecordMissedBytes("nginx", "web", 1024, nil, time.Now())
 
 	reports, err := c.Run()
 	require.ErrorIs(t, err, errLogsAgentNotRunning)
@@ -69,9 +69,9 @@ func TestCheck_NoLossReportsNothing(t *testing.T) {
 func TestCheck_LossProducesOneSummaryReport(t *testing.T) {
 	c := newTestChecker(t, "host-a")
 	logsmetrics.MarkLogsAgentRunning()
-	logsmetrics.RecordMissedBytes("nginx", "web", 4000000, time.Now())
-	logsmetrics.RecordMissedBytes("nginx", "web", 200000, time.Now())
-	logsmetrics.RecordMissedBytes("redis", "cache", 512, time.Now())
+	logsmetrics.RecordMissedBytes("nginx", "web", 4000000, nil, time.Now())
+	logsmetrics.RecordMissedBytes("nginx", "web", 200000, nil, time.Now())
+	logsmetrics.RecordMissedBytes("redis", "cache", 512, nil, time.Now())
 
 	reports, err := c.Run()
 	require.NoError(t, err)
@@ -98,8 +98,8 @@ func TestCheck_LossProducesOneSummaryReport(t *testing.T) {
 func TestCheck_SourceCountIgnoresServices(t *testing.T) {
 	c := newTestChecker(t, "host-a")
 	logsmetrics.MarkLogsAgentRunning()
-	logsmetrics.RecordMissedBytes("nginx", "web", 4000000, time.Now())
-	logsmetrics.RecordMissedBytes("nginx", "api", 200000, time.Now())
+	logsmetrics.RecordMissedBytes("nginx", "web", 4000000, nil, time.Now())
+	logsmetrics.RecordMissedBytes("nginx", "api", 200000, nil, time.Now())
 
 	reports, err := c.Run()
 	require.NoError(t, err)
@@ -124,7 +124,7 @@ func TestCheck_BreakdownKeepsLargestSourcesAndCountsTheRest(t *testing.T) {
 	// Named so snapshot order is the reverse of byte order: source-00 loses least.
 	const total = maxBreakdownSources + 2
 	for i := 0; i < total; i++ {
-		logsmetrics.RecordMissedBytes(fmt.Sprintf("source-%02d", i), "svc", int64(i+1)*1000, time.Now())
+		logsmetrics.RecordMissedBytes(fmt.Sprintf("source-%02d", i), "svc", int64(i+1)*1000, nil, time.Now())
 	}
 
 	reports, err := c.Run()
@@ -152,9 +152,9 @@ func TestCheck_BreakdownKeepsLargestSourcesAndCountsTheRest(t *testing.T) {
 func TestCheck_BreakdownOrderIsDeterministicOnTies(t *testing.T) {
 	c := newTestChecker(t, "host-a")
 	logsmetrics.MarkLogsAgentRunning()
-	logsmetrics.RecordMissedBytes("beta", "two", 1000, time.Now())
-	logsmetrics.RecordMissedBytes("alpha", "two", 1000, time.Now())
-	logsmetrics.RecordMissedBytes("alpha", "one", 1000, time.Now())
+	logsmetrics.RecordMissedBytes("beta", "two", 1000, nil, time.Now())
+	logsmetrics.RecordMissedBytes("alpha", "two", 1000, nil, time.Now())
+	logsmetrics.RecordMissedBytes("alpha", "one", 1000, nil, time.Now())
 
 	reports, err := c.Run()
 	require.NoError(t, err)
@@ -188,10 +188,11 @@ func TestCheck_UnmeasuredPipelineOmitsBackpressure(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			c := newTestChecker(t, "host-a")
 			logsmetrics.MarkLogsAgentRunning()
+			var pm logsmetrics.PipelineMonitor
 			if registered {
-				logsmetrics.RegisterFakePipelineMonitorForTest(nil)
+				pm = logsmetrics.RegisterFakePipelineMonitorForTest(nil)
 			}
-			logsmetrics.RecordMissedBytes("nginx", "web", 1024, time.Now())
+			logsmetrics.RecordMissedBytes("nginx", "web", 1024, pm, time.Now())
 
 			reports, err := c.Run()
 			require.NoError(t, err)
@@ -208,11 +209,11 @@ func TestCheck_UnmeasuredPipelineOmitsBackpressure(t *testing.T) {
 func TestCheck_BackpressureCarriesBottleneck(t *testing.T) {
 	c := newTestChecker(t, "host-a")
 	logsmetrics.MarkLogsAgentRunning()
-	logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
+	pm := logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
 		logsmetrics.SaturatedSnapshotForTest("processor", "0", 0.12, 0, false),
 		logsmetrics.SaturatedSnapshotForTest("destination_reliable_0", "0", 0.98, 29*time.Minute, true),
 	})
-	logsmetrics.RecordMissedBytes("nginx", "web", 1024, time.Now())
+	logsmetrics.RecordMissedBytes("nginx", "web", 1024, pm, time.Now())
 
 	reports, err := c.Run()
 	require.NoError(t, err)
@@ -241,11 +242,11 @@ func TestCheck_GlobalBottleneckUsesAllAttributions(t *testing.T) {
 	logsmetrics.MarkLogsAgentRunning()
 
 	record := func(source, component string, count int) {
-		logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
+		pm := logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
 			logsmetrics.SaturatedSnapshotForTest(component, "0", 0.99, time.Minute, true),
 		})
 		for i := 0; i < count; i++ {
-			logsmetrics.RecordMissedBytes(source, "svc", 1, time.Now().Add(-time.Minute))
+			logsmetrics.RecordMissedBytes(source, "svc", 1, pm, time.Now().Add(-time.Minute))
 		}
 	}
 	record("source-a", "processor", 6)
@@ -281,11 +282,11 @@ func TestCheck_GlobalBottleneckSurvivesReportCaps(t *testing.T) {
 		if i == maxBackpressureComponents {
 			component, bytes, rotations = winner, 1, 20
 		}
-		logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
+		pm := logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
 			logsmetrics.SaturatedSnapshotForTest(component, "0", 0.99, time.Minute, true),
 		})
 		for j := 0; j < rotations; j++ {
-			logsmetrics.RecordMissedBytes(fmt.Sprintf("source-%02d", i), "svc", bytes, time.Now().Add(-time.Minute))
+			logsmetrics.RecordMissedBytes(fmt.Sprintf("source-%02d", i), "svc", bytes, pm, time.Now().Add(-time.Minute))
 		}
 	}
 
@@ -305,10 +306,10 @@ func TestCheck_GlobalBottleneckSurvivesReportCaps(t *testing.T) {
 func TestCheck_HealthyPipelineRecordsNoBottleneck(t *testing.T) {
 	c := newTestChecker(t, "host-a")
 	logsmetrics.MarkLogsAgentRunning()
-	logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
+	pm := logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
 		logsmetrics.SaturatedSnapshotForTest("processor", "0", 0.05, 0, false),
 	})
-	logsmetrics.RecordMissedBytes("nginx", "web", 1024, time.Now())
+	logsmetrics.RecordMissedBytes("nginx", "web", 1024, pm, time.Now())
 
 	reports, err := c.Run()
 	require.NoError(t, err)
@@ -331,8 +332,8 @@ func TestCheck_BackpressureComponentsAreCappedAndCounted(t *testing.T) {
 		snaps = append(snaps, logsmetrics.SaturatedSnapshotForTest(
 			fmt.Sprintf("destination_%02d", i), "0", 0.9, time.Duration(100-i)*time.Second, false))
 	}
-	logsmetrics.RegisterFakePipelineMonitorForTest(snaps)
-	logsmetrics.RecordMissedBytes("nginx", "web", 1024, time.Now())
+	pm := logsmetrics.RegisterFakePipelineMonitorForTest(snaps)
+	logsmetrics.RecordMissedBytes("nginx", "web", 1024, pm, time.Now())
 
 	reports, err := c.Run()
 	require.NoError(t, err)
@@ -349,12 +350,12 @@ func TestCheck_BackpressureComponentsAreCappedAndCounted(t *testing.T) {
 func TestCheck_BackpressureEncodingIsStable(t *testing.T) {
 	c := newTestChecker(t, "host-a")
 	logsmetrics.MarkLogsAgentRunning()
-	logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
+	pm := logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
 		// A ratio with more precision than the wire keeps.
 		logsmetrics.SaturatedSnapshotForTest("worker", "q0s0", 0.98123456789, time.Minute, true),
 		logsmetrics.SaturatedSnapshotForTest("strategy", "0", 0.98123456789, time.Minute, true),
 	})
-	logsmetrics.RecordMissedBytes("nginx", "web", 1024, time.Now())
+	logsmetrics.RecordMissedBytes("nginx", "web", 1024, pm, time.Now())
 
 	first, err := c.Run()
 	require.NoError(t, err)

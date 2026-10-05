@@ -591,6 +591,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 		Registry:        s.registry,
 		Fingerprint:     fingerprint,
 		Fingerprinter:   s.fingerprinter,
+		PipelineMonitor: s.pipelineProvider.GetPipelineMonitor(),
 		Rotated:         true,
 		FileOpener:      s.fileOpener,
 	}
@@ -720,6 +721,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		Registry:        s.registry,
 		Fingerprint:     fingerprint,
 		Fingerprinter:   s.fingerprinter,
+		PipelineMonitor: s.pipelineProvider.GetPipelineMonitor(),
 		FileOpener:      s.fileOpener,
 	}
 

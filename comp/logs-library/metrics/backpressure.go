@@ -15,11 +15,11 @@ import (
 )
 
 const (
-	// BackpressureSaturated means a blocking component is at or above threshold right now.
+	// BackpressureSaturated means a component is at or above threshold right now.
 	BackpressureSaturated = "SATURATED"
-	// BackpressureWarning means a blocking component was saturated in the trailing 30m, but not now.
+	// BackpressureWarning means a component was saturated in the trailing 30m, but not now.
 	BackpressureWarning = "WARNING"
-	// BackpressureHealthy means no blocking component has been saturated in the trailing 30m.
+	// BackpressureHealthy means no component has been saturated in the trailing 30m.
 	BackpressureHealthy = "HEALTHY"
 )
 
@@ -73,15 +73,12 @@ func canBackpressure(component string) bool {
 	return !strings.HasPrefix(component, "destination_unreliable_")
 }
 
-// SelectBottleneck returns the overall state and the blocking component responsible for it.
+// SelectBottleneck returns the overall state and the component responsible for it.
 func SelectBottleneck(comps []ComponentBackpressure) (string, *ComponentBackpressure) {
 	var currSat, sat1m, sat30m *ComponentBackpressure
 
 	for i := range comps {
 		c := &comps[i]
-		if !canBackpressure(c.Component) {
-			continue
-		}
 		if c.CurrentlySaturated && (currSat == nil || outranks(c, currSat, c.AvgRatio, currSat.AvgRatio)) {
 			currSat = c
 		}
@@ -104,8 +101,8 @@ func SelectBottleneck(comps []ComponentBackpressure) (string, *ComponentBackpres
 	return BackpressureHealthy, nil
 }
 
-// DeriveBackpressure summarises a pipeline monitor's snapshots. A monitor with no measurable
-// component yields the zero value: measuring nothing is not measuring a healthy pipeline.
+// DeriveBackpressure summarises a pipeline monitor's snapshots, ranking only blocking components.
+// A monitor with no measurable component yields the zero value: measuring nothing is not healthy.
 func DeriveBackpressure(snaps []ComponentSnapshot) BackpressureSummary {
 	comps := make([]ComponentBackpressure, 0, len(snaps))
 	for _, s := range snaps {
@@ -134,7 +131,13 @@ func DeriveBackpressure(snaps []ComponentSnapshot) BackpressureSummary {
 		return BackpressureSummary{}
 	}
 
-	state, bottleneck := SelectBottleneck(comps)
+	blocking := make([]ComponentBackpressure, 0, len(comps))
+	for _, c := range comps {
+		if canBackpressure(c.Component) {
+			blocking = append(blocking, c)
+		}
+	}
+	state, bottleneck := SelectBottleneck(blocking)
 	summary := BackpressureSummary{State: state, Components: comps}
 	if bottleneck != nil {
 		// Copy: the sort below moves the element the pointer refers to.
@@ -328,6 +331,9 @@ var bottleneck = newBottleneckCache(clock.New())
 
 // currentBottleneckComponent names a stage saturated during the loss window, NoBottleneck
 // when no blocking component was observed saturated in it, or "" when attribution is unknown.
-func currentBottleneckComponent(lossWindowStartedAt time.Time) string {
+func currentBottleneckComponent(pm PipelineMonitor, lossWindowStartedAt time.Time) string {
+	if pm == nil || pm != registeredPipelineMonitor() {
+		return ""
+	}
 	return bottleneck.get(lossWindowStartedAt)
 }

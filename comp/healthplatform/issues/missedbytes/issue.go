@@ -337,11 +337,11 @@ func componentAsExtra(c logsmetrics.ComponentBackpressure) map[string]any {
 func describeCause(bp *backpressureWire, atLoss string, rotations int64) string {
 	if atLoss != "" {
 		if atLoss == logsmetrics.NoBottleneck {
-			return fmt.Sprintf("During %d of these %s no monitored blocking stage of the logs pipeline was saturated.",
-				rotations, pluralize(rotations, "rotation"))
+			return fmt.Sprintf("During %d of these rotations no monitored blocking stage of the logs pipeline was saturated.",
+				rotations)
 		}
-		return fmt.Sprintf("The %s stage of the logs pipeline was saturated during %d of these %s.",
-			atLoss, rotations, pluralize(rotations, "rotation"))
+		return fmt.Sprintf("The %s stage of the logs pipeline was saturated during %d of these rotations.",
+			atLoss, rotations)
 	}
 
 	if bp == nil || bp.Bottleneck == nil {

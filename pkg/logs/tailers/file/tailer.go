@@ -132,6 +132,7 @@ type Tailer struct {
 	fingerprinter   Fingerprinter
 	registry        auditor.Registry
 	CapacityMonitor *metrics.CapacityMonitor
+	pipelineMonitor metrics.PipelineMonitor
 	fileOpener      opener.FileOpener
 }
 
@@ -148,6 +149,7 @@ type TailerOptions struct {
 	Fingerprinter   Fingerprinter            // Required
 	Registry        auditor.Registry         // Required
 	CapacityMonitor *metrics.CapacityMonitor // Required
+	PipelineMonitor metrics.PipelineMonitor  // Optional: rotation losses are unattributed without it
 	FileOpener      opener.FileOpener        // Required
 }
 
@@ -207,6 +209,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		fingerprint:                  opts.Fingerprint,
 		fingerprinter:                opts.Fingerprinter,
 		CapacityMonitor:              opts.CapacityMonitor,
+		pipelineMonitor:              opts.PipelineMonitor,
 		registry:                     opts.Registry,
 		fileOpener:                   opts.FileOpener,
 	}
@@ -249,6 +252,7 @@ func (t *Tailer) NewRotatedTailer(
 		Fingerprint:     fingerprint,
 		Fingerprinter:   fingerprinter,
 		Registry:        registry,
+		PipelineMonitor: t.pipelineMonitor,
 		FileOpener:      t.fileOpener,
 	}
 
@@ -330,7 +334,7 @@ func (t *Tailer) StopAfterFileRotation() {
 					if remainingBytes > 0 {
 						metrics.BytesMissed.Add(remainingBytes)
 						metrics.TlmBytesMissed.Add(float64(remainingBytes))
-						metrics.RecordMissedBytes(missedSource, missedService, remainingBytes, lossWindowStartedAt)
+						metrics.RecordMissedBytes(missedSource, missedService, remainingBytes, t.pipelineMonitor, lossWindowStartedAt)
 						log.Warnf("After rotation close timeout (%s), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
 					}
 				}

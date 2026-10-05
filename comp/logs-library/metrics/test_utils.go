@@ -33,9 +33,12 @@ type fakePipelineMonitor struct {
 
 func (f *fakePipelineMonitor) Snapshots() []ComponentSnapshot { return f.snaps }
 
-// RegisterFakePipelineMonitorForTest makes BackpressureSnapshot derive its summary from snaps.
-func RegisterFakePipelineMonitorForTest(snaps []ComponentSnapshot) {
-	RegisterPipelineMonitor(&fakePipelineMonitor{snaps: snaps})
+// RegisterFakePipelineMonitorForTest makes BackpressureSnapshot derive its summary from snaps,
+// and returns the registered monitor for RecordMissedBytes.
+func RegisterFakePipelineMonitorForTest(snaps []ComponentSnapshot) PipelineMonitor {
+	pm := &fakePipelineMonitor{snaps: snaps}
+	RegisterPipelineMonitor(pm)
+	return pm
 }
 
 // SaturatedSnapshotForTest builds one component snapshot saturated for sat30m of the last 30

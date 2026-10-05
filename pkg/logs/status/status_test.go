@@ -229,6 +229,17 @@ func TestGetBackpressureStatus_SaturatedPicksHighestRatio(t *testing.T) {
 	assert.Contains(t, bp.Reason, "sender", "highest AvgRatio component must appear in reason")
 }
 
+func TestGetBackpressureStatus_SaturatedNonblockingDestination(t *testing.T) {
+	b := &Builder{}
+	utils := []ComponentUtilization{
+		{Name: "processor", Instance: "0", AvgRatio: 0.2},
+		{Name: "destination_unreliable_0", Instance: "0", AvgRatio: 0.99, CurrentlySaturated: true, Saturated30mSeconds: 60},
+	}
+	bp := b.getBackpressureStatus(utils)
+	assert.Equal(t, "SATURATED", bp.State)
+	assert.Contains(t, bp.Reason, "destination_unreliable_0")
+}
+
 func TestGetBackpressureStatus_WarningPicksHighestSat1m(t *testing.T) {
 	b := &Builder{}
 	utils := []ComponentUtilization{

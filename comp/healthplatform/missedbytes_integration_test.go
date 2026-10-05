@@ -55,13 +55,13 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 	// Stands in for a running logs agent with a saturated destination, and two lossy
 	// rotations attributed to it.
 	logsmetrics.MarkLogsAgentRunning()
-	logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
+	pm := logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
 		logsmetrics.SaturatedSnapshotForTest("processor", "0", 0.1, 0, false),
 		logsmetrics.SaturatedSnapshotForTest("destination_reliable_0", "0", 0.98, 29*time.Minute, true),
 		logsmetrics.SaturatedSnapshotForTest("destination_unreliable_0", "0", 0.99, 30*time.Minute, true),
 	})
-	logsmetrics.RecordMissedBytes("nginx", "web", 4096, time.Now())
-	logsmetrics.RecordMissedBytes("redis", "cache", 1024, time.Now())
+	logsmetrics.RecordMissedBytes("nginx", "web", 4096, pm, time.Now())
+	logsmetrics.RecordMissedBytes("redis", "cache", 1024, pm, time.Now())
 
 	ready := make(chan bool, 1)
 	fi := fakeintakeserver.NewServer(

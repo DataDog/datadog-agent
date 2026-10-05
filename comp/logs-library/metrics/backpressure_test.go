@@ -283,7 +283,7 @@ func TestCurrentBottleneckComponent(t *testing.T) {
 			RegisterPipelineMonitor(tc.monitor)
 			t.Cleanup(ResetPipelineMonitorForTest)
 			assert.Equal(t, tc.state, BackpressureSnapshot().State)
-			assert.Equal(t, tc.component, currentBottleneckComponent(time.Now().Add(-time.Minute)))
+			assert.Equal(t, tc.component, currentBottleneckComponent(tc.monitor, time.Now().Add(-time.Minute)))
 		})
 	}
 }
@@ -297,21 +297,27 @@ func TestCurrentBottleneckComponentUsesActualLossWindow(t *testing.T) {
 	snapshot := saturatedSnapshot("strategy", 0.9, 30*time.Second, 20*time.Minute, false)
 	snapshot.Windows.HasLastSaturated = true
 
+	register := func() PipelineMonitor {
+		pm := &stubPipelineMonitor{snaps: []ComponentSnapshot{snapshot}}
+		RegisterPipelineMonitor(pm)
+		return pm
+	}
+
 	snapshot.Windows.LastSaturatedAt = now.Add(-30 * time.Second)
-	RegisterPipelineMonitor(&stubPipelineMonitor{snaps: []ComponentSnapshot{snapshot}})
+	pm := register()
 	require.Equal(t, BackpressureWarning, BackpressureSnapshot().State, "the snapshot still carries the history")
-	assert.Empty(t, currentBottleneckComponent(now.Add(-5*time.Second)),
+	assert.Empty(t, currentBottleneckComponent(pm, now.Add(-5*time.Second)),
 		"saturation that ended before the loss is neither the cause nor proof of health")
 
 	// CurrentlySaturated is debounced and may remain true after the last saturated sample.
 	// The timestamp still wins when that sample predates the rotation.
 	snapshot.Windows.CurrentlySaturated = true
-	RegisterPipelineMonitor(&stubPipelineMonitor{snaps: []ComponentSnapshot{snapshot}})
-	assert.Empty(t, currentBottleneckComponent(now.Add(-5*time.Second)))
+	pm = register()
+	assert.Empty(t, currentBottleneckComponent(pm, now.Add(-5*time.Second)))
 
 	snapshot.Windows.LastSaturatedAt = now.Add(-2 * time.Second)
-	RegisterPipelineMonitor(&stubPipelineMonitor{snaps: []ComponentSnapshot{snapshot}})
-	assert.Equal(t, "strategy", currentBottleneckComponent(now.Add(-5*time.Second)),
+	pm = register()
+	assert.Equal(t, "strategy", currentBottleneckComponent(pm, now.Add(-5*time.Second)),
 		"recovered saturation inside the post-rotation window remains attributable")
 }
 
@@ -356,16 +362,30 @@ func TestRegisterPipelineMonitorInvalidatesCache(t *testing.T) {
 	ResetPipelineMonitorForTest()
 	t.Cleanup(ResetPipelineMonitorForTest)
 
+	oldMonitor := &stubPipelineMonitor{
+		snaps: []ComponentSnapshot{saturatedSnapshot("strategy", 0.95, 0, time.Minute, true)},
+	}
+	RegisterPipelineMonitor(oldMonitor)
+	lossWindowStartedAt := time.Now().Add(-time.Minute)
+	require.Equal(t, "strategy", currentBottleneckComponent(oldMonitor, lossWindowStartedAt))
+
+	newMonitor := &stubPipelineMonitor{
+		snaps: []ComponentSnapshot{saturatedSnapshot("processor", 0.99, 0, time.Minute, true)},
+	}
+	RegisterPipelineMonitor(newMonitor)
+	assert.Equal(t, "processor", currentBottleneckComponent(newMonitor, lossWindowStartedAt))
+	assert.Empty(t, currentBottleneckComponent(oldMonitor, lossWindowStartedAt),
+		"a tailer of the replaced pipeline must not be judged by the new one")
+}
+
+// The anomaly detection observer runs its own file launcher on a pipeline with a no-op monitor.
+func TestCurrentBottleneckComponentIgnoresUnregisteredPipeline(t *testing.T) {
 	RegisterPipelineMonitor(&stubPipelineMonitor{
 		snaps: []ComponentSnapshot{saturatedSnapshot("strategy", 0.95, 0, time.Minute, true)},
 	})
-	lossWindowStartedAt := time.Now().Add(-time.Minute)
-	require.Equal(t, "strategy", currentBottleneckComponent(lossWindowStartedAt))
+	t.Cleanup(ResetPipelineMonitorForTest)
 
-	RegisterPipelineMonitor(&stubPipelineMonitor{
-		snaps: []ComponentSnapshot{saturatedSnapshot("processor", 0.99, 0, time.Minute, true)},
-	})
-	assert.Equal(t, "processor", currentBottleneckComponent(lossWindowStartedAt))
+	assert.Empty(t, currentBottleneckComponent(NewNoopPipelineMonitor("observer-logs-0"), time.Now().Add(-time.Minute)))
 }
 
 // A transport restart can replace the registered monitor while a tailer is deriving a
@@ -383,7 +403,7 @@ func TestRegisterPipelineMonitorDuringSnapshotRetriesWithNewMonitor(t *testing.T
 
 	result := make(chan string, 1)
 	go func() {
-		result <- currentBottleneckComponent(time.Now().Add(-time.Minute))
+		result <- bottleneck.get(time.Now().Add(-time.Minute))
 	}()
 
 	select {
@@ -405,6 +425,6 @@ func TestRegisterPipelineMonitorDuringSnapshotRetriesWithNewMonitor(t *testing.T
 		t.Fatal("bottleneck lookup did not retry after monitor replacement")
 	}
 
-	assert.Equal(t, "processor", currentBottleneckComponent(time.Now().Add(-time.Minute)))
+	assert.Equal(t, "processor", currentBottleneckComponent(newMonitor, time.Now().Add(-time.Minute)))
 	assert.Equal(t, int32(1), newMonitor.reads.Load(), "the replacement snapshot should be cached")
 }

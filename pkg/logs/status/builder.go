@@ -145,7 +145,8 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 
 // getBackpressureStatus returns SATURATED (saturated in last 1m), WARNING (last 30m only), or HEALTHY.
 func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) BackpressureStatus {
-	// Only the fields SelectBottleneck ranks on: the max windows are for the table.
+	// Only the fields SelectBottleneck ranks on: the max windows are for the table. Unlike loss
+	// attribution, this includes non-blocking destinations, which drop payloads when saturated.
 	comps := make([]logsMetrics.ComponentBackpressure, 0, len(utils))
 	for _, u := range utils {
 		comps = append(comps, logsMetrics.ComponentBackpressure{

@@ -314,6 +314,16 @@ func TestBuildIssue_FirstRemediationStep(t *testing.T) {
 			notWantDesc: []string{"processor stage"},
 		},
 		{
+			name:      "a single blamed rotation keeps the plural set",
+			component: "strategy", blamed: 1, rotations: 5,
+			wantDesc: []string{"The strategy stage of the logs pipeline was saturated during 1 of these rotations."},
+		},
+		{
+			name:      "a single healthy rotation keeps the plural set",
+			component: logsmetrics.NoBottleneck, blamed: 1, rotations: 5,
+			wantDesc: []string{"During 1 of these rotations no monitored blocking stage"},
+		},
+		{
 			name:      "all losses attributed to one stage",
 			component: "worker", blamed: 9, rotations: 9,
 			wantStep: []string{"`worker` component was saturated", "sudo datadog-agent status"},
