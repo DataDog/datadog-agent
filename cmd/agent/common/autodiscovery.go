@@ -49,8 +49,11 @@ func setupAutoDiscovery(confSearchPaths []string, ac autodiscovery.Component, cf
 		confSearchPaths = append(confSearchPaths, filepath.Join(cfg.GetString("fleet_policies_dir"), "conf.d"))
 	}
 
+	setupStart := time.Now()
 	providers.InitConfigFilesReader(confSearchPaths)
+	configFilesDuration := time.Since(setupStart)
 
+	providersStart := time.Now()
 	acTelemetryStore := ac.GetTelemetryStore()
 
 	ac.AddConfigProvider(
@@ -122,7 +125,9 @@ func setupAutoDiscovery(confSearchPaths []string, ac autodiscovery.Component, cf
 			log.Errorf("%v", err)
 		}
 	}
+	providersDuration := time.Since(providersStart)
 
+	listenersStart := time.Now()
 	var listeners []pkgconfigsetup.Listeners
 	err = structure.UnmarshalKey(cfg, "listeners", &listeners)
 	if err == nil {
@@ -192,6 +197,10 @@ func setupAutoDiscovery(confSearchPaths []string, ac autodiscovery.Component, cf
 	} else {
 		log.Errorf("Error while reading 'listeners' settings: %v", err)
 	}
+	listenersDuration := time.Since(listenersStart)
+
+	log.Infof("Autodiscovery setup took %s (config files: %s, config providers: %s, listeners: %s)",
+		time.Since(setupStart), configFilesDuration, providersDuration, listenersDuration)
 }
 
 // schedulerFunc is a type alias to allow a function to be used as an AD scheduler
