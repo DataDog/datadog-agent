@@ -21,6 +21,20 @@ use crate::tracer_metadata::TracerMetadata;
 use crate::ust::UST;
 use crate::{service_name, tracer_metadata};
 
+/// Maximum length in bytes of a string field derived from process data
+/// (cmdline, environment, files). Downstream normalization truncates service
+/// names to 100 bytes and tag values to 200, so this cap loses no information
+/// but bounds the response size.
+const MAX_FIELD_LEN: usize = 256;
+/// Maximum number of additional generated names reported per service.
+const MAX_ADDITIONAL_NAMES: usize = 32;
+
+/// Truncates `s` to at most `MAX_FIELD_LEN` bytes on a UTF-8 char boundary.
+pub(crate) fn truncate_field(mut s: String) -> String {
+    s.truncate(s.floor_char_boundary(MAX_FIELD_LEN));
+    s
+}
+
 #[derive(Debug, Serialize)]
 pub struct ServicesResponse {
     pub services: Vec<Service>,
@@ -185,10 +199,18 @@ fn get_service(
 
     Some(Service {
         pid,
-        generated_name: name_metadata.as_ref().map(|meta| meta.name.clone()),
+        generated_name: name_metadata
+            .as_ref()
+            .map(|meta| truncate_field(meta.name.clone())),
         generated_name_source: name_metadata.as_ref().map(|meta| meta.source.clone()),
         additional_generated_names: name_metadata
-            .map(|meta| meta.additional_names)
+            .map(|meta| {
+                meta.additional_names
+                    .into_iter()
+                    .take(MAX_ADDITIONAL_NAMES)
+                    .map(truncate_field)
+                    .collect()
+            })
             .unwrap_or_default(),
         tracer_metadata: tracer_metadata.into_iter().collect(),
         ust: UST::from_envs(&envs),
@@ -234,6 +256,15 @@ fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Servi
 mod tests {
     use super::*;
     use crate::params::Params;
+
+    #[test]
+    fn test_truncate_field() {
+        assert_eq!(truncate_field("short".to_string()), "short");
+        assert_eq!(truncate_field("A".repeat(900_000)).len(), MAX_FIELD_LEN);
+        // A 2-byte char straddling the limit is dropped rather than split.
+        let s = format!("{}é", "A".repeat(MAX_FIELD_LEN - 1));
+        assert_eq!(truncate_field(s), "A".repeat(MAX_FIELD_LEN - 1));
+    }
 
     #[cfg(target_os = "linux")]
     mod log_file_integration {
