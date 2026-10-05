@@ -38,8 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestNetworkCIDR(t *testing.T) {
