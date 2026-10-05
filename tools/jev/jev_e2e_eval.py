@@ -82,11 +82,41 @@ def git(*args: str, cwd: str | None = None) -> str:
 def fetch_executed_e2e_tests(query: str, days: int) -> dict:
     """Root-level e2e tests actually executed, from CI Visibility.
 
+    Self-contained implementation of the CI Visibility test events query
+    (same endpoint as datadog_api_client's list_ci_app_test_events, but
+    stdlib-only so the script runs on a bare laptop). Requires DD_API_KEY
+    and DD_APP_KEY in the environment.
+
     Returns {entry_point: {"status": "pass|fail", "flaky": bool, "jobs": [..]}}
     """
-    from tasks.libs.common.datadog_api import get_ci_test_events
+    from datetime import datetime, timedelta, timezone
 
-    events = get_ci_test_events(query, days)
+    api_key = os.environ.get("DD_API_KEY")
+    app_key = os.environ.get("DD_APP_KEY") or os.environ.get("DD_APPLICATION_KEY")
+    if not api_key or not app_key:
+        print("[warn] DD_API_KEY / DD_APP_KEY not set, skipping the executed-test lookup")
+        return {}
+    site = os.environ.get("DD_SITE", "datadoghq.com")
+    url = f"https://{site}/api/v2/ci/app/tests/events"
+    params = {
+        "filter_query": query,
+        "filter_from": (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(),
+        "filter_to": datetime.now(timezone.utc).isoformat(),
+        "page_limit": 1000,
+    }
+    headers = {"DD-API-KEY": api_key, "DD-APPLICATION-KEY": app_key}
+
+    events = []
+    while True:
+        req = urllib.request.Request(url + "?" + urllib.parse.urlencode(params), headers=headers)
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            payload = json.load(resp)
+        events.extend(payload.get("data", []))
+        cursor = (payload.get("meta", {}).get("page", {}) or {}).get("after")
+        if not cursor:
+            break
+        params["page[cursor]"] = cursor
+
     executed: dict = {}
     sample_names = []
     for item in events:
@@ -139,6 +169,17 @@ def main() -> int:
     head, title = pr["head"]["sha"], pr["title"]
     print(f"[info] PR #{args.pr}: {title}")
     print(f"[info] head {head[:12]} base {pr['base']['sha'][:12]} state {pr['state']}")
+
+    # Local runs: no authanywhere in CI, so the token comes from ddtool for
+    # us1.staging.dog; align the gateway DC so the token and the endpoint match.
+    if (
+        not args.token
+        and not args.token_cmd
+        and not os.environ.get("AI_GATEWAY_TOKEN")
+        and args.dc == "us1.ddbuild.io"
+    ):
+        print("[info] local run without a token command: using the us1.staging.dog gateway (ddtool token)")
+        args.dc = "us1.staging.dog"
 
     # Checkout the PR head in a worktree to read the test code as of that PR
     git("fetch", "origin", f"pull/{args.pr}/head")

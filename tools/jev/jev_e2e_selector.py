@@ -26,7 +26,7 @@ Usage (from repo root):
 
 Token acquisition:
     - CI:      download authanywhere and pass --token-cmd 'authanywhere --audience rapid-ai-platform --raw --dc us1.ddbuild.io'
-    - laptop:  ddtool auth token rapid-ai-platform --datacenter us1.staging.dog --raw (default)
+    - laptop:  ddtool auth token rapid-ai-platform --datacenter us1.staging.dog (default)
 Jev docs: https://datadoghq.atlassian.net/wiki/spaces/AIP/pages/7265386822
 """
 
@@ -431,7 +431,10 @@ def get_ai_gateway_token(args: argparse.Namespace) -> str:
     if args.token_cmd:
         return run_cmd(args.token_cmd.split()).strip()
     # laptop fallback
-    return run_cmd(["ddtool", "auth", "token", "rapid-ai-platform", "--datacenter", "us1.staging.dog", "--raw"]).strip()
+    # laptop fallback: ddtool prints the raw internal service token by default
+    return run_cmd(
+        ["ddtool", "auth", "token", "rapid-ai-platform", "--datacenter", "us1.staging.dog"]
+    ).strip()
 
 
 def ask_jev(args: argparse.Namespace, token: str, state: str) -> dict:
