@@ -29,9 +29,13 @@ pub(crate) const MAX_TAG_LEN: usize = 200;
 /// Maximum number of additional generated names reported per service.
 const MAX_ADDITIONAL_NAMES: usize = 32;
 
-/// Truncates `s` to at most `max` bytes on a UTF-8 char boundary.
+/// Truncates `s` to at most `max` bytes on a UTF-8 char boundary, releasing
+/// the excess capacity so that the original allocation is not retained.
 pub(crate) fn truncate_utf8(mut s: String, max: usize) -> String {
-    s.truncate(s.floor_char_boundary(max));
+    if s.len() > max {
+        s.truncate(s.floor_char_boundary(max));
+        s.shrink_to_fit();
+    }
     s
 }
 
@@ -268,10 +272,9 @@ mod tests {
     #[test]
     fn test_truncate_utf8() {
         assert_eq!(truncate_utf8("short".to_string(), MAX_NAME_LEN), "short");
-        assert_eq!(
-            truncate_utf8("A".repeat(900_000), MAX_NAME_LEN).len(),
-            MAX_NAME_LEN
-        );
+        let truncated = truncate_utf8("A".repeat(900_000), MAX_NAME_LEN);
+        assert_eq!(truncated.len(), MAX_NAME_LEN);
+        assert!(truncated.capacity() <= MAX_NAME_LEN);
         // A 2-byte char straddling the limit is dropped rather than split.
         let s = format!("{}é", "A".repeat(MAX_NAME_LEN - 1));
         assert_eq!(truncate_utf8(s, MAX_NAME_LEN), "A".repeat(MAX_NAME_LEN - 1));
