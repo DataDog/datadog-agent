@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+from contextlib import chdir
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -155,6 +156,23 @@ class CompilerImage:
         elif not git_dir.is_dir():
             raise Exit(f"[-] .git directory is not a directory in {repo_root}, git worktrees are not supported")
 
+    def host_repository_cache(self) -> Path | None:
+        """Return the host Bazel repository_cache path when it exists, else None.
+
+        Resolved via `bazel info` so all rc layers (workspace, user, home) apply.
+        """
+        with chdir(get_repo_root()):
+            res = self.ctx.run("bazel info repository_cache", hide=True, warn=True)
+        if res is None or not res.ok:
+            warn("[!] Could not resolve Bazel repository_cache; container will not share the host cache")
+            return None
+
+        cache = Path(res.stdout.strip())
+        if not cache.is_dir():
+            warn(f"[!] Bazel repository_cache {cache} does not exist; skipping mount")
+            return None
+        return cache
+
     def exec(
         self,
         cmd: str,
@@ -216,9 +234,17 @@ class CompilerImage:
         platform = ""
         if self.arch != Arch.local():
             platform = f"--platform linux/{self.arch.go_arch}"
+
+        mounts = [f"--mount type=bind,source={get_repo_root()},target={CONTAINER_AGENT_PATH}"]
+        repo_cache = self.host_repository_cache()
+        if repo_cache is not None:
+            # Same absolute path on host and in-container so user.bazelrc --repository_cache= matches.
+            mounts.append(f"--mount type=bind,source={repo_cache},target={repo_cache}")
+            info(f"[*] Mounting host Bazel repository_cache at {repo_cache}")
+
         res = self.ctx.run(
             f"docker run {platform} -d --restart always --name {self.name} "
-            f"--mount type=bind,source={get_repo_root()},target={CONTAINER_AGENT_PATH} "
+            f"{' '.join(mounts)} "
             f"{self.expected_image_name} sleep \"infinity\"",
             warn=True,
         )
