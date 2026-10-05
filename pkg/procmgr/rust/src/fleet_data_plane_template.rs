@@ -37,10 +37,7 @@ fn fleet_data_plane_template_declares_adp_startup_gate() {
         gate[0].path,
         format!("{}/datadog.yaml", etc.path().display())
     );
-    assert_eq!(
-        sorted(&gate[0].keys),
-        ["data_plane.enabled", "data_plane.standalone_mode"]
-    );
+    assert_eq!(sorted(&gate[0].keys), ["data_plane.enabled"]);
     assert!(config.condition_config_none.is_empty());
 
     // ADP exits 0 when it is not enabled, and `always` would respawn that forever.
@@ -77,18 +74,27 @@ fn fleet_data_plane_template_gate_closed_on_default_install() {
 }
 
 #[test]
-fn fleet_data_plane_template_gate_opens_on_either_key() {
-    for body in [
-        "data_plane:\n  enabled: true\n",
-        "data_plane:\n  standalone_mode: true\n",
-    ] {
-        let _env = test_env_guard();
-        let etc = tempfile::tempdir().expect("tempdir");
-        write_agent_yaml(etc.path(), body);
-        let gate = load_template(etc.path()).condition_config_any;
+fn fleet_data_plane_template_gate_opens_when_enabled() {
+    let _env = test_env_guard();
+    let etc = tempfile::tempdir().expect("tempdir");
+    write_agent_yaml(etc.path(), "data_plane:\n  enabled: true\n");
+    let gate = load_template(etc.path()).condition_config_any;
 
-        assert!(condition_config_any_met(&gate), "datadog.yaml={body:?}");
-    }
+    assert!(condition_config_any_met(&gate));
+}
+
+/// Standalone mode is not a customer path under procmgr, so it must not open the gate.
+#[test]
+fn fleet_data_plane_template_gate_ignores_standalone_mode() {
+    let _env = test_env_guard();
+    let etc = tempfile::tempdir().expect("tempdir");
+    write_agent_yaml(etc.path(), "data_plane:\n  standalone_mode: true\n");
+    let gate = load_template(etc.path()).condition_config_any;
+
+    assert!(
+        !condition_config_any_met(&gate),
+        "standalone_mode alone must not start ADP under procmgr"
+    );
 }
 
 fn write_agent_yaml(etc: &Path, body: &str) {
