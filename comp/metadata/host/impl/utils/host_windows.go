@@ -12,7 +12,7 @@ package utils
 import (
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/pythoninfo"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
@@ -25,7 +25,9 @@ const osName = "win32"
 // content of this list changed based on the OS.
 type osVersion [2]string
 
-func getSystemStats() *systemStats {
+func getSystemStats(py pythoninfo.Provider) *systemStats {
+	py = pythoninfo.WithFallback(py)
+
 	res, _ := cache.Get[*systemStats](
 		systemStatsCacheKey,
 		func() (*systemStats, error) {
@@ -40,7 +42,7 @@ func getSystemStats() *systemStats {
 				Platform:  runtime.GOOS,
 				Processor: modelName,
 				CPUCores:  c32,
-				Pythonv:   python.GetPythonVersion(),
+				Pythonv:   py.GetPythonVersion(),
 			}
 
 			hostInfo := hostinfoutils.GetInformation()

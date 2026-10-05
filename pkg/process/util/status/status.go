@@ -120,7 +120,7 @@ func getCoreStatus(coreConfig pkgconfigmodel.Reader, hostname hostnameinterface.
 		Config: ConfigStatus{
 			LogLevel: coreConfig.GetString("log_level"),
 		},
-		Metadata: *hostMetadataUtils.GetFromCache(context.Background(), coreConfig, hostname),
+		Metadata: *hostMetadataUtils.GetFromCache(context.Background(), coreConfig, hostname, nil),
 	}
 }
 

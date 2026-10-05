@@ -91,7 +91,7 @@ func TestGetStatus(t *testing.T) {
 			Config: ConfigStatus{
 				LogLevel: cfg.GetString("log_level"),
 			},
-			Metadata: *hostMetadataUtils.GetFromCache(context.Background(), cfg, hostnameimpl.NewHostnameService()),
+			Metadata: *hostMetadataUtils.GetFromCache(context.Background(), cfg, hostnameimpl.NewHostnameService(), nil),
 		},
 		Expvars: expectedExpVars,
 	}

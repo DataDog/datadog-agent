@@ -12,5 +12,6 @@ import "github.com/DataDog/datadog-agent/cmd/agent/command"
 func CoreAgent() command.ProductComposition {
 	return command.ProductComposition{
 		AutodiscoveryOptions: autodiscoveryOptions(),
+		HostMetadataOptions:  hostMetadataOptions(),
 	}
 }

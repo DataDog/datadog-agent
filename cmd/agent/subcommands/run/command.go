@@ -532,6 +532,7 @@ func getSharedFxOption(product command.ProductComposition) fx.Option {
 		reporterfx.Module(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
+		fx.Options(product.HostMetadataOptions...),
 		orchestratorForwarderFx.Module(orchestratordef.NewDefaultParams()),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),

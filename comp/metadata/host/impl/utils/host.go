@@ -17,8 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/pythoninfo"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
@@ -185,7 +185,9 @@ func GetOSVersion() string {
 
 // GetPayload builds a metadata payload every time is called.
 // Some data is collected only once, some is cached, some is collected at every call.
-func GetPayload(ctx context.Context, conf model.Reader, hostname hostnameinterface.Component) *Payload {
+func GetPayload(ctx context.Context, conf model.Reader, hostname hostnameinterface.Component, py pythoninfo.Provider) *Payload {
+	py = pythoninfo.WithFallback(py)
+
 	hostnameData, err := hostname.GetWithProvider(ctx)
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
@@ -198,8 +200,8 @@ func GetPayload(ctx context.Context, conf model.Reader, hostname hostnameinterfa
 	p := &Payload{
 		Os:               osName,
 		AgentFlavor:      flavor.GetFlavor(),
-		PythonVersion:    python.GetPythonInfo(),
-		SystemStats:      getSystemStats(),
+		PythonVersion:    py.GetPythonInfo(),
+		SystemStats:      getSystemStats(py),
 		Meta:             meta,
 		HostTags:         hosttags.Get(ctx, false, conf),
 		ContainerMeta:    containerMetadata.Get(1 * time.Second),
@@ -219,10 +221,10 @@ func GetPayload(ctx context.Context, conf model.Reader, hostname hostnameinterfa
 
 // GetFromCache returns the payload from the cache if it exists, otherwise it creates it.
 // The metadata reporting should always grab it fresh. Any other uses, e.g. status, should use this
-func GetFromCache(ctx context.Context, conf model.Reader, hostname hostnameinterface.Component) *Payload {
+func GetFromCache(ctx context.Context, conf model.Reader, hostname hostnameinterface.Component, py pythoninfo.Provider) *Payload {
 	data, found := cache.Cache.Get(hostCacheKey)
 	if !found {
-		return GetPayload(ctx, conf, hostname)
+		return GetPayload(ctx, conf, hostname, py)
 	}
 	return data.(*Payload)
 }
