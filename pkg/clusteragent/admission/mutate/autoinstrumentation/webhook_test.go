@@ -9,15 +9,19 @@ package autoinstrumentation_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	admissioncommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
 )
 
 func TestNewWebhookConfig(t *testing.T) {
@@ -285,4 +289,83 @@ func TestWebhookFunc(t *testing.T) {
 	require.NotNil(t, resp)
 
 	require.Equal(t, true, mockMutator.Called)
+}
+
+func TestWebhookPatchPreservesUnknownFields(t *testing.T) {
+	for _, tt := range []struct {
+		name            string
+		containerFields string
+	}{
+		{
+			name:            "unknown field alongside known fields",
+			containerFields: `,"securityContext":{"runAsNonRoot":true,"capabilities":{"add":["NET_ADMIN"],"drop":["ALL"],"customField":["custom-value"]}}`,
+		},
+		{
+			name:            "unknown field only in nested object",
+			containerFields: `,"securityContext":{"capabilities":{"customField":{"enabled":true,"values":[1,null,"custom-value"]}}}`,
+		},
+		{
+			name: "optional parent objects absent",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := common.FakeConfigWithValues(t, map[string]any{
+				"apm_config.instrumentation.enabled":                                true,
+				"apm_config.instrumentation.lib_versions":                           map[string]string{"python": "v3"},
+				"admission_controller.auto_instrumentation.gradual_rollout.enabled": false,
+			})
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, common.FakeStore(t), nil, nil, nil, nil)
+			require.NoError(t, err)
+
+			// Keep this request raw: marshaling a corev1.Pod would discard unknown fields before the test.
+			// Annotations, resources, env, volume mounts, init containers, and volumes are absent.
+			rawPod := []byte(fmt.Sprintf(`{
+				"metadata":{"name":"test-pod","namespace":"application","labels":{"tags.datadoghq.com/env":"test"}},
+				"spec":{"customField":{"enabled":true,"values":["custom-value",null,7]},"containers":[
+					{"name":"app","image":"app:latest","customField":42%s},
+					{"name":"worker","image":"worker:latest","customField":"worker-value","securityContext":{"capabilities":{"customField":["worker-capability"]}}}
+				]}
+			}`, tt.containerFields))
+			response := webhook.WebhookFunc()(&admission.Request{Object: rawPod, Namespace: "application"})
+			require.NotNil(t, response)
+			require.True(t, response.Allowed)
+			patch, err := jsonpatch.DecodePatch(response.Patch)
+			require.NoError(t, err)
+			patchedJSON, err := patch.Apply(rawPod)
+			require.NoError(t, err, "patch must apply to the original raw request")
+
+			var pod corev1.Pod
+			require.NoError(t, json.Unmarshal(patchedJSON, &pod))
+			validator := testutils.NewPodValidator(&pod, testutils.InjectionModeAuto)
+			validator.RequireInjection(t, []string{"app", "worker"})
+			validator.RequireLibraryVersions(t, map[string]string{"python": "v3"})
+			validator.RequireEnvs(t, map[string]string{"DD_ENV": "test"}, []string{"app", "worker"})
+
+			// Compare original fields by container name without decoding away unknown fields.
+			var original, patched struct {
+				Spec struct {
+					CustomField json.RawMessage              `json:"customField"`
+					Containers  []map[string]json.RawMessage `json:"containers"`
+				} `json:"spec"`
+			}
+			require.NoError(t, json.Unmarshal(rawPod, &original))
+			require.NoError(t, json.Unmarshal(patchedJSON, &patched))
+			require.JSONEq(t, string(original.Spec.CustomField), string(patched.Spec.CustomField))
+			containersByName := make(map[string]map[string]json.RawMessage)
+			for _, container := range patched.Spec.Containers {
+				var name string
+				require.NoError(t, json.Unmarshal(container["name"], &name))
+				containersByName[name] = container
+			}
+			for _, container := range original.Spec.Containers {
+				var name string
+				require.NoError(t, json.Unmarshal(container["name"], &name))
+				actual, found := containersByName[name]
+				require.True(t, found, "container %q must still exist", name)
+				for field, expected := range container {
+					require.JSONEq(t, string(expected), string(actual[field]), "container %q field %q", name, field)
+				}
+			}
+		})
+	}
 }
