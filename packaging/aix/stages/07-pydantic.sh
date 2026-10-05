@@ -100,9 +100,8 @@ log "Required pydantic version (from datadog_checks_base): $PYDANTIC_VERSION"
 # ─── Step 2: Set Rust environment ─────────────────────────────────────────────
 #
 # AIX-specific Rust build flags:
-#   CARGO_PROFILE_RELEASE_STRIP=none  — IBM Rust SDK bug (observed with 1.92):
-#                                       stripping .info section
-#                                       from proc-macro artifacts breaks rustc
+#   CARGO_PROFILE_RELEASE_STRIP=none  — Rust SDK bug (1.92): stripped .info
+#                                       sections break proc-macro artifacts
 #   CARGO_PROFILE_RELEASE_LTO=off     — LLVM fat LTO uses .ipa bitcode sections
 #                                       that do not exist in AIX XCOFF format;
 #                                       fails late in the build, after all
@@ -128,9 +127,8 @@ log "  Rust toolchain: $(cargo --version 2>/dev/null || echo "cargo not found �
 # pydantic-core), the old cached wheel is not used — a new subdirectory is
 # created and a fresh Rust build is triggered automatically.
 #
-# pydantic-core builds from source via Cargo. If a pre-built wheel is
-# present in the versioned cache directory, install from it and skip the
-# Rust build entirely.
+# If a pre-built wheel is in the versioned cache directory, install from
+# it and skip the Rust build.
 
 WHEEL_CACHE_DIR="$WHEEL_CACHE/pydantic-$PYDANTIC_VERSION"
 mkdir -p "$WHEEL_CACHE_DIR"
@@ -152,10 +150,8 @@ else
     log "Disk space required: ~7 GB in /tmp, ~4 GB in /"
     log "Cache directory: $WHEEL_CACHE_DIR"
 
-    # Scope pip's cache to a throwaway directory for this build: the default
-    # pip cache (~/.cache/pip) may hold a pydantic-core wheel built by an older
-    # Rust SDK, which pip would reuse — silently skipping the fresh Rust build.
-    # The throwaway cache is scraped for the built wheel below, then removed.
+    # Throwaway pip cache: the default one may hold a wheel built by an older
+    # Rust SDK, skipping the fresh build. Scraped below, then removed.
     PIP_CACHE_DIR="$BUILD_DIR/buildtmp/pip-cache-$STAGE_NAME"
 
     CARGO_PROFILE_RELEASE_STRIP=none \

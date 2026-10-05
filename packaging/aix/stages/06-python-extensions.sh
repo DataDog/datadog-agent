@@ -193,9 +193,8 @@ log "lxml==$LXML_VERSION installed successfully"
 # recompiling on subsequent builds.
 #
 # AIX-specific Rust flags:
-#   CARGO_PROFILE_RELEASE_STRIP=none  — IBM Rust SDK bug (observed with 1.92):
-#                                       stripping .info section
-#                                       from proc-macro artifacts breaks rustc
+#   CARGO_PROFILE_RELEASE_STRIP=none  — Rust SDK bug (1.92): stripped .info
+#                                       sections break proc-macro artifacts
 #   CARGO_PROFILE_RELEASE_LTO=off     — LLVM fat LTO uses .ipa bitcode sections
 #                                       that do not exist in AIX XCOFF format
 #   CC=/opt/freeware/bin/gcc          — cc-rs defaults to IBM xlc which rejects GCC
@@ -240,10 +239,8 @@ else
         $PIP install "maturin>=1,<2"
     log "maturin installed"
 
-    # Scope pip's cache to a throwaway directory for this build: the default
-    # pip cache (~/.cache/pip) may hold a cryptography wheel built by an older
-    # Rust SDK, which pip would reuse — silently skipping the fresh Rust build.
-    # The throwaway cache is scraped for the built wheel below, then removed.
+    # Throwaway pip cache: the default one may hold a wheel built by an older
+    # Rust SDK, skipping the fresh build. Scraped below, then removed.
     PIP_CACHE_DIR="$BUILD_DIR/buildtmp/pip-cache-$STAGE_NAME"
 
     OPENSSL_DIR=$EMBEDDED_DESTDIR \

@@ -104,11 +104,9 @@ if [ -x "$BUILD_DIR/bin/gotestsum" ]; then
     log "gotestsum already installed"
 else
     log "Installing gotestsum"
-    # OBJECT_MODE must be unset before Go's external linker runs (see the
-    # matching comment in stages/04-agent.sh): with both OBJECT_MODE=64 and
-    # AIX_OBJECT_MODE=64 exported, gcc-8 selects the 32-bit /lib/crt0.o.
-    # Scoped to this subshell only — the rest of the script still needs
-    # OBJECT_MODE=64 from env.sh.
+    # Unset OBJECT_MODE for Go's external linker — gcc-8 picks the 32-bit
+    # crt0.o otherwise (see stages/04-agent.sh). The rest of the script
+    # needs it set.
     ( cd "$AGENT_SRC/internal/tools" && \
         unset OBJECT_MODE && \
         GOBIN="$BUILD_DIR/bin" \
