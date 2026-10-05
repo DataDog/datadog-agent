@@ -54,6 +54,8 @@ tags:
       shm|cbu|sram|sm|pcie|microcontroller|other)$"
   error_subtype:
     regex: "^(parity|secded)$"
+  cause:
+    regex: "^(multiple_single_bit|double_bit)$"
   nvlink_port:
     regex: "^\\d+$"
   fan_index:

@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "ecs",
-    srcs = ["ecs.go"],
+    srcs = [
+        "ecs.go",
+        "ecs_dump.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs",
     visibility = ["//visibility:public"],
     deps = [
@@ -12,6 +15,11 @@ go_library(
         "//test/e2e-framework/testing/provisioners",
         "//test/e2e-framework/testing/runner",
         "//test/e2e-framework/testing/utils/optional",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_service_cloudwatchlogs//:cloudwatchlogs",
+        "@com_github_aws_aws_sdk_go_v2_service_ecs//:ecs",
+        "@com_github_aws_aws_sdk_go_v2_service_ecs//types",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],
 )

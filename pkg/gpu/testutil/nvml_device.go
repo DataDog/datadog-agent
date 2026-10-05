@@ -332,6 +332,17 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			}
 			return 0, 0, false, false, nvml.SUCCESS
 		},
+		GetRetiredPages_v2Func: func(_ nvml.PageRetirementCause) ([]uint64, []uint64, nvml.Return) {
+			if isMIGOrVGPUUnsupported {
+				return nil, nil, nvml.ERROR_NOT_SUPPORTED
+			}
+			// Dynamic page retirement is supported from Kepler to Turing; Ampere and
+			// newer replace it with row remapping (see GetRemappedRows)
+			if arch < nvml.DEVICE_ARCH_KEPLER || arch >= nvml.DEVICE_ARCH_AMPERE {
+				return nil, nil, nvml.ERROR_NOT_SUPPORTED
+			}
+			return nil, nil, nvml.SUCCESS
+		},
 		GetRepairStatusFunc: func() (nvml.RepairStatus, nvml.Return) {
 			if isMIGOrVGPUUnsupported {
 				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED

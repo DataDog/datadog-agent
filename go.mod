@@ -223,7 +223,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/Microsoft/hcsshim v0.14.1
 	github.com/NVIDIA/go-nvml v0.13.1-0
-	github.com/ProtonMail/go-crypto v1.4.1
+	github.com/ProtonMail/go-crypto v1.5.2
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/apache/arrow-go/v18 v18.8.0
@@ -240,7 +240,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.51.1
 	github.com/aws/karpenter-provider-aws v1.9.0
 	github.com/aymerick/raymond v2.0.2+incompatible
-	github.com/bazelbuild/rules_go v0.63.0
+	github.com/bazelbuild/rules_go v0.64.1
 	github.com/beevik/ntp v1.6.0
 	github.com/benbjohnson/clock v1.3.5
 	github.com/bhmj/jsonslice v1.1.3
@@ -323,7 +323,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/judwhite/go-svc v1.2.1
 	github.com/justincormack/go-memfd v0.0.0-20170219213707-6e4af0518993
-	github.com/klauspost/compress v1.20.0
+	github.com/klauspost/compress v1.20.1
 	github.com/knqyf263/go-deb-version v0.0.0-20241115132648-6f4aee6ccd23
 	github.com/knqyf263/go-rpmdb v0.1.2-0.20250519070707-7e39c901d1c4
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
@@ -363,7 +363,7 @@ require (
 	github.com/opencontainers/runtime-spec v1.3.0
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pierrec/lz4/v4 v4.1.30
+	github.com/pierrec/lz4/v4 v4.1.31
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/prometheus/client_golang v1.24.1
@@ -435,10 +435,10 @@ require (
 	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.159.0
 	go.opentelemetry.io/collector/extension v1.65.0
 	go.opentelemetry.io/collector/extension/extensioncapabilities v0.159.0
-	go.opentelemetry.io/collector/featuregate v1.65.0
+	go.opentelemetry.io/collector/featuregate v1.66.0
 	go.opentelemetry.io/collector/otelcol v0.159.0
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.159.0
-	go.opentelemetry.io/collector/pdata v1.65.0
+	go.opentelemetry.io/collector/pdata v1.66.0
 	go.opentelemetry.io/collector/pdata/pprofile v0.159.0
 	go.opentelemetry.io/collector/processor v1.65.0
 	go.opentelemetry.io/collector/processor/batchprocessor v0.159.0
@@ -453,11 +453,11 @@ require (
 	go.opentelemetry.io/ebpf-profiler v0.0.202547
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.45.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.45.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.45.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.46.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.45.0
-	go.opentelemetry.io/otel/sdk v1.45.0
-	go.opentelemetry.io/otel/sdk/metric v1.45.0
+	go.opentelemetry.io/otel/sdk v1.46.0
+	go.opentelemetry.io/otel/sdk/metric v1.46.0
 	go.opentelemetry.io/otel/trace v1.46.0
 	go.opentelemetry.io/proto/slim/otlp v1.11.0
 	go.opentelemetry.io/proto/slim/otlp/processcontext/v1development v0.4.0
@@ -527,7 +527,7 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/cloudsqlconn v1.4.3 // indirect
 	cloud.google.com/go/compute v1.70.0 // indirect
-	cloud.google.com/go/compute/metadata v0.9.1 // indirect
+	cloud.google.com/go/compute/metadata v0.10.0 // indirect
 	cloud.google.com/go/iam v1.12.0 // indirect
 	cloud.google.com/go/kms v1.32.0 // indirect
 	cloud.google.com/go/longrunning v1.2.0 // indirect
@@ -880,7 +880,7 @@ require (
 	github.com/masahiro331/go-xfs-filesystem v0.0.0-20231205045356-1b22259a6c44 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
-	github.com/mattn/go-runewidth v0.0.28 // indirect
+	github.com/mattn/go-runewidth v0.0.29 // indirect
 	github.com/mattn/go-shellwords v1.0.13 // indirect
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d // indirect
 	github.com/mdlayher/socket v0.7.0 // indirect
@@ -1145,16 +1145,16 @@ require (
 	go.opentelemetry.io/contrib/propagators/jaeger v1.45.0 // indirect
 	go.opentelemetry.io/contrib/propagators/ot v1.45.0 // indirect
 	go.opentelemetry.io/contrib/zpages v0.70.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.21.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.22.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.21.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.45.0 // indirect
 	go.opentelemetry.io/otel/exporters/prometheus v0.67.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.21.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.45.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.45.0 // indirect
-	go.opentelemetry.io/otel/log v0.21.0 // indirect
+	go.opentelemetry.io/otel/log v0.22.0 // indirect
 	go.opentelemetry.io/otel/metric v1.46.0 // indirect
-	go.opentelemetry.io/otel/sdk/log v0.21.0 // indirect
+	go.opentelemetry.io/otel/sdk/log v0.22.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
@@ -1166,8 +1166,8 @@ require (
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/api v0.293.0 // indirect
 	google.golang.org/genproto v0.0.0-20260715232425-e75dac1f907d // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260819154853-08b0e4226688 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260831171406-18b4a7587f8a // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260831171406-18b4a7587f8a // indirect
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
@@ -1250,6 +1250,7 @@ replace github.com/open-policy-agent/opa => github.com/DataDog/opa v0.0.0-202511
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/agent/macos => ./cmd/agent/macos
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ./comp/anomalydetection/observer/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ./comp/anomalydetection/recorder/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def => ./comp/anomalydetection/severityevents/def

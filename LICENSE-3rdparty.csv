@@ -428,8 +428,11 @@ core,github.com/ProtonMail/go-crypto/openpgp/errors,BSD-3-Clause,Copyright (c) 2
 core,github.com/ProtonMail/go-crypto/openpgp/internal/algorithm,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/internal/ecc,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/internal/encoding,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/ProtonMail/go-crypto/openpgp/mlkem_ecdh,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/packet,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/s2k,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/ProtonMail/go-crypto/openpgp/slhdsa,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/x25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/x448,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/Showmax/go-fqdn,Apache-2.0,Copyright since 2015 Showmax s.r.o
@@ -977,13 +980,32 @@ core,github.com/cloudflare/circl/dh/x448,BSD-3-Clause,Copyright (c) 2009 The Go 
 core,github.com/cloudflare/circl/ecc/goldilocks,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/internal/conv,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/internal/sha3,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/kem,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/kem/mlkem/mlkem1024,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/kem/mlkem/mlkem768,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/math,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/math/fp25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/math/fp448,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/math/mlsbset,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/pke/kyber/internal/common,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/pke/kyber/internal/common/params,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/pke/kyber/kyber1024,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/pke/kyber/kyber1024/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/pke/kyber/kyber768,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/pke/kyber/kyber768/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/sign,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/sign/ed25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/sign/ed448,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/sign/internal/dilithium,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/sign/internal/dilithium/params,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/sign/mldsa/mldsa65,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/sign/mldsa/mldsa65/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/sign/mldsa/mldsa87,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/sign/mldsa/mldsa87/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/sign/slhdsa,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/simd/keccakf1600,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/xof,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudflare/circl/xof/k12,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudfoundry-community/go-cfclient/v2,MIT,Copyright (c) 2017 Long Nguyen
 core,github.com/cncf/xds/go/udpa/annotations,Apache-2.0,Copyright 2020 Envoyproxy Authors
 core,github.com/cncf/xds/go/xds/annotations/v3,Apache-2.0,Copyright 2020 Envoyproxy Authors
@@ -3292,6 +3314,7 @@ core,golang.org/x/arch/x86/x86asm,BSD-3-Clause,Copyright (c) 2009 The Go Authors
 core,golang.org/x/crypto/argon2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/bcrypt,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/blake2b,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/crypto/blake2s,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/blowfish,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/cast5,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/chacha20,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
