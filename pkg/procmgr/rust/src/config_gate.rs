@@ -8,7 +8,10 @@
 //!
 //! Mirrors the Windows legacy SCM startup checks in
 //! `cmd/agent/subcommands/run/dependent_services_windows.go`: start only when any
-//! configured key evaluates to true. A default install leaves every gate open.
+//! configured key evaluates to true. A default install leaves those legacy SCM gates
+//! open (their schema defaults keep at least one term true). Gates that copy an
+//! Agent Data Plane check stay closed by default, since `data_plane.enabled` defaults
+//! to false.
 //!
 //! `condition_config_none` is the veto, for keys that have to be false rather than true.
 //! It cannot be expressed as an any-of term, and it is per entry because the same key can
