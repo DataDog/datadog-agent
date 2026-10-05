@@ -10,7 +10,6 @@ package activitytree
 
 import (
 	"net"
-	"strings"
 	"time"
 
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
@@ -243,7 +242,7 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode, getIDFromImageTa
 		MatchedRules: make([]*model.MatchedRule, 0, len(fan.MatchedRules)),
 		Name:         fan.Name,
 		// IsPattern is not on the wire; reconstruct it from the name
-		IsPattern:      strings.Contains(fan.Name, "*"),
+		IsPattern:      isPatternName(fan.Name),
 		File:           newFileInfo(protoDecodeFileEvent(fan.File)),
 		GenerationType: NodeGenerationType(fan.GenerationType),
 		Open:           protoDecodeOpenNode(fan.Open),

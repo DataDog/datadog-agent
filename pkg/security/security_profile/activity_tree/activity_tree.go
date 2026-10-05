@@ -1194,7 +1194,7 @@ func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[st
 				at.visitFileNode(file, func(fileNode *FileNode) {
 					path, ok := modifiedPaths[fileNode.File.PathnameStr]
 					if !ok {
-						modifiedPaths[fileNode.File.PathnameStr] = pathutils.CheckForPatterns(fileNode.File.PathnameStr)
+						modifiedPaths[fileNode.File.PathnameStr] = rulePathFromProfilePath(fileNode.File.PathnameStr)
 						path = modifiedPaths[fileNode.File.PathnameStr]
 					}
 					if len(path) > 0 {

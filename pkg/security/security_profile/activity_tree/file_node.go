@@ -67,19 +67,17 @@ func newFileInfo(fe *model.FileEvent) *FileInfo {
 // FileNode holds a tree representation of a list of files
 type FileNode struct {
 	NodeBase
-	MatchedRules []*model.MatchedRule
-	Name         string
-	IsPattern    bool
-	// PatternSignature is the structureSignature of the members folded
-	// into this pattern node. In-memory only; empty when reloaded from
-	// a profile snapshot, in which case lookups fall back to
-	// template-only matching.
-	PatternSignature string
-	File             *FileInfo
-	GenerationType   NodeGenerationType
-	Open             *OpenNode
+	MatchedRules   []*model.MatchedRule
+	Name           string
+	IsPattern      bool
+	File           *FileInfo
+	GenerationType NodeGenerationType
+	Open           *OpenNode
 
 	Children map[string]*FileNode
+
+	// pattern is the lazily compiled matcher of a pattern node's Name.
+	pattern *compiledPattern
 }
 
 // OpenNode contains the relevant fields of an Open event on which we might want to write a profiling rule
@@ -115,7 +113,7 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 	fan := &FileNode{
 		Name:           name,
 		GenerationType: generationType,
-		IsPattern:      strings.Contains(name, "*"),
+		IsPattern:      isPatternName(name),
 		Children:       make(map[string]*FileNode),
 	}
 	fan.NodeBase = NewNodeBase()
@@ -224,7 +222,8 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			break
 		}
 
-		child, ok := findChildWithPatternFallback(currentFn.Children, parent, stats)
+		lastComponent := len(currentPath) <= nextParentIndex+1
+		child, ok := findChildWithPatternFallback(currentFn.Children, parent, lastComponent, stats)
 		if ok {
 			if child.IsPattern && child.Name != parent && stats != nil {
 				stats.FilePatternLookupHits++
@@ -239,7 +238,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if dryRun {
 			break
 		}
-		if len(currentPath) <= nextParentIndex+1 {
+		if lastComponent {
 			leafNode := NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
 			stats.FileNodes++
 			stats.SizeBytes += leafNode.size()

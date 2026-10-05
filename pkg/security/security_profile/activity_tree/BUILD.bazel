@@ -16,6 +16,7 @@ go_library(
         "flow_node.go",
         "imds_node.go",
         "network_device_node.go",
+        "path_patterns.go",
         "paths_reducer.go",
         "process_node.go",
         "process_node_snapshot.go",
@@ -77,6 +78,7 @@ dd_agent_go_test(
     name = "activity_tree_test",
     srcs = [
         "activity_tree_test.go",
+        "path_patterns_test.go",
         "paths_reducer_test.go",
         "process_node_snapshot_test.go",
         "size_test.go",

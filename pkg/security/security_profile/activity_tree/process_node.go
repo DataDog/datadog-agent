@@ -428,7 +428,7 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 		return false, nil
 	}
 
-	child, ok := findChildWithPatternFallback(pn.Files, parent, stats)
+	child, ok := findChildWithPatternFallback(pn.Files, parent, len(filePath) <= nextParentIndex+1, stats)
 	if ok {
 		if child.IsPattern && child.Name != parent && stats != nil {
 			stats.FilePatternLookupHits++
