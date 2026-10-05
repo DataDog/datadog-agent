@@ -22,7 +22,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -1147,6 +1147,27 @@ func TestGetOrCreateSharedProcessTags(t *testing.T) {
 			assert.Equal(t, tt.expected, tags)
 		})
 	}
+}
+
+func TestGetOrCreateSharedProcessTagsIgnoresCachedMissingProcesses(t *testing.T) {
+	cache, _ := setupSharedProcessTagsTest(t)
+	missingProcess := newProcessWorkloadID(999)
+
+	// The missing process is looked up before in the same run, e.g. for a per-process metric. Only the
+	// base tags derived from the PID are available.
+	expectedMissingTags := []string{"pid:999", "nspid:999"}
+	tags, err := cache.GetOrCreateWorkloadTags(missingProcess)
+	require.True(t, agenterrors.IsNotFound(err), "expected not found error, got %v", err)
+	assert.Equal(t, expectedMissingTags, tags)
+
+	// Cache hits keep returning the same tags along with the not found error
+	tags, err = cache.GetOrCreateWorkloadTags(missingProcess)
+	require.True(t, agenterrors.IsNotFound(err), "expected not found error on cache hit, got %v", err)
+	assert.Equal(t, expectedMissingTags, tags)
+
+	tags, err = cache.GetOrCreateSharedProcessTags([]int32{100, 999})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"kube_namespace:ns", "pod_name:pod-container-1"}, tags)
 }
 
 func TestGetOrCreateSharedProcessTagsCaching(t *testing.T) {

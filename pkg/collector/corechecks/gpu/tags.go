@@ -36,8 +36,9 @@ const (
 )
 
 type workloadTagCacheEntry struct {
-	tags  []string
-	stale bool
+	tags        []string
+	stale       bool
+	notFoundErr error // notFoundErr is the "not found" error of the last build, returned on cache hits so that callers can detect workloads that no longer exist
 }
 
 // WorkloadTagCache encapsulates the logic for retrieving and caching workload
@@ -105,12 +106,12 @@ func (c *WorkloadTagCache) Size() int {
 // GetOrCreateWorkloadTags retrieves the tags for a workload from the cache or builds them if they are not in the cache.
 // Returns an error if the workload kind is unsupported. If we cannot find the entity, we return "ErrNotFound".
 // If an error happens, this function will return the previously cached tags if they exist, along with the error
-// that happened when getting them.
+// that happened when getting them. "ErrNotFound" is also returned on cache hits until the entry is rebuilt.
 func (c *WorkloadTagCache) GetOrCreateWorkloadTags(workloadID workloadmeta.EntityID) ([]string, error) {
 	cacheEntry, cacheEntryExists := c.cache.Get(workloadID)
 	if cacheEntryExists && !cacheEntry.stale {
 		c.telemetry.cacheHits.Inc(string(workloadID.Kind))
-		return cacheEntry.tags, nil
+		return cacheEntry.tags, cacheEntry.notFoundErr
 	}
 
 	var tags []string
@@ -149,6 +150,10 @@ func (c *WorkloadTagCache) GetOrCreateWorkloadTags(workloadID workloadmeta.Entit
 	// for the error case it's also useful to avoid re-trying an operation that already failed.
 	// If the error was temporary, it will be retried after the next run.
 	cacheEntry.stale = false
+	cacheEntry.notFoundErr = nil
+	if agenterrors.IsNotFound(err) {
+		cacheEntry.notFoundErr = err
+	}
 
 	return tags, err
 }
