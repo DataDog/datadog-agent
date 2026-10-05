@@ -366,6 +366,9 @@ profiles:
     metrics:
       - name: runtime.procmgr_daemon_reachable
       - name: runtime.procmgr_daemon_ready
+      - name: runtime.procmgr_daemon_service_state
+        preserve_tags:
+          - state
       - name: runtime.procmgr_process_running
         preserve_tags:
           - process
