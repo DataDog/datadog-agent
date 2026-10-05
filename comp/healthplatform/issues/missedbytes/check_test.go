@@ -245,7 +245,7 @@ func TestCheck_GlobalBottleneckUsesAllAttributions(t *testing.T) {
 			logsmetrics.SaturatedSnapshotForTest(component, "0", 0.99, time.Minute, true),
 		})
 		for i := 0; i < count; i++ {
-			logsmetrics.RecordMissedBytes(source, "svc", 1, time.Now().Add(-time.Minute))
+			logsmetrics.RecordMissedBytes(source, "svc", 1, time.Now())
 		}
 	}
 	record("source-a", "processor", 6)
@@ -285,7 +285,7 @@ func TestCheck_GlobalBottleneckSurvivesReportCaps(t *testing.T) {
 			logsmetrics.SaturatedSnapshotForTest(component, "0", 0.99, time.Minute, true),
 		})
 		for j := 0; j < rotations; j++ {
-			logsmetrics.RecordMissedBytes(fmt.Sprintf("source-%02d", i), "svc", bytes, time.Now().Add(-time.Minute))
+			logsmetrics.RecordMissedBytes(fmt.Sprintf("source-%02d", i), "svc", bytes, time.Now())
 		}
 	}
 
