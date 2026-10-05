@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -78,6 +79,13 @@ func newAMDCheckWithTagger(t *testing.T, fakeTagger tagger.Component, sysRoot st
 	require.True(t, ok)
 
 	WithGPUConfigEnabled(t)
+	if _, overridden := settings["gpu.amd.enabled"]; !overridden {
+		settings = maps.Clone(settings)
+		if settings == nil {
+			settings = map[string]any{}
+		}
+		settings["gpu.amd.enabled"] = true
+	}
 	for key, value := range settings {
 		previous := pkgconfigsetup.Datadog().Get(key)
 		t.Cleanup(func() { pkgconfigsetup.Datadog().SetInTest(key, previous) })

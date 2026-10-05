@@ -28,6 +28,7 @@ dd_agent_go_test(
     name = "amd_test",
     srcs = [
         "device_test.go",
+        "fuzz_test.go",
         "kfd_test.go",
         "kubernetes_test.go",
         "metrics_test.go",

@@ -97,19 +97,12 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: true
+        default: false
         comment: |-
-          Collect metrics from AMD GPUs through the amdgpu kernel driver's sysfs attributes
-          (no ROCm or amd-smi installation required). Only applies when gpu.enabled is true.
-          Compute partitions are aggregated onto physical GPUs rather than counted as separate GPUs.
-          Unsupported sysfs attributes are omitted rather than reported as zero.
-          In containers, KFD topology access requires read/write access to each GPU partition's
-          render node in the device cgroup. Configure the container runtime to grant GPU device
-          access; mounting sysfs or device nodes alone does not grant it.
-          If any KFD node is denied, per-process metrics are omitted for all discovered AMD GPUs
-          and existing process associations are retained until the topology is fully readable.
-          Device metrics and architecture from readable nodes remain available.
-          Full container privilege is not required when the runtime grants this access.
+          Enables AMD GPU monitoring. Only applies when gpu.enabled is true.
+          Metrics are read from the amdgpu driver's sysfs files; ROCm is not required.
+          In containers, per-process metrics require the container runtime to grant
+          access to the GPU render nodes.
   disabled_collectors:
     node_type: setting
     type: array

@@ -193,16 +193,21 @@ func parseDPMFrequency(line string) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
+	var mhz float64
 	switch unit := strings.ToLower(strings.TrimSpace(level[end:])); {
 	case strings.HasPrefix(unit, "ghz"):
-		return value * 1000, nil
+		mhz = value * 1000
 	case strings.HasPrefix(unit, "mhz"):
-		return value, nil
+		mhz = value
 	case strings.HasPrefix(unit, "khz"):
-		return value / 1000, nil
+		mhz = value / 1000
 	default:
 		return 0, fmt.Errorf("unknown frequency unit %q", unit)
 	}
+	if math.IsInf(mhz, 0) {
+		return 0, fmt.Errorf("frequency %q out of range", level[:end])
+	}
+	return mhz, nil
 }
 
 // linkSpeed parses a PCI link speed such as "32.0 GT/s PCIe".
