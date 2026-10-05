@@ -123,51 +123,6 @@ def fetch_ddci_metadata() -> dict | None:
     return meta
 
 
-def fetch_pr(pr_number: int) -> dict:
-    """PR metadata from the GitHub API (token optional for public repos)."""
-    req = urllib.request.Request(f"{GITHUB_API}/pulls/{pr_number}")
-    if os.environ.get("GITHUB_TOKEN"):
-        req.add_header("Authorization", f"Bearer {os.environ['GITHUB_TOKEN']}")
-    req.add_header("Accept", "application/vnd.github+json")
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.load(resp)
-
-
-def fetch_pr_diff(pr_number: int) -> str:
-    """Full PR diff from the GitHub API (computed against the PR base, so it
-    does not depend on local git history — works in shallow clones)."""
-    req = urllib.request.Request(f"{GITHUB_API}/pulls/{pr_number}")
-    if os.environ.get("GITHUB_TOKEN"):
-        req.add_header("Authorization", f"Bearer {os.environ['GITHUB_TOKEN']}")
-    req.add_header("Accept", "application/vnd.github.diff")
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return resp.read().decode(errors="ignore")
-
-
-def detect_pr_number() -> int | None:
-    """PR number of the current branch (CI env first, GitHub lookup fallback)."""
-    branch = None
-    for env in ("CI_COMMIT_BRANCH", "CI_COMMIT_REF_NAME"):
-        if os.environ.get(env) and os.environ[env] != "HEAD":
-            branch = os.environ[env]
-            break
-    if not branch:
-        branch = git("rev-parse", "--abbrev-ref", "HEAD")
-    if not branch or branch == "HEAD" or branch == "main":
-        return None
-    req = urllib.request.Request(
-        f"{GITHUB_API}/pulls?head={REPO.split(':')[0]}:{urllib.parse.quote(branch)}&state=open&per_page=1"
-    )
-    if os.environ.get("GITHUB_TOKEN"):
-        req.add_header("Authorization", f"Bearer {os.environ['GITHUB_TOKEN']}")
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        pulls = json.load(resp)
-    return pulls[0]["number"] if pulls else None
-
-
-# ---------------------------------------------------------------- executed tests
-
-
 def fetch_pr_info(base: str, ddci: dict | None) -> dict:
     """PR title/description from the GitHub API (uses GITHUB_TOKEN if present)."""
     branch = current_branch()

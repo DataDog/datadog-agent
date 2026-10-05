@@ -22,10 +22,6 @@ jev-dyntest-evaluate:
   variables:
     GIT_DEPTH: 0 # get_modified_files uses git merge-base
     GIT_STRATEGY: clone
-  before_script:
-    # authanywhere (installed once) serves the GitLab API token (sdm audience)
-    # and the Jev AI Gateway token (rapid-ai-platform audience)
-    - !reference [.install_authanywhere]
   script:
     # CI Visibility access (executed tests) - same secrets as the original
     # dynamic-test evaluation job

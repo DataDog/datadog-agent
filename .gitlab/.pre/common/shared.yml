@@ -17,17 +17,6 @@
 .setup_github_token_static_quality_gates:
   - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.static-quality-gates)
 
-# Install authanywhere into the workspace PATH, for jobs that need internal
-# service tokens (AI Gateway, the GitLab API bti-ci-api, ...).
-# https://datadoghq.atlassian.net/wiki/spaces/DEVX/pages/3733193227/Authanywhere
-# Usage: - !reference [.install_authanywhere] in before_script
-.install_authanywhere:
-  - |
-    if [ "$(uname -m)" = "x86_64" ]; then AAA="amd64"; else AAA="arm64"; fi
-    curl -sSfL -o "$CI_PROJECT_DIR/authanywhere" "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${AAA}"
-    chmod +x "$CI_PROJECT_DIR/authanywhere"
-    export PATH="$CI_PROJECT_DIR:$PATH"
-
 .setup_github_token_read:
   - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read)
 
