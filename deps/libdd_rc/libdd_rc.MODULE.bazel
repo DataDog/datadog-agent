@@ -70,15 +70,7 @@ use_repo(crate, "libdd_rc_crates")
 http_archive(
     name = "libdd_rc_source",
     build_file = "//deps/libdd_rc:libdd_rc.BUILD.bazel",
-    # TODO(RC-2825): remove these patches once the pin includes WithAPIKey,
-    # WithHTTPClient (including WebSocket-safe timeout handling), and the
-    # connection-ID log sink used for manual staging validation.
-    patch_args = ["-p1"],
-    patches = [
-        "//deps/libdd_rc:rcx509-client-options.patch",
-        "//deps/libdd_rc:rcx509-log-sink.patch",
-    ],
-    sha256 = "a1b0d09f95a06b7088f165f126cb9cc6de20d127209e33dba040da3ac560d8a1",
-    strip_prefix = "libdd-rc-305c363d46afc04e497ea77f415753121aab9d3e",
-    urls = ["https://github.com/DataDog/libdd-rc/archive/305c363d46afc04e497ea77f415753121aab9d3e.tar.gz"],
+    sha256 = "c2b238b8192941feeaba4af17cccc0513c3c8a46689dd5fb36e361ba1e7e0f2b",
+    strip_prefix = "libdd-rc-795fc703c6bceb113a572b01dd57227efe71bdcf",
+    urls = ["https://github.com/DataDog/libdd-rc/archive/795fc703c6bceb113a572b01dd57227efe71bdcf.tar.gz"],
 )

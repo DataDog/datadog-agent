@@ -139,7 +139,7 @@ func TestDebugPingHandler(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	responsePayload, err := newDebugPingHandler(logmock.New(t))(42, payload)
+	responsePayload, err := newDebugPingHandler(logmock.New(t))(context.Background(), 42, payload)
 	require.NoError(t, err)
 
 	var response remoteconfigv1.PingResponse
@@ -149,7 +149,7 @@ func TestDebugPingHandler(t *testing.T) {
 }
 
 func TestDebugPingHandlerRejectsMalformedPayload(t *testing.T) {
-	_, err := newDebugPingHandler(logmock.New(t))(42, []byte("not protobuf"))
+	_, err := newDebugPingHandler(logmock.New(t))(context.Background(), 42, []byte("not protobuf"))
 	require.ErrorContains(t, err, "decode x509 debug ping request")
 }
 

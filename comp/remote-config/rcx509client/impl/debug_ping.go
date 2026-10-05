@@ -6,6 +6,7 @@
 package rcx509clientimpl
 
 import (
+	"context"
 	"fmt"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -16,8 +17,8 @@ import (
 
 const debugServicePingURI = "rc.x509.magic_tunnel.remote_config.v1.DebugService/Ping"
 
-func newDebugPingHandler(logger log.Component) func(uint64, []byte) ([]byte, error) {
-	return func(correlationID uint64, payload []byte) ([]byte, error) {
+func newDebugPingHandler(logger log.Component) func(context.Context, uint64, []byte) ([]byte, error) {
+	return func(_ context.Context, correlationID uint64, payload []byte) ([]byte, error) {
 		var request remoteconfigv1.PingRequest
 		if err := proto.Unmarshal(payload, &request); err != nil {
 			return nil, fmt.Errorf("decode x509 debug ping request: %w", err)

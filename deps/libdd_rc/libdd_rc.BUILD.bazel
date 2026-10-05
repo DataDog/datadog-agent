@@ -9,26 +9,26 @@ load("@rules_rust//rust:defs.bzl", "rust_static_library")
 
 proto_library(
     name = "signature_proto",
-    srcs = ["lib/rc-x509-proto/protos/signature.proto"],
+    srcs = ["lib/rc-x509-proto/protos/rc/x509/signature/v1/signature.proto"],
     strip_import_prefix = "/lib/rc-x509-proto/protos",
 )
 
 proto_library(
     name = "magic_tunnel_proto",
-    srcs = ["lib/rc-x509-proto/protos/magic_tunnel/protocol.proto"],
+    srcs = ["lib/rc-x509-proto/protos/rc/x509/magic_tunnel/v1/protocol.proto"],
     strip_import_prefix = "/lib/rc-x509-proto/protos",
 )
 
 proto_library(
     name = "remote_config_proto",
-    srcs = ["lib/rc-x509-proto/protos/magic_tunnel/remote_config/remote_config.proto"],
+    srcs = ["lib/rc-x509-proto/protos/rc/x509/magic_tunnel/remote_config/v1/remote_config.proto"],
     strip_import_prefix = "/lib/rc-x509-proto/protos",
     deps = ["@protobuf//:timestamp_proto"],
 )
 
 proto_library(
     name = "protocol_proto",
-    srcs = glob(["lib/rc-x509-proto/protos/protocol/*.proto"]),
+    srcs = glob(["lib/rc-x509-proto/protos/rc/x509/protocol/v1/*.proto"]),
     strip_import_prefix = "/lib/rc-x509-proto/protos",
     deps = [
         ":magic_tunnel_proto",
@@ -154,12 +154,17 @@ cc_library(
 go_library(
     name = "libddrcffi",
     srcs = [
-        "ffi-hosts/go/internal/libddrcffi/callbacks.go",
+        "ffi-hosts/go/internal/libddrcffi/cachebust.go",
         "ffi-hosts/go/internal/libddrcffi/connection.go",
         "ffi-hosts/go/internal/libddrcffi/context.go",
-        "ffi-hosts/go/internal/libddrcffi/dispatcher.go",
         "ffi-hosts/go/internal/libddrcffi/doc.go",
+        "ffi-hosts/go/internal/libddrcffi/fakeconn.go",
+        "ffi-hosts/go/internal/libddrcffi/ffi.go",
+        "ffi-hosts/go/internal/libddrcffi/invokepool.go",
+        "ffi-hosts/go/internal/libddrcffi/lifecycle.go",
         "ffi-hosts/go/internal/libddrcffi/log_sink.go",
+        "ffi-hosts/go/internal/libddrcffi/pinnedhandle.go",
+        "ffi-hosts/go/internal/libddrcffi/registry.go",
     ],
     cdeps = [":rc_x509_ffi_cc"],
     cgo = True,
@@ -175,6 +180,7 @@ go_library(
 go_library(
     name = "rcx509",
     srcs = [
+        "ffi-hosts/go/rcx509/backoff.go",
         "ffi-hosts/go/rcx509/client.go",
         "ffi-hosts/go/rcx509/log_sink.go",
         "ffi-hosts/go/rcx509/session.go",
