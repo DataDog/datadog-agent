@@ -137,17 +137,55 @@
   - Cargo.lock
 
 include:
+  # Smoke test job for AI Gateway. When a pipeline is run with
+  # AI_GATEWAY_SMOKE_TEST=true, every other include below is skipped so the
+  # pipeline contains only the ai_gateway_smoke_test job.
+  - local: .gitlab/ai_gateway_smoke_test.yml
+    rules:
+      - if: $AI_GATEWAY_SMOKE_TEST == "true"
+  # All the includes below are skipped when running the AI Gateway smoke test
+  # pipeline (AI_GATEWAY_SMOKE_TEST=true).
   - local: .adms/**/*.yaml
+    rules:
+      - if: $AI_GATEWAY_SMOKE_TEST == "true"
+        when: never
+      - when: on_success
   - local: .gitlab/.pre/**.yml
+    rules:
+      - if: $AI_GATEWAY_SMOKE_TEST == "true"
+        when: never
+      - when: on_success
   - local: .gitlab/build/**.yml
+    rules:
+      - if: $AI_GATEWAY_SMOKE_TEST == "true"
+        when: never
+      - when: on_success
   - local: .gitlab/deploy/**.yml
+    rules:
+      - if: $AI_GATEWAY_SMOKE_TEST == "true"
+        when: never
+      - when: on_success
   - local: .gitlab/test/**.yml
+    rules:
+      - if: $AI_GATEWAY_SMOKE_TEST == "true"
+        when: never
+      - when: on_success
   - local: .gitlab/.post/**.yml
+    rules:
+      - if: $AI_GATEWAY_SMOKE_TEST == "true"
+        when: never
+      - when: on_success
   # AIX jobs
   - local: .gitlab/aix/**.yml
+    rules:
+      - if: $AI_GATEWAY_SMOKE_TEST == "true"
+        when: never
+      - when: on_success
   # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
   - local: .gitlab/windows/**.yml
     rules:
+      - if: $AI_GATEWAY_SMOKE_TEST == "true"
+        when: never
       - if: $SKIP_WINDOWS == "true"
         when: never
       - <<: *if_main_branch
