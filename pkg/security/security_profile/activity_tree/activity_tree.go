@@ -30,6 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 )
 
+const stringInternerSize = 4096
+
+var stringInterner = utils.NewLRUStringInterner(stringInternerSize)
+
 // NodeDroppedReason is used to list the reasons to drop a node
 type NodeDroppedReason byte
 

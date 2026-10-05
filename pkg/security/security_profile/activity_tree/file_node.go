@@ -47,21 +47,24 @@ func newFileInfo(fe *model.FileEvent) *FileInfo {
 	if fe == nil {
 		return nil
 	}
-	return &FileInfo{
+	fi := &FileInfo{
 		FileFields:    fe.FileFields,
 		PathnameStr:   fe.PathnameStr,
 		BasenameStr:   fe.BasenameStr,
-		Filesystem:    fe.Filesystem,
-		PkgName:       fe.PkgName,
-		PkgVersion:    fe.PkgVersion,
+		Filesystem:    stringInterner.Deduplicate(fe.Filesystem),
+		PkgName:       stringInterner.Deduplicate(fe.PkgName),
+		PkgVersion:    stringInterner.Deduplicate(fe.PkgVersion),
 		PkgEpoch:      fe.PkgEpoch,
-		PkgRelease:    fe.PkgRelease,
-		PkgSrcVersion: fe.PkgSrcVersion,
+		PkgRelease:    stringInterner.Deduplicate(fe.PkgRelease),
+		PkgSrcVersion: stringInterner.Deduplicate(fe.PkgSrcVersion),
 		PkgSrcEpoch:   fe.PkgSrcEpoch,
-		PkgSrcRelease: fe.PkgSrcRelease,
+		PkgSrcRelease: stringInterner.Deduplicate(fe.PkgSrcRelease),
 		HashState:     fe.HashState,
 		Hashes:        fe.Hashes,
 	}
+	fi.User = stringInterner.Deduplicate(fi.User)
+	fi.Group = stringInterner.Deduplicate(fi.Group)
+	return fi
 }
 
 // FileNode holds a tree representation of a list of files
