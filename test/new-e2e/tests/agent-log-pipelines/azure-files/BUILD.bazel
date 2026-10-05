@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "azure-files",
+    srcs = ["provisioner.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/azure-files",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/datadog/kubernetesagentparams",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/resources/azure",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/provisioners/azure/kubernetes",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/apps/v1:apps",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/core/v1:core",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/meta/v1:meta",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)
+
+dd_agent_go_test(
+    name = "azure-files_test",
+    srcs = [
+        "config_test.go",
+        "suite_test.go",
+    ],
+    embed = [":azure-files"],
+    tags = ["manual"],
+    deps = [
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)
