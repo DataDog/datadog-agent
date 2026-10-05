@@ -28,13 +28,13 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-// ErrEnrollmentRejected is returned when enrollment fails with a 4xx response
-// that retrying cannot fix (anything but 408, 425 and 429). The request is the
-// same on every attempt, so the runner must stop instead of re-enrolling until
-// the configuration is fixed and it is restarted.
+// ErrEnrollmentRejected is returned when enrollment fails with a client error
+// that retrying cannot fix. The request is the same on every attempt, so the
+// runner must stop instead of re-enrolling until the configuration is fixed and
+// it is restarted.
 var ErrEnrollmentRejected = errors.New("enrollment rejected")
 
-// ErrEnrollmentUnauthorized is the ErrEnrollmentRejected returned for 401/403.
+// ErrEnrollmentUnauthorized is the ErrEnrollmentRejected returned for rejected credentials.
 var ErrEnrollmentUnauthorized = fmt.Errorf("%w: credentials not accepted", ErrEnrollmentRejected)
 
 const (
@@ -161,12 +161,12 @@ func (p *publicClient) enroll(
 	return createRunnerResponse, nil
 }
 
-// doEnrollRequestWithRetry sends the enrollment POST and retries on transport
-// errors, HTTP 5xx, 408, 425 and 429 responses with exponential backoff,
-// honoring Retry-After on 429. Other 4xx responses are returned immediately as
+// doEnrollRequestWithRetry sends the enrollment POST and retries transient
+// failures with exponential backoff. Other failures are returned immediately as
 // ErrEnrollmentRejected. Retries are unbounded; the caller's context
-// cancellation is the only exit other than success or a rejection. Enrollment is required for the runner to function, so we keep
-// trying rather than crashing the agent.
+// cancellation is the only exit other than success or a rejection. Enrollment
+// is required for the runner to function, so we keep trying rather than
+// crashing the agent.
 func (p *publicClient) doEnrollRequestWithRetry(ctx context.Context, url string, body []byte, apiKey, appKey string) ([]byte, error) {
 	return util.RetryHTTPRequest(ctx, func() ([]byte, int, error) {
 		return p.doEnrollRequest(ctx, url, body, apiKey, appKey)
