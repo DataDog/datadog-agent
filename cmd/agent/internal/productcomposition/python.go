@@ -11,10 +11,17 @@ import (
 	"go.uber.org/fx"
 
 	pythondiscoveryfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer/fx-python"
+	pythoninfofx "github.com/DataDog/datadog-agent/comp/metadata/host/impl/pythoninfo/fx-python"
 )
 
 func autodiscoveryOptions() []fx.Option {
 	return []fx.Option{
 		pythondiscoveryfx.Module(),
+	}
+}
+
+func hostMetadataOptions() []fx.Option {
+	return []fx.Option{
+		pythoninfofx.Module(),
 	}
 }

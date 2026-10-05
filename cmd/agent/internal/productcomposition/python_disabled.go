@@ -12,3 +12,7 @@ import "go.uber.org/fx"
 func autodiscoveryOptions() []fx.Option {
 	return nil
 }
+
+func hostMetadataOptions() []fx.Option {
+	return nil
+}

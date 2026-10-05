@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	hostComp "github.com/DataDog/datadog-agent/comp/metadata/host/def"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/pythoninfo"
 	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -50,6 +51,7 @@ type host struct {
 	config       config.Component
 	resources    resources.Component
 	hostnameComp hostnameinterface.Component
+	pythonInfo   pythoninfo.Provider
 
 	hostname      string
 	serializer    serializer.MetricSerializer
@@ -65,6 +67,7 @@ type Requires struct {
 	Resources  resources.Component
 	Serializer serializer.MetricSerializer
 	Hostname   hostnameinterface.Component
+	PythonInfo pythoninfo.Provider `optional:"true"`
 }
 
 // Provides defines the output of the host metadata component
@@ -130,6 +133,7 @@ func NewComponent(deps Requires) Provides {
 		config:        deps.Config,
 		resources:     deps.Resources,
 		hostnameComp:  deps.Hostname,
+		pythonInfo:    deps.PythonInfo,
 		hostname:      hname,
 		serializer:    deps.Serializer,
 		backoffPolicy: bo,
@@ -139,8 +143,9 @@ func NewComponent(deps Requires) Provides {
 		MetadataProvider: runnerdef.NewProvider(h.collect),
 		FlareProvider:    flaretypes.NewProvider(h.fillFlare),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(StatusProvider{
-			Config:   h.config,
-			Hostname: h.hostnameComp,
+			Config:     h.config,
+			Hostname:   h.hostnameComp,
+			PythonInfo: h.pythonInfo,
 		}),
 		Endpoint:      api.NewAgentEndpointProvider(h.writePayloadAsJSON, "/metadata/v5", "GET"),
 		GohaiEndpoint: api.NewAgentEndpointProvider(h.writeGohaiPayload, "/metadata/gohai", "GET"),

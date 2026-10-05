@@ -62,6 +62,10 @@ type ProductComposition struct {
 	// AutodiscoveryOptions are product-specific Fx options included alongside the
 	// shared Autodiscovery module.
 	AutodiscoveryOptions []fx.Option
+
+	// HostMetadataOptions are product-specific Fx options included alongside the
+	// shared host metadata module.
+	HostMetadataOptions []fx.Option
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
