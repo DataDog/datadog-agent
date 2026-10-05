@@ -21,22 +21,15 @@ use crate::tracer_metadata::TracerMetadata;
 use crate::ust::UST;
 use crate::{service_name, tracer_metadata};
 
-/// Maximum lengths in bytes of strings derived from process data (cmdline,
-/// environment, files). They match the core agent normalization limits for
-/// service names (100) and tag values (200), so no information is lost.
+/// Limits for strings derived from process data, matching the core agent
+/// normalization of service names (100 bytes) and tag values (200 bytes).
 pub(crate) const MAX_NAME_LEN: usize = 100;
 pub(crate) const MAX_TAG_LEN: usize = 200;
-/// Maximum number of additional generated names reported per service.
 const MAX_ADDITIONAL_NAMES: usize = 32;
 
-/// Truncates `s` to at most `max` bytes on a UTF-8 char boundary, releasing
-/// the excess capacity so that the original allocation is not retained.
-pub(crate) fn truncate_utf8(mut s: String, max: usize) -> String {
-    if s.len() > max {
-        s.truncate(s.floor_char_boundary(max));
-        s.shrink_to_fit();
-    }
-    s
+/// Copies at most `max` bytes of `s`, cut on a UTF-8 char boundary.
+pub(crate) fn truncated(s: &str, max: usize) -> String {
+    s.get(..s.floor_char_boundary(max)).unwrap_or(s).to_owned()
 }
 
 #[derive(Debug, Serialize)]
@@ -179,15 +172,7 @@ fn get_service(
 
     let cmdline = Cmdline::get(pid).ok()?;
     let exe = Exe::get(pid).ok()?;
-    // Truncate the tracer UST values like UST::from_envs does, so that the
-    // tagger's comparison between both still matches.
-    let tracer_metadata =
-        get_newest_tracer_metadata(&open_files_info.tracer_memfds).map(|mut tm| {
-            tm.service_name = tm.service_name.map(|v| truncate_utf8(v, MAX_TAG_LEN));
-            tm.service_env = tm.service_env.map(|v| truncate_utf8(v, MAX_TAG_LEN));
-            tm.service_version = tm.service_version.map(|v| truncate_utf8(v, MAX_TAG_LEN));
-            tm
-        });
+    let tracer_metadata = get_newest_tracer_metadata(&open_files_info.tracer_memfds);
     let language = tracer_metadata
         .as_ref()
         .and_then(|m| Language::from_tracer_str(&m.tracer_language))
@@ -213,14 +198,14 @@ fn get_service(
         pid,
         generated_name: name_metadata
             .as_ref()
-            .map(|meta| truncate_utf8(meta.name.clone(), MAX_NAME_LEN)),
+            .map(|meta| truncated(&meta.name, MAX_NAME_LEN)),
         generated_name_source: name_metadata.as_ref().map(|meta| meta.source.clone()),
         additional_generated_names: name_metadata
             .map(|meta| {
                 meta.additional_names
-                    .into_iter()
+                    .iter()
                     .take(MAX_ADDITIONAL_NAMES)
-                    .map(|name| truncate_utf8(name, MAX_NAME_LEN))
+                    .map(|name| truncated(name, MAX_NAME_LEN))
                     .collect()
             })
             .unwrap_or_default(),
@@ -270,14 +255,15 @@ mod tests {
     use crate::params::Params;
 
     #[test]
-    fn test_truncate_utf8() {
-        assert_eq!(truncate_utf8("short".to_string(), MAX_NAME_LEN), "short");
-        let truncated = truncate_utf8("A".repeat(900_000), MAX_NAME_LEN);
-        assert_eq!(truncated.len(), MAX_NAME_LEN);
-        assert!(truncated.capacity() <= MAX_NAME_LEN);
+    fn test_truncated() {
+        assert_eq!(truncated("short", MAX_NAME_LEN), "short");
+        assert_eq!(
+            truncated(&"A".repeat(900_000), MAX_NAME_LEN).len(),
+            MAX_NAME_LEN
+        );
         // A 2-byte char straddling the limit is dropped rather than split.
         let s = format!("{}é", "A".repeat(MAX_NAME_LEN - 1));
-        assert_eq!(truncate_utf8(s, MAX_NAME_LEN), "A".repeat(MAX_NAME_LEN - 1));
+        assert_eq!(truncated(&s, MAX_NAME_LEN), "A".repeat(MAX_NAME_LEN - 1));
     }
 
     #[cfg(target_os = "linux")]
