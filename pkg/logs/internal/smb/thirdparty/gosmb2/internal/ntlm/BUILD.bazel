@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ntlm",
+    srcs = [
+        "challengemessage.go",
+        "client.go",
+        "common.go",
+        "ntlm.go",
+        "server.go",
+        "session.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/smb/thirdparty/gosmb2/internal/ntlm",
+    visibility = ["//pkg/logs/internal/smb/thirdparty/gosmb2:__subpackages__"],
+    deps = [
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/internal/utf16le",
+        "@org_golang_x_crypto//md4",
+    ],
+)
