@@ -25,6 +25,10 @@ func checkOptions() []fx.Option {
 	return nil
 }
 
+func guiOptions() []fx.Option {
+	return nil
+}
+
 func statusOptions() []fx.Option {
 	return nil
 }

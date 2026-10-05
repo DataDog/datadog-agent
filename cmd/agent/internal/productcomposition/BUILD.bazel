@@ -13,6 +13,7 @@ go_library(
         "//cmd/agent/command",
         "//comp/collector/pythonruntime/fx-python",
         "//comp/core/autodiscovery/discoverer/fx-python",
+        "//comp/core/gui/impl/pythonchecks/fx-python",
         "//comp/core/status",
         "//comp/metadata/host/impl/pythoninfo/fx-python",
         "//pkg/collector/python",

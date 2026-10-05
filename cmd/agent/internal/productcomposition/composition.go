@@ -15,6 +15,7 @@ func CoreAgent() command.ProductComposition {
 		HostMetadataOptions:  hostMetadataOptions(),
 		CollectorOptions:     collectorOptions(),
 		CheckOptions:         checkOptions(),
+		GUIOptions:           guiOptions(),
 		StatusOptions:        statusOptions(),
 	}
 }

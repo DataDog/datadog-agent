@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	guidef "github.com/DataDog/datadog-agent/comp/core/gui/def"
+	"github.com/DataDog/datadog-agent/comp/core/gui/impl/pythonchecks"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -86,6 +87,7 @@ type Requires struct {
 	Hostname       hostnameinterface.Component
 	Ipc            ipc.Component
 	SysprobeConfig sysprobeconfig.Component
+	PythonChecks   pythonchecks.Lister `optional:"true"`
 }
 
 // Provides defines the output of the gui component.
@@ -146,7 +148,7 @@ func NewComponent(deps Requires) Provides {
 	agentHandler(agentMux, deps.Flare, deps.Status, deps.Config, deps.Hostname, g.startTimestamp, deps.Ipc.GetAuthToken, socketPath)
 
 	checkMux := http.NewServeMux()
-	checkHandler(checkMux)
+	checkHandler(checkMux, deps.PythonChecks)
 
 	securedMux := http.NewServeMux()
 	securedMux.Handle("/agent/", http.StripPrefix("/agent", agentMux))
