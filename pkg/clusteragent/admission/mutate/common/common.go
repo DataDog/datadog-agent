@@ -9,6 +9,7 @@
 package common
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -47,7 +48,8 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 	// In rare cases multiple mutation webhooks executed in sequence can cause the spec to be invalid. This was seen
 	// when the autoinstrumentation library injection webhook ran before and after GKE Autopilot webhooks.
 	// Normalize correctable issues before proceeding so downstream can assume the pod spec is valid.
-	if err := NormalizePodSpec(&pod); err != nil {
+	removedVolumes, err := normalizePodSpec(&pod)
+	if err != nil {
 		// TODO should we return early here?
 		log.Warnf("failed to normalize input spec for %s: %v - API Server is likely to reject due to invalid spec", PodString(&pod), err)
 	}
@@ -55,7 +57,7 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 	// Most requests are unchanged. Keep typed snapshots so the fast path does
 	// not need serialization, and only copy again if normalization changed Pod.
 	normalizedPod := originalPod
-	if !reflect.DeepEqual(originalPod, &pod) {
+	if len(removedVolumes) > 0 {
 		normalizedPod = pod.DeepCopy()
 	}
 
@@ -81,13 +83,14 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 	}
 	normalizedRaw := rawPod
 	if normalizedPod != originalPod {
-		original, err := json.Marshal(originalPod)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode the original Pod object: %v", err)
-		}
-		normalization, err := jsondiff.CompareJSON(original, normalized, jsondiff.LCS())
-		if err != nil {
-			return nil, fmt.Errorf("failed to prepare the normalization patch: %v", err)
+		// Remove exactly the occurrences chosen by normalization. A JSON diff
+		// cannot distinguish duplicate typed entries with different raw fields.
+		normalization := make([]jsondiff.Operation, 0, len(removedVolumes))
+		for i := len(removedVolumes) - 1; i >= 0; i-- {
+			normalization = append(normalization, jsondiff.Operation{
+				Type: jsondiff.OperationRemove,
+				Path: fmt.Sprintf("/spec/volumes/%d", removedVolumes[i]),
+			})
 		}
 		normalizationJSON, err := json.Marshal(normalization)
 		if err != nil {
@@ -119,13 +122,25 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply the Pod merge patch: %v", err)
 	}
+	preserved, err = preservePodLists(normalizedRaw, preserved, normalizedPod, &pod)
+	if err != nil {
+		return nil, fmt.Errorf("failed to preserve Pod list fields: %v", err)
+	}
 
-	patch, err := jsondiff.CompareJSON(rawPod, preserved) // TODO: Try to generate the patch at the MutationFunc
+	patch, err := jsondiff.CompareJSON(rawPod, preserved, jsondiff.UnmarshalFunc(unmarshalExactNumbers)) // TODO: Try to generate the patch at the MutationFunc
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare the JSON patch: %v", err)
 	}
 
 	return json.Marshal(patch)
+}
+
+// Patch values must retain integer precision, including unknown fields carried
+// along when a list entry moves. The default float64 decoder rounds above 2^53.
+func unmarshalExactNumbers(data []byte, value any) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	return decoder.Decode(value)
 }
 
 // contains returns whether EnvVar slice contains an env var with a given name
