@@ -1694,30 +1694,30 @@ func TestUpdate(t *testing.T) {
 	config.BuildSchema()
 
 	config.Set("a", 1, model.SourceAgentRuntime)
-	assert.False(t, config.Update("a", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+	assert.False(t, config.Update("a", model.SourceAgentRuntime, func(current interface{}, _ bool) (interface{}, bool) {
 		assert.Equal(t, 1, current)
 		return 2, false
 	}))
 	assert.Equal(t, 1, config.GetInt("a"))
 
-	assert.True(t, config.Update("a", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+	assert.True(t, config.Update("a", model.SourceAgentRuntime, func(current interface{}, _ bool) (interface{}, bool) {
 		return current.(int) + 1, true
 	}))
 	assert.Equal(t, 2, config.GetInt("a"))
 
-	assert.True(t, config.Update("A", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+	assert.True(t, config.Update("A", model.SourceAgentRuntime, func(current interface{}, _ bool) (interface{}, bool) {
 		return current.(int) + 1, true
 	}))
 	assert.Equal(t, 3, config.GetInt("a"))
 
 	config.Set("nullable", nil, model.SourceAgentRuntime)
-	assert.True(t, config.Update("nullable", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+	assert.True(t, config.Update("nullable", model.SourceAgentRuntime, func(current interface{}, _ bool) (interface{}, bool) {
 		assert.Nil(t, current)
 		return map[string]interface{}{"value": 4}, true
 	}))
 	assert.Equal(t, 4, config.GetStringMap("nullable")["value"])
 
-	assert.False(t, config.Update("nullable", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+	assert.False(t, config.Update("nullable", model.SourceAgentRuntime, func(current interface{}, _ bool) (interface{}, bool) {
 		current.(map[string]interface{})["value"] = 5
 		return current, false
 	}))
@@ -1730,42 +1730,47 @@ func TestUpdateShadowedByHigherSource(t *testing.T) {
 	config.BuildSchema()
 
 	config.Set("a", 1, model.SourceFile)
+	config.Set("a", 2, model.SourceSecret)
 	config.Set("a", 10, model.SourceCLI)
-	assert.False(t, config.Update("a", model.SourceSecret, func(current interface{}) (interface{}, bool) {
-		// The callback never sees a layer above the one it writes.
-		assert.Equal(t, 1, current)
+	assert.False(t, config.Update("a", model.SourceSecret, func(current interface{}, noValue bool) (interface{}, bool) {
+		// Overwriting builds on the secret layer's own value, never on CLI's.
+		assert.False(t, noValue)
+		assert.Equal(t, 2, current)
 		return current.(int) + 1, true
 	}))
 	assert.Equal(t, 10, config.GetInt("a"))
 
-	// The write landed in the secret layer, derived from the file layer rather than a copy of CLI's.
 	config.UnsetForSource("a", model.SourceCLI)
-	assert.Equal(t, 2, config.GetInt("a"))
+	assert.Equal(t, 3, config.GetInt("a"))
 	assert.Equal(t, model.SourceSecret, config.GetSource("a"))
 }
 
-func TestUpdateReadsOwnLayerElseClosestBelow(t *testing.T) {
+func TestUpdateOverwritesOwnLayerOrInsertsFromResolved(t *testing.T) {
 	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.SetDefault("a", 0)
 	config.BuildSchema()
 
-	seen := func(source model.Source) interface{} {
-		var got interface{}
-		config.Update("a", source, func(current interface{}) (interface{}, bool) {
-			got = current
+	type call struct {
+		value   interface{}
+		noValue bool
+	}
+	seen := func(source model.Source) call {
+		var got call
+		config.Update("a", source, func(current interface{}, noValue bool) (interface{}, bool) {
+			got = call{current, noValue}
 			return nil, false
 		})
 		return got
 	}
 
-	assert.Equal(t, 0, seen(model.SourceSecret), "only the default is set")
+	assert.Equal(t, call{0, true}, seen(model.SourceSecret), "empty layer, only the default resolves")
 
 	config.Set("a", 1, model.SourceFile)
 	config.Set("a", 2, model.SourceConfigPostInit)
 	config.Set("a", 3, model.SourceAgentRuntime)
-	assert.Equal(t, 2, seen(model.SourceConfigPostInit), "source's own value")
-	assert.Equal(t, 2, seen(model.SourceSecret), "empty source falls back to the closest layer below")
-	assert.Equal(t, 1, seen(model.SourceFile), "file sees itself, not higher layers")
+	assert.Equal(t, call{2, false}, seen(model.SourceConfigPostInit), "overwrite: own layer, not the higher runtime value")
+	assert.Equal(t, call{1, false}, seen(model.SourceFile), "overwrite: own layer")
+	assert.Equal(t, call{3, true}, seen(model.SourceSecret), "insert: empty layer gets the resolved value")
 }
 
 func TestUpdateUnknownKeySkipsCallback(t *testing.T) {
@@ -1774,7 +1779,7 @@ func TestUpdateUnknownKeySkipsCallback(t *testing.T) {
 	config.BuildSchema()
 
 	called := false
-	assert.False(t, config.Update("missing", model.SourceAgentRuntime, func(interface{}) (interface{}, bool) {
+	assert.False(t, config.Update("missing", model.SourceAgentRuntime, func(interface{}, bool) (interface{}, bool) {
 		called = true
 		return 1, true
 	}))
@@ -1796,9 +1801,9 @@ func TestUpdateNotifiesAfterUnlock(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		applied = append(applied, config.Update("a", model.SourceAgentRuntime, func(interface{}) (interface{}, bool) { return 1, true }))
+		applied = append(applied, config.Update("a", model.SourceAgentRuntime, func(interface{}, bool) (interface{}, bool) { return 1, true }))
 		// Unchanged value: no notification.
-		applied = append(applied, config.Update("a", model.SourceAgentRuntime, func(interface{}) (interface{}, bool) { return 1, true }))
+		applied = append(applied, config.Update("a", model.SourceAgentRuntime, func(interface{}, bool) (interface{}, bool) { return 1, true }))
 	}()
 	select {
 	case <-done:
@@ -1826,7 +1831,7 @@ func TestUpdateUnlocksAfterCallbackPanic(t *testing.T) {
 	config.BuildSchema()
 
 	assert.Panics(t, func() {
-		config.Update("a", model.SourceAgentRuntime, func(interface{}) (interface{}, bool) {
+		config.Update("a", model.SourceAgentRuntime, func(interface{}, bool) (interface{}, bool) {
 			panic("update failed")
 		})
 	})
@@ -1845,7 +1850,7 @@ func TestUpdateSerializesConcurrentWriters(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			config.Update("a", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+			config.Update("a", model.SourceAgentRuntime, func(current interface{}, _ bool) (interface{}, bool) {
 				return current.(int) + 1, true
 			})
 		}()

@@ -231,7 +231,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 }
 
 // Update computes and writes a setting while holding the config write lock.
-func (c *ntmConfig) Update(key string, source model.Source, update func(interface{}) (interface{}, bool)) bool {
+func (c *ntmConfig) Update(key string, source model.Source, update func(interface{}, bool) (interface{}, bool)) bool {
 	if update == nil {
 		panicInTest("Update callback must not be nil")
 		return false
@@ -239,7 +239,7 @@ func (c *ntmConfig) Update(key string, source model.Source, update func(interfac
 	return c.set(key, nil, source, update)
 }
 
-func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, update func(interface{}) (interface{}, bool)) bool {
+func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, update func(interface{}, bool) (interface{}, bool)) bool {
 	if source == model.SourceEnvVar {
 		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
 	}
@@ -268,8 +268,14 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, u
 	}
 	previousValue := c.leafAtPathFromNode(strings.ToLower(key), c.root).Get()
 	if update != nil {
+		// Overwrite builds on source's own value; an insert into an empty layer builds on the
+		// resolved value, so the callback never reads another layer when overwriting.
+		current, inLayer := c.valueInSource(strings.ToLower(key), source)
+		if !inLayer {
+			current = previousValue
+		}
 		var apply bool
-		newValue, apply = update(copyIfNeeded(c.valueAtOrBelowSource(strings.ToLower(key), source)))
+		newValue, apply = update(copyIfNeeded(current), !inLayer)
 		if !apply {
 			return false
 		}
@@ -477,21 +483,19 @@ func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*no
 	return nil, ErrNotFound
 }
 
-// valueAtOrBelowSource returns source's own value for key, or else the closest lower layer's, so an
-// Update never builds on a layer above the one it writes. Must be called with the lock held.
-func (c *ntmConfig) valueAtOrBelowSource(key string, source model.Source) interface{} {
+// valueInSource returns source's own value for key and whether that layer sets it. Must be called
+// with the lock held.
+func (c *ntmConfig) valueInSource(key string, source model.Source) (interface{}, bool) {
 	tree, err := c.getTreeBySource(source)
 	if err != nil {
 		// Not a writable layer (e.g. SourceSchema); the write fails later anyway.
-		return nil
+		return nil, false
 	}
-	if leaf := c.leafAtPathFromNode(key, tree); leaf != missingLeaf {
-		return leaf.Get()
+	leaf := c.leafAtPathFromNode(key, tree)
+	if leaf == missingLeaf {
+		return nil, false
 	}
-	if node, err := c.findPreviousSourceNode(key, source); err == nil {
-		return node.Get()
-	}
-	return nil
+	return leaf.Get(), true
 }
 
 // UnsetForSource unsets a config entry for a given source

@@ -807,7 +807,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 	slices.Reverse(trailingElements)
 
 	var updateErr error
-	config.Update(settingName, pkgconfigmodel.SourceSecret, func(startingValue interface{}) (interface{}, bool) {
+	config.Update(settingName, pkgconfigmodel.SourceSecret, func(startingValue interface{}, _ bool) (interface{}, bool) {
 		iterateValue := startingValue
 		// Iterate down until we find the final object that we are able to modify.
 		for k, elem := range trailingElements {

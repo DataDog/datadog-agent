@@ -1392,7 +1392,7 @@ type updateInjectingConfig struct {
 	triggered bool
 }
 
-func (r *updateInjectingConfig) Update(key string, source pkgconfigmodel.Source, update func(interface{}) (interface{}, bool)) bool {
+func (r *updateInjectingConfig) Update(key string, source pkgconfigmodel.Source, update func(interface{}, bool) (interface{}, bool)) bool {
 	if key == r.watchKey && r.inject != nil && !r.triggered {
 		r.triggered = true
 		r.inject()

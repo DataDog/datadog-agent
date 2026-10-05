@@ -877,7 +877,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 	configKey := instance.additionalEndpointsConfigKey
 	domain := instance.additionalEndpointDomain
 	var updateErr error
-	applied := d.config.Update(configKey, pkgconfigmodel.SourceSecret, func(currentValue interface{}) (interface{}, bool) {
+	applied := d.config.Update(configKey, pkgconfigmodel.SourceSecret, func(currentValue interface{}, _ bool) (interface{}, bool) {
 		endpoints, err := cast.ToStringMapStringSliceE(currentValue)
 		if err != nil {
 			updateErr = fmt.Errorf("%w: invalid value at %s", errWritebackTargetChanged, configKey)
@@ -945,7 +945,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 	configKey := instance.additionalEndpointsListConfigKey
 
 	var updateErr error
-	applied := d.config.Update(configKey, pkgconfigmodel.SourceSecret, func(currentValue interface{}) (interface{}, bool) {
+	applied := d.config.Update(configKey, pkgconfigmodel.SourceSecret, func(currentValue interface{}, _ bool) (interface{}, bool) {
 		entries, ok := common.NormalizeListShapeEntries(currentValue)
 		if !ok {
 			updateErr = fmt.Errorf("%w: invalid value at %s", errWritebackTargetChanged, configKey)
