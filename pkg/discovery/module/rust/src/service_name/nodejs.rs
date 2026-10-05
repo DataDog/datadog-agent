@@ -4,7 +4,8 @@
 // Copyright 2025-present Datadog, Inc.
 
 use crate::service_name::{DetectionContext, ServiceNameMetadata, ServiceNameSource};
-use std::io::Read;
+use crate::services::{MAX_NAME_LEN, truncated};
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 /// Checks if a file path has a JavaScript extension
@@ -107,14 +108,8 @@ fn find_package_json_name(entry_point: &Path, ctx: &DetectionContext) -> Option<
 
         // Try to open the file
         if let Ok(file) = ctx.fs.open(&package_json_path) {
-            // File exists, try to parse it
-            if let Some(name) = parse_package_json(&file, &package_json_path)
-                && !name.is_empty()
-            {
-                return Some(name);
-            }
-            // Found package.json but couldn't parse or no name, stop searching
-            return None;
+            // Found package.json: stop searching, whether or not it has a name
+            return parse_package_json(&file, &package_json_path).filter(|name| !name.is_empty());
         }
         // File doesn't exist, continue searching up the directory tree
 
@@ -130,36 +125,35 @@ fn find_package_json_name(entry_point: &Path, ctx: &DetectionContext) -> Option<
     None
 }
 
-/// Parses package.json and extracts the "name" field
-/// Returns Some(name) if successfully parsed with a name field, None otherwise
+#[derive(serde::Deserialize)]
+struct PackageJson {
+    #[serde(deserialize_with = "truncated_name")]
+    name: String,
+}
+
+/// Copies only the first MAX_NAME_LEN bytes of the parsed string.
+fn truncated_name<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    struct TruncatedName;
+    impl serde::de::Visitor<'_> for TruncatedName {
+        type Value = String;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("a string")
+        }
+        fn visit_str<E>(self, s: &str) -> Result<String, E> {
+            Ok(truncated(s, MAX_NAME_LEN))
+        }
+    }
+    d.deserialize_str(TruncatedName)
+}
+
+/// Parses package.json and extracts its "name" field, skipping other fields.
 fn parse_package_json(file: &crate::fs::UnverifiedFile, path: &Path) -> Option<String> {
-    // Get a size-verified reader
-    let mut reader = match file.verify(None) {
-        Ok(r) => r,
-        Err(e) => {
-            log::debug!("Skipping package.json at {}: {}", path.display(), e);
-            return None;
-        }
-    };
-
-    // Read the file contents
-    let mut contents = String::new();
-    if reader.read_to_string(&mut contents).is_err() {
-        log::debug!("Unable to read package.json at {}", path.display());
-        return None;
-    }
-
-    // Parse JSON and extract the "name" field
-    match serde_json::from_str::<serde_json::Value>(&contents) {
-        Ok(json) => json
-            .get("name")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string()),
-        Err(e) => {
-            log::debug!("Unable to parse package.json at {}: {}", path.display(), e);
-            None
-        }
-    }
+    file.verify(None)
+        .map_err(serde_json::Error::io)
+        .and_then(|reader| serde_json::from_reader::<_, PackageJson>(BufReader::new(reader)))
+        .inspect_err(|e| log::debug!("Skipping package.json at {}: {e}", path.display()))
+        .ok()
+        .map(|package| package.name)
 }
 
 #[cfg(test)]
