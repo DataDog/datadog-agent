@@ -7,10 +7,9 @@ wherever a DynTestExecutor is accepted, e.g. the evaluate-index task with
 --selector jev (see tasks/dyntest.py). Always fails open: any error returns
 an empty selection, so nothing is skipped.
 
-Tokens: an installed authanywhere is preferred (CI jobs install it via the
-.install_authanywhere template, laptops via `brew install datadog/tap/ddr &&
-brew install authanywhere`); $JEV_TOKEN_CMD/$JEV_DC override, and the linux
-binary is downloaded as a last resort.
+Tokens: authanywhere comes with the CI build image (and laptops have it via
+`brew install datadog/tap/ddr && brew install authanywhere`);
+$JEV_TOKEN_CMD/$JEV_DC override it.
 """
 
 from __future__ import annotations
@@ -40,34 +39,15 @@ except ImportError:  # standalone use (no invoke): duck-type the same interface
 _SELECTOR = os.path.join(_TOOLS_JEV, "jev_e2e_selector.py")
 
 
-def _auth(tmp: str) -> tuple[str, str]:
+def _auth() -> tuple[str, str]:
     """(token command, AI Gateway dc) for the Jev selector.
 
-    Prefers an installed authanywhere (CI: the .install_authanywhere template
-    puts it on the workspace PATH; laptops: brew), falls back to
-    $JEV_TOKEN_CMD/$JEV_DC, and downloads the linux binary as a last resort
-    (CI jobs without the install step).
+    authanywhere comes with the CI build image (and laptops have it via
+    brew); $JEV_TOKEN_CMD/$JEV_DC override it.
     """
     if os.environ.get("JEV_TOKEN_CMD"):
         return os.environ["JEV_TOKEN_CMD"], os.environ.get("JEV_DC", "us1.ddbuild.io")
-    if shutil.which("authanywhere"):
-        return "authanywhere --audience rapid-ai-platform --raw --dc us1.ddbuild.io", "us1.ddbuild.io"
-    # last resort: download the linux binary
-    arch = "amd64" if os.uname().machine == "x86_64" else "arm64"
-    path = os.path.join(tmp, "authanywhere")
-    subprocess.run(
-        [
-            "curl",
-            "-sSfL",
-            "-o",
-            path,
-            f"https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-{arch}",
-        ],
-        check=True,
-        timeout=60,
-    )
-    os.chmod(path, 0o755)
-    return f"{path} --audience rapid-ai-platform --raw --dc us1.ddbuild.io", "us1.ddbuild.io"
+    return "authanywhere --audience rapid-ai-platform --raw --dc us1.ddbuild.io", "us1.ddbuild.io"
 
 
 def jev_selection(targets: list[str], team: str | None = None) -> dict:
@@ -83,7 +63,7 @@ def jev_selection(targets: list[str], team: str | None = None) -> dict:
     tmp = tempfile.mkdtemp(prefix="jev-selection-")
     try:
         out = os.path.join(tmp, "decisions.json")
-        token_cmd, dc = _auth(tmp)
+        token_cmd, dc = _auth()
         cmd = [
             "python3",
             _SELECTOR,
@@ -193,9 +173,10 @@ class JevDynTestExecutor(DynTestExecutor):
       brand new tests
     """
 
-    # Extra telemetry tags identifying this selection in the evaluation
-    # stats (the coverage executors carry none) - see evaluate_index
-    telemetry_tags = ["selector:jev", "universe:all-e2e-tests"]
+    # Extra telemetry tags for the evaluation stats - the selection is
+    # identified by its index kind (IndexKind.JEV -> index_kind:jev), this
+    # only tags the test universe difference (see evaluate_index)
+    telemetry_tags = ["universe:all-e2e-tests"]
 
     def __init__(self, ctx, backend, kind, commit_sha, pipeline_id=None):
         if DynTestExecutor is not object:

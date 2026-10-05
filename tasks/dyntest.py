@@ -116,7 +116,7 @@ def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: 
     # decisions do not depend on the index kind). The evaluation flow itself
     # is identical for all of them.
     if selector == "jev":
-        executors = [JevDynTestExecutor(ctx, uploader, IndexKind.DIFFED_PACKAGE, commit_sha, pipeline_id)]
+        executors = [JevDynTestExecutor(ctx, uploader, IndexKind.JEV, commit_sha, pipeline_id)]
     else:
         executors = [
             DynTestExecutor(ctx, uploader, kind, commit_sha)
