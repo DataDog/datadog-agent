@@ -7,6 +7,7 @@ package util
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -36,7 +37,7 @@ func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opt
 	expBackoff.InitialInterval = opts.InitialInterval
 	expBackoff.MaxInterval = opts.MaxInterval
 
-	return backoff.Retry(ctx, func() (T, error) {
+	result, err := backoff.Retry(ctx, func() (T, error) {
 		result, statusCode, err := op()
 		if err == nil {
 			return result, nil
@@ -50,4 +51,8 @@ func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opt
 		backoff.WithBackOff(expBackoff),
 		backoff.WithMaxElapsedTime(opts.MaxElapsedTime),
 	)
+	if re := backoff.AsRetryError(err); re != nil && errors.Is(re.Cause, backoff.ErrPermanent) {
+		return result, re.LastErr
+	}
+	return result, err
 }
