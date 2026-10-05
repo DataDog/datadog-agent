@@ -33,19 +33,10 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/config v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.82.0 // indirect
@@ -66,7 +57,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.82.0 // indirect
@@ -80,8 +70,6 @@ require (
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/benbjohnson/clock v1.3.5 // indirect
-	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v7 v7.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
@@ -99,7 +87,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
-	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.20.0 // indirect
 	github.com/knadh/koanf/maps v0.1.3 // indirect
@@ -113,7 +100,6 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
-	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.159.0 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
@@ -122,16 +108,10 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
-	github.com/prometheus/client_golang v1.24.1 // indirect
-	github.com/prometheus/client_model v0.6.3 // indirect
-	github.com/prometheus/common v0.71.0 // indirect
-	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.11.1 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.8 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
-	github.com/spf13/cobra v1.10.2 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
@@ -170,8 +150,6 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.45.0 // indirect
 	go.opentelemetry.io/otel/trace v1.46.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/dig v1.19.0 // indirect
-	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
