@@ -397,14 +397,14 @@ func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.telemetry.Log()
 	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-			Type:  protocols.Kafka,
-			Stats: stats,
-		}, func() {
-			for _, s := range stats {
-				s.Close()
-				requestStatsPool.Put(s)
-			}
+		Type:  protocols.Kafka,
+		Stats: stats,
+	}, func() {
+		for _, s := range stats {
+			s.Close()
+			requestStatsPool.Put(s)
 		}
+	}
 }
 
 // IsBuildModeSupported returns always true, as kafka module is supported by all modes.

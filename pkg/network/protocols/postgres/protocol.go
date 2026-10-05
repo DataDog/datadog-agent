@@ -263,14 +263,14 @@ func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 
 	stats := p.statskeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-			Type:  protocols.Postgres,
-			Stats: stats,
-		}, func() {
-			for _, stat := range stats {
-				stat.Close()
-				requestStatPool.Put(stat)
-			}
+		Type:  protocols.Postgres,
+		Stats: stats,
+	}, func() {
+		for _, stat := range stats {
+			stat.Close()
+			requestStatPool.Put(stat)
 		}
+	}
 }
 
 // IsBuildModeSupported returns always true, as postgres module is supported by all modes.
