@@ -196,7 +196,10 @@ not embed a `correlationEmitter`.
 Every detector output must set `Anomaly.SourceRef` to its storage series and
 aggregate, including anomalies from log-derived metrics. The engine discards
 outputs without a reference. Display names are not deduplication identities.
-The standalone scorer can also accept inputs without storage references.
+The scorer keys storage-backed inputs by numeric `QueryHandle`, including the
+aggregate. Its separate descriptor-key fallback supports standalone inputs
+without storage references. Keep formatted IDs at API/display boundaries; do
+not reintroduce string formatting into the per-second scorer window.
 
 The engine deduplicates detector outputs across advances before feeding them to
 correlators. Live mode keeps only a fixed-size dedup cache;
@@ -246,7 +249,7 @@ scoring, or deduplication.
 
 ```bash
 dda inv test --targets=./comp/anomalydetection/observer/...
-dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
+dda inv test --targets=./comp/anomalydetection/observer/impl --test-run-name='^$' --extra-args='-bench=. -benchmem'
 ```
 
 **Testbench** (algorithm iteration + scenario replay):
