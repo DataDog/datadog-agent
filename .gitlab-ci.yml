@@ -62,6 +62,42 @@ jev_e2e_selector:
     paths:
       - jev_e2e_decisions.json
 
+# Replay evaluation: run the Jev selection on a past PR and compare with the
+# tests that actually executed in CI Visibility. Set JEV_EVAL_PR (required)
+# and optionally JEV_EVAL_PIPELINE_ID (GitLab pipeline id of the run to
+# compare with; defaults to the PR head commit) and JEV_EVAL_SUITE.
+jev_e2e_eval:
+  stage: test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux:v141311605-333887d1
+  tags: ["arch:amd64", "specific:true"]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  variables:
+    GIT_DEPTH: 0 # full history for the worktree / merge-base
+    GIT_STRATEGY: clone
+    AI_GATEWAY_DC: "us1.ddbuild.io"
+    AI_GATEWAY_MODEL: "datadoginternal/openjev-medium"
+  rules:
+    - if: $JEV_EVAL_PR
+  script:
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh agent-api-key-org-2 token)
+    - |
+      if [ "$(uname -m)" = "x86_64" ]; then AAA="amd64"; else AAA="arm64"; fi
+      curl -sSfL -o authanywhere "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${AAA}"
+      chmod +x authanywhere
+    - |
+      ARGS="--pr ${JEV_EVAL_PR} --model ${AI_GATEWAY_MODEL} --dc ${AI_GATEWAY_DC}
+           --token-cmd \"$(pwd)/authanywhere --audience rapid-ai-platform --raw --dc ${AI_GATEWAY_DC}\""
+      [ -n "${JEV_EVAL_PIPELINE_ID}" ] && ARGS="$ARGS --pipeline-id ${JEV_EVAL_PIPELINE_ID}"
+      [ -n "${JEV_EVAL_SUITE}" ] && ARGS="$ARGS --suite ${JEV_EVAL_SUITE}"
+      python3 tools/jev/jev_e2e_eval.py $ARGS
+  artifacts:
+    when: always
+    paths:
+      - jev_e2e_eval_*.json
+
 ai_gateway_smoke_test:
   stage: test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux:v141311605-333887d1

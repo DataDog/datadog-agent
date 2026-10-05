@@ -475,6 +475,49 @@ def print_collapsible(name: str, title: str, body: str) -> None:
         print(f"--- {title} ---\n{body}")
 
 
+def build_state(
+    name: str,
+    path: str,
+    code: str,
+    suite: str,
+    team: str,
+    pr: dict,
+    files: list,
+    merge_base: str,
+    diff: str,
+    ddci: dict | None = None,
+    suite_def_code: str = "",
+) -> str:
+    """Assemble the System One state sent to Jev for one test entry point."""
+    files_section = "\n".join(f"- {f} ({kind})" if kind else f"- {f}" for f, kind in files)
+    author = f", author: @{pr['author']}" if pr.get("author") else ""
+    impacted = ""
+    if ddci and ddci.get("impacted_targets"):
+        impacted = "\n\n## Impacted build targets (from DDCI build impact analysis)\n" + ", ".join(
+            ddci["impacted_targets"][:100]
+        )
+    diff_section = f"\n## Full PR diff (per-file patches, truncated to fit)\n```diff\n{diff}\n```" if diff else ""
+    suite_def_section = (
+        f"\n## E2E suite provisioning definition (base suite: platforms, components, install method)\n"
+        f"```go\n{suite_def_code}\n```"
+    ) if suite_def_code else ""
+    return (
+        "## PR under review\n"
+        f"Title: {pr.get('title') or '(unknown)'}{author}\n"
+        f"Description:\n{truncate(pr.get('description') or '(none)', MAX_DESCRIPTION_BYTES, 'description')}\n"
+        f"Owning team of the E2E suite: {team}\n\n"
+        f"## Files changed in this PR (merge base {str(merge_base)[:12]}, {len(files)} files)\n"
+        f"{files_section}{diff_section}{impacted}\n\n"
+        "## E2E test under evaluation\n"
+        f"Test: {name}\n"
+        f"Suite: {suite} ({path})\n"
+        f"Code:\n```go\n{truncate(code, MAX_TEST_CODE_BYTES, 'test code')}\n```{suite_def_section}\n\n"
+        "Context: this is a test in the datadog-agent repository, a large Go monorepo. "
+        "E2E tests provision real VMs and are expensive to run. Decide whether this PR "
+        "plausibly affects what this test verifies."
+    )
+
+
 # ---------------------------------------------------------------- main
 
 
@@ -541,32 +584,9 @@ def main() -> int:
 
     decisions = []
     for name, path, code in suites:
-        files_section = "\n".join(f"- {f} ({kind})" if kind else f"- {f}" for f, kind in files)
-        author = f", author: @{pr['author']}" if pr.get("author") else ""
-        impacted = ""
-        if ddci and ddci.get("impacted_targets"):
-            impacted = "\n\n## Impacted build targets (from DDCI build impact analysis)\n" + ", ".join(
-                ddci["impacted_targets"][:100]
-            )
-        diff_section = f"\n## Full PR diff (per-file patches, truncated to fit)\n```diff\n{diff}\n```" if diff else ""
-        suite_def_section = (
-            f"\n## E2E suite provisioning definition (base suite: platforms, components, install method)\n"
-            f"```go\n{suite_def_code}\n```"
-        ) if suite_def_code else ""
-        state = (
-            "## PR under review\n"
-            f"Title: {pr.get('title') or '(unknown)'}{author}\n"
-            f"Description:\n{truncate(pr.get('description') or '(none)', MAX_DESCRIPTION_BYTES, 'description')}\n"
-            f"Owning team of the E2E suite: {team}\n\n"
-            f"## Files changed in this PR (merge base {str(merge_base)[:12]}, {len(files)} files)\n"
-            f"{files_section}{diff_section}{impacted}\n\n"
-            "## E2E test under evaluation\n"
-            f"Test: {name}\n"
-            f"Suite: {args.suite} ({path})\n"
-            f"Code:\n```go\n{truncate(code, MAX_TEST_CODE_BYTES, 'test code')}\n```{suite_def_section}\n\n"
-            "Context: this is a test in the datadog-agent repository, a large Go monorepo. "
-            "E2E tests provision real VMs and are expensive to run. Decide whether this PR "
-            "plausibly affects what this test verifies."
+        state = build_state(
+            name, path, code, args.suite, team, pr, files, merge_base, diff,
+            ddci=ddci, suite_def_code=suite_def_code,
         )
         if args.dry_run:
             print(f"--- state for {name} (dry run, not sent) ---\n{state}\n")
