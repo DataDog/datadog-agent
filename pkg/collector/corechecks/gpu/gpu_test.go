@@ -10,6 +10,12 @@ package gpu
 import (
 	"errors"
 	"fmt"
+	"slices"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -40,11 +46,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/mock/gomock"
-	"slices"
-	"strconv"
-	"strings"
-	"testing"
-	"time"
 )
 
 func newMockContainerProvider(t *testing.T, pidToContainerID map[int]string) *mock_containers.MockContainerProvider {
@@ -1164,13 +1165,19 @@ func TestGetGPUToProcessesMap(t *testing.T) {
 	physicalUUID := testutil.GPUUUIDs[0]
 	migUUID := testutil.MIGChildrenUUIDs[testutil.DefaultMIGParentDeviceIdx][0]
 	idleUUID := testutil.GPUUUIDs[1]
+	partiallyInvalidUUID := testutil.GPUUUIDs[2]
+	onlyInvalidUUID := testutil.GPUUUIDs[3]
 	wmetaMock.Set(&workloadmeta.GPU{EntityID: workloadmeta.EntityID{ID: physicalUUID, Kind: workloadmeta.KindGPU}, ActivePIDs: []int{10, 20}})
 	wmetaMock.Set(&workloadmeta.GPU{EntityID: workloadmeta.EntityID{ID: migUUID, Kind: workloadmeta.KindGPU}, ActivePIDs: []int{30}})
 	wmetaMock.Set(&workloadmeta.GPU{EntityID: workloadmeta.EntityID{ID: idleUUID, Kind: workloadmeta.KindGPU}})
+	wmetaMock.Set(&workloadmeta.GPU{EntityID: workloadmeta.EntityID{ID: partiallyInvalidUUID, Kind: workloadmeta.KindGPU}, ActivePIDs: []int{0, 40}})
+	wmetaMock.Set(&workloadmeta.GPU{EntityID: workloadmeta.EntityID{ID: onlyInvalidUUID, Kind: workloadmeta.KindGPU}, ActivePIDs: []int{0}})
 
+	// Invalid PIDs are dropped, and GPUs without valid PIDs are not in the map
 	assert.Equal(t, map[string][]int32{
-		physicalUUID: {10, 20},
-		migUUID:      {30},
+		physicalUUID:         {10, 20},
+		migUUID:              {30},
+		partiallyInvalidUUID: {40},
 	}, check.getGPUToProcessesMap())
 }
 
