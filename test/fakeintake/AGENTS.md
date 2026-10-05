@@ -260,7 +260,7 @@ The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
   `go build cmd/server/main.go`, whose in-module deps are `server/`,
   `aggregator/` and `api/`. So a bump/rebuild/publish is required only for
   `.go` changes under those (plus `go.mod`/`go.sum`/`Dockerfile`) — see
-  `.fakeintake_server_paths` in `.gitlab-ci.yml` and `_is_server_file()` in
+  `.fakeintake_server_paths` in `gitlab-config.yml` and `_is_server_file()` in
   `tasks/fakeintake.py`. Changes to `client/`, `cmd/client/` or `docs/` do **not**
   change the image and need no bump, and neither do non-Go files under the server
   paths (`BUILD.bazel`, test fixtures).
@@ -285,7 +285,7 @@ The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
   not-yet-published tag.
 - **Release branches never build or publish fakeintake.** The build/publish jobs
   are skipped on release branches (`7.*.x`) and PRs targeting them
-  (`.except_fakeintake_off_main` in `.gitlab-ci.yml`): a fakeintake change there
+  (`.except_fakeintake_off_main` in `gitlab-config.yml`): a fakeintake change there
   is ignored — no rebuild, no publish, no e2e override; e2e runs against the
   branch's pinned image. **`version/VERSION` must never exceed main's** on such
   branches: the pinned tag is published from main only, so a greater value

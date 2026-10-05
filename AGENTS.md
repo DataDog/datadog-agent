@@ -157,13 +157,13 @@ Bazel/Gazelle build-tag handling is documented in `bazel/AGENTS.md` ("Go build t
 - `datadog.yaml` - Main agent configuration
 - `modules.yml` - Go module definitions
 - `release.json` - Release version information
-- `.gitlab-ci.yml` - CI/CD pipeline configuration
+- `gitlab-config.yml` - CI/CD pipeline configuration (included from the `.gitlab-ci.yml` entry point)
 
 ## CI/CD Pipeline
 
 ### GitLab CI
 - Primary CI system
-- Defined in `.gitlab-ci.yml` and `.gitlab/` directory
+- Defined in `gitlab-config.yml` and `.gitlab/` directory
 - Runs tests, builds, and deployments
 
 #### Fetching CI job logs locally

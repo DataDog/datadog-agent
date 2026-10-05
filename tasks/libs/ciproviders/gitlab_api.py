@@ -1335,7 +1335,7 @@ def get_buildimages_version():
     Get the version of datadog-agent-buildimages currently used
     """
     try:
-        version_file = Path.cwd() / ".gitlab-ci.yml"
+        version_file = Path.cwd() / "gitlab-config.yml"
         gitlab_ci_yaml = yaml.safe_load(version_file.read_text(encoding="utf-8"))
         # CI_IMAGE_DEB_ARM64 is an approximation we agreed on with DevX folks
         return gitlab_ci_yaml["variables"]["CI_IMAGE_DEB_ARM64"].split("-")[1].strip()
@@ -1345,7 +1345,7 @@ def get_buildimages_version():
 
 def update_gitlab_config(file_path, tag, images="", test=True, update=True, windows=False):
     """
-    Override variables in .gitlab-ci.yml file.
+    Override variables in gitlab-config.yml file.
     """
     with open(file_path) as gl:
         file_content = gl.readlines()
@@ -1380,7 +1380,7 @@ def find_buildimages(variables, images="", prefix="CI_IMAGE_", windows=False):
 
 def update_image_tag(lines, tag, variables, test=True):
     """
-    Update the variables in the .gitlab-ci.yml file.
+    Update the variables in the gitlab-config.yml file.
     We update the file content (instead of the yaml.load) to keep the original order/formatting.
     """
     output = []

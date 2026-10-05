@@ -38,10 +38,10 @@ jobs:
       run: |
         if [ "${{ github.event_name }}" = "pull_request" ]; then
           jq -r '.[].filename' pr-files.json | sort -u > changed-files.txt
-          jq -r '.[] | select(.filename==".gitlab-ci.yml") | .patch // empty' pr-files.json > gitlab-ci.patch
+          jq -r '.[] | select(.filename=="gitlab-config.yml") | .patch // empty' pr-files.json > gitlab-ci.patch
         else
           git diff --name-only HEAD~1 HEAD | sort -u > changed-files.txt
-          git diff HEAD~1 HEAD -- .gitlab-ci.yml > gitlab-ci.patch || true
+          git diff HEAD~1 HEAD -- gitlab-config.yml > gitlab-ci.patch || true
         fi
 
     - name: Detect CI image changes

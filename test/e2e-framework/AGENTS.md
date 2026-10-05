@@ -286,7 +286,7 @@ set — read through the runner parameter store like any other `E2E_*` value, no
 `os.Getenv` — otherwise the pinned tag from `test/fakeintake/version.Tag`.
 `WithImageURL(...)` on any fakeintake provisioner still wins over both.
 
-CI wiring (`.gitlab-ci.yml`): the `.on_e2e_main_release_or_rc` rule — inherited
+CI wiring (`gitlab-config.yml`): the `.on_e2e_main_release_or_rc` rule — inherited
 by every e2e job through its team rule (`.on_<team>_or_e2e_changes`) — sets
 `E2E_FAKEINTAKE_IMAGE_OVERRIDE` to the PR-built `v<sha>` image on a fakeintake
 *server* change (`.fakeintake_server_paths`). So such a PR runs the **whole**

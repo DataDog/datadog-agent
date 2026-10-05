@@ -622,7 +622,7 @@ def list_parameters(_, type):
     in_param_section = False
     param_owner = re.compile(r"^[^:]+: (?P<param>[^ ]+) +# +(?P<owner>.+)$")
     params = defaultdict(list)
-    with open(".gitlab-ci.yml") as f:
+    with open("gitlab-config.yml") as f:
         for line in f:
             section = section_pattern.search(line)
             if section:

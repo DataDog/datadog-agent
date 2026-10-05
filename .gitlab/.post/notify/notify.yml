@@ -61,6 +61,7 @@ notify_gitlab_ci_changes:
     - changes:
         paths:
           - .gitlab-ci.yml
+          - gitlab-config.yml
           - .gitlab/**/*.yml
         compare_to: $COMPARE_TO_BRANCH
   before_script:

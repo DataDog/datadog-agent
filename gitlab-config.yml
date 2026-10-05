@@ -111,6 +111,7 @@
   # Cross-cutting: these affect all platforms including Windows
   - release.json
   - .gitlab-ci.yml
+  - gitlab-config.yml
   - .gitlab/**/*
 
 # Windows-specific e2e tests
@@ -1284,6 +1285,7 @@ workflow:
       paths:
         - omnibus/**/*
         - .gitlab-ci.yml
+        - gitlab-config.yml
         - release.json
         - .gitlab/build/package_build/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1365,6 +1367,7 @@ workflow:
   changes:
     paths:
       - .gitlab-ci.yml
+      - gitlab-config.yml
       - .gitlab/**/*
       - .gitlab/**/.*
     compare_to: $COMPARE_TO_BRANCH
@@ -1379,7 +1382,8 @@ workflow:
   - changes:
       paths:
         - tasks/**/*
-        - .gitlab-ci.yml # A buildimage bump can also affect the invoke tasks
+        - .gitlab-ci.yml
+        - gitlab-config.yml # A buildimage bump can also affect the invoke tasks
         - packages/agent/dependencies/**/* # Some bazel files are read from invoke unit tests
       compare_to: $COMPARE_TO_BRANCH
 
