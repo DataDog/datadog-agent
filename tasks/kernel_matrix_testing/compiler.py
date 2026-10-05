@@ -238,7 +238,7 @@ class CompilerImage:
         mounts = [f"--mount type=bind,source={get_repo_root()},target={CONTAINER_AGENT_PATH}"]
         repo_cache = self.host_repository_cache()
         if repo_cache is not None:
-            # Same absolute path on host and in-container so user.bazelrc --repository_cache= matches.
+            # Same absolute path so an explicit workspace/user.bazelrc --repository_cache= still matches.
             mounts.append(f"--mount type=bind,source={repo_cache},target={repo_cache}")
             info(f"[*] Mounting host Bazel repository_cache at {repo_cache}")
 
@@ -254,6 +254,14 @@ class CompilerImage:
         # Due to permissions issues, we do not want to compile with the root user in the Docker image. We create a user
         # inside there with the same UID and GID as the current user
         self.ensure_compiler_user_created()
+
+        if repo_cache is not None:
+            # Host default/home-rc cache paths differ from the container user's; force the mounted path.
+            self.exec(
+                f"echo 'common --repository_cache={repo_cache}' > /home/{self.compiler_user}/.bazelrc "
+                f"&& chown {self.host_uid}:{self.host_gid} /home/{self.compiler_user}/.bazelrc",
+                user="root",
+            )
 
         if sys.platform != "darwin":  # No need to change permissions in MacOS
             self.exec(
