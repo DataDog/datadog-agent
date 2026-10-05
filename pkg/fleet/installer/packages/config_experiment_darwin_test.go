@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 )
 
@@ -682,5 +684,125 @@ func TestRevertIsANoopForANewerExperiment(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, reverted)
 	assert.Empty(t, *calls, "a stale watcher touched launchd")
+	assert.Equal(t, "experiment-1", experimentDeploymentID(t, dirs))
+}
+
+// stubConfigExperimentLock points the installer's lock at a temporary database.
+func stubConfigExperimentLock(t *testing.T) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "packages.db")
+	original := configExperimentLockPath
+	configExperimentLockPath = path
+	t.Cleanup(func() { configExperimentLockPath = original })
+	return path
+}
+
+// holdInstallerLock opens the lock database the way an installer command does, and returns the
+// function that releases it.
+func holdInstallerLock(t *testing.T, path string) func() {
+	t.Helper()
+
+	lock, err := db.New(context.Background(), path)
+	require.NoError(t, err)
+	var once sync.Once
+	release := func() { once.Do(func() { require.NoError(t, lock.Close()) }) }
+	t.Cleanup(release)
+	return release
+}
+
+// TestWatcherRevertWaitsForARunningInstallerCommand covers a revert that fires while an installer
+// command, here a promote, is running: it must wait for the command, then find the experiment
+// already handled and leave it alone.
+func TestWatcherRevertWaitsForARunningInstallerCommand(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	path := stubDeadlinePath(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+	release := holdInstallerLock(t, stubConfigExperimentLock(t))
+
+	deadline := launchd.Deadline{Path: path}
+	require.NoError(t, deadline.Write(time.Hour))
+	token, err := deadline.Read()
+	require.NoError(t, err)
+
+	type result struct {
+		reverted bool
+		err      error
+	}
+	done := make(chan result, 1)
+	go func() {
+		reverted, err := revertFromWatcher(context.Background(), deadline, token, "experiment pid 1 exited")
+		done <- result{reverted, err}
+	}()
+
+	select {
+	case <-done:
+		t.Fatal("the revert ran while an installer command held the lock")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	// The promote's hook clears the deadline before the command exits.
+	require.NoError(t, deadline.Clear())
+	release()
+
+	r := <-done
+	require.NoError(t, r.err)
+	assert.False(t, r.reverted)
+	assert.Empty(t, *calls, "a watcher that waited for the installer touched launchd")
+	assert.Equal(t, "experiment-1", experimentDeploymentID(t, dirs))
+}
+
+// TestWatcherRevertTakesTheInstallerLock covers a revert that wins the race: it reverts under the
+// lock and releases it, and a promote that comes in afterwards finds nothing to promote.
+func TestWatcherRevertTakesTheInstallerLock(t *testing.T) {
+	stubLaunchd(t)
+	stubJobDir(t)
+	path := stubDeadlinePath(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+	lockPath := stubConfigExperimentLock(t)
+
+	deadline := launchd.Deadline{Path: path}
+	require.NoError(t, deadline.Write(time.Hour))
+	token, err := deadline.Read()
+	require.NoError(t, err)
+
+	reverted, err := revertFromWatcher(context.Background(), deadline, token, "experiment deadline expired")
+	require.NoError(t, err)
+	assert.True(t, reverted)
+	assert.Empty(t, experimentDeploymentID(t, dirs), "the experiment configuration was not discarded")
+	assert.ErrorContains(t, dirs.PromoteExperiment(context.Background()), "no configuration experiment")
+
+	lock, err := db.New(context.Background(), lockPath, db.WithTimeout(time.Second))
+	require.NoError(t, err, "the watcher kept the installer lock after reverting")
+	require.NoError(t, lock.Close())
+}
+
+// TestWatcherStopsWaitingWhenTheExperimentIsReplaced covers a watcher stuck behind an installer
+// command that replaces its experiment: it must give up without the lock rather than revert the
+// newer experiment once the command exits.
+func TestWatcherStopsWaitingWhenTheExperimentIsReplaced(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	path := stubDeadlinePath(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+	holdInstallerLock(t, stubConfigExperimentLock(t))
+	original := watcherLockPoll
+	watcherLockPoll = 20 * time.Millisecond
+	t.Cleanup(func() { watcherLockPoll = original })
+
+	deadline := launchd.Deadline{Path: path}
+	require.NoError(t, deadline.Write(time.Hour))
+	stale, err := deadline.Read()
+	require.NoError(t, err)
+	require.NoError(t, deadline.Write(time.Hour))
+
+	reverted, err := revertFromWatcher(context.Background(), deadline, stale, "stale exit")
+	require.NoError(t, err)
+	assert.False(t, reverted)
+	assert.Empty(t, *calls, "a superseded watcher touched launchd")
 	assert.Equal(t, "experiment-1", experimentDeploymentID(t, dirs))
 }

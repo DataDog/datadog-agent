@@ -57,18 +57,22 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/db",
             "//pkg/fleet/installer/installinfo",
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/packages/file",
             "//pkg/fleet/installer/packages/launchd",
+            "@io_etcd_go_bbolt//errors",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/db",
             "//pkg/fleet/installer/installinfo",
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/packages/file",
             "//pkg/fleet/installer/packages/launchd",
+            "@io_etcd_go_bbolt//errors",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
@@ -131,12 +135,14 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/db",
             "//pkg/fleet/installer/packages/launchd",
             "//pkg/fleet/installer/repository",
             "//pkg/version",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/config",
+            "//pkg/fleet/installer/db",
             "//pkg/fleet/installer/packages/launchd",
             "//pkg/fleet/installer/repository",
             "//pkg/version",

@@ -9,11 +9,14 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	bberrors "go.etcd.io/bbolt/errors"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,6 +35,11 @@ const (
 	startupPollTimeout  = 5 * time.Second
 )
 
+// watcherLockPoll bounds each wait for the installer's lock, so a watcher whose experiment was
+// stopped, promoted or replaced meanwhile notices and exits instead of waiting out a long operation.
+// A var so tests can shorten it.
+var watcherLockPoll = time.Minute
+
 // watchExperiment runs in a detached process, launched by postStartConfigExperimentDatadogAgent
 // after a configuration experiment has started successfully. It supervises the experiment job
 // set for as long as the deadline file (configExperimentDeadlinePath) still holds the deadline it
@@ -45,6 +53,10 @@ const (
 // someone else is handling it" rather than a crash to revert. The same check on every tick is
 // what lets this process exit after a stop whose jobs all exited cleanly, which delivers no event
 // it acts on.
+//
+// Re-checking the file is not enough on its own: a stop or promote can start between the check and
+// the revert. So every revert first takes the lock every installer command holds for its whole run
+// (revertFromWatcher), and re-checks the file under it.
 func watchExperiment(ctx context.Context) error {
 	deadline := launchd.Deadline{Path: configExperimentDeadlinePath}
 	jobs := agentJobSet()
@@ -68,14 +80,14 @@ func watchExperiment(ctx context.Context) error {
 		// one caught mid-watch: revert immediately rather than silently leaving an
 		// unsupervised, already-dead experiment in place.
 		reason := fmt.Sprintf("experiment job %s exited before the watcher could observe it (status %d)", exited.Label, exited.LastExitStatus)
-		_, err := revertExperimentIfStillPending(ctx, deadline, token, reason)
+		_, err := revertFromWatcher(ctx, deadline, token, reason)
 		return err
 	}
 	if len(pids) == 0 {
 		// Every job in the set failed to come up at all within the startup grace period,
 		// and none of them recorded an exit either -- Kickstart was accepted but nothing
 		// ever ran. Treat that as a failed launch, same as a crash.
-		_, err := revertExperimentIfStillPending(ctx, deadline, token, "experiment never started")
+		_, err := revertFromWatcher(ctx, deadline, token, "experiment never started")
 		return err
 	}
 
@@ -112,7 +124,7 @@ func watchExperiment(ctx context.Context) error {
 				continue
 			}
 			reason := fmt.Sprintf("experiment pid %d exited (status %d)", ev.Pid, ev.Status)
-			_, err := revertExperimentIfStillPending(ctx, deadline, token, reason)
+			_, err := revertFromWatcher(ctx, deadline, token, reason)
 			if err != nil {
 				return err
 			}
@@ -138,7 +150,7 @@ func watchExperiment(ctx context.Context) error {
 			if !expired {
 				continue
 			}
-			if _, err := revertExperimentIfStillPending(ctx, deadline, token, "experiment deadline expired"); err != nil {
+			if _, err := revertFromWatcher(ctx, deadline, token, "experiment deadline expired"); err != nil {
 				return err
 			}
 			return nil
@@ -207,6 +219,47 @@ func resolveExperimentPids(ctx context.Context, jobs launchd.JobSet) (pids []int
 func exitedCleanly(status int) bool {
 	ws := unix.WaitStatus(status)
 	return ws.Exited() && ws.ExitStatus() == 0
+}
+
+// revertFromWatcher is revertExperimentIfStillPending for the detached watcher. It first takes the
+// lock every installer command holds for its whole run, so the deadline it re-reads can't be
+// cleared, and the directories it discards can't be swapped, by a stop or promote running at the
+// same time. The resume hook calls revertExperimentIfStillPending directly: it runs inside an
+// installer command that already holds the lock.
+func revertFromWatcher(ctx context.Context, deadline launchd.Deadline, token string, reason string) (bool, error) {
+	lock, ok, err := waitForInstaller(ctx, deadline, token)
+	if err != nil || !ok {
+		return false, err
+	}
+	defer func() {
+		if err := lock.Close(); err != nil {
+			log.Warnf("watcher: could not release the installer lock: %v", err)
+		}
+	}()
+	return revertExperimentIfStillPending(ctx, deadline, token, reason)
+}
+
+// waitForInstaller takes the installer's lock, waiting for any installer command that holds it. It
+// gives up without the lock, and reports false, once the deadline no longer holds token: whatever
+// held the lock stopped, promoted or replaced the experiment, so there is nothing left to revert.
+func waitForInstaller(ctx context.Context, deadline launchd.Deadline, token string) (*db.PackagesDB, bool, error) {
+	for {
+		lock, err := db.New(ctx, configExperimentLockPath, db.WithTimeout(watcherLockPoll))
+		if err == nil {
+			return lock, true, nil
+		}
+		if !errors.Is(err, bberrors.ErrTimeout) {
+			return nil, false, fmt.Errorf("watcher: could not take the installer lock: %w", err)
+		}
+		current, readErr := deadline.Read()
+		if readErr != nil {
+			return nil, false, fmt.Errorf("watcher: could not read experiment deadline: %w", readErr)
+		}
+		if current != token {
+			return nil, false, nil
+		}
+		log.Infof("watcher: still waiting for a running installer command before reverting")
+	}
 }
 
 // revertExperimentIfStillPending reverts to the stable job set unless the deadline file no longer

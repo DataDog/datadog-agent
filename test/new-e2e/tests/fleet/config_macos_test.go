@@ -530,6 +530,9 @@ func (s *configMacOSSuite) dumpDiagnostics() {
 // stop leaves the experiment deployed -- which then fails that precondition in every test
 // scheduled after it.
 func (s *configMacOSSuite) AfterTest(suiteName, testName string) {
+	// First: dumpDiagnostics reads /status and restoreResting runs an installer command, and both
+	// wait on an installer lock a failed test may have left held.
+	s.releaseInstallerLock()
 	s.BaseSuite.AfterTest(suiteName, testName)
 	if s.T().Failed() {
 		s.dumpDiagnostics()
@@ -1783,4 +1786,190 @@ func (s *configMacOSSuite) TestExperimentCopyPreservesMetadataMacOS() {
 		"a file the experiment wrote should be _dd-agent:admin 0660")
 
 	s.stopConfigExperimentRC()
+}
+
+// --- Set 17: watcher revert serialized with installer commands (macOS-specific) -----------------
+
+const (
+	// installerLockPath is the installer's package database. Every installer command holds an
+	// exclusive flock(2) on it for its whole run, and the watcher takes it before reverting
+	// (revertFromWatcher in pkg/fleet/installer/packages/config_experiment_watcher_darwin.go).
+	installerLockPath = "/opt/datadog-packages/packages.db"
+	// installerLockHolderPID and installerLockHeldMarker belong to holdInstallerLock's stand-in
+	// for a running installer command.
+	installerLockHolderPID  = "/tmp/dd-e2e-installer-lock.pid"
+	installerLockHeldMarker = "/tmp/dd-e2e-installer-lock.held"
+)
+
+// holdInstallerLock stands in for a long-running installer command: it takes the same exclusive
+// flock(2) bbolt takes on the package database (go.etcd.io/bbolt's flock, LOCK_EX), from a
+// background process, and returns once the lock is held. The returned function releases it.
+//
+// Callers defer the release, so it runs before AfterTest: AfterTest's diagnostics and rollback wait
+// on the lock too. AfterTest also releases it, in case a test ends without its defer running.
+//
+// While it is held, every installer command and the daemon's state refresh wait on it -- including
+// the state check the daemon runs before executing a Remote Config task -- so a test must neither
+// read the daemon's /status nor push a task until it has released it.
+func (s *configMacOSSuite) holdInstallerLock() (release func()) {
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
+		`sudo rm -f %[2]s && sudo sh -c '/usr/bin/perl -e '"'"'use Fcntl qw(:flock); `+
+			`open(my $f, "<", "%[1]s") or die $!; flock($f, LOCK_EX) or die $!; `+
+			`open(my $m, ">", "%[2]s") or die $!; close $m; sleep 600;'"'"' </dev/null >/dev/null 2>&1 & echo $! > %[3]s'`,
+		installerLockPath, installerLockHeldMarker, installerLockHolderPID))
+	require.NoError(s.T(), err, "starting the installer lock holder should succeed")
+	require.Eventually(s.T(), func() bool { return s.pathExists(installerLockHeldMarker) },
+		30*time.Second, 500*time.Millisecond, "the lock holder should take the installer lock")
+	return s.releaseInstallerLock
+}
+
+// releaseInstallerLock stops holdInstallerLock's lock holder, if one is running. Idempotent.
+func (s *configMacOSSuite) releaseInstallerLock() {
+	out, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
+		`sudo sh -c 'if [ -f %[1]s ]; then kill $(cat %[1]s) 2>/dev/null; fi; rm -f %[1]s %[2]s'`,
+		installerLockHolderPID, installerLockHeldMarker))
+	if err != nil {
+		s.T().Logf("could not release the installer lock: %v (%s)", err, out)
+	}
+}
+
+// startExperimentAndCrashIt deploys a configuration experiment that sets log_level to debug, holds
+// the installer lock, and kills the experiment Agent, so the watcher is left wanting to revert
+// while an installer command is "running". It returns the deployment ID, the expected state from
+// before the lock was taken, and the lock's release function, which the caller defers.
+func (s *configMacOSSuite) startExperimentAndCrashIt(prefix string) (string, expectedState, func()) {
+	deploymentID := nextID(prefix)
+	s.startConfigExperimentRC(deploymentID, []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
+	}, nil)
+	var pid string
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		pid = s.jobPID("com.datadoghq.agent-exp")
+		assert.NotEmpty(c, pid, "the experiment Agent should be running")
+	}, 30*time.Second, 2*time.Second)
+	// Read before the lock is taken: the daemon's /status waits on it.
+	expected := s.currentExpectedState()
+
+	release := s.holdInstallerLock()
+	_, err := s.Env().RemoteHost.Execute("sudo kill -9 " + pid)
+	require.NoError(s.T(), err)
+	return deploymentID, expected, release
+}
+
+// requireExperimentStillDeployed requires, for the whole of window, that the experiment the
+// watcher wants to revert is left in place: its deadline, its directory and its job definitions.
+func (s *configMacOSSuite) requireExperimentStillDeployed(window time.Duration) {
+	for end := time.Now().Add(window); time.Now().Before(end); time.Sleep(3 * time.Second) {
+		require.True(s.T(), s.pathExists(experimentDeadlinePath), "the watcher reverted while an installer command held the lock")
+		require.False(s.T(), s.etcExpResting(), "the watcher discarded the experiment while an installer command held the lock")
+		require.True(s.T(), s.pathExists(experimentPlistPath("com.datadoghq.agent")), "the watcher removed the experiment jobs while an installer command held the lock")
+	}
+}
+
+// requireConfigurationIntact requires the end state every serialized outcome shares: nothing
+// deployed, the stable Agent running, and a stable configuration that is whole and is the one
+// wantLogLevel names.
+func (s *configMacOSSuite) requireConfigurationIntact(wantLogLevel any) {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.True(c, s.etcExpResting(), "etc-exp should rest on etc again")
+		assert.False(c, s.pathExists(experimentDeadlinePath), "the deadline should be cleared")
+		assert.False(c, s.pathExists(experimentPlistPath("com.datadoghq.agent")), "the experiment job definitions should be removed")
+		assert.NotEmpty(c, s.jobPID("com.datadoghq.agent"), "the stable Agent should be running")
+	}, 2*time.Minute, 5*time.Second)
+	require.Contains(s.T(), s.readFile("/opt/datadog-agent/etc/datadog.yaml"), "api_key",
+		"the stable configuration should still be whole")
+	config, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), wantLogLevel, config["log_level"], "the stable Agent should read the expected configuration")
+}
+
+// TestWatcherRevertWaitsForAnInstallerCommandMacOS pins the first half of the watcher's
+// serialization (revertFromWatcher): a revert the watcher decides on while an installer command is
+// running waits for that command's lock instead of acting on the configuration under it, then goes
+// ahead once the command has finished and the experiment is still pending.
+func (s *configMacOSSuite) TestWatcherRevertWaitsForAnInstallerCommandMacOS() {
+	s.requireResting()
+	before, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+
+	_, _, release := s.startExperimentAndCrashIt("cfg-watcher-waits")
+	defer release()
+
+	// Without the lock the watcher reverts within seconds of the crash.
+	s.requireExperimentStillDeployed(30 * time.Second)
+
+	release()
+
+	s.requireConfigurationIntact(before["log_level"])
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.Empty(c, s.packageState(s.readStatus()).ExperimentConfigVersion, "the daemon should no longer report the experiment")
+	}, 90*time.Second, 5*time.Second)
+}
+
+// TestWatcherRevertRacingAPromoteKeepsAConfigurationMacOS reproduces the race the watcher's
+// serialization closes: a watcher revert and a promote of the same experiment, both pending at
+// once. Without the lock the two could interleave on the configuration directories -- the revert
+// deleting through a handle on etc-exp while the promote swaps it into etc -- and leave no copy of
+// either configuration. With it they run one after the other, and either order is a valid end:
+//
+//   - the promote first: it clears the deadline under the lock, the watcher re-reads it, finds its
+//     experiment gone and does nothing, and the promoted configuration is the stable one;
+//   - the watcher first: it reverts, and the promote then finds nothing deployed and fails.
+//
+// Both are left waiting on the held lock and released together, so either may win. The promote is
+// the installer command the daemon would run for a promote_experiment_config task, started on the
+// host directly: the daemon checks the package state before executing a task, and that check waits
+// on the held lock too, so a task would never get as far as the promote.
+func (s *configMacOSSuite) TestWatcherRevertRacingAPromoteKeepsAConfigurationMacOS() {
+	s.requireResting()
+	before, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+
+	deploymentID, expected, release := s.startExperimentAndCrashIt("cfg-watcher-promote-race")
+	defer release()
+	stableConfigBefore := expected.StableConfig
+
+	const promoteLog = "/tmp/dd-e2e-promote.log"
+	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf(
+		`sudo sh -c '/opt/datadog-agent/embedded/bin/installer promote-config-experiment datadog-agent </dev/null >%s 2>&1 &'`,
+		promoteLog))
+	require.NoError(s.T(), err, "starting the promote should succeed")
+	require.Eventually(s.T(), func() bool {
+		out, err := s.Env().RemoteHost.Execute("pgrep -f 'installer [p]romote-config-experiment' || true")
+		return err == nil && strings.TrimSpace(out) != ""
+	}, 30*time.Second, time.Second, "the promote should be running, waiting for the installer lock")
+	s.requireExperimentStillDeployed(10 * time.Second)
+
+	release()
+
+	require.Eventually(s.T(), func() bool {
+		out, err := s.Env().RemoteHost.Execute("pgrep -f 'installer [p]romote-config-experiment' || true")
+		return err == nil && strings.TrimSpace(out) == ""
+	}, 3*time.Minute, 2*time.Second, "the promote should finish once the lock is released")
+	if out, err := s.Env().RemoteHost.Execute("cat " + promoteLog + " || true"); err == nil {
+		s.T().Logf("promote output:\n%s", out)
+	}
+
+	var stableConfig string
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.tryReadStatus()
+		if !assert.NoError(c, err) || !assert.Len(c, status.Packages, 1) {
+			return
+		}
+		pkg := status.Packages[0]
+		assert.Empty(c, pkg.ExperimentConfigVersion, "nothing should be deployed once both have run")
+		stableConfig = pkg.StableConfigVersion
+	}, 3*time.Minute, 5*time.Second)
+
+	switch stableConfig {
+	case deploymentID:
+		s.T().Log("the promote won the installer lock; the watcher found its experiment gone")
+		s.requireConfigurationIntact("debug")
+	case stableConfigBefore:
+		s.T().Log("the watcher won the installer lock and reverted; the promote found nothing deployed")
+		s.requireConfigurationIntact(before["log_level"])
+	default:
+		require.Failf(s.T(), "unexpected stable configuration", "got %q, want %q (promoted) or %q (reverted)",
+			stableConfig, deploymentID, stableConfigBefore)
+	}
 }

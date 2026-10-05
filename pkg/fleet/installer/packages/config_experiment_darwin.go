@@ -45,6 +45,12 @@ var configExperimentRestoreBackoff = 2 * time.Second
 // directory — the same indirection launchdJobDir uses for job definitions.
 var configExperimentDeadlinePath = filepath.Join(paths.RunPath, "experiment-deadline")
 
+// configExperimentLockPath is the installer's package database. Every installer command holds its
+// exclusive file lock for its whole run, hooks included, so the detached watcher takes it too before
+// reverting (see revertFromWatcher). A package-level var for the same reason as
+// configExperimentDeadlinePath: tests point it at a temporary file.
+var configExperimentLockPath = filepath.Join(paths.PackagesPath, "packages.db")
+
 // configExperimentDirs are the Agent's stable and experiment configuration directories, the same
 // pair the installer's own config.Directories manages. A package-level var for the same reason as
 // configExperimentDeadlinePath: tests point it at a temporary state root.
