@@ -246,15 +246,51 @@ def changed_files(base: str, ddci: dict | None) -> tuple[list, str]:
     return files[:MAX_CHANGED_FILES], merge_base
 
 
+def _diff_chunk_stats(chunk: str) -> tuple[str, int, int]:
+    """(path, added, deleted) for one per-file diff chunk."""
+    header = chunk.splitlines()[0]
+    m = re.match(r"diff --git a/(.*?) b/(.*)", header)
+    path = (m.group(2) if m else header).strip()
+    added = deleted = 0
+    for line in chunk.splitlines():
+        if line.startswith("+++") or line.startswith("---") or line.startswith("diff --git ") or line.startswith("index "):
+            continue
+        if line.startswith("+"):
+            added += 1
+        elif line.startswith("-"):
+            deleted += 1
+    return path, added, deleted
+
+
+def _chunk_annotation(chunk: str) -> str:
+    """One-line `# <path>: X% of the file modified` header for a diff chunk."""
+    path, added, deleted = _diff_chunk_stats(chunk)
+    changed = added + deleted
+    if "new file mode" in chunk:
+        return f"# {path}: new file ({added} lines added)\n"
+    if "Binary files" in chunk and changed == 0:
+        return f"# {path}: binary file changed\n"
+    try:
+        total = len(open(path, encoding="utf-8", errors="ignore").read().splitlines())
+    except OSError:
+        return f"# {path}: file deleted ({deleted} lines removed)\n"
+    if changed >= total:
+        return f"# {path}: file rewritten ({changed} lines changed, was {total} lines)\n"
+    pct = round(100 * changed / max(total, 1))
+    return f"# {path}: {pct}% of the file modified ({changed} of {total} lines changed)\n"
+
+
 def pr_diff(merge_base: str) -> str:
     """Full unified diff of the PR (merge base..HEAD), truncated to fit Jev.
 
-    Each file's patch is truncated to MAX_DIFF_PER_FILE bytes, and the whole
-    diff to MAX_DIFF_BYTES, so the state stays well below Jev's per-question
-    token cap. Returns "" when the diff cannot be computed.
+    Each file's patch is preceded by a `# <path>: X% of the file modified`
+    annotation, truncated to MAX_DIFF_PER_FILE bytes, and the whole diff to
+    MAX_DIFF_BYTES, so the state stays well below Jev's per-question token
+    cap. Returns "" when the diff cannot be computed.
     """
     try:
         diff = git("diff", "--no-color", merge_base, "HEAD")
+        shortstat = git("diff", "--no-color", "--shortstat", merge_base, "HEAD")
     except RuntimeError as e:
         print(f"[warn] could not compute the full PR diff: {e}")
         return ""
@@ -271,14 +307,13 @@ def pr_diff(merge_base: str) -> str:
             current.append(line)
     if current:
         chunks.append("".join(current))
-    parts = []
+    parts = [f"# TOTAL: {shortstat.strip() or 'diff of the PR'}\n"]
     for chunk in chunks:
+        parts.append(_chunk_annotation(chunk))
         if len(chunk.encode()) <= MAX_DIFF_PER_FILE:
             parts.append(chunk)
         else:
-            header = chunk.splitlines()[0]
-            m = re.match(r"diff --git a/(.*?) b/", header)
-            path = m.group(1) if m else header
+            path, _, _ = _diff_chunk_stats(chunk)
             parts.append(truncate(chunk, MAX_DIFF_PER_FILE, f"diff of {path}"))
             parts.append("\n")
     full = "".join(parts)
