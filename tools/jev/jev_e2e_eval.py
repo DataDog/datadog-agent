@@ -551,7 +551,15 @@ def main() -> int:
         print(f"  - Jev also skips:                          {len(cov['jev_also_skips'])}")
         print(f"  - Jev would keep running (disagreement):  {len(cov['jev_disagrees'])} {cov['jev_disagrees']}")
     if c["false_negatives"]:
-        print("\n!! Jev would have skipped tests that FAILED on this PR - see 'false_negatives'")
+        print("\n!! Jev would have skipped tests that FAILED on this PR:")
+        verdicts = {x["test"]: x for x in decisions}
+        for t in c["false_negatives"]:
+            v = verdicts.get(t, {})
+            print(
+                f"   {t}: suite={v.get('suite')} relation={v.get('relation')} "
+                f"should_execute={v.get('should_execute')} confidence={v.get('confidence')} "
+                f"failed in: {(executed.get(t) or {}).get('jobs', ['?'])[:1]}"
+            )
     output = args.output or f"jev_e2e_eval_{pr_number}.json"
     with open(output, "w") as f:
         json.dump(report, f, indent=2)
