@@ -32,11 +32,10 @@ type RetryHTTPOptions struct {
 // (result, statusCode, err); statusCode should be 0 for transport-level errors
 // where no HTTP response was received.
 //
-// 4xx responses are treated as permanent (no retry) since they typically
-// indicate a non-transient client problem (bad credentials, malformed payload).
-// Transport errors, 5xx, 408, 425 and 429 responses are retried. op can wrap a 429 error
-// with WithRetryAfter to wait for the server-requested delay instead of the
-// next backoff interval.
+// Transport errors and responses accepted by IsRetryableHTTPStatus are
+// retried; other responses are permanent. op can wrap an error with
+// WithRetryAfter to wait for the server-requested delay instead of the next
+// backoff interval.
 func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opts RetryHTTPOptions) (T, error) {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = opts.InitialInterval
