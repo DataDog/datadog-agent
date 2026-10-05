@@ -28,10 +28,11 @@
 //!    software inventory at `SourceInfraMode`.
 //! 6. The Agent's schema default.
 //!
-//! Two keys do not follow that ladder directly. `system_probe_config.enabled` is
+//! Three keys do not follow that ladder directly. `system_probe_config.enabled` is
 //! module-derived at runtime, so it resolves through [`system_probe::derived_enabled`]
 //! instead. `process_config.enabled` is normalized by the transform to the resulting
-//! process-collection value.
+//! process-collection value. `data_plane.standalone_mode` skips fleet policy, because
+//! Agent Data Plane reads it from env and its own config file only.
 //!
 //! # Keeping parity with Go
 //!
@@ -109,6 +110,8 @@ enum GatedKey {
     SystemProbeExternal,
     ApmEnabled,
     ApmErrorTrackingStandalone,
+    DataPlaneEnabled,
+    DataPlaneStandaloneMode,
 }
 
 struct GatedKeySpec {
@@ -134,6 +137,8 @@ const SOFTWARE_INVENTORY_KEY: &str = "software_inventory.enabled";
 const SYSTEM_PROBE_EXTERNAL_KEY: &str = "system_probe_config.external";
 const APM_ENABLED_KEY: &str = "apm_config.enabled";
 const APM_ERROR_TRACKING_STANDALONE_KEY: &str = "apm_config.error_tracking_standalone.enabled";
+const DATA_PLANE_ENABLED_KEY: &str = "data_plane.enabled";
+const DATA_PLANE_STANDALONE_MODE_KEY: &str = "data_plane.standalone_mode";
 
 /// Single source of truth for gated keys.
 const GATED_KEY_SPECS: &[GatedKeySpec] = &[
@@ -221,6 +226,24 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
     GatedKeySpec {
         kind: GatedKey::ApmErrorTrackingStandalone,
         key: APM_ERROR_TRACKING_STANDALONE_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    // The two keys Agent Data Plane reads to decide whether to run at all: it exits 0
+    // when neither is set. ADP takes `enabled` from the Agent's config stream, so fleet
+    // policy applies to it like any other Agent setting.
+    GatedKeySpec {
+        kind: GatedKey::DataPlaneEnabled,
+        key: DATA_PLANE_ENABLED_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    // ADP-only, absent from the Agent schema. ADP reads it from its local config file and
+    // environment before contacting the Agent, so fleet policy cannot set it; see
+    // [`GatedKeySpec::enabled`].
+    GatedKeySpec {
+        kind: GatedKey::DataPlaneStandaloneMode,
+        key: DATA_PLANE_STANDALONE_MODE_KEY,
         default: false,
         fleet_policy_file: AGENT_POLICY,
     },
@@ -326,6 +349,11 @@ impl GatedKeySpec {
             // Mirrors sysprobeConf.GetBool("system_probe_config.enabled") after load()+Adjust:
             // the runtime value is module-derived, not the literal YAML/env knob alone.
             return system_probe::derived_enabled(base_path, yaml, os);
+        }
+        if self.kind == GatedKey::DataPlaneStandaloneMode {
+            return yaml
+                .resolve_bool_pre_fleet(base_path, self.key)
+                .unwrap_or(self.default);
         }
         if let Some(enabled) = yaml.resolve_bool(base_path, self.key, self.fleet_policy_file) {
             return enabled;
@@ -517,6 +545,14 @@ impl YamlCache {
             return Some(text);
         }
         self.string_at(base_path, key)
+    }
+
+    /// Env, then base YAML, for a key whose reader never sees fleet policy.
+    fn resolve_bool_pre_fleet(&mut self, base_path: &str, key: &str) -> Option<bool> {
+        if let Some(enabled) = env_bool_for_key(key) {
+            return Some(enabled);
+        }
+        self.bool_at(base_path, key)
     }
 
     /// Whether `infrastructure_mode` selected end-user-device at the point
@@ -1998,5 +2034,69 @@ process_config:
         fx.fleet(AGENT_POLICY, "apm_config:\n  enabled: false\n");
         let agent = fx.agent("apm_config:\n  enabled: true\n");
         fx.assert_key(&agent, APM_ENABLED_KEY, false);
+    }
+
+    // -------------------------------------------------------- Agent Data Plane keys
+
+    #[test]
+    fn data_plane_keys_default_off() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.assert_key(&agent, DATA_PLANE_ENABLED_KEY, false);
+        fx.assert_key(&agent, DATA_PLANE_STANDALONE_MODE_KEY, false);
+    }
+
+    #[test]
+    fn data_plane_keys_resolve_from_yaml() {
+        for (body, key) in [
+            ("data_plane:\n  enabled: true\n", DATA_PLANE_ENABLED_KEY),
+            (
+                "data_plane:\n  standalone_mode: true\n",
+                DATA_PLANE_STANDALONE_MODE_KEY,
+            ),
+        ] {
+            let fx = Gate::new();
+            let agent = fx.agent(body);
+            fx.assert_key(&agent, key, true);
+        }
+    }
+
+    #[test]
+    fn data_plane_keys_resolve_from_env() {
+        for (var, key) in [
+            ("DD_DATA_PLANE_ENABLED", DATA_PLANE_ENABLED_KEY),
+            (
+                "DD_DATA_PLANE_STANDALONE_MODE",
+                DATA_PLANE_STANDALONE_MODE_KEY,
+            ),
+        ] {
+            let fx = Gate::new();
+            let agent = fx.agent("data_plane:\n  enabled: false\n  standalone_mode: false\n");
+            fx.env(var, "true");
+            fx.assert_key(&agent, key, true);
+        }
+    }
+
+    #[test]
+    fn fleet_policy_drives_data_plane_enabled() {
+        let fx = Gate::new();
+        fx.fleet(AGENT_POLICY, "data_plane:\n  enabled: true\n");
+        let agent = fx.agent("data_plane:\n  enabled: false\n");
+        fx.assert_key(&agent, DATA_PLANE_ENABLED_KEY, true);
+    }
+
+    /// ADP decides standalone mode from its local config before it ever talks to the
+    /// Agent, so a fleet value never reaches it, in either direction.
+    #[test]
+    fn fleet_policy_does_not_drive_data_plane_standalone_mode() {
+        for (fleet, local, expected) in [(true, false, false), (false, true, true)] {
+            let fx = Gate::new();
+            fx.fleet(
+                AGENT_POLICY,
+                &format!("data_plane:\n  standalone_mode: {fleet}\n"),
+            );
+            let agent = fx.agent(&format!("data_plane:\n  standalone_mode: {local}\n"));
+            fx.assert_key(&agent, DATA_PLANE_STANDALONE_MODE_KEY, expected);
+        }
     }
 }

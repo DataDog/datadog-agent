@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    On Windows, dd-procmgr now starts the Agent Data Plane only when
+    ``data_plane.enabled`` or ``data_plane.standalone_mode`` is true, matching the check
+    the Agent Data Plane makes at startup. Hosts that do not enable it no longer start
+    the Agent Data Plane process at all.

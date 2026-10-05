@@ -168,13 +168,15 @@ fn agent_service_env_var(name: &str) -> Option<String> {
     crate::platform::agent_service_env_var(name)
 }
 
-/// Gate inputs [`ENV_BINDINGS`] does not cover: the generated name for
-/// `discovery.enabled`, the fleet policy directory, the ECS Fargate probe behind the
-/// `discovery.enabled` platform default, and `DD_CONF_DIR`, which shipped templates
-/// expand inside the gated path itself.
+/// Gate inputs [`ENV_BINDINGS`] does not cover: the generated names for
+/// `discovery.enabled` and the two Agent Data Plane keys, the fleet policy directory, the
+/// ECS Fargate probe behind the `discovery.enabled` platform default, and `DD_CONF_DIR`,
+/// which shipped templates expand inside the gated path itself.
 #[cfg(any(test, feature = "test-helpers"))]
 const UNBOUND_GATE_ENV_VARS: &[&str] = &[
     "DD_DISCOVERY_ENABLED",
+    "DD_DATA_PLANE_ENABLED",
+    "DD_DATA_PLANE_STANDALONE_MODE",
     "DD_FLEET_POLICIES_DIR",
     "DD_CONF_DIR",
     "ECS_FARGATE",
@@ -258,6 +260,8 @@ mod tests {
 
         for var in [
             "DD_DISCOVERY_ENABLED",
+            "DD_DATA_PLANE_ENABLED",
+            "DD_DATA_PLANE_STANDALONE_MODE",
             "DD_FLEET_POLICIES_DIR",
             "DD_CONF_DIR",
             "ECS_FARGATE",
