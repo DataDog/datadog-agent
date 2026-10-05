@@ -113,14 +113,19 @@ def fetch_executed_e2e_tests(query: str, days: int) -> dict:
         print("[warn] DD_API_KEY / DD_APP_KEY not set, skipping the executed-test lookup")
         return {}
     site = os.environ.get("DD_SITE", "datadoghq.com")
-    url = f"https://{site}/api/v2/ci/app/tests/events"
+    url = f"https://{site}/api/v2/ci/tests/events"
+    # query params as the datadog_api_client serializes them (bracket attributes)
     params = {
-        "filter_query": query,
-        "filter_from": (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(),
-        "filter_to": datetime.now(timezone.utc).isoformat(),
-        "page_limit": 1000,
+        "filter[query]": query,
+        "filter[from]": (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(),
+        "filter[to]": datetime.now(timezone.utc).isoformat(),
+        "page[limit]": 1000,
     }
-    headers = {"DD-API-KEY": api_key, "DD-APPLICATION-KEY": app_key}
+    headers = {
+        "DD-API-KEY": api_key,
+        "DD-APPLICATION-KEY": app_key,
+        "Accept": "application/json",
+    }
 
     events = []
     while True:
@@ -300,7 +305,13 @@ def main() -> int:
                         d = fut.result()
                         decisions.append(d)
                         report_result(d)
-                executed = executed_future.result()
+                executed = {}
+                try:
+                    executed = executed_future.result()
+                except Exception as e:
+                    # fail open on CI Visibility errors: the comparison just
+                    # runs against an empty executed set
+                    print(f"[warn] executed-test lookup failed: {e} -> comparison skipped")
             print(f"[info] {len(decisions)} Jev decisions in {time.monotonic() - started:.0f}s (concurrency {args.concurrency})")
     finally:
         git("worktree", "remove", "--force", worktree)
