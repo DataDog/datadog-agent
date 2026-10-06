@@ -158,8 +158,13 @@ func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta 
 		}
 	}
 
+	var apmRCClient autoinstrumentation.RemoteConfigClient
+	if rcClient != nil {
+		apmRCClient = rcClient
+	}
+
 	// Setup APM Instrumentation webhook. APM Instrumentation webhook needs to be registered after the config webhook.
-	apmWebhook, err := autoinstrumentation.NewAutoInstrumentation(datadogConfig, wmeta, serverVersion, csiDriverWatcher, rcClient, ddiTargets)
+	apmWebhook, err := autoinstrumentation.NewAutoInstrumentation(datadogConfig, wmeta, serverVersion, csiDriverWatcher, apmRCClient, ddiTargets)
 	if err != nil {
 		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
 	} else {

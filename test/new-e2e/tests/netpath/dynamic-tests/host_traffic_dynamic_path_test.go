@@ -166,7 +166,6 @@ func (s *hostTrafficDynamicPathSuite) SetupSuite() {
 	require.NoError(s.T(), fakeintake.RCAddConfig("", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName, hostTrafficDynamicRCConfig))
 	s.remoteConfigAdded = true
 
-	s.ensureCurlInstalled()
 	s.startHostTrafficDNSServer()
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
@@ -252,10 +251,6 @@ func (s *hostTrafficDynamicPathSuite) deleteHostTrafficRemoteConfig() {
 		return
 	}
 	require.Failf(s.T(), "Remote Config entry not found", "product=%s config_id=%s config_name=%s", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName)
-}
-
-func (s *hostTrafficDynamicPathSuite) ensureCurlInstalled() {
-	s.Env().RemoteHost.MustExecute("if ! command -v curl >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y curl; fi")
 }
 
 func (s *hostTrafficDynamicPathSuite) startHostTrafficDNSServer() {

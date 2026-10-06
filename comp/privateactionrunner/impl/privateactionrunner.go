@@ -616,7 +616,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 
 	enrollmentResult, err := enrollment.Enroll(ctx, p.coreConfig, agentIdentifier)
 	if err != nil {
-		return nil, fmt.Errorf("enrollment API call failed: %w", err)
+		return nil, err
 	}
 	p.logger.Info("Self-enrollment successful")
 

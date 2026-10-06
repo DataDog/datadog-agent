@@ -13,6 +13,9 @@ env_vars(
     # target using it is potentially uncachable.
     # ⚠️ Keep in sync with the `--repo_env=` entries in .bazelrc
     variables = [
+        # Stamps pkg/version.{Commit,FullCommit}, only in builds that also set
+        # PACKAGE_VERSION, so other CI jobs keep caching across commits.
+        "CI_COMMIT_SHA",
         # This gets set by omnibus builds in many cases. It's used in the script
         # to set things like compression, so we'll mimic that for now.
         "DEPLOY_AGENT",
@@ -90,7 +93,7 @@ bazel_dep(name = "rules_go", version = "0.64.1")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
-bazel_dep(name = "rules_python", version = "2.3.4")
+bazel_dep(name = "rules_python", version = "2.4.0")
 bazel_dep(name = "rules_rs", version = "0.0.27")
 bazel_dep(name = "rules_rust", version = "0.74.0")
 bazel_dep(name = "rules_rust_prost", version = "0.74.0")
