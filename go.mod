@@ -17,6 +17,8 @@ retract (
 
 // Internal deps fix version
 replace (
+	// TODO(regis): drop below compat alias (https://github.com/google/cel-go/pull/1) once google/cel-go >v0.32.0
+	github.com/google/cel-go => github.com/google/cel-go v0.30.1-0.20260910015055-6d32ef54e4f1
 	// Use a patched version of go-cmp to avoid disabling dead code elimination
 	// Commit from https://github.com/DataDog/go-cmp/tree/dce-patch/v0.7.0
 	github.com/google/go-cmp => github.com/DataDog/go-cmp v0.0.0-20250605161605-8f326bf2ab9d
@@ -31,6 +33,7 @@ replace (
 )
 
 require (
+	cel.dev/cel-go v0.32.0
 	code.cloudfoundry.org/bbs v1.3.0
 	code.cloudfoundry.org/bbs/models v0.0.0-20260618205254-dc4b9f8d5bc9
 	code.cloudfoundry.org/garden v0.5.0
@@ -291,7 +294,6 @@ require (
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/google/btree v1.1.3
-	github.com/google/cel-go v0.31.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.22.1
 	github.com/google/gofuzz v1.2.0
@@ -736,6 +738,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
+	github.com/google/cel-go v0.31.0 // indirect
 	github.com/google/certificate-transparency-go v1.3.2 // indirect
 	github.com/google/flatbuffers v25.12.19+incompatible // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
