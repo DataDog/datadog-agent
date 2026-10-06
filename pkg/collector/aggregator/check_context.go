@@ -6,119 +6,30 @@
 package aggregator
 
 import (
-	"errors"
-	"sync"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/collector/checkcontext"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-var checkCtx *CheckContext
-var checkContextMutex = sync.Mutex{}
-
-// CheckContext stores the global context required by Go methods like SubmitMetric.
-// Doing so allow to have a single global state instead of having one
-// per dependency used inside SubmitMetric like methods.
-type CheckContext struct {
-	senderManager          sender.SenderManager
-	senderManagerOverrides map[checkid.ID]sender.SenderManager
-	logReceiver            option.Option[integrations.Component]
-	tagger                 tagger.Component
-	filter                 workloadfilter.FilterBundle
-}
-
-func (cc *CheckContext) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
-	return cc.tagger.Tag(entityID, cardinality)
-}
-
-func (cc *CheckContext) GetLogReceiver() (integrations.Component, bool) {
-	return cc.logReceiver.Get()
-}
-
-func (cc *CheckContext) IsExcluded(container *workloadfilter.Container) bool {
-	return cc.filter.IsExcluded(container)
-}
-
-func (cc *CheckContext) senderManagerForCheck(id checkid.ID) sender.SenderManager {
-	checkContextMutex.Lock()
-	defer checkContextMutex.Unlock()
-
-	if override, found := cc.senderManagerOverrides[id]; found {
-		return override
-	}
-	return cc.senderManager
-}
-
-func (cc *CheckContext) GetSender(id checkid.ID) (sender.Sender, error) {
-	return cc.senderManagerForCheck(id).GetSender(id)
-}
+// CheckContext stores the global context required by foreign-runtime submit callbacks.
+type CheckContext = checkcontext.CheckContext
 
 // GetCheckContext retrives the current context
 func GetCheckContext() (*CheckContext, error) {
-	checkContextMutex.Lock()
-	defer checkContextMutex.Unlock()
-
-	if checkCtx == nil {
-		return nil, errors.New("Python check context was not set")
-	}
-	return checkCtx, nil
+	return checkcontext.GetCheckContext()
 }
 
 // InitializeCheckContext creates the context that can be later used for storing/retrieving checks context for submit functions
 func InitializeCheckContext(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore workloadfilter.Component) {
-	checkContextMutex.Lock()
-	if checkCtx == nil {
-		checkCtx = &CheckContext{
-			senderManager:          senderManager,
-			senderManagerOverrides: make(map[checkid.ID]sender.SenderManager),
-			logReceiver:            logReceiver,
-			tagger:                 tagger,
-			filter:                 filterStore.GetContainerSharedMetricFilters(),
-		}
-
-		if _, ok := logReceiver.Get(); !ok {
-			log.Warn("Log receiver not provided. Logs from integrations will not be collected.")
-		}
-	}
-
-	checkContextMutex.Unlock()
+	checkcontext.InitializeCheckContext(senderManager, logReceiver, tagger, filterStore)
 }
 
 // RegisterCheckSenderManager routes rtloader callbacks for id through senderManager
 // and returns an idempotent unregister function for the route.
 func RegisterCheckSenderManager(id checkid.ID, senderManager sender.SenderManager) (func(), bool) {
-	checkContextMutex.Lock()
-	defer checkContextMutex.Unlock()
-
-	if checkCtx == nil {
-		log.Debugf("Unable to register rtloader sender manager override for check %s: check context is not initialized", id)
-		return nil, false
-	}
-	checkCtx.senderManagerOverrides[id] = senderManager
-
-	var unregisterOnce sync.Once
-	return func() {
-		unregisterOnce.Do(func() {
-			unregisterCheckSenderManager(id, senderManager)
-		})
-	}, true
-}
-
-func unregisterCheckSenderManager(id checkid.ID, senderManager sender.SenderManager) {
-	checkContextMutex.Lock()
-	defer checkContextMutex.Unlock()
-
-	if checkCtx == nil {
-		return
-	}
-	if checkCtx.senderManagerOverrides[id] != senderManager {
-		return
-	}
-	delete(checkCtx.senderManagerOverrides, id)
+	return checkcontext.RegisterCheckSenderManager(id, senderManager)
 }
