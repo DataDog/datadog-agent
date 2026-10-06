@@ -64,7 +64,7 @@ static int prepare_nodejs_context(struct otel_nodejs_graph *graph, char **argv,
         return -1;
     }
 
-    usleep(500000);
+    sleep(2);
     if (scenario == otel_nodejs_no_writer) {
         return 0;
     }

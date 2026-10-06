@@ -64,7 +64,7 @@ static int prepare_otel_context(struct otel_record_with_attrs *record, char **ar
 
     // Give the agent the time to resolve this process before a record is there
     // to be read.
-    usleep(500000);
+    sleep(2);
     if (mode == otel_record_absent) {
         return 0;
     }

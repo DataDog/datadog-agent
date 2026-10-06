@@ -88,7 +88,7 @@ func setupGoTracerMemfd(serviceName, memfdName string) (int, error) {
 
 	// Wait for the agent to process the memfd seal event and populate the
 	// go_labels_procs BPF map.
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 	return fd, nil
 }
 
