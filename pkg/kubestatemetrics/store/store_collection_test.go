@@ -108,8 +108,8 @@ func TestCollectorsForSameResourceStayOnSameShard(t *testing.T) {
 
 	criteria := []string{"namespace", "resource"}
 	keyBuilder := &dynamicStoreImpl{shardCriteria: criteria}
-	standardHashKey := keyBuilder.hashKey("default", factoryKey{groupKind: "core/Pod", resource: "pods"})
-	extendedHashKey := keyBuilder.hashKey("default", factoryKey{groupKind: "core/Pod", resource: "pods", collector: "pods_extended"})
+	standardHashKey := keyBuilder.hashKey("default", factoryKey{groupKind: "core/Pod", apiResource: "pods"})
+	extendedHashKey := keyBuilder.hashKey("default", factoryKey{groupKind: "core/Pod", apiResource: "pods", collector: "pods_extended"})
 	require.Equal(t, sharding.HashKey("default|core/Pod"), standardHashKey)
 	require.Equal(t, standardHashKey, extendedHashKey)
 
@@ -153,9 +153,9 @@ func TestColocatedResourcesUseCanonicalCollectorInHashKey(t *testing.T) {
 		},
 	}
 
-	deploymentKey := dynamicStore.hashKey("default", factoryKey{groupKind: "apps/Deployment", resource: "deployments"})
-	extendedDeploymentKey := dynamicStore.hashKey("default", factoryKey{groupKind: "apps/Deployment", resource: "deployments", collector: "deployments_extended"})
-	replicaSetKey := dynamicStore.hashKey("default", factoryKey{groupKind: "apps/ReplicaSet", resource: "replicasets"})
+	deploymentKey := dynamicStore.hashKey("default", factoryKey{groupKind: "apps/Deployment", apiResource: "deployments"})
+	extendedDeploymentKey := dynamicStore.hashKey("default", factoryKey{groupKind: "apps/Deployment", apiResource: "deployments", collector: "deployments_extended"})
+	replicaSetKey := dynamicStore.hashKey("default", factoryKey{groupKind: "apps/ReplicaSet", apiResource: "replicasets"})
 
 	require.Equal(t, sharding.HashKey("default|deployments"), deploymentKey)
 	require.Equal(t, deploymentKey, extendedDeploymentKey)

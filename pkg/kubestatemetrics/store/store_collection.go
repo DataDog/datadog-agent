@@ -38,12 +38,12 @@ type storeFactory struct {
 }
 
 // factoryKey distinguishes collectors that watch the same Kubernetes
-// GroupKind. resource applies configured colocation while collector keeps
-// factories such as pods and pods_extended from replacing each other.
+// GroupKind. apiResource is used for colocation lookups, while collector
+// keeps factories such as pods and pods_extended from replacing each other.
 type factoryKey struct {
-	groupKind string
-	resource  string
-	collector string
+	groupKind   string
+	apiResource string
+	collector   string
 }
 
 func (k factoryKey) logName() string {
@@ -67,8 +67,8 @@ func NewStoreFactoryRegistry() *FactoryRegistry {
 
 // Register adds a factory to the registry. Collector may be empty for the
 // standard collector, or identify a custom collector for the same GroupKind.
-func (r *FactoryRegistry) Register(groupKind, resource, collector string, scope ResourceScope, build BuildStoreFunc) {
-	r.factories[factoryKey{groupKind: groupKind, resource: resource, collector: collector}] = storeFactory{
+func (r *FactoryRegistry) Register(groupKind, apiResource, collector string, scope ResourceScope, build BuildStoreFunc) {
+	r.factories[factoryKey{groupKind: groupKind, apiResource: apiResource, collector: collector}] = storeFactory{
 		build: build,
 		scope: scope,
 	}
@@ -138,11 +138,11 @@ func (d *dynamicStoreImpl) Add(ns string) {
 }
 
 func (d *dynamicStoreImpl) hashKey(ns string, key factoryKey) sharding.HashKey {
-	resource := key.groupKind
-	if colocatedResource, found := d.resourceColocation[key.resource]; found {
-		resource = colocatedResource
+	hashResource := key.groupKind
+	if colocatedResource, found := d.resourceColocation[key.apiResource]; found {
+		hashResource = colocatedResource
 	}
-	return sharding.NewHashKey(d.shardCriteria, ns, resource)
+	return sharding.NewHashKey(d.shardCriteria, ns, hashResource)
 }
 
 func (d *dynamicStoreImpl) add(ns string, scope ResourceScope) {
