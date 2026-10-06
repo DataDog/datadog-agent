@@ -3,7 +3,6 @@ token handling and the SINGLE run/skip decision shared by all tools."""
 
 from __future__ import annotations
 
-import argparse
 import json
 import math
 import os
@@ -55,29 +54,29 @@ QUESTIONS = {
 DEFAULT_RUN_THRESHOLD = 0.1
 
 
-def get_ai_gateway_token(args: argparse.Namespace) -> str:
-    if args.token:
-        return args.token
+def get_ai_gateway_token(token: str | None = None, token_cmd: str | None = None, dc: str = "us1.ddbuild.io") -> str:
+    if token:
+        return token
     if os.environ.get("AI_GATEWAY_TOKEN"):
         return os.environ["AI_GATEWAY_TOKEN"]
-    if args.token_cmd:
-        return run_cmd(shlex.split(args.token_cmd)).strip()
-    return run_cmd(["authanywhere", "--audience", "rapid-ai-platform", "--raw", "--dc", args.dc]).strip()
+    if token_cmd:
+        return run_cmd(shlex.split(token_cmd)).strip()
+    return run_cmd(["authanywhere", "--audience", "rapid-ai-platform", "--raw", "--dc", dc]).strip()
 
 
-def ask_jev(args: argparse.Namespace, token: str, state: str) -> dict:
+def ask_jev(token: str, state: str, *, model: str, dc: str, source: str) -> dict:
     payload = {
         "state": state,
-        "model": args.model,
+        "model": model,
         "questions": QUESTIONS,
     }
     req = urllib.request.Request(
-        f"https://ai-gateway.{args.dc}{SYSTEMONE_PATH}",
+        f"https://ai-gateway.{dc}{SYSTEMONE_PATH}",
         data=json.dumps(payload).encode(),
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
-            "source": args.source,
+            "source": source,
             "org-id": "2",
             "x-dd-tag-ddagent-ci": "innovation-week-experiment",
         },

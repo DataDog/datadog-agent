@@ -1,4 +1,3 @@
-import argparse
 import json
 import tempfile
 import unittest
@@ -6,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tasks.libs.dynamic_test.jev.jev_client import decide, get_ai_gateway_token
-from tasks.libs.dynamic_test.jev.jev_e2e_selector import main
+from tasks.libs.dynamic_test.jev.jev_e2e_selector import select_suite
 from tasks.libs.dynamic_test.jev.pr_context import fetch_pr_info
 from tasks.libs.dynamic_test.jev.test_discovery import list_suites
 
@@ -33,17 +32,14 @@ class JevToolsTests(unittest.TestCase):
 
     @patch("tasks.libs.dynamic_test.jev.jev_client.run_cmd", return_value="token")
     def test_auth_uses_matching_datacenter_and_quoted_commands(self, run):
-        args = argparse.Namespace(token=None, token_cmd=None, dc="us1.ddbuild.io")
         with patch.dict("os.environ", {}, clear=True):
-            self.assertEqual(get_ai_gateway_token(args), "token")
+            self.assertEqual(get_ai_gateway_token(dc="us1.ddbuild.io"), "token")
             run.assert_called_once_with(
                 ["authanywhere", "--audience", "rapid-ai-platform", "--raw", "--dc", "us1.ddbuild.io"]
             )
-            args.token_cmd = 'tool --name "two words"'
-            get_ai_gateway_token(args)
+            self.assertEqual(get_ai_gateway_token(token_cmd='tool --name "two words"', dc="us1.ddbuild.io"), "token")
             run.assert_called_with(["tool", "--name", "two words"])
-            args.token = "override"
-            self.assertEqual(get_ai_gateway_token(args), "override")
+            self.assertEqual(get_ai_gateway_token(token="override"), "override")
 
     @patch("tasks.libs.dynamic_test.jev.pr_context.current_branch", return_value="feature/nested")
     @patch("tasks.libs.dynamic_test.jev.pr_context.urllib.request.urlopen")
@@ -69,7 +65,6 @@ class JevToolsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = str(Path(directory, "decisions.json"))
             with (
-                patch("sys.argv", ["selector", "--suite", "fleet", "--output", output, "--workers", "1"]),
                 patch(f"{module}.os.path.isdir", return_value=True),
                 patch(f"{module}.fetch_ddci_metadata", return_value=None),
                 patch(f"{module}.fetch_pr_info", return_value={}),
@@ -91,7 +86,7 @@ class JevToolsTests(unittest.TestCase):
                     side_effect=[{"answers": answers(0.0, "unrelated")}, {"answers": {}}, RuntimeError("offline")],
                 ),
             ):
-                self.assertEqual(main(), 0)
+                select_suite("fleet", workers=1, output=output)
             summary = json.loads(Path(output).read_text())
             self.assertEqual(summary["run"], ["TestDuplicate", "TestUnavailable"])
             self.assertEqual(summary["skip"], [])

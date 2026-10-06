@@ -46,10 +46,12 @@ publishing misleading zero-miss statistics.
 For an input-only preview, without GitLab, CI Visibility or Jev requests:
 
 ```bash
-dda run i python -m tasks.libs.dynamic_test.jev.jev_e2e_selector \
-  --suite=fleet --test=TestFleetConfig --dry-run
+dda run i python -c 'from tasks.libs.dynamic_test.jev.jev_e2e_selector import select_suite; \
+    select_suite("fleet", test="TestFleetConfig", dry_run=True)'
 ```
 
+There is no command-line wrapper: the selector is a library called in-process
+by the evaluation.
 This preview can still read GitHub/DDCI PR metadata when configured.
 
 ## Integration and interpretation

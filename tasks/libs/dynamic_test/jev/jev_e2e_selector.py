@@ -1,33 +1,29 @@
-#!/usr/bin/env python3
 """Jev-based E2E test selector.
 
 Decides, for each E2E test of a given suite (or a single test), whether it
 should be executed on the current PR, by asking a Jev (TypeSafe System One)
-model through the AI Gateway. select_suite() is the in-process entry point
-used by the executor (tasks/libs/dynamic_test/jev_selection.py); main() is the
-command-line wrapper. See jev_client.py for the questions and the run/skip
-decision, and the sibling modules for context gathering (pr_context.py), diff
-processing (diff_utils.py) and test discovery (test_discovery.py).
+model through the AI Gateway. select_suite() is the only entry point, called
+in-process by the executor (tasks/libs/dynamic_test/jev_selection.py). See
+jev_client.py for the questions and the run/skip decision, and the sibling
+modules for context gathering (pr_context.py), diff processing
+(diff_utils.py) and test discovery (test_discovery.py).
 
 Must run from the repository root (git context and relative paths).
 
-Usage:
-    GITHUB_TOKEN=... AI_GATEWAY_TOKEN=... dda run i python -m tasks.libs.dynamic_test.jev.jev_e2e_selector \
-        --suite fleet [--test TestFleetConfig] [--base main]
+For an input-only preview, without any Jev call:
+    dda run i python -c 'from tasks.libs.dynamic_test.jev.jev_e2e_selector import select_suite; \
+        select_suite("fleet", test="TestFleetConfig", dry_run=True)'
 
-Token acquisition:
-    - CI/laptop: preinstalled authanywhere (rapid-ai-platform audience, selected --dc)
-    - overrides: AI_GATEWAY_TOKEN or --token-cmd
+Token acquisition: preinstalled authanywhere (rapid-ai-platform audience,
+the selected dc); AI_GATEWAY_TOKEN or token_cmd override it.
 Jev docs: https://datadoghq.atlassian.net/wiki/spaces/AIP/pages/7265386822
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import re
-import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -73,8 +69,6 @@ def select_suite(
     if workers < 1 or not 0 <= run_threshold <= 1:
         raise ValueError("workers must be positive and run_threshold must be between 0 and 1")
     base = base or os.environ.get("COMPARE_TO_BRANCH", "main")
-    # The AI Gateway client takes a namespace-like argument object
-    client_args = argparse.Namespace(model=model, dc=dc, source=source, token=token, token_cmd=token_cmd)
 
     suite_dir = os.path.join(E2E_TESTS_DIR, suite)
     if not os.path.isdir(suite_dir):
@@ -107,7 +101,7 @@ def select_suite(
             raise ValueError(f"test {test} not found in {suite_dir}")
     print(f"[info] evaluating {len(suites)} tests: {', '.join(s[0] for s in suites)}")
 
-    token = None if dry_run else get_ai_gateway_token(client_args)
+    token = None if dry_run else get_ai_gateway_token(token=token, token_cmd=token_cmd, dc=dc)
 
     suite_def_path, suite_def_code = suite_definition(suite_dir)
     if suite_def_code:
@@ -132,7 +126,7 @@ def select_suite(
         print_collapsible(section_name, f"Jev call input: {name}", section_body)
 
         try:
-            answer = ask_jev(client_args, token, state)
+            answer = ask_jev(token, state, model=model, dc=dc, source=source)
             row = {
                 "test": name,
                 **decide(answer["answers"], run_threshold),
@@ -173,54 +167,3 @@ def select_suite(
             json.dump(summary, f, indent=2)
         print(f"[summary] decisions written to {output}")
     return summary
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--suite", required=True, help="E2E suite under test/new-e2e/tests/ (e.g. fleet)")
-    parser.add_argument("--test", help="Restrict to a single test entry point or suite method")
-    parser.add_argument(
-        "--base", default=os.environ.get("COMPARE_TO_BRANCH", "main"), help="Base branch to diff against"
-    )
-    parser.add_argument("--team", default=None, help="Owning team (defaults to the suite directory name)")
-    parser.add_argument("--model", default="datadoginternal/openjev-medium")
-    parser.add_argument("--dc", default="us1.ddbuild.io", help="AI Gateway datacenter")
-    parser.add_argument("--source", default="datadog-agent", help="source header for AI Gateway")
-    parser.add_argument("--workers", type=int, default=8, help="Maximum concurrent Jev requests")
-    parser.add_argument("--token", help="Raw internal auth token (default: $AI_GATEWAY_TOKEN)")
-    parser.add_argument("--token-cmd", help="Command producing a raw token, e.g. authanywhere invocation")
-    parser.add_argument(
-        "--run-threshold",
-        type=float,
-        default=DEFAULT_RUN_THRESHOLD,
-        help="should_execute value above which the test runs (see jev_client.decide)",
-    )
-    parser.add_argument("--output", default="jev_e2e_decisions.json", help="JSON output path")
-    parser.add_argument(
-        "--dry-run", action="store_true", help="Print the state that would be sent, without calling Jev"
-    )
-    args = parser.parse_args()
-    try:
-        select_suite(
-            args.suite,
-            test=args.test,
-            base=args.base,
-            team=args.team,
-            model=args.model,
-            dc=args.dc,
-            source=args.source,
-            token=args.token,
-            token_cmd=args.token_cmd,
-            run_threshold=args.run_threshold,
-            workers=args.workers,
-            output=args.output,
-            dry_run=args.dry_run,
-        )
-    except ValueError as e:
-        print(f"error: {e}", file=sys.stderr)
-        return 1
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
