@@ -71,15 +71,6 @@ def suite_entry_points() -> dict[str, set[str]]:
     }
 
 
-def all_entry_points() -> set[str]:
-    """Every E2E test entry point under test/new-e2e/tests, across all suites."""
-    entries = set()
-    for names in suite_entry_points().values():
-        entries |= names
-    print(f"[jev] e2e test universe: {len(entries)} entry points across all suites")
-    return entries
-
-
 class JevDynTestExecutor(DynTestExecutor):
     """Jev executor whose index is the pipeline's observed execution map.
 
@@ -118,7 +109,6 @@ class JevDynTestExecutor(DynTestExecutor):
         # job -> executed tests, as fetched during the index build: the
         # evaluator reads these instead of re-querying CI Visibility
         self.executed: dict[str, list[ExecutedTest]] = {}
-        self._entry_points: set[str] | None = None
         self._run: set[str] | None = None
 
     def init_index(self):
@@ -162,7 +152,10 @@ class JevDynTestExecutor(DynTestExecutor):
             if test.job_id is not None and str(test.job_id) in latest:
                 self.executed.setdefault(test.job_name, []).append(test)
 
-        universe = self.entry_points()
+        universe: set[str] = set()
+        for names in suite_entry_points().values():
+            universe |= names
+        print(f"[jev] e2e test universe: {len(universe)} entry points across all suites")
         index = DynamicTestIndex()
         known: set[str] = set()
         unknown: set[str] = set()
@@ -183,11 +176,6 @@ class JevDynTestExecutor(DynTestExecutor):
             f"[jev] index: {len(index.get_jobs())} jobs with executed tests, {len(known)} tests, "
             f"fetched in {time.monotonic() - started:.0f}s"
         )
-
-    def entry_points(self) -> set[str]:
-        if self._entry_points is None:
-            self._entry_points = all_entry_points()
-        return self._entry_points
 
     def _jev_run(self) -> set[str]:
         """Lazily: the entry points Jev would RUN, over the suites that executed.

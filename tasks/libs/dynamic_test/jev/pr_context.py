@@ -40,35 +40,6 @@ def git(*args: str) -> str:
     return run_cmd(["git", *args])
 
 
-def current_branch() -> str:
-    """Current branch name, robust to detached-HEAD checkouts (GitLab CI).
-
-    In CI the clone is a detached HEAD, where `git rev-parse --abbrev-ref HEAD`
-    returns "HEAD"; prefer the CI-provided branch name in that case.
-    """
-    for env in ("CI_COMMIT_BRANCH", "CI_COMMIT_REF_NAME"):
-        if os.environ.get(env) and os.environ[env] != "HEAD":
-            return os.environ[env]
-    branch = git("rev-parse", "--abbrev-ref", "HEAD")
-    return branch if branch != "HEAD" else ""
-
-
-def resolve_ref(base: str) -> str:
-    """Resolve a branch name to a ref present in this clone.
-
-    CI clones usually have no local `main` branch, only `origin/main`.
-    """
-    for candidate in (base, f"origin/{base}", f"refs/remotes/origin/{base}", f"refs/heads/{base}"):
-        try:
-            git("rev-parse", "--verify", "--quiet", candidate + "^{commit}")
-            return candidate
-        except RuntimeError:
-            continue
-    print(f"[info] ref '{base}' not found locally, fetching from origin")
-    git("fetch", "origin", base)
-    return "FETCH_HEAD"
-
-
 def truncate(text: str, limit: int, label: str) -> str:
     if len(text.encode()) <= limit:
         return text
@@ -125,7 +96,16 @@ def fetch_ddci_metadata() -> dict | None:
 
 def fetch_pr_info(base: str, ddci: dict | None) -> dict:
     """PR title/description via the shared GithubAPI (uses GITHUB_TOKEN if present)."""
-    branch = current_branch()
+    # Current branch, robust to the detached-HEAD CI checkouts where rev-parse
+    # returns "HEAD": prefer the CI-provided branch name in that case
+    branch = ""
+    for env in ("CI_COMMIT_BRANCH", "CI_COMMIT_REF_NAME"):
+        if os.environ.get(env) and os.environ[env] != "HEAD":
+            branch = os.environ[env]
+            break
+    if not branch:
+        branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    branch = "" if branch == "HEAD" else branch
     number = ddci.get("pr_number") if ddci else None
     pr: dict = {"branch": branch, "title": "", "description": ""}
     if ddci:
@@ -164,7 +144,20 @@ def changed_files(base: str, ddci: dict | None) -> tuple[list, str]:
     if ddci and ddci.get("changed_files") is not None:
         files = ddci["changed_files"][:MAX_CHANGED_FILES]
         return files, ddci.get("base_commit") or base
-    ref = resolve_ref(base)
+    # Resolve the base branch to a ref present in this clone (CI clones have
+    # no local main, only origin/main); fetch from origin as a last resort
+    ref = ""
+    for candidate in (base, f"origin/{base}", f"refs/remotes/origin/{base}", f"refs/heads/{base}"):
+        try:
+            git("rev-parse", "--verify", "--quiet", candidate + "^{commit}")
+            ref = candidate
+            break
+        except RuntimeError:
+            continue
+    if not ref:
+        print(f"[info] ref '{base}' not found locally, fetching from origin")
+        git("fetch", "origin", base)
+        ref = "FETCH_HEAD"
     try:
         merge_base = git("merge-base", "HEAD", ref)
     except RuntimeError:
