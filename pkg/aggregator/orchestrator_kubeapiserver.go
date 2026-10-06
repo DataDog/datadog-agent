@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !orchestrator
+//go:build kubeapiserver
 
 package aggregator
 
 // Orchestrator Explorer is enabled by default but
-// the forwarder is only created if the orchestrator
+// the forwarder is only created if the kubeapiserver
 // build tag exists
 
-// orchestratorForwarderSupport shows if the orchestrator build tag is enabled
-const orchestratorForwarderSupport = false
+// orchestratorForwarderSupport shows if the kubeapiserver build tag is enabled
+const orchestratorForwarderSupport = true
