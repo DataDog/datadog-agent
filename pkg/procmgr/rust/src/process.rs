@@ -93,10 +93,10 @@ pub enum ProcessOrigin {
 /// Why a respawn was skipped by a closed start condition, and what recovering
 /// it still owes the restart accounting.
 ///
-/// Reload needs the skip *reason*, not the state: `Exited`, `Failed`, and
-/// `Stopped` are also reached by a completed one-shot, a policy mismatch, the
-/// burst limit, a failed spawn, and an operator stop, none of which an
-/// unrelated reload may restart.
+/// Reload needs the skip *reason*, not the state: `Exited`, `Crashed`,
+/// `Failed`, and `Stopped` are also reached by a completed one-shot, a policy
+/// mismatch, the burst limit, a failed spawn, and an operator stop, none of
+/// which an unrelated reload may restart.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RestartBlock {
     /// No respawn was skipped for a closed condition.
@@ -111,6 +111,82 @@ enum RestartBlock {
     AlreadyAccounted,
 }
 
+/// What it takes to force-kill a child, held apart from [`ManagedProcess`] so a
+/// stop can escalate after the manager has released it.
+struct ProcessKiller {
+    pid: Option<u32>,
+    #[cfg(windows)]
+    job_object: Option<platform::JobObject>,
+}
+
+impl ProcessKiller {
+    fn force_kill(&mut self, name: &str) {
+        #[cfg(windows)]
+        if let Some(ref job) = self.job_object {
+            if let Err(e) = job.terminate() {
+                warn!("[{name}] job object terminate failed: {e}");
+            } else {
+                self.job_object = None;
+                return;
+            }
+        }
+
+        if let Some(pid) = self.pid
+            && let Err(e) = platform::send_force_kill(pid)
+        {
+            warn!("[{name}] force kill failed: {e}");
+        }
+    }
+}
+
+/// The waiting half of a stop, self-contained so that it can be awaited without
+/// the lock guarding the process it belongs to.
+///
+/// A stop runs for as long as `stop_timeout`, which read-only RPCs must not
+/// queue behind: from the outside, a manager that cannot answer `list` for a
+/// minute and a half is indistinguishable from a dead one.
+pub(crate) struct StopWait {
+    name: String,
+    handle: JoinHandle<()>,
+    /// How long to let the child exit on its own. `None` means it was never
+    /// asked to, so there is nothing for a full `stop_timeout` to wait for.
+    timeout: Option<Duration>,
+    killer: ProcessKiller,
+}
+
+impl StopWait {
+    pub(crate) async fn run(self) {
+        let StopWait {
+            name,
+            handle,
+            timeout,
+            mut killer,
+        } = self;
+        tokio::pin!(handle);
+
+        let grace = timeout.unwrap_or(ManagedProcess::UNDELIVERED_STOP_GRACE);
+        if time::timeout(grace, &mut handle).await.is_ok() {
+            return;
+        }
+
+        match timeout {
+            None => warn!("[{name}] graceful stop was not delivered, force-killing"),
+            Some(stop) => warn!(
+                "[{name}] stop timeout ({}s) reached, force-killing",
+                stop.as_secs()
+            ),
+        }
+
+        killer.force_kill(&name);
+        if time::timeout(ManagedProcess::FORCE_KILL_TIMEOUT, handle)
+            .await
+            .is_err()
+        {
+            warn!("[{name}] still running after force-kill, giving up");
+        }
+    }
+}
+
 pub struct ManagedProcess {
     name: String,
     uuid: String,
@@ -122,6 +198,9 @@ pub struct ManagedProcess {
     watcher_handle: Option<JoinHandle<()>>,
     restarts: RestartTracker,
     stop_requested: bool,
+    /// Set by `request_stop` when the stop signal never reached the child, so
+    /// `wait_for_stop` knows waiting out `stop_timeout` would change nothing.
+    graceful_stop_failed: bool,
     /// Set only where a respawn was skipped because a start condition was
     /// closed, and cleared in `spawn()`.
     restart_block: RestartBlock,
@@ -137,6 +216,17 @@ pub struct ManagedProcess {
 
 impl ManagedProcess {
     pub(crate) const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
+
+    /// How long to give the exit watcher when the graceful stop never reached
+    /// the child.
+    ///
+    /// Sending it fails both when the child cannot hear us and when it has
+    /// already exited, and the two are indistinguishable from here: on Unix a
+    /// child that is gone answers the signal with ESRCH. Waiting briefly settles
+    /// that case without force-killing a pid that has already been reaped, and
+    /// which by then may belong to something else, while still costing a child
+    /// that genuinely cannot hear us almost nothing against a 90s stop_timeout.
+    pub(crate) const UNDELIVERED_STOP_GRACE: Duration = Duration::from_secs(2);
 
     pub fn new_config(name: String, uuid: String, config: ProcessConfig) -> Self {
         Self::new_inner(name, uuid, config, ProcessOrigin::Config)
@@ -164,6 +254,7 @@ impl ManagedProcess {
             watcher_handle: None,
             restarts,
             stop_requested: false,
+            graceful_stop_failed: false,
             restart_block: RestartBlock::None,
             origin,
             last_exit_status: None,
@@ -265,6 +356,15 @@ impl ManagedProcess {
             return;
         }
         self.state = next;
+    }
+
+    /// Put a never-spawned process into `Running` so tests can drive
+    /// `set_last_status` with a synthetic exit status. Classification and
+    /// restart-policy decisions do not need a live child.
+    #[cfg(test)]
+    pub(crate) fn force_running_for_test(&mut self) {
+        self.transition_to(ProcessState::Starting);
+        self.transition_to(ProcessState::Running);
     }
 
     #[must_use]
@@ -392,6 +492,7 @@ impl ManagedProcess {
             bail!("[{}] cannot spawn: invalid state {}", self.name, self.state);
         }
         self.stop_requested = false;
+        self.graceful_stop_failed = false;
         // The single clear site, which is what keeps the reason from going
         // stale: boot, restart, manual start, and reload all land here.
         self.restart_block = RestartBlock::None;
@@ -461,48 +562,62 @@ impl ManagedProcess {
         self.watcher_handle = None;
         #[cfg(windows)]
         self.clear_windows_spawn_resources();
+        // Order matters, first match wins. `stop_requested` stays first because
+        // procmgr's own force kill sends SIGKILL on Unix and
+        // `TerminateProcess(h, 1)` on Windows, either of which the branches
+        // below would otherwise read as a crash or a failure.
         if self.stop_requested {
             self.stop_requested = false;
             self.transition_to(ProcessState::Stopped);
         } else if status.success() {
             self.transition_to(ProcessState::Exited);
+        } else if platform::is_crash_exit(&status) {
+            // Died without returning a value: a signal on Unix, a fatal
+            // exception code on Windows. Different operator response from
+            // `Failed`, where the child diagnosed its own problem and reported
+            // it through an exit code.
+            self.transition_to(ProcessState::Crashed);
         } else {
             self.transition_to(ProcessState::Failed);
         }
     }
 
     pub fn request_stop(&mut self) {
-        if self.is_running() {
-            self.stop_requested = true;
-            info!("[{}] sending graceful stop (stop requested)", self.name);
-            self.graceful_stop();
+        if !self.mark_stop_requested() {
+            return;
         }
+        info!("[{}] sending graceful stop (stop requested)", self.name);
+        self.graceful_stop_failed = !self.graceful_stop();
     }
 
-    fn graceful_stop(&self) {
-        if let Some(pid) = self.pid
-            && let Err(e) = platform::send_graceful_stop(pid)
-        {
+    /// Record that a stop is under way, without signalling the child. Returns
+    /// false when there is nothing running to stop.
+    fn mark_stop_requested(&mut self) -> bool {
+        if !self.is_running() {
+            return false;
+        }
+        self.stop_requested = true;
+        // The manager lock is free while the child goes down, so this state is
+        // what `list`, `describe`, and `status` report for as long as the stop
+        // runs. Reporting `Running` throughout is how a stop that takes its
+        // time reads from the outside as a process that ignored one.
+        if matches!(self.state, ProcessState::Running) {
+            self.transition_to(ProcessState::Stopping);
+        }
+        true
+    }
+
+    /// Ask the child to exit. Returns whether the request reached it.
+    fn graceful_stop(&self) -> bool {
+        let Some(pid) = self.pid else {
+            warn!("[{}] no pid to send a graceful stop to", self.name);
+            return false;
+        };
+        if let Err(e) = platform::send_graceful_stop(pid) {
             warn!("[{}] graceful stop failed: {e}", self.name);
+            return false;
         }
-    }
-
-    fn force_kill(&mut self) {
-        #[cfg(windows)]
-        if let Some(ref job) = self.job_object {
-            if let Err(e) = job.terminate() {
-                warn!("[{}] job object terminate failed: {e}", self.name);
-            } else {
-                self.job_object = None;
-                return;
-            }
-        }
-
-        if let Some(pid) = self.pid
-            && let Err(e) = platform::send_force_kill(pid)
-        {
-            warn!("[{}] force kill failed: {e}", self.name);
-        }
+        true
     }
 
     #[cfg(unix)]
@@ -529,23 +644,39 @@ impl ManagedProcess {
         if !self.is_running() {
             return;
         }
-        let stop = self.stop_timeout();
-        if let Some(handle) = self.watcher_handle.take() {
-            tokio::pin!(handle);
-            if time::timeout(stop, &mut handle).await.is_err() {
-                warn!(
-                    "[{}] stop timeout ({}s) reached, force-killing",
-                    self.name,
-                    stop.as_secs()
-                );
-                self.force_kill();
-                if time::timeout(Self::FORCE_KILL_TIMEOUT, handle)
-                    .await
-                    .is_err()
-                {
-                    warn!("[{}] still running after force-kill, giving up", self.name);
-                }
-            }
+        if let Some(wait) = self.take_stop_wait() {
+            wait.run().await;
+        }
+        self.finish_stop();
+    }
+
+    /// Detach the part of a stop that only waits, so a caller holding a shared
+    /// lock can release it first. `finish_stop` must follow once the returned
+    /// [`StopWait`] has run. Returns `None` when there is nothing to wait for.
+    pub(crate) fn take_stop_wait(&mut self) -> Option<StopWait> {
+        if !self.is_running() {
+            return None;
+        }
+        let handle = self.watcher_handle.take()?;
+        Some(StopWait {
+            name: self.name.clone(),
+            handle,
+            // A stop that never reached the child leaves nothing to wait for:
+            // the timeout would pass with the process untouched.
+            timeout: (!self.graceful_stop_failed).then(|| self.stop_timeout()),
+            killer: ProcessKiller {
+                pid: self.pid,
+                #[cfg(windows)]
+                job_object: self.job_object.take(),
+            },
+        })
+    }
+
+    /// Record the stop that [`StopWait::run`] carried out. A process that is no
+    /// longer alive was never this stop's to mark.
+    pub(crate) fn finish_stop(&mut self) {
+        if !self.is_running() {
+            return;
         }
         self.mark_stopped();
     }
@@ -575,11 +706,17 @@ impl ManagedProcess {
 
     #[must_use]
     pub fn handle_restart(&mut self) -> Option<Duration> {
+        // `Crashed` is restartable exactly like `Failed`: both are unsuccessful
+        // exits, and treating them differently would silently stop supervising
+        // a segfaulting child under `restart: always`.
         let should_restart = match (self.state, &self.config.restart) {
-            (ProcessState::Exited | ProcessState::Failed, RestartPolicy::Always) => true,
-            (ProcessState::Failed, RestartPolicy::OnFailure) => true,
+            (
+                ProcessState::Exited | ProcessState::Crashed | ProcessState::Failed,
+                RestartPolicy::Always,
+            ) => true,
+            (ProcessState::Crashed | ProcessState::Failed, RestartPolicy::OnFailure) => true,
             (ProcessState::Exited, RestartPolicy::OnSuccess) => true,
-            (ProcessState::Exited | ProcessState::Failed, _) => false,
+            (ProcessState::Exited | ProcessState::Crashed | ProcessState::Failed, _) => false,
             _ => return None,
         };
 
@@ -669,6 +806,104 @@ pub mod tests {
         proc.set_last_status(status);
         assert_eq!(proc.state(), ProcessState::Exited);
         assert!(!proc.is_running());
+    }
+
+    /// `cleanup_process` force-kills, which is SIGKILL on Unix but
+    /// `TerminateProcess(h, 1)` on Windows. Only the Unix form is a death
+    /// without a returned value; Windows cannot tell the killer's exit code
+    /// from the child's own.
+    #[cfg(unix)]
+    const EXTERNAL_KILL_STATE: ProcessState = ProcessState::Crashed;
+    #[cfg(windows)]
+    const EXTERNAL_KILL_STATE: ProcessState = ProcessState::Failed;
+
+    /// Drive `set_last_status` from a synthetic `Running` process. No child is
+    /// spawned: classification only reads the exit status and `stop_requested`.
+    fn state_after_exit(status: std::process::ExitStatus, stop_requested: bool) -> ProcessState {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut proc = ManagedProcess::new_config(
+            "classify".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
+        proc.force_running_for_test();
+        if stop_requested {
+            proc.request_stop();
+        }
+        proc.set_last_status(status);
+        proc.state()
+    }
+
+    #[test]
+    fn test_classify_crash_exit_as_crashed() {
+        assert_eq!(
+            state_after_exit(test_helpers::crash_exit_status(), false),
+            ProcessState::Crashed,
+            "a death without a returned value is a crash, not a failure"
+        );
+    }
+
+    /// SIGKILL is the OOM-killer case, which is the one `Crashed` exists for.
+    #[cfg(unix)]
+    #[test]
+    fn test_classify_sigkill_as_crashed() {
+        let status = test_helpers::signal_exit_status(Signal::SIGKILL as i32);
+        assert_eq!(state_after_exit(status, false), ProcessState::Crashed);
+    }
+
+    #[test]
+    fn test_classify_nonzero_exit_as_failed() {
+        assert_eq!(
+            state_after_exit(test_helpers::exit_status(1), false),
+            ProcessState::Failed,
+            "the child returned a value, so it did not crash"
+        );
+    }
+
+    #[test]
+    fn test_classify_zero_exit_as_exited() {
+        assert_eq!(
+            state_after_exit(test_helpers::exit_status(0), false),
+            ProcessState::Exited
+        );
+    }
+
+    /// procmgr's own force kill is a SIGKILL on Unix, so the stop branch has to
+    /// win or every forced stop would be reported as a crash.
+    #[test]
+    fn test_stop_request_wins_over_crash_exit() {
+        assert_eq!(
+            state_after_exit(test_helpers::crash_exit_status(), true),
+            ProcessState::Stopped
+        );
+    }
+
+    /// A crash is an unsuccessful exit, so it restarts exactly where a failure
+    /// does. Getting this wrong leaves a segfaulting child unsupervised under
+    /// `restart: always`.
+    #[test]
+    fn test_restart_policies_treat_crash_like_failure() {
+        for (policy, expected) in [
+            (RestartPolicy::Always, true),
+            (RestartPolicy::OnFailure, true),
+            (RestartPolicy::OnSuccess, false),
+            (RestartPolicy::Never, false),
+        ] {
+            let (cmd, args) = test_helpers::true_cmd();
+            let mut cfg = test_helpers::make_config(cmd, args);
+            cfg.restart = policy.clone();
+            let mut proc =
+                ManagedProcess::new_config("crashy".into(), test_helpers::test_uuid(), cfg);
+            proc.force_running_for_test();
+            proc.set_last_status(test_helpers::crash_exit_status());
+
+            assert_eq!(proc.state(), ProcessState::Crashed);
+            assert_eq!(
+                proc.handle_restart().is_some(),
+                expected,
+                "restart decision for a crash under {policy:?}"
+            );
+        }
     }
 
     #[tokio::test]
@@ -1236,6 +1471,35 @@ runtime_success_sec: 5
         assert_eq!(proc.state(), ProcessState::Stopped);
     }
 
+    /// A graceful stop that never reached the child leaves nothing to wait for,
+    /// so a full `stop_timeout` only postpones the kill. Windows gets here
+    /// whenever `AttachConsole` cannot reach the child and `CTRL_BREAK` goes
+    /// undelivered.
+    #[tokio::test]
+    async fn test_undelivered_graceful_stop_skips_the_stop_timeout() {
+        let mut cfg = test_helpers::sleep_test_config(60);
+        cfg.stop_timeout = Some(30);
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
+        let mut exit_rx = spawn_ok(&mut proc);
+
+        // An undelivered stop, staged rather than provoked: making the platform
+        // call fail against a live child is not portable. Nothing is sent, so
+        // the child stays up until the force kill whatever it does with signals.
+        assert!(proc.mark_stop_requested());
+        proc.graceful_stop_failed = true;
+
+        let started = std::time::Instant::now();
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
+
+        assert_eq!(proc.state(), ProcessState::Stopped);
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(20),
+            "an undelivered stop should force-kill instead of waiting out stop_timeout (took {:?})",
+            started.elapsed()
+        );
+    }
+
     #[tokio::test]
     async fn test_stop_start_then_crash_restarts_on_failure() {
         let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
@@ -1258,7 +1522,7 @@ runtime_success_sec: 5
             .status;
         proc.set_last_status(status);
 
-        assert_eq!(proc.state(), ProcessState::Failed);
+        assert_eq!(proc.state(), EXTERNAL_KILL_STATE);
         assert!(
             proc.handle_restart().is_some(),
             "on-failure should restart after stop -> start -> external kill"

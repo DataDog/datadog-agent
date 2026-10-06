@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -58,6 +59,30 @@ func TestGoRoutines(t *testing.T) {
 	}
 
 	content, err := remoteProvider.getHTTPCallContent(ts.URL)
+	require.NoError(t, err)
+	assert.Equal(t, expected, string(content))
+}
+
+func TestGetGoRoutineDump(t *testing.T) {
+	expected := "No Goroutines for you, my friend!"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/debug/pprof/goroutine", r.URL.Path)
+		fmt.Fprintf(w, "%s", expected)
+	}))
+	defer ts.Close()
+	port := ts.Listener.Addr().(*net.TCPAddr).Port
+
+	// Set expvar_port to a different value to prove GetGoRoutineDump dials the
+	// port it's given, not whatever expvar_port happens to be configured to.
+	confMock := configmock.New(t)
+	confMock.Set("expvar_port", port+1, model.SourceAgentRuntime)
+
+	ipcComp := ipcmock.New(t)
+	remoteProvider := RemoteFlareProvider{
+		IPC: ipcComp,
+	}
+
+	content, err := remoteProvider.GetGoRoutineDump(port)
 	require.NoError(t, err)
 	assert.Equal(t, expected, string(content))
 }

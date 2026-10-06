@@ -147,6 +147,14 @@ func TestMetadataAsTags(t *testing.T) {
 			wantStandard:   []string{"service:bar"},
 		},
 		{
+			name:           "env and version are also standard tags",
+			k:              "foo",
+			v:              "bar",
+			metadataAsTags: map[string]string{"foo": "env,version"},
+			want:           []string{"env:bar", "version:bar"},
+			wantStandard:   []string{"env:bar", "version:bar"},
+		},
+		{
 			name:           "high cardinality service is not a standard tag",
 			k:              "foo",
 			v:              "bar",

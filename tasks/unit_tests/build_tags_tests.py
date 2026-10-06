@@ -12,7 +12,9 @@ from tasks.build_tags import (
     GAZELLE_OMIT_TAGS,
     TEST_FEATURE_TAGS,
     UNIT_TEST_TAGS,
+    compute_build_tags_for_flavor,
 )
+from tasks.flavor import AgentFlavor
 
 
 def _payload():
@@ -51,6 +53,32 @@ class TestCodegenPayloadSchema(unittest.TestCase):
 
 
 class TestCodegenPayloadData(unittest.TestCase):
+    def test_recorder_flavor_is_base_agent_plus_recorder_tag(self):
+        base = set(build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform="linux"))
+        recorder = set(build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.recorder, platform="linux"))
+        self.assertEqual(recorder, base | {"anomalydetection_recorder"})
+
+    def test_recorder_flavor_keeps_other_binaries_at_base_tags(self):
+        for build in ("trace-agent", "process-agent", "privateactionrunner"):
+            with self.subTest(build=build):
+                self.assertEqual(
+                    build_tags.get_default_build_tags(build=build, flavor=AgentFlavor.recorder, platform="linux"),
+                    build_tags.get_default_build_tags(build=build, flavor=AgentFlavor.base, platform="linux"),
+                )
+
+    def test_recorder_tag_survives_agent_build_tag_computation(self):
+        tags = compute_build_tags_for_flavor(
+            build="agent", flavor=AgentFlavor.recorder, build_include=None, build_exclude=None, platform="linux"
+        )
+        self.assertIn("anomalydetection_recorder", tags)
+
+    def test_recorder_test_tag_sets_extend_agent(self):
+        expected = build_tags.AGENT_RECORDER_TAGS.union(UNIT_TEST_TAGS).difference(build_tags.UNIT_TEST_EXCLUDED_TAGS)
+        for build in ("lint", "unit-tests"):
+            with self.subTest(build=build):
+                recorder = build_tags.build_tags[AgentFlavor.recorder][build]
+                self.assertEqual(recorder, expected)
+
     def test_fips_includes_goexperiment_systemcrypto(self):
         self.assertIn("goexperiment.systemcrypto", _payload()["flavor_specific_tags"]["fips"])
 
