@@ -458,17 +458,10 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
     - Returns ExecutedTest objects for evaluation
     """
 
-    def __init__(self, *args, test_env="prod", lookback_days=3, job_ids=None, unreliable_jobs=None, **kwargs):
+    def __init__(self, *args, test_env="prod", lookback_days=3, **kwargs):
         super().__init__(*args, **kwargs)
         self.test_env = test_env
         self.lookback_days = lookback_days
-        # Keep the executor's dictionaries by reference: initialization populates them.
-        self.job_ids = job_ids if job_ids is not None else {}
-        self.unreliable_jobs = unreliable_jobs if unreliable_jobs is not None else set()
-
-    def _parse_test_events(self, events: list) -> list[ExecutedTest]:
-        """Executed tests from CI Visibility events: root tests, pass/fail only."""
-        return executed_tests_from_events(events, self.unreliable_jobs)
 
     def list_tests_for_job(self, job_name: str) -> list[ExecutedTest]:
         """Retrieve tests executed in a specific job using Datadog CI API.
@@ -485,15 +478,12 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
         Note:
             - Only returns root-level tests (filters out sub-tests with '/' in name)
             - Excludes skipped tests (they did not execute)
-            - Sets unreliable_status=True for flaky tests or allow-failure jobs
+            - Sets unreliable_status=True for flaky tests
             - Queries lookback_days of historical data (3 by default)
-            - When job IDs are supplied, only queries the latest GitLab job attempt
         """
         escaped_job_name = job_name.replace('"', '\\"')
         query = (
             f'env:{self.test_env} @ci.pipeline.name:DataDog/datadog-agent '
             f'@ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}"'
         )
-        if job_id := self.job_ids.get(job_name):
-            query += f" @ci.job.id:{job_id}"
-        return self._parse_test_events(get_ci_test_events(query, self.lookback_days))
+        return executed_tests_from_events(get_ci_test_events(query, self.lookback_days))

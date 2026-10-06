@@ -89,7 +89,7 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
         }
 
     @patch("tasks.libs.dynamic_test.evaluator.get_ci_test_events")
-    def test_query_environment_window_job_attempt_and_filtering(self, events):
+    def test_query_environment_window_and_filtering(self, events):
         events.return_value = [
             self.event("TestPass"),
             self.event("TestFail", "fail"),
@@ -99,7 +99,6 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
             self.event("TestFlaky", "fail", "true"),
             self.event("TestFlakyBool", "fail", True),
         ]
-        ids = {}
         evaluator = DatadogDynTestEvaluator(
             MagicMock(),
             IndexKind.JEV,
@@ -108,14 +107,11 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
             telemetry_handler=MagicMock(),
             test_env="nativetest",
             lookback_days=7,
-            job_ids=ids,
         )
-        ids['job: ["matrix"]'] = "7"
         tests = evaluator.list_tests_for_job('job: ["matrix"]')
         query, days = events.call_args.args
         self.assertIn("env:nativetest", query)
         self.assertIn("@ci.pipeline.id:42", query)
-        self.assertIn("@ci.job.id:7", query)
         self.assertIn(r'@ci.job.name:"job: [\"matrix\"]"', query)
         self.assertEqual(days, 7)
         self.assertEqual([test.name for test in tests], ["TestPass", "TestFail", "TestFlaky", "TestFlakyBool"])
@@ -124,15 +120,12 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
         self.assertTrue(tests[3].unreliable_status)
 
     @patch("tasks.libs.dynamic_test.evaluator.get_ci_test_events")
-    def test_allow_failure_and_coverage_defaults(self, events):
+    def test_coverage_defaults(self, events):
         events.return_value = [self.event("TestFail", "fail")]
-        unreliable = set()
         evaluator = DatadogDynTestEvaluator(
-            MagicMock(), IndexKind.FILE, MagicMock(), "42", telemetry_handler=MagicMock(), unreliable_jobs=unreliable
+            MagicMock(), IndexKind.FILE, MagicMock(), "42", telemetry_handler=MagicMock()
         )
-        unreliable.add("job")
-        self.assertTrue(evaluator.list_tests_for_job("job")[0].unreliable_status)
+        self.assertFalse(evaluator.list_tests_for_job("job")[0].unreliable_status)
         query, days = events.call_args.args
         self.assertIn("env:prod", query)
-        self.assertNotIn("@ci.job.id:", query)
         self.assertEqual(days, 3)
