@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	apiwatch "k8s.io/apimachinery/pkg/watch"
 	clientset "k8s.io/client-go/kubernetes"
+	kubescheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -225,6 +226,123 @@ func (b *Builder) BuildStores() [][]cache.Store {
 	return stores
 }
 
+type resourceInfo struct {
+	name  string
+	scope store.ResourceScope
+}
+
+// resourceInfoIndex maps version-independent GroupKinds to their discovered
+// resource name and scope. For example, apps/v1 and apps/v1beta1 Deployments
+// share the {name: deployments, scope: namespaced} entry.
+type resourceInfoIndex map[schema.GroupKind]resourceInfo
+
+// resourceInfoIndexFromDiscovery builds a resource index from Kubernetes API
+// discovery data. Subresources are excluded because their scope is inherited
+// from their parent resource.
+func resourceInfoIndexFromDiscovery(resources []*v1.APIResourceList) resourceInfoIndex {
+	resourceInfos := make(resourceInfoIndex)
+	ambiguous := make(map[schema.GroupKind]struct{})
+
+	for _, resourceList := range resources {
+		if resourceList == nil {
+			continue
+		}
+
+		groupVersion, err := schema.ParseGroupVersion(resourceList.GroupVersion)
+		if err != nil {
+			log.Errorf("unable to parse discovered API group version %q: %s", resourceList.GroupVersion, err)
+			continue
+		}
+
+		for _, resource := range resourceList.APIResources {
+			// A subresource such as pods/status inherits the scope of pods.
+			if strings.Contains(resource.Name, "/") {
+				continue
+			}
+
+			groupKind := schema.GroupKind{Group: groupVersion.Group, Kind: resource.Kind}
+			if _, found := ambiguous[groupKind]; found {
+				continue
+			}
+
+			info := resourceInfo{name: resource.Name, scope: store.ResourceScopeCluster}
+			if resource.Namespaced {
+				info.scope = store.ResourceScopeNamespaced
+			}
+
+			if existing, found := resourceInfos[groupKind]; found && existing != info {
+				// Do not guess: the wrong scope could create one cluster-wide watch per
+				// namespace, and the wrong name could break resource colocation.
+				log.Errorf("discovery reported conflicting resource metadata for %s", groupKind.String())
+				delete(resourceInfos, groupKind)
+				ambiguous[groupKind] = struct{}{}
+				continue
+			}
+			resourceInfos[groupKind] = info
+		}
+	}
+
+	return resourceInfos
+}
+
+// BuildStoreFactoryRegistry enumerates enabled collectors and registers their
+// store factories without creating stores or starting reflectors.
+func (b *Builder) BuildStoreFactoryRegistry(resources []*v1.APIResourceList) *store.FactoryRegistry {
+	registry := store.NewStoreFactoryRegistry()
+	// Reuse this check's discovery result; no additional API call is needed.
+	resourceInfos := resourceInfoIndexFromDiscovery(resources)
+
+	b.ksmBuilder.WithGenerateStoresFunc(func(
+		metricFamilies []generator.FamilyGenerator,
+		expectedType interface{},
+		listWatchFunc func(kubeClient clientset.Interface, ns string, fieldSelector string) cache.ListerWatcher,
+		useAPIServerCache bool,
+		_ int64,
+	) []cache.Store {
+		if err := registerStoreFactory(
+			b,
+			registry,
+			resourceInfos,
+			"",
+			metricFamilies,
+			expectedType,
+			b.kubeClient,
+			listWatchFunc,
+			useAPIServerCache,
+		); err != nil {
+			log.Errorf("unable to register store factory for %T: %s", expectedType, err)
+		}
+		return nil
+	})
+
+	b.ksmBuilder.WithGenerateCustomResourceStoresFunc(func(
+		resourceName string,
+		metricFamilies []generator.FamilyGenerator,
+		expectedType interface{},
+		listWatchFunc func(kubeClient interface{}, ns string, fieldSelector string) cache.ListerWatcher,
+		useAPIServerCache bool,
+		_ int64,
+	) []cache.Store {
+		if err := registerStoreFactory(
+			b,
+			registry,
+			resourceInfos,
+			resourceName,
+			metricFamilies,
+			expectedType,
+			b.getCustomResourceClient(resourceName, expectedType),
+			listWatchFunc,
+			useAPIServerCache,
+		); err != nil {
+			log.Errorf("unable to register store factory for %s: %s", resourceName, err)
+		}
+		return nil
+	})
+
+	b.ksmBuilder.BuildStores()
+	return registry
+}
+
 // WithResync is used if a resync period is configured
 func (b *Builder) WithResync(r time.Duration) {
 	b.resync = r
@@ -234,6 +352,79 @@ func (b *Builder) WithResync(r time.Duration) {
 func (b *Builder) WithUsingAPIServerCache(u bool) {
 	log.Debug("Using API server cache")
 	b.ksmBuilder.WithUsingAPIServerCache(u)
+}
+
+// expectedTypeToGroupKind maps an expectedType to one unambiguous GroupKind.
+// TODO this can be deprecated with an upstream KSM Fork change that threads the collector name through
+func expectedTypeToGroupKind(expectedType interface{}) (schema.GroupKind, error) {
+	obj, ok := expectedType.(runtime.Object)
+	if !ok {
+		return schema.GroupKind{}, fmt.Errorf("expected type %T does not implement runtime.Object", expectedType)
+	}
+
+	gvks, _, err := kubescheme.Scheme.ObjectKinds(obj)
+	if err != nil {
+		return schema.GroupKind{}, fmt.Errorf("finding GVK for %T: %w", expectedType, err)
+	}
+
+	if len(gvks) == 0 {
+		return schema.GroupKind{}, fmt.Errorf("no GroupKind found for %T", expectedType)
+	}
+
+	// Ignore API version so a factory type can match any served version.
+	groupKind := gvks[0].GroupKind()
+	for _, gvk := range gvks[1:] {
+		if gvk.GroupKind() != groupKind {
+			return schema.GroupKind{}, fmt.Errorf("expected one GroupKind for %T, found %v", expectedType, gvks)
+		}
+	}
+	return groupKind, nil
+}
+
+func resourceKey(groupKind schema.GroupKind) string {
+	group := groupKind.Group
+	if group == "" {
+		group = "core"
+	}
+	return group + "/" + groupKind.Kind
+}
+
+func registerStoreFactory[T any](
+	b *Builder,
+	registry *store.FactoryRegistry,
+	resourceInfos resourceInfoIndex,
+	collector string,
+	metricFamilies []generator.FamilyGenerator,
+	expectedType interface{},
+	client T,
+	listWatchFunc func(kubeClient T, ns string, fieldSelector string) cache.ListerWatcher,
+	useAPIServerCache bool,
+) error {
+	filteredMetricFamilies := generator.FilterFamilyGenerators(b.allowDenyList, metricFamilies)
+	composedMetricGenFuncs := generator.ComposeMetricGenFuncs(filteredMetricFamilies)
+	groupKind, err := expectedTypeToGroupKind(expectedType)
+	if err != nil {
+		return fmt.Errorf("determining resource key: %w", err)
+	}
+	resourceInfo, found := resourceInfos[groupKind]
+	if !found {
+		// Neither default is safe: one can miss stores and the other can duplicate them.
+		return fmt.Errorf("resource metadata for %s was not found in API discovery", groupKind.String())
+	}
+
+	registry.Register(
+		resourceKey(groupKind),
+		collector,
+		resourceInfo.scope,
+		func(ctx context.Context, ns string) cache.Store {
+			store := b.createStoreForType(composedMetricGenFuncs, expectedType)
+			listWatch := listWatchFunc(client, ns, b.fieldSelectorFilter)
+			b.startReflector(ctx, expectedType, store, listWatch, useAPIServerCache)
+
+			return store
+		},
+	)
+	return nil
 }
 
 // GenerateStores is used to generate new Metrics Store for Metrics Families
@@ -272,7 +463,7 @@ func GenerateStores[T any](
 			handlePodCollection(b, store, client, listWatchFunc, corev1.NamespaceAll, useAPIServerCache)
 		} else {
 			listWatcher := listWatchFunc(client, corev1.NamespaceAll, b.fieldSelectorFilter)
-			b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
+			b.startReflector(b.ctx, expectedType, store, listWatcher, useAPIServerCache)
 		}
 		return []cache.Store{store}
 
@@ -287,7 +478,7 @@ func GenerateStores[T any](
 			handlePodCollection(b, store, client, listWatchFunc, ns, useAPIServerCache)
 		} else {
 			listWatcher := listWatchFunc(client, ns, b.fieldSelectorFilter)
-			b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
+			b.startReflector(b.ctx, expectedType, store, listWatcher, useAPIServerCache)
 		}
 		stores = append(stores, store)
 	}
@@ -352,6 +543,7 @@ func (b *Builder) GenerateCustomResourceStoresFunc(
 // startReflector creates a Kubernetes client-go reflector with the given
 // listWatcher for each given namespace and registers it with the given store.
 func (b *Builder) startReflector(
+	ctx context.Context,
 	expectedType interface{},
 	store cache.Store,
 	listWatcher cache.ListerWatcher,
@@ -361,7 +553,7 @@ func (b *Builder) startReflector(
 		listWatcher = newCacheEnabledListerWatcher(b.ctx, listWatcher)
 	}
 	reflector := cache.NewReflector(listWatcher, expectedType, store, b.resync)
-	go reflector.Run(b.ctx.Done())
+	go reflector.Run(ctx.Done())
 }
 
 type cacheEnabledListerWatcher struct {
@@ -433,7 +625,7 @@ func handlePodCollection[T any](b *Builder, store cache.Store, client T, listWat
 	}
 
 	listWatcher := listWatchFunc(client, namespace, fieldSelector)
-	b.startReflector(&corev1.Pod{}, store, listWatcher, useAPIServerCache)
+	b.startReflector(b.ctx, &corev1.Pod{}, store, listWatcher, useAPIServerCache)
 }
 
 func generateConfigMapStores(
@@ -467,14 +659,14 @@ func generateConfigMapStores(
 		log.Infof("Using NamespaceAll for ConfigMap collection.")
 		store := store.NewMetricsStore(composedMetricGenFuncs, "configmap")
 		listWatcher := createConfigMapListWatch(metadataClient, gvr, v1.NamespaceAll)
-		b.startReflector(&corev1.ConfigMap{}, store, listWatcher, useAPIServerCache)
+		b.startReflector(b.ctx, &corev1.ConfigMap{}, store, listWatcher, useAPIServerCache)
 		return []cache.Store{store}, nil
 	}
 
 	for _, ns := range b.namespaces {
 		store := store.NewMetricsStore(composedMetricGenFuncs, "configmap")
 		listWatcher := createConfigMapListWatch(metadataClient, gvr, ns)
-		b.startReflector(&corev1.ConfigMap{}, store, listWatcher, useAPIServerCache)
+		b.startReflector(b.ctx, &corev1.ConfigMap{}, store, listWatcher, useAPIServerCache)
 		stores = append(stores, store)
 	}
 

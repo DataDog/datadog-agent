@@ -8,11 +8,18 @@
 package builder
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/tools/cache"
+	cachetesting "k8s.io/client-go/tools/cache/testing"
+
+	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 )
 
 // unstructuredForGroup returns the ExpectedType a custom resource factory would
@@ -76,4 +83,34 @@ func TestGetCustomResourceClientDoesNotCollide(t *testing.T) {
 	// matching client instead of whichever one was inserted last.
 	assert.Equal(t, artifactoryClient, b.getCustomResourceClient(resource, artifactory))
 	assert.Equal(t, sonarqubeClient, b.getCustomResourceClient(resource, sonarqube))
+}
+
+func TestRegisterStoreFactoryKeepsCollectorVariants(t *testing.T) {
+	b := New()
+	registry := ksmstore.NewStoreFactoryRegistry()
+	resourceInfos := resourceInfoIndex{
+		schema.GroupKind{Kind: "Pod"}: {name: "pods", scope: ksmstore.ResourceScopeNamespaced},
+	}
+	source := cachetesting.NewFakeControllerSource()
+	listWatchFunc := func(struct{}, string, string) cache.ListerWatcher {
+		return source
+	}
+
+	require.NoError(t, registerStoreFactory(
+		b, registry, resourceInfos, "", nil, &corev1.Pod{}, struct{}{}, listWatchFunc, false,
+	))
+	require.NoError(t, registerStoreFactory(
+		b, registry, resourceInfos, "pods_extended", nil, &corev1.Pod{}, struct{}{}, listWatchFunc, false,
+	))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	dynamicStore := ksmstore.NewDynamicStore(ctx, registry, ksmstore.DynamicStoreConfig{
+		ShardCriteria: []string{"resource"},
+		ShardCount:    1,
+	})
+	dynamicStore.Add("default")
+
+	// The collector name distinguishes the factories, while both hash using core/Pod.
+	require.Len(t, dynamicStore.Snapshot(), 2)
 }
