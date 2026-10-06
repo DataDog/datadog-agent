@@ -25,7 +25,6 @@ extern void submitMetric(char *, metric_type_t, char *, double, char **, char *,
 extern void submitServiceCheck(char *, char *, int, char **, char *, char *);
 extern void submitEvent(char*, event_t*);
 extern void submitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
-extern void submitHistogramBucketMulti(char *, char *, long long, double, double, int, char *, char **, bool);
 extern void submitEventPlatformEvent(char *, char *, int, char *);
 
 static void initAggregatorTests(rtloader_t *rtloader) {
@@ -33,7 +32,6 @@ static void initAggregatorTests(rtloader_t *rtloader) {
    set_submit_service_check_cb(rtloader, submitServiceCheck);
    set_submit_event_cb(rtloader, submitEvent);
    set_submit_histogram_bucket_cb(rtloader, submitHistogramBucket);
-   set_submit_histogram_bucket_multi_cb(rtloader, submitHistogramBucketMulti);
    set_submit_event_platform_event_cb(rtloader, submitEventPlatformEvent);
 }
 
@@ -45,7 +43,6 @@ import "C"
 
 var (
 	rtloader        *C.rtloader_t
-	bucketCallback  string
 	checkID         string
 	metricType      int
 	name            string
@@ -79,7 +76,6 @@ type event struct {
 }
 
 func resetOuputValues() {
-	bucketCallback = ""
 	checkID = ""
 	metricType = -1
 	name = ""
@@ -227,21 +223,11 @@ func submitEvent(id *C.char, ev *C.event_t) {
 
 //export submitHistogramBucket
 func submitHistogramBucket(id *C.char, cMetricName *C.char, cVal C.longlong, cLowerBound C.float, cUpperBound C.float, cMonotonic C.int, cHostname *C.char, t **C.char, fFirstValue C.bool) {
-	recordHistogramBucket("submitHistogramBucket", id, cMetricName, cVal, float64(cLowerBound), float64(cUpperBound), cMonotonic, cHostname, t, fFirstValue)
-}
-
-//export submitHistogramBucketMulti
-func submitHistogramBucketMulti(id *C.char, cMetricName *C.char, cVal C.longlong, cLowerBound C.double, cUpperBound C.double, cMonotonic C.int, cHostname *C.char, t **C.char, fFirstValue C.bool) {
-	recordHistogramBucket("submitHistogramBucketMulti", id, cMetricName, cVal, float64(cLowerBound), float64(cUpperBound), cMonotonic, cHostname, t, fFirstValue)
-}
-
-func recordHistogramBucket(callback string, id *C.char, cMetricName *C.char, cVal C.longlong, bucketLowerBound float64, bucketUpperBound float64, cMonotonic C.int, cHostname *C.char, t **C.char, fFirstValue C.bool) {
-	bucketCallback = callback
 	checkID = C.GoString(id)
 	name = C.GoString(cMetricName)
 	intValue = int(cVal)
-	lowerBound = bucketLowerBound
-	upperBound = bucketUpperBound
+	lowerBound = float64(cLowerBound)
+	upperBound = float64(cUpperBound)
 	monotonic = (cMonotonic != 0)
 	hostname = C.GoString(cHostname)
 	if t != nil {
