@@ -181,6 +181,26 @@ class CompilerImage:
             return None
         return cache
 
+    def host_go_caches(self) -> dict[str, Path]:
+        """Return the host GOMODCACHE/GOCACHE paths that exist, keyed by env var name."""
+        res = self.ctx.run("go env GOMODCACHE GOCACHE", hide=True, warn=True)
+        if res is None or not res.ok:
+            warn("[!] Could not resolve Go caches; container will not share the host caches")
+            return {}
+
+        caches: dict[str, Path] = {}
+        for var, raw in zip(("GOMODCACHE", "GOCACHE"), res.stdout.splitlines(), strict=False):
+            raw = raw.strip()
+            # GOCACHE=off (or an empty value) disables the cache; nothing to share.
+            if not raw or raw == "off":
+                continue
+            cache = Path(raw)
+            if not cache.is_absolute() or not cache.is_dir():
+                warn(f"[!] Go {var} {cache} does not exist; skipping mount")
+                continue
+            caches[var] = cache
+        return caches
+
     def exec(
         self,
         cmd: str,
@@ -249,6 +269,10 @@ class CompilerImage:
             # Same absolute path so an explicit workspace/user.bazelrc --repository_cache= still matches.
             mounts.append(f"--mount {shlex.quote(f'type=bind,source={repo_cache},target={repo_cache}')}")
             info(f"[*] Mounting host Bazel repository_cache at {repo_cache}")
+        go_caches = self.host_go_caches()
+        for var, cache in go_caches.items():
+            mounts.append(f"--mount {shlex.quote(f'type=bind,source={cache},target={cache}')}")
+            info(f"[*] Mounting host Go {var} at {cache}")
 
         res = self.ctx.run(
             f"docker run {platform} -d --restart always --name {self.name} "
@@ -343,6 +367,15 @@ class CompilerImage:
             f"echo export DD_CXX_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-linux-gnu-g++ >> /home/{self.compiler_user}/.bashrc",
             user=self.compiler_user,
         )
+        if go_caches:
+            # Point the container's Go toolchain at the mounted host caches; login shells source profile.d.
+            go_profile = "/etc/profile.d/go-cache.sh"
+            with tempfile.NamedTemporaryFile(mode='w') as profile:
+                for var, cache in go_caches.items():
+                    profile.write(f"export {var}={shlex.quote(str(cache))}\n")
+                profile.flush()
+                self.ctx.run(f"docker cp {profile.name} {self.name}:{go_profile}")
+            self.exec(f"chmod 0644 {go_profile}", user="root")
 
         self.exec(f"touch {MARKER_IMAGE_PREPARED}", user=self.compiler_user)
 
