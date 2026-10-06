@@ -67,11 +67,11 @@ def get_build_image_ref():
     """Return the commit of the build images the Agent is built with."""
     # Pinning to this rather than to `main` documents what developers actually get, and keeps every
     # URL derived from it immutable.
-    gitlab_config = Path(".gitlab-ci.yml").read_text(encoding="utf-8")
+    gitlab_config = Path("gitlab-config.yml").read_text(encoding="utf-8")
     # Split the same way as .github/actions/install-dda, which takes everything after the last hyphen.
     build_image_ref = re.search(r"^\s*CI_IMAGE_LINUX: v.*-(.+)$", gitlab_config, flags=re.MULTILINE)
     if build_image_ref is None:
-        raise RuntimeError("Unable to find CI_IMAGE_LINUX in .gitlab-ci.yml")
+        raise RuntimeError("Unable to find CI_IMAGE_LINUX in gitlab-config.yml")
 
     return build_image_ref.group(1)
 

@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 Set-StrictMode -Version 3.0
 
-# Despite `FF_USE_WINDOWS_JOB_OBJECT: true` in .gitlab-ci.yml, canceled jobs may leave containers running, causing
+# Despite `FF_USE_WINDOWS_JOB_OBJECT: true` in gitlab-config.yml, canceled jobs may leave containers running, causing
 # the next job on the same runner to fail with `CreateJvmOutputFile(c:\bob\server\jvm.out) failed: (error: 32):
 # The process cannot access the file because it is being used by another process.` as well as less obvious errors:
 # [CIEXE-143], [CIEXE-1152]. Since the runner executes only one job per `$CI_PROJECT_DIR`, remove any container

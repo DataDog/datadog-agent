@@ -418,7 +418,7 @@ class SSMParameterCall:
             file (str): The name of the file where the SSM parameter call is located.
             line_nb (int): The line number in the file where the SSM parameter call is located.
             with_wrapper (bool, optional): If the call is using the wrapper. Defaults to False.
-            with_env_var (bool, optional): If the call is using an environment variable defined in .gitlab-ci.yml. Defaults to False.
+            with_env_var (bool, optional): If the call is using an environment variable defined in gitlab-config.yml. Defaults to False.
         """
         self.file = file
         self.line_nb = line_nb
@@ -430,7 +430,7 @@ class SSMParameterCall:
         if not self.with_wrapper:
             message += "Please use the dedicated `fetch_secret.(sh|ps1)`."
         if not self.with_env_var:
-            message += " Save your parameter name as environment variable in .gitlab-ci.yml file."
+            message += " Save your parameter name as environment variable in gitlab-config.yml file."
         return f"{self.file}:{self.line_nb + 1}. {message}"
 
     def __repr__(self):

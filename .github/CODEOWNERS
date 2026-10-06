@@ -14,6 +14,7 @@
 
 # Config files for various CI systems / tasks
 /.*                                             @DataDog/agent-devx
+/gitlab-config.yml                               @DataDog/agent-devx
 /.claude/settings.json                          @DataDog/agent-devx
 /.claude/agents/tend.md                         @DataDog/single-machine-performance
 /.claude/agents/weed.md                         @DataDog/single-machine-performance

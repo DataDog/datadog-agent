@@ -28,6 +28,7 @@ jobs:
         with:
           sparse-checkout: |
             .gitlab-ci.yml
+            gitlab-config.yml
             .github/CODEOWNERS
             .github/actions
             .ddqa/config.toml

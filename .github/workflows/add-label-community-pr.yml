@@ -29,6 +29,7 @@ jobs:
           token: ${{ steps.octo-sts.outputs.token }}
           sparse-checkout: |
             .gitlab-ci.yml
+            gitlab-config.yml
             .github/CODEOWNERS
             .github/actions
             .ddqa/config.toml

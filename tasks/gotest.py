@@ -74,7 +74,13 @@ class TestStats:
 
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
-TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/build/source_test/*", ".gitlab-ci.yml"]
+TRIGGER_ALL_TESTS_PATHS = [
+    "tasks/gotest.py",
+    "tasks/build_tags.py",
+    ".gitlab/build/source_test/*",
+    ".gitlab-ci.yml",
+    "gitlab-config.yml",
+]
 MODULE_PREFIX = "github.com/DataDog/datadog-agent"
 BAZEL_TEST_JOBS_ENV = "DD_BAZEL_TEST_JOBS"
 DEFAULT_WINDOWS_CI_BAZEL_TEST_JOBS = 4

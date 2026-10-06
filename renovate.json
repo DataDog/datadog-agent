@@ -233,7 +233,7 @@
     "customManagers" : [
       {
         "customType": "regex",
-        "managerFilePatterns": [".gitlab-ci.yml"],
+        "managerFilePatterns": ["gitlab-config.yml"],
         "matchStrings": [
           "  CI_IMAGE_[^W][^:]*: (?<currentValue>v.*)"
         ],
@@ -253,7 +253,7 @@
       },
       {
         "customType": "regex",
-        "managerFilePatterns": [".gitlab-ci.yml"],
+        "managerFilePatterns": ["gitlab-config.yml"],
         "matchStrings": [
           "  CI_IMAGE_WIN_[^:]*: (?<currentValue>v.*)"
         ],

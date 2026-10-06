@@ -7,7 +7,7 @@
 # parent trigger job. Standard GitLab variables (CI_COMMIT_SHA,
 # CI_COMMIT_BRANCH, etc.) are automatically available in child pipelines.
 #
-# NOTE: !reference to anchors defined in .gitlab-ci.yml is not available here.
+# NOTE: !reference to anchors defined in gitlab-config.yml is not available here.
 # Policies that would normally be referenced (e.g. .retry_only_infra_failure)
 # are inlined below.
 
@@ -72,7 +72,7 @@ variables:
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
   # See 'decision_record.md' for the determination of whether this job passes or fails.
-  # Inlined from .retry_only_infra_failure in .gitlab-ci.yml (not available in child pipelines).
+  # Inlined from .retry_only_infra_failure in gitlab-config.yml (not available in child pipelines).
   retry:
     max: 2
     exit_codes:

@@ -6,7 +6,7 @@ Where the wiring lives:
 
 | File | Holds |
 |---|---|
-| `.gitlab-ci.yml` and `.gitlab/test/e2e/*.yml` | Shared rules in the root file; team-specific rules beside their jobs |
+| `gitlab-config.yml` and `.gitlab/test/e2e/*.yml` | Shared rules in the root file; team-specific rules beside their jobs |
 | `.gitlab/test/e2e/*.yml` | Linux and cross-platform jobs, split by ownership |
 | `.gitlab/windows/test/e2e/*.yml` and `.gitlab/windows/test/e2e_install_packages/windows.yml` | Windows jobs, split by ownership or package workflow |
 | `.gitlab/JOBOWNERS` | Who is notified when the job fails |
@@ -16,7 +16,7 @@ Where the wiring lives:
 Rule template names are abbreviated and do not track directory names — `tests/agent-runtimes` is gated by `.on_arun_or_e2e_changes`. Find the existing one rather than guessing:
 
 ```bash
-grep -n '_or_e2e_changes:' .gitlab-ci.yml .gitlab/test/e2e/*.yml
+grep -n '_or_e2e_changes:' gitlab-config.yml .gitlab/test/e2e/*.yml
 ```
 
 A new one references the shared branch rule and adds the paths that should trigger it:
@@ -135,7 +135,7 @@ Most E2E jobs run only on `main`, release branches, and release candidates. A ch
 
 ## Dynamic test skipping
 
-Some e2e jobs prune themselves from the inside. A job whose `rules` reference `.dynamic_tests` (`.gitlab-ci.yml`) is created on any change under `pkg/`, `cmd/`, or `comp/` — deliberately broad — and then the `--impacted` flag on `new-e2e-tests.run` consults a coverage index and skips the tests in that job the diff does not touch. It selects tests within a job, never between jobs, so it neither replaces nor relaxes the `changes` rule above.
+Some e2e jobs prune themselves from the inside. A job whose `rules` reference `.dynamic_tests` (`gitlab-config.yml`) is created on any change under `pkg/`, `cmd/`, or `comp/` — deliberately broad — and then the `--impacted` flag on `new-e2e-tests.run` consults a coverage index and skips the tests in that job the diff does not touch. It selects tests within a job, never between jobs, so it neither replaces nor relaxes the `changes` rule above.
 
 Three consequences for a test author:
 

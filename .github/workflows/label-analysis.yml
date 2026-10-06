@@ -101,6 +101,7 @@ jobs:
           ref: main
           sparse-checkout: |
             .gitlab-ci.yml
+            gitlab-config.yml
             .github/actions/install-dda
             tasks
           persist-credentials: false

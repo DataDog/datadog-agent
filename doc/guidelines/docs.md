@@ -136,7 +136,7 @@ Links point at the branch being built rather than always at `main`, so a preview
     - Line in file
 
         <<<repo(
-            ".gitlab-ci.yml",
+            "gitlab-config.yml",
             match="^stages:",
         )>>><<% endraw %>>
     ```
@@ -156,7 +156,7 @@ Links point at the branch being built rather than always at `main`, so a preview
     - Line in file
 
         <<<repo(
-            ".gitlab-ci.yml",
+            "gitlab-config.yml",
             match="^stages:",
         )>>>
 
@@ -176,7 +176,7 @@ When a link will not do, such as in a raw HTML attribute, `repo_url` validates t
 
     ```markdown
     <<% raw %>><a href="<<<repo_url(
-        ".gitlab-ci.yml",
+        "gitlab-config.yml",
         match="^stages:",
     )>>>">the stage list</a><<% endraw %>>
     ```
@@ -186,7 +186,7 @@ When a link will not do, such as in a raw HTML attribute, `repo_url` validates t
     ---
 
     <a href="<<<repo_url(
-        ".gitlab-ci.yml",
+        "gitlab-config.yml",
         match="^stages:",
     )>>>">the stage list</a>
 

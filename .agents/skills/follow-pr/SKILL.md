@@ -104,13 +104,13 @@ You may see:
 
 - **Pipeline Success:** stop monitoring and report the pipeline succeeded, using the [final report](#final-report) template.
 - **Some job failed, but the pipeline is still running**:
-    Most jobs on `datadog-agent` CI retry once automatically on any failure (`.gitlab-ci.yml`'s
+    Most jobs on `datadog-agent` CI retry once automatically on any failure (`gitlab-config.yml`'s
     default `retry: max: 1, when: always`), so a first-attempt failure alone isn't yet evidence
     of anything — GitLab will retry it once. A minority of jobs (most e2e, Windows, macOS —
     `.retry_only_infra_failure`) retry only on GitLab's infra-flavoured `failure_reason` values,
     so a `script_failure` there gets no automatic retry at all and is worth a closer look sooner.
     Unit test, linter, and build failures are less likely to be flakes regardless of policy.
-    If you're unsure which policy a job is on: `grep -rn '<job-name>' .gitlab/ .gitlab-ci.yml`.
+    If you're unsure which policy a job is on: `grep -rn '<job-name>' .gitlab/ gitlab-config.yml`.
     Otherwise, ask the user whether to continue monitoring, or if this job failure is already a
     problem. In the latter case, move to [Step 6](#step-6-follow-up-on-failures).
 - **Pipeline failed or canceled:** Stop monitoring, report the status, and move to [Step 6](#step-6-follow-up-on-failures).

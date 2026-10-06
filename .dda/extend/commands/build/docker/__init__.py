@@ -356,7 +356,7 @@ def _build_quick_image(
 @click.option(
     "--build-image",
     default=None,
-    help="[Full only] Docker build image to use for omnibus build (default: uses version from .gitlab-ci.yml).",
+    help="[Full only] Docker build image to use for omnibus build (default: uses version from gitlab-config.yml).",
 )
 @pass_app
 def cmd(
