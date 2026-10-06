@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 import tempfile
 from contextlib import chdir
@@ -167,8 +168,14 @@ class CompilerImage:
             warn("[!] Could not resolve Bazel repository_cache; container will not share the host cache")
             return None
 
-        cache = Path(res.stdout.strip())
-        if not cache.is_dir():
+        raw = res.stdout.strip()
+        # --repository_cache= yields empty stdout; Path('') is '.' and is_dir() is true.
+        if not raw:
+            warn("[!] Bazel repository_cache is empty (caching disabled); skipping mount")
+            return None
+
+        cache = Path(raw)
+        if not cache.is_absolute() or not cache.is_dir():
             warn(f"[!] Bazel repository_cache {cache} does not exist; skipping mount")
             return None
         return cache
@@ -239,7 +246,7 @@ class CompilerImage:
         repo_cache = self.host_repository_cache()
         if repo_cache is not None:
             # Same absolute path so an explicit workspace/user.bazelrc --repository_cache= still matches.
-            mounts.append(f"--mount type=bind,source={repo_cache},target={repo_cache}")
+            mounts.append(f"--mount {shlex.quote(f'type=bind,source={repo_cache},target={repo_cache}')}")
             info(f"[*] Mounting host Bazel repository_cache at {repo_cache}")
 
         res = self.ctx.run(
@@ -258,7 +265,7 @@ class CompilerImage:
         if repo_cache is not None:
             # Host default/home-rc cache paths differ from the container user's; force the mounted path.
             self.exec(
-                f"echo 'common --repository_cache={repo_cache}' > /home/{self.compiler_user}/.bazelrc "
+                f"echo 'common --repository_cache=\\\"{repo_cache}\\\"' > /home/{self.compiler_user}/.bazelrc "
                 f"&& chown {self.host_uid}:{self.host_gid} /home/{self.compiler_user}/.bazelrc",
                 user="root",
             )
