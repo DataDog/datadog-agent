@@ -2,13 +2,14 @@ load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper"
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@@//bazel/rules/foreign_cc_runnable:foreign_cc_runnable.bzl", "foreign_cc_runnable")
-load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MODULE_SRCS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS", "SHARED_MODULES")
+load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MODULE_SRCS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS", "SHARED_MODULES", "SYSCONFIG_VARS_LINUX_X86_64")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@bazel_skylib//rules:select_file.bzl", "select_file")
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@cpython_versions//:constants.bzl", "PYTHON_MAJOR_MINOR", "PYTHON_MAJOR_MINOR_FLAT")
 load("@pythons_hub//:versions.bzl", "DEFAULT_PYTHON_VERSION")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_import", "cc_library", "cc_shared_library")
@@ -856,12 +857,43 @@ filegroup(
     srcs = [":native_module_" + name for name in SHARED_MODULES],
 )
 
+NATIVE_SYSCONFIGDATA = "_sysconfigdata__linux_x86_64-linux-gnu.py"
+
+write_file(
+    name = "native_sysconfig_vars",
+    out = "native_sysconfig_vars.json",
+    content = [json.encode(SYSCONFIG_VARS_LINUX_X86_64)],
+)
+
+genrule(
+    name = "native_sysconfigdata",
+    srcs = [
+        ":native_pyconfig_h",
+        ":native_sysconfig_vars",
+    ],
+    outs = [NATIVE_SYSCONFIGDATA],
+    cmd = " ".join([
+        "$(execpath {})".format(DEFAULT_PYTHON),
+        "$(execpath @@//deps/cpython:gen_sysconfigdata.py)",
+        "--pyconfig $(execpath :native_pyconfig_h)",
+        "--vars $(execpath :native_sysconfig_vars)",
+        "--prefix $(INSTALL_DIR)/embedded",
+        "--out $@",
+    ]),
+    toolchains = ["@@//:install_dir"],
+    tools = [
+        DEFAULT_PYTHON,
+        "@@//deps/cpython:gen_sysconfigdata.py",
+    ],
+)
+
 copy_to_directory(
     name = "native_install",
     srcs = [
         ":native_libpython",
         ":native_python",
         ":native_shared_modules",
+        ":native_sysconfigdata",
     ] + glob(
         ["Lib/**"],
         exclude = [
@@ -874,6 +906,7 @@ copy_to_directory(
         "Lib/": "lib/python{}/".format(PYTHON_MAJOR_MINOR),
         "native_python": "bin/python{}".format(PYTHON_MAJOR_MINOR),
         LINUX_SO: "lib/" + LINUX_SO,
+        NATIVE_SYSCONFIGDATA: "lib/python{}/{}".format(PYTHON_MAJOR_MINOR, NATIVE_SYSCONFIGDATA),
     } | {
         name + NATIVE_EXT_SUFFIX: "lib/python{}/lib-dynload/{}{}".format(PYTHON_MAJOR_MINOR, name, NATIVE_EXT_SUFFIX)
         for name in SHARED_MODULES
