@@ -46,7 +46,8 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 		{
 			name: "apm",
 			configKeys: map[string]model.Reader{
-				"apm_config.enabled": coreConf,
+				"apm_config.enabled":                           coreConf,
+				"apm_config.error_tracking_standalone.enabled": coreConf,
 			},
 			procmgrDefinitionFile: traceProcmgrDefinitionFile,
 			serviceName:           "datadog-trace-agent",
