@@ -1,7 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:go_canonical_test_tag_set anomalydetection_recorder python
+# gazelle:go_canonical_test_tag_set anomalydetection_recorder
 # gazelle:exclude fx_recorder_test.go
 
 # keep
@@ -39,7 +39,6 @@ dd_agent_go_test(
     name = "fx_test",
     srcs = ["fx_noop_test.go"],
     embed = [":fx"],
-    gotags_sets = [["anomalydetection_recorder"]],
     deps = [
         "//comp/anomalydetection/recorder/def",
         "//pkg/util/option",
@@ -52,10 +51,7 @@ dd_agent_go_test(
     name = "fx_recorder_test",
     srcs = ["fx_recorder_test.go"],
     embed = [":fx_recorder"],
-    gotags_sets = [[
-        "anomalydetection_recorder",
-        "python",
-    ]],
+    gotags_sets = [["anomalydetection_recorder"]],
     include_default = False,
     deps = [
         "//comp/anomalydetection/observer/def",

@@ -1,9 +1,14 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+# gazelle:resolve go github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx //comp/anomalydetection/recorder/fx:fx
+
 go_library(
     name = "productcomposition",
     srcs = [
+        "anomalydetection.go",
         "composition.go",
+        "dataobservability.go",
+        "logsseverity.go",
         "metriclookback.go",
         "options.go",
         "python.go",  # //go:build python
@@ -15,11 +20,17 @@ go_library(
     visibility = ["//cmd/agent:__pkg__"],
     deps = [
         "//cmd/agent/command",
+        "//comp/anomalydetection/logssource/fx",
+        "//comp/anomalydetection/observer/fx",
+        "//comp/anomalydetection/recorder/fx",
+        "//comp/anomalydetection/reporter/fx",
         "//comp/collector/pythonruntime/fx-python",
         "//comp/collector/sharedlibrary/fx-sharedlibrary",
         "//comp/core/autodiscovery/discoverer/fx-python",
         "//comp/core/gui/impl/pythonchecks/fx-python",
         "//comp/core/status",
+        "//comp/dataobs/queryactions/fx",
+        "//comp/logs/severityprovider/fx",
         "//comp/metadata/host/impl/pythoninfo/fx-python",
         "//comp/metriclookback/fx",
         "//pkg/collector/python",

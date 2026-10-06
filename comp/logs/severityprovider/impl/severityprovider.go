@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build python
-
 // Package severityproviderimpl implements the severity provider component.
 package severityproviderimpl
 
@@ -20,14 +18,13 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	severityprovider "github.com/DataDog/datadog-agent/comp/logs/severityprovider/def"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Requires defines the severity provider component dependencies.
 type Requires struct {
 	Lifecycle compdef.Lifecycle
 	Config    config.Component
-	Observer  option.Option[observerdef.Component]
+	Observer  observerdef.Component `optional:"true"`
 	Log       log.Component
 }
 
@@ -67,13 +64,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 				return nil
 			}
 
-			observer, ok := reqs.Observer.Get()
-			if !ok {
+			if reqs.Observer == nil {
 				reqs.Log.Warnf("[severityprovider] disabled: anomaly-detection observer is not running")
 				return nil
 			}
 
-			subscription, err := observer.SubscribeSeverityEventsReader(smartSeverityProfilesSubscriptionConfig(reqs.Config))
+			subscription, err := reqs.Observer.SubscribeSeverityEventsReader(smartSeverityProfilesSubscriptionConfig(reqs.Config))
 			if err != nil {
 				return err
 			}

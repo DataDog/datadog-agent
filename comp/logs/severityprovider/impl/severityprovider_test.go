@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build test && python
+//go:build test
 
 package severityproviderimpl
 
@@ -22,7 +22,6 @@ import (
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type noopLogComponent struct{}
@@ -90,7 +89,7 @@ func (f *fakeObserverComponent) advance(sec int64, level severityeventsdef.Sever
 
 var _ observerdef.Component = (*fakeObserverComponent)(nil)
 
-func newComponent(t *testing.T, enabled bool, cooldown time.Duration, observer option.Option[observerdef.Component]) (*component, *compdef.TestLifecycle) {
+func newComponent(t *testing.T, enabled bool, cooldown time.Duration, observer observerdef.Component) (*component, *compdef.TestLifecycle) {
 	t.Helper()
 	lifecycle := compdef.NewTestLifecycle(t)
 	provides, err := NewComponent(Requires{
@@ -107,7 +106,7 @@ func newComponent(t *testing.T, enabled bool, cooldown time.Duration, observer o
 }
 
 func TestLifecycleDisabled(t *testing.T) {
-	comp, lifecycle := newComponent(t, false, 0, option.New[observerdef.Component](&fakeObserverComponent{}))
+	comp, lifecycle := newComponent(t, false, 0, &fakeObserverComponent{})
 	require.NoError(t, lifecycle.Start(context.Background()))
 
 	level, ok := comp.Current()
@@ -116,7 +115,7 @@ func TestLifecycleDisabled(t *testing.T) {
 }
 
 func TestLifecycleNoObserverProvided(t *testing.T) {
-	comp, lifecycle := newComponent(t, true, 0, option.None[observerdef.Component]())
+	comp, lifecycle := newComponent(t, true, 0, nil)
 	require.NoError(t, lifecycle.Start(context.Background()))
 
 	level, ok := comp.Current()
@@ -125,7 +124,7 @@ func TestLifecycleNoObserverProvided(t *testing.T) {
 }
 
 func TestLifecyclePropagatesSubscriptionError(t *testing.T) {
-	comp, lifecycle := newComponent(t, true, 0, option.New[observerdef.Component](&fakeObserverComponent{err: assert.AnError}))
+	comp, lifecycle := newComponent(t, true, 0, &fakeObserverComponent{err: assert.AnError})
 	assert.ErrorIs(t, lifecycle.Start(context.Background()), assert.AnError)
 
 	_, ok := comp.Current()
@@ -139,7 +138,7 @@ func TestLifecycleRegistersAndUnsubscribesReader(t *testing.T) {
 		Reader:      reader,
 		Unsubscribe: func() { observer.unsubscribeCalled = true },
 	}
-	comp, lifecycle := newComponent(t, true, 500*time.Millisecond, option.New[observerdef.Component](observer))
+	comp, lifecycle := newComponent(t, true, 500*time.Millisecond, observer)
 
 	require.NoError(t, lifecycle.Start(context.Background()))
 	assert.Equal(t, int64(1), observer.config.CooldownSecs)
@@ -155,7 +154,7 @@ func TestLifecycleRegistersAndUnsubscribesReader(t *testing.T) {
 
 func TestLifecycleReaderHonorsSmartSeverityProfilesCooldown(t *testing.T) {
 	observer := &fakeObserverComponent{}
-	comp, lifecycle := newComponent(t, true, 10*time.Second, option.New[observerdef.Component](observer))
+	comp, lifecycle := newComponent(t, true, 10*time.Second, observer)
 
 	require.NoError(t, lifecycle.Start(context.Background()))
 	require.NotNil(t, observer.dispatcher)

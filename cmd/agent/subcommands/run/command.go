@@ -29,16 +29,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
-	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
-	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
-	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx"
-	reporterfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datasecurity"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
-	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	dataplanepreflightmodefx "github.com/DataDog/datadog-agent/comp/dataplane/preflightmode/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
@@ -516,10 +511,8 @@ func getSharedFxOption(product command.ProductComposition) fx.Option {
 			proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 		}),
 		logs.Bundle(),
-		observerfx.Module(),
-		logssourcefx.Module(),
-		recorderfx.Module(),
-		reporterfx.Module(),
+		fx.Options(product.AnomalyDetectionOptions...),
+		fx.Options(product.LogsSeverityOptions...),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
 		fx.Options(product.HostMetadataOptions...),
@@ -588,7 +581,7 @@ func getSharedFxOption(product command.ProductComposition) fx.Option {
 		syntheticsTestsfx.Module(),
 		remoteagentregistryfx.Module(),
 		haagentfx.Module(),
-		doqueryactionsfx.Module(),
+		fx.Options(product.DataObservabilityOptions...),
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),
 		ipcfx.ModuleReadWrite(),
