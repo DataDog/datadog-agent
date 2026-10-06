@@ -29,7 +29,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	autodiscoverydef "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
-	discovererPkg "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
+	discovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
@@ -73,8 +73,8 @@ type Requires struct {
 	FilterStore      workloadfilter.Component
 	Telemetry        telemetry.Component
 	HealthPlatform   healthplatformdef.Component
-	ServiceTracker   adtypes.ServiceTracker         `optional:"true"`
-	ConfigDiscoverer discovererPkg.ConfigDiscoverer `optional:"true"`
+	ServiceTracker   adtypes.ServiceTracker `optional:"true"`
+	DiscoveryFactory discovery.Factory      `optional:"true"`
 	// Without supplied params, preparation stays lazy until LoadAndRun.
 	Params autodiscoverydef.Params `optional:"true"`
 }
@@ -187,7 +187,7 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 		}
 	}()
 
-	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceTracker, deps.ConfigDiscoverer)
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceTracker, deps.DiscoveryFactory)
 	ac.preparation = &preparation{initialize: func() {
 		started := time.Now()
 		ac.prepareDefaults(deps.Config)
@@ -218,10 +218,10 @@ func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretReso
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component, tracker adtypes.ServiceTracker, configDiscoverer discovererPkg.ConfigDiscoverer) *AutoConfig {
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component, tracker adtypes.ServiceTracker, discoveryFactory discovery.Factory) *AutoConfig {
 	staticConfigIndex := listeners.NewStaticConfigIndex()
 	telStore := acTelemetry.NewStore(telemetryComp)
-	cfgMgr := newReconcilingConfigManager(secretResolver, hp, staticConfigIndex, configDiscoverer, telStore)
+	cfgMgr := newReconcilingConfigManager(secretResolver, hp, staticConfigIndex, discoveryFactory, telStore)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),
