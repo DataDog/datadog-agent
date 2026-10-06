@@ -6,14 +6,13 @@ from __future__ import annotations
 import json
 import math
 import os
-import shlex
 import urllib.error
 import urllib.request
 
 from invoke import Context
 
 from tasks.libs.common.auth import datadog_infra_token
-from tasks.libs.dynamic_test.jev.pr_context import MAX_DESCRIPTION_BYTES, run_cmd, truncate
+from tasks.libs.dynamic_test.jev.pr_context import MAX_DESCRIPTION_BYTES, truncate
 from tasks.libs.dynamic_test.jev.test_discovery import MAX_TEST_CODE_BYTES
 
 SYSTEMONE_PATH = "/v1/systemone"
@@ -62,7 +61,9 @@ def get_ai_gateway_token(token: str | None = None, token_cmd: str | None = None,
     if os.environ.get("AI_GATEWAY_TOKEN"):
         return os.environ["AI_GATEWAY_TOKEN"]
     if token_cmd:
-        return run_cmd(shlex.split(token_cmd)).strip()
+        # A shell command string from JEV_TOKEN_CMD/--token-cmd: run it as-is
+        # (any failure raises, caught by the evaluation's fail-open)
+        return Context().run(token_cmd, hide=True, encoding="utf-8", timeout=60).stdout.strip()
     # The repo-standard infra token (authanywhere in CI, ddtool locally);
     # returns the 'Bearer <token>' header value - ask_jev wants it raw
     return datadog_infra_token(Context(), "rapid-ai-platform", dc).removeprefix("Bearer ")

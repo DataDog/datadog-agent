@@ -24,20 +24,17 @@ MAX_CHANGED_FILES = 300
 MAX_DESCRIPTION_BYTES = 4_000
 
 
-def run_cmd(cmd: list[str]) -> str:
-    """Run a command through invoke - the canonical task mechanism (see the
-    ~140 ctx.run call sites) - with the Windows-safe join_command quoting.
+def git(*args: str) -> str:
+    """Run a git command through invoke - the canonical task mechanism (see
+    the ~140 ctx.run call sites) - with Windows-safe join_command quoting.
 
     Raises RuntimeError with the command's stderr on failure.
     """
-    result = Context().run(join_command(cmd), hide=True, warn=True, encoding="utf-8", timeout=60)
+    command = join_command(["git", *args])
+    result = Context().run(command, hide=True, warn=True, encoding="utf-8", timeout=60)
     if result.failed:
-        raise RuntimeError(f"command {join_command(cmd)} failed: {result.stderr.strip()}")
+        raise RuntimeError(f"command {command} failed: {result.stderr.strip()}")
     return result.stdout.strip()
-
-
-def git(*args: str) -> str:
-    return run_cmd(["git", *args])
 
 
 def truncate(text: str, limit: int, label: str) -> str:

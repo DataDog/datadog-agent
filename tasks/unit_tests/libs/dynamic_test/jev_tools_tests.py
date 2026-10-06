@@ -42,14 +42,19 @@ class JevToolsTests(unittest.TestCase):
             self.assertEqual(get_ai_gateway_token(token="override"), "override")
             infra_token.assert_called_once_with(ANY, "rapid-ai-platform", "us1.ddbuild.io")
 
-    @patch("tasks.libs.dynamic_test.jev.jev_client.run_cmd", return_value="token")
-    def test_token_cmd_is_shell_split(self, run):
+    @patch("tasks.libs.dynamic_test.jev.jev_client.Context")
+    def test_token_cmd_runs_through_the_shell_as_is(self, context):
+        context.return_value.run.return_value.stdout = "token\n"
         with patch.dict("os.environ", {}, clear=True):
             self.assertEqual(get_ai_gateway_token(token_cmd='tool --name "two words"'), "token")
-            run.assert_called_once_with(["tool", "--name", "two words"])
+        # The token command is a shell command string: passed as-is, no
+        # argv round-trip
+        context.return_value.run.assert_called_once_with(
+            'tool --name "two words"', hide=True, encoding="utf-8", timeout=60
+        )
 
     @patch("tasks.libs.dynamic_test.jev.pr_context.GithubAPI")
-    @patch("tasks.libs.dynamic_test.jev.pr_context.run_cmd", return_value="feature/nested")
+    @patch("tasks.libs.dynamic_test.jev.pr_context.git", return_value="feature/nested")
     def test_pr_lookup_by_branch_uses_the_shared_github_api(self, _, github_api):
         github_api.return_value.get_pr_for_branch.return_value = iter(
             [SimpleNamespace(number=12, title="Title", body="Description")]
@@ -62,7 +67,7 @@ class JevToolsTests(unittest.TestCase):
         github_api.return_value.get_pr_for_branch.assert_called_once_with(head_branch_name="feature/nested")
 
     @patch("tasks.libs.dynamic_test.jev.pr_context.GithubAPI")
-    @patch("tasks.libs.dynamic_test.jev.pr_context.run_cmd", return_value="feature/nested")
+    @patch("tasks.libs.dynamic_test.jev.pr_context.git", return_value="feature/nested")
     def test_pr_lookup_without_token_or_without_pr_degrades_gracefully(self, _, github_api):
         with patch.dict("os.environ", {}, clear=True):
             info = fetch_pr_info("main", None)
