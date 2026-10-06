@@ -22,13 +22,9 @@ type logsPerformanceProfile struct {
 	settings    map[string]interface{} // config key -> forced value
 }
 
-// pipelineCountSentinel is a logs_config.pipelines value resolved against the
-// host CPU count at apply time: max==0 means one per core (uncapped), max>0
-// means min(max, cores) so a profile never raises the count on a small host.
+// pipelineCountSentinel is a logs_config.pipelines value resolved at apply time
+// to min(max, cores), so a profile never raises the count above the host's cores.
 type pipelineCountSentinel struct{ max int }
-
-// pipelinesPerCore resolves to one pipeline per logical CPU, uncapped.
-var pipelinesPerCore = pipelineCountSentinel{}
 
 // pipelinesAtMost resolves to min(n, GOMAXPROCS).
 func pipelinesAtMost(n int) pipelineCountSentinel { return pipelineCountSentinel{max: n} }
@@ -36,11 +32,7 @@ func pipelinesAtMost(n int) pipelineCountSentinel { return pipelineCountSentinel
 // resolveProfileSettingValue resolves a sentinel setting value; plain values pass through.
 func resolveProfileSettingValue(v interface{}) interface{} {
 	if s, ok := v.(pipelineCountSentinel); ok {
-		cores := runtime.GOMAXPROCS(0)
-		if s.max > 0 && s.max < cores {
-			return s.max
-		}
-		return cores
+		return min(s.max, runtime.GOMAXPROCS(0))
 	}
 	return v
 }
@@ -65,7 +57,7 @@ var (
 		"logs_config.payload_channel_size":      40,
 	}
 	highThroughputSettings = mergeProfileSettings(highConcurrencySettings, map[string]interface{}{
-		"logs_config.pipelines":            pipelinesPerCore,
+		"logs_config.pipelines":            pipelinesAtMost(16),
 		"logs_config.message_channel_size": 200,
 	})
 	maxThroughputSettings = mergeProfileSettings(highThroughputSettings, map[string]interface{}{
@@ -87,7 +79,7 @@ var logsPerformanceProfiles = map[string]map[int]logsPerformanceProfile{
 	},
 	"high-throughput": {
 		1: {
-			description: "Maximize sustained log throughput (one pipeline per core, high send concurrency, larger buffers).",
+			description: "Maximize sustained log throughput (one pipeline per core up to 16, high send concurrency, larger buffers).",
 			settings:    highThroughputSettings,
 		},
 	},
@@ -99,33 +91,27 @@ var logsPerformanceProfiles = map[string]map[int]logsPerformanceProfile{
 	},
 	"low-latency": {
 		1: {
-			description: "Minimize log delivery latency (short batch wait, smaller batches, higher send concurrency).",
+			description: "Minimize log delivery latency (short batch wait).",
 			settings: map[string]interface{}{
-				"logs_config.batch_wait":                1.0,
-				"logs_config.batch_max_size":            500,
-				"logs_config.batch_max_concurrent_send": 10,
+				"logs_config.batch_wait": 1.0,
 			},
 		},
 	},
 	"low-resource": {
 		1: {
-			description: "Minimize CPU and memory footprint (fewer pipelines, lower concurrency, smaller buffers).",
+			description: "Minimize CPU and memory footprint (fewer pipelines, lower send concurrency, fewer in-flight payloads).",
 			settings: map[string]interface{}{
 				"logs_config.pipelines":                 pipelinesAtMost(2),
-				"logs_config.batch_max_concurrent_send": 1,
-				"logs_config.message_channel_size":      50,
+				"logs_config.batch_max_concurrent_send": 4,
 				"logs_config.payload_channel_size":      5,
 			},
 		},
 	},
 	"high-compression": {
 		1: {
-			description: "Reduce network bytes at the cost of CPU (higher compression level, larger payloads).",
+			description: "Reduce network bytes at the cost of CPU (higher zstd compression level).",
 			settings: map[string]interface{}{
-				"logs_config.use_compression":        true,
-				"logs_config.compression_kind":       "zstd",
 				"logs_config.zstd_compression_level": 6,
-				"logs_config.batch_max_content_size": 5000000,
 			},
 		},
 	},

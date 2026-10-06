@@ -7,6 +7,7 @@ package setup
 
 import (
 	"runtime"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,16 +48,36 @@ logs_config:
 		"max-throughput must disable compression to remove the CPU bottleneck")
 }
 
-func TestHighThroughputUsesOnePipelinePerCore(t *testing.T) {
-	cfg := confFromYAML(t, `
+func highThroughputPipelines() int { return min(16, runtime.GOMAXPROCS(0)) }
+
+func TestHighThroughputPipelines(t *testing.T) {
+	for _, tc := range []struct{ cores, want int }{{8, 8}, {16, 16}, {64, 16}} {
+		t.Run(strconv.Itoa(tc.cores), func(t *testing.T) {
+			prev := runtime.GOMAXPROCS(tc.cores)
+			defer runtime.GOMAXPROCS(prev)
+
+			cfg := confFromYAML(t, `
 logs_config:
   profile: high-throughput
+`)
+			ApplyLogsPerformanceProfile(cfg)
+
+			assert.Equal(t, tc.want, cfg.GetInt("logs_config.pipelines"))
+		})
+	}
+}
+
+func TestHighCompressionKeepsAdditionalEndpointsGzipFallback(t *testing.T) {
+	cfg := confFromYAML(t, `
+logs_config:
+  profile: high-compression
 `)
 
 	ApplyLogsPerformanceProfile(cfg)
 
-	assert.Equal(t, runtime.GOMAXPROCS(0), cfg.GetInt("logs_config.pipelines"),
-		"high-throughput must scale pipelines to one per core, uncapped")
+	assert.Equal(t, 6, cfg.GetInt("logs_config.zstd_compression_level"))
+	assert.False(t, cfg.IsConfigured("logs_config.compression_kind"),
+		"a profile-written compression_kind would disable the gzip fallback for additional endpoints")
 }
 
 func TestLowResourceCapsPipelinesAtTwo(t *testing.T) {
@@ -326,7 +347,7 @@ logs_config:
 	ApplyLogsPerformanceProfile(cfg)
 	ApplyLogsPerformanceProfile(cfg)
 
-	assert.Equal(t, runtime.GOMAXPROCS(0), cfg.GetInt("logs_config.pipelines"),
+	assert.Equal(t, highThroughputPipelines(), cfg.GetInt("logs_config.pipelines"),
 		"re-applying the same profile must be idempotent")
 	assert.Equal(t, 20, cfg.GetInt("logs_config.batch_max_concurrent_send"))
 }
@@ -342,7 +363,7 @@ func TestLogsPerformanceProfileSelectedByFleetIsExpanded(t *testing.T) {
 	cfg.Set("logs_config.profile", "high-throughput", pkgconfigmodel.SourceFleetPolicies)
 	ApplyLogsPerformanceProfile(cfg)
 
-	assert.Equal(t, runtime.GOMAXPROCS(0), cfg.GetInt("logs_config.pipelines"),
+	assert.Equal(t, highThroughputPipelines(), cfg.GetInt("logs_config.pipelines"),
 		"a fleet-policy-selected profile must be expanded by the re-run")
 }
 
@@ -353,7 +374,7 @@ logs_config:
   profile: high-throughput
 `)
 	ApplyLogsPerformanceProfile(cfg)
-	require.Equal(t, runtime.GOMAXPROCS(0), cfg.GetInt("logs_config.pipelines"))
+	require.Equal(t, highThroughputPipelines(), cfg.GetInt("logs_config.pipelines"))
 
 	// Fleet policies then pin a knob the profile also sets. The re-run must let
 	// the fleet value win rather than have the first pass's post-init write
