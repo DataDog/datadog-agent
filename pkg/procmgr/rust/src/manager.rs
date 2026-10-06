@@ -346,6 +346,8 @@ impl ProcessManager {
         exit_tx: &mpsc::Sender<ExitEvent>,
     ) -> Result<ReloadResult, Status> {
         let catalog = self.config_loader.load();
+        let valid_order: Vec<String> = catalog.processes.iter().map(|pd| pd.name.clone()).collect();
+        let invalid_order: Vec<String> = catalog.invalid.iter().map(|e| e.name.clone()).collect();
         let mut valid: std::collections::HashMap<String, config::ProcessConfig> = catalog
             .processes
             .into_iter()
@@ -470,7 +472,10 @@ impl ProcessManager {
 
         {
             let mut procs = self.processes.write().await;
-            for (name, config) in valid {
+            for name in &valid_order {
+                let Some(config) = valid.remove(name) else {
+                    continue;
+                };
                 if let Some(existing) = procs.iter_mut().find(|p| p.name() == name) {
                     if *existing.config() != config {
                         info!("[{name}] config changed, updating");
@@ -479,9 +484,9 @@ impl ProcessManager {
                             modified_running.push(name.clone());
                         }
                         existing.set_config(config);
-                        modified.push(name);
+                        modified.push(name.clone());
                     } else {
-                        unchanged.push(name);
+                        unchanged.push(name.clone());
                     }
                 } else {
                     info!("[{name}] new config found, adding");
@@ -492,7 +497,7 @@ impl ProcessManager {
                     {
                         warn!("[{name}] failed to start: {e:#}");
                     }
-                    added.push(name);
+                    added.push(name.clone());
                     procs.push(proc);
                 }
             }
@@ -501,7 +506,10 @@ impl ProcessManager {
         {
             let procs = self.processes.read().await;
             let mut invalid = self.invalid.write().await;
-            for (name, entry) in incoming_invalid {
+            for name in &invalid_order {
+                let Some(entry) = incoming_invalid.remove(name) else {
+                    continue;
+                };
                 if procs.iter().any(|p| p.name() == name) {
                     warn!(
                         "[{name}] invalid config ignored: a process with this name already exists"
@@ -510,7 +518,7 @@ impl ProcessManager {
                 }
                 info!("[{name}] invalid config, not starting");
                 invalid.push(InvalidProcess::from_entry(entry, self.uuid_gen.generate()));
-                added.push(name);
+                added.push(name.clone());
             }
         }
 
@@ -1163,6 +1171,62 @@ mod tests {
             1,
             "recovered yaml must not spawn a second process with the runtime name"
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_adds_catalog_entries_in_load_order() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        config_loader.set_catalog(LoadedCatalog {
+            processes: vec![
+                ProcessDefinition {
+                    name: "alpha".to_string(),
+                    config: ProcessConfig {
+                        auto_start: false,
+                        command: "/bin/true".to_string(),
+                        ..Default::default()
+                    },
+                },
+                ProcessDefinition {
+                    name: "bravo".to_string(),
+                    config: ProcessConfig {
+                        auto_start: false,
+                        command: "/bin/true".to_string(),
+                        ..Default::default()
+                    },
+                },
+            ],
+            invalid: vec![
+                InvalidConfigEntry {
+                    name: "charlie".to_string(),
+                    path: PathBuf::from("/tmp/charlie.yaml"),
+                    error: "parse failed".to_string(),
+                },
+                InvalidConfigEntry {
+                    name: "delta".to_string(),
+                    path: PathBuf::from("/tmp/delta.yaml"),
+                    error: "parse failed".to_string(),
+                },
+            ],
+        });
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert_eq!(
+            result.added,
+            vec![
+                "alpha".to_string(),
+                "bravo".to_string(),
+                "charlie".to_string(),
+                "delta".to_string()
+            ]
+        );
+        let procs = mgr.processes().await;
+        let proc_names: Vec<String> = procs.iter().map(|p| p.name().to_owned()).collect();
+        assert_eq!(proc_names, vec!["alpha", "bravo"]);
+        let invalid = mgr.invalid_configs().await;
+        let invalid_names: Vec<String> = invalid.iter().map(|p| p.name.clone()).collect();
+        assert_eq!(invalid_names, vec!["charlie", "delta"]);
         Ok(())
     }
 
