@@ -14,6 +14,7 @@ go_library(
         "messages.go",
         "parser.go",
         "processing_rules.go",
+        "smb_config.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs/agent/config",
     visibility = ["//visibility:public"],
@@ -42,6 +43,7 @@ dd_agent_go_test(
         "parser_test.go",
         "processing_rules_apply_test.go",
         "processing_rules_test.go",
+        "smb_config_test.go",
     ],
     embed = [":config"],
     deps = [
@@ -52,9 +54,11 @@ dd_agent_go_test(
         "//pkg/logs/types",
         "//pkg/util/log",
         "//pkg/util/pointer",
+        "//pkg/util/scrubber",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@org_uber_go_atomic//:atomic",
     ],
 )

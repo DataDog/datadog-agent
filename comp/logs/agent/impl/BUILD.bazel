@@ -57,6 +57,7 @@ go_library(
         "//pkg/logs/launchers/integration",
         "//pkg/logs/launchers/journald",
         "//pkg/logs/launchers/listener",
+        "//pkg/logs/launchers/smb",
         "//pkg/logs/launchers/windowsevent",
         "//pkg/logs/message",
         "//pkg/logs/schedulers",
