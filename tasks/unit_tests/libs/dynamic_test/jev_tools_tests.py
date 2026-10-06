@@ -2,7 +2,8 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import ANY, patch
 
 from tasks.libs.dynamic_test.jev.jev_client import decide, get_ai_gateway_token
 from tasks.libs.dynamic_test.jev.jev_e2e_selector import select_suite
@@ -30,26 +31,48 @@ class JevToolsTests(unittest.TestCase):
         with self.assertRaises(KeyError):
             decide({})
 
-    @patch("tasks.libs.dynamic_test.jev.jev_client.run_cmd", return_value="token")
-    def test_auth_uses_matching_datacenter_and_quoted_commands(self, run):
+    @patch("tasks.libs.dynamic_test.jev.jev_client.datadog_infra_token")
+    def test_auth_uses_the_repo_infra_token_helper(self, infra_token):
+        """The fallback delegates to datadog_infra_token (authanywhere in CI, ddtool locally)."""
+        infra_token.return_value = "Bearer token"
         with patch.dict("os.environ", {}, clear=True):
             self.assertEqual(get_ai_gateway_token(dc="us1.ddbuild.io"), "token")
-            run.assert_called_once_with(
-                ["authanywhere", "--audience", "rapid-ai-platform", "--raw", "--dc", "us1.ddbuild.io"]
-            )
-            self.assertEqual(get_ai_gateway_token(token_cmd='tool --name "two words"', dc="us1.ddbuild.io"), "token")
-            run.assert_called_with(["tool", "--name", "two words"])
+            infra_token.assert_called_once_with(ANY, "rapid-ai-platform", "us1.ddbuild.io")
+            # The explicit token/token_cmd overrides short-circuit before it
             self.assertEqual(get_ai_gateway_token(token="override"), "override")
+            infra_token.assert_called_once_with(ANY, "rapid-ai-platform", "us1.ddbuild.io")
 
+    @patch("tasks.libs.dynamic_test.jev.jev_client.run_cmd", return_value="token")
+    def test_token_cmd_is_shell_split(self, run):
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(get_ai_gateway_token(token_cmd='tool --name "two words"'), "token")
+            run.assert_called_once_with(["tool", "--name", "two words"])
+
+    @patch("tasks.libs.dynamic_test.jev.pr_context.GithubAPI")
     @patch("tasks.libs.dynamic_test.jev.pr_context.current_branch", return_value="feature/nested")
-    @patch("tasks.libs.dynamic_test.jev.pr_context.urllib.request.urlopen")
-    def test_github_head_uses_owner_not_repository(self, urlopen, _):
-        urlopen.return_value.__enter__.return_value.read.return_value = json.dumps(
-            [{"number": 12, "title": "Title", "body": "Description"}]
-        ).encode()
+    def test_pr_lookup_by_branch_uses_the_shared_github_api(self, _, github_api):
+        github_api.return_value.get_pr_for_branch.return_value = iter(
+            [SimpleNamespace(number=12, title="Title", body="Description")]
+        )
         with patch.dict("os.environ", {"GITHUB_TOKEN": "fake"}):
-            self.assertEqual(fetch_pr_info("main", None)["number"], 12)
-        self.assertIn("head=DataDog:feature%2Fnested", urlopen.call_args.args[0].full_url)
+            info = fetch_pr_info("main", None)
+        self.assertEqual(info["number"], 12)
+        self.assertEqual(info["title"], "Title")
+        self.assertEqual(info["description"], "Description")
+        github_api.return_value.get_pr_for_branch.assert_called_once_with(head_branch_name="feature/nested")
+
+    @patch("tasks.libs.dynamic_test.jev.pr_context.GithubAPI")
+    @patch("tasks.libs.dynamic_test.jev.pr_context.current_branch", return_value="feature/nested")
+    def test_pr_lookup_without_token_or_without_pr_degrades_gracefully(self, _, github_api):
+        with patch.dict("os.environ", {}, clear=True):
+            info = fetch_pr_info("main", None)
+        self.assertEqual(info, {"branch": "feature/nested", "title": "", "description": ""})
+        github_api.assert_not_called()
+        github_api.return_value.get_pr_for_branch.return_value = iter([])
+        with patch.dict("os.environ", {"GITHUB_TOKEN": "fake"}):
+            info = fetch_pr_info("main", None)
+        self.assertNotIn("number", info)
+        self.assertEqual(info["title"], "")
 
     def test_discovery_ignores_helpers(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -72,7 +95,7 @@ class JevToolsTests(unittest.TestCase):
                 patch(f"{module}.pr_diff", return_value=""),
                 patch(f"{module}.suite_definition", return_value=("", "")),
                 patch(f"{module}.get_ai_gateway_token", return_value="fake"),
-                patch(f"{module}.print_collapsible"),
+                patch(f"{module}.gitlab_section"),
                 patch(
                     f"{module}.list_suites",
                     return_value=[

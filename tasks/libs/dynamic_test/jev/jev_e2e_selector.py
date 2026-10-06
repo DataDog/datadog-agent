@@ -27,6 +27,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from tasks.libs.common.utils import gitlab_section
 from tasks.libs.dynamic_test.jev.diff_utils import MAX_DIFF_BYTES, MAX_DIFF_PER_FILE, pr_diff
 from tasks.libs.dynamic_test.jev.jev_client import (
     DEFAULT_RUN_THRESHOLD,
@@ -37,7 +38,6 @@ from tasks.libs.dynamic_test.jev.jev_client import (
     decide,
     fail_open,
     get_ai_gateway_token,
-    print_collapsible,
 )
 from tasks.libs.dynamic_test.jev.pr_context import changed_files, fetch_ddci_metadata, fetch_pr_info
 from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suites, suite_definition
@@ -116,14 +116,15 @@ def select_suite(
             print(f"--- state for {name} (dry run, not sent) ---\n{state}\n")
             return {"test": name, "dry_run": True}
 
-        # Print exactly what is sent to Jev for every call, in a collapsed section
-        section_name = "jev_call_" + re.sub(r"\W+", "_", name)
+        # Print exactly what is sent to Jev for every call, in a collapsed
+        # section when running in GitLab CI (echo: the bold title locally)
         section_body = (
             f"endpoint: https://ai-gateway.{dc}{SYSTEMONE_PATH}  model: {model}  source: {source}\n"
             f"state ({len(state)} chars):\n{state}\n"
             f"questions: {json.dumps(QUESTIONS)}"
         )
-        print_collapsible(section_name, f"Jev call input: {name}", section_body)
+        with gitlab_section(f"Jev call input: {name}", collapsed=True, echo=True):
+            print(section_body)
 
         try:
             answer = ask_jev(token, state, model=model, dc=dc, source=source)

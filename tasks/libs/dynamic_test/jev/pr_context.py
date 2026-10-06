@@ -5,14 +5,9 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import urllib.parse
 import urllib.request
 
-REPO = "DataDog/datadog-agent"
-
-
-GITHUB_API = f"https://api.github.com/repos/{REPO}"
-
+from tasks.libs.ciproviders.github_api import GithubAPI
 
 DDCI_METADATA_URL = "https://cimetadataserver.us1.ddbuild.io/internal/ddci/metadata"
 
@@ -122,46 +117,34 @@ def fetch_ddci_metadata() -> dict | None:
 
 
 def fetch_pr_info(base: str, ddci: dict | None) -> dict:
-    """PR title/description from the GitHub API (uses GITHUB_TOKEN if present)."""
+    """PR title/description via the shared GithubAPI (uses GITHUB_TOKEN if present)."""
     branch = current_branch()
     number = ddci.get("pr_number") if ddci else None
-    token = os.environ.get("GITHUB_TOKEN")
     pr: dict = {"branch": branch, "title": "", "description": ""}
     if ddci:
         pr["author"] = ddci.get("author")
-    if not token:
+    if not os.environ.get("GITHUB_TOKEN"):
         print("[warn] GITHUB_TOKEN not set, cannot fetch PR description")
         return pr
 
-    if number:
-        req = urllib.request.Request(
-            f"{GITHUB_API}/pulls/{number}",
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
-        )
-    elif branch:
-        print(f"[info] no DDCI PR number, looking up PR by branch {branch}")
-        req = urllib.request.Request(
-            f"{GITHUB_API}/pulls?head={REPO.split('/')[0]}:{urllib.parse.quote(branch, safe='')}&state=open&per_page=1",
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
-        )
-    else:
-        print("[warn] cannot determine branch name (detached HEAD, no CI env), cannot look up PR")
-        return pr
+    github = GithubAPI()
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            payload = json.load(resp)
-    except Exception as e:
-        print(f"[warn] GitHub API request failed: {e}")
-        return pr
-    if isinstance(payload, list):
-        payload = payload[0] if payload else {}
-        if not payload:
+        if number:
+            pull = github.get_pr(int(number))
+        elif branch:
+            print(f"[info] no DDCI PR number, looking up PR by branch {branch}")
+            pulls = list(github.get_pr_for_branch(head_branch_name=branch))
+            pull = pulls[0] if pulls else None
+        else:
+            print("[warn] cannot determine branch name (detached HEAD, no CI env), cannot look up PR")
+            return pr
+        if pull is None:
             print(f"[warn] no open PR found for branch {branch}")
             return pr
-    print(f"[info] PR #{payload.get('number')}: {payload.get('title')}")
-    pr.update(
-        {"number": payload.get("number"), "title": payload.get("title", ""), "description": payload.get("body") or ""}
-    )
+        print(f"[info] PR #{pull.number}: {pull.title}")
+        pr.update({"number": pull.number, "title": pull.title, "description": pull.body or ""})
+    except Exception as e:
+        print(f"[warn] GitHub API request failed: {e}")
     return pr
 
 

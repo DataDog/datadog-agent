@@ -7,10 +7,12 @@ import json
 import math
 import os
 import shlex
-import time
 import urllib.error
 import urllib.request
 
+from invoke import Context
+
+from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.dynamic_test.jev.pr_context import MAX_DESCRIPTION_BYTES, run_cmd, truncate
 from tasks.libs.dynamic_test.jev.test_discovery import MAX_TEST_CODE_BYTES
 
@@ -61,7 +63,9 @@ def get_ai_gateway_token(token: str | None = None, token_cmd: str | None = None,
         return os.environ["AI_GATEWAY_TOKEN"]
     if token_cmd:
         return run_cmd(shlex.split(token_cmd)).strip()
-    return run_cmd(["authanywhere", "--audience", "rapid-ai-platform", "--raw", "--dc", dc]).strip()
+    # The repo-standard infra token (authanywhere in CI, ddtool locally);
+    # returns the 'Bearer <token>' header value - ask_jev wants it raw
+    return datadog_infra_token(Context(), "rapid-ai-platform", dc).removeprefix("Bearer ")
 
 
 def ask_jev(token: str, state: str, *, model: str, dc: str, source: str) -> dict:
@@ -88,21 +92,6 @@ def ask_jev(token: str, state: str, *, model: str, dc: str, source: str) -> dict
     except urllib.error.HTTPError as e:
         body = e.read().decode(errors="ignore")
         raise RuntimeError(f"AI Gateway HTTP {e.code}: {body}") from e
-
-
-def print_collapsible(name: str, title: str, body: str) -> None:
-    """Print `body` under `title`, in a collapsed GitLab log section when in CI.
-
-    Uses the GitLab CI collapsible-section ANSI markers; falls back to plain
-    printing when not running in GitLab CI (e.g. local dry runs).
-    """
-    if os.environ.get("GITLAB_CI") or os.environ.get("CI_PIPELINE_ID"):
-        start = int(time.time())
-        print(f"\033[0Ksection_start:{start}:{name}[collapsed=true]\r\033[0K{title}")
-        print(body)
-        print(f"\033[0Ksection_end:{int(time.time())}:{name}\r\033[0K")
-    else:
-        print(f"--- {title} ---\n{body}")
 
 
 def build_state(
