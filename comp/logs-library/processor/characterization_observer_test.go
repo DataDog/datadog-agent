@@ -7,6 +7,7 @@ package processor
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -37,6 +38,7 @@ func TestMakeCharacterizationObservation(t *testing.T) {
 	require.Equal(t, "plain", observation.payloadFamily)
 	require.True(t, observation.hasService)
 	require.True(t, observation.hasSource)
+	require.False(t, observation.observedAt.IsZero())
 }
 
 func TestCharacterizationObserverQueueIsBoundedAndNonBlocking(t *testing.T) {
@@ -48,6 +50,33 @@ func TestCharacterizationObserverQueueIsBoundedAndNonBlocking(t *testing.T) {
 	}
 
 	require.Len(t, observer.queue, characterizationQueueSize)
+}
+
+func TestCharacterizationInterarrivalUsesObservationTime(t *testing.T) {
+	observer := newCharacterizationObserver()
+	start := time.Unix(100, 0)
+	stream := characterizationObservation{
+		sourceType: config.FileType,
+		pipeline:   "0",
+		observedAt: start,
+	}
+	seconds, ok := observer.interarrivalSeconds(stream)
+	require.False(t, ok)
+	require.Zero(t, seconds)
+
+	stream.observedAt = start.Add(250 * time.Millisecond)
+	seconds, ok = observer.interarrivalSeconds(stream)
+	require.True(t, ok)
+	require.InDelta(t, 0.25, seconds, 0.000001)
+
+	stream.observedAt = start.Add(100 * time.Millisecond)
+	_, ok = observer.interarrivalSeconds(stream)
+	require.False(t, ok)
+
+	stream.observedAt = start.Add(500 * time.Millisecond)
+	seconds, ok = observer.interarrivalSeconds(stream)
+	require.True(t, ok)
+	require.InDelta(t, 0.25, seconds, 0.000001)
 }
 
 func TestCharacterizationSourceTypeIsAllowlisted(t *testing.T) {

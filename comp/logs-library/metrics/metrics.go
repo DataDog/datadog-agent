@@ -127,6 +127,9 @@ var (
 	// TlmCharacterizationRawSizes records pre-transformation source byte size at pipeline ingress.
 	TlmCharacterizationRawSizes = telemetryimpl.GetCompatComponent().NewHistogram("logs_characterization", "raw_sizes",
 		[]string{"source_type", "pipeline"}, "Distribution of raw source byte sizes at Logs pipeline ingress", []float64{32, 128, 512, 2048, 8192, 32768, 131072, 524288, 2097152})
+	// TlmCharacterizationInterarrivalSeconds records bounded aggregate gaps between ingress messages.
+	TlmCharacterizationInterarrivalSeconds = telemetryimpl.GetCompatComponent().NewHistogram("logs_characterization", "interarrival_seconds",
+		[]string{"source_type", "pipeline"}, "Distribution of elapsed seconds between Logs pipeline ingress messages", []float64{0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10})
 	// TlmCharacterizationTagCounts records aggregate tag counts without retaining tag values.
 	TlmCharacterizationTagCounts = telemetryimpl.GetCompatComponent().NewHistogram("logs_characterization", "tag_counts",
 		[]string{"source_type", "pipeline"}, "Distribution of tag counts at Logs pipeline ingress", []float64{0, 1, 2, 4, 8, 16, 32, 64, 128})

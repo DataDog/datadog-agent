@@ -10,6 +10,7 @@ import (
 	"hash/maphash"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -40,11 +41,17 @@ type characterizationObservation struct {
 	hasSource     bool
 	sourceHash    uint64
 	hasSourceID   bool
+	observedAt    time.Time
 }
 
 type characterizationSourceIdentity struct {
 	sourceType string
 	hash       uint64
+}
+
+type characterizationStream struct {
+	sourceType string
+	pipeline   string
 }
 
 type characterizationObserver struct {
@@ -54,6 +61,7 @@ type characterizationObserver struct {
 	sourceSeed   maphash.Seed
 	sourceIDs    map[characterizationSourceIdentity]struct{}
 	sourceCounts map[string]int
+	lastIngress  map[characterizationStream]time.Time
 }
 
 func newCharacterizationObserver() *characterizationObserver {
@@ -63,6 +71,7 @@ func newCharacterizationObserver() *characterizationObserver {
 		sourceSeed:   maphash.MakeSeed(),
 		sourceIDs:    make(map[characterizationSourceIdentity]struct{}),
 		sourceCounts: make(map[string]int),
+		lastIngress:  make(map[characterizationStream]time.Time),
 	}
 }
 
@@ -91,6 +100,9 @@ func (o *characterizationObserver) observe(msg *message.Message, pipeline string
 
 func (o *characterizationObserver) record(observation characterizationObservation) {
 	o.recordSource(observation)
+	if seconds, ok := o.interarrivalSeconds(observation); ok {
+		metrics.TlmCharacterizationInterarrivalSeconds.Observe(seconds, observation.sourceType, observation.pipeline)
+	}
 	hasService := strconv.FormatBool(observation.hasService)
 	hasSource := strconv.FormatBool(observation.hasSource)
 	metrics.TlmCharacterizationIngressEvents.Inc(observation.sourceType, observation.pipeline, hasService, hasSource)
@@ -101,6 +113,20 @@ func (o *characterizationObserver) record(observation characterizationObservatio
 	metrics.TlmCharacterizationRawSizes.Observe(float64(observation.rawBytes), observation.sourceType, observation.pipeline)
 	metrics.TlmCharacterizationTagCounts.Observe(float64(observation.tagCount), observation.sourceType, observation.pipeline)
 	metrics.TlmCharacterizationTagBytes.Observe(float64(observation.tagBytes), observation.sourceType, observation.pipeline)
+}
+
+func (o *characterizationObserver) interarrivalSeconds(observation characterizationObservation) (float64, bool) {
+	stream := characterizationStream{sourceType: observation.sourceType, pipeline: observation.pipeline}
+	previous, found := o.lastIngress[stream]
+	if !found {
+		o.lastIngress[stream] = observation.observedAt
+		return 0, false
+	}
+	if !observation.observedAt.After(previous) {
+		return 0, false
+	}
+	o.lastIngress[stream] = observation.observedAt
+	return observation.observedAt.Sub(previous).Seconds(), true
 }
 
 func (o *characterizationObserver) recordSource(observation characterizationObservation) {
@@ -130,6 +156,7 @@ func makeCharacterizationObservation(msg *message.Message, pipeline string, sour
 		sourceType:    characterizationSourceType(msg),
 		pipeline:      pipeline,
 		payloadFamily: characterizationPayloadFamily(msg.GetContent()),
+		observedAt:    time.Now(),
 	}
 	if msg.Origin != nil {
 		observation.tagCount, observation.tagBytes = msg.Origin.TagMetadataStats(msg.ParsingExtra.Tags)
