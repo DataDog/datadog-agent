@@ -14,7 +14,7 @@ go_library(
         "//cmd/agent/common",
         "//comp/collector/collector/def",
         "//comp/collector/collector/impl/internal/middleware",
-        "//comp/collector/collector/impl/pythonruntime",
+        "//comp/collector/pythonruntime",
         "//comp/core/agenttelemetry/def",
         "//comp/core/autodiscovery/impl",
         "//comp/core/config",

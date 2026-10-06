@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/impl/internal/middleware"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/impl/pythonruntime"
+	"github.com/DataDog/datadog-agent/comp/collector/pythonruntime"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"

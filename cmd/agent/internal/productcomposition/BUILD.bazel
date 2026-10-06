@@ -11,7 +11,7 @@ go_library(
     visibility = ["//cmd/agent:__pkg__"],
     deps = [
         "//cmd/agent/command",
-        "//comp/collector/collector/impl/pythonruntime/fx-python",
+        "//comp/collector/pythonruntime/fx-python",
         "//comp/core/autodiscovery/discoverer/fx-python",
         "//comp/core/gui/impl/pythonchecks/fx-python",
         "//comp/metadata/host/impl/pythoninfo/fx-python",

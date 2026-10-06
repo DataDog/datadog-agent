@@ -15,6 +15,7 @@ func CoreAgent() command.ProductComposition {
 		HostMetadataOptions:  hostMetadataOptions(),
 		CollectorOptions:     collectorOptions(),
 		GUIOptions:           guiOptions(),
+		CheckOptions:         checkOptions(),
 		PythonVersionGetFunc: pythonVersionGetFunc,
 	}
 }

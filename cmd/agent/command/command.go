@@ -75,6 +75,10 @@ type ProductComposition struct {
 	// module.
 	GUIOptions []fx.Option
 
+	// CheckOptions are product-specific Fx options included alongside the shared
+	// check command graph.
+	CheckOptions []fx.Option
+
 	// PythonVersionGetFunc returns the Python version string for status output.
 	// Leave nil for products without Python support.
 	PythonVersionGetFunc func() string

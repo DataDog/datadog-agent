@@ -11,7 +11,7 @@ package fxpython
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/collector/collector/impl/pythonruntime"
+	"github.com/DataDog/datadog-agent/comp/collector/pythonruntime"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	collectorpython "github.com/DataDog/datadog-agent/pkg/collector/python"
 )
@@ -33,7 +33,7 @@ func (runtime) TerminateRunningProcesses() {
 // Module provides Python runtime capabilities for the collector.
 func Module() fx.Option {
 	return fx.Module(
-		"comp/collector/collector/impl/pythonruntime/fx-python",
+		"comp/collector/pythonruntime/fx-python",
 		fx.Provide(func() pythonruntime.Runtime {
 			return runtime{}
 		}),

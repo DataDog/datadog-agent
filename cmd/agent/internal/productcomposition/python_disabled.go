@@ -25,4 +25,8 @@ func guiOptions() []fx.Option {
 	return nil
 }
 
+func checkOptions() []fx.Option {
+	return nil
+}
+
 var pythonVersionGetFunc func() string
