@@ -2,7 +2,7 @@ load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper"
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@@//bazel/rules/foreign_cc_runnable:foreign_cc_runnable.bzl", "foreign_cc_runnable")
-load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "MODULE_SRCS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS")
+load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MODULE_SRCS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS", "SHARED_MODULES")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
@@ -15,6 +15,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_import", "cc_library", "cc_share
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 DEFAULT_PYTHON = "@python_{}//:python3".format(DEFAULT_PYTHON_VERSION.replace(".", "_"))
 
@@ -602,6 +603,8 @@ cc_library(
         "Objects/**/*.h",
         "Objects/**/*.inc",
         "Objects/mimalloc/**/*.c",
+        "Modules/_blake2/impl/*.c",
+        "Modules/_ssl/*.c",
         "Parser/**/*.h",
         "Python/**/*.h",
     ]),
@@ -762,4 +765,139 @@ cc_binary(
     ],
     local_defines = NATIVE_CORE_DEFINES,
     deps = [":native_headers"],
+)
+
+NATIVE_EXT_SUFFIX = ".cpython-{}-x86_64-linux-gnu.so".format(PYTHON_MAJOR_MINOR_FLAT)
+
+cc_library(
+    name = "native_libmpdec",
+    srcs = LIBMPDEC_SRCS,
+    copts = NATIVE_COPTS,
+    defines = [
+        "CONFIG_64=1",
+        "ANSI=1",
+        "HAVE_UINT128_T=1",
+    ],
+    includes = ["Modules/_decimal/libmpdec"],
+    local_defines = ["NDEBUG"],
+    deps = [":native_internal_headers"],
+)
+
+cc_library(
+    name = "native_expat_headers",
+    includes = ["Modules/expat"],
+    textual_hdrs = glob(
+        ["Modules/expat/*.c"],
+        exclude = LIBEXPAT_SRCS,
+    ),
+    deps = [":native_internal_headers"],
+)
+
+cc_library(
+    name = "native_expat",
+    srcs = LIBEXPAT_SRCS,
+    copts = NATIVE_COPTS,
+    local_defines = ["NDEBUG"],
+    deps = [":native_expat_headers"],
+)
+
+cc_library(
+    name = "native_hacl_headers",
+    defines = [
+        "_BSD_SOURCE",
+        "_DEFAULT_SOURCE",
+    ],
+    includes = [
+        "Modules/_hacl/include",
+        "Modules/_hacl/internal",
+    ],
+    textual_hdrs = glob(["Modules/_hacl/**/*.h"]),
+    deps = [":native_internal_headers"],
+)
+
+cc_library(
+    name = "native_hacl_sha2",
+    srcs = ["Modules/_hacl/Hacl_Hash_SHA2.c"],
+    copts = NATIVE_COPTS,
+    local_defines = ["NDEBUG"],
+    deps = [":native_hacl_headers"],
+)
+
+cc_library(
+    name = "native_multiprocessing_headers",
+    includes = ["Modules/_multiprocessing"],
+    deps = [":native_internal_headers"],
+)
+
+[
+    cc_library(
+        name = "native_module_{}_lib".format(name),
+        srcs = ["Modules/" + src for src in module["srcs"]],
+        copts = NATIVE_COPTS,
+        linkopts = module.get("linkopts", []),
+        local_defines = ["NDEBUG"] + module.get("defines", []),
+        deps = [":native_internal_headers"] + module.get("deps", []),
+    )
+    for name, module in SHARED_MODULES.items()
+]
+
+[
+    cc_shared_library(
+        name = "native_module_" + name,
+        dynamic_deps = module.get("dynamic_deps", []),
+        shared_lib_name = name + NATIVE_EXT_SUFFIX,
+        deps = [":native_module_{}_lib".format(name)],
+    )
+    for name, module in SHARED_MODULES.items()
+]
+
+filegroup(
+    name = "native_shared_modules",
+    srcs = [":native_module_" + name for name in SHARED_MODULES],
+)
+
+copy_to_directory(
+    name = "native_install",
+    srcs = [
+        ":native_libpython",
+        ":native_python",
+        ":native_shared_modules",
+    ] + glob(
+        ["Lib/**"],
+        exclude = [
+            "Lib/**/__pycache__/**",
+            "Lib/idlelib/idle_test/**",
+            "Lib/test/**",
+        ],
+    ),
+    replace_prefixes = {
+        "Lib/": "lib/python{}/".format(PYTHON_MAJOR_MINOR),
+        "native_python": "bin/python{}".format(PYTHON_MAJOR_MINOR),
+        LINUX_SO: "lib/" + LINUX_SO,
+    } | {
+        name + NATIVE_EXT_SUFFIX: "lib/python{}/lib-dynload/{}{}".format(PYTHON_MAJOR_MINOR, name, NATIVE_EXT_SUFFIX)
+        for name in SHARED_MODULES
+    },
+)
+
+NATIVE_TEST_SHARED_LIBS = [
+    "@bzip2//:bz2",
+    "@openssl//:openssl_shared",
+    "@sqlite3//:sqlite3",
+    "@xz//:lzma",
+    "@zlib//:z",
+]
+
+sh_test(
+    name = "native_python_test",
+    srcs = ["@@//deps/cpython:native_python_test.sh"],
+    args = ["$(rootpath :native_install)"] + [
+        "$(rootpaths {})".format(lib)
+        for lib in NATIVE_TEST_SHARED_LIBS
+    ],
+    data = [":native_install"] + NATIVE_TEST_SHARED_LIBS,
+    env = {
+        "MODULES": " ".join(SHARED_MODULES.keys() + BUILTIN_MODULES.keys()),
+        "PYTHON_MAJOR_MINOR": PYTHON_MAJOR_MINOR,
+    },
 )
