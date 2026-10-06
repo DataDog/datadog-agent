@@ -97,18 +97,30 @@ class TestJevTools(unittest.TestCase):
         """DDCI's base_commit is the base branch TIP (GitHub PR base.sha), not
         the merge base: a diff against it includes all of main's changes since
         the fork point."""
-        git.side_effect = ["main", "0c339c19"]  # rev-parse candidate, merge-base
+        git.side_effect = ["origin/main", "0c339c19"]  # rev-parse candidate, merge-base
         files, merge_base = changed_files("main", {"changed_files": [("a.go", "added")], "base_commit": "ca52e138d6d1"})
         self.assertEqual(files, [("a.go", "added")])
         self.assertEqual(merge_base, "0c339c19")
-        git.assert_called_with("merge-base", "HEAD", "main")
+        # The remote-tracking ref is preferred over a possibly-stale local main
+        git.assert_called_with("merge-base", "HEAD", "origin/main")
 
     @patch("tasks.libs.dynamic_test.jev.pr_context.git")
     def test_changed_files_git_fallback(self, git):
-        git.side_effect = ["main", "0c339c19", "a.go\nb.go\n"]  # rev-parse, merge-base, diff
+        git.side_effect = ["origin/main", "0c339c19", "a.go\nb.go\n"]  # rev-parse, merge-base, diff
         files, merge_base = changed_files("main", None)
         self.assertEqual(files, [("a.go", ""), ("b.go", "")])
         self.assertEqual(merge_base, "0c339c19")
+        self.assertEqual(git.call_args_list[0].args, ("rev-parse", "--verify", "--quiet", "origin/main^{commit}"))
+
+    @patch("tasks.libs.dynamic_test.jev.pr_context.git")
+    def test_changed_files_fails_on_disconnected_history(self, git):
+        """A failing merge-base (disconnected history, e.g. a shallow clone)
+        must NOT fall back to diffing against the ref tip: that produces the
+        whole branch-plus-main delta. The selection fails open instead."""
+        git.side_effect = ["origin/main", RuntimeError("no merge base")]
+        with self.assertRaisesRegex(RuntimeError, "no merge base"):
+            changed_files("main", None)
+        git.assert_called_with("merge-base", "HEAD", "origin/main")
 
     def test_discovery_ignores_helpers(self):
         with tempfile.TemporaryDirectory() as directory:

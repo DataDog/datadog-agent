@@ -91,21 +91,46 @@ def _commit_present(sha: str) -> bool:
     )
 
 
+def _connected_to_main(sha: str) -> bool:
+    """True when sha's history reaches origin/main's (the diff against the base
+    is computable). A failing merge-base means disconnected history, typically
+    a shallow clone that cut the fetched branch before its fork point."""
+    return subprocess.run(["git", "merge-base", sha, "origin/main"], capture_output=True, timeout=60).returncode == 0
+
+
+def _pull_head_ref(sha: str) -> str | None:
+    """The GitHub PR head mirror ref containing sha (refs/pull/<n>/head), if any.
+
+    Merged PRs have their branch deleted; their head commit stays reachable
+    through the server's mirror of GitHub's refs/pull/*/head."""
+    for line in _git("ls-remote", "origin").splitlines():
+        commit, _, ref = line.partition("\t")
+        if commit == sha and ref.startswith("refs/pull/"):
+            return ref
+    return None
+
+
 def _fetch_pipeline_commit(pipeline) -> None:
-    """Fetch the pipeline's commit: by its ref first (the branch tip contains
-    the commit unless history was rewritten), by its SHA as a fallback."""
+    """Fetch the pipeline's commit with a history connected to origin/main's.
+
+    The branch may be gone (merged PR): the commit then stays reachable via
+    the refs/pull/<n>/head mirror. A shallow clone cuts the fetched history
+    before it reaches main's - deepen until the merge-base exists, otherwise
+    the PR diff against the base cannot be computed."""
     last_error = ""
-    for ref in (pipeline.ref, pipeline.sha):
+    for ref in filter(None, (pipeline.ref, _pull_head_ref(pipeline.sha))):
         try:
-            _git("fetch", "origin", ref)
+            # A plain fetch of a lone ref usually does not reach main's
+            # history in a shallow clone: deepen until they connect
+            for deepen in (0, 2000, 10000):
+                _git("fetch", "origin", ref, *([f"--deepen={deepen}"] if deepen else []))
+                if _connected_to_main(pipeline.sha):
+                    return
+            last_error = f"the history of {pipeline.sha[:12]} never connects to origin/main (shallow clone?)"
         except RuntimeError as e:
             last_error = str(e)
-            continue
-        if _commit_present(pipeline.sha):
-            return
-    raise RuntimeError(
-        f"cannot fetch commit {pipeline.sha[:12]} ({last_error or 'not reachable from the fetched refs'})"
-    )
+            continue  # this ref is unfetchable: try the next candidate
+    raise RuntimeError(f"cannot fetch commit {pipeline.sha[:12]}: {last_error or 'no fetchable ref found'}")
 
 
 @contextmanager

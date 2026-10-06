@@ -1,12 +1,13 @@
 import tempfile
 import unittest
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from tasks.libs.dynamic_test.index import IndexKind
 from tasks.libs.dynamic_test.jev_replay import (
     BulkDatadogDynTestEvaluator,
     _executed_by_job,
+    _fetch_pipeline_commit,
     recent_pipeline_ids,
     replay_jev,
 )
@@ -122,9 +123,9 @@ class TestReplay(unittest.TestCase):
 
         # One selection per distinct commit, decided from the worktree
         self.assertEqual(mocks["run_for"].call_count, 2)
-        for call in mocks["run_for"].call_args_list:
-            self.assertEqual(call.args[0], {"TestA", "TestB"})
-            self.assertEqual(call.kwargs["root"], workdir)
+        for c in mocks["run_for"].call_args_list:
+            self.assertEqual(c.args[0], {"TestA", "TestB"})
+            self.assertEqual(c.kwargs["root"], workdir)
         # Pipeline 2's decision -> its failing executed TestA is a miss
         self.assertEqual(summary["miss_occurrences"], 1)
         self.assertEqual(summary["missed_tests"], {"TestA": 1})
@@ -169,6 +170,45 @@ class TestReplay(unittest.TestCase):
             summary = replay_jev(MagicMock(), ["1"])
         self.assertEqual(summary["pipelines_evaluated"], 0)
         self.assertIn("cannot fetch commit", summary["pipelines_skipped"][0]["reason"])
+
+    @patch(f"{MODULE}._pull_head_ref", return_value=None)
+    @patch(f"{MODULE}._connected_to_main")
+    @patch(f"{MODULE}._git")
+    def test_fetch_falls_back_to_the_pull_head_mirror_and_deepens(self, git, connected, pull_ref):
+        """A gone branch fetches via the refs/pull/N/head mirror, and a
+        shallow clone deepens until the history connects to main."""
+        pipeline = SimpleNamespace(sha=SHA_A, ref="gone/branch")
+        pull_ref.return_value = "refs/pull/57209/head"
+        connected.side_effect = [False, False, True]  # plain fetch, deepen=2000, deepen=10000
+        git.side_effect = [RuntimeError("ref gone"), None, None, None]
+        _fetch_pipeline_commit(pipeline)
+        self.assertEqual(
+            git.call_args_list,
+            [
+                call("fetch", "origin", "gone/branch"),
+                call("fetch", "origin", "refs/pull/57209/head"),
+                call("fetch", "origin", "refs/pull/57209/head", "--deepen=2000"),
+                call("fetch", "origin", "refs/pull/57209/head", "--deepen=10000"),
+            ],
+        )
+
+    @patch(f"{MODULE}._pull_head_ref", return_value=None)
+    @patch(f"{MODULE}._connected_to_main", return_value=False)
+    @patch(f"{MODULE}._git")
+    def test_fetch_reports_a_never_connecting_history(self, git, connected, pull_ref):
+        """Shallow histories that never connect fail the pipeline - never a
+        bogus tip-to-tip diff."""
+        pipeline = SimpleNamespace(sha=SHA_A, ref="some/branch")
+        with self.assertRaisesRegex(RuntimeError, "never connects to origin/main"):
+            _fetch_pipeline_commit(pipeline)
+        self.assertEqual(
+            [c.args for c in git.call_args_list],
+            [
+                ("fetch", "origin", "some/branch"),
+                ("fetch", "origin", "some/branch", "--deepen=2000"),
+                ("fetch", "origin", "some/branch", "--deepen=10000"),
+            ],
+        )
 
 
 if __name__ == "__main__":

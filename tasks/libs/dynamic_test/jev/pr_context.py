@@ -137,10 +137,11 @@ def changed_files(base: str, ddci: dict | None) -> tuple[list, str]:
     since the fork point. The file list prefers the DDCI metadata (with
     modification kinds), falling back to the local merge-base diff.
     """
-    # Resolve the base branch to a ref present in this clone (CI clones have
-    # no local main, only origin/main); fetch from origin as a last resort
+    # Resolve the base branch to a ref present in this clone, preferring the
+    # remote-tracking ref (the PR's merge target): a local branch can be stale
+    # or a WIP state, and CI clones only have origin/main anyway
     ref = ""
-    for candidate in (base, f"origin/{base}", f"refs/remotes/origin/{base}", f"refs/heads/{base}"):
+    for candidate in (f"origin/{base}", f"refs/remotes/origin/{base}", base, f"refs/heads/{base}"):
         try:
             git("rev-parse", "--verify", "--quiet", candidate + "^{commit}")
             ref = candidate
@@ -151,10 +152,11 @@ def changed_files(base: str, ddci: dict | None) -> tuple[list, str]:
         print(f"[info] ref '{base}' not found locally, fetching from origin")
         git("fetch", "origin", base)
         ref = "FETCH_HEAD"
-    try:
-        merge_base = git("merge-base", "HEAD", ref)
-    except RuntimeError:
-        merge_base = ref
+    # A failing merge-base means disconnected history (e.g. a shallow clone):
+    # diffing against the ref tip instead would produce the whole
+    # branch-plus-main delta, not this PR's changes. Fail the selection -
+    # it fails open and runs everything
+    merge_base = git("merge-base", "HEAD", ref)
     if ddci and ddci.get("changed_files") is not None:
         return ddci["changed_files"][:MAX_CHANGED_FILES], merge_base
     files = [(f, "") for f in git("diff", "--name-only", merge_base, "HEAD").splitlines()]
