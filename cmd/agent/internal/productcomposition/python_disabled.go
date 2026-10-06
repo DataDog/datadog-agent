@@ -17,11 +17,11 @@ func hostMetadataOptions() []fx.Option {
 	return nil
 }
 
-func collectorOptions() []fx.Option {
+func pythonCollectorOptions() []fx.Option {
 	return nil
 }
 
-func checkOptions() []fx.Option {
+func pythonCheckOptions() []fx.Option {
 	return nil
 }
 
