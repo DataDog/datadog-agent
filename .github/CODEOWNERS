@@ -274,7 +274,7 @@
 /cmd/agent/subcommands/secret                       @DataDog/fleet-automation
 /cmd/agent/subcommands/diagnose                     @DataDog/fleet-remediation
 /cmd/agent/subcommands/flare                        @DataDog/fleet-remediation
-/cmd/agent/subcommands/health                       @DataDog/fleet-remediation
+/cmd/agent/subcommands/health                       @DataDog/container-platform
 /cmd/agent/subcommands/status                       @DataDog/fleet-remediation
 /cmd/agent/subcommands/launchgui                    @DataDog/windows-products
 /cmd/agent/subcommands/config                       @DataDog/fleet-automation
@@ -607,7 +607,7 @@
 /pkg/cli/subcommands/dcaconfigcheck                                   @DataDog/container-platform
 /pkg/cli/subcommands/dcaflare                                         @DataDog/container-platform
 /pkg/cli/subcommands/experimental                                     @DataDog/fleet-automation
-/pkg/cli/subcommands/health                                           @DataDog/fleet-remediation
+/pkg/cli/subcommands/health                                           @DataDog/container-platform
 /pkg/cli/subcommands/taggerlist                                       @DataDog/container-platform
 /pkg/cli/subcommands/workloadlist                                     @DataDog/container-platform
 /pkg/cli/subcommands/check                                            @DataDog/agent-runtimes @DataDog/agent-integrations
