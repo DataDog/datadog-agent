@@ -12,7 +12,7 @@ mod xml_parser;
 use crate::fs::{SubDirFs, UnverifiedZipArchive};
 use crate::procfs::Cmdline;
 use crate::service_name::{DetectionContext, ServiceNameSource};
-use crate::services::{MAX_NAME_LEN, truncated};
+use crate::services::MAX_NAME_LEN;
 use normalize_path::NormalizePath;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -345,16 +345,17 @@ fn standard_extract_context_from_war_name(file_name: &str) -> Option<String> {
     Some(without_ext.to_string())
 }
 
-/// Maximum number of context roots reported as additional service names. The
-/// largest app servers seen in practice deploy a few hundred applications.
+/// Max context roots reported per service (largest seen in prod: 449).
 const MAX_CONTEXT_ROOTS: usize = 1000;
 
 /// normalize_context_root applies the same normalization the java tracer does
-/// by removing the first / on the context-root if present, and truncates it.
+/// by removing the first / on the context-root if present. Roots longer than
+/// MAX_NAME_LEN are dropped, like the core agent does.
 fn normalize_context_root(context_roots: Vec<String>) -> Vec<String> {
     context_roots
         .into_iter()
-        .map(|cr| truncated(cr.strip_prefix('/').unwrap_or(&cr), MAX_NAME_LEN))
+        .map(|cr| cr.strip_prefix('/').unwrap_or(&cr).to_string())
+        .filter(|cr| cr.len() <= MAX_NAME_LEN)
         .collect()
 }
 

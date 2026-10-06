@@ -22,9 +22,9 @@ use crate::ust::UST;
 use crate::{service_name, tracer_metadata};
 
 /// Limits for strings derived from process data, matching the core agent
-/// normalization of service names (100 bytes) and tag values (200 bytes).
+/// normalization: service names to 100 bytes, tag values to 200 chars (<= 4 bytes each).
 pub(crate) const MAX_NAME_LEN: usize = 100;
-pub(crate) const MAX_TAG_LEN: usize = 200;
+pub(crate) const MAX_TAG_LEN: usize = 200 * 4;
 
 /// Copies at most `max` bytes of `s`, cut on a UTF-8 char boundary.
 pub(crate) fn truncated(s: &str, max: usize) -> String {

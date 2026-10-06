@@ -3,10 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+use crate::services::{MAX_TAG_LEN, truncated};
 use serde::Serialize;
 use std::collections::HashMap;
-
-use crate::services::{MAX_TAG_LEN, truncated};
 
 #[derive(Debug, Default, Serialize)]
 pub struct UST {
