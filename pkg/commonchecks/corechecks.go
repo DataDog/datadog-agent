@@ -81,7 +81,7 @@ import (
 // RegisterChecks registers all core checks
 func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, cfg config.Component,
 	telemetry telemetry.Component, rcClient rcclient.Component, flare flare.Component, snmpScanManager snmpscanmanager.Component,
-	traceroute traceroute.Component, ncmComp option.Option[networkconfigmanagement.Component],
+	traceroute traceroute.Component, ncmComp option.Option[networkconfigmanagement.Component], gpuReadiness *gpu.Readiness,
 ) {
 	telemetryForMode := telemetryProviderForLoadMode(telemetry)
 
@@ -114,7 +114,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(kubeletconfig.CheckName, kubeletconfig.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterContextualCheck(gpu.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
-		return gpu.Factory(tagger, telemetryForMode(ctx), store)
+		return gpu.Factory(tagger, telemetryForMode(ctx), store, gpuReadiness)
 	}))
 	corecheckLoader.RegisterContextualCheck(nccl.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
 		return nccl.Factory(tagger, telemetryForMode(ctx), store)
