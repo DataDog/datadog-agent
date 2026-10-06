@@ -39,6 +39,8 @@ func lookupHostUser(uid string) *user.User {
 
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(nil, 1024*1024)
+	// passwd fields: name:password:UID:GID:GECOS:home:shell.
+	// Compare UIDs as bytes; allocate strings only for matching UIDs.
 	for scanner.Scan() {
 		line := bytes.TrimSpace(scanner.Bytes())
 		if len(line) == 0 || line[0] == '#' || line[0] == '+' || line[0] == '-' {
@@ -65,10 +67,12 @@ func lookupHostUser(uid string) *user.User {
 		}
 		// Copy only the matching line so returned fields own their backing storage.
 		entry := string(line)
+		// rest starts at GID; use the same offset in the owned string.
 		fields := strings.SplitN(entry[len(line)-len(rest):], ":", 4)
 		if len(fields) < 4 {
 			continue
 		}
+		// GECOS may contain comma-separated metadata after the user's full name.
 		fullName, _, _ := strings.Cut(fields[1], ",")
 		return &user.User{
 			Username: entry[:len(name)],
