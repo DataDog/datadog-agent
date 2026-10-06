@@ -7,6 +7,7 @@ exports_files([
     "fix_sysconfigdata.py",
     "gen_sysconfigdata.py",
     "native_python_test.sh",
+    "pyconfig-linux-arm64.h",
     "pyconfig-linux-x86_64.h",
 ])
 
