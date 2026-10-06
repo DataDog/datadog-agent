@@ -305,17 +305,30 @@ func findLogSource(statusJSON, sourceType, service string) (logSourceStatus, boo
 }
 
 // decodeAgentStatus decodes the output of `agent status --json`, which can be
-// preceded by warnings.
+// preceded by warnings and by Agent log lines. Those lines may contain braces
+// (for example "[]interface {}"), so the JSON is looked for only where a line
+// starts with '{'.
 func decodeAgentStatus(statusJSON string) (agentStatus, error) {
-	start := strings.IndexByte(statusJSON, '{')
-	if start < 0 {
-		return agentStatus{}, errors.New("agent status --json printed no JSON object")
+	var lastErr error
+	for start := 0; start < len(statusJSON); {
+		if statusJSON[start] == '{' {
+			var status agentStatus
+			err := json.NewDecoder(strings.NewReader(statusJSON[start:])).Decode(&status)
+			if err == nil {
+				return status, nil
+			}
+			lastErr = err
+		}
+		next := strings.IndexByte(statusJSON[start:], '\n')
+		if next < 0 {
+			break
+		}
+		start += next + 1
 	}
-	var status agentStatus
-	if err := json.NewDecoder(strings.NewReader(statusJSON[start:])).Decode(&status); err != nil {
-		return agentStatus{}, fmt.Errorf("decode agent status: %w", err)
+	if lastErr != nil {
+		return agentStatus{}, fmt.Errorf("decode agent status: %w", lastErr)
 	}
-	return status, nil
+	return agentStatus{}, errors.New("agent status --json printed no JSON object")
 }
 
 func (s agentStatus) logSource(sourceType, service string) (logSourceStatus, bool) {

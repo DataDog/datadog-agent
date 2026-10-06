@@ -468,6 +468,7 @@ func TestEvidenceRedactsAccountKeys(t *testing.T) {
 
 func TestFindLogSourceMatchesTypeAndService(t *testing.T) {
 	statusJSON := `warning before the JSON
+2026-10-06 18:29:07 UTC | CORE | DEBUG | (pkg/config/setup/config.go:233) | Set('proxy.no_proxy'): converting value from []interface {} to []string to match default type
 {"logsStats": {"integrations": [
   {"name": "azure_files", "sources": [
     {"type": "file", "configuration": {"Service": "azure-files-smb", "Path": "/mnt/azure-files/file-line/app.log"}, "status": "OK", "info": {"Bytes Read": ["1"]}},
