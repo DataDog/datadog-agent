@@ -276,7 +276,7 @@
 /cmd/agent/subcommands/flare                        @DataDog/fleet-remediation
 /cmd/agent/subcommands/health                       @DataDog/container-platform
 /cmd/agent/subcommands/status                       @DataDog/fleet-remediation
-/cmd/agent/subcommands/launchgui                    @DataDog/windows-products
+/cmd/agent/subcommands/launchgui                    @DataDog/fleet-remediation
 /cmd/agent/subcommands/config                       @DataDog/fleet-automation
 /cmd/agent/subcommands/experimental                 @DataDog/fleet-automation
 /cmd/agent/subcommands/import                       @DataDog/fleet-automation
@@ -503,7 +503,7 @@
 /comp/core/delegatedauth @DataDog/credential-management @DataDog/delegated-auth-login
 /comp/core/diagnose @DataDog/fleet-remediation
 /comp/core/flare @DataDog/fleet-remediation
-/comp/core/gui @DataDog/windows-products
+/comp/core/gui @DataDog/fleet-remediation
 /comp/core/profiler @DataDog/fleet-remediation
 /comp/core/remoteflags @DataDog/fleet-remediation
 /comp/core/secrets @DataDog/fleet-automation
@@ -658,6 +658,7 @@
 /comp/core/autodiscovery/providers/datastreams                        @DataDog/data-streams-monitoring
 /comp/core/autodiscovery/providers/datasecurity                       @DataDog/sensitive-data-scanner
 /comp/core/autodiscovery/providers/networkpath                        @DataDog/network-path @DataDog/container-platform
+/comp/core/gui/impl/systray/                                          @DataDog/windows-products @DataDog/fleet-remediation
 /comp/healthplatform/issues/ad-misconfiguration                       @DataDog/container-platform @DataDog/fleet-remediation
 /comp/healthplatform/issues/gpuenvironment                            @DataDog/gpu-monitoring-agent @DataDog/fleet-remediation
 /comp/healthplatform/issues/missedbytes                               @DataDog/agent-log-pipelines @DataDog/fleet-remediation
