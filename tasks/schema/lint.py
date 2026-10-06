@@ -660,6 +660,42 @@ def check_renamed_from(path, schema):
 
 
 # ---------------------------------------------------------------------------
+# Check 16: Node keys are snake_case
+# ---------------------------------------------------------------------------
+
+SNAKE_CASE_RE = re.compile(r"^[a-z][a-z0-9]*(_[a-z0-9]+)*$")
+
+
+def _to_snake_case(key):
+    key = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", key)
+    key = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", key)
+    return re.sub(r"[^a-z0-9]+", "_", key.lower()).strip("_")
+
+
+def check_snake_case_keys(path, schema, non_snake_case_exceptions=None):
+    """
+    Check that every node key (setting or section) is snake_case: lowercase
+    letters and digits separated by single underscores, starting with a letter.
+
+    *non_snake_case_exceptions* is a set of dotted paths exempt from the check.
+
+    Returns a list of error strings.
+    """
+    if non_snake_case_exceptions is None:
+        non_snake_case_exceptions = set()
+    errors = []
+    for node_path, _ in walk_nodes(schema):
+        key = node_path.rsplit(".", 1)[-1]
+        if SNAKE_CASE_RE.match(key) or node_path in non_snake_case_exceptions:
+            continue
+        errors.append(
+            f"{path}: [{node_path}] Key '{key}' is not snake_case. "
+            f"Fix: rename it to snake_case, e.g. '{_to_snake_case(key)}'."
+        )
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Exception list loading
 # ---------------------------------------------------------------------------
 
@@ -670,13 +706,15 @@ def load_exceptions(exceptions_file=EXCEPTIONS_FILE):
 
     Returns a dict with keys:
       - array_no_items: set of dotted paths
+      - non_snake_case_keys: set of dotted paths
     """
     if not os.path.isfile(exceptions_file):
-        return {"array_no_items": set()}
+        return {"array_no_items": set(), "non_snake_case_keys": set()}
     with open(exceptions_file) as f:
         data = yaml.safe_load(f) or {}
     return {
         "array_no_items": set(data.get("array_no_items", []) or []),
+        "non_snake_case_keys": set(data.get("non_snake_case_keys", []) or []),
     }
 
 
@@ -730,6 +768,7 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
         all_errors.extend(check_env_parser(schema_path, schema))
         all_errors.extend(check_generate_const_tag(schema_path, schema))
         all_errors.extend(check_renamed_from(schema_path, schema))
+        all_errors.extend(check_snake_case_keys(schema_path, schema, exc["non_snake_case_keys"]))
 
     if all_errors:
         print(f"\nFound {len(all_errors)} schema linting error(s):\n")

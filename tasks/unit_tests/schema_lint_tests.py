@@ -424,5 +424,39 @@ class TestCheckRenamedFrom(unittest.TestCase):
             )
 
 
+class TestCheckSnakeCaseKeys(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_snake_case_keys, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_non_snake_case_keys_are_errors(self):
+        errors = errors_for(lint.check_snake_case_keys, "bad_snake_case_keys.yaml")
+        for path, suggestion in (
+            ("camelCaseSetting", "camel_case_setting"),
+            ("UPPER_setting", "upper_setting"),
+            ("dash-setting", "dash_setting"),
+            ("double__underscore", "double_underscore"),
+            ("valid_section.ddTraceVersions", "dd_trace_versions"),
+        ):
+            self.assertTrue(
+                any(f"[{path}]" in e and f"'{suggestion}'" in e for e in errors),
+                f"Expected error for {path} suggesting {suggestion}, got: {errors}",
+            )
+        self.assertEqual(len(errors), 5, errors)
+
+    def test_default_map_keys_are_not_checked(self):
+        errors = errors_for(lint.check_snake_case_keys, "bad_snake_case_keys.yaml")
+        self.assertFalse(any("camelCaseMapKey" in e for e in errors), errors)
+
+    def test_exceptions_are_skipped(self):
+        errors = errors_for(
+            lint.check_snake_case_keys,
+            "bad_snake_case_keys.yaml",
+            {"camelCaseSetting", "valid_section.ddTraceVersions"},
+        )
+        self.assertFalse(any("camelCaseSetting" in e or "ddTraceVersions" in e for e in errors), errors)
+        self.assertEqual(len(errors), 3, errors)
+
+
 if __name__ == "__main__":
     unittest.main()

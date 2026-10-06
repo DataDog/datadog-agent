@@ -1,0 +1,33 @@
+properties:
+  valid_setting:
+    node_type: setting
+    type: string
+    default: hello
+  camelCaseSetting:
+    node_type: setting
+    type: string
+    default: hello
+  UPPER_setting:
+    node_type: setting
+    type: string
+    default: hello
+  dash-setting:
+    node_type: setting
+    type: string
+    default: hello
+  double__underscore:
+    node_type: setting
+    type: string
+    default: hello
+  valid_section:
+    node_type: section
+    properties:
+      ddTraceVersions:
+        node_type: setting
+        type: object
+        default:
+          camelCaseMapKey: "1.0"
+      setting2:
+        node_type: setting
+        type: string
+        default: hello
