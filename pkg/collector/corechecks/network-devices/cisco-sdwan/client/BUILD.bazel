@@ -15,6 +15,7 @@ go_library(
     deps = [
         "//pkg/collector/corechecks/network-devices/cisco-sdwan/client/fixtures",
         "//pkg/util/log",
+        "@org_golang_x_time//rate",
         "@org_uber_go_atomic//:atomic",
     ],
 )

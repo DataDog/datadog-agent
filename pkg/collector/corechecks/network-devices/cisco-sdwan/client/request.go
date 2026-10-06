@@ -27,6 +27,11 @@ func (client *Client) do(req *http.Request) ([]byte, int, error) {
 	req.Header.Add("X-XSRF-TOKEN", client.token)
 	client.authenticationMutex.Unlock()
 
+	err := client.waitForRateLimit()
+	if err != nil {
+		return nil, 0, err
+	}
+
 	log.Tracef("Executing cisco sd-wan api request %s %s", req.Method, req.URL.Path)
 	resp, err := client.httpClient.Do(req)
 	if err != nil {

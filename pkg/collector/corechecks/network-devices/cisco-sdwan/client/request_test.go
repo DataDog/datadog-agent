@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -218,6 +219,27 @@ func TestGetRequestRetries(t *testing.T) {
 	require.ErrorContains(t, err, "http responded with 400 code")
 	require.Equal(t, []byte(nil), resp)
 	require.Equal(t, 10, handler.numberOfCalls())
+}
+
+func TestGetRequestRateLimited(t *testing.T) {
+	mux, handler := setupCommonServerMuxWithFixture("/test", "")
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := testClient(server, WithRateLimit(10, 1))
+	require.NoError(t, err)
+
+	start := time.Now()
+	for i := 0; i < 3; i++ {
+		_, err = client.get("/test", nil)
+		require.NoError(t, err)
+	}
+
+	// 2 login requests + 3 GET requests, with a burst of 1 at 10 req/s,
+	// the last 4 requests must each wait ~100ms for a token
+	require.GreaterOrEqual(t, time.Since(start), 350*time.Millisecond)
+	require.Equal(t, 3, handler.numberOfCalls())
 }
 
 func TestGetRequestUnmarshalling(t *testing.T) {

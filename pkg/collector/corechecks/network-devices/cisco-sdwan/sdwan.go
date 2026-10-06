@@ -31,29 +31,31 @@ const (
 
 // Configuration for the Cisco SD-WAN check
 type checkCfg struct {
-	VManageEndpoint                 string `yaml:"vmanage_endpoint"`
-	Username                        string `yaml:"username"`
-	Password                        string `yaml:"password"`
-	Namespace                       string `yaml:"namespace"`
-	MaxAttempts                     int    `yaml:"max_attempts"`
-	MaxPages                        int    `yaml:"max_pages"`
-	MaxCount                        int    `yaml:"max_count"`
-	LookbackTimeWindowMinutes       int    `yaml:"lookback_time_window_minutes"`
-	UseHTTP                         bool   `yaml:"use_http"`
-	Insecure                        bool   `yaml:"insecure"`
-	CAFile                          string `yaml:"ca_file"`
-	SendNDMMetadata                 *bool  `yaml:"send_ndm_metadata"`
-	MinCollectionInterval           int    `yaml:"min_collection_interval"`
-	CollectHardwareMetrics          *bool  `yaml:"collect_hardware_metrics"`
-	CollectInterfaceMetrics         *bool  `yaml:"collect_interface_metrics"`
-	CollectTunnelMetrics            *bool  `yaml:"collect_tunnel_metrics"`
-	CollectControlConnectionMetrics *bool  `yaml:"collect_control_connection_metrics"`
-	CollectOMPPeerMetrics           *bool  `yaml:"collect_omp_peer_metrics"`
-	CollectDeviceCountersMetrics    *bool  `yaml:"collect_device_counters_metrics"`
-	CollectBFDSessionStatus         *bool  `yaml:"collect_bfd_session_status"`
-	CollectHardwareStatus           *bool  `yaml:"collect_hardware_status"`
-	CollectCloudApplicationsMetrics *bool  `yaml:"collect_cloud_applications_metrics"`
-	CollectBGPNeighborStates        *bool  `yaml:"collect_bgp_neighbor_states"`
+	VManageEndpoint                 string  `yaml:"vmanage_endpoint"`
+	Username                        string  `yaml:"username"`
+	Password                        string  `yaml:"password"`
+	Namespace                       string  `yaml:"namespace"`
+	MaxAttempts                     int     `yaml:"max_attempts"`
+	MaxPages                        int     `yaml:"max_pages"`
+	MaxCount                        int     `yaml:"max_count"`
+	LookbackTimeWindowMinutes       int     `yaml:"lookback_time_window_minutes"`
+	MaxRequestsPerSecond            float64 `yaml:"max_requests_per_second"`
+	RateLimitBurst                  int     `yaml:"rate_limit_burst"`
+	UseHTTP                         bool    `yaml:"use_http"`
+	Insecure                        bool    `yaml:"insecure"`
+	CAFile                          string  `yaml:"ca_file"`
+	SendNDMMetadata                 *bool   `yaml:"send_ndm_metadata"`
+	MinCollectionInterval           int     `yaml:"min_collection_interval"`
+	CollectHardwareMetrics          *bool   `yaml:"collect_hardware_metrics"`
+	CollectInterfaceMetrics         *bool   `yaml:"collect_interface_metrics"`
+	CollectTunnelMetrics            *bool   `yaml:"collect_tunnel_metrics"`
+	CollectControlConnectionMetrics *bool   `yaml:"collect_control_connection_metrics"`
+	CollectOMPPeerMetrics           *bool   `yaml:"collect_omp_peer_metrics"`
+	CollectDeviceCountersMetrics    *bool   `yaml:"collect_device_counters_metrics"`
+	CollectBFDSessionStatus         *bool   `yaml:"collect_bfd_session_status"`
+	CollectHardwareStatus           *bool   `yaml:"collect_hardware_status"`
+	CollectCloudApplicationsMetrics *bool   `yaml:"collect_cloud_applications_metrics"`
+	CollectBGPNeighborStates        *bool   `yaml:"collect_bgp_neighbor_states"`
 }
 
 // CiscoSdwanCheck contains the field for the CiscoSdwanCheck
@@ -280,6 +282,15 @@ func (c *CiscoSdwanCheck) buildClientOptions() ([]client.ClientOptions, error) {
 
 	if c.config.LookbackTimeWindowMinutes > 0 {
 		clientOptions = append(clientOptions, client.WithLookback(time.Minute*time.Duration(c.config.LookbackTimeWindowMinutes)))
+	}
+
+	if c.config.MaxRequestsPerSecond > 0 {
+		// A burst of 0 would never allow any request, default to strict pacing
+		burst := c.config.RateLimitBurst
+		if burst <= 0 {
+			burst = 1
+		}
+		clientOptions = append(clientOptions, client.WithRateLimit(c.config.MaxRequestsPerSecond, burst))
 	}
 
 	return clientOptions, nil

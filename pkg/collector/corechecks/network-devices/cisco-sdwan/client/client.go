@@ -7,6 +7,7 @@
 package client
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -17,6 +18,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 const timeFormat = "2006-01-02T15:04:05"
@@ -46,6 +49,7 @@ type Client struct {
 	maxPages            int
 	maxCount            string // Stored as string to be passed as an HTTP param
 	lookback            time.Duration
+	rateLimiter         *rate.Limiter // nil means requests are not rate limited
 }
 
 // ClientOptions are the functional options for the Cisco SD-WAN client
@@ -167,6 +171,22 @@ func WithLookback(lookback time.Duration) ClientOptions {
 	return func(c *Client) {
 		c.lookback = lookback
 	}
+}
+
+// WithRateLimit is a functional option to limit the number of requests sent to the
+// Cisco SD-WAN API using a token bucket refilled at requestsPerSecond, holding up to burst tokens
+func WithRateLimit(requestsPerSecond float64, burst int) ClientOptions {
+	return func(c *Client) {
+		c.rateLimiter = rate.NewLimiter(rate.Limit(requestsPerSecond), burst)
+	}
+}
+
+// waitForRateLimit blocks until the rate limiter allows a new request to be sent
+func (client *Client) waitForRateLimit() error {
+	if client.rateLimiter == nil {
+		return nil
+	}
+	return client.rateLimiter.Wait(context.Background())
 }
 
 // GetDevices get all devices from this SD-WAN network
