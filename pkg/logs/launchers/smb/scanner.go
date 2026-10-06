@@ -121,11 +121,12 @@ func newScanner(l *Launcher, source *sources.LogSource, c client.Client, key cli
 		done:      make(chan struct{}),
 	}
 	if cfg.PollInterval > 0 {
-		// Validate bounds poll_interval; bounding the duration again keeps
-		// the ticker from panicking on a non-positive interval whatever the
-		// value.
-		interval := time.Duration(cfg.PollInterval * float64(time.Second))
-		s.interval = min(max(interval, config.SMBMinPollInterval), config.SMBMaxPollInterval)
+		// Validate bounds poll_interval; bounding it again keeps the ticker
+		// from panicking whatever the value. Clamp in seconds before
+		// converting: a float too large for a Duration converts to an
+		// arbitrary value (negative on amd64).
+		seconds := min(max(cfg.PollInterval, config.SMBMinPollInterval.Seconds()), config.SMBMaxPollInterval.Seconds())
+		s.interval = time.Duration(seconds * float64(time.Second))
 	}
 	s.mode, _ = config.TailingModeFromString(source.Config.TailingMode)
 	// Validate rejects the patterns CleanPath refuses; CleanPath normalizes

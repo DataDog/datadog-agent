@@ -686,6 +686,9 @@ func TestLogsConfigFieldCoverage(t *testing.T) {
 		"AllowedIPs":     "network source only",
 		"DeniedIPs":      "network source only",
 
+		// SMB source fields
+		"SMB": "smb source only",
+
 		// Journald fields
 		"ConfigID":               "journald only",
 		"IncludeSystemUnits":     "journald only",
