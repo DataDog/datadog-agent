@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.82.0
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0
-	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel
+	github.com/DataDog/datadog-agent/comp/core/log/mock v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.82.0
 	github.com/DataDog/datadog-agent/comp/logs-library v0.82.0
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.82.0
@@ -41,7 +41,7 @@ require (
 	go.opentelemetry.io/collector/featuregate v1.66.0
 	go.opentelemetry.io/collector/pdata v1.66.0
 	go.opentelemetry.io/otel/metric v1.46.0
-	go.opentelemetry.io/otel/sdk/metric v1.45.0
+	go.opentelemetry.io/otel/sdk/metric v1.46.0
 	go.opentelemetry.io/otel/trace v1.46.0
 	go.uber.org/zap v1.28.0
 	google.golang.org/protobuf v1.36.12
