@@ -19,7 +19,7 @@ type configless struct{}
 
 func (h *configless) Key() string { return "example" }
 
-func (h *configless) Render(_ string, _ json.RawMessage) ([]integration.Config, error) {
+func (h *configless) Render(_ string, _ json.RawMessage, _ map[string]json.RawMessage) ([]integration.Config, error) {
 	return nil, nil
 }
 
@@ -28,7 +28,7 @@ func TestHandlerSupportsAnImplementationThatSchedulesNothing(t *testing.T) {
 
 	assert.Equal(t, "example", h.Key())
 
-	configs, err := h.Render("datadog/2/PRODUCT/id/config", json.RawMessage(`{"a":1}`))
+	configs, err := h.Render("datadog/2/PRODUCT/id/config", json.RawMessage(`{"a":1}`), nil)
 	assert.NoError(t, err)
 	assert.Nil(t, configs)
 }
