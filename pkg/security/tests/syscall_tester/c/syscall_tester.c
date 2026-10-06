@@ -38,6 +38,19 @@
 #define CLONE_INTO_CGROUP 0x200000000ULL
 #endif
 
+// The hermetic sysroot's glibc predates the memfd/sealing API (2.27); the
+// kernel supports it, so use raw syscalls and UAPI values.
+#ifndef MFD_ALLOW_SEALING
+#define MFD_ALLOW_SEALING 0x0002U
+#endif
+
+#ifndef F_ADD_SEALS
+#define F_ADD_SEALS (1024 + 9)
+#define F_SEAL_SEAL 0x0001
+#define F_SEAL_SHRINK 0x0002
+#define F_SEAL_GROW 0x0004
+#endif
+
 // DD_TRACER_MEMFD_SEALS mirrors the seal set libdatadog applies
 #ifndef DD_TRACER_MEMFD_SEALS
 #define DD_TRACER_MEMFD_SEALS (F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL)
@@ -1135,7 +1148,7 @@ int test_memfd_create(int argc, char **argv) {
     for (int i = 1; i != argc; i++) {
         char *filename = argv[i];
 
-        int fd = memfd_create(filename, 0);
+        int fd = (int)syscall(SYS_memfd_create, filename, 0);
         if (fd <= 0) {
             err(1, "%s failed", "memfd_create");
         }
@@ -1182,7 +1195,7 @@ int test_tracer_memfd(int argc, char **argv) {
         "\xb0" "custom.tag:value";
 
     // Create memfd with tracer prefix and allow sealing
-    int fd = memfd_create("datadog-tracer-info-12345678", MFD_ALLOW_SEALING);
+    int fd = (int)syscall(SYS_memfd_create, "datadog-tracer-info-12345678", MFD_ALLOW_SEALING);
     if (fd < 0) {
         err(1, "%s failed", "memfd_create");
     }
