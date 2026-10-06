@@ -6,7 +6,7 @@
 .cross_lint:
   stage: lint
   extends: [.linux_x64, .bazel:defs:cache:progressive]
-  needs: ["go_deps"]
+  needs: ["setup_agent_version", "go_deps"]
   variables:
     FLAVORS: "--flavor base"
     KUBERNETES_MEMORY_REQUEST: 32Gi
