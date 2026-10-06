@@ -244,7 +244,6 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode, getIDFromImageTa
 		File:           newFileInfo(protoDecodeFileEvent(fan.File)),
 		GenerationType: NodeGenerationType(fan.GenerationType),
 		Open:           protoDecodeOpenNode(fan.Open),
-		Children:       make(map[string]*FileNode, len(fan.Children)),
 		NodeBase:       NewNodeBase(),
 	}
 
@@ -260,9 +259,12 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode, getIDFromImageTa
 		pfan.MatchedRules = append(pfan.MatchedRules, protoDecodeProtoMatchedRule(rule))
 	}
 
-	for _, child := range fan.Children {
-		node := protoDecodeFileActivityNode(child, getIDFromImageTag)
-		pfan.Children[node.Name] = node
+	if len(fan.Children) > 0 {
+		pfan.Children = make(map[string]*FileNode, len(fan.Children))
+		for _, child := range fan.Children {
+			node := protoDecodeFileActivityNode(child, getIDFromImageTag)
+			pfan.Children[node.Name] = node
+		}
 	}
 
 	return pfan
