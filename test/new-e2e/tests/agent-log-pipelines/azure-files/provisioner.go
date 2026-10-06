@@ -629,21 +629,19 @@ func (spec runSpec) storageWorkload(env config.Env, kubeProvider *kubernetes.Pro
 		}
 	}
 
-	if spec.hasReader(smbReader) {
-		// The Agent is installed by the second pass, but the key it mounts
-		// must exist before its pod starts. A patch rather than a Namespace
-		// leaves the namespace shared with the Agent installation, which
-		// patches it too.
-		agentNS, err := corev1.NewNamespacePatch(ctx, "azure-files-agent-namespace", &corev1.NamespacePatchArgs{
-			Metadata: &metav1.ObjectMetaPatchArgs{
-				Name: pulumi.String(agentNamespace),
-			},
-		}, agentSecretOpts...)
-		if err != nil {
-			return nil, err
-		}
-		agentSecretOpts = append(agentSecretOpts, utils.PulumiDependsOn(agentNS))
+	// The Agent is installed by the second pass, but the Secrets it mounts
+	// must exist before its pod starts. A patch rather than a Namespace
+	// leaves the namespace shared with the Agent installation, which
+	// patches it too.
+	agentNS, err := corev1.NewNamespacePatch(ctx, "azure-files-agent-namespace", &corev1.NamespacePatchArgs{
+		Metadata: &metav1.ObjectMetaPatchArgs{
+			Name: pulumi.String(agentNamespace),
+		},
+	}, agentSecretOpts...)
+	if err != nil {
+		return nil, err
 	}
+	agentSecretOpts = append(agentSecretOpts, utils.PulumiDependsOn(agentNS))
 
 	for _, c := range spec.cells {
 		account := &azureStorageAccount{}
@@ -699,25 +697,26 @@ func (spec runSpec) storageWorkload(env config.Env, kubeProvider *kubernetes.Pro
 			return nil, err
 		}
 
-		if c.reader == smbReader {
-			// A Secret volume can only reference a Secret of the pod's own
-			// namespace, so the SMB source's key is copied next to the Agent.
-			_, err = corev1.NewSecret(ctx, c.secretName()+"-agent", &corev1.SecretArgs{
-				Metadata: metav1.ObjectMetaArgs{
-					Name:      pulumi.String(c.secretName()),
-					Namespace: pulumi.String(agentNamespace),
-					Labels: pulumi.StringMap{
-						partOfLabel: pulumi.String(partOfLabelValue),
-						cellLabel:   pulumi.String(c.name),
-					},
+		// The Agent pod mounts either the share (a CSI volume) or the key (a
+		// Secret volume). Both read the Secret from the pod's own namespace;
+		// the CSI driver ignores secretNamespace for inline volumes. So the
+		// Secret is copied next to the Agent.
+		_, err = corev1.NewSecret(ctx, c.secretName()+"-agent", &corev1.SecretArgs{
+			Metadata: metav1.ObjectMetaArgs{
+				Name:      pulumi.String(c.secretName()),
+				Namespace: pulumi.String(agentNamespace),
+				Labels: pulumi.StringMap{
+					partOfLabel: pulumi.String(partOfLabelValue),
+					cellLabel:   pulumi.String(c.name),
 				},
-				StringData: pulumi.StringMap{
-					accountKeySecretKey: accountKey,
-				},
-			}, agentSecretOpts...)
-			if err != nil {
-				return nil, err
-			}
+			},
+			StringData: pulumi.StringMap{
+				accountNameSecretKey: account.Name,
+				accountKeySecretKey:  accountKey,
+			},
+		}, agentSecretOpts...)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -1010,7 +1009,7 @@ func (spec runSpec) agentHelmValues() string {
           secretName: %s
           secretNamespace: %s
           mountOptions: %q
-`, c.volumeName, c.accountName, c.host(), c.shareName, c.secretName(), e2eNamespace, c.mountOptions)
+`, c.volumeName, c.accountName, c.host(), c.shareName, c.secretName(), agentNamespace, c.mountOptions)
 			fmt.Fprintf(&mounts, `    - name: %s
       mountPath: %s
       readOnly: true

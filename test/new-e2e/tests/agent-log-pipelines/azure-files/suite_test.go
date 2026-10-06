@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -145,6 +146,7 @@ func (suite *azureFilesSuite) TestRotatedFilesAreCollectedExactlyOnce() {
 	suite.UpdateEnv(suite.spec.agentProvisioner())
 	require.NoError(suite.T(), suite.writeRunMetadata())
 	defer suite.captureEvidence()
+	suite.requireAgentReady()
 
 	for _, c := range suite.spec.cells {
 		suite.Run(c.name, func() {
@@ -367,6 +369,58 @@ func (suite *azureFilesSuite) agentPods() ([]corev1.Pod, error) {
 		return nil, err
 	}
 	return pods.Items, nil
+}
+
+// requireAgentReady waits for the agent container of every Agent pod to be
+// ready. The operator creates the pods after the Agent pass returns, so a pod
+// that cannot start, for example on a volume it cannot mount, would otherwise
+// only show up as every sequence missing.
+func (suite *azureFilesSuite) requireAgentReady() {
+	suite.T().Helper()
+	suite.EventuallyWithT(func(collect *assert.CollectT) {
+		pods, err := suite.agentPods()
+		require.NoError(collect, err)
+		require.NotEmpty(collect, pods, "no Agent pod")
+		for _, pod := range pods {
+			assert.True(collect, agentContainerReady(pod),
+				"the Agent on %s is not ready: %s", pod.Name, suite.podProblems(pod))
+		}
+	}, 5*time.Minute, 10*time.Second)
+}
+
+func agentContainerReady(pod corev1.Pod) bool {
+	for _, status := range pod.Status.ContainerStatuses {
+		if status.Name == "agent" {
+			return status.Ready
+		}
+	}
+	return false
+}
+
+// podProblems describes why a pod is not ready from its waiting containers and
+// its Warning events; a volume that fails to mount only shows up as an event.
+func (suite *azureFilesSuite) podProblems(pod corev1.Pod) string {
+	var problems []string
+	statuses := append(slices.Clone(pod.Status.InitContainerStatuses), pod.Status.ContainerStatuses...)
+	for _, status := range statuses {
+		if waiting := status.State.Waiting; waiting != nil {
+			problems = append(problems, fmt.Sprintf("%s is waiting (%s) %s", status.Name, waiting.Reason, waiting.Message))
+		}
+	}
+	events, err := suite.Env().KubernetesCluster.Client().CoreV1().Events(pod.Namespace).List(context.Background(), metav1.ListOptions{
+		FieldSelector: "involvedObject.name=" + pod.Name + ",type=Warning",
+	})
+	if err != nil {
+		problems = append(problems, "listing its events failed: "+err.Error())
+	} else {
+		for _, event := range events.Items {
+			problems = append(problems, event.Reason+": "+event.Message)
+		}
+	}
+	if len(problems) == 0 {
+		return "phase " + string(pod.Status.Phase)
+	}
+	return strings.Join(problems, "; ")
 }
 
 func (suite *azureFilesSuite) writerPod(c cell) corev1.Pod {

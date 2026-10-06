@@ -148,12 +148,18 @@ and in Kubernetes Secrets. None of it is a stack output, a Helm value or a
 conf.d value.
 
 - `azure-files-storage-<cell>` in the `azure-files-e2e` namespace holds the
-  account name and key. The CSI driver reads it for the CIFS mounts, the
-  writer's included.
-- For the `smb` cell, the storage pass also copies the key into a Secret of
-  the same name in the Agent namespace (`datadog`). A Secret volume can only
-  reference a Secret of its pod's namespace. The pass runs before the Agent is
-  installed, so the Secret exists when the Agent pod starts.
+  account name and key. The CSI driver reads it for the writer's CIFS mount.
+- The storage pass copies it into a Secret of the same name in the Agent
+  namespace (`datadog`). Both the Agent's CIFS mounts and the `smb` cell's
+  Secret volume need that copy:
+  - the CSI driver resolves an inline volume's Secret in the pod's own
+    namespace and ignores `secretNamespace`;
+  - a Secret volume can only reference a Secret of its pod's namespace.
+
+  The pass runs before the Agent is installed, so the copies exist when the
+  Agent pod starts. The suite waits for the Agent to be ready before it
+  checks any cell, and when it isn't ready, the failure gives the pod's
+  waiting containers and Warning events.
 
 The Agent pod mounts that copy at `/etc/azure-files-secrets/smb/` (mode 0400),
 and the SMB source names the file through the secret backend:

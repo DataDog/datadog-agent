@@ -52,6 +52,10 @@ func TestRunSpecBuildsEveryCell(t *testing.T) {
 	assert.NotContains(t, values, "rotation_handoff_mode")
 	assert.NotContains(t, values, "sequential_rotation_")
 	assert.NotContains(t, values, "open_flags")
+	// The CSI driver reads an inline volume's Secret from the Agent pod's
+	// namespace, where the storage pass copies it.
+	assert.Len(t, regexp.MustCompile(`(?m)^\s+secretNamespace: `+agentNamespace+`$`).FindAllStringIndex(values, -1), 3)
+	assert.NotContains(t, values, "secretNamespace: "+e2eNamespace)
 
 	for _, c := range spec.cells {
 		assert.Regexp(t, `^[a-z0-9]{3,24}$`, c.accountName)
