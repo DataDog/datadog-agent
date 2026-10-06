@@ -164,10 +164,15 @@ def decide(answers: dict, run_threshold: float = DEFAULT_RUN_THRESHOLD) -> dict:
     except (KeyError, TypeError) as e:
         raise ValueError(f"Jev answer is missing or malformed ({e!r}); answers: {json.dumps(answers)}") from e
     for field, value in (("should_execute", should), ("confidence", confidence)):
-        if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value) or not 0 <= value:
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int | float)
+            or not math.isfinite(value)
+            or not (0 <= value <= 1)
+        ):
             raise ValueError(
                 f"Jev returned an invalid {field} score: {value!r} "
-                f"(expected a finite number higher than 0); answers: {json.dumps(answers)}"
+                f"(expected a finite number between 0 and 1); answers: {json.dumps(answers)}"
             )
     if relation not in QUESTIONS["relation"]["criteria"]:
         raise ValueError(

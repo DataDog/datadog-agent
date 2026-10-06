@@ -22,6 +22,7 @@ from tasks.libs.dynamic_test.indexers.e2e import (
     FileCoverageDynTestIndexer,
     PackageCoverageDynTestIndexer,
 )
+from tasks.libs.dynamic_test.jev_replay import recent_pipeline_ids, replay_jev
 from tasks.libs.dynamic_test.jev_selection import (
     JOB_CANDIDATES_FILE,
     JevDynTestExecutor,
@@ -237,3 +238,39 @@ def generate_jev_job_index(ctx: Context, pipeline_id):
     data = {job: sorted(tests) for job, tests in sorted(candidates.items())}
     JOB_CANDIDATES_FILE.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     print(f"[jev] {len(data)} jobs -> {JOB_CANDIDATES_FILE}")
+
+
+@task(
+    help={
+        "pipeline-id": "Pipeline to replay (repeatable)",
+        "ref": "Also replay the most recent pipelines of this branch",
+        "limit": "How many pipelines to take from --ref",
+        "output": "Write the full replay results to this JSON file",
+    },
+    iterable=["pipeline_id"],
+)
+def replay_jev_evaluation(ctx: Context, pipeline_id, ref: str = "", limit: int = 10, output: str = ""):
+    """Replay the Jev evaluation over many pipelines.
+
+    Per pipeline: the same executor index as the live evaluation (GitLab
+    completed e2e jobs + the committed candidates file) and the shared
+    evaluation flow; the executed tests come from one pipeline-wide CI
+    Visibility query (30-day window - CI Visibility retention). The Jev
+    run-set is decided ONCE from the current checkout's PR context and
+    shared across all pipelines: replay pipelines of the same PR/branch as
+    the checkout, each pipeline that ran e2e jobs is one sample.
+
+    The comparison: executed tests with their pass/fail outcome against
+    Jev's predictions. A miss is a failing executed test Jev would have
+    skipped, counted per occurrence across pipelines. Aggregates and
+    per-pipeline results are printed; --output writes the full JSON.
+
+    Requires DD_API_KEY/DD_APP_KEY (org 2) and the GitLab task auth.
+    """
+    ids = list(pipeline_id or [])
+    if ref:
+        ids += recent_pipeline_ids(ref, limit)
+    ids = list(dict.fromkeys(ids))  # dedupe, keep order
+    if not ids:
+        raise Exit("Give --pipeline-id (repeatable) and/or --ref", code=1)
+    replay_jev(ctx, ids, output=output)
