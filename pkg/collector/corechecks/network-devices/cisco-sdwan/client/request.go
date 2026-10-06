@@ -17,7 +17,7 @@ import (
 
 // newRequest creates a new request for this client.
 func (client *Client) newRequest(method, uri string, body io.Reader) (*http.Request, error) {
-	return http.NewRequest(method, client.endpoint+uri, body)
+	return http.NewRequestWithContext(client.ctx, method, client.endpoint+uri, body)
 }
 
 // do exec a request with authentication
@@ -26,11 +26,6 @@ func (client *Client) do(req *http.Request) ([]byte, int, error) {
 	client.authenticationMutex.Lock()
 	req.Header.Add("X-XSRF-TOKEN", client.token)
 	client.authenticationMutex.Unlock()
-
-	err := client.waitForRateLimit()
-	if err != nil {
-		return nil, 0, err
-	}
 
 	log.Tracef("Executing cisco sd-wan api request %s %s", req.Method, req.URL.Path)
 	resp, err := client.httpClient.Do(req)
@@ -79,7 +74,16 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 			return nil, err
 		}
 
+		// Retrying would not help if the rate limiter wait failed or the check was cancelled
+		err = client.waitForRateLimit()
+		if err != nil {
+			return nil, err
+		}
+
 		bytes, statusCode, err = client.do(req)
+		if client.ctx.Err() != nil {
+			return nil, client.ctx.Err()
+		}
 
 		if err == nil && isValidStatusCode(statusCode) {
 			// Got a valid response, stop retrying

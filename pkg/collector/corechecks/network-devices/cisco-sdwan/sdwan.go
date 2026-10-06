@@ -7,6 +7,8 @@
 package ciscosdwan
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	"go.yaml.in/yaml/v3"
@@ -64,6 +66,9 @@ type CiscoSdwanCheck struct {
 	interval      time.Duration
 	config        checkCfg
 	metricsSender *report.SDWanSender
+	// ctx is cancelled when the check is stopped or unscheduled, to interrupt API requests
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // Run executes the check
@@ -251,13 +256,20 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 		c.interval = time.Second * time.Duration(c.config.MinCollectionInterval)
 	}
 
+	if c.config.MaxRequestsPerSecond < 0 {
+		return fmt.Errorf("max_requests_per_second must be positive, got %v", c.config.MaxRequestsPerSecond)
+	}
+	if c.config.MaxRequestsPerSecond > 0 && c.config.MaxRequestsPerSecond*c.interval.Seconds() < 1 {
+		return fmt.Errorf("max_requests_per_second must allow at least one request per check interval (%s), got %v", c.interval, c.config.MaxRequestsPerSecond)
+	}
+
 	c.metricsSender = report.NewSDWanSender(sender, c.config.Namespace)
 
 	return nil
 }
 
 func (c *CiscoSdwanCheck) buildClientOptions() ([]client.ClientOptions, error) {
-	var clientOptions []client.ClientOptions
+	clientOptions := []client.ClientOptions{client.WithContext(c.ctx)}
 
 	if c.config.Insecure || c.config.CAFile != "" {
 		options, err := client.WithTLSConfig(c.config.Insecure, c.config.CAFile)
@@ -290,7 +302,8 @@ func (c *CiscoSdwanCheck) buildClientOptions() ([]client.ClientOptions, error) {
 		if burst <= 0 {
 			burst = 1
 		}
-		clientOptions = append(clientOptions, client.WithRateLimit(c.config.MaxRequestsPerSecond, burst))
+		// A rate limiter wait must not outlast a check run
+		clientOptions = append(clientOptions, client.WithRateLimit(c.config.MaxRequestsPerSecond, burst, c.interval))
 	}
 
 	return clientOptions, nil
@@ -299,6 +312,16 @@ func (c *CiscoSdwanCheck) buildClientOptions() ([]client.ClientOptions, error) {
 // Interval returns the scheduling time for the check
 func (c *CiscoSdwanCheck) Interval() time.Duration {
 	return c.interval
+}
+
+// Stop interrupts the API requests of a running check
+func (c *CiscoSdwanCheck) Stop() {
+	c.cancel()
+}
+
+// Cancel interrupts the API requests of a running check when it is unscheduled
+func (c *CiscoSdwanCheck) Cancel() {
+	c.cancel()
 }
 
 // IsHASupported returns true if the check supports HA
@@ -316,8 +339,11 @@ func Factory() option.Option[func() check.Check] {
 }
 
 func newCheck() check.Check {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &CiscoSdwanCheck{
 		CheckBase: core.NewCheckBase(CheckName),
 		interval:  defaultCheckInterval,
+		ctx:       ctx,
+		cancel:    cancel,
 	}
 }

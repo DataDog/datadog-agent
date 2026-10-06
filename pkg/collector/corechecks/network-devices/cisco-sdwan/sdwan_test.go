@@ -440,3 +440,81 @@ collect_cloud_applications_metrics: false
 
 	sender.AssertNotCalled(t, "EventPlatformEvent", mock.Anything, mock.Anything)
 }
+
+func TestConfigureRateLimitValidation(t *testing.T) {
+	tests := []struct {
+		name          string
+		rate          string
+		expectedError string
+	}{
+		{name: "disabled", rate: "0"},
+		{name: "valid", rate: "0.5"},
+		{name: "one request per interval", rate: "0.0167"},
+		{name: "negative", rate: "-1", expectedError: "max_requests_per_second must be positive"},
+		{name: "less than one request per interval", rate: "0.001", expectedError: "at least one request per check interval"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := createDeps(t)
+			chk := newCheck()
+
+			// language=yaml
+			rawInstanceConfig := []byte(`
+vmanage_endpoint: localhost
+username: admin
+password: 'test-password'
+max_requests_per_second: ` + tt.rate + `
+`)
+
+			err := chk.Configure(deps.Demultiplexer, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
+			if tt.expectedError == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.expectedError)
+			}
+		})
+	}
+}
+
+func TestCancelInterruptsRateLimitedRun(t *testing.T) {
+	apiMockServer := client.SetupMockAPIServer()
+	defer apiMockServer.Close()
+
+	deps := createDeps(t)
+	chk := newCheck()
+	senderManager := deps.Demultiplexer
+
+	url := strings.TrimPrefix(apiMockServer.URL, "http://")
+
+	// One request per 50s: the second login request waits for a token until the check is cancelled
+	// language=yaml
+	rawInstanceConfig := []byte(`
+vmanage_endpoint: ` + url + `
+username: admin
+password: 'test-password'
+use_http: true
+max_requests_per_second: 0.02
+`)
+
+	id := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstanceConfig, []byte(``))
+	sender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
+	sender.SetupAcceptAll()
+
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	go func() {
+		chk.Run()
+		close(done)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+	chk.Cancel()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("check run was not interrupted by Cancel")
+	}
+}
