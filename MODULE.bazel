@@ -90,7 +90,7 @@ bazel_dep(name = "rules_go", version = "0.64.1")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
-bazel_dep(name = "rules_python", version = "2.3.4")
+bazel_dep(name = "rules_python", version = "2.4.0")
 bazel_dep(name = "rules_rs", version = "0.0.27")
 bazel_dep(name = "rules_rust", version = "0.74.0")
 bazel_dep(name = "rules_rust_prost", version = "0.74.0")
@@ -133,11 +133,16 @@ single_version_override(
     ],
 )
 
-# Temporary until https://github.com/bazel-contrib/rules_go/pull/3977 (or equivalent) lands
+# Temporary until the following PRs (or equivalents) land
 single_version_override(
     module_name = "rules_go",
     patch_strip = 1,
-    patches = ["//bazel/patches:rules_go-windows-symlink-workaround.patch"],
+    patches = [
+        # https://github.com/bazel-contrib/rules_go/pull/3977
+        "//bazel/patches:rules_go-windows-symlink-workaround.patch",
+        # https://github.com/bazel-contrib/rules_go/pull/4727
+        "//bazel/patches:rules_go-link-resource-set.patch",
+    ],
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR

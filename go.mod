@@ -36,7 +36,7 @@ require (
 	code.cloudfoundry.org/garden v0.5.0
 	code.cloudfoundry.org/lager/v3 v3.88.0
 	dario.cat/mergo v1.0.2
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.2
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.1
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.5.0
 	github.com/CycloneDX/cyclonedx-go v0.12.0
@@ -212,7 +212,7 @@ require (
 	github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7
 	github.com/DataDog/ebpf-manager v0.8.7
 	github.com/DataDog/go-acl v1.0.1
-	github.com/DataDog/go-sqllexer v0.2.4
+	github.com/DataDog/go-sqllexer v0.2.5
 	github.com/DataDog/jsonapi v0.13.0
 	github.com/DataDog/rshell v0.0.30
 	github.com/DataDog/sketches-go v1.4.8
@@ -232,10 +232,10 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.47.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.6
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.6
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.336.1
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.337.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.129.1
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.50.1
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.78.1
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.79.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.51.1
 	github.com/aws/karpenter-provider-aws v1.9.0
 	github.com/aymerick/raymond v2.0.2+incompatible
@@ -367,7 +367,7 @@ require (
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.3
-	github.com/prometheus/common v0.71.0
+	github.com/prometheus/common v0.72.0
 	github.com/prometheus/procfs v0.22.0
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/rabbitmq/amqp091-go v1.15.0
@@ -409,7 +409,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7
 	github.com/yusufpapurcu/wmi v1.2.4
-	gitlab.com/gitlab-org/api/client-go/v3 v3.14.0
+	gitlab.com/gitlab-org/api/client-go/v3 v3.15.0
 	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v2 v2.305.34
 	go.mongodb.org/mongo-driver/v2 v2.9.1
@@ -481,7 +481,7 @@ require (
 	golang.org/x/exp v0.0.0-20260813180055-c1d0aacb2297
 	golang.org/x/mod v0.41.0
 	golang.org/x/net v0.59.0
-	golang.org/x/oauth2 v0.36.0
+	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sync v0.23.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/term v0.46.0
@@ -608,7 +608,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.66.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.99.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/eks v1.101.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/eks v1.102.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/elasticache v1.54.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.4 // indirect
