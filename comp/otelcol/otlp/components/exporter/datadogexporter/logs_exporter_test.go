@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -33,6 +34,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -108,12 +111,13 @@ func (testHostname) GetWithProvider(context.Context) (hostnameinterface.Data, er
 }
 func (testHostname) GetSafe(context.Context) string { return "test-host" }
 
-// startTestLogsAgent starts the OTel logs agent pipeline that DDOT uses, pointed at intakeURL.
-func startTestLogsAgent(t *testing.T, intakeURL string) logsagentpipeline.LogsAgent {
+// testLogsAgentConfig returns the configuration of the OTel logs agent pipeline that DDOT uses,
+// pointed at intakeURL, with overrides applied.
+func testLogsAgentConfig(t *testing.T, intakeURL string, overrides map[string]interface{}) coreconfig.Component {
 	t.Helper()
 	u, err := url.Parse(intakeURL)
 	require.NoError(t, err)
-	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+	settings := map[string]interface{}{
 		"api_key":                       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		"logs_enabled":                  true,
 		"logs_config.force_use_http":    true,
@@ -121,7 +125,14 @@ func startTestLogsAgent(t *testing.T, intakeURL string) logsagentpipeline.LogsAg
 		"logs_config.logs_no_ssl":       true,
 		"logs_config.batch_wait":        1,
 		"logs_config.stop_grace_period": 1,
-	})
+	}
+	maps.Copy(settings, overrides)
+	return coreconfig.NewMockWithOverrides(t, settings)
+}
+
+// startTestLogsAgent starts the OTel logs agent pipeline that DDOT uses, configured by cfg.
+func startTestLogsAgent(t *testing.T, cfg coreconfig.Component) logsagentpipeline.LogsAgent {
+	t.Helper()
 	agent := logsagentpipelineimpl.NewLogsAgent(logsagentpipelineimpl.Dependencies{
 		Log:          logmock.New(t),
 		Config:       cfg,
@@ -212,7 +223,7 @@ func TestLogsExporter_AsyncPipeline_SwallowsIntakeErrors(t *testing.T) {
 		t.Run(strconv.Itoa(status), func(t *testing.T) {
 			setSyncSenderGate(t, false)
 			intake := newFakeLogsIntake(t, alwaysStatus(status))
-			exp, reader := newTestLogsExporter(t, startTestLogsAgent(t, intake.URL), noRetry())
+			exp, reader := newTestLogsExporter(t, startTestLogsAgent(t, testLogsAgentConfig(t, intake.URL, nil)), noRetry())
 
 			require.NoError(t, exp.ConsumeLogs(context.Background(), testLogs(10)))
 			require.Eventually(t, func() bool { return intake.payloads.Load() > 0 }, 10*time.Second, 10*time.Millisecond,
@@ -228,7 +239,7 @@ func TestLogsExporter_AsyncPipeline_SwallowsIntakeErrors(t *testing.T) {
 func TestLogsExporter_SyncSender_Delivers(t *testing.T) {
 	setSyncSenderGate(t, true)
 	intake := newFakeLogsIntake(t, alwaysStatus(http.StatusOK))
-	exp, reader := newTestLogsExporter(t, startTestLogsAgent(t, intake.URL), noRetry())
+	exp, reader := newTestLogsExporter(t, startTestLogsAgent(t, testLogsAgentConfig(t, intake.URL, nil)), noRetry())
 
 	require.NoError(t, exp.ConsumeLogs(context.Background(), testLogs(10)))
 
@@ -241,7 +252,7 @@ func TestLogsExporter_SyncSender_PermanentError(t *testing.T) {
 	setSyncSenderGate(t, true)
 	intake := newFakeLogsIntake(t, alwaysStatus(http.StatusForbidden))
 	// Retries stay enabled: a permanent error must be dropped without retrying.
-	exp, reader := newTestLogsExporter(t, startTestLogsAgent(t, intake.URL), fastRetry())
+	exp, reader := newTestLogsExporter(t, startTestLogsAgent(t, testLogsAgentConfig(t, intake.URL, nil)), fastRetry())
 
 	err := exp.ConsumeLogs(context.Background(), testLogs(10))
 
@@ -256,7 +267,7 @@ func TestLogsExporter_SyncSender_PermanentError(t *testing.T) {
 func TestLogsExporter_SyncSender_RetryableError(t *testing.T) {
 	setSyncSenderGate(t, true)
 	intake := newFakeLogsIntake(t, alwaysStatus(http.StatusServiceUnavailable))
-	exp, reader := newTestLogsExporter(t, startTestLogsAgent(t, intake.URL), noRetry())
+	exp, reader := newTestLogsExporter(t, startTestLogsAgent(t, testLogsAgentConfig(t, intake.URL, nil)), noRetry())
 
 	err := exp.ConsumeLogs(context.Background(), testLogs(10))
 
@@ -275,7 +286,7 @@ func TestLogsExporter_SyncSender_RetriesTransientErrors(t *testing.T) {
 		}
 		return http.StatusOK
 	})
-	exp, reader := newTestLogsExporter(t, startTestLogsAgent(t, intake.URL), fastRetry())
+	exp, reader := newTestLogsExporter(t, startTestLogsAgent(t, testLogsAgentConfig(t, intake.URL, nil)), fastRetry())
 
 	require.NoError(t, exp.ConsumeLogs(context.Background(), testLogs(10)))
 
@@ -283,4 +294,38 @@ func TestLogsExporter_SyncSender_RetriesTransientErrors(t *testing.T) {
 	assert.Equal(t, int64(10), intake.delivered.Load())
 	assert.Equal(t, int64(10), exporterCounter(t, reader, sentLogRecordsMetric))
 	assert.Zero(t, exporterCounter(t, reader, sendFailedLogRecordsMetric))
+}
+
+func TestLogsExporter_SyncSender_WarnsThatMultiRegionFailoverIsNotSupported(t *testing.T) {
+	setSyncSenderGate(t, true)
+	intake := newFakeLogsIntake(t, alwaysStatus(http.StatusOK))
+	for _, tt := range []struct {
+		mrfEnabled bool
+		warnings   int
+	}{
+		{mrfEnabled: false, warnings: 0},
+		{mrfEnabled: true, warnings: 1},
+	} {
+		t.Run(fmt.Sprintf("multi_region_failover.enabled=%t", tt.mrfEnabled), func(t *testing.T) {
+			core, logs := observer.New(zap.WarnLevel)
+			set := exportertest.NewNopSettings(Type)
+			set.Logger = zap.New(core)
+			coreCfg := testLogsAgentConfig(t, intake.URL, map[string]interface{}{
+				"multi_region_failover.enabled": tt.mrfEnabled,
+				"multi_region_failover.api_key": "cccccccccccccccccccccccccccccccc",
+				"multi_region_failover.dd_url":  intake.URL,
+			})
+			f := NewFactory(nil, nil, startTestLogsAgent(t, coreCfg), sourceProvider, nil, otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{}, coreCfg)
+			cfg := f.CreateDefaultConfig().(*datadogconfig.Config)
+			cfg.API.Key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+			cfg.HostMetadata.Enabled = false
+
+			exp, err := f.CreateLogs(context.Background(), set, cfg)
+			require.NoError(t, err)
+			require.NoError(t, exp.Start(context.Background(), componenttest.NewNopHost()))
+			require.NoError(t, exp.Shutdown(context.Background()))
+
+			assert.Equal(t, tt.warnings, logs.FilterMessageSnippet("multi_region_failover").Len())
+		})
+	}
 }

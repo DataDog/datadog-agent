@@ -84,7 +84,6 @@ func buildSyncSender(cfg pkgconfigmodel.Reader, hostname hostnameinterface.Compo
 		return http.NewBlockingDestination(endpoint, http.JSONContentType, cfg)
 	}
 
-	//AZH: TODO: log if MRF not supported
 	for _, endpoint := range endpoints.GetReliableEndpoints() {
 		if !endpoint.IsMRF {
 			s.reliable = append(s.reliable, newDestination(endpoint))

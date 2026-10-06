@@ -364,6 +364,9 @@ func (f *factory) createLogsExporter(
 			return nil, fmt.Errorf("failed to create the logs sync sender: %w", err)
 		}
 		if syncSender != nil {
+			if f.coreCfg != nil && f.coreCfg.GetBool("multi_region_failover.enabled") {
+				set.Logger.Warn("multi_region_failover is enabled but the " + logsagentexporter.SyncSenderGateID + " feature gate does not support it: logs are not sent to the failover region")
+			}
 			lf = logsagentexporter.NewFactoryWithSyncSender(syncSender, Type, f.gatewayUsage, f.store.DDOTGWUsage, f.reporter)
 			timeout = exporterhelper.TimeoutConfig{Timeout: cfg.ClientConfig.Timeout}
 			retry = cfg.BackOffConfig

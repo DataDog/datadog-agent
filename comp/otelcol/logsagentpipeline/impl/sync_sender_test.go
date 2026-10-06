@@ -238,6 +238,24 @@ func TestSyncSenderSendsToEveryReliableEndpoint(t *testing.T) {
 	assert.Equal(t, []string{"a"}, delivered)
 }
 
+func TestSyncSenderSkipsMultiRegionFailoverEndpoints(t *testing.T) {
+	main := newRecordingIntake(t, okStatus)
+	mrf := newRecordingIntake(t, okStatus)
+	s := newTestSyncSender(t, main.URL, map[string]interface{}{
+		"multi_region_failover.enabled":       true,
+		"multi_region_failover.failover_logs": true,
+		"multi_region_failover.api_key":       "cccccccccccccccccccccccccccccccc",
+		"multi_region_failover.dd_url":        mrf.URL,
+	})
+
+	assert.Equal(t, []error{nil}, s.Send(context.Background(), testMessages("a")))
+
+	_, delivered := main.stats()
+	assert.Equal(t, []string{"a"}, delivered)
+	payloads, _ := mrf.stats()
+	assert.Zero(t, payloads, "Multi-Region Failover endpoints are not supported and must not receive logs")
+}
+
 func TestAgentIsASyncSenderFactory(t *testing.T) {
 	intake := newRecordingIntake(t, okStatus)
 	u, err := url.Parse(intake.URL)
