@@ -329,3 +329,20 @@ func TestLogsExporter_SyncSender_WarnsThatMultiRegionFailoverIsNotSupported(t *t
 		})
 	}
 }
+
+func TestLogsSenderConcurrency(t *testing.T) {
+	assert.Equal(t, defaultLogsPipelines*logsSendersPerPipeline, (&factory{}).logsSenderConcurrency(), "without a core config")
+	for _, tt := range []struct {
+		name      string
+		overrides map[string]interface{}
+		want      int
+	}{
+		{name: "default concurrency per pipeline", overrides: map[string]interface{}{"logs_config.pipelines": 4}, want: 40},
+		{name: "batch_max_concurrent_send", overrides: map[string]interface{}{"logs_config.pipelines": 4, "logs_config.batch_max_concurrent_send": 1}, want: 4},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &factory{coreCfg: coreconfig.NewMockWithOverrides(t, tt.overrides)}
+			assert.Equal(t, tt.want, f.logsSenderConcurrency())
+		})
+	}
+}

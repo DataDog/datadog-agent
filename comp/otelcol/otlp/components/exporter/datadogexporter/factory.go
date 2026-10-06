@@ -434,10 +434,14 @@ func (f *factory) newLogsSyncSender() (logsagentpipeline.SyncSender, error) {
 // which the sync sender inherits through the sending queue consumers.
 func (f *factory) logsSenderConcurrency() int {
 	pipelines := defaultLogsPipelines
+	perPipeline := logsSendersPerPipeline
 	if f.coreCfg != nil {
 		pipelines = max(1, f.coreCfg.GetInt("logs_config.pipelines"))
+		if configured := f.coreCfg.GetInt("logs_config.batch_max_concurrent_send"); configured > 0 {
+			perPipeline = configured
+		}
 	}
-	return pipelines * logsSendersPerPipeline
+	return pipelines * perPipeline
 }
 
 // logsBatchSize returns the maximum number of log records in an intake payload.
