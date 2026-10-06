@@ -201,6 +201,9 @@ func characterizationPayloadFamily(content []byte) string {
 	if len(sample) == 0 {
 		return "empty"
 	}
+	if characterizationIsSyslog5424(sample) {
+		return "syslog5424"
+	}
 	switch sample[0] {
 	case '{':
 		if bytes.Contains(sample, datadogSourceKey) && bytes.Contains(sample, messageKey) {
@@ -214,6 +217,28 @@ func characterizationPayloadFamily(content []byte) string {
 		return "apache_common"
 	}
 	return "plain"
+}
+
+func characterizationIsSyslog5424(sample []byte) bool {
+	if len(sample) < 6 || sample[0] != 60 {
+		return false
+	}
+	closing := 1
+	for closing < len(sample) && closing <= 3 && sample[closing] >= 48 && sample[closing] <= 57 {
+		closing++
+	}
+	if closing == 1 || closing >= len(sample) || sample[closing] != 62 {
+		return false
+	}
+	priority, err := strconv.Atoi(string(sample[1:closing]))
+	if err != nil || priority > 191 {
+		return false
+	}
+	version := closing + 1
+	return version+1 < len(sample) &&
+		sample[version] >= 49 &&
+		sample[version] <= 51 &&
+		sample[version+1] == 32
 }
 
 func characterizationSourceType(msg *message.Message) string {

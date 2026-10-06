@@ -127,7 +127,10 @@ func TestCharacterizationPayloadFamilyIsAllowlistedAndScanBounded(t *testing.T) 
 		` {"id": 1}`:                             "json",
 		`[{"id": 1}]`:                            "json",
 		`{"message":"hello","ddsource":"nginx"}`: "datadog_json",
-		`127.0.0.1 - - [date] "GET / HTTP/1.1" 200 1`: "apache_common",
+		`127.0.0.1 - - [date] "GET / HTTP/1.1" 200 1`:            "apache_common",
+		`<34>1 2024-01-01T00:00:00Z host app 123 ID1 - message`:  "syslog5424",
+		`<191>3 2024-01-01T00:00:00Z host app 123 ID1 - message`: "syslog5424",
+		`<999>1 invalid priority`:                                "plain",
 	}
 	for content, expected := range tests {
 		require.Equal(t, expected, characterizationPayloadFamily([]byte(content)))
