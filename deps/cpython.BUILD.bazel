@@ -2,7 +2,7 @@ load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper"
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@@//bazel/rules/foreign_cc_runnable:foreign_cc_runnable.bzl", "foreign_cc_runnable")
-load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MODULE_SRCS", "NATIVE_PLATFORMS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS", "SHARED_MODULES", "sysconfig_vars")
+load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MODULE_SRCS", "NATIVE_PLATFORMS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS", "SHARED_MODULES", "WINDOWS_BUILTIN_MODULE_SRCS", "WINDOWS_CORE_SRCS", "sysconfig_vars")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
@@ -553,7 +553,14 @@ pkg_install(
     }),
 )
 
-NATIVE_COPTS = [
+NATIVE_WINDOWS = "@@//:windows_x86_64"
+
+NATIVE_UNIX = select({
+    NATIVE_WINDOWS: ["@platforms//:incompatible"],
+    "//conditions:default": [],
+})
+
+NATIVE_LINUX_COPTS = [
     "-fno-strict-overflow",
     "-Wsign-compare",
     "-fwrapv",
@@ -567,10 +574,42 @@ NATIVE_COPTS = [
     "-fvisibility=hidden",
 ]
 
+NATIVE_WINDOWS_COPTS = [
+    "/utf-8",
+    "-Wno-deprecated-non-prototype",
+    "-Wno-unused-label",
+    "-Wno-pointer-sign",
+    "-Wno-incompatible-pointer-types-discards-qualifiers",
+    "-Wno-unused-function",
+    "-Wno-incompatible-pointer-types",
+]
+
+NATIVE_COPTS = select({
+    NATIVE_WINDOWS: NATIVE_WINDOWS_COPTS,
+    "//conditions:default": NATIVE_LINUX_COPTS,
+})
+
+NATIVE_WINDOWS_DEFINES = [
+    "WIN32",
+    "_WIN64",
+    "_Py_HAVE_ZLIB",
+    "PY3_DLLNAME=L\\\"python3\\\"",
+    "Py_ENABLE_SHARED",
+    "Py_BUILD_CORE",
+    "Py_BUILD_CORE_BUILTIN",
+    "_USRDLL",
+    "MS_DLL_ID=\\\"{}\\\"".format(PYTHON_MAJOR_MINOR),
+]
+
 NATIVE_CORE_DEFINES = [
     "NDEBUG",
     "Py_BUILD_CORE",
-]
+] + select({
+    NATIVE_WINDOWS: NATIVE_WINDOWS_DEFINES,
+    "//conditions:default": [],
+})
+
+NATIVE_WINDOWS_VPATH = "VPATH=\\\"..\\\\\\\\..\\\""
 
 copy_file(
     name = "native_pyconfig_h",
@@ -578,6 +617,7 @@ copy_file(
         condition: platform["pyconfig"]
         for condition, platform in NATIVE_PLATFORMS.items()
     } | {
+        NATIVE_WINDOWS: "PC/pyconfig.h.in",
         "//conditions:default": "@platforms//:incompatible",
     }),
     out = "pyconfig.h",
@@ -600,7 +640,10 @@ cc_library(
         "Include/internal/mimalloc",
         "Objects",
         "Python",
-    ],
+    ] + select({
+        NATIVE_WINDOWS: ["PC"],
+        "//conditions:default": [],
+    }),
     textual_hdrs = glob([
         "Modules/**/*.h",
         "Objects/**/*.h",
@@ -608,10 +651,26 @@ cc_library(
         "Objects/mimalloc/**/*.c",
         "Modules/_blake2/impl/*.c",
         "Modules/_ssl/*.c",
+        "PC/**/*.h",
         "Parser/**/*.h",
         "Python/**/*.h",
     ]),
     deps = [":native_headers"],
+)
+
+genrule(
+    name = "native_msvc_crtversion_h",
+    srcs = ["@llvm//runtimes/msvc:msvc_include"],
+    outs = ["msvc_include/crtversion.h"],
+    cmd = "for f in $(execpaths @llvm//runtimes/msvc:msvc_include); do case $$f in */crtversion.h) cp $$f $@;; esac; done",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+cc_library(
+    name = "native_msvc_extra_headers",
+    hdrs = [":native_msvc_crtversion_h"],
+    includes = ["msvc_include"],
+    target_compatible_with = ["@platforms//os:windows"],
 )
 
 expand_template(
@@ -632,30 +691,58 @@ expand_template(
 
 cc_library(
     name = "native_builtin_modules",
-    srcs = [src for srcs in BUILTIN_MODULES.values() for src in srcs],
+    srcs = select({
+        NATIVE_WINDOWS: WINDOWS_BUILTIN_MODULE_SRCS,
+        "//conditions:default": [src for srcs in BUILTIN_MODULES.values() for src in srcs],
+    }),
     copts = NATIVE_COPTS,
     local_defines = [
         "NDEBUG",
         "Py_BUILD_CORE_BUILTIN",
-    ],
-    deps = [":native_internal_headers"],
+    ] + select({
+        NATIVE_WINDOWS: NATIVE_WINDOWS_DEFINES + ["USE_ZLIB_CRC32"],
+        "//conditions:default": [],
+    }),
+    deps = [":native_internal_headers"] + select({
+        NATIVE_WINDOWS: [
+            ":native_hacl_headers",
+            ":native_msvc_extra_headers",
+            "@zlib",
+        ],
+        "//conditions:default": [],
+    }),
     alwayslink = True,
 )
 
 cc_library(
     name = "native_core",
-    srcs = PARSER_SRCS + OBJECT_SRCS + PYTHON_SRCS + MODULE_SRCS + [
-        "Python/asm_trampoline.S",
-        ":native_config_c",
-    ],
+    srcs = PARSER_SRCS + OBJECT_SRCS + MODULE_SRCS + select({
+        NATIVE_WINDOWS: [src for src in PYTHON_SRCS if src != "Python/frozenmain.c"] + WINDOWS_CORE_SRCS,
+        "//conditions:default": PYTHON_SRCS + [
+            "Python/asm_trampoline.S",
+            ":native_config_c",
+        ],
+    }),
     copts = NATIVE_COPTS,
-    linkopts = [
-        "-ldl",
-        "-lutil",
-        "-lm",
-        "-lpthread",
-        "-lrt",
-    ],
+    linkopts = select({
+        NATIVE_WINDOWS: [
+            "advapi32.lib",
+            "bcrypt.lib",
+            "ole32.lib",
+            "oleaut32.lib",
+            "pathcch.lib",
+            "shell32.lib",
+            "version.lib",
+            "ws2_32.lib",
+        ],
+        "//conditions:default": [
+            "-ldl",
+            "-lutil",
+            "-lm",
+            "-lpthread",
+            "-lrt",
+        ],
+    }),
     local_defines = NATIVE_CORE_DEFINES,
     deps = [
         ":native_builtin_modules",
@@ -669,19 +756,21 @@ cc_library(
     name = "native_core_with_defines",
     srcs = [
         "Modules/getbuildinfo.c",
-        "Python/dynload_shlib.c",
         "Python/getplatform.c",
         "Python/sysmodule.c",
-    ],
+    ] + select({
+        NATIVE_WINDOWS: ["Python/dynload_win.c"],
+        "//conditions:default": ["Python/dynload_shlib.c"],
+    }),
     copts = NATIVE_COPTS,
     local_defines = NATIVE_CORE_DEFINES + [
-        "ABIFLAGS=\\\"\\\"",
         "GITBRANCH=\\\"\\\"",
         "GITTAG=\\\"\\\"",
         "GITVERSION=\\\"\\\"",
-        "PLATFORM=\\\"linux\\\"",
     ] + select({
         condition: [
+            "ABIFLAGS=\\\"\\\"",
+            "PLATFORM=\\\"linux\\\"",
             "MULTIARCH=\\\"{}\\\"".format(platform["multiarch"]),
             "SOABI=\\\"cpython-{}-{}\\\"".format(
                 PYTHON_MAJOR_MINOR_FLAT,
@@ -689,6 +778,8 @@ cc_library(
             ),
         ]
         for condition, platform in NATIVE_PLATFORMS.items()
+    } | {
+        NATIVE_WINDOWS: [NATIVE_WINDOWS_VPATH],
     }),
     deps = [":native_internal_headers"],
     alwayslink = True,
@@ -728,15 +819,25 @@ cc_library(
     name = "native_getpath",
     srcs = ["Modules/getpath.c"],
     copts = NATIVE_COPTS,
-    local_defines = NATIVE_CORE_DEFINES + [
-        "PREFIX=\\\"$(INSTALL_DIR)/embedded\\\"",
-        "EXEC_PREFIX=\\\"$(INSTALL_DIR)/embedded\\\"",
-        "PYTHONPATH=\\\"\\\"",
-        "VERSION=\\\"{}\\\"".format(PYTHON_MAJOR_MINOR),
-        "VPATH=\\\"\\\"",
-        "PLATLIBDIR=\\\"lib\\\"",
-        "PYTHONFRAMEWORK=\\\"\\\"",
-    ],
+    local_defines = NATIVE_CORE_DEFINES + select({
+        NATIVE_WINDOWS: [
+            "PREFIX=NULL",
+            "EXEC_PREFIX=NULL",
+            "VERSION=NULL",
+            NATIVE_WINDOWS_VPATH,
+            "PYDEBUGEXT=\\\"\\\"",
+            "PLATLIBDIR=\\\"DLLs\\\"",
+        ],
+        "//conditions:default": [
+            "PREFIX=\\\"$(INSTALL_DIR)/embedded\\\"",
+            "EXEC_PREFIX=\\\"$(INSTALL_DIR)/embedded\\\"",
+            "PYTHONPATH=\\\"\\\"",
+            "VERSION=\\\"{}\\\"".format(PYTHON_MAJOR_MINOR),
+            "VPATH=\\\"\\\"",
+            "PLATLIBDIR=\\\"lib\\\"",
+            "PYTHONFRAMEWORK=\\\"\\\"",
+        ],
+    }),
     textual_hdrs = [":native_frozen_getpath"],
     toolchains = ["@@//:install_dir"],
     deps = [":native_internal_headers"],
@@ -755,8 +856,14 @@ cc_library(
 
 cc_shared_library(
     name = "native_libpython",
-    shared_lib_name = LINUX_SO,
-    user_link_flags = ["-Wl,-soname," + LINUX_SO],
+    shared_lib_name = select({
+        NATIVE_WINDOWS: "python{}.dll".format(PYTHON_MAJOR_MINOR_FLAT),
+        "//conditions:default": LINUX_SO,
+    }),
+    user_link_flags = select({
+        NATIVE_WINDOWS: [],
+        "//conditions:default": ["-Wl,-soname," + LINUX_SO],
+    }),
     deps = [
         ":native_core",
         ":native_frozen",
@@ -769,10 +876,13 @@ cc_binary(
     srcs = ["Programs/python.c"],
     copts = NATIVE_COPTS,
     dynamic_deps = [":native_libpython"],
-    linkopts = [
-        "-Wl,--export-dynamic",
-        "-Wl,-rpath,$$ORIGIN/../lib",
-    ],
+    linkopts = select({
+        NATIVE_WINDOWS: [],
+        "//conditions:default": [
+            "-Wl,--export-dynamic",
+            "-Wl,-rpath,$$ORIGIN/../lib",
+        ],
+    }),
     local_defines = NATIVE_CORE_DEFINES,
     deps = [":native_headers"],
 )
@@ -852,6 +962,7 @@ cc_library(
         copts = NATIVE_COPTS,
         linkopts = module.get("linkopts", []),
         local_defines = ["NDEBUG"] + module.get("defines", []),
+        target_compatible_with = NATIVE_UNIX,
         deps = [":native_internal_headers"] + module.get("deps", []),
     )
     for name, module in SHARED_MODULES.items()
@@ -865,6 +976,7 @@ cc_library(
             condition: name + NATIVE_EXT_SUFFIXES[condition]
             for condition, platform in NATIVE_PLATFORMS.items()
         }),
+        target_compatible_with = NATIVE_UNIX,
         deps = [":native_module_{}_lib".format(name)],
     )
     for name, module in SHARED_MODULES.items()
@@ -885,6 +997,7 @@ write_file(
         ))]
         for condition, platform in NATIVE_PLATFORMS.items()
     }),
+    target_compatible_with = NATIVE_UNIX,
 )
 
 genrule(
@@ -965,4 +1078,5 @@ sh_test(
         "MODULES": " ".join(SHARED_MODULES.keys() + BUILTIN_MODULES.keys()),
         "PYTHON_MAJOR_MINOR": PYTHON_MAJOR_MINOR,
     },
+    target_compatible_with = NATIVE_UNIX,
 )
