@@ -111,6 +111,17 @@ class JevDynTestExecutorTests(unittest.TestCase):
 
 
 class JevDynTestEvaluatorTests(unittest.TestCase):
+    @staticmethod
+    def _event(name, job, job_id, status="pass", flaky=False):
+        return {
+            "attributes": {
+                "attributes": {
+                    "test": {"name": name, "status": status, "agent_is_flaky_failure": flaky},
+                    "ci": {"job": {"id": job_id, "name": job}, "pipeline": {"id": "42"}},
+                }
+            }
+        }
+
     def _evaluator(self, executor, job="job"):
         evaluator = JevDynTestEvaluator(MagicMock(), IndexKind.JEV, executor, "42", telemetry_handler=MagicMock())
         evaluator.job_ids = {job: "7"}
@@ -128,7 +139,7 @@ class JevDynTestEvaluatorTests(unittest.TestCase):
             ExecutedTest("TestNotAnEntryPoint", "fail", "42", "7", "job", False),
         ]
         evaluator = self._evaluator(executor)
-        with patch.object(evaluator, "list_tests_for_job", side_effect=[tests, []]):
+        with patch.object(evaluator, "list_tests_per_job", return_value={"job": tests}):
             results = evaluator.evaluate([])
         self.assertEqual(len(results), 1)  # the job with no executions is dropped
         result = results[0]
@@ -148,10 +159,39 @@ class JevDynTestEvaluatorTests(unittest.TestCase):
         executor = MagicMock(spec=JevDynTestExecutor)
         executor.jobs = ["job"]
         evaluator = self._evaluator(executor)
-        with patch.object(evaluator, "list_tests_for_job", return_value=[]):
+        with patch.object(evaluator, "list_tests_per_job", return_value={}):
             self.assertEqual(evaluator.evaluate([]), [])
         executor.jev_run.assert_not_called()
         executor.entry_points.assert_not_called()
+
+    @patch(f"{MODULE}.get_ci_test_events")
+    def test_list_tests_per_job_groups_by_job_and_keeps_latest_attempts(self, events):
+        """One pipeline-wide query; the events carry their job."""
+        events.return_value = [
+            self._event("TestA", "job-a", "7"),
+            self._event("TestA", "job-a", "6"),  # older attempt of job-a: dropped
+            self._event("TestB", "job-b", "8", status="fail", flaky=True),
+            self._event("TestRoot/Sub", "job-a", "7"),  # subtest: dropped
+            self._event("TestSkipped", "job-a", "7", status="skip"),  # not executed: dropped
+            self._event("TestC", "other-job", "99"),  # not a latest e2e job: dropped
+        ]
+        executor = MagicMock(spec=JevDynTestExecutor)
+        evaluator = JevDynTestEvaluator(MagicMock(), IndexKind.JEV, executor, "42", telemetry_handler=MagicMock())
+        evaluator.job_ids = {"job-a": "7", "job-b": "8"}
+        evaluator.unreliable_jobs = {"job-b"}
+        grouped = evaluator.list_tests_per_job()
+        self.assertEqual(
+            {job: [t.name for t in ts] for job, ts in grouped.items()}, {"job-a": ["TestA"], "job-b": ["TestB"]}
+        )
+        # the query is pipeline-wide: no per-job scoping, no job-name escaping
+        query, days = events.call_args.args
+        self.assertIn("@ci.pipeline.id:42", query)
+        self.assertNotIn("@ci.job.name:", query)
+        self.assertEqual(days, evaluator.lookback_days)
+        # flaky and allow-failure markings survive the bulk path
+        job_b = grouped["job-b"][0]
+        self.assertEqual(job_b.status, "fail")
+        self.assertTrue(job_b.unreliable_status)
 
 
 if __name__ == "__main__":

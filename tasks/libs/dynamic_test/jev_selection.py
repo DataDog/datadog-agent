@@ -17,7 +17,8 @@ import time
 from pathlib import Path
 
 from tasks.libs.ciproviders.gitlab_api import get_pipeline
-from tasks.libs.dynamic_test.evaluator import DatadogDynTestEvaluator, EvaluationResult
+from tasks.libs.common.datadog_api import get_ci_test_events
+from tasks.libs.dynamic_test.evaluator import DatadogDynTestEvaluator, EvaluationResult, ExecutedTest
 from tasks.libs.dynamic_test.executor import DynTestExecutor
 from tasks.libs.dynamic_test.index import IndexKind
 from tasks.libs.dynamic_test.jev.jev_e2e_selector import select_suite
@@ -171,21 +172,29 @@ class JevDynTestExecutor(DynTestExecutor):
 class JevDynTestEvaluator(DatadogDynTestEvaluator):
     """Evaluates the Jev selection with executed tests as the per-job universe."""
 
+    def list_tests_per_job(self) -> dict[str, list[ExecutedTest]]:
+        """Executed tests grouped by job, from ONE pipeline-wide CI Visibility query.
+
+        The events carry their job, so the job-to-test mapping needs no
+        reconstruction. Only the latest attempts of the pipeline's completed
+        e2e jobs are kept (older retries and canceled or non-e2e jobs are
+        dropped by job id).
+        """
+        query = f"env:{self.test_env} @ci.pipeline.name:DataDog/datadog-agent @ci.pipeline.id:{self.pipeline_id}"
+        tests = self._parse_test_events(get_ci_test_events(query, self.lookback_days))
+        latest = set(self.job_ids.values())
+        grouped: dict[str, list[ExecutedTest]] = {}
+        for test in tests:
+            if test.job_id is not None and str(test.job_id) in latest:
+                grouped.setdefault(test.job_name, []).append(test)
+        return grouped
+
     def evaluate(self, changes: list[str]) -> list[EvaluationResult]:
         # changes are ignored: the Jev selector gathers its own PR context.
         executor: JevDynTestExecutor = self.executor  # type: ignore[assignment]
-        total = len(executor.jobs)
-        print(f"[jev] querying executed tests for {total} jobs (CI Visibility, {self.lookback_days}d lookback)")
+        print(f"[jev] querying executed tests (CI Visibility, {self.lookback_days}d lookback, one pipeline-wide query)")
         started = time.monotonic()
-        executed_per_job: dict[str, list] = {}
-        for done, job in enumerate(executor.jobs, 1):
-            if tests := self.list_tests_for_job(job):
-                executed_per_job[job] = tests
-            if done % 25 == 0 or done == total:
-                print(
-                    f"[jev] {done}/{total} jobs queried, {sum(map(len, executed_per_job.values()))} tests found, "
-                    f"{time.monotonic() - started:.0f}s elapsed"
-                )
+        executed_per_job = self.list_tests_per_job()
         if not executed_per_job:
             return []
         if empty := sorted(set(executor.jobs) - executed_per_job.keys()):
@@ -197,7 +206,10 @@ class JevDynTestEvaluator(DatadogDynTestEvaluator):
                 f"[jev] {len(unknown)} executed tests are not filetree entry points (not decidable): {sorted(unknown)}"
             )
         decidable = names & universe
-        print(f"[jev] {len(executed_per_job)} jobs executed tests; deciding {len(decidable)} of them with Jev")
+        print(
+            f"[jev] {len(executed_per_job)} jobs executed {len(names)} tests in "
+            f"{time.monotonic() - started:.0f}s; deciding {len(decidable)} of them with Jev"
+        )
         run = executor.jev_run(decidable) if decidable else set()
         return [
             self._evaluate_job(job, tests, run, indexed_tests=universe & {test.name for test in tests})

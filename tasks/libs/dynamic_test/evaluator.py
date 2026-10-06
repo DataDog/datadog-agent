@@ -432,6 +432,42 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
         self.job_ids = job_ids if job_ids is not None else {}
         self.unreliable_jobs = unreliable_jobs if unreliable_jobs is not None else set()
 
+    def _parse_test_events(self, events: list) -> list[ExecutedTest]:
+        """Executed tests from CI Visibility events: root tests, pass/fail only.
+
+        Flaky failures and tests from allow-failure jobs are marked unreliable.
+        The job comes from the event itself, so this works for both per-job
+        queries and a pipeline-wide bulk query.
+        """
+        tests: list[ExecutedTest] = []
+        for item in events:
+            attrs = item.get("attributes", {}).get("attributes", {})
+            test_attrs = attrs.get("test", {})
+            ci_attrs = attrs.get("ci", {})
+            job_attrs = ci_attrs.get("job", {})
+            # Only consider root tests, not sub-tests
+            if (
+                not test_attrs.get("name")
+                or "/" in test_attrs["name"]
+                or test_attrs.get("status") not in {"pass", "fail"}
+            ):
+                continue
+
+            tests.append(
+                ExecutedTest(
+                    name=test_attrs["name"],
+                    status=test_attrs["status"],
+                    pipeline_id=ci_attrs.get("pipeline", {}).get("id"),
+                    job_id=job_attrs.get("id"),
+                    job_name=job_attrs.get("name"),
+                    unreliable_status=(
+                        job_attrs.get("name") in self.unreliable_jobs
+                        or str(test_attrs.get("agent_is_flaky_failure", False)).lower() == "true"
+                    ),
+                )
+            )
+        return tests
+
     def list_tests_for_job(self, job_name: str) -> list[ExecutedTest]:
         """Retrieve tests executed in a specific job using Datadog CI API.
 
@@ -458,35 +494,4 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
         )
         if job_id := self.job_ids.get(job_name):
             query += f" @ci.job.id:{job_id}"
-        events = get_ci_test_events(query, self.lookback_days)
-
-        tests: list[ExecutedTest] = []
-        for item in events:
-            attrs = item.get("attributes", {})
-            attrs = attrs.get("attributes", {})
-            test_attrs = attrs.get("test", {})
-            ci_attrs = attrs.get("ci", {})
-            job_attrs = ci_attrs.get("job", {})
-            pipeline_attrs = ci_attrs.get("pipeline", {})
-            # Only consider root tests, not sub-tests
-            if (
-                not test_attrs.get("name")
-                or "/" in test_attrs["name"]
-                or test_attrs.get("status") not in {"pass", "fail"}
-            ):
-                continue
-
-            tests.append(
-                ExecutedTest(
-                    name=test_attrs.get("name"),
-                    status=test_attrs.get("status"),
-                    pipeline_id=pipeline_attrs.get("id"),
-                    job_id=job_attrs.get("id"),
-                    job_name=job_attrs.get("name"),
-                    unreliable_status=(
-                        job_name in self.unreliable_jobs
-                        or str(test_attrs.get("agent_is_flaky_failure", False)).lower() == "true"
-                    ),
-                )
-            )
-        return tests
+        return self._parse_test_events(get_ci_test_events(query, self.lookback_days))

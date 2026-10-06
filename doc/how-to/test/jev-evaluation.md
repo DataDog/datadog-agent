@@ -63,9 +63,11 @@ This preview can still read GitHub/DDCI PR metadata when configured.
   each job's universe is the tests that actually executed in it (CI
   Visibility). Cleanup/unit-test jobs without executions are not evaluated;
   executed tests that are not filetree entry points are not decidable.
-- `JevDynTestEvaluator` shares the executed-test queries, flaky/allow-failure
-  handling, miss logic and telemetry with the coverage evaluation. The
-  `index_kind:jev` tag identifies Jev metrics.
+- `JevDynTestEvaluator` fetches the executed tests with ONE pipeline-wide
+  CI Visibility query (the events carry their job, older attempts of retried
+  jobs are dropped by job id) and shares the flaky/allow-failure handling,
+  miss logic and telemetry with the coverage evaluation. The `index_kind:jev`
+  tag identifies Jev metrics.
 - Only explicit, valid Jev skip decisions remove tests. Transport, authentication,
   timeout or parsing failures run the affected tests. Duplicate bare test names
   run conservatively if any occurrence should run.
