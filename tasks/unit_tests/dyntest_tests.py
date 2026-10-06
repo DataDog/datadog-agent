@@ -23,6 +23,9 @@ class EvaluateIndexTests(unittest.TestCase):
         evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False)
         s3.assert_not_called()
         self.assertEqual(executor.call_args.args[1:], ("abc", "42"))
+        self.assertTrue(executor.call_args.kwargs["require_pipeline_commit"])
+        evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False, ignore_sha_mismatch=True)
+        self.assertFalse(executor.call_args.kwargs["require_pipeline_commit"])
         options = evaluator.call_args.kwargs
         self.assertEqual(options["test_env"], "nativetest")
         self.assertIs(options["job_ids"], executor.return_value.job_ids)

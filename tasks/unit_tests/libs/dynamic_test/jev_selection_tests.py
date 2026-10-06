@@ -53,6 +53,19 @@ class JevDynTestExecutorTests(unittest.TestCase):
             executor.init_index()
 
     @patch(f"{MODULE}.get_pipeline")
+    def test_sha_mismatch_can_be_allowed_explicitly(self, get_pipeline):
+        """--ignore-sha-mismatch: decide from the current checkout's context instead of failing."""
+        pipeline = get_pipeline.return_value
+        pipeline.sha = "b" * 40  # differs from the checkout SHA
+        pipeline.jobs.list.side_effect = [
+            iter([SimpleNamespace(name="new-e2e-fleet", id=1, allow_failure=False)]),
+            iter([]),
+        ]
+        executor = JevDynTestExecutor(MagicMock(), SHA, "42", require_pipeline_commit=False)
+        executor.init_index()
+        self.assertEqual(executor.jobs, ["new-e2e-fleet"])
+
+    @patch(f"{MODULE}.get_pipeline")
     def test_jobs_are_scoped_statuses_paginated_and_recorded(self, get_pipeline):
         pipeline = get_pipeline.return_value
         pipeline.sha = SHA

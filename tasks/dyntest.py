@@ -85,6 +85,7 @@ def consolidate_index_in_s3(_: Context, bucket_uri: str, commit_sha: str):
         "test-env": "CI Visibility environment (defaults to nativetest for Jev, prod for coverage)",
         "lookback-days": "CI Visibility query window in days",
         "send-stats": "Publish evaluation telemetry; use --no-send-stats for local trials",
+        "ignore-sha-mismatch": "Evaluate a pipeline whose commit differs from the checkout: the Jev decisions are computed from the current checkout's PR context instead of the pipeline's (local experiments; the mismatch is always an error in CI)",
     }
 )
 def evaluate_index(
@@ -96,6 +97,7 @@ def evaluate_index(
     test_env: str = "",
     lookback_days: int = 3,
     send_stats: bool = True,
+    ignore_sha_mismatch: bool = False,
 ):
     """Compare a selector's predictions with executed tests using the shared evaluator.
 
@@ -121,7 +123,7 @@ def evaluate_index(
     if selector == "jev":
         if commit_sha != head:
             raise Exit("For Jev, check out the pipeline commit and pass its full SHA (or omit --commit-sha)", code=1)
-        executor = JevDynTestExecutor(ctx, commit_sha, pipeline_id)
+        executor = JevDynTestExecutor(ctx, commit_sha, pipeline_id, require_pipeline_commit=not ignore_sha_mismatch)
         executors = [executor]
         options.update(job_ids=executor.job_ids, unreliable_jobs=executor.unreliable_jobs)
         changes = []  # Jev gathers the richer PR diff/context from this checkout.

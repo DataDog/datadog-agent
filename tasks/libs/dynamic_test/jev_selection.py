@@ -13,6 +13,7 @@ conservatively.
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 from tasks.libs.ciproviders.gitlab_api import get_pipeline
@@ -100,9 +101,13 @@ class JevDynTestExecutor(DynTestExecutor):
       selector gathers its own PR context from this checkout
     """
 
-    def __init__(self, ctx, commit_sha: str, pipeline_id: str):
+    def __init__(self, ctx, commit_sha: str, pipeline_id: str, require_pipeline_commit: bool = True):
         super().__init__(ctx, None, IndexKind.JEV, commit_sha)
         self.pipeline_id = pipeline_id
+        # False (local experiments, --ignore-sha-mismatch): allow evaluating a
+        # pipeline whose commit differs from the checkout - the Jev decisions
+        # are then computed from the current checkout's PR context.
+        self.require_pipeline_commit = require_pipeline_commit
         self.jobs: list[str] = []
         self.job_ids: dict[str, str] = {}
         self.unreliable_jobs: set[str] = set()
@@ -111,12 +116,19 @@ class JevDynTestExecutor(DynTestExecutor):
     def init_index(self):
         pipeline = get_pipeline("DataDog/datadog-agent", self.pipeline_id)
         if pipeline.sha != self.commit_sha:
-            raise RuntimeError(
-                f"Pipeline {self.pipeline_id} ran {pipeline.sha}, but the checkout is at {self.commit_sha}. "
-                "The Jev selection is computed from the pipeline commit's PR context: either check out that "
-                f"commit (git checkout {pipeline.sha}) or evaluate the pipeline of the current HEAD. "
-                "Note the evaluation code also comes from the checkout, so old pipelines run their old "
-                "evaluation code."
+            if self.require_pipeline_commit:
+                raise RuntimeError(
+                    f"Pipeline {self.pipeline_id} ran {pipeline.sha}, but the checkout is at {self.commit_sha}. "
+                    "The Jev selection is computed from the pipeline commit's PR context: either check out that "
+                    f"commit (git checkout {pipeline.sha}) or evaluate the pipeline of the current HEAD, or pass "
+                    "--ignore-sha-mismatch to decide from the current checkout's context instead. "
+                    "Note the evaluation code also comes from the checkout, so old pipelines run their old "
+                    "evaluation code."
+                )
+            print(
+                f"[jev] WARNING: pipeline {self.pipeline_id} ran {pipeline.sha}, but the checkout is at "
+                f"{self.commit_sha}: the Jev decisions will be computed from the current checkout's PR "
+                "context, not the pipeline's commit (--ignore-sha-mismatch)"
             )
         jobs: list = []
         # python-gitlab collapses list-valued query params (scope=["success",
@@ -146,6 +158,7 @@ class JevDynTestExecutor(DynTestExecutor):
         name occurring in several suites runs if any occurrence runs.
         """
         suites = {suite: entries for suite, entries in suite_entry_points().items() if entries & names}
+        print(f"[jev] suites to decide: {', '.join(sorted(suites))}")
         run: set[str] = set()
         for suite, entries in sorted(suites.items()):
             summary = jev_selection(suite)
@@ -161,10 +174,18 @@ class JevDynTestEvaluator(DatadogDynTestEvaluator):
     def evaluate(self, changes: list[str]) -> list[EvaluationResult]:
         # changes are ignored: the Jev selector gathers its own PR context.
         executor: JevDynTestExecutor = self.executor  # type: ignore[assignment]
+        total = len(executor.jobs)
+        print(f"[jev] querying executed tests for {total} jobs (CI Visibility, {self.lookback_days}d lookback)")
+        started = time.monotonic()
         executed_per_job: dict[str, list] = {}
-        for job in executor.jobs:
+        for done, job in enumerate(executor.jobs, 1):
             if tests := self.list_tests_for_job(job):
                 executed_per_job[job] = tests
+            if done % 25 == 0 or done == total:
+                print(
+                    f"[jev] {done}/{total} jobs queried, {sum(map(len, executed_per_job.values()))} tests found, "
+                    f"{time.monotonic() - started:.0f}s elapsed"
+                )
         if not executed_per_job:
             return []
         if empty := sorted(set(executor.jobs) - executed_per_job.keys()):
@@ -175,7 +196,9 @@ class JevDynTestEvaluator(DatadogDynTestEvaluator):
             print(
                 f"[jev] {len(unknown)} executed tests are not filetree entry points (not decidable): {sorted(unknown)}"
             )
-        run = executor.jev_run(names & universe) if names & universe else set()
+        decidable = names & universe
+        print(f"[jev] {len(executed_per_job)} jobs executed tests; deciding {len(decidable)} of them with Jev")
+        run = executor.jev_run(decidable) if decidable else set()
         return [
             self._evaluate_job(job, tests, run, indexed_tests=universe & {test.name for test in tests})
             for job, tests in executed_per_job.items()
