@@ -963,8 +963,10 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
 
 
 @task
-def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
-    modified_files = get_go_modified_files(ctx)
+def get_modified_packages(
+    ctx, build_tags=None, lint=False, include_untracked=False, base_branch=None
+) -> list[GoModule]:
+    modified_files = get_go_modified_files(ctx, include_untracked=include_untracked, base_branch=base_branch)
 
     modified_go_files = [f"./{file}" for file in modified_files]
 
@@ -1400,9 +1402,13 @@ def should_run_all_tests(ctx, trigger_files):
     return any(len(fnmatch.filter(files, trigger_file)) for trigger_file in trigger_files)
 
 
-def get_go_modified_files(ctx):
-    base_branch = _get_release_json_value("base_branch")
+def get_go_modified_files(ctx, include_untracked=False, base_branch=None):
+    base_branch = base_branch or _get_release_json_value("base_branch")
     files = get_modified_files(ctx, base_branch=base_branch)
+    if include_untracked:
+        # git diff misses never-committed files; include them so new-code lint sees untracked Go files.
+        untracked = ctx.run("git ls-files --others --exclude-standard", hide=True).stdout.splitlines()
+        files = list(dict.fromkeys(files + untracked))
     return [
         file
         for file in files

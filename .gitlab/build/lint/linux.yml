@@ -53,3 +53,16 @@ lint_flavor_heroku_linux-x64:
     - .linux_x64
   variables:
     FLAVORS: '--flavor heroku'
+
+lint_go_new_code:
+  extends:
+    - .linux_lint
+    - .linux_x64
+  variables:
+    GIT_DEPTH: 0
+    FLAVORS: '--flavor base'
+    EXTRA_OPTS: '--new-code'
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - git fetch origin "$COMPARE_TO_BRANCH"
+  allow_failure: true

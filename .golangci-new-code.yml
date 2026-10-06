@@ -1,0 +1,36 @@
+version: "2"
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+linters:
+  default: none
+  enable:
+    - errorlint
+  settings:
+    errorlint:
+      # Flag fmt.Errorf("...%v", err) that should use %w to preserve the error chain.
+      errorf: true
+      # Permissive default: allow multiple %w per format string (valid since Go 1.20).
+      errorf-multi: true
+      # Out of scope: we only enforce the %w wrapping verb, not errors.As/errors.Is rewrites.
+      asserts: false
+      comparison: false
+  exclusions:
+    generated: lax
+    paths:
+      - pkg/util/cloudproviders/cloudfoundry/bbscache_test.go
+      - pkg/util/intern/string.go
+      - pkg/serverless/trace/inferredspan/constants.go
+      - test/e2e-framework
+      - pkg/proto/patches
+      - pkg/security/utils/lru
+      - pkg/template
+      - tasks/unit_tests/testdata/components_src
+      - third_party$
+      - builtin$
+      - examples$
+
+run:
+  allow-parallel-runners: true

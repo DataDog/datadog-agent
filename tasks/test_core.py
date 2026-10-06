@@ -109,6 +109,8 @@ def process_input_args(
     input_flavor,
     headless_mode=False,
     only_modified_packages=False,
+    include_untracked=False,
+    base_branch=None,
     build_tags=None,
     lint=False,
 ):
@@ -121,7 +123,9 @@ def process_input_args(
         if not build_tags:
             build_tags = []
 
-        modules = get_modified_packages(ctx, build_tags, lint=lint)
+        modules = get_modified_packages(
+            ctx, build_tags, lint=lint, include_untracked=include_untracked, base_branch=base_branch
+        )
     elif isinstance(input_module, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string

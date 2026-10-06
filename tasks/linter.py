@@ -79,6 +79,7 @@ def go(
     golangci_lint_kwargs="",
     headless_mode=False,
     only_modified_packages=False,
+    new_code: bool = False,
     verbose=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     debug=False,
@@ -95,12 +96,20 @@ def go(
     Args:
         timeout: Number of minutes after which the linter should time out.
         headless_mode: Allows you to output the result in a single json file.
+        new_code: Only lint newly-introduced code vs the merge-base (errorlint %w check).
         debug: prints the go version to help debugging lint discrepancies between versions.
 
     Example invokation:
         $ dda inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
         $ dda inv linter.go --module=.
     """
+
+    new_code_base_branch = None
+    if new_code:
+        new_code_base_branch = get_ancestor_base_branch()
+        # Whole-diff discovery only when no explicit module/targets scope was requested.
+        if not (module or targets):
+            only_modified_packages = True
 
     check_tools_version(ctx, ['go'], debug=debug)
 
@@ -125,12 +134,20 @@ def go(
         headless_mode,
         build_tags=linter_tags + list(UNIT_TEST_TAGS),
         only_modified_packages=only_modified_packages,
+        include_untracked=new_code,
+        base_branch=new_code_base_branch,
         lint=True,
     )
 
     if not modules:
         print(color_message("No modules to lint", "yellow"))
         return
+
+    if new_code:
+        merge_base = get_common_ancestor(ctx, "HEAD", f"origin/{new_code_base_branch}")
+        golangci_lint_kwargs = (
+            f"--config .golangci-new-code.yml --new-from-rev {merge_base} " + golangci_lint_kwargs
+        ).strip()
 
     lint_result, execution_times = run_lint_go(
         ctx=ctx,
