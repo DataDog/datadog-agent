@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/plog"
+	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -77,7 +78,7 @@ func SyncSenderQueueConfig(queue configoptional.Optional[exporterhelper.QueueBat
 // sendSync sends msgs through the sync sender. records[i] is the position, in the iteration order of
 // ld, of the log record msgs[i] was built from. When some messages failed with an error worth
 // retrying, the returned error carries only their records, so that exporterhelper does not resend
-// the delivered ones. Otherwise the error is permanent.
+// the delivered ones.
 func (e *Exporter) sendSync(ctx context.Context, ld plog.Logs, msgs []*message.Message, records []int) error {
 	if len(msgs) == 0 {
 		return nil
@@ -86,7 +87,7 @@ func (e *Exporter) sendSync(ctx context.Context, ld plog.Logs, msgs []*message.M
 	var messages []string
 	failed := 0
 	retry := make([]bool, ld.LogRecordCount())
-	retrying := false
+	retried := 0
 	for i, err := range e.syncSender.Send(ctx, msgs) {
 		if err == nil {
 			continue
@@ -99,7 +100,7 @@ func (e *Exporter) sendSync(ctx context.Context, ld plog.Logs, msgs []*message.M
 		}
 		if isRetryable(err) {
 			retry[records[i]] = true
-			retrying = true
+			retried++
 		}
 	}
 	if failed == 0 {
@@ -107,8 +108,14 @@ func (e *Exporter) sendSync(ctx context.Context, ld plog.Logs, msgs []*message.M
 	}
 
 	err := scrubError(fmt.Errorf("failed to send %d of %d log records: %w", failed, len(msgs), errors.Join(causes...)))
-	if !retrying {
+	if retried == 0 {
 		return consumererror.NewPermanent(err)
+	}
+	if dropped := failed - retried; dropped > 0 {
+		e.set.Logger.Warn("dropping log records rejected permanently, retrying the others",
+			zap.Int("dropped_log_records", dropped),
+			zap.Int("retried_log_records", retried),
+			zap.Error(err))
 	}
 	return consumererror.NewLogs(err, selectRecords(ld, retry))
 }

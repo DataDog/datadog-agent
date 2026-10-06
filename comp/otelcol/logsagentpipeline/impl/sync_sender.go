@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
@@ -29,8 +30,13 @@ import (
 // outcome of every message, so that the logs agent exporter can hand delivery errors to the
 // OpenTelemetry exporterhelper instead of dropping them inside the asynchronous pipeline.
 //
-// It sends to the reliable and unreliable endpoints of the logs configuration. Multi-Region
-// Failover endpoints are not supported and are ignored.
+// It sends to the reliable and unreliable endpoints.
+// ***********************************************************************************************
+// WARNING (TODO):
+//   - A failure on one of reliable endpoints makes the caller retry the messages on all of them.
+//   - Multi-Region Failover endpoints are not supported and are ignored.
+//
+// Should/must(?) be improved in future.
 type SyncSender struct {
 	processor      *processor.SyncProcessor
 	compressor     compression.Compressor
@@ -47,19 +53,19 @@ var (
 
 // NewSyncSender returns a SyncSender configured like the logs agent built from the same deps.
 func NewSyncSender(deps Dependencies) (*SyncSender, error) {
-	return buildSyncSender(deps.Config, deps.Hostname, deps.Compression, deps.IntakeOrigin)
+	return buildSyncSender(deps.Config, deps.Log, deps.Hostname, deps.Compression, deps.IntakeOrigin)
 }
 
 // NewSyncSender returns a SyncSender configured like the agent.
 func (a *Agent) NewSyncSender() (logsagentpipeline.SyncSender, error) {
-	s, err := buildSyncSender(a.config, a.hostname, a.compression, a.intakeOrigin)
+	s, err := buildSyncSender(a.config, a.log, a.hostname, a.compression, a.intakeOrigin)
 	if err != nil {
 		return nil, err
 	}
 	return s, nil
 }
 
-func buildSyncSender(cfg pkgconfigmodel.Reader, hostname hostnameinterface.Component, compressionFactory logscompression.Component, intakeOrigin config.IntakeOrigin) (*SyncSender, error) {
+func buildSyncSender(cfg pkgconfigmodel.Reader, logger log.Component, hostname hostnameinterface.Component, compressionFactory logscompression.Component, intakeOrigin config.IntakeOrigin) (*SyncSender, error) {
 	endpoints, err := config.BuildHTTPEndpoints(cfg, intakeTrackType, config.AgentJSONIntakeProtocol, intakeOrigin)
 	if err != nil {
 		return nil, fmt.Errorf("invalid endpoints: %w", err)
@@ -96,6 +102,9 @@ func buildSyncSender(cfg pkgconfigmodel.Reader, hostname hostnameinterface.Compo
 	}
 	if len(s.reliable) == 0 {
 		return nil, errors.New("no reliable logs endpoint is configured")
+	}
+	if len(s.reliable) > 1 {
+		logger.Warnf("logs are sent synchronously to %d reliable endpoints: when one of them fails, the logs are retried on all of them, and the endpoints that already accepted them receive duplicates", len(s.reliable))
 	}
 	return s, nil
 }
