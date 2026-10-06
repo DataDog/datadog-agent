@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -378,7 +379,7 @@ instances:
     password: hunter2`
 
 	tempDir := t.TempDir()
-	testFilePath := path.Join(tempDir, "foo.yaml")
+	testFilePath := filepath.Join(tempDir, "foo.yaml")
 	require.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))
 
 	configmock.New(t)
