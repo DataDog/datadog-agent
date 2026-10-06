@@ -6,6 +6,20 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
 
 env_vars = use_repo_rule("//bazel/repo:env_vars.bzl", "env_vars")
 
+# AWS-LC requires NASM for x86_64 Windows assembly. Keep it checksum-pinned and
+# action-scoped rather than depending on the Windows runner image.
+http_archive(
+    name = "nasm_windows",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["nasm.exe"])
+""",
+    sha256 = "161d0bfaff53c2f9e9f3e69fd0672323ebabafd1268976a5cec11be92a19aee7",
+    strip_prefix = "nasm-3.02",
+    urls = ["https://www.nasm.us/pub/nasm/releasebuilds/3.02/win64/nasm-3.02-win64.zip"],
+)
+
 # Environment values available for packaging.
 env_vars(
     name = "agent_volatile",

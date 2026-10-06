@@ -1,0 +1,55 @@
+diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
+--- a/builder/cmake_builder.rs
++++ b/builder/cmake_builder.rs
+@@ -321,6 +321,9 @@ impl CmakeBuilder {
+         Self::preserve_cflag_optimization_flags(&mut cmake_cfg);
+ 
+         if target_os() == "windows" {
++            if let Some(nasm) = env::var_os("NASM") {
++                cmake_cfg.define("CMAKE_ASM_NASM_COMPILER", nasm);
++            }
+             if is_fips_build() {
+                 let opt_level = cargo_env("OPT_LEVEL");
+                 let build_type = if opt_level.eq("0") || opt_level.eq("1") || opt_level.eq("2") {
+diff --git a/builder/main.rs b/builder/main.rs
+--- a/builder/main.rs
++++ b/builder/main.rs
+@@ -1210,8 +1210,13 @@ fn has_pregenerated() -> bool {
+     unsafe { PREGENERATED }
+ }
+ 
++fn nasm_command() -> OsString {
++    env::var_os("NASM").unwrap_or_else(|| "nasm".into())
++}
++
+ fn test_nasm_command() -> bool {
+-    let status = execute_command("nasm".as_ref(), &["-version".as_ref()]).status;
++    let nasm = nasm_command();
++    let status = execute_command(nasm.as_os_str(), &["-version".as_ref()]).status;
+     if !status {
+         emit_warning("NASM command not found or failed to execute.");
+     }
+diff --git a/builder/nasm_builder.rs b/builder/nasm_builder.rs
+--- a/builder/nasm_builder.rs
++++ b/builder/nasm_builder.rs
+@@ -4,6 +4,8 @@
+ use std::path::{Path, PathBuf};
+ 
+-use crate::{copy_writable, execute_command, target_arch, test_nasm_command, use_prebuilt_nasm};
++use crate::{
++    copy_writable, execute_command, nasm_command, target_arch, test_nasm_command, use_prebuilt_nasm,
++};
+ 
+ #[derive(Debug)]
+ pub(crate) struct NasmBuilder {
+@@ -96,8 +98,9 @@ impl NasmBuilder {
+ 
+                 args.push(src.as_os_str().into());
+ 
++                let nasm = nasm_command();
+                 let result = execute_command(
+-                    "nasm".as_ref(),
++                    nasm.as_os_str(),
+                     &args
+                         .iter()
+                         .map(std::ffi::OsString::as_os_str)

@@ -44,7 +44,22 @@ crate.annotation(
 # this setting.
 crate.annotation(
     build_script_env = {"AWS_LC_SYS_NO_JITTER_ENTROPY": "1"},
+    build_script_env_select = {
+        "x86_64-pc-windows-msvc": "{\"NASM\":\"$(execpath @nasm_windows//:nasm.exe)\"}",
+    },
+    build_script_tools_select = {
+        # Keep NASM out of non-Windows action inputs. crate-universe promotes
+        # the sole tools-select branch to a common dependency, so explicit
+        # empty branches are required here.
+        "aarch64-apple-darwin": [],
+        "aarch64-unknown-linux-gnu": [],
+        "x86_64-apple-darwin": [],
+        "x86_64-pc-windows-msvc": ["@nasm_windows//:nasm.exe"],
+        "x86_64-unknown-linux-gnu": [],
+    },
     crate = "aws-lc-sys",
+    patch_args = ["-p1"],
+    patches = ["//deps/libdd_rc:aws-lc-sys-nasm-command.patch"],
 )
 
 # TODO: update as needed
@@ -60,7 +75,7 @@ alias(
         "aarch64-apple-darwin": "{\"CMAKE\":\"/opt/homebrew/bin/cmake\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"PATH\":\"/opt/homebrew/bin:/bin:/usr/bin:/usr/local/bin\"}",
         "aarch64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
         "x86_64-apple-darwin": "{\"CMAKE\":\"/usr/local/bin/cmake\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"PATH\":\"/usr/local/bin:/usr/local/go/bin:/bin:/usr/bin\"}",
-        "x86_64-pc-windows-msvc": "{\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go.exe)\"}",
+        "x86_64-pc-windows-msvc": "{\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go.exe)\",\"NASM\":\"$(execpath @nasm_windows//:nasm.exe)\"}",
         "x86_64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
     },
     build_script_tools = ["@go_work_sdk//:files"],
@@ -68,15 +83,21 @@ alias(
         "aarch64-apple-darwin": ["@go_work_sdk//:bin/go"],
         "aarch64-unknown-linux-gnu": ["@go_work_sdk//:bin/go"],
         "x86_64-apple-darwin": ["@go_work_sdk//:bin/go"],
-        "x86_64-pc-windows-msvc": ["@go_work_sdk//:bin/go.exe"],
+        "x86_64-pc-windows-msvc": [
+            "@go_work_sdk//:bin/go.exe",
+            "@nasm_windows//:nasm.exe",
+        ],
         "x86_64-unknown-linux-gnu": ["@go_work_sdk//:bin/go"],
     },
     crate = "aws-lc-fips-sys",
     patch_args = ["-p1"],
-    patches = ["//deps/libdd_rc:aws-lc-fips-sys-macos-linker.patch"],
+    patches = [
+        "//deps/libdd_rc:aws-lc-fips-sys-macos-linker.patch",
+        "//deps/libdd_rc:aws-lc-sys-nasm-command.patch",
+    ],
 )
 
-inject_repo(crate, "go_work_sdk")
+inject_repo(crate, "go_work_sdk", "nasm_windows")
 
 use_repo(crate, "libdd_rc_crates")
 
