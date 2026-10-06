@@ -179,7 +179,7 @@ def has_expected_diff_file_permissions(filename):
         return False
     trusted_uids = {0}
     try:
-        trusted_uids.add(pwd.getpwnam('dd-agent').pw_uid)
+        trusted_uids.add(dd_agent_user().pw_uid)
     except KeyError:
         pass
     if file_stat.st_uid not in trusted_uids:
@@ -188,12 +188,18 @@ def has_expected_diff_file_permissions(filename):
         return False
     return True
 
-def dd_agent_demote():
+def dd_agent_user():
     """
-    Return a preexec_fn that drops privileges to the dd-agent user, so package
-    installation code restored from the diff file never runs as root.
+    Return the passwd entry of the dd-agent user, the account the Agent runs
+    integrations as.  Raises KeyError if the user does not exist.
     """
-    pw = pwd.getpwnam('dd-agent')
+    return pwd.getpwnam('dd-agent')
+
+def demote_fn(pw):
+    """
+    Return a preexec_fn that drops privileges to the given user, so code run
+    in the subprocess never executes as root.
+    """
     gid, uid = pw.pw_gid, pw.pw_uid
 
     def demote():
@@ -202,6 +208,25 @@ def dd_agent_demote():
         os.setuid(uid)
 
     return demote
+
+def secure_state_file(filename):
+    """
+    Restrict a state file written during package scripts: root-only readable,
+    and owned by root when running as root.
+    """
+    os.chmod(filename, 0o600)
+    if os.geteuid() == 0:
+        os.chown(filename, 0, 0)
+
+def secure_wheelhouse(wheelhouse):
+    """
+    Hand the wheelhouse and its contents back to root once the build is done,
+    so the demoted user can no longer replace wheels between build and install.
+    """
+    for root, dirs, files in os.walk(wheelhouse):
+        for name in dirs + files:
+            os.chown(os.path.join(root, name), 0, 0)
+    os.chown(wheelhouse, 0, 0)
 
 
 def create_python_installed_packages_file(filename):
@@ -217,9 +242,7 @@ def create_python_installed_packages_file(filename):
                 continue
             f.write(f"{dist.metadata['Name']}=={dist.version}\n")
     if not os.name == 'nt':
-        os.chmod(filename, 0o600)
-        if os.geteuid() == 0:
-            os.chown(filename, 0, 0)
+        secure_state_file(filename)
 
 def create_diff_installed_packages_file(directory, old_file, new_file):
     """
@@ -253,9 +276,7 @@ def create_diff_installed_packages_file(directory, old_file, new_file):
     else:
         print("Diff is empty: no packages to restore")
     if not os.name == 'nt':
-        os.chmod(diff_file, 0o600)
-        if os.geteuid() == 0:
-            os.chown(diff_file, 0, 0)
+        secure_state_file(diff_file)
 
 def install_datadog_package(package, install_directory):
     """
@@ -285,26 +306,26 @@ def install_datadog_package(package, install_directory):
             print(f"Retrying '{package}'...")
     raise IntegrationInstallError(package, rc, stderr)
 
-def install_dependency_package(pip, package, preexec_fn=None):
+def install_dependency_package(pip, package, run_as=None):
     """
     Install a Python dependency via pip.
 
-    When preexec_fn is set, the dependency is installed in two phases: wheels
-    are downloaded and built with privileges dropped to dd-agent first, then
-    pip installs them as root. Installing a wheel only unpacks files and
-    generates entry-point scripts, so no package code runs as root. This also
-    keeps embedded/bin root-owned: it contains privileged helpers that
-    systemd executes as root.
+    When run_as is set to a passwd entry, the dependency is installed in two
+    phases: wheels are downloaded and built with privileges dropped to that
+    user, then pip installs them as root. Installing a wheel only unpacks
+    files and generates entry-point scripts, so no package code runs as root.
+    This also keeps embedded/bin root-owned: it contains privileged helpers
+    that systemd executes as root. Wheel content is trusted to the run_as
+    user, so the wheelhouse is handed back to root between the phases to
+    close the window where it could be swapped.
 
     Retries once on failure.  Raises IntegrationInstallError if both attempts fail.
     """
     print(f"Installing python dependency: '{package}'")
     command = pip.copy()
     wheelhouse = None
-    if preexec_fn is not None:
-        pw = pwd.getpwnam('dd-agent')
+    if run_as is not None:
         wheelhouse = tempfile.mkdtemp(prefix='datadog-agent-wheels-')
-        os.chown(wheelhouse, pw.pw_uid, pw.pw_gid)
         download_command = command + ['wheel', '--wheel-dir', wheelhouse, '--no-cache-dir', package]
         install_command = command + ['install', '--no-index', '--find-links', wheelhouse, package]
     else:
@@ -314,8 +335,10 @@ def install_dependency_package(pip, package, preexec_fn=None):
         for attempt in range(1, 3):
             print(f"Installing python dependency '{package}' (attempt {attempt}/2)")
             if wheelhouse is not None:
-                _, stderr, rc = run_command(download_command, preexec_fn)
+                os.chown(wheelhouse, run_as.pw_uid, run_as.pw_gid)
+                _, stderr, rc = run_command(download_command, demote_fn(run_as))
                 if rc == 0:
+                    secure_wheelhouse(wheelhouse)
                     _, stderr, rc = run_command(install_command)
             else:
                 _, stderr, rc = run_command(install_command)
@@ -335,18 +358,24 @@ def install_diff_packages_file(install_directory, filename, exclude_filename):
     """
     Install all Datadog integrations and python dependencies from a file.
 
+    The file is validated before use: it must be owned by root or the dd-agent
+    user with no group/world write bits.  Returns False if validation fails.
+
     Every package is attempted regardless of earlier failures.  If any packages
     could not be installed after retries, raises IntegrationsRestoreError with
-    the full list of failures so the caller can surface them.
+    the full list of failures so the caller can surface them.  Returns True on
+    success.
     """
-    preexec_fn = None
+    if os.name != 'nt' and not has_expected_diff_file_permissions(filename):
+        return False
+    run_as = None
     if os.name == 'nt':
         python_path = os.path.join(install_directory, "embedded3", "python.exe")
         pip = [python_path, '-m', 'pip']
     else:
         pip = [os.path.join(install_directory, "embedded", "bin", "pip")]
         if os.geteuid() == 0:
-            preexec_fn = dd_agent_demote()
+            run_as = dd_agent_user()
     print(f"Installing python packages from: '{filename}'")
     install_packages = load_requirements(filename)
     exclude_packages = load_requirements(exclude_filename)
@@ -364,7 +393,7 @@ def install_diff_packages_file(install_directory, filename, exclude_filename):
                 if install_package_line.startswith('datadog-') and dep_name not in DEPS_STARTING_WITH_DATADOG:
                     install_datadog_package(install_package_line, install_directory)
                 else:
-                    install_dependency_package(pip, install_package_line, preexec_fn)
+                    install_dependency_package(pip, install_package_line, run_as)
             except IntegrationInstallError as e:
                 print(f"ERROR: {e}")
                 failures.append(e)
@@ -374,47 +403,34 @@ def install_diff_packages_file(install_directory, filename, exclude_filename):
         names = ", ".join(e.package for e in failures)
         print(f"ERROR: failed to restore {len(failures)} package(s): {names}")
         raise IntegrationsRestoreError(failures)
+    return True
 
 def load_requirements(filename):
     """
-    Load requirements from a file.
+    Load requirements from a file, skipping anything that could bypass the
+    package registry: lines that are not valid PEP 508 requirements (bare
+    URLs, VCS references, editable installs, pip flags, local paths), direct
+    file references, and parsed requirements carrying a direct URL reference.
     """
     print(f"Loading requirements from file: '{filename}'")
-    valid_requirements = []
-    with open(filename, 'r', encoding='utf-8') as f:
-        raw_requirements = f.readlines()
-        for req in raw_requirements:
-            req_stripped = req.strip()
-            # Skip and print reasons for skipping certain lines
-            if not req_stripped:
-                print(f"Skipping blank line: {req!r}")
-            elif req_stripped.startswith('#'):
-                print(f"Skipping comment: {req!r}")
-            elif req_stripped.startswith(('-e', '--editable')):
-                print(f"Skipping editable requirement: {req!r}")
-            elif req_stripped.startswith(('-c', '--constraint')):
-                print(f"Skipping constraint file reference: {req!r}")
-            elif req_stripped.startswith(('-r', '--requirement')):
-                print(f"Skipping requirement file reference: {req!r}")
-            elif req_stripped.startswith(('http://', 'https://', 'git+', 'ftp://')):
-                print(f"Skipping URL or VCS package: {req!r}")
-            elif req_stripped.startswith('.'):
-                print(f"Skipping local directory reference: {req!r}")
-            elif req_stripped.endswith(('.whl', '.zip')):
-                print(f"Skipping direct file reference (whl/zip): {req!r}")
-            elif req_stripped.startswith('--'):
-                print(f"Skipping pip flag: {req!r}")
-            else:
-                # Add valid requirement to the list
-                valid_requirements.append(req_stripped)
-    # Parse valid requirements using packaging
     requirements = {}
-    for req_stripped in valid_requirements:
-        req = packaging.requirements.Requirement(req_stripped)
-        if req.url is not None:
-            print(f"Skipping requirement with direct URL reference: {req_stripped!r}")
-            continue
-        requirements[req.name] = (req_stripped, req)
+    with open(filename, 'r', encoding='utf-8') as f:
+        for req in f:
+            req_stripped = req.strip()
+            if not req_stripped or req_stripped.startswith('#'):
+                continue
+            if req_stripped.endswith(('.whl', '.zip')):
+                print(f"Skipping direct file reference: {req_stripped!r}")
+                continue
+            try:
+                parsed = packaging.requirements.Requirement(req_stripped)
+            except packaging.requirements.InvalidRequirement:
+                print(f"Skipping requirement that is not valid PEP 508: {req_stripped!r}")
+                continue
+            if parsed.url is not None:
+                print(f"Skipping requirement with direct URL reference: {req_stripped!r}")
+                continue
+            requirements[parsed.name] = (req_stripped, parsed)
     return requirements
 
 def cleanup_files(*files):

@@ -1,7 +1,7 @@
 import unittest
 from packages import extract_version, create_python_installed_packages_file, create_diff_installed_packages_file, check_file_owner_system_windows
 from packages import run_command, install_datadog_package, install_dependency_package, install_diff_packages_file
-from packages import load_requirements, has_expected_diff_file_permissions
+from packages import load_requirements, has_expected_diff_file_permissions, secure_wheelhouse
 from packages import IntegrationInstallError, IntegrationsRestoreError
 import packages
 import packaging.requirements
@@ -78,19 +78,23 @@ class TestPackages(unittest.TestCase):
     # load_requirements — direct URL references
     # ------------------------------------------------------------------ #
 
-    def test_load_requirements_rejects_direct_url_references(self):
-        """PEP 508 direct references must be filtered out, they bypass the registry."""
+    def test_load_requirements_rejects_registry_bypasses(self):
+        """Direct URL references and non-PEP 508 lines must be filtered out, they bypass the registry."""
         test_directory = tempfile.mkdtemp()
         req_file = os.path.join(test_directory, "requirements.txt")
 
         with open(req_file, 'w', encoding='utf-8') as f:
+            f.write("# DO NOT REMOVE/MODIFY\n")
             f.write("package==1.0.0\n")
             f.write("evil @ https://attacker.example/evil.whl\n")
+            f.write("https://attacker.example/evil.whl\n")
+            f.write("git+https://attacker.example/evil.git\n")
+            f.write("-e ./evil\n")
+            f.write("evil.whl\n")
 
         requirements = load_requirements(req_file)
 
-        self.assertIn('package', requirements)
-        self.assertNotIn('evil', requirements)
+        self.assertEqual(list(requirements), ['package'])
 
         # Cleanup
         os.remove(req_file)
@@ -166,19 +170,50 @@ class TestPackages(unittest.TestCase):
         self.assertEqual(ctx.exception.package, 'datadog-ping==1.0.2')
         self.assertEqual(ctx.exception.returncode, 2)
 
+    # ------------------------------------------------------------------ #
+    # secure_wheelhouse
+    # ------------------------------------------------------------------ #
+
     @unittest.skipIf(os.name == 'nt', "Skip on Windows")
-    def test_install_dependency_package_builds_wheels_as_dd_agent_then_installs_as_root(self):
-        """With preexec_fn set: download/build runs demoted, install runs as root."""
+    def test_secure_wheelhouse_reowns_dir_and_contents_to_root(self):
+        """After securing, no wheel in the wheelhouse is writable by the demoted user."""
+        test_directory = tempfile.mkdtemp()
+        os.makedirs(os.path.join(test_directory, 'build'))
+        wheel_path = os.path.join(test_directory, 'pkg-1.0-py3-none-any.whl')
+        with open(wheel_path, 'w') as f:
+            f.write('')
+
+        with patch('packages.os.chown') as mock_chown:
+            secure_wheelhouse(test_directory)
+
+        mock_chown.assert_any_call(os.path.join(test_directory, 'build'), 0, 0)
+        mock_chown.assert_any_call(wheel_path, 0, 0)
+        mock_chown.assert_any_call(test_directory, 0, 0)
+
+        # Cleanup
+        os.remove(wheel_path)
+        os.rmdir(os.path.join(test_directory, 'build'))
+        os.rmdir(test_directory)
+
+    # ------------------------------------------------------------------ #
+    # install_dependency_package — two-phase install
+    # ------------------------------------------------------------------ #
+
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    def test_install_dependency_package_builds_wheels_as_run_as_user_then_installs_as_root(self):
+        """With run_as set: download/build runs demoted, install runs as root on a secured wheelhouse."""
         pip = [os.path.join('/opt/datadog-agent', "embedded", "bin", "pip")]
+        user = MagicMock()
+        user.pw_uid = 1000
+        user.pw_gid = 1000
         demote = lambda: None
         with patch('packages.run_command', return_value=('', '', 0)) as mock_cmd, \
              patch('packages.tempfile.mkdtemp', return_value='/tmp/wheelhouse'), \
-             patch('packages.pwd.getpwnam') as mock_pw, \
+             patch('packages.demote_fn', return_value=demote) as mock_demote_fn, \
+             patch('packages.secure_wheelhouse') as mock_secure, \
              patch('packages.os.chown') as mock_chown, \
              patch('packages.shutil.rmtree') as mock_rmtree:
-            mock_pw.return_value.pw_uid = 1000
-            mock_pw.return_value.pw_gid = 1000
-            install_dependency_package(pip, 'pynvml==11.5.3', preexec_fn=demote)
+            install_dependency_package(pip, 'pynvml==11.5.3', run_as=user)
 
         self.assertEqual(mock_cmd.call_count, 2)
         download_args = mock_cmd.call_args_list[0].args
@@ -193,14 +228,47 @@ class TestPackages(unittest.TestCase):
             pip + ['install', '--no-index', '--find-links', '/tmp/wheelhouse', 'pynvml==11.5.3']
         )
         self.assertEqual(len(install_args), 1)
+        mock_demote_fn.assert_called_once_with(user)
+        mock_secure.assert_called_once_with('/tmp/wheelhouse')
+        mock_chown.assert_called_with('/tmp/wheelhouse', 1000, 1000)
         mock_rmtree.assert_called_once_with('/tmp/wheelhouse', ignore_errors=True)
 
     # ------------------------------------------------------------------ #
-    # install_diff_packages_file — error collection
+    # install_diff_packages_file — validation and error collection
     # ------------------------------------------------------------------ #
 
     @unittest.skipIf(os.name == 'nt', "Skip on Windows")
-    def test_install_diff_packages_file_collects_failures(self):
+    @patch('packages.has_expected_diff_file_permissions', return_value=False)
+    def test_install_diff_packages_file_refuses_untrusted_file(self, _mock_permissions_check):
+        """Validation failure returns False before any install is attempted."""
+        install_dir = tempfile.mkdtemp()
+        storage_dir = tempfile.mkdtemp()
+        diff_file = os.path.join(storage_dir, '.diff_python_installed_packages.txt')
+        req_file = os.path.join(install_dir, 'requirements-agent-release.txt')
+
+        with open(diff_file, 'w') as f:
+            f.write("evilpackage==1.0.0\n")
+
+        with open(req_file, 'w') as f:
+            f.write('')
+
+        with patch('packages.install_datadog_package') as mock_install, \
+             patch('packages.install_dependency_package') as mock_install_dep:
+            result = install_diff_packages_file(install_dir, diff_file, req_file)
+
+        self.assertFalse(result)
+        mock_install.assert_not_called()
+        mock_install_dep.assert_not_called()
+
+        # Cleanup
+        os.remove(diff_file)
+        os.remove(req_file)
+        os.rmdir(install_dir)
+        os.rmdir(storage_dir)
+
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    @patch('packages.has_expected_diff_file_permissions', return_value=True)
+    def test_install_diff_packages_file_collects_failures(self, _mock_permissions_check):
         """All packages are attempted even when some fail; IntegrationsRestoreError lists failures."""
         install_dir = tempfile.mkdtemp()
         storage_dir = tempfile.mkdtemp()
@@ -231,8 +299,9 @@ class TestPackages(unittest.TestCase):
         os.rmdir(storage_dir)
 
     @unittest.skipIf(os.name == 'nt', "Skip on Windows")
-    def test_install_diff_packages_file_succeeds_silently(self):
-        """When all installs succeed no exception is raised."""
+    @patch('packages.has_expected_diff_file_permissions', return_value=True)
+    def test_install_diff_packages_file_succeeds_silently(self, _mock_permissions_check):
+        """When all installs succeed no exception is raised and True is returned."""
         install_dir = tempfile.mkdtemp()
         storage_dir = tempfile.mkdtemp()
         diff_file = os.path.join(storage_dir, '.diff_python_installed_packages.txt')
@@ -246,8 +315,9 @@ class TestPackages(unittest.TestCase):
             f.write('')
 
         with patch('packages.install_datadog_package') as mock_install:
-            install_diff_packages_file(install_dir, diff_file, req_file)  # must not raise
+            result = install_diff_packages_file(install_dir, diff_file, req_file)  # must not raise
 
+        self.assertTrue(result)
         mock_install.assert_called_once_with('datadog-ping==1.0.2', install_dir)
 
         # Cleanup

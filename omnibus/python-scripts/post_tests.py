@@ -163,8 +163,7 @@ class TestPost(unittest.TestCase):
         os.rmdir(storage_location)
 
     @unittest.skipIf(os.name == 'nt', "Skip on Windows")
-    @patch('packages.has_expected_diff_file_permissions', return_value=True)
-    def test_post_returns_one_when_restore_fails(self, _mock_permissions_check):
+    def test_post_returns_one_when_restore_fails(self):
         """post() must return 1 (not 0) when install_diff_packages_file raises IntegrationsRestoreError."""
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
@@ -196,8 +195,9 @@ class TestPost(unittest.TestCase):
 
     @unittest.skipIf(os.name == 'nt', "Skip on Windows")
     @patch('packages.has_expected_diff_file_permissions', return_value=False)
-    @patch('packages.install_diff_packages_file')
-    def test_post_returns_one_when_diff_file_permissions_insecure(self, mock_install_diff_packages_file, _mock_permissions_check):
+    @patch('packages.install_datadog_package')
+    @patch('packages.install_dependency_package')
+    def test_post_returns_one_when_diff_file_permissions_insecure(self, mock_instalL_dependency, mock_install_datadog, _mock_permissions_check):
         """post() must refuse to restore packages when the diff file has unexpected ownership."""
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
@@ -215,7 +215,8 @@ class TestPost(unittest.TestCase):
         result = post(install_directory, storage_location)
 
         self.assertEqual(result, 1)
-        mock_install_diff_packages_file.assert_not_called()
+        mock_install_datadog.assert_not_called()
+        mock_instalL_dependency.assert_not_called()
 
         # Cleanup
         os.remove(diff_file)
