@@ -1,0 +1,17 @@
+# POC ONLY: same datadog.yaml, secrets, env, user and filesystem as core.
+description: Phone-home POC on-demand Go executor
+command: ${DD_PAR_POC_BIN}/privateactionrunner
+args:
+  - run-executor
+  - --cfgpath
+  - ${DD_PAR_POC_DIR}/datadog.yaml
+  - --executor-socket
+  - ${DD_PAR_POC_DIR}/executor.sock
+  - --ipc-cert-file
+  - ${DD_PAR_POC_DIR}/ipc_cert.pem
+env:
+  DD_PAR_PHONE_HOME_POC: "true"
+auto_start: false
+restart: never
+stdout: inherit
+stderr: inherit

@@ -1,5 +1,11 @@
 {{- with .privateActionRunnerStatus -}}
   Status: {{- if .Enabled }} Enabled{{else}} Disabled{{end}}
+{{- with .PhoneHome }}
+  Phone-home POC: {{ .State }} ({{ .Reason }})
+{{- if .NextRetry }}
+  Next reconciliation: {{ .NextRetry }}
+{{- end }}
+{{- end }}
 {{- if .Enabled }}
   URN: {{ .URN }}
   Self Enroll: {{ .SelfEnroll }}

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	par "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/phonehome"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -88,6 +89,9 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 
 func (s statusProvider) populateStatus(stats map[string]interface{}) {
 	parStatus := make(map[string]interface{})
+	if state := phonehome.Status(); state != nil {
+		parStatus["PhoneHome"] = state
+	}
 
 	enabled := s.config.GetBool(par.PAREnabled)
 	parStatus["Enabled"] = enabled

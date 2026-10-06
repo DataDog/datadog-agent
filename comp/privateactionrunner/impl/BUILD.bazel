@@ -49,6 +49,7 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "executor_config_test.go",
+        "phone_home_test.go",
         "privateactionrunner_test.go",
     ],
     embed = [":impl"],

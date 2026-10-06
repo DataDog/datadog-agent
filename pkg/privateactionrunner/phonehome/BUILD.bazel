@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "phonehome",
+    srcs = [
+        "controller.go",
+        "discovery.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/phonehome",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/fips",
+        "//pkg/privateactionrunner/adapters/constants",
+        "//pkg/privateactionrunner/enrollment",
+        "//pkg/privateactionrunner/util",
+        "//pkg/proto/pbgo/procmgr",
+        "//pkg/util/flavor",
+        "//pkg/util/http",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+    ],
+)
+
+dd_agent_go_test(
+    name = "phonehome_test",
+    srcs = [
+        "controller_test.go",
+        "discovery_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":phonehome"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/setup",
+        "//pkg/privateactionrunner/adapters/constants",
+        "//pkg/privateactionrunner/enrollment",
+        "//pkg/privateactionrunner/util",
+        "//pkg/proto/pbgo/procmgr",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)

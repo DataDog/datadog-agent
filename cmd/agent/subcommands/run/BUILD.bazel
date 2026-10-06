@@ -195,6 +195,7 @@ go_library(
         "//pkg/diagnose/firewallscanner",
         "//pkg/diagnose/ports",
         "//pkg/jmxfetch",
+        "//pkg/privateactionrunner/phonehome",
         "//pkg/process/util/containers",
         "//pkg/procmgr/coat",
         "//pkg/runtime",

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -68,15 +69,19 @@ type publicClient struct {
 	ddBaseURL    string
 	httpClient   *http.Client
 	extraHeaders map[string]string
+	phoneHomePOC bool
 }
 
 func NewPublicClient(cfg model.Reader, ddBaseURL string, extraHeaders map[string]string) PublicClient {
+	poc := os.Getenv(app.PhoneHomePOCEnvVar) == "true"
+	client := &http.Client{Timeout: 30 * time.Second, Transport: httputils.CreateHTTPTransport(cfg)}
+	if poc {
+		client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
+	}
 	return &publicClient{
-		ddBaseURL: strings.TrimSuffix(ddBaseURL, "/"),
-		httpClient: &http.Client{
-			Timeout:   30 * time.Second,
-			Transport: httputils.CreateHTTPTransport(cfg),
-		},
+		phoneHomePOC: poc,
+		ddBaseURL:    strings.TrimSuffix(ddBaseURL, "/"),
+		httpClient:   client,
 		extraHeaders: extraHeaders,
 	}
 }
@@ -149,6 +154,9 @@ func (p *publicClient) enroll(
 	createRunnerResponse := new(par.CreateRunnerResponse)
 	err = jsonapi.Unmarshal(respBody, createRunnerResponse)
 	if err != nil {
+		if p.phoneHomePOC {
+			return nil, errors.New("invalid enrollment response; outcome ambiguous")
+		}
 		return nil, fmt.Errorf("failed to unmarshal runner creation response: %w", err)
 	}
 	return createRunnerResponse, nil
@@ -161,6 +169,12 @@ func (p *publicClient) enroll(
 // failure. Enrollment is required for the runner to function, so we keep
 // trying rather than crashing the agent.
 func (p *publicClient) doEnrollRequestWithRetry(ctx context.Context, url string, body []byte, apiKey, appKey string) ([]byte, error) {
+	if p.phoneHomePOC {
+		// A lost response or 5xx can follow a successful mutation. Core owns
+		// discovery retries; the POC never automatically repeats this POST.
+		response, _, err := p.doEnrollRequest(ctx, url, body, apiKey, appKey)
+		return response, err
+	}
 	return util.RetryHTTPRequest(ctx, func() ([]byte, int, error) {
 		return p.doEnrollRequest(ctx, url, body, apiKey, appKey)
 	}, util.RetryHTTPOptions{
@@ -192,6 +206,9 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
+		if p.phoneHomePOC {
+			return nil, 0, errors.New("enrollment transport failure; outcome ambiguous")
+		}
 		return nil, 0, fmt.Errorf("failed to send runner creation request: %w", err)
 	}
 	defer func() {
@@ -201,10 +218,20 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 	}()
 
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		if p.phoneHomePOC {
+			return nil, resp.StatusCode, fmt.Errorf("%w (HTTP %d): key, scope, gate or quota rejection; inspect the phone-home journal before operator recovery", ErrEnrollmentUnauthorized, resp.StatusCode)
+		}
 		return nil, resp.StatusCode, fmt.Errorf("%w (HTTP %d): check the API/application key and its required scopes, then restart the Private Action Runner", ErrEnrollmentUnauthorized, resp.StatusCode)
 	}
 
-	respBody, err := io.ReadAll(resp.Body)
+	if p.phoneHomePOC && resp.StatusCode != http.StatusOK {
+		return nil, resp.StatusCode, fmt.Errorf("enrollment HTTP %d; operator recovery required", resp.StatusCode)
+	}
+	var bodyReader io.Reader = resp.Body
+	if p.phoneHomePOC {
+		bodyReader = io.LimitReader(resp.Body, 1<<20)
+	}
+	respBody, err := io.ReadAll(bodyReader)
 	if err != nil {
 		return nil, resp.StatusCode, fmt.Errorf("runner creation failed with HTTP status code %d and failed to read HTTP response with error %w", resp.StatusCode, err)
 	}

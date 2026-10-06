@@ -31,7 +31,10 @@ go_library(
 
 dd_agent_go_test(
     name = "opms_test",
-    srcs = ["opms_test.go"],
+    srcs = [
+        "opms_test.go",
+        "public_opms_test.go",
+    ],
     embed = [":opms"],
     deps = [
         "//pkg/config/mock",

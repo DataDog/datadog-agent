@@ -7,6 +7,7 @@ go_library(
         "enrollment.go",
         "k8s_secret.go",
         "k8s_secret_nocompile.go",
+        "phone_home.go",
         "storage.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment",
@@ -39,6 +40,7 @@ dd_agent_go_test(
     srcs = [
         "enrollment_test.go",
         "k8s_secret_test.go",
+        "phone_home_test.go",
         "storage_test.go",
     ],
     embed = [":enrollment"],
@@ -52,6 +54,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/config",
         "//pkg/config/mock",
+        "//pkg/config/setup",
         "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/util",
         "//pkg/util/flavor",

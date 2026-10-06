@@ -384,7 +384,17 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 	if buildFIPS || p.coreConfig.GetBool("fips.enabled") {
 		return runCtx, nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
 	}
+	if enrollment.PhoneHomePOC() {
+		// Finish well within Rust's 120-second bootstrap budget. Pending or
+		// rejected enrollment must fail bootstrap, not masquerade as disabled.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 45*time.Second)
+		defer cancel()
+	}
 	cfg, err := p.getRunnerConfig(ctx)
+	if enrollment.PhoneHomePOC() && err != nil {
+		return runCtx, nil, err
+	}
 	if errors.Is(err, opms.ErrEnrollmentUnauthorized) {
 		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
@@ -589,7 +599,20 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 // The enrollment mode is controlled by the api_key_only_enrollment flag:
 //   - true:  enroll with API key only (app key ignored, no auto-connections)
 //   - false: enroll with API key + app key (app key required, auto-connections created)
-func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config, agentIdentifier *enrollment.AgentIdentifier) (*parconfig.Config, error) {
+func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config, agentIdentifier *enrollment.AgentIdentifier) (_ *parconfig.Config, retErr error) {
+	if enrollment.PhoneHomePOC() {
+		defer func() {
+			if retErr != nil {
+				reason := "enrollment_ambiguous_or_persistence_failed"
+				if errors.Is(retErr, opms.ErrEnrollmentUnauthorized) {
+					reason = "enrollment_rejected_not_necessarily_scope"
+				}
+				if err := enrollment.RecordPhoneHomeFailure(p.coreConfig, reason); err != nil {
+					p.logger.Warn("Cannot record phone-home outcome; attempt remains blocked")
+				}
+			}
+		}()
+	}
 	apiKey := p.coreConfig.GetString("api_key")
 	apiKeyOnlyEnrollment := p.coreConfig.GetBool(privateactionrunner.PARApiKeyOnlyEnrollment)
 
