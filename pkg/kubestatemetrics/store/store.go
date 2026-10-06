@@ -66,6 +66,13 @@ func NewMetricsStore(generateFunc func(interface{}) []metric.FamilyInterface, mt
 	}
 }
 
+// ObjectCount returns the number of cached Kubernetes objects without copying metrics.
+func (s *MetricsStore) ObjectCount() int {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	return len(s.metrics)
+}
+
 // EnableCallbacks enables event callback functionality for this store with a notifier
 func (s *MetricsStore) EnableCallbacks(notifier EventNotifier) {
 	s.enableCallbacks = true

@@ -9,6 +9,7 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 
 	"k8s.io/client-go/tools/cache"
@@ -111,6 +112,7 @@ type DynamicStore interface {
 	Add(namespace string)
 	Del(namespace string)
 	Snapshot() []cache.Store
+	Inventory() []sharding.StoreInfo
 }
 
 type storeAndCancelPair struct {
@@ -207,5 +209,45 @@ func (d *dynamicStoreImpl) Snapshot() []cache.Store {
 			stores = append(stores, pair.store)
 		}
 	}
+	return stores
+}
+
+// Inventory snapshots store identities and cached object counts. A store may
+// exist before its initial list succeeds; object counts do not establish watch health.
+func (d *dynamicStoreImpl) Inventory() []sharding.StoreInfo {
+	d.mu.Lock()
+
+	stores := make([]sharding.StoreInfo, 0)
+	for namespace, resources := range d.stores {
+		for key, pair := range resources {
+			hashKey := d.hashKey(namespace, key)
+			info := sharding.StoreInfo{
+				Namespace:   namespace,
+				GroupKind:   key.groupKind,
+				APIResource: key.apiResource,
+				Collector:   key.collector,
+				HashKey:     hashKey,
+				OwnerShard:  sharding.ShardResponsibleForKey(d.shardCount, hashKey),
+			}
+			if counter, ok := pair.store.(interface{ ObjectCount() int }); ok {
+				count := counter.ObjectCount()
+				info.Objects = &count
+			}
+			stores = append(stores, info)
+		}
+	}
+	d.mu.Unlock()
+	slices.SortFunc(stores, func(a, b sharding.StoreInfo) int {
+		if a.Namespace != b.Namespace {
+			return strings.Compare(a.Namespace, b.Namespace)
+		}
+		if a.GroupKind != b.GroupKind {
+			return strings.Compare(a.GroupKind, b.GroupKind)
+		}
+		if a.APIResource != b.APIResource {
+			return strings.Compare(a.APIResource, b.APIResource)
+		}
+		return strings.Compare(a.Collector, b.Collector)
+	})
 	return stores
 }

@@ -11,6 +11,7 @@ go_library(
         "kubernetes_state_telemetry.go",
         "kubernetes_state_transformers.go",
         "namespace_informer.go",
+        "sharding_inspection.go",
         "stub.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm",
@@ -70,6 +71,7 @@ dd_agent_go_test(
         "kubernetes_state_test.go",
         "kubernetes_state_transformers_test.go",
         "namespace_informer_test.go",
+        "sharding_inspection_test.go",
     ],
     embed = [":ksm"],
     gotags_sets = [[
@@ -87,6 +89,7 @@ dd_agent_go_test(
         "//pkg/collector/corechecks",
         "//pkg/collector/corechecks/cluster/ksm/customresources",
         "//pkg/config/mock",
+        "//pkg/kubestatemetrics/sharding",
         "//pkg/kubestatemetrics/store",
         "//pkg/metrics/servicecheck",
         "//pkg/util/kubernetes",

@@ -10,7 +10,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/kube-state-metrics/v2/pkg/metric"
 
 	"github.com/DataDog/datadog-agent/pkg/kubestatemetrics/sharding"
 )
@@ -44,6 +47,38 @@ func TestNewDynamicStoreCopiesFactoryRegistry(t *testing.T) {
 	dynamicStore.Del("default")
 	require.ErrorIs(t, storeContext.Err(), context.Canceled)
 	require.Empty(t, dynamicStore.Snapshot())
+}
+
+func TestDynamicStoreInventoryReflectsLiveStores(t *testing.T) {
+	registry := NewStoreFactoryRegistry()
+	var podStore *MetricsStore
+	registry.Register("core/Pod", "pods", "", ResourceScopeNamespaced, func(context.Context, string) cache.Store {
+		podStore = NewMetricsStore(func(interface{}) []metric.FamilyInterface { return nil }, "pod")
+		return podStore
+	})
+	registry.Register("core/Node", "nodes", "", ResourceScopeCluster, func(context.Context, string) cache.Store {
+		return NewMetricsStore(nil, "node")
+	})
+	dynamicStore := NewDynamicStore(context.Background(), registry, DynamicStoreConfig{ShardCriteria: []string{"namespace"}, ShardCount: 1})
+	require.Len(t, dynamicStore.Inventory(), 1)
+	dynamicStore.Add("default")
+	// Add loads a Kubernetes object into the real metric store; no metric
+	// families are needed to count cached objects.
+	require.NoError(t, podStore.Add(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{UID: "pod-1"}}))
+	inventory := dynamicStore.Inventory()
+	require.Len(t, inventory, 2)
+	require.Empty(t, inventory[0].Namespace)
+	require.Equal(t, "core/Node", inventory[0].GroupKind)
+	require.Equal(t, "default", inventory[1].Namespace)
+	require.Equal(t, "core/Pod", inventory[1].GroupKind)
+	require.Equal(t, sharding.HashKey("default"), inventory[1].HashKey)
+	require.Equal(t, 0, inventory[1].OwnerShard)
+	require.NotNil(t, inventory[1].Objects)
+	require.Equal(t, 1, *inventory[1].Objects)
+	dynamicStore.Del("default")
+	require.Len(t, dynamicStore.Inventory(), 1)
+	// The earlier snapshot remains independent of subsequent deletion.
+	require.Len(t, inventory, 2)
 }
 
 func TestDynamicStoreBuildsClusterScopedFactoriesOnce(t *testing.T) {

@@ -16,6 +16,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/impl/internal/middleware"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
@@ -95,6 +96,7 @@ type Provides struct {
 	Comp             collector.Component
 	StatusProvider   status.InformationProvider
 	MetadataProvider metadata.Provider
+	Endpoint         api.AgentEndpointProvider
 }
 
 // Module defines the fx options for this component.
@@ -118,6 +120,7 @@ func NewComponent(deps dependencies) Provides {
 		Comp:             c,
 		StatusProvider:   status.NewInformationProvider(collectorStatus.NewProvider(c)),
 		MetadataProvider: agentCheckMetadata,
+		Endpoint:         api.NewAgentEndpointProvider(c.writeKSMSharding, "/ksm-sharding", "GET"),
 	}
 }
 

@@ -18,6 +18,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/DataDog/datadog-agent/pkg/kubestatemetrics/sharding"
 )
 
 type recordingDynamicStore struct {
@@ -46,6 +48,10 @@ func (s *recordingDynamicStore) Del(namespace string) {
 }
 
 func (s *recordingDynamicStore) Snapshot() []cache.Store {
+	return nil
+}
+
+func (s *recordingDynamicStore) Inventory() []sharding.StoreInfo {
 	return nil
 }
 

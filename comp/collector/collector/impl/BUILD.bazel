@@ -6,12 +6,14 @@ go_library(
     srcs = [
         "agent_check_metadata.go",
         "collector.go",
+        "ksm_sharding.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/collector/collector/impl",
     tags = ["manual"],  # keep
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/agent/common",
+        "//comp/api/api/def",
         "//comp/collector/collector/def",
         "//comp/collector/collector/impl/internal/middleware",
         "//comp/core/agenttelemetry/def",
@@ -36,6 +38,7 @@ go_library(
         "//pkg/collector/scheduler",
         "//pkg/collector/sharedlibrary/sharedlibraryimpl",
         "//pkg/jmxfetch",
+        "//pkg/kubestatemetrics/sharding",
         "//pkg/serializer",
         "//pkg/status/collector",
         "//pkg/status/jmx",
@@ -53,6 +56,7 @@ dd_agent_go_test(
         "agent_check_metadata_test.go",
         "collector_demux_test.go",
         "collector_test.go",
+        "ksm_sharding_test.go",
     ],
     embed = [":impl"],
     deps = [
@@ -74,6 +78,7 @@ dd_agent_go_test(
         "//pkg/collector/check/id",
         "//pkg/collector/check/stub",
         "//pkg/collector/externalhost",
+        "//pkg/kubestatemetrics/sharding",
         "//pkg/metrics",
         "//pkg/serializer",
         "//pkg/util/option",
