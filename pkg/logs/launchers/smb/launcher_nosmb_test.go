@@ -24,8 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-func newSMBSource(name string) *sources.LogSource {
-	return sources.NewLogSource(name, &config.LogsConfig{
+func newSMBSource(name string, opts ...func(*config.LogsConfig)) *sources.LogSource {
+	cfg := &config.LogsConfig{
 		Type: config.SMBType,
 		Path: "app/*.log",
 		SMB: &config.SMBConfig{
@@ -34,7 +34,11 @@ func newSMBSource(name string) *sources.LogSource {
 			Username: "myacct",
 			Password: "not-a-real-password",
 		},
-	})
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	return sources.NewLogSource(name, cfg)
 }
 
 // startLauncher starts l on logSources and returns once both the source added
@@ -53,7 +57,7 @@ func startLauncher(t *testing.T, l *Launcher) (replayed, added *sources.LogSourc
 	for _, source := range []*sources.LogSource{replayed, added} {
 		require.Eventually(t, source.Status().IsError, 5*time.Second, time.Millisecond, "status of %s", source.Name)
 	}
-	// The launcher does not subscribe to removals, so this must not block.
+	// A removal must not block the scheduler.
 	logSources.RemoveSource(added)
 	return replayed, added
 }
@@ -79,15 +83,45 @@ func TestLauncherReportsSMBSourcesAsUnsupported(t *testing.T) {
 	}
 }
 
-func TestLauncherReportsTheReasonOfThisBuild(t *testing.T) {
-	want := errNotIncluded
-	if fips.BuiltForFIPS() {
-		want = errFIPS
-	}
+// TestNewLauncherReportsTheSourceAsNotIncluded covers NewLauncher's wiring to
+// fips.BuiltForFIPS, which is false here: this file never builds for FIPS, since
+// every FIPS tag set includes smb. The FIPS message is covered through the seam.
+func TestNewLauncherReportsTheSourceAsNotIncluded(t *testing.T) {
+	require.False(t, fips.BuiltForFIPS(), "this file builds for FIPS now: cover errFIPS through NewLauncher here")
 
 	replayed, _ := startLauncher(t, NewLauncher(time.Second))
 
-	assert.Equal(t, "Error: "+want.Error(), replayed.Status().GetError())
+	assert.Equal(t, "Error: "+errNotIncluded.Error(), replayed.Status().GetError())
+}
+
+// TestLauncherHidesTheSourceItReplaces covers a secret refresh: autodiscovery
+// schedules a conf.d config again without removing the source it created
+// before, and agent status must not list the same error once per refresh.
+func TestLauncherHidesTheSourceItReplaces(t *testing.T) {
+	logSources := sources.NewLogSources()
+	l := NewLauncher(time.Second)
+	l.Start(logSources, nil, nil, nil)
+	t.Cleanup(l.Stop)
+
+	entry := func(index int, password string) *sources.LogSource {
+		return newSMBSource("demo", func(c *config.LogsConfig) {
+			c.IntegrationSource = "file:/etc/datadog-agent/conf.d/demo.d/conf.yaml"
+			c.IntegrationSourceIndex = index
+			c.SMB.Password = password
+		})
+	}
+	previous := entry(0, "old-key")
+	other := entry(1, "other-key") // another entry of the same file
+	refreshed := entry(0, "new-key")
+	for i, source := range []*sources.LogSource{previous, other, refreshed} {
+		logSources.AddSource(source)
+		// The launcher hides the replaced source before it sets this status.
+		require.Eventually(t, source.Status().IsError, 5*time.Second, time.Millisecond, "status of source %d", i)
+	}
+
+	assert.True(t, previous.IsHiddenFromStatus(), "agent status does not list the replaced source")
+	assert.False(t, other.IsHiddenFromStatus())
+	assert.False(t, refreshed.IsHiddenFromStatus())
 }
 
 func TestLauncherStopWithoutStart(_ *testing.T) {

@@ -13,10 +13,10 @@
 // and polls one tailer per matched file. Sources that use the same share and
 // account share one reconnecting SMB client.
 //
-// The SMB log source is built into the full Agent only (the smb build tag) and
-// never into FIPS builds, whose tags are negated here as in
-// pkg/fips.BuiltForFIPS. Other builds use launcher_nosmb.go, which reports
-// each smb source as unsupported.
+// The SMB log source is built into the full Agent on Linux, Windows and macOS
+// only (the smb build tag) and never into FIPS builds, whose tags are negated
+// here as in pkg/fips.BuiltForFIPS. Other builds use launcher_nosmb.go, which
+// reports each smb source as unsupported.
 package smb
 
 import (
@@ -216,24 +216,6 @@ func (l *Launcher) replace(previous *sources.LogSource, next *scanner) {
 	delete(l.refused, previous)
 	l.replaced[previous] = true
 	previous.HideFromStatus()
-}
-
-// configEntry identifies the configuration entry a source was created from.
-type configEntry struct {
-	name       string
-	file       string // the integration config's source, e.g. file:/etc/datadog-agent/conf.d/app.d/conf.yaml
-	index      int    // the entry's index in the config's logs list
-	identifier string // the service, for autodiscovered configs
-}
-
-// configEntryOf returns the configuration entry of source, if it comes from an
-// integration config.
-func configEntryOf(source *sources.LogSource) (configEntry, bool) {
-	cfg := source.Config
-	if cfg.IntegrationSource == "" {
-		return configEntry{}, false
-	}
-	return configEntry{name: source.Name, file: cfg.IntegrationSource, index: cfg.IntegrationSourceIndex, identifier: cfg.Identifier}, true
 }
 
 func (l *Launcher) refuse(source *sources.LogSource, err error) {
