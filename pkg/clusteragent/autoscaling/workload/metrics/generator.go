@@ -314,6 +314,23 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		})
 	}
 
+	// Whether the override set by the force-resources annotation is applied (1 or 0): paused or
+	// non-Apply autoscalers do not apply it. Only emitted while a valid override is set, so that the
+	// many autoscalers without it do not each send a series.
+	if len(internal.ForcedResources()) > 0 {
+		forcedResourcesValue := 0.0
+		if !internal.IsPaused() && applyModeTagValue(internal.Spec()) == strings.ToLower(string(datadoghq.DatadogPodAutoscalerApplyModeApply)) {
+			forcedResourcesValue = 1.0
+		}
+
+		metrics = append(metrics, metricsstore.StructuredMetric{
+			Name:  metricPrefix + ".force_resources",
+			Type:  metricsstore.MetricTypeGauge,
+			Value: forcedResourcesValue,
+			Tags:  baseTags,
+		})
+	}
+
 	// 3. DPA apply mode
 	metrics = appendApplyModeMetrics(metrics, internal, baseTags)
 

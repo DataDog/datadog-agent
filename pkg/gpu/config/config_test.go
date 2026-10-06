@@ -63,7 +63,7 @@ func TestNewTracingConfig(t *testing.T) {
 gpu:
   tracing:
     enabled: true
-    ddTraceVersions:
+    tracer_versions:
       c: "0.24.0"
 `)
 
@@ -78,7 +78,7 @@ gpu:
 
 func TestNewTracingConfigFromEnv(t *testing.T) {
 	t.Setenv("DD_GPU_TRACING_ENABLED", "true")
-	t.Setenv("DD_GPU_TRACING_DDTRACEVERSIONS", `{"c":"0.24.0"}`)
+	t.Setenv("DD_GPU_TRACING_TRACER_VERSIONS", `{"c":"0.24.0"}`)
 	cfg := configmock.New(t)
 
 	got := NewTracingConfig(cfg)
@@ -100,7 +100,7 @@ func TestNewTracingConfigTracerVersionsReplaceDefault(t *testing.T) {
 	cfg := configmock.NewFromYAML(t, `
 gpu:
   tracing:
-    ddTraceVersions:
+    tracer_versions:
       python: "3"
 `)
 

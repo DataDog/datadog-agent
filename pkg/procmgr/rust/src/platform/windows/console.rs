@@ -4,20 +4,23 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::Result;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use windows_sys::Win32::Foundation::{
-    CloseHandle, GetLastError, INVALID_HANDLE_VALUE, NO_ERROR, SetLastError, TRUE,
+    CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, GetLastError, HANDLE,
+    INVALID_HANDLE_VALUE, NO_ERROR, SetLastError, TRUE,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_SHARE_READ,
-    FILE_SHARE_WRITE, FILE_TYPE_UNKNOWN, GetFileType, OPEN_EXISTING,
+    FILE_SHARE_WRITE, FILE_TYPE_DISK, FILE_TYPE_PIPE, FILE_TYPE_UNKNOWN, GetFileType,
+    OPEN_EXISTING,
 };
 use windows_sys::Win32::System::Console::{
     ATTACH_PARENT_PROCESS, AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent,
-    GetConsoleCP, GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
-    SetConsoleCtrlHandler, SetStdHandle,
+    GetConsoleCP, GetConsoleMode, GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE,
+    STD_OUTPUT_HANDLE, SetConsoleCtrlHandler, SetStdHandle, WriteConsoleW,
 };
+use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
 use super::wide;
 
@@ -43,12 +46,188 @@ fn std_handle_live(handle: u32) -> bool {
     }
 }
 
-pub fn stdout_inheritable() -> bool {
-    std_handle_live(STD_OUTPUT_HANDLE)
+/// Where an `inherit` spawn gets the handle it hands a child, decided once at supervisor
+/// startup before anything can touch the console.
+///
+/// Reading the std slot at spawn time instead is unsafe: a graceful stop attaches the
+/// supervisor to the child's console and detaches again, which leaves closed console
+/// handles in the slots (see `std_handle_live`). Windows reuses handle values, so a later
+/// read can return one the OS has since given to an unrelated object, such as the named
+/// pipe carrying an in-flight gRPC call. A child that inherited that as its stdout would
+/// write its output straight into someone else's connection.
+enum InheritSource {
+    /// A private duplicate of the startup handle, which pins both the object and its
+    /// value for the lifetime of the supervisor. Only for a handle console churn cannot
+    /// reach, meaning a redirected file or pipe.
+    Pinned(HANDLE),
+    /// The startup handle was console backed, or could not be shown not to be, where
+    /// there is nothing worth pinning: `FreeConsole` closes every console handle the
+    /// process holds, duplicates included, so one taken at startup is dead from the first
+    /// graceful stop onwards. A spawn opens `CONOUT$` instead, which names whatever
+    /// console the supervisor is attached to by then, and gets nothing when it has none.
+    Console,
+    /// The slot held nothing usable, which is the service case.
+    None,
 }
 
-pub fn stderr_inheritable() -> bool {
-    std_handle_live(STD_ERROR_HANDLE)
+impl InheritSource {
+    fn capture(kind: u32) -> Self {
+        if !std_handle_live(kind) {
+            return Self::None;
+        }
+        let handle = unsafe { GetStdHandle(kind) };
+        if is_console_handle(handle) {
+            return Self::Console;
+        }
+        match duplicate_for_self(handle) {
+            Some(duplicate) => Self::Pinned(duplicate),
+            None => Self::None,
+        }
+    }
+
+    /// The handle to hand the child, if any.
+    ///
+    /// Spawning holds the console lock (see `Process::try_spawn`), so the console arm
+    /// never reads a console a graceful stop has the supervisor attached to.
+    fn resolve(&self) -> Option<InheritHandle> {
+        match self {
+            Self::Pinned(handle) => Some(InheritHandle::Pinned(*handle)),
+            // Write access only: a child's stdout is there to be written to, and a
+            // process allowed to write its console is not necessarily allowed to read it.
+            Self::Console => {
+                open_console_device("CONOUT$", FILE_GENERIC_WRITE).map(InheritHandle::Opened)
+            }
+            Self::None => None,
+        }
+    }
+}
+
+/// A handle an `inherit` spawn may duplicate from, for as long as it is held.
+pub(crate) enum InheritHandle {
+    /// Belongs to `STARTUP_STDIO` and outlives every spawn.
+    Pinned(HANDLE),
+    /// Opened for this spawn alone.
+    Opened(HANDLE),
+}
+
+impl InheritHandle {
+    pub(crate) fn raw(&self) -> HANDLE {
+        match self {
+            Self::Pinned(handle) | Self::Opened(handle) => *handle,
+        }
+    }
+}
+
+impl Drop for InheritHandle {
+    fn drop(&mut self) {
+        if let Self::Opened(handle) = self {
+            unsafe {
+                CloseHandle(*handle);
+            }
+        }
+    }
+}
+
+/// The supervisor's own stdout and stderr, as they were before anything could touch the
+/// console. These are the only things an `inherit` spawn may resolve against.
+struct StartupStdio {
+    stdout: InheritSource,
+    stderr: InheritSource,
+}
+
+// SAFETY: a pinned handle is owned for the process lifetime and only duplicated from.
+unsafe impl Send for StartupStdio {}
+unsafe impl Sync for StartupStdio {}
+
+static STARTUP_STDIO: OnceLock<StartupStdio> = OnceLock::new();
+
+/// Settles how `inherit` resolves for the rest of the process lifetime. Idempotent, and
+/// the first call is the one that counts, so every path that manipulates the console
+/// calls it before doing so.
+pub fn capture_startup_stdio() {
+    let _ = startup_stdio();
+}
+
+fn startup_stdio() -> &'static StartupStdio {
+    STARTUP_STDIO.get_or_init(|| StartupStdio {
+        stdout: InheritSource::capture(STD_OUTPUT_HANDLE),
+        stderr: InheritSource::capture(STD_ERROR_HANDLE),
+    })
+}
+
+/// True when `handle` belongs to a console, so that pinning a duplicate of it would be
+/// pinning something `FreeConsole` closes.
+///
+/// No one call answers for every handle. `GetConsoleMode` needs `GENERIC_READ`, and a
+/// parent is free to hand its child a write-only `CONOUT$`; borrowing the right through
+/// `DuplicateHandle` is not open either, since a duplicate cannot carry access the source
+/// handle does not have. So a handle that cannot answer by being read is asked the other
+/// way round, by being written to. Between them the two cover any handle usable as a
+/// child's stdout, which has to carry one right or the other to be worth inheriting.
+fn is_console_handle(handle: HANDLE) -> bool {
+    // Settles a disk file or a pipe without touching the console API at all.
+    if matches!(
+        unsafe { GetFileType(handle) },
+        FILE_TYPE_DISK | FILE_TYPE_PIPE
+    ) {
+        return false;
+    }
+    console_mode_readable(handle) || console_write_accepted(handle)
+}
+
+fn console_mode_readable(handle: HANDLE) -> bool {
+    let mut mode = 0u32;
+    unsafe { GetConsoleMode(handle, &mut mode) != 0 }
+}
+
+/// Whether the handle takes a write of nothing, which a console screen buffer does and a
+/// redirection does not: `WriteConsoleW` fails on any handle that is not a console. The
+/// zero length is what makes it a question rather than an edit.
+fn console_write_accepted(handle: HANDLE) -> bool {
+    let nothing: u16 = 0;
+    let mut written = 0u32;
+    unsafe {
+        WriteConsoleW(
+            handle,
+            std::ptr::from_ref(&nothing).cast(),
+            0,
+            &mut written,
+            std::ptr::null(),
+        ) != 0
+    }
+}
+
+/// A private duplicate of `handle`, or `None` when it cannot be taken.
+fn duplicate_for_self(handle: HANDLE) -> Option<HANDLE> {
+    let mut dup: HANDLE = std::ptr::null_mut();
+    let ok = unsafe {
+        DuplicateHandle(
+            GetCurrentProcess(),
+            handle,
+            GetCurrentProcess(),
+            &mut dup,
+            0,
+            0,
+            DUPLICATE_SAME_ACCESS,
+        )
+    };
+    if ok == 0 {
+        log::warn!(
+            "DuplicateHandle(std handle) failed: {}, spawns will not inherit it",
+            std::io::Error::last_os_error()
+        );
+        return None;
+    }
+    Some(dup)
+}
+
+/// The handle an `inherit` spawn should duplicate for `kind`, if any.
+pub(crate) fn inherit_std_handle(kind: u32) -> Option<InheritHandle> {
+    match kind {
+        STD_OUTPUT_HANDLE => startup_stdio().stdout.resolve(),
+        STD_ERROR_HANDLE => startup_stdio().stderr.resolve(),
+        _ => None,
+    }
 }
 
 /// True when the process is attached to a console.
@@ -70,14 +249,28 @@ pub(crate) struct CallerConsoleState {
     has_console: bool,
     stdout: bool,
     stderr: bool,
+    /// Raw std handle values, and only for a process with no console of its own.
+    ///
+    /// Liveness alone accepts a slot left pointing at a closed console handle once
+    /// Windows has reassigned that value to something else, which is exactly the state a
+    /// graceful stop must not leave behind. The values are not an invariant for a process
+    /// that does have a console: reattaching to the parent reopens `CONOUT$`, so fresh
+    /// handles there are correct rather than a regression.
+    std_handles: Option<[usize; 3]>,
 }
 
 #[cfg(test)]
 pub(crate) fn caller_console_state() -> CallerConsoleState {
+    let has_console = has_console();
     CallerConsoleState {
-        has_console: has_console(),
-        stdout: stdout_inheritable(),
-        stderr: stderr_inheritable(),
+        has_console,
+        stdout: std_handle_live(STD_OUTPUT_HANDLE),
+        stderr: std_handle_live(STD_ERROR_HANDLE),
+        std_handles: (!has_console).then(|| {
+            StdHandleSlots::capture()
+                .0
+                .map(|(_, handle)| handle as usize)
+        }),
     }
 }
 
@@ -125,6 +318,26 @@ const CONSOLE_STD_HANDLES: [(u32, &str); 3] = [
     (STD_ERROR_HANDLE, "CONOUT$"),
 ];
 
+/// The std handle slots as they were before attaching to another process's console.
+struct StdHandleSlots([(u32, HANDLE); 3]);
+
+impl StdHandleSlots {
+    fn capture() -> Self {
+        Self(CONSOLE_STD_HANDLES.map(|(kind, _)| (kind, unsafe { GetStdHandle(kind) })))
+    }
+
+    fn restore(&self) {
+        for (kind, handle) in self.0 {
+            if unsafe { SetStdHandle(kind, handle) } == 0 {
+                log::warn!(
+                    "SetStdHandle({kind}) failed: {}, the slot keeps a stale console handle",
+                    std::io::Error::last_os_error()
+                );
+            }
+        }
+    }
+}
+
 /// Reattaches the caller to its own console once signaling is done.
 ///
 /// Signaling requires leaving that console (see `ChildConsoleGuard`). A supervisor started
@@ -132,12 +345,23 @@ const CONSOLE_STD_HANDLES: [(u32, &str); 3] = [
 /// of the process lifetime.
 struct CallerConsoleGuard {
     had_console: bool,
+    std_handles: StdHandleSlots,
+    /// Which std slots the console owned, and so which ones come back dead.
+    ///
+    /// Asked while the console is still attached, because afterwards there is nothing
+    /// left to ask: `FreeConsole` closes the handle and Windows is free to hand its value
+    /// to the next object any thread opens, so a slot that looks alive may be alive as
+    /// something else entirely.
+    console_backed: [bool; 3],
 }
 
 impl CallerConsoleGuard {
     fn capture() -> Self {
         Self {
             had_console: has_console(),
+            std_handles: StdHandleSlots::capture(),
+            console_backed: CONSOLE_STD_HANDLES
+                .map(|(kind, _)| is_console_handle(unsafe { GetStdHandle(kind) })),
         }
     }
 }
@@ -145,6 +369,11 @@ impl CallerConsoleGuard {
 impl Drop for CallerConsoleGuard {
     fn drop(&mut self) {
         if !self.had_console {
+            // A supervisor with no console of its own still gets the child console's
+            // handles written into its std slots by AttachConsole, and the matching
+            // FreeConsole then closes them. Putting the original values back keeps a
+            // later GetStdHandle from returning one Windows has since reassigned.
+            self.std_handles.restore();
             return;
         }
         // The console we left belongs to whoever launched us, so it is reachable through
@@ -156,23 +385,31 @@ impl Drop for CallerConsoleGuard {
             );
             return;
         }
-        for (kind, device) in CONSOLE_STD_HANDLES {
+        for ((kind, device), console_backed) in
+            CONSOLE_STD_HANDLES.into_iter().zip(self.console_backed)
+        {
             // Redirected handles survive FreeConsole untouched, and rebinding them would
-            // discard the redirection. Only the ones the console owned come back dead.
-            if !std_handle_live(kind) {
+            // discard the redirection. Only the ones the console owned come back dead,
+            // which is what was recorded before leaving rather than guessed after.
+            if console_backed {
                 rebind_std_handle(kind, device);
             }
         }
     }
 }
 
-/// Point a std handle back at the console, which `AttachConsole` leaves closed.
-fn rebind_std_handle(kind: u32, device: &str) {
+/// Opens one of the console devices with `access`, or `None` when the process has no
+/// console.
+///
+/// A caller asks for no more than it needs: a process can be allowed to write its console
+/// without being allowed to read it, and `CreateFileW` fails outright on a right the
+/// caller does not have rather than handing back a handle that carries less.
+fn open_console_device(device: &str, access: u32) -> Option<HANDLE> {
     let name = wide::null_terminated(device);
     let handle = unsafe {
         CreateFileW(
             name.as_ptr(),
-            FILE_GENERIC_READ | FILE_GENERIC_WRITE,
+            access,
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             std::ptr::null(),
             OPEN_EXISTING,
@@ -185,8 +422,19 @@ fn rebind_std_handle(kind: u32, device: &str) {
             "CreateFileW({device}) failed: {}",
             std::io::Error::last_os_error()
         );
-        return;
+        return None;
     }
+    Some(handle)
+}
+
+/// Point a std handle back at the console, which `AttachConsole` leaves closed.
+///
+/// A std slot is read through `GetConsoleMode` elsewhere in this module and `CONIN$` is
+/// there to be read from, so these go back as they came: readable and writable.
+fn rebind_std_handle(kind: u32, device: &str) {
+    let Some(handle) = open_console_device(device, FILE_GENERIC_READ | FILE_GENERIC_WRITE) else {
+        return;
+    };
     if unsafe { SetStdHandle(kind, handle) } == 0 {
         log::warn!(
             "SetStdHandle({device}) failed: {}",
@@ -253,6 +501,8 @@ fn signal_ctrl_break(pgid: u32) -> Result<()> {
 // after leaving the child's and before the ctrl handler goes back to normal.
 pub fn send_graceful_stop(pid: u32) -> Result<()> {
     let _guard = console_lock();
+    // Pin stdio before the console churn below can replace the std handles.
+    capture_startup_stdio();
     let _ignore_ctrl = IgnoreCtrlGuard::install()?;
     let _caller_console = CallerConsoleGuard::capture();
     let _child_console = ChildConsoleGuard::attach(pid)?;
@@ -315,7 +565,10 @@ pub fn is_crash_exit(status: &std::process::ExitStatus) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_crash_exit;
+    use super::*;
+    use windows_sys::Win32::Foundation::CompareObjectHandles;
+    use windows_sys::Win32::System::Console::AllocConsole;
+    use windows_sys::Win32::System::Pipes::CreatePipe;
 
     /// Lives in the lib target rather than `tests/e2e`, which is Linux-only, so
     /// this is the only place Windows classification gets real CI coverage.
@@ -351,5 +604,335 @@ mod tests {
                 "{code:#X} is an ExitProcess value, not a crash"
             );
         }
+    }
+
+    fn open_nul() -> HANDLE {
+        open_nul_with_access(FILE_GENERIC_READ | FILE_GENERIC_WRITE)
+    }
+
+    /// `NUL` with exactly the access asked for, so a test can hold the write-only
+    /// character device a parent is free to pass down as a child's stdout.
+    fn open_nul_with_access(access: u32) -> HANDLE {
+        let nul = wide::null_terminated("NUL");
+        let handle = unsafe {
+            CreateFileW(
+                nul.as_ptr(),
+                access,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                std::ptr::null(),
+                OPEN_EXISTING,
+                FILE_ATTRIBUTE_NORMAL,
+                std::ptr::null_mut(),
+            )
+        };
+        assert!(
+            handle != INVALID_HANDLE_VALUE && !handle.is_null(),
+            "CreateFileW(NUL) failed: {}",
+            std::io::Error::last_os_error()
+        );
+        handle
+    }
+
+    fn slot_values(slots: &StdHandleSlots) -> [usize; 3] {
+        slots.0.map(|(_, handle)| handle as usize)
+    }
+
+    fn set_std_handle(kind: u32, handle: HANDLE) {
+        assert_ne!(
+            unsafe { SetStdHandle(kind, handle) },
+            0,
+            "SetStdHandle({kind}) failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+
+    fn close(handle: HANDLE) {
+        unsafe { CloseHandle(handle) };
+    }
+
+    /// The write end of an anonymous pipe, a second object that is not the `NUL` device.
+    fn open_pipe() -> (HANDLE, HANDLE) {
+        let mut read: HANDLE = std::ptr::null_mut();
+        let mut write: HANDLE = std::ptr::null_mut();
+        assert_ne!(
+            unsafe { CreatePipe(&mut read, &mut write, std::ptr::null(), 0) },
+            0,
+            "CreatePipe failed: {}",
+            std::io::Error::last_os_error()
+        );
+        (read, write)
+    }
+
+    /// Takes a console for this process and points stdout at it, which is the shape a
+    /// supervisor launched from a terminal has.
+    ///
+    /// The second half is not optional: `AllocConsole` leaves a std handle the parent
+    /// redirected alone, and a test runner that hands this process a pipe for stdout, as
+    /// Bazel does, would otherwise keep that pipe in the slot.
+    fn attach_fresh_console() {
+        assert_ne!(
+            unsafe { AllocConsole() },
+            0,
+            "AllocConsole failed: {}",
+            std::io::Error::last_os_error()
+        );
+        let console_out = open_console_out(FILE_GENERIC_READ | FILE_GENERIC_WRITE);
+        set_std_handle(STD_OUTPUT_HANDLE, console_out);
+    }
+
+    /// `CONOUT$` with exactly the access asked for, so a test can hold the write-only
+    /// handle a parent is free to pass down as a child's stdout.
+    fn open_console_out(access: u32) -> HANDLE {
+        let name = wide::null_terminated("CONOUT$");
+        let handle = unsafe {
+            CreateFileW(
+                name.as_ptr(),
+                access,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                std::ptr::null(),
+                OPEN_EXISTING,
+                FILE_ATTRIBUTE_NORMAL,
+                std::ptr::null_mut(),
+            )
+        };
+        assert!(
+            handle != INVALID_HANDLE_VALUE && !handle.is_null(),
+            "CreateFileW(CONOUT$) failed: {}",
+            std::io::Error::last_os_error()
+        );
+        handle
+    }
+
+    /// Whether a handle is a console that is still alive. Both questions the classifier
+    /// asks fail once `FreeConsole` has closed the console, and asking them the same way
+    /// it does keeps this usable on the write-only handle `resolve` returns.
+    fn is_live_console(handle: HANDLE) -> bool {
+        is_console_handle(handle)
+    }
+
+    /// Redirected stdio is pinned: a file or a pipe survives console churn, so the
+    /// duplicate taken at startup stays the right answer no matter what later writes to
+    /// the std slot it came from.
+    #[test]
+    fn redirected_inherit_keeps_the_startup_object() {
+        let _lock = console_lock();
+        let slots = StdHandleSlots::capture();
+
+        let (startup_read, startup_write) = open_pipe();
+        set_std_handle(STD_OUTPUT_HANDLE, startup_write);
+        let source = InheritSource::capture(STD_OUTPUT_HANDLE);
+
+        let (other_read, other_write) = open_pipe();
+        set_std_handle(STD_OUTPUT_HANDLE, other_write);
+
+        let resolved = source.resolve().expect("a pinned source always resolves");
+        let kept_the_startup_object =
+            unsafe { CompareObjectHandles(resolved.raw(), startup_write) } != 0;
+        let followed_the_slot = unsafe { CompareObjectHandles(resolved.raw(), other_write) } != 0;
+
+        drop(resolved);
+        slots.restore();
+        if let InheritSource::Pinned(duplicate) = source {
+            close(duplicate);
+        }
+        for handle in [startup_write, startup_read, other_write, other_read] {
+            close(handle);
+        }
+
+        assert!(
+            kept_the_startup_object,
+            "inherit must hand the child the object the supervisor started with"
+        );
+        assert!(
+            !followed_the_slot,
+            "inherit must not hand the child whatever the std slot points at now"
+        );
+    }
+
+    /// Console-backed stdio cannot be pinned. `FreeConsole` closes every console handle
+    /// the process holds, duplicates included, so a handle captured at startup is dead
+    /// from the first graceful stop onwards. Taking the console away and giving a
+    /// different one back is the state a stop leaves behind for a supervisor started from
+    /// a terminal, and `inherit` has to resolve against the new one.
+    #[test]
+    fn console_inherit_follows_the_console_across_a_detach() {
+        let _lock = console_lock();
+        let restore = CallerConsoleGuard::capture();
+
+        // Whatever the harness gave this process, run against a console the test owns.
+        leave_console();
+        attach_fresh_console();
+
+        let source = InheritSource::capture(STD_OUTPUT_HANDLE);
+        let pinned_a_console_handle = matches!(source, InheritSource::Pinned(_));
+        let before = source.resolve();
+        let resolved_before = before.as_ref().is_some_and(|h| is_live_console(h.raw()));
+        drop(before);
+
+        leave_console();
+        attach_fresh_console();
+
+        let after = source.resolve();
+        let resolved_after = after.as_ref().is_some_and(|h| is_live_console(h.raw()));
+        drop(after);
+
+        leave_console();
+        drop(restore);
+
+        assert!(
+            !pinned_a_console_handle,
+            "a console handle must not be pinned, FreeConsole invalidates the duplicate"
+        );
+        assert!(resolved_before, "inherit resolves while attached");
+        assert!(
+            resolved_after,
+            "inherit handed the child a handle that is no longer a console"
+        );
+    }
+
+    /// A console handle the supervisor cannot read from is still a console handle, and
+    /// `FreeConsole` closes it like any other. Classifying with `GetConsoleMode`, which
+    /// needs `GENERIC_READ`, would call this one redirected and pin a duplicate that the
+    /// first graceful stop invalidates.
+    #[test]
+    fn write_only_console_handle_is_not_pinned() {
+        let _lock = console_lock();
+        let restore = CallerConsoleGuard::capture();
+
+        leave_console();
+        attach_fresh_console();
+        // Closed by FreeConsole below along with every other handle to this console.
+        set_std_handle(STD_OUTPUT_HANDLE, open_console_out(FILE_GENERIC_WRITE));
+
+        let source = InheritSource::capture(STD_OUTPUT_HANDLE);
+        let pinned = matches!(source, InheritSource::Pinned(_));
+
+        leave_console();
+        drop(restore);
+
+        assert!(
+            !pinned,
+            "a console handle the supervisor cannot read from must not be pinned"
+        );
+    }
+
+    /// Which slots the caller guard rebinds is settled while the console is still there.
+    /// Asking afterwards is a different question: `FreeConsole` closes the console's
+    /// handles, and by the time the guard reattaches, Windows may have given their values
+    /// to whatever another thread opened in the meantime, so a slot that looks alive can
+    /// be alive as something that was never the console's. A redirection, which the
+    /// console never owned, has to come through the round trip untouched.
+    #[test]
+    fn the_caller_guard_records_what_the_console_owned() {
+        let _lock = console_lock();
+        let restore = CallerConsoleGuard::capture();
+        let slots = StdHandleSlots::capture();
+
+        leave_console();
+        attach_fresh_console();
+        let (read, write) = open_pipe();
+        set_std_handle(STD_ERROR_HANDLE, write);
+
+        let guard = CallerConsoleGuard::capture();
+        let [_, stdout_console, stderr_console] = guard.console_backed;
+
+        leave_console();
+        drop(guard);
+
+        let stderr_now = unsafe { GetStdHandle(STD_ERROR_HANDLE) };
+        let kept_the_pipe = unsafe { CompareObjectHandles(stderr_now, write) } != 0;
+
+        leave_console();
+        slots.restore();
+        drop(restore);
+        for handle in [write, read] {
+            close(handle);
+        }
+
+        assert!(
+            stdout_console,
+            "a console-backed stdout comes back dead and has to be rebound"
+        );
+        assert!(
+            !stderr_console,
+            "a redirection is not the console's to rebind"
+        );
+        assert!(
+            kept_the_pipe,
+            "the caller guard replaced a redirection the console never owned"
+        );
+    }
+
+    /// A character device that is not a console, `NUL` here, is a redirection like any
+    /// other and console churn cannot touch it. Deciding on `GetFileType` alone would
+    /// lump it in with consoles and send a child's output to the terminal instead, which
+    /// is not what whoever redirected the supervisor asked for.
+    #[test]
+    fn write_only_character_device_is_pinned() {
+        let _lock = console_lock();
+        let slots = StdHandleSlots::capture();
+
+        let nul = open_nul_with_access(FILE_GENERIC_WRITE);
+        set_std_handle(STD_OUTPUT_HANDLE, nul);
+        let source = InheritSource::capture(STD_OUTPUT_HANDLE);
+
+        let resolved = source.resolve();
+        let kept_the_device = resolved
+            .as_ref()
+            .is_some_and(|h| unsafe { CompareObjectHandles(h.raw(), nul) } != 0);
+
+        drop(resolved);
+        slots.restore();
+        if let InheritSource::Pinned(duplicate) = source {
+            close(duplicate);
+        }
+        close(nul);
+
+        assert!(
+            kept_the_device,
+            "a redirection to a character device must be inherited, not reopened as a console"
+        );
+    }
+
+    /// The service case: the SCM starts dd-procmgrd with nothing in its std slots, so
+    /// `inherit` has nothing to give a child and the spawn path falls back to NUL.
+    #[test]
+    fn empty_std_slot_has_nothing_to_inherit() {
+        let _lock = console_lock();
+        let slots = StdHandleSlots::capture();
+
+        set_std_handle(STD_OUTPUT_HANDLE, std::ptr::null_mut());
+        let source = InheritSource::capture(STD_OUTPUT_HANDLE);
+        let resolved_nothing = source.resolve().is_none();
+
+        slots.restore();
+
+        assert!(
+            resolved_nothing,
+            "an empty std slot must not resolve to a handle"
+        );
+    }
+
+    /// The no-console arm of `CallerConsoleGuard` is this round trip, and it is the only
+    /// thing keeping a closed console handle out of a std slot after a graceful stop.
+    #[test]
+    fn std_handle_slots_restore_the_captured_values() {
+        let _guard = console_lock();
+        let captured = StdHandleSlots::capture();
+
+        let scratch = open_nul();
+        for (kind, _) in CONSOLE_STD_HANDLES {
+            assert_ne!(
+                unsafe { SetStdHandle(kind, scratch) },
+                0,
+                "SetStdHandle({kind}) failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+        captured.restore();
+        let restored = StdHandleSlots::capture();
+        unsafe { CloseHandle(scratch) };
+
+        assert_eq!(slot_values(&captured), slot_values(&restored));
     }
 }
