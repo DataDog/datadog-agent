@@ -18,16 +18,28 @@ import (
 
 // NormalizePodSpec resolves any pod spec issues
 func NormalizePodSpec(pod *corev1.Pod) error {
-	normalizedVolumes, err := normalizeVolumes(pod.Spec.Volumes)
+	_, err := normalizePodSpec(pod)
+	return err
+}
+
+// normalizePodSpec returns removed volume indices in their original order so
+// admission can remove the same raw occurrences, including unknown fields.
+func normalizePodSpec(pod *corev1.Pod) ([]int, error) {
+	normalizedVolumes, removed, err := normalizeVolumesWithRemovals(pod.Spec.Volumes)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	pod.Spec.Volumes = normalizedVolumes
-	return nil
+	return removed, nil
 }
 
 func normalizeVolumes(volumes []corev1.Volume) ([]corev1.Volume, error) {
+	normalized, _, err := normalizeVolumesWithRemovals(volumes)
+	return normalized, err
+}
+
+func normalizeVolumesWithRemovals(volumes []corev1.Volume) ([]corev1.Volume, []int, error) {
 	seen := make(map[string]int, len(volumes))
 	var duplicates []int // Track duplicates in ascending order
 
@@ -36,7 +48,7 @@ func normalizeVolumes(volumes []corev1.Volume) ([]corev1.Volume, error) {
 		if j, found := seen[vol.Name]; found {
 			// Check that the identified duplicate is an _exact_ match to the previous
 			if !reflect.DeepEqual(vol, volumes[j]) {
-				return volumes, log.Errorf("detected multiple volumes with the name \"%s\" but some fields differ, cannot normalize", vol.Name)
+				return volumes, nil, log.Errorf("detected multiple volumes with the name \"%s\" but some fields differ, cannot normalize", vol.Name)
 			}
 			log.Warnf("detected multiple entries for volume \"%s\", normalizing the pod spec", vol.Name)
 			duplicates = append(duplicates, i)
@@ -50,5 +62,5 @@ func normalizeVolumes(volumes []corev1.Volume) ([]corev1.Volume, error) {
 		volumes = slices.Delete(volumes, duplicates[i], duplicates[i]+1)
 	}
 
-	return volumes, nil
+	return volumes, duplicates, nil
 }
