@@ -243,13 +243,15 @@ func (r *secretResolver) fetchSecret(handles []string) (map[string]string, error
 	for _, g := range groups {
 		if g.cfgErr != nil {
 			for _, h := range g.origHandles {
+				r.recordResolutionFailure(h, g.cfgErr)
 				errs = append(errs, fmt.Errorf("handle %q: %w", h, g.cfgErr))
 			}
 			continue
 		}
 		res, perHandleErrs, globalErr := r.fetchSingleBackend(g.backendType, g.backendConfig, g.backendTimeout, g.keys)
 		if globalErr != nil {
-			for range g.origHandles {
+			for _, handle := range g.origHandles {
+				r.recordResolutionFailure(handle, globalErr)
 				errs = append(errs, globalErr)
 			}
 			continue
@@ -257,7 +259,9 @@ func (r *secretResolver) fetchSecret(handles []string) (map[string]string, error
 		for i, key := range g.keys {
 			if val, ok := res[key]; ok {
 				result[g.origHandles[i]] = val
+				delete(r.resolutionFailures, g.origHandles[i])
 			} else if err, ok := perHandleErrs[key]; ok {
+				r.recordResolutionFailure(g.origHandles[i], err)
 				errs = append(errs, fmt.Errorf("handle %q: %w", g.origHandles[i], err))
 			}
 		}
@@ -294,8 +298,8 @@ func (r *secretResolver) fetchSingleBackend(backendType string, backendConfig ma
 	secretVals := map[string]secrets.SecretVal{}
 	if err = json.Unmarshal(output, &secretVals); err != nil {
 		r.tlmSecretUnmarshalError.Inc()
-		return nil, nil, fmt.Errorf("'%s' returned invalid JSON: '%s'. See docs for expected format: %s",
-			r.backendCommand, err, secretsManagementDocsURL)
+		return nil, nil, &lookupError{reason: "invalid_response", error: fmt.Errorf("'%s' returned invalid JSON: '%s'. See docs for expected format: %s",
+			r.backendCommand, err, secretsManagementDocsURL)}
 	}
 
 	resolved = map[string]string{}
@@ -306,7 +310,7 @@ func (r *secretResolver) fetchSingleBackend(backendType string, backendConfig ma
 			if handleErrors == nil {
 				handleErrors = make(map[string]error)
 			}
-			handleErrors[sec] = fmt.Errorf("secret handle '%s' was not resolved by the secret_backend_command. Ensure your script returns the handle in the expected JSON format. Docs: %s", sec, secretsManagementDocsURL)
+			handleErrors[sec] = &lookupError{reason: "missing", error: fmt.Errorf("secret handle '%s' was not resolved by the secret_backend_command. Ensure your script returns the handle in the expected JSON format. Docs: %s", sec, secretsManagementDocsURL)}
 			continue
 		}
 
@@ -328,7 +332,7 @@ func (r *secretResolver) fetchSingleBackend(backendType string, backendConfig ma
 			if handleErrors == nil {
 				handleErrors = make(map[string]error)
 			}
-			handleErrors[sec] = fmt.Errorf("resolved secret for '%s' is empty. Check that the secret exists in your backend and has a non-empty value. If using secret_backend_remove_trailing_line_break, trailing newlines are stripped. Docs: %s", sec, secretsManagementDocsURL)
+			handleErrors[sec] = &lookupError{reason: "empty", error: fmt.Errorf("resolved secret for '%s' is empty. Check that the secret exists in your backend and has a non-empty value. If using secret_backend_remove_trailing_line_break, trailing newlines are stripped. Docs: %s", sec, secretsManagementDocsURL)}
 			continue
 		}
 		resolved[sec] = v.Value

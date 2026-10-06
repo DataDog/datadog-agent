@@ -9,6 +9,7 @@ package issueregistryimpl
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
@@ -22,6 +23,7 @@ type Requires struct {
 	Config         config.Component
 	SysProbeConfig sysprobeconfig.Component `optional:"true"`
 	Hostname       hostnameinterface.Component
+	Secrets        secrets.Component `optional:"true"`
 	// Workloadmeta resolves this agent's DaemonSet UID, so that
 	// invalidconfig/invalidsysprobeconfig issue ids can be scoped by
 	// selfident's discriminator instead of the bare hostname.
@@ -39,6 +41,7 @@ func NewComponent(reqs Requires) registrydef.Component {
 		Config:         reqs.Config,
 		SysProbeConfig: reqs.SysProbeConfig,
 		Hostname:       reqs.Hostname,
+		Secrets:        reqs.Secrets,
 		SelfIdent:      selfident.New(reqs.Workloadmeta),
 	}
 	for _, module := range issuesmod.GetAllModules(deps) {

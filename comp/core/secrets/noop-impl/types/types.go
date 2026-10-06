@@ -41,3 +41,9 @@ func (r *SecretNoop) IsValueFromSecret(_ string) bool {
 
 // RemoveOrigin
 func (r *SecretNoop) RemoveOrigin(_ string) {}
+
+// SetOriginName does nothing.
+func (r *SecretNoop) SetOriginName(_, _ string) {}
+
+// GetResolutionFailures returns no failures.
+func (r *SecretNoop) GetResolutionFailures() []secrets.ResolutionFailure { return nil }

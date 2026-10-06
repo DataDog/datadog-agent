@@ -86,7 +86,9 @@ type secretResolver struct {
 	clk   clock.Clock
 
 	// list of handles and where they were found
-	origin handleToContext
+	origin             handleToContext
+	originNames        map[string]string
+	resolutionFailures map[string]string
 
 	// resolvedSecretValues is an append-only set of all secret values ever returned by the backend.
 	// old values are retained for IsValueFromSecret lookups.
@@ -149,6 +151,8 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 	return &secretResolver{
 		cache:                   make(map[string]string),
 		origin:                  make(handleToContext),
+		originNames:             make(map[string]string),
+		resolutionFailures:      make(map[string]string),
 		resolvedSecretValues:    make(map[string]struct{}),
 		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
 		tlmSecretUnmarshalError: telemetry.NewCounter("secret_backend", "unmarshal_errors_count", []string{}, "Count of errors when unmarshalling the output of the secret binary"),
@@ -805,6 +809,7 @@ func (r *secretResolver) IsValueFromSecret(value string) bool {
 func (r *secretResolver) RemoveOrigin(origin string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
+	delete(r.originNames, origin)
 
 	for handle, origins := range r.origin {
 		newList := []secretContext{}
@@ -815,6 +820,7 @@ func (r *secretResolver) RemoveOrigin(origin string) {
 		}
 		if len(newList) == 0 {
 			delete(r.origin, handle)
+			delete(r.resolutionFailures, handle)
 		} else {
 			r.origin[handle] = newList
 		}

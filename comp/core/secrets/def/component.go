@@ -14,6 +14,16 @@ type SecretBackendConfig struct {
 	Config map[string]interface{} `mapstructure:"config"`
 }
 
+// ResolutionFailure describes an active failed lookup, without backend messages or secret values.
+type ResolutionFailure struct {
+	Handle         string
+	Origin         string
+	OriginName     string
+	Path           []string
+	Reason         string
+	HasCachedValue bool
+}
+
 // ConfigParams holds parameters for configuration
 type ConfigParams struct {
 	Type                         string
@@ -56,4 +66,8 @@ type Component interface {
 	// RemoveOrigin removes a origin from the internal cache of the secret component. This does not remove secrets
 	// from the cache but the reference where those secrets are used.
 	RemoveOrigin(origin string)
+	// SetOriginName gives an integration configuration a readable name for diagnostics.
+	SetOriginName(origin, name string)
+	// GetResolutionFailures returns failed lookups that still have an active configuration reference.
+	GetResolutionFailures() []ResolutionFailure
 }
