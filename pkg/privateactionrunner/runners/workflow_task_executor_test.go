@@ -8,6 +8,8 @@ package runners
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -66,6 +68,37 @@ func (a *recordingAction) Run(context.Context, *types.Task, *privateconnection.P
 func (f *fakeCredentialResolver) ResolveConnectionInfoToCredential(_ context.Context, conn *privateactionspb.ConnectionInfo, _ *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
 	f.gotConn = conn
 	return f.credential, f.err
+}
+
+func TestNewCredentialResolverFallsBackWhenScriptRootsCannotOpen(t *testing.T) {
+	missingRoot := filepath.Join(t.TempDir(), "missing")
+	credentialResolver, err := newCredentialResolver([]string{missingRoot})
+	require.NoError(t, err)
+
+	secretPath := filepath.Join(t.TempDir(), "credentials.json")
+	require.NoError(t, os.WriteFile(secretPath, []byte(`{"auth_type":"Token Auth","credentials":[{"tokenName":"apiKey","tokenValue":"secret"}]}`), 0o600))
+	fileSecretConnection := &privateactionspb.ConnectionInfo{
+		CredentialsType: privateactionspb.CredentialsType_TOKEN_AUTH,
+		Tokens: []*privateactionspb.ConnectionToken{
+			privateconnection.NewFileSecretToken([]string{privateconnection.RootTokenGroupName, "apiKey"}, secretPath),
+		},
+	}
+
+	credentials, err := credentialResolver.ResolveConnectionInfoToCredential(context.Background(), fileSecretConnection, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "secret", credentials.AsTokenMap()["apiKey"])
+
+	scriptPath := filepath.Join(missingRoot, "credentials.yaml")
+	scriptConnection := &privateactionspb.ConnectionInfo{
+		CredentialsType: privateactionspb.CredentialsType_TOKEN_AUTH,
+		Tokens: []*privateactionspb.ConnectionToken{
+			privateconnection.NewYamlFileToken([]string{privateconnection.RootTokenGroupName, "configFileLocation"}, scriptPath),
+		},
+	}
+
+	_, err = credentialResolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnection, nil)
+	require.EqualError(t, err, "could not load script credential file")
+	assert.NotContains(t, err.Error(), scriptPath)
 }
 
 func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCredentials(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/google/uuid"
 
@@ -25,10 +26,29 @@ const (
 	maxCredentialsFileSize = 1 * 1024 * 1024 // 1 MB
 )
 
+var (
+	errCouldNotLoadCredentialFile        = errors.New("could not load credentials file")
+	errCouldNotParseCredentialFile       = errors.New("could not parse credentials file")
+	errCouldNotLoadScriptCredentialFile  = errors.New("could not load script credential file")
+	errCouldNotOpenScriptCredentialRoots = errors.New("could not open script credential file roots")
+)
+
 type PrivateCredentialResolver interface {
 	ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error)
 }
 type privateCredentialResolver struct {
+	scriptCredentialFileRoots []scriptCredentialFileRoot
+}
+
+type scriptCredentialFileRoot struct {
+	path string
+	root *os.Root
+}
+
+type credentialFile interface {
+	io.Reader
+	io.Closer
+	Stat() (os.FileInfo, error)
 }
 
 type PrivateConnectionConfig struct {
@@ -43,8 +63,43 @@ type Credential struct {
 	Password   string `json:"password,omitempty"`
 }
 
-func NewPrivateCredentialResolver() PrivateCredentialResolver {
-	return &privateCredentialResolver{}
+func NewPrivateCredentialResolver(scriptCredentialFileAllowedRoots []string) (PrivateCredentialResolver, error) {
+	roots := make([]scriptCredentialFileRoot, 0, len(scriptCredentialFileAllowedRoots))
+	for _, path := range scriptCredentialFileAllowedRoots {
+		path = filepath.Clean(path)
+		root, err := openScriptCredentialRoot(path)
+		if err != nil {
+			for _, openedRoot := range roots {
+				_ = openedRoot.root.Close()
+			}
+			return nil, errCouldNotOpenScriptCredentialRoots
+		}
+		roots = append(roots, root)
+	}
+	return &privateCredentialResolver{scriptCredentialFileRoots: roots}, nil
+}
+
+func openScriptCredentialRoot(path string) (scriptCredentialFileRoot, error) {
+	resolvedPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return scriptCredentialFileRoot{}, err
+	}
+	root, err := os.OpenRoot(path)
+	if err != nil {
+		return scriptCredentialFileRoot{}, err
+	}
+	openedInfo, openedErr := root.Stat(".")
+	resolvedInfo, resolvedErr := os.Stat(resolvedPath)
+	filesystemRootInfo, filesystemRootErr := os.Stat(filesystemRootPath(resolvedPath))
+	if openedErr != nil || resolvedErr != nil || filesystemRootErr != nil || !os.SameFile(openedInfo, resolvedInfo) || os.SameFile(openedInfo, filesystemRootInfo) {
+		_ = root.Close()
+		return scriptCredentialFileRoot{}, errCouldNotOpenScriptCredentialRoots
+	}
+	return scriptCredentialFileRoot{path: path, root: root}, nil
+}
+
+func filesystemRootPath(path string) string {
+	return filepath.VolumeName(path) + string(filepath.Separator)
 }
 
 func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx context.Context, connInfo *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
@@ -54,7 +109,7 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 	tokens, details := privateconnection.ExtractConnectionDetails(connInfo)
 	switch connInfo.CredentialsType {
 	case privateactionspb.CredentialsType_TOKEN_AUTH:
-		credentialTokens, err := resolveTokenAuthTokens(ctx, tokens)
+		credentialTokens, err := p.resolveTokenAuthTokens(ctx, tokens)
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +132,7 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 	return nil, fmt.Errorf("unsupported credential type: %s", connInfo.CredentialsType)
 }
 
-func resolveTokenAuthTokens(ctx context.Context, tokens []*privateactionspb.ConnectionToken) ([]privateconnection.PrivateCredentialsToken, error) {
+func (p *privateCredentialResolver) resolveTokenAuthTokens(ctx context.Context, tokens []*privateactionspb.ConnectionToken) ([]privateconnection.PrivateCredentialsToken, error) {
 	credentialTokens := make([]privateconnection.PrivateCredentialsToken, 0)
 	for _, token := range tokens {
 		tokenName := connlib.GetName(token)
@@ -95,7 +150,7 @@ func resolveTokenAuthTokens(ctx context.Context, tokens []*privateactionspb.Conn
 				Name: tokenName, Value: secret,
 			})
 		case *privateactionspb.ConnectionToken_YamlFile_:
-			resolved, err := resolveYamlFileToken(ctx, t.YamlFile.GetPath())
+			resolved, err := p.resolveYamlFileToken(ctx, t.YamlFile.GetPath())
 			if err != nil {
 				return nil, err
 			}
@@ -109,14 +164,51 @@ func resolveTokenAuthTokens(ctx context.Context, tokens []*privateactionspb.Conn
 	return credentialTokens, nil
 }
 
-func resolveYamlFileToken(ctx context.Context, path string) (string, error) {
-	data, err := validateAndReadFile(ctx, path)
+func (p *privateCredentialResolver) resolveYamlFileToken(ctx context.Context, path string) (string, error) {
+	data, err := readCredentialFile(ctx, func() (credentialFile, error) {
+		return p.openScriptCredentialFile(path)
+	}, errCouldNotLoadScriptCredentialFile)
 	if err != nil {
 		return "", err
 	}
 	// TODO: this should probably also do the yaml parsing and validation but for now we're using runtimepb.Credential_TokenCredential_Token which only supports strings
 	// so its the responsibility of the action to desarialize the yaml and validate it
 	return string(data), nil
+}
+
+func (p *privateCredentialResolver) openScriptCredentialFile(path string) (credentialFile, error) {
+	if path == "" || !filepath.IsAbs(path) || containsParentPathElement(path) {
+		return nil, errCouldNotLoadScriptCredentialFile
+	}
+	path = filepath.Clean(path)
+
+	for _, allowedRoot := range p.scriptCredentialFileRoots {
+		relativePath, err := filepath.Rel(allowedRoot.path, path)
+		if err != nil || !filepath.IsLocal(relativePath) {
+			continue
+		}
+
+		file, err := allowedRoot.root.Open(relativePath)
+		if err != nil {
+			continue
+		}
+		return file, nil
+	}
+
+	return nil, errCouldNotLoadScriptCredentialFile
+}
+
+func containsParentPathElement(path string) bool {
+	elementStart := 0
+	for i := 0; i < len(path); i++ {
+		if os.IsPathSeparator(path[i]) {
+			if path[elementStart:i] == ".." {
+				return true
+			}
+			elementStart = i + 1
+		}
+	}
+	return path[elementStart:] == ".."
 }
 
 func resolveBasicAuthTokens(ctx context.Context, tokens []*privateactionspb.ConnectionToken) ([]privateconnection.PrivateCredentialsToken, error) {
@@ -173,7 +265,7 @@ func getSecretFromDockerLocation(
 			}
 		}
 	default:
-		return "", fmt.Errorf("the credential provided in the config file is not supported: invalid auth_type \"%s\"", privateCredentialConfig.AuthType)
+		return "", errors.New("credential file contains unsupported authentication type")
 	}
 	log.FromContext(ctx).Warn("credential not found in file", log.String("path", dockerSecretPath), log.String("secretName", secretName))
 	return "", nil
@@ -210,41 +302,40 @@ func getSecretFromDockerLocation(
 func loadConnectionCredentials(ctx context.Context, path string) (config *PrivateConnectionConfig, err error) {
 	config = &PrivateConnectionConfig{}
 
-	data, err := validateAndReadFile(ctx, path)
+	data, err := readCredentialFile(ctx, func() (credentialFile, error) {
+		return os.Open(path)
+	}, errCouldNotLoadCredentialFile)
 	if err != nil {
 		return config, err
 	}
-	err = json.Unmarshal(data, &config)
+	err = json.Unmarshal(data, config)
 	if err != nil {
-		return config, fmt.Errorf("could not unmarshal credentials file: %v", err)
+		return config, errCouldNotParseCredentialFile
 	}
 	return config, nil
 }
 
-func validateAndReadFile(ctx context.Context, path string) ([]byte, error) {
-	if path == "" {
-		return nil, errors.New("credential file path is empty")
-	}
-	file, err := os.Open(path)
+func readCredentialFile(ctx context.Context, open func() (credentialFile, error), publicErr error) ([]byte, error) {
+	file, err := open()
 	if err != nil {
-		return nil, fmt.Errorf("could not open credentials file: %v ", err)
+		return nil, publicErr
 	}
 	defer closeSafely(ctx, file)
 
 	stat, err := file.Stat()
 	if err != nil {
-		return nil, err
+		return nil, publicErr
 	}
-	if stat.Size() == 0 {
-		return nil, errors.New("the credentials file is empty")
-	}
-	if stat.Size() > maxCredentialsFileSize {
-		return nil, errors.New("the credentials file is too large")
+	if !stat.Mode().IsRegular() || stat.Size() == 0 || stat.Size() > maxCredentialsFileSize {
+		return nil, publicErr
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := io.ReadAll(io.LimitReader(file, maxCredentialsFileSize+1))
 	if err != nil {
-		return nil, fmt.Errorf("could not load credentials file: %v", err)
+		return nil, publicErr
+	}
+	if len(data) == 0 || len(data) > maxCredentialsFileSize {
+		return nil, publicErr
 	}
 
 	return data, nil

@@ -107,6 +107,25 @@ properties:
       custom resource actions allow non-native API groups and deny Kubernetes native API
       groups. When explicitly set, including to an empty list, only exact matches are
       allowed.
+  script:
+    node_type: section
+    type: object
+    visibility: public
+    description: Configuration for Script actions executed by the Private Action Runner.
+    properties:
+      credential_file_allowed_roots:
+        node_type: setting
+        type: array
+        default: []
+        env_parser: json_list_or_comma_separated
+        items:
+          type: string
+        visibility: public
+        description: |-
+          Directories from which Script connection credential files may be read.
+          When unset, only the packaged Private Action Runner configuration directory
+          is allowed. Configured values replace that default; an explicit empty list
+          disables Script credential-file access. Paths must be absolute directories.
   api_key_only_enrollment:
     node_type: setting
     type: boolean

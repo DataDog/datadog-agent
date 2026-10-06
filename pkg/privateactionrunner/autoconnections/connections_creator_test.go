@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -59,6 +60,25 @@ func TestCreateConnection_CorrectHTTPRequest(t *testing.T) {
 	assert.Equal(t, "application/vnd.api+json", receivedHeaders.Get("Content-Type"), "Content-Type should be application/vnd.api+json")
 	assert.Contains(t, receivedHeaders.Get("User-Agent"), "datadog-agent/", "User-Agent should contain datadog-agent/")
 	assert.Contains(t, receivedBody, `"name":"Kubernetes (runner-name-abc123)"`, "Body should contain connection name")
+}
+
+func TestScriptAutoConnectionCredentialFileAllowed(t *testing.T) {
+	tests := []struct {
+		name  string
+		roots []string
+		want  bool
+	}{
+		{name: "packaged directory", roots: []string{getPrivateActionRunnerDir()}, want: true},
+		{name: "parent directory", roots: []string{filepath.Dir(getPrivateActionRunnerDir())}, want: true},
+		{name: "different directory", roots: []string{t.TempDir()}},
+		{name: "deny all", roots: []string{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, scriptAutoConnectionCredentialFileAllowed(tt.roots))
+		})
+	}
 }
 
 func TestCreateConnection_StatusCodeHandling(t *testing.T) {

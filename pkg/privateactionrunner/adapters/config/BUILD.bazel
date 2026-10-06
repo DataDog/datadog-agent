@@ -19,6 +19,7 @@ go_library(
         "//pkg/privateactionrunner/adapters/modes",
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/util",
+        "//pkg/util/defaultpaths",
         "//pkg/util/flavor",
         "//pkg/util/http",
         "//pkg/util/log",
@@ -31,12 +32,16 @@ go_library(
 
 dd_agent_go_test(
     name = "config_test",
-    srcs = ["transform_test.go"],
+    srcs = [
+        "transform_test.go",
+        "transform_windows_test.go",
+    ],
     embed = [":config"],
     deps = [
         "//comp/dogstatsd/statsd/def",
         "//pkg/config/mock",
         "//pkg/privateactionrunner",
+        "//pkg/util/defaultpaths",
         "//pkg/util/flavor",
         "//pkg/util/log",
         "@com_github_datadog_datadog_go_v5//statsd",

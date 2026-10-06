@@ -7,6 +7,7 @@ package autoconnections
 
 import (
 	"context"
+	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
@@ -50,6 +51,10 @@ func CreateConnectionsIfEnabled(
 	if len(actionsAllowlist) == 0 {
 		return
 	}
+	if actionsAllowlistContainsBundle(actionsAllowlist, supportedConnections["script"].FQNPrefix) && !scriptAutoConnectionCredentialFileAllowed(parCfg.ScriptCredentialFileAllowedRoots) {
+		log.Warnf("Automatic Script connection creation uses a credential file outside %s; add %s to the configured roots to allow it",
+			par.ScriptCredentialFileAllowedRoots, getPrivateActionRunnerDir())
+	}
 
 	client, err := NewConnectionsAPIClient(cfg, parCfg.DatadogSite, apiKey, appKey)
 	if err != nil {
@@ -60,6 +65,17 @@ func CreateConnectionsIfEnabled(
 	if err := creator.AutoCreateConnections(ctx, runnerID, enrollmentResult, actionsAllowlist); err != nil {
 		log.Warnf("Failed to auto-create connections: %v", err)
 	}
+}
+
+func scriptAutoConnectionCredentialFileAllowed(allowedRoots []string) bool {
+	path := filepath.Clean(getScriptConfigPath())
+	for _, root := range allowedRoots {
+		relativePath, err := filepath.Rel(root, path)
+		if err == nil && filepath.IsLocal(relativePath) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c ConnectionsCreator) AutoCreateConnections(ctx context.Context, runnerID string, enrollmentResult *enrollment.Result, actionsAllowlist []string) error {
