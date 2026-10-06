@@ -147,9 +147,11 @@ bazel:rc-x509-ffi:macos-arm64:
     RC_X509_ADDITIONAL_TEST_TARGETS: //deps/libdd_rc/smoke:packaged_client_lifecycle_test //packages/agent/dependencies:rc_x509_packaged_agent_macos_test
 
 # The shipping Windows Agent uses MinGW, while AWS-LC supports Windows FIPS
-# only through the MSVC ABI. Keep this manual job focused on the isolated
-# native graph until a DLL/import-library boundary is proven for Go/cgo.
-bazel:rc-x509-ffi:windows-amd64:
+# only through the MSVC ABI. This temporary debug job disables assembly so it
+# can probe the isolated native and DLL/import-library boundaries while NASM's
+# official archive is onboarded into the CI dependency mirror. It is not a
+# production acceptance test; AWS-LC permits NO_ASM only in debug builds.
+bazel:rc-x509-ffi:windows-amd64-noasm-debug:
   extends: [.bazel:runner:windows-amd64, .bazel:test]
   stage: source_test
   needs: []
@@ -160,7 +162,7 @@ bazel:rc-x509-ffi:windows-amd64:
     POWERSHELL_SCRIPT: |-
       bazel version
       Get-Command cmake, go, ninja, nasm, clang, libclang -ErrorAction SilentlyContinue
-      bazel build -c opt --jobs=8 --verbose_failures --remote_download_outputs=all --platforms=//bazel/platforms:windows_x86_64_msvc_fips --extra_toolchains=@rust_toolchains//:rw-395021384 --extra_toolchains=@msvc_toolchains//:default_msvc-cl_hostx64_targetx64 @libdd_rc_source//:rc_x509_ffi
+      bazel build -c dbg --jobs=8 --verbose_failures --remote_download_outputs=all --platforms=//bazel/platforms:windows_x86_64_msvc_fips --extra_toolchains=@rust_toolchains//:rw-395021384 --extra_toolchains=@msvc_toolchains//:default_msvc-cl_hostx64_targetx64 @libdd_rc_source//:rc_x509_ffi
 
 .bazel:coverage:macos:
   extends: [.bazel:test:reporting, .bazel:test]

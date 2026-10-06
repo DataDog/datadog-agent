@@ -45,7 +45,11 @@ crate.annotation(
 crate.annotation(
     build_script_env = {"AWS_LC_SYS_NO_JITTER_ENTROPY": "1"},
     build_script_env_select = {
-        "x86_64-pc-windows-msvc": "{\"NASM\":\"$(execpath @nasm_windows//:nasm.exe)\"}",
+        # Temporary diagnostic path: disabling assembly lets the debug Windows
+        # build exercise the MSVC/FFI boundary while the official NASM archive
+        # is onboarded into the CI dependency mirror. AWS-LC rejects NO_ASM in
+        # optimized builds, so this cannot become the shipping configuration.
+        "x86_64-pc-windows-msvc": "{\"AWS_LC_SYS_NO_ASM\":\"1\"}",
     },
     build_script_tools_select = {
         # Keep NASM out of non-Windows action inputs. crate-universe promotes
@@ -54,7 +58,7 @@ crate.annotation(
         "aarch64-apple-darwin": [],
         "aarch64-unknown-linux-gnu": [],
         "x86_64-apple-darwin": [],
-        "x86_64-pc-windows-msvc": ["@nasm_windows//:nasm.exe"],
+        "x86_64-pc-windows-msvc": [],
         "x86_64-unknown-linux-gnu": [],
     },
     crate = "aws-lc-sys",
@@ -75,7 +79,9 @@ alias(
         "aarch64-apple-darwin": "{\"CMAKE\":\"/opt/homebrew/bin/cmake\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"PATH\":\"/opt/homebrew/bin:/bin:/usr/bin:/usr/local/bin\"}",
         "aarch64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
         "x86_64-apple-darwin": "{\"CMAKE\":\"/usr/local/bin/cmake\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"PATH\":\"/usr/local/bin:/usr/local/go/bin:/bin:/usr/bin\"}",
-        "x86_64-pc-windows-msvc": "{\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go.exe)\",\"NASM\":\"$(execpath @nasm_windows//:nasm.exe)\"}",
+        # See the aws-lc-sys annotation above. Keep Go hermetic, but avoid a
+        # NASM action input only for this temporary debug/no-assembly build.
+        "x86_64-pc-windows-msvc": "{\"AWS_LC_FIPS_SYS_NO_ASM\":\"1\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go.exe)\"}",
         "x86_64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
     },
     build_script_tools = ["@go_work_sdk//:files"],
@@ -83,10 +89,7 @@ alias(
         "aarch64-apple-darwin": ["@go_work_sdk//:bin/go"],
         "aarch64-unknown-linux-gnu": ["@go_work_sdk//:bin/go"],
         "x86_64-apple-darwin": ["@go_work_sdk//:bin/go"],
-        "x86_64-pc-windows-msvc": [
-            "@go_work_sdk//:bin/go.exe",
-            "@nasm_windows//:nasm.exe",
-        ],
+        "x86_64-pc-windows-msvc": ["@go_work_sdk//:bin/go.exe"],
         "x86_64-unknown-linux-gnu": ["@go_work_sdk//:bin/go"],
     },
     crate = "aws-lc-fips-sys",
