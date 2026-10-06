@@ -9,9 +9,11 @@ package coredump
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,33 +27,45 @@ import (
 // When `core_dump.dir` is set, the core dump size limit (RLIMIT_CORE) is not
 // unlimited. It is computed as follows:
 //
-//   - 0 if the free space in `core_dump.dir` is less than `core_dump.min_free_disk`.
+//   - 0 if a setting is invalid.
+//   - 0 if the free space in `core_dump.dir` minus `core_dump.max_size` is less
+//     than `core_dump.min_free_disk`.
+//   - 0 if `core_dump.max_total_size` is set and the files in `core_dump.dir`
+//     plus `core_dump.max_size` are larger than it.
 //   - 0 if a core of this binary that is younger than `core_dump.max_age` is
-//     already in `core_dump.dir`. If the kernel core pattern has no %e (or %E),
-//     the kernel does not put the binary name in the file name, so any core in
-//     the directory counts.
+//     already in `core_dump.dir`. If the kernel core pattern has no binary name
+//     (%e, %E or %f), any core in the directory counts.
 //   - `core_dump.max_size` otherwise.
 //
-// Core files in `core_dump.dir` that are older than `core_dump.max_age` are
-// deleted at start and then every refreshInterval. Only regular files directly
-// in the directory that match the core naming are deleted. Symlinks and
-// directories are never followed nor deleted.
+// Cores in `core_dump.dir` that are older than `core_dump.max_age` are deleted
+// at start and then every refreshInterval. Only regular files directly in the
+// directory whose name matches the kernel core pattern are deleted, and only
+// when the pattern writes into `core_dump.dir`. Symlinks and directories are
+// never followed nor deleted.
 //
 // The kernel core pattern is node-wide and the Agent does not change it. The
 // Agent only reads it and logs a warning when cores will not land in
 // `core_dump.dir`.
 
-const refreshInterval = time.Hour
+const (
+	refreshInterval = time.Hour
+	// minMaxAge protects against a unitless max_age (for example `72`, read as 72ns).
+	minMaxAge = time.Minute
+)
 
-// fallbackMatcher is used when the core pattern cannot tell how core files are
-// named in core_dump.dir (pipe pattern, other directory, unreadable pattern).
+// fallbackMatcher is used to find existing cores when the core pattern does not
+// tell how core files are named in core_dump.dir (pipe pattern, other
+// directory, unreadable pattern). It is never used to delete files.
 var fallbackMatcher = regexp.MustCompile(`^core([._-].*)?$`)
 
 type boundedConfig struct {
-	dir         string
-	maxSize     uint64
-	minFreeDisk uint64
-	maxAge      time.Duration
+	dir          string
+	maxSize      uint64
+	minFreeDisk  uint64
+	maxTotalSize uint64 // 0 means no total cap
+	maxAge       time.Duration
+	// invalid is not empty when a setting is invalid: cores are then disabled.
+	invalid string
 }
 
 // sysEnv holds the system calls used by the bounded mode, so that tests can replace them.
@@ -88,16 +102,22 @@ type corePattern struct {
 	dir string
 	// inDir is true when cores land in core_dump.dir.
 	inDir bool
-	// perBinary is true when the file name contains the binary name (%e or %E).
+	// perBinary is true when the file name contains the binary name.
 	perBinary bool
 	// matcher matches the base name of core files of this binary in core_dump.dir.
 	matcher *regexp.Regexp
+	// canDelete is true when matcher is specific enough to delete files with it.
+	canDelete bool
 }
+
+// numericSpecifiers are the Linux core_pattern specifiers that expand to a number:
+// pid, global pid, tid, global tid, uid, gid, signal, time, core limit, dump mode.
+const numericSpecifiers = "pPiIugstcd"
 
 // parseCorePattern parses a kernel core pattern.
 //
 // subs maps a pattern specifier (for example 'e' on Linux) to the binary name
-// that the kernel puts in place of it. Other specifiers match any text.
+// that the kernel puts in place of it.
 func parseCorePattern(raw, coreDir, cwd string, subs map[byte]string) corePattern {
 	raw = strings.TrimRight(raw, "\n")
 	p := corePattern{raw: raw, matcher: fallbackMatcher}
@@ -125,12 +145,20 @@ func parseCorePattern(raw, coreDir, cwd string, subs map[byte]string) corePatter
 		return p
 	}
 	p.inDir = p.dir == filepath.Clean(coreDir)
+	if !p.inDir {
+		// Cores do not land in core_dump.dir: the pattern says nothing about
+		// the files there.
+		return p
+	}
 
 	var b strings.Builder
+	hasLiteral := false
+	perBinary := false
 	b.WriteString("^")
 	for i := 0; i < len(base); i++ {
 		c := base[i]
 		if c != '%' {
+			hasLiteral = true
 			b.WriteString(regexp.QuoteMeta(string(c)))
 			continue
 		}
@@ -142,57 +170,66 @@ func parseCorePattern(raw, coreDir, cwd string, subs map[byte]string) corePatter
 		spec := base[i]
 		switch {
 		case spec == '%':
+			hasLiteral = true
 			b.WriteString("%")
 		case subs[spec] != "":
-			p.perBinary = true
+			perBinary = true
 			b.WriteString(regexp.QuoteMeta(subs[spec]))
+		case strings.IndexByte(numericSpecifiers, spec) >= 0:
+			b.WriteString("[0-9]+")
 		default:
-			b.WriteString(".*")
+			// %h (hostname), %e without a known name, unknown specifiers.
+			b.WriteString(".+")
 		}
 	}
 	// With kernel.core_uses_pid=1 and no %p, the kernel appends ".<pid>".
 	b.WriteString(`(\.[0-9]+)?$`)
 
-	if m, err := regexp.Compile(b.String()); err == nil {
-		p.matcher = m
-	} else {
-		p.perBinary = false
+	m, err := regexp.Compile(b.String())
+	if err != nil {
+		return p
 	}
+	p.matcher = m
+	p.perBinary = perBinary
+	// A pattern made only of specifiers (for example `%p` or `%h`) matches
+	// files that are not cores: use it to find cores, never to delete files.
+	p.canDelete = hasLiteral || perBinary
 	return p
 }
 
-// coreFile is a core file found in core_dump.dir.
-type coreFile struct {
+// dirFile is a regular file found directly in core_dump.dir.
+type dirFile struct {
 	name    string
+	size    uint64
 	modTime time.Time
 }
 
-// listCores returns the regular files directly in dir whose name matches the
-// matcher. Symlinks, directories and other file types are ignored.
-func listCores(dir string, matcher *regexp.Regexp) ([]coreFile, error) {
+// listFiles returns the regular files directly in dir. Symlinks, directories
+// and other file types are ignored.
+func listFiles(dir string) ([]dirFile, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
-	var cores []coreFile
+	var files []dirFile
 	for _, e := range entries {
 		// ReadDir does not follow symlinks: a symlink has the ModeSymlink type.
-		if !e.Type().IsRegular() || !matcher.MatchString(e.Name()) {
+		if !e.Type().IsRegular() {
 			continue
 		}
 		info, err := os.Lstat(filepath.Join(dir, e.Name()))
 		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}
-		cores = append(cores, coreFile{name: e.Name(), modTime: info.ModTime()})
+		files = append(files, dirFile{name: e.Name(), size: uint64(max(info.Size(), 0)), modTime: info.ModTime()})
 	}
-	return cores, nil
+	return files, nil
 }
 
-// expired returns true when the core is older than maxAge. A maxAge of 0 means
-// that cores never expire.
-func expired(c coreFile, maxAge time.Duration, now time.Time) bool {
-	return maxAge > 0 && now.Sub(c.modTime) > maxAge
+// expired returns true when the file is older than maxAge. A maxAge of 0 means
+// that files never expire.
+func expired(f dirFile, maxAge time.Duration, now time.Time) bool {
+	return maxAge > 0 && now.Sub(f.modTime) > maxAge
 }
 
 // cleanupExpired deletes the expired cores of this binary in dir. It returns
@@ -201,23 +238,23 @@ func cleanupExpired(dir string, matcher *regexp.Regexp, maxAge time.Duration, no
 	if maxAge <= 0 {
 		return nil, nil
 	}
-	cores, err := listCores(dir, matcher)
+	files, err := listFiles(dir)
 	if err != nil {
 		return nil, err
 	}
 	var removed []string
 	var errs []string
-	for _, c := range cores {
-		if !expired(c, maxAge, now) {
+	for _, f := range files {
+		if !matcher.MatchString(f.name) || !expired(f, maxAge, now) {
 			continue
 		}
-		// c.name comes from ReadDir: it has no path separator, so the path
+		// f.name comes from ReadDir: it has no path separator, so the path
 		// stays in dir. os.Remove does not follow symlinks.
-		if err := os.Remove(filepath.Join(dir, c.name)); err != nil {
+		if err := os.Remove(filepath.Join(dir, f.name)); err != nil {
 			errs = append(errs, err.Error())
 			continue
 		}
-		removed = append(removed, c.name)
+		removed = append(removed, f.name)
 	}
 	if len(errs) > 0 {
 		return removed, fmt.Errorf("cannot delete expired cores: %s", strings.Join(errs, "; "))
@@ -225,26 +262,50 @@ func cleanupExpired(dir string, matcher *regexp.Regexp, maxAge time.Duration, no
 	return removed, nil
 }
 
+func saturatingAdd(a, b uint64) uint64 {
+	if a > math.MaxUint64-b {
+		return math.MaxUint64
+	}
+	return a + b
+}
+
 // computeLimit returns the RLIMIT_CORE value to use and the reason.
 func computeLimit(bc boundedConfig, p corePattern, env sysEnv) (uint64, string) {
-	if free, err := env.freeBytes(bc.dir); err != nil {
-		log.Warnf("Core dumps: cannot read free disk space of %q, skipping the free disk check: %v", bc.dir, err)
-	} else if free < bc.minFreeDisk {
-		return 0, fmt.Sprintf("free disk space in %s is %d bytes, less than core_dump.min_free_disk (%d bytes)", bc.dir, free, bc.minFreeDisk)
+	if bc.invalid != "" {
+		return 0, bc.invalid
 	}
 
-	cores, err := listCores(bc.dir, p.matcher)
-	if err != nil {
-		log.Warnf("Core dumps: cannot list %q, skipping the existing core check: %v", bc.dir, err)
+	// After a core of max_size, at least min_free_disk must stay free.
+	if free, err := env.freeBytes(bc.dir); err != nil {
+		log.Warnf("Core dumps: cannot read free disk space of %q, skipping the free disk check: %v", bc.dir, err)
+	} else if need := saturatingAdd(bc.minFreeDisk, bc.maxSize); free < need {
+		return 0, fmt.Sprintf("free disk space in %s is %d bytes, less than core_dump.min_free_disk + core_dump.max_size (%d bytes)", bc.dir, free, need)
 	}
+
+	files, err := listFiles(bc.dir)
+	if err != nil {
+		log.Warnf("Core dumps: cannot list %q, skipping the existing core and total size checks: %v", bc.dir, err)
+	}
+
+	if bc.maxTotalSize > 0 {
+		var used uint64
+		for _, f := range files {
+			used = saturatingAdd(used, f.size)
+		}
+		if saturatingAdd(used, bc.maxSize) > bc.maxTotalSize {
+			return 0, fmt.Sprintf("files in %s use %d bytes; with core_dump.max_size (%d bytes) this is more than core_dump.max_total_size (%d bytes)",
+				bc.dir, used, bc.maxSize, bc.maxTotalSize)
+		}
+	}
+
 	now := env.now()
-	for _, c := range cores {
-		if !expired(c, bc.maxAge, now) {
+	for _, f := range files {
+		if p.matcher.MatchString(f.name) && !expired(f, bc.maxAge, now) {
 			scope := "this binary"
 			if !p.perBinary {
 				scope = "any binary (the core pattern has no binary name)"
 			}
-			return 0, fmt.Sprintf("a core of %s already exists: %s", scope, filepath.Join(bc.dir, c.name))
+			return 0, fmt.Sprintf("a core of %s already exists: %s", scope, filepath.Join(bc.dir, f.name))
 		}
 	}
 
@@ -276,6 +337,9 @@ type boundedState struct {
 	cfg     boundedConfig
 	pattern corePattern
 	env     sysEnv
+	// last is the last applied limit and reason, to log only changes.
+	last       uint64
+	lastReason string
 }
 
 // refresh deletes expired cores, then computes and applies RLIMIT_CORE.
@@ -283,12 +347,14 @@ func (s *boundedState) refresh() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	removed, err := cleanupExpired(s.cfg.dir, s.pattern.matcher, s.cfg.maxAge, s.env.now())
-	if err != nil {
-		log.Warnf("Core dumps: %v", err)
-	}
-	for _, name := range removed {
-		log.Infof("Core dumps: deleted expired core %s", filepath.Join(s.cfg.dir, name))
+	if s.pattern.canDelete {
+		removed, err := cleanupExpired(s.cfg.dir, s.pattern.matcher, s.cfg.maxAge, s.env.now())
+		if err != nil {
+			log.Warnf("Core dumps: %v", err)
+		}
+		for _, name := range removed {
+			log.Infof("Core dumps: deleted expired core %s", filepath.Join(s.cfg.dir, name))
+		}
 	}
 
 	limit, reason := computeLimit(s.cfg, s.pattern, s.env)
@@ -297,6 +363,13 @@ func (s *boundedState) refresh() {
 		log.Warnf("Core dumps: %v", err)
 		return
 	}
+	if applied != limit {
+		reason += ", lowered to the current RLIMIT_CORE hard limit"
+	}
+	if applied == s.last && reason == s.lastReason {
+		return
+	}
+	s.last, s.lastReason = applied, reason
 	if applied == 0 {
 		log.Warnf("Core dumps: disabled (RLIMIT_CORE=0): %s", reason)
 		return
@@ -320,8 +393,8 @@ func newBoundedState(bc boundedConfig, env sysEnv) *boundedState {
 		p = parseCorePattern(raw, bc.dir, cwd, subs)
 	}
 
-	log.Infof("Core dumps: bounded mode, dir=%s max_size=%d min_free_disk=%d max_age=%s core_pattern=%q",
-		bc.dir, bc.maxSize, bc.minFreeDisk, bc.maxAge, p.raw)
+	log.Infof("Core dumps: bounded mode, dir=%s max_size=%d min_free_disk=%d max_total_size=%d max_age=%s core_pattern=%q",
+		bc.dir, bc.maxSize, bc.minFreeDisk, bc.maxTotalSize, bc.maxAge, p.raw)
 	switch {
 	case err != nil:
 	case p.pipe:
@@ -331,15 +404,14 @@ func newBoundedState(bc boundedConfig, env sysEnv) *boundedState {
 		log.Warnf("Core dumps: the kernel core pattern is empty: the kernel may not write cores")
 	case !p.inDir:
 		log.Warnf("Core dumps: the kernel core pattern %q writes cores in %s, not in core_dump.dir %s: "+
-			"cores will not land in core_dump.dir, and the free disk and existing core checks use core_dump.dir", p.raw, p.dir, bc.dir)
+			"cores will not land in core_dump.dir, expired cores are not deleted, and the checks use core_dump.dir", p.raw, p.dir, bc.dir)
+	case !p.canDelete:
+		log.Warnf("Core dumps: the kernel core pattern %q matches any file name: expired cores are not deleted", p.raw)
 	case !p.perBinary:
 		log.Infof("Core dumps: the kernel core pattern %q has no binary name (%%e): at most one core per directory", p.raw)
 	}
-	if bc.maxSize == 0 {
-		log.Warnf("Core dumps: core_dump.max_size is 0 or invalid: cores are disabled")
-	}
 
-	return &boundedState{cfg: bc, pattern: p, env: env}
+	return &boundedState{cfg: bc, pattern: p, env: env, last: math.MaxUint64}
 }
 
 // nameSubstitutions returns the core pattern specifiers that the kernel
@@ -356,23 +428,101 @@ func nameSubstitutions(env sysEnv) map[byte]string {
 			if exe != "" {
 				subs[spec] = strings.ReplaceAll(exe, "/", "!")
 			}
+		case specFile:
+			if exe != "" {
+				subs[spec] = filepath.Base(exe)
+			}
 		}
 	}
 	return subs
 }
 
 const (
-	specName = iota
-	specPath
+	specName = iota // comm, for example %e
+	specPath        // executable path with '/' replaced by '!', for example %E
+	specFile        // executable file name, for example %f
 )
 
-func readBoundedConfig(cfg model.Reader) boundedConfig {
-	return boundedConfig{
-		dir:         cfg.GetString("core_dump.dir"),
-		maxSize:     uint64(cfg.GetSizeInBytes("core_dump.max_size")),
-		minFreeDisk: uint64(cfg.GetSizeInBytes("core_dump.min_free_disk")),
-		maxAge:      cfg.GetDuration("core_dump.max_age"),
+// parseSize parses a size such as `3GB`, `3G`, `3Gi`, `3GiB` or `1048576`.
+// All suffixes (K, M, G, T, with or without `i` and `B`) are powers of 1024.
+func parseSize(s string) (uint64, error) {
+	s = strings.TrimSpace(s)
+	i := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
 	}
+	if i == 0 {
+		return 0, fmt.Errorf("invalid size %q", s)
+	}
+	n, err := strconv.ParseUint(s[:i], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid size %q: %v", s, err)
+	}
+	var shift uint
+	switch strings.ToLower(strings.TrimSpace(s[i:])) {
+	case "", "b":
+		shift = 0
+	case "k", "kb", "ki", "kib":
+		shift = 10
+	case "m", "mb", "mi", "mib":
+		shift = 20
+	case "g", "gb", "gi", "gib":
+		shift = 30
+	case "t", "tb", "ti", "tib":
+		shift = 40
+	default:
+		return 0, fmt.Errorf("invalid size %q: want an integer and an optional unit K, M, G or T", s)
+	}
+	if n > math.MaxUint64>>shift {
+		return 0, fmt.Errorf("invalid size %q: too large", s)
+	}
+	return n << shift, nil
+}
+
+func readBoundedConfig(cfg model.Reader) boundedConfig {
+	return parseBoundedConfig(cfg.GetString)
+}
+
+// parseBoundedConfig reads the core_dump settings with get. Invalid settings
+// are reported in boundedConfig.invalid.
+func parseBoundedConfig(get func(key string) string) boundedConfig {
+	bc := boundedConfig{dir: get("core_dump.dir")}
+	var invalid []string
+
+	readSize := func(key string, optional bool) uint64 {
+		raw := get(key)
+		if optional && strings.TrimSpace(raw) == "" {
+			return 0
+		}
+		v, err := parseSize(raw)
+		if err != nil {
+			invalid = append(invalid, fmt.Sprintf("%s: %v", key, err))
+		}
+		return v
+	}
+	bc.maxSize = readSize("core_dump.max_size", false)
+	bc.minFreeDisk = readSize("core_dump.min_free_disk", false)
+	bc.maxTotalSize = readSize("core_dump.max_total_size", true)
+
+	if raw := strings.TrimSpace(get("core_dump.max_age")); raw != "" && raw != "0" {
+		d, err := time.ParseDuration(raw)
+		switch {
+		case err != nil:
+			invalid = append(invalid, fmt.Sprintf("core_dump.max_age: %v", err))
+		case d < minMaxAge:
+			invalid = append(invalid, fmt.Sprintf("core_dump.max_age: %s is less than %s", d, minMaxAge))
+		default:
+			bc.maxAge = d
+		}
+	}
+
+	if bc.maxTotalSize > 0 && bc.maxSize > bc.maxTotalSize {
+		invalid = append(invalid, "core_dump.max_size is larger than core_dump.max_total_size")
+	}
+	if len(invalid) > 0 {
+		bc.invalid = "invalid settings: " + strings.Join(invalid, "; ")
+	}
+	return bc
 }
 
 var (

@@ -1535,26 +1535,40 @@ properties:
         type: string
         default: 2GB
         description: |
-          Maximum size of one core dump, for example `3GB`. The suffixes KB, MB and
-          GB are powers of 1024. Set it below the size of the volume that holds
-          `core_dump.dir`. The kernel truncates a core that is larger.
+          Maximum size of one core dump in bytes, for example `3GB`, `3Gi` or
+          `3221225472`. The suffixes K, M, G and T (with or without `i` and `B`)
+          are powers of 1024. The kernel truncates a larger core. An invalid value
+          disables core dumps and logs a warning.
       min_free_disk:
         node_type: setting
         type: string
         default: 10GB
         description: |
-          Minimum free space in `core_dump.dir`. When the free space is lower,
-          core dumps are disabled (RLIMIT_CORE=0).
+          Free space that must stay in `core_dump.dir` after a core of
+          `core_dump.max_size`. When the free space is less than
+          `min_free_disk + max_size`, core dumps are disabled (RLIMIT_CORE=0).
+          The free space comes from statfs, which does not see the sizeLimit of
+          a Kubernetes emptyDir: use `core_dump.max_total_size` for that.
+      max_total_size:
+        node_type: setting
+        type: string
+        default: ''
+        description: |
+          Maximum total size of the regular files in `core_dump.dir`, for example
+          `4Gi`. When the files in the directory plus `core_dump.max_size` are
+          larger, core dumps are disabled. Set it to the sizeLimit of the volume,
+          or less, when the volume is shared. Empty means no total limit.
       max_age:
         node_type: setting
         type: string
         default: 72h
-        format: duration
         description: |
-          Core dumps in `core_dump.dir` older than this are deleted at start and
-          every hour. While a core dump of this binary that is younger than this
-          is in the directory, core dumps are disabled (at most one core per
-          binary). Set 0 to never delete.
+          Core dumps of this binary in `core_dump.dir` that are older than this
+          duration (for example `72h`) are deleted at start and every hour. While
+          a younger core of this binary is in the directory, core dumps are
+          disabled (at most one core per binary). A value of 0 never deletes
+          cores: one core then disables core dumps until you delete it. A value
+          without a unit, or less than 1m, is invalid and disables core dumps.
   disable_file_logging:
     node_type: setting
     type: boolean
