@@ -5,7 +5,9 @@ FROM ${MAVEN_IMAGE} AS build
 WORKDIR /app
 COPY pom.xml .
 RUN mvn dependency:go-offline -q
-COPY src ./src
+COPY java ./java
+COPY javatest ./javatest
+COPY res ./res
 RUN mvn clean package -q
 
 FROM ${RUNTIME_IMAGE}

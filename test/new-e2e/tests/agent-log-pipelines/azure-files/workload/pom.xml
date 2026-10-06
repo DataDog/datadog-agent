@@ -46,6 +46,16 @@
     </dependencies>
 
     <build>
+        <!-- Flat source directories keep paths under the repository's
+             Windows path-length limit; Maven does not require the
+             directories to match the Java package. -->
+        <sourceDirectory>java</sourceDirectory>
+        <testSourceDirectory>javatest</testSourceDirectory>
+        <resources>
+            <resource>
+                <directory>res</directory>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
