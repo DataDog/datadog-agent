@@ -234,6 +234,9 @@ func installFilesystem(ctx HookContext) (err error) {
 	if err = ensurePrivilegedRshellPermissions(ctx); err != nil {
 		return fmt.Errorf("failed to protect privileged rshell helper: %w", err)
 	}
+	if err = file.EnsureConfigFromExample("/etc/datadog-agent", "private-action-runner/script-config.yaml"); err != nil {
+		return fmt.Errorf("failed to initialize PAR script config: %w", err)
+	}
 	if err = agentConfigPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set config ownerships: %v", err)
 	}

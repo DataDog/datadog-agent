@@ -215,7 +215,10 @@ COPY --from=extract /output/ /
 # - Create a dd-agent:root user and give it permissions on relevant folders
 # - Remove the /var/run -> /run symlink and create a legit /var/run folder
 # as some docker versions re-create /run from zero at container start
-RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
+RUN if [ -f /etc/datadog-agent/private-action-runner/script-config.yaml.example ]; then \
+      cp -n /etc/datadog-agent/private-action-runner/script-config.yaml.example /etc/datadog-agent/private-action-runner/script-config.yaml; \
+    fi \
+  && adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
   && install -o dd-agent -g root -m 0440 /dev/null /opt/datadog-agent/.dd-agent-identity \
   && addgroup --system secret-manager \
   && usermod -a -G secret-manager dd-agent \
