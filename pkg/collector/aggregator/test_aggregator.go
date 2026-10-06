@@ -315,13 +315,26 @@ func testSubmitEvent(t *testing.T) {
 }
 
 func testSubmitHistogramBucket(t *testing.T) {
+	// The exports take the bounds as different C types: float for SubmitHistogramBucket and
+	// double for SubmitHistogramBucketMulti.
+	submit := func(lowerBound, upperBound float64, tags **C.char) {
+		SubmitHistogramBucket(C.CString("testID"), C.CString("test_histogram"), C.longlong(42), C.float(lowerBound), C.float(upperBound), C.int(1), C.CString("my_hostname"), tags, true)
+	}
+	submitMulti := func(lowerBound, upperBound float64, tags **C.char) {
+		SubmitHistogramBucketMulti(C.CString("testID"), C.CString("test_histogram"), C.longlong(42), C.double(lowerBound), C.double(upperBound), C.int(1), C.CString("my_hostname"), tags, true)
+	}
+
 	cases := []struct {
-		name   string
-		submit func(*C.char, *C.char, C.longlong, C.float, C.float, C.int, *C.char, **C.char, C.bool)
-		method string
+		name       string
+		submit     func(lowerBound, upperBound float64, tags **C.char)
+		method     string
+		lowerBound float64
+		upperBound float64
 	}{
-		{"SubmitHistogramBucket", SubmitHistogramBucket, "OpenmetricsBucket"},
-		{"SubmitHistogramBucketMulti", SubmitHistogramBucketMulti, "HistogramBucket"},
+		{"SubmitHistogramBucket", submit, "OpenmetricsBucket", 1.0, 2.0},
+		{"SubmitHistogramBucketMulti", submitMulti, "HistogramBucket", 1.0, 2.0},
+		// A float would round both bounds to 100000000, so the buckets would share their state
+		{"SubmitHistogramBucketMulti/double precision bounds", submitMulti, "HistogramBucket", 100000001.0, 100000002.0},
 	}
 
 	for _, tc := range cases {
@@ -336,19 +349,9 @@ func testSubmitHistogramBucket(t *testing.T) {
 			sender.SetupAcceptAll()
 
 			cTags := []*C.char{C.CString("tag1"), C.CString("tag2"), nil}
-			tc.submit(
-				C.CString("testID"),
-				C.CString("test_histogram"),
-				C.longlong(42),
-				C.float(1.0),
-				C.float(2.0),
-				C.int(1),
-				C.CString("my_hostname"),
-				&cTags[0],
-				true,
-			)
+			tc.submit(tc.lowerBound, tc.upperBound, &cTags[0])
 
-			sender.AssertHistogramBucket(t, tc.method, "test_histogram", 42, 1.0, 2.0, true, "my_hostname", []string{"tag1", "tag2"}, true)
+			sender.AssertHistogramBucket(t, tc.method, "test_histogram", 42, tc.lowerBound, tc.upperBound, true, "my_hostname", []string{"tag1", "tag2"}, true)
 		})
 	}
 }

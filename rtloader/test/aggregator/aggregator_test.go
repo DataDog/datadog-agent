@@ -414,19 +414,24 @@ func TestEventCheckTagsError(t *testing.T) {
 
 func TestSubmitHistogramBucket(t *testing.T) {
 	cases := []struct {
-		builtin  string
-		callback string
+		name       string
+		builtin    string
+		callback   string
+		lowerBound float64
+		upperBound float64
 	}{
-		{"submit_histogram_bucket", "submitHistogramBucket"},
-		{"submit_histogram_bucket_multi", "submitHistogramBucketMulti"},
+		{"submit_histogram_bucket", "submit_histogram_bucket", "submitHistogramBucket", 1.0, 2.0},
+		{"submit_histogram_bucket_multi", "submit_histogram_bucket_multi", "submitHistogramBucketMulti", 1.0, 2.0},
+		// A float would round both bounds to 100000000, so the buckets would share their state
+		{"submit_histogram_bucket_multi/double precision bounds", "submit_histogram_bucket_multi", "submitHistogramBucketMulti", 100000001.0, 100000002.0},
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.builtin, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// Reset memory counters
 			helpers.ResetMemoryStats()
 
-			out, err := run(fmt.Sprintf(`aggregator.%s(None, 'id', 'name', 42, 1.0, 2.0, 1, 'myhost', ['foo', 21, 'bar', ["hey"]])`, tc.builtin))
+			out, err := run(fmt.Sprintf(`aggregator.%s(None, 'id', 'name', 42, %f, %f, 1, 'myhost', ['foo', 21, 'bar', ["hey"]])`, tc.builtin, tc.lowerBound, tc.upperBound))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -446,10 +451,10 @@ func TestSubmitHistogramBucket(t *testing.T) {
 			if intValue != 42 {
 				t.Fatalf("Unexpected int value: %d", intValue)
 			}
-			if lowerBound != 1.0 {
+			if lowerBound != tc.lowerBound {
 				t.Fatalf("Unexpected lower bound value: %f", lowerBound)
 			}
-			if upperBound != 2.0 {
+			if upperBound != tc.upperBound {
 				t.Fatalf("Unexpected upper bound value: %f", upperBound)
 			}
 			if monotonic != true {

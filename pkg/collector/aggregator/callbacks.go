@@ -24,7 +24,7 @@ extern void SubmitMetric(char *, metric_type_t, char *, double, char **, char *,
 extern void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
 extern void SubmitEvent(char *, event_t *);
 extern void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
-extern void SubmitHistogramBucketMulti(char *, char *, long long, float, float, int, char *, char **, bool);
+extern void SubmitHistogramBucketMulti(char *, char *, long long, double, double, int, char *, char **, bool);
 extern void SubmitEventPlatformEvent(char *, char *, int, char *);
 extern void LogMsg(char *, int);
 

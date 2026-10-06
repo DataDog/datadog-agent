@@ -376,18 +376,21 @@ gstate_cleanup:
     return retval;
 }
 
-/*! \fn submit_histogram_bucket_with_cb(PyObject *args, cb_submit_histogram_bucket_t cb)
+/*! \fn submit_histogram_bucket_with_cb(PyObject *args, cb_submit_histogram_bucket_t cb, cb_submit_histogram_bucket_multi_t cb_multi)
     \brief A helper function that parses the arguments of a histogram bucket submission and
     passes them to the given callback.
     \param args A PyObject * pointer to the python args.
-    \param cb The callback that receives the bucket.
+    \param cb The callback that receives the bucket with float bounds, or NULL.
+    \param cb_multi The callback that receives the bucket with double bounds, or NULL.
     \return This function returns a new reference to None (already INCREF'd), or NULL in case of error.
 
     Shared by `submit_histogram_bucket` and `submit_histogram_bucket_multi`, which differ only in the callback.
+    Each passes its own callback and NULL for the other one.
 */
-static PyObject *submit_histogram_bucket_with_cb(PyObject *args, cb_submit_histogram_bucket_t cb)
+static PyObject *submit_histogram_bucket_with_cb(PyObject *args, cb_submit_histogram_bucket_t cb,
+                                                 cb_submit_histogram_bucket_multi_t cb_multi)
 {
-    if (cb == NULL) {
+    if (cb == NULL && cb_multi == NULL) {
         Py_RETURN_NONE;
     }
 
@@ -398,22 +401,27 @@ static PyObject *submit_histogram_bucket_with_cb(PyObject *args, cb_submit_histo
     char *check_id = NULL;
     char *name = NULL;
     long long value;
-    float lower_bound;
-    float upper_bound;
+    double lower_bound;
+    double upper_bound;
     int monotonic;
     char *hostname = NULL;
     char **tags = NULL;
     bool flush_first_value = false;
 
     // Python call: aggregator.submit_histogram_bucket(self, metric string, value, lowerBound, upperBound, monotonic, hostname, tags, flush_first_value)
-    if (!PyArg_ParseTuple(args, "OssLffisO|b", &check, &check_id, &name, &value, &lower_bound, &upper_bound, &monotonic, &hostname, &py_tags, &flush_first_value)) {
+    if (!PyArg_ParseTuple(args, "OssLddisO|b", &check, &check_id, &name, &value, &lower_bound, &upper_bound, &monotonic, &hostname, &py_tags, &flush_first_value)) {
         goto error;
     }
 
     if ((tags = py_tag_to_c(py_tags)) == NULL)
         goto error;
 
-    cb(check_id, name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value);
+    if (cb_multi != NULL) {
+        cb_multi(check_id, name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value);
+    } else {
+        // Same values as parsing the bounds with the "f" format
+        cb(check_id, name, value, (float)lower_bound, (float)upper_bound, monotonic, hostname, tags, flush_first_value);
+    }
 
     free_tags(tags);
 
@@ -427,7 +435,7 @@ error:
 
 static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
 {
-    return submit_histogram_bucket_with_cb(args, cb_submit_histogram_bucket);
+    return submit_histogram_bucket_with_cb(args, cb_submit_histogram_bucket, NULL);
 }
 
 /*! \fn submit_histogram_bucket_multi(PyObject *self, PyObject *args)
@@ -438,11 +446,12 @@ static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
     \return This function returns a new reference to None (already INCREF'd), or NULL in case of error.
 
     Takes the same arguments as `submit_histogram_bucket`. Its callback tracks bucket state by context
-    and bounds, so the bucket bounds don't need to be encoded in the tags.
+    and bounds, so the bucket bounds don't need to be encoded in the tags. The bounds are passed as
+    doubles so that adjacent bounds stay distinct.
 */
 static PyObject *submit_histogram_bucket_multi(PyObject *self, PyObject *args)
 {
-    return submit_histogram_bucket_with_cb(args, cb_submit_histogram_bucket_multi);
+    return submit_histogram_bucket_with_cb(args, NULL, cb_submit_histogram_bucket_multi);
 }
 
 static PyObject *submit_event_platform_event(PyObject *self, PyObject *args)

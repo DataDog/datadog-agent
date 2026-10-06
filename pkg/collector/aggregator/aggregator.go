@@ -139,19 +139,20 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 //
 //export SubmitHistogramBucket
 func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
-	submitHistogramBucket(checkID, metricName, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue, false)
+	submitHistogramBucket(checkID, metricName, value, float64(lowerBound), float64(upperBound), monotonic, hostname, tags, flushFirstValue, false)
 }
 
 // SubmitHistogramBucketMulti is the method exposed to scripts to submit histogram buckets that
 // share their context with the other buckets of their histogram, so the tags don't need to
-// encode the bucket bounds.
+// encode the bucket bounds. The bounds are doubles because the sender tells these buckets apart
+// by their bounds, and a float can round adjacent bounds to the same value.
 //
 //export SubmitHistogramBucketMulti
-func SubmitHistogramBucketMulti(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
-	submitHistogramBucket(checkID, metricName, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue, true)
+func SubmitHistogramBucketMulti(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.double, upperBound C.double, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
+	submitHistogramBucket(checkID, metricName, value, float64(lowerBound), float64(upperBound), monotonic, hostname, tags, flushFirstValue, true)
 }
 
-func submitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool, multipleBuckets bool) {
+func submitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound float64, upperBound float64, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool, multipleBuckets bool) {
 	goCheckID := C.GoString(checkID)
 	checkContext, err := GetCheckContext()
 	if err != nil {
@@ -167,8 +168,6 @@ func submitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 
 	_name := C.GoString(metricName)
 	_value := int64(value)
-	_lowerBound := float64(lowerBound)
-	_upperBound := float64(upperBound)
 	_monotonic := (monotonic != 0)
 	_hostname := C.GoString(hostname)
 	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
@@ -176,9 +175,9 @@ func submitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 
 	if multipleBuckets {
 		// The sender tracks the state of each bucket by context and bounds
-		sender.HistogramBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
+		sender.HistogramBucket(_name, _value, lowerBound, upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
 	} else {
-		sender.OpenmetricsBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
+		sender.OpenmetricsBucket(_name, _value, lowerBound, upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
 	}
 }
 
