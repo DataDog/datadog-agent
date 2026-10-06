@@ -188,7 +188,9 @@ py_binary(
   `pkg/security/tests/syscall_tester/bin` for `//go:embed`. `syscall_x86_tester` is a
   static i686 musl binary (`musl_i686_cc_binary`, Bootlin gcc), tagged `manual` so
   `//...` never fetches the toolchain (macOS cannot extract it); it only builds when
-  exec is Linux x86_64 (KMT compiler image) and `arch` is amd64.
+  exec is Linux x86_64 (KMT compiler image) and `arch` is amd64. The other C testers
+  compile against the hermetic sysroot's glibc 2.17 headers, not the build image's:
+  call newer kernel APIs via `syscall()` with `#ifndef` UAPI fallbacks.
 
 - **KMT testsuites** — `kmt_sysprobe_prepare` Bazel-builds the `{dir}_test` variant
   whose `gotags` best cover the KMT build tags (e.g. `gpu_test_bpf_nvml`, not
