@@ -1,7 +1,7 @@
 import unittest
 import os
 import tempfile
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, ANY
 from post import post
 import packages
 from packages import IntegrationsRestoreError, IntegrationInstallError
@@ -32,7 +32,9 @@ class TestPost(unittest.TestCase):
         os.rmdir(install_directory)
         os.rmdir(storage_location)
 
-    def test_post_with_empty_files(self):
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    @patch('packages.has_expected_diff_file_permissions', return_value=True)
+    def test_post_with_empty_files(self, _mock_permissions_check):
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
         post_file = os.path.join(storage_location, '.post_python_installed_packages.txt')
@@ -72,9 +74,10 @@ class TestPost(unittest.TestCase):
         os.rmdir(storage_location)
 
     @unittest.skipIf(os.name == 'nt', "Skip this test on Windows environments")
+    @patch('packages.has_expected_diff_file_permissions', return_value=True)
     @patch('packages.install_datadog_package')
     @patch('packages.install_dependency_package')
-    def test_datadog_integration_vs_python_package_installation(self, mock_instalL_dependency, mock_install_datadog):
+    def test_datadog_integration_vs_python_package_installation(self, mock_instalL_dependency, mock_install_datadog, _mock_permissions_check):
         """Test that packages are installed with correct methods based on datadog prefix and exclusion list"""
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
@@ -97,7 +100,7 @@ class TestPost(unittest.TestCase):
 
         mock_install_datadog.assert_called_once_with('datadog-nvml==1.0.0', install_directory)
         pip = [os.path.join(install_directory, "embedded", "bin", "pip")]
-        mock_instalL_dependency.assert_called_once_with(pip, 'datadog-api-client==2.40.0')
+        mock_instalL_dependency.assert_called_once_with(pip, 'datadog-api-client==2.40.0', ANY)
 
         # Cleanup
         os.remove(diff_file)
@@ -109,10 +112,11 @@ class TestPost(unittest.TestCase):
         os.rmdir(storage_location)
 
     @unittest.skipIf(os.name == 'nt', "Skip this test on Windows environments")
+    @patch('packages.has_expected_diff_file_permissions', return_value=True)
     @patch('packages.install_datadog_package')
     @patch('packages.install_dependency_package')
     @patch('packages.load_requirements')
-    def test_excluded_packages_are_skipped(self, mock_load_requirements, mock_instalL_dependency, mock_install_datadog):
+    def test_excluded_packages_are_skipped(self, mock_load_requirements, mock_instalL_dependency, mock_install_datadog, _mock_permissions_check):
         """Test that packages in exclude file are skipped"""
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
@@ -159,7 +163,8 @@ class TestPost(unittest.TestCase):
         os.rmdir(storage_location)
 
     @unittest.skipIf(os.name == 'nt', "Skip on Windows")
-    def test_post_returns_one_when_restore_fails(self):
+    @patch('packages.has_expected_diff_file_permissions', return_value=True)
+    def test_post_returns_one_when_restore_fails(self, _mock_permissions_check):
         """post() must return 1 (not 0) when install_diff_packages_file raises IntegrationsRestoreError."""
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
@@ -179,6 +184,38 @@ class TestPost(unittest.TestCase):
             result = post(install_directory, storage_location)
 
         self.assertEqual(result, 1)
+
+        # Cleanup
+        os.remove(diff_file)
+        os.remove(req_file)
+        post_file = os.path.join(storage_location, ".post_python_installed_packages.txt")
+        if os.path.exists(post_file):
+            os.remove(post_file)
+        os.rmdir(install_directory)
+        os.rmdir(storage_location)
+
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    @patch('packages.has_expected_diff_file_permissions', return_value=False)
+    @patch('packages.install_diff_packages_file')
+    def test_post_returns_one_when_diff_file_permissions_insecure(self, mock_install_diff_packages_file, _mock_permissions_check):
+        """post() must refuse to restore packages when the diff file has unexpected ownership."""
+        install_directory = tempfile.mkdtemp()
+        storage_location = tempfile.mkdtemp()
+
+        diff_file = os.path.join(storage_location, '.diff_python_installed_packages.txt')
+        req_file = os.path.join(install_directory, 'requirements-agent-release.txt')
+
+        with open(diff_file, 'w') as f:
+            f.write("# DO NOT REMOVE/MODIFY\n")
+            f.write("evilpackage==1.0.0\n")
+
+        with open(req_file, 'w') as f:
+            f.write('')
+
+        result = post(install_directory, storage_location)
+
+        self.assertEqual(result, 1)
+        mock_install_diff_packages_file.assert_not_called()
 
         # Cleanup
         os.remove(diff_file)

