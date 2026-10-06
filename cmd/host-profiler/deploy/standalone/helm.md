@@ -31,7 +31,7 @@ Before deploying, update the provided Helm values files for your environment. Th
    - Review the remaining pod settings, including resource requests and limits. For all supported values, see the [OpenTelemetry Collector Helm chart values](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/values.yaml). For expected overhead, default limits, and tuning guidance, see [Overhead and resource usage](../faq.md#what-overhead-should-i-expect).
 
 2. In [`helm/collector-config-values.yaml`](helm/collector-config-values.yaml):
-   - Review the OpenTelemetry Collector pipelines and Datadog export configuration.
+   - Review the OpenTelemetry Collector pipelines and Datadog export configuration. Standalone Host Profiler health metrics are not sent to Datadog by default; see [how to enable them and understand their billing impact](../README.md#standalone-collector-health-metrics).
    - Adapt it like any other [OpenTelemetry Collector configuration](https://opentelemetry.io/docs/collector/configuration/).
 
 3. Choose a network policy values file:

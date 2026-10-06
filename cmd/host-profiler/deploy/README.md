@@ -34,6 +34,19 @@ Choose the guide that matches how your Kubernetes cluster is managed:
 
 If the Datadog Agent is already installed, use one of the Datadog Agent paths so the Agent can enrich profiles with infrastructure metadata. Otherwise, use one of the OpenTelemetry paths.
 
+## Standalone Collector health metrics
+
+Standalone health metrics are not sent to Datadog by default. Enable them by setting the Collector metrics level to `normal`:
+
+```yaml
+service:
+  telemetry:
+    metrics:
+      level: normal
+```
+
+These host-tagged metrics may affect Infrastructure Monitoring billing, depending on your plan and whether Datadog already counts the host. See [host billing](https://docs.datadoghq.com/account_management/billing/#hosts) and [usage details](https://docs.datadoghq.com/account_management/plan_and_usage/usage_details/).
+
 ## Recommended workload metadata
 
 Set `OTEL_SERVICE_NAME` or `DD_SERVICE` on workloads so profiles appear under meaningful service names. Set `DD_ENV` and `DD_VERSION` for richer filtering in the Datadog Profiler UI.
