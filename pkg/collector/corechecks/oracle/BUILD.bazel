@@ -13,6 +13,8 @@ go_library(
         "connection_handling.go",
         "custom_queries.go",
         "data_guard.go",
+        "data_observability.go",
+        "data_observability_worker.go",
         "doc.go",
         "init.go",
         "locks.go",
@@ -61,6 +63,7 @@ go_library(
         "@com_github_hashicorp_go_version//:go-version",
         "@com_github_jmoiron_sqlx//:sqlx",
         "@com_github_patrickmn_go_cache//:go-cache",
+        "@com_github_robfig_cron_v3//:cron",
         "@com_github_sijms_go_ora_v2//:go-ora",
     ],
 )
@@ -69,12 +72,16 @@ dd_agent_go_test(
     name = "oracle_test",
     srcs = [
         "custom_query_schedule_test.go",
+        "data_observability_test.go",
+        "data_observability_worker_test.go",
         "testsetup_helpers_test.go",
         "testsetup_test.go",
     ],
     embed = [":oracle"],
     gotags_sets = [["oracle"]],
     deps = [
+        "//pkg/collector/corechecks/oracle/config",
+        "@com_github_benbjohnson_clock//:clock",
         "@com_github_data_dog_go_sqlmock//:go-sqlmock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

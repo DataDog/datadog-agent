@@ -122,13 +122,15 @@ func (c *Check) stopSchemaWorker(permanent bool) {
 	}
 }
 
-// Cancel joins schema collection before the scheduler releases the sender.
+// Cancel joins background collection before the scheduler releases the sender.
 func (c *Check) Cancel() {
+	c.stopDataObservabilityWorker(true)
 	c.stopSchemaWorker(true)
 }
 
-// Stop cancels schema collection when the runner stops the check.
+// Stop cancels background collection when the runner stops the check.
 func (c *Check) Stop() {
+	c.stopDataObservabilityWorker(true)
 	c.stopSchemaWorker(true)
 }
 

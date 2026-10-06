@@ -906,9 +906,6 @@ func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integrati
 // schedule takes precedence downstream; the query is still accepted here as valid.
 func validateQuerySpec(q QuerySpec) error {
 	if q.Schedule != "" {
-		// Validate the cron expression using the same ParseStandard parser as
-		// pkg/collector/corechecks/cluster/ksm/customresources/cronjob.go:382
-		// to guarantee identical semantics between Go validation and Python scheduling.
 		if _, err := cron.ParseStandard(q.Schedule); err != nil {
 			return fmt.Errorf("monitor_id %d: invalid cron schedule %q: %w", q.MonitorID, q.Schedule, err)
 		}
