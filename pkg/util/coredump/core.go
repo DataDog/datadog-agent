@@ -16,8 +16,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// Setup enables core dumps and sets the core dump size limit based on configuration
+// Setup enables core dumps and sets the core dump size limit based on configuration.
+//
+// When go_crash_report is enabled, Setup also logs the Go crash output left by
+// the previous run (if any) and saves the Go crash output of the current run to
+// a file in go_crash_report_dir. Crash report errors are logged as warnings and
+// are not returned. Call Setup after the logger is initialized, so that the
+// report is logged.
 func Setup(cfg model.Reader) error {
+	if cfg.GetBool("go_crash_report") {
+		setupCrashReport(cfg.GetString("go_crash_report_dir"), processName())
+	}
+
 	if cfg.GetBool("go_core_dump") {
 		debug.SetTraceback("crash")
 

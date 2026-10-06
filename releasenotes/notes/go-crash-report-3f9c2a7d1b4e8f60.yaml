@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    (Unix only) Add the ``go_crash_report`` debugging option, disabled by default.
+    When you enable it, each Agent process saves its Go crash output (unrecovered
+    panic, fatal error, or fatal signal) to ``<go_crash_report_dir>/<process>.crash``.
+    On the next start, the process logs this crash output in one error log record
+    that starts with ``Previous run of <process> crashed. Crash output:``.
+    This makes crashes visible in the Agent logs, also when the container logs
+    of the crashed process are lost. ``go_crash_report_dir`` defaults to the Agent
+    log directory.

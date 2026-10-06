@@ -7705,6 +7705,20 @@ properties:
     node_type: setting
     type: boolean
     default: false
+  go_crash_report:
+    node_type: setting
+    type: boolean
+    default: false
+    description: |-
+      (Unix only) Debugging option. Save the Go crash output (unrecovered panic,
+      fatal error, fatal signal) of each Agent process to
+      `<go_crash_report_dir>/<process>.crash`. On the next start, the process logs
+      this output in one error log record and renames the file to `<process>.crash.prev`.
+  go_crash_report_dir:
+    node_type: setting
+    type: string
+    default: ${log_path}
+    description: Directory where `go_crash_report` saves the Go crash output.
   health_platform:
     node_type: section
     type: object

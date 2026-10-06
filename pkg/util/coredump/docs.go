@@ -3,5 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// Package coredump provides utils to enable core dumps and set core dump size limit
+// Package coredump provides utils to enable core dumps, set the core dump size
+// limit, and save and report the Go crash output of Agent processes
 package coredump
