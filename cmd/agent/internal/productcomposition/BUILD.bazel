@@ -4,14 +4,18 @@ go_library(
     name = "productcomposition",
     srcs = [
         "composition.go",
+        "options.go",
         "python.go",  # //go:build python
         "python_disabled.go",  # //go:build !python
+        "sharedlibrary.go",  # //go:build sharedlibrarycheck
+        "sharedlibrary_disabled.go",  # //go:build !sharedlibrarycheck
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/agent/internal/productcomposition",
     visibility = ["//cmd/agent:__pkg__"],
     deps = [
         "//cmd/agent/command",
         "//comp/collector/pythonruntime/fx-python",
+        "//comp/collector/sharedlibrary/fx-sharedlibrary",
         "//comp/core/autodiscovery/discoverer/fx-python",
         "//comp/core/gui/impl/pythonchecks/fx-python",
         "//comp/core/status",

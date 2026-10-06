@@ -30,13 +30,13 @@ func hostMetadataOptions() []fx.Option {
 	}
 }
 
-func collectorOptions() []fx.Option {
+func pythonCollectorOptions() []fx.Option {
 	return []fx.Option{
 		pythonruntimefx.Module(),
 	}
 }
 
-func checkOptions() []fx.Option {
+func pythonCheckOptions() []fx.Option {
 	return []fx.Option{
 		pythonruntimefx.Module(),
 	}

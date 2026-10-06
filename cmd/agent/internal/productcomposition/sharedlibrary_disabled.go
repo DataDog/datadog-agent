@@ -3,32 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !python
+//go:build !sharedlibrarycheck
 
 package productcomposition
 
 import "go.uber.org/fx"
 
-func autodiscoveryOptions() []fx.Option {
+func sharedLibraryCollectorOptions() []fx.Option {
 	return nil
 }
 
-func hostMetadataOptions() []fx.Option {
-	return nil
-}
-
-func pythonCollectorOptions() []fx.Option {
-	return nil
-}
-
-func pythonCheckOptions() []fx.Option {
-	return nil
-}
-
-func guiOptions() []fx.Option {
-	return nil
-}
-
-func statusOptions() []fx.Option {
+func sharedLibraryCheckOptions() []fx.Option {
 	return nil
 }
