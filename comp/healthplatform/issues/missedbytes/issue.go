@@ -95,7 +95,7 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	sources := decodeSources(ctx[contextKeySources])
 	lossBottleneck := sanitizeIfSet(ctx[contextKeyLossBottleneck])
 	lossBottleneckRotations, err := strconv.ParseInt(ctx[contextKeyLossBottleneckRotations], 10, 64)
-	if err != nil || lossBottleneckRotations <= 0 {
+	if err != nil || lossBottleneckRotations <= 0 || lossBottleneckRotations > rotations {
 		lossBottleneck = ""
 	}
 

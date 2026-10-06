@@ -161,6 +161,9 @@ func dominantBottleneck(counts map[string]int64) (string, int64) {
 	var name string
 	var top int64
 	for component, count := range counts {
+		if component == logsmetrics.OverflowBottleneck {
+			continue
+		}
 		if count > top || (count == top && outranksStage(component, name)) {
 			name, top = component, count
 		}

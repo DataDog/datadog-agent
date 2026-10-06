@@ -387,6 +387,16 @@ func TestDominantBottleneck(t *testing.T) {
 			wantComponent: "processor",
 			wantRotations: 5,
 		},
+		{
+			name:          "the overflow label is never named",
+			counts:        map[string]int64{logsmetrics.OverflowBottleneck: 9, "worker": 2},
+			wantComponent: "worker",
+			wantRotations: 2,
+		},
+		{
+			name:   "overflow alone attributes nothing",
+			counts: map[string]int64{logsmetrics.OverflowBottleneck: 9},
+		},
 	}
 
 	for _, tc := range tests {

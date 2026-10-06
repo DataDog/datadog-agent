@@ -275,17 +275,14 @@ func TestMissedBytesBottlenecksAreCapped(t *testing.T) {
 	}
 
 	summary := findMissedBytes(t, tr.collectAndPrune(), "nginx", "web")
-	assert.Len(t, summary.Bottlenecks, missedBytesMaxBottlenecks, "the cap is exact")
-	assert.NotContains(t, summary.Bottlenecks, missedBytesOverflowLabel,
-		"a synthetic stage name matches no remediation step, so the excess goes unattributed")
+	assert.Len(t, summary.Bottlenecks, missedBytesMaxBottlenecks+1, "the cap is exact, plus the overflow label")
+	assert.Equal(t, int64(overflow), summary.Bottlenecks[missedBytesOverflowLabel])
 
-	// The rotations still count; only their attribution is dropped.
 	var attributed int64
 	for _, count := range summary.Bottlenecks {
 		attributed += count
 	}
-	assert.Equal(t, int64(missedBytesMaxBottlenecks+overflow), summary.Rotations)
-	assert.Equal(t, int64(missedBytesMaxBottlenecks), attributed)
+	assert.Equal(t, summary.Rotations, attributed, "capping must not lose rotations")
 }
 
 func TestMissedBytesAggregatesEveryBucketLabel(t *testing.T) {

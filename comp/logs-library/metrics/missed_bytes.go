@@ -38,6 +38,9 @@ const (
 	missedBytesMaxBottlenecks = 8
 )
 
+// OverflowBottleneck counts rotations blamed on stages past missedBytesMaxBottlenecks.
+const OverflowBottleneck = missedBytesOverflowLabel
+
 // MissedBytesSummary is one (source, service) tuple's loss over the trailing window.
 type MissedBytesSummary struct {
 	Source     string
@@ -68,7 +71,7 @@ func (b *missedBytesBucket) recordBottleneck(component string) {
 	if b.bottlenecks == nil {
 		b.bottlenecks = make(map[string]int64, missedBytesMaxBottlenecks)
 	} else if _, ok := b.bottlenecks[component]; !ok && len(b.bottlenecks) >= missedBytesMaxBottlenecks {
-		return
+		component = OverflowBottleneck
 	}
 	b.bottlenecks[component]++
 }

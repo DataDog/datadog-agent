@@ -221,10 +221,14 @@ func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now 
 	}
 
 	var current, recovered *ComponentBackpressure
+	untimed := false
 	for i := range summary.Components {
 		component := &summary.Components[i]
 		if !canBackpressure(component.Component) {
 			continue
+		}
+		if !component.HasLastSaturated && (component.Saturated30mSeconds > 0 || component.Saturated1mSeconds > 0) {
+			untimed = true
 		}
 		// CurrentlySaturated is debounced, so it can stay true briefly after recovery. When a
 		// precise sample timestamp is available, it must still fall inside the loss window.
@@ -253,7 +257,7 @@ func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now 
 
 	// Saturation durations only cover the trailing 30 minutes, so a summary without in-window
 	// saturation proves nothing about a rotation older than that.
-	if (summary.State == BackpressureHealthy || summary.State == BackpressureWarning) && now.Sub(lossWindowStartedAt) <= 30*time.Minute {
+	if (summary.State == BackpressureHealthy || summary.State == BackpressureWarning) && !untimed && now.Sub(lossWindowStartedAt) <= 30*time.Minute {
 		return NoBottleneck
 	}
 	return ""
@@ -261,10 +265,15 @@ func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now 
 
 // currentBottleneckComponent names a stage saturated during the loss window, NoBottleneck
 // when no blocking component was observed saturated in it, or "" when attribution is unknown.
+// A window that began before the monitor can be blamed on a stage but never cleared.
 func currentBottleneckComponent(lossWindowStartedAt time.Time) string {
 	pm, since := registeredPipelineMonitorSince()
-	if pm == nil || lossWindowStartedAt.Before(since) {
+	if pm == nil {
 		return ""
 	}
-	return bottleneckDuringLoss(DeriveBackpressure(pm.Snapshots()), lossWindowStartedAt, monitorClock.Now())
+	component := bottleneckDuringLoss(DeriveBackpressure(pm.Snapshots()), lossWindowStartedAt, monitorClock.Now())
+	if component == NoBottleneck && lossWindowStartedAt.Before(since) {
+		return ""
+	}
+	return component
 }

@@ -365,6 +365,13 @@ func TestBuildIssue_FirstRemediationStep(t *testing.T) {
 			notWantStep: []string{"`strategy` is saturated now"},
 		},
 		{
+			name:      "blamed rotations beyond the total are discarded",
+			component: "strategy", blamed: 50, rotations: 5,
+			wantStep:    []string{"Run `sudo datadog-agent status`"},
+			notWantStep: []string{"`strategy`"},
+			notWantDesc: []string{"saturated during", "strategy"},
+		},
+		{
 			name:        "unknown loss and snapshot fall back to status",
 			rotations:   4,
 			wantStep:    []string{"Run `sudo datadog-agent status`"},
