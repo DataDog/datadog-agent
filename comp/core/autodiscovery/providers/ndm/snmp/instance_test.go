@@ -29,13 +29,12 @@ func TestKeyConfigParsesTheBackendPayloadVerbatim(t *testing.T) {
 			"use_remote_config_profiles": true,
 			"collect_topology": false,
 			"collect_vpn": true,
-			"global_metrics": [{"MIB": "IF-MIB", "symbol": {"OID": "1.3.6.1.2.1.1.3.0", "name": "sysUpTimeInstance"}}],
-			"ping": {"enabled": true, "count": 3, "interval_ms": 25, "timeout_ms": 4000, "linux": {"use_raw_socket": true}}
+			"global_metrics": [{"MIB": "IF-MIB", "symbol": {"OID": "1.3.6.1.2.1.1.3.0", "name": "sysUpTimeInstance"}}]
 		},
 		"instances": [
 			{
 				"ip_address": "10.0.0.1",
-				"cred": {"id": "cred-1", "name": "core-switches"},
+				"cred_id": "cred-1",
 				"port": 1161,
 				"timeout_sec": 5,
 				"retries": 4,
@@ -52,10 +51,9 @@ func TestKeyConfigParsesTheBackendPayloadVerbatim(t *testing.T) {
 				"device_tags_source": "agent",
 				"metrics": [{"MIB": "IF-MIB", "symbol": {"OID": "1.3.6.1.2.1.2.1.0", "name": "ifNumber"}}],
 				"metric_tags": [{"tag": "snmp_host", "symbol": {"OID": "1.3.6.1.2.1.1.5.0", "name": "sysName"}}],
-				"ping": {"enabled": false, "count": 1, "interval_ms": 10, "timeout_ms": 1000, "linux": {"use_raw_socket": false}},
 				"interface_configs": [{"match_field": "name", "match_value": "eth0", "in_speed": 25, "out_speed": 10, "tags": ["role:uplink"], "disabled": true}]
 			},
-			{"ip_address": "10.0.0.2", "cred": {"id": "cred-2", "name": "routers"}}
+			{"ip_address": "10.0.0.2", "cred_id": "cred-2"}
 		]
 	}`)
 
@@ -75,19 +73,12 @@ func TestKeyConfigParsesTheBackendPayloadVerbatim(t *testing.T) {
 			MIB:    "IF-MIB",
 			Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"},
 		}},
-		Ping: pingConfig{
-			Enabled:    ptr(true),
-			Count:      3,
-			IntervalMS: 25,
-			TimeoutMS:  4000,
-			Linux:      pingLinuxConfig{UseRawSocket: ptr(true)},
-		},
 	}, got.InitConfig)
 
 	require.Len(t, got.Instances, 2)
 	assert.Equal(t, documentInstance{
 		IPAddress:             "10.0.0.1",
-		Cred:                  credentialRef{ID: "cred-1", Name: "core-switches"},
+		CredID:                "cred-1",
 		Port:                  1161,
 		TimeoutSec:            5,
 		Retries:               4,
@@ -110,13 +101,6 @@ func TestKeyConfigParsesTheBackendPayloadVerbatim(t *testing.T) {
 			Tag:    "snmp_host",
 			Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 		}},
-		Ping: pingConfig{
-			Enabled:    ptr(false),
-			Count:      1,
-			IntervalMS: 10,
-			TimeoutMS:  1000,
-			Linux:      pingLinuxConfig{UseRawSocket: ptr(false)},
-		},
 		InterfaceConfigs: []snmpintegration.InterfaceConfig{{
 			MatchField: "name",
 			MatchValue: "eth0",
@@ -129,7 +113,7 @@ func TestKeyConfigParsesTheBackendPayloadVerbatim(t *testing.T) {
 
 	assert.Equal(t, documentInstance{
 		IPAddress: "10.0.0.2",
-		Cred:      credentialRef{ID: "cred-2", Name: "routers"},
+		CredID:    "cred-2",
 	}, got.Instances[1])
 }
 
@@ -147,13 +131,11 @@ func TestRenderInitConfigCarriesEverySetting(t *testing.T) {
 			MIB:    "IF-MIB",
 			Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"},
 		}},
-		Ping: pingConfig{
-			Enabled:    ptr(true),
-			Count:      3,
-			IntervalMS: 25,
-			TimeoutMS:  4000,
-			Linux:      pingLinuxConfig{UseRawSocket: ptr(true)},
-		},
+	}, &pingOptions{
+		Count:      3,
+		IntervalMS: 25,
+		TimeoutMS:  4000,
+		Linux:      pingLinuxOptions{UseRawSocket: ptr(true)},
 	})
 	require.NoError(t, err)
 
@@ -172,7 +154,6 @@ global_metrics:
       OID: 1.3.6.1.2.1.1.3.0
       name: sysUpTimeInstance
 ping:
-  enabled: true
   count: 3
   interval: 25
   timeout: 4000
@@ -182,15 +163,16 @@ ping:
 }
 
 func TestRenderInitConfigOfAnEmptyBlockIsEmpty(t *testing.T) {
-	got, err := renderInitConfig(initConfig{})
+	got, err := renderInitConfig(initConfig{}, nil)
 	require.NoError(t, err)
 	assert.YAMLEq(t, "{}", string(got))
 }
 
 func TestRenderInstanceForV2C(t *testing.T) {
 	got, err := renderInstance(
-		documentInstance{IPAddress: "10.0.0.1", Cred: credentialRef{ID: "cred-1", Name: "v2c-public"}},
+		documentInstance{IPAddress: "10.0.0.1", CredID: "cred-1"},
 		credential{ID: "cred-1", Name: "v2c-public", SNMPVersion: "2c", CommunityString: "public"},
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -206,6 +188,7 @@ func TestRenderInstanceForV1(t *testing.T) {
 	got, err := renderInstance(
 		documentInstance{IPAddress: "10.0.0.9"},
 		credential{Name: "v1", SNMPVersion: "1", CommunityString: "public"},
+		nil,
 	)
 	require.NoError(t, err)
 	assert.YAMLEq(t, "ip_address: 10.0.0.9\nsnmp_version: \"1\"\ncommunity_string: public\n", string(got))
@@ -225,6 +208,7 @@ func TestRenderInstanceForV3(t *testing.T) {
 			ContextName:     "test-context",
 			ContextEngineID: "test-engine-id",
 		},
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -245,7 +229,7 @@ context_engine_id: test-engine-id
 func TestRenderInstanceCarriesEveryPerDeviceSetting(t *testing.T) {
 	got, err := renderInstance(documentInstance{
 		IPAddress:             "10.0.0.1",
-		Cred:                  credentialRef{ID: "cred-1", Name: "core-switches"},
+		CredID:                "cred-1",
 		Port:                  1161,
 		TimeoutSec:            5,
 		Retries:               4,
@@ -268,13 +252,6 @@ func TestRenderInstanceCarriesEveryPerDeviceSetting(t *testing.T) {
 			Tag:    "snmp_host",
 			Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 		}},
-		Ping: pingConfig{
-			Enabled:    ptr(false),
-			Count:      1,
-			IntervalMS: 10,
-			TimeoutMS:  1000,
-			Linux:      pingLinuxConfig{UseRawSocket: ptr(false)},
-		},
 		InterfaceConfigs: []snmpintegration.InterfaceConfig{{
 			MatchField: "name",
 			MatchValue: "eth0",
@@ -283,7 +260,8 @@ func TestRenderInstanceCarriesEveryPerDeviceSetting(t *testing.T) {
 			Tags:       []string{"role:uplink"},
 			Disabled:   true,
 		}},
-	}, credential{ID: "cred-1", Name: "core-switches", SNMPVersion: "2c", CommunityString: "public"})
+	}, credential{ID: "cred-1", Name: "core-switches", SNMPVersion: "2c", CommunityString: "public"},
+		&pingOptions{Count: 1, IntervalMS: 10, TimeoutMS: 1000, Linux: pingLinuxOptions{UseRawSocket: ptr(false)}})
 	require.NoError(t, err)
 
 	assert.YAMLEq(t, `
@@ -316,7 +294,7 @@ metric_tags:
       OID: 1.3.6.1.2.1.1.5.0
       name: sysName
 ping:
-  enabled: false
+  enabled: true
   count: 1
   interval: 10
   timeout: 1000
@@ -335,21 +313,34 @@ interface_configs:
 
 func TestRenderInstanceKeepsTheVersionAString(t *testing.T) {
 	// The snmp check reads snmp_version as a string, so it must stay quoted.
-	got, err := renderInstance(documentInstance{IPAddress: "10.0.0.3"}, credential{Name: "v3", SNMPVersion: "3", User: "u"})
+	got, err := renderInstance(documentInstance{IPAddress: "10.0.0.3"}, credential{Name: "v3", SNMPVersion: "3", User: "u"}, nil)
 	require.NoError(t, err)
 	assert.Contains(t, string(got), `snmp_version: "3"`)
 }
 
-func TestRenderPingOmitsTheBlockTheDocumentDidNotSet(t *testing.T) {
-	assert.Nil(t, renderPing(pingConfig{}))
+func TestRenderSharedPingOmitsTheBlockThePingSectionDidNotSet(t *testing.T) {
+	assert.Nil(t, renderSharedPing(nil))
+	assert.Nil(t, renderSharedPing(&pingOptions{}))
 }
 
-func TestRenderPingKeepsAnExplicitDisable(t *testing.T) {
-	assert.Equal(t, &checkPingBlock{Enabled: ptr(false)}, renderPing(pingConfig{Enabled: ptr(false)}))
+func TestRenderSharedPingCarriesNoEnabledFlag(t *testing.T) {
+	got := renderSharedPing(&pingOptions{Count: 3})
+	require.NotNil(t, got)
+	assert.Nil(t, got.Enabled, "only the devices the ping section lists are pinged")
+}
+
+func TestRenderDevicePingEnablesPingEvenWithNoOverrides(t *testing.T) {
+	got := renderDevicePing(&pingOptions{})
+	require.NotNil(t, got)
+	assert.Equal(t, &checkPingBlock{Enabled: ptr(true)}, got)
+}
+
+func TestRenderDevicePingOfADeviceThePingSectionOmitsIsNil(t *testing.T) {
+	assert.Nil(t, renderDevicePing(nil))
 }
 
 func TestRenderPingMapsTheMillisecondNames(t *testing.T) {
-	got := renderPing(pingConfig{IntervalMS: 25, TimeoutMS: 4000})
+	got := renderDevicePing(&pingOptions{IntervalMS: 25, TimeoutMS: 4000})
 	require.NotNil(t, got)
 	assert.Equal(t, 25, got.Interval)
 	assert.Equal(t, 4000, got.Timeout)

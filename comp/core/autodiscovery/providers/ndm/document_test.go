@@ -6,7 +6,9 @@
 package ndm
 
 import (
+	"encoding/json"
 	"errors"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -147,4 +149,26 @@ func TestErrorSetPrefixesEveryMessageWithItsKey(t *testing.T) {
 func TestErrorSetOfNoErrorsIsNil(t *testing.T) {
 	assert.Nil(t, errorSet(nil, []string{"snmp"}))
 	assert.Nil(t, errorSet(map[string]error{}, []string{"snmp"}))
+}
+
+func TestDispatchHandsAHandlerTheDocumentsOtherKeys(t *testing.T) {
+	snmp := &fakeHandler{key: "snmp"}
+	p := newTestProvider(t, snmp)
+
+	keys, err := parseDocument([]byte(`{"snmp":{"instances":[]},"ping":{"instances":[]},"other":1}`))
+	require.NoError(t, err)
+	_, _, owned := p.dispatch("path-a", keys)
+
+	require.True(t, owned)
+	assert.Equal(t, []string{"other", "ping"}, sortedKeys(snmp.siblingsSeen))
+	assert.NotContains(t, snmp.siblingsSeen, "snmp", "a handler's own key is not one of its siblings")
+}
+
+func sortedKeys(m map[string]json.RawMessage) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }

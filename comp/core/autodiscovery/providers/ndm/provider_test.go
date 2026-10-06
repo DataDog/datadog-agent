@@ -31,12 +31,14 @@ type fakeHandler struct {
 	err     error
 
 	renderedPaths []string
+	siblingsSeen  map[string]json.RawMessage
 }
 
 func (h *fakeHandler) Key() string { return h.key }
 
-func (h *fakeHandler) Render(path string, _ json.RawMessage) ([]integration.Config, error) {
+func (h *fakeHandler) Render(path string, _ json.RawMessage, siblings map[string]json.RawMessage) ([]integration.Config, error) {
 	h.renderedPaths = append(h.renderedPaths, path)
+	h.siblingsSeen = siblings
 	if h.err != nil {
 		return nil, h.err
 	}
