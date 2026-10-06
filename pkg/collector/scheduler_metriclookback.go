@@ -12,9 +12,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/checkcontext"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -79,7 +79,7 @@ func (m *shadowCheckSenderManager) DestroySender(checkid.ID) {
 }
 
 func (m *shadowCheckSenderManager) RegisterCallbackID(id checkid.ID) bool {
-	unregister, ok := collectoraggregator.RegisterCheckSenderManager(id, m)
+	unregister, ok := checkcontext.RegisterCheckSenderManager(id, m)
 	if !ok {
 		return false
 	}
