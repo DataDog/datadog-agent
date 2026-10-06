@@ -30,7 +30,7 @@ go_library(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
         "//comp/core/tagger/origindetection",
-        "//comp/core/tagger/types",
+        "//comp/core/tagger/originresolver",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/core/workloadfilter/def",

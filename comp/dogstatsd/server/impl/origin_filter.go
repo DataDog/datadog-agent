@@ -8,7 +8,7 @@ package serverimpl
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/originresolver"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl/parse"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
@@ -31,13 +31,7 @@ const (
 	decisionTTL = 30 * time.Second
 	// maxOriginFilterCacheSize bounds each of the origin filter caches.
 	maxOriginFilterCacheSize = 10000
-
-	// metaCollectorCacheValidity is the cache validity passed to the meta collector,
-	// matching the one used by the tagger.
-	metaCollectorCacheValidity = time.Second
 )
-
-var containerIDFromSocketCutIndex = len(types.ContainerID) + types.GetSeparatorLength()
 
 // originKey identifies an origin for the purpose of resolving its container.
 type originKey struct {
@@ -127,9 +121,8 @@ func (f *originFilter) shouldDrop(origin *taggertypes.OriginInfo) bool {
 	return f.isExcluded(res.containerID)
 }
 
-// resolve returns the origin container, using the same priority as the tagger:
-// UDS origin, then client container ID (or inode), then external data.
-// The inode and external data are only resolved when needed.
+// resolve returns the origin container (see originresolver.Resolve), caching the
+// resolution for a short time.
 func (f *originFilter) resolve(origin *taggertypes.OriginInfo) resolution {
 	key := originKey{
 		containerIDFromSocket: origin.ContainerIDFromSocket,
@@ -145,27 +138,7 @@ func (f *originFilter) resolve(origin *taggertypes.OriginInfo) resolution {
 	}
 
 	res := resolution{expires: f.now.Add(resolutionTTL)}
-	switch {
-	case len(origin.ContainerIDFromSocket) > containerIDFromSocketCutIndex:
-		res.containerID = origin.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
-	case origin.LocalData.ContainerID != "":
-		res.containerID = origin.LocalData.ContainerID
-	default:
-		resolved := &taggertypes.ResolvedOrigin{}
-		if origin.LocalData.Inode != 0 && f.metaCollector != nil {
-			resolved.InodeContainerID, _ = f.metaCollector.GetContainerIDForInode(origin.LocalData.Inode, metaCollectorCacheValidity)
-			resolved.InodeDone = true
-			res.containerID = resolved.InodeContainerID
-		}
-		if res.containerID == "" && origin.ExternalData.PodUID != "" && origin.ExternalData.ContainerName != "" && f.metaCollector != nil {
-			resolved.ExternalDataContainerID, _ = f.metaCollector.ContainerIDForPodUIDAndContName(origin.ExternalData.PodUID, origin.ExternalData.ContainerName, origin.ExternalData.Init, metaCollectorCacheValidity)
-			resolved.ExternalDataDone = true
-			res.containerID = resolved.ExternalDataContainerID
-		}
-		if resolved.InodeDone || resolved.ExternalDataDone {
-			res.resolved = resolved
-		}
-	}
+	res.containerID, res.resolved = originresolver.Resolve(*origin, f.metaCollector)
 
 	if pkglog.ShouldLog(pkglog.DebugLvl) {
 		pkglog.Debugf("DogStatsD workload filter: origin %+v resolved to container %q", key, res.containerID)
