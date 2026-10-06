@@ -1066,6 +1066,7 @@ workflow:
       paths:
         - test/new-e2e/tests/process/**/*
         - cmd/process-agent/**/*
+        - comp/core/tagger/**/*
         - comp/core/workloadmeta/collectors/internal/process/**/*
         - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
         - comp/process/**/*
