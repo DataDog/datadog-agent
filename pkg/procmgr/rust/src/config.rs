@@ -508,6 +508,44 @@ condition_path_exists: /usr/bin/sleep
         );
     }
 
+    /// The flare scrubber in pkg/procmgr/coat strips these echoed values when an operator asks for
+    /// arguments to be stripped, and it recognizes them by the way serde quotes them. The spelling
+    /// is therefore a contract between the two, not an implementation detail of this crate.
+    #[test]
+    fn test_rejected_scalars_are_echoed_in_the_parse_error() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("text.yaml"),
+            "command: /a\nargs: \"--token abc123\"\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("number.yaml"),
+            "command: /a\nargs: 1234567\n",
+        )
+        .unwrap();
+
+        let errors: Vec<String> = load_configs(dir.path())
+            .unwrap()
+            .invalid
+            .into_iter()
+            .map(|e| e.error)
+            .collect();
+
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.contains("invalid type: string \"--token abc123\"")),
+            "{errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.contains("invalid type: integer `1234567`")),
+            "{errors:?}"
+        );
+    }
+
     #[test]
     fn test_empty_directory() {
         let dir = tempfile::tempdir().unwrap();

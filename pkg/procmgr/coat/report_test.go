@@ -578,6 +578,20 @@ func TestScrubConfigErrorStripsEchoedScalars(t *testing.T) {
 		report.Processes[0].ConfigError)
 }
 
+// A number is echoed in backticks rather than quotes, and an argument does not stop being one for
+// having been written without them.
+func TestScrubConfigErrorStripsEchoedNumbers(t *testing.T) {
+	report := SupportReport{Processes: []ProcessSnapshot{{
+		ConfigError: "parsing /tmp/broken.yaml: args: invalid type: integer `1234567`, expected a sequence at line 2 column 7",
+	}}}
+
+	report.Scrub(ScrubOptions{StripArguments: true})
+
+	assert.Equal(t,
+		"parsing /tmp/broken.yaml: args: invalid type: integer `"+wantRedacted+"`, expected a sequence at line 2 column 7",
+		report.Processes[0].ConfigError)
+}
+
 // Stripping is what removes a value procutil does not recognize as a secret. Without it the echo
 // is the parse error's diagnostic, and support reads it to see what the file actually said.
 func TestScrubConfigErrorKeepsEchoedScalarsWithoutStripping(t *testing.T) {
