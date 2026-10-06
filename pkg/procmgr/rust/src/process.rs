@@ -490,15 +490,12 @@ impl ManagedProcess {
     pub const SKIP_REASON_CONFIG_VETO: &str = "config_veto";
     pub const SKIP_REASON_ORDERING: &str = "ordering";
 
-    /// Every currently applying start-hold label, not first-wins. Does not log:
-    /// callers that decline a spawn still go through `should_start` /
-    /// `start_conditions_met` / `may_respawn` for the existing messages.
+    /// Runtime start-hold labels (`path_missing`, `config_gate`, `config_veto`).
+    /// `auto_start` is not included: it only governs the boot / reload start
+    /// pass, and `may_respawn` ignores it.
     #[must_use]
-    pub(crate) fn collect_skip_reasons(&self) -> Vec<String> {
+    fn collect_condition_skip_reasons(&self) -> Vec<String> {
         let mut reasons = Vec::new();
-        if !self.config.auto_start {
-            reasons.push(Self::SKIP_REASON_AUTO_START_FALSE.to_string());
-        }
         if let Some(raw) = &self.config.condition_path_exists {
             let path = expand_env_vars(raw);
             if !std::path::Path::new(&path).exists() {
@@ -514,6 +511,20 @@ impl ManagedProcess {
         reasons
     }
 
+    /// Every currently applying start-hold label for a never-spawned row, not
+    /// first-wins. Does not log: callers that decline a spawn still go through
+    /// `should_start` / `start_conditions_met` / `may_respawn` for the existing
+    /// messages.
+    #[must_use]
+    pub(crate) fn collect_skip_reasons(&self) -> Vec<String> {
+        let mut reasons = Vec::new();
+        if !self.config.auto_start {
+            reasons.push(Self::SKIP_REASON_AUTO_START_FALSE.to_string());
+        }
+        reasons.extend(self.collect_condition_skip_reasons());
+        reasons
+    }
+
     /// Whether the boot / reload start pass would spawn this row, ignoring
     /// dependency-cycle exclusion (`ordering`).
     #[must_use]
@@ -522,9 +533,14 @@ impl ManagedProcess {
     }
 
     /// Record why a spawn was declined. Never-spawned rows move `Created ->
-    /// Skipped`. After a child has existed, the process stays where it is.
+    /// Skipped` and may include `auto_start_false`. After a child has existed,
+    /// the process stays where it is and only condition labels are attached,
+    /// because `auto_start` did not decide the respawn.
     pub(crate) fn apply_start_hold(&mut self, extra: &[&str]) {
-        let mut reasons = self.collect_skip_reasons();
+        let mut reasons = match self.state {
+            ProcessState::Created | ProcessState::Skipped => self.collect_skip_reasons(),
+            _ => self.collect_condition_skip_reasons(),
+        };
         for reason in extra {
             if !reasons.iter().any(|existing| existing == reason) {
                 reasons.push((*reason).to_string());
@@ -1651,6 +1667,27 @@ runtime_success_sec: 5
         assert!(
             proc.restart_blocked_by_conditions(),
             "the skip reason must be recorded so reload can recover the process"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_restart_hold_omits_auto_start_false() {
+        let (cmd, args) = test_helpers::exit_cmd(1);
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.auto_start = false;
+        cfg.restart = RestartPolicy::Always;
+        cfg.condition_path_exists = Some("/nonexistent/path/binary".to_string());
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
+
+        let mut exit_rx = spawn_ok(&mut proc);
+        let status = exit_rx.recv().await.expect("exit event").status;
+        proc.set_last_status(status);
+
+        assert!(proc.handle_restart().is_none());
+        assert_eq!(
+            proc.skip_reasons(),
+            &[ManagedProcess::SKIP_REASON_PATH_MISSING.to_string()],
+            "auto_start did not decline the respawn, so it must not appear on the hold"
         );
     }
 

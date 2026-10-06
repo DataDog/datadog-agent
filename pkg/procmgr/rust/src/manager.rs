@@ -1782,6 +1782,11 @@ mod tests {
             write_agent_yaml(dir.path(), false);
             crash(&mgr, "manual-svc", &restart_tx).await;
             assert_stranded_by_gate(&mgr, ProcessState::Failed).await;
+            assert_eq!(
+                mgr.processes().await[0].skip_reasons(),
+                &[ManagedProcess::SKIP_REASON_CONFIG_GATE.to_string()],
+                "auto_start_false is a start-pass label, not why this respawn was declined"
+            );
 
             write_agent_yaml(dir.path(), true);
             mgr.handle_reload_config(&exit_tx).await?;
