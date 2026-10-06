@@ -357,7 +357,7 @@
 /cmd/agent/dist/config.py                             @DataDog/agent-integrations @DataDog/agent-runtimes
 /cmd/agent/dist/utils/                                @DataDog/agent-integrations @DataDog/agent-runtimes
 /cmd/agent/install*.sh                              @DataDog/fleet-automation
-/cmd/agent/macos/                                   @DataDog/fleet-automation
+/cmd/agent/macos/                                   @DataDog/windows-products
 /cmd/agent/selinux/                                 @DataDog/ebpf-platform @DataDog/agent-build
 /cmd/ai_prompt_logger/                              @DataDog/windows-products
 /cmd/cluster-agent/                                 @DataDog/container-platform
