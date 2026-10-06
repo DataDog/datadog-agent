@@ -18,12 +18,15 @@ cc_binary(
 # testdata/ is its own package because of the cc_binary above; //pkg/gpu cannot glob it.
 filegroup(
     name = "testdata_files",
-    srcs = [
-        "common_functions.h",
-        "cudarate.c",
-        "cudasample.c",
-        "pytorch_batched_kernels.ndjson",
-        ":cudasample",
-    ],
+    srcs = glob(
+        ["**"],
+        exclude = [
+            ".gitignore",
+            "BUILD.bazel",
+            # Locally built helpers (gitignored).
+            "cudarate",
+            "cudasample",
+        ],
+    ) + [":cudasample"],
     visibility = ["//pkg/gpu:__pkg__"],
 )
