@@ -5,7 +5,12 @@
 
 package config
 
-import "time"
+import (
+	"path/filepath"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+)
 
 const (
 	maxBackoff                   = 3 * time.Minute
@@ -28,6 +33,11 @@ const (
 	// rshell commands belong to a namespace, currently only "rshell:" is supported.
 	RshellCommandNamespacePrefix = "rshell:"
 )
+
+// DefaultScriptCredentialFileRoot returns the packaged Script configuration directory.
+func DefaultScriptCredentialFileRoot() string {
+	return filepath.Join(defaultpaths.GetDefaultConfPath(), "private-action-runner")
+}
 
 // BundleInheritedAllowedAction represents an action that is automatically allowed
 // if at least one other action matching the expected prefix is allowed

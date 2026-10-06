@@ -9,12 +9,10 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 )
 
 const (
-	privateActionRunnerRelativeDir = "private-action-runner"
-
 	createConnectionEndpoint = "/api/v2/actions/connections"
 	apiKeyHeader             = "DD-API-KEY"
 	appKeyHeader             = "DD-APPLICATION-KEY"
@@ -24,7 +22,7 @@ const (
 )
 
 func getPrivateActionRunnerDir() string {
-	return filepath.Join(defaultpaths.GetDefaultConfPath(), privateActionRunnerRelativeDir)
+	return parconfig.DefaultScriptCredentialFileRoot()
 }
 func getScriptConfigPath() string {
 	filename := "script-config.yaml"

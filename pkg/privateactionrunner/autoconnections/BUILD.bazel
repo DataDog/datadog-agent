@@ -22,7 +22,6 @@ go_library(
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/enrollment",
         "//pkg/privateactionrunner/util",
-        "//pkg/util/defaultpaths",
         "//pkg/util/flavor",
         "//pkg/util/http",
         "//pkg/util/log",
