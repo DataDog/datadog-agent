@@ -12,6 +12,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func newBundledTransformer(clusterName string, taggerInstance tagger.Component, collectedTypes []collectedEventType, filteringEnabled bool) eventTransformer {
@@ -58,6 +59,12 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []err
 			}
 		}
 
+		// Truncate events too large for any bundle so they are exported instead of dropped.
+		if truncatedEvent, truncated := truncateOversizedEvent(event); truncated {
+			log.Debugf("Truncated kubernetes event message from %d to %d characters (%s)", len(event.Message), len(truncatedEvent.Message), describeKubernetesEvent(event))
+			event = truncatedEvent
+		}
+
 		id := buildBundleID(event)
 		bundles := bundlesByObject[id]
 
@@ -72,9 +79,7 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []err
 			}
 		}
 
-		// Start a new bundle. Register it only once the event is added, so an event
-		// too large for any bundle is dropped without leaving an empty bundle behind
-		// (empty bundles fail to export).
+		// Start a new bundle and register it only when the event is added
 		newBundle := newKubernetesEventBundler(c.clusterName, event)
 		if err := newBundle.addEvent(event); err != nil {
 			errors = append(errors, err)

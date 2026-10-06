@@ -308,10 +308,6 @@ func TestBundledEventsTransform(t *testing.T) {
 }
 
 func TestBundledEventsTransformOversizedEvent(t *testing.T) {
-	// A single event too long to fit in any bundle is dropped with an
-	// errEventTextTooLong error, which the check logs at debug level. The error
-	// carries the event's reason and source so the emitter is identifiable from
-	// the log alone.
 	oversizedMessage := strings.Repeat("a", 4000)
 
 	tests := []struct {
@@ -357,11 +353,7 @@ func TestBundledEventsTransformOversizedEvent(t *testing.T) {
 }
 
 // TestBundledEventsTransformOversizedEventNoEmptyBundle tests that dropping
-// events too large for any bundle never leaves an empty registered bundle
-// behind, which previously surfaced as "no event to export" errors.
-// Test partitions:
-// - oversized event position: first event for its object | after a fitting event
-// - oversized event count for one object: one | repeated
+// events too large for any bundle never leaves an empty registered bundle. 
 func TestBundledEventsTransformOversizedEventNoEmptyBundle(t *testing.T) {
 	oversizedMessage := strings.Repeat("a", 4000)
 

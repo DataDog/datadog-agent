@@ -35,11 +35,14 @@ const (
 	//   (timestamps: ~60 chars, static text: ~50 chars)
 	// Conservative estimate: 250 chars
 	bundleFixedOverhead = 250
+
+	// truncatedMessageMarker replaces the tail of an event message cut down to
+	// fit the events API limit.
+	truncatedMessageMarker = "... (truncated)"
 )
 
 // errEventTextTooLong is returned when a single event's text is too long to fit
-// in any bundle, so the event is dropped. This is expected behavior, callers
-// log it at debug level.
+// in any bundle, so the event is dropped.
 var errEventTextTooLong = errors.New("event text length exceeds the maximum allowed length")
 
 type kubernetesEventBundle struct {
@@ -73,15 +76,7 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 
 	eventText, fits := b.fitsEvent(event)
 	if !fits {
-		// Source.Component is only set on old-style events; ReportingController is
-		// the new-style equivalent.
-		source := event.Source.Component
-		if source == "" {
-			source = event.ReportingController
-		}
-		return fmt.Errorf("%w: %d > %d (reason: %s, source: %s, involved_object: %s)",
-			errEventTextTooLong, len(eventText), maxEstimatedEventTextLength,
-			event.Reason, source, buildReadableKey(event.InvolvedObject))
+		return fmt.Errorf("%w: %d > %d (%s)", errEventTextTooLong, len(eventText), maxEstimatedEventTextLength, describeKubernetesEvent(event))
 	}
 
 	// We do not process the events in chronological order necessarily.
@@ -158,7 +153,7 @@ func (b *kubernetesEventBundle) formatEventText() string {
 }
 
 func (b *kubernetesEventBundle) fitsEvent(event *v1.Event) (string, bool) {
-	eventText := "**" + event.Reason + "**: " + event.Message + "\n"
+	eventText := buildEventText(event.Reason, event.Message)
 
 	// If we haven't seen this action before, and adding it would probably exceed the limit, deny it
 	if b.countByAction[eventText] == 0 && (b.estimatedSize+estimateEventOverhead(eventText) > maxEstimatedEventTextLength) {
@@ -166,6 +161,11 @@ func (b *kubernetesEventBundle) fitsEvent(event *v1.Event) (string, bool) {
 	}
 
 	return eventText, true
+}
+
+// buildEventText formats an event's entry text as it appears in a bundle.
+func buildEventText(reason, message string) string {
+	return "**" + reason + "**: " + message + "\n"
 }
 
 func formatStringIntMap(input map[string]int) string {
@@ -193,4 +193,35 @@ func estimateEventOverhead(eventText string) int {
 	// Space separator: 1 char +
 	// Event text
 	return 10 + 1 + len(eventText)
+}
+
+// truncateOversizedEvent truncates the event message if it exceeds the limit, otherwise returns the event unchanged.
+func truncateOversizedEvent(event *v1.Event) (*v1.Event, bool) {
+	// If we had an event with no text, the limit for the event text would be:
+	limit := maxEstimatedEventTextLength // The total limit
+	-bundleFixedOverhead                 // The fixed overhead
+	-len(event.Source.Component)         // The component name
+	-estimatedEventOverhead("")          // The estimated overhead for an (empty) event
+
+	// If the event text fits the limit, return the event unchanged
+	if len(buildEventText(event.Reason, event.Message)) <= limit {
+		return event, false
+	}
+
+	// Leave room for the reason, the marker and the newline.
+	messageBudget := math.Max(limit-len(buildEventText(event.Reason, ""))-len(truncatedMessageMarker), 0)
+
+	truncated := *event
+	truncated.Message = strings.ToValidUTF8(event.Message[:messageBudget], "") + truncatedMessageMarker
+	return &truncated, true
+}
+
+// describeKubernetesEvent identifies an event for logs. Source.Component is
+// only set on old-style events; ReportingController is the new-style equivalent.
+func describeKubernetesEvent(event *v1.Event) string {
+	source := event.Source.Component
+	if source == "" {
+		source = event.ReportingController
+	}
+	return fmt.Sprintf("reason: %s, source: %s, involved_object: %s", event.Reason, source, buildReadableKey(event.InvolvedObject))
 }
