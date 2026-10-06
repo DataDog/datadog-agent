@@ -159,8 +159,8 @@ ns = Collection()
 
 # add single tasks to the root
 # AIX gets routed to the legacy task because it doesn't support bazel.
-# macos and windows will be onboarded to bazel-by-default when ready
-if sys.platform in ("win32", "darwin", "aix"):
+# windows will be onboarded to bazel-by-default when ready
+if sys.platform in ("win32", "aix"):
     ns.add_task(test_legacy, name="test")
     ns.add_task(test, name="test-new")
 else:

@@ -374,12 +374,23 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 		SecurityContexts: securityContextsToProto(p.SecurityContexts),
 	}
 
+	var syscallsByImageTagID map[uint64][]uint32
+	if p.observedRollups {
+		syscallsByImageTagID = p.ActivityTree.SyscallsByImageTagID()
+	}
+
 	for key, ctx := range p.versionContexts {
+		syscalls := ctx.Syscalls
+		if p.observedRollups {
+			imageTagID := p.ActivityTree.GetImageTagID(key)
+			syscalls = unionSyscalls(syscallsByImageTagID[imageTagID], p.seededSyscalls)
+		}
+
 		outCtx := &adprotov1.ProfileContext{
 			FirstSeen:      ctx.FirstSeenNano,
 			LastSeen:       ctx.LastSeenNano,
 			EventTypeState: make(map[uint32]*adprotov1.EventTypeState),
-			Syscalls:       make([]uint32, len(ctx.Syscalls)),
+			Syscalls:       make([]uint32, len(syscalls)),
 			Tags:           make([]string, len(ctx.Tags)),
 		}
 		for evtType, evtState := range ctx.EventTypeState {
@@ -388,7 +399,7 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 				EventProfileState: eventFilteringProfileStateToProto(evtState.State),
 			}
 		}
-		copy(outCtx.Syscalls, ctx.Syscalls)
+		copy(outCtx.Syscalls, syscalls)
 		copy(outCtx.Tags, ctx.Tags)
 		output.ProfileContexts[key] = outCtx
 	}

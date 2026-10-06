@@ -701,7 +701,8 @@ def run(
             use_prebuilt_binaries = False
 
     if use_prebuilt_binaries:
-        ctx.run("go build -o ./gotest-custom ./internal/tools/gotest-custom")
+        # Run through the bazel wrapper so the taskset CPU pin (see tools/bazel, #56994) applies
+        bazel("run", "//:go", "--", "build", "-o", "./gotest-custom", "./internal/tools/gotest-custom")
         raw_command = "--raw-command ./gotest-custom {packages}"
         env_vars["GOTEST_COMMAND"] = "./gotest-custom"
 
@@ -711,7 +712,7 @@ def run(
             f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
         )
 
-    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{extra_flags}}'
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- {{verbose}} -mod={{go_mod}} -vet=off -test.timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{extra_flags}}'
 
     # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []

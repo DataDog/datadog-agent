@@ -109,6 +109,9 @@ RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
 ENV DD_OTELCOLLECTOR_ENABLED=true
 ENV DD_OTEL_STANDALONE=true
+# Mark the agent as containerized, so the hostname resolution can use the kubelet
+# (with DD_KUBERNETES_KUBELET_HOST) instead of the container's own OS hostname.
+ENV DOCKER_DD_AGENT=true
 
 ENTRYPOINT ["otel-agent"]
 CMD ["run", "--config", "file:/etc/datadog-agent/otel-config.yaml"]

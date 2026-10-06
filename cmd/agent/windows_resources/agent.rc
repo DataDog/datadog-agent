@@ -3,21 +3,7 @@
 #define APP_MANIFEST 1
 
 
-#ifdef BUILD_ARCH_x86
-  #ifdef PY2_RUNTIME
-     APP_MANIFEST RT_MANIFEST agent32-py2.exe.manifest
-  #else
-     APP_MANIFEST RT_MANIFEST agent32-py3.exe.manifest
-  #endif
-#elif defined BUILD_ARCH_x64
-  #ifdef PY2_RUNTIME
-    APP_MANIFEST RT_MANIFEST agent-py2.exe.manifest
-  #else
-    APP_MANIFEST RT_MANIFEST agent-py3.exe.manifest
-  #endif
-#else
-#error no architecture
-#endif
+APP_MANIFEST RT_MANIFEST agent.exe.manifest
 
 #define MAIN_ICON 1
 
