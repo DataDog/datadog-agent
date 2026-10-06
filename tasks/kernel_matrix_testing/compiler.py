@@ -264,11 +264,12 @@ class CompilerImage:
 
         if repo_cache is not None:
             # Host default/home-rc cache paths differ from the container user's; force the mounted path.
-            self.exec(
-                f"echo 'common --repository_cache=\\\"{repo_cache}\\\"' > /home/{self.compiler_user}/.bazelrc "
-                f"&& chown {self.host_uid}:{self.host_gid} /home/{self.compiler_user}/.bazelrc",
-                user="root",
-            )
+            bazelrc = f"/home/{self.compiler_user}/.bazelrc"
+            with tempfile.NamedTemporaryFile(mode='w') as rc:
+                rc.write(f"common --repository_cache={shlex.quote(str(repo_cache))}\n")
+                rc.flush()
+                self.ctx.run(f"docker cp {rc.name} {self.name}:{bazelrc}")
+            self.exec(f"chown {self.host_uid}:{self.host_gid} {bazelrc}", user="root")
 
         if sys.platform != "darwin":  # No need to change permissions in MacOS
             self.exec(
