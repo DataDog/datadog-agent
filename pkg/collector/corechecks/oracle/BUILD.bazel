@@ -33,6 +33,7 @@ go_library(
         "sysmetrics.go",
         "tablespaces.go",
         "telemetry.go",
+        "user_sessions.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle",
     visibility = ["//visibility:public"],
