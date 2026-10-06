@@ -225,3 +225,37 @@ func TestTriggerParallel(t *testing.T) {
 		t.Fatal("payloads were not triggered in parallel")
 	}
 }
+
+func TestTriggerTimeout(t *testing.T) {
+	block := make(chan struct{})
+	defer close(block)
+	health := &fakePayload{}
+	tp := &triggerPayloads{
+		log: logmock.New(t),
+		payloads: map[string]sendFunc{
+			// Ignores the context, like the inventory sender
+			triggerpayloads.PayloadInventoryMetadata: func(context.Context) error {
+				<-block
+				return nil
+			},
+			triggerpayloads.PayloadAgentHealth: health.send,
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	done := make(chan error)
+	go func() { done <- tp.Trigger(ctx, nil) }()
+
+	select {
+	case err := <-done:
+		var partialErr *rcclienttypes.PartialFailureError
+		require.ErrorAs(t, err, &partialErr)
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.ErrorContains(t, err, "inventory-metadata")
+		assert.NotContains(t, err.Error(), "agent-health")
+	case <-time.After(5 * time.Second):
+		t.Fatal("Trigger did not return after the context expired")
+	}
+}
