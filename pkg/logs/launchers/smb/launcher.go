@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build smb && !goexperiment.systemcrypto && !goexperiment.boringcrypto && !requirefips
+
 // Package smb launches tailers for log files on SMB shares (sources of type
 // smb), read over the network without mounting the share.
 //
@@ -10,11 +12,15 @@
 // source's path pattern every poll_interval, matches the pattern client-side
 // and polls one tailer per matched file. Sources that use the same share and
 // account share one reconnecting SMB client.
+//
+// The SMB log source is built into the full Agent only (the smb build tag) and
+// never into FIPS builds, whose tags are negated here as in
+// pkg/fips.BuiltForFIPS. Other builds use launcher_nosmb.go, which reports
+// each smb source as unsupported.
 package smb
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
@@ -23,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/smb/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -45,9 +50,6 @@ const (
 	blockedReportAfter = 30 * time.Second
 )
 
-// errFIPS is the status of smb sources in FIPS builds.
-var errFIPS = errors.New("smb log sources are not supported in FIPS builds of the Agent: SMB NTLMv2 authentication requires MD4, HMAC-MD5 and RC4, which are not FIPS-approved algorithms")
-
 // Launcher starts and stops the scanners of smb sources.
 type Launcher struct {
 	// closeTimeout bounds the drain of a rotated file.
@@ -56,7 +58,6 @@ type Launcher struct {
 	// Test seams.
 	clock          clock.Clock
 	dial           client.DialFunc // nil means client.Dial
-	builtForFIPS   func() bool
 	chunkSize      int
 	pollBudget     int
 	forceReadEvery int
@@ -74,7 +75,7 @@ type Launcher struct {
 
 	// Owned by the run goroutine.
 	scanners     map[*sources.LogSource]*scanner
-	refused      map[*sources.LogSource]bool // added but not started (invalid, FIPS)
+	refused      map[*sources.LogSource]bool // added but not started (invalid)
 	replaced     map[*sources.LogSource]bool // stopped for a newer source of the same configuration
 	removedEarly map[*sources.LogSource]bool // removal delivered before the addition
 	clients      map[clientKey]*sharedClient
@@ -87,7 +88,6 @@ func NewLauncher(closeTimeout time.Duration) *Launcher {
 	return &Launcher{
 		closeTimeout: closeTimeout,
 		clock:        clock.New(),
-		builtForFIPS: fips.BuiltForFIPS,
 		tailers:      tailers.NewTailerContainer[*tailer.Tailer](),
 		claims:       &claims{owners: make(map[string]*scanner)},
 		addedDone:    make(chan struct{}),
@@ -161,10 +161,6 @@ func (l *Launcher) addSource(ctx context.Context, source *sources.LogSource) {
 	}
 	if err := source.Config.Validate(); err != nil {
 		l.refuse(source, err)
-		return
-	}
-	if l.builtForFIPS() {
-		l.refuse(source, errFIPS)
 		return
 	}
 	key, c := l.acquireClient(source.Config.SMB)

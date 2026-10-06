@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//go:build test && smb && !goexperiment.systemcrypto && !goexperiment.boringcrypto && !requirefips
 
 package smb
 
@@ -36,16 +36,13 @@ type started struct {
 	out      *collector
 }
 
-func startLauncher(t *testing.T, configure ...func(*Launcher)) *started {
+func startLauncher(t *testing.T) *started {
 	t.Helper()
 	configmock.New(t)
 	share := fake.New()
 	share.Mkdir("app")
 	clk := clock.NewMock()
 	l := newTestLauncher(share, clk)
-	for _, fn := range configure {
-		fn(l)
-	}
 	provider := mock.NewMockProvider()
 	st := &started{
 		share:    share,
@@ -131,21 +128,6 @@ func TestLauncherNeverTailsAFileForTwoSources(t *testing.T) {
 	st.out.flush()
 	assert.Equal(t, want(1, 3), st.out.lines(), "each line is sent once")
 	assert.Empty(t, first.GetInputs())
-}
-
-func TestLauncherRefusesSourcesInFIPSBuilds(t *testing.T) {
-	st := startLauncher(t, func(l *Launcher) { l.builtForFIPS = func() bool { return true } })
-	st.share.Write("app/app.log", []byte(lines(1, 1)))
-	source := newSMBSource("smb-test")
-
-	st.sources.AddSource(source)
-	st.waitFor(t, func() bool { return source.Status().IsError() }, "FIPS status")
-	assert.Contains(t, source.Status().GetError(), "not supported in FIPS builds")
-	assert.Zero(t, st.share.Calls(fake.OpDial))
-
-	st.sources.RemoveSource(source)
-	st.launcher.Stop()
-	assert.Empty(t, st.launcher.refused)
 }
 
 func TestLauncherValidatesReplayedSources(t *testing.T) {
