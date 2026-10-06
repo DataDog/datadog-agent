@@ -378,6 +378,21 @@ pub fn load_configs(dir: &Path) -> Result<LoadedCatalog> {
         }
     }
 
+    // `.yaml` and `.yml` share a file stem, so a broken sibling would land in
+    // the catalog under the name of a valid file. The valid one is spawnable
+    // and the stub would shadow it in describe and start, so it wins.
+    invalid.retain(|entry| {
+        let shadowed = processes.iter().any(|p| p.name == entry.name);
+        if shadowed {
+            warn!(
+                "[{}] ignoring {}: a valid config of the same name was loaded",
+                entry.name,
+                entry.path.display()
+            );
+        }
+        !shadowed
+    });
+
     Ok(LoadedCatalog { processes, invalid })
 }
 
@@ -476,6 +491,21 @@ condition_path_exists: /usr/bin/sleep
             );
             assert_eq!(entry.path, dir.path().join(format!("{}.yaml", entry.name)));
         }
+    }
+
+    #[test]
+    fn test_invalid_sibling_does_not_shadow_a_valid_config() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("svc.yaml"), "command: /usr/bin/true\n").unwrap();
+        fs::write(dir.path().join("svc.yml"), "not: valid: yaml: [").unwrap();
+
+        let catalog = load_configs(dir.path()).unwrap();
+        assert_eq!(catalog.processes.len(), 1);
+        assert_eq!(catalog.processes[0].name, "svc");
+        assert!(
+            catalog.invalid.is_empty(),
+            "a spawnable config must win over a broken file sharing its name"
+        );
     }
 
     #[test]
