@@ -12,7 +12,7 @@ rust_shared_library(
     target_compatible_with = _LINUX,
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/collector/sharedlibrary/rustchecks/core",
+        "//pkg/collector/sharedlibrary/rustchecks/core:shlib_core",
         "@crates//:anyhow",
         "@crates//:libc",
     ],

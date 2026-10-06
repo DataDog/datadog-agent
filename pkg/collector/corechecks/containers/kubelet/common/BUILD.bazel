@@ -20,7 +20,7 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//pkg/util/log",
         "//pkg/util/prometheus",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@io_k8s_utils//ptr",
     ],
 )
@@ -32,11 +32,14 @@ dd_agent_go_test(
         "pod_test.go",
     ],
     embed = [":common"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core",
         "//comp/core/tagger/types",

@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -456,7 +457,7 @@ func assertSidecarMutationCounterDelta(t *testing.T, labels sidecarMutationLabel
 func sidecarMutationCount(t *testing.T, labels sidecarMutationLabels) float64 {
 	t.Helper()
 
-	families, err := telemetryimpl.GetCompatComponent().Gather(false)
+	families, err := telemetryimpl.GetCompatComponent().Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 
 	for _, family := range families {
@@ -477,7 +478,7 @@ func sidecarMutationCount(t *testing.T, labels sidecarMutationLabels) float64 {
 func totalSidecarMutationCount(t *testing.T) float64 {
 	t.Helper()
 
-	families, err := telemetryimpl.GetCompatComponent().Gather(false)
+	families, err := telemetryimpl.GetCompatComponent().Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 
 	total := 0.0
@@ -496,7 +497,7 @@ func totalSidecarMutationCount(t *testing.T) float64 {
 func assertNoSidecarMutationLabelContains(t *testing.T, forbidden string) {
 	t.Helper()
 
-	families, err := telemetryimpl.GetCompatComponent().Gather(false)
+	families, err := telemetryimpl.GetCompatComponent().Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 
 	for _, family := range families {

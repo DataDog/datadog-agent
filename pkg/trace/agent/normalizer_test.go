@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
@@ -698,6 +699,36 @@ func TestTagDecisionMaker(t *testing.T) {
 	setChunkAttributes(chunk, root)
 	assert.Equal("right", chunk.Tags[tagDecisionMaker])
 	assert.Equal("right", chunk.Spans[1].Meta[tagDecisionMaker])
+}
+
+// TestTagDecisionMakerNilChunkTags covers a v0.7 payload that omits the chunk
+// "tags" key entirely: the decoder leaves Tags nil, and promoting the span-level
+// decision maker into it must not panic.
+func TestTagDecisionMakerNilChunkTags(t *testing.T) {
+	assert := assert.New(t)
+	var chunk pb.TraceChunk
+	// Encode a chunk map without a "tags" field, so UnmarshalMsg never
+	// allocates chunk.Tags.
+	var b []byte
+	b = msgp.AppendMapHeader(b, 2)
+	b = msgp.AppendString(b, "priority")
+	b = msgp.AppendInt32(b, int32(sampler.PriorityAutoKeep))
+	b = msgp.AppendString(b, "spans")
+	b = msgp.AppendArrayHeader(b, 1)
+	b = msgp.AppendMapHeader(b, 1)
+	b = msgp.AppendString(b, "meta")
+	b = msgp.AppendMapHeader(b, 1)
+	b = msgp.AppendString(b, tagDecisionMaker)
+	b = msgp.AppendString(b, "-4")
+
+	left, err := chunk.UnmarshalMsg(b)
+	require.NoError(t, err)
+	require.Empty(t, left)
+	require.Nil(t, chunk.Tags)
+	require.Len(t, chunk.Spans, 1)
+
+	setChunkAttributes(&chunk, chunk.Spans[0])
+	assert.Equal("-4", chunk.Tags[tagDecisionMaker])
 }
 
 func BenchmarkNormalization(b *testing.B) {

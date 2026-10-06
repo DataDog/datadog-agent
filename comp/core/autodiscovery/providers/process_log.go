@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build linux
+
 package providers
 
 import (
@@ -33,6 +35,7 @@ import (
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/discovery"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	privilegedlogsclient "github.com/DataDog/datadog-agent/pkg/privileged-logs/client"
@@ -40,6 +43,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
+
+// Pattern to match source lines like "source: nginx" (including commented-out lines).
+var sourcePattern = regexp.MustCompile(`^#?\s*source:\s*"?(.+?)"?\s*$`)
 
 type serviceLogRef struct {
 	refCount int
@@ -101,9 +107,6 @@ func discoverIntegrationSources() map[string]bool {
 
 	log.Tracef("Discovering integration sources from paths: %v", searchPaths)
 
-	// Pattern to match source lines like "source: nginx" (including commented-out lines).
-	sourcePattern := regexp.MustCompile(`^#?\s*source:\s*"?(.+?)"?\s*$`)
-
 	for _, searchPath := range searchPaths {
 		if searchPath == "" {
 			continue
@@ -146,7 +149,7 @@ func discoverIntegrationSources() map[string]bool {
 }
 
 // NewProcessLogConfigProvider returns a new ConfigProvider subscribed to process events
-func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, tagger tagger.Component, filter workloadfilter.Component, _ healthplatformdef.Component, _ *telemetry.Store) (types.ConfigProvider, error) {
+func NewProcessLogConfigProvider(_ *constants.ConfigurationProviders, wmeta workloadmeta.Component, tagger tagger.Component, filter workloadfilter.Component, _ healthplatformdef.Component, _ *telemetry.Store) (types.ConfigProvider, error) {
 	cache, err := simplelru.NewLRU[string, struct{}](128, nil)
 	if err != nil {
 		return nil, err
@@ -218,7 +221,7 @@ func checkFileReadable(logPath string) error {
 	// Check readability with the privileged logs client to match what the
 	// log tailer uses.  That client can use the privileged logs module in
 	// system-probe if it is available.
-	file, err := privilegedlogsclient.Open(logPath)
+	file, err := privilegedlogsclient.OpenNoFollow(logPath)
 	if err != nil {
 		log.Infof("Discovered log file %s could not be opened: %v", logPath, err)
 		return err

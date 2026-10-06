@@ -48,7 +48,7 @@ go_library(
         "@com_github_moby_moby_api//types/container",
         "@com_github_moby_moby_api//types/events",
         "@com_github_moby_moby_client//:client",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
@@ -61,11 +61,12 @@ dd_agent_go_test(
         "unbundled_events_test.go",
     ],
     embed = [":docker"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "docker",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core",
         "//comp/core/tagger/fx-mock",

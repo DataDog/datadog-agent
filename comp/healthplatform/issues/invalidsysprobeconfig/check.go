@@ -9,35 +9,40 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
-	"strconv"
 
 	"go.yaml.in/yaml/v3"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // checker validates the customer-provided system-probe config against the schema.
 type checker struct {
-	cfg      sysprobeconfig.Component
-	hostname hostnameinterface.Component
+	cfg       sysprobeconfig.Component
+	hostname  hostnameinterface.Component
+	selfIdent *selfident.SelfIdent
 }
 
-func newChecker(cfg sysprobeconfig.Component, hostname hostnameinterface.Component) *checker {
-	return &checker{cfg: cfg, hostname: hostname}
+func newChecker(cfg sysprobeconfig.Component, hostname hostnameinterface.Component, selfIdent *selfident.SelfIdent) *checker {
+	return &checker{cfg: cfg, hostname: hostname, selfIdent: selfIdent}
 }
 
-// instanceIssueID scopes IssueID to this host and config file so the recommendations
-// service (which keys on orgID + issueID, ignoring hostname) keeps per-host violations
-// distinct instead of collapsing them into a single case.
+// instanceIssueID scopes IssueID to this agent's discriminator (the owning
+// DaemonSet's uid when resolvable, else the hostname) and config file, so the
+// recommendations service (which keys on orgID + issueID, ignoring hostname)
+// collapses cluster-distributed template violations into one case instead of
+// one per host, while still keeping distinct config files distinct.
 func (c *checker) instanceIssueID() string {
 	h := fnv.New64a()
-	fmt.Fprintf(h, "%s\x00%s", c.hostname.GetSafe(context.Background()), c.cfg.ConfigFileUsed())
+	discriminator := issues.IssueDiscriminator(c.selfIdent, c.hostname.GetSafe(context.Background()))
+	fmt.Fprintf(h, "%s\x00%s", discriminator, c.cfg.ConfigFileUsed())
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
 
@@ -54,12 +59,12 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalidsysprobeconfig: normalize config: %w", err)
 	}
-	errs, schemaErr := schema.ValidateSystemProbeConfig(normalized)
+	violations, schemaErr := schema.ValidateSystemProbeConfigDetailed(normalized)
 	if schemaErr != nil {
 		pkglog.Warnf("invalidsysprobeconfig: schema validator unavailable; skipping check: %v", schemaErr)
 		return nil, schemaErr
 	}
-	if len(errs) == 0 {
+	if len(violations) == 0 {
 		return nil, nil
 	}
 	return []runnerdef.IssueReport{
@@ -67,16 +72,7 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 			IssueID:   c.instanceIssueID(),
 			IssueName: IssueName,
 			Source:    "system-probe",
-			Context: func() map[string]string {
-				ctx := map[string]string{
-					contextKeyConfigPath: c.cfg.ConfigFileUsed(),
-					contextKeyErrorCount: strconv.Itoa(len(errs)),
-				}
-				for i, e := range errs {
-					ctx[contextErrorKey(i)] = e
-				}
-				return ctx
-			}(),
+			Context:   invalidconfig.BuildContext(c.cfg, c.cfg.ConfigFileUsed(), violations),
 		},
 	}, nil
 }
@@ -113,19 +109,14 @@ func deepMerge(dst, src map[string]any) {
 	}
 }
 
-// normalizeForSchema coerces a Go-native config map into JSON-native types via
-// a YAML round-trip. ScrubYaml strips any accidental secret-like values
+// normalizeForSchema converts Go-native config types without changing the values.
 func normalizeForSchema(in map[string]any) (map[string]any, error) {
 	b, err := yaml.Marshal(in)
 	if err != nil {
 		return nil, err
 	}
-	scrubbed, err := scrubber.ScrubYaml(b)
-	if err != nil {
-		return nil, err
-	}
 	var out map[string]any
-	if err := yaml.Unmarshal(scrubbed, &out); err != nil {
+	if err := yaml.Unmarshal(b, &out); err != nil {
 		return nil, err
 	}
 	return out, nil

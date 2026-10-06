@@ -11,10 +11,21 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/util/system/socket",
         "@com_github_mdlayher_vsock//:vsock",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/filesystem",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/filesystem",
+            "//pkg/util/log",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(

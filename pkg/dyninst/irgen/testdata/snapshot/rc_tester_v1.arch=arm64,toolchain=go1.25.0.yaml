@@ -20,14 +20,14 @@ Probes:
           events:
             - Kind: Entry
               Type: 1019 EventRootType Probe[main.HandleHTTP]
-              InjectionPoints: [{PC: "0x82cad0", Frameless: false}]
+              InjectionPoints: [{PC: "0x82ca90", Frameless: false}]
               Condition: null
             - Kind: Return
               Type: 1020 EventRootType Probe[main.HandleHTTP]Return
               InjectionPoints:
-                - PC: "0x82cc98"
+                - PC: "0x82cc58"
                   Frameless: false
-                - PC: "0x82ccb0"
+                - PC: "0x82cc70"
                   Frameless: false
               Condition: null
     - id: look_at_the_request
@@ -43,34 +43,34 @@ Probes:
           events:
             - Kind: Entry
               Type: 1021 EventRootType Probe[main.LookAtTheRequest]
-              InjectionPoints: [{PC: "0x82cdc8", Frameless: false}]
+              InjectionPoints: [{PC: "0x82cd88", Frameless: false}]
               Condition: null
             - Kind: Return
               Type: 1022 EventRootType Probe[main.LookAtTheRequest]Return
-              InjectionPoints: [{PC: "0x82ce30", Frameless: false}]
+              InjectionPoints: [{PC: "0x82cdf0", Frameless: false}]
               Condition: null
 Subprograms:
     - ID: 1
       Name: main.HandleHTTP
-      OutOfLinePCRanges: [0x82cab0..0x82cce0]
+      OutOfLinePCRanges: [0x82ca70..0x82cca0]
       InlinePCRanges: []
       Variables:
         - Name: w
           Type: 112 GoInterfaceType net/http.ResponseWriter
           Locations:
-            - Range: 0x82cab0..0x82cb04
+            - Range: 0x82ca70..0x82cac4
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
-            - Range: 0x82cb04..0x82cb08
+            - Range: 0x82cac4..0x82cac8
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 8}
                 - Size: 8
                   Op: {CfaOffset: 16}
-            - Range: 0x82cb08..0x82cce0
+            - Range: 0x82cac8..0x82cca0
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 8}
@@ -82,9 +82,9 @@ Subprograms:
         - Name: r
           Type: 113 PointerType *net/http.Request
           Locations:
-            - Range: 0x82cab0..0x82cb10
+            - Range: 0x82ca70..0x82cad0
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
-            - Range: 0x82cb10..0x82cce0
+            - Range: 0x82cad0..0x82cca0
               Pieces: [{Size: 8, Op: {CfaOffset: 24}}]
           Role: Parameter
           DictIndex: -1
@@ -92,9 +92,9 @@ Subprograms:
         - Name: '&buf'
           Type: 115 PointerType *bytes.Buffer
           Locations:
-            - Range: 0x82cbfc..0x82cc18
+            - Range: 0x82cbbc..0x82cbd8
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-            - Range: 0x82cc18..0x82cce0
+            - Range: 0x82cbd8..0x82cca0
               Pieces: [{Size: 8, Op: {CfaOffset: -128}}]
           Role: Local
           DictIndex: -1
@@ -102,13 +102,13 @@ Subprograms:
         - Name: span
           Type: 117 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/ddtrace.Span
           Locations:
-            - Range: 0x82cb24..0x82cb24
+            - Range: 0x82cae4..0x82cae4
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: null
-            - Range: 0x82cb24..0x82cb64
+            - Range: 0x82cae4..0x82cb24
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -120,13 +120,13 @@ Subprograms:
       DictRegister: null
     - ID: 2
       Name: main.LookAtTheRequest
-      OutOfLinePCRanges: [0x82cdb0..0x82ce50]
+      OutOfLinePCRanges: [0x82cd70..0x82ce10]
       InlinePCRanges: []
       Variables:
         - Name: path
           Type: 11 GoStringHeaderType string
           Locations:
-            - Range: 0x82cdb0..0x82cdd4
+            - Range: 0x82cd70..0x82cd94
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -9828,10 +9828,10 @@ Types:
       GoKind: 5
 MaxTypeID: 1023
 Issues: []
-GoModuledataInfo: {FirstModuledataAddr: "0x130d9c0", TypesOffset: 296}
+GoModuledataInfo: {FirstModuledataAddr: "0x130d9a0", TypesOffset: 296}
 GoMapHashInfo:
-    UseAeshashAddr: "0x1404474"
-    AeskeyschedAddr: "0x1405500"
+    UseAeshashAddr: "0x1404454"
+    AeskeyschedAddr: "0x14054e0"
 CommonTypes:
     G: 24 StructureType runtime.g
     M: 31 StructureType runtime.m

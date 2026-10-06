@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Add support for additional log collection options for
+    Kubernetes workloads through DatadogInstrumentation resources.

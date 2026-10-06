@@ -36,9 +36,15 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
 	}
-	maxConns := maxConns(climit, cfg.Endpoints)
-	senders := make([]*sender, len(cfg.Endpoints))
-	for i, endpoint := range cfg.Endpoints {
+	// endpoints excludes the main endpoint when apm_config.traces_send_to_main_endpoint
+	// is false; config validation guarantees a destination remains.
+	endpoints := cfg.WriterEndpoints()
+	if !cfg.HasWriterDestination() {
+		panic(errors.New("config was not properly validated: no destination for traces and stats"))
+	}
+	maxConns := maxConns(climit, endpoints)
+	senders := make([]*sender, len(endpoints))
+	for i, endpoint := range endpoints {
 		url, err := url.Parse(endpoint.Host + path)
 		if err != nil {
 			telemetryCollector.SendStartupError(telemetry.InvalidIntakeEndpoint, err)
@@ -244,7 +250,7 @@ type sender struct {
 	mu      sync.RWMutex // guards closed
 	closed  bool         // closed reports if the loop is stopped
 	statsd  statsd.ClientInterface
-	enabled bool // false on inactive MRF senders. True otherwise
+	enabled *atomic.Bool // false on inactive MRF senders. True otherwise
 }
 
 // newSender returns a new sender based on the given config cfg.
@@ -256,7 +262,7 @@ func newSender(cfg *senderConfig, apiKeyManager *apiKeyManager, statsd statsd.Cl
 		inflight:      atomic.NewInt32(0),
 		maxRetries:    int32(cfg.maxRetries),
 		statsd:        statsd,
-		enabled:       true,
+		enabled:       atomic.NewBool(true),
 	}
 	for i := 0; i < cfg.maxConns; i++ {
 		go s.loop()
@@ -432,15 +438,13 @@ func (s *sender) isEnabled() bool {
 	}
 	// Endpoint is MRF and MRF is enabled. Figure out if we need to failover APM data
 	if s.cfg.MRFFailoverAPM() {
-		if !s.enabled {
+		if s.enabled.CompareAndSwap(false, true) {
 			log.Infof("Sender for domain %v has been failed over to, enabling it for MRF.", s.cfg.url)
-			s.enabled = true
 		}
 		return true
 	}
 
-	if s.enabled {
-		s.enabled = false
+	if s.enabled.CompareAndSwap(true, false) {
 		log.Infof("Sender for domain %v was disabled; payloads will be dropped for this domain.", s.cfg.url)
 	} else {
 		log.Debugf("Sender for domain %v is disabled; dropping payload for this domain.", s.cfg.url)

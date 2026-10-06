@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package uprobes
 
@@ -123,7 +123,7 @@ func newUprobeAttacherTelemetry(tm telemetryComponent.Component, attacherName st
 		definitions = &telemetryDefinitions{
 			once: sync.Once{},
 		}
-		definitions.init(telemetryNoop.GetCompatComponent())
+		definitions.init(telemetryNoop.NewComponent())
 	} else {
 		definitions = &telemetryDefs
 		definitions.init(tm)

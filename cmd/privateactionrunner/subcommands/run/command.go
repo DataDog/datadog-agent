@@ -15,9 +15,10 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -39,8 +40,8 @@ import (
 	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconstants "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -101,7 +102,8 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		}),
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewAgentParams(confPath, config.WithExtraConfFiles(extraConfFiles)),
-			LogParams:    log.ForDaemon(command.LoggerName, pkgconfigsetup.PARLogFile, defaultpaths.GetDefaultPrivateActionRunnerLogFile())}),
+			LogParams:    log.ForDaemon(command.LoggerName, par.LogFile, defaultpaths.GetDefaultPrivateActionRunnerLogFile()),
+		}),
 		core.Bundle(core.WithSecrets()),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{
@@ -128,7 +130,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 	}
 
 	err := fxutil.Run(fxOptions...)
-	if errors.Is(err, privateactionrunner.ErrNotEnabled) {
+	if errors.Is(err, privateactionrunner.ErrNotEnabled) || errors.Is(err, privateactionrunner.ErrSplitDeployment) {
 		return nil
 	}
 	return err

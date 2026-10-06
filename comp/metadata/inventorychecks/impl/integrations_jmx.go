@@ -11,7 +11,7 @@ package inventorychecksimpl
 import (
 	"fmt"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/DataDog/datadog-agent/pkg/status/jmx"
@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
-func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]metadata) {
+func (ic *inventorychecksImpl) getJMXChecksMetadata(includeConfigs bool) (jmxMetadata map[string][]metadata) {
 	jmxMetadata = make(map[string][]metadata)
 	jmxIntegrations, err := jmxfetch.GetIntegrations()
 	if err != nil {
@@ -90,11 +90,15 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 				}
 
 				metadataEntry := metadata{
-					"init_config":     string(scrubbedInitConfigYaml),
-					"instance":        string(scrubbedInstanceYaml),
 					"config.provider": provider,
 					"config.hash":     configHash,
 					"config.source":   source,
+				}
+
+				// Never expose config contents on the unauthenticated expvar payload.
+				if includeConfigs {
+					metadataEntry["init_config"] = string(scrubbedInitConfigYaml)
+					metadataEntry["instance"] = string(scrubbedInstanceYaml)
 				}
 
 				// Add Java version information if available

@@ -24,7 +24,7 @@ type windowsStatusSuite struct {
 
 func TestWindowsStatusSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))))))
+	e2e.Run(t, &windowsStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess())))))
 }
 
 func (v *windowsStatusSuite) TestStatusHostname() {

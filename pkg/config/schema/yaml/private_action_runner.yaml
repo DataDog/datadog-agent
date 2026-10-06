@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/private_action_runner.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/private_action_runner.yaml
 node_type: section
 title: Private Action Runner Configuration
 type: object
@@ -91,10 +91,26 @@ properties:
     visibility: public
     description: Allow HTTP actions to reach cloud instance metadata service (IMDS)
       endpoints.
+  kubernetes_allowed_custom_resources:
+    node_type: setting
+    type: array
+    default: []
+    env_parser: json_list_or_comma_separated
+    items:
+      type: string
+    visibility: public
+    description: |-
+      Optional list of Kubernetes resources that custom resource actions may access.
+      Each entry identifies an exact Kubernetes resource. Use group/version/resource
+      for named API groups, for example cert-manager.io/v1/certificates, and
+      version/resource for the core API group, for example v1/secrets. When unset,
+      custom resource actions allow non-native API groups and deny Kubernetes native API
+      groups. When explicitly set, including to an empty list, only exact matches are
+      allowed.
   api_key_only_enrollment:
     node_type: setting
     type: boolean
-    default: false
+    default: true
   executor:
     node_type: section
     type: object
@@ -117,6 +133,14 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  idle_timeout_seconds:
+    node_type: setting
+    type: integer
+    default: 60
+    description: |-
+      Sets the split-mode executor's idle timeout in seconds. The executor
+      self-terminates after this much time without activity; values of zero or
+      less disable the watchdog.
   log_file:
     node_type: setting
     type: string
@@ -134,6 +158,8 @@ properties:
   restricted_shell:
     node_type: section
     type: object
+    visibility: public
+    description: Configuration for restricted shell actions executed by the Private Action Runner.
     properties:
       allowed_commands:
         node_type: setting
@@ -156,7 +182,7 @@ properties:
           the backend-injected lists. By default, they act as a no-op, allowing
           everything: the backend is the only filter.
 
-          To allow none, use an explicit empty list.
+          To allow no paths or commands, use an explicit empty list.
           Env vars support both CSV and JSON-array forms; the JSON form gives
           env/YAML parity, including the explicit kill-switch via "[]".
 
@@ -165,10 +191,73 @@ properties:
           handled as a special case in the operator-side intersection: when
           it appears in the operator list, every backend command in the
           "rshell:" namespace is admitted.
+
+          It also narrows privileged execution when configured.
+      allowed_system_services:
+        node_type: setting
+        type: object
+        default: {}
+        env_parser: json
+        additionalProperties:
+          items:
+            type: string
+          type: array
+        comment: |-
+          Optional local restriction on backend system-service grants. When
+          unset, backend grants pass through; an explicit empty map denies all.
+          The "*" action admits every backend-granted action for an exact service.
+          The environment variable accepts a JSON object only.
+
+          It also narrows privileged system-service grants when configured.
+      disable_detailed_telemetry:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          When true, suppresses the raw command text and effective sandbox
+          configuration (allowed paths, commands, system services, mode, and
+          related settings) that rshell would otherwise attach to its "run"
+          telemetry span for each runCommand/runRemediationCommand
+          invocation. Other rshell telemetry (exit code, timing, command
+           counts) is unaffected. Set this to true if the commands executed
+           through the Private Action Runner's restricted shell are too
+           sensitive to forward to Datadog telemetry.
+      privileged:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          socket:
+            node_type: setting
+            type: string
+            default: /run/datadog/rshell-privileged.sock
+          elevatable_commands:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            env_parser: json_list_or_comma_separated
+            comment: |-
+              Commands that may temporarily regain root with sudo. When unset,
+              this does not narrow backend or policy.json grants; [] denies all.
   skip_connection_creation:
     node_type: setting
     type: boolean
     default: false
+  split_enabled:
+    node_type: setting
+    type: boolean
+    platform_default:
+      container: false
+      linux: true
+      windows: true
+      other: false
+    comment: Enables split runner mode by default on supported host deployments. Split mode requires the process manager; disable this setting to retain monolithic execution.
   urn:
     node_type: setting
     type: string

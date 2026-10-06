@@ -7,17 +7,25 @@ package clustername
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestGetClusterName(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := configmock.New(t)
+	// Disable cloud provider metadata detection to avoid real HTTP calls to
+	// EC2/GCE/Azure metadata endpoints.
+	mockConfig.SetInTest("cloud_provider_metadata", []string{})
 	env.SetFeatures(t, env.Kubernetes)
 	data := newClusterNameData()
 
@@ -82,7 +90,25 @@ func TestGetClusterName(t *testing.T) {
 	assert.Equal(t, wantedClustername, getClusterName(ctx, newClusterNameData(), "hostname"))
 }
 
+// TestGetClusterNameCLCRunner ensures that a Cluster Checks Runner (which
+// never has a locally-reachable kubelet) still honors a cluster name provided
+// via config, without needing the node-label based auto discovery.
+func TestGetClusterNameCLCRunner(t *testing.T) {
+	ctx := context.Background()
+	mockConfig := configmock.New(t)
+	env.SetFeatures(t, env.Kubernetes)
+
+	mockConfig.SetInTest("clc_runner_enabled", true)
+	mockConfig.SetInTest("config_providers", []map[string]interface{}{{"name": "clusterchecks"}})
+
+	testClusterName := "laika"
+	mockConfig.SetInTest("cluster_name", testClusterName)
+
+	assert.Equal(t, testClusterName, getClusterName(ctx, newClusterNameData(), "hostname"))
+}
+
 func TestGetClusterID(t *testing.T) {
+	clearClusterIDCache(t)
 	// missing env
 	cid, err := GetClusterID()
 	assert.Empty(t, cid)
@@ -106,4 +132,37 @@ func TestGetClusterID(t *testing.T) {
 	cid, err = GetClusterID()
 	assert.Equal(t, testID, cid)
 	assert.Nil(t, err)
+}
+
+func TestGetClusterIDClusterAgent(t *testing.T) {
+	flavor.SetTestFlavor(t, flavor.ClusterAgent)
+	// The env variable must not be used by the Cluster Agent.
+	t.Setenv(clusterIDEnv, "d801b2b1-4811-11ea-8618-121d4d0938a3")
+	previousLookup := getClusterAgentClusterID
+	t.Cleanup(func() { getClusterAgentClusterID = previousLookup })
+
+	lookupError := errors.New("Kubernetes unavailable")
+	for name, tc := range map[string]struct {
+		id  string
+		err error
+	}{
+		"success": {id: "226430c6-5e57-11ea-91d5-42010a8400c6"},
+		"failure": {err: lookupError},
+	} {
+		t.Run(name, func(t *testing.T) {
+			clearClusterIDCache(t)
+			getClusterAgentClusterID = func() (string, error) { return tc.id, tc.err }
+
+			id, err := GetClusterID()
+			require.ErrorIs(t, err, tc.err)
+			assert.Equal(t, tc.id, id)
+		})
+	}
+}
+
+func clearClusterIDCache(t *testing.T) {
+	t.Helper()
+	key := cache.BuildAgentKey(constants.ClusterIDCacheKey)
+	cache.Cache.Delete(key)
+	t.Cleanup(func() { cache.Cache.Delete(key) })
 }

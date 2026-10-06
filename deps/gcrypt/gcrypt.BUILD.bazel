@@ -104,8 +104,8 @@ genrule(
     outs = ["mpi/asm-syntax.h"],
     cmd = select({
         "@@//:linux_x86_64": """echo '#define ELF_SYNTAX' > $@ && \
-            cat $(location mpi/i386/syntax.h) >> $@ && \
-            cat $(location mpi/amd64/func_abi.h) >> $@ && \
+            cat $(execpath mpi/i386/syntax.h) >> $@ && \
+            cat $(execpath mpi/amd64/func_abi.h) >> $@ && \
             cat <<EOF >> $@
 #if defined(__ASSEMBLER__) && defined(__CET__)
 # include <cet.h>
@@ -169,7 +169,7 @@ cc_binary(
 genrule(
     name = "gost-sb_h",
     outs = ["cipher/gost-sb.h"],
-    cmd = "$(location :gost-s-box) $@",
+    cmd = "$(execpath :gost-s-box) $@",
     tools = [":gost-s-box"],
 )
 
@@ -217,8 +217,8 @@ cc_library(
         "mpi/mpih-pow.c",
         "mpi/mpiutil.c",
         "random/random.h",
-        "src/cipher-proto.h",
         "src/cipher.h",
+        "src/cipher-proto.h",
         "src/const-time.h",
         "src/context.h",
         "src/ec-context.h",
@@ -736,6 +736,7 @@ cc_library(
     implementation_deps = [
         ":config_h",
     ],
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
         ":libcipher",
@@ -743,7 +744,6 @@ cc_library(
         ":libmpi",
         ":librandom",
     ],
-    target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_shared_library(
@@ -755,7 +755,7 @@ cc_shared_library(
         "@gpg-error//:gpg-error_pkg",
     ],
     user_link_flags = [
-        "-Wl,--version-script=$(location src/libgcrypt.vers)",
+        "-Wl,--version-script=$(execpath src/libgcrypt.vers)",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -766,14 +766,15 @@ cc_shared_library(
 pkg_files(
     name = "hdr_files",
     srcs = [":gcrypt_h"],
-    prefix = "include",
+    prefix = "embedded/include",
 )
 
 dd_cc_packaged(
     name = "gcrypt_pkg",
+    dest_dir = "embedded/lib",
     input = ":gcrypt",
-    version = "20.7.2",
     installed_files = [":hdr_files"],
+    version = "20.7.2",
     visibility = ["//visibility:public"],
 )
 
@@ -782,7 +783,6 @@ pkg_filegroup(
     srcs = [
         ":hdr_files",
     ],
-    prefix = "embedded",
     visibility = [
         "@@//deps/openscap:__pkg__",
         "@@//packages:__subpackages__",

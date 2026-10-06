@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf && nvml
+//go:build linux && bpf && nvml
 
 package gpu
 
@@ -372,7 +372,7 @@ func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
 
 func (c *cudaEventConsumer) checkClosedProcesses() {
 	seenPIDs := make(map[uint32]struct{})
-	_ = kernel.WithAllProcs(c.deps.cfg.ProcRoot, func(pid int) error {
+	_ = kernel.WithAllProcs(c.deps.sysCtx.procRoot, func(pid int) error {
 		seenPIDs[uint32(pid)] = struct{}{}
 		return nil
 	})

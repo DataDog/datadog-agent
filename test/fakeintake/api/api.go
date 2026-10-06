@@ -87,6 +87,11 @@ type RCAddConfigRequest struct {
 	Data       json.RawMessage `json:"data"`
 }
 
+// RCSetExpirationRequest controls the expiry of generated non-root TUF metadata.
+type RCSetExpirationRequest struct {
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 // RCStats is returned by GET /fakeintake/rc/stats.
 type RCStats struct {
 	Polls        uint64    `json:"polls"`

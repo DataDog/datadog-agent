@@ -3,14 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package usm
 
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -1969,10 +1968,12 @@ func validateStats(t *testing.T, usmMonitor *Monitor, res, expectedEndpoints map
 func getHTTP2UnixClientArray(size int, unixPath string) []*http.Client {
 	res := make([]*http.Client, size)
 	for i := 0; i < size; i++ {
+		protocols := new(http.Protocols)
+		protocols.SetUnencryptedHTTP2(true)
 		res[i] = &http.Client{
-			Transport: &http2.Transport{
-				AllowHTTP: true,
-				DialTLSContext: func(context.Context, string, string, *tls.Config) (net.Conn, error) {
+			Transport: &http.Transport{
+				Protocols: protocols,
+				DialContext: func(context.Context, string, string) (net.Conn, error) {
 					return net.Dial("unix", unixPath)
 				},
 			},

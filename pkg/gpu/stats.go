@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf && nvml
+//go:build linux && bpf && nvml
 
 package gpu
 
@@ -260,8 +260,9 @@ func (g *statsGenerator) getNormalizationFactors(stats []model.ProcessStatsTuple
 			deviceFactors.cores = 1
 		}
 
-		if usage.memory > float64(device.GetDeviceInfo().Memory) {
-			deviceFactors.memory = usage.memory / float64(device.GetDeviceInfo().Memory)
+		memoryLimit := device.GetDeviceInfo().Memory
+		if memoryLimit > 0 && usage.memory > float64(memoryLimit) {
+			deviceFactors.memory = usage.memory / float64(memoryLimit)
 		} else {
 			deviceFactors.memory = 1
 		}

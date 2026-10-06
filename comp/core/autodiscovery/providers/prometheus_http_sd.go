@@ -25,15 +25,16 @@ import (
 
 	"reflect"
 
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/ext"
-	yaml "go.yaml.in/yaml/v2"
+	"cel.dev/cel-go/cel"
+	"cel.dev/cel-go/ext"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:depguard
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"      //nolint:depguard
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -135,7 +136,7 @@ type PrometheusHTTPSDConfigProvider struct {
 
 // NewPrometheusHTTPSDConfigProvider creates a new PrometheusHTTPSDConfigProvider.
 func NewPrometheusHTTPSDConfigProvider(
-	providerConfig *pkgconfigsetup.ConfigurationProviders,
+	providerConfig *constants.ConfigurationProviders,
 	_ *telemetry.Store,
 ) (types.ConfigProvider, error) {
 	cfg := pkgconfigsetup.Datadog()
@@ -184,7 +185,7 @@ func parseCheckTemplate(templateJSON string) (httpSDCheckTemplate, error) {
 	return tmpl, nil
 }
 
-func buildHTTPSDClient(providerConfig *pkgconfigsetup.ConfigurationProviders) (*http.Client, error) {
+func buildHTTPSDClient(providerConfig *constants.ConfigurationProviders) (*http.Client, error) {
 	transport := httputils.CreateHTTPTransport(pkgconfigsetup.Datadog())
 
 	// Layer on provider-specific TLS configuration (custom CA, mTLS)

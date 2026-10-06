@@ -33,6 +33,7 @@
 .new-e2e_windows_domain_test:
   variables:
     TARGETS: ./tests/windows/domain-test
+    EXTRA_PARAMS: --run "$E2E_DOMAIN_TEST$"
   extends:
     - .new-e2e_with_version
 
@@ -40,6 +41,7 @@
   parallel:
     matrix:
       - E2E_MSI_TEST: TestInstall
+      - E2E_MSI_TEST: TestProcmgrLocalSystem
       - E2E_MSI_TEST: TestRepair
       - E2E_MSI_TEST: TestUpgrade
       - E2E_MSI_TEST: TestUpgradeFromLatest
@@ -65,6 +67,7 @@
       - E2E_MSI_TEST: TestInstallExistingAltDir
       - E2E_MSI_TEST: TestInstallAltDirAndCorruptForUninstall
       - E2E_MSI_TEST: TestInstallFail
+      - E2E_MSI_TEST: TestInstallWithUntrustedConfigRoot
       - E2E_MSI_TEST: TestInstallWithLanmanServerDisabled
       - E2E_MSI_TEST: TestInstallWithInstallOnlyFlag
       - E2E_MSI_TEST: TestInstallWithAutologger
@@ -84,6 +87,7 @@
     - .new-e2e_windows_msi
     - .new-e2e_agent_a7
   needs:
+    - setup_agent_version
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
 
@@ -101,10 +105,30 @@ new-e2e-windows-agent-msi-windows-server-a7-x86_64:
 
 new-e2e-windows-agent-domain-tests-a7-x86_64:
   stage: e2e_install_packages
+  variables:
+    E2E_DOMAIN_TEST: ^TestInstallsOnDomainController
   extends:
     - .new-e2e_windows_domain_test
     - .new-e2e_agent_a7
   needs:
+    - setup_agent_version
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+  rules:
+    - !reference [.on_deploy]
+    - !reference [.on_e2e_or_windows_installer_changes]
+    - !reference [.manual]
+  timeout: 1h15m
+
+new-e2e-windows-agent-rodc-tests-a7-x86_64:
+  stage: e2e_install_packages
+  variables:
+    E2E_DOMAIN_TEST: ^TestInstallsOnReadOnlyDomainController
+  extends:
+    - .new-e2e_windows_domain_test
+    - .new-e2e_agent_a7
+  needs:
+    - setup_agent_version
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
   rules:
@@ -121,6 +145,7 @@ new-e2e-windows-agent-a7-x86_64-fips:
     - .new-e2e_with_version
     - .new-e2e_agent_a7
   needs:
+    - setup_agent_version
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
     - deploy_windows_testing-a7-fips
@@ -147,11 +172,11 @@ new-e2e-windows-ddot-package-a7-x86_64:
     EXTRA_PARAMS: --run "TestDDOTInstalls|TestAgentMSIInstallsDDOTPackage"
     TEAM: windows-products
   needs:
+    - setup_agent_version
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
     - deploy_installer_oci
     - deploy_agent_oci
-    - qa_installer_script_windows
   before_script:
     - CURRENT_AGENT_ASSERT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_ASSERT_VERSION
     - CURRENT_AGENT_ASSERT_PACKAGE_VERSION=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_ASSERT_PACKAGE_VERSION
@@ -179,11 +204,11 @@ new-e2e-windows-eudm-package-a7-x86_64:
     EXTRA_PARAMS: --run "TestEUDMExtensionViaMSI"
     TEAM: windows-products
   needs:
+    - setup_agent_version
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
     - deploy_installer_oci
     - deploy_agent_oci
-    - qa_installer_script_windows
   before_script:
     - CURRENT_AGENT_ASSERT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_ASSERT_VERSION
     - CURRENT_AGENT_ASSERT_PACKAGE_VERSION=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_ASSERT_PACKAGE_VERSION
@@ -205,11 +230,11 @@ new-e2e-installer-windows:
     - !reference [.on_installer_or_e2e_changes]
     - !reference [.manual]
   needs:
+    - setup_agent_version
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
     - deploy_installer_oci
     - deploy_agent_oci
-    - qa_installer_script_windows
     - deploy_ddot_oci
   before_script:
     # Assertion variables for verifying installed agent version
@@ -260,6 +285,8 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestExtensionPersistence$/TestExtensionPersistThroughMSIUpgrade$"
       - EXTRA_PARAMS: --run "TestExtensionPersistence$/TestExtensionRestoredOnMSIRollback$"
       - EXTRA_PARAMS: --run "TestExtensionPersistence$/TestExtensionRemovedOnUninstall$"
+      - EXTRA_PARAMS: --run "TestAgentKeepRightsFleetUpgrade$/TestKeepRightsSurvivesFleetUpgrade$"
+      - EXTRA_PARAMS: --run "TestAgentKeepRightsFleetUpgrade$/TestKeepRightsExplicitArgWinsOnFleetUpgrade$"
       # agent config experiment
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
@@ -274,16 +301,15 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestApplicationMonitoringGlobalReadAfterRollback$"
       # install-exe
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
+      - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackageInstallOnly$"
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentFails$"
       - EXTRA_PARAMS: --run "TestInstallExe$/TestConfigValuesNotOverwrittenByDefaults$"
+      - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallUpgradeReinstallLifecycle$"
+      - EXTRA_PARAMS: --run "TestInstallExe$/TestReinstallAfterMSIUninstall$"
       - EXTRA_PARAMS: --run "TestInstallExeWithProxy$/TestInstallAgentPackageWithProxy$"
-      # install-script
-      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
-      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallIgnoreMajorMinor$"
-      - EXTRA_PARAMS: --run "TestInstallScript$/TestReinstallAfterMSIUninstall$"
-      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$/TestInstallScriptWithAgentUser"
-      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$/TestInstallScriptChangesAgentUser$"
-      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUserOnDC$"
+      - EXTRA_PARAMS: --run "TestInstallExeWithAgentUser$/TestInstallExeWithAgentUser"
+      - EXTRA_PARAMS: --run "TestInstallExeWithAgentUser$/TestInstallExeChangesAgentUser$"
+      - EXTRA_PARAMS: --run "TestInstallExeWithAgentUserOnDC$"
       # installer-package
       - EXTRA_PARAMS: --run "TestInstaller$"
       # TODO: disabling tests during MSI merge, should be covered by regular Agent MSI tests

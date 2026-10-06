@@ -30,10 +30,13 @@ dd_agent_go_test(
         "resolver_test.go",
     ],
     embed = [":imageresolver"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core/config",
         "@com_github_stretchr_testify//assert",

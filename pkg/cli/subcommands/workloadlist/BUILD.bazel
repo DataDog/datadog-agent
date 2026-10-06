@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "workloadlist",
@@ -13,6 +14,7 @@ go_library(
         "//comp/core/ipc/httphelpers",
         "//comp/core/log/def",
         "//comp/core/workloadmeta/def",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
@@ -23,11 +25,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "workloadlist_test",
     srcs = ["command_test.go"],
     embed = [":workloadlist"],
-    gotags = ["test"],
     deps = [
         "//comp/core",
         "//pkg/util/fxutil",

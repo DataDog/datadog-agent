@@ -1,0 +1,175 @@
+## Network Configuration Management (NCM) extends Network Device Monitoring (NDM)
+## to include configuration awareness and change tracking. It lets you monitor
+## configuration changes over time, compare versions side by side, and leverage
+## AI-generated summaries to understand potential impacts.
+init_config:
+
+    ## @param namespace - string - optional - default: default
+    ## Should match the namespace of the devices being monitored.
+    #
+    # namespace: default
+
+    ## @param min_collection_interval - number - optional - default: 900
+    ## Collection frequency, in seconds, for configuration snapshots.
+    ## Currently must be set explicitly: the built-in default is not applied
+    ## correctly and results in a value far outside the intended range.
+    #
+    min_collection_interval: 900
+
+    ## @param inventory_report_max_interval - number - optional - default: 3600
+    ## Slowest cadence, in seconds, for sending an inventory report. A report is also
+    ## sent any time a new configuration is captured.
+    ## Currently must be set explicitly: the built-in default is not applied
+    ## correctly and results in a value far outside the intended range.
+    #
+    inventory_report_max_interval: 3600
+
+    ## @param ssh - mapping - optional
+    ## Global SSH configuration that applies to all device instances unless
+    ## overridden at the device level.
+    #
+    # ssh:
+
+        ## @param timeout - number - optional - default: 30
+        ## Maximum time, in seconds, for the SSH client to establish a TCP connection.
+        #
+        # timeout: 30
+
+        ## @param known_hosts_path - string - optional
+        ## Path to the known_hosts file containing public keys of servers to verify
+        ## the identity of remote hosts. Required unless insecure_skip_verify is true.
+        #
+        # known_hosts_path: <KNOWN_HOSTS_PATH>
+
+        ## @param insecure_skip_verify - boolean - optional - default: false
+        ## Skip host key verification. This is INSECURE and should only be used for
+        ## development/testing purposes.
+        #
+        # insecure_skip_verify: false
+
+        ## @param ciphers - list of strings - optional
+        ## List of SSH ciphers to allow when connecting to devices.
+        #
+        # ciphers:
+        #   - <CIPHER>
+
+        ## @param key_exchanges - list of strings - optional
+        ## List of SSH key exchange algorithms to allow when connecting to devices.
+        #
+        # key_exchanges:
+        #   - <KEY_EXCHANGE>
+
+        ## @param host_key_algorithms - list of strings - optional
+        ## List of SSH host key algorithms to allow when connecting to devices.
+        #
+        # host_key_algorithms:
+        #   - <HOST_KEY_ALGORITHM>
+
+        ## @param allow_legacy_algorithms - boolean - optional - default: false
+        ## Allow weak/legacy SSH algorithms (from ciphers, key_exchanges, host_key_algorithms)
+        ## to be used, for older devices that do not support recommended algorithms. This is
+        ## insecure and should only be enabled when required for device compatibility.
+        #
+        # allow_legacy_algorithms: false
+
+instances:
+
+  -  ## @param ip_address - string - required
+    ## The IP address of the network device to collect configurations from.
+    #
+    ip_address: <IP_ADDRESS>
+
+    ## @param namespace - string - optional
+    ## Namespace for this device; if not set, defaults to the value from init_config.
+    #
+    # namespace: <NAMESPACE>
+
+    ## @param profile - string - optional
+    ## Device profile name to use for this device, e.g. "cisco-ios".
+    #
+    # profile: <PROFILE>
+
+    ## @param auth - mapping - required
+    ## Authentication configuration used to connect to the device.
+    #
+    auth:
+
+        ## @param username - string - required
+        ## Device login username.
+        #
+        username: <USERNAME>
+
+        ## @param password - string - optional
+        ## Device login password. Used as a fallback after private key authentication
+        ## if both are provided. Required if private_key_file is not set.
+        #
+        # password: <PASSWORD>
+
+        ## @param private_key_file - string - optional
+        ## Path to the SSH private key file for authentication. At least one of
+        ## password or private_key_file must be provided.
+        #
+        # private_key_file: <PRIVATE_KEY_FILE>
+
+        ## @param private_key_passphrase - string - optional
+        ## Passphrase for the private key file, if it is encrypted.
+        #
+        # private_key_passphrase: <PRIVATE_KEY_PASSPHRASE>
+
+        ## @param port - string - optional - default: 22
+        ## Port to connect to on the device.
+        #
+        # port: "22"
+
+        ## @param remote - string - optional - default: tcp
+        ## Network protocol used to connect to the device.
+        #
+        # remote: tcp
+
+        ## @param ssh - mapping - required
+        ## SSH connection configuration for this device. If not set, falls back to
+        ## the ssh configuration from init_config.
+        #
+        # ssh:
+
+            ## @param timeout - number - optional - default: 30
+            ## Maximum time, in seconds, for the SSH client to establish a TCP connection.
+            #
+            # timeout: 30
+
+            ## @param known_hosts_path - string - optional
+            ## Path to the known_hosts file containing public keys of servers to verify
+            ## the identity of remote hosts. Required unless insecure_skip_verify is true.
+            #
+            # known_hosts_path: <KNOWN_HOSTS_PATH>
+
+            ## @param insecure_skip_verify - boolean - optional - default: false
+            ## Skip host key verification. This is INSECURE and should only be used for
+            ## development/testing purposes.
+            #
+            # insecure_skip_verify: false
+
+            ## @param ciphers - list of strings - optional
+            ## List of SSH ciphers to allow when connecting to this device.
+            #
+            # ciphers:
+            #   - <CIPHER>
+
+            ## @param key_exchanges - list of strings - optional
+            ## List of SSH key exchange algorithms to allow when connecting to this device.
+            #
+            # key_exchanges:
+            #   - <KEY_EXCHANGE>
+
+            ## @param host_key_algorithms - list of strings - optional
+            ## List of SSH host key algorithms to allow when connecting to this device.
+            #
+            # host_key_algorithms:
+            #   - <HOST_KEY_ALGORITHM>
+
+            ## @param allow_legacy_algorithms - boolean - optional - default: false
+            ## Allow weak/legacy SSH algorithms (from ciphers, key_exchanges, host_key_algorithms)
+            ## to be used, for older devices that do not support recommended algorithms. This is
+            ## insecure and should only be enabled when required for device compatibility.
+            #
+            # allow_legacy_algorithms: false

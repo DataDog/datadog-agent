@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixes Agent installs and upgrades failing to create any systemd unit files on hosts whose
+    kernel does not support ambient capabilities (kernel older than 4.3). On those hosts the
+    installer selects the ``-nocap`` systemd unit templates, but those templates were never
+    compiled into the installer binary, so unit generation failed with
+    ``failed to write stable units: open tmpl/gen/debrpm-nocap/datadog-agent.service: file does
+    not exist`` and the host was left with no Datadog units at all. Because the package manager
+    scriptlet ignores this failure, the install appeared to succeed while ``systemctl start
+    datadog-agent`` reported ``Unit not found``. This affected both the classic DEB/RPM install
+    path and Fleet Automation remote upgrades and configuration experiments, which use the
+    equivalent ``oci-nocap`` templates.

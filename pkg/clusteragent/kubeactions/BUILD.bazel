@@ -35,8 +35,11 @@ dd_agent_go_test(
     name = "kubeactions_test",
     srcs = ["action_store_test.go"],
     embed = [":kubeactions"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
 )

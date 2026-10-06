@@ -43,8 +43,9 @@ type DebugView interface {
 	StorageReader() observerdef.StorageReader
 	// IngestMetricSync feeds a metric directly into the engine, bypassing
 	// the dispatch channel. Synchronous: returns after IngestMetric and any
-	// scheduler-triggered advances complete. Testbench-only.
-	IngestMetricSync(source string, sample observerdef.MetricView)
+	// scheduler-triggered advances complete. contextKey must be non-zero.
+	// Testbench-only.
+	IngestMetricSync(source string, sample observerdef.MetricView, contextKey uint64)
 	// IngestLogAndAdvance feeds a log directly into the engine and synchronously
 	// executes scheduler-triggered advances. Used by one-shot headless streams.
 	IngestLogAndAdvance(source string, msg observerdef.LogView)
@@ -68,8 +69,11 @@ type StateView interface {
 	GetSeriesRange(ref observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) *observerdef.Series
 	ScenarioBounds() (start, end int64, ok bool)
 
-	// Anomalies
+	// Anomalies (full history is available only when replay/debug tracking is enabled)
 	Anomalies() []observerdef.Anomaly
+	// DetectorOutputAnomalies returns every detector result before downstream
+	// filtering when replay tracking is enabled.
+	DetectorOutputAnomalies() []observerdef.Anomaly
 	TotalAnomalyCount() int
 
 	// Scoring
@@ -92,8 +96,8 @@ type StateView interface {
 	LatestDataTime() int64
 	MaxTimestamp() int64
 
-	// Storage stats (excluding a given namespace, typically TelemetryNamespace)
-	TotalSeriesCount(excludeNamespace string) int
+	// Storage stats
+	TotalSeriesCount() int
 	TotalSampleCount(excludeNamespace string) int64
 
 	// GetSeriesAll returns all points for a series.

@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/spf13/cobra"
@@ -49,6 +50,14 @@ const (
 	defaultTimeout = 10 // Timeout better suited to walking
 	defaultRetries = 3
 )
+
+// scanFlags holds the tunable device-scan options set via CLI flags.
+type scanFlags struct {
+	useGetBulk      bool
+	bulkBatchSize   uint32
+	flushEveryNOIDs int
+	flushInterval   time.Duration
+}
 
 // argsType is an alias so we can inject the args via fx.
 type argsType []string
@@ -85,6 +94,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		// Similar to the snmpwalk command, we accept responses from a different IP address
 		UseUnconnectedUDPSocket: true,
 	}
+	scanOpts := &scanFlags{}
 	snmpCmd := &cobra.Command{
 		Use:   "snmp",
 		Short: "Snmp tools",
@@ -168,7 +178,7 @@ With --analyze, the walk is matched against SNMP device profiles and a summary r
 		RunE: func(cmd *cobra.Command, args []string) error {
 
 			err := fxutil.OneShot(scanDevice,
-				fx.Supply(connParams, globalParams, cmd),
+				fx.Supply(connParams, globalParams, cmd, scanOpts),
 				fx.Provide(func() argsType { return args }),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
@@ -219,6 +229,15 @@ With --analyze, the walk is matched against SNMP device profiles and a summary r
 	// general communication options
 	snmpScanCmd.Flags().IntVarP(&connParams.Retries, "retries", "r", defaultRetries, "Set the number of retries")
 	snmpScanCmd.Flags().IntVarP(&connParams.Timeout, "timeout", "t", defaultTimeout, "Set the request timeout (in seconds)")
+
+	// scan tuning options
+	snmpScanCmd.Flags().BoolVar(&scanOpts.useGetBulk, "use-getbulk", true, "Walk the device with GetBulk (set to false to fall back to the legacy GetNext walk)")
+	snmpScanCmd.Flags().Uint32Var(&scanOpts.bulkBatchSize, "bulk-batch-size", 0, "Starting number of values requested per GetBulk call (0 uses the default)")
+	// Hidden advanced knobs for tuning partial result reporting.
+	snmpScanCmd.Flags().IntVar(&scanOpts.flushEveryNOIDs, "flush-every-n-oids", 0, "Report partial results every N collected OIDs (0 uses the default)")
+	snmpScanCmd.Flags().DurationVar(&scanOpts.flushInterval, "flush-interval", 0, "Report partial results at least this often (0 uses the default)")
+	_ = snmpScanCmd.Flags().MarkHidden("flush-every-n-oids")
+	_ = snmpScanCmd.Flags().MarkHidden("flush-interval")
 
 	// This command does nothing until the backend supports it, so it isn't enabled yet.
 	snmpCmd.AddCommand(snmpScanCmd)
@@ -278,7 +297,7 @@ func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, agentParams *snmppar
 	}
 }
 
-func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, client ipc.HTTPClient) error {
+func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, scanOpts *scanFlags, snmpScanner snmpscan.Component, conf config.Component, client ipc.HTTPClient) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -298,11 +317,19 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 		setDefaultsFromAgent(connParams, agentParams)
 	}
 	deviceID := namespace + ":" + connParams.IPAddress
+	scanMethod := snmpscan.ScanMethodGetBulk
+	if !scanOpts.useGetBulk {
+		scanMethod = snmpscan.ScanMethodGetNext
+	}
 	// Start the scan
 	fmt.Printf("Launching scan for device: %s\n", deviceID)
 	err := snmpScanner.ScanDeviceAndSendData(context.Background(), connParams, namespace,
 		snmpscan.ScanParams{
-			ScanType: metadata.ManualScan,
+			ScanType:        metadata.ManualScan,
+			ScanMethod:      scanMethod,
+			BulkBatchSize:   scanOpts.bulkBatchSize,
+			FlushEveryNOIDs: scanOpts.flushEveryNOIDs,
+			FlushInterval:   scanOpts.flushInterval,
 		})
 	if err != nil {
 		fmt.Printf("Unable to perform device scan for device %s: %v\n", deviceID, err)

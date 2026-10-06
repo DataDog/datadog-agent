@@ -10,27 +10,19 @@ package model
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func newPCE(pid uint32, parent *ProcessCacheEntry, isParentMissing bool) *ProcessCacheEntry {
-	pce := &ProcessCacheEntry{
-		ProcessContext: ProcessContext{
-			Process: Process{
-				PIDContext: PIDContext{
-					Pid: pid,
-				},
-
-				IsParentMissing: isParentMissing,
-			},
-			Ancestor: parent,
-		},
-	}
+	pce := &ProcessCacheEntry{}
+	pce.Pid = pid
+	pce.IsParentMissing = isParentMissing
 	if parent != nil {
 		pce.PPid = parent.Pid
+		pce.setAncestor(parent)
 	}
-
 	return pce
 }
 
@@ -70,33 +62,40 @@ func TestHasValidLineage(t *testing.T) {
 		assert.ErrorAs(t, err, &mn)
 	})
 
-	t.Run("parent-missing", func(t *testing.T) {
-		pid1 := newPCE(1, nil, false)
-		child1 := newPCE(2, pid1, true)
-		child2 := newPCE(3, child1, false)
+}
 
-		isValid, err := child2.HasValidLineage()
-		assert.False(t, isValid)
-		assert.NotNil(t, err)
+func TestExecSetsStopExecutionTimeWithoutExitTime(t *testing.T) {
+	parent := newPCE(2, nil, false)
+	exec := newPCE(2, nil, false)
+	exec.ExecTime = time.Now()
 
-		var mn *ErrProcessMissingParentNode
-		assert.ErrorAs(t, err, &mn)
-	})
+	parent.Exec(exec)
 
-	t.Run("cycle-detection", func(t *testing.T) {
-		pid1 := newPCE(2, nil, false)
-		child1 := newPCE(3, pid1, false)
-		child2 := newPCE(4, child1, false)
+	assert.True(t, parent.ExitTime.IsZero())
+	assert.Equal(t, exec.ExecTime, parent.StopExecutionTime)
+	assert.Equal(t, parent, exec.Ancestor)
+}
 
-		// create cycle
-		pid1.setAncestor(child2)
+func TestExitSetsExitAndStopExecutionTime(t *testing.T) {
+	entry := newPCE(2, nil, false)
+	exitTime := time.Now()
 
-		isValid, err := child2.HasValidLineage()
-		assert.False(t, isValid)
-		assert.NotNil(t, err)
+	entry.Exit(exitTime)
 
-		assert.ErrorIs(t, err, ErrCycleInProcessLineage)
-	})
+	assert.Equal(t, exitTime, entry.ExitTime)
+	assert.Equal(t, exitTime, entry.StopExecutionTime)
+}
+
+func TestExitPreservesExistingStopExecutionTime(t *testing.T) {
+	entry := newPCE(2, nil, false)
+	stopTime := time.Now()
+	exitTime := stopTime.Add(time.Second)
+	entry.StopExecution(stopTime)
+
+	entry.Exit(exitTime)
+
+	assert.Equal(t, exitTime, entry.ExitTime)
+	assert.Equal(t, stopTime, entry.StopExecutionTime)
 }
 
 func TestEntryEquals(t *testing.T) {

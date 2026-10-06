@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "aggregator",
@@ -12,11 +13,12 @@ go_library(
         "demultiplexer_agent_printer.go",
         "demultiplexer_mock.go",
         "demultiplexer_senders.go",
+        "dogstatsd_final_serie_observer.go",
         "lookback.go",
         "no_aggregation_stream_worker.go",
         "no_op_sender_manager.go",
-        "no_orchestrator.go",
-        "orchestrator.go",
+        "orchestrator_kubeapiserver.go",
+        "orchestrator_nokubeapiserver.go",
         "sender.go",
         "serializer_mocks.go",
         "sketch_map.go",
@@ -50,7 +52,6 @@ go_library(
         "//comp/forwarder/eventplatform/impl",
         "//comp/forwarder/orchestrator/def",
         "//comp/haagent/def",
-        "//comp/serializer/logscompression/def",
         "//comp/serializer/metricscompression/def",
         "//pkg/aggregator/ckey",
         "//pkg/aggregator/internal/tags",
@@ -76,11 +77,11 @@ go_library(
         "//pkg/util/flavor",
         "//pkg/util/infratags",
         "//pkg/util/log",
+        "//pkg/util/metricname",
         "//pkg/util/option",
         "//pkg/util/quantile",
         "//pkg/util/size",
         "//pkg/util/sort",
-        "//pkg/util/strings",
         "//pkg/version",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_fatih_color//:color",
@@ -89,7 +90,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "aggregator_test",
     srcs = [
         "aggregator_test.go",
@@ -99,7 +100,7 @@ go_test(
         "context_resolver_test.go",
         "demultiplexer_agent_test.go",
         "demultiplexer_test.go",
-        "main_test.go",
+        "final_dogstatsd_serie_observer_bench_test.go",
         "no_aggregation_stream_worker_test.go",
         "observer_handle_test.go",
         "sender_test.go",
@@ -108,9 +109,15 @@ go_test(
         "tagfilter_cache_test.go",
         "tagset_telem_test.go",
         "time_sampler_test.go",
+        "time_sampler_worker_test.go",
     ],
     embed = [":aggregator"],
-    gotags = ["test"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
     deps = [
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/severityevents/def",
@@ -125,6 +132,7 @@ go_test(
         "//comp/core/tagger/def",
         "//comp/core/tagger/fx-mock",
         "//comp/core/tagger/impl-noop",
+        "//comp/core/tagger/mock",
         "//comp/core/tagger/types",
         "//comp/core/telemetry/def",
         "//comp/filterlist/def",
@@ -165,9 +173,9 @@ go_test(
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/util/infratags",
+        "//pkg/util/metricname",
         "//pkg/util/option",
         "//pkg/util/quantile",
-        "//pkg/util/strings",
         "//pkg/version",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",

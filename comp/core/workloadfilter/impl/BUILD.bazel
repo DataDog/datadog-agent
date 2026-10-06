@@ -29,6 +29,14 @@ dd_agent_go_test(
         "filter_test.go",
     ],
     embed = [":impl"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "containerd",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+    ]],
     deps = [
         "//comp/core/config",
         "//comp/core/log/mock",

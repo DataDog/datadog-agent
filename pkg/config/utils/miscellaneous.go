@@ -16,6 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var (
+	reFedSite = regexp.MustCompile(`(.+\.)?ddog-gov\.com`)
+	reFedURL  = regexp.MustCompile(`https://.+\.ddog-gov\.com`)
+)
+
 // ConfFileDirectory returns the absolute path to the folder containing the config
 // file used to populate the registry
 func ConfFileDirectory(c pkgconfigmodel.Reader) string {
@@ -61,6 +66,20 @@ func IsAPMEnabled(cfg pkgconfigmodel.Reader) bool {
 		cfg.GetBool("apm_config.error_tracking_standalone.enabled")
 }
 
+// IsDataSecurityEnabled returns true if Data Security is enabled. It requires both
+// data_security.enabled and shared_library_check.enabled, as it relies on the datasecurity
+// shared-library check.
+func IsDataSecurityEnabled(cfg pkgconfigmodel.Reader) bool {
+	if !cfg.GetBool("data_security.enabled") {
+		return false
+	}
+	if !cfg.GetBool("shared_library_check.enabled") {
+		log.Warnf("data_security.enabled cannot be enabled without shared_library_check.enabled. Skipping Data Security.")
+		return false
+	}
+	return true
+}
+
 // IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
 func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
 	// Disable Remote Config for GovCloud if it's not explicitly enabled
@@ -72,11 +91,9 @@ func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
 
 // IsFed returns true if the Agent is running in a gov environment
 func IsFed(cfg pkgconfigmodel.Reader) bool {
-	reSite := regexp.MustCompile(`(.+\.)?ddog-gov\.com`)
-	reURL := regexp.MustCompile(`https://.+\.ddog-gov\.com`)
 	isFipsAgent, _ := pkgfips.Enabled()
 	return cfg.GetBool("fips.enabled") || isFipsAgent ||
-		reSite.MatchString(cfg.GetString("site")) || reURL.MatchString(cfg.GetString("dd_url"))
+		reFedSite.MatchString(cfg.GetString("site")) || reFedURL.MatchString(cfg.GetString("dd_url"))
 }
 
 // IsCloudProviderEnabled checks the cloud provider family provided in

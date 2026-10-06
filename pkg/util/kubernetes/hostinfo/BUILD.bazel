@@ -42,11 +42,27 @@ dd_agent_go_test(
         "tags_test.go",
     ],
     embed = [":hostinfo"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
+    gotags_sets = [
+        [
+            "cel",
+            "clusterchecks",
+            "docker",
+            "kubeapiserver",
+            "kubelet",
+        ],
+        [
+            "cel",
+            "clusterchecks",
+            "kubeapiserver",
+            "kubelet",
+        ],
+        [
+            "cel",
+            "docker",
+            "kubelet",
+        ],
     ],
+    include_default = False,
     deps = [
         "//pkg/config/mock",
         "//pkg/config/model",

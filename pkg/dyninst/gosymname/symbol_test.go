@@ -6,15 +6,16 @@
 package gosymname
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"os"
 	"strconv"
 	"testing"
 
-	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 )
 
 // ---------------------------------------------------------------------------
@@ -212,8 +213,12 @@ func TestSymbols(t *testing.T) {
 				Output: formatTestOutput(&s),
 			})
 		}
-		out, err := yaml.MarshalWithOptions(cases, yaml.IndentSequence(true))
-		require.NoError(t, err)
+		var buf bytes.Buffer
+		enc := yaml.NewEncoder(&buf)
+		enc.SetIndent(2)
+		require.NoError(t, enc.Encode(cases))
+		require.NoError(t, enc.Close())
+		out := buf.Bytes()
 		require.NoError(t, os.WriteFile(path, out, 0644))
 		t.Logf("rewrote %s with %d cases", path, len(cases))
 		return

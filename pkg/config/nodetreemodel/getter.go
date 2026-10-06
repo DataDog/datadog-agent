@@ -24,25 +24,6 @@ func (c *ntmConfig) leafAtPath(key string) *nodeImpl {
 	return c.leafAtPathFromNode(key, c.root)
 }
 
-// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
-// 1) have a default, 2) have an environment variable binded
-// Note that it returns the keys lowercased.
-//
-// TODO: remove once viper is no longer used. This is only used to detect unknown configuration from YAML which we do
-// natively now (see 'warnings').
-func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
-	c.RLock()
-	defer c.RUnlock()
-
-	// GetKnownKeysLowercased returns a fresh map, so the caller may do with it
-	// as they please without holding the lock.
-	ret := make(map[string]interface{})
-	for key := range c.knownKeys {
-		ret[key] = struct{}{}
-	}
-	return ret
-}
-
 // GetEnvVars gets all environment variables
 func (c *ntmConfig) GetEnvVars() []string {
 	c.RLock()
@@ -57,6 +38,36 @@ func (c *ntmConfig) GetEnvVars() []string {
 	slices.Sort(vars)
 	vars = slices.Compact(vars)
 	return vars
+}
+
+// EnvVarSettings walks the env layer and returns each setting it provides, mapped to the env vars
+// the schema binds to that setting. The layer is walked on each call rather than kept as it is built.
+func (c *ntmConfig) EnvVarSettings() map[string][]string {
+	c.RLock()
+	defer c.RUnlock()
+
+	settings := map[string][]string{}
+	if c.envs == nil {
+		return settings
+	}
+	var collect func(node *nodeImpl, path string)
+	collect = func(node *nodeImpl, path string) {
+		for _, name := range node.ChildrenKeys() {
+			child, _ := node.GetChild(name)
+			key := name
+			if path != "" {
+				key = path + "." + name
+			}
+			if child.IsLeafNode() {
+				// The layer does not record which of the bound vars provided the value, so return all of them.
+				settings[key] = slices.Clone(c.configEnvVars[key])
+				continue
+			}
+			collect(child, key)
+		}
+	}
+	collect(c.envs, "")
+	return settings
 }
 
 // GetProxies returns the proxy settings from the configuration

@@ -29,7 +29,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/util/log",
         "//pkg/util/option",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
@@ -40,11 +40,8 @@ dd_agent_go_test(
         "loader_test.go",
     ],
     embed = [":sharedlibraryimpl"],
-    flavors = [
-        "base",
-        "fips",
-        "heroku",
-    ],
+    gotags_sets = [["sharedlibrarycheck"]],
+    include_default = False,
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/tagger/impl-noop",

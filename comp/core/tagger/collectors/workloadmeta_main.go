@@ -31,12 +31,14 @@ const (
 	workloadmetaCollectorName = "workloadmeta"
 
 	staticSource              = workloadmetaCollectorName + "-static"
+	infraTagsSource           = workloadmetaCollectorName + "-infra-tags"
 	podSource                 = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
 	taskSource                = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
 	containerSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
 	containerImageSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
 	processSource             = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
 	kubeMetadataSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
+	nodeSource                = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesNode)
 	deploymentSource          = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
 	kueueQueueSource          = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesKueueQueue)
 	kueueResourceFlavorSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesKueueResourceFlavor)
@@ -59,14 +61,16 @@ type WorkloadMetaCollector struct {
 	children     map[types.EntityID]map[types.EntityID]struct{}
 	tagProcessor taggerdef.Processor
 
-	containerEnvAsTags    map[string]string
-	containerLabelsAsTags map[string]string
+	containerEnvAsTags              map[string]string
+	containerLabelsAsTags           map[string]string
+	containerImageAnnotationsAsTags map[string]string
 
 	staticTags                    map[string][]string // for ECS, EKS Fargate, and DCA
 	k8sResourcesAnnotationsAsTags map[string]map[string]string
 	k8sResourcesLabelsAsTags      map[string]map[string]string
 	globContainerLabels           map[string]glob.Glob
 	globContainerEnvLabels        map[string]glob.Glob
+	globContainerImageAnnotations map[string]glob.Glob
 	globK8sResourcesAnnotations   map[string]map[string]glob.Glob
 	globK8sResourcesLabels        map[string]map[string]glob.Glob
 
@@ -87,9 +91,10 @@ type refreshRequest struct {
 	done chan struct{}
 }
 
-func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
+func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags, imageAnnotationsAsTags map[string]string) {
 	c.containerLabelsAsTags, c.globContainerLabels = k8smetadata.InitMetadataAsTags(labelsAsTags)
 	c.containerEnvAsTags, c.globContainerEnvLabels = k8smetadata.InitMetadataAsTags(envAsTags)
+	c.containerImageAnnotationsAsTags, c.globContainerImageAnnotations = k8smetadata.InitMetadataAsTags(imageAnnotationsAsTags)
 }
 
 func (c *WorkloadMetaCollector) initK8sResourcesMetaAsTags(resourcesLabelsAsTags, resourcesAnnotationsAsTags map[string]map[string]string) {
@@ -153,6 +158,33 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, dat
 			IsComplete:           true,
 		},
 	})
+}
+
+// InfraTagInfo returns the tag info holding the infrastructure mode mark of
+// the Agent, which is empty when the mode carries no mark.
+//
+// It is published once at construction rather than refreshed: `infrastructure_mode`
+// is applied through an override func when the configuration loads and is not a
+// runtime setting, so it cannot change without an Agent restart.
+//
+// It is exported so the mock Tagger, which runs no collector, can seed the same
+// entity from the same source.
+func InfraTagInfo(datadogConfig config.Component) *types.TagInfo {
+	tagList := taglist.NewTagList()
+	if mode := configutils.MarkedInfraMode(datadogConfig); mode != "" {
+		tagList.AddLow(configutils.InfraModeTagKey, mode)
+	}
+
+	low, orch, high, standard := tagList.Compute()
+	return &types.TagInfo{
+		Source:               infraTagsSource,
+		EntityID:             types.GetInfraTagsEntityID(),
+		HighCardTags:         high,
+		OrchestratorCardTags: orch,
+		LowCardTags:          low,
+		StandardTags:         standard,
+		IsComplete:           true,
+	}
 }
 
 // RefreshGlobalTags recomputes and republishes global static tags on the stream goroutine, blocking until done or ctx is done.
@@ -233,7 +265,8 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 		retrieveMappingFromConfig(cfg, "docker_env_as_tags"),
 		retrieveMappingFromConfig(cfg, "container_env_as_tags"),
 	)
-	c.initContainerMetaAsTags(containerLabelsAsTags, containerEnvAsTags)
+	containerImageAnnotationsAsTags := retrieveMappingFromConfig(cfg, "container_image_annotations_as_tags")
+	c.initContainerMetaAsTags(containerLabelsAsTags, containerEnvAsTags, containerImageAnnotationsAsTags)
 
 	// kubernetes resources metadata as tags
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)
@@ -242,6 +275,7 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 	// initialize static global tags
 	if p != nil {
 		c.collectStaticGlobalTags(ctx, cfg)
+		c.tagProcessor.ProcessTagInfo([]*types.TagInfo{InfraTagInfo(cfg)})
 	}
 
 	return c

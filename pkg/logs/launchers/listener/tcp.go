@@ -134,11 +134,11 @@ func (l *TCPListener) Start() {
 	err := l.startListener()
 	if err != nil {
 		log.Errorf("Can't start TCP%s forwarder on port %d: %v", tlsLabel, l.source.Config.Port, err)
-		l.source.Status.Error(err)
+		l.source.Status().Error(err)
 		l.cancel()
 		return
 	}
-	l.source.Status.Success()
+	l.source.Status().Success()
 	go l.run()
 }
 
@@ -186,10 +186,10 @@ func (l *TCPListener) run() {
 			l.listener.Close()
 			if err := l.startListener(); err != nil {
 				log.Errorf("Can't restart listener on port %d: %v", l.source.Config.Port, err)
-				l.source.Status.Error(err)
+				l.source.Status().Error(err)
 				return
 			}
-			l.source.Status.Success()
+			l.source.Status().Success()
 			continue
 		}
 
@@ -268,7 +268,7 @@ func (l *TCPListener) handleConnection(conn net.Conn) {
 	l.tailers = append(l.tailers, t)
 	l.mu.Unlock()
 	t.Start()
-	l.source.Status.Success()
+	l.source.Status().Success()
 
 }
 

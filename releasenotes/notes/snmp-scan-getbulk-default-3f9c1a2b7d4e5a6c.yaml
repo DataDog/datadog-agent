@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    SNMP device scans now walk devices using GetBulk by default, requesting only
+    OIDs the device actually returns and adapting the max-repetitions on failures.
+    This avoids the infinite loops and device crashes that could occur with the
+    previous GetNext-based walk. SNMPv1 devices, which do not support GetBulk,
+    continue to use the GetNext walk.

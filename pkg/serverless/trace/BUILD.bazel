@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "trace",
@@ -21,6 +22,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
         "//pkg/serverless/trace/modifier",
         "//pkg/trace/agent",
         "//pkg/trace/api",
@@ -31,10 +33,11 @@ go_library(
         "//pkg/trace/traceutil",
         "//pkg/util/log",
         "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "trace_test",
     srcs = [
         "span_modifer_test.go",
@@ -42,7 +45,6 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":trace"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "//cmd/serverless-init/cloudservice",
@@ -50,6 +52,7 @@ go_test(
             "//pkg/config/mock",
             "//pkg/config/setup",
             "//pkg/proto/pbgo/trace",
+            "//pkg/proto/pbgo/trace/idx",
             "//pkg/trace/agent",
             "//pkg/trace/api",
             "//pkg/trace/config",
@@ -67,6 +70,7 @@ go_test(
             "//pkg/config/mock",
             "//pkg/config/setup",
             "//pkg/proto/pbgo/trace",
+            "//pkg/proto/pbgo/trace/idx",
             "//pkg/trace/agent",
             "//pkg/trace/api",
             "//pkg/trace/config",
@@ -84,6 +88,7 @@ go_test(
             "//pkg/config/mock",
             "//pkg/config/setup",
             "//pkg/proto/pbgo/trace",
+            "//pkg/proto/pbgo/trace/idx",
             "//pkg/trace/agent",
             "//pkg/trace/api",
             "//pkg/trace/config",
@@ -101,6 +106,7 @@ go_test(
             "//pkg/config/mock",
             "//pkg/config/setup",
             "//pkg/proto/pbgo/trace",
+            "//pkg/proto/pbgo/trace/idx",
             "//pkg/trace/agent",
             "//pkg/trace/api",
             "//pkg/trace/config",
@@ -118,6 +124,7 @@ go_test(
             "//pkg/config/mock",
             "//pkg/config/setup",
             "//pkg/proto/pbgo/trace",
+            "//pkg/proto/pbgo/trace/idx",
             "//pkg/trace/agent",
             "//pkg/trace/api",
             "//pkg/trace/config",
@@ -135,6 +142,7 @@ go_test(
             "//pkg/config/mock",
             "//pkg/config/setup",
             "//pkg/proto/pbgo/trace",
+            "//pkg/proto/pbgo/trace/idx",
             "//pkg/trace/agent",
             "//pkg/trace/api",
             "//pkg/trace/config",
@@ -152,6 +160,7 @@ go_test(
             "//pkg/config/mock",
             "//pkg/config/setup",
             "//pkg/proto/pbgo/trace",
+            "//pkg/proto/pbgo/trace/idx",
             "//pkg/trace/agent",
             "//pkg/trace/api",
             "//pkg/trace/config",
@@ -169,6 +178,7 @@ go_test(
             "//pkg/config/mock",
             "//pkg/config/setup",
             "//pkg/proto/pbgo/trace",
+            "//pkg/proto/pbgo/trace/idx",
             "//pkg/trace/agent",
             "//pkg/trace/api",
             "//pkg/trace/config",
@@ -186,6 +196,7 @@ go_test(
             "//pkg/config/mock",
             "//pkg/config/setup",
             "//pkg/proto/pbgo/trace",
+            "//pkg/proto/pbgo/trace/idx",
             "//pkg/trace/agent",
             "//pkg/trace/api",
             "//pkg/trace/config",
@@ -203,6 +214,7 @@ go_test(
             "//pkg/config/mock",
             "//pkg/config/setup",
             "//pkg/proto/pbgo/trace",
+            "//pkg/proto/pbgo/trace/idx",
             "//pkg/trace/agent",
             "//pkg/trace/api",
             "//pkg/trace/config",
@@ -220,6 +232,7 @@ go_test(
             "//pkg/config/mock",
             "//pkg/config/setup",
             "//pkg/proto/pbgo/trace",
+            "//pkg/proto/pbgo/trace/idx",
             "//pkg/trace/agent",
             "//pkg/trace/api",
             "//pkg/trace/config",
@@ -237,6 +250,7 @@ go_test(
             "//pkg/config/mock",
             "//pkg/config/setup",
             "//pkg/proto/pbgo/trace",
+            "//pkg/proto/pbgo/trace/idx",
             "//pkg/trace/agent",
             "//pkg/trace/api",
             "//pkg/trace/config",
@@ -254,6 +268,7 @@ go_test(
             "//pkg/config/mock",
             "//pkg/config/setup",
             "//pkg/proto/pbgo/trace",
+            "//pkg/proto/pbgo/trace/idx",
             "//pkg/trace/agent",
             "//pkg/trace/api",
             "//pkg/trace/config",
@@ -271,6 +286,7 @@ go_test(
             "//pkg/config/mock",
             "//pkg/config/setup",
             "//pkg/proto/pbgo/trace",
+            "//pkg/proto/pbgo/trace/idx",
             "//pkg/trace/agent",
             "//pkg/trace/api",
             "//pkg/trace/config",
@@ -288,6 +304,7 @@ go_test(
             "//pkg/config/mock",
             "//pkg/config/setup",
             "//pkg/proto/pbgo/trace",
+            "//pkg/proto/pbgo/trace/idx",
             "//pkg/trace/agent",
             "//pkg/trace/api",
             "//pkg/trace/config",

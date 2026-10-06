@@ -39,6 +39,13 @@ dd_agent_go_test(
         "kubelet_test.go",
     ],
     embed = [":util"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+    ]],
     deps = [
         "//comp/core",
         "//comp/core/workloadmeta/def",

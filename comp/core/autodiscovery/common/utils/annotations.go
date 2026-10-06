@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
@@ -24,6 +25,21 @@ const (
 	checkIDPath             = "check.id"
 	checkTagCardinality     = "check_tag_cardinality"
 )
+
+// v1CheckKeys holds the suffixes of the keys making up a v1 check
+// configuration. logs is left out on purpose: it is read next to a v2 check
+// configuration, so setting it alongside one does not mean it is ignored.
+//
+// check_tag_cardinality is left out too, for a different reason: a standalone
+// one is dropped next to a v2 configuration, but that happens whether or not v1
+// keys are set, so it is a separate gap rather than a consequence of mixing
+// formats.
+var v1CheckKeys = []string{
+	checkNamePath,
+	initConfigPath,
+	instancePath,
+	ignoreAutodiscoveryTags,
+}
 
 // ExtractTemplatesFromMap looks for autodiscovery configurations in a given
 // map and returns them if found.
@@ -254,7 +270,7 @@ func extractCheckNamesFromMap(annotations map[string]string, prefix string, lega
 	return nil, nil
 }
 
-func extractTemplatesFromMapWithV2(entityName string, annotations map[string]string, prefix string, legacyPrefix string) ([]integration.Config, []error) {
+func extractTemplatesFromMapWithV2(entityName string, annotations map[string]string, prefix string, legacyPrefix string, hybridIgnoreADTags bool) ([]integration.Config, []error) {
 	var (
 		configs      []integration.Config
 		errors       []error
@@ -266,6 +282,12 @@ func extractTemplatesFromMapWithV2(entityName string, annotations map[string]str
 		prefixCandidates = append(prefixCandidates, legacyPrefix)
 	}
 
+	// The callers that do apply it only read it from the non-legacy prefix.
+	consumedKey := ""
+	if hybridIgnoreADTags {
+		consumedKey = prefix + ignoreAutodiscoveryTags
+	}
+
 	if checksJSON, found := annotations[prefix+checksPath]; found {
 		// AD annotations v2: "ad.datadoghq.com/redis.checks"
 		actualPrefix = prefix
@@ -274,6 +296,13 @@ func extractTemplatesFromMapWithV2(entityName string, annotations map[string]str
 			errors = append(errors, err)
 		} else {
 			configs = append(configs, c...)
+		}
+
+		// v1 and legacy check configurations are not applied when a v2 one
+		// is set on the same entity. Report them, as they would otherwise
+		// be dropped without any feedback.
+		if ignored := findIgnoredCheckKeys(annotations, prefixCandidates, consumedKey); len(ignored) > 0 {
+			errors = append(errors, ignoredCheckKeysError(prefix+checksPath, ignored))
 		}
 	} else {
 		// AD annotations v1: "ad.datadoghq.com/redis.check_names"
@@ -286,6 +315,12 @@ func extractTemplatesFromMapWithV2(entityName string, annotations map[string]str
 				errors = append(errors, fmt.Errorf("could not extract checks config: %v", err))
 			} else {
 				configs = append(configs, c...)
+			}
+
+			// Same as above for the formats with a lower priority than the one that was found.
+			lowerPriority := lowerPriorityPrefixes(prefixCandidates, actualPrefix)
+			if ignored := findIgnoredCheckKeys(annotations, lowerPriority, consumedKey); len(ignored) > 0 {
+				errors = append(errors, ignoredCheckKeysError(actualPrefix+checkNamePath, ignored))
 			}
 		}
 	}
@@ -320,4 +355,46 @@ func findPrefix(annotations map[string]string, prefixes []string, suffix string)
 	}
 
 	return ""
+}
+
+// lowerPriorityPrefixes returns the prefixes that come after usedPrefix in
+// prefixes, which is ordered by decreasing priority.
+func lowerPriorityPrefixes(prefixes []string, usedPrefix string) []string {
+	for idx, prefix := range prefixes {
+		if prefix == usedPrefix {
+			return prefixes[idx+1:]
+		}
+	}
+
+	return nil
+}
+
+// findIgnoredCheckKeys returns the keys holding a check configuration that is
+// not applied because a configuration with a higher priority was found on the
+// same entity. Autodiscovery only applies one check configuration format per
+// entity, so mixing them drops part of the configuration.
+//
+// consumedKey, when not empty, is the one key the caller still applies itself.
+func findIgnoredCheckKeys(input map[string]string, ignoredPrefixes []string, consumedKey string) []string {
+	var ignored []string
+
+	for _, prefix := range ignoredPrefixes {
+		for _, suffix := range v1CheckKeys {
+			key := prefix + suffix
+			if key == consumedKey {
+				continue
+			}
+			if _, found := input[key]; found {
+				ignored = append(ignored, key)
+			}
+		}
+	}
+
+	return ignored
+}
+
+// ignoredCheckKeysError builds the error reported when several check
+// configuration formats are set on the same entity.
+func ignoredCheckKeysError(usedKey string, ignoredKeys []string) error {
+	return fmt.Errorf("%s takes precedence, ignoring %s: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)", usedKey, strings.Join(ignoredKeys, ", "))
 }

@@ -12,6 +12,7 @@ go_library(
         "networkdeviceconfig.go",
         "newcomponent.go",
         "newcomponent_stub.go",
+        "rollback.go",
         "rollback_endpoint.go",
         "store_endpoint.go",
         "types.go",
@@ -46,8 +47,10 @@ dd_agent_go_test(
     srcs = [
         "devicemap_test.go",
         "networkdeviceconfig_test.go",
+        "newcomponent_test.go",
     ],
     embed = [":impl"],
+    gotags_sets = [["ncm"]],
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
@@ -60,6 +63,7 @@ dd_agent_go_test(
         "//pkg/networkconfigmanagement/remote",
         "//pkg/networkconfigmanagement/report",
         "//pkg/networkconfigmanagement/store",
+        "//pkg/networkconfigmanagement/types",
         "//pkg/networkdevice/integrations",
         "//pkg/networkdevice/metadata",
         "//pkg/util/cache",

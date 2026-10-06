@@ -22,6 +22,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
+	pkgimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -130,14 +131,14 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		entity := ev.Entity
 		entityID := entity.GetID()
 
+		if entityID.Kind == workloadmeta.KindKubeletMetrics ||
+			entityID.Kind == workloadmeta.KindKubelet {
+			// No tags. Ignore
+			continue
+		}
+
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
-			if entityID.Kind == workloadmeta.KindKubeletMetrics ||
-				entityID.Kind == workloadmeta.KindKubelet {
-				// No tags. Ignore
-				continue
-			}
-
 			taggerEntityID := common.BuildTaggerEntityID(entityID)
 
 			// keep track of children of this entity from previous
@@ -162,16 +163,21 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
 			case workloadmeta.KindKubernetesMetadata:
 				tagInfos = append(tagInfos, c.handleKubeMetadata(ev)...)
+			case workloadmeta.KindKubernetesNode:
+				tagInfos = append(tagInfos, c.handleKubeNode(ev)...)
 			case workloadmeta.KindProcess:
 				tagInfos = append(tagInfos, c.handleProcess(ev)...)
 			case workloadmeta.KindKubernetesDeployment:
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
 			case workloadmeta.KindKubernetesKueueQueue:
 				tagInfos = append(tagInfos, c.handleKubeKueueQueue(ev)...)
+				tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
 			case workloadmeta.KindKubernetesKueueResourceFlavor:
 				tagInfos = append(tagInfos, c.handleKubeKueueResourceFlavor(ev)...)
+				tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
 			case workloadmeta.KindKubernetesKueueWorkload:
 				tagInfos = append(tagInfos, c.handleKubeKueueWorkload(ev)...)
+				tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
 			case workloadmeta.KindGPU:
 				tagInfos = append(tagInfos, c.handleGPU(ev)...)
 			case workloadmeta.KindCRD:
@@ -195,6 +201,9 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 		case workloadmeta.EventTypeUnset:
 			tagInfos = append(tagInfos, c.handleDelete(ev)...)
+			// A removed Kueue entity is no longer in the store, so the pods
+			// that used it get re-tagged without it.
+			tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
 
 		default:
 			log.Errorf("cannot handle event of type %d", ev.Type)
@@ -277,7 +286,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	}
 
 	low, orch, high, standard := tagList.Compute()
-	return []*types.TagInfo{
+	tagInfos := []*types.TagInfo{
 		{
 			Source:               containerSource,
 			EntityID:             common.BuildTaggerEntityID(container.EntityID),
@@ -287,6 +296,70 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 			StandardTags:         standard,
 			IsComplete:           c.containerCompleteness(container.ID, ev.IsComplete),
 		},
+	}
+
+	// Propagate container image annotation tags to the container so they are
+	// applied to container.* metrics. This handles the common case where the
+	// image metadata is already available when the container starts; late or
+	// changed image metadata is handled from handleContainerImage.
+	if imageTagInfo := c.imageAnnotationTagsForContainer(container, ev.IsComplete); imageTagInfo != nil {
+		tagInfos = append(tagInfos, imageTagInfo)
+	}
+
+	return tagInfos
+}
+
+// imageAnnotationTagsForContainer builds the TagInfo that maps a container's
+// image OCI annotations to tags on the container entity, or nil when the
+// feature is disabled, the image metadata is not (yet) in the store, or no
+// annotation matches the configured mapping.
+//
+// The tags are published under containerImageSource (not containerSource) so
+// that they are refreshed and cleaned up together with the image entity: the
+// container is registered as a child of the image, letting the parent/children
+// machinery re-emit or delete them when the image entity changes or goes away.
+//
+// rawComplete is the container's own event completeness. It is intentionally
+// run through containerCompleteness so this TagInfo carries the same effective
+// completeness as the base container TagInfo emitted in handleContainer: on
+// Kubernetes/ECS a container is only "complete" once its pod/task metadata is
+// also complete. Publishing raw completeness here would let this later TagInfo
+// overwrite the entity's completeness in the tag store with true before the
+// parent tags have arrived, which can affect custom-metrics billing and
+// cardinality for consumers that gate on completeness.
+func (c *WorkloadMetaCollector) imageAnnotationTagsForContainer(container *workloadmeta.Container, rawComplete bool) *types.TagInfo {
+	if len(c.containerImageAnnotationsAsTags) == 0 {
+		return nil
+	}
+
+	image, err := c.store.GetImage(container.Image.ID)
+	if err != nil || len(image.Annotations) == 0 {
+		return nil
+	}
+
+	tagList := taglist.NewTagList()
+	for annotation, value := range image.Annotations {
+		k8smetadata.AddMetadataAsTags(annotation, value, c.containerImageAnnotationsAsTags, c.globContainerImageAnnotations, tagList)
+	}
+
+	low, orch, high, standard := tagList.Compute()
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	c.registerChild(image.EntityID, container.EntityID)
+
+	return &types.TagInfo{
+		// containerImageSource here is not a mistake: image annotation tags are
+		// owned by the image entity, so the container inherits them from that
+		// source.
+		Source:               containerImageSource,
+		EntityID:             common.BuildTaggerEntityID(container.EntityID),
+		HighCardTags:         high,
+		OrchestratorCardTags: orch,
+		LowCardTags:          low,
+		StandardTags:         standard,
+		IsComplete:           c.containerCompleteness(container.ID, rawComplete),
 	}
 }
 
@@ -364,7 +437,10 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 		repos[strings.SplitN(repoDigest, "@sha256:", 2)[0]] = struct{}{}
 	}
 	for _, repoTag := range image.RepoTags {
-		repos[strings.SplitN(repoTag, ":", 2)[0]] = struct{}{}
+		// Split on the last colon (after the last slash) so registries that
+		// include a port are parsed correctly.
+		repoName, _ := pkgimage.SplitRepoTag(repoTag)
+		repos[repoName] = struct{}{}
 	}
 	for repo := range repos {
 		repoSplitted := strings.Split(repo, "/")
@@ -373,9 +449,8 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 	}
 
 	for _, repoTag := range image.RepoTags {
-		repoTagSplitted := strings.SplitN(repoTag, ":", 2)
-		if len(repoTagSplitted) == 2 {
-			tagList.AddLow(tags.ImageTag, repoTagSplitted[1])
+		if _, tag := pkgimage.SplitRepoTag(repoTag); tag != "" {
+			tagList.AddLow(tags.ImageTag, tag)
 		}
 	}
 
@@ -385,8 +460,13 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 
 	c.labelsToTags(image.Labels, tagList)
 
+	// image annotations as tags
+	for annotation, value := range image.Annotations {
+		k8smetadata.AddMetadataAsTags(annotation, value, c.containerImageAnnotationsAsTags, c.globContainerImageAnnotations, tagList)
+	}
+
 	low, orch, high, standard := tagList.Compute()
-	return []*types.TagInfo{
+	tagInfos := []*types.TagInfo{
 		{
 			Source:               containerImageSource,
 			EntityID:             common.BuildTaggerEntityID(image.EntityID),
@@ -397,6 +477,29 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 			IsComplete:           ev.IsComplete,
 		},
 	}
+
+	// Re-apply the image annotation tags to every container currently using
+	// this image, so that image metadata that arrives or changes after a
+	// container has already been tagged still propagates to container.*
+	// metrics. Containers are registered as children of the image above, in
+	// imageAnnotationTagsForContainer, so the parent/children machinery cleans
+	// them up when the image is deleted.
+	if len(c.containerImageAnnotationsAsTags) > 0 {
+		containers := c.store.ListContainersWithFilter(func(container *workloadmeta.Container) bool {
+			return container.Image.ID == image.ID
+		})
+		for _, container := range containers {
+			// entityCompleteness stores the container's raw event completeness;
+			// imageAnnotationTagsForContainer runs it through containerCompleteness
+			// to match the base container TagInfo's effective completeness.
+			rawComplete := c.entityCompleteness[container.EntityID]
+			if imageTagInfo := c.imageAnnotationTagsForContainer(container, rawComplete); imageTagInfo != nil {
+				tagInfos = append(tagInfos, imageTagInfo)
+			}
+		}
+	}
+
+	return tagInfos
 }
 
 func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *taglist.TagList) {
@@ -726,6 +829,40 @@ func (c *WorkloadMetaCollector) handleKubeDeployment(ev workloadmeta.Event) []*t
 	return tagInfos
 }
 
+func (c *WorkloadMetaCollector) handleKubeNode(ev workloadmeta.Event) []*types.TagInfo {
+	node := ev.Entity.(*workloadmeta.KubernetesNode)
+
+	groupResource := "nodes"
+
+	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
+	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
+
+	if len(labelsAsTags)+len(annotationsAsTags) == 0 {
+		return nil
+	}
+
+	tagList := taglist.NewTagList()
+	c.addResourceLabelsAndAnnotationsAsTags(groupResource, node.Labels, node.Annotations, tagList)
+
+	low, orch, high, standard := tagList.Compute()
+
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	return []*types.TagInfo{
+		{
+			Source:               nodeSource,
+			EntityID:             common.BuildTaggerEntityID(node.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+			IsComplete:           ev.IsComplete,
+		},
+	}
+}
+
 func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*types.TagInfo {
 	kubeMetadata := ev.Entity.(*workloadmeta.KubernetesMetadata)
 
@@ -878,7 +1015,14 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
 	tagList.AddLow(tags.GPUSlicingMode, gpu.SlicingMode())
+	tagList.AddLow(tags.GPUMIGProfile, migProfileTagValue(gpu))
 	tagList.AddLow(tags.GPUPCIBusID, strings.ToLower(gpu.PCIBusID))
+	tagList.AddLow(tags.GPUNVLinkVersion, gpu.NVLinkVersion)
+	tagList.AddLow(tags.GPUNVLinkCapable, strconv.FormatBool(gpu.NVLinkVersion != "not_nvlink_capable" && gpu.NVLinkVersion != ""))
+	if gpu.FabricClusterUUID != "" {
+		tagList.AddLow(tags.GPUFabricClusterUUID, strings.ToLower(gpu.FabricClusterUUID))
+		tagList.AddLow(tags.GPUFabricCliqueID, strconv.FormatUint(uint64(gpu.FabricCliqueID), 10))
+	}
 	if gpu.GPUType != "" {
 		tagList.AddLow(tags.GPUType, strings.ToLower(gpu.GPUType))
 	}
@@ -888,6 +1032,29 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	} else {
 		tagList.AddLow(tags.GPUParentGPUUUID, strings.ToLower(gpu.ParentGPUUUID))
 	}
+}
+
+// migProfileTagValue returns the gpu_mig_profile value for a GPU. Like every
+// other device tag, it is set on every device rather than only where it
+// applies -- gpu_parent_uuid falls back to the device's own UUID and
+// gpu_slicing_mode to "none" -- so grouping by it never yields an untagged
+// bucket: devices that are not MIG instances (physical cards, MIG parents,
+// vGPUs) get "none", and a MIG instance whose profile could not be resolved
+// gets "unknown".
+//
+// A resolved profile keeps NVIDIA's name. '+' is the one character outside the
+// tag value charset, and the backend would turn it into '_' anyway; doing it
+// here keeps the documented value the one users see. Collapsing '.' and '+'
+// into '-' instead (as the KSM mig_profile tag's values end up) would merge
+// distinct profiles such as 1g.24gb+me and 1g.24gb-me.
+func migProfileTagValue(gpu *workloadmeta.GPU) string {
+	if gpu.DeviceType != workloadmeta.GPUDeviceTypeMIG {
+		return "none"
+	}
+	if gpu.MIGProfile == "" {
+		return "unknown"
+	}
+	return strings.ReplaceAll(strings.ToLower(gpu.MIGProfile), "+", "_")
 }
 
 func (c *WorkloadMetaCollector) handleCRD(ev workloadmeta.Event) []*types.TagInfo {
@@ -962,6 +1129,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 			tagList.AddLow(tags.KubeAppPartOf, value)
 		case kubernetes.KubeAppManagedByLabelKey:
 			tagList.AddLow(tags.KubeAppManagedBy, value)
+		case kubernetes.DynamoGraphDeploymentNameLabelKey:
+			tagList.AddLow(tags.DynamoGraphDeployment, value)
 		}
 
 		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesLabelsAsTags["pods"], c.globK8sResourcesLabels["pods"], tagList)
@@ -1157,15 +1326,74 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.Ku
 	_ = c.extractKueueQueueTagsFromQueueName(pod.Namespace, tagList, workloadmeta.KueueClusterQueue, clusterQueueName)
 }
 
-func (c *WorkloadMetaCollector) getKueueWorkloadForPod(pod *workloadmeta.KubernetesPod) *workloadmeta.KubernetesKueueWorkload {
+func kueueWorkloadNameForPod(pod *workloadmeta.KubernetesPod) string {
 	workloadName := pod.Annotations[kubernetes.KueueWorkloadAnnotationKey]
 	if workloadName == "" {
 		// Known limitation: for plain-Pod groups the Kueue Workload object name
 		// is not guaranteed to equal the pod-group-name label value. When they
-		// diverge, the lookup below fails and we fall back to pod-label queue
-		// tags (fail-closed, no incorrect tags).
+		// diverge, the lookup in getKueueWorkloadForPod fails and we fall back
+		// to pod-label queue tags (fail-closed, no incorrect tags).
 		workloadName = pod.Labels[kubernetes.KueuePodGroupNameLabelKey]
 	}
+	return workloadName
+}
+
+func podHasKueueInfo(pod *workloadmeta.KubernetesPod) bool {
+	return kueueWorkloadNameForPod(pod) != "" ||
+		pod.Labels[kubernetes.KueueClusterQueueNameLabelKey] != "" ||
+		pod.Labels[kubernetes.KueueLocalQueueNameLabelKey] != "" ||
+		pod.Labels[kubernetes.KueueQueueNameLabelKey] != ""
+}
+
+// retagKueueDependentPods recomputes the tags of the pods whose Kueue tags can
+// depend on the given Kueue entity. Pod tags are computed from the Kueue
+// entities in the store at that time, and setting, changing or removing those
+// entities later does not generate a new event for the pod.
+func (c *WorkloadMetaCollector) retagKueueDependentPods(entity workloadmeta.Entity) []*types.TagInfo {
+	if !isKueueKind(entity.GetID().Kind) {
+		return nil
+	}
+
+	var tagInfos []*types.TagInfo
+	for _, pod := range c.store.ListKubernetesPods() {
+		if !kueueEntityAffectsPod(entity, pod) {
+			continue
+		}
+		tagInfos = append(tagInfos, c.handleKubePod(workloadmeta.Event{
+			Type:       workloadmeta.EventTypeSet,
+			Entity:     pod,
+			IsComplete: c.entityCompleteness[pod.EntityID],
+		})...)
+	}
+	return tagInfos
+}
+
+func isKueueKind(kind workloadmeta.Kind) bool {
+	return kind == workloadmeta.KindKubernetesKueueWorkload ||
+		kind == workloadmeta.KindKubernetesKueueQueue ||
+		kind == workloadmeta.KindKubernetesKueueResourceFlavor
+}
+
+// kueueEntityAffectsPod reports whether the tags of the pod can depend on the
+// given Kueue entity.
+func kueueEntityAffectsPod(entity workloadmeta.Entity, pod *workloadmeta.KubernetesPod) bool {
+	switch e := entity.(type) {
+	case *workloadmeta.KubernetesKueueWorkload:
+		return pod.Namespace == e.Namespace && kueueWorkloadNameForPod(pod) == e.Name
+	case *workloadmeta.KubernetesKueueQueue:
+		// Pods can reach a queue through their Workload, so matching them
+		// exactly would need a Workload lookup per pod. Queue events are rare,
+		// so match every Kueue pod that can use the queue instead.
+		return podHasKueueInfo(pod) && (e.QueueType == workloadmeta.KueueClusterQueue || pod.Namespace == e.Namespace)
+	case *workloadmeta.KubernetesKueueResourceFlavor:
+		return kueueWorkloadNameForPod(pod) != ""
+	default:
+		return false
+	}
+}
+
+func (c *WorkloadMetaCollector) getKueueWorkloadForPod(pod *workloadmeta.KubernetesPod) *workloadmeta.KubernetesKueueWorkload {
+	workloadName := kueueWorkloadNameForPod(pod)
 	if workloadName == "" {
 		return nil
 	}
@@ -1309,6 +1537,18 @@ func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*types.Tag
 		DeleteEntity: true,
 	})
 	tagInfos = append(tagInfos, c.handleDeleteChildren(source, children)...)
+
+	// A container may also carry image annotation tags published under
+	// containerImageSource (see imageAnnotationTagsForContainer). Those are not
+	// covered by the entity's own source above, so expire them explicitly here
+	// rather than waiting for the next image event to prune the stale child.
+	if entityID.Kind == workloadmeta.KindContainer && len(c.containerImageAnnotationsAsTags) > 0 {
+		tagInfos = append(tagInfos, &types.TagInfo{
+			Source:       containerImageSource,
+			EntityID:     taggerEntityID,
+			DeleteEntity: true,
+		})
+	}
 
 	delete(c.children, taggerEntityID)
 	delete(c.entityCompleteness, entityID)

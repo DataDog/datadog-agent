@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import shlex
 import tempfile
 import unittest
 from pathlib import Path
@@ -21,6 +23,7 @@ from tasks.libs.code_review.providers import (
     expand_providers,
     run_provider,
 )
+from tasks.libs.common.utils import join_command
 
 
 class NoopContext:
@@ -31,10 +34,23 @@ class NoopContext:
 class FakeContext:
     def __init__(self):
         self.commands = []
+        self.cwds = []
 
     def run(self, command, **kwargs):
         self.commands.append((command, kwargs))
+        self.cwds.append(Path.cwd())
         return type("Result", (), {"exited": 0, "stdout": "review output\n", "stderr": "review warning\n"})()
+
+
+class FakeNonAsciiContext:
+    def run(self, _command, **_kwargs):
+        return type("Result", (), {"exited": 0, "stdout": "verdict: ✅\n", "stderr": ""})()
+
+
+class Cp1252Stream(io.StringIO):
+    """Stand in for a redirected Windows console, whose encoding cannot represent most of UTF-8."""
+
+    encoding = "cp1252"
 
 
 class FakeGuidelineContext:
@@ -116,6 +132,7 @@ class TestCodeReviewPrompt(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as tmp,
             patch("tasks.libs.code_review.prompt.is_installed", return_value=True),
+            patch("tasks.libs.common.utils.is_windows", return_value=False),
         ):
             repo_root = Path(tmp)
             write_code_review_workflow(repo_root, prompt_file_pattern="**/custom_guideline.md")
@@ -128,12 +145,42 @@ class TestCodeReviewPrompt(unittest.TestCase):
                 Guideline(path="bazel/codereview_guideline.md", content="bazel rules"),
             ),
         )
-        self.assertIn("npm exec --yes --package", ctx.commands[0][0])
-        self.assertIn("github:DataDog/code-review-action#test-action-ref", ctx.commands[0][0])
-        self.assertIn("-- find-guidelines ", ctx.commands[0][0])
-        self.assertIn("--pattern '**/custom_guideline.md'", ctx.commands[0][0])
-        self.assertIn("--changed-files -", ctx.commands[0][0])
+        self.assertEqual(
+            shlex.split(ctx.commands[0][0]),
+            [
+                "npm",
+                "exec",
+                "--yes",
+                "--package",
+                "github:DataDog/code-review-action#test-action-ref",
+                "--",
+                "find-guidelines",
+                "--repo-root",
+                str(repo_root),
+                "--pattern",
+                "**/custom_guideline.md",
+                "--changed-files",
+                "-",
+            ],
+        )
+        self.assertEqual(ctx.commands[0][1]["encoding"], "utf-8")
         self.assertEqual(ctx.stdin, "bazel/BUILD.bazel\npkg/foo.go")
+
+    def test_load_guidelines_quotes_arguments_for_cmd_exe(self):
+        ctx = FakeGuidelineContext()
+
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("tasks.libs.code_review.prompt.is_installed", return_value=True),
+            patch("tasks.libs.common.utils.is_windows", return_value=True),
+        ):
+            repo_root = Path(tmp)
+            write_code_review_workflow(repo_root, prompt_file_pattern="**/custom guideline.md")
+            load_guidelines(ctx, repo_root, ("pkg/foo.go",))
+
+        # cmd.exe treats the single quotes shlex produces as literal characters.
+        self.assertNotIn("'", ctx.commands[0][0])
+        self.assertIn('--pattern "**/custom guideline.md"', ctx.commands[0][0])
 
     def test_load_guidelines_reports_missing_npm(self):
         with (
@@ -197,6 +244,8 @@ class TestCodeReviewPrompt(unittest.TestCase):
         deleted_file_commands = [command for command in ctx.commands if "--diff-filter=D" in command]
         self.assertEqual(len(deleted_file_commands), 1)
         self.assertIn(":(glob)**/custom_guideline.md", deleted_file_commands[0])
+        # `-C` keeps the pathspec anchored to the repository root, whatever the invocation directory.
+        self.assertIn(f"git -C {join_command([str(repo_root)])} diff", deleted_file_commands[0])
 
     def test_render_prompt_appends_extra_prompt(self):
         prompt = render_prompt(
@@ -253,7 +302,7 @@ class TestCodeReviewProviders(unittest.TestCase):
         )
 
         self.assertEqual(invocation.executable, "codex")
-        self.assertEqual(invocation.command, "codex exec --sandbox read-only -")
+        self.assertEqual(invocation.args, ("codex", "exec", "--sandbox", "read-only", "-"))
         self.assertIn("--- DIFF STAT ---", invocation.stdin or "")
         self.assertIn("diff --git a/tasks/foo.py b/tasks/foo.py", invocation.stdin or "")
         self.assertIn("custom review instructions", invocation.stdin or "")
@@ -269,6 +318,9 @@ class TestCodeReviewProviders(unittest.TestCase):
         self.assertIn("--- PATCH ---\ndiff --git a/tasks/foo.py b/tasks/foo.py", review_diff)
         self.assertEqual(len(ctx.commands), 2)
         self.assertTrue(all("origin/main...HEAD" in command for command in ctx.commands))
+        # The diff is anchored with `-C` rather than a shell `cd`, which cmd.exe cannot chain.
+        self.assertTrue(all(command.startswith("git -C ") for command in ctx.commands))
+        self.assertFalse(any(command.startswith("cd ") for command in ctx.commands))
 
     def test_build_claude_invocation_references_prompt_file(self):
         review_prompt = build_review_prompt(
@@ -278,18 +330,43 @@ class TestCodeReviewProviders(unittest.TestCase):
             prompt="custom review instructions",
         )
 
+        prompt_path = Path(".tmp/code-review/prompt.md")
         invocation = build_provider_invocation(
             provider="claude",
+            review_prompt=review_prompt,
+            prompt_path=prompt_path,
+            artifact_dir=Path(".tmp/code-review"),
+        )
+
+        self.assertEqual(invocation.executable, "claude")
+        self.assertEqual(len(invocation.args), 3)
+        self.assertEqual(invocation.args[:2], ("claude", "-p"))
+        self.assertIn("origin/main", invocation.args[2])
+        self.assertIn(str(prompt_path), invocation.args[2])
+        self.assertIsNone(invocation.stdin)
+
+    def test_provider_instruction_is_passed_as_a_single_cmd_exe_argument(self):
+        review_prompt = build_review_prompt(
+            ctx=NoopContext(),
+            repo_root=Path("."),
+            base="origin/main",
+            prompt="custom review instructions",
+        )
+
+        invocation = build_provider_invocation(
+            provider="gemini",
             review_prompt=review_prompt,
             prompt_path=Path(".tmp/code-review/prompt.md"),
             artifact_dir=Path(".tmp/code-review"),
         )
 
-        self.assertEqual(invocation.executable, "claude")
-        self.assertIn("claude -p ", invocation.command)
-        self.assertIn("origin/main", invocation.command)
-        self.assertIn(".tmp/code-review/prompt.md", invocation.command)
-        self.assertIsNone(invocation.stdin)
+        with patch("tasks.libs.common.utils.is_windows", return_value=True):
+            command = join_command(invocation.args)
+
+        # cmd.exe would word-split the instruction if it were wrapped in the single quotes shlex produces.
+        self.assertTrue(command.startswith('gemini -p "Review the current git changes'))
+        self.assertTrue(command.endswith('references."'))
+        self.assertNotIn("'", command)
 
     def test_unknown_provider_is_rejected(self):
         with self.assertRaises(CodeReviewError):
@@ -297,37 +374,63 @@ class TestCodeReviewProviders(unittest.TestCase):
 
     def test_run_provider_uses_ctx(self):
         ctx = FakeContext()
-        invocation = ProviderInvocation(
-            provider="codex",
-            executable="codex",
-            command="codex exec --sandbox read-only -",
-            stdin="review prompt",
-            output_path=Path("codex.md"),
-        )
+        original_cwd = Path.cwd()
 
         with (
             tempfile.TemporaryDirectory() as tmp,
-            patch("sys.stdout"),
-            patch("sys.stderr"),
+            patch("sys.stdout", new_callable=io.StringIO),
+            patch("sys.stderr", new_callable=io.StringIO),
             patch("tasks.libs.code_review.providers.is_installed", return_value=True),
         ):
             output_path = Path(tmp) / "codex.md"
             run_provider(
                 ctx,
                 ProviderInvocation(
-                    provider=invocation.provider,
-                    executable=invocation.executable,
-                    command=invocation.command,
-                    stdin=invocation.stdin,
+                    provider="codex",
+                    executable="codex",
+                    args=("codex", "exec", "--sandbox", "read-only", "-"),
+                    stdin="review prompt",
                     output_path=output_path,
                 ),
                 cwd=Path(tmp),
             )
 
             self.assertEqual(output_path.read_text(encoding="utf-8"), "review output\nreview warning\n")
+            # The provider runs in the repository root rather than behind a shell `cd` prefix.
+            self.assertEqual(ctx.cwds[0], Path(os.path.realpath(tmp)))
 
-        self.assertIn("codex exec --sandbox read-only -", ctx.commands[0][0])
+        self.assertEqual(Path.cwd(), original_cwd)
+        self.assertEqual(ctx.commands[0][0], "codex exec --sandbox read-only -")
+        self.assertEqual(ctx.commands[0][1]["encoding"], "utf-8")
         self.assertEqual(ctx.commands[0][1]["in_stream"].read(), "review prompt")
+
+    def test_run_provider_echoes_output_the_console_cannot_encode(self):
+        ctx = FakeNonAsciiContext()
+        stdout = Cp1252Stream()
+
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("sys.stdout", stdout),
+            patch("sys.stderr", new_callable=io.StringIO),
+            patch("tasks.libs.code_review.providers.is_installed", return_value=True),
+        ):
+            output_path = Path(tmp) / "codex.md"
+            run_provider(
+                ctx,
+                ProviderInvocation(
+                    provider="codex",
+                    executable="codex",
+                    args=("codex", "exec", "-"),
+                    stdin=None,
+                    output_path=output_path,
+                ),
+                cwd=Path(tmp),
+            )
+
+            # The console loses what it cannot represent; the artifact keeps the original text.
+            self.assertEqual(output_path.read_text(encoding="utf-8"), "verdict: ✅\n")
+
+        self.assertEqual(stdout.getvalue(), "verdict: ?\n")
 
 
 if __name__ == "__main__":

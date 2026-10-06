@@ -34,6 +34,10 @@ func (t *noopImpl) Handler() http.Handler {
 func (t *noopImpl) Reset() {
 }
 
+func (t *noopImpl) CanonicalMetricHelp(string) (string, bool) {
+	return "", false
+}
+
 func (t *noopImpl) NewCounter(subsystem, name string, tags []string, help string) telemetry.Counter {
 	return t.NewCounterWithOpts(subsystem, name, tags, help, telemetry.DefaultOptions)
 }
@@ -92,11 +96,11 @@ func (t *noopImpl) UnregisterCollector(telemetry.Collector) bool {
 	return true
 }
 
-func (t *noopImpl) Gather(bool) ([]*telemetry.MetricFamily, error) {
+func (t *noopImpl) Gather(telemetry.MetricFilter) ([]*telemetry.MetricFamily, error) {
 	return nil, nil
 }
 
-func (t *noopImpl) GatherText(bool, telemetry.MetricFilter) (string, error) {
+func (t *noopImpl) GatherText(telemetry.MetricFilter) (string, error) {
 	return "", nil
 }
 

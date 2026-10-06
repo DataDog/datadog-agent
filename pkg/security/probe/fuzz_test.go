@@ -99,7 +99,7 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 	}
 
 	// Create process resolver with shared dependencies
-	processResolver, err := process.NewTestEBPFResolver(timeResolver, pathResolver, mountResolver, userGroupResolver)
+	processResolver, err := process.NewTestEBPFResolver(probeConfig, timeResolver, pathResolver, mountResolver, userGroupResolver)
 	if err != nil {
 		tb.Fatalf("failed to create test process resolver: %v", err)
 	}
@@ -114,7 +114,7 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 		tb.Fatalf("failed to create namespace resolver: %v", err)
 	}
 
-	tagsResolver := tags.NewResolver(nil, nil, nil)
+	tagsResolver := tags.NewResolver(cfg.RuntimeSecurity.TagsResolverQueueSize, nil, nil, nil)
 
 	cgroupResolver, err := cgroup.NewResolver(noopSD, nil, dentryResolver)
 	if err != nil {
@@ -145,17 +145,18 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 		eventPool: ddsync.NewTypedPool(func() *model.Event {
 			return &model.Event{}
 		}),
-		profileManager:      securityprofile.NewTestManager(cfg),
-		processKiller:       &ProcessKiller{},
-		fileHasher:          &FileHasher{},
-		replayEventsState:   atomic.NewBool(false),
-		ctx:                 context.Background(),
-		dnsLayer:            &layers.DNS{},
-		numCPU:              1,
-		BPFFilterTruncated:  atomic.NewUint64(0),
-		MetricNameTruncated: atomic.NewUint64(0),
-		onDemandManager:     &OnDemandProbesManager{},
-		onDemandRateLimiter: rate.NewLimiter(rate.Inf, 1),
+		profileManager:                 securityprofile.NewTestManager(cfg),
+		processKiller:                  &ProcessKiller{},
+		fileHasher:                     &FileHasher{},
+		replayEventsState:              atomic.NewBool(false),
+		ctx:                            context.Background(),
+		dnsLayer:                       &layers.DNS{},
+		numCPU:                         1,
+		BPFFilterTruncated:             atomic.NewUint64(0),
+		MetricNameTruncated:            atomic.NewUint64(0),
+		capabilitiesExecutableMismatch: atomic.NewUint64(0),
+		onDemandManager:                &OnDemandProbesManager{},
+		onDemandRateLimiter:            rate.NewLimiter(rate.Inf, 1),
 	}
 
 	// Set up monitors with back-reference to EBPFProbe
@@ -176,6 +177,9 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 // to find panics, nil-pointer dereferences, and other memory-safety issues
 // caused by malformed binary event data from the kernel.
 func FuzzHandleEvent(f *testing.F) {
+	f.Add(-34, []byte("00000000\x17\x00\x00\x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"))
+	f.Add(19, []byte("00000000;\x00\x00\x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"))
+
 	// Seed corpus with properly structured events for various event types
 	// This helps the fuzzer start with valid structures and mutate from there
 

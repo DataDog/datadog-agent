@@ -202,6 +202,31 @@ func TestRunCheck(t *testing.T) {
 	helpers.AssertMemoryUsage(t)
 }
 
+func TestRunCheckLoneSurrogateException(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	if err := setFakeRunExceptionLoneSurrogate(); err != nil {
+		t.Fatalf("error setting run exception: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := resetFakeRunException(); err != nil {
+			t.Errorf("error resetting run exception: %v", err)
+		}
+	})
+
+	_, err := runFakeCheck()
+	if err == nil {
+		t.Fatal("expected run_check error")
+	}
+	if !strings.Contains(err.Error(), `\ud800`) {
+		t.Fatalf("expected escaped lone surrogate in python error, got %q", err.Error())
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
 func TestDiscoverConfig(t *testing.T) {
 	// Reset memory counters
 	helpers.ResetMemoryStats()
@@ -268,6 +293,31 @@ func TestDiscoverConfigRaises(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "discover failed") {
 		t.Fatalf("expected python error to contain %q, got %q", "discover failed", err.Error())
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestDiscoverConfigRaisesLoneSurrogate(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	if err := setFakeDiscoverConfigExceptionLoneSurrogate(); err != nil {
+		t.Fatalf("error setting discover_config exception: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := resetFakeDiscoverConfig(); err != nil {
+			t.Errorf("error resetting discover_config: %v", err)
+		}
+	})
+
+	_, err := discoverFakeConfig(`{"id":"svc","host":"10.0.0.1","ports":[]}`)
+	if err == nil {
+		t.Fatal("expected discover_config error")
+	}
+	if !strings.Contains(err.Error(), `\ud800`) {
+		t.Fatalf("expected escaped lone surrogate in python error, got %q", err.Error())
 	}
 
 	// Check for leaks

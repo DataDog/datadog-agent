@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
@@ -49,10 +51,20 @@ ip address 192.168.1.1 255.255.255.0`
 	versionOutput = `Cisco Device Version 1.0`
 )
 
+type result = types.CommandResult
+
+func ok(msg string) *result {
+	return &result{Output: msg}
+}
+
+func fail(errMsg string) *result {
+	return &result{Error: errMsg}
+}
+
 func newMockConnection() *MockConnection {
 	// Set up mock remote client
 	return &MockConnection{
-		OutputMap: map[string]result{
+		OutputMap: map[string]*result{
 			"show running-config": ok(runningOutput),
 			"show startup-config": ok(startupOutput),
 			"show version":        ok(versionOutput),
@@ -61,22 +73,9 @@ func newMockConnection() *MockConnection {
 	}
 }
 
-type result struct {
-	response string
-	err      error
-}
-
-func ok(msg string) result {
-	return result{response: msg}
-}
-
-func fail(err error) result {
-	return result{err: err}
-}
-
 // MockConnection simulates a Connection
 type MockConnection struct {
-	OutputMap map[string]result // cmd -> output
+	OutputMap map[string]*result // cmd -> output
 	Opened    bool
 	Closed    bool
 	Calls     []string
@@ -85,26 +84,25 @@ type MockConnection struct {
 
 var _ ncmremote.Connection = (*MockConnection)(nil)
 
-func (m *MockConnection) execute(cmd *profile.PlainCommand) ([]byte, error) {
-	r := fail(errors.New("unsupported command"))
+func (m *MockConnection) execute(cmd *profile.PlainCommand) (*types.CommandResult, error) {
+	r := fail("unsupported command")
 	if cmd != nil {
 		var ok bool
 		r, ok = m.OutputMap[cmd.Command]
 		if !ok {
-			r = fail(fmt.Errorf("unknown command %q", cmd.Command))
+			r = fail(fmt.Sprintf("unknown command %q", cmd.Command))
 		}
-		if r.err == nil {
-			r.err = cmd.Validator.Validate(r.response)
-		}
+		r.CommandStr = cmd.Command
+		cmd.Validator.ValidateResult(r)
 	}
-	return []byte(r.response), r.err
+	return r, r.FormattedError()
 }
 
-func (m *MockConnection) RetrieveRunningConfig(_ context.Context) ([]byte, error) {
+func (m *MockConnection) RetrieveRunningConfig(_ context.Context) (*result, error) {
 	return m.execute(m.Profile.Commands.GetRunning)
 }
 
-func (m *MockConnection) RetrieveStartupConfig(_ context.Context) ([]byte, error) {
+func (m *MockConnection) RetrieveStartupConfig(_ context.Context) (*result, error) {
 	return m.execute(m.Profile.Commands.GetStartup)
 }
 
@@ -113,8 +111,8 @@ func (m *MockConnection) Verify(_ context.Context) error {
 	return err
 }
 
-func (m *MockConnection) PushConfig(_ context.Context, _ string) error {
-	return errors.New("not implemented")
+func (m *MockConnection) PushConfig(_ context.Context, _ string) (*types.PushResult, types.RollbackError) {
+	return nil, types.InternalError(errors.New("not implemented"))
 }
 
 func (m *MockConnection) SetProfile(np *profile.NCMProfile) {
@@ -278,16 +276,14 @@ func TestCheck_Run_Success(t *testing.T) {
 		},
 		Inventories: []report.InventoryEntry{
 			{
-				Namespace:  "default",
-				ConfigID:   "87b2343a-56d9-43bc-a35a-4d842dec9586",
-				DeviceID:   "default:10.0.0.1",
-				ReportedAt: 1754043600,
+				Namespace: "default",
+				ConfigID:  "87b2343a-56d9-43bc-a35a-4d842dec9586",
+				DeviceID:  "default:10.0.0.1",
 			},
 			{
-				Namespace:  "default",
-				ConfigID:   "d348e53f-db31-47ed-8d50-11462d7a15e5",
-				DeviceID:   "default:10.0.0.1",
-				ReportedAt: 1754043600,
+				Namespace: "default",
+				ConfigID:  "d348e53f-db31-47ed-8d50-11462d7a15e5",
+				DeviceID:  "default:10.0.0.1",
 			},
 		},
 		CollectTimestamp: 1754043600,
@@ -367,10 +363,17 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)
 
+	reqs.sender.On("Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.Anything).Return()
+	reqs.sender.On("Commit").Return()
+
 	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "connection refused")
+	reqs.sender.AssertCalled(t, "Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.MatchedBy(func(tags []string) bool {
+		return assert.Contains(t, tags, "error:device_unreachable")
+	}))
+	reqs.sender.AssertCalled(t, "Commit")
 }
 
 func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
@@ -384,10 +387,71 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, dc.profile)
 
+	reqs.sender.On("Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.Anything).Return()
+	reqs.sender.On("Commit").Return()
+
 	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 	assert.ErrorContains(t, err, "no matching NCM profile for device default:10.0.0.1")
 	assert.Nil(t, dc.profile)
 	assert.True(t, reqs.connFactory.conn.Closed, "Remote client should be closed even on failure")
+	reqs.sender.AssertCalled(t, "Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.MatchedBy(func(tags []string) bool {
+		return assert.Contains(t, tags, "error:no_profile")
+	}))
+	reqs.sender.AssertCalled(t, "Commit")
+}
+
+func TestCheck_Run_CachedNoProfileFailure_ReportsFailure(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+
+	device := createTestDevice()
+	device.Profile = ""
+	err := comp.RegisterDevice(device)
+	assert.NoError(t, err)
+	dc, err := comp.devices.Get(device.DeviceID())
+	assert.NoError(t, err)
+
+	dc.noMatchingProfile = true
+
+	reqs.sender.On("Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.Anything).Return()
+	reqs.sender.On("Commit").Return()
+
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
+	assert.ErrorContains(t, err, "no matching NCM profile for device default:10.0.0.1")
+	assert.False(t, reqs.connFactory.conn.Opened, "no connection should be attempted once no profile has matched")
+	reqs.sender.AssertCalled(t, "Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.MatchedBy(func(tags []string) bool {
+		return assert.Contains(t, tags, "error:no_profile")
+	}))
+	reqs.sender.AssertCalled(t, "Commit")
+}
+
+func TestCheck_Run_MultipleNonBlockingErrors_CountsOnce(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+	reqs.connFactory.conn.OutputMap["show running-config"] = fail("running config command failed")
+	reqs.connFactory.conn.OutputMap["show startup-config"] = fail("startup config command failed")
+
+	device := createTestDevice()
+	err := comp.RegisterDevice(device)
+	assert.NoError(t, err)
+
+	mockSender := reqs.sender
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
+	assert.Error(t, err)
+
+	mockSender.AssertNumberOfCalls(t, "Count", 1)
+	mockSender.AssertCalled(t, "Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.MatchedBy(func(tags []string) bool {
+		errorTags := 0
+		for _, tag := range tags {
+			if strings.HasPrefix(tag, "error:") {
+				errorTags++
+			}
+		}
+		return assert.Contains(t, tags, "error:config_retrieval_failed") && assert.Equal(t, 1, errorTags)
+	}))
 }
 
 func TestCheck_Run_ConfigRetrievalFailure_BadProfile(t *testing.T) {
@@ -455,7 +519,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 
 func TestCheck_FindMatchingProfile_Failure(t *testing.T) {
 	comp, reqs := createTestComponent(t)
-	reqs.connFactory.conn.OutputMap["show running-config"] = fail(errors.New("command execution failed"))
+	reqs.connFactory.conn.OutputMap["show running-config"] = fail("command execution failed")
 	device := createTestDevice()
 	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)

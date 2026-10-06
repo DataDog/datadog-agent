@@ -35,6 +35,23 @@ type discoveryState struct {
 // of completions without blocking the worker goroutine on a busy scheduler.
 const discoveredChangesBuffer = 128
 
+// configDiscoveryTag is added to every instance of a check scheduled via
+// configuration discovery. Configuration discovery has no way of knowing
+// about a manually-configured, differently-named check (e.g. a generic
+// `openmetrics` check) that a user has pointed at the same service from
+// elsewhere, so the two can end up scraping the same target and duplicating
+// (or, for additive metric types, doubling) submitted metrics. This tag lets
+// users spot and exclude the autodiscovered side of such a duplication.
+//
+// Uses a plain `dd_`-prefixed key (not `dd.internal.*`, which is reserved for
+// tags consumed and stripped internally before reaching the backend, e.g.
+// dd.internal.resource in pkg/metrics/series.go) so it survives to the
+// backend and stays queryable, following the precedent of other
+// agent-added, customer-visible marker tags such as dd_remote_config_id /
+// dd_remote_config_rev (comp/core/tagger/tags/tags.go) and
+// dd_enable_check_intake (pkg/collector/worker/worker.go).
+const configDiscoveryTag = "dd_config_discovery:true"
+
 // initDiscoveryWorker wires the workqueue-backed discovery worker into cm.
 func initDiscoveryWorker(cm *reconcilingConfigManager, disco discoverer.ConfigDiscoverer) {
 	cm.discoveredCh = make(chan integration.ConfigChanges, discoveredChangesBuffer)
@@ -112,6 +129,21 @@ func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDiges
 		// Template was removed while the probe was in flight.
 		return changes
 	}
+
+	// The probe was enqueued (in resolveTemplateForService) when this
+	// template was still expected for the service. A probe can take several
+	// retry cycles to complete, and by the time it does, a sibling config, a
+	// static config, or a generic-integration (openmetrics/prometheus)
+	// config may have appeared that would now cause FilterTemplates to drop
+	// this template. Re-run that same filtering here, immediately before
+	// applying the result, so a slow-arriving probe can't schedule a
+	// duplicate/conflicting check on top of a config that showed up while it
+	// was in flight.
+	if _, stillExpected := cm.expectedFilteredTemplatesLocked(svcID)[tplDigest]; !stillExpected {
+		log.Debugf("autodiscovery: discarding stale discovery result for %s on service %s: no longer expected after re-filtering", tpl.Name, svcID)
+		return changes
+	}
+
 	if len(configs) == 0 {
 		return changes
 	}
@@ -137,6 +169,11 @@ func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDiges
 		return changes
 	}
 	resolved.Source = rewriteSource(resolved.Source, svcAndADIDs.svc)
+	for i := range resolved.Instances {
+		if err := resolved.Instances[i].MergeAdditionalTags([]string{configDiscoveryTag}); err != nil {
+			log.Errorf("error adding configuration-discovery tag to config %s for service %s: %v", resolved.Name, svcID, err)
+		}
+	}
 	decrypted, err := decryptConfig(resolved, cm.secretResolver, tplDigest)
 	if err != nil {
 		log.Errorf("error decrypting discovered config %s for service %s: %v", resolved.Name, svcID, err)

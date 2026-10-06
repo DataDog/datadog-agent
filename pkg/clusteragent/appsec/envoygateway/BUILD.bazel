@@ -49,10 +49,13 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":envoygateway"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core/log/def",
         "//comp/core/log/mock",

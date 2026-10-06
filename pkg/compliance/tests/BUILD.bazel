@@ -32,6 +32,21 @@ dd_agent_go_test(
         "process_test.go",
     ],
     embed = [":tests"],
+    gotags_sets = [
+        [
+            "cel",
+            "clusterchecks",
+            "docker",
+            "kubeapiserver",
+            "kubelet",
+        ],
+        [
+            "cel",
+            "clusterchecks",
+            "kubeapiserver",
+            "kubelet",
+        ],
+    ],
     deps = [
         "//pkg/compliance",
         "//pkg/util/docker",

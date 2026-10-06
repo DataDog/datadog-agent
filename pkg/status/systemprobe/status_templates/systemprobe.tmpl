@@ -203,4 +203,46 @@
     Last Check from Core Agent: {{ formatUnixTime .gpu.last_check }}
 {{- end }}
 
+{{- if .notable_events }}
+
+  Notable Events
+  ==============
+  {{- if .notable_events.Error }}
+    Status: Not running
+    Error: {{ .notable_events.Error }}
+  {{- else }}
+    Status: Running
+    Pending Events: {{ .notable_events.pending_events }} / {{ .notable_events.pending_events_max }}
+    Tracked Reports: {{ .notable_events.tracked_files }} / {{ .notable_events.tracked_files_max }} in {{ .notable_events.tracked_directories }} directories
+    Watcher: {{ if .notable_events.watcher_active }}Active{{ else }}Inactive, relying on periodic reconcile{{ end }}
+    {{- if .notable_events.bookmark_stage_pending }}
+    Bookmark: Save failed, delivery stalled until it succeeds
+    {{- end }}
+    {{- if .notable_events.saturated_directories }}
+    Saturated Directories: {{ .notable_events.saturated_directories }}
+    {{- end }}
+    {{- if .notable_events.retry_directories }}
+    Directories Awaiting Rescan: {{ .notable_events.retry_directories }}
+    {{- end }}
+    {{- if .notable_events.persistence_errors }}
+    Persistence Errors: {{ .notable_events.persistence_errors }}
+    {{- end }}
+    {{- if .notable_events.capacity_deferrals }}
+    Capacity Deferrals: {{ .notable_events.capacity_deferrals }}
+    {{- end }}
+    {{- if .notable_events.baseline_suppressed_after_saturation }}
+    Suppressed After Saturation: {{ .notable_events.baseline_suppressed_after_saturation }}
+    {{- end }}
+    {{- if .notable_events.watcher_errors }}
+    Watcher Errors: {{ .notable_events.watcher_errors }}
+    {{- end }}
+    {{- if .notable_events.fsevents_drops }}
+    FSEvents Drops: {{ .notable_events.fsevents_drops }}
+    {{- end }}
+    {{- if .notable_events.watcher_restarts }}
+    Watcher Restarts: {{ .notable_events.watcher_restarts }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
 {{- end }}

@@ -117,8 +117,9 @@ func fixupInitFullAgentOnlyComponents(_ pkgconfigmodel.Config) {
 	pkgconfigmodel.AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
 }
 
-// called only for system-probe, after declaring settings
-func fixupInitSystemProbe(config pkgconfigmodel.Config) {
+// postProcessSystemProbe rewrites system-probe repo dir defaults to live under HOST_ETC.
+// Called from LoadDatadog, after the config is ready and HOST_ETC has been determined.
+func postProcessSystemProbe(config pkgconfigmodel.Config) {
 	if value, _ := os.LookupEnv("HOST_ETC"); value != "" {
 		for _, name := range []string{
 			"system_probe_config.apt_config_dir",

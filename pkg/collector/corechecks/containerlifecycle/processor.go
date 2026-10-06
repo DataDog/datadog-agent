@@ -13,6 +13,8 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/contlcycle"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -28,19 +30,27 @@ type processor struct {
 	podsQueue       *queue
 	containersQueue *queue
 	tasksQueue      *queue
+	tagger          tagger.Component
 }
 
-func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Component) *processor {
+func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Component, tagger tagger.Component, extendedSet bool) *processor {
+	handlers := []Handler{
+		NewContainerTerminationHandler(store),
+		&PodTerminationHandler{},
+		&TaskTerminationHandler{},
+	}
+
+	if extendedSet {
+		handlers = append(handlers, NewPodCreationHandler(), NewContainerCreationHandler(store), NewPodStateHandler())
+	}
+
 	return &processor{
-		sender: sender,
-		handlers: []Handler{
-			NewContainerTerminationHandler(store),
-			&PodTerminationHandler{},
-			&TaskTerminationHandler{},
-		},
+		sender:          sender,
+		handlers:        handlers,
 		podsQueue:       newQueue(chunkSize),
 		containersQueue: newQueue(chunkSize),
 		tasksQueue:      newQueue(chunkSize),
+		tagger:          tagger,
 	}
 }
 
@@ -50,14 +60,15 @@ func (p *processor) start(ctx context.Context, pollInterval time.Duration) {
 }
 
 // processEvents handles workloadmeta events, supports pods and container unset events.
-func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
+// source identifies which subscription the bundle arrived on.
+func (p *processor) processEvents(evBundle workloadmeta.EventBundle, source workloadmeta.Source) {
 	evBundle.Acknowledge()
 
 	log.Tracef("Processing %d events", len(evBundle.Events))
 
 	for _, event := range evBundle.Events {
 		for _, h := range p.handlers {
-			if h.CanHandle(event) {
+			if h.CanHandle(event, source) {
 				les, err := h.Handle(event)
 				if err != nil {
 					log.Debugf("Handler '%s' failed to handle event %q: %v", h.String(), event.Entity.GetID().ID, err)
@@ -114,6 +125,7 @@ func (p *processor) flush() {
 func (p *processor) flushContainers() {
 	msgs := p.containersQueue.flush()
 	if len(msgs) > 0 {
+		p.enrichTags(msgs, types.ObjectKindContainer)
 		p.containerLifecycleEvent(msgs)
 
 		for eventType, eventCount := range eventCountByType(msgs) {
@@ -126,6 +138,7 @@ func (p *processor) flushContainers() {
 func (p *processor) flushPods() {
 	msgs := p.podsQueue.flush()
 	if len(msgs) > 0 {
+		p.enrichTags(msgs, types.ObjectKindPod)
 		p.containerLifecycleEvent(msgs)
 
 		for eventType, eventCount := range eventCountByType(msgs) {
@@ -142,6 +155,53 @@ func (p *processor) flushTasks() {
 
 		for eventType, eventCount := range eventCountByType(msgs) {
 			emittedEvents.Add(float64(eventCount), eventType, types.ObjectKindTask)
+		}
+	}
+}
+
+// enrichTags embeds the tagger tags in the dd_tags field of the events.
+func (p *processor) enrichTags(msgs []*contlcycle.EventsPayload, kind string) {
+	if p.tagger == nil || kind == types.ObjectKindTask {
+		return // for now Task events are not tagged but this may change in the future
+	}
+
+	var prefix taggertypes.EntityIDPrefix
+	switch kind {
+	case types.ObjectKindContainer:
+		prefix = taggertypes.ContainerID
+	case types.ObjectKindPod:
+		prefix = taggertypes.KubernetesPodUID
+	default:
+		return
+	}
+
+	for _, msg := range msgs {
+		for _, ev := range msg.Events {
+			var entityID string
+			switch typed := ev.TypedEvent.(type) {
+			case *contlcycle.Event_Container:
+				entityID = typed.Container.GetContainerID()
+			case *contlcycle.Event_Pod:
+				entityID = typed.Pod.GetPodUID()
+			default:
+				continue
+			}
+			if entityID == "" {
+				continue
+			}
+
+			ddTags, err := p.tagger.Tag(taggertypes.NewEntityID(prefix, entityID), taggertypes.HighCardinality)
+			if err != nil {
+				log.Debugf("Couldn't retrieve tags for %s %q: %v", kind, entityID, err)
+				continue
+			}
+
+			switch typed := ev.TypedEvent.(type) {
+			case *contlcycle.Event_Container:
+				typed.Container.DdTags = ddTags
+			case *contlcycle.Event_Pod:
+				typed.Pod.DdTags = ddTags
+			}
 		}
 	}
 }

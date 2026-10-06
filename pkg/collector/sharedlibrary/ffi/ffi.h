@@ -17,6 +17,7 @@ typedef struct aggregator_s {
     cb_submit_event_t cb_submit_event;
     cb_submit_histogram_bucket_t cb_submit_histogram_bucket;
     cb_submit_event_platform_event_t cb_submit_event_platform_event;
+    cb_log_t cb_log_msg;
 } aggregator_t;
 
 // run function, entrypoint of checks
@@ -24,8 +25,7 @@ typedef struct aggregator_s {
 typedef void (run_function_t)(char *, char *, char *, const aggregator_t *, const char **);
 
 // shared library check version function
-// (error)
-typedef const char *(version_function_t)();
+typedef const char *(version_function_t)(void);
 
 // library_t contains handle of the shared library and pointers to its symbols
 typedef struct library_s {

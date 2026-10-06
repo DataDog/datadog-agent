@@ -17,6 +17,11 @@ interface CorrelatorViewProps {
   phaseMarkers?: PhaseMarker[];
 }
 
+function effectiveAnomalyTags(tags: string[] | null | undefined, host?: string): string[] {
+  const baseTags = tags ?? [];
+  return host ? [`host:${host}`, ...baseTags] : baseTags;
+}
+
 export function CorrelatorView({ state, actions, sidebarWidth, timeRange, phaseMarkers }: CorrelatorViewProps) {
   const scenarios = state.scenarios ?? [];
   const components = state.components ?? [];
@@ -50,21 +55,21 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange, phaseM
   );
 
   const tagGroups = useMemo(() => {
-    const all = extractTagGroups(allAnomalies.map((a) => a.tags ?? []));
+    const all = extractTagGroups(allAnomalies.map((a) => effectiveAnomalyTags(a.tags, a.host)));
     return new Map([...all.entries()].filter(([k]) => MAIN_TAG_FILTER_KEYS.has(k)));
   }, [allAnomalies]);
 
   const anomalies = useMemo(() => {
     const filter = parseTagFilter(tagFilterInput);
     if (filter.include.size === 0 && filter.exclude.size === 0) return allAnomalies;
-    return allAnomalies.filter((a) => matchesTagFilter(a.tags ?? [], filter));
+    return allAnomalies.filter((a) => matchesTagFilter(effectiveAnomalyTags(a.tags, a.host), filter));
   }, [allAnomalies, tagFilterInput]);
 
   const correlations = useMemo(() => {
     const filter = parseTagFilter(tagFilterInput);
     if (filter.include.size === 0 && filter.exclude.size === 0) return allCorrelations;
     return allCorrelations.filter((c) =>
-      c.anomalies.some((a) => matchesTagFilter(a.tags, filter))
+      c.anomalies.some((a) => matchesTagFilter(effectiveAnomalyTags(a.tags, a.host), filter))
     );
   }, [allCorrelations, tagFilterInput]);
 

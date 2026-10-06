@@ -50,6 +50,36 @@ char *as_string(PyObject *object)
     return NULL;
 }
 
+/**
+ * Like as_string, but unencodable Unicode (e.g. lone surrogates) is escaped instead of
+ * returning NULL. Intended for diagnostic paths such as exception formatting, where a
+ * missing conversion must not crash the Agent.
+ *
+ * The returned pointer is allocated from the heap and must be deallocated by the caller.
+ */
+char *as_string_lossy(PyObject *object)
+{
+    if (object == NULL) {
+        return NULL;
+    }
+
+    if (!PyUnicode_Check(object)) {
+        return as_string(object);
+    }
+
+    // backslashreplace turns non-UTF-8 code points into \\uXXXX / \\UXXXXXXXX so this
+    // only fails on allocation errors, not on lone surrogates.
+    PyObject *utf8 = PyUnicode_AsEncodedString(object, "utf-8", "backslashreplace");
+    if (utf8 == NULL) {
+        PyErr_Clear();
+        return NULL;
+    }
+
+    char *ret = strdupe(PyBytes_AS_STRING(utf8));
+    Py_DECREF(utf8);
+    return ret;
+}
+
 int init_stringutils(void) {
     PyObject *json = NULL;
     int ret = EXIT_FAILURE;

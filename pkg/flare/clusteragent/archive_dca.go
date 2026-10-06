@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	flarecommon "github.com/DataDog/datadog-agent/pkg/flare/common"
@@ -106,7 +107,9 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	fb.AddFileFromFunc("workload-list.log", func() ([]byte, error) { return getDCAWorkloadList(remote) })                               //nolint:errcheck
 	fb.AddFileFromFunc("cluster-agent-metadata.json", func() ([]byte, error) { return getClusterAgentMetadataPayload(client) })         //nolint:errcheck
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return flarecommon.MarshalDatadogRuntimeConfigDumpYAML() }) //nolint:errcheck
-	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return remote.GetGoRoutineDump() })
+	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) {
+		return remote.GetGoRoutineDump(pkgconfigsetup.Datadog().GetInt("metrics_port"))
+	})
 	getPerformanceProfileDCA(fb, pdata)
 	getProfilingDataDCA(fb)
 
@@ -261,7 +264,7 @@ func getLocalClusterAgentDiagnose(fb flaretypes.FlareBuilder, diagnose diagnose.
 // dcaIPCHostPort returns `host:port` for the local cluster agent IPC
 // endpoint, with IPv6 hosts properly bracketed.
 func dcaIPCHostPort() (string, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}

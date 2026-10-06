@@ -7,7 +7,6 @@ package store
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"sync"
 
@@ -129,7 +128,7 @@ func (m *memConfigStore) GetConfig(configUUID string) (string, *types.ConfigMeta
 
 	rawConfig, ok := m.rawConfigs[configUUID]
 	if !ok {
-		return "", nil, fmt.Errorf("raw config not found for UUID: %s", configUUID)
+		return "", nil, &ConfigNotFoundError{configUUID}
 	}
 
 	meta := m.metadata[configUUID]
@@ -138,6 +137,12 @@ func (m *memConfigStore) GetConfig(configUUID string) (string, *types.ConfigMeta
 
 	return rawConfig, &meta, nil
 }
+
+// UpdateStoreConfig is a no-op for the in-memory store (eviction is not enforced in tests).
+func (m *memConfigStore) UpdateStoreConfig(_ int, _ int, _ int64) {}
+
+// EvictConfigs is a no-op for the in-memory store.
+func (m *memConfigStore) EvictConfigs() ([]string, error) { return nil, nil }
 
 // GetAllConfigMetadata returns metadata for every stored config across all devices,
 // sorted by ConfigUUID for deterministic ordering.

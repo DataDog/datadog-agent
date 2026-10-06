@@ -5,7 +5,12 @@
 
 package main
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+)
 
 //nolint:all
 //go:noinline
@@ -129,7 +134,10 @@ func testByteSliceWithOtherParams(a int, x []byte, b string) {}
 func testByteSliceAndIntSlice(a []byte, b []int) {}
 
 //nolint:all
-func executeSliceFuncs() {
+func executeSliceFuncs(ctx context.Context) {
+	span, _ := tracer.StartSpanFromContext(ctx, "sample.slices")
+	defer span.Finish()
+
 	originalSlice := []int{1, 2, 3}
 	expandSlice(originalSlice)
 	sprintSlice(originalSlice)

@@ -19,6 +19,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
         "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/def",
         "//pkg/clusteragent",
@@ -33,8 +35,8 @@ go_library(
         "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/kubernetes/apiserver/controllers",
         "//pkg/util/log",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/ext",
         "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
-        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/util/sets",
         "@io_k8s_client_go//kubernetes/typed/core/v1:core",
     ],
@@ -49,10 +51,13 @@ dd_agent_go_test(
         "kubernetes_metadata_test.go",
     ],
     embed = [":api"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core",
         "//comp/core/workloadmeta/collectors/util",

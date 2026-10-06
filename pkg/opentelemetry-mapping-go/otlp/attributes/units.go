@@ -24,7 +24,8 @@ func NewUnitMapper() *UnitMapper {
 //
 // The mapping works as follows:
 //  1. Rate units are split and each component is mapped separately.
-//  2. Annotations are mapped verbatim if they are recognized by Datadog.
+//  2. Annotations are mapped verbatim if Datadog recognizes them, or to their
+//     Datadog name if they are a known alias.
 //  3. For non-annotations, prefixes are stripped and the base unit is mapped.
 //     We validate if the prefix-unit combination is a valid Datadog unit.
 func (*UnitMapper) Map(unit string) (string, bool) {
@@ -173,11 +174,19 @@ var allowedAnnotations = map[string]struct{}{
 	"write":             {},
 }
 
+// annotationAliases maps UCUM annotations to the different name Datadog uses for them.
+var annotationAliases = map[string]string{
+	"datapoint": "item",
+}
+
 // mapUCUMComponent to its Datadog equivalent.
 func mapUCUMComponent(component string) (string, bool) {
-	// Map annotation "{x}" to "x" if it is an allowed annotation.
+	// Map annotation "{x}" to its Datadog unit name.
 	if strings.HasPrefix(component, "{") && strings.HasSuffix(component, "}") {
 		annotation := component[1 : len(component)-1]
+		if datadogUnit, aliased := annotationAliases[annotation]; aliased {
+			return datadogUnit, true
+		}
 		if _, allowed := allowedAnnotations[annotation]; allowed {
 			return annotation, true
 		}

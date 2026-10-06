@@ -11,7 +11,7 @@ import (
 	"os"
 	"sync"
 
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 )
 
 const advanceLogFileName = "advances.jsonl"
@@ -61,7 +61,7 @@ func (r *advanceLogRecorder) record(e advanceEntry) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if err := r.enc.Encode(e); err != nil {
-		pkglog.Warnf("[observer] advance log record error: %v", err)
+		logging.Warnf("advance log record error: %v", err)
 	}
 }
 

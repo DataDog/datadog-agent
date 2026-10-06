@@ -29,3 +29,39 @@ func WritePARProcmgrConfig(installRootResolved string) error {
 func RemovePARProcmgrConfig(installRootResolved string) error {
 	return removeInstallRootProcmgrConfig(installRootResolved, parInstallRootProcmgrSpec)
 }
+
+var parControlInstallRootProcmgrSpec = installRootProcmgrSpec{
+	logLabel:          "PAR control plane",
+	binaryRelPath:     "bin/agent/par-control.exe",
+	configFileName:    "datadog-agent-par-control.yaml",
+	embeddedConfig:    embedded.PARControlWindowsProcmgrConfig,
+	placeholderPrefix: "PAR",
+}
+
+func WritePARControlProcmgrConfig(installRootResolved string) error {
+	return writeInstallRootProcmgrConfig(installRootResolved, parControlInstallRootProcmgrSpec)
+}
+
+func RemovePARControlProcmgrConfig(installRootResolved string) error {
+	return removeInstallRootProcmgrConfig(installRootResolved, parControlInstallRootProcmgrSpec)
+}
+
+var parExecutorInstallRootProcmgrSpec = installRootProcmgrSpec{
+	logLabel:          "PAR executor",
+	binaryRelPath:     "bin/agent/privateactionrunner.exe",
+	configFileName:    "datadog-agent-action-executor.yaml",
+	embeddedConfig:    embedded.PARExecutorWindowsProcmgrConfig,
+	placeholderPrefix: "PAR",
+}
+
+// WritePARExecutorProcmgrConfig writes datadog-agent-action-executor.yaml under
+// installRootResolved\processes.d so dd-procmgrd knows about the PAR on-demand executor.
+func WritePARExecutorProcmgrConfig(installRootResolved string) error {
+	return writeInstallRootProcmgrConfig(installRootResolved, parExecutorInstallRootProcmgrSpec)
+}
+
+// RemovePARExecutorProcmgrConfig removes the PAR executor processes.d YAML from
+// installRootResolved\processes.d.
+func RemovePARExecutorProcmgrConfig(installRootResolved string) error {
+	return removeInstallRootProcmgrConfig(installRootResolved, parExecutorInstallRootProcmgrSpec)
+}

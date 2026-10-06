@@ -16,7 +16,6 @@ go_library(
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
         "//pkg/util/log",
-        "@com_github_mohae_deepcopy//:deepcopy",
     ],
 )
 
@@ -28,7 +27,6 @@ dd_agent_go_test(
         "workers_test.go",
     ],
     embed = [":expvars"],
-    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//comp/haagent/mock",
         "//pkg/collector/check/id",

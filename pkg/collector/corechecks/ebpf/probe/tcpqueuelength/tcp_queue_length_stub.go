@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux_bpf
+//go:build !linux || !bpf
 
 // Package tcpqueuelength is the system-probe side of the TCP Queue Length check
 package tcpqueuelength

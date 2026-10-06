@@ -24,7 +24,6 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     ("./tools/gdb/Dockerfile", "https://go.dev/dl/go", ".linux-", True),
     ("./test/fakeintake/Dockerfile", "GO_VERSION=", "", True),
     ("./tasks/unit_tests/modules_tests.py", 'Go": "', '",', False),
-    ("./devenv/scripts/Install-DevEnv.ps1", '$go_version = "', '"', True),
     ("./tasks/go.py", '"go version go', ' linux/amd64"', True),
     ("./test/fakeintake/docs/README.md", "[Golang ", "]", False),
     ("./cmd/process-agent/README.md", "`go >= ", "`", False),
@@ -90,8 +89,9 @@ def update_go(
                 raise
 
     _update_references(warn, version)
+    _bump_fakeintake_version()
     _update_go_mods(warn, version, include_otel_modules)
-    bazel(ctx, "run", "//pkg/template:generate")
+    bazel("run", "//pkg/template:generate")
     tidy(ctx)
 
     if release_note:
@@ -159,6 +159,15 @@ def _get_pattern(pre_pattern: str, post_pattern: str, is_bugfix: bool) -> str:
     version_pattern = PATTERN_MAJOR_MINOR_BUGFIX if is_bugfix else PATTERN_MAJOR_MINOR
     pattern = rf'({re.escape(pre_pattern)}){version_pattern}({re.escape(post_pattern)})'
     return pattern
+
+
+def _bump_fakeintake_version() -> None:
+    from tasks.fakeintake import VERSION_FILE
+
+    with open(VERSION_FILE) as f:
+        current = int(f.read().strip()[1:])
+    with open(VERSION_FILE, "w") as f:
+        f.write(f"v{current + 1}\n")
 
 
 def _update_references(warn: bool, version: str, dry_run: bool = False):

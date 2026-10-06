@@ -23,6 +23,10 @@ from tasks.libs.common.color import Color, color_message
 
 # --- Constants ---
 
+# Keep in sync with anomalydetection-scorer/score.go. Used to invalidate local
+# Bayesian report reuse when the scoring contract changes.
+F1_SCORING_VERSION = "high-severity-onset-recovery-v2"
+
 _MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "q_branch", "gensim-eval-scenarios.json")
 
 try:
@@ -42,12 +46,22 @@ AWS_PROFILE = "sso-agent-sandbox-account-admin-8h"
 # passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
 # not for Gaussian F1 eval (eval_scenarios / eval_combinations). This study
 # evaluates scorer-produced correlation periods only.
-DETECTORS = ["bocpd", "cusum", "holt_residual", "rrcf", "scanmw", "scanwelch", "tukey_biweight"]
-ABLATION_CORRELATORS = ["anomaly_scorer"]
-SUPPORTED_CORRELATORS = ["anomaly_scorer", "cross_signal", "time_cluster"]
+DETECTORS = ["bocpd", "holt_residual", "scanmw", "scanwelch", "tukey_biweight"]
 
-# Correlators always represented in generated configs. time_cluster defaults on
-# in the testbench, so scorer-only trials must explicitly disable it.
+# The testbench applies these shorter warmups for interactive and headless
+# evaluation. Eval-generated configs name every detector, so carry the profile
+# explicitly: otherwise an enabled-only entry would lock the Go parser to its
+# production defaults and bypass the testbench profile.
+TESTBENCH_WARMUP_PARAMS = {
+    "bocpd": {"warmup_points": 40},
+    "holt_residual": {"warmup_points": 15, "residual_window": 25},
+    "tukey_biweight": {"window_size": 40, "min_points": 40},
+}
+ABLATION_CORRELATORS = ["anomaly_scorer"]
+SUPPORTED_CORRELATORS = ["anomaly_scorer", "time_cluster"]
+
+# Correlators always represented in generated configs. Explicitly disable
+# time_cluster so F1 trials only produce the scorer's severity episodes.
 CONFIGURED_CORRELATORS = ["anomaly_scorer", "time_cluster"]
 
 # Log metrics extractors. Not part of the random ablation grid: eval_combinations
@@ -62,7 +76,6 @@ EXTRACTORS = [
 # reference configurations regardless of the random seed.
 ANCHOR_COMBOS = [
     {"detectors": ["bocpd"], "correlators": ["anomaly_scorer"]},
-    {"detectors": ["bocpd", "rrcf"], "correlators": ["anomaly_scorer"]},
 ]
 
 
@@ -251,7 +264,7 @@ def print_eval_scenarios_summary(results: list, sigma: float) -> None:
     print(color_message("  Observer Eval Summary", Color.GREEN))
     print(color_message(f"{'=' * 60}\n", Color.GREEN))
 
-    header = f"{'Scenario':<25}  {'F1':>6}  {'Precision':>9}  {'Recall':>6}  {'Alpha':>7}  {'Detections':>10}  {'Baseline FPs':>12}  {'Warmup (ign)':>12}  {'Post-onset (ign)':>17}"
+    header = f"{'Scenario':<25}  {'F1':>6}  {'Precision':>9}  {'Recall':>6}  {'Alpha':>7}  {'Detections':>10}  {'Baseline FPs':>12}  {'Recovery FPs':>12}  {'Warmup (ign)':>12}  {'Incident (ign)':>14}  {'Recovery (ign)':>14}"
     print(header)
     print("-" * len(header))
 
@@ -263,7 +276,8 @@ def print_eval_scenarios_summary(results: list, sigma: float) -> None:
         timed_out_suffix = "  [TIMEOUT]" if r.get("timed_out") else ""
         print(
             f"{r['name']:<25}  {r['f1']:>6.4f}  {r['precision']:>9.4f}  {r['recall']:>6.4f}"
-            f"  {alpha_str:>7}  {r['num_predictions']:>10}  {r['num_baseline_fps']:>12}  {r['num_filtered_warmup']:>13}  {r['num_filtered_cascading']:>18}"
+            f"  {alpha_str:>7}  {r['num_predictions']:>10}  {r['num_baseline_fps']:>12}  {r.get('num_recovery_fps', 0):>12}"
+            f"  {r['num_filtered_warmup']:>12}  {r['num_filtered_cascading']:>14}  {r.get('num_filtered_recovery', 0):>14}"
             f"{timed_out_suffix}"
         )
         duration = r.get("baseline_duration_seconds", 0)
@@ -444,11 +458,13 @@ def random_component_combinations(
 def _component_base_config(name: str, enabled: bool) -> dict:
     """Base JSON config for a component in eval-generated testbench params."""
     cfg: dict[str, object] = {"enabled": enabled}
+    # Keep generated Optuna and combination configs aligned with testbench-only
+    # detector warmups. Sampled values below can intentionally override these.
+    cfg.update(TESTBENCH_WARMUP_PARAMS.get(name, {}))
     if enabled and name == "anomaly_scorer":
-        # The scorer only contributes to Gaussian F1 when it emits Medium- or
-        # High-severity episodes as anomaly_periods. Keep cooldown at zero so
+        # F1 measures high-severity episode starts. Keep cooldown at zero so
         # those periods end on actual scorer de-escalation, not a delivery delay.
-        cfg.update({"correlation_events": True, "cooldown_secs": 0})
+        cfg.update({"correlation_events": True, "correlation_event_threshold": "high", "cooldown_secs": 0})
     return cfg
 
 
@@ -481,9 +497,9 @@ def _sample_component_params(trial, component: str) -> dict:
     """Sample Optuna hyperparameters for a named component that supports parseJSON."""
 
     def sample_anomaly_scorer() -> dict:
-        # A correlation episode begins at the selected Medium or High threshold.
+        # The evaluation contract fixes episode emission at High severity.
         # Keep Low below High so the scorer's three-level state machine remains
-        # well-formed while allowing Optuna to choose the emission boundary.
+        # well-formed while allowing Optuna to tune the numeric thresholds.
         low_threshold = trial.suggest_float("anomaly_scorer.low_threshold", 0.01, 0.2, log=True)
         high_threshold_gap = trial.suggest_float("anomaly_scorer.high_threshold_gap", 0.01, 0.3, log=True)
         high_threshold = min(0.45, low_threshold + high_threshold_gap)
@@ -495,9 +511,7 @@ def _sample_component_params(trial, component: str) -> dict:
         margin_pct = hysteresis_fraction * max_margin / high_threshold
         return {
             "correlation_events": True,
-            "correlation_event_threshold": trial.suggest_categorical(
-                "anomaly_scorer.correlation_event_threshold", ["medium", "high"]
-            ),
+            "correlation_event_threshold": "high",
             "cooldown_secs": 0,
             "alpha": trial.suggest_float("anomaly_scorer.alpha", 0.005, 0.08, log=True),
             "saturation_k": trial.suggest_float("anomaly_scorer.saturation_k", 2.0, 12.0),
@@ -513,7 +527,6 @@ def _sample_component_params(trial, component: str) -> dict:
         return {
             "alpha": alpha,
             "beta": alpha * beta_ratio,
-            "residual_window": trial.suggest_int("holt_residual.residual_window", 20, 90),
             "z_threshold": trial.suggest_float("holt_residual.z_threshold", 2.5, 8.0),
             "confirm_m": trial.suggest_int("holt_residual.confirm_m", 1, 3),
             "min_deviation_mad": trial.suggest_float("holt_residual.min_deviation_mad", 1.5, 6.0),
@@ -521,10 +534,7 @@ def _sample_component_params(trial, component: str) -> dict:
         }
 
     def sample_tukey_biweight() -> dict:
-        window_size = trial.suggest_int("tukey_biweight.window_size", 30, 120)
         return {
-            "window_size": window_size,
-            "min_points": window_size,
             "biweight_c": trial.suggest_float("tukey_biweight.biweight_c", 3.5, 6.0),
             "z_threshold": trial.suggest_float("tukey_biweight.z_threshold", 2.5, 10.0),
             "score_every": trial.suggest_int("tukey_biweight.score_every", 1, 6),
@@ -544,19 +554,7 @@ def _sample_component_params(trial, component: str) -> dict:
             # "min_variance": trial.suggest_float("bocpd.min_variance", 0.01, 5.0, log=True),
             # "recovery_points": trial.suggest_int("bocpd.recovery_points", 3, 40),
         },
-        "cusum": lambda: {
-            # "min_points": trial.suggest_int("cusum.min_points", 3, 30),
-            # "baseline_fraction": trial.suggest_float("cusum.baseline_fraction", 0.05, 0.5),
-            # "slack_factor": trial.suggest_float("cusum.slack_factor", 0.1, 2.0),
-            "threshold_factor": trial.suggest_float("cusum.threshold_factor", 2.0, 10.0),
-        },
         "holt_residual": sample_holt_residual,
-        "rrcf": lambda: {
-            # "num_trees": trial.suggest_int("rrcf.num_trees", 20, 200),
-            # "tree_size": trial.suggest_int("rrcf.tree_size", 64, 512),
-            "shingle_size": trial.suggest_int("rrcf.shingle_size", 1, 16),
-            "threshold_sigma": trial.suggest_float("rrcf.threshold_sigma", 0.5, 6.0),
-        },
         "tukey_biweight": sample_tukey_biweight,
         "log_pattern_extractor": lambda: {
             # "disable_optimizations": trial.suggest_categorical(...),

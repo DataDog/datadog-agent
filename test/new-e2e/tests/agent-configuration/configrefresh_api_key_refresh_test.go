@@ -31,7 +31,7 @@ type linuxAPIKeyRefreshSuite struct {
 func TestLinuxAPIKeyFreshSuite(t *testing.T) {
 	t.Parallel()
 	suite := &linuxAPIKeyRefreshSuite{descriptor: os.UbuntuDefault}
-	e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner()))
+	e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))))
 }
 
 func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKey() {

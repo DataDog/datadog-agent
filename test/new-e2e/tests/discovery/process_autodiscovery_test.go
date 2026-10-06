@@ -47,7 +47,9 @@ func TestProcessAutodiscoverySuite(t *testing.T) {
 		agentparams.WithIntegration("nginx.d", nginxProcessAutodiscoveryConfigStr),
 	}
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentParams...)))),
+		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(
+			scenec2.WithAgentOptions(agentParams...),
+			scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))),
 	}
 	e2e.Run(t, &processAutodiscoverySuite{}, options...)
 }
@@ -56,17 +58,13 @@ func (s *processAutodiscoverySuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
 
-	// Install Redis - it starts automatically and binds to localhost:6379 by default
-	_, err := s.Env().RemoteHost.Execute("sudo apt-get update && sudo apt-get install -y redis-server")
-	require.NoError(s.T(), err, "failed to install redis-server")
+	// Redis and nginx are baked into the Debian/Ubuntu e2e AMI (ami-builder
+	// provision-e2e-apt.sh) but disabled at boot, so the test starts them.
 
-	// Verify Redis is running
+	// Start Redis on its default localhost:6379 and verify it is running
+	s.Env().RemoteHost.MustExecute("sudo systemctl start redis-server")
 	output := s.Env().RemoteHost.MustExecute("redis-cli ping")
 	require.Contains(s.T(), output, "PONG", "Redis server should be running")
-
-	// Install nginx
-	_, err = s.Env().RemoteHost.Execute("sudo apt-get install -y nginx")
-	require.NoError(s.T(), err, "failed to install nginx")
 
 	// Configure nginx with multiple workers and stub_status on port 81
 	nginxConf := `worker_processes 4;
@@ -81,10 +79,9 @@ http {
 }
 `
 	s.Env().RemoteHost.MustExecute("echo '" + nginxConf + "' | sudo tee /etc/nginx/nginx.conf")
-	// Use restart rather than reload: the generic e2e AMI installs php which pulls in apache2,
-	// occupying port 80 and preventing nginx from auto-starting after apt install. By the time
-	// we get here the config already listens on port 81, so restart succeeds.
-	// TODO: switch back to reload once the discovery tests have a dedicated AMI without php/apache2.
+	// nginx is disabled at boot, so start it (restart also covers a retry on a
+	// reused host). It listens on port 81 because apache2, pulled in by php on the
+	// generic e2e AMI, can hold port 80.
 	s.Env().RemoteHost.MustExecute("sudo nginx -t && sudo systemctl restart nginx")
 
 	// Verify nginx stub_status is accessible, retrying to allow reload to complete

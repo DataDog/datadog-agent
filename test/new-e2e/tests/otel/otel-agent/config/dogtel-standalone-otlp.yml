@@ -1,0 +1,49 @@
+extensions:
+  dogtel:
+    enable_tagger_server: true
+    tagger_server_port: 15555
+    tagger_server_addr: "0.0.0.0"
+    enable_metadata_collection: true
+  pprof:
+  health_check:
+  zpages:
+    endpoint: "localhost:55679"
+  ddflare:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  infraattributes:
+    cardinality: 2
+  batch:
+    timeout: 10s
+
+exporters:
+  # Forwards to the gateway otel-agent's Helm Service. The namespace segment
+  # must match the gatewayNamespace constant in dogtel_gateway_test.go.
+  otlp:
+    endpoint: "dda-linux-datadog-otel-agent-gateway.datadog-gateway.svc.cluster.local:4317"
+    tls:
+      insecure: true
+
+service:
+  extensions: [dogtel, pprof, health_check, zpages, ddflare]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [infraattributes, batch]
+      exporters: [otlp]
+    metrics:
+      receivers: [otlp]
+      processors: [infraattributes, batch]
+      exporters: [otlp]
+    logs:
+      receivers: [otlp]
+      processors: [infraattributes, batch]
+      exporters: [otlp]

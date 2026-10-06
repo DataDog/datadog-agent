@@ -3,15 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !consul
+//go:build !kvstore
 
 package providers
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 // NewConsulConfigProvider creates a client connection to consul and create a new ConsulConfigProvider
-var NewConsulConfigProvider func(providerConfig *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error)
+var NewConsulConfigProvider func(providerConfig *constants.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error)

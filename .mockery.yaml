@@ -3,11 +3,17 @@ structname: '{{.InterfaceName}}'
 pkgname: mocks
 filename: '{{.InterfaceName | snakecase}}.go'
 template: testify
+build-tags: nvml
 template-data:
   unroll-variadic: true
 packages:
   # gpu
   github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia:
+    # mockery applies Data.TemplateData from package config, not interface config.
+    config:
+      template-data:
+        unroll-variadic: true
+        mock-build-tags: "linux && nvml && test"
     interfaces:
       Collector:
         config:
@@ -15,8 +21,6 @@ packages:
           filename: 'mocks.go'
           structname: mockCollector
           pkgname: nvidia
-          template-data:
-            mock-build-tags: linux && nvml && test
   github.com/DataDog/datadog-agent/pkg/process/checks:
     interfaces:
       Check: {}

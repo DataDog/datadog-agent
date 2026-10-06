@@ -1,12 +1,19 @@
 //! Postgres scan engine.
 
 use anyhow::{Context, Result, bail};
-use postgres::types::Type;
-use postgres::{Client, Config, NoTls, Row};
-use serde_json::{Map, Value};
+use postgres::config::SslMode as PgSslMode;
+use postgres::types::{FromSql, Type};
+use postgres::{Client, Config, NoTls, Row, Statement};
 
-use crate::backend::ScanEngine;
-use crate::config::SubTask;
+use crate::backend::{ScanData, ScanEngine, ScannedColumn};
+use crate::config::{SslMode, SubTask};
+
+mod error;
+mod text;
+mod tls;
+
+use error::PostgresError;
+use text::TextCell;
 
 pub struct PostgresEngine;
 pub const ENGINE: PostgresEngine = PostgresEngine;
@@ -16,16 +23,29 @@ impl ScanEngine for PostgresEngine {
         "postgres"
     }
 
-    fn fetch_data(&self, sub_task: &SubTask) -> Result<Value> {
-        // TODO(dsec-161): prevent reinitializing the connection for each sub task;
-        // reuse a pooled/cached connection across sub tasks sharing the same target.
+    fn fetch_data(&self, sub_task: &SubTask) -> Result<ScanData> {
+        // WARNING: do not modify the `prepare`/`query` calls nor share the connection
+        // unless you know what you are doing.
+        //
+        // We get a "free" security layer from two properties held together:
+        //   - a single connection per query, forced read-only via
+        //     `default_transaction_read_only=on` (a shared connection could have
+        //     that flipped off before a write query runs);
+        //   - a single statement via `prepare`/`query`, which rejects
+        //     multi-statement input and so blocks piggy-backed writes.
+        // Weakening either one removes the guarantee that scanning stays read-only.
         let mut client = connect(sub_task)?;
+        let stmt = client
+            .prepare(sub_task.query.as_str())
+            .map_err(PostgresError::from)
+            .context("preparing postgres query")?;
 
         let rows = client
-            .query(sub_task.query.as_str(), &[])
+            .query(&stmt, &[])
+            .map_err(PostgresError::from)
             .context("running postgres query")?;
 
-        Ok(rows_to_columns(&rows))
+        Ok(rows_to_scan_data(&stmt, &rows))
     }
 }
 
@@ -36,14 +56,6 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         bail!("postgres connection host is required");
     }
     let timeout = sub_task.timeout;
-    println!(
-        "datasecurity: connecting to postgres host={} port={} dbname={} user={} timeout={}s",
-        conn.host,
-        conn.port,
-        conn.dbname,
-        conn.username,
-        timeout.as_secs()
-    );
 
     let mut config = Config::new();
     config
@@ -53,7 +65,11 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         .password(&conn.password)
         .application_name(&conn.application_name)
         .connect_timeout(timeout)
-        .options(&format!("-c statement_timeout={}", timeout.as_millis()));
+        .ssl_mode(pg_ssl_mode(conn.ssl))
+        .options(&format!(
+            "-c statement_timeout={} -c default_transaction_read_only=on",
+            timeout.as_millis()
+        ));
     // A host starting with `/` is a Unix socket directory, otherwise a TCP host.
     if conn.host.starts_with('/') {
         config.host_path(&conn.host);
@@ -61,46 +77,65 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         config.host(&conn.host);
     }
 
-    // TODO(dsec-156): add TLS support; connections are unencrypted for now.
-    config.connect(NoTls).context("connecting to postgres")
+    match tls::connector(conn)? {
+        Some(tls) => config.connect(tls),
+        None => config.connect(NoTls),
+    }
+    .map_err(PostgresError::from)
+    .context("connecting to postgres")
 }
 
-/// Turns query rows into a column-oriented map, e.g.
-/// `{ "email": ["a@b.com", "c@d.com"], "name": ["alice", "bob"] }`.
-fn rows_to_columns(rows: &[Row]) -> Value {
-    let Some(first) = rows.first() else {
-        return Value::Object(Map::new());
-    };
-
-    // Keep only supported columns (the scanner reads strings) and collect
-    // each one's values across all rows.
-    let columns: Map<String, Value> = first
-        .columns()
-        .iter()
-        .enumerate()
-        .filter(|(_, c)| is_supported_type(c.type_()))
-        .map(|(i, c)| {
-            let values: Vec<Value> = rows.iter().map(|row| cell_to_value(row, i)).collect();
-            (c.name().to_string(), Value::Array(values))
-        })
-        .collect();
-
-    Value::Object(columns)
-}
-
-/// Postgres string/text types the scanner can read directly.
-/// TODO(dsec-160): add support for other postgres types (integers, floats, booleans, etc.).
-fn is_supported_type(ty: &Type) -> bool {
-    matches!(*ty, Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::NAME)
-}
-
-/// Renders a string cell as a JSON string (null when the value is NULL).
-/// TODO(dsec-160): add support for other postgres types (integers, floats, booleans, etc.).
-fn cell_to_value(row: &Row, index: usize) -> Value {
-    match row.try_get::<_, Option<String>>(index) {
-        Ok(Some(v)) => Value::String(v),
-        _ => Value::Null,
+fn pg_ssl_mode(mode: SslMode) -> PgSslMode {
+    match mode {
+        SslMode::Disable => PgSslMode::Disable,
+        // rust-postgres has no `allow` (plaintext first): `prefer` succeeds
+        // wherever `allow` would and encrypts when the server offers TLS.
+        SslMode::Allow | SslMode::Prefer => PgSslMode::Prefer,
+        SslMode::Require | SslMode::VerifyCa | SslMode::VerifyFull => PgSslMode::Require,
     }
 }
 
-// TODO(dsec-161): add tests for the postgres engine.
+/// Turns query rows into scanned columns plus one `ScanRow` per result row.
+/// Empty results still report column metadata from `stmt`.
+fn rows_to_scan_data(stmt: &Statement, rows: &[Row]) -> ScanData {
+    let (indices, scanned_columns) = columns_from_stmt(stmt);
+    let rows = rows
+        .iter()
+        .map(|row| indices.iter().map(|&i| cell(row, i)).collect())
+        .collect();
+    ScanData {
+        scanned_columns,
+        rows,
+    }
+}
+
+fn columns_from_stmt(stmt: &Statement) -> (Vec<usize>, Vec<ScannedColumn>) {
+    let mut indices = Vec::new();
+    let mut scanned_columns = Vec::new();
+    for (i, column) in stmt.columns().iter().enumerate() {
+        if !is_supported_type(column.type_()) {
+            continue;
+        }
+        indices.push(i);
+        scanned_columns.push(ScannedColumn {
+            name: column.name().to_string(),
+            data_type: column.type_().name().to_string(),
+        });
+    }
+    (indices, scanned_columns)
+}
+
+/// Postgres types the scanner can read, i.e. those [`TextCell`] converts to text.
+fn is_supported_type(ty: &Type) -> bool {
+    TextCell::accepts(ty)
+}
+
+/// Reads a cell as text (`None` when the value is NULL).
+fn cell(row: &Row, index: usize) -> Option<String> {
+    row.try_get::<_, Option<TextCell>>(index)
+        .ok()
+        .flatten()
+        .map(|cell| cell.0)
+}
+
+// TODO(dsec-266): add tests for the postgres engine.

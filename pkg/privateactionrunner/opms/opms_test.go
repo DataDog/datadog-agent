@@ -41,20 +41,57 @@ func newTestKey(t *testing.T) *ecdsa.PrivateKey {
 }
 
 // newTestClient builds a client wired to the given httptest server.
-// It sets DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION so endpointURL uses plain HTTP.
 func newTestClient(t *testing.T, srv *httptest.Server) *client {
 	t.Helper()
-	t.Setenv(app.InternalSkipTaskVerificationEnvVar, "true")
+	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
 	return &client{
 		httpClient: &http.Client{Timeout: 5 * time.Second},
 		config: &config.Config{
-			DDHost:             srv.URL, // "http://127.0.0.1:PORT"
+			DDHost:             srv.URL,
 			OpmsRequestTimeout: 5000,
 			OrgId:              1,
 			RunnerId:           "test-runner",
 			PrivateKey:         newTestKey(t),
 		},
 		runnerStartedAt: time.Now().UTC(),
+	}
+}
+
+func TestEndpointURL(t *testing.T) {
+	cfg := &config.Config{
+		DDHost:    "http://fakeintake.test:8080",
+		DDApiHost: "api.datadoghq.com",
+	}
+	client := &client{config: cfg}
+
+	assert.Equal(t, "https://api.datadoghq.com/task", client.endpointURL("/task"))
+
+	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
+	for _, test := range []struct {
+		name     string
+		ddHost   string
+		expected string
+	}{
+		{
+			name:     "HTTP URL",
+			ddHost:   "http://fakeintake.test:8080",
+			expected: "http://fakeintake.test:8080/task",
+		},
+		{
+			name:     "HTTPS URL",
+			ddHost:   "https://fakeintake.test:8443",
+			expected: "https://fakeintake.test:8443/task",
+		},
+		{
+			name:     "normalized HTTPS URL",
+			ddHost:   "fakeintake.test:8443",
+			expected: "https://fakeintake.test:8443/task",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			client.config.DDHost = test.ddHost
+			assert.Equal(t, test.expected, client.endpointURL("/task"))
+		})
 	}
 }
 
@@ -282,6 +319,12 @@ func TestNewClientHonorsProxyConfig(t *testing.T) {
 	assert.Equal(t, "https://proxy.example.com:3128", proxyURL.String())
 }
 
+func TestNewPublicClientPreservesHTTPBaseURL(t *testing.T) {
+	cfg := configmock.New(t)
+	pc := NewPublicClient(cfg, "http://fakeintake.test:8080/", nil).(*publicClient)
+	assert.Equal(t, "http://fakeintake.test:8080", pc.ddBaseURL)
+}
+
 func TestNewPublicClientHonorsProxyConfig(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("proxy.https", "https://proxy.example.com:3128")
@@ -316,6 +359,30 @@ func TestDoEnrollRequestUsesOwnHttpClient(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, transportCalled, "doEnrollRequest must use p.httpClient, not http.DefaultClient")
+}
+
+func TestEnrollmentCredentialRejectionStopsRetrying(t *testing.T) {
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusBadRequest} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			calls := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls++
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte(`{"errors":["sensitive response"]}`))
+			}))
+			defer srv.Close()
+
+			p := &publicClient{httpClient: srv.Client()}
+			_, err := p.doEnrollRequestWithRetry(context.Background(), srv.URL, []byte("{}"), "api-key", "app-key")
+			require.Error(t, err)
+			assert.Equal(t, 1, calls)
+			assert.Equal(t, status == http.StatusUnauthorized || status == http.StatusForbidden, errors.Is(err, ErrEnrollmentUnauthorized))
+			if errors.Is(err, ErrEnrollmentUnauthorized) {
+				assert.NotContains(t, err.Error(), "sensitive response")
+				assert.Contains(t, err.Error(), "restart")
+			}
+		})
+	}
 }
 
 func TestHeartbeat_NotFoundReturnsErrJobNotFound(t *testing.T) {

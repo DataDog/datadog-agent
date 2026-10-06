@@ -90,6 +90,17 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_maxallowed":             "vpa.spec_container_maxallowed",
 		"kube_cronjob_spec_suspend":                                                                "cronjob.spec_suspend",
 		"kube_ingress_path":                                                                        "ingress.path",
+		// DRA accelerator allocation/pooling observability. `resourceclaim.count`
+		// carries a `state` tag (pending/allocated/in_use), so the pending
+		// count is a filter on it rather than its own metric. There is no entry
+		// for kube_resourceclaim_created: it is a creation timestamp turned
+		// into `resourceclaim.pending.age` by a transformer, the same way
+		// kube_pod_created becomes pod.age.
+		"kube_resourceclaim_status":            "resourceclaim.count",
+		"kube_resourceclaim_devices_allocated": "resourceclaim.devices.allocated",
+		"kube_resourceslice_devices_total":     "resourceslice.devices",
+		"kube_resourceslice_capacity":          "resourceslice.capacity",
+		"kube_devicetaintrule_info":            "dra.device_taint_rule",
 	}
 }
 
@@ -154,6 +165,8 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 		// Standard Helm labels
 		"label_helm_sh_chart",
 	}
+	defaultPodLabels := append([]string{}, defaultStandardLabels...)
+	defaultPodLabels = append(defaultPodLabels, argoRolloutLabelName)
 
 	return map[string]*JoinsConfigWithoutLabelsMapping{
 		"kube_pod_status_phase": {
@@ -168,13 +181,17 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 			LabelsToMatch: getLabelToMatchForKind("persistentvolume"),
 			LabelsToGet:   []string{"storageclass"},
 		},
+		"kube_horizontalpodautoscaler_ownerref": {
+			LabelsToMatch: getLabelToMatchForKind("horizontalpodautoscaler"),
+			LabelsToGet:   []string{"ownerref_kind", "ownerref_name"},
+		},
 		"kube_persistentvolumeclaim_info": {
 			LabelsToMatch: getLabelToMatchForKind("persistentvolumeclaim"),
 			LabelsToGet:   []string{"storageclass"},
 		},
 		"kube_pod_labels": {
 			LabelsToMatch: getLabelToMatchForKind("pod"),
-			LabelsToGet:   defaultStandardLabels,
+			LabelsToGet:   defaultPodLabels,
 		},
 		"kube_pod_status_reason": {
 			LabelsToMatch: getLabelToMatchForKind("pod"),
@@ -237,6 +254,8 @@ func getLabelToMatchForKind(kind string) []string {
 		return []string{"node"}
 	case "persistentvolume": // persistent volumes are not namespaced
 		return []string{"persistentvolume"}
+	case "namespace": // the `namespace` label already matches on its own, no need to duplicate it
+		return []string{"namespace"}
 	default:
 		return []string{kind, "namespace"}
 	}

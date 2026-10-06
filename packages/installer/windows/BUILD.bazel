@@ -12,10 +12,13 @@ load("//compliance:package_licenses.bzl", "package_licenses")
 package(default_visibility = ["//packages:__subpackages__"])
 
 # On Windows the binary lives at the install dir root as datadog-installer.exe,
-# not under bin/installer/ as on Linux/macOS.
+# not under bin/installer/ as on Linux/macOS. //cmd/installer produces
+# installer.exe (matching the target name), so rename it on the way in --
+# mirrors the rename in //packages/agent/product:installer_binary.
 pkg_files(
     name = "installer_binary",
-    srcs = ["@installer_binary//:installer"],
+    srcs = ["//cmd/installer"],
+    renames = {"//cmd/installer": "datadog-installer.exe"},
 )
 
 # Everything that belongs under C:/opt/datadog-installer/

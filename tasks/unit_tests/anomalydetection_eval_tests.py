@@ -2,14 +2,18 @@ import json
 import os
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from tasks.anomalydetection import (
     _bayesian_evaluation_inputs,
     _load_completed_bayesian_report,
+    eval_scenarios,
 )
 from tasks.libs.anomalydetection.eval import (
     ABLATION_CORRELATORS,
     DETECTORS,
+    F1_SCORING_VERSION,
     SUPPORTED_CORRELATORS,
     _anchor_combos,
     _build_optuna_config,
@@ -31,7 +35,7 @@ class MinimumTrial:
 class TestAblationConfig(unittest.TestCase):
     def test_generated_configs_enable_scorer_and_disable_time_cluster(self):
         self.assertEqual(ABLATION_CORRELATORS, ["anomaly_scorer"])
-        self.assertEqual(SUPPORTED_CORRELATORS, ["anomaly_scorer", "cross_signal", "time_cluster"])
+        self.assertEqual(SUPPORTED_CORRELATORS, ["anomaly_scorer", "time_cluster"])
 
         configs = {
             "combination": _combo_to_config(detectors=["bocpd"], correlators=["anomaly_scorer"]),
@@ -46,30 +50,35 @@ class TestAblationConfig(unittest.TestCase):
             with self.subTest(name=name):
                 components = config["components"]
                 self.assertTrue(components["anomaly_scorer"]["enabled"])
+                self.assertEqual(components["anomaly_scorer"]["correlation_event_threshold"], "high")
+                self.assertTrue(components["anomaly_scorer"]["correlation_events"])
+                self.assertEqual(components["anomaly_scorer"]["cooldown_secs"], 0)
                 self.assertFalse(components["time_cluster"]["enabled"])
 
-        manual = _build_optuna_config(
-            trial=None,
-            components=["cross_signal", "time_cluster"],
-            locked={"cross_signal", "time_cluster"},
-        )["components"]
-        self.assertTrue(manual["cross_signal"]["enabled"])
+        manual = _build_optuna_config(trial=None, components=["time_cluster"], locked={"time_cluster"})["components"]
         self.assertTrue(manual["time_cluster"]["enabled"])
         self.assertFalse(manual["anomaly_scorer"]["enabled"])
 
-    def test_force_enabled_manual_correlators_are_preserved(self):
-        for correlator in ("cross_signal", "time_cluster"):
-            with self.subTest(correlator=correlator):
-                combos = [
-                    _full_stack_combo(force_enable=[correlator]),
-                    *_anchor_combos(force_enable=[correlator]),
-                    *random_component_combinations(5, seed=42, force_enable=[correlator]),
-                ]
-                self.assertTrue(combos)
-                self.assertTrue(all(correlator in combo["correlators"] for combo in combos))
+    def test_optuna_keeps_high_severity_episode_contract(self):
+        # This trial has no categorical sampler: severity is a fixed evaluation
+        # contract, not a parameter that Optuna may change to medium.
+        config = _sample_component_params(MinimumTrial(), "anomaly_scorer")
+        self.assertEqual(config["correlation_event_threshold"], "high")
+        self.assertTrue(config["correlation_events"])
+        self.assertEqual(config["cooldown_secs"], 0)
+        self.assertLess(config["low_threshold"], config["high_threshold"])
 
-                config = _combo_to_config(detectors=["bocpd"], correlators=[correlator])
-                self.assertTrue(config["components"][correlator]["enabled"])
+    def test_force_enabled_time_cluster_is_preserved(self):
+        combos = [
+            _full_stack_combo(force_enable=["time_cluster"]),
+            *_anchor_combos(force_enable=["time_cluster"]),
+            *random_component_combinations(5, seed=42, force_enable=["time_cluster"]),
+        ]
+        self.assertTrue(combos)
+        self.assertTrue(all("time_cluster" in combo["correlators"] for combo in combos))
+
+        config = _combo_to_config(detectors=["bocpd"], correlators=["time_cluster"])
+        self.assertTrue(config["components"]["time_cluster"]["enabled"])
 
     def test_robust_detectors_have_constrained_tuning_spaces(self):
         self.assertIn("holt_residual", DETECTORS)
@@ -80,7 +89,35 @@ class TestAblationConfig(unittest.TestCase):
         tukey = _sample_component_params(trial, "tukey_biweight")
 
         self.assertLessEqual(holt["beta"], holt["alpha"])
-        self.assertEqual(tukey["min_points"], tukey["window_size"])
+        self.assertNotIn("residual_window", holt)
+        self.assertNotIn("window_size", tukey)
+        self.assertNotIn("min_points", tukey)
+
+    def test_generated_configs_include_testbench_warmup_profile(self):
+        components = _build_optuna_config(
+            trial=None,
+            components=["anomaly_scorer"],
+            locked={"anomaly_scorer"},
+        )["components"]
+
+        self.assertEqual(components["bocpd"]["warmup_points"], 40)
+        self.assertEqual(components["holt_residual"]["warmup_points"], 15)
+        self.assertEqual(components["holt_residual"]["residual_window"], 25)
+        self.assertEqual(components["tukey_biweight"]["window_size"], 40)
+        self.assertEqual(components["tukey_biweight"]["min_points"], 40)
+
+    def test_optuna_cannot_override_testbench_warmup_profile(self):
+        components = _build_optuna_config(
+            trial=MinimumTrial(),
+            components=["bocpd", "holt_residual", "tukey_biweight"],
+            locked=set(),
+        )["components"]
+
+        self.assertEqual(components["bocpd"]["warmup_points"], 40)
+        self.assertEqual(components["holt_residual"]["warmup_points"], 15)
+        self.assertEqual(components["holt_residual"]["residual_window"], 25)
+        self.assertEqual(components["tukey_biweight"]["window_size"], 40)
+        self.assertEqual(components["tukey_biweight"]["min_points"], 40)
 
 
 class TestPipelineResume(unittest.TestCase):
@@ -111,10 +148,28 @@ class TestPipelineResume(unittest.TestCase):
         return report
 
     def test_resume_only_reuses_complete_matching_reports(self):
+        self.assertEqual(self.evaluation_inputs["scoring_version"], F1_SCORING_VERSION)
         cases = [
             ("matching", {}, self.evaluation_inputs, True),
             ("partial", {"completed_trials": 3}, self.evaluation_inputs, False),
             ("changed inputs", {}, {**self.evaluation_inputs, "sigma": 60.0}, False),
+            (
+                "five-minute-capped recovery contract",
+                {
+                    "evaluation_inputs": {
+                        **self.evaluation_inputs,
+                        "scoring_version": "high-severity-onset-recovery-v1",
+                    }
+                },
+                self.evaluation_inputs,
+                False,
+            ),
+            (
+                "old scoring contract",
+                {"evaluation_inputs": {k: v for k, v in self.evaluation_inputs.items() if k != "scoring_version"}},
+                self.evaluation_inputs,
+                False,
+            ),
         ]
 
         for name, report_overrides, evaluation_inputs, should_reuse in cases:
@@ -133,6 +188,44 @@ class TestPipelineResume(unittest.TestCase):
                     self.assertEqual(actual, expected)
                 else:
                     self.assertIsNone(actual)
+
+
+class TestLocalF1Pipeline(unittest.TestCase):
+    def test_only_includes_scorer_and_preserves_recovery_results(self):
+        with tempfile.TemporaryDirectory() as root:
+            parquet = os.path.join(root, "example", "parquet")
+            os.makedirs(parquet)
+            with open(os.path.join(parquet, "fixture.parquet"), "w") as f:
+                f.write("unused by mocked replay")
+            with open(os.path.join(root, "observer-eval-example.json"), "w") as f:
+                json.dump({}, f)
+            score = {
+                "scoring_version": F1_SCORING_VERSION,
+                "f1": 0.5,
+                "precision": 1 / 3,
+                "recall": 1,
+                "num_predictions": 3,
+                "num_baseline_fps": 1,
+                "num_recovery_fps": 1,
+                "num_filtered_warmup": 0,
+                "num_filtered_cascading": 0,
+                "num_filtered_recovery": 0,
+            }
+            ctx = Mock()
+            ctx.run.side_effect = [None, SimpleNamespace(failed=False, stdout=json.dumps(score))]
+            with patch("builtins.print"):
+                report = eval_scenarios.body(
+                    ctx,
+                    scenario="example",
+                    scenarios_dir=root,
+                    only="bocpd",
+                    build=False,
+                    main_report_path=os.path.join(root, "report.json"),
+                    scenario_output_dir=root,
+                )
+            self.assertIn("--only anomaly_scorer,bocpd", ctx.run.call_args_list[0].args[0])
+            self.assertEqual(report["metadata"]["example"]["num_recovery_fps"], 1)
+            self.assertEqual(report["metadata"]["example"]["scoring_version"], F1_SCORING_VERSION)
 
 
 if __name__ == "__main__":

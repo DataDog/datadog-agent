@@ -2,11 +2,14 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from tasks.static_quality_gates.decisions import (
-    EXCEPTION_APPROVERS,
     ExceptionApprovalChecker,
     should_bypass_failure,
 )
 from tasks.static_quality_gates.gates import GateMetricHandler
+
+# Stand-in for a member of a team referenced in EXCEPTION_APPROVERS, used throughout
+# TestExceptionApprovalChecker's team-fetch-path tests.
+TEAM_MEMBER = "aiuto"
 
 
 class TestShouldBypassFailure(unittest.TestCase):
@@ -91,37 +94,6 @@ class TestBypassOnlyAppliesToPRs(unittest.TestCase):
     These tests document the expected behavior at the integration level.
     """
 
-    def test_main_branch_detection_logic(self):
-        """
-        Document: On main branch, ancestor == current_commit, so is_on_main_branch = True.
-
-        When is_on_main_branch is True, the bypass loop in parse_and_trigger_gates
-        is skipped entirely, meaning all failures remain blocking regardless of delta.
-        """
-        # This test documents the detection logic:
-        # ancestor = get_common_ancestor(ctx, "HEAD", base_branch)
-        # is_on_main_branch = ancestor == current_commit
-        # On main, merge-base of HEAD and origin/main is HEAD itself
-
-        # Simulate: on main branch, ancestor equals current commit
-        ancestor = "abc123"
-        current_commit = "abc123"
-        is_on_main_branch = ancestor == current_commit
-        self.assertTrue(is_on_main_branch)
-
-    def test_pr_branch_detection_logic(self):
-        """
-        Document: On PR branches, ancestor != current_commit, so is_on_main_branch = False.
-
-        When is_on_main_branch is False, the bypass loop runs and failures with
-        delta <= 2KiB threshold can be marked non-blocking.
-        """
-        # Simulate: on PR branch, ancestor is different from current commit
-        ancestor = "abc123"  # Common ancestor with main
-        current_commit = "def456"  # PR's HEAD
-        is_on_main_branch = ancestor == current_commit
-        self.assertFalse(is_on_main_branch)
-
     def test_bypass_logic_skipped_on_main_conceptually(self):
         """
         Document: The bypass logic should NOT run on main branch.
@@ -198,11 +170,12 @@ class TestExceptionApprovalChecker(unittest.TestCase):
         """Returns the login of the first authorized approver."""
         mock_review = MagicMock()
         mock_review.state = "APPROVED"
-        mock_review.user.login = "cmourot"
+        mock_review.user.login = TEAM_MEMBER
         mock_pr = MagicMock()
         mock_pr.get_reviews.return_value = [mock_review]
 
-        self.assertEqual(ExceptionApprovalChecker(mock_pr).get(), "cmourot")
+        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: {TEAM_MEMBER})
+        self.assertEqual(checker.get(), TEAM_MEMBER)
 
     def test_returns_none_when_no_authorized_approver(self):
         """Returns None when approvals exist but none from authorized reviewers."""
@@ -212,31 +185,33 @@ class TestExceptionApprovalChecker(unittest.TestCase):
         mock_pr = MagicMock()
         mock_pr.get_reviews.return_value = [mock_review]
 
-        self.assertIsNone(ExceptionApprovalChecker(mock_pr).get())
+        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: {TEAM_MEMBER})
+        self.assertIsNone(checker.get())
 
     def test_returns_none_when_authorized_reviewer_did_not_approve(self):
         """Returns None when an authorized reviewer left a non-approval review."""
         mock_review = MagicMock()
         mock_review.state = "CHANGES_REQUESTED"
-        mock_review.user.login = "cmourot"
+        mock_review.user.login = TEAM_MEMBER
         mock_pr = MagicMock()
         mock_pr.get_reviews.return_value = [mock_review]
 
-        self.assertIsNone(ExceptionApprovalChecker(mock_pr).get())
+        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: {TEAM_MEMBER})
+        self.assertIsNone(checker.get())
 
     def test_returns_none_when_pr_is_none(self):
         """Returns None when no PR object is provided."""
-        self.assertIsNone(ExceptionApprovalChecker(None).get())
+        self.assertIsNone(ExceptionApprovalChecker(None, team_members_fetcher=lambda team_slug: {TEAM_MEMBER}).get())
 
     def test_fetches_reviews_only_once(self):
         """get_reviews is called exactly once regardless of how many times get() is called."""
         mock_review = MagicMock()
         mock_review.state = "APPROVED"
-        mock_review.user.login = "cmourot"
+        mock_review.user.login = TEAM_MEMBER
         mock_pr = MagicMock()
         mock_pr.get_reviews.return_value = [mock_review]
 
-        checker = ExceptionApprovalChecker(mock_pr)
+        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: {TEAM_MEMBER})
         checker.get()
         checker.get()
         checker.get()
@@ -248,12 +223,25 @@ class TestExceptionApprovalChecker(unittest.TestCase):
         mock_pr = MagicMock()
         mock_pr.get_reviews.side_effect = Exception("API error")
 
+        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: {TEAM_MEMBER})
         with patch('builtins.print'):
-            self.assertIsNone(ExceptionApprovalChecker(mock_pr).get())
+            self.assertIsNone(checker.get())
+
+    def test_returns_none_on_team_lookup_error(self):
+        """Returns None and does not raise when the team membership lookup throws."""
+        mock_pr = MagicMock()
+
+        def failing_fetcher(team_slug):
+            raise Exception("API error")
+
+        checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=failing_fetcher)
+        with patch('builtins.print'):
+            self.assertIsNone(checker.get())
 
     def test_accepts_any_authorized_approver(self):
-        """Both authorized approvers (cmourot and dd-ddamien) grant an exception."""
-        for approver in EXCEPTION_APPROVERS:
+        """Any member of the exception-approvers team grants an exception."""
+        team_members = {TEAM_MEMBER, "quentinus95", "alopezz"}
+        for approver in team_members:
             with self.subTest(approver=approver):
                 mock_review = MagicMock()
                 mock_review.state = "APPROVED"
@@ -261,7 +249,54 @@ class TestExceptionApprovalChecker(unittest.TestCase):
                 mock_pr = MagicMock()
                 mock_pr.get_reviews.return_value = [mock_review]
 
-                self.assertEqual(ExceptionApprovalChecker(mock_pr).get(), approver)
+                checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=lambda team_slug: team_members)
+                self.assertEqual(checker.get(), approver)
+
+    def test_accepts_plain_username_without_team_lookup(self):
+        """A plain username entry in EXCEPTION_APPROVERS authorizes without invoking the team fetcher."""
+        mock_review = MagicMock()
+        mock_review.state = "APPROVED"
+        mock_review.user.login = "cmourot"
+        mock_pr = MagicMock()
+        mock_pr.get_reviews.return_value = [mock_review]
+
+        fetcher = MagicMock(side_effect=AssertionError("team fetcher should not be called for plain usernames"))
+        with patch("tasks.static_quality_gates.decisions.EXCEPTION_APPROVERS", {"cmourot"}):
+            checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=fetcher)
+            self.assertEqual(checker.get(), "cmourot")
+        fetcher.assert_not_called()
+
+    def test_expands_team_reference_with_correct_slug(self):
+        """A "@Org/team-slug" entry is expanded by calling the fetcher with just the team slug."""
+        mock_review = MagicMock()
+        mock_review.state = "APPROVED"
+        mock_review.user.login = "someone"
+        mock_pr = MagicMock()
+        mock_pr.get_reviews.return_value = [mock_review]
+
+        fetcher = MagicMock(return_value={"someone"})
+        with patch("tasks.static_quality_gates.decisions.EXCEPTION_APPROVERS", {"DataDog/agent-build"}):
+            checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=fetcher)
+            self.assertEqual(checker.get(), "someone")
+        fetcher.assert_called_once_with("agent-build")
+
+    def test_mixed_list_combines_plain_usernames_and_team_members(self):
+        """A list mixing plain usernames and a team reference authorizes members of both."""
+        fetcher = MagicMock(return_value={"alopezz"})
+        with patch(
+            "tasks.static_quality_gates.decisions.EXCEPTION_APPROVERS",
+            {"cmourot", "DataDog/agent-build"},
+        ):
+            for approver in ("cmourot", "alopezz"):
+                with self.subTest(approver=approver):
+                    mock_review = MagicMock()
+                    mock_review.state = "APPROVED"
+                    mock_review.user.login = approver
+                    mock_pr = MagicMock()
+                    mock_pr.get_reviews.return_value = [mock_review]
+
+                    checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=fetcher)
+                    self.assertEqual(checker.get(), approver)
 
 
 if __name__ == '__main__':

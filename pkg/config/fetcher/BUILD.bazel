@@ -9,7 +9,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/ipc/def",
         "//comp/core/ipc/httphelpers",
+        "//pkg/config/helper",
         "//pkg/config/settings/http",
-        "//pkg/config/setup",
     ],
 )

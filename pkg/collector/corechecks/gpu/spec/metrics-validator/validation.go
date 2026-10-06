@@ -10,8 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,7 +23,7 @@ import (
 
 const metricQueryConcurrency = 4
 
-func computeValidation(apiKey, appKey, site string, lookbackSeconds int64, metricFilter string) (orgValidationResults, error) {
+func computeValidation(apiKey, appKey, site string, lookbackSeconds int64, agentVersion, metricFilter string) (orgValidationResults, error) {
 	specs, err := gpuspec.LoadSpecs()
 	if err != nil {
 		return orgValidationResults{}, fmt.Errorf("load specs: %w", err)
@@ -36,13 +36,30 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64, metri
 	now := time.Now().Unix()
 	fromTS := now - lookbackSeconds
 
+	tagInventoryExtraFilters := []string{metricFilter}
+	if strings.TrimSpace(agentVersion) != "" {
+		versionFilter, err := client.filterForAgentVersion(agentVersion, fromTS, now)
+		if err != nil {
+			return orgValidationResults{}, fmt.Errorf("build filter for agent version %q: %w", agentVersion, err)
+		}
+		log.Printf("targeting agent version %q", agentVersion)
+		log.Printf("using version-derived cluster metric filter %q", versionFilter.metricFilter)
+		log.Printf("using %d version-derived tag inventory filter(s): %q", len(versionFilter.tagFilters), versionFilter.tagFilters)
+		tagInventoryExtraFilters = appendTagInventoryFilter(versionFilter.tagFilters, metricFilter)
+		metricFilter = combineMetricFilters(versionFilter.metricFilter, metricFilter)
+	}
+
 	configs := gpuspec.KnownGPUConfigs(specs)
 	results := make([]gpuConfigValidationResult, 0, len(configs))
 
 	var allErrors error
 	for _, config := range configs {
-		log.Printf("validating gpu config %s/%s", config.Architecture, config.DeviceMode)
-		result, err := validateGPUConfig(client, specs, config, metricFilter, fromTS, now)
+		nvLinkCapability := "n/a"
+		if config.NVLinkCapable != nil {
+			nvLinkCapability = strconv.FormatBool(*config.NVLinkCapable)
+		}
+		log.Printf("validating gpu config %s/%s (NVLink capable: %s)", config.Architecture, config.DeviceMode, nvLinkCapability)
+		result, err := validateGPUConfig(client, specs, config, metricFilter, tagInventoryExtraFilters, fromTS, now)
 		if err != nil {
 			allErrors = errors.Join(allErrors, fmt.Errorf("validate gpu config %+v: %w", config, err))
 		}
@@ -56,24 +73,26 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64, metri
 	}, allErrors
 }
 
-func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpuspec.GPUConfig, metricFilter string, fromTS, toTS int64) (gpuConfigValidationResult, error) {
+func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpuspec.GPUConfig, metricFilter string, tagInventoryExtraFilters []string, fromTS, toTS int64) (gpuConfigValidationResult, error) {
 	result := gpuConfigValidationResult{
 		Config: config,
 		State:  validationStateMissing,
 	}
 
-	// We still query all tags and metrics, even if they're workload only and some live hosts won't have them.
-	// The relaxation happens in the render phase, where metrics/tags that are sometimes missing will not be reported
-	// as errors if they're workload-only.
-	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(specs, config, gpuspec.ValidationOptions{
-		WorkloadActive: true,
-	})
+	validationOptions := gpuspec.ValidationOptions{
+		WorkloadActive:  true,
+		ConfigFeatures:  gpuspec.AllConfigFeatures(),
+		WorkloadTagsets: gpuspec.AllWorkloadTagsets(specs.Tags),
+	}
+	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(specs, config, validationOptions)
 	queryFilter := combineMetricFilters(config.TagFilter(), metricFilter)
-	tagInventoryFilters := tagInventoryFiltersForConfig(config, metricFilter)
+	tagInventoryFilters := tagInventoryFiltersForConfig(config, tagInventoryExtraFilters)
 
 	var err error
 	result.DeviceCount, err = client.queryDeviceCount(config, queryFilter, fromTS, toTS)
 	if err != nil {
+		result.RetrievalErrors = append(result.RetrievalErrors, fmt.Sprintf("query device count: %v", err))
+		result.State = determineResultState(result)
 		return result, fmt.Errorf("validate gpu config %+v: %w", config, err)
 	}
 
@@ -86,23 +105,27 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	var group errgroup.Group
 	observations := make(map[string][]gpuspec.MetricObservation, len(expectedMetricsMap))
 	tagObservations := make(map[string][]gpuspec.MetricObservation, len(expectedMetricsMap))
+	unavailableMetrics := make(map[string]bool)
 	group.SetLimit(metricQueryConcurrency)
 
 	for metricName, metricSpec := range expectedMetricsMap {
 		prefixedMetricName := gpuspec.PrefixedMetricName(specs, metricName)
-		validatesValues := metricSpec.Validator != nil
-		requiredTags, workloadOnlyTags, err := gpuspec.RequiredTagsForMetric(specs.Tags, metricSpec)
+		validatesValues := metricSpec.Validator.HasStaticValueValidation()
+		expectedTags, err := gpuspec.ExpectedTagsForMetricWithOptions(specs.Tags, metricSpec, validationOptions)
 		if err != nil {
-			return result, fmt.Errorf("derive required tags for %s: %w", metricName, err)
+			return result, fmt.Errorf("derive expected tags for %s: %w", metricName, err)
 		}
-
-		maps.Copy(requiredTags, workloadOnlyTags) // include workload tags as required for the tag validation
 
 		// Get the metric values
 		group.Go(func() error {
-			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, requiredTags, queryFilter, fromTS, toTS, validatesValues)
+			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTags, queryFilter, fromTS, toTS, validatesValues)
 			if err != nil {
-				return fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
+				retrievalError := fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
+				mu.Lock()
+				unavailableMetrics[metricName] = true
+				result.RetrievalErrors = append(result.RetrievalErrors, retrievalError.Error())
+				mu.Unlock()
+				return retrievalError
 			}
 
 			if len(metricObservations) == 0 {
@@ -118,24 +141,28 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 
 		tagLookbackSeconds := max(14400, toTS-fromTS) // 4 hours is the minimum lookback for the API
 
-		tagInventoryPrefixes := tagInventoryPrefixesForMetric(requiredTags)
-
-		// Also get tag values for the metric. Physical GPU configs use multiple positive
-		// all-tags scopes because the endpoint does not handle NOT filters like scalar queries do.
+		// Also discover unexpected GPU tag keys for the metric. Physical GPU configs
+		// use multiple positive all-tags scopes because the endpoint does not handle
+		// NOT filters like scalar queries do.
 		for _, tagInventoryFilter := range tagInventoryFilters {
 			group.Go(func() error {
-				metricTags, err := client.fetchMetricAllTags(prefixedMetricName, tagInventoryPrefixes, tagLookbackSeconds, tagInventoryFilter)
+				unknownTagKeys, err := client.fetchMetricUnknownTagKeys(prefixedMetricName, expectedTags, tagLookbackSeconds, tagInventoryFilter)
 				if err != nil {
-					return fmt.Errorf("fetch metric tags for %s: %w", metricName, err)
+					retrievalError := fmt.Errorf("fetch unknown metric tag keys for %s: %w", metricName, err)
+					mu.Lock()
+					result.RetrievalErrors = append(result.RetrievalErrors, retrievalError.Error())
+					mu.Unlock()
+					return retrievalError
 				}
-				if len(metricTags) == 0 {
+				if len(unknownTagKeys) == 0 {
 					return nil
 				}
 
 				mu.Lock()
 				tagObservations[metricName] = append(tagObservations[metricName], gpuspec.MetricObservation{
-					Name: metricName,
-					Tags: metricTags,
+					Name:           metricName,
+					TagKeys:        unknownTagKeys,
+					TagsArePartial: true,
 				})
 				mu.Unlock()
 				return nil
@@ -163,7 +190,9 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	// Get any other metrics that were emitted with the GPU prefix but aren't in the expected metrics
 	liveMetrics, err := client.listObservedGPUMetricsForGPUConfig(config, queryFilter, max(toTS-fromTS, int64(0)), specs.Metrics.MetricPrefix)
 	if err != nil {
-		allErrors = errors.Join(allErrors, fmt.Errorf("error listing observed gpu metrics: %w", err))
+		retrievalError := fmt.Errorf("list observed gpu metrics: %w", err)
+		result.RetrievalErrors = append(result.RetrievalErrors, retrievalError.Error())
+		allErrors = errors.Join(allErrors, retrievalError)
 	}
 
 	for metricName := range liveMetrics {
@@ -173,9 +202,8 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 		}
 	}
 
-	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(specs, config, observations, nil, gpuspec.ValidationOptions{
-		WorkloadActive: true,
-	})
+	validationOptions.IgnoreMetrics = unavailableMetrics
+	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(specs, config, observations, nil, validationOptions)
 	if err != nil {
 		allErrors = errors.Join(allErrors, fmt.Errorf("error validating emitted metrics against spec: %w", err))
 	}
@@ -197,34 +225,59 @@ func combineMetricFilters(filters ...string) string {
 	return strings.Join(parts, " AND ")
 }
 
-func tagInventoryFiltersForConfig(config gpuspec.GPUConfig, extraFilter string) []string {
-	// The metric all-tags endpoint does not handle NOT filters like scalar metric queries do.
-	// Use equivalent positive scopes for physical GPUs so tag inventories stay complete.
-	baseParts := []string{"kube_cluster_name:*", "gpu_architecture:" + config.Architecture}
-	switch config.DeviceMode {
-	case gpuspec.DeviceModeMIG:
-		baseParts = append(baseParts, "gpu_slicing_mode:mig")
-	case gpuspec.DeviceModeVGPU:
-		baseParts = append(baseParts, "gpu_virtualization_mode:*vgpu")
-	default:
-		filters := []string{
-			strings.Join(append(slices.Clone(baseParts), "gpu_slicing_mode:none", "gpu_virtualization_mode:none"), " AND "),
-			strings.Join(append(slices.Clone(baseParts), "gpu_slicing_mode:none", "gpu_virtualization_mode:passthrough"), " AND "),
-		}
-		if strings.TrimSpace(extraFilter) == "" {
-			return filters
-		}
-		return []string{
-			combineMetricFilters(filters[0], extraFilter),
-			combineMetricFilters(filters[1], extraFilter),
-		}
+func tagInventoryFiltersForConfig(config gpuspec.GPUConfig, extraFilters []string) []string {
+	// The metric all-tags endpoint accepts a comma-separated list of positive tag
+	// filters. Use equivalent positive scopes for physical GPUs, then query each
+	// selected cluster separately because repeated tag keys are ANDed, not ORed.
+	if len(extraFilters) == 0 {
+		extraFilters = []string{""}
 	}
 
-	return []string{combineMetricFilters(strings.Join(baseParts, " AND "), extraFilter)}
+	var filters []string
+	for _, extraFilter := range extraFilters {
+		baseParts := []string{"gpu_architecture:" + config.Architecture}
+		if !strings.HasPrefix(strings.TrimSpace(extraFilter), "kube_cluster_name:") {
+			baseParts = append(baseParts, "kube_cluster_name:*")
+		}
+		if config.NVLinkCapable != nil {
+			baseParts = append(baseParts, fmt.Sprintf("gpu_nvlink_capable:%t", *config.NVLinkCapable))
+		}
+
+		var configFilters []string
+		switch config.DeviceMode {
+		case gpuspec.DeviceModeMIG:
+			configFilters = []string{strings.Join(append(baseParts, "gpu_slicing_mode:mig"), ",")}
+		case gpuspec.DeviceModeVGPU:
+			configFilters = []string{strings.Join(append(baseParts, "gpu_virtualization_mode:*vgpu"), ",")}
+		default:
+			configFilters = []string{
+				strings.Join(append(slices.Clone(baseParts), "gpu_slicing_mode:none", "gpu_virtualization_mode:none"), ","),
+				strings.Join(append(slices.Clone(baseParts), "gpu_slicing_mode:none", "gpu_virtualization_mode:passthrough"), ","),
+			}
+		}
+
+		for _, configFilter := range configFilters {
+			if strings.TrimSpace(extraFilter) == "" {
+				filters = append(filters, configFilter)
+				continue
+			}
+			filters = append(filters, strings.Join([]string{configFilter, extraFilter}, ","))
+		}
+	}
+	return filters
 }
 
-func tagInventoryPrefixesForMetric(requiredTags map[string]gpuspec.TagSpec) map[string]gpuspec.TagSpec {
-	prefixes := maps.Clone(requiredTags)
-	prefixes["gpu_"] = gpuspec.TagSpec{}
-	return prefixes
+func appendTagInventoryFilter(filters []string, extraFilter string) []string {
+	if strings.TrimSpace(extraFilter) == "" {
+		return slices.Clone(filters)
+	}
+	combined := make([]string, 0, len(filters))
+	for _, filter := range filters {
+		if strings.TrimSpace(filter) == "" {
+			combined = append(combined, extraFilter)
+			continue
+		}
+		combined = append(combined, strings.Join([]string{filter, extraFilter}, ","))
+	}
+	return combined
 }

@@ -1,0 +1,1 @@
+placeholder payload file used by pkg_mac_pkg_test.bzl

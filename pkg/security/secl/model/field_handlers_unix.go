@@ -170,7 +170,9 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "bpf":
 	case "capabilities":
 		_ = ev.FieldHandlers.ResolveCapabilitiesAttempted(ev, &ev.CapabilitiesUsage)
+		_ = ev.FieldHandlers.ResolveCapabilitiesAttemptedHostUserNS(ev, &ev.CapabilitiesUsage)
 		_ = ev.FieldHandlers.ResolveCapabilitiesUsed(ev, &ev.CapabilitiesUsage)
+		_ = ev.FieldHandlers.ResolveCapabilitiesUsedHostUserNS(ev, &ev.CapabilitiesUsage)
 	case "capset":
 	case "cgroup_write":
 		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.CgroupWrite.File)
@@ -1033,6 +1035,7 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Unlink.SyscallContext)
 		}
 	case "unload_module":
+	case "unshare":
 	case "utimes":
 		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Utimes.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Utimes.File)
@@ -1060,7 +1063,9 @@ type FieldHandlers interface {
 	ResolveAsync(ev *Event) bool
 	ResolveCGroupVersion(ev *Event, e *CGroupContext) int
 	ResolveCapabilitiesAttempted(ev *Event, e *CapabilitiesEvent) int
+	ResolveCapabilitiesAttemptedHostUserNS(ev *Event, e *CapabilitiesEvent) int
 	ResolveCapabilitiesUsed(ev *Event, e *CapabilitiesEvent) int
+	ResolveCapabilitiesUsedHostUserNS(ev *Event, e *CapabilitiesEvent) int
 	ResolveChownGID(ev *Event, e *ChownEvent) string
 	ResolveChownUID(ev *Event, e *ChownEvent) string
 	ResolveConnectHostnames(ev *Event, e *ConnectEvent) []string
@@ -1170,8 +1175,14 @@ func (dfh *FakeFieldHandlers) ResolveCGroupVersion(ev *Event, e *CGroupContext) 
 func (dfh *FakeFieldHandlers) ResolveCapabilitiesAttempted(ev *Event, e *CapabilitiesEvent) int {
 	return int(e.Attempted)
 }
+func (dfh *FakeFieldHandlers) ResolveCapabilitiesAttemptedHostUserNS(ev *Event, e *CapabilitiesEvent) int {
+	return int(e.AttemptedHostUserNS)
+}
 func (dfh *FakeFieldHandlers) ResolveCapabilitiesUsed(ev *Event, e *CapabilitiesEvent) int {
 	return int(e.Used)
+}
+func (dfh *FakeFieldHandlers) ResolveCapabilitiesUsedHostUserNS(ev *Event, e *CapabilitiesEvent) int {
+	return int(e.UsedHostUserNS)
 }
 func (dfh *FakeFieldHandlers) ResolveChownGID(ev *Event, e *ChownEvent) string {
 	return string(e.Group)

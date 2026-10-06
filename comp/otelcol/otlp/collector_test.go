@@ -32,12 +32,13 @@ func TestGetComponents(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
+func AssertSuccessfulRun(t *testing.T, pcfg PipelineConfig) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService(), nil)
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	const pipelineTimeout = 10 * time.Second
+	ctx, cancel := context.WithTimeout(t.Context(), pipelineTimeout)
 	defer cancel()
 
 	colDone := make(chan struct{})
@@ -48,15 +49,13 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 
 	assert.Eventually(t, func() bool {
 		return otelcol.StateRunning == p.col.GetState()
-	}, time.Second*2, time.Millisecond*200)
+	}, pipelineTimeout-time.Second, time.Millisecond*200)
 
 	p.Stop()
 	p.Stop()
 	<-colDone
 
-	assert.Eventually(t, func() bool {
-		return otelcol.StateClosed == p.col.GetState()
-	}, time.Second*2, time.Millisecond*200)
+	assert.Equal(t, otelcol.StateClosed, p.col.GetState())
 }
 
 func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
@@ -64,7 +63,7 @@ func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 
 	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService(), nil)
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	pipelineError := p.Run(ctx)
 	assert.ErrorContains(t, pipelineError, expected)
@@ -75,7 +74,21 @@ func TestStartPipeline(t *testing.T) {
 	cfg.SetInTest("hostname", "otlp-testhostname")
 
 	pcfg := getTestPipelineConfig()
-	AssertSucessfulRun(t, pcfg)
+	AssertSuccessfulRun(t, pcfg)
+}
+
+// withEphemeralEndpoints binds every receiver protocol to an OS-assigned port,
+// since fixed ports (including the 4317/4318 defaults) collide with concurrent tests.
+func withEphemeralEndpoints(receiverCfg map[string]interface{}) {
+	protocols := receiverCfg["protocols"].(map[string]interface{})
+	for name, proto := range protocols {
+		settings, _ := proto.(map[string]interface{})
+		if settings == nil {
+			settings = map[string]interface{}{}
+		}
+		settings["endpoint"] = "localhost:0"
+		protocols[name] = settings
+	}
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
@@ -105,7 +118,8 @@ func TestStartPipelineFromConfig(t *testing.T) {
 			pcfg, err := FromAgentConfig(cfg)
 			require.NoError(t, err)
 			if testInstance.err == "" {
-				AssertSucessfulRun(t, pcfg)
+				withEphemeralEndpoints(pcfg.OTLPReceiverConfig)
+				AssertSuccessfulRun(t, pcfg)
 			} else {
 				AssertFailedRun(t, pcfg, testInstance.err)
 			}

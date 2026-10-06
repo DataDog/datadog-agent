@@ -8,25 +8,27 @@ package server
 import (
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
-func TestSyncThrottler(_ *testing.T) {
+func TestSyncThrottler(t *testing.T) {
+	synctest.Test(t, func(_ *testing.T) {
+		throtler := NewSyncThrottler(3)
 
-	throtler := NewSyncThrottler(3)
+		var wg sync.WaitGroup
 
-	var wg sync.WaitGroup
+		for i := 0; i < 30; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				tok := throtler.RequestToken()
+				time.Sleep(200 * time.Millisecond)
+				throtler.Release(tok)
+				throtler.Release(tok) // Release method should be idempotent
+			}()
+		}
 
-	for i := 0; i < 30; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			t := throtler.RequestToken()
-			time.Sleep(200 * time.Millisecond)
-			throtler.Release(t)
-			throtler.Release(t) // Release method should be idempotent
-		}()
-	}
-
-	wg.Wait()
+		wg.Wait()
+	})
 }

@@ -35,10 +35,13 @@ dd_agent_go_test(
         "processor_test.go",
     ],
     embed = [":processors"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//pkg/collector/corechecks/cluster/orchestrator/processorstest",
         "//pkg/orchestrator",

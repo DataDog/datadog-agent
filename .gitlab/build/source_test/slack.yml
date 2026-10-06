@@ -6,7 +6,7 @@ slack_teams_channels_check:
   tags: ["arch:amd64", "specific:true"]
   needs: []
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   script:
     - dda inv -- -e notify.check-teams

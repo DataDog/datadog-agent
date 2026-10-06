@@ -27,8 +27,10 @@ import (
 	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
@@ -99,7 +101,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 		cfg.LogFilePath = DefaultLogFilePath()
 	}
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
@@ -250,6 +252,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
+
+	// Traces/stats sibling of apm_config.profiling_send_to_main_endpoint: when
+	// false, the trace and stats writers skip the main endpoint and only send to
+	// additional_endpoints. Endpoints[0] is kept so APIKey() is unchanged.
+	// SkipMainEndpoint is the inverse of the config key so the Go zero value
+	// keeps sending to the main endpoint.
+	if !core.GetBool("apm_config.traces_send_to_main_endpoint") {
+		c.SkipMainEndpoint = true
+	}
 
 	if core.IsConfigured("proxy.no_proxy") {
 		proxyList := core.GetStringSlice("proxy.no_proxy")
@@ -636,13 +647,17 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	c.Site = core.GetString("site")
 	if c.Site == "" {
-		c.Site = pkgconfigsetup.DefaultSite
+		c.Site = constants.DefaultSite
 	}
 	if v := core.GetInt("apm_config.max_catalog_entries"); v > 0 {
 		c.MaxCatalogEntries = v
 	}
 	if k := "apm_config.profiling_dd_url"; core.IsConfigured(k) {
 		c.ProfilingProxy.DDURL = core.GetString(k)
+	}
+	if c.ProfilingProxy.DDURL == "" {
+		// Resolve the implicit URL here to keep config dependencies out of pkg/trace.
+		c.ProfilingProxy.DDURL = utils.BuildURLWithPrefix(config.ProfilingEndpointPrefix, c.Site) + config.ProfilingEndpointPath
 	}
 	if k := "apm_config.profiling_additional_endpoints"; core.IsConfigured(k) {
 		c.ProfilingProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
@@ -655,9 +670,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	c.ProfilingProxy.MaxRequestBytes = int64(core.GetInt("apm_config.profiling_max_request_bytes"))
 
-	c.DebuggerLogsEnabled = core.GetBool("logs_enabled") || core.GetBool("log_enabled") || core.GetBool("apm_config.debugger_logs_enabled_override")
+	logsEnabled := core.GetBool("logs_enabled") || core.GetBool("log_enabled")
+	logsConfigured := core.IsConfigured("logs_enabled") || core.IsConfigured("log_enabled")
+	c.DebuggerLogsEnabled = logsEnabled || !logsConfigured || core.GetBool("apm_config.debugger_logs_enabled_override")
 	if k := "apm_config.debugger_dd_url"; core.IsConfigured(k) {
 		c.DebuggerProxy.DDURL = core.GetString(k)
+	}
+	if c.DebuggerProxy.DDURL == "" {
+		// Resolve the implicit URL here to keep config dependencies out of pkg/trace.
+		c.DebuggerProxy.DDURL = utils.BuildURLWithPrefix(config.DebuggerLogsEndpointPrefix, c.Site) + config.DebuggerLogsEndpointPath
 	}
 	if k := "apm_config.debugger_api_key"; core.IsConfigured(k) {
 		c.DebuggerProxy.APIKey = core.GetString(k)
@@ -668,6 +689,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.debugger_diagnostics_dd_url"; core.IsConfigured(k) {
 		c.DebuggerIntakeProxy.DDURL = core.GetString(k)
 	}
+	if c.DebuggerIntakeProxy.DDURL == "" {
+		// Resolve the implicit URL here to keep config dependencies out of pkg/trace.
+		c.DebuggerIntakeProxy.DDURL = utils.BuildURLWithPrefix(config.DebuggerIntakeEndpointPrefix, c.Site) + config.DebuggerIntakeEndpointPath
+	}
 	if k := "apm_config.debugger_diagnostics_api_key"; core.IsConfigured(k) {
 		c.DebuggerIntakeProxy.APIKey = core.GetString(k)
 	}
@@ -676,6 +701,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "apm_config.symdb_dd_url"; core.IsConfigured(k) {
 		c.SymDBProxy.DDURL = core.GetString(k)
+	}
+	if c.SymDBProxy.DDURL == "" {
+		// Resolve the implicit URL here to keep config dependencies out of pkg/trace.
+		c.SymDBProxy.DDURL = utils.BuildURLWithPrefix(config.DebuggerIntakeEndpointPrefix, c.Site) + config.DebuggerIntakeEndpointPath
 	}
 	if k := "apm_config.symdb_api_key"; core.IsConfigured(k) {
 		c.SymDBProxy.APIKey = core.GetString(k)
@@ -700,6 +729,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.OpenLineageProxy.Enabled = core.GetBool("ol_proxy_config.enabled")
 	if k := "ol_proxy_config.dd_url"; core.IsConfigured(k) {
 		c.OpenLineageProxy.DDURL = core.GetString(k)
+	}
+	if c.OpenLineageProxy.DDURL == "" {
+		// Resolve the implicit URL here to keep config dependencies out of pkg/trace.
+		c.OpenLineageProxy.DDURL = utils.BuildURLWithPrefix(config.OpenLineageEndpointPrefix, c.Site) + config.OpenLineageEndpointPath
 	}
 	if k := "ol_proxy_config.api_key"; core.IsConfigured(k) {
 		c.OpenLineageProxy.APIKey = core.GetString(k)
@@ -875,6 +908,11 @@ func splitTagRegex(tag string) *config.TagRegex {
 func validate(c *config.AgentConfig, core corecompcfg.Component) error {
 	if len(c.Endpoints) == 0 || c.Endpoints[0].APIKey == "" {
 		return config.ErrMissingAPIKey
+	}
+	// Fail closed: skipping the main endpoint must never leave the trace and
+	// stats writers without a destination.
+	if c.SkipMainEndpoint && !c.HasWriterDestination() {
+		return config.ErrNoWriterEndpoint
 	}
 	if c.DDAgentBin == "" {
 		return errors.New("agent binary path not set")

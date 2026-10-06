@@ -26,9 +26,17 @@ func newEmptyMockConf(_ *testing.T) pkgconfigmodel.BuildableConfig {
 // newTestConf generates and returns a new configuration that has been setup
 // by running the schema constructing code InitConfig found in setup/config.go
 func newTestConf(t *testing.T) pkgconfigmodel.BuildableConfig {
+	conf := newTestConfWithoutOverrides(t)
+	pkgconfigmodel.ApplyOverrideFuncs(conf)
+	return conf
+}
+
+// newTestConfWithoutOverrides is newTestConf without ApplyOverrideFuncs, for tests that need to run a
+// single override func a controlled number of times. The override funcs are a global append-only slice,
+// so ApplyOverrideFuncs runs each of them an order-dependent number of times across the suite.
+func newTestConfWithoutOverrides(t *testing.T) pkgconfigmodel.BuildableConfig {
 	conf := newEmptyMockConf(t)
 	InitConfig(conf)
 	conf.SetConfigFile("")
-	pkgconfigmodel.ApplyOverrideFuncs(conf)
 	return conf
 }

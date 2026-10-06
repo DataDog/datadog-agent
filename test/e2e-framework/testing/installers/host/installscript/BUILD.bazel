@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "installscript",
+    srcs = ["installscript.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/host/installscript",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/datadog/agent",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
+    ],
+)
+
+dd_agent_go_test(
+    name = "installscript_test",
+    srcs = ["installscript_test.go"],
+    embed = [":installscript"],
+    deps = [
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/environments",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

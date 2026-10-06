@@ -51,10 +51,13 @@ dd_agent_go_test(
         "status_test.go",
     ],
     embed = [":leaderelection"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core/telemetry/def",
         "//internal/third_party/client-go/tools/leaderelection/resourcelock",

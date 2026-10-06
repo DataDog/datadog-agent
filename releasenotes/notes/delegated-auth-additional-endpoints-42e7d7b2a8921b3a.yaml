@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Extended the delegated authentication (Workload Identity Federation) component so it can write a resolved API key into a map- or list-shaped ``additional_endpoints`` configuration value, replacing a placeholder ``DELA(...)`` directive. This is internal foundation work; no Agent subsystem reads ``DELA(...)`` directives yet, so this does not enable any user-facing behavior on its own.

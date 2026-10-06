@@ -6,9 +6,12 @@
 package metrics
 
 import (
+	"cmp"
+	"math"
 	"math/rand"
 	"runtime"
-	"sort"
+	"slices"
+	"sync"
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -39,6 +42,7 @@ func TestConfigureDefault(t *testing.T) {
 func TestConfigure(t *testing.T) {
 	mockConfig := configmock.New(t)
 
+	defaultsOnce = sync.Once{}
 	defaultAggregates = nil
 	defaultPercentiles = nil
 	aggregates := []string{"max", "min", "test"}
@@ -50,10 +54,33 @@ func TestConfigure(t *testing.T) {
 	assert.Equal(t, []int{30, 50, 98}, hist.percentiles)
 }
 
+// TestNewHistogramConcurrent reproduces the scenario that raced in production: many
+// aggregator shard goroutines calling NewHistogram concurrently on first use, all
+// racing to lazily initialize the shared defaultAggregates/defaultPercentiles. Run
+// with -race.
+func TestNewHistogramConcurrent(t *testing.T) {
+	cfg := setupConfig(t)
+
+	defaultsOnce = sync.Once{}
+	defaultAggregates = nil
+	defaultPercentiles = nil
+
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			NewHistogram(10, cfg)
+		}()
+	}
+	wg.Wait()
+}
+
 func TestDefaultHistogramSampling(t *testing.T) {
 	// Initialize default histogram
 	cfg := setupConfig(t)
 
+	defaultsOnce = sync.Once{}
 	defaultAggregates = nil
 	defaultPercentiles = nil
 	mHistogram := NewHistogram(10, cfg)
@@ -186,6 +213,29 @@ func TestHistogramPercentiles(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+// TestHistogramNaNSample covers a NaN sample reaching the sort inside flush(): with
+// cmp.Compare, NaN sorts before every finite value, so it poisons .min but leaves .max
+// (the real finite maximum, sorted last) unaffected.
+func TestHistogramNaNSample(t *testing.T) {
+	cfg := setupConfig(t)
+	mHistogram := NewHistogram(10, cfg)
+	mHistogram.configure([]string{"max", "min"}, nil)
+
+	mHistogram.addSample(&MetricSample{Value: 3}, 50)
+	mHistogram.addSample(&MetricSample{Value: math.NaN()}, 50)
+	mHistogram.addSample(&MetricSample{Value: 1}, 50)
+	mHistogram.addSample(&MetricSample{Value: 2}, 50)
+
+	series, err := mHistogram.flush(60)
+	assert.Nil(t, err)
+	if assert.Len(t, series, 2) {
+		assert.InEpsilon(t, 3, series[0].Points[0].Value, epsilon) // max
+		assert.Equal(t, ".max", series[0].NameSuffix)              // max
+		assert.True(t, math.IsNaN(series[1].Points[0].Value))      // min
+		assert.Equal(t, ".min", series[1].NameSuffix)              // min
+	}
+}
+
 func TestHistogramSampleRate(t *testing.T) {
 	cfg := setupConfig(t)
 	mHistogram := NewHistogram(10, cfg)
@@ -274,6 +324,7 @@ func TestHistogramReset(t *testing.T) {
 // https://en.wikipedia.org/wiki/Kahan_summation_algorithm). The exact sum in ℝ
 // is 2.0; the flushed .sum is compared to that (addSample order matches the slice).
 func TestHistogramAverageExtremeScale(t *testing.T) {
+	defaultsOnce = sync.Once{}
 	defaultAggregates = nil
 	defaultPercentiles = nil
 	cfg := setupConfig(t)
@@ -306,6 +357,7 @@ func TestHistogramAverageExtremeScale(t *testing.T) {
 // Regression check: an int-truncated weight (= 4 for @0.21) would give .sum = 200 and
 // .count = 2.0 — both off by ~16%, well outside the 1e-12 epsilon below.
 func TestHistogramNonReciprocalSampleRate(t *testing.T) {
+	defaultsOnce = sync.Once{}
 	defaultAggregates = nil
 	defaultPercentiles = nil
 	cfg := setupConfig(t)
@@ -495,7 +547,7 @@ func BenchmarkHistogram100000MixedSignSampleRate1(b *testing.B) {
 
 // benchSampleSum isolates sampleSum (no sort, no flush, no alloc in the hot loop) so the
 // summation algorithm is actually what's being measured, not slice growth/sort/percentile
-// computation. Samples are pre-sorted to match the sort.Sort invariant of flush().
+// computation. Samples are pre-sorted to match the sort invariant of flush().
 func benchSampleSum(b *testing.B, values []float64) {
 	h := &Histogram{
 		samples:      make(weightSamples, len(values)),
@@ -505,7 +557,7 @@ func benchSampleSum(b *testing.B, values []float64) {
 	for i, v := range values {
 		h.samples[i] = weightSample{value: v, weight: 1}
 	}
-	sort.Sort(h.samples)
+	slices.SortFunc(h.samples, func(a, b weightSample) int { return cmp.Compare(a.value, b.value) })
 	b.ReportAllocs()
 	b.ResetTimer()
 	var sink float64

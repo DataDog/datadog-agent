@@ -13,6 +13,7 @@ go_library(
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",
         "//comp/core/tagger/def",
+        "//comp/core/tagger/utils",
         "//comp/core/workloadmeta/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
@@ -42,10 +43,13 @@ dd_agent_go_test(
     srcs = ["pod_test.go"],
     data = ["//pkg/collector/corechecks/orchestrator:testdata"],  # keep
     embed = [":pod"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core",
         "//comp/core/tagger/fx-mock",

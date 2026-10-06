@@ -174,7 +174,7 @@ logs_config:
 			label:      aggregate,
 		}
 
-		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
+		context.tokens = newBorrowedTokens(tokenizer.Tokenize(context.rawMessage))
 		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
@@ -213,7 +213,7 @@ logs_config:
 			label:      aggregate,
 		}
 
-		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
+		context.tokens = newBorrowedTokens(tokenizer.Tokenize(context.rawMessage))
 		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
@@ -253,7 +253,7 @@ logs_config:
 			label:      aggregate,
 		}
 
-		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
+		context.tokens = newBorrowedTokens(tokenizer.Tokenize(context.rawMessage))
 		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
@@ -287,7 +287,7 @@ logs_config:
 			label:      aggregate,
 		}
 
-		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
+		context.tokens = newBorrowedTokens(tokenizer.Tokenize(context.rawMessage))
 		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
@@ -324,7 +324,7 @@ logs_config:
 			label:      aggregate,
 		}
 
-		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
+		context.tokens = newBorrowedTokens(tokenizer.Tokenize(context.rawMessage))
 		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
@@ -375,7 +375,7 @@ func TestUserPatternsWithIntegrationSamplesCollection(t *testing.T) {
 			label:      aggregate,
 		}
 
-		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
+		context.tokens = newBorrowedTokens(tokenizer.Tokenize(context.rawMessage))
 		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
@@ -407,7 +407,7 @@ func TestUserPatternWithIntegrationSampleMatchThreshold(t *testing.T) {
 			label:      aggregate,
 		}
 
-		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
+		context.tokens = newBorrowedTokens(tokenizer.Tokenize(context.rawMessage))
 		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}

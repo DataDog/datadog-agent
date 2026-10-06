@@ -6,6 +6,18 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/notableevents/fx",
     visibility = ["//visibility:public"],
     deps = select({
+        "@rules_go//go/platform:darwin": [
+            "//comp/notableevents/def",
+            "//comp/notableevents/impl",
+            "//pkg/util/fxutil",
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/notableevents/def",
+            "//comp/notableevents/impl",
+            "//pkg/util/fxutil",
+            "@org_uber_go_fx//:fx",
+        ],
         "@rules_go//go/platform:windows": [
             "//comp/notableevents/def",
             "//comp/notableevents/impl",

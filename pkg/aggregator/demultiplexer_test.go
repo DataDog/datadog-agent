@@ -112,7 +112,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	cfg.SetInTest("orchestrator_explorer.enabled", true)
 	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
 
-	// since we're running the tests with -tags orchestrator and we've enabled the
+	// since we're running the tests with -tags kubeapiserver and we've enabled the
 	// needed feature above, we should have an orchestrator forwarder instantiated now
 
 	opts = demuxTestOptions()
@@ -198,8 +198,8 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	// in its select before shutting it down, unfortunately, there is no other
 	// way today than giving it some time to run
 	go func() {
-		time.Sleep(250 * time.Millisecond)
-		demux.aggregator.stopChan <- struct{}{}
+		assert.Eventually(t, demux.aggregator.IsInputQueueEmpty, time.Second, time.Millisecond)
+		demux.aggregator.Stop()
 	}()
 	demux.aggregator.run()
 

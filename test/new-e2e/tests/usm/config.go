@@ -6,7 +6,10 @@
 // Package usm contains E2E tests for Universal Service Monitoring
 package usm
 
-import _ "embed"
+import (
+	_ "embed"
+	"strings"
+)
 
 // systemProbeConfig defines the system-probe configuration for USM HTTP monitoring.
 //
@@ -15,4 +18,4 @@ var systemProbeConfig string
 
 // systemProbeConfigDirect is systemProbeConfig with direct send enabled
 // (payloads sent directly from system-probe instead of process-agent).
-var systemProbeConfigDirect = systemProbeConfig + "\nnetwork_config:\n  direct_send: true\n"
+var systemProbeConfigDirect = strings.Replace(systemProbeConfig, "direct_send: false", "direct_send: true", 1)

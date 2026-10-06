@@ -67,40 +67,28 @@ func (p *Preprocessor) Process(msg *message.Message) {
 // Messages already combined by an upstream aggregator (IsMultiLine == true)
 // are labeled noAggregate so the CombiningAggregator emits them standalone.
 func (p *Preprocessor) tokenizeLabelAndAggregate(msg *message.Message) {
-	tokens, tokenIndices := p.tokenizer.Tokenize(msg.GetContent())
+	// tokens is a borrowed view, valid until the next line is tokenized; stages
+	// that retain it clone first (see BorrowedTokens).
+	tokens := p.tokenizer.tokenizeBorrowed(msg.GetContent())
 
 	var label Label
 	switch {
 	case msg.ParsingExtra.IsMultiLine:
 		label = noAggregate
-	case len(tokens) == 0:
+	case len(msg.GetContent()) == 0:
 		// Empty lines tokenize to nothing, so token-based heuristics (notably the
 		// timestamp detector) would log errors about missing tokens. Skip the labeler
 		// and treat the line as a continuation, which matches the labeler's default
 		// label and lets a blank line fold into the current group.
 		label = aggregate
 	default:
-		labelTokens, labelIndices := limitTokensToBytes(tokens, tokenIndices, p.labelerMaxBytes)
-		label = p.labeler.Label(msg.GetContent(), labelTokens, labelIndices)
+		// The labeler sees a narrower window than the sampler (labelerMaxBytes).
+		label = p.labeler.Label(msg.GetContent(), tokens.limit(p.labelerMaxBytes))
 	}
 
 	for _, completed := range p.aggregator.Process(msg, label, tokens) {
 		p.sample(completed)
 	}
-}
-
-// limitTokensToBytes returns the prefix of tokens whose start byte index is less than maxBytes.
-// If maxBytes is 0, all tokens are returned unchanged (no limit).
-func limitTokensToBytes(tokens []Token, indices []int, maxBytes int) ([]Token, []int) {
-	if maxBytes <= 0 {
-		return tokens, indices
-	}
-	for i, idx := range indices {
-		if idx >= maxBytes {
-			return tokens[:i], indices[:i]
-		}
-	}
-	return tokens, indices
 }
 
 // Step 5: Sample and emit the log

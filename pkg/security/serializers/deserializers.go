@@ -54,7 +54,6 @@ func newFileEvent(fs *FileSerializer) model.FileEvent {
 
 func newProcess(ps *ProcessSerializer) model.Process {
 	p := model.Process{
-		PPid:          getPointerValue(ps.PPid),
 		Comm:          ps.Comm,
 		TTYName:       ps.TTY,
 		FileEvent:     newFileEvent(ps.Executable),
@@ -69,6 +68,7 @@ func newProcess(ps *ProcessSerializer) model.Process {
 			Pid:       ps.Pid,
 			Tid:       ps.Tid,
 			IsKworker: ps.IsKworker,
+			PPid:      getPointerValue(ps.PPid),
 		},
 	}
 	if ps.ForkTime != nil {
@@ -82,6 +82,7 @@ func newProcess(ps *ProcessSerializer) model.Process {
 	}
 	if ps.Container != nil {
 		p.ContainerContext.ContainerID = containerutils.ContainerID(ps.Container.ID)
+		p.ContainerContext.PodUID = ps.Container.PodUID
 	}
 
 	// TODO: credentials

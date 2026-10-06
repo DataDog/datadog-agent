@@ -26,7 +26,6 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -34,6 +33,9 @@ import (
 
 func TestCommand(t *testing.T) {
 	commands := []*cobra.Command{
+		// run() is substituted by the assertFn below, so no real workloadmeta
+		// collector is needed; an empty catalog avoids building collectors like
+		// sbomcollector that require a real IPC auth token unavailable in tests.
 		MakeCommand(func() GlobalParams {
 			// the config needs an existing config file when initializing
 			config := path.Join(t.TempDir(), "datadog.yaml")
@@ -43,18 +45,19 @@ func TestCommand(t *testing.T) {
 			return GlobalParams{
 				ConfFilePath: config,
 			}
-		}, wmcatalog.GetCatalog()),
+		}, fx.Options()),
 	}
 
 	fxutil.TestOneShotSubcommand(t,
 		commands,
 		// this command has a lot of options, so just test a few
-		[]string{"check", "cleopatra", "--delay", "1", "--flare"},
+		[]string{"check", "cleopatra", "--delay", "1", "--flare", "--workloadmeta-timeout", "7"},
 		run,
 		func(cliParams *cliParams, _ core.BundleParams) {
 			require.Equal(t, []string{"cleopatra"}, cliParams.args)
 			require.Equal(t, 1, cliParams.checkDelay)
 			require.True(t, cliParams.saveFlare)
+			require.Equal(t, uint(7), cliParams.workloadmetaTimeout)
 		})
 }
 
@@ -107,6 +110,9 @@ instances:
 
 func TestCommandWithInstanceID(t *testing.T) {
 	commands := []*cobra.Command{
+		// run() is substituted by the assertFn below, so no real workloadmeta
+		// collector is needed; an empty catalog avoids building collectors like
+		// sbomcollector that require a real IPC auth token unavailable in tests.
 		MakeCommand(func() GlobalParams {
 			config := path.Join(t.TempDir(), "datadog.yaml")
 			err := os.WriteFile(config, []byte("hostname: test"), 0644)
@@ -115,7 +121,7 @@ func TestCommandWithInstanceID(t *testing.T) {
 			return GlobalParams{
 				ConfFilePath: config,
 			}
-		}, wmcatalog.GetCatalog()),
+		}, fx.Options()),
 	}
 
 	fxutil.TestOneShotSubcommand(t,

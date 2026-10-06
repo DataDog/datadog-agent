@@ -57,11 +57,9 @@ Each `.rb` file fetches and builds one component. Key recipes and their Bazel eq
 | Software recipe | Bazel equivalent |
 |---|---|
 | `datadog-agent.rb` | `//packages/agent/product:all_files` |
-| `datadog-agent-dependencies.rb` | `//packages/agent/dependencies:all_files` |
 | `datadog-agent-finalize.rb` | `//packages/agent/linux:all_files` (cleanup/symlink logic) |
 | `datadog-agent-installer-symlinks.rb` | `//packages/agent/linux:datadog_agent_installer_symlinks` |
 | `python3.rb` | `//packages/install_dir/embedded:all_files` (via `@cpython`) |
-| `systemd.rb` | `@systemd//:all_files` |
 | `installer.rb` | *(pending)* |
 | `datadog-dogstatsd.rb` | *(pending — part of `//packages/dogstatsd`)* |
 | `datadog-iot-agent.rb` | *(pending — part of `//packages/iot`)* |
@@ -98,7 +96,7 @@ when set, omnibus skips building and just repackages a pre-built tarball.
 | `redhat_target?` / `debian_target?` | *(pending — no distro constraint yet; use `# TODO: select()`)* |
 | `AGENT_FLAVOR` env var | `//packages/agent:flavor` string flag |
 | `fips_mode?` | `//packages/agent:fips_flavor` config setting |
-| `heroku_target?` | `//packages/agent:linux_heroku` config setting group |
+| `heroku_target?` | dedicated package: `//packages/heroku` |
 | `build_version ENV['PACKAGE_VERSION']` | Bazel stamping *(TODO — hardcoded `"7"` for now)* |
 | `strip_build` | *(TODO — not yet migrated)* |
 | `windows_symbol_stripping_file` | *(TODO — not yet migrated)* |

@@ -1,22 +1,40 @@
-//! Backend scan engines: run a sub task's query and return its column data.
+//! Backend scan engines: run a sub task's query and return its rows.
 
 use anyhow::{Context, Result};
-use serde_json::Value;
 
 use crate::config::SubTask;
 
 #[cfg(feature = "engine-postgres")]
 mod postgres;
 
-/// A data-source engine that runs a sub task's query and returns the result as
-/// a `{ column: [values] }` map ready for the scanner.
+#[cfg(test)]
+pub(crate) mod mock;
+
+/// One scanned column's name and its source data type (e.g. `text`, `varchar`).
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct ScannedColumn {
+    pub name: String,
+    pub data_type: String,
+}
+
+/// One query row. Values are in `scanned_columns` order; `None` is SQL NULL.
+pub type ScanRow = Vec<Option<String>>;
+
+/// Query result: column metadata plus rows.
+/// Row-oriented so a later change can stream rows instead of collecting them first.
+#[derive(Debug, Default, Clone)]
+pub struct ScanData {
+    pub scanned_columns: Vec<ScannedColumn>,
+    pub rows: Vec<ScanRow>,
+}
+
+/// A data-source engine that runs a sub task's query and returns the scanned
+/// columns and their values ready for the scanner.
 pub trait ScanEngine: Sync {
     /// Engine name, matched against the sub task platform.
     fn name(&self) -> &'static str;
-    /// Runs the sub task's query and returns its columns.
-    // TODO(dsec-173): return an `Event` (dd-sensitive-data-scanner) per backend
-    // instead of a `Value`, to avoid the intermediate JSON map and its copies.
-    fn fetch_data(&self, sub_task: &SubTask) -> Result<Value>;
+    /// Runs the sub task's query and returns its columns and rows.
+    fn fetch_data(&self, sub_task: &SubTask) -> Result<ScanData>;
 }
 
 /// Compiled engines. Add a new engine here behind its `engine-*` feature.
@@ -24,6 +42,8 @@ fn engines() -> &'static [&'static dyn ScanEngine] {
     &[
         #[cfg(feature = "engine-postgres")]
         &postgres::ENGINE,
+        #[cfg(test)]
+        &mock::ENGINE,
     ]
 }
 
@@ -37,7 +57,7 @@ fn engine_for(platform: &str) -> Result<&'static dyn ScanEngine> {
 }
 
 /// Runs the sub task on the engine selected by its entity platform.
-pub fn fetch_data(sub_task: &SubTask) -> Result<Value> {
+pub fn fetch_data(sub_task: &SubTask) -> Result<ScanData> {
     engine_for(&sub_task.entity.platform)?.fetch_data(sub_task)
 }
 

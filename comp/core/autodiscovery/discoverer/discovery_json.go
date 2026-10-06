@@ -111,10 +111,25 @@ func parseDiscoveryResult(integrationName, resultJSON string) ([]integration.Con
 			IgnoreAutodiscoveryTags: raw.IgnoreAutodiscoveryTags,
 			CheckTagCardinality:     raw.CheckTagCardinality,
 		}
-		for _, inst := range raw.Instances {
+		for i, inst := range raw.Instances {
+			if !isJSONObject(inst) {
+				return nil, fmt.Errorf("decode discovery payload for %s: instance %d is not a JSON object", integrationName, i)
+			}
 			cfg.Instances = append(cfg.Instances, integration.Data(inst))
 		}
 		configs = append(configs, cfg)
 	}
 	return configs, nil
+}
+
+// isJSONObject reports whether raw decodes to a JSON object. Check instances
+// must be mappings; null, arrays, and scalars are rejected rather than
+// silently passed through to the YAML-based config-resolution pipeline.
+func isJSONObject(raw json.RawMessage) bool {
+	var v interface{}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return false
+	}
+	_, ok := v.(map[string]interface{})
+	return ok
 }

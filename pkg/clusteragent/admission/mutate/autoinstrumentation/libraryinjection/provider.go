@@ -92,8 +92,12 @@ type LibraryInjectionConfig struct {
 	Wmeta workloadmeta.Component
 
 	// KubeServerVersion is the Kubernetes API server version.
-	// Used for gating features that depend on cluster version support (e.g. image volumes).
+	// Used for gating features that depend on cluster version support (e.g. image volumes, CSI in auto mode).
 	KubeServerVersion *version.Info
+
+	// IsOpenShift is true when the cluster runs OpenShift.
+	// The auto injection mode does not use the CSI driver on OpenShift.
+	IsOpenShift bool
 
 	// Debug enables debug mode for the APM libraries.
 	// When true, additional debug environment variables are injected.
@@ -115,6 +119,11 @@ type LibraryInjectionConfig struct {
 	// When non-empty, only libraries from these registries will be injected.
 	// An empty list allows all registries (default).
 	RegistryAllowList []string
+
+	// CSIAutoRegistries contains registries that auto mode can use through CSI.
+	// Images from other registries fall back to init containers, which use the
+	// workload's image pull credentials.
+	CSIAutoRegistries []string
 
 	// CSIDriverWatcher caches the Datadog CSI driver state observed via
 	// workloadmeta. AutoProvider consults it to decide between CSI and

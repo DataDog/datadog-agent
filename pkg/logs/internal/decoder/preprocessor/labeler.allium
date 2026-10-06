@@ -1,0 +1,187 @@
+-- allium: 3
+-- labeler.allium
+
+-- Scope: Contract layer for the labelling stage in the Datadog Agent's
+--   logs preprocessor pipeline. Defines the Label enum (the
+--   classification produced by any labeller and consumed by the
+--   aggregator), the HeuristicContext value (the mutable context
+--   passed down a heuristic chain), the Heuristic contract (the
+--   abstract interface for one element in a labelling chain), and
+--   the Labeler contract (the abstract interface for a labeller as
+--   a whole).
+-- Includes: Label enum, HeuristicContext value, Heuristic contract,
+--   Labeler contract.
+-- Excludes:
+--   - Any specific labeller implementation. The auto-multiline
+--     labeller lives in its own spec module
+--     (auto_multiline_labeler.allium). A trivial passthrough
+--     labeller used by log sources that do not enable auto-multiline
+--     detection may be specified separately or described inline by
+--     an upstream composing spec.
+--   - Any specific heuristic. Each Heuristic-fulfilling entity
+--     (JSONDetector, TimestampDetector, etc.) lives in its own spec
+--     module and declares fulfils Heuristic against this contract.
+--   - Analytics heuristics: a separate side-effect-only heuristic
+--     chain (status tracking, telemetry) exists in the auto-multiline
+--     labeller implementation but does not influence the labelling
+--     output. Treated as observation-only behaviour, outside the
+--     Labeler contract's promises. Documented in the
+--     auto_multiline_labeler.allium implementation spec.
+
+use "./tokenizer.allium" as tokenizer
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum Label {
+    -- The classification a labeller produces for one log line.
+    -- Consumed by the downstream Aggregator stage to decide how to
+    -- treat the line.
+    --
+    -- start_group:  the line begins a new aggregate group. The
+    --               aggregator flushes any in-progress buffer and
+    --               starts accumulating from this line.
+    -- no_aggregate: emit this line directly; do not include it in
+    --               any in-progress aggregate.
+    -- aggregate:    append this line to the current in-progress
+    --               aggregate.
+    start_group
+    no_aggregate
+    aggregate
+}
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value HeuristicContext {
+    -- The mutable context passed down a labelling heuristic chain.
+    -- Heuristics inspect raw_message, tokens and token_indices to
+    -- decide how to label the line, and may set the label and
+    -- label_assigned_by fields. See the Heuristic contract's
+    -- InputImmutability invariant for which fields a Heuristic may
+    -- modify.
+    --
+    -- raw_message:       the line bytes, as received from the
+    --                    tokeniser's input side.
+    -- tokens:            the tokenised form of raw_message, produced
+    --                    by the Tokenization contract. May be the
+    --                    empty sequence if tokenization has not yet
+    --                    been performed; heuristics must handle the
+    --                    empty case.
+    -- token_indices:     the byte offsets within raw_message at which
+    --                    each token in `tokens` begins. The length of
+    --                    token_indices matches tokens.length. May
+    --                    be empty when tokens is empty.
+    -- label:             the current classification, initially set
+    --                    to the default by the labeller before any
+    --                    heuristic runs. Heuristics may overwrite.
+    -- label_assigned_by: an opaque tag identifying which heuristic
+    --                    most recently assigned the label. Initially
+    --                    a sentinel "default" value; heuristics set
+    --                    this when they assign a label. Used for
+    --                    diagnostics and telemetry.
+    raw_message: String
+    tokens: tokenizer/TokenSequence
+    token_indices: List<Integer>
+    label: Label
+    label_assigned_by: String
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract Heuristic {
+    -- One element in a labelling chain. The heuristic inspects a
+    -- shared HeuristicContext and decides whether to set the label.
+    -- Returns true to allow the chain to continue evaluating
+    -- subsequent heuristics, false to terminate chain evaluation at
+    -- this heuristic.
+    process_and_continue: (context: HeuristicContext) -> Boolean
+
+    @invariant InputImmutability
+        -- A Heuristic may mutate context.label and
+        -- context.label_assigned_by but must NOT modify
+        -- context.raw_message, context.tokens, or
+        -- context.token_indices. These three fields describe the
+        -- input being classified and remain stable across the entire
+        -- chain evaluation.
+
+    @invariant LabelDomain
+        -- After process_and_continue returns, context.label is one
+        -- of the values defined in the Label enum. A Heuristic must
+        -- never leave the context in a state where label refers to a
+        -- value outside the enum.
+
+    @invariant LabelAssignedByConsistency
+        -- A Heuristic that modifies context.label must also update
+        -- context.label_assigned_by to an identifier representing
+        -- itself (its component name or a stable string). A
+        -- Heuristic that does NOT modify context.label must NOT
+        -- modify context.label_assigned_by. The pairing of label
+        -- and assigner is the trace consumers use to diagnose which
+        -- heuristic claimed the labelling decision.
+
+    @invariant TerminationSemantics
+        -- The return value controls chain flow:
+        --   true:  the labeller's chain proceeds to the next
+        --          heuristic in order.
+        --   false: the labeller's chain terminates; subsequent
+        --          heuristics in the labelling chain do not
+        --          execute. (Analytics heuristics, defined by the
+        --          labeller's implementation outside this contract,
+        --          may still run regardless.)
+        -- A Heuristic must return a stable value for a given
+        -- context state; it must not branch on randomness or
+        -- external state.
+
+    @guidance
+        -- The contract makes no statement about whether a Heuristic
+        -- should typically return true or false. Some heuristics are
+        -- "decisive" (they always claim a label and terminate the
+        -- chain via false); others are "advisory" (they may set a
+        -- label only in specific cases and continue chain evaluation
+        -- via true to allow later heuristics to refine or override).
+        -- Both patterns satisfy this contract.
+}
+
+contract Labeler {
+    -- Classify a log line into one of the Label values, given the
+    -- line's content and its pre-computed tokenization.
+    --
+    -- The Labeler contract is intentionally abstract about HOW the
+    -- classification is computed. Implementations may use a chain
+    -- of Heuristics, a single rule, content-only inspection, or any
+    -- other strategy that satisfies the invariants below.
+    label: (content: String,
+            tokens: tokenizer/TokenSequence,
+            token_indices: List<Integer>) -> Label
+
+    @invariant Determinism
+        -- label is a pure function of its arguments. The same
+        -- (content, tokens, token_indices) tuple always produces the
+        -- same Label value.
+
+    @invariant Totality
+        -- Every input produces a Label value from the enum. There
+        -- is no undefined output for any well-formed input. The
+        -- labeller must terminate with a value from {start_group,
+        -- no_aggregate, aggregate}.
+
+    @invariant IndicesAlignment
+        -- The caller is expected to pass token_indices such that
+        -- its length matches tokens.length. The Labeler may assume
+        -- this alignment and is not required to check it; if a
+        -- caller violates the alignment, the Labeler's output is
+        -- undefined.
+
+    @guidance
+        -- Token-aware heuristics may inspect tokens and
+        -- token_indices to make decisions based on the line's
+        -- structure (e.g., timestamp-prefix detection). Content-only
+        -- heuristics may ignore the token arguments entirely. The
+        -- Labeler contract permits both styles; implementations
+        -- choose based on what their heuristic chain requires.
+}

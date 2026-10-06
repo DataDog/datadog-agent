@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "profile",
@@ -25,6 +26,7 @@ go_library(
             "//pkg/security/resolvers",
             "//pkg/security/resolvers/cgroup/model",
             "//pkg/security/resolvers/process",
+            "//pkg/security/resolvers/securitycontext",
             "//pkg/security/resolvers/tags",
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model",
@@ -68,6 +70,7 @@ go_library(
             "//pkg/security/resolvers",
             "//pkg/security/resolvers/cgroup/model",
             "//pkg/security/resolvers/process",
+            "//pkg/security/resolvers/securitycontext",
             "//pkg/security/resolvers/tags",
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model",
@@ -113,25 +116,31 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "profile_test",
-    srcs = ["disable_test.go"],
+    srcs = [
+        "disable_test.go",
+        "protobuf_security_context_test.go",
+    ],
     embed = [":profile"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/security/config",
             "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/resolvers/securitycontext",
             "//pkg/security/secl/model",
             "//pkg/security/security_profile/activity_tree",
+            "@com_github_datadog_agent_payload_v5//cws/dumpsv1",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/config",
             "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/resolvers/securitycontext",
             "//pkg/security/secl/model",
             "//pkg/security/security_profile/activity_tree",
+            "@com_github_datadog_agent_payload_v5//cws/dumpsv1",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],

@@ -26,6 +26,30 @@ import (
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 )
 
+// minConfigsPerDeviceFloor is the lowest allowed value for the min_configs_per_device
+// maintain at least the current running and start up config
+const minConfigsPerDeviceFloor = 2
+
+// resolveConfigsPerDeviceLimits enforces the invariants EvictConfigs relies on: neither
+// min_configs_per_device nor max_configs_per_device ever goes below minConfigsPerDeviceFloor,
+// and min_configs_per_device is never above max_configs_per_device (the per-device max eviction
+// pass evicts down to max first, so a min above max could never be honored).
+func resolveConfigsPerDeviceLimits(minConfigsPerDevice int, maxConfigsPerDevice int, logger log.Component) (int, int) {
+	if minConfigsPerDevice < minConfigsPerDeviceFloor {
+		logger.Warnf("ncm: network_devices.config_management.store.min_configs_per_device=%d is below the minimum of %d, using %d instead", minConfigsPerDevice, minConfigsPerDeviceFloor, minConfigsPerDeviceFloor)
+		minConfigsPerDevice = minConfigsPerDeviceFloor
+	}
+	if maxConfigsPerDevice < minConfigsPerDeviceFloor {
+		logger.Warnf("ncm: network_devices.config_management.store.max_configs_per_device=%d is below the minimum of %d, using %d instead", maxConfigsPerDevice, minConfigsPerDeviceFloor, minConfigsPerDeviceFloor)
+		maxConfigsPerDevice = minConfigsPerDeviceFloor
+	}
+	if maxConfigsPerDevice < minConfigsPerDevice {
+		logger.Warnf("ncm: network_devices.config_management.store.max_configs_per_device=%d is below min_configs_per_device=%d, using min_configs_per_device=%d instead", maxConfigsPerDevice, minConfigsPerDevice, maxConfigsPerDevice)
+		minConfigsPerDevice = maxConfigsPerDevice
+	}
+	return minConfigsPerDevice, maxConfigsPerDevice
+}
+
 // Requires defines the dependencies for the networkconfigmanagement component
 type Requires struct {
 	compdef.In
@@ -76,6 +100,16 @@ func newComponent(reqs Requires) (*networkDeviceConfigImpl, error) {
 		} else {
 			reqs.Logger.Debugf("ncm: config rollback enabled; local db is %v", dbPath)
 			reqs.Lifecycle.Append(compdef.Hook{OnStop: store.Close})
+			minConfigsPerDevice, maxConfigsPerDevice := resolveConfigsPerDeviceLimits(
+				reqs.Config.GetInt("network_devices.config_management.store.min_configs_per_device"),
+				reqs.Config.GetInt("network_devices.config_management.store.max_configs_per_device"),
+				reqs.Logger,
+			)
+			store.UpdateStoreConfig(
+				minConfigsPerDevice,
+				maxConfigsPerDevice,
+				reqs.Config.GetInt64("network_devices.config_management.store.max_raw_config_store_bytes"),
+			)
 		}
 	}
 

@@ -7,7 +7,7 @@
 // Concrete reporters are provided through the `anomalydetection_reporters` Fx group.
 package reporter
 
-// team: q-branch
+// team: agent-anomaly-detection
 
 import observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 
@@ -45,7 +45,7 @@ type ReportOutput struct {
 	// this advance cycle. Each event is emitted exactly once by the correlator
 	// that generated it — reporters forward them directly without deduplication.
 	//   EpisodeStarted / EpisodeEnded — from anomaly_scorer
-	//   CorrelationDetected           — from time_cluster, cross_signal, passthrough
+	//   CorrelationDetected           — from time_cluster
 	CorrelatorEvents []observerdef.CorrelatorEvent
 }
 

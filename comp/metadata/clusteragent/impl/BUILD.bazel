@@ -31,7 +31,7 @@ go_library(
         "//pkg/util/scrubber",
         "//pkg/util/uuid",
         "//pkg/version",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@io_k8s_client_go//kubernetes/typed/core/v1:core",
     ],
 )
@@ -40,11 +40,13 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = ["cluster_agent_test.go"],
     embed = [":impl"],
-    # Only the base flavor has the correct tags to make this link.
-    # keep
-    flavors = [
-        "base",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",

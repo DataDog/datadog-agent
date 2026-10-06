@@ -297,9 +297,12 @@ func (s *TagStore) LookupHashedWithCompleteness(entityID types.EntityID, cardina
 
 // LookupStandard returns the standard tags recorded for a given entity
 func (s *TagStore) LookupStandard(entityID types.EntityID) ([]string, error) {
-	storedTags, err := s.getEntityTags(entityID)
-	if err != nil {
-		return nil, err
+	s.RLock()
+	defer s.RUnlock()
+
+	storedTags, present := s.store.Get(entityID)
+	if !present {
+		return nil, ErrNotFound
 	}
 
 	return storedTags.getStandard(), nil

@@ -12,5 +12,6 @@ go_library(
         "//comp/core/autodiscovery/telemetry",
         "//pkg/collector/check/id",
         "//pkg/config/setup",
+        "//pkg/config/setup/constants",
     ],
 )

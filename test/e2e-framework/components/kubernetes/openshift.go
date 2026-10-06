@@ -51,7 +51,7 @@ func NewLocalOpenShiftCluster(env config.Env, name string, args OpenShiftCluster
 		// cleanup; without setsid, vfkit gets SIGTERM'd when pulumi exits.
 		startCluster, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-start"), &command.Args{
 			Create: pulumi.Sprintf(`python3 -c "import os,subprocess,sys; os.setsid(); sys.exit(subprocess.call(sys.argv[1:]))" crc start -p %s`, args.PullSecretPath),
-			Delete: pulumi.String("(crc stop || true) && crc delete -f"),
+			Delete: pulumi.String("(crc stop || true) && (crc delete -f || true)"),
 			Triggers: pulumi.Array{
 				pulumi.String(args.PullSecretPath),
 				pulumi.String(args.CPUs),
@@ -102,7 +102,7 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, args Open
 
 		installLibvirt, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("install-libvirt"), &command.Args{
 			Create: pulumi.String(`
-		sudo dnf install -y libvirt NetworkManager`),
+		rpm -q libvirt NetworkManager || sudo dnf install -y libvirt NetworkManager`),
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(openShiftInstallBinary))...)
 		if err != nil {
 			return err
@@ -116,8 +116,13 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, args Open
 		}
 
 		setupCRC, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-setup"), &command.Args{
-			Create: pulumi.Sprintf("crc config set cpus %s && crc config set memory %s && crc config set disk-size %s && crc setup", args.CPUs, args.Memory, args.Disk),
+			Create: pulumi.Sprintf("crc setup --check-only || crc config set cpus %s && crc config set memory %s && crc config set disk-size %s && crc setup", args.CPUs, args.Memory, args.Disk),
 			Delete: pulumi.String("crc cleanup"),
+			Triggers: pulumi.Array{
+				pulumi.String(args.CPUs),
+				pulumi.String(args.Memory),
+				pulumi.String(args.Disk),
+			},
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(pullSecretFile, enableLinger))...)
 		if err != nil {
 			return err
@@ -125,7 +130,7 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, args Open
 
 		startCRC, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-start"), &command.Args{
 			Create: pulumi.String(`crc start -p /tmp/pull-secret.txt`),
-			Delete: pulumi.String("(crc stop || true) && crc delete -f"),
+			Delete: pulumi.String("(crc stop || true) && (crc delete -f || true)"),
 			Triggers: pulumi.Array{
 				pulumi.String(args.PullSecretPath),
 				pulumi.String(args.CPUs),
@@ -231,7 +236,10 @@ func InstallOpenShiftBinary(env config.Env, vm *remote.Host, opts ...pulumi.Reso
 	return vm.OS.Runner().Command(
 		env.CommonNamer().ResourceName("crc-install"),
 		&command.Args{
-			Create: pulumi.Sprintf(`curl -fsSL https://developers.redhat.com/content-gateway/file/pub/openshift-v4/clients/crc/%s/crc-linux-%s.tar.xz | \
+			Triggers: pulumi.Array{
+				pulumi.String(crcVersion),
+			},
+			Create: pulumi.Sprintf(`crc version || curl --fail -sL https://mirror.openshift.com/pub/openshift-v4/clients/crc/%s/crc-linux-%s.tar.xz | \
 	sudo tar -xJ -C /usr/local/bin --strip-components=1 crc-linux-%s-%s/crc`, crcVersion, openShiftArch, crcVersion, openShiftArch),
 		}, opts...)
 }

@@ -15,11 +15,14 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/windows/service"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
 
 func main() {
+	flavor.SetFlavor(flavor.SystemProbe)
+
 	// if command line arguments are supplied, even in a non-interactive session,
 	// then just execute that.  Used when the service is executing the executable,
 	// for instance to trigger a restart.

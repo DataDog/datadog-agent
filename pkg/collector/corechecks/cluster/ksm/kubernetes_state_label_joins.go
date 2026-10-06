@@ -68,6 +68,9 @@ type labelJoiner struct {
 	metricsToJoin map[string]metricToJoin
 }
 
+// argoRolloutLabelName is the KSM-normalized name of the rollouts-pod-template-hash label.
+const argoRolloutLabelName = "label_rollouts_pod_template_hash"
+
 type metricToJoin struct {
 	config *joinsConfig
 	tree   *node
@@ -173,7 +176,7 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *joinsConfi
 	// Fill the `labelsToAdd` on the leaf node.
 	if config.getAllLabels {
 		if current.labelsToAdd == nil {
-			current.labelsToAdd = make([]label, 0, len(metric.Labels)-len(config.labelsToMatch))
+			current.labelsToAdd = make([]label, 0, max(0, len(metric.Labels)-len(config.labelsToMatch)))
 		}
 
 		for labelName, labelValue := range metric.Labels {

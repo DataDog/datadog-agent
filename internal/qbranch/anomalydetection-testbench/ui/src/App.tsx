@@ -717,7 +717,7 @@ function App() {
             state={state}
             actions={actions}
             sidebarWidth={sidebarWidth}
-            phaseMarkers={phaseMarkers}
+            phaseMarkers={phaseMarkers.filter(marker => marker.key !== 'baseline' && marker.key !== 'baseline-mute')}
             timeRange={activeTimeRange}
             onTimeRangeChange={commitTimeRange}
           />

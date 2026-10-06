@@ -42,6 +42,83 @@ var migratableServices = []MigratableService{
 		},
 		LegacyWindowsService: "datadog-otel-agent",
 	},
+	{
+		ID:                 "agent-data-plane",
+		ProcmgrProcessName: "datadog-agent-data-plane",
+		ProcmgrConfigFile:  "datadog-agent-data-plane.yaml",
+		InstallMarkerRels: []string{
+			"embedded/bin/agent-data-plane",
+			"bin/agent/agent-data-plane",
+		},
+		LegacySystemdUnits: []string{
+			"datadog-agent-data-plane.service",
+			"datadog-agent-data-plane-exp.service",
+		},
+	},
+	{
+		ID:                 "process",
+		ProcmgrProcessName: "datadog-agent-process",
+		ProcmgrConfigFile:  "datadog-agent-process.yaml",
+		InstallMarkerRels: []string{
+			"embedded/bin/process-agent",
+			"bin/agent/process-agent",
+		},
+		LegacySystemdUnits: []string{
+			"datadog-agent-process.service",
+			"datadog-agent-process-exp.service",
+		},
+		LegacyWindowsService: "datadog-process-agent",
+	},
+	{
+		ID:                 "sysprobe",
+		ProcmgrProcessName: "datadog-agent-sysprobe",
+		ProcmgrConfigFile:  "datadog-agent-sysprobe.yaml",
+		InstallMarkerRels: []string{
+			"embedded/bin/system-probe",
+			"bin/agent/system-probe",
+		},
+		LegacySystemdUnits: []string{
+			"datadog-agent-sysprobe.service",
+			"datadog-agent-sysprobe-exp.service",
+		},
+		LegacyWindowsService: "datadog-system-probe",
+	},
+	{
+		// Combined Private Action Runner. Still a legacy systemd/SCM unit on hosts that have
+		// not split it into par-control + action-executor under dd-procmgrd.
+		ID:                 "action",
+		ProcmgrProcessName: "datadog-agent-action",
+		ProcmgrConfigFile:  "datadog-agent-action.yaml",
+		InstallMarkerRels: []string{
+			"embedded/bin/privateactionrunner",
+			"bin/agent/privateactionrunner",
+		},
+		LegacySystemdUnits: []string{
+			"datadog-agent-action.service",
+			"datadog-agent-action-exp.service",
+		},
+		LegacyWindowsService: "datadog-agent-action",
+	},
+	{
+		// On-demand executor spawned by par-control. Procmgr-native: no legacy unit owns it.
+		ID:                 "action-executor",
+		ProcmgrProcessName: "datadog-agent-action-executor",
+		ProcmgrConfigFile:  "datadog-agent-action-executor.yaml",
+		InstallMarkerRels: []string{
+			"embedded/bin/privateactionrunner",
+			"bin/agent/privateactionrunner",
+		},
+	},
+	{
+		// PAR control plane. Procmgr-native: no legacy unit owns it.
+		ID:                 "par-control",
+		ProcmgrProcessName: "datadog-agent-par-control",
+		ProcmgrConfigFile:  "datadog-agent-par-control.yaml",
+		InstallMarkerRels: []string{
+			"embedded/bin/par-control",
+			"bin/agent/par-control",
+		},
+	},
 }
 
 func serviceByID(id string) (MigratableService, bool) {
@@ -51,4 +128,14 @@ func serviceByID(id string) (MigratableService, bool) {
 		}
 	}
 	return MigratableService{}, false
+}
+
+// ProcmgrConfigFiles returns the processes.d basenames the catalog tracks. Drift tests compare
+// this set to the installer embeds so a new migration cannot land silently without COAT coverage.
+func ProcmgrConfigFiles() []string {
+	out := make([]string, 0, len(migratableServices))
+	for _, service := range migratableServices {
+		out = append(out, service.ProcmgrConfigFile)
+	}
+	return out
 }

@@ -6,25 +6,45 @@
 package setup
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+func TestConfigureDelegatedAuthAllowsAsyncStartupOnlyForPrimaryKey(t *testing.T) {
+	config := newTestConf(t)
+	config.SetInTest("delegated_auth.org_uuid", "primary-org")
+	config.SetInTest("logs_config.delegated_auth.org_uuid", "logs-org")
+
+	paramsByKey := map[string]delegatedauth.InstanceParams{}
+	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(_ context.Context, params delegatedauth.InstanceParams) error {
+		paramsByKey[params.APIKeyConfigKey] = params
+		return nil
+	}}
+
+	require.NoError(t, configureDelegatedAuth(context.Background(), config, comp))
+	require.Contains(t, paramsByKey, "api_key")
+	require.Contains(t, paramsByKey, "logs_config.api_key")
+	assert.True(t, paramsByKey["api_key"].AllowAsyncStartup)
+	assert.False(t, paramsByKey["logs_config.api_key"].AllowAsyncStartup)
+}
 
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfig {
 	conf := newTestConf(t)
@@ -60,7 +80,7 @@ func TestDefaults(t *testing.T) {
 	// site and dd_url now have defaults; IsConfigured stays false until the user sets them
 	assert.False(t, config.IsConfigured("site"))
 	assert.False(t, config.IsConfigured("dd_url"))
-	assert.Equal(t, DefaultSite, config.GetString("site"))
+	assert.Equal(t, constants.DefaultSite, config.GetString("site"))
 	assert.Equal(t, "https://app.datadoghq.com", config.GetString("dd_url"))
 	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"}, config.GetStringSlice("cloud_provider_metadata"))
 
@@ -235,42 +255,6 @@ func TestUnexpectedWhitespace(t *testing.T) {
 		assert.Contains(t, warnings[0], tc.expectedPosition)
 		assert.Contains(t, warnings[0], tc.expectedPosition)
 	}
-}
-
-func TestUnknownKeysWarning(t *testing.T) {
-	yaml := `
-a: 21
-aa: 21
-b:
-  c:
-    d: "test"
-`
-	conf := confFromYAML(t, yaml)
-
-	res := findUnknownKeys(conf)
-	slices.Sort(res)
-	assert.Equal(t, []string{"a", "aa", "b.c.d"}, res)
-
-	conf.SetDefault("a", 0)
-	res = findUnknownKeys(conf)
-	slices.Sort(res)
-	assert.Equal(t, []string{"aa", "b.c.d"}, res)
-
-	conf.SetInTest("a", 12)
-	res = findUnknownKeys(conf)
-	slices.Sort(res)
-	assert.Equal(t, []string{"aa", "b.c.d"}, res)
-
-	// testing that nested value are correctly detected
-	conf.SetDefault("b.c", map[string]string{})
-	res = findUnknownKeys(conf)
-	slices.Sort(res)
-	assert.Equal(t, []string{"aa"}, res)
-
-	conf.SetInTest("unknown_key.unknown_subkey", "true")
-	res = findUnknownKeys(conf)
-	slices.Sort(res)
-	assert.Equal(t, []string{"aa", "unknown_key.unknown_subkey"}, res)
 }
 
 func TestUnknownVarsWarning(t *testing.T) {
@@ -748,6 +732,8 @@ func TestNetworkPathDefaults(t *testing.T) {
 	config := confFromYAML(t, datadogYaml)
 
 	assert.Equal(t, false, config.GetBool("network_path.connections_monitoring.enabled"))
+	assert.Equal(t, true, config.GetBool("network_path.connections_monitoring.eudm_basic_tests_enabled"))
+	assert.Equal(t, 80, config.GetInt("network_path.connections_monitoring.eudm_basic_candidate_limit"))
 	assert.Equal(t, false, config.GetBool("network_path.remote_config.enabled"))
 	assert.Equal(t, 4, config.GetInt("network_path.collector.workers"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.timeout"))
@@ -770,6 +756,7 @@ func TestHealthPlatformDefaults(t *testing.T) {
 	assert.Equal(t, true, config.GetBool("health_platform.enabled"))
 	assert.Equal(t, 15*time.Minute, config.GetDuration("health_platform.forwarder.interval"))
 	assert.Equal(t, true, config.GetBool("health_platform.invalidconfig_check.enabled"))
+	assert.Equal(t, true, config.GetBool("dogstatsd_client_drop_detection.enabled"))
 }
 
 func TestInfrastructureModeNoneDisablesECSTaskCollection(t *testing.T) {
@@ -781,6 +768,16 @@ infrastructure_mode: none
 
 	assert.False(t, config.GetBool("ecs_task_collection_enabled"))
 	assert.False(t, config.GetBool("integration.enabled"))
+}
+
+func TestInfrastructureModeUnknownValueAppliesNoOverride(t *testing.T) {
+	// A typo must apply no overrides rather than silently picking up those of
+	// the mode the operator meant to set.
+	config := confFromYAML(t, "infrastructure_mode: nonee")
+	applyInfrastructureModeOverrides(config)
+
+	assert.True(t, config.GetBool("integration.enabled"))
+	assert.False(t, config.GetBool("software_inventory.enabled"))
 }
 
 func TestInfrastructureModeLegacyAliases(t *testing.T) {
@@ -801,88 +798,69 @@ allowed_additional_checks:
 	assert.Contains(t, additional, "redis")
 }
 
-func TestNetworkPathFiltersEndUserDeviceMode(t *testing.T) {
-	datadogYaml := `
-infrastructure_mode: end_user_device
-`
-	config := confFromYAML(t, datadogYaml)
-	applyInfrastructureModeOverrides(config)
-	filters := config.Get("network_path.collector.filters")
-	require.NotNil(t, filters, "filters should be set in end_user_device mode")
+func TestNetworkPathFiltersEndUserDeviceModeUnchanged(t *testing.T) {
+	t.Run("default filters remain empty", func(t *testing.T) {
+		config := confFromYAML(t, "infrastructure_mode: end_user_device")
+		filtersBefore := config.Get("network_path.collector.filters")
 
-	filtersList, ok := filters.([]map[string]string)
-	require.True(t, ok, "filters should be a list of maps")
-	require.Greater(t, len(filtersList), 0, "filters should not be empty")
+		applyInfrastructureModeOverrides(config)
 
-	// Check that the first filter is the deny-all rule
-	assert.Equal(t, "*", filtersList[0]["match_domain"])
-	assert.Equal(t, "exclude", filtersList[0]["type"])
+		assert.Empty(t, config.Get("network_path.collector.filters"))
+		assert.Equal(t, filtersBefore, config.Get("network_path.collector.filters"))
+	})
 
-	// Check that some expected SaaS domains are present
-	var foundGoogle, foundSlack, foundGitHub bool
-	for _, filter := range filtersList {
-		if filter["match_domain"] == "*.google.com" && filter["type"] == "include" {
-			foundGoogle = true
-		}
-		if filter["match_domain"] == "*.slack.com" && filter["type"] == "include" {
-			foundSlack = true
-		}
-		if filter["match_domain"] == "*.github.com" && filter["type"] == "include" {
-			foundGitHub = true
-		}
-	}
-	assert.True(t, foundGoogle, "*.google.com should be in the default filters")
-	assert.True(t, foundSlack, "*.slack.com should be in the default filters")
-	assert.True(t, foundGitHub, "*.github.com should be in the default filters")
-
-}
-
-func TestNetworkPathFiltersEndUserDeviceModeAppendsUser(t *testing.T) {
-	datadogYaml := `
+	t.Run("user filters remain unchanged", func(t *testing.T) {
+		config := confFromYAML(t, `
 infrastructure_mode: end_user_device
 network_path:
   collector:
     filters:
       - match_ip: 0.0.0.0/0
         type: include
-`
-	config := confFromYAML(t, datadogYaml)
-	applyInfrastructureModeOverrides(config)
-	filters := config.Get("network_path.collector.filters")
-	require.NotNil(t, filters)
+`)
+		filtersBefore := config.Get("network_path.collector.filters")
 
-	filtersList, ok := filters.([]map[string]string)
-	require.True(t, ok, "filters should be []map[string]string, got %T", filters)
+		applyInfrastructureModeOverrides(config)
 
-	last := filtersList[len(filtersList)-1]
-	assert.Equal(t, "0.0.0.0/0", last["match_ip"], "user filter should be appended last")
-	assert.Equal(t, "include", last["type"])
+		assert.Equal(t, filtersBefore, config.Get("network_path.collector.filters"))
+	})
 }
 
-func TestNetworkPathFiltersEndUserDeviceModeMalformedUserFiltersSkipsOverride(t *testing.T) {
-	// Malformed filters: list of scalars instead of list of maps, so structure.UnmarshalKey fails.
+func TestInfrastructureModeEndUserDeviceEnablesLogonDuration(t *testing.T) {
 	datadogYaml := `
 infrastructure_mode: end_user_device
-network_path:
-  collector:
-    filters:
-      - "not_a_map"
-      - "still_not_a_map"
 `
 	config := confFromYAML(t, datadogYaml)
 	applyInfrastructureModeOverrides(config)
 
-	// The filter override must be skipped: the user's (malformed) value is left in place
-	// rather than being silently replaced with the EUDM defaults.
-	filters := config.Get("network_path.collector.filters")
-	_, ok := filters.([]map[string]string)
-	assert.False(t, ok, "EUDM defaults should NOT be applied when user filters fail to unmarshal, got %T", filters)
+	assert.True(t, config.GetBool("logon_duration.enabled"),
+		"end_user_device mode should auto-enable logon_duration")
+}
 
-	// The other EUDM overrides should still be applied — a filter parse failure must not
-	// prevent the rest of the mode from taking effect.
-	assert.True(t, config.GetBool("process_config.process_collection.enabled"))
-	assert.True(t, config.GetBool("software_inventory.enabled"))
-	assert.True(t, config.GetBool("notable_events.enabled"))
+func TestInfrastructureModeNonEUDLeavesLogonDurationDefault(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: none
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.False(t, config.GetBool("logon_duration.enabled"),
+		"non-EUD modes should leave logon_duration at its default (false)")
+}
+
+func TestInfrastructureModeEndUserDeviceLogonDurationUserOverride(t *testing.T) {
+	// An explicit user setting must win over the EUD default, since SourceInfraMode
+	// sits below file config in priority.
+	datadogYaml := `
+infrastructure_mode: end_user_device
+logon_duration:
+  enabled: false
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.False(t, config.GetBool("logon_duration.enabled"),
+		"explicit user logon_duration.enabled=false should override the EUD default")
 }
 
 func TestApplyUseDogstatsdSuppression(t *testing.T) {
@@ -1433,18 +1411,18 @@ func TestConfigAssignAtPath(t *testing.T) {
 	assert.NoError(t, err)
 
 	expectedYaml := `additional_endpoints:
-  https://url1.com:
-  - first
-  - changed
-  https://url2.eu:
-  - third
-process_config:
-  additional_endpoints:
     https://url1.com:
-    - fourth
-    - fifth
+        - first
+        - changed
     https://url2.eu:
-    - modified
+        - third
+process_config:
+    additional_endpoints:
+        https://url1.com:
+            - fourth
+            - fifth
+        https://url2.eu:
+            - modified
 secret_backend_command: different
 use_proxy_for_cloud_metadata: true
 `
@@ -1517,7 +1495,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	assert.NoError(t, err)
 
 	expectedYaml := `secret_backend_arguments:
-- password1
+    - password1
 secret_backend_command: some command
 use_proxy_for_cloud_metadata: true
 `
@@ -1622,15 +1600,9 @@ additional_endpoints:
 	)
 }
 
-func TestServerlessConfigNumComponents(t *testing.T) {
-	// Enforce the number of config "components" reachable by the serverless agent
-	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, commonConfigComponents, 24)
-}
-
 func TestServerlessConfigInit(t *testing.T) {
 	conf := newEmptyMockConf(t)
-	initCommonConfigComponents(conf)
+	initCommonBase(conf)
 
 	// ensure some core configs are declared
 	assert.True(t, conf.IsKnown("api_key"))

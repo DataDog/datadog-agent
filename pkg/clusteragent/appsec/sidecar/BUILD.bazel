@@ -19,10 +19,13 @@ dd_agent_go_test(
     name = "sidecar_test",
     srcs = ["container_test.go"],
     embed = [":sidecar"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//pkg/clusteragent/appsec/config",
         "@com_github_stretchr_testify//assert",

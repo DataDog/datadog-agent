@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "config",
@@ -12,13 +13,14 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/dogstatsd/statsd/def",
-        "//pkg/config/setup",
         "//pkg/config/utils",
+        "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/actions",
         "//pkg/privateactionrunner/adapters/modes",
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/util",
         "//pkg/util/flavor",
+        "//pkg/util/http",
         "//pkg/util/log",
         "//pkg/version",
         "@com_github_datadog_datadog_go_v5//statsd",
@@ -27,15 +29,14 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "config_test",
     srcs = ["transform_test.go"],
     embed = [":config"],
-    gotags = ["test"],
     deps = [
         "//comp/dogstatsd/statsd/def",
         "//pkg/config/mock",
-        "//pkg/config/setup",
+        "//pkg/privateactionrunner",
         "//pkg/util/flavor",
         "//pkg/util/log",
         "@com_github_datadog_datadog_go_v5//statsd",

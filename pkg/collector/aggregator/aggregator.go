@@ -163,6 +163,32 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 	sender.OpenmetricsBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
 }
 
+// LogMsg routes a shared library check's log line through the agent logger.
+// Levels must stay in sync with the LogLevel enum in pkg/collector/sharedlibrary/rustchecks/core/src/aggregator.rs.
+// Not named LogMessage to avoid a cgo symbol collision with pkg/collector/python's LogMessage export.
+//
+//export LogMsg
+func LogMsg(message *C.char, level C.int) {
+	msg := C.GoString(message)
+
+	switch level {
+	case 50: // CRITICAL
+		log.Critical(msg)
+	case 40: // ERROR
+		log.Error(msg)
+	case 30: // WARNING
+		log.Warn(msg)
+	case 20: // INFO
+		log.Info(msg)
+	case 10: // DEBUG
+		log.Debug(msg)
+	case 7: // TRACE
+		log.Trace(msg)
+	default:
+		log.Info(msg)
+	}
+}
+
 // SubmitEventPlatformEvent is the method exposed to scripts to submit event platform events
 //
 //export SubmitEventPlatformEvent

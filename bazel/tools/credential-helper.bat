@@ -4,7 +4,7 @@ setlocal
 :: Credential Helpers Specification: https://github.com/EngFlow/credential-helper-spec/blob/main/spec.md
 set /p _=
 
-:: Preset token: always honor it
+:: Preset token: always honor it (e.g. minted on the host and injected into a container)
 if defined BUILDBARN_ID_TOKEN (
   call :write_auth_headers "%BUILDBARN_ID_TOKEN%"
   exit /b 0

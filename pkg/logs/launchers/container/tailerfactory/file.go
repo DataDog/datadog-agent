@@ -100,7 +100,7 @@ func (tf *factory) attachChildSource(source, childSource *sources.LogSource) (Ta
 			childSource.Config.Path))
 
 	// link status for this source and the parent, and hide the parent
-	childSource.Status = source.Status
+	childSource.SetStatus(source.Status())
 	childSource.ParentSource = source
 	source.HideFromStatus()
 

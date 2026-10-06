@@ -18,22 +18,22 @@
           {
             "function": "main.testTimeMonotonic",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/times.go",
-            "lineNumber": 35
+            "lineNumber": 40
           },
           {
             "function": "main.executeTimeFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/times.go",
-            "lineNumber": 56
+            "lineNumber": 64
           },
           {
             "function": "main.runAll",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 76
+            "lineNumber": 77
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 39
+            "lineNumber": 40
           },
           {
             "function": "runtime.main",

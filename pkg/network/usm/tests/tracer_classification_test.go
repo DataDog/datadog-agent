@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf || (windows && npm)
+//go:build (linux && bpf) || (windows && npm)
 
 // Package usm contains tests for USM
 package tests
@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -54,14 +55,11 @@ func setupTracer(t testing.TB, cfg *config.Config) *tracer.Tracer {
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		cfg.ProtocolClassificationEnabled = false
-	}
 	if ebpftest.GetBuildMode() == ebpftest.SK {
 		cfg.ProtocolClassificationEnabled = false
 	}
 
-	tr, err := tracer.NewTracer(cfg, nil, nil)
+	tr, err := tracer.NewTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 

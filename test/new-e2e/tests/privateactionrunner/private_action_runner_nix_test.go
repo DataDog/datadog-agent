@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	coreAgentServiceName           = "datadog-agent"
 	privateActionRunnerServiceName = "datadog-agent-action"
 	privateActionRunnerLogFile     = "/var/log/datadog/private-action-runner.log"
 

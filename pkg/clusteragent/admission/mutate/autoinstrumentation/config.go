@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -43,6 +44,9 @@ type staticConfig struct {
 	// Instrumentation is the configuration for the autoinstrumentation logic
 	Instrumentation *InstrumentationConfig
 
+	// gpuTarget is the target injecting tracers into GPU workloads. It is nil when gpu.tracing is disabled.
+	gpuTarget *Target
+
 	// containerRegistry is the container registry to use for the autoinstrumentation logic
 	containerRegistry string
 
@@ -50,6 +54,10 @@ type staticConfig struct {
 	// When non-empty, libraries from registries not in this list will not be injected.
 	// An empty list allows all registries (default).
 	registryAllowList []string
+
+	// defaultDDRegistries contains the Datadog-owned registries that the automatic
+	// injection mode can safely use through the CSI driver without extra credentials.
+	defaultDDRegistries []string
 
 	// mutateUnlabelled is used to control if we require workloads to have a label when using Local Lib Injection.
 	mutateUnlabelled bool
@@ -97,6 +105,9 @@ type runtimeConfig struct {
 	// It's populated by the webhook constructor (not from static config) and can be used
 	// to gate features that require a minimum Kubernetes version.
 	kubeServerVersion *version.Info
+
+	// isOpenShift is true when the cluster runs OpenShift.
+	isOpenShift bool
 }
 
 var excludedContainerNames = map[string]bool{
@@ -132,6 +143,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
 	registryAllowList := datadogConfig.GetStringSlice("admission_controller.auto_instrumentation.container_registry_allow_list")
+	defaultDDRegistries := datadogConfig.GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries")
 	mutateUnlabelled := datadogConfig.GetBool("admission_controller.mutate_unlabelled")
 
 	return &Config{
@@ -139,8 +151,10 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 			Webhook:                       NewWebhookConfig(datadogConfig),
 			LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
 			Instrumentation:               instrumentationConfig,
+			gpuTarget:                     newGPUTarget(gpuconfig.NewTracingConfig(datadogConfig), gpuconfig.NewJobsConfig(datadogConfig)),
 			containerRegistry:             containerRegistry,
 			registryAllowList:             registryAllowList,
+			defaultDDRegistries:           defaultDDRegistries,
 			mutateUnlabelled:              mutateUnlabelled,
 			initResources:                 initResources,
 			initSecurityContext:           initSecurityContext,
@@ -183,6 +197,10 @@ type InstrumentationConfig struct {
 	// caveat of the annotation based instrumentation. Full config
 	// key: apm_config.instrumentation.enabled
 	Enabled bool `mapstructure:"enabled" json:"enabled"`
+	// OnDemand keeps the SSI admission webhook available for runtime workload
+	// selection without enabling implicit instrumentation. Full config key:
+	// apm_config.instrumentation.on_demand
+	OnDemand bool `mapstructure:"on_demand" json:"on_demand"`
 	// EnabledNamespaces is a list of namespaces where the autoinstrumentation is enabled. If empty, it is enabled in
 	// all namespaces. EnabledNamespace and DisabledNamespaces are mutually exclusive and cannot be set together. Full
 	// config key: apm_config.instrumentation.enabled_namespaces
@@ -206,21 +224,6 @@ type InstrumentationConfig struct {
 	// Possible values: "auto" (default), "init_container" and "csi".
 	// Full config key: apm_config.instrumentation.injection_mode
 	InjectionMode string `mapstructure:"injection_mode" json:"injection_mode"`
-	// CSIDriverDetectionEnabled is a temporary feature flag gating the CSI
-	// auto-detection logic in the library-injection AutoProvider. When true,
-	// AutoProvider may switch to the CSI provider if the Datadog CSI driver
-	// is registered in the cluster. Full config key:
-	// apm_config.instrumentation.csi_driver_detection_enabled.
-	//
-	// The field is unused by this struct's consumers: the flag is read
-	// directly via config.GetBool both in the cluster-agent entry point (to
-	// decide whether to start the CSIDriverWatcher) and in the workloadmeta
-	// kubeapiserver collector (to decide whether to watch
-	// csidrivers.storage.k8s.io). It must still be declared here because
-	// NewInstrumentationConfig unmarshals apm_config.instrumentation with
-	// structure.ErrorUnused: without this field, setting the flag would
-	// crash the cluster-agent at startup.
-	CSIDriverDetectionEnabled bool `mapstructure:"csi_driver_detection_enabled" json:"csi_driver_detection_enabled"`
 }
 
 // NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the

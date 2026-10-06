@@ -72,10 +72,19 @@ func (s *Server) StreamConfigEvents(req *pb.ConfigStreamRequest, stream pb.Agent
 
 	interval := s.cfg.GetDuration("remote_agent.configstream.sleep_interval")
 
+	// Keep the connection alive by refreshing the Remote Agent Registry over time
+	keepalive := time.NewTicker(s.cfg.GetDuration("remote_agent.registry.recommended_refresh_interval"))
+	defer keepalive.Stop()
+
 	for {
 		select {
 		case <-stream.Context().Done():
 			return stream.Context().Err()
+		case <-keepalive.C:
+			if !s.registry.RefreshRemoteAgent(sessionID) {
+				log.Infof("Closing config stream for '%s': session_id %s is no longer registered", req.Name, sessionID)
+				return status.Errorf(codes.PermissionDenied, "session_id '%s' no longer registered", sessionID)
+			}
 		case event, ok := <-eventsCh:
 			if !ok {
 				return nil

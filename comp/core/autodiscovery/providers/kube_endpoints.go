@@ -27,6 +27,7 @@ import (
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -60,7 +61,7 @@ type configInfo struct {
 
 // NewKubeEndpointsConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeEndpointsConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+func NewKubeEndpointsConfigProvider(_ *constants.ConfigurationProviders, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -292,7 +293,8 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 		endpointsID := apiserver.EntityForEndpoints(svc.Namespace, svc.Name, "")
 		setEndpointIDs[endpointsID] = struct{}{}
 
-		endptConf, errors := utils.ExtractTemplatesFromAnnotations(endpointsID, svc.GetAnnotations(), kubeEndpointID)
+		hybridIgnoreADTags := cfg.GetBool("cluster_checks.support_hybrid_ignore_ad_tags")
+		endptConf, errors := utils.ExtractTemplatesFromAnnotations(endpointsID, svc.GetAnnotations(), kubeEndpointID, hybridIgnoreADTags)
 		for _, err := range errors {
 			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}

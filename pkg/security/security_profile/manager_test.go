@@ -960,7 +960,10 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 				config: &config.Config{
 					RuntimeSecurity: &config.RuntimeSecurityConfig{
 						ActivityDumpMaxDumpSize: func() int {
-							return 2048
+							// Threshold is two process nodes' worth of the shallow
+							// ApproximateSize estimate, so the ProcessNodes:2 fixtures are
+							// exactly overweight regardless of the ProcessNode struct size.
+							return 2 * int(unsafe.Sizeof(activity_tree.ProcessNode{}))
 						},
 					},
 				},
@@ -976,8 +979,8 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 
 // ManagerV2 unit tests
 
-func newTestManagerV2() (*ManagerV2, *lru.Cache[uint32, sampleCookieEntry]) {
-	cookieMap, _ := lru.New[uint32, sampleCookieEntry](128)
+func newTestManagerV2() (*ManagerV2, *lru.Cache[uint64, sampleCookieEntry]) {
+	cookieMap, _ := lru.New[uint64, sampleCookieEntry](128)
 	m := &ManagerV2{
 		sampleCookieMap:       cookieMap,
 		sampleRefreshReceived: atomic.NewUint64(0),
@@ -1007,7 +1010,7 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 		processNode.AppendImageTagID(imageTagID, initialTime)
 		eventNodeBase.AppendImageTagID(imageTagID, initialTime)
 
-		cookieMap.Add(uint32(1), sampleCookieEntry{
+		cookieMap.Add(uint64(1), sampleCookieEntry{
 			profile:       prof,
 			processNode:   processNode,
 			eventNodeBase: &eventNodeBase,
@@ -1016,13 +1019,13 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 
 		m.HandleSampleRefresh(1)
 
-		procTimes, ok := processNode.GetSeenTimes(imageTagID)
+		_, procLastSeen, ok := processNode.GetSeenTimes(imageTagID)
 		assert.True(t, ok)
-		assert.True(t, procTimes.LastSeen.After(initialTime))
+		assert.Greater(t, procLastSeen, initialTime.UnixNano())
 
-		evtTimes, ok := eventNodeBase.GetSeenTimes(imageTagID)
+		_, evtLastSeen, ok := eventNodeBase.GetSeenTimes(imageTagID)
 		assert.True(t, ok)
-		assert.True(t, evtTimes.LastSeen.After(initialTime))
+		assert.Greater(t, evtLastSeen, initialTime.UnixNano())
 	})
 
 	t.Run("valid_cookie_nil_event_node_updates_process_only", func(t *testing.T) {
@@ -1036,7 +1039,7 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 		initialTime := time.Now().Add(-time.Hour)
 		processNode.AppendImageTagID(imageTagID, initialTime)
 
-		cookieMap.Add(uint32(1), sampleCookieEntry{
+		cookieMap.Add(uint64(1), sampleCookieEntry{
 			profile:       prof,
 			processNode:   processNode,
 			eventNodeBase: nil,
@@ -1045,23 +1048,23 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 
 		m.HandleSampleRefresh(1)
 
-		procTimes, ok := processNode.GetSeenTimes(imageTagID)
+		_, procLastSeen, ok := processNode.GetSeenTimes(imageTagID)
 		assert.True(t, ok)
-		assert.True(t, procTimes.LastSeen.After(initialTime))
+		assert.Greater(t, procLastSeen, initialTime.UnixNano())
 	})
 
 	t.Run("nil_process_node_removes_cookie", func(t *testing.T) {
 		m, cookieMap := newTestManagerV2()
 		prof := profile.New()
 
-		cookieMap.Add(uint32(2), sampleCookieEntry{
+		cookieMap.Add(uint64(2), sampleCookieEntry{
 			profile:     prof,
 			processNode: nil,
 			imageTag:    "v1",
 		})
 
 		m.HandleSampleRefresh(2)
-		assert.False(t, cookieMap.Contains(uint32(2)))
+		assert.False(t, cookieMap.Contains(uint64(2)))
 	})
 
 	t.Run("empty_seen_map_removes_cookie", func(t *testing.T) {
@@ -1070,14 +1073,14 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 		processNode := &activity_tree.ProcessNode{}
 		processNode.NodeBase = activity_tree.NewNodeBase()
 
-		cookieMap.Add(uint32(3), sampleCookieEntry{
+		cookieMap.Add(uint64(3), sampleCookieEntry{
 			profile:     prof,
 			processNode: processNode,
 			imageTag:    "v1",
 		})
 
 		m.HandleSampleRefresh(3)
-		assert.False(t, cookieMap.Contains(uint32(3)))
+		assert.False(t, cookieMap.Contains(uint64(3)))
 	})
 }
 

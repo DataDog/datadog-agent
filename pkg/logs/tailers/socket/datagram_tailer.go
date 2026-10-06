@@ -6,8 +6,8 @@
 package socket
 
 import (
+	"errors"
 	"net"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/utils/ipfilter"
@@ -71,7 +71,7 @@ func NewDatagramTailer(source *sources.LogSource, conn net.PacketConn, outputCha
 
 // Start begins reading datagrams from the connection.
 func (t *DatagramTailer) Start() {
-	t.source.Status.Success()
+	t.source.Status().Success()
 	log.Infof("Start tailing datagrams on %s (format=%q, udp=%v)", t.conn.LocalAddr(), t.source.Config.Format, t.isIPBased)
 
 	go t.forwardMessages()
@@ -195,5 +195,5 @@ func extractIP(addr net.Addr) string {
 
 // isClosedConn returns true if the error is related to a closed connection.
 func isClosedConn(err error) bool {
-	return strings.Contains(err.Error(), "use of closed network connection")
+	return errors.Is(err, net.ErrClosed)
 }

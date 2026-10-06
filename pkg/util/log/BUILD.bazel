@@ -30,6 +30,7 @@ go_library(
 dd_agent_go_test(
     name = "log_test",
     srcs = [
+        "caller_position_test.go",
         "klog_redirect_test.go",
         "log_bench_test.go",
         "log_limit_test.go",

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "installer",
@@ -24,14 +25,14 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "installer_test",
     srcs = [
         "default_packages_test.go",
         "installer_test.go",
+        "installer_windows_test.go",
     ],
     embed = [":installer"],
-    gotags = ["test"],
     deps = [
         "//pkg/fleet/installer/config",
         "//pkg/fleet/installer/db",
@@ -43,5 +44,13 @@ go_test(
         "//pkg/fleet/installer/repository",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
+            "//pkg/version",
+            "@com_github_microsoft_go_winio//:go-winio",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

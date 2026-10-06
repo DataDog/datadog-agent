@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/system-probe.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/system-probe_schema.yaml
 title: System Probe configuration schema
 description: The schema to validate the system-probe.yaml configuration for the DataDog
   Agent
@@ -119,8 +119,6 @@ properties:
         default: /var/tmp/datadog-agent/system-probe/btf
         env_vars:
         - DD_SYSTEM_PROBE_BTF_OUTPUT_DIR
-        tags:
-        - generate_const:defaultBTFOutputDir
       btf_path:
         node_type: setting
         type: string
@@ -412,8 +410,6 @@ properties:
         node_type: setting
         type: integer
         default: 600
-        tags:
-        - generate_const:defaultConnsMessageBatchSize
       max_dns_stats:
         node_type: setting
         type: integer
@@ -453,7 +449,6 @@ properties:
         type: integer
         default: 400
         tags:
-        - generate_const:defaultOffsetThreshold
         - golang_type:int64
       process_config:
         node_type: section
@@ -495,8 +490,6 @@ properties:
         default: /var/tmp/datadog-agent/system-probe/build
         env_vars:
         - DD_RUNTIME_COMPILER_OUTPUT_DIR
-        tags:
-        - generate_const:defaultRuntimeCompilerOutputDir
       source_excludes:
         node_type: setting
         type: object
@@ -627,7 +620,10 @@ properties:
       direct_send:
         node_type: setting
         type: boolean
-        default: false
+        platform_default:
+          linux: true
+          windows: true
+          other: false
       dns_recorded_query_types:
         node_type: setting
         type: array
@@ -785,7 +781,11 @@ properties:
         type: boolean
         default: false
         visibility: public
-        description: Set to true to enable the Traceroute Module of the System Probe
+        description: |-
+          Set to true to enable the Traceroute Module of the System Probe.
+          When this setting is unset, the module is enabled automatically if Cloud Network Monitoring
+          and either Standard or Basic Network Path Dynamic Tests are enabled. Set to false explicitly to
+          prevent automatic enablement.
   runtime_security_config:
     $ref: system-probe-cws.yaml
   event_monitoring_config:
@@ -993,6 +993,17 @@ properties:
                 env_vars:
                 - DD_EVENT_MONITORING_CONFIG_NETWORK_RAW_PACKET_LIMITER_RATE
                 - DD_RUNTIME_SECURITY_CONFIG_NETWORK_RAW_PACKET_LIMITER_RATE
+          sk_lookup_pid_resolution:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_NETWORK_SK_LOOKUP_PID_RESOLUTION_ENABLED
+                - DD_RUNTIME_SECURITY_CONFIG_NETWORK_SK_LOOKUP_PID_RESOLUTION_ENABLED
       basename_approvers_size:
         node_type: setting
         type: integer
@@ -1124,6 +1135,44 @@ properties:
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_BUFFER_SIZE
             - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_BUFFER_SIZE
+          dispatcher_queue:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_ENABLED
+                - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_ENABLED
+                description: |-
+                  Set to true to enable the user-space ring-buffer dispatcher queue.
+                  Off by default. When disabled, events are handled inline on the kernel read loop.
+              size:
+                node_type: setting
+                type: integer
+                default: 500000
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE
+                - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE
+                description: Dispatcher queue capacity in bytes. Multiplied by CPU count when size_per_core is true.
+              size_per_core:
+                node_type: setting
+                type: boolean
+                default: true
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_PER_CORE
+                - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_PER_CORE
+                description: Set to true to multiply size by the number of CPUs.
+              size_min:
+                node_type: setting
+                type: integer
+                default: 1048576
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_MIN
+                - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_MIN
+                description: Minimum dispatcher queue capacity in bytes, applied after size and optional per-core scaling.
           kretprobe_max_active:
             node_type: setting
             type: integer
@@ -1152,6 +1201,13 @@ properties:
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_RING_BUFFER
             - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_USE_RING_BUFFER
+          use_syscall_task_storage:
+            node_type: setting
+            type: boolean
+            default: true
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_SYSCALL_TASK_STORAGE
+            - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_USE_SYSCALL_TASK_STORAGE
       events_stats:
         node_type: section
         type: object
@@ -1252,7 +1308,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_SPAN_TRACKING_ENABLED
             - DD_RUNTIME_SECURITY_CONFIG_SPAN_TRACKING_ENABLED
@@ -1273,8 +1329,8 @@ properties:
     type: object
     visibility: public
     description: |-
-      Configuration for the GPU Monitoring module, which uses eBPF probes to collect
-      per-process GPU metrics on Linux hosts (kernel 5.8+).
+      Configuration for the GPU Monitoring module, which collects GPU
+      metrics that require privileged access. Only for Linux hosts.
       Required for GPU monitoring on non-containerized Linux hosts alongside
       gpu.enabled: true in datadog.yaml.
     tags: []
@@ -1285,9 +1341,17 @@ properties:
         default: false
         visibility: public
         description: |-
-          Set to true to enable the GPU Monitoring module. This loads the eBPF programs
-          that collect per-process GPU utilization, memory, and performance metrics.
+          Set to true to enable the GPU Monitoring module, enabling collection of privileged metrics.
           Must be used together with gpu.enabled: true in datadog.yaml.
+      enable_ebpf_probes:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Set to true to additionally load the GPU Monitoring eBPF probes, which collect
+          the gpu.process.core.usage metric. Requires Linux kernel 5.8 or later.
+          These probes are deprecated and are disabled by default.
       attacher_detailed_logs:
         node_type: setting
         type: boolean
@@ -1314,10 +1378,13 @@ properties:
         format: duration
         tags:
         - golang_type:duration
-      enable_ebpf_probes:
+      driver_events_enabled:
         node_type: setting
         type: boolean
-        default: true
+        default: false
+        visibility: public
+        description: |-
+          Set to true to collect NVIDIA driver events from the kernel log.
       enable_fatbin_parsing:
         node_type: setting
         type: boolean
@@ -1516,8 +1583,6 @@ properties:
             node_type: setting
             type: number
             default: 0.5
-            tags:
-            - golang_type:float64
           interrupt_overhead:
             node_type: setting
             type: string
@@ -1536,8 +1601,6 @@ properties:
             node_type: setting
             type: number
             default: 0.1
-            tags:
-            - golang_type:float64
       debug_info_disk_cache:
         node_type: section
         type: object
@@ -1546,8 +1609,6 @@ properties:
             node_type: setting
             type: string
             default: ${run_path}/system-probe/dynamic-instrumentation/decompressed-debug-info
-            tags:
-            - generate_const:defaultDynamicInstrumentationDebugInfoDir
           enabled:
             node_type: setting
             type: boolean
@@ -1568,8 +1629,6 @@ properties:
             node_type: setting
             type: number
             default: 0
-            tags:
-            - golang_type:float64
       diagnostics_output_file_path:
         node_type: setting
         type: boolean

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -39,6 +40,10 @@ type configStore struct {
 	db         *bbolt.DB
 	lock       sync.RWMutex
 	compressor compression.Compressor
+
+	minConfigsPerDevice    int
+	maxConfigsPerDevice    int
+	maxRawConfigStoreBytes int64
 }
 
 var _ ConfigStore = (*configStore)(nil)
@@ -228,8 +233,10 @@ func (cs *configStore) CheckDuplicate(deviceID string, configType types.ConfigTy
 	return existing.ConfigUUID, nil
 }
 
-// GetConfig retrieves all the data associated with a config given its UUID, and refreshes
-// its LastAccessedAt so actively-retrieved configs aren't treated as stale by LRU eviction.
+// GetConfig retrieves the data for a config by UUID, and refreshes its
+// LastAccessedAt so actively-retrieved configs aren't treated as stale by LRU
+// eviction. It will return an UnknownUUIDError if the UUID isn't recognized;
+// any other returned error indicates a problem with the database.
 func (cs *configStore) GetConfig(configUUID string) (string, *types.ConfigMetadata, error) {
 	var rawConfig string
 	var metadata types.ConfigMetadata
@@ -240,7 +247,7 @@ func (cs *configStore) GetConfig(configUUID string) (string, *types.ConfigMetada
 		// Unmarshal raw config
 		rawConfigBytes := tx.Bucket([]byte(rawConfigBucket)).Get(key)
 		if rawConfigBytes == nil {
-			return fmt.Errorf("raw config not found for UUID: %s", configUUID)
+			return &ConfigNotFoundError{configUUID}
 		}
 		decompressedRawConfig, err := cs.compressor.Decompress(rawConfigBytes)
 		if err != nil {
@@ -374,9 +381,13 @@ func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*types
 	return configsPerDevice, remaining
 }
 
-// EvictConfigs evicts configs exceeding per-device caps then LRU-evicts until the DB is within maxSize.
-// Returns the UUIDs of all evicted configs; returns an error if the DB size still exceeds maxSize after eviction.
-func (cs *configStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs int, maxSize int64) ([]string, error) {
+func (cs *configStore) UpdateStoreConfig(minConfigsPerDevice int, maxConfigsPerDevice int, maxRawConfigStoreBytes int64) {
+	cs.minConfigsPerDevice = minConfigsPerDevice
+	cs.maxConfigsPerDevice = maxConfigsPerDevice
+	cs.maxRawConfigStoreBytes = maxRawConfigStoreBytes
+}
+
+func (cs *configStore) EvictConfigs() ([]string, error) {
 	evicted := make([]string, 0)
 
 	configsPerDevice, sortedEntries, err := cs.buildEvictionIndex()
@@ -384,8 +395,9 @@ func (cs *configStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs i
 		return nil, err
 	}
 
-	candidates := getEvictableExceedingMax(configsPerDevice, sortedEntries, maxRetainedConfigs)
+	candidates := getEvictableExceedingMax(configsPerDevice, sortedEntries, cs.maxConfigsPerDevice)
 	for _, uuid := range candidates {
+		log.Debugf("NCM config store: evicting config %s (max_configs_per_device=%d exceeded)", uuid, cs.maxConfigsPerDevice)
 		if err := cs.DeleteConfig(uuid); err != nil {
 			return evicted, err
 		}
@@ -398,26 +410,34 @@ func (cs *configStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs i
 		return evicted, err
 	}
 
-	for size > maxSize {
-		candidate := getGlobalLRUCandidate(configsPerDevice, sortedEntries, minRetainedConfigs)
+	sizeEvicted := 0
+	for size > cs.maxRawConfigStoreBytes {
+		candidate := getGlobalLRUCandidate(configsPerDevice, sortedEntries, cs.minConfigsPerDevice)
 		if candidate == "" {
 			break
 		}
+		log.Debugf("NCM config store: evicting config %s (size=%d exceeds limit=%d)", candidate, size, cs.maxRawConfigStoreBytes)
 		if err := cs.DeleteConfig(candidate); err != nil {
 			return evicted, err
 		}
 		configsPerDevice, sortedEntries = updateEvictionIndex(configsPerDevice, sortedEntries, candidate)
 		evicted = append(evicted, candidate)
+		sizeEvicted++
 
 		size, err = cs.Size()
 		if err != nil {
 			return evicted, err
 		}
 	}
-
-	if size > maxSize {
-		return evicted, errors.New("failed to evict configs: DB size still exceeds the limit")
+	if sizeEvicted > 0 {
+		log.Infof("NCM config store: evicted %d config(s) to bring store size to %d bytes (limit=%d)", sizeEvicted, size, cs.maxRawConfigStoreBytes)
 	}
+
+	if size > cs.maxRawConfigStoreBytes {
+		err := errors.New("partial eviction: DB size still exceeds the limit")
+		return evicted, err
+	}
+
 	return evicted, nil
 }
 

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
@@ -36,6 +37,15 @@ type persistingIntegrationsSuite struct {
 	srcVersion     string
 	osDesc         e2eos.Descriptor
 	testingKeysURL string
+}
+
+func (is *persistingIntegrationsSuite) SetupSuite() {
+	is.BaseSuite.SetupSuite()
+	defer is.CleanupOnSetupFailure()
+
+	h := host.New(is.T, is.Env().RemoteHost, is.osDesc, is.osDesc.Architecture)
+	h.ConfigureYumMirrors()
+	h.ConfigureAptMirrors()
 }
 
 func (is *persistingIntegrationsSuite) AfterTest(suiteName, testName string) {
@@ -82,7 +92,7 @@ func TestPersistingIntegrations(t *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", osDesc.String())
 
-			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
+			vmOpts = append(vmOpts, ec2.WithOS(osDesc), ec2.WithInternetAccess())
 
 			// To avoid stack name too long
 			simpleFlavorName := *flavorName
@@ -201,7 +211,7 @@ func (is *persistingIntegrationsSuite) DisableSkipInstallThirdPartyDepsFlag(VMcl
 
 func (is *persistingIntegrationsSuite) SetupAgentStartVersion(VMclient *common.TestClient) string {
 	// By default, pipelineID is set to E2E_PIPELINE_ID, we need to unset it to avoid installing the agent from the pipeline
-	install.Unix(is.T(), VMclient, installparams.WithArch(string(is.osDesc.Architecture)), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")), installparams.WithPipelineID(""))
+	install.Unix(is.T(), VMclient, installparams.WithArch(string(is.osDesc.Architecture)), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithPipelineID(""))
 	common.CheckInstallation(is.T(), VMclient)
 	return VMclient.AgentClient.Version()
 }

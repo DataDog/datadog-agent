@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "containers",
@@ -8,6 +9,7 @@ go_library(
     deps = [
         "//comp/core/tagger/def",
         "//comp/core/tagger/types",
+        "//comp/core/tagger/utils",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/util/workloadmeta",
         "//comp/core/workloadmeta/def",
@@ -20,11 +22,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "containers_test",
     srcs = ["containers_test.go"],
     embed = [":containers"],
-    gotags = ["test"],
     deps = [
         "//comp/core",
         "//comp/core/tagger/def",
@@ -43,6 +44,7 @@ go_test(
         "@com_github_google_go_cmp//cmp",
         "@com_github_google_go_cmp//cmp/cmpopts",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
     ],
 )

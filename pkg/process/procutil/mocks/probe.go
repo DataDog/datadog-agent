@@ -17,10 +17,19 @@ func NewProbe(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *Probe {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &Probe{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
@@ -68,6 +77,68 @@ func (_c *Probe_Close_Call) Return() *Probe_Close_Call {
 
 func (_c *Probe_Close_Call) RunAndReturn(run func()) *Probe_Close_Call {
 	_c.Run(run)
+	return _c
+}
+
+// ProcessFromPID provides a mock function for the type Probe
+func (_mock *Probe) ProcessFromPID(pid int32) (*procutil.Process, error) {
+	ret := _mock.Called(pid)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ProcessFromPID")
+	}
+
+	var r0 *procutil.Process
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(int32) (*procutil.Process, error)); ok {
+		return returnFunc(pid)
+	}
+	if returnFunc, ok := ret.Get(0).(func(int32) *procutil.Process); ok {
+		r0 = returnFunc(pid)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*procutil.Process)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(int32) error); ok {
+		r1 = returnFunc(pid)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Probe_ProcessFromPID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ProcessFromPID'
+type Probe_ProcessFromPID_Call struct {
+	*mock.Call
+}
+
+// ProcessFromPID is a helper method to define mock.On call
+//   - pid int32
+func (_e *Probe_Expecter) ProcessFromPID(pid any) *Probe_ProcessFromPID_Call {
+	return &Probe_ProcessFromPID_Call{Call: _e.mock.On("ProcessFromPID", pid)}
+}
+
+func (_c *Probe_ProcessFromPID_Call) Run(run func(pid int32)) *Probe_ProcessFromPID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 int32
+		if args[0] != nil {
+			arg0 = args[0].(int32)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Probe_ProcessFromPID_Call) Return(process *procutil.Process, err error) *Probe_ProcessFromPID_Call {
+	_c.Call.Return(process, err)
+	return _c
+}
+
+func (_c *Probe_ProcessFromPID_Call) RunAndReturn(run func(pid int32) (*procutil.Process, error)) *Probe_ProcessFromPID_Call {
+	_c.Call.Return(run)
 	return _c
 }
 

@@ -27,18 +27,11 @@ func TestEC2VMSELinuxSuite(t *testing.T) {
 
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
 		provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(ec2.WithEC2InstanceOptions(
-			// RHEL9
-			ec2.WithAMI(
-				"ami-04e7f0e0bde783f77", // https://gitlab.ddbuild.io/DataDog/ami-builder/-/jobs/1232214462
-				compos.AmazonLinux2,
-				compos.AMD64Arch,
-			),
+			// RHEL9 with SELinux, Docker and network utilities pre-baked (ami-builder: redhat.x86_64."9-selinux-npm").
+			ec2.WithOS(compos.RedHat9SELinuxNPM),
 			ec2.WithInstanceType("t3.medium"))), nil)),
 	}
 
-	// Source of our kitchen CI images test/kitchen/platforms.json
-	// Other VM image can be used, our kitchen CI images test/kitchen/platforms.json
-	// ec2params.WithImageName("ami-a4dc46db", os.AMD64Arch, ec2os.AmazonLinuxOS) // ubuntu-16-04-4.4
 	e2e.Run(t, s, e2eParams...)
 }
 
@@ -78,7 +71,7 @@ func (v *ec2VMSELinuxSuite) SetupSuite() {
 //
 // The test start by 00 to validate the agent/system-probe is up and running
 func (v *ec2VMSELinuxSuite) Test00FakeIntakeNPM_HostRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate a connection
 	v.Env().RemoteHost.MustExecute("curl " + testURL)
@@ -91,7 +84,7 @@ func (v *ec2VMSELinuxSuite) Test00FakeIntakeNPM_HostRequests() {
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
 func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_DockerRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate a connection
 	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)
@@ -104,7 +97,7 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_DockerRequests() {
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for n payloads and check if the last 2 have a maximum span of 200ms
 func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
 	v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 " + testURL)
@@ -117,7 +110,7 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for n payloads and check if the last 2 have a maximum span of 200ms
 func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
 	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " ab -n 600 -c 600 " + testURL)
@@ -128,7 +121,7 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
 // TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
 	v.Env().RemoteHost.MustExecute("curl " + testURL)
@@ -140,7 +133,7 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
 // TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
 	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)

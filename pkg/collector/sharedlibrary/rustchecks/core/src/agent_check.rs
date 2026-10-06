@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use super::aggregator::{Aggregator, MetricType, ServiceCheckStatus};
+use super::aggregator::{Aggregator, LogLevel, MetricType, ServiceCheckStatus};
 use super::config::Config;
 
 use std::ffi::{c_int, c_long};
@@ -260,5 +260,10 @@ impl AgentCheck {
             raw_event.len() as c_int,
             event_track_type,
         )
+    }
+
+    /// Logs a message through the Agent logger at the given level.
+    pub fn log(&self, level: LogLevel, message: &str) {
+        let _ = self.aggregator.log(level, message);
     }
 }

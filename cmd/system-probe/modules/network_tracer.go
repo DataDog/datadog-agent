@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (linux && linux_bpf) || (windows && npm) || darwin
+//go:build (linux && bpf) || (windows && npm) || darwin
 
 package modules
 
@@ -232,6 +232,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 // Close will stop all system probe activities
 func (nt *networkTracer) Close() {
+	// Stopping the sender waits for a collection that is already running, and
+	// a collection can spend an unbounded amount of time in the tracer. Tell
+	// the tracer to wind down first so that wait stays within the budget we
+	// are given to stop.
+	nt.tracer.PrepareStop()
 	if nt.connsSender != nil {
 		nt.connsSender.Stop()
 	}

@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    APM : Supported new ``db.system.name`` attribute replacing ``db.system``
+    according to changes in OpenTelemetry Semantic Conventions (v1.30.0+).

@@ -11,6 +11,9 @@ def package_licenses(name = None, src = None, visibility = None, **kwargs):
 
     This result of this rule is a pkg_filegorup suitable for use in pkg_* rules.
     The pkg_install target '{name}_install' is provided as a convenience.
+    The '{name}_manifest_info' target exposes a PackageLicenseManifestInfo provider
+    (see //compliance:license_csv.bzl) pointing at the structured license data, for
+    rules like version_manifest that need it without re-running license gathering.
 
     Args:
         name: name
@@ -29,9 +32,20 @@ def package_licenses(name = None, src = None, visibility = None, **kwargs):
         name = "%s_licenses_" % name,
         target = src,
         csv_out = "%s_licenses.csv" % name,
+        manifest_out = "%s_licenses_manifest.json" % name,
         licenses_dir = "%s_licenses_dir_" % name,
         offers_dir = "%s_sources_dir_" % name,
         tags = ["manual"],
+    )
+
+    # Public handle to the PackageLicenseManifestInfo provider, for rules (e.g.
+    # version_manifest) that need the structured license list without re-running
+    # the license-gathering aspect themselves. Aliases forward providers of "actual".
+    native.alias(
+        name = "%s_manifest_info" % name,
+        actual = ":%s_licenses_" % name,
+        tags = ["manual"],
+        visibility = visibility or ["//visibility:public"],
     )
 
     # Turn the copied licenses into a target we can feed to other rules.

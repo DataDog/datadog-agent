@@ -47,11 +47,8 @@ dd_agent_go_test(
         "status_test.go",
     ],
     embed = [":impl-pipeline"],
-    flavors = [
-        "base",
-        "fips",
-        "heroku",
-    ],
+    gotags_sets = [["otlp"]],
+    include_default = False,
     deps = [
         "//comp/core/config",
         "//comp/core/flare/helpers",

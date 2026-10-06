@@ -16,6 +16,7 @@ import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
+	pkgimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -75,6 +76,14 @@ func (p *processor) processRefresh(allImages []*workloadmeta.ContainerImageMetad
 	}
 }
 
+// isRegistryHost reports whether the first path component of a repository name
+// is a registry host rather than a namespace. Following the image reference
+// grammar, a component is a registry only when it contains a '.' or ':' (a host
+// or a host:port) or is exactly "localhost".
+func isRegistryHost(component string) bool {
+	return component == "localhost" || strings.ContainsAny(component, ".:")
+}
+
 func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 	entityID := types.NewEntityID(types.ContainerImageMetadata, img.ID)
 	ddTags, err := p.tagger.Tag(entityID, types.HighCardinality)
@@ -82,7 +91,6 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 		log.Errorf("Could not retrieve tags for container image %s: %v", img.ID, err)
 	}
 
-	var lastCreated *timestamppb.Timestamp
 	layers := make([]*model.ContainerImage_ContainerImageLayer, 0, len(img.Layers))
 	for _, layer := range img.Layers {
 		modelLayer := &model.ContainerImage_ContainerImageLayer{
@@ -106,7 +114,6 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 
 			if layer.History.Created != nil {
 				modelLayer.History.Created = timestamppb.New(*layer.History.Created)
-				lastCreated = modelLayer.History.Created
 			}
 		}
 
@@ -123,13 +130,27 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 		repos[strings.SplitN(repoDigest, "@sha256:", 2)[0]] = struct{}{}
 	}
 	for _, repoTag := range img.RepoTags {
-		repos[strings.SplitN(repoTag, ":", 2)[0]] = struct{}{}
+		// Split on the last colon (after the last slash) so registries that
+		// include a port (e.g. `myregistry.local:5000/foo/bar:1.2.3`) are
+		// parsed correctly.
+		repoName, _ := pkgimage.SplitRepoTag(repoTag)
+		repos[repoName] = struct{}{}
+	}
+
+	var builtAt *timestamppb.Timestamp
+	if !img.Created.IsZero() {
+		builtAt = timestamppb.New(img.Created)
 	}
 
 	for repo := range repos {
 		repoSplitted := strings.Split(repo, "/")
 		registry := ""
-		if len(repoSplitted) > 2 {
+		if len(repoSplitted) > 1 && isRegistryHost(repoSplitted[0]) {
+			// Explicit registry host, e.g. `localhost:5000/service` or
+			// `gcr.io/foo/bar`, including when a single path component follows.
+			registry = repoSplitted[0]
+		} else if len(repoSplitted) > 2 {
+			// Nested name without an explicit host component.
 			registry = repoSplitted[0]
 		}
 		shortName := repoSplitted[len(repoSplitted)-1]
@@ -138,8 +159,9 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 
 		repoTags := make([]string, 0, len(img.RepoTags))
 		for _, repoTag := range img.RepoTags {
-			if strings.HasPrefix(repoTag, repo+":") {
-				repoTags = append(repoTags, strings.SplitN(repoTag, ":", 2)[1])
+			repoName, tag := pkgimage.SplitRepoTag(repoTag)
+			if repoName == repo && tag != "" {
+				repoTags = append(repoTags, tag)
 			}
 		}
 
@@ -186,7 +208,7 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 				Architecture: img.Architecture,
 			},
 			Layers:  layers,
-			BuiltAt: lastCreated,
+			BuiltAt: builtAt,
 		}
 	}
 }

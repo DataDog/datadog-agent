@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/admission_controller.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/admission_controller.yaml
 node_type: section
 title: Admission controller Configuration
 type: object
@@ -69,6 +69,15 @@ properties:
     visibility: public
     description: The admission controller server timeout in seconds.
     comment: in seconds (see kubernetes/kubernetes#71508)
+  max_request_bytes:
+    node_type: setting
+    type: integer
+    default: 7340032
+    visibility: public
+    description: The maximum size, in bytes, of an AdmissionReview request body the webhook server will buffer.
+    comment: Defaults to 7MiB, matching controller-runtime's own maxRequestSize.
+    tags:
+    - golang_type:int64
   service_name:
     node_type: setting
     type: string
@@ -482,8 +491,8 @@ properties:
         properties:
           enabled:
             node_type: setting
-            type: string
-            default: 'true'
+            type: boolean
+            default: true
           tls_verification:
             node_type: section
             type: object

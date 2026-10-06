@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+COMMAND_DEPENDENCIES = ["pyyaml==6.0.1"]
+
 DEPENDENCIES = (
-    "zensical~=0.0.50",
+    "zensical~=0.0.62",
     # Fetching data
     "httpx",
-    # Validation
-    "lychee-bin~=0.24.2",
 )
+
+# Kept out of the build's dependencies so that a local build or serve never unpacks a checker it
+# does not use.
+LINK_CHECKER = "lychee-bin~=0.24.2"

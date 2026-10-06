@@ -24,3 +24,9 @@ py_test(
         ":gather_licenses_lib",
     ],
 )
+
+py_binary(
+    name = "write_version_manifest",
+    srcs = ["write_version_manifest.py"],
+    visibility = ["//compliance/rules:__pkg__"],
+)

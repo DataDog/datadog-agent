@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"testing"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -27,7 +28,7 @@ func TestLogPatternExtractor_MetricOutputCarriesInlineContext(t *testing.T) {
 
 	res := e.ProcessLog(log)
 	require.Len(t, res.Metrics, 1)
-	require.NotNil(t, res.Metrics[0].Context)
+	require.True(t, res.Metrics[0].HasContext)
 
 	ctx := res.Metrics[0].Context
 	assert.Equal(t, "log_pattern_extractor", ctx.Source)
@@ -70,8 +71,8 @@ func TestLogPatternExtractor_DifferentTagGroupsProduceDifferentMetricNames(t *te
 	require.Len(t, resB.Metrics, 1)
 	// Different tag groups → different sub-clusterers → different globalClusterHash → different names.
 	require.NotEqual(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
-	require.NotNil(t, resA.Metrics[0].Context)
-	require.NotNil(t, resB.Metrics[0].Context)
+	require.True(t, resA.Metrics[0].HasContext)
+	require.True(t, resB.Metrics[0].HasContext)
 
 	ctxA := resA.Metrics[0].Context
 	ctxB := resB.Metrics[0].Context
@@ -109,8 +110,8 @@ func TestLogPatternExtractor_DifferentHostnamesProduceDifferentMetricNamesWhenNo
 	require.Len(t, resA.Metrics, 1)
 	require.Len(t, resB.Metrics, 1)
 	require.NotEqual(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
-	require.NotNil(t, resA.Metrics[0].Context)
-	require.NotNil(t, resB.Metrics[0].Context)
+	require.True(t, resA.Metrics[0].HasContext)
+	require.True(t, resB.Metrics[0].HasContext)
 	assert.Equal(t, map[string]string{"service": "api", "env": "prod", "host": "host-a"}, resA.Metrics[0].Context.SplitTags)
 	assert.Equal(t, map[string]string{"service": "api", "env": "prod", "host": "host-b"}, resB.Metrics[0].Context.SplitTags)
 }
@@ -127,12 +128,37 @@ func TestLogPatternExtractor_ResetClearsClusterState(t *testing.T) {
 
 	res := e.ProcessLog(log)
 	require.Len(t, res.Metrics, 1)
-	require.NotNil(t, res.Metrics[0].Context)
+	require.True(t, res.Metrics[0].HasContext)
 
 	e.Reset()
 
 	// After reset the tagged clusterer is cleared; the same log starts a fresh cluster.
 	require.Empty(t, e.taggedClusterer.GetAllClusters(), "Reset must clear cluster state")
+}
+
+func TestLogPatternExtractorTelemetryTracksActivePatterns(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.SetObserverTelemetry(newObserverTelemetry(telComp))
+
+	// These use separate tag groups, so each creates one active pattern even
+	// though neither has reached the metric-emission threshold yet.
+	e.ProcessLog(&mockLogView{
+		content: "GET /users/123 returned 500",
+		status:  "warn",
+		tags:    []string{"service:api"},
+	})
+	e.ProcessLog(&mockLogView{
+		content: "GET /users/123 returned 500",
+		status:  "warn",
+		tags:    []string{"service:worker"},
+	})
+
+	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
+
+	e.Reset()
+	assert.Equal(t, 0.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
 }
 
 func TestLogPatternExtractor_SkipsBelowWarnSeverity(t *testing.T) {
@@ -144,7 +170,6 @@ func TestLogPatternExtractor_SkipsBelowWarnSeverity(t *testing.T) {
 		tags:    []string{"service:api"},
 	})
 	require.Empty(t, out.Metrics)
-	require.Empty(t, out.Telemetry)
 }
 
 func TestLogPatternExtractor_DeferredEmitUntilMinPatterns(t *testing.T) {
@@ -177,7 +202,10 @@ func TestLogPatternExtractor_ZeroConfigAppliesGCDefaults(t *testing.T) {
 }
 
 func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.SetObserverTelemetry(newObserverTelemetry(telComp))
 	e.config.MinClusterSizeBeforeEmit = 1
 	e.config.ClusterTimeToLiveSec = 10
 	// GC scheduling uses wall-clock seconds; 0 means the next ProcessLog can run
@@ -200,7 +228,7 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 	require.Len(t, res1.Metrics, 1)
 	require.Empty(t, res1.EvictedMetricNames, "no GC on first log")
 	metricName1 := res1.Metrics[0].Name
-	require.NotNil(t, res1.Metrics[0].Context, "pattern context should be inline on first metric")
+	require.True(t, res1.Metrics[0].HasContext, "pattern context should be inline on first metric")
 
 	// t=1015: GC runs first (cutoff 1015-10=1005); cluster A last seen 1000 is stale.
 	// Then a new log creates cluster B.
@@ -213,12 +241,14 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 	})
 	require.Len(t, res2.Metrics, 1)
 	require.Equal(t, []string{metricName1}, res2.EvictedMetricNames, "GC should report evicted metric names for storage cleanup")
-	require.NotNil(t, res2.Metrics[0].Context)
+	require.True(t, res2.Metrics[0].HasContext)
 	require.NotEqual(t, metricName1, res2.Metrics[0].Name)
 
 	// Only cluster B should remain in the tagged clusterer.
 	remaining := e.taggedClusterer.GetAllClusters()
 	require.Len(t, remaining, 1, "stale cluster should be removed from tagged clusterer")
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue(),
+		"active-pattern telemetry should remove the stale cluster before counting its replacement")
 }
 
 func TestLogPatternExtractor_DisableOptimizationsSkipsGarbageCollection(t *testing.T) {
@@ -242,7 +272,7 @@ func TestLogPatternExtractor_DisableOptimizationsSkipsGarbageCollection(t *testi
 		timestampMs: tsMs1,
 	})
 	require.Len(t, res1.Metrics, 1)
-	require.NotNil(t, res1.Metrics[0].Context)
+	require.True(t, res1.Metrics[0].HasContext)
 
 	// Same timeline as TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext, where GC
 	// would evict cluster A — but with DisableOptimizations, TTL is off so A stays.
@@ -255,7 +285,7 @@ func TestLogPatternExtractor_DisableOptimizationsSkipsGarbageCollection(t *testi
 	})
 	require.Len(t, res2.Metrics, 1)
 	require.Empty(t, res2.EvictedMetricNames, "GC must not run when optimizations are disabled")
-	require.NotNil(t, res2.Metrics[0].Context)
+	require.True(t, res2.Metrics[0].HasContext)
 
 	remaining := e.taggedClusterer.GetAllClusters()
 	require.Len(t, remaining, 2, "both clusters should still exist when GC is disabled")
@@ -318,6 +348,8 @@ func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
 }
 
 func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+
 	// Configure tight cap with MinClusterSizeBeforeEmit=1 so each new shape
 	// emits a metric (and therefore a context entry) on its first appearance.
 	cfg := DefaultLogPatternExtractorConfig()
@@ -325,6 +357,7 @@ func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
 	cfg.MaxPatternsPerGroup = 2
 	cfg.MaxTagGroups = -1 // disable group cap so we test only per-group LRU
 	e := NewLogPatternExtractor(cfg)
+	e.SetObserverTelemetry(newObserverTelemetry(telComp))
 
 	tags := []string{"service:api"}
 	// Three distinct shapes (different token counts → different signatures →
@@ -344,7 +377,7 @@ func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
 			timestampMs: int64(1_000_000 + i*1_000), // 1s apart so LastSeenUnix differs
 		})
 		require.Len(t, res.Metrics, 1, "each distinct shape should emit a metric (i=%d)", i)
-		require.NotNil(t, res.Metrics[0].Context)
+		require.True(t, res.Metrics[0].HasContext)
 		metricNames = append(metricNames, res.Metrics[0].Name)
 
 		switch i {
@@ -359,6 +392,10 @@ func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
 
 	require.Equal(t, 1, e.taggedClusterer.NumSubClusterers(), "single tag group across all messages")
 	require.Len(t, e.taggedClusterer.GetAllClusters(), 2, "cap holds at MaxPatternsPerGroup=2")
+	require.Len(t, e.taggedClusterer.patternEntries, 2)
+	require.Len(t, e.taggedClusterer.patternTouches, 2)
+	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue(),
+		"active-pattern telemetry should track the LRU-bounded resident set")
 }
 
 func TestLogPatternExtractor_TagGroupCapEvictsLRUGroup(t *testing.T) {
@@ -401,7 +438,7 @@ func TestLogPatternExtractor_TagGroupCapEvictsLRUGroup(t *testing.T) {
 // TestEngine_LogPatternLRUEvictionFreesStorage is the end-to-end proof that
 // the structural leak is fixed: when the extractor's LRU evicts a cluster,
 // the engine no longer just drops its contextRefs entry — it also calls
-// storage.RemoveSeriesByKeys so the per-series tags slice + columnar arrays
+// storage.RemoveSeriesByKeys so the per-series tags slice + bucket data
 // + sample buffer are actually freed. Before this fix, timeSeriesStorage.series
 // grew monotonically for the lifetime of the agent, regardless of LRU caps.
 func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
@@ -437,12 +474,13 @@ func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
 	// seen leaves a series behind). With it, the LRU eviction during the 3rd
 	// ingest removes cluster #1 from storage before cluster #3's series is
 	// added, so count is 2.
-	require.Equal(t, 2, storage.TotalSeriesCount(""),
+	require.Equal(t, 2, storage.TotalSeriesCount(),
 		"LRU eviction must shrink storage; before the fix storage grew unboundedly")
 
 	// Surviving series must have context stored on them.
 	for _, meta := range storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()}) {
-		require.NotNil(t, storage.GetContext(meta.Ref),
+		_, ok := storage.GetContext(meta.Ref)
+		require.True(t, ok,
 			"surviving series must have inline MetricContext (ref=%d)", meta.Ref)
 	}
 }
@@ -463,9 +501,16 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	cfg.MaxTagGroups = -1
 	extractor := NewLogPatternExtractor(cfg)
 
-	bocpd := NewBOCPDDetector(BOCPDConfig{})
+	bocpdConfig := DefaultBOCPDConfig()
+	bocpdConfig.WarmupPoints = 2
+	bocpdConfig.MaxRunLength = 2
+	bocpd := NewBOCPDDetector(bocpdConfig)
 	scanmw := NewScanMWDetector()
 	scanwelch := NewScanWelchDetector()
+	scanmw.MinPoints = 2
+	scanwelch.MinPoints = 2
+	scanmw.MinSegment = 1
+	scanwelch.MinSegment = 1
 
 	// Stateless detector that does NOT implement SeriesRemover. Registering it
 	// alongside the stateful ones exercises the fanOutSeriesRemoval type-assertion
@@ -499,12 +544,15 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 			timestampMs: int64(1_000_000 + i*1_000),
 		})
 	}
+	for _, meta := range storage.ListSeries(observerdef.WorkloadSeriesFilter()) {
+		storage.AddWithKeyAndHostComposite(meta.Namespace, meta.Name, meta.Host, 1, 1_002, meta.Tags, testStorageKeyForMetric(meta.Namespace, &metricObs{name: meta.Name, host: meta.Host, tags: meta.Tags}))
+	}
 
 	// Drive Detect() so the detectors observe the series and populate their
 	// per-series state maps. dataTime needs to be ahead of the last point.
-	bocpd.Detect(storage, 1_001_000)
-	scanmw.Detect(storage, 1_001_000)
-	scanwelch.Detect(storage, 1_001_000)
+	bocpd.Detect(storage, 1_002)
+	scanmw.Detect(storage, 1_002)
+	scanwelch.Detect(storage, 1_002)
 
 	bocpdBefore := len(bocpd.series)
 	scanmwBefore := len(scanmw.series)
@@ -526,7 +574,7 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	// Storage shrunk to two series (LRU cap), so detector maps must now
 	// have at most two entries per agg too. Without the fan-out, they
 	// would still hold three entries (one per series ever observed).
-	require.Equal(t, 2, storage.TotalSeriesCount(""), "LRU should keep storage bounded")
+	require.Equal(t, 2, storage.TotalSeriesCount(), "LRU should keep storage bounded")
 
 	// Each detector defaults to 2 aggregations (Average, Count). Before the
 	// fan-out fix, the maps held 3 series × 2 aggs = 6 entries even though
@@ -568,6 +616,96 @@ type statelessTestDetector struct {
 }
 
 func (s *statelessTestDetector) Name() string { return s.name }
+func (*statelessTestDetector) Ready() bool    { return true }
 func (s *statelessTestDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
+}
+
+func TestLogPatternExtractor_TotalPatternLimit(t *testing.T) {
+	cfg := DefaultLogPatternExtractorConfig()
+	cfg.MaxPatterns = 2
+	cfg.MinClusterSizeBeforeEmit = 1
+	e := NewLogPatternExtractor(cfg)
+	process := func(service, message string, sec int64) observerdef.LogMetricsExtractorOutput {
+		return e.ProcessLog(&mockLogView{content: message, tags: []string{"service:" + service}, timestampMs: sec * 1000})
+	}
+	a := process("a", "WARN alpha", 1000)
+	b := process("b", "WARN beta gamma", 1001)
+	process("a", "WARN alpha", 1002) // Refresh the first pattern across groups.
+	c := process("c", "WARN x y z w", 1003)
+	require.Equal(t, []string{b.Metrics[0].Name}, c.EvictedMetricNames)
+	require.Len(t, e.taggedClusterer.GetAllClusters(), 2)
+	require.Equal(t, 2, e.activePatternCount)
+	// A timestamp older than every resident pattern must still preserve its output.
+	d := process("d", "WARN another shape", 999)
+	require.Equal(t, []string{a.Metrics[0].Name}, d.EvictedMetricNames)
+	require.Len(t, e.taggedClusterer.patternEntries, 2)
+	for i := 0; i < 100; i++ {
+		process("d", "WARN another shape", 1004)
+	}
+	require.Len(t, e.taggedClusterer.patternTouches, 2)
+	e.taggedClusterer.GarbageCollectBefore(1005)
+	require.Empty(t, e.taggedClusterer.patternEntries)
+	require.Empty(t, e.taggedClusterer.patternTouches)
+	process("a", "WARN alpha", 1006)
+	require.Len(t, e.taggedClusterer.patternEntries, 1)
+	e.Reset()
+	require.Empty(t, e.taggedClusterer.GetAllClusters())
+	require.Empty(t, e.taggedClusterer.patternEntries)
+}
+
+func TestLogPatternExtractor_TotalLimitBeforeEmission(t *testing.T) {
+	cfg := DefaultLogPatternExtractorConfig()
+	cfg.MaxPatterns = 1
+	e := NewLogPatternExtractor(cfg)
+	for _, service := range []string{"a", "b", "c"} {
+		result := e.ProcessLog(&mockLogView{content: "WARN alpha", tags: []string{"service:" + service}, timestampMs: 1000000})
+		require.Empty(t, result.Metrics)
+		require.Len(t, e.taggedClusterer.GetAllClusters(), 1)
+		require.Equal(t, 1, e.activePatternCount)
+	}
+}
+
+func TestEngine_LogPatternTotalLimitFreesStorage(t *testing.T) {
+	cfg := DefaultLogPatternExtractorConfig()
+	cfg.MinClusterSizeBeforeEmit = 1
+	cfg.MaxPatterns = 2
+	cfg.MaxTagGroups = -1
+	extractor := NewLogPatternExtractor(cfg)
+
+	storage := newTimeSeriesStorage()
+	e := newEngine(engineConfig{
+		storage:    storage,
+		extractors: []observerdef.LogMetricsExtractor{extractor},
+	})
+
+	tags := []string{"service:api"}
+	msgs := []string{
+		"WARN alpha",
+		"WARN beta gamma",
+		"WARN x y z w",
+	}
+
+	for i, m := range msgs {
+		e.IngestLog("src", &logObs{
+			content:     m,
+			status:      "warn",
+			tags:        append([]string{"env:" + m}, tags...),
+			timestampMs: int64(1_000_000 + i*1_000),
+		})
+	}
+
+	// Without the storage-side eviction, count would be 3 (every shape ever
+	// seen leaves a series behind). With it, the LRU eviction during the 3rd
+	// ingest removes cluster #1 from storage before cluster #3's series is
+	// added, so count is 2.
+	require.Equal(t, 2, storage.TotalSeriesCount(),
+		"LRU eviction must shrink storage; before the fix storage grew unboundedly")
+
+	// Surviving series must have context stored on them.
+	for _, meta := range storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()}) {
+		_, ok := storage.GetContext(meta.Ref)
+		require.True(t, ok,
+			"surviving series must have inline MetricContext (ref=%d)", meta.Ref)
+	}
 }

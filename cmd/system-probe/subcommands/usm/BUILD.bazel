@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "usm",
@@ -27,7 +28,6 @@ go_library(
         "//comp/core/sysprobeconfig/def",
         "//comp/core/sysprobeconfig/impl",
         "//pkg/config/fetcher/sysprobe",
-        "//pkg/network/usm/maps",
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",
         "@in_yaml_go_yaml_v3//:yaml",
@@ -37,6 +37,7 @@ go_library(
             "//pkg/languagedetection",
             "//pkg/languagedetection/languagemodels",
             "//pkg/languagedetection/privileged",
+            "//pkg/network/usm/maps",
             "//pkg/network/usm/procnet",
             "//pkg/process/metadata/parser",
             "//pkg/process/procutil",
@@ -47,6 +48,7 @@ go_library(
             "//pkg/languagedetection",
             "//pkg/languagedetection/languagemodels",
             "//pkg/languagedetection/privileged",
+            "//pkg/network/usm/maps",
             "//pkg/network/usm/procnet",
             "//pkg/process/metadata/parser",
             "//pkg/process/procutil",
@@ -57,7 +59,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "usm_test",
     srcs = [
         "config_test.go",
@@ -65,11 +67,7 @@ go_test(
         "sysinfo_linux_test.go",
     ],
     embed = [":usm"],
-    gotags = [
-        "test",
-        "linux_bpf",
-    ],
-    target_compatible_with = ["@platforms//os:linux"],
+    gotags_sets = [["bpf"]],
     deps = [
         "//cmd/system-probe/command",
         "//pkg/util/fxutil",

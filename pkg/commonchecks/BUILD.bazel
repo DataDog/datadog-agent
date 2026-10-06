@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "commonchecks",
@@ -72,6 +73,7 @@ go_library(
         "//pkg/collector/corechecks/system/disk/io",
         "//pkg/collector/corechecks/system/filehandles",
         "//pkg/collector/corechecks/system/memory",
+        "//pkg/collector/corechecks/system/powershell",
         "//pkg/collector/corechecks/system/thermal",
         "//pkg/collector/corechecks/system/uptime",
         "//pkg/collector/corechecks/system/wincrashdetect",
@@ -80,15 +82,21 @@ go_library(
         "//pkg/collector/corechecks/system/winproc",
         "//pkg/collector/corechecks/systemd",
         "//pkg/collector/corechecks/telemetry",
+        "//pkg/collector/corechecks/vdi",
         "//pkg/util/option",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "commonchecks_test",
     srcs = ["corechecks_test.go"],
     embed = [":commonchecks"],
-    gotags = ["test"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
     deps = [
         "//comp/core/telemetry/impl",
         "//pkg/collector/check",

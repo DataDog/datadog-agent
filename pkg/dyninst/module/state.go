@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package module
 
@@ -62,12 +62,13 @@ func (ps *processStore) ensureExists(update *process.Config) procRuntimeID {
 	if !ok {
 		proc = &processState{
 			procRuntimeID: procRuntimeID{
-				ID:          update.ProcessID,
-				runtimeID:   update.RuntimeID,
-				service:     update.Service,
-				version:     update.Version,
-				environment: update.Environment,
-				processTags: update.ProcessTags,
+				ID:           update.ProcessID,
+				runtimeID:    update.RuntimeID,
+				service:      update.Service,
+				version:      update.Version,
+				environment:  update.Environment,
+				processTags:  update.ProcessTags,
+				discoveredAt: update.DiscoveredAt,
 			},
 			executable:    update.Executable,
 			gitInfo:       update.GitInfo,

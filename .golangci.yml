@@ -231,6 +231,18 @@ linters:
             - "!**/pkg/network/go/lutgen/**"
             - "!$test"
             - "!**/tests/**"
+        zstdlibs:
+          deny:
+            - pkg: "github.com/DataDog/zstd"
+              desc: "Import github.com/DataDog/datadog-agent/pkg/zstd instead. It wraps the CGO libzstd backend and falls back to the pure-Go github.com/klauspost/compress/zstd when CGO is disabled, so a single build works in both environments."
+            - pkg: "github.com/klauspost/compress/zstd"
+              desc: "Import github.com/DataDog/datadog-agent/pkg/zstd instead. It wraps the CGO libzstd backend and falls back to the pure-Go github.com/klauspost/compress/zstd when CGO is disabled, so a single build works in both environments."
+          files:
+            - "**/cmd/**"
+            - "**/comp/**"
+            - "**/pkg/**"
+            - "!**/pkg/zstd/**"
+            - "!$test"
 
     errcheck:
       exclude-functions:
@@ -305,6 +317,12 @@ linters:
             - github.com/DataDog/datadog-agent/pkg/util/log.Printf
             - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
             - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
+            - github.com/DataDog/datadog-agent/pkg/trace/log.Tracef
+            - github.com/DataDog/datadog-agent/pkg/trace/log.Debugf
+            - github.com/DataDog/datadog-agent/pkg/trace/log.Infof
+            - github.com/DataDog/datadog-agent/pkg/trace/log.Warnf
+            - github.com/DataDog/datadog-agent/pkg/trace/log.Errorf
+            - github.com/DataDog/datadog-agent/pkg/trace/log.Criticalf
             - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Tracef
             - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Debugf
             - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Infof

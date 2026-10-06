@@ -39,9 +39,11 @@ comp/anomalydetection/
     mock/
     reporter.allium      ← behavioral spec for reporter payloads
   recorder/
-    def/
-    fx-noop/             ← noop wired in production agent
-    impl-noop/           ← noop implementation (full parquet impl planned)
+    def/                 ← component, data, and writer contracts
+    fx/                  ← tagged Agent wiring; no provider registered yet
+    fx-noop/             ← explicit testbench no-op module
+    impl/                ← tagged middleware, configuration, lifecycle
+    impl-noop/           ← explicit testbench no-op component
 ```
 
 ## Agent Wiring
@@ -53,9 +55,13 @@ Wired in `cmd/agent/subcommands/run/command.go`:
 | Observer | `observer/fx` | Analysis pipeline (`python` build tag) |
 | Log source | `logssource/fx` | Container + kubelet logs (`python` tag) |
 | Reporter | `reporter/fx` | Stdout reporter + optional event reporter |
-| Recorder | `recorder/fx-noop` | No-op (parquet middleware not shipped yet) |
+| Recorder | `recorder/fx` | Tagged middleware when enabled and a writer provider is registered; currently no provider |
 
 **IoT / `!python` builds** use no-op `observer/fx` and `logssource/fx` modules.
+The Agent's `recorder/fx` module is also no-op without both `python` and
+`anomalydetection_recorder`. With both tags it supplies no writer provider in
+this PR, so enabling recording alone creates no writer resources. A later PR
+registers the Parquet writer provider.
 
 **Testbench** (`internal/qbranch/anomalydetection-testbench/`) wires
 `observer/fx`, `recorder/fx-noop`, and `reporter/fx-testbench`. It replays
@@ -73,6 +79,36 @@ dda inv anomalydetection.launch-testbench
 See `internal/qbranch/anomalydetection-testbench/README.md` for flags and
 headless/eval workflows.
 
+## Production Safety and Review Invariants
+
+The live Agent is the primary constraint; testbench convenience must not affect
+its behavior or cost.
+
+- Keep replay/UI code and heavyweight dependencies in the testbench module.
+  Live packages must not import `internal/qbranch/anomalydetection-testbench`,
+  `reporter/impl-testbench`, or `reporter/fx-testbench`.
+- Shared code must use bounded production defaults. Unbounded history or
+  retention is allowed only through explicit testbench configuration such as
+  `bench.unboundedStorageCfg()` passed to `DebugView.Reset`.
+- Full raw anomaly history is testbench-only via `TrackAnomalyHistory`; live
+  reporting uses advance-local events and retains only bounded detector-output
+  deduplication state.
+- Hard-bound every live collection driven by time or input cardinality. On
+  eviction, also clear detector state, indexes, interned data, deduplication
+  state, and caches. Production config must not disable these bounds.
+- Keep enforcement cost bounded too: avoid full-state scans on hot paths and
+  emit telemetry for drops, capacity hits, and evictions.
+- Preserve non-blocking ingestion and the disabled fast path. With no consumer,
+  do not allocate the engine/channel, install taps, or start goroutines.
+- Preserve data-time determinism and single-writer engine ownership. Reporters
+  and callbacks must not block or re-enter the engine; lifecycle resources must
+  stop cleanly.
+- Test live defaults, disabled mode, high-cardinality eviction and cleanup,
+  non-blocking drops, replay parity, and both `python`/`!python` builds. Benchmark
+  changes on ingestion or per-second advance paths.
+- Declare config keys in the config schema (`pkg/config/schema/yaml/`) and update
+  `BUILD.bazel` files when sources or dependencies change.
+
 ## Data Ingress (Handle Sources)
 
 Production callers of `observer.GetHandle()` use statically-defined source names:
@@ -89,9 +125,20 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 - **Agent internal logs** → `observer` taps `pkg/util/log` directly via `agent_logs`
 
 Both paths share filtering primitives from `internal/logsfilter/`.
+The agent-internal logger callback performs only self/severity gates and a
+bounded non-blocking enqueue. Processing rules, rate limiting, tag construction,
+and Observer ingestion run on the `agent_logs` worker; never add that work back
+under `pkg/util/log`'s global logger lock.
 
-Metrics with the `datadog.*` prefix are normalized as internal agent telemetry
-and dropped before they reach observer storage.
+### Logging convention
+
+Use `internal/logging` for every production log. Its
+`[anomalydetection] ` marker prevents self-ingestion; label only non-main
+subsystems such as `logssource`, `reporter`, or `logsfilter` in messages.
+
+Metrics with the `datadog.*` prefix are normalized as internal agent telemetry.
+Only observer telemetry under `datadog.agent.observer.*` is dropped before it
+reaches observer storage, preventing an ingestion loop.
 
 ## Severity Events (Scorer Push Contract)
 
@@ -139,8 +186,8 @@ lives inside each correlator via the shared `correlationEmitter` helper
   after `defaultMaxRetryAttempts` consecutive failures.
 
 `ReportOutput.CorrelatorEvents` carries three event kinds:
-- `CorrelatorEventCorrelationDetected` — emitted by `TimeCluster`, `CrossSignal`,
-  `Passthrough` at first-seen (and again after a pattern goes inactive and recurs)
+- `CorrelatorEventCorrelationDetected` — emitted by `TimeCluster` at first-seen
+  (and again after a pattern goes inactive and recurs)
 - `CorrelatorEventEpisodeStarted` — emitted by `anomaly_scorer` when severity enters
   the configured correlation threshold (`medium` or `high`)
 - `CorrelatorEventEpisodeEnded` — emitted by `anomaly_scorer` when severity exits
@@ -150,7 +197,20 @@ See `reporter/reporter.allium` for the payload contract.
 
 ## Configuration
 
-Keys are registered in `pkg/config/setup/common_settings.go`.
+### Design rules
+
+- `anomaly_detection.*` configures **how** detection works; the consuming
+  feature's namespace configures **whether** that feature is enabled.
+- Enabling a consumer (event reporting, adaptive sampling, etc.) must implicitly
+  activate the detection capabilities it needs. Input/tuning keys such as
+  `metrics.enabled` or `logs.enabled` must not activate detection by themselves.
+- Derive the effective engine requirements from all enabled consumers and share
+  one engine. With no consumers, preserve the zero-overhead disabled path.
+- Avoid contradictory master/feature switches or silently ignored settings.
+  When migrating legacy switches, define compatibility and precedence, then test
+  no consumer, each consumer alone, multiple consumers, and explicit overrides.
+
+Keys are declared in the config schema (`pkg/config/schema/yaml/`).
 
 | Key | Default | Purpose |
 |-----|---------|---------|
@@ -159,15 +219,24 @@ Keys are registered in `pkg/config/setup/common_settings.go`.
 | `anomaly_detection.anomaly_scorer.output.correlation_event_threshold` | `high` | Lowest scorer severity that opens a correlation episode (`medium` or `high`) |
 | `anomaly_detection.metrics.enabled` | `true` | External metric ingestion at handles |
 | `anomaly_detection.metrics.processing_rules` | `[]` | Ordered metric filter rules (source/name/tags) |
-| `anomaly_detection.recording.enabled` | `false` | Parquet recording middleware |
+| `anomaly_detection.recording.enabled` | `false` | Enables recording when a writer provider is registered; none is registered in this PR |
+| `anomaly_detection.recording.flush_interval` | `60s` | Duration passed to the writer backend; `0s` uses `60s` |
+| `anomaly_detection.recording.retention` | `24h` | Duration passed to the writer backend |
 | `anomaly_detection.logs.enabled` | `true` | Parent gate for all log sources |
 | `anomaly_detection.logs.processing_rules` | `[]` | Ordered log filter rules evaluated per message for all log sources (container, kubelet, agent-internal) |
+| `anomaly_detection.logs.time_buckets.enabled` | `false` | Materialize fixed-width count buckets for log-derived `.count` series |
+| `anomaly_detection.logs.time_buckets.bucket_width` | `5s` | Width of each materialized log-count bucket |
+| `anomaly_detection.logs.time_buckets.idle_ttl` | `5m` | Continue emitting empty buckets after the last matching log |
+| `anomaly_detection.logs.time_buckets.retention` | `10m` | Per-series retention for materialized log-count buckets; native metric retention is unchanged |
 | `anomaly_detection.logs.containers.enabled` | `true` | Workloadmeta container logs |
 | `anomaly_detection.logs.kubelet.enabled` | `true` | Kubelet journald source |
 | `anomaly_detection.logs.internal.enabled` | `true` | Agent-internal log tap |
 | `anomaly_detection.detectors.<name>.enabled` | varies | Per detector/correlator/extractor |
 | `anomaly_detection.storage.max_series` | `50000` | Storage series cap |
-| `anomaly_detection.storage.point_retention` | `120s` | Per-series point retention |
+| `anomaly_detection.storage.eviction_floor_ratio` | `0.5` | Fraction below the cap to drain during series eviction |
+| `anomaly_detection.storage.point_retention` | derived | Per-series retention; `0s` derives it from enabled detector windows |
+| `anomaly_detection.storage.inactive_series_ttl` | `5m` | Evict non-telemetry series inactive for this long; `0` disables inactivity eviction |
+| `anomaly_detection.storage.inactive_series_check_interval` | `5m` | Advance-time interval between inactivity scans; `0` disables inactivity eviction |
 
 Per-source log rate limits and min severity live under
 `anomaly_detection.logs.{internal,kubelet,containers}.*`.

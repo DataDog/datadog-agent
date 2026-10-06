@@ -10,7 +10,6 @@ go_library(
         "//cmd/cluster-agent/admission",
         "//comp/core/config",
         "//comp/core/workloadfilter/def",
-        "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/def",
         "//pkg/clusteragent/admission/common",
         "//pkg/clusteragent/admission/metrics",
@@ -32,7 +31,6 @@ go_library(
         "@io_k8s_client_go//dynamic",
         "@io_k8s_client_go//kubernetes",
         "@io_k8s_kubectl//pkg/cmd/util/podcmd",
-        "@io_k8s_utils//strings/slices",
     ],
 )
 
@@ -40,10 +38,13 @@ dd_agent_go_test(
     name = "cwsinstrumentation_test",
     srcs = ["cws_instrumentation_test.go"],
     embed = [":cwsinstrumentation"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core",
         "//comp/core/config",

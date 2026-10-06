@@ -10,6 +10,31 @@ import "datadog/privateactionrunner/error_code.proto";
 // Rust control plane dispatches one action to the Go executor over a local socket and
 // streams the outcome back.
 
+message GetControlPlaneConfigRequest {}
+
+message GetControlPlaneConfigResponse {
+  bool split_mode = 1;
+  string log_level = 2;
+  ControlPlaneIdentity identity = 3;
+  ControlPlaneRuntime runtime = 4;
+}
+
+message ControlPlaneIdentity {
+  string urn = 1;
+  string private_key = 2;
+  int64 org_id = 3;
+  string runner_id = 4;
+}
+
+message ControlPlaneRuntime {
+  string opms_base_url = 1;
+  int32 task_concurrency = 2;
+  map<string, string> opms_extra_headers = 3;
+  string opms_proxy_url = 4;
+  bool skip_ssl_validation = 5;
+  string min_tls_version = 6;
+}
+
 message HealthRequest {}
 
 // HealthResponse reports whether the executor can accept actions.
@@ -48,6 +73,7 @@ message ActionResult {
 }
 
 service Executor {
+  rpc GetControlPlaneConfig(GetControlPlaneConfigRequest) returns (GetControlPlaneConfigResponse);
   // RunAction runs a single action and streams updates ending in a final ActionResult.
   rpc RunAction(RunActionRequest) returns (stream RunActionResponse);
   // Health reports executor readiness and liveness; used to gate dispatch.

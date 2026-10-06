@@ -23,6 +23,7 @@ profiles:
       - name: health_platform.issues_detected
         preserve_tags:
           - issue_type
+          - severity
   schedule:
     start_after: 30
     iterations: 0
@@ -33,21 +34,30 @@ profiles:
       zero_metric: true
     metrics:
       - name: dogstatsd.udp_packets_bytes
-        preserve_tags:
-          - emitter
       - name: dogstatsd.uds_packets_bytes
+      - name: dogstatsd_client.bytes_sent
         preserve_tags:
-          - emitter
+          - client
+          - client_transport
+      - name: dogstatsd_client.bytes_dropped
+        preserve_tags:
+          - client
+          - client_transport
+      - name: dogstatsd_client.bytes_dropped_queue
+        preserve_tags:
+          - client
+          - client_transport
+      - name: dogstatsd_client.bytes_dropped_writer
+        preserve_tags:
+          - client
+          - client_transport
       - name: logs.bytes_missed
       - name: logs.bytes_sent
-        preserve_tags:
-          - emitter
         aggregate_total: true
       - name: logs.decoded
       - name: logs.dropped
       - name: logs.encoded_bytes_sent
         preserve_tags:
-          - emitter
           - compression_kind
         aggregate_total: true
       - name: logs.http_connectivity_check
@@ -76,31 +86,35 @@ profiles:
       - name: logs.auto_multi_line_default_would_combine
       - name: logs.auto_multi_line_default_would_truncate
       - name: logs_destination.destination_workers
-      - name: point.sent
+      - name: points.sent
         preserve_tags:
           - domain
-          - emitter
-      - name: point.dropped
+      - name: points.dropped
         preserve_tags:
           - domain
-          - emitter
       - name: transactions.input_count
         preserve_tags:
           - domain
           - endpoint
-          - emitter
       - name: transactions.input_bytes
         preserve_tags:
           - domain
           - endpoint
-          - emitter
+      - name: transactions.success
+        preserve_tags:
+          - domain
+          - endpoint
+          - proto_version
+      - name: transactions.success_bytes
+        preserve_tags:
+          - domain
+          - endpoint
       - name: transactions.requeued
       - name: transactions.retries
       - name: transactions.http_errors
         preserve_tags:
           - code
           - endpoint
-          - emitter
   schedule:
     start_after: 30
     iterations: 0
@@ -124,6 +138,10 @@ profiles:
           - kind
           - pod_name
       - name: agent_performance.memory_limit
+        preserve_tags:
+          - kind
+          - pod_name
+      - name: agent_performance.cpu_usage
         preserve_tags:
           - kind
           - pod_name
@@ -348,9 +366,16 @@ profiles:
     metrics:
       - name: runtime.procmgr_daemon_reachable
       - name: runtime.procmgr_daemon_ready
+      - name: runtime.procmgr_daemon_service_state
+        preserve_tags:
+          - state
       - name: runtime.procmgr_process_running
         preserve_tags:
           - process
+      - name: runtime.procmgr_process_state
+        preserve_tags:
+          - process
+          - state
       - name: runtime.agent_service_installed
         preserve_tags:
           - service
@@ -434,6 +459,11 @@ profiles:
       - name: language_detection_patcher.patches
         preserve_tags:
           - owner_kind
+          - status
+      - name: instrumentation_controller.resources
+      - name: instrumentation_controller.reconciliations
+        preserve_tags:
+          - section
           - status
       - name: workloadmeta.stored_entities
         preserve_tags:
@@ -546,4 +576,100 @@ profiles:
   schedule:
     start_after: 300 # 5 minutes
     iterations: 1
+    period: 900
+- name: data-plane-preflight-mode
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: data_plane.preflight_mode_result
+        preserve_tags:
+          - result
+      # See `TestFindingsAreAllowlisted` in `comp/dataplane/preflightmode/impl/report_test.go` for the fixed set
+      # of values that we expect to have for the `finding` tag.
+      #
+      # `source_file` and `source_line` are the Agent Data Plane source location that logged the problem, and are
+      # only populated for the `errors_in_log` and `warnings_in_log` findings; every other finding carries them
+      # empty. They are bounded on the producing side: the values come from ADP's `file!()`/`line!()` rather than
+      # from any log message, and the number of distinct locations reported per finding is capped.
+      - name: data_plane.preflight_mode_finding
+        preserve_tags:
+          - finding
+          - source_file
+          - source_line
+      - name: data_plane.preflight_mode_duration_seconds
+  schedule:
+    # Preflight mode runs once at startup, for at least minPreflightModeDuration (90s, see
+    # comp/dataplane/preflightmode/impl), so the first flush is delayed past that window;
+    # otherwise it would report an empty run.
+    #
+    # The schedule stays recurring (iterations: 0) so that a window extended past this via
+    # data_plane.preflight_mode_duration cannot strand the outcome: a flush landing mid-run finds
+    # nothing, and with iterations: 1 there would be no later collection. Recurring costs
+    # nothing — the counters are delta-converted, so the increment ships on whichever flush first
+    # observes it and later flushes send zero, which zero_metric drops.
+    start_after: 120 # 2 minutes
+    iterations: 0
+    period: 900
+# Support troubleshooting bundle, gated behind a remote flag.
+- name: troubleshooting
+  remote_flag: troubleshooting_coat_bundle
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      # Delivery failures: why the data never reached the intake. error_type
+      # separates DNS from TLS from timeout without pulling a flare.
+      - name: transactions.errors
+        preserve_tags:
+          - domain
+          - endpoint
+          - error_type
+      - name: transactions.dropped
+        preserve_tags:
+          - domain
+          - endpoint
+      - name: transactions.retry_queue_size
+        preserve_tags:
+          - domain
+      - name: transactions.connection_events
+        preserve_tags:
+          - connection_event_type
+      # Aggregator: loss upstream of the forwarder. Read against the
+      # already-collected points.sent, aggregator.processed tells whether the
+      # loss happened before or after the forwarder. "shard" is aggregated away.
+      - name: aggregator.flush
+        preserve_tags:
+          - data_type
+          - state
+      - name: aggregator.processed
+        preserve_tags:
+          - data_type
+      # DogStatsD intake: errors. Only the bytes counters are
+      # collected by default today. "origin" and "listener_id" are unbounded
+      # and deliberately aggregated away.
+      - name: dogstatsd.processed
+        preserve_tags:
+          - message_type
+          - state
+      - name: dogstatsd.udp_packets
+        preserve_tags:
+          - state
+      - name: dogstatsd.uds_packets
+        preserve_tags:
+          - transport
+          - state
+      - name: dogstatsd.uds_origin_detection_error
+        preserve_tags:
+          - transport
+      # Inputs: checks that run but warn or submit nothing.
+      - name: checks.warnings
+        preserve_tags:
+          - check_name
+      - name: checks.metrics_samples
+        preserve_tags:
+          - check_name
+  schedule:
+    start_after: 30
+    iterations: 0
     period: 900

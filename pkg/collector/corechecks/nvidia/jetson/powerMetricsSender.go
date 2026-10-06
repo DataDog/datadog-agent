@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build jetson
+//go:build linux && jetson
 
 package nvidia
 
@@ -33,7 +33,7 @@ func (voltageMetricsSender *voltageMetricsSender) SendMetrics(sender sender.Send
 	r := voltageMetricsSender.regex
 	voltageFields := r.FindAllStringSubmatch(field, -1)
 	if len(voltageFields) <= 0 {
-		return errors.New("could not parse voltage fields")
+		return errors.New("nvidia.jetson.power: could not parse voltage fields")
 	}
 
 	for i := 0; i < len(voltageFields); i++ {

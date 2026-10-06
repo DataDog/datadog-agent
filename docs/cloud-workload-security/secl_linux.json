@@ -103,9 +103,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "process.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "process.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "process.ancestors.cgroup.created_at",
@@ -146,6 +156,11 @@
           "name": "process.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.ancestors.container.tags",
@@ -530,7 +545,7 @@
         {
           "name": "process.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "process.ancestors.sid",
@@ -653,6 +668,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "process.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "process.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "process.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -668,9 +698,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "process.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "process.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "process.cgroup.created_at",
@@ -711,6 +751,11 @@
           "name": "process.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.container.tags",
@@ -1133,9 +1178,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "process.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "process.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "process.parent.cgroup.created_at",
@@ -1176,6 +1231,11 @@
           "name": "process.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.parent.container.tags",
@@ -1555,7 +1615,7 @@
         {
           "name": "process.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "process.parent.sid",
@@ -1650,7 +1710,7 @@
         {
           "name": "process.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "process.sid",
@@ -1894,9 +1954,19 @@
           "property_doc_link": "capabilities-attempted-doc"
         },
         {
+          "name": "capabilities.attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace",
+          "property_doc_link": "capabilities-attempted_host_userns-doc"
+        },
+        {
           "name": "capabilities.used",
           "definition": "Bitmask of the capabilities that the process successfully used since it started running",
           "property_doc_link": "capabilities-used-doc"
+        },
+        {
+          "name": "capabilities.used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used since it started running, through checks that always target the initial user namespace",
+          "property_doc_link": "capabilities-used_host_userns-doc"
         }
       ]
     },
@@ -2801,6 +2871,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "exec.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "exec.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exec.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "exec.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -2816,9 +2901,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "exec.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "exec.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "exec.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "exec.cgroup.created_at",
@@ -2859,6 +2954,11 @@
           "name": "exec.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exec.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "exec.container.tags",
@@ -3278,7 +3378,7 @@
         {
           "name": "exec.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "exec.sid",
@@ -3415,6 +3515,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "exit.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "exit.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exit.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "exit.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -3430,9 +3545,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "exit.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "exit.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "exit.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "exit.cause",
@@ -3483,6 +3608,11 @@
           "name": "exit.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exit.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "exit.container.tags",
@@ -3862,7 +3992,7 @@
         {
           "name": "exit.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "exit.sid",
@@ -3964,14 +4094,24 @@
           "property_doc_link": "imds-aws-is_imds_v2-doc"
         },
         {
+          "name": "imds.aws.security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
           "name": "imds.aws.security_credentials.type",
-          "definition": "the security credentials type",
-          "property_doc_link": "imds-aws-security_credentials-type-doc"
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
           "name": "imds.cloud_provider",
           "definition": "the intended cloud provider of the IMDS event",
           "property_doc_link": "imds-cloud_provider-doc"
+        },
+        {
+          "name": "imds.credential_source",
+          "definition": "the credential endpoint that served the IMDS event",
+          "property_doc_link": "imds-credential_source-doc"
         },
         {
           "name": "imds.host",
@@ -5448,9 +5588,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.cgroup.created_at",
@@ -5491,6 +5641,11 @@
           "name": "ptrace.tracee.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.container.tags",
@@ -5875,7 +6030,7 @@
         {
           "name": "ptrace.tracee.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.sid",
@@ -5998,6 +6153,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "ptrace.tracee.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "ptrace.tracee.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "ptrace.tracee.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "ptrace.tracee.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -6013,9 +6183,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "ptrace.tracee.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "ptrace.tracee.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "ptrace.tracee.cgroup.created_at",
@@ -6056,6 +6236,11 @@
           "name": "ptrace.tracee.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "ptrace.tracee.container.tags",
@@ -6478,9 +6663,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "ptrace.tracee.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "ptrace.tracee.parent.cgroup.created_at",
@@ -6521,6 +6716,11 @@
           "name": "ptrace.tracee.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "ptrace.tracee.parent.container.tags",
@@ -6900,7 +7100,7 @@
         {
           "name": "ptrace.tracee.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "ptrace.tracee.parent.sid",
@@ -6995,7 +7195,7 @@
         {
           "name": "ptrace.tracee.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "ptrace.tracee.sid",
@@ -7837,9 +8037,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "setrlimit.target.ancestors.cgroup.created_at",
@@ -7880,6 +8090,11 @@
           "name": "setrlimit.target.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "setrlimit.target.ancestors.container.tags",
@@ -8264,7 +8479,7 @@
         {
           "name": "setrlimit.target.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "setrlimit.target.ancestors.sid",
@@ -8387,6 +8602,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "setrlimit.target.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "setrlimit.target.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "setrlimit.target.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -8402,9 +8632,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "setrlimit.target.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "setrlimit.target.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "setrlimit.target.cgroup.created_at",
@@ -8445,6 +8685,11 @@
           "name": "setrlimit.target.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "setrlimit.target.container.tags",
@@ -8867,9 +9112,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "setrlimit.target.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "setrlimit.target.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "setrlimit.target.parent.cgroup.created_at",
@@ -8910,6 +9165,11 @@
           "name": "setrlimit.target.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "setrlimit.target.parent.container.tags",
@@ -9289,7 +9549,7 @@
         {
           "name": "setrlimit.target.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "setrlimit.target.parent.sid",
@@ -9384,7 +9644,7 @@
         {
           "name": "setrlimit.target.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "setrlimit.target.sid",
@@ -9803,9 +10063,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "signal.target.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "signal.target.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "signal.target.ancestors.cgroup.created_at",
@@ -9846,6 +10116,11 @@
           "name": "signal.target.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "signal.target.ancestors.container.tags",
@@ -10230,7 +10505,7 @@
         {
           "name": "signal.target.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "signal.target.ancestors.sid",
@@ -10353,6 +10628,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "signal.target.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "signal.target.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "signal.target.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "signal.target.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -10368,9 +10658,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "signal.target.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "signal.target.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "signal.target.cgroup.created_at",
@@ -10411,6 +10711,11 @@
           "name": "signal.target.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "signal.target.container.tags",
@@ -10833,9 +11138,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "signal.target.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "signal.target.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "signal.target.parent.cgroup.created_at",
@@ -10876,6 +11191,11 @@
           "name": "signal.target.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "signal.target.parent.container.tags",
@@ -11255,7 +11575,7 @@
         {
           "name": "signal.target.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "signal.target.parent.sid",
@@ -11350,7 +11670,7 @@
         {
           "name": "signal.target.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "signal.target.sid",
@@ -11870,6 +12190,25 @@
       ]
     },
     {
+      "name": "unshare",
+      "definition": "A process created new namespaces",
+      "type": "Kernel",
+      "from_agent_version": "7.84",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "unshare.flags",
+          "definition": "Namespace flags requested by the unshare call",
+          "property_doc_link": "unshare-flags-doc"
+        },
+        {
+          "name": "unshare.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "utimes",
       "definition": "Change file access/modification times",
       "type": "File",
@@ -12025,6 +12364,24 @@
     }
   ],
   "properties_doc": [
+    {
+      "name": "*.access_key_id",
+      "link": "common-awssecuritycredentials-access_key_id-doc",
+      "type": "string",
+      "definition": "The access key ID of the security credentials in the IMDS answer",
+      "prefixes": [
+        "exec.aws_security_credentials",
+        "exit.aws_security_credentials",
+        "imds.aws.security_credentials",
+        "process.aws_security_credentials",
+        "ptrace.tracee.aws_security_credentials",
+        "setrlimit.target.aws_security_credentials",
+        "signal.target.aws_security_credentials"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
     {
       "name": "*.args",
       "link": "common-process-args-doc",
@@ -12300,10 +12657,60 @@
       "examples": []
     },
     {
+      "name": "*.caps_attempted_host_userns",
+      "link": "common-process-caps_attempted_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
       "name": "*.caps_used",
       "link": "common-process-caps_used-doc",
       "type": "int",
       "definition": "Bitmask of the capabilities that the process successfully used",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "*.caps_used_host_userns",
+      "link": "common-process-caps_used_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
       "prefixes": [
         "exec",
         "exit",
@@ -13630,10 +14037,12 @@
         "chown.file.path",
         "connect.addr.hostname",
         "dns.question.name",
+        "exec.aws_security_credentials",
         "exec.file.name",
         "exec.file.path",
         "exec.interpreter.file.name",
         "exec.interpreter.file.path",
+        "exit.aws_security_credentials",
         "exit.file.name",
         "exit.file.path",
         "exit.interpreter.file.name",
@@ -13656,6 +14065,7 @@
         "process.ancestors.file.path",
         "process.ancestors.interpreter.file.name",
         "process.ancestors.interpreter.file.path",
+        "process.aws_security_credentials",
         "process.file.name",
         "process.file.path",
         "process.interpreter.file.name",
@@ -13669,6 +14079,7 @@
         "ptrace.tracee.ancestors.file.path",
         "ptrace.tracee.ancestors.interpreter.file.name",
         "ptrace.tracee.ancestors.interpreter.file.path",
+        "ptrace.tracee.aws_security_credentials",
         "ptrace.tracee.file.name",
         "ptrace.tracee.file.path",
         "ptrace.tracee.interpreter.file.name",
@@ -13690,6 +14101,7 @@
         "setrlimit.target.ancestors.file.path",
         "setrlimit.target.ancestors.interpreter.file.name",
         "setrlimit.target.ancestors.interpreter.file.path",
+        "setrlimit.target.aws_security_credentials",
         "setrlimit.target.file.name",
         "setrlimit.target.file.path",
         "setrlimit.target.interpreter.file.name",
@@ -13705,6 +14117,7 @@
         "signal.target.ancestors.file.path",
         "signal.target.ancestors.interpreter.file.name",
         "signal.target.ancestors.interpreter.file.path",
+        "signal.target.aws_security_credentials",
         "signal.target.file.name",
         "signal.target.file.path",
         "signal.target.interpreter.file.name",
@@ -14666,6 +15079,31 @@
       "examples": []
     },
     {
+      "name": "*.pod_uid",
+      "link": "common-containercontext-pod_uid-doc",
+      "type": "string",
+      "definition": "Kubernetes pod UID",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.port",
       "link": "common-ipportcontext-port-doc",
       "type": "int",
@@ -14687,7 +15125,7 @@
     },
     {
       "name": "*.ppid",
-      "link": "common-process-ppid-doc",
+      "link": "common-pidcontext-ppid-doc",
       "type": "int",
       "definition": "Parent process ID",
       "prefixes": [
@@ -14743,6 +15181,7 @@
         "splice",
         "unlink",
         "unload_module",
+        "unshare",
         "utimes"
       ],
       "constants": "Error constants",
@@ -15078,6 +15517,24 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.type",
+      "link": "common-awssecuritycredentials-type-doc",
+      "type": "string",
+      "definition": "The security credentials type",
+      "prefixes": [
+        "exec.aws_security_credentials",
+        "exit.aws_security_credentials",
+        "imds.aws.security_credentials",
+        "process.aws_security_credentials",
+        "ptrace.tracee.aws_security_credentials",
+        "setrlimit.target.aws_security_credentials",
+        "signal.target.aws_security_credentials"
       ],
       "constants": "",
       "constants_link": "",
@@ -15447,10 +15904,34 @@
       "examples": []
     },
     {
+      "name": "capabilities.attempted_host_userns",
+      "link": "capabilities-attempted_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace",
+      "prefixes": [
+        "capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
       "name": "capabilities.used",
       "link": "capabilities-used-doc",
       "type": "int",
       "definition": "Bitmask of the capabilities that the process successfully used since it started running",
+      "prefixes": [
+        "capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "capabilities.used_host_userns",
+      "link": "capabilities-used_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process successfully used since it started running, through checks that always target the initial user namespace",
       "prefixes": [
         "capabilities"
       ],
@@ -16035,18 +16516,6 @@
       "examples": []
     },
     {
-      "name": "imds.aws.security_credentials.type",
-      "link": "imds-aws-security_credentials-type-doc",
-      "type": "string",
-      "definition": "the security credentials type",
-      "prefixes": [
-        "imds.aws.security_credentials"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "imds.cloud_provider",
       "link": "imds-cloud_provider-doc",
       "type": "string",
@@ -16056,6 +16525,18 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.credential_source",
+      "link": "imds-credential_source-doc",
+      "type": "int",
+      "definition": "the credential endpoint that served the IMDS event",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "Credential sources",
+      "constants_link": "credential-sources",
       "examples": []
     },
     {
@@ -17184,6 +17665,18 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "unshare.flags",
+      "link": "unshare-flags-doc",
+      "type": "int",
+      "definition": "Namespace flags requested by the unshare call",
+      "prefixes": [
+        "unshare"
+      ],
+      "constants": "Clone flags",
+      "constants_link": "clone-flags",
       "examples": []
     },
     {
@@ -18509,6 +19002,69 @@
       ]
     },
     {
+      "name": "Clone flags",
+      "link": "clone-flags",
+      "description": "Clone flags are the supported namespace flags for the unshare syscall.",
+      "all": [
+        {
+          "name": "CLONE_NEWNS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWCGROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWUTS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWIPC",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWUSER",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWPID",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWNET",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_FILES",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_FS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_SYSVSEM",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_THREAD",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_SIGHAND",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_VM",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "CompressionType",
       "link": "compressiontype",
       "description": "Compression algorithm.",
@@ -18539,6 +19095,25 @@
         },
         {
           "name": "XZ",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Credential sources",
+      "link": "credential-sources",
+      "description": "Credential sources are the endpoints that can serve cloud credentials.",
+      "all": [
+        {
+          "name": "IMDS",
+          "architecture": "all"
+        },
+        {
+          "name": "EKS_POD_IDENTITY",
+          "architecture": "all"
+        },
+        {
+          "name": "ECS",
           "architecture": "all"
         }
       ]

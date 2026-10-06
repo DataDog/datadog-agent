@@ -140,6 +140,34 @@ func (v *ActionValidator) ValidateAction(action *kubeactions.KubeAction) error {
 				Message: "resource.kind must be 'Deployment' for rollback_deployment action",
 			}
 		}
+	case ActionTypePatchDaemonSet:
+		if action.Resource.Kind != "DaemonSet" {
+			return &ValidationError{
+				Action:  action,
+				Message: "resource.kind must be 'DaemonSet' for patch_daemonset action",
+			}
+		}
+		patchParams := action.GetPatchDaemonset()
+		if patchParams == nil || patchParams.GetPatch() == nil {
+			return &ValidationError{
+				Action:  action,
+				Message: "patch is required for patch_daemonset action",
+			}
+		}
+	case ActionTypePatchStatefulSet:
+		if action.Resource.Kind != "StatefulSet" {
+			return &ValidationError{
+				Action:  action,
+				Message: "resource.kind must be 'StatefulSet' for patch_statefulset action",
+			}
+		}
+		patchParams := action.GetPatchStatefulset()
+		if patchParams == nil || patchParams.GetPatch() == nil {
+			return &ValidationError{
+				Action:  action,
+				Message: "patch is required for patch_statefulset action",
+			}
+		}
 	case ActionTypeGetResource:
 		if action.Resource.ApiVersion == "" {
 			return &ValidationError{

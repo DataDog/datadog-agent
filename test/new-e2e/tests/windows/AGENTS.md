@@ -99,7 +99,7 @@ func TestFoo(t *testing.T) {
 - **MSI install/uninstall/upgrade/repair** — `tests/windows/install-test/`.
   Uses the MSI installer helpers (`baseAgentMSISuite`, `Tester`).
 - **Fleet Automation / OCI packages** (`datadog-installer.exe`,
-  `Install-Datadog.ps1`, experiment lifecycle) —
+  experiment lifecycle) —
   `tests/installer/windows/`. Uses the installer helpers (`BaseSuite`,
   `DatadogInstallerRunner`).
 - **Agent functional or integration tests** that need a pre-installed running
@@ -122,11 +122,14 @@ Claude Code, the `/run-windows-e2e` skill drives the whole flow interactively.
 
 ## CI configuration
 
-CI jobs for these tests live in two files under `.gitlab/windows/test/`:
+CI jobs for these tests are split by ownership under `.gitlab/windows/test/e2e/`:
 
-**`e2e/windows.yml`** — general Windows e2e jobs (service tests, certificate,
-FIPS compliance, system probe, etc.). Jobs use `EXTRA_PARAMS: --run TestFoo`
-to select a specific test function or suite.
+- **`windows_agent.yml`**: Agent configuration, runtimes, and subcommands
+- **`windows_observability.yml`**: NPM, network path, pipelines, CWS, process,
+  and USM tests
+- **`windows_products.yml`**: service, certificate, FIPS compliance, system
+  probe, and security agent tests
+- **`windows_templates.yml`**: shared Windows E2E templates
 
 **`e2e_install_packages/windows.yml`** — MSI install/upgrade/domain jobs.
 Because each test function provisions its own VM, these jobs use a

@@ -162,6 +162,29 @@ func TestUnmarshalSpanLargeMetaMap(t *testing.T) {
 	}
 }
 
+// TestUnmarshalSpanLargeMetaStructValue verifies that a single meta_struct entry
+// larger than the package-wide allocation limit still decodes.  LLM Observability
+// writes payloads there that legitimately exceed what other span fields are
+// allowed, so the field carries its own higher cap (msg:"...,limit=10485760" in
+// span.proto).
+func TestUnmarshalSpanLargeMetaStructValue(t *testing.T) {
+	const size = 9 * 1024 * 1024
+	value := bytes.Repeat([]byte{0xAB}, size)
+
+	bts, err := (&Span{MetaStruct: map[string][]byte{"appsec": value}}).MarshalMsg(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var s Span
+	if _, err := s.UnmarshalMsg(bts); err != nil {
+		t.Fatalf("unexpected error decoding a %d byte meta_struct entry: %v", size, err)
+	}
+	if !bytes.Equal(s.MetaStruct["appsec"], value) {
+		t.Fatalf("meta_struct entry not round-tripped: got %d bytes, want %d", len(s.MetaStruct["appsec"]), size)
+	}
+}
+
 // TestUnmarshalAgentPayloadLargeTagsMap verifies that AgentPayload.UnmarshalMsg
 // rejects a payload whose declared tags map count exceeds the configured limit.
 func TestUnmarshalAgentPayloadLargeTagsMap(t *testing.T) {

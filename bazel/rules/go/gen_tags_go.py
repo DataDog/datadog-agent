@@ -1,8 +1,7 @@
 """Generate tags.go for the dd_agent_go_test Gazelle extension.
 
-Reads FLAVOR_UNIT_TEST_TAGS from tasks/build_tags.bzl (valid Python: set([...])
-literals and set operators) and emits the FlavorUnitTestTags map the extension
-uses to decide which per-flavor dd_agent_go_test variants apply to a package.
+Reads the flavorless test-tag definitions from tasks/build_tags.bzl and emits
+the Go values used to derive per-package tag-set variants.
 
 Usage: gen_tags_go.py <build_tags.bzl> <out.go>
 """
@@ -18,11 +17,7 @@ _HEADER = """// Unless explicitly stated otherwise all files in this repository 
 
 package dd_agent_go_test
 
-// FlavorUnitTestTags maps each agent flavor to its unit-test build tags. The
-// LINUX_ONLY tags are included unconditionally: at Gazelle generation time the
-// target platform is unknown, and flavor_gotags()'s select() enforces the
-// platform restrictions at build time.
-var FlavorUnitTestTags = map[string][]string{"""
+"""
 
 
 def main() -> None:
@@ -31,13 +26,14 @@ def main() -> None:
     with open(bzl_path) as src:
         exec(src.read(), namespace)  # noqa: S102 - build_tags.bzl is trusted, valid Python
 
-    flavor_tags = namespace["FLAVOR_UNIT_TEST_TAGS"]
-    lines = [_HEADER]
-    for flavor in sorted(flavor_tags):
-        lines.append(f'\t"{flavor}": {{')
-        for tag in flavor_tags[flavor]:
-            lines.append(f'\t\t"{tag}",')
-        lines.append("\t},")
+    lines = [_HEADER, "// BaseTestTags are applied to every generated Go unit test.", "var BaseTestTags = []string{"]
+    for tag in namespace["BASE_TEST_TAGS"]:
+        lines.append(f'\t"{tag}",')
+    lines.extend(
+        ["}", "", "// AutoTestTags may form source-derived test variants.", "var AutoTestTags = map[string]bool{"]
+    )
+    for tag in namespace["AUTO_TEST_TAGS"]:
+        lines.append(f'\t"{tag}": true,')
     lines.append("}\n")
 
     with open(out_path, "w") as out:

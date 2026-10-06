@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -15,19 +16,68 @@ import (
 )
 
 // TestDefaultCatalog_DetectorTeardownContract is the structural guard that
-// every catalog detector either implements observerdef.SeriesRemover or is
-// explicitly listed in statelessDetectorAllowlist. Without this, a new
+// every catalog detector implements observerdef.SeriesRemover. Without this, a new
 // detector with per-series state can be added to the catalog and silently
 // leak memory in production: storage eviction will free the series, but the
 // detector's per-series map will never shrink.
 func TestDefaultCatalog_DetectorTeardownContract(t *testing.T) {
 	require.NoError(t, defaultCatalog().validateDetectorTeardownContract(),
-		"every catalog detector must implement SeriesRemover or be added to statelessDetectorAllowlist with a justification comment")
+		"every catalog detector must implement SeriesRemover")
+}
+
+func TestDefaultCatalog_EnabledDetectors(t *testing.T) {
+	detectors, _, _, _, _ := defaultCatalog().Instantiate(ComponentSettings{})
+	require.Equal(t, []string{"bocpd"}, detectorNames(detectors))
+}
+
+// Every catalog detector can be enabled through anomaly_detection.detectors.*.
+// Check all of them, including those disabled by default, so a new detector
+// cannot silently use FormatAnomaly's generic fallback when it starts emitting.
+func TestDefaultCatalog_EmittingDetectorsHaveAnomalyFormatter(t *testing.T) {
+	for _, entry := range defaultCatalog().Entries() {
+		if entry.kind != componentDetector {
+			continue
+		}
+		t.Run(entry.name, func(t *testing.T) {
+			detector, ok := entry.factory(entry.defaultConfig).(interface{ Name() string })
+			require.True(t, ok, "catalog detector must expose its runtime name")
+			require.Equal(t, entry.name, detector.Name())
+
+			anomaly := observerdef.Anomaly{
+				Source:       observerdef.SeriesDescriptor{Name: "metric", Aggregate: observerdef.AggregateAverage},
+				DetectorName: detector.Name(),
+				DebugInfo: &observerdef.AnomalyDebugInfo{
+					BOCPDTrigger: observerdef.BOCPDTriggerChangePointProbability,
+				},
+			}
+			title, description := observerdef.FormatAnomaly(anomaly)
+			require.NotEqual(t, "Anomaly detected: "+detector.Name()+": metric:avg", title,
+				"configurable detector is missing an anomaly formatter")
+			require.NotEmpty(t, description, "configurable detector is missing an anomaly description")
+		})
+	}
+}
+
+func TestTestbenchCatalogAndSettingsIncludePassthrough(t *testing.T) {
+	found := false
+	for _, entry := range TestbenchCatalogEntries() {
+		if entry.Name == TestbenchPassthroughComponentName {
+			found = true
+			require.Equal(t, "correlator", entry.Kind)
+			require.False(t, entry.DefaultEnabled)
+		}
+	}
+	require.True(t, found)
+
+	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
+		TestbenchPassthroughComponentName: json.RawMessage(`{"enabled":true}`),
+	})
+	require.NoError(t, err)
+	require.True(t, settings.Enabled[TestbenchPassthroughComponentName])
 }
 
 // TestValidateDetectorTeardownContract_FlagsBareDetector confirms the
-// validator rejects a Detector that doesn't implement SeriesRemover and isn't
-// allowlisted — i.e. the check actually fails when it should.
+// validator rejects a Detector that doesn't implement SeriesRemover.
 func TestValidateDetectorTeardownContract_FlagsBareDetector(t *testing.T) {
 	cat := &componentCatalog{
 		entries: []componentEntry{
@@ -46,24 +96,43 @@ func TestValidateDetectorTeardownContract_FlagsBareDetector(t *testing.T) {
 	require.Equal(t, "bare-detector", contractErr.name)
 }
 
-// TestValidateDetectorTeardownContract_AllowlistEscape confirms an allowlisted
-// detector is permitted to skip SeriesRemover. Useful for genuinely stateless
-// detectors (none in the catalog today; this exercises the escape hatch).
-func TestValidateDetectorTeardownContract_AllowlistEscape(t *testing.T) {
-	statelessDetectorAllowlist["explicitly-stateless-test"] = struct{}{}
-	t.Cleanup(func() { delete(statelessDetectorAllowlist, "explicitly-stateless-test") })
+func TestApplyTestbenchDefaults(t *testing.T) {
+	settings := ApplyTestbenchDefaults(ComponentSettings{})
 
-	cat := &componentCatalog{
-		entries: []componentEntry{
-			{
-				name:           "explicitly-stateless-test",
-				kind:           componentDetector,
-				factory:        func(any) any { return &bareDetectorForValidator{} },
-				defaultEnabled: true,
-			},
-		},
-	}
-	require.NoError(t, cat.validateDetectorTeardownContract())
+	require.Equal(t, 40, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
+	holt := settings.configs["holt_residual"].(HoltResidualConfig)
+	require.Equal(t, 15, holt.WarmupPoints)
+	require.Equal(t, 25, holt.ResidualWindow)
+	tukey := settings.configs["tukey_biweight"].(TukeyBiweightConfig)
+	require.Equal(t, 40, tukey.WindowSize)
+	require.Equal(t, 40, tukey.MinPoints)
+	require.True(t, settings.Enabled["anomaly_scorer"])
+	require.NotContains(t, settings.Enabled, "time_cluster")
+	scorer := settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
+	require.True(t, scorer.CorrelationEvents)
+	require.Zero(t, scorer.CooldownSecs)
+}
+
+func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
+	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
+		"bocpd":          json.RawMessage(`{"warmup_points": 42}`),
+		"scanmw":         json.RawMessage(`{"min_points": 42, "max_points": 84}`),
+		"scanwelch":      json.RawMessage(`{"min_points": 42, "max_points": 84}`),
+		"anomaly_scorer": json.RawMessage(`{"enabled":false}`),
+		"time_cluster":   json.RawMessage(`{"enabled":true}`),
+	})
+	require.NoError(t, err)
+
+	settings = ApplyTestbenchDefaults(settings)
+	require.Equal(t, 42, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
+	scanMW := settings.configs["scanmw"].(*ScanMWDetector)
+	require.Equal(t, 42, scanMW.MinPoints)
+	require.Equal(t, 84, scanMW.MaxPoints)
+	scanWelch := settings.configs["scanwelch"].(*ScanWelchDetector)
+	require.Equal(t, 42, scanWelch.MinPoints)
+	require.Equal(t, 84, scanWelch.MaxPoints)
+	require.False(t, settings.Enabled["anomaly_scorer"])
+	require.True(t, settings.Enabled["time_cluster"])
 }
 
 // bareDetectorForValidator is a minimal observerdef.Detector that
@@ -72,6 +141,7 @@ func TestValidateDetectorTeardownContract_AllowlistEscape(t *testing.T) {
 type bareDetectorForValidator struct{}
 
 func (*bareDetectorForValidator) Name() string { return "bare-detector" }
+func (*bareDetectorForValidator) Ready() bool  { return true }
 func (*bareDetectorForValidator) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }

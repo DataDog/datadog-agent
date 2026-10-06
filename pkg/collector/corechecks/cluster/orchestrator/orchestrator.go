@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2021 Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator
+//go:build kubeapiserver
 
 package orchestrator
 
@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -29,12 +29,14 @@ import (
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	taggerutils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -107,7 +109,7 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, c
 		cfg:         cfg,
 		stopCh:      make(chan struct{}),
 		groupID:     atomic.NewInt32(rand.Int31()),
-		isCLCRunner: pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
+		isCLCRunner: helper.IsCLCRunner(pkgconfigsetup.Datadog()),
 		agentVersion: &model.AgentVersion{
 			Major:  agentVersion.Major,
 			Minor:  agentVersion.Minor,
@@ -163,6 +165,10 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 	extraTags := make([]string, 0, len(checkConfigExtraTags)+len(taggerExtraTags))
 	extraTags = append(extraTags, checkConfigExtraTags...)
 	extraTags = append(extraTags, taggerExtraTags...)
+
+	// On a Cluster Check Runner the dispatched check configuration can already
+	// carry the mark, so append it only when it is absent.
+	extraTags = taggerutils.AppendUniqueTags(extraTags, o.tagger.GetInfraTags()...)
 
 	o.orchestratorConfig = orchcfg.NewDefaultOrchestratorConfig(extraTags)
 

@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Add ``anomaly_detection.detectors.log_pattern_extractor.max_patterns`` to
+    limit the total number of tracked log patterns across tag groups. The
+    default is 3,000. At capacity, the least recently seen existing pattern
+    is evicted along with its derived metric state. Non-positive values use
+    the default, and existing per-group safeguards still apply.

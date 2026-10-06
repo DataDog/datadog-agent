@@ -18,12 +18,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/rshell/interp"
+	"github.com/DataDog/rshell/privilegedhelper"
+	"google.golang.org/protobuf/proto"
 )
 
 func makeTask(command string, allowedCommands []string) *types.Task {
@@ -51,26 +55,23 @@ func makeTaskWithPaths(command string, allowedCommands []string, allowedPaths []
 	return task
 }
 
-func makeLegacyTask(command string, allowedCommands []string) *types.Task {
-	task := &types.Task{}
-	task.Data.Attributes = &types.Attributes{
-		Inputs: map[string]any{
-			"command":         command,
-			"allowedCommands": allowedCommands,
-		},
-	}
+func makeTaskWithSystemServices(command string, allowedCommands []string, systemServices map[string]*structpb.ListValue) *types.Task {
+	task := makeTask(command, allowedCommands)
+	task.Data.Attributes.SystemInputs.GetRemoteAction().SystemServices = systemServices
 	return task
 }
 
-func makeLegacyTaskWithPaths(command string, allowedCommands []string, allowedPaths map[string][]string) *types.Task {
-	task := makeLegacyTask(command, allowedCommands)
-	task.Data.Attributes.Inputs["allowedPaths"] = allowedPaths
-	return task
+func systemServiceActions(actions ...string) *structpb.ListValue {
+	values := make([]*structpb.Value, 0, len(actions))
+	for _, action := range actions {
+		values = append(values, structpb.NewStringValue(action))
+	}
+	return &structpb.ListValue{Values: values}
 }
 
 func defaultRunCommandHandlerConfig() RunCommandHandlerConfig {
 	return RunCommandHandlerConfig{
-		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
+		OperatorAllowedPaths:    []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands: []string{rShellCommandAllowAllWildcard},
 	}
 }
@@ -185,7 +186,7 @@ func TestFilterAllowedCommandsIntersectsAgentAllowlist(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			handler := NewRunCommandHandler(RunCommandHandlerConfig{
-				OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
+				OperatorAllowedPaths:    []string{par.RShellPathAllowAll},
 				OperatorAllowedCommands: tc.agent,
 			})
 
@@ -198,6 +199,136 @@ func TestFilterAllowedCommandsIntersectsAgentAllowlist(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFilterAllowedSystemServices(t *testing.T) {
+	tests := []struct {
+		name     string
+		operator map[string][]string
+		backend  map[string]*structpb.ListValue
+		want     []interp.SystemServiceControlGrant
+	}{
+		{
+			name: "missing backend policy denies all",
+		},
+		{
+			name: "unset operator policy passes backend grants through deterministically",
+			backend: map[string]*structpb.ListValue{
+				"nginx.service": systemServiceActions("reload"),
+				"mysql.service": systemServiceActions("restart", "read", "read"),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read", "restart"}},
+				{Service: "nginx.service", Actions: []interp.SystemServiceAction{"reload"}},
+			},
+		},
+		{
+			name:     "explicit empty operator policy denies all",
+			operator: map[string][]string{},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions("read"),
+			},
+		},
+		{
+			name: "operator policy intersects exact service and action names",
+			operator: map[string][]string{
+				"mysql.service": {"reload", "read", "read"},
+				"NGINX.service": {"read"},
+			},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions("restart", "read"),
+				"nginx.service": systemServiceActions("read"),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read"}},
+			},
+		},
+		{
+			name: "operator wildcard preserves backend actions for the exact service",
+			operator: map[string][]string{
+				"mysql.service": {string(interp.SystemServiceAllActions)},
+			},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions("restart", "read"),
+				"nginx.service": systemServiceActions("read"),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read", "restart"}},
+			},
+		},
+		{
+			name: "backend wildcard is narrowed by explicit operator actions",
+			operator: map[string][]string{
+				"mysql.service": {"read", "restart"},
+			},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions(string(interp.SystemServiceAllActions)),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read", "restart"}},
+			},
+		},
+		{
+			name: "wildcards on both sides remain a wildcard",
+			operator: map[string][]string{
+				"mysql.service": {string(interp.SystemServiceAllActions)},
+			},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions(string(interp.SystemServiceAllActions)),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{interp.SystemServiceAllActions}},
+			},
+		},
+		{
+			name: "nil and empty backend action lists grant nothing",
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": nil,
+				"nginx.service": {},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			handler := NewRunCommandHandler(RunCommandHandlerConfig{
+				OperatorAllowedSystemServices: test.operator,
+			})
+
+			got := handler.filterSystemServiceGrants(backendSystemServiceGrants(test.backend))
+
+			if len(test.want) == 0 {
+				assert.Empty(t, got)
+			} else {
+				assert.Equal(t, test.want, got)
+			}
+		})
+	}
+}
+
+func TestBackendSystemServiceGrantsIgnoresNonStringActionsWithWarning(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.WarnLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "debug") })
+	log.SetupLogger(logger, "warn")
+
+	got := backendSystemServiceGrants(map[string]*structpb.ListValue{
+		"mysql.service": {
+			Values: []*structpb.Value{
+				structpb.NewStringValue("read"),
+				structpb.NewNumberValue(1),
+				nil,
+			},
+		},
+	})
+
+	assert.Equal(t, []interp.SystemServiceControlGrant{
+		{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read"}},
+	}, got)
+	assert.Contains(t, logBuffer.String(), `ignoring non-string system service action at index 1 for "mysql.service"`)
+	assert.Contains(t, logBuffer.String(), `ignoring non-string system service action at index 2 for "mysql.service"`)
 }
 
 func TestFilterAllowedPathsUsesBackendPayload(t *testing.T) {
@@ -256,7 +387,7 @@ func TestFilterAllowedPathsUsesBackendPayload(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			handler := NewRunCommandHandler(RunCommandHandlerConfig{
-				OperatorAllowedPaths: []string{setup.RShellPathAllowAll},
+				OperatorAllowedPaths: []string{par.RShellPathAllowAll},
 			})
 
 			got := handler.filterAllowedPaths(tc.backend)
@@ -433,16 +564,28 @@ func TestFilterAllowedPathsIntersectsAgentAllowlistByAccess(t *testing.T) {
 func TestNewRunCommandHandlerDoesNotMutateInputs(t *testing.T) {
 	paths := []string{"/var/log", "/etc"}
 	commands := []string{"rshell:zls", "rshell:cat", "rshell:cat"}
+	services := map[string][]string{
+		"mysql.service": {"restart", "read", "read"},
+	}
 	pathsCopy := slices.Clone(paths)
 	commandsCopy := slices.Clone(commands)
+	servicesCopy := map[string][]string{
+		"mysql.service": slices.Clone(services["mysql.service"]),
+	}
 
-	NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:    paths,
-		OperatorAllowedCommands: commands,
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:          paths,
+		OperatorAllowedCommands:       commands,
+		OperatorAllowedSystemServices: services,
 	})
 
 	assert.Equal(t, pathsCopy, paths, "AgentAllowedPaths input must not be mutated")
 	assert.Equal(t, commandsCopy, commands, "AgentAllowedCommands input must not be mutated")
+	assert.Equal(t, servicesCopy, services, "AgentAllowedSystemServices input must not be mutated")
+
+	services["mysql.service"][0] = "reload"
+	assert.Equal(t, []string{"read", "restart"}, handler.operatorAllowedSystemServices["mysql.service"],
+		"AgentAllowedSystemServices must be copied before being retained")
 }
 
 func TestNewRunCommandHandlerReducesOperatorAllowedPathsByAccess(t *testing.T) {
@@ -480,56 +623,317 @@ func TestRunCommandNoAllowedCommandsBlocksExecution(t *testing.T) {
 	assert.Contains(t, result.Stderr, "command not allowed")
 }
 
-func TestRunCommandMissingRemoteActionPolicyBlocksExecution(t *testing.T) {
+func TestRunCommandWithoutSudoDoesNotRequirePrivilegedHelper(t *testing.T) {
+	for _, action := range []struct {
+		name       string
+		newHandler func(RunCommandHandlerConfig) *RunCommandHandler
+	}{
+		{name: "read-only", newHandler: NewRunCommandHandler},
+		{name: "remediation", newHandler: NewRunRemediationCommandHandler},
+	} {
+		t.Run(action.name, func(t *testing.T) {
+			for _, policy := range []struct {
+				name               string
+				elevatableCommands []string
+			}{
+				{name: "unused elevatable command", elevatableCommands: []string{"rshell:cat"}},
+				{name: "elevatable command without sudo", elevatableCommands: []string{"rshell:echo"}},
+			} {
+				t.Run(policy.name, func(t *testing.T) {
+					// The policy permits elevation, but this invocation does not request it.
+					// It must still work with the locally disabled helper (the default).
+					handler := action.newHandler(defaultRunCommandHandlerConfig())
+					task := makeTaskWithPaths("echo hello",
+						[]string{"rshell:echo", "rshell:cat"}, []string{t.TempDir()})
+					task.Data.Attributes.Inputs["effectivePermissions"] = privilegedhelper.EscalationAllowed
+					task.Data.Attributes.Inputs["elevatableCommands"] = policy.elevatableCommands
+
+					out, err := handler.Run(context.Background(), task, nil)
+
+					require.NoError(t, err)
+					result := out.(*RunCommandOutputs)
+					assert.Equal(t, 0, result.ExitCode)
+					assert.Equal(t, "hello\n", result.Stdout)
+					assert.Empty(t, result.Stderr)
+				})
+			}
+		})
+	}
+}
+
+func TestPrivilegedExecutionRequiresLocalOptIn(t *testing.T) {
+	tests := []struct {
+		name    string
+		handler *RunCommandHandler
+	}{
+		{name: "read-only", handler: newDefaultRunCommandHandler()},
+		{name: "remediation", handler: newDefaultRunRemediationCommandHandler()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, script := range []struct {
+				name       string
+				command    string
+				wantStdout string
+			}{
+				{name: "literal sudo", command: "sudo echo unexpected"},
+				{name: "expanded sudo", command: "marker=sudo; $marker echo unexpected"},
+				{name: "ordinary command before sudo", command: "echo ordinary; sudo echo unexpected", wantStdout: "ordinary\n"},
+			} {
+				t.Run(script.name, func(t *testing.T) {
+					task := makeTask(script.command, []string{"rshell:echo"})
+					task.Data.Attributes.Inputs["effectivePermissions"] = privilegedhelper.EscalationAllowed
+					task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:echo"}
+
+					out, err := tt.handler.Run(context.Background(), task, nil)
+
+					require.NoError(t, err)
+					result := out.(*RunCommandOutputs)
+					assert.Equal(t, 126, result.ExitCode)
+					assert.Equal(t, script.wantStdout, result.Stdout)
+					assert.Contains(t, result.Stderr, "sudo: echo: elevation not allowed")
+				})
+			}
+		})
+	}
+}
+
+func TestEnabledPrivilegedHelperFailureDoesNotFallBack(t *testing.T) {
+	cfg := defaultRunCommandHandlerConfig()
+	cfg.PrivilegedEnabled = true
+	cfg.PrivilegedSocket = filepath.Join(t.TempDir(), "missing-helper.sock")
+	for _, action := range []struct {
+		name    string
+		handler *RunCommandHandler
+	}{
+		{name: "read-only", handler: NewRunCommandHandler(cfg)},
+		{name: "remediation", handler: NewRunRemediationCommandHandler(cfg)},
+	} {
+		t.Run(action.name, func(t *testing.T) {
+			// This command would succeed locally, but an enabled helper's
+			// failure must be returned without retrying the script.
+			task := makeTask("echo unexpected", []string{"rshell:echo"})
+			task.Data.Attributes.Inputs["effectivePermissions"] = privilegedhelper.EscalationAllowed
+			task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:echo"}
+			task.Data.Attributes.SignedEnvelope = &privateactionspb.RemoteConfigSignatureEnvelope{}
+			task.Data.Attributes.VerificationKey = &types.TaskVerificationKey{DirectorProof: &types.DirectorKeyProof{}}
+
+			out, err := action.handler.Run(context.Background(), task, nil)
+
+			require.ErrorContains(t, err, "privileged rshell helper: connect to privileged helper")
+			assert.Nil(t, out)
+		})
+	}
+}
+
+func TestRunPrivilegedLogsSettingsAtInfoLevel(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.InfoLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "info") })
+	log.SetupLogger(logger, "info")
+
+	cfg := defaultRunCommandHandlerConfig()
+	cfg.PrivilegedEnabled = true
+	handler := NewRunCommandHandler(cfg)
+	task := makeTask("sudo cat /root/secret", []string{"rshell:cat"})
+	task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
+	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:cat"}
+
+	_, err = handler.Run(context.Background(), task, nil)
+	require.ErrorContains(t, err, "privileged rshell socket is not configured")
+
+	logs := logBuffer.String()
+	assert.Contains(t, logs, "[INFO] rshell runPrivileged")
+	assert.Contains(t, logs, "elevatableCommands=[rshell:cat]")
+	assert.Contains(t, logs, "privilegedEnabled=true")
+	assert.Contains(t, logs, "agentPolicy=<nil>")
+}
+
+func TestRunPrivilegedLogsAgentPolicyWhenOperatorSettingsConfigured(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.InfoLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "info") })
+	log.SetupLogger(logger, "info")
+
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:              []string{par.RShellPathAllowAll},
+		OperatorAllowedCommands:           []string{"rshell:cat"},
+		OperatorAllowedCommandsConfigured: true,
+		OperatorElevatableCommands:        []string{"rshell:cat"},
+		PrivilegedEnabled:                 true,
+		PrivilegedSocket:                  "",
+	})
+	task := makeTask("sudo cat /root/secret", []string{"rshell:cat"})
+	task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
+	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:cat"}
+
+	_, err = handler.Run(context.Background(), task, nil)
+	require.ErrorContains(t, err, "privileged rshell socket is not configured")
+
+	logs := logBuffer.String()
+	assert.Contains(t, logs, "[INFO] rshell runPrivileged")
+	assert.Contains(t, logs, "AllowedCommands:[rshell:cat]")
+	assert.Contains(t, logs, "ElevatableCommands:[rshell:cat]")
+}
+
+func TestBuildAgentPolicyNoOperatorNarrowingIsNil(t *testing.T) {
+	handler := newDefaultRunCommandHandler()
+
+	assert.Nil(t, handler.buildAgentPolicy())
+}
+
+func TestBuildAgentPolicyOnlyAllowedCommandsConfiguredLeavesOtherAxesNil(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:              []string{par.RShellPathAllowAll},
+		OperatorAllowedCommands:           []string{"rshell:truncate"},
+		OperatorAllowedCommandsConfigured: true,
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.Equal(t, []string{"rshell:truncate"}, policy.AllowedCommands)
+	assert.Nil(t, policy.AllowedPaths)
+	assert.Nil(t, policy.AllowedSystemServices)
+	assert.Nil(t, policy.ElevatableCommands)
+}
+
+func TestBuildAgentPolicyOnlyElevatableCommandsConfiguredLeavesOtherAxesNil(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:       []string{par.RShellPathAllowAll},
+		OperatorAllowedCommands:    []string{rShellCommandAllowAllWildcard},
+		OperatorElevatableCommands: []string{"rshell:journalctl", "rshell:systemctl"},
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.Equal(t, []string{"rshell:journalctl", "rshell:systemctl"}, policy.ElevatableCommands)
+	assert.Nil(t, policy.AllowedCommands)
+	assert.Nil(t, policy.AllowedPaths)
+	assert.Nil(t, policy.AllowedSystemServices)
+}
+
+func TestBuildAgentPolicyExplicitlyEmptyElevatableCommandsIsKillSwitch(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorElevatableCommands: []string{},
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.NotNil(t, policy.ElevatableCommands)
+	assert.Empty(t, policy.ElevatableCommands)
+}
+
+func TestBuildAgentPolicyAllAxesConfigured(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:              []string{"/var/log:ro"},
+		OperatorAllowedCommands:           []string{"rshell:cat"},
+		OperatorAllowedCommandsConfigured: true,
+		OperatorAllowedPathsConfigured:    true,
+		OperatorAllowedSystemServices:     map[string][]string{"mysql.service": {"read"}},
+		OperatorElevatableCommands:        []string{"rshell:truncate"},
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.Equal(t, []string{"rshell:cat"}, policy.AllowedCommands)
+	assert.Equal(t, []string{"/var/log/:ro"}, policy.AllowedPaths)
+	assert.Equal(t, map[string][]string{"mysql.service": {"read"}}, policy.AllowedSystemServices)
+	assert.Equal(t, []string{"rshell:truncate"}, policy.ElevatableCommands)
+}
+
+func TestBuildAgentPolicyExplicitlyEmptyAllowedSystemServicesConfiguredIsKillSwitch(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:          []string{par.RShellPathAllowAll},
+		OperatorAllowedCommands:       []string{rShellCommandAllowAllWildcard},
+		OperatorAllowedSystemServices: map[string][]string{},
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.NotNil(t, policy.AllowedSystemServices)
+	assert.Empty(t, policy.AllowedSystemServices)
+}
+
+func TestWholeScriptRootIsRejected(t *testing.T) {
+	handler := newDefaultRunRemediationCommandHandler()
+	task := makeTask("truncate -s 0 /var/log/app.log", []string{"rshell:truncate"})
+	task.Data.Attributes.Inputs["effectivePermissions"] = "Root"
+
+	_, err := handler.Run(context.Background(), task, nil)
+	require.ErrorContains(t, err, "whole-script root execution is not supported")
+}
+
+func TestPrivilegedHelperTaskWireCompatibility(t *testing.T) {
+	for _, actionName := range []string{"runCommand", "runRemediationCommand"} {
+		t.Run(actionName, func(t *testing.T) {
+			agentTask := &privateactionspb.PrivateActionTask{
+				ActionName:     actionName,
+				BundleId:       "com.datadoghq.remoteaction.rshell",
+				OrgId:          42,
+				TaskId:         "task-1",
+				ConnectionInfo: &privateactionspb.ConnectionInfo{RunnerId: "runner-1"},
+				SystemInputs: &privateactionspb.SystemInputs{Input: &privateactionspb.SystemInputs_RemoteAction{
+					RemoteAction: &privateactionspb.RemoteAction{AllowedCommands: []string{"rshell:cat"}, AllowedPaths: []string{"/root:ro"}},
+				}},
+			}
+			wire, err := proto.Marshal(agentTask)
+			require.NoError(t, err)
+			var helperTask privilegedhelper.PrivateActionTask
+			require.NoError(t, proto.Unmarshal(wire, &helperTask))
+			assert.Equal(t, agentTask.ActionName, helperTask.ActionName)
+			assert.Equal(t, agentTask.BundleId, helperTask.BundleId)
+			assert.Equal(t, agentTask.OrgId, helperTask.OrgId)
+			assert.Equal(t, agentTask.TaskId, helperTask.TaskId)
+			assert.Equal(t, agentTask.ConnectionInfo.RunnerId, helperTask.ConnectionInfo.RunnerId)
+			assert.Equal(t, agentTask.SystemInputs.GetRemoteAction().AllowedCommands, helperTask.SystemInputs.GetRemoteAction().AllowedCommands)
+			assert.Equal(t, agentTask.SystemInputs.GetRemoteAction().AllowedPaths, helperTask.SystemInputs.GetRemoteAction().AllowedPaths)
+		})
+	}
+}
+
+func TestRunCommandMissingRemoteActionPolicyFailsClosed(t *testing.T) {
 	handler := newDefaultRunCommandHandler()
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
-		Inputs: map[string]any{"command": "echo hello"},
+		Inputs: map[string]any{
+			"command":         "echo hello",
+			"allowedCommands": []string{"rshell:echo"},
+			"allowedPaths": map[string][]string{
+				"default": {"/"},
+			},
+		},
 	}
 
 	out, err := handler.Run(context.Background(), task, nil)
 
-	require.NoError(t, err)
-	result := out.(*RunCommandOutputs)
-	assert.Equal(t, 127, result.ExitCode)
-	assert.Contains(t, result.Stderr, "command not allowed")
+	require.EqualError(t, err, "signed remote action policy is required")
+	assert.Nil(t, out)
 }
 
-func TestRunCommandLegacyInputAllowlistsRemainSupported(t *testing.T) {
+func TestRunCommandEmptyRemoteActionPolicyIgnoresLegacyInputAllowlists(t *testing.T) {
 	handler := newDefaultRunCommandHandler()
-
-	out, err := handler.Run(context.Background(),
-		makeLegacyTask("echo hello", []string{"rshell:echo"}), nil)
-
-	require.NoError(t, err)
-	result := out.(*RunCommandOutputs)
-	assert.Equal(t, 0, result.ExitCode)
-	assert.Equal(t, "hello\n", result.Stdout)
-}
-
-func TestRunCommandLegacyInputAllowedPathsRemainSupported(t *testing.T) {
-	dir := filepath.ToSlash(t.TempDir())
-	payload := dir + "/payload.txt"
-	require.NoError(t, os.WriteFile(filepath.FromSlash(payload), []byte("hello\n"), 0o600))
-	handler := newDefaultRunCommandHandler()
-
-	out, err := handler.Run(context.Background(),
-		makeLegacyTaskWithPaths("cat "+payload,
-			[]string{"rshell:cat"},
-			map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}}), nil)
-
-	require.NoError(t, err)
-	result := out.(*RunCommandOutputs)
-	assert.Equal(t, 0, result.ExitCode)
-	assert.Equal(t, "hello\n", result.Stdout)
-}
-
-func TestRunCommandSystemInputsOverrideLegacyInputAllowlists(t *testing.T) {
-	handler := newDefaultRunCommandHandler()
-	task := makeLegacyTask("echo hello", []string{"rshell:echo"})
-	task.Data.Attributes.SystemInputs = &privateactionspb.SystemInputs{
-		Input: &privateactionspb.SystemInputs_RemoteAction{
-			RemoteAction: &privateactionspb.RemoteAction{},
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{
+		Inputs: map[string]any{
+			"command":         "echo hello",
+			"allowedCommands": []string{"rshell:echo"},
+			"allowedPaths": map[string][]string{
+				"default": {"/"},
+			},
+		},
+		SystemInputs: &privateactionspb.SystemInputs{
+			Input: &privateactionspb.SystemInputs_RemoteAction{
+				RemoteAction: &privateactionspb.RemoteAction{},
+			},
 		},
 	}
 
@@ -553,6 +957,92 @@ func TestRunCommandWithBackendAllowedCommand(t *testing.T) {
 	assert.Equal(t, "hello\n", result.Stdout)
 }
 
+func TestRunCommandWithDisableDetailedTelemetryStillExecutes(t *testing.T) {
+	cfg := defaultRunCommandHandlerConfig()
+	cfg.DisableDetailedTelemetry = true
+	handler := NewRunCommandHandler(cfg)
+
+	out, err := handler.Run(context.Background(),
+		makeTask("echo hello", []string{"rshell:echo"}), nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "hello\n", result.Stdout)
+}
+
+func TestRunCommandPassesSystemServicePolicyToRshell(t *testing.T) {
+	handler := newDefaultRunCommandHandler()
+	task := makeTaskWithSystemServices("echo hello", []string{"rshell:echo"}, map[string]*structpb.ListValue{
+		"mysql.service": systemServiceActions("read", "reboot"),
+	})
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "hello\n", result.Stdout)
+	assert.Contains(t, result.SandboxWarnings,
+		`AllowedSystemServices: skipping unsupported action "reboot" in grant 0 for "mysql.service"`)
+}
+
+func TestRunCommandLogsBackendAndEffectiveSystemServicePolicies(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.DebugLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "debug") })
+	log.SetupLogger(logger, "debug")
+
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:    []string{par.RShellPathAllowAll},
+		OperatorAllowedCommands: []string{rShellCommandAllowAllWildcard},
+		OperatorAllowedSystemServices: map[string][]string{
+			"mysql.service": {"read"},
+		},
+	})
+	task := makeTaskWithSystemServices("echo hello", []string{"rshell:echo"}, map[string]*structpb.ListValue{
+		"nginx.service": systemServiceActions("reload"),
+		"mysql.service": systemServiceActions("restart", "read", "read"),
+	})
+
+	_, err = handler.Run(context.Background(), task, nil)
+	require.NoError(t, err)
+
+	logs := logBuffer.String()
+	assert.Contains(t, logs, "backendAllowedSystemServices=[{mysql.service [read restart]} {nginx.service [reload]}]")
+	assert.Contains(t, logs, "effectiveAllowedSystemServices=[{mysql.service [read]}]")
+}
+
+func TestRunCommandLogsSettingsAtInfoLevel(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.InfoLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "info") })
+	log.SetupLogger(logger, "info")
+
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:     []string{par.RShellPathAllowAll},
+		OperatorAllowedCommands:  []string{rShellCommandAllowAllWildcard},
+		DisableDetailedTelemetry: true,
+	})
+	task := makeTask("echo hello", []string{"rshell:echo"})
+	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:echo"}
+
+	_, err = handler.Run(context.Background(), task, nil)
+	require.NoError(t, err)
+
+	logs := logBuffer.String()
+	assert.Contains(t, logs, "[INFO] rshell runCommand")
+	assert.Contains(t, logs, "effectiveAllowedCommands=[rshell:echo]")
+	assert.Contains(t, logs, "elevatableCommands=[rshell:echo]")
+	assert.Contains(t, logs, "procPath=")
+	assert.Contains(t, logs, "systemdTarget=")
+	assert.Contains(t, logs, "disableDetailedTelemetry=true")
+}
+
 func TestRunCommandDisallowedCommandBlocked(t *testing.T) {
 	// Backend only allowed "rshell:echo"; grep is blocked because it isn't
 	// in the signed backend list.
@@ -569,7 +1059,7 @@ func TestRunCommandDisallowedCommandBlocked(t *testing.T) {
 
 func TestRunCommandAgentCommandAllowlistNarrowsBackendPayload(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
+		OperatorAllowedPaths:    []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands: []string{"rshell:cat"},
 	})
 
@@ -584,7 +1074,7 @@ func TestRunCommandAgentCommandAllowlistNarrowsBackendPayload(t *testing.T) {
 
 func TestRunCommandExplicitEmptyAgentCommandAllowlistBlocksExecution(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
+		OperatorAllowedPaths:    []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands: []string{},
 	})
 
@@ -766,20 +1256,103 @@ func TestResolveProcPathContainerizedWithoutHostMount(t *testing.T) {
 	assert.Equal(t, "/proc", result)
 }
 
+func TestResolveSystemdTarget(t *testing.T) {
+	t.Run("bare metal uses rshell local defaults", func(t *testing.T) {
+		t.Setenv("DOCKER_DD_AGENT", "")
+		assert.Equal(t, interp.SystemdTargetConfig{}, resolveSystemdTarget())
+	})
+
+	t.Setenv("DOCKER_DD_AGENT", "true")
+	cases := []struct {
+		name     string
+		existing map[string]bool
+		want     interp.SystemdTargetConfig
+	}{
+		{
+			name: "container with direct run mount uses host target",
+			existing: map[string]bool{
+				"/host/var/log/journal":                        true,
+				"/host/run/log/journal":                        true,
+				"/host/run/systemd/journal/io.systemd.journal": true,
+				"/host/run/dbus/system_bus_socket":             true,
+			},
+			want: interp.SystemdTargetConfig{
+				JournalDirs: []string{
+					"/host/var/log/journal",
+					"/host/run/log/journal",
+				},
+				MachineIDPath:        "/host/etc/machine-id",
+				JournalControlSocket: "/host/run/systemd/journal/io.systemd.journal",
+				ManagerBusSocket:     "/host/run/dbus/system_bus_socket",
+			},
+		},
+		{
+			name: "standard Agent container uses var run mount",
+			existing: map[string]bool{
+				"/host/var/run/log/journal":                        true,
+				"/host/var/run/systemd/journal/io.systemd.journal": true,
+				"/host/var/run/dbus/system_bus_socket":             true,
+			},
+			want: interp.SystemdTargetConfig{
+				JournalDirs:          []string{"/host/var/run/log/journal"},
+				MachineIDPath:        "/host/etc/machine-id",
+				JournalControlSocket: "/host/var/run/systemd/journal/io.systemd.journal",
+				ManagerBusSocket:     "/host/var/run/dbus/system_bus_socket",
+			},
+		},
+		{
+			name: "runtime endpoints do not mix across mounts",
+			existing: map[string]bool{
+				"/host/run/log/journal":                true,
+				"/host/var/run/dbus/system_bus_socket": true,
+			},
+			want: interp.SystemdTargetConfig{
+				JournalDirs:   []string{"/host/run/log/journal"},
+				MachineIDPath: "/host/etc/machine-id",
+			},
+		},
+		{
+			name: "container without runtime mount keeps explicit host target",
+			existing: map[string]bool{
+				"/host/var/log/journal": true,
+			},
+			want: interp.SystemdTargetConfig{
+				JournalDirs:   []string{"/host/var/log/journal"},
+				MachineIDPath: "/host/etc/machine-id",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			overrideStatFn(t, mockStatFn(tc.existing))
+
+			assert.Equal(t, tc.want, resolveSystemdTarget())
+		})
+	}
+}
+
 // --- runRemediationCommand ---
 
 // TestNewRshellBundleRegistersBothModes verifies the bundle exposes both
 // actions and that each carries the expected rshell execution mode.
 func TestNewRshellBundleRegistersBothModes(t *testing.T) {
-	bundle := NewRshellBundle(&parconfig.Config{})
+	operatorServices := map[string][]string{
+		"mysql.service": {"read", "restart"},
+	}
+	bundle := NewRshellBundle(&parconfig.Config{
+		RShellAllowedSystemServices: operatorServices,
+	})
 
 	runCommand, ok := bundle.GetAction("runCommand").(*RunCommandHandler)
 	require.True(t, ok, "runCommand should be registered")
 	assert.Equal(t, interp.ModeReadOnly, runCommand.mode)
+	assert.Equal(t, operatorServices, runCommand.operatorAllowedSystemServices)
 
 	runRemediation, ok := bundle.GetAction("runRemediationCommand").(*RunCommandHandler)
 	require.True(t, ok, "runRemediationCommand should be registered")
 	assert.Equal(t, interp.ModeRemediation, runRemediation.mode)
+	assert.Equal(t, operatorServices, runRemediation.operatorAllowedSystemServices)
 }
 
 // TestRunRemediationCommandAllowsFileRedirect verifies that, in remediation

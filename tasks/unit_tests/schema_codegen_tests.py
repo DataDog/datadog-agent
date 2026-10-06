@@ -1,5 +1,6 @@
 import filecmp
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -7,7 +8,7 @@ import unittest
 import yaml
 
 import tasks.schema.codegen_init_settings as codegen
-from tasks.schema.codegen_init_settings import as_go_value, override_stubs, try_parse_duration
+from tasks.schema.codegen_init_settings import as_go_value, try_parse_duration
 
 TESTDATA = os.path.join(os.path.dirname(__file__), "testdata", "schema_codegen")
 
@@ -16,14 +17,9 @@ def fixture(name):
     return os.path.join(TESTDATA, name)
 
 
-def filter_not_sysprobe(filename):
-    return filename != 'system_probe_settings.go'
-
-
 class TestCodegenInitSettings(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
-        override_stubs('', '')
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)
@@ -37,14 +33,47 @@ class TestCodegenInitSettings(unittest.TestCase):
     def test_basic_codegen(self):
         with open(fixture('basic_schema.yaml')) as f:
             schema = yaml.safe_load(f)
-        codegen.run_codegen(schema, filter_not_sysprobe, None, False, self.tmpdir)
+        codegen.run_codegen(schema, self.tmpdir)
         self.validate_generated_code(fixture('basic_settings.gen'))
 
     def test_codegen_full_agent_setting(self):
         with open(fixture('basic_full_agent_schema.yaml')) as f:
             schema = yaml.safe_load(f)
-        codegen.run_codegen(schema, filter_not_sysprobe, None, False, self.tmpdir)
+        codegen.run_codegen(schema, self.tmpdir)
         self.validate_generated_code(fixture('basic_full_agent_settings.gen'))
+
+    def test_codegen_renamed_from(self):
+        # Settings with 'renamed_from' bind their former names as deprecated ones, whether they sit
+        # at the root or inside a section, and whichever init function they land in.
+        with open(fixture('renamed_from_schema.yaml')) as f:
+            schema = yaml.safe_load(f)
+        codegen.run_codegen(schema, self.tmpdir)
+        self.validate_generated_code(fixture('renamed_from_settings.gen'))
+
+    def test_deprecated_names_sorted_by_version(self):
+        # Former names are emitted oldest deprecation first, whatever order the schema declares them
+        # in: the config gives earlier names priority. Versions compare numerically, so 7.9.0
+        # precedes 7.10.0. `dda inv schema.lint` guarantees each name has a distinct version.
+        node = {'renamed_from': {'newer': '7.10.0', 'older': '7.9.0', 'newest': '7.10.2'}}
+        self.assertEqual(codegen.deprecated_names(node), ['older', 'newer', 'newest'])
+
+    def test_renamed_from_ignored_on_section(self):
+        # 'renamed_from' is a setting-only keyword (enforced by `dda inv schema.lint`): a section
+        # carrying one must not leak a deprecated name onto the settings it contains.
+        schema = {
+            'properties': {
+                'my_section': {
+                    'node_type': 'section',
+                    'renamed_from': {'old_section': '7.71.0'},
+                    'properties': {'child': {'node_type': 'setting', 'type': 'string', 'default': 'abc'}},
+                }
+            }
+        }
+        codegen.run_codegen(schema, self.tmpdir)
+        with open(os.path.join(self.tmpdir, 'all_settings.go')) as f:
+            generated = f.read()
+        self.assertIn('config.BindEnvAndSetDefault("my_section.child", "abc")', generated)
+        self.assertNotIn('old_section', generated)
 
     def test_as_go_value(self):
         cases = [
@@ -83,7 +112,7 @@ class TestCodegenInitSettings(unittest.TestCase):
                 "describe": "map with split lines",
                 "split_lines": True,
                 "input": "{'a': 'apple', 'b': 'banana'}",
-                "expect": "{\n\"a\": \"apple\",\n \"b\": \"banana\",\n}",
+                "expect": "{\n\t\t\"a\": \"apple\",\n\t\t\"b\": \"banana\",\n\t}",
             },
         ]
         for c in cases:
@@ -160,16 +189,14 @@ class TestGenerateConst(unittest.TestCase):
                 }
             }
         }
-        core_out, sysprobe_out = [], []
-        codegen.gen_generate_const(core, sysprobe, core_out, sysprobe_out)
+        lines = codegen.gen_generate_const(core, sysprobe)
 
-        src = '\n'.join(core_out)
+        # Remove white space added by codegen's formatter
+        contents = re.sub(' +', ' ', '\n'.join(lines))
         # DefaultSite is emitted exactly once despite three references, and the block is valid Go.
-        self.assertEqual(src.count('DefaultSite ='), 1)
-        self.assertIn('DefaultSecurityAgentCmdPort = 5010', src)
-        self.assertIn('DefaultSite = "datadoghq.com"', src)
-        self.assertEqual(sysprobe_out, [])
-        codegen.gofmt('package setup\n' + src)  # must be gofmt-able (valid Go)
+        self.assertEqual(contents.count('DefaultSite ='), 1)
+        self.assertIn('DefaultSecurityAgentCmdPort = 5010', contents)
+        self.assertIn('DefaultSite = "datadoghq.com"', contents)
 
     def test_conflicting_defaults_raise(self):
         # Same constant tagged on two settings with different defaults must fail codegen.
@@ -180,14 +207,12 @@ class TestGenerateConst(unittest.TestCase):
             }
         }
         with self.assertRaises(RuntimeError) as ctx:
-            codegen.gen_generate_const(core, {'properties': {}}, [], [])
+            codegen.gen_generate_const(core, {'properties': {}})
         self.assertIn('DefaultAuditorTTL', str(ctx.exception))
 
     def test_no_tags_emits_nothing(self):
         core = {'properties': {'a': {'node_type': 'setting', 'type': 'string', 'default': 'x'}}}
-        core_out = []
-        codegen.gen_generate_const(core, {'properties': {}}, core_out, [])
-        self.assertEqual(core_out, [])
+        self.assertIsNone(codegen.gen_generate_const(core, {'properties': {}}))
 
 
 if __name__ == "__main__":

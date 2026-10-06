@@ -9,34 +9,36 @@ package preprocessor
 import (
 	"math"
 	"strings"
-	"unsafe"
 )
 
 // maxRun is the maximum run of a char or digit before it is capped.
 // Note: This must not exceed d10 or c10 below.
-const maxRun = 10
+const (
+	maxRun         = 10
+	ipv4TokenWidth = 7 // D Period D Period D Period D
+	// maxIPv4OctetDigits is the longest digit run that can be an octet, so a
+	// run longer than this can never close a dotted quad.
+	maxIPv4OctetDigits = 3
+)
 
-// maxSpecialTokenLen is the maximum character run length eligible for special token
-// promotion. Longest critical keyword: "EMERGENCY" / "EXCEPTION" = 9 chars.
-const maxSpecialTokenLen = 9
+// maxSpecialTokenLen and the special-token/debug-string tables are generated
+// from the master list in gentokentables/main.go into token_tables_gen.go.
+// `bazel run //pkg/logs/internal/decoder/preprocessor:token_tables` is
+// equivalent, and its companion :token_tables_test fails if the committed file
+// is stale.
+//go:generate go run ./gentokentables -output token_tables_gen.go
+
+// Clearing the ASCII case bit uppercases letters. The wider masks apply the
+// same operation to several packed bytes at once.
+const (
+	asciiCaseBit     = byte(0x20)
+	asciiUpperMask16 = uint16(0xdfdf)
+	asciiUpperMask32 = uint32(0xdfdfdfdf)
+	asciiUpperMask64 = uint64(0xdfdfdfdfdfdfdfdf)
+)
 
 // tokenLookup is a 256-byte lookup table for single-byte token classification.
-// Initialized via function call to ensure it happens before other package vars use it.
 var tokenLookup = makeTokenLookup()
-
-// toUpperLookup converts lowercase to uppercase via lookup, identity otherwise
-var toUpperLookup = makeToUpperLookup()
-
-func makeToUpperLookup() [256]byte {
-	var lookup [256]byte
-	for i := range lookup {
-		lookup[i] = byte(i)
-	}
-	for c := byte('a'); c <= 'z'; c++ {
-		lookup[c] = c - 32
-	}
-	return lookup
-}
 
 func makeTokenLookup() [256]Token {
 	var lookup [256]Token
@@ -57,35 +59,10 @@ func makeTokenLookup() [256]Token {
 	lookup['\n'] = Space
 	lookup['\r'] = Space
 
-	// Special characters
-	lookup[':'] = Colon
-	lookup[';'] = Semicolon
-	lookup['-'] = Dash
-	lookup['_'] = Underscore
-	lookup['/'] = Fslash
-	lookup['\\'] = Bslash
-	lookup['.'] = Period
-	lookup[','] = Comma
-	lookup['\''] = Singlequote
-	lookup['"'] = Doublequote
-	lookup['`'] = Backtick
-	lookup['~'] = Tilda
-	lookup['*'] = Star
-	lookup['+'] = Plus
-	lookup['='] = Equal
-	lookup['('] = Parenopen
-	lookup[')'] = Parenclose
-	lookup['{'] = Braceopen
-	lookup['}'] = Braceclose
-	lookup['['] = Bracketopen
-	lookup[']'] = Bracketclose
-	lookup['&'] = Ampersand
-	lookup['!'] = Exclamation
-	lookup['@'] = At
-	lookup['#'] = Pound
-	lookup['$'] = Dollar
-	lookup['%'] = Percent
-	lookup['^'] = Uparrow
+	// Special characters (specialChars is generated from the master token list).
+	for _, c := range specialChars {
+		lookup[c.ch] = c.tok
+	}
 
 	return lookup
 }
@@ -97,10 +74,8 @@ func makeTokenLookup() [256]Token {
 // as buffers are reused to avoid allocations.
 type Tokenizer struct {
 	maxEvalBytes int
-	strBuf       [maxRun]byte // Fixed-size buffer for special token matching
-	strLen       int          // Current length of content in strBuf
-	tsBuf        []Token      // Reusable token buffer
-	idxBuf       []int        // Reusable index buffer
+	tsBuf        []Token // Reusable token buffer
+	idxBuf       []int   // Reusable index buffer
 }
 
 // NewTokenizer returns a new Tokenizer detection heuristic.
@@ -117,313 +92,168 @@ func NewTokenizer(maxEvalBytes int) *Tokenizer {
 	}
 }
 
-// Tokenize tokenizes the input bytes and returns tokens and their start indices.
-// The caller is responsible for slicing the input to the desired length.
+// Tokenize returns freshly-allocated, caller-owned tokens and start indices,
+// safe to retain. It is the public API for callers that store tokens (config
+// samples, timestamp formats, sampler rules). The per-line preprocessing
+// pipeline uses tokenizeBorrowed instead to avoid these allocations.
 func (t *Tokenizer) Tokenize(input []byte) ([]Token, []int) {
+	tokens, indices := t.tokenizeCapped(input)
+	if len(tokens) == 0 {
+		return nil, nil
+	}
+	// Copy out of the scratch buffers so the caller owns the result. make+copy,
+	// not slices.Clone, so the result is sized exactly.
+	result := make([]Token, len(tokens))
+	copy(result, tokens)
+	resultIndices := make([]int, len(indices))
+	copy(resultIndices, indices)
+	return result, resultIndices
+}
+
+// tokenizeCapped applies the maxEvalBytes limit and tokenizes into the scratch
+// buffers, returning the borrowed slices. Shared by Tokenize (which copies them)
+// and tokenizeBorrowed (which wraps them).
+func (t *Tokenizer) tokenizeCapped(input []byte) ([]Token, []int) {
 	maxBytes := len(input)
 	if t.maxEvalBytes > 0 && t.maxEvalBytes < maxBytes {
 		maxBytes = t.maxEvalBytes
 	}
-	return t.tokenize(input[:maxBytes])
+	return t.tokenizeIntoBuffers(input[:maxBytes])
 }
 
-// emitToken appends a token to the output slices, checking for special tokens first.
-// Returns the updated slices.
-func (t *Tokenizer) emitToken(ts []Token, indicies []int, lastToken Token, run, idx int) ([]Token, []int) {
+// tokenizeBorrowed returns a BorrowedTokens view aliasing the reusable scratch
+// buffers, valid only until the next call on t (hence not thread-safe). This is
+// the per-line hot path; consumers that retain the tokens must Clone them.
+func (t *Tokenizer) tokenizeBorrowed(input []byte) BorrowedTokens {
+	return newBorrowedTokens(t.tokenizeCapped(input))
+}
+
+// emitToken appends one token (and its start index) to the reusable buffers,
+// promoting C1 letter runs to special tokens first. It writes through the
+// t.tsBuf/t.idxBuf fields and is deliberately a separate, non-inlined call:
+// both keep the per-byte scan loop small and register-resident. Do not inline
+// it into the loop or make it take/return the slices.
+func (t *Tokenizer) emitToken(input []byte, token Token, start, end int) {
+	runLen := end - start
+
 	// Check for special tokens (only for C1/letter runs, length 1-maxSpecialTokenLen)
-	if lastToken == C1 && t.strLen > 0 && t.strLen <= maxSpecialTokenLen {
-		if t.strLen == 1 {
-			if specialToken := getSpecialShortToken(t.strBuf[0]); specialToken != End {
-				return append(ts, specialToken), append(indicies, idx)
-			}
-		} else {
-			str := unsafe.String(&t.strBuf[0], t.strLen)
-			if specialToken := getSpecialLongToken(str); specialToken != End {
-				return append(ts, specialToken), append(indicies, idx-run)
-			}
+	if token == C1 && runLen <= maxSpecialTokenLen {
+		if specialToken := getSpecialToken(input[start:end]); specialToken != End {
+			t.tsBuf = append(t.tsBuf, specialToken)
+			t.idxBuf = append(t.idxBuf, start)
+			return
 		}
 	}
 
 	// Regular token - encode run length for C1/D1
-	indicies = append(indicies, idx-run)
-	if lastToken == C1 || lastToken == D1 {
-		r := run
+	t.idxBuf = append(t.idxBuf, start)
+	if token == C1 || token == D1 {
+		r := runLen - 1
 		if r >= maxRun {
 			r = maxRun - 1
 		}
-		ts = append(ts, lastToken+Token(r))
-	} else {
-		ts = append(ts, lastToken)
+		t.tsBuf = append(t.tsBuf, token+Token(r))
+		// A dotted quad can only ever be closed by its final octet, so this is
+		// the one emission that can complete the pattern. Checking here keeps
+		// the cost off every other token and avoids a second pass entirely.
+		if token == D1 && runLen <= maxIPv4OctetDigits {
+			t.collapseIPv4Tail()
+		}
+		return
 	}
-	return ts, indicies
+	t.tsBuf = append(t.tsBuf, token)
 }
 
-// tokenize converts a byte slice to a list of tokens.
-// This function return the slice of tokens, and a slice of indices where each token starts.
-func (t *Tokenizer) tokenize(input []byte) ([]Token, []int) {
-	inputLen := len(input)
-	if inputLen == 0 {
+// tokenizeIntoBuffers scans input a single time and emits tokens into the
+// reusable buffers. The returned slices alias those buffers (see
+// tokenizeBorrowed for the lifetime contract).
+func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
+	if len(input) == 0 {
 		return nil, nil
 	}
+	t.emitRuns(input)
+	return t.tsBuf, t.idxBuf
+}
 
-	// Use internal buffers for working storage, grow if needed.
-	// Most logs produce ~inputLen/4 tokens, but we start smaller.
+// emitRuns run-length-encodes input into tsBuf/idxBuf, collapsing hybrid tokens
+// via emitToken as each one completes.
+func (t *Tokenizer) emitRuns(input []byte) {
+	inputLen := len(input)
+	if inputLen == 0 {
+		t.tsBuf = t.tsBuf[:0]
+		t.idxBuf = t.idxBuf[:0]
+		return
+	}
+
+	// Reuse the scratch buffers across calls; only grow when the estimate
+	// (~inputLen/4 tokens) exceeds capacity. This makes the borrowed path
+	// allocation-free.
 	estTokens := inputLen/4 + 8
 	if cap(t.tsBuf) < estTokens {
 		t.tsBuf = make([]Token, 0, estTokens)
 		t.idxBuf = make([]int, 0, estTokens)
-	}
-	ts := t.tsBuf[:0]
-	indicies := t.idxBuf[:0]
-
-	run := 0
-	firstChar := input[0]
-	lastToken := tokenLookup[firstChar]
-
-	// Reset string buffer - only track for C1 tokens
-	t.strLen = 0
-	if lastToken == C1 {
-		t.strBuf[0] = toUpperLookup[firstChar]
-		t.strLen = 1
+	} else {
+		t.tsBuf = t.tsBuf[:0]
+		t.idxBuf = t.idxBuf[:0]
 	}
 
+	start := 0
+	lastToken := tokenLookup[input[0]]
+
+	// Hot loop: one table lookup, one compare, one branch per byte, so its state
+	// stays register-resident. All token emission happens at run boundaries via
+	// emitToken. Avoid adding per-byte work here.
 	for i := 1; i < inputLen; i++ {
-		char := input[i]
-		currentToken := tokenLookup[char]
+		currentToken := tokenLookup[input[i]]
 
 		if currentToken != lastToken {
-			ts, indicies = t.emitToken(ts, indicies, lastToken, run, i-1)
-			run = 0
-			t.strLen = 0
-		} else {
-			run++
+			t.emitToken(input, lastToken, start, i)
+			start = i
+			lastToken = currentToken
 		}
-
-		// Only buffer C1 (letter) tokens for special token matching
-		if currentToken == C1 && t.strLen < maxRun {
-			t.strBuf[t.strLen] = toUpperLookup[char]
-			t.strLen++
-		}
-
-		lastToken = currentToken
 	}
 
-	// Flush final token
-	ts, indicies = t.emitToken(ts, indicies, lastToken, run, inputLen-1)
-
-	// Store working buffers back for reuse
-	t.tsBuf = ts
-	t.idxBuf = indicies
-
-	// Allocate exact-sized result slices - smaller than inputLen
-	n := len(ts)
-	result := make([]Token, n)
-	copy(result, ts)
-	resultIdx := make([]int, n)
-	copy(resultIdx, indicies)
-	return result, resultIdx
+	t.emitToken(input, lastToken, start, inputLen)
 }
 
-func getSpecialShortToken(char byte) Token {
-	// Only T and Z are special single-char tokens
-	if char == 'T' {
-		return T
-	}
-	if char == 'Z' {
-		return Zone
-	}
-	return End
+func isIPv4OctetToken(tok Token) bool {
+	return tok >= D1 && tok <= D3
 }
 
-// getSpecialLongToken returns a special token that is > 1 character.
-// NOTE: This set of tokens is non-exhaustive and can be expanded.
-func getSpecialLongToken(input string) Token {
-	// Length-based dispatch for faster rejection
-	switch len(input) {
-	case 2:
-		if input == "AM" || input == "PM" {
-			return Apm
-		}
-	case 3:
-		switch input {
-		case "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
-			"JUL", "AUG", "SEP", "OCT", "NOV", "DEC":
-			return Month
-		case "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN":
-			return Day
-		case "UTC", "GMT", "EST", "EDT", "CST", "CDT",
-			"MST", "MDT", "PST", "PDT", "JST", "KST",
-			"IST", "MSK", "CET", "BST", "HST", "HDT",
-			"NST", "NDT":
-			return Zone
-		}
-	case 4:
-		switch input {
-		case "WARN":
-			return Warn
-		case "CRIT":
-			return Critical
-		case "CEST", "NZST", "NZDT", "ACST", "ACDT",
-			"AEST", "AEDT", "AWST", "AWDT", "AKST",
-			"AKDT", "CHST", "CHDT":
-			return Zone
-		}
-	case 5:
-		switch input {
-		case "FATAL":
-			return Fatal
-		case "ERROR":
-			return Error
-		case "PANIC":
-			return Panic
-		case "ALERT":
-			return Alert
-		case "EMERG":
-			return Emergency
-		case "CRASH":
-			return Crash
-		}
-	case 6:
-		switch input {
-		case "SEVERE":
-			return Severe
-		case "FAILED":
-			return Failure
-		}
-	case 7:
-		switch input {
-		case "WARNING":
-			return Warn
-		case "CRASHED":
-			return Crash
-		case "FAILURE":
-			return Failure
-		case "TIMEOUT":
-			return Timeout
-		}
-	case 8:
-		switch input {
-		case "CRITICAL":
-			return Critical
-		case "DEADLOCK":
-			return Deadlock
-		}
-	case 9:
-		switch input {
-		case "EMERGENCY":
-			return Emergency
-		case "EXCEPTION":
-			return Exception
-		}
+// collapseIPv4Tail rewrites a dotted quad ending at the last emitted token into
+// a single IPv4 token. As separate digit/period tokens a quad looks like a
+// timestamp fragment to the detector, and addresses with different octet widths
+// would otherwise be different sampler patterns.
+//
+// Called from emitToken immediately after a 1-3 digit run is appended, which is
+// the only emission that can close the pattern, so the tokenizer never makes a
+// second pass over the token list. Each octet must be a 1-3 digit run and each
+// separator a single '.'; a collapsed ".." / "..." Period token is rejected via
+// the start indices.
+func (t *Tokenizer) collapseIPv4Tail() {
+	n := len(t.tsBuf)
+	if n < ipv4TokenWidth {
+		return
 	}
-	return End
-}
+	ts := t.tsBuf[n-ipv4TokenWidth:]
 
-// tokenToString converts a single token to a debug string.
-func tokenToString(token Token) string {
-	if token >= D1 && token <= D10 {
-		return strings.Repeat("D", int(token-D1)+1)
-	} else if token >= C1 && token <= C10 {
-		return strings.Repeat("C", int(token-C1)+1)
+	// Separators first: they reject nearly every call in a single compare, and
+	// the trailing octet is already known from the caller.
+	if ts[5] != Period || ts[3] != Period || ts[1] != Period {
+		return
+	}
+	if !isIPv4OctetToken(ts[0]) || !isIPv4OctetToken(ts[2]) || !isIPv4OctetToken(ts[4]) {
+		return
+	}
+	idx := t.idxBuf[n-ipv4TokenWidth:]
+	if idx[2] != idx[1]+1 || idx[4] != idx[3]+1 || idx[6] != idx[5]+1 {
+		return
 	}
 
-	switch token {
-	case Space:
-		return " "
-	case Colon:
-		return ":"
-	case Semicolon:
-		return ";"
-	case Dash:
-		return "-"
-	case Underscore:
-		return "_"
-	case Fslash:
-		return "/"
-	case Bslash:
-		return "\\"
-	case Period:
-		return "."
-	case Comma:
-		return ","
-	case Singlequote:
-		return "'"
-	case Doublequote:
-		return "\""
-	case Backtick:
-		return "`"
-	case Tilda:
-		return "~"
-	case Star:
-		return "*"
-	case Plus:
-		return "+"
-	case Equal:
-		return "="
-	case Parenopen:
-		return "("
-	case Parenclose:
-		return ")"
-	case Braceopen:
-		return "{"
-	case Braceclose:
-		return "}"
-	case Bracketopen:
-		return "["
-	case Bracketclose:
-		return "]"
-	case Ampersand:
-		return "&"
-	case Exclamation:
-		return "!"
-	case At:
-		return "@"
-	case Pound:
-		return "#"
-	case Dollar:
-		return "$"
-	case Percent:
-		return "%"
-	case Uparrow:
-		return "^"
-	case Month:
-		return "MTH"
-	case Day:
-		return "DAY"
-	case Apm:
-		return "PM"
-	case T:
-		return "T"
-	case Zone:
-		return "ZONE"
-	case Warn:
-		return "WARN"
-	case Fatal:
-		return "FATAL"
-	case Error:
-		return "ERROR"
-	case Panic:
-		return "PANIC"
-	case Alert:
-		return "ALERT"
-	case Severe:
-		return "SEVERE"
-	case Critical:
-		return "CRIT"
-	case Emergency:
-		return "EMERG"
-	case Exception:
-		return "EXCEPTION"
-	case Crash:
-		return "CRASH"
-	case Failure:
-		return "FAILURE"
-	case Deadlock:
-		return "DEADLOCK"
-	case Timeout:
-		return "TIMEOUT"
-	}
-	return ""
+	// Keep idx[0] (the address start) and drop the six tokens it absorbed.
+	ts[0] = IPv4
+	t.tsBuf = t.tsBuf[:n-ipv4TokenWidth+1]
+	t.idxBuf = t.idxBuf[:n-ipv4TokenWidth+1]
 }
 
 // tokensToString converts a list of tokens to a debug string.

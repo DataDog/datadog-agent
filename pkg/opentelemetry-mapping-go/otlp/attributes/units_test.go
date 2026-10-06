@@ -40,6 +40,10 @@ func TestUnitMapperMap(t *testing.T) {
 		{"{cpu}", "cpu", true},
 		{"{connection}", "connection", true},
 		{"{pod}", "", false},
+		// Annotation aliases.
+		{"{datapoint}", "item", true},
+		{"{datapoint}/s", "item/second", true},
+		{"{item}", "item", true},
 		// Prefix/base decomposition that resolves to units.
 		{"kBy", "kilobyte", true},
 		{"EBy", "exabyte", true},

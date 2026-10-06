@@ -22,7 +22,7 @@ func ValidateSocketAddress(_ string) error {
 	return errors.New("system-probe unsupported")
 }
 
-// eBPFMapPreallocationSupported returns false on non linux_bpf systems.
+// eBPFMapPreallocationSupported returns false on non bpf systems.
 func eBPFMapPreallocationSupported() bool {
 	return false
 }

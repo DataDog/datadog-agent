@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"sync"
 )
 
@@ -160,6 +161,8 @@ func (h *Async) Flush() {
 
 // Handle writes a record to the handler.
 func (h *Async) Handle(ctx context.Context, r slog.Record) error {
+	r = snapshotMutableAttrsFromRecord(r)
+
 	h.cond.L.Lock()
 	if h.closed {
 		h.cond.L.Unlock()
@@ -189,9 +192,10 @@ func (h *Async) Close() {
 }
 
 // WithAttrs returns a new handler with the given attributes.
-func (h *Async) WithAttrs(_attrs []slog.Attr) slog.Handler {
+func (h *Async) WithAttrs(attrs []slog.Attr) slog.Handler {
+	attrs = snapshotMutableAttrsFromSlice(attrs)
 	return &Async{
-		innerHandler:     h.innerHandler.WithAttrs(_attrs),
+		innerHandler:     h.innerHandler.WithAttrs(attrs),
 		asyncSharedState: h.asyncSharedState,
 	}
 }
@@ -202,4 +206,69 @@ func (h *Async) WithGroup(_name string) slog.Handler {
 		innerHandler:     h.innerHandler.WithGroup(_name),
 		asyncSharedState: h.asyncSharedState,
 	}
+}
+
+func isMutableAttr(a slog.Attr) bool {
+	switch a.Value.Kind() {
+	case slog.KindAny, slog.KindLogValuer:
+		return true
+	case slog.KindGroup:
+		return hasMutableAttrs(a.Value.Group())
+	}
+	return false
+}
+
+func hasMutableAttrs(attrs []slog.Attr) bool {
+	return slices.ContainsFunc(attrs, isMutableAttr)
+}
+
+// snapshotMutableAttrs formats mutable attribute values into strings eagerly to avoid
+// races in the background goroutine.
+func snapshotMutableAttrs(attrs []slog.Attr) []slog.Attr {
+	newAttrs := make([]slog.Attr, len(attrs))
+	for i, attr := range attrs {
+		value := attr.Value
+		if value.Kind() == slog.KindLogValuer {
+			value = value.Resolve()
+		}
+
+		if value.Kind() == slog.KindAny {
+			value = slog.StringValue(fmt.Sprint(value.Any()))
+		} else if value.Kind() == slog.KindGroup {
+			value = slog.GroupValue(snapshotMutableAttrs(value.Group())...)
+		}
+		newAttrs[i] = attr
+		newAttrs[i].Value = value
+	}
+
+	return newAttrs
+}
+
+func snapshotMutableAttrsFromRecord(r slog.Record) slog.Record {
+	hasMutable := false
+	r.Attrs(func(a slog.Attr) bool {
+		hasMutable = isMutableAttr(a)
+		return !hasMutable
+	})
+	if !hasMutable {
+		return r
+	}
+
+	attrs := make([]slog.Attr, 0, r.NumAttrs())
+	r.Attrs(func(a slog.Attr) bool {
+		attrs = append(attrs, a)
+		return true
+	})
+
+	snapshot := slog.NewRecord(r.Time, r.Level, r.Message, r.PC)
+	snapshot.AddAttrs(snapshotMutableAttrs(attrs)...)
+	return snapshot
+}
+
+func snapshotMutableAttrsFromSlice(attrs []slog.Attr) []slog.Attr {
+	if !hasMutableAttrs(attrs) {
+		return attrs
+	}
+
+	return snapshotMutableAttrs(attrs)
 }

@@ -8,6 +8,7 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,7 +17,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -25,6 +31,12 @@ import (
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
 )
+
+// maxMessageSize is the control<->executor protocol limit in bytes. Action
+// inputs and outputs can approach 15 MiB, so 20 MiB leaves protobuf headroom
+// while still bounding memory use. Keep this in sync with MAX_MESSAGE_SIZE in
+// par-control's executor client.
+const maxMessageSize = 20 * 1024 * 1024
 
 type actionExecutor interface {
 	PrepareTask(ctx context.Context, task *types.Task) (*runners.PreparedWorkflowTask, *types.Task, error)
@@ -35,23 +47,80 @@ type actionExecutor interface {
 type Server struct {
 	pb.UnimplementedExecutorServer
 
-	executor actionExecutor
-	version  string
+	executor      actionExecutor
+	version       string
+	controlConfig *pb.GetControlPlaneConfigResponse
+	controlCert   []byte
 
 	ready  atomic.Bool
 	active atomic.Int32
+	busy   atomic.Int32
+
+	lastActivity atomic.Int64
+	clock        clock.Clock
 }
 
 // NewServer builds a gRPC server that dispatches actions to the given core.
 func NewServer(executor actionExecutor, version string) *Server {
-	return &Server{
+	s := &Server{
 		executor: executor,
 		version:  version,
+		clock:    clock.New(),
 	}
+	s.touch()
+	return s
+}
+
+func (s *Server) SetControlPlaneConfig(config *pb.GetControlPlaneConfigResponse, certificate []byte) {
+	s.controlConfig = config
+	s.controlCert = bytes.Clone(certificate)
+}
+
+func (s *Server) GetControlPlaneConfig(ctx context.Context, _ *pb.GetControlPlaneConfigRequest) (*pb.GetControlPlaneConfigResponse, error) {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "IPC client certificate required")
+	}
+	tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
+	if !ok || len(tlsInfo.State.VerifiedChains) == 0 || len(tlsInfo.State.PeerCertificates) == 0 {
+		return nil, status.Error(codes.Unauthenticated, "verified IPC client certificate required")
+	}
+	if len(s.controlCert) == 0 || !bytes.Equal(tlsInfo.State.PeerCertificates[0].Raw, s.controlCert) {
+		return nil, status.Error(codes.PermissionDenied, "shared IPC certificate required")
+	}
+	if s.controlConfig == nil {
+		return nil, status.Error(codes.Unavailable, "control configuration is not ready")
+	}
+	s.touch()
+	return s.controlConfig, nil
+}
+
+func (s *Server) touch() {
+	s.lastActivity.Store(s.clock.Now().UnixNano())
+}
+
+func (s *Server) startActivity() {
+	s.touch()
+	s.busy.Add(1)
+}
+
+func (s *Server) finishActivity() {
+	s.touch()
+	s.busy.Add(-1)
+}
+
+func (s *Server) idleFor() time.Duration {
+	if s.busy.Load() > 0 {
+		return 0
+	}
+	return s.clock.Since(time.Unix(0, s.lastActivity.Load()))
 }
 
 // SetReady marks the executor ready (or not) to accept actions.
 func (s *Server) SetReady(ready bool) {
+	if ready {
+		s.touch()
+	}
 	s.ready.Store(ready)
 }
 
@@ -77,8 +146,12 @@ func (s *Server) RunAction(req *pb.RunActionRequest, stream pb.Executor_RunActio
 		))
 	}
 
+	s.startActivity()
 	s.active.Add(1)
-	defer s.active.Add(-1)
+	defer func() {
+		s.active.Add(-1)
+		s.finishActivity()
+	}()
 
 	// Raw bytes must stay unmodified for signature verification.
 	task := &types.Task{Raw: req.GetTask()}
@@ -128,14 +201,24 @@ func sendError(stream pb.Executor_RunActionServer, parErr util.PARError) error {
 	})
 }
 
-// ServeOptions tunes drain behavior; zero value waits forever.
+// ServeOptions tunes server shutdown.
 type ServeOptions struct {
-	DrainTimeout time.Duration // bounds graceful drain on stop; 0 waits forever
+	DrainTimeout  time.Duration
+	IdleTimeout   time.Duration
+	OnIdleTimeout func()
 }
+
+const idleCheckDivisor = 10
 
 // Serve serves the Executor on lis until ctx is cancelled, then stops gracefully
 // bounded by the drain timeout. Pass grpcOpts to secure the socket.
 func Serve(ctx context.Context, lis net.Listener, srv *Server, opts ServeOptions, grpcOpts ...grpc.ServerOption) error {
+	// Apply the protocol limits after caller-provided options so every executor
+	// endpoint accepts the same bounded action payload sizes.
+	grpcOpts = append(grpcOpts,
+		grpc.MaxRecvMsgSize(maxMessageSize),
+		grpc.MaxSendMsgSize(maxMessageSize),
+	)
 	grpcServer := grpc.NewServer(grpcOpts...)
 	pb.RegisterExecutorServer(grpcServer, srv)
 
@@ -144,12 +227,34 @@ func Serve(ctx context.Context, lis net.Listener, srv *Server, opts ServeOptions
 		errCh <- grpcServer.Serve(lis)
 	}()
 
-	select {
-	case <-ctx.Done():
-		stopGracefully(grpcServer, opts.DrainTimeout)
-		return nil
-	case err := <-errCh:
-		return err
+	var idleCheck <-chan time.Time
+	if opts.IdleTimeout > 0 {
+		interval := opts.IdleTimeout / idleCheckDivisor
+		if interval == 0 {
+			interval = opts.IdleTimeout
+		}
+		ticker := srv.clock.Ticker(interval)
+		defer ticker.Stop()
+		idleCheck = ticker.C
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			stopGracefully(grpcServer, opts.DrainTimeout)
+			return nil
+		case <-idleCheck:
+			if srv.idleFor() < opts.IdleTimeout {
+				continue
+			}
+			stopGracefully(grpcServer, opts.DrainTimeout)
+			if opts.OnIdleTimeout != nil {
+				opts.OnIdleTimeout()
+			}
+			return nil
+		case err := <-errCh:
+			return err
+		}
 	}
 }
 

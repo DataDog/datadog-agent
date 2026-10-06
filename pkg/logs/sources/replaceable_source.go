@@ -38,7 +38,7 @@ func (r *ReplaceableSource) Replace(source *LogSource) {
 func (r *ReplaceableSource) Status() *status.LogStatus {
 	r.RLock()
 	defer r.RUnlock()
-	return r.source.Status
+	return r.source.Status()
 }
 
 // Config gets the underlying config

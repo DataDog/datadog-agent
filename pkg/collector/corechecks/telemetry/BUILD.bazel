@@ -1,14 +1,9 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_agent_go_test on
-
 go_library(
     name = "telemetry",
-    srcs = [
-        "check.go",
-        "merge.go",
-    ],
+    srcs = ["check.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry",
     visibility = ["//visibility:public"],
     deps = [
@@ -28,10 +23,10 @@ dd_agent_go_test(
     embed = [":telemetry"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/telemetry/mock",
         "//pkg/aggregator/mocksender",
         "//pkg/collector/corechecks",
         "@com_github_prometheus_client_golang//prometheus",
-        "@com_github_prometheus_client_model//go",
         "@com_github_stretchr_testify//require",
     ],
 )

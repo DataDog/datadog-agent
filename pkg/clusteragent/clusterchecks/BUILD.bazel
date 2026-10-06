@@ -1,8 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_agent_go_test on
-
 go_library(
     name = "clusterchecks",
     srcs = [
@@ -11,19 +9,21 @@ go_library(
         "dispatcher_configs.go",
         "dispatcher_endpoints_configs.go",
         "dispatcher_isolate.go",
-        "dispatcher_ksm.go",
         "dispatcher_main.go",
         "dispatcher_nodes.go",
         "dispatcher_rebalance.go",
+        "dispatcher_sharding.go",
         "doc.go",
         "handler.go",
         "handler_api.go",
         "handler_api_nocompile.go",
         "helpers.go",
+        "instance_sharding.go",
         "ksm_sharding.go",
         "leadership_kube.go",
         "leadership_nokube.go",
         "metrics.go",
+        "shard_tracker.go",
         "stats.go",
         "status.go",
         "stores.go",
@@ -58,7 +58,7 @@ go_library(
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/log",
         "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@io_k8s_kube_state_metrics_v2//pkg/options",
     ],
 )
@@ -70,16 +70,24 @@ dd_agent_go_test(
         "common_test.go",
         "dispatcher_dynamic_test.go",
         "dispatcher_isolate_test.go",
-        "dispatcher_ksm_test.go",
         "dispatcher_rebalance_test.go",
+        "dispatcher_sharding_test.go",
         "dispatcher_test.go",
         "handler_test.go",
         "handler_tracing_test.go",
         "helpers_test.go",
+        "instance_sharding_test.go",
         "ksm_sharding_test.go",
+        "shard_tracker_test.go",
     ],
     embed = [":clusterchecks"],
-    flavors = ["base"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/scheduler",
@@ -98,6 +106,6 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

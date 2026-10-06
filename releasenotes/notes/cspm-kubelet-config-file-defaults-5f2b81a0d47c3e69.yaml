@@ -1,0 +1,16 @@
+---
+fixes:
+  - |
+    CSM Misconfigurations: the Kubernetes node configuration collected for the
+    CIS Kubernetes benchmarks now assumes the ``KubeletConfiguration`` defaults
+    for a kubelet started with ``--config``, and folds in the drop-ins of
+    ``--config-dir``. Kubernetes keeps the historical command line defaults of
+    ``--read-only-port``, ``--anonymous-auth`` and ``--authorization-mode`` for a
+    kubelet started on flags alone, and the Agent applied them in both cases. A
+    node whose configuration file left those settings out was therefore reported
+    with a read-only port on ``10255``, anonymous authentication enabled and an
+    ``AlwaysAllow`` authorization mode, while the kubelet was really running with
+    the read-only port disabled, anonymous authentication disabled and
+    ``Webhook`` authorization. OpenShift and kubeadm both leave ``readOnlyPort``
+    out of their rendered configuration, so their nodes failed the "kubelet
+    read-only port should be disabled" rule with the port closed.

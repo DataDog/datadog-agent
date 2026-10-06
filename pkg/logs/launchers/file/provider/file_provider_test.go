@@ -576,6 +576,37 @@ func TestFilesToTail(t *testing.T) {
 	})
 }
 
+// TestFilesToTailReportsWildcardMatchingNothing checks that a wildcard source resolving to no files is
+// reported rather than dropped. Both modes are covered because by_modification_time resolves wildcards
+// in a pass of its own, separate from the one every other source goes through, so it can regress alone.
+func TestFilesToTailReportsWildcardMatchingNothing(t *testing.T) {
+	modes := []struct {
+		name              string
+		wildcardSelection WildcardSelectionStrategy
+	}{
+		{"by_name", WildcardUseFileName},
+		{"by_modification_time", WildcardUseFileModTime},
+	}
+
+	for _, mode := range modes {
+		t.Run(mode.name, func(t *testing.T) {
+			fs := newTempFs(t)
+			// A directory the application has not written to yet, as opposed to a missing one, so the
+			// pattern is only unmatched rather than unreachable.
+			fs.mkDir("empty")
+
+			source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("empty/*.log")})
+			fileProvider := NewFileProvider(2, mode.wildcardSelection)
+
+			files := fileProvider.FilesToTail(context.Background(), true, []*sources.LogSource{source}, auditor.NewMockAuditor())
+
+			assert.Empty(t, files)
+			assert.True(t, source.Status().IsError(), "a wildcard matching no files has to be reported on the status page")
+			assert.Contains(t, source.Status().GetError(), "could not find any file matching pattern")
+		})
+	}
+}
+
 func BenchmarkApplyOrdering(b *testing.B) {
 	b.Run("Mtime", func(b *testing.B) {
 		fs := newTempFs(b)

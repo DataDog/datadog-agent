@@ -1,0 +1,5 @@
+---
+security:
+  - |
+    Data security PostgreSQL scans now open connections as read-only, as a first
+    layer of protection against accidental writes.

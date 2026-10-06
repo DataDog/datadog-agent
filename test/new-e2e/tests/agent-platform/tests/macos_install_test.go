@@ -12,9 +12,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	agentmacos "github.com/DataDog/datadog-agent/cmd/agent/macos"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
@@ -100,7 +99,7 @@ func TestMacosInstallScript(t *testing.T) {
 	extraConfigMap.Set("ddinfra:aws/useMacosCompatibleSubnets", "true", false)
 	e2e.Run(t, &macosInstallSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault)), ec2.WithoutAgent()),
+			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault), ec2.WithInternetAccess()), ec2.WithoutAgent()),
 			awshost.WithExtraConfigParams(extraConfigMap),
 		)),
 	)
@@ -622,16 +621,14 @@ EOF`, macosAPMSentinelService))
 			return
 		}
 
+		// The convert-traces feature is enabled by default, so the agent
+		// serializes tracer payloads in the v1 string-indexed idx format
+		// (AgentPayload.IdxTracerPayloads) and leaves the legacy
+		// TracerPayloads field empty.
 		var found bool
 		for _, payload := range payloads {
-			for _, tracerPayload := range payload.TracerPayloads {
-				for _, chunk := range tracerPayload.Chunks {
-					for _, span := range chunk.Spans {
-						if span.Service == macosAPMSentinelService {
-							found = true
-						}
-					}
-				}
+			if client.IdxPayloadHasService(payload, macosAPMSentinelService) {
+				found = true
 			}
 		}
 		assert.True(c, found, "%s trace should be collected in trace payloads", macosAPMSentinelService)
@@ -749,17 +746,20 @@ func (m *macosInstallSuite) TestAgentRestart() {
 func (m *macosInstallSuite) TestZZUninstallAgent() {
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
 
-	_, thisFile, _, _ := runtime.Caller(0)
-	localScriptPath := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..", "..", "cmd", "agent", "macos", "uninstall_mac_os.sh")
 	const remoteScriptPath = "/tmp/uninstall_mac_os.sh"
 
-	m.Env().RemoteHost.CopyFile(localScriptPath, remoteScriptPath)
+	m.Env().RemoteHost.CopyFileFromFS(agentmacos.Scripts, agentmacos.UninstallScriptPath, remoteScriptPath)
 	macosTestClient.MustExecuteOn(m.T(), "chmod +x "+remoteScriptPath)
 	macosTestClient.MustExecuteOn(m.T(), remoteScriptPath)
 
+	// `launchctl bootout` returns as soon as it has requested the unload; launchd removes the
+	// job from its job table asynchronously, so a `launchctl print` run immediately afterwards
+	// can still report the service as registered. Poll instead of asserting on the first try.
 	for _, service := range []string{"com.datadoghq.agent", "com.datadoghq.sysprobe", "com.datadoghq.data-plane"} {
-		_, err := macosTestClient.Execute("sudo launchctl print system/" + service)
-		assert.Error(m.T(), err, "service %s should no longer be registered with launchd", service)
+		m.EventuallyWithT(func(c *assert.CollectT) {
+			_, err := macosTestClient.Execute("sudo launchctl print system/" + service)
+			assert.Error(c, err, "service %s should no longer be registered with launchd", service)
+		}, 10*time.Second, 500*time.Millisecond)
 	}
 
 	removedPaths := []string{

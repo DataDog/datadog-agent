@@ -10,6 +10,7 @@ package nvidia
 import (
 	"testing"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -26,7 +27,7 @@ func TestSystemProbeCache(t *testing.T) {
 		{
 			name: "new_cache_is_invalid",
 			testFunc: func(t *testing.T) {
-				cache := NewSystemProbeCache()
+				cache := NewSystemProbeCache(NewSystemProbeClient())
 				assert.False(t, cache.IsValid())
 				assert.Nil(t, cache.GetStats())
 			},
@@ -34,7 +35,7 @@ func TestSystemProbeCache(t *testing.T) {
 		{
 			name: "cache_validity_after_refresh",
 			testFunc: func(t *testing.T) {
-				cache := NewSystemProbeCache()
+				cache := NewSystemProbeCache(NewSystemProbeClient())
 
 				// Mock successful refresh by manually setting stats
 				testStats := &model.GPUStats{
@@ -82,6 +83,10 @@ func TestEbpfCollectorCollect(t *testing.T) {
 			testFunc: testCollectWithSingleActiveProcess,
 		},
 		{
+			name:     "collect_skips_unknown_memory_limit",
+			testFunc: testCollectSkipsUnknownMemoryLimit,
+		},
+		{
 			name:     "collect_with_multiple_active_processes",
 			testFunc: testCollectWithMultipleActiveProcesses,
 		},
@@ -120,9 +125,9 @@ func TestEbpfCollectorCollect(t *testing.T) {
 
 func testCollectWithInvalidCache(t *testing.T) {
 	dev := setupMockDevice(t)
-	cache := NewSystemProbeCache()
+	cache := NewSystemProbeCache(NewSystemProbeClient())
 
-	collector, err := newEbpfCollector(dev, cache)
+	collector, err := newEbpfCollector(dev, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -151,7 +156,7 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -164,31 +169,47 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 	coreUsage := findMetric(metrics, "process.core.usage")
 	require.NotNil(t, coreUsage)
 	assert.Equal(t, float64(50), coreUsage.Value)
-	require.Len(t, coreUsage.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(coreUsage.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", coreUsage.AssociatedWorkloads[0].ID)
+	require.Len(t, coreUsage.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(coreUsage.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", coreUsage.AssociatedWorkloads()[0].ID)
 
 	memoryUsage := findMetric(metrics, "process.memory.usage")
 	require.NotNil(t, memoryUsage)
 	assert.Equal(t, float64(1024), memoryUsage.Value)
-	require.Len(t, memoryUsage.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(memoryUsage.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", memoryUsage.AssociatedWorkloads[0].ID)
+	require.Len(t, memoryUsage.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(memoryUsage.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", memoryUsage.AssociatedWorkloads()[0].ID)
 
 	// Verify limit metrics have aggregated workloads
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
 	assert.Equal(t, float64(testutil.DefaultGpuCores), coreLimit.Value)
-	require.Len(t, coreLimit.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(coreLimit.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", coreLimit.AssociatedWorkloads[0].ID)
+	require.Len(t, coreLimit.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(coreLimit.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", coreLimit.AssociatedWorkloads()[0].ID)
 
 	memoryLimit := findMetric(metrics, "memory.limit")
 	require.NotNil(t, memoryLimit)
 	assert.Equal(t, float64(testutil.DefaultTotalMemory), memoryLimit.Value)
-	require.Len(t, memoryLimit.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(memoryLimit.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", memoryLimit.AssociatedWorkloads[0].ID)
+	require.Len(t, memoryLimit.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(memoryLimit.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", memoryLimit.AssociatedWorkloads()[0].ID)
+}
+
+func testCollectSkipsUnknownMemoryLimit(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+		device.GetMemoryInfoFunc = func() (nvml.Memory, nvml.Return) {
+			return nvml.Memory{}, nvml.ERROR_UNKNOWN
+		}
+	}))
+	cache := createMockCacheWithStats(nil)
+
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
+	require.NoError(t, err)
+
+	metrics, err := collector.Collect()
+	require.NoError(t, err)
+	require.Nil(t, findMetric(metrics, "memory.limit"))
 }
 
 func testCollectWithMultipleActiveProcesses(t *testing.T) {
@@ -227,7 +248,7 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -239,14 +260,14 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 	// Verify limit metrics have aggregated workloads
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
-	require.Len(t, coreLimit.AssociatedWorkloads, 2)
-	workloadIDs := []string{coreLimit.AssociatedWorkloads[0].ID, coreLimit.AssociatedWorkloads[1].ID}
+	require.Len(t, coreLimit.AssociatedWorkloads(), 2)
+	workloadIDs := []string{coreLimit.AssociatedWorkloads()[0].ID, coreLimit.AssociatedWorkloads()[1].ID}
 	assert.ElementsMatch(t, []string{"123", "456"}, workloadIDs)
 
 	memoryLimit := findMetric(metrics, "memory.limit")
 	require.NotNil(t, memoryLimit)
-	require.Len(t, memoryLimit.AssociatedWorkloads, 2)
-	workloadIDs = []string{memoryLimit.AssociatedWorkloads[0].ID, memoryLimit.AssociatedWorkloads[1].ID}
+	require.Len(t, memoryLimit.AssociatedWorkloads(), 2)
+	workloadIDs = []string{memoryLimit.AssociatedWorkloads()[0].ID, memoryLimit.AssociatedWorkloads()[1].ID}
 	assert.ElementsMatch(t, []string{"123", "456"}, workloadIDs)
 }
 
@@ -271,7 +292,7 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	// First collect with process 123
@@ -292,23 +313,23 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 	coreUsage := findMetric(metrics, "process.core.usage")
 	require.NotNil(t, coreUsage)
 	assert.Equal(t, float64(0), coreUsage.Value)
-	require.Len(t, coreUsage.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(coreUsage.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", coreUsage.AssociatedWorkloads[0].ID)
+	require.Len(t, coreUsage.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(coreUsage.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", coreUsage.AssociatedWorkloads()[0].ID)
 
 	memoryUsage := findMetric(metrics, "process.memory.usage")
 	require.NotNil(t, memoryUsage)
 	assert.Equal(t, float64(0), memoryUsage.Value)
-	require.Len(t, memoryUsage.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(memoryUsage.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", memoryUsage.AssociatedWorkloads[0].ID)
+	require.Len(t, memoryUsage.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(memoryUsage.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", memoryUsage.AssociatedWorkloads()[0].ID)
 
 	// Verify limit metrics still include inactive process workload
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
-	require.Len(t, coreLimit.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(coreLimit.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", coreLimit.AssociatedWorkloads[0].ID)
+	require.Len(t, coreLimit.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(coreLimit.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", coreLimit.AssociatedWorkloads()[0].ID)
 }
 
 func testCollectFiltersByDeviceUUID(t *testing.T) {
@@ -322,7 +343,7 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 	device1UUID := "device-1-uuid"
 	device2UUID := "device-2-uuid"
 
-	device := setupMockDevice(t, testutil.WithDeviceUUIDs([]string{device1UUID, device2UUID}))
+	device := setupMockDevice(t, testutil.WithPhysicalDeviceUUIDs([]string{device1UUID, device2UUID}))
 	cache := createMockCacheWithStats([]model.ProcessStatsTuple{
 		{
 			Key: model.ProcessStatsKey{
@@ -350,7 +371,7 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -360,14 +381,14 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 	assert.Len(t, metrics, 7)
 
 	// All metrics should be for PID 123 only
-	for _, metric := range metrics {
+	for _, metric := range requireMetrics(t, metrics) {
 		if metric.Name == "sm_active" || metric.Name == "gr_engine_active" {
 			continue
 		}
 
-		require.Len(t, metric.AssociatedWorkloads, 1)
-		assert.Equal(t, "process", string(metric.AssociatedWorkloads[0].Kind))
-		assert.Equal(t, "123", metric.AssociatedWorkloads[0].ID)
+		require.Len(t, metric.AssociatedWorkloads(), 1)
+		assert.Equal(t, "process", string(metric.AssociatedWorkloads()[0].Kind))
+		assert.Equal(t, "123", metric.AssociatedWorkloads()[0].ID)
 	}
 }
 
@@ -420,7 +441,7 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -432,21 +453,21 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	// Verify limit metrics have all workloads aggregated
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
-	require.Len(t, coreLimit.AssociatedWorkloads, 3)
+	require.Len(t, coreLimit.AssociatedWorkloads(), 3)
 	workloadIDs := []string{
-		coreLimit.AssociatedWorkloads[0].ID,
-		coreLimit.AssociatedWorkloads[1].ID,
-		coreLimit.AssociatedWorkloads[2].ID,
+		coreLimit.AssociatedWorkloads()[0].ID,
+		coreLimit.AssociatedWorkloads()[1].ID,
+		coreLimit.AssociatedWorkloads()[2].ID,
 	}
 	assert.ElementsMatch(t, []string{"123", "456", "789"}, workloadIDs)
 
 	memoryLimit := findMetric(metrics, "memory.limit")
 	require.NotNil(t, memoryLimit)
-	require.Len(t, memoryLimit.AssociatedWorkloads, 3)
+	require.Len(t, memoryLimit.AssociatedWorkloads(), 3)
 	workloadIDs = []string{
-		memoryLimit.AssociatedWorkloads[0].ID,
-		memoryLimit.AssociatedWorkloads[1].ID,
-		memoryLimit.AssociatedWorkloads[2].ID,
+		memoryLimit.AssociatedWorkloads()[0].ID,
+		memoryLimit.AssociatedWorkloads()[1].ID,
+		memoryLimit.AssociatedWorkloads()[2].ID,
 	}
 	assert.ElementsMatch(t, []string{"123", "456", "789"}, workloadIDs)
 
@@ -454,8 +475,8 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	usageMetrics := findAllMetricsWithName(metrics, "process.core.usage")
 	assert.Len(t, usageMetrics, 3)
 	for _, metric := range usageMetrics {
-		require.Len(t, metric.AssociatedWorkloads, 1)
-		assert.Equal(t, "process", string(metric.AssociatedWorkloads[0].Kind))
+		require.Len(t, metric.AssociatedWorkloads(), 1)
+		assert.Equal(t, "process", string(metric.AssociatedWorkloads()[0].Kind))
 	}
 }
 
@@ -481,7 +502,7 @@ func testCollectEmitsSmActiveMetrics(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -494,10 +515,10 @@ func testCollectEmitsSmActiveMetrics(t *testing.T) {
 	smActive := findMetric(metrics, "process.sm_active")
 	require.NotNil(t, smActive, "process.sm_active metric not found")
 	assert.Equal(t, 75.5, smActive.Value)
-	assert.Equal(t, Low, smActive.Priority, "process.sm_active should have Low priority")
-	require.Len(t, smActive.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(smActive.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", smActive.AssociatedWorkloads[0].ID)
+	assert.Equal(t, Low, smActive.Priority(), "process.sm_active should have Low priority")
+	require.Len(t, smActive.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(smActive.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", smActive.AssociatedWorkloads()[0].ID)
 }
 
 func testCollectEmitsDeviceSmActiveMetric(t *testing.T) {
@@ -550,7 +571,7 @@ func testCollectEmitsDeviceSmActiveMetric(t *testing.T) {
 		},
 	}
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -563,22 +584,22 @@ func testCollectEmitsDeviceSmActiveMetric(t *testing.T) {
 	deviceSmActive := findMetric(metrics, "sm_active")
 	require.NotNil(t, deviceSmActive, "sm_active metric not found")
 	assert.Equal(t, 85.0, deviceSmActive.Value)
-	assert.Equal(t, Low, deviceSmActive.Priority, "sm_active should have Low priority")
-	assert.Empty(t, deviceSmActive.AssociatedWorkloads, "device-level sm_active should not have associated workloads")
+	assert.Equal(t, Low, deviceSmActive.Priority(), "sm_active should have Low priority")
+	assert.Empty(t, deviceSmActive.AssociatedWorkloads(), "device-level sm_active should not have associated workloads")
 
 	// Verify device-level gr_engine_active metric
 	deviceGrEngineActive := findMetric(metrics, "gr_engine_active")
 	require.NotNil(t, deviceGrEngineActive, "gr_engine_active metric not found")
 	assert.Equal(t, 85.0, deviceGrEngineActive.Value)
-	assert.Equal(t, Low, deviceGrEngineActive.Priority, "gr_engine_active should have Low priority")
-	assert.Empty(t, deviceGrEngineActive.AssociatedWorkloads, "device-level gr_engine_active should not have associated workloads")
+	assert.Equal(t, Low, deviceGrEngineActive.Priority(), "gr_engine_active should have Low priority")
+	assert.Empty(t, deviceGrEngineActive.AssociatedWorkloads(), "device-level gr_engine_active should not have associated workloads")
 
 	// Verify per-process sm_active metrics
 	processSmActiveMetrics := findAllMetricsWithName(metrics, "process.sm_active")
 	assert.Len(t, processSmActiveMetrics, 2)
 	for _, metric := range processSmActiveMetrics {
-		assert.Equal(t, Low, metric.Priority)
-		require.Len(t, metric.AssociatedWorkloads, 1)
+		assert.Equal(t, Low, metric.Priority())
+		require.Len(t, metric.AssociatedWorkloads(), 1)
 	}
 }
 
@@ -595,7 +616,7 @@ func testCollectEmitsZeroDeviceActivityWhenIdle(t *testing.T) {
 		stats: &model.GPUStats{},
 	}
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -607,28 +628,32 @@ func testCollectEmitsZeroDeviceActivityWhenIdle(t *testing.T) {
 	deviceSmActive := findMetric(metrics, "sm_active")
 	require.NotNil(t, deviceSmActive, "sm_active metric not found")
 	assert.Equal(t, 0.0, deviceSmActive.Value)
-	assert.Equal(t, Low, deviceSmActive.Priority, "sm_active should have Low priority")
-	assert.Empty(t, deviceSmActive.AssociatedWorkloads, "device-level sm_active should not have associated workloads")
+	assert.Equal(t, Low, deviceSmActive.Priority(), "sm_active should have Low priority")
+	assert.Empty(t, deviceSmActive.AssociatedWorkloads(), "device-level sm_active should not have associated workloads")
 
 	deviceGrEngineActive := findMetric(metrics, "gr_engine_active")
 	require.NotNil(t, deviceGrEngineActive, "gr_engine_active metric not found")
 	assert.Equal(t, 0.0, deviceGrEngineActive.Value)
-	assert.Equal(t, Low, deviceGrEngineActive.Priority, "gr_engine_active should have Low priority")
-	assert.Empty(t, deviceGrEngineActive.AssociatedWorkloads, "device-level gr_engine_active should not have associated workloads")
+	assert.Equal(t, Low, deviceGrEngineActive.Priority(), "gr_engine_active should have Low priority")
+	assert.Empty(t, deviceGrEngineActive.AssociatedWorkloads(), "device-level gr_engine_active should not have associated workloads")
 }
 
 // Helper functions
 
 func createMockCacheWithStats(statsTuples []model.ProcessStatsTuple) *SystemProbeCache {
-	cache := NewSystemProbeCache()
+	cache := NewSystemProbeCache(NewSystemProbeClient())
 	cache.stats = &model.GPUStats{
 		ProcessMetrics: statsTuples,
 	}
 	return cache
 }
 
-func findMetric(metrics []*Metric, name string) *Metric {
-	for _, metric := range metrics {
+func findMetric(samples []Sample, name string) *Metric {
+	for _, sample := range samples {
+		metric, ok := sample.(*Metric)
+		if !ok {
+			continue
+		}
 		if metric.Name == name {
 			return metric
 		}
@@ -636,9 +661,13 @@ func findMetric(metrics []*Metric, name string) *Metric {
 	return nil
 }
 
-func findAllMetricsWithName(metrics []*Metric, name string) []*Metric {
+func findAllMetricsWithName(samples []Sample, name string) []*Metric {
 	var result []*Metric
-	for _, metric := range metrics {
+	for _, sample := range samples {
+		metric, ok := sample.(*Metric)
+		if !ok {
+			continue
+		}
 		if metric.Name == name {
 			result = append(result, metric)
 		}

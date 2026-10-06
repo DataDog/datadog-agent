@@ -67,7 +67,7 @@ func (s *metricsOffLogsOffSuite) TestWarningPresent() {
 	time.Sleep(10 * time.Second)
 
 	tel := observerTelemetryOutput(s)
-	assert.False(s.T(), containsMetric(tel, telemetryLogsIngested),
+	assert.False(s.T(), containsMetricWithTags(tel, telemetryObservationsAccepted, map[string]string{"kind": "logs", "source": "internal"}),
 		"no log ingestion telemetry expected when logs and logs.internal are disabled")
 	assert.False(s.T(), containsMetric(tel, telemetryReportsEmitted),
 		"no reports expected when both metrics and logs ingestion are disabled")
@@ -111,7 +111,7 @@ func (s *metricsOnLogsOffSuite) TestSubGateIndependence() {
 	tel := observerTelemetryOutput(s)
 	assert.True(s.T(), containsMetric(tel, telemetrySeriesCount),
 		"metrics path should expose series telemetry when enabled")
-	assert.False(s.T(), containsMetricWithTag(tel, telemetryLogsIngested, "log_source", "internal"),
+	assert.False(s.T(), containsMetricWithTags(tel, telemetryObservationsAccepted, map[string]string{"kind": "logs", "source": "internal"}),
 		"internal log ingestion should not be active when logs.internal is disabled")
 }
 
@@ -151,7 +151,7 @@ func (s *metricsOffLogsOnSuite) TestLogTapActiveMetricsWarningPresent() {
 	waitForObserverReady(s)
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		tel := observerTelemetryOutput(s)
-		assert.True(c, containsMetricWithTag(tel, telemetryLogsIngested, "log_source", "internal"),
+		assert.True(c, containsMetricWithTags(tel, telemetryObservationsAccepted, map[string]string{"kind": "logs", "source": "internal"}),
 			"internal log ingestion should be active when logs.internal is enabled")
 	}, 2*time.Minute, 3*time.Second)
 }
@@ -190,7 +190,7 @@ func (s *masterOnlyDefaultsOnSuite) TestBothPathsActive() {
 		tel := observerTelemetryOutput(s)
 		assert.True(c, containsMetric(tel, telemetrySeriesCount),
 			"metrics path should be active")
-		assert.True(c, containsMetricWithTag(tel, telemetryLogsIngested, "log_source", "internal"),
+		assert.True(c, containsMetricWithTags(tel, telemetryObservationsAccepted, map[string]string{"kind": "logs", "source": "internal"}),
 			"agent-logs ingestion should be active")
 	}, 2*time.Minute, 3*time.Second)
 }

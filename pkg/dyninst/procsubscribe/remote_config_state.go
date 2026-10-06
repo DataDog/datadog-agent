@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package procsubscribe
 
 import (
 	"maps"
 	"slices"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -37,6 +38,16 @@ type runtimeEntry struct {
 	runtimeID    string
 	probesByPath map[string]ir.ProbeDefinition
 	symdbEnabled bool
+	// startTime is when the process started, or the zero time if it is unknown.
+	startTime time.Time
+	// language is the language the tracer in the process reported.
+	language string
+	// discoveryAttempts is the number of scans that looked at the process
+	// before discovering it.
+	discoveryAttempts uint32
+	// trackRequested records that a TRACK request has been sent for this
+	// process, so that reconnects do not report its discovery again.
+	trackRequested bool
 }
 
 func makeSubscriberState() subscriberState {
@@ -61,6 +72,7 @@ func (s *subscriberState) onStreamEstablished(effects effects) {
 func (s *subscriberState) onScanUpdate(
 	added []procscan.DiscoveredProcess,
 	removed []procscan.ProcessID,
+	now time.Time,
 	effects effects,
 ) {
 	if log.ShouldLog(log.TraceLvl) {
@@ -68,40 +80,9 @@ func (s *subscriberState) onScanUpdate(
 		removed := removed
 		log.Tracef("process subscriber: onScanUpdate: added=%v, removed=%v", added, removed)
 	}
-	for _, proc := range added {
-		runtimeID := proc.TracerMetadata.RuntimeID
-		if runtimeID == "" {
-			log.Debugf(
-				"process subscriber: discovered process %d without runtime ID; skipping",
-				proc.PID,
-			)
-			continue
-		}
-		pid := process.ID{PID: int32(proc.PID)}
-		if _, ok := s.tracked[runtimeID]; !ok {
-			s.tracked[runtimeID] = &runtimeEntry{
-				Info: process.Info{
-					ProcessID:   pid,
-					Executable:  proc.Executable,
-					Service:     proc.TracerMetadata.ServiceName,
-					Environment: proc.TracerMetadata.ServiceEnv,
-					Version:     proc.TracerMetadata.ServiceVersion,
-				},
-				runtimeID:    runtimeID,
-				probesByPath: make(map[string]ir.ProbeDefinition),
-			}
-			log.Tracef(
-				"process subscriber: discovered new runtime %s (pid=%d)",
-				runtimeID, pid.PID,
-			)
-			if s.streamEstablished {
-				effects.track(runtimeID)
-			}
-		}
-
-		s.pidToRuntime[pid.PID] = runtimeID
-	}
-
+	// Removals come first: a scan that observes a pid being reused reports the
+	// exit of the old process and the discovery of the new one together, and
+	// they are only told apart here by that pid.
 	var removals []process.ID
 	for _, removedPID := range removed {
 		pid := int32(removedPID)
@@ -125,6 +106,44 @@ func (s *subscriberState) onScanUpdate(
 
 	if len(removals) > 0 {
 		effects.emitUpdate(process.ProcessesUpdate{Removals: removals})
+	}
+
+	for _, proc := range added {
+		runtimeID := proc.TracerMetadata.RuntimeID
+		if runtimeID == "" {
+			log.Debugf(
+				"process subscriber: discovered process %d without runtime ID; skipping",
+				proc.PID,
+			)
+			continue
+		}
+		pid := process.ID{PID: int32(proc.PID)}
+		if _, ok := s.tracked[runtimeID]; !ok {
+			s.tracked[runtimeID] = &runtimeEntry{
+				Info: process.Info{
+					ProcessID:    pid,
+					Executable:   proc.Executable,
+					Service:      proc.TracerMetadata.ServiceName,
+					Environment:  proc.TracerMetadata.ServiceEnv,
+					Version:      proc.TracerMetadata.ServiceVersion,
+					DiscoveredAt: now,
+				},
+				runtimeID:         runtimeID,
+				probesByPath:      make(map[string]ir.ProbeDefinition),
+				startTime:         proc.StartTime,
+				language:          proc.TracerMetadata.TracerLanguage,
+				discoveryAttempts: proc.Attempts,
+			}
+			log.Tracef(
+				"process subscriber: discovered new runtime %s (pid=%d)",
+				runtimeID, pid.PID,
+			)
+			if s.streamEstablished {
+				effects.track(runtimeID)
+			}
+		}
+
+		s.pidToRuntime[pid.PID] = runtimeID
 	}
 }
 

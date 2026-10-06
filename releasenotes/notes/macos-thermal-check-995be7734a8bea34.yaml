@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    On macOS, the ``thermal`` check now reports hardware temperatures and the
+    system thermal pressure level. It submits
+    ``system.thermal.temperature.cpu``, ``system.thermal.temperature.gpu``,
+    ``system.thermal.temperature.ssd`` and
+    ``system.thermal.temperature.battery`` in degrees Celsius, along with
+    ``system.thermal.pressure_level`` (0 nominal, 1 moderate, 2 heavy,
+    3 trapping, 4 sleeping) tagged with the level name. Both Apple Silicon and
+    Intel Macs are supported. Sensors that the host does not expose are omitted
+    rather than reported as zero, so the set of available metrics varies by
+    hardware model.

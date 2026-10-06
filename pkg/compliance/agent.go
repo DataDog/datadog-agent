@@ -62,6 +62,12 @@ type AgentOptions struct {
 	// internally. See resolver.go.
 	ResolverOptions
 
+	// HostCCRID is the Canonical Cloud Resource ID of the host running the
+	// agent. Resolving it requires querying the cloud provider metadata
+	// endpoints, so it is fetched only once at startup — see FetchHostCCRID —
+	// and stamped on every event and resource log the agent reports.
+	HostCCRID string
+
 	// ConfigDir is the directory in which benchmarks files and assets are
 	// defined.
 	ConfigDir string
@@ -561,6 +567,7 @@ func groupProcesses(procs []*process.Process, getKey func(*process.Process) (typ
 func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *ResourceLog) {
 	expireAt := time.Now().Add(2 * resourceTTL).Truncate(1 * time.Second)
 	resourceLog.ExpireAt = &expireAt
+	resourceLog.HostCCRID = a.opts.HostCCRID
 	if a.wmeta != nil && resourceLog.Container != nil {
 		if ctnr, _ := a.wmeta.GetContainer(resourceLog.Container.ContainerID); ctnr != nil {
 			resourceLog.Container.ImageID = ctnr.Image.ID
@@ -575,18 +582,22 @@ func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent
 	eventsExpireAt := time.Now().Add(2 * eventsTTL).Truncate(1 * time.Second)
 	for _, event := range events {
 		event.ExpireAt = &eventsExpireAt
+		event.HostCCRID = a.opts.HostCCRID
+		// Mutate event fully before updateEvent() publishes it into a.statuses.
+		if event.Result != CheckSkipped {
+			if a.wmeta != nil && event.Container != nil {
+				if ctnr, _ := a.wmeta.GetContainer(event.Container.ContainerID); ctnr != nil {
+					event.Container.ImageID = ctnr.Image.ID
+					event.Container.ImageName = ctnr.Image.Name
+					event.Container.ImageTag = ctnr.Image.Tag
+				}
+			}
+			event.K8SManaged = a.k8sManaged
+		}
 		a.updateEvent(event)
 		if event.Result == CheckSkipped {
 			continue
 		}
-		if a.wmeta != nil && event.Container != nil {
-			if ctnr, _ := a.wmeta.GetContainer(event.Container.ContainerID); ctnr != nil {
-				event.Container.ImageID = ctnr.Image.ID
-				event.Container.ImageName = ctnr.Image.Name
-				event.Container.ImageTag = ctnr.Image.Tag
-			}
-		}
-		event.K8SManaged = a.k8sManaged
 		a.opts.Reporter.ReportEvent(event)
 	}
 }
@@ -613,7 +624,9 @@ func (a *Agent) getChecksStatus() []*CheckStatus {
 	defer a.statusesMu.RUnlock()
 	statuses := make([]*CheckStatus, 0, len(a.statuses))
 	for _, status := range a.statuses {
-		statuses = append(statuses, status)
+		// Copy under the lock: callers marshal the result without holding it.
+		statusCopy := *status
+		statuses = append(statuses, &statusCopy)
 	}
 	return statuses
 }
@@ -646,6 +659,9 @@ func (a *Agent) updateEvent(event *CheckEvent) {
 			"rule_result:" + string(event.Result),
 			"agent_version:" + event.AgentVersion,
 		}
+		if event.HostCCRID != "" {
+			tags = append(tags, "host_ccrid:"+event.HostCCRID)
+		}
 		if err := client.Gauge(metrics.MetricChecksStatuses, 1, tags, 1.0); err != nil {
 			log.Errorf("failed to send checks metric: %v", err)
 		}
@@ -657,7 +673,9 @@ func (a *Agent) updateEvent(event *CheckEvent) {
 	if !ok || status == nil {
 		log.Errorf("check for rule=%s was not registered in checks monitor statuses", event.RuleID)
 	} else {
-		status.LastEvent = event
+		// Publish a copy: callers must not be able to mutate it afterwards.
+		eventCopy := *event
+		status.LastEvent = &eventCopy
 	}
 }
 

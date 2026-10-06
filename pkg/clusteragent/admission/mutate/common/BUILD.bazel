@@ -49,10 +49,13 @@ dd_agent_go_test(
         "pod_spec_normalizer_test.go",
     ],
     embed = [":common"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

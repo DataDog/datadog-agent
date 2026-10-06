@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Private Action Runner: add the
+    ``private_action_runner.restricted_shell.allowed_system_services`` setting
+    to further restrict system-service action grants resolved by Datadog
+    execution policies. Leaving the setting unset preserves the backend grants;
+    configuring an empty map blocks all system-service operations.

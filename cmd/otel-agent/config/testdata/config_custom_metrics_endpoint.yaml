@@ -1,0 +1,17 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+exporters:
+  datadog:
+    api:
+      key: DATADOG_API_KEY
+    metrics:
+      endpoint: https://custom-proxy.example.test
+processors:
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog]

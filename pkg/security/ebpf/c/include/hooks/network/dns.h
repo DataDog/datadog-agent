@@ -8,7 +8,7 @@
 
 #define DNS_ENTRY_TIMEOUT_NS SEC_TO_NS(1)
 
-__attribute__((always_inline)) int parse_dns_request(struct __sk_buff *skb, struct packet_t *pkt, struct dns_event_t *evt) {
+static __always_inline int parse_dns_request(struct __sk_buff *skb, struct packet_t *pkt, struct dns_event_t *evt) {
     u16 qname_length = 0;
     u8 end_of_name = 0;
 
@@ -51,7 +51,7 @@ __attribute__((always_inline)) int parse_dns_request(struct __sk_buff *skb, stru
     return qname_length;
 }
 
-__attribute__((always_inline)) int is_dns_request_parsing_done(struct __sk_buff *skb, struct packet_t *pkt) {
+static __always_inline int is_dns_request_parsing_done(struct __sk_buff *skb, struct packet_t *pkt) {
     // if there is another DNS name left to parse, the next byte would be the length of its first label
     u8 next_char = 0;
     if (bpf_skb_load_bytes(skb, pkt->offset, &next_char, sizeof(u8)) < 0) {
@@ -192,7 +192,7 @@ TAIL_CALL_CLASSIFIER_FNC(dns_response, struct __sk_buff *skb) {
         LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
         if (sched_cls_has_current_pid_tgid_helper) {
             // fill span context (that was previously reset by reset_dns_response_event)
-            fill_span_context(&map_elem->full_dns_response.span);
+            fill_span_context(&map_elem->full_dns_response.span, &map_elem->full_dns_response.go_labels);
         }
         fill_network_context(&map_elem->full_dns_response.network, skb, pkt);
         err = bpf_skb_load_bytes(skb, pkt->offset, &map_elem->full_dns_response.header, sizeof(struct dnshdr));

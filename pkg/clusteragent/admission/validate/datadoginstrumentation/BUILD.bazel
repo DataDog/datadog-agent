@@ -26,10 +26,13 @@ dd_agent_go_test(
     name = "datadoginstrumentation_test",
     srcs = ["webhook_test.go"],
     embed = [":datadoginstrumentation"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//cmd/cluster-agent/admission",
         "//comp/core/config",

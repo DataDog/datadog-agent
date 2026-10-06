@@ -9,17 +9,16 @@ package ddflareextensionimpl
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
-	"fmt"
+	"errors"
 	"net"
 	"net/http"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/api/coverage"
-	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
+
+var errNoIPCComponent = errors.New("cannot start the Datadog flare extension server: no IPC component provided, which is required to authenticate requests")
 
 type server struct {
 	srv      *http.Server
@@ -36,18 +35,16 @@ func newServer(endpoint string, handler http.Handler, optIpcComp option.Option[i
 		Handler: r,
 	}
 
-	if ipcComp, ok := optIpcComp.Get(); ok {
-		// Use the TLS configuration from the IPC component if available
-		s.TLSConfig = ipcComp.GetTLSServerConfig()
-		s.Handler = ipcComp.HTTPMiddleware(r)
-	} else {
-		// Use generated self-signed certificate if running outside of the Agent
-		tlsConfig, err := generateSelfSignedCert()
-		if err != nil {
-			return nil, err
-		}
-		s.TLSConfig = &tlsConfig
+	// The IPC component is mandatory: it supplies both the TLS server config and the
+	// authentication middleware for this endpoint. Serving without it would expose the
+	// Agent's effective configuration, environment and status to any local caller, so
+	// fail closed rather than falling back to an unauthenticated listener.
+	ipcComp, ok := optIpcComp.Get()
+	if !ok {
+		return nil, errNoIPCComponent
 	}
+	s.TLSConfig = ipcComp.GetTLSServerConfig()
+	s.Handler = ipcComp.HTTPMiddleware(r)
 
 	listener, err := net.Listen("tcp", endpoint)
 	if err != nil {
@@ -68,30 +65,12 @@ func (s *server) start() error {
 }
 
 func (s *server) shutdown(ctx context.Context) error {
-	return s.srv.Shutdown(ctx)
-}
-
-func generateSelfSignedCert() (tls.Config, error) {
-	// create cert
-	hosts := []string{"127.0.0.1", "localhost", "::1"}
-	_, rootCertPEM, rootKey, err := pkgtoken.GenerateRootCert(hosts, 2048)
-	if err != nil {
-		return tls.Config{}, fmt.Errorf("unable to generate a self-signed certificate: %v", err)
+	if err := s.srv.Shutdown(ctx); err != nil {
+		return err
 	}
-
-	// PEM encode the private key
-	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
-	})
-
-	// Create a TLS cert using the private key and certificate
-	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
-	if err != nil {
-		return tls.Config{}, fmt.Errorf("unable to generate a self-signed certificate: %v", err)
-
+	// close `tlsListener` in case the server was never started.
+	if err := s.listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		return err
 	}
-
-	return tls.Config{
-		Certificates: []tls.Certificate{rootTLSCert},
-	}, nil
+	return nil
 }

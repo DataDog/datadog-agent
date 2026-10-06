@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package fentry
 
@@ -124,7 +124,7 @@ func protocolClassificationTailCalls() []manager.TailCallRoute {
 
 // initFentryTracer sets up and initializes the fentry tracer
 func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config.Config, m *ddebpf.Manager) (func(), error) {
-	isClassificationSupported := classificationSupported(config)
+	isClassificationSupported := ClassificationSupported(config)
 
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes, err := enabledPrograms(config, isClassificationSupported)

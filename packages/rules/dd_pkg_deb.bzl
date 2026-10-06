@@ -4,8 +4,8 @@
 # can't put a macro on a legacy macro.
 # buildifier: disable=bzl-visibility
 load("@rules_pkg//pkg/private/deb:deb.bzl", "pkg_deb_impl")
+load("//bazel/tools/tar_checksums:tar_md5sums.bzl", "tar_md5sums")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
-load("//tools/tar_checksums:tar_md5sums.bzl", "tar_md5sums")
 
 # kwargs is mandatory for macros, even if you don't use it.
 # buildifier: disable=unused-variable
@@ -17,9 +17,11 @@ def _dd_pkg_deb_impl(name, visibility, conflicts, data, depends, description, ho
     )
 
     sums_out = "%s_md5sums_out_" % name
+    size_out = "%s_installed_size_out_" % name
     tar_md5sums(
         name = "%s_md5sums_" % name,
         src = data,
+        installed_size = size_out,
         md5sums = sums_out,
     )
 
@@ -30,6 +32,7 @@ def _dd_pkg_deb_impl(name, visibility, conflicts, data, depends, description, ho
         depends = depends,
         description = description,
         homepage = homepage or "http://www.datadoghq.com",
+        installed_size_file = ":" + size_out,
         license = license or "Apache License Version 2.0",
         maintainer = maintainer or "Datadog Packages <package@datadoghq.com>",
         md5sums = ":" + sums_out,
@@ -53,6 +56,8 @@ dd_pkg_deb = macro(
     inherit_attrs = pkg_deb_impl,
     implementation = _dd_pkg_deb_impl,
     attrs = {
+        "installed_size": None,
+        "installed_size_file": None,
         "md5sums": None,
         "package_variables": None,
     },

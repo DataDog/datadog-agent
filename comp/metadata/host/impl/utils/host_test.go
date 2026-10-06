@@ -31,6 +31,10 @@ func TestOTLPEnabled(t *testing.T) {
 
 	ctx := context.Background()
 	conf := configmock.New(t)
+	// Disable cloud provider metadata detection to avoid real HTTP calls to
+	// EC2 IMDS / GCP / Azure metadata endpoints, which each take up to the
+	// ec2_metadata_timeout (300ms default) to fail on non-cloud hosts.
+	conf.SetInTest("cloud_provider_metadata", []string{})
 
 	defer func(orig func(cfg model.Reader) bool) { otlpIsEnabled = orig }(otlpIsEnabled)
 
@@ -133,6 +137,7 @@ func TestGetPayload(t *testing.T) {
 
 	ctx := context.Background()
 	conf := configmock.New(t)
+	conf.SetInTest("cloud_provider_metadata", []string{})
 
 	_, found := cache.Cache.Get(hostCacheKey)
 	assert.False(t, found)

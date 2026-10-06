@@ -6,27 +6,44 @@
 package server
 
 import (
+	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+const parTaskTTL = 5 * time.Minute
 
 // parServerState holds the in-memory task queue and result map for PAR e2e tests.
 // The Private Action Runner polls /api/v2/on-prem-management-service/workflow-tasks/dequeue
 // to receive tasks; tests use /fakeintake/par/* control endpoints to enqueue tasks and
 // read back results without needing a real OPMS backend.
 type parServerState struct {
-	mu           sync.Mutex
-	queue        []parQueuedTask
-	results      map[string]*api.PARTaskResult
-	dequeueCalls int // counts how many times PAR has called the dequeue endpoint
+	mu               sync.Mutex
+	queue            []parQueuedTask
+	results          map[string]*api.PARTaskResult
+	dequeueCalls     int // counts how many times PAR has called the dequeue endpoint
+	healthCheckCalls int // counts how many times PAR has reported runner liveness
+	enrollmentCalls  int // counts successful self-enrollment requests
+
+	// Signing identity registered via /fakeintake/par/signing-key. Left zero-valued,
+	// dequeued tasks carry an unsigned envelope.
+	signingKeyID string
+	signingKey   ed25519.PrivateKey
+	orgID        int64
+	runnerID     string
+	connectionID string
 }
 
 type parQueuedTask struct {
@@ -36,6 +53,46 @@ type parQueuedTask struct {
 }
 
 // --- PAR-facing handlers (called by the agent) ---
+
+func (fi *Server) handlePAREnroll(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var request struct {
+		Data struct {
+			Attributes struct {
+				AgentHostname string `json:"agent_hostname"`
+				AgentFlavor   string `json:"agent_flavor"`
+			} `json:"attributes"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	fi.par.mu.Lock()
+	fi.par.enrollmentCalls++
+	runnerID := fmt.Sprintf("fake-runner-%d", fi.par.enrollmentCalls)
+	fi.par.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/vnd.api+json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"data": map[string]interface{}{
+			"type": "createRunnerResponse",
+			"id":   runnerID,
+			"attributes": map[string]interface{}{
+				"runner_id":      runnerID,
+				"org_id":         42,
+				"runner_modes":   []string{"pull"},
+				"agent_hostname": request.Data.Attributes.AgentHostname,
+				"agent_flavor":   request.Data.Attributes.AgentFlavor,
+			},
+		},
+	})
+}
 
 func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -64,12 +121,21 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	expiresAt := fi.clock.Now().Add(parTaskTTL)
 	pbTask := &privateactionspb.PrivateActionTask{
-		ActionName: actionName,
-		BundleId:   bundleID,
-		OrgId:      0,
-		TaskId:     task.TaskID,
-		Inputs:     inputs,
+		ActionName:     actionName,
+		BundleId:       bundleID,
+		OrgId:          fi.par.orgID,
+		TaskId:         task.TaskID,
+		Inputs:         inputs,
+		ExpirationTime: timestamppb.New(expiresAt),
+	}
+	if fi.par.runnerID != "" {
+		pbTask.ConnectionInfo = &privateactionspb.ConnectionInfo{
+			ConnectionId:    fi.par.connectionID,
+			CredentialsType: privateactionspb.CredentialsType_TOKEN_AUTH,
+			RunnerId:        fi.par.runnerID,
+		}
 	}
 	if remoteAction != nil {
 		pbTask.SystemInputs = &privateactionspb.SystemInputs{
@@ -85,16 +151,28 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	envelope := map[string]interface{}{"data": signedTaskData}
+	if fi.par.signingKey != nil {
+		hashedPayload := sha256.Sum256(signedTaskData)
+		envelope["hash_type"] = int32(privateactionspb.HashType_SHA256)
+		envelope["expiration_time"] = timestamppb.New(expiresAt)
+		envelope["signatures"] = []map[string]interface{}{
+			{
+				"key_type":  int32(privateactionspb.KeyType_ED25519),
+				"key_id":    fi.par.signingKeyID,
+				"signature": ed25519.Sign(fi.par.signingKey, hashedPayload[:]),
+			},
+		}
+	}
+
 	attributes := map[string]interface{}{
-		"name":      actionName,
-		"bundle_id": bundleID,
-		"task_id":   task.TaskID,
-		"job_id":    task.TaskID,
-		"org_id":    0,
-		"inputs":    actionInputs,
-		"signed_envelope": map[string]interface{}{
-			"data": signedTaskData,
-		},
+		"name":            actionName,
+		"bundle_id":       bundleID,
+		"task_id":         task.TaskID,
+		"job_id":          task.TaskID,
+		"org_id":          pbTask.OrgId,
+		"inputs":          actionInputs,
+		"signed_envelope": envelope,
 	}
 	resp := map[string]interface{}{
 		"data": map[string]interface{}{
@@ -134,10 +212,38 @@ func parRemoteActionFromInputs(inputs map[string]interface{}) (*privateactionspb
 			delete(actionInputs, "allowedPaths")
 		}
 	}
+	if v, ok := inputs["systemServices"]; ok {
+		if services, ok := parSystemServices(v); ok {
+			remoteAction.SystemServices = services
+			hasRemoteAction = true
+			delete(actionInputs, "systemServices")
+		}
+	}
 	if !hasRemoteAction {
 		return nil, actionInputs
 	}
 	return remoteAction, actionInputs
+}
+
+func parSystemServices(value interface{}) (map[string]*structpb.ListValue, bool) {
+	values, ok := value.(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+	policy, err := structpb.NewStruct(values)
+	if err != nil {
+		return nil, false
+	}
+
+	services := make(map[string]*structpb.ListValue, len(policy.Fields))
+	for service, value := range policy.Fields {
+		actions := value.GetListValue()
+		if actions == nil {
+			return nil, false
+		}
+		services[service] = actions
+	}
+	return services, true
 }
 
 func parStringSlice(value interface{}) ([]string, bool) {
@@ -236,6 +342,10 @@ func (fi *Server) handlePARPublish(w http.ResponseWriter, r *http.Request) {
 }
 
 func (fi *Server) handlePARHealthCheck(w http.ResponseWriter, _ *http.Request) {
+	fi.par.mu.Lock()
+	fi.par.healthCheckCalls++
+	fi.par.mu.Unlock()
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"data": map[string]interface{}{
@@ -293,21 +403,63 @@ func (fi *Server) handlePARResult(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(result)
 }
 
+// handlePARSetSigningKey registers a signing identity used by handlePARDequeue.
+func (fi *Server) handlePARSetSigningKey(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		KeyID        string `json:"key_id"`
+		PrivateKey   []byte `json:"private_key"`
+		OrgID        int64  `json:"org_id"`
+		RunnerID     string `json:"runner_id"`
+		ConnectionID string `json:"connection_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if req.KeyID == "" || req.RunnerID == "" || req.ConnectionID == "" || len(req.PrivateKey) != ed25519.PrivateKeySize {
+		http.Error(w, "invalid signing configuration", http.StatusBadRequest)
+		return
+	}
+
+	fi.par.mu.Lock()
+	fi.par.signingKeyID = req.KeyID
+	fi.par.signingKey = ed25519.PrivateKey(req.PrivateKey)
+	fi.par.orgID = req.OrgID
+	fi.par.runnerID = req.RunnerID
+	fi.par.connectionID = req.ConnectionID
+	fi.par.mu.Unlock()
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func (fi *Server) handlePARFlush(w http.ResponseWriter, _ *http.Request) {
 	fi.par.mu.Lock()
 	fi.par.queue = nil
 	fi.par.results = make(map[string]*api.PARTaskResult)
 	fi.par.dequeueCalls = 0
+	fi.par.healthCheckCalls = 0
+	fi.par.enrollmentCalls = 0
 	fi.par.mu.Unlock()
 	w.WriteHeader(http.StatusOK)
 }
 
 func (fi *Server) handlePARStats(w http.ResponseWriter, _ *http.Request) {
 	fi.par.mu.Lock()
-	calls := fi.par.dequeueCalls
+	dequeueCalls := fi.par.dequeueCalls
+	healthCheckCalls := fi.par.healthCheckCalls
+	enrollmentCalls := fi.par.enrollmentCalls
 	fi.par.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]int{"dequeue_calls": calls})
+	_ = json.NewEncoder(w).Encode(map[string]int{
+		"dequeue_calls":      dequeueCalls,
+		"health_check_calls": healthCheckCalls,
+		"enrollment_calls":   enrollmentCalls,
+	})
 }
 
 // parSplitFQN splits "com.foo.bar.actionName" into ("com.foo.bar", "actionName").

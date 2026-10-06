@@ -10,6 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/util/cloudproviders/alibaba",
         "//pkg/util/cloudproviders/azure",
