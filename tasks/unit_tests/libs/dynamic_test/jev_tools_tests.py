@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from tasks.libs.dynamic_test.jev.jev_client import decide, get_ai_gateway_token
 from tasks.libs.dynamic_test.jev.jev_e2e_selector import select_suite
-from tasks.libs.dynamic_test.jev.pr_context import fetch_pr_info
+from tasks.libs.dynamic_test.jev.pr_context import changed_files, fetch_pr_info
 from tasks.libs.dynamic_test.jev.test_discovery import list_suites
 
 
@@ -77,6 +77,24 @@ class JevToolsTests(unittest.TestCase):
             info = fetch_pr_info("main", None)
         self.assertNotIn("number", info)
         self.assertEqual(info["title"], "")
+
+    @patch("tasks.libs.dynamic_test.jev.pr_context.git")
+    def test_ddci_file_list_uses_the_local_merge_base_not_ddci_base_commit(self, git):
+        """DDCI's base_commit is the base branch TIP (GitHub PR base.sha), not
+        the merge base: a diff against it includes all of main's changes since
+        the fork point."""
+        git.side_effect = ["main", "0c339c19"]  # rev-parse candidate, merge-base
+        files, merge_base = changed_files("main", {"changed_files": [("a.go", "added")], "base_commit": "ca52e138d6d1"})
+        self.assertEqual(files, [("a.go", "added")])
+        self.assertEqual(merge_base, "0c339c19")
+        git.assert_called_with("merge-base", "HEAD", "main")
+
+    @patch("tasks.libs.dynamic_test.jev.pr_context.git")
+    def test_changed_files_git_fallback(self, git):
+        git.side_effect = ["main", "0c339c19", "a.go\nb.go\n"]  # rev-parse, merge-base, diff
+        files, merge_base = changed_files("main", None)
+        self.assertEqual(files, [("a.go", ""), ("b.go", "")])
+        self.assertEqual(merge_base, "0c339c19")
 
     def test_discovery_ignores_helpers(self):
         with tempfile.TemporaryDirectory() as directory:

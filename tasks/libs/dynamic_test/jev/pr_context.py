@@ -131,12 +131,12 @@ def fetch_pr_info(base: str, ddci: dict | None) -> dict:
 def changed_files(base: str, ddci: dict | None) -> tuple[list, str]:
     """Changed (path, modification_kind) pairs and the merge base used.
 
-    Prefers the DDCI metadata (GitHub-computed merge base + changed files with
-    modification kinds), falls back to a local git merge-base diff.
+    The merge base is always the local git merge base of HEAD and the base
+    branch: DDCI's base_commit is the base branch TIP (GitHub PR base.sha),
+    not the merge base - a diff against it includes all of main's changes
+    since the fork point. The file list prefers the DDCI metadata (with
+    modification kinds), falling back to the local merge-base diff.
     """
-    if ddci and ddci.get("changed_files") is not None:
-        files = ddci["changed_files"][:MAX_CHANGED_FILES]
-        return files, ddci.get("base_commit") or base
     # Resolve the base branch to a ref present in this clone (CI clones have
     # no local main, only origin/main); fetch from origin as a last resort
     ref = ""
@@ -155,5 +155,7 @@ def changed_files(base: str, ddci: dict | None) -> tuple[list, str]:
         merge_base = git("merge-base", "HEAD", ref)
     except RuntimeError:
         merge_base = ref
+    if ddci and ddci.get("changed_files") is not None:
+        return ddci["changed_files"][:MAX_CHANGED_FILES], merge_base
     files = [(f, "") for f in git("diff", "--name-only", merge_base, "HEAD").splitlines()]
     return files[:MAX_CHANGED_FILES], merge_base
