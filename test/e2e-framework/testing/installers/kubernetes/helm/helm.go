@@ -15,10 +15,11 @@ import (
 	"os"
 	"time"
 
-	helmaction "helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/cli"
-	"helm.sh/helm/v3/pkg/storage/driver"
+	helmaction "helm.sh/helm/v4/pkg/action"
+	"helm.sh/helm/v4/pkg/chart/loader"
+	"helm.sh/helm/v4/pkg/cli"
+	"helm.sh/helm/v4/pkg/kube"
+	"helm.sh/helm/v4/pkg/storage/driver"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 
 	compagent "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
@@ -107,7 +108,7 @@ func installChart(kubeconfig, clusterName string, fi *fakeintake.FakeintakeOutpu
 	flags.Namespace = &p.Namespace
 
 	actionConfig := new(helmaction.Configuration)
-	if err := actionConfig.Init(flags, p.Namespace, "secret", func(string, ...interface{}) {}); err != nil {
+	if err := actionConfig.Init(flags, p.Namespace, "secret"); err != nil {
 		return compagent.KubernetesAgentOutput{}, err
 	}
 
@@ -173,7 +174,7 @@ func installOrUpgradeRelease(cfg *helmaction.Configuration, name, namespace stri
 		install.ReleaseName = name
 		install.Namespace = namespace
 		install.CreateNamespace = true
-		install.Wait = true
+		install.WaitStrategy = kube.LegacyStrategy
 		install.Timeout = 5 * time.Minute
 		_, err := install.Run(chartRequested, values)
 		return err
@@ -184,7 +185,7 @@ func installOrUpgradeRelease(cfg *helmaction.Configuration, name, namespace stri
 	upgrade := helmaction.NewUpgrade(cfg)
 	upgrade.ChartPathOptions = chartPathOpts
 	upgrade.Namespace = namespace
-	upgrade.Wait = true
+	upgrade.WaitStrategy = kube.LegacyStrategy
 	upgrade.Timeout = 5 * time.Minute
 	_, err = upgrade.Run(name, chartRequested, values)
 	return err
