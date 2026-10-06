@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -119,10 +120,12 @@ type PrivateActionRunner struct {
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
 
-	executorServer  *executor.Server
-	encryptionStore *encryptioncontext.Store
-	executorDone    chan struct{}
-	shutdowner      compdef.Shutdowner
+	executorServer   *executor.Server
+	encryptionStore  *encryptioncontext.Store
+	executorDone     chan struct{}
+	persistenceDone  chan struct{}
+	persistenceClock clock.Clock
+	shutdowner       compdef.Shutdowner
 
 	telemetry   *telemetry.Telemetry
 	keysManager taskverifier.KeysManager
@@ -242,6 +245,11 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		return nil, fmt.Errorf("failed to get agent identifier: %w", err)
 	}
 
+	if enrollment.PhoneHomePOC() {
+		if err := enrollment.RecoverPhoneHomeIdentity(ctx, p.coreConfig, agentIdentifier.Hostname); err != nil {
+			return nil, err
+		}
+	}
 	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, p.coreConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
@@ -305,25 +313,53 @@ func (p *PrivateActionRunner) StartExecutor(ctx context.Context) error {
 	return err
 }
 
-func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
+func (p *PrivateActionRunner) startExecutor(ctx context.Context) (retErr error) {
 	// Detached from ctx's deadline: the server must run until Stop(), not until the fx start timeout.
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	p.cancelStart = cancel
 	defer p.logger.Flush()
 
+	var retained *enrollment.PendingPersistence
+	defer func() {
+		if retErr == nil {
+			return
+		}
+		if retained != nil && !retained.SafeToExit {
+			// Even broken IPC must not discard the only returned runner identity.
+			p.logger.Warn("PAR credential-retention helper running without executor IPC")
+			retErr = nil
+		} else {
+			cancel()
+		}
+	}()
 	runCtx, cfg, err := p.configureExecutor(ctx, runCtx)
 	if err != nil {
-		cancel()
-		return err
+		if !errors.As(err, &retained) || retained.SafeToExit {
+			return err
+		}
+		// Keep the helper until the returned identity AND its recovery outcome
+		// can be saved. No action executor is started.
+		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
+		p.persistenceDone = make(chan struct{})
+		if p.persistenceClock == nil {
+			p.persistenceClock = clock.New()
+		}
+		ticker := p.persistenceClock.Ticker(time.Minute)
+		go func() {
+			defer close(p.persistenceDone)
+			defer ticker.Stop()
+			p.retainPendingIdentity(runCtx, retained, ticker.C)
+		}()
 	}
 	snapshot, err := executor.ControlPlaneConfig(p.coreConfig, cfg)
 	if err != nil {
-		cancel()
 		return err
 	}
+	if retained != nil {
+		snapshot = nil
+	} // Unavailable, NOT split_mode=false.
 	tlsConfig := p.ipc.GetTLSServerConfig().Clone()
 	if len(tlsConfig.Certificates) == 0 || len(tlsConfig.Certificates[0].Certificate) == 0 {
-		cancel()
 		return errors.New("shared IPC certificate is missing")
 	}
 	p.executorServer.SetControlPlaneConfig(snapshot, tlsConfig.Certificates[0].Certificate[0])
@@ -331,7 +367,6 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	socketPath := p.coreConfig.GetString(privateactionrunner.PARExecutorSocketPath)
 	lis, err := executor.Listen(socketPath)
 	if err != nil {
-		cancel()
 		return fmt.Errorf("failed to listen on executor socket %q: %w", socketPath, err)
 	}
 	p.logger.Info("Private action runner executor listening on " + socketPath)
@@ -345,6 +380,9 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	if cfg == nil {
 		idleTimeout = time.Minute
 	}
+	if retained != nil {
+		idleTimeout = 0
+	} // Explicit, observable credential-retention exception.
 	serveOpts := executor.ServeOptions{
 		DrainTimeout: drainTimeout,
 		IdleTimeout:  idleTimeout,
@@ -366,6 +404,25 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 		}
 	}()
 	return nil
+}
+
+// retainPendingIdentity performs storage-only retries. Rust keeps its unchanged
+// bootstrap deadline and may exit; core must not stop this credential holder.
+func (p *PrivateActionRunner) retainPendingIdentity(ctx context.Context, pending *enrollment.PendingPersistence, retry <-chan time.Time) {
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		if err := pending.Retain(p.coreConfig); err == nil {
+			_ = p.shutdowner.Shutdown()
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-retry:
+		}
+	}
 }
 
 // configureExecutor resolves identity and returns the context tagged for logging.
@@ -465,6 +522,12 @@ func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
 		}
 	}
 
+	if p.persistenceDone != nil {
+		select {
+		case <-p.persistenceDone:
+		case <-ctx.Done():
+		}
+	}
 	var stopErr error
 	if p.encryptionStore != nil {
 		p.encryptionStore.Stop()
@@ -599,20 +662,7 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 // The enrollment mode is controlled by the api_key_only_enrollment flag:
 //   - true:  enroll with API key only (app key ignored, no auto-connections)
 //   - false: enroll with API key + app key (app key required, auto-connections created)
-func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config, agentIdentifier *enrollment.AgentIdentifier) (_ *parconfig.Config, retErr error) {
-	if enrollment.PhoneHomePOC() {
-		defer func() {
-			if retErr != nil {
-				reason := "enrollment_ambiguous_or_persistence_failed"
-				if errors.Is(retErr, opms.ErrEnrollmentUnauthorized) {
-					reason = "enrollment_rejected_not_necessarily_scope"
-				}
-				if err := enrollment.RecordPhoneHomeFailure(p.coreConfig, reason); err != nil {
-					p.logger.Warn("Cannot record phone-home outcome; attempt remains blocked")
-				}
-			}
-		}()
-	}
+func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config, agentIdentifier *enrollment.AgentIdentifier) (*parconfig.Config, error) {
 	apiKey := p.coreConfig.GetString("api_key")
 	apiKeyOnlyEnrollment := p.coreConfig.GetBool(privateactionrunner.PARApiKeyOnlyEnrollment)
 
@@ -643,8 +693,10 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	}
 	p.logger.Info("Self-enrollment successful")
 
-	if err := enrollment.PersistIdentity(ctx, p.coreConfig, enrollmentResult); err != nil {
-		return nil, fmt.Errorf("failed to persist enrollment identity: %w", err)
+	if !enrollment.PhoneHomePOC() {
+		if err := enrollment.PersistIdentity(ctx, p.coreConfig, enrollmentResult); err != nil {
+			return nil, fmt.Errorf("failed to persist enrollment identity: %w", err)
+		}
 	}
 
 	cfg.Urn = enrollmentResult.URN

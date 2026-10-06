@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "opms",
     srcs = [
+        "enrollment_failure.go",
         "opms.go",
         "public_opms.go",
     ],
@@ -32,6 +33,7 @@ go_library(
 dd_agent_go_test(
     name = "opms_test",
     srcs = [
+        "enrollment_failure_test.go",
         "opms_test.go",
         "public_opms_test.go",
     ],

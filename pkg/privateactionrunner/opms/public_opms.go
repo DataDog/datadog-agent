@@ -155,9 +155,12 @@ func (p *publicClient) enroll(
 	err = jsonapi.Unmarshal(respBody, createRunnerResponse)
 	if err != nil {
 		if p.phoneHomePOC {
-			return nil, errors.New("invalid enrollment response; outcome ambiguous")
+			return nil, &EnrollmentFailure{Category: "response_ambiguous", ReconciliationRequired: true}
 		}
 		return nil, fmt.Errorf("failed to unmarshal runner creation response: %w", err)
+	}
+	if p.phoneHomePOC && (createRunnerResponse.OrgID <= 0 || createRunnerResponse.RunnerID == "") {
+		return nil, &EnrollmentFailure{Category: "response_ambiguous", ReconciliationRequired: true}
 	}
 	return createRunnerResponse, nil
 }
@@ -188,13 +191,22 @@ func (p *publicClient) doEnrollRequestWithRetry(ctx context.Context, url string,
 // success. On non-2xx responses, returns the status code so the caller can
 // decide whether to retry.
 func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []byte, apiKey, appKey string) ([]byte, int, error) {
+	if p.phoneHomePOC && ctx.Err() != nil {
+		return nil, 0, &EnrollmentFailure{Category: "not_submitted", RetrySafe: true}
+	}
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
+		if p.phoneHomePOC {
+			return nil, 0, &EnrollmentFailure{Category: "invalid_config"}
+		}
 		return nil, 0, fmt.Errorf("failed to build runner creation request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/vnd.api+json")
 	req.Header.Set("Accept", "application/json")
+	if p.phoneHomePOC {
+		req.Header.Set("Accept", "application/vnd.api+json")
+	}
 	req.Header.Set("DD-API-KEY", apiKey)
 	if appKey != "" {
 		req.Header.Set("DD-APPLICATION-KEY", appKey)
@@ -207,7 +219,7 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		if p.phoneHomePOC {
-			return nil, 0, errors.New("enrollment transport failure; outcome ambiguous")
+			return nil, 0, transportFailure(err)
 		}
 		return nil, 0, fmt.Errorf("failed to send runner creation request: %w", err)
 	}
@@ -217,21 +229,26 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 		}
 	}()
 
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		if p.phoneHomePOC {
-			return nil, resp.StatusCode, fmt.Errorf("%w (HTTP %d): key, scope, gate or quota rejection; inspect the phone-home journal before operator recovery", ErrEnrollmentUnauthorized, resp.StatusCode)
+	if p.phoneHomePOC {
+		if resp.StatusCode == http.StatusTooManyRequests {
+			// Retry-After is useful even if the body is oversized or unreadable.
+			// It does not authorize replay of this unverified rejection.
+			return nil, resp.StatusCode, responseFailure(resp.StatusCode, nil, resp.Header.Get("Retry-After"), time.Now())
 		}
+		body, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
+		if err != nil || len(body) > 1<<20 {
+			return nil, resp.StatusCode, &EnrollmentFailure{Category: "response_ambiguous", ReconciliationRequired: true}
+		}
+		if resp.StatusCode != http.StatusOK {
+			return nil, resp.StatusCode, responseFailure(resp.StatusCode, body, resp.Header.Get("Retry-After"), time.Now())
+		}
+		return body, resp.StatusCode, nil
+	}
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		return nil, resp.StatusCode, fmt.Errorf("%w (HTTP %d): check the API/application key and its required scopes, then restart the Private Action Runner", ErrEnrollmentUnauthorized, resp.StatusCode)
 	}
 
-	if p.phoneHomePOC && resp.StatusCode != http.StatusOK {
-		return nil, resp.StatusCode, fmt.Errorf("enrollment HTTP %d; operator recovery required", resp.StatusCode)
-	}
-	var bodyReader io.Reader = resp.Body
-	if p.phoneHomePOC {
-		bodyReader = io.LimitReader(resp.Body, 1<<20)
-	}
-	respBody, err := io.ReadAll(bodyReader)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, resp.StatusCode, fmt.Errorf("runner creation failed with HTTP status code %d and failed to read HTTP response with error %w", resp.StatusCode, err)
 	}

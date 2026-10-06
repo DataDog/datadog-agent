@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -67,7 +68,8 @@ func TestPhoneHomeEnrollmentOutcome(t *testing.T) {
 				"private_action_runner.api_key_only_enrollment": true,
 				"private_action_runner.identity_file_path":      identityPath,
 			})
-			require.NoError(t, os.Mkdir(enrollment.PhoneHomeAttemptPath(cfg), 0700))
+			a, err := enrollment.ReservePhoneHomeAttempt(cfg, "test-host", time.Now(), nil)
+			require.NoError(t, err)
 			hostname, _ := hostnamemock.NewMock("test-host")
 			runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t)}
 			resolved, err := runner.getRunnerConfig(context.Background())
@@ -81,13 +83,11 @@ func TestPhoneHomeEnrollmentOutcome(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
-				outcome, err := os.ReadFile(filepath.Join(enrollment.PhoneHomeAttemptPath(cfg), "outcome"))
+				outcome, err := enrollment.ReadPhoneHomeOutcome(cfg, a)
 				require.NoError(t, err)
-				if tc.status == 403 {
-					require.Equal(t, "enrollment_rejected_not_necessarily_scope", string(outcome))
-				} else {
-					require.Equal(t, "enrollment_ambiguous_or_persistence_failed", string(outcome))
-				}
+				require.NotNil(t, outcome)
+				expected := map[string]string{"rejected": "forbidden_unknown", "ambiguous_5xx": "response_ambiguous", "response_lost": "transport_ambiguous", "persistence_failed": "persistence_pending"}
+				require.Equal(t, expected[tc.name], outcome.Category)
 				// A rejected/pending POC must never serve a disabled snapshot,
 				// and a restarted executor must not submit another mutation.
 				_, resolved, err = runner.configureExecutor(context.Background(), context.Background())

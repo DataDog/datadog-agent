@@ -1,146 +1,261 @@
 # Core-owned PAR phone-home POC
 
-Opt-in experiment, not a rollout/default-on change. Based on Agent
-`1cd4a3d618bc3b02219d8a8dbfc5613160fe7fe4`. No RC/backend changes or Rust credential
-handoff. This directory implements eligibility, **not action readiness**.
+Opt-in experiment, not a rollout/default-on change. Extends the original POC
+`35f0026b39d` for the Oct 6 enrollment-recovery brief. Shipping templates, backend
+APIs, RC authorization, and Rust bootstrap deadlines are unchanged. Enrollment
+confirmation is **not action readiness**.
 
-## Contracts
+## Deployment and ownership contracts
 
-- **Scope:** one non-containerized Linux node Agent, non-FIPS, split mode, local
-  `dd-procmgrd`. Other platforms, flavors, Kubernetes and arbitrary PAR-local
-  config are not supported by this POC.
-- **Opt-in:** `DD_PAR_PHONE_HOME_POC=true` in core and executor. PAR must also be
-  locally enabled and `private_action_runner.split_enabled: true`. Without the
-  environment opt-in, existing behavior is unchanged. Local disablement makes
-  the controller a no-op; this is not a new policy for stopping a running PAR.
-- **Matching config:** same main file, environment, secret resolutions, hostname,
-  user, filesystem and identity path for core and executor. No extra config
-  files, PAR-specific credentials, Fleet overrides, per-process proxies, or live
-  config/secret rotation. Restart both processes after configuration changes.
-  Core uses its already-resolved config; it does **not** load or overwrite PAR's
-  config. The environment opt-in is the operator's attestation of this setup,
-  not proof of arbitrary config parity. The known PAR extra-config environment
-  variable and OPMS extra headers are explicitly rejected by core.
-- **Launch:** set `DD_PM_SOCKET_PATH` to an explicit absolute path for the isolated
-  supervisor. Register `datadog-agent-par-control` and
-  `datadog-agent-action-executor` with `auto_start: false`, `restart: never`.
-  Executor's process definition must explicitly contain
-  `env: {DD_PAR_PHONE_HOME_POC: "true"}` so core can check that the POST guard is
-  enabled. Core inspects these policies and uses Describe/Start on registered
-  processes only; no Create, shell commands, or runtime policy rewriting.
-  Do not run another systemd/s6/kubelet/monolithic PAR launch path in parallel.
-- **Discovery:** API-key-only GET `/api/v2/validate`. Both `valid: true` and
-  `private_action_runner_enroll` are required; RC scope is irrelevant. Agent HTTP
-  transport preserves configured TLS/proxy behavior. Redirects are refused;
-  HTTP bodies, transport error strings and API keys are not copied to status.
-- **Identity:** use the same enrollment identity reader and `ShouldReenroll`
-  logic as Go PAR, including the current hostname/API-key hash checks. Complete
-  legacy app-key identities without hashes are reusable. Existing identities
-  bypass discovery even when the existing Go path needs to re-enroll. Inline
-  identities are supported but are not newly persisted by the POC.
-- **Outcome:** core checks the existing identity file (including private JWK/URN
-  validation), not a PID or repeated bootstrap RPC. The executor still generates
-  keys, enrolls and persists. Enrollment rejection is an error in POC split mode,
-  not a disabled snapshot. Identity resolution has a 45-second budget; a single
-  POST has a 30-second budget, within Rust's unchanged 120-second bootstrap limit.
-  After persistence and control startup, discovery stops. Signing-key/RC readiness
-  is separate and is not claimed.
+- One non-containerized Linux node Agent, non-FIPS, split mode, local
+  `dd-procmgrd`. Other platforms/flavors, Kubernetes, and arbitrary PAR-local
+  configuration are outside this POC.
+- Set `DD_PAR_PHONE_HOME_POC=true` in core and executor; also enable PAR and
+  `private_action_runner.split_enabled`. Opt-out preserves existing behavior.
+  Local disablement stops controller activity, not an already-running PAR.
+- Core and executor must use matching files, environment, resolved secrets,
+  hostname, user, local filesystem, and explicit absolute `identity_file_path`.
+  No extra PAR config, OPMS extra headers, per-process credentials/proxies, Fleet
+  overrides, or live rotation. Core neither loads nor overwrites PAR-local config.
+  A protected digest binds enrollment-critical settings/credential to the
+  attempt; this is not proof of arbitrary config parity. Restart both after
+  configuration changes. Ambiguous attempts still require reconciliation.
+- Set `DD_PM_SOCKET_PATH` to the isolated supervisor's absolute socket path.
+  Register `datadog-agent-par-control` and `datadog-agent-action-executor`, both
+  `auto_start: false`, `restart: never`. The executor definition must explicitly
+  set `env: {DD_PAR_PHONE_HOME_POC: "true"}`. Core checks policy and uses only
+  Describe/Start/Stop of these registrations. Stop is restricted to failed,
+  owned startup attempts, not a healthy enrolled PAR. No Create, shell spawning,
+  policy rewriting, or parallel systemd/s6/kubelet/monolithic launch authority.
+- Existing identities use the shared reader and hostname/API-key-hash reuse
+  rules. Legacy app-key identities without hashes remain usable. Initial startup
+  and existing re-enrollment bypass a new scope gate. A verified rejection can
+  subsequently require current validation before retrying.
 
-## Retry and recovery policy
+## Discovery and retry ownership
 
-Missing scope: 60–72 seconds between checks, with 0–60 seconds initial jitter.
-Transport/5xx/malformed responses: exponential base delay 1, 2, 4, 8, 15 minutes,
-plus up to 12 seconds jitter. Invalid credentials and other HTTP failures: 15
-minutes plus jitter. Discovery 429 honors delta-seconds or HTTP-date Retry-After
-as a lower bound. A discovery 403 is **not** interpreted as missing PAR scope.
+Core calls API-key-only `GET /api/v2/validate`; both `valid: true` and
+`private_action_runner_enroll` are required. RC scope is irrelevant. The Agent's
+transport preserves TLS/proxy behavior; redirects are refused. API keys, response
+bodies and raw network errors are not logged or included in status.
 
-Core creates `<identity_file_path>.phone-home/` with mode 0700 before Start. Go
-exclusively creates and syncs its empty `post` marker before sending enrollment.
-This stores **no API key, private key, token, or credential hash**. A fixed
-`outcome` reason records failure; unknown/missing outcomes remain ambiguous.
-The directory survives core/executor crashes and blocks duplicate attempts. Once
-core confirms a reusable identity and running control, it removes the known
-journal files and directory so a later hostname/key change can use the existing
-re-enrollment path (after restarting both processes).
+Concrete POC schedules:
 
-**Deliberate POC limitation:** there is at most one enrollment POST per authorized
-attempt, including for definitive 401/403/429 rejection. There is no automatic
-POST retry or process-restart loop. Discovery continues (normally once per minute
-while launching, slowly after failure); it does not authorize a second attempt.
-A known reusable identity can be started once per core lifetime and does not need
-another scope check. A running PAR is never stopped on discovery failure.
+- Initial discovery jitter: 0–60 seconds. Missing scope/normal checks: 60–72 seconds.
+- Discovery transport/5xx/malformed response: 1, 2, 4, 8, then 15 minutes, plus
+  up to 12 seconds jitter. Invalid credentials/other HTTP failures: 15 minutes
+  plus jitter. Discovery 403 is not assumed to mean missing scope.
+- Discovery 429: at least Retry-After (delta-seconds or HTTP date); missing,
+  malformed, negative or past hints fall back to one minute, plus jitter.
+- Verified no-creation enrollment rejection: 5, 10, 20, then 30-minute base,
+  plus 0–20% jitter. A later Retry-After, including on a verified quota/auth
+  rejection, is a lower bound. Deadlines and attempt
+  numbers survive restart; successful scope checks do not reset them.
+- Durable pending-identity publication: 1, 2, 4, 8, then 15-minute base, plus
+  0–20% jitter. This reuses the same attempt/key and performs **no creation POST**.
+- In-memory credential holder: storage-only retries every minute until the
+  returned identity can be saved. It is an explicit resource-retention exception.
 
-For manual recovery, first stop the isolated core/controller and both PAR
-processes. Inspect the outcome and backend registration. For a lost response,
-5xx or local persistence failure, do **not** simply remove the journal: first
-reconcile any created backend runner and recover the identity or explicitly
-clean up that registration. Only after confirming that a new attempt is safe,
-remove this POC's attempt directory and restart core. Never delete the existing
-identity as a recovery shortcut. This policy trades availability for avoiding
-orphan registrations until a real idempotency/recovery contract is designed.
+Core alone reserves attempts and schedules retries. Go performs key generation,
+one claimed POST, and persistence; the supervisor cannot restart independently.
+Rejected startup processes are stopped before another launch is authorized.
+There is no minute-scale POST retry loop. Go identity resolution is bounded to
+45 seconds, its HTTP POST to 30 seconds, and Rust keeps its 120-second bootstrap
+budget. A persistence holder returns an unavailable config snapshot, never a
+successful `split_mode=false` snapshot, and cannot execute actions.
 
-The journal protects process restarts, not a distributed filesystem or guaranteed
-power-loss durability. Use a private local directory writable only by the test
-Agent user. No cross-host shared identities are supported.
+### Verified rejection contract and remaining API gaps
 
-## Reproducible fake-backend scenario (Linux or macOS test host)
+Read-only source inspection used dd-source `52e8d4f992917431f8ac7b87dd5e640c31d01795`:
 
-No credentials, cloud VM, host services or real API endpoints are needed:
+- `domains/actionplatform/apps/apis/opms/handler/create_on_prem_runner_api_key_only.go`
+- `domains/actionplatform/apps/wf-actions-server/src/connection/conngrpc/create_on_prem_runner.go`
+- `domains/app-builder/apps/shared/libs/errors/structured_error.go`
+- `domains/api_platform/shared/libs/go/rapid/responder_jsonapi.go`
+- `domains/experiments/shared/libs/go/experimentshttp/experimentshttp.go`
+
+The POC requests JSON:API and recognizes only exact, single structured errors
+with matching HTTP status/title: quota (403), `required scope missing` (403), and
+`invalid auth context` (401) prove rejection before creation in the inspected
+path. Known request-validation titles (400) block unchanged input. A name conflict
+requires reconciliation; it does not identify a recoverable runner. A dial
+failure proves the request was not submitted; read/write failures do not.
+
+**Safety-only, not automatic-recovery completion:** the inspected OPMS gate
+returns an empty 403 with no unique discriminator. Unstructured 401/403, unknown
+4xx, 5xx, malformed/unreadable successes, transport loss after possible submission,
+and enrollment 429 therefore block replay. Enrollment 429 retains Retry-After
+(delta/date, five-minute fallback) but timing does not prove non-creation. There
+is no verified API-key-only idempotency/lookup contract for a lost creation
+response. Backend error discriminators/recovery contracts need discussion; no
+new endpoint or invented fake idempotency behavior was added.
+
+## Durable attempts and protected identity
+
+`<identity>.phone-home/` is a mode-0700, credential-free journal. `current.json`
+contains a random attempt ID, counter, start time and enrollment/recovery
+schedule. Each attempt subdirectory has an exclusive synced `post` claim and a
+bounded-category `outcome.json`. Stale outcome/schedule writers are rejected;
+late writes cannot clear a newer generation. Old-format/unreadable journals
+require reconciliation instead of being silently reset.
+
+Credentials are separate, in mode-0600 `<identity>.pending-<attempt-ID>` files:
+
+1. Core writes only a config binding. Go saves its generated key and unique runner
+   name **before POST**. Neither raw API key nor private key enters the journal.
+2. On a valid creation response, Go saves the returned URN alongside that key,
+   then atomically publishes/syncs the normal identity file.
+3. Only `identity_persisted` acknowledgement plus a reusable identity completes an
+   owned attempt. A visible file or running PID alone does not stop discovery.
+4. If publication fails, the next Go bootstrap retries storage using that same
+   identity. If saving the returned URN **or its recovery outcome** fails, keep
+   the helper alive with no action executor/idle exit until both can be saved.
+   Durable credentials alone are insufficient: core needs the outcome to schedule
+   the next storage-only retry, even when the active identity is already visible.
+   Broken IPC does not tear down that holder. Without an outcome, an active
+   executor past bootstrap budget is conservatively retained because it might
+   hold credentials. This uncertainty is visible in status.
+5. Core archives completed journal evidence and removes the completed pending
+   record. Prior rejected-attempt pending files/evidence are retained in this
+   POC; bounded retention/cleanup is a follow-up.
+
+Use private local storage writable only by the test Agent user. Atomic rename and
+file/directory fsync improve durability; they are not power-cut validation or a
+cross-host/distributed lock. **Unsupported automatic crash window:** after remote
+commit but before a complete response/URN is durably saved, a killed holder can
+lose the returned URN. The already-saved private key/name and POST claim remain;
+reconciliation is mandatory, never another blind creation POST.
+
+### Deliberate manual recovery
+
+Stop the isolated core/controller and both registered PAR processes first.
+Preserve the journal and pending/active identities. An authorized administrator
+must determine whether a runner was created and verify the exact public key and
+org/runner identity; matching a name or receiving a duplicate-name error is not
+sufficient.
+
+- If creation is confirmed, restore the **original** private key with the verified
+  URN/hostname/API-key hash using the existing identity format/persistence path.
+  Do not generate another key. The lost-response regression verifies the backend's
+  actual submitted public key before calling `PersistIdentity` with that key.
+- If non-creation is established, fix the relevant input/backend problem first.
+- Deliberately archive the stopped attempt with `ArchivePhoneHomeAttempt(cfg, ID)`
+  (equivalent to renaming `<identity>.phone-home` to
+  `<identity>.phone-home.reconciled-<ID>`), then restart core with matching config.
+  This preserves evidence and pending credentials. Never delete the identity or
+  clear an ambiguous claim simply to force another POST.
+
+There is no standalone reconciliation CLI or automatic backend lookup in this
+POC. The tested manual path uses existing Go persistence plus the archive helper;
+an operational tool/UI and authorization procedure remain follow-ups.
+
+## Reproduce locally with no live enrollment
+
+On a Linux development checkout with the Agent toolchain (also runnable on macOS):
 
 ```sh
 dda inv test --targets=./pkg/privateactionrunner/phonehome \
-  --test-args='-test.run=TestPhoneHomeScenario -test.v' \
-  --bazel-args='--jobs=4 --test_output=all'
+  --bazel-args='--jobs=4 --test_output=all --test_timeout=60'
+
+dda inv test --targets=./pkg/privateactionrunner/phonehome,./pkg/privateactionrunner/enrollment,./pkg/privateactionrunner/opms,./comp/privateactionrunner/impl,./comp/privateactionrunner/status/statusimpl,./cmd/agent/subcommands/run \
+  --bazel-args='--jobs=4 --test_output=errors --test_timeout=60'
+
+dda inv test --targets=./pkg/privateactionrunner/phonehome,./pkg/privateactionrunner/enrollment,./pkg/privateactionrunner/opms,./comp/privateactionrunner/impl \
+  --race --bazel-args='--jobs=4 --test_output=errors --test_timeout=120'
 ```
 
-The test uses a loopback HTTP server, the real Go enrollment client/key generation
-and identity persistence, and a supervisor fake. It advances the controller's
-clock rather than sleeping for minutes:
+These use loopback backend responses, real Go enrollment/key/persistence code, a
+supervisor fake, controlled controller time/jitter and a mock retention clock.
+No minute-scale sleeps, real credentials, customer keys or service installs.
+Controller test logs print status/reason, Start/Stop, POST/registration counters,
+retry timestamps and reconciliation flags. Counts below are fake supervisor RPCs
+and loopback registrations, **not measured OS process counts**.
 
-1. Three unscoped checks: zero Start calls and zero enrollment POSTs.
-2. Grant scope: exactly one Start of registered Rust control.
-3. Keep enrollment pending: discovery still happens; a running PID is not success.
-4. Execute existing Go enrollment and persist identity: state becomes enrolled,
-   polling stops without core restart.
-5. Restart the controller with scope absent: reuse identity and running process,
-   with no extra Start or POST.
+### Acceptance checklist
 
-Additional tests exercise legacy identities/re-enrollment, concurrency, shutdown
-and in-flight cancellation, invalid keys, 403, outages/backoff, 429 Retry-After,
-redirect protection, and ambiguous/rejected outcomes across controller restarts.
-The component tests call the actual Go `getRunnerConfig`/`configureExecutor`
-paths for successful enrollment, rejection, 5xx, lost response and persistence failure.
+1. **Off — implemented/tested (unit):** opt-out/disabled Start is a no-op: no
+   discovery, Start or POST, no identity changes/deadline. Core command tests pass;
+   a full Linux core daemon health test is not claimed.
+2. **Unscoped → granted — implemented/tested (fake backend):** three waiting
+   checks, Start/POST/registration 0/0/0; then 1/1/1 and `enrolled`. Pending launch
+   keeps discovery active; persistence acknowledgement clears its deadline.
+3. **Always scoped, rejection clears — partial:** verified quota automatically
+   recovers, 2 Starts/2 POSTs/1 registration; no calls before the durable five-minute
+   enrollment deadline despite successful GETs/restart. Repeated failures test
+   5/10/20/30/30-minute bases. Supervisor auto-start/restart is rejected. Bare gate
+   403 is **safe-blocked-only**, 1/1/0, `forbidden_unknown`, manual reconciliation.
+4. **429 — partial:** GET delta/date/missing/malformed hints and lower-bound waiting
+   are tested; successful discovery resumes after the deadline. POST has 1 Start,
+   1 POST, 0 registrations in the rejection fake, `throttled_unverified`, no
+   automatic next attempt; the retained Retry-After cannot authorize replay.
+   Oversized/truncated 429 bodies do not discard the header. Automatic POST-429
+   recovery remains missing a verified rejection discriminator.
+5. **Transient failures — implemented/tested with safety boundary:** discovery
+   1/2/4/8/15-minute backoff and recovery; dial failure makes 2 Starts but only 1
+   actual submitted POST/registration after cooldown. Ambiguous transport/5xx
+   remains blocked with the same prepared key/claim, not retried blindly.
+6. **Auth race — implemented/tested for structured contract:** invalid auth context
+   or missing scope overrides preflight, revalidates, respects cooldown, then
+   recovers (2/2/1). Core/executor mismatch is blocked before POST. Unstructured
+   401 is safety-only (`unauthorized_unverified`), not automatic recovery.
+7. **Bad input/unknown denial — implemented/tested:** one failed launch/POST,
+   `invalid_request` versus `forbidden_unknown`, no automatic retry deadline or
+   repeated unchanged launch. Deliberate archive/restart after a known rejection
+   and backend fix yields 2/2/1. Live config change requires matching joint restart.
+8. **Commit then lose response — safety/manual path tested:** 1 registration,
+   1 POST, 1 initial Start across repeated restarts; key/name unchanged and
+   reconciliation required. Verified manual identity restoration makes a second
+   Start with **no** second POST. Automatic lookup/idempotency is not implemented.
+9. **Commit then persistence fails — implemented/tested (fake/in-process):** normal
+   publication failure makes 2 Starts, 1 POST/registration; storage recovery reuses
+   the same key/URN after a one-minute deadline. Memory-only URN retention uses
+   one submitted POST, unavailable snapshot/health-not-ready, no action executor,
+   then storage restoration and shutdown. Also tested with broken IPC, failed
+   outcome writes (with and without active-identity write failure), missing
+   acknowledgement and loss of the holder. Crash before durable URN remains a
+   reconciliation-only window, not guaranteed automatic recovery.
+10. **Existing identity/restart — implemented/tested:** legacy identity starts once,
+    no GET/POST/new registration, no Stop on absent scope. Existing hostname/key
+    re-enrollment still makes its intentional single POST without a new initial
+    scope gate; it is not confused with fresh installation.
+11. **Concurrency/cancellation/deadlines — implemented/tested:** 20 overlapping
+    ticks produce one Start/reservation; exclusive claim permits one POST; stale
+    results/schedules cannot replace a new attempt. Core cooldown survives restart.
+    In-flight cancellation after submission remains ambiguous; cancellation before
+    sending is retry-safe. A visible unacknowledged identity does not stop GETs.
 
-```sh
-dda inv test --targets=./pkg/privateactionrunner/phonehome,./pkg/privateactionrunner/enrollment,./pkg/privateactionrunner/opms,./comp/privateactionrunner/impl,./comp/privateactionrunner/status/statusimpl \
-  --bazel-args='--jobs=4 --test_output=errors'
-dda inv test --targets=./pkg/privateactionrunner/phonehome,./pkg/privateactionrunner/enrollment \
-  --race --bazel-args='--jobs=4 --test_output=errors'
-dda inv test --targets=./cmd/agent/subcommands/run \
-  --bazel-args='--jobs=4 --test_output=errors'
-```
+All eleven have unit/fake coverage as qualified above, **none real Linux process
+coverage**. Gate, unstructured-auth and POST-429 automatic recovery are incomplete.
 
-On a Linux development host these use the same tests and fakes. On macOS a Linux
-dev environment can run them with `dda env dev run -- dda inv test ...`, after
-setting up that environment. Do not substitute raw `go test`.
+## Observability, results and real-process boundary
 
-## Isolated real-process wiring (not executed)
+`agent status` text/HTML/JSON and expvar `par_phone_home` distinguish state/reason,
+scope checked/readiness, enrollment outcome, retry safety, reconciliation,
+next discovery, next enrollment attempt, Retry-After hint and helper retention.
+An unchecked scope is unknown, not known absent. Failure categories are bounded;
+no credential fields or arbitrary backend messages enter this payload. `enrolled`
+means identity confirmation, not RC signing-key readiness or usable actions.
 
-`testdata/processes.d/` contains POC-only replacements for the two PAR definitions;
-shipping package/image templates are intentionally unchanged. In a separately
-approved non-containerized Linux sandbox, use these in a dedicated
-`DD_PM_CONFIG_DIR`, an isolated `DD_PM_SOCKET_PATH`, `DD_PAR_POC_BIN` pointing at
-binaries built from this branch, and `DD_PAR_POC_DIR` pointing at a private temp
-directory. Start core separately with that same environment and config, not via
-host service installation. Core and executor must share the IPC certificate and
-hostname. Do not point this experiment at a customer/production key.
+Oct 6 validation on **macOS arm64**: focused/core suites passed **8 Bazel targets**;
+controller/enrollment/OPMS/component race suites passed **5 targets**. Gofmt,
+Gazelle diff mode, buildifier and `git diff --check` passed. Earlier fixture failures
+and Bazel-server crashes after tool timeouts were resolved and rerun; they are not
+reported as passing runs. A subsequent review reproduced four outcome-write
+retention failures before fixing them; all 8 focused/core and 5 race targets
+passed again. Latest logs: `/tmp/par-phone-home-review-tests.log` and
+`/tmp/par-phone-home-review-race.log`; the pre-fix regression is in
+`/tmp/par-phone-home-review-regression.log`. No real enrollment/deployment or
+host-service changes.
 
-Example config shape (substitute private sandbox absolute paths):
+`testdata/processes.d/` has isolated wiring examples, not a complete real-process
+harness. A separately approved Linux run needs matching branch binaries, a private
+`DD_PM_CONFIG_DIR`, `DD_PM_SOCKET_PATH`, `DD_PAR_POC_BIN`, `DD_PAR_POC_DIR`, shared
+IPC certificate/hostname, and a loopback mock that also handles Rust OPMS traffic.
+Use `DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS=true` in both Go processes for that mock.
+Do not point it at production/customer keys. Example config:
 
 ```yaml
 api_key: fake-test-key
-site: datadoghq.com
-# Local mock only; with DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS=true in both Go processes.
 dd_url: http://127.0.0.1:18080
 remote_configuration:
   enabled: false
@@ -149,43 +264,25 @@ private_action_runner:
   split_enabled: true
   self_enroll: true
   api_key_only_enrollment: true
-  identity_file_path: /absolute/sandbox/identity.json
+  identity_file_path: /absolute/private/sandbox/identity.json
 ```
 
-Discovery permits plain HTTP only for loopback mocks. A real-process mock would
-also need to serve Rust OPMS traffic after bootstrap; the Go-only fake scenario
-above does not model that traffic. These files are wiring examples, **not an
-end-to-end real-process harness**.
-
-## Observability and validation boundary
-
-Core `agent status` (text, HTML and JSON) and expvar `par_phone_home` expose
-waiting/launching/enrolled/blocked, fixed reason, and next reconciliation time.
-No enrollment failure affects core startup or health. `enrolled` does not mean
-that actions can execute.
-
-Validated on macOS arm64: the combined focused/core run-command suites passed
-8 Bazel test targets; the final controller/enrollment race run passed 3 targets.
-A final enrollment-message change was followed by passing OPMS/component tests
-again. Gazelle/buildifier and `git diff --check` passed. No complete core daemon, Rust control, executor process tree, or real
-supervisor was launched; no live enrollment was performed. Linux daemon/socket
-permissions, waiting RSS, real process count, wall-clock request cadence and
-scope-grant-to-enrollment latency remain **unmeasured**. Fake counters prove calls
-and state transitions, not production memory/liveness behavior.
+Linux supervisor permissions, real process count, waiting/retained-helper RSS,
+wall-clock cadence and scope-grant-to-enrollment latency remain **unmeasured**.
+The retained helper expressly invalidates any blanket zero-PAR-RSS failure claim.
 
 ## Production follow-ups
 
-- Packaging: conditional launch ownership in package/image installers, upgrades,
-  core-disabled fallback, and post-enrollment crash supervision. Kubernetes
-  containers are started by kubelet; this does not remove their footprint.
-- Config: effective PAR-local extra files/env/secrets/Fleet config parity, safe
-  secret/key rotation, site/proxy refresh, and authenticated shared config.
-- Recovery: safe bounded retries of definitive rejection; idempotent enrollment,
-  stable request identity and recovery after backend success/response loss/local
-  persistence failure; atomic identity publication and power-loss durability.
-- Supervisor: Linux socket ownership/permissions, least-privilege mutation API,
-  binary-version compatibility, upgrades, readiness and lifecycle races.
-- Revocation: verify backend behavior after scope/key removal; no new
-  post-enrollment enforcement guarantee is introduced here.
-- Capacity/rollout: AAA approval, per-site limits and fleet sizing before any
-  broader opt-in; split-default prerequisite, other OS/flavor/FIPS support.
+- Backend: stable no-creation discriminators (especially gate/429/auth), supported
+  idempotency/recovery, operational reconciliation tooling, power-cut validation.
+- Packaging: conditional launch ownership/upgrades, core-disabled fallback and
+  post-enrollment supervision. Kubelet starts declared containers independently;
+  this POC does not remove their footprint.
+- Config: actual PAR extra-file/env/secret/Fleet parity, rotation, endpoint/proxy
+  refresh; supervisor permissions and matching-version lifecycle validation.
+- Storage: bounded cleanup of rejected-attempt evidence/pending keys and retention
+  helper resource measurements; do not compromise credential recovery for RSS.
+- Revocation: verify post-enrollment key/scope removal; preserve existing behavior
+  rather than inventing an enforcement guarantee.
+- Rollout/capacity: AAA rate approval and fleet sizing, split-default prerequisite,
+  other OS/flavor/FIPS support before any wider opt-in.

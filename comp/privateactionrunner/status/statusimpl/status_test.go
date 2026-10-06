@@ -116,6 +116,23 @@ func TestPhoneHomeStatusTemplates(t *testing.T) {
 	}
 }
 
+func TestPhoneHomeRecoveryStatusTemplates(t *testing.T) {
+	stats := map[string]interface{}{"privateActionRunnerStatus": map[string]interface{}{
+		"Enabled":   true,
+		"PhoneHome": &phonehome.State{State: "blocked", Reason: "quota", ScopeChecked: true, ScopeReady: true, EnrollmentOutcome: "quota", RetrySafe: true, NextDiscovery: "2026-10-06T10:01:00Z", NextEnrollmentAttempt: "2026-10-06T10:05:00Z"},
+	}}
+	var text, html bytes.Buffer
+	require.NoError(t, status.RenderText(templatesFS, "privateactionrunner.tmpl", &text, stats))
+	require.NoError(t, status.RenderHTML(templatesFS, "privateactionrunnerHTML.tmpl", &html, stats))
+	for _, output := range []string{text.String(), html.String()} {
+		require.Contains(t, output, "Scope checked: true; scope ready: true")
+		require.Contains(t, output, "Enrollment outcome: quota")
+		require.Contains(t, output, "Safe to retry: true; reconciliation required: false")
+		require.Contains(t, output, "Next discovery: 2026-10-06T10:01:00Z")
+		require.Contains(t, output, "Next enrollment attempt: 2026-10-06T10:05:00Z")
+	}
+}
+
 func TestProviderNameAndSection(t *testing.T) {
 	provider := statusProvider{}
 	assert.Equal(t, "Private Action Runner", provider.Name())

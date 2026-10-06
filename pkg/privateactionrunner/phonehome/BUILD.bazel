@@ -36,9 +36,11 @@ dd_agent_go_test(
     embed = [":phonehome"],
     deps = [
         "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/enrollment",
+        "//pkg/privateactionrunner/opms",
         "//pkg/privateactionrunner/util",
         "//pkg/proto/pbgo/procmgr",
         "@com_github_stretchr_testify//require",

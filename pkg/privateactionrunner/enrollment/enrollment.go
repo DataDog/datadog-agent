@@ -165,9 +165,7 @@ func enrollmentBaseURL(cfg configModel.Reader, ddSite string) string {
 // Enroll performs self-enrollment using config and an agent identifier.
 func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier) (*Result, error) {
 	if PhoneHomePOC() {
-		if err := ClaimPhoneHomePOST(cfg); err != nil {
-			return nil, err
-		}
+		return enrollPhoneHome(ctx, cfg, agentIdentifier)
 	}
 	mainEndpoint := configutils.GetMainEndpoint(cfg, "https://api.", "dd_url")
 	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)

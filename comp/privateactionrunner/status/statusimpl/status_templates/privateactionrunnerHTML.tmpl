@@ -5,6 +5,19 @@
     Status: {{- if .Enabled }} Enabled{{else}} Disabled{{end}}<br>
   {{- with .PhoneHome }}
     Phone-home POC: {{ .State }} ({{ .Reason }})<br>
+    Scope checked: {{ .ScopeChecked }}; scope ready: {{ .ScopeReady }}<br>
+    Enrollment outcome: {{ .EnrollmentOutcome }}<br>
+    Safe to retry: {{ .RetrySafe }}; reconciliation required: {{ .ReconciliationRequired }}<br>
+    Credential-retention helper: {{ .HelperRetained }}<br>
+  {{- if .EnrollmentRetryAfter }}
+    Enrollment Retry-After (not replay authorization): {{ .EnrollmentRetryAfter }}<br>
+  {{- end }}
+  {{- if .NextDiscovery }}
+    Next discovery: {{ .NextDiscovery }}<br>
+  {{- end }}
+  {{- if .NextEnrollmentAttempt }}
+    Next enrollment attempt: {{ .NextEnrollmentAttempt }}<br>
+  {{- end }}
   {{- if .NextRetry }}
     Next reconciliation: {{ .NextRetry }}<br>
   {{- end }}
