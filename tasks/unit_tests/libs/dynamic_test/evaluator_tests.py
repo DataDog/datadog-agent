@@ -105,15 +105,15 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
             MagicMock(),
             "42",
             telemetry_handler=MagicMock(),
-            test_env="nativetest",
-            lookback_days=7,
         )
         tests = evaluator.list_tests_for_job('job: ["matrix"]')
         query, days = events.call_args.args
-        self.assertIn("env:nativetest", query)
+        # The env facet is not part of the query (pipeline + job identify),
+        # and the window is main's hardcoded 3 days
+        self.assertNotIn("env:", query)
         self.assertIn("@ci.pipeline.id:42", query)
         self.assertIn(r'@ci.job.name:"job: [\"matrix\"]"', query)
-        self.assertEqual(days, 7)
+        self.assertEqual(days, 3)
         self.assertEqual([test.name for test in tests], ["TestPass", "TestFail", "TestFlaky", "TestFlakyBool"])
         self.assertFalse(tests[1].unreliable_status)
         self.assertTrue(tests[2].unreliable_status)
@@ -127,5 +127,5 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
         )
         self.assertFalse(evaluator.list_tests_for_job("job")[0].unreliable_status)
         query, days = events.call_args.args
-        self.assertIn("env:prod", query)
+        self.assertNotIn("env:", query)
         self.assertEqual(days, 3)

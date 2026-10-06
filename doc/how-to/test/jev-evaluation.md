@@ -27,7 +27,6 @@ Required access:
 dda inv dyntest.evaluate-index \
   --selector=jev \
   --pipeline-id=<completed-pipeline-id-for-HEAD> \
-  --lookback-days=7 \
   --no-send-stats
 ```
 
@@ -37,11 +36,9 @@ both evaluation metrics and Datadog events; it still reads CI Visibility and
 calls Jev. Jev sends the PR diff and test source to the internal AI Gateway.
 The existing `dda` CLI may still emit its own command telemetry.
 
-Use `--test-env` to override `nativetest` (Jev's default, matching the E2E template).
-The coverage selector retains its existing `prod` default. The default query
-window is three days; increase `--lookback-days` when evaluating an older pipeline,
-subject to CI Visibility retention. An empty evaluation fails rather than
-publishing misleading zero-miss statistics.
+The executed-tests queries run over the last three days: evaluate a pipeline
+no older than that. An empty evaluation fails rather than publishing
+misleading zero-miss statistics.
 
 For an input-only preview, without GitLab, CI Visibility or Jev requests:
 
@@ -56,31 +53,36 @@ This preview can still read GitHub/DDCI PR metadata when configured.
 
 ## Integration and interpretation
 
-- `JevDynTestExecutor` is a real `DynTestExecutor`: its index is the
-  pipeline's observed execution map (job -> executed tests), loaded by
-  `init_index()` with ONE pipeline-wide CI Visibility query - the coverage
-  executors load theirs from S3, this one from the execution it evaluates.
-  The pipeline's completed e2e jobs come from the shared GitLab client (each
-  status queried separately, all pages; older retries dropped by job id).
-  No CI-configuration parsing is involved.
-- The decidable universe is the E2E test filetree (`test/new-e2e/tests`), and
-  each job's universe is the tests that actually executed in it (CI
-  Visibility). Cleanup/unit-test jobs without executions are not evaluated;
-  executed tests that are not filetree entry points are not decidable.
-- `JevDynTestEvaluator` runs the shared evaluation flow unmodified; its only
-  Jev-specific method reads the executed tests the executor already fetched
-  (no per-job CI Visibility query). Flaky/allow-failure handling, miss logic
-  and telemetry are the coverage evaluation's. The `index_kind:jev` tag
-  identifies Jev metrics.
+- `JevDynTestExecutor` is a plain `DynTestExecutor`: its index is a static
+  job -> candidate tests map loaded from a file committed in the repo
+  (`tasks/libs/dynamic_test/jev/job_test_candidates.json`), restricted to the
+  pipeline's completed e2e jobs (GitLab API, latest attempts). The coverage
+  executors load their index from S3; this one loads its own from Git. Jobs
+  absent from the file are reported and not evaluated - never a failure.
+- The shared `DatadogDynTestEvaluator` runs the Jev executor like any
+  other, with no Jev-specific knowledge: it owns the executed-tests
+  queries (CI Visibility, pipeline- and job-scoped - no env facet: the e2e
+  jobs tag their events `env:nativetest` while the go test jobs use the
+  default), marks flaky failures unreliable straight from the events (as
+  the coverage evaluation always has - allow-failure jobs count like every
+  other job), and computes misses with the same logic. The `index_kind:jev`
+  tag identifies Jev metrics.
 - Only explicit, valid Jev skip decisions remove tests. Transport, authentication,
   timeout or parsing failures run the affected tests. Duplicate bare test names
   run conservatively if any occurrence should run.
+- The candidates file does not need to track CI changes. Regenerate it with
+  `dda inv dyntest.generate-jev-job-index --pipeline-id=<id> [--pipeline-id ...]`
+  (one CI Visibility query per pipeline, unions the executed tests per job);
+  pick pipelines where the e2e jobs ran the widest for the most complete map.
+  A test the coverage selection skipped in every generation pipeline stays
+  missing from its job's candidates.
 
 The reported miss count concerns **observed executions**. Zero observed misses
 is not proof that skipping tests is safe. Use a pipeline that ran the full E2E
-suite when comparing selector recall. The per-job efficiency is measured over
-executed tests (i.e., on top of the coverage `--impacted` selection), and
-suites are asked for Jev decisions only when one of their tests executed.
+suite when comparing selector recall. The per-job universe is the job's
+static candidates, so `predicted` includes runnable-but-not-executed tests
+(visible as `+` lines: over-selection, and the Jev-vs-coverage disagreement
+on what the coverage selection skipped).
 
 ## Regression tests
 

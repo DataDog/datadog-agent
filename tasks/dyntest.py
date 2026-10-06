@@ -2,6 +2,7 @@
 Invoke task to handle dynamic tests.
 """
 
+import json
 import os
 from time import sleep
 
@@ -21,7 +22,12 @@ from tasks.libs.dynamic_test.indexers.e2e import (
     FileCoverageDynTestIndexer,
     PackageCoverageDynTestIndexer,
 )
-from tasks.libs.dynamic_test.jev_selection import JevDynTestEvaluator, JevDynTestExecutor, NothingToEvaluateError
+from tasks.libs.dynamic_test.jev_selection import (
+    JOB_CANDIDATES_FILE,
+    JevDynTestExecutor,
+    NothingToEvaluateError,
+    generate_job_candidates,
+)
 from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler, DatadogTelemetryHandler
 from tasks.new_e2e_tests import DEFAULT_DYNTEST_BUCKET_URI
 
@@ -82,8 +88,6 @@ def consolidate_index_in_s3(_: Context, bucket_uri: str, commit_sha: str):
         "commit-sha": "Commit to evaluate; Jev requires it to match HEAD and the pipeline SHA",
         "pipeline-id": "Completed GitLab pipeline ID to evaluate",
         "selector": "coverage (default) or jev",
-        "test-env": "CI Visibility environment (defaults to nativetest for Jev, prod for coverage)",
-        "lookback-days": "CI Visibility query window in days",
         "send-stats": "Publish evaluation telemetry; use --no-send-stats for local trials",
         "ignore-sha-mismatch": "Evaluate a pipeline whose commit differs from the checkout: the Jev decisions are computed from the current checkout's PR context instead of the pipeline's (local experiments; the mismatch is always an error in CI)",
     }
@@ -94,17 +98,16 @@ def evaluate_index(
     commit_sha: str = "",
     pipeline_id: str = "",
     selector: str = "coverage",
-    test_env: str = "",
-    lookback_days: int = 3,
     send_stats: bool = True,
     ignore_sha_mismatch: bool = False,
 ):
     """Compare a selector's predictions with executed tests using the shared evaluator.
 
     Coverage evaluates the package/file/diffed-package indexes. Jev evaluates
-    completed E2E jobs (executed tests as the per-job universe, discovered from
-    the test filetree), without requiring coverage
-    data or S3 access. Jev must run from the evaluated pipeline's checkout.
+    completed E2E jobs against the committed job -> test candidates file
+    (tasks/libs/dynamic_test/jev/job_test_candidates.json), without requiring
+    coverage data or S3 access. Jev must run from the evaluated pipeline's
+    checkout.
 
     Requires DD_API_KEY/DD_APP_KEY with CI Visibility read access (and DD_SITE
     when not datadoghq.com). Jev additionally uses the standard GitLab task
@@ -114,31 +117,22 @@ def evaluate_index(
     """
     if selector not in {"coverage", "jev"}:
         raise Exit("--selector must be coverage or jev", code=1)
-    if not pipeline_id or not pipeline_id.isdecimal() or lookback_days < 1:
-        raise Exit("Provide a numeric --pipeline-id and positive --lookback-days", code=1)
+    if not pipeline_id or not pipeline_id.isdecimal():
+        raise Exit("Provide a numeric --pipeline-id", code=1)
     head = get_commit_sha(ctx)
     commit_sha = commit_sha or head
-    evaluator_type: type[DatadogDynTestEvaluator] = DatadogDynTestEvaluator
     executors: list[DynTestExecutor] = []
     if selector == "jev":
         if commit_sha != head:
             raise Exit("For Jev, check out the pipeline commit and pass its full SHA (or omit --commit-sha)", code=1)
-        # The executor fetches the executed tests itself when building its
-        # index (one pipeline-wide query); the evaluator reads them from it.
-        executor = JevDynTestExecutor(
-            ctx,
-            commit_sha,
-            pipeline_id,
-            require_pipeline_commit=not ignore_sha_mismatch,
-            test_env=test_env or "nativetest",
-            lookback_days=lookback_days,
-        )
+        # A plain DynTestExecutor with a static index (committed in Git, where
+        # the coverage executors keep theirs in S3). The shared evaluator owns
+        # the CI Visibility queries; the executor's GitLab jobs fetch
+        # supplies the allow-failure set.
+        executor = JevDynTestExecutor(ctx, commit_sha, pipeline_id, require_pipeline_commit=not ignore_sha_mismatch)
         executors = [executor]
-        options = {}
         changes = []  # Jev gathers the richer PR diff/context from this checkout.
-        evaluator_type = JevDynTestEvaluator
     else:
-        options = {"test_env": test_env or "prod", "lookback_days": lookback_days}
         backend = S3Backend(bucket_uri)
         changed_files = get_modified_files(ctx)
         changes = list({os.path.dirname(change) for change in changed_files}) + changed_files
@@ -163,7 +157,7 @@ def evaluate_index(
             if send_stats
             else ConsoleTelemetryHandler()
         )
-        evaluator = evaluator_type(ctx, executor.kind, executor, pipeline_id, telemetry_handler=telemetry, **options)
+        evaluator = DatadogDynTestEvaluator(ctx, executor.kind, executor, pipeline_id, telemetry_handler=telemetry)
         if not evaluator.initialize():
             if isinstance(evaluator.initialization_error, NothingToEvaluateError):
                 # E.g. a dev-branch pipeline where no E2E test jobs ran:
@@ -183,7 +177,7 @@ def evaluate_index(
         if not results or not any(result.actual_count() for result in results):
             print(
                 color_message(
-                    "No executed tests found; check the pipeline, --test-env and --lookback-days. No stats sent.",
+                    "No executed tests found; check the pipeline (executed tests are queried over the last 3 days). No stats sent.",
                     Color.RED,
                 )
             )
@@ -216,3 +210,30 @@ def show_triggering_paths(ctx: Context, job_name: str, test_name: str, index_kin
         print(
             f"No triggering path found for {test_name} in {job_name}, it means that the test is in the index, it should never be skipped"
         )
+
+
+@task(
+    help={
+        "pipeline-id": "Completed pipeline to read the executed tests from (repeatable; queries a 30-day window, env:nativetest - the e2e jobs' tag)",
+    },
+    iterable=["pipeline_id"],
+)
+def generate_jev_job_index(ctx: Context, pipeline_id):
+    """(Re)generate the committed Jev job -> test candidates file.
+
+    A job's candidates are the tests that executed in it, unioned across the
+    given pipelines (one pipeline-wide CI Visibility query each, latest job
+    attempts only, over the last 30 days). Pick pipelines where the e2e jobs
+    ran the widest (full-suite main pipelines or the largest dev pipelines)
+    for the most complete map: a test the coverage selection skipped in every
+    given pipeline stays missing from its job's candidates. The file does not
+    need to track CI changes - jobs missing from it are skipped from the Jev
+    evaluation with a report, never a failure.
+
+    Requires DD_API_KEY/DD_APP_KEY (org 2, CI Visibility read access).
+    Commit the result.
+    """
+    candidates = generate_job_candidates(pipeline_id)
+    data = {job: sorted(tests) for job, tests in sorted(candidates.items())}
+    JOB_CANDIDATES_FILE.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    print(f"[jev] {len(data)} jobs -> {JOB_CANDIDATES_FILE}")

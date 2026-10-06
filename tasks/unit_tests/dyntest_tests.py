@@ -14,7 +14,7 @@ class EvaluateIndexTests(unittest.TestCase):
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
     @patch("tasks.dyntest.S3Backend")
     @patch("tasks.dyntest.JevDynTestExecutor")
-    @patch("tasks.dyntest.JevDynTestEvaluator")
+    @patch("tasks.dyntest.DatadogDynTestEvaluator")
     def test_jev_uses_shared_evaluator_without_s3_or_publishing(self, evaluator, executor, s3, _):
         executor.return_value.kind = IndexKind.JEV
         result = MagicMock()
@@ -24,15 +24,14 @@ class EvaluateIndexTests(unittest.TestCase):
         s3.assert_not_called()
         self.assertEqual(executor.call_args.args[1:], ("abc", "42"))
         self.assertTrue(executor.call_args.kwargs["require_pipeline_commit"])
-        # The executor owns the CI Visibility fetch (index build), the evaluator reads from it
-        self.assertEqual(executor.call_args.kwargs["test_env"], "nativetest")
-        self.assertEqual(executor.call_args.kwargs["lookback_days"], 3)
         evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False, ignore_sha_mismatch=True)
         self.assertFalse(executor.call_args.kwargs["require_pipeline_commit"])
-        # The evaluator gets no CI Visibility options: its data comes from the executor
+        # The shared evaluator is constructed exactly like for coverage: the
+        # Jev executor plugs in through the standard interface only
         options = evaluator.call_args.kwargs
+        self.assertNotIn("unreliable_jobs", options)
         self.assertNotIn("test_env", options)
-        self.assertNotIn("job_ids", options)
+        self.assertNotIn("lookback_days", options)
         self.assertIsInstance(options["telemetry_handler"], ConsoleTelemetryHandler)
         evaluator.return_value.send_stats_to_datadog.assert_not_called()
 
@@ -55,14 +54,13 @@ class EvaluateIndexTests(unittest.TestCase):
         )
         self.assertEqual(evaluator.call_count, 3)
         self.assertEqual(sleep.call_count, 2)
-        self.assertEqual(evaluator.call_args.kwargs["test_env"], "prod")
+        self.assertNotIn("test_env", evaluator.call_args.kwargs)
         self.assertEqual(set(evaluator.return_value.evaluate.call_args.args[0]), {"pkg", "pkg/file.go"})
 
     def test_invalid_arguments(self):
         for args in (
             {"selector": "typo", "pipeline_id": "42"},
             {"pipeline_id": ""},
-            {"pipeline_id": "42", "lookback_days": 0},
         ):
             with self.subTest(args=args), self.assertRaises(Exit):
                 evaluate_index.body(Context(), **args)
@@ -74,7 +72,7 @@ class EvaluateIndexTests(unittest.TestCase):
 
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
     @patch("tasks.dyntest.JevDynTestExecutor")
-    @patch("tasks.dyntest.JevDynTestEvaluator")
+    @patch("tasks.dyntest.DatadogDynTestEvaluator")
     def test_empty_evaluation_fails_without_sending_stats(self, evaluator, executor, _):
         executor.return_value.kind = IndexKind.JEV
         for results in ([], [MagicMock(actual_count=lambda: 0)]):
@@ -85,7 +83,7 @@ class EvaluateIndexTests(unittest.TestCase):
 
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
     @patch("tasks.dyntest.JevDynTestExecutor")
-    @patch("tasks.dyntest.JevDynTestEvaluator")
+    @patch("tasks.dyntest.DatadogDynTestEvaluator")
     def test_nothing_to_evaluate_is_benign(self, evaluator, executor, _):
         """A pipeline with no completed E2E test jobs exits cleanly, not red."""
         executor.return_value.kind = IndexKind.JEV
@@ -97,7 +95,7 @@ class EvaluateIndexTests(unittest.TestCase):
 
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
     @patch("tasks.dyntest.JevDynTestExecutor")
-    @patch("tasks.dyntest.JevDynTestEvaluator")
+    @patch("tasks.dyntest.DatadogDynTestEvaluator")
     def test_initialization_failure_is_visible(self, evaluator, executor, _):
         executor.return_value.kind = IndexKind.JEV
         evaluator.return_value.initialize.return_value = False

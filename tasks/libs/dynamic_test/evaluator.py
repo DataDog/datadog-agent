@@ -383,17 +383,10 @@ This indicates an issue with the dynamic test system that may affect CI performa
                 self.telemetry_handler.send_event(event)
 
     def _evaluate_job(
-        self,
-        job: str,
-        current_job_tests: list[ExecutedTest],
-        predicted_tests: set[str],
-        indexed_tests: set[str] | None = None,
+        self, job: str, current_job_tests: list[ExecutedTest], predicted_tests: set[str]
     ) -> EvaluationResult:
-        # Only consider tests the selection can decide about. Subclasses that
-        # derive the per-job universe another way (e.g. from executed tests)
-        # inject it via indexed_tests.
-        if indexed_tests is None:
-            indexed_tests = self.index.get_indexed_tests_for_job(job)
+        # Only consider indexed tests, the system is currently not able to determine whether other tests should be executed or not.
+        indexed_tests = self.index.get_indexed_tests_for_job(job)
         actual_executed_tests = {test.name for test in current_job_tests if test.name in indexed_tests}
         predicted_executed_tests = predicted_tests & indexed_tests
         not_executed_failing_tests = set()
@@ -406,14 +399,13 @@ This indicates an issue with the dynamic test system that may affect CI performa
         return EvaluationResult(job, actual_executed_tests, predicted_executed_tests, not_executed_failing_tests)
 
 
-def executed_tests_from_events(events: list, unreliable_jobs: set[str] | None = None) -> list[ExecutedTest]:
+def executed_tests_from_events(events: list) -> list[ExecutedTest]:
     """Executed tests from CI Visibility events: root tests, pass/fail only.
 
-    Flaky failures and tests from allow-failure jobs are marked unreliable.
-    The job comes from the event itself, so this works for per-job queries and
-    a pipeline-wide bulk query alike.
+    Flaky failures are marked unreliable (from the event itself). The job
+    comes from the event, so this works for per-job queries and a
+    pipeline-wide bulk query alike.
     """
-    unreliable_jobs = unreliable_jobs or set()
     tests: list[ExecutedTest] = []
     for item in events:
         attrs = item.get("attributes", {}).get("attributes", {})
@@ -431,10 +423,7 @@ def executed_tests_from_events(events: list, unreliable_jobs: set[str] | None = 
                 pipeline_id=ci_attrs.get("pipeline", {}).get("id"),
                 job_id=job_attrs.get("id"),
                 job_name=job_attrs.get("name"),
-                unreliable_status=(
-                    job_attrs.get("name") in unreliable_jobs
-                    or str(test_attrs.get("agent_is_flaky_failure", False)).lower() == "true"
-                ),
+                unreliable_status=(str(test_attrs.get("agent_is_flaky_failure", False)).lower() == "true"),
             )
         )
     return tests
@@ -458,11 +447,6 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
     - Returns ExecutedTest objects for evaluation
     """
 
-    def __init__(self, *args, test_env="prod", lookback_days=3, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.test_env = test_env
-        self.lookback_days = lookback_days
-
     def list_tests_for_job(self, job_name: str) -> list[ExecutedTest]:
         """Retrieve tests executed in a specific job using Datadog CI API.
 
@@ -478,12 +462,15 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
         Note:
             - Only returns root-level tests (filters out sub-tests with '/' in name)
             - Excludes skipped tests (they did not execute)
-            - Sets unreliable_status=True for flaky tests
-            - Queries lookback_days of historical data (3 by default)
+            - Sets unreliable_status=True for tests marked as flaky by Datadog
+            - Queries up to 3 days of historical data
         """
         escaped_job_name = job_name.replace('"', '\\"')
+        # The env facet is deliberately not part of the query: pipeline and
+        # job identify the tests, and the e2e jobs tag their events
+        # env:nativetest while the go test jobs use the default
         query = (
-            f'env:{self.test_env} @ci.pipeline.name:DataDog/datadog-agent '
+            f'@ci.pipeline.name:DataDog/datadog-agent '
             f'@ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}"'
         )
-        return executed_tests_from_events(get_ci_test_events(query, self.lookback_days))
+        return executed_tests_from_events(get_ci_test_events(query, 3))
