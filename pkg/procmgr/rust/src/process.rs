@@ -206,6 +206,7 @@ pub struct ManagedProcess {
     restart_block: RestartBlock,
     origin: ProcessOrigin,
     last_exit_status: Option<std::process::ExitStatus>,
+    skip_reasons: Vec<String>,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
@@ -258,6 +259,7 @@ impl ManagedProcess {
             restart_block: RestartBlock::None,
             origin,
             last_exit_status: None,
+            skip_reasons: Vec::new(),
             #[cfg(windows)]
             job_object: None,
             #[cfg(windows)]
@@ -336,6 +338,10 @@ impl ManagedProcess {
     pub fn last_signal(&self) -> Option<i32> {
         self.last_exit_status
             .and_then(|s| platform::last_signal(&s))
+    }
+
+    pub fn skip_reasons(&self) -> &[String] {
+        &self.skip_reasons
     }
 
     pub fn set_config(&mut self, config: ProcessConfig) {
@@ -478,6 +484,58 @@ impl ManagedProcess {
             .record(self.config.restart_delay(), self.config.runtime_success());
     }
 
+    pub const SKIP_REASON_AUTO_START_FALSE: &str = "auto_start_false";
+    pub const SKIP_REASON_PATH_MISSING: &str = "path_missing";
+    pub const SKIP_REASON_CONFIG_GATE: &str = "config_gate";
+    pub const SKIP_REASON_CONFIG_VETO: &str = "config_veto";
+    pub const SKIP_REASON_ORDERING: &str = "ordering";
+
+    /// Every currently applying start-hold label, not first-wins. Does not log:
+    /// callers that decline a spawn still go through `should_start` /
+    /// `start_conditions_met` / `may_respawn` for the existing messages.
+    #[must_use]
+    pub(crate) fn collect_skip_reasons(&self) -> Vec<String> {
+        let mut reasons = Vec::new();
+        if !self.config.auto_start {
+            reasons.push(Self::SKIP_REASON_AUTO_START_FALSE.to_string());
+        }
+        if let Some(raw) = &self.config.condition_path_exists {
+            let path = expand_env_vars(raw);
+            if !std::path::Path::new(&path).exists() {
+                reasons.push(Self::SKIP_REASON_PATH_MISSING.to_string());
+            }
+        }
+        if !crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
+            reasons.push(Self::SKIP_REASON_CONFIG_GATE.to_string());
+        }
+        if !crate::config_gate::condition_config_none_met(&self.config.condition_config_none) {
+            reasons.push(Self::SKIP_REASON_CONFIG_VETO.to_string());
+        }
+        reasons
+    }
+
+    /// Whether the boot / reload start pass would spawn this row, ignoring
+    /// dependency-cycle exclusion (`ordering`).
+    #[must_use]
+    pub(crate) fn start_pass_would_spawn(&self) -> bool {
+        self.collect_skip_reasons().is_empty()
+    }
+
+    /// Record why a spawn was declined. Never-spawned rows move `Created ->
+    /// Skipped`. After a child has existed, the process stays where it is.
+    pub(crate) fn apply_start_hold(&mut self, extra: &[&str]) {
+        let mut reasons = self.collect_skip_reasons();
+        for reason in extra {
+            if !reasons.iter().any(|existing| existing == reason) {
+                reasons.push((*reason).to_string());
+            }
+        }
+        self.skip_reasons = reasons;
+        if self.state == ProcessState::Created && !self.skip_reasons.is_empty() {
+            self.transition_to(ProcessState::Skipped);
+        }
+    }
+
     #[must_use]
     pub fn should_start(&self) -> bool {
         if !self.config.auto_start {
@@ -496,6 +554,7 @@ impl ManagedProcess {
         // The single clear site, which is what keeps the reason from going
         // stale: boot, restart, manual start, and reload all land here.
         self.restart_block = RestartBlock::None;
+        self.skip_reasons.clear();
         self.transition_to(ProcessState::Starting);
         match self.try_spawn() {
             Ok(handle) => {
@@ -735,6 +794,7 @@ impl ManagedProcess {
         if !self.may_respawn() {
             info!("[{}] start conditions not met, not restarting", self.name);
             self.restart_block = RestartBlock::AccountingOwed;
+            self.apply_start_hold(&[]);
             return None;
         }
 
@@ -979,6 +1039,26 @@ pub mod tests {
         cfg.auto_start = false;
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
         assert!(!proc.should_start());
+        assert_eq!(
+            proc.collect_skip_reasons(),
+            vec![ManagedProcess::SKIP_REASON_AUTO_START_FALSE]
+        );
+    }
+
+    #[test]
+    fn test_skip_reasons_combine_auto_start_and_path() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.auto_start = false;
+        cfg.condition_path_exists = Some("/nonexistent/path/binary".to_string());
+        let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
+        assert_eq!(
+            proc.collect_skip_reasons(),
+            vec![
+                ManagedProcess::SKIP_REASON_AUTO_START_FALSE,
+                ManagedProcess::SKIP_REASON_PATH_MISSING,
+            ]
+        );
     }
 
     #[test]

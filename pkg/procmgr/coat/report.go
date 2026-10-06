@@ -75,11 +75,7 @@ func reportNotes() []string {
 			"the count at 0 however badly the process failed. It is also reset once a spawn stays " +
 			"up long enough, so a low count can follow a history of restarts. Read it with " +
 			"restart_policy and last_exit_code rather than as evidence of a loop by itself.",
-		"state=created with auto_start=true: the process was never started, because a config gate " +
-			"(condition_config_any) is closed, the condition_path_exists path is missing, or a start " +
-			"ordering dependency is unmet. dd-procmgrd does not report which one over its RPC: " +
-			"search " + daemonLogLocation() + " for the gate decision.",
-		"state=created with auto_start=false: an inert catalog entry, expected until the matching service is migrated.",
+		"state=skipped: start pass declined to spawn. See skip_reasons.",
 		"A legacy service reported Stopped in servicestatus.json is the expected state when the same " +
 			"workload appears in the services list with management_mode=procmgr.",
 	}
@@ -386,9 +382,8 @@ func namesSecret(patterns []procutil.DataScrubberPattern, flag string) bool {
 	return false
 }
 
-// describeAll enriches each listed process with the fields only Describe carries, above all
-// auto_start, without which a Created process cannot be told from an inert catalog entry. A
-// process whose Describe fails keeps its List data and contributes a warning.
+// describeAll enriches each listed process with the fields only Describe carries,
+// including skip_reasons on a Skipped hold and auto_start as declared config.
 func describeAll(ctx context.Context, sess ProcmgrSession, processes map[string]ProcessSnapshot) ([]ProcessSnapshot, []string) {
 	names := make([]string, 0, len(processes))
 	for name := range processes {

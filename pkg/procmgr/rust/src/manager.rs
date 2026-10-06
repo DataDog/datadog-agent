@@ -16,6 +16,7 @@ use crate::state::ProcessState;
 use crate::uuid_gen::UuidGenerator;
 use anyhow::Result;
 use log::{debug, info, warn};
+use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc, oneshot};
 use tonic::Status;
@@ -57,6 +58,7 @@ impl ProcessManager {
                 warn!("{e:#}");
             }
         }
+        finalize_start_holds(&mut procs, &order);
     }
 
     pub async fn run(&self) -> Result<()> {
@@ -177,6 +179,7 @@ impl ProcessManager {
         if !proc.may_respawn() {
             info!("[{name}] restart skipped: start conditions not met");
             proc.mark_restart_blocked_already_accounted();
+            proc.apply_start_hold(&[]);
             return;
         }
         if let Err(e) = proc.spawn(exit_tx.clone()) {
@@ -224,6 +227,11 @@ impl ProcessManager {
             }
         }
         let warnings = self.update_startup_order().await;
+        {
+            let order = self.startup_order.read().await;
+            let mut procs = self.processes.write().await;
+            finalize_start_holds(&mut procs, &order);
+        }
         Ok(CreateResult { uuid, warnings })
     }
 
@@ -381,6 +389,7 @@ impl ProcessManager {
             if !proc.may_respawn() {
                 info!("[{name}] not restarting after reload: start conditions not met");
                 proc.mark_restart_blocked_already_accounted();
+                proc.apply_start_hold(&[]);
                 continue;
             }
             info!("[{name}] restarting with updated config");
@@ -397,10 +406,12 @@ impl ProcessManager {
         // Two ways a closed condition leaves work for reload, and both stay
         // narrow enough not to resurrect anything else.
         //
-        // A process whose conditions were unmet at boot never started, so no
-        // earlier reload step covers it. `Created` is the only state meaning
-        // "never started", and a process declaring no condition was never
-        // blocked in the first place.
+        // A process whose start pass declined to spawn rests in `Skipped`.
+        // Reloading starts it when the hold clears (`should_start`, and not
+        // cycle-excluded: this loop walks the resolved order). `Created`
+        // remains the queue window before a start pass; a process still there
+        // that declared no condition was never blocked, so this path does not
+        // start it.
         //
         // A process whose conditions closed mid-restart was already running,
         // and the skip left it in `Exited`, `Crashed`, `Failed`, or `Stopped`.
@@ -416,7 +427,7 @@ impl ProcessManager {
         // reload of a running process is not a restart, so recovering either
         // must not consult the limit again.
         {
-            let candidates: std::collections::HashSet<&str> = unchanged
+            let candidates: HashSet<&str> = unchanged
                 .iter()
                 .chain(modified.iter())
                 .map(String::as_str)
@@ -430,6 +441,7 @@ impl ProcessManager {
                 }
                 let eligible = match proc.state() {
                     ProcessState::Created => proc.has_start_conditions() && proc.should_start(),
+                    ProcessState::Skipped => proc.start_pass_would_spawn(),
                     ProcessState::Exited
                     | ProcessState::Crashed
                     | ProcessState::Failed
@@ -453,6 +465,7 @@ impl ProcessManager {
                     warn!("[{name}] failed to start after gate re-eval: {e:#}");
                 }
             }
+            finalize_start_holds(&mut procs, &order);
         }
 
         Ok(ReloadResult {
@@ -522,6 +535,28 @@ fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, 
 struct StartupOrderResult {
     order: Vec<usize>,
     warnings: Vec<String>,
+}
+
+/// After a start pass, never-spawned rows that were declined (or excluded for
+/// a dependency cycle) rest in `Skipped` with every applying reason label.
+fn finalize_start_holds(procs: &mut [ManagedProcess], order: &[usize]) {
+    let in_order: HashSet<usize> = order.iter().copied().collect();
+    for (idx, proc) in procs.iter_mut().enumerate() {
+        let cycle = !in_order.contains(&idx);
+        let extra: &[&str] = if cycle {
+            &[ManagedProcess::SKIP_REASON_ORDERING]
+        } else {
+            &[]
+        };
+        match proc.state() {
+            ProcessState::Created | ProcessState::Skipped => {
+                if cycle || !proc.start_pass_would_spawn() {
+                    proc.apply_start_hold(extra);
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
@@ -1050,7 +1085,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_create_auto_start_false_stays_created() -> anyhow::Result<()> {
+    async fn test_create_auto_start_false_is_skipped() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
         let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
@@ -1063,6 +1098,13 @@ mod tests {
         assert!(
             !procs[0].is_running(),
             "process with auto_start=false should not be running after create"
+        );
+        assert_eq!(procs[0].state(), ProcessState::Skipped);
+        assert!(
+            procs[0]
+                .skip_reasons()
+                .iter()
+                .any(|r| r == ManagedProcess::SKIP_REASON_AUTO_START_FALSE)
         );
         Ok(())
     }
@@ -1322,8 +1364,14 @@ mod tests {
             );
             assert_eq!(
                 procs[0].state(),
-                ProcessState::Created,
-                "a gated process that never started stays Created"
+                ProcessState::Skipped,
+                "a gated process that never started is Skipped"
+            );
+            assert!(
+                procs[0]
+                    .skip_reasons()
+                    .iter()
+                    .any(|r| r == ManagedProcess::SKIP_REASON_CONFIG_GATE)
             );
             Ok(())
         }
@@ -1388,7 +1436,7 @@ mod tests {
             );
             assert!(
                 mgr.processes().await[0].is_running(),
-                "reload should start a Created process whose gate has opened"
+                "reload should start a Skipped process whose gate has opened"
             );
 
             cleanup_first_process(&mgr).await;
@@ -1416,6 +1464,17 @@ mod tests {
                 procs.iter().all(|p| !p.is_running()),
                 "reload must not start processes the dependency resolver excluded for a cycle"
             );
+            for proc in procs.iter() {
+                assert_eq!(proc.state(), ProcessState::Skipped);
+                assert!(
+                    proc.skip_reasons()
+                        .iter()
+                        .any(|r| r == ManagedProcess::SKIP_REASON_ORDERING),
+                    "{} should carry ordering, got {:?}",
+                    proc.name(),
+                    proc.skip_reasons()
+                );
+            }
             Ok(())
         }
 
@@ -1662,7 +1721,7 @@ mod tests {
             let (restart_tx, _restart_rx) = mpsc::channel::<String>(8);
 
             mgr.start(&exit_tx).await;
-            assert_eq!(mgr.processes().await[0].state(), ProcessState::Created);
+            assert_eq!(mgr.processes().await[0].state(), ProcessState::Skipped);
 
             mgr.handle_start("manual-svc", &exit_tx).await?;
             write_agent_yaml(dir.path(), false);
