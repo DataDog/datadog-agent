@@ -539,8 +539,10 @@ struct StartupOrderResult {
 
 /// After a start pass, never-spawned rows that were declined (or excluded for
 /// a dependency cycle) rest in `Skipped` with every applying reason label.
-/// Terminal rows that a closed condition already stranded keep their state,
-/// but the labels are rebuilt so a later reload cannot leave a stale reason.
+/// Existing `Skipped` rows always rebuild labels (including clearing them), so
+/// a runtime-only process whose hold later opens cannot keep a stale reason
+/// after reload excludes it from the candidate set. Terminal rows stranded by
+/// a closed condition keep their state, but labels are rebuilt the same way.
 fn finalize_start_holds(procs: &mut [ManagedProcess], order: &[usize]) {
     let in_order: HashSet<usize> = order.iter().copied().collect();
     for (idx, proc) in procs.iter_mut().enumerate() {
@@ -551,10 +553,13 @@ fn finalize_start_holds(procs: &mut [ManagedProcess], order: &[usize]) {
             &[]
         };
         match proc.state() {
-            ProcessState::Created | ProcessState::Skipped => {
+            ProcessState::Created => {
                 if cycle || !proc.start_pass_would_spawn() {
                     proc.apply_start_hold(extra);
                 }
+            }
+            ProcessState::Skipped => {
+                proc.apply_start_hold(extra);
             }
             ProcessState::Exited
             | ProcessState::Crashed
@@ -1161,6 +1166,45 @@ mod tests {
         assert!(
             !procs[0].is_running(),
             "process should not start when condition_path_exists is not met"
+        );
+        Ok(())
+    }
+
+    /// Runtime-created rows are not reload candidates. When their path hold
+    /// opens, reload must still clear the stale `path_missing` label.
+    #[tokio::test]
+    async fn test_reload_clears_skip_reasons_on_runtime_skipped_process() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let gate = dir.path().join("ready");
+        let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        cfg.auto_start = true;
+        cfg.condition_path_exists = Some(gate.to_string_lossy().into_owned());
+        mgr.handle_create("runtime-cond".to_string(), cfg, &exit_tx)
+            .await?;
+
+        {
+            let procs = mgr.processes().await;
+            assert_eq!(procs[0].state(), ProcessState::Skipped);
+            assert_eq!(
+                procs[0].skip_reasons(),
+                &[ManagedProcess::SKIP_REASON_PATH_MISSING.to_string()]
+            );
+        }
+
+        std::fs::write(&gate, b"")?;
+        mgr.handle_reload_config(&exit_tx).await?;
+
+        let procs = mgr.processes().await;
+        assert_eq!(
+            procs[0].state(),
+            ProcessState::Skipped,
+            "runtime-only rows stay Skipped: reload does not auto-start them"
+        );
+        assert!(
+            procs[0].skip_reasons().is_empty(),
+            "cleared holds must not keep a stale path_missing label"
         );
         Ok(())
     }
