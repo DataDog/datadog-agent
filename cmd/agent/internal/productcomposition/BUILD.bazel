@@ -4,6 +4,7 @@ go_library(
     name = "productcomposition",
     srcs = [
         "composition.go",
+        "metriclookback.go",
         "options.go",
         "python.go",  # //go:build python
         "python_disabled.go",  # //go:build !python
@@ -20,6 +21,7 @@ go_library(
         "//comp/core/gui/impl/pythonchecks/fx-python",
         "//comp/core/status",
         "//comp/metadata/host/impl/pythoninfo/fx-python",
+        "//comp/metriclookback/fx",
         "//pkg/collector/python",
         "@org_uber_go_fx//:fx",
     ],
