@@ -80,6 +80,7 @@ dd_agent_go_test(
         "controller_vertical_progress_test.go",
         "controller_vertical_test.go",
         "dump_test.go",
+        "forced_resources_test.go",
         "pod_patcher_test.go",
         "pod_watcher_test.go",
     ],

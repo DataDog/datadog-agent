@@ -63,14 +63,26 @@ func TestNewGPUTarget(t *testing.T) {
 				fieldRefTracerConfig(trainingGroupIDEnvVar, "metadata.annotations['example/task-name']"),
 			),
 		},
-		"env identifiers are ignored": {
+		"run from an env var and group from an annotation": {
 			tracing: enabled,
 			jobs: gpuconfig.JobsConfig{
 				Run:   gpuconfig.IdentifierConfig{Key: "_RAY_SUBMISSION_ID", Type: gpuconfig.IdentifierTypeEnv},
 				Group: gpuconfig.IdentifierConfig{Key: "example/task-name", Type: gpuconfig.IdentifierTypeAnnotation},
 			},
 			want: append(baseConfigs,
+				TracerConfig{Name: trainingRunIDEnvVar, Value: "env:_RAY_SUBMISSION_ID"},
 				fieldRefTracerConfig(trainingGroupIDEnvVar, "metadata.annotations['example/task-name']"),
+			),
+		},
+		"run and group from env vars": {
+			tracing: enabled,
+			jobs: gpuconfig.JobsConfig{
+				Run:   gpuconfig.IdentifierConfig{Key: "_RAY_SUBMISSION_ID", Type: gpuconfig.IdentifierTypeEnv},
+				Group: gpuconfig.IdentifierConfig{Key: "RAY_CLUSTER_NAME", Type: gpuconfig.IdentifierTypeEnv},
+			},
+			want: append(baseConfigs,
+				TracerConfig{Name: trainingRunIDEnvVar, Value: "env:_RAY_SUBMISSION_ID"},
+				TracerConfig{Name: trainingGroupIDEnvVar, Value: "env:RAY_CLUSTER_NAME"},
 			),
 		},
 		"identifiers without a key are ignored": {
@@ -199,18 +211,55 @@ gpu:
 	m := newMatchMutator(t, cfg, newMatchTestWmeta(t))
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "ml", Labels: gpuPodLabels}}
 
-	target := m.getMatchingTarget(pod)
+	resolved := m.resolveTarget(pod)
 
+	require.NotNil(t, resolved)
+	require.Equal(t, injectionSourceGPU, resolved.selectedBy)
+	require.True(t, resolved.isSSI)
+	target := resolved.plan
 	require.NotNil(t, target)
-	require.Len(t, target.libVersions, 1)
-	assert.Equal(t, c, target.libVersions[0].lang)
-	assert.Equal(t, "0", target.libVersions[0].tag)
+	require.False(t, target.blocked)
+	require.Len(t, target.libraries, 1)
+	assert.Equal(t, c, target.libraries[0].lang)
+	assert.Equal(t, "0", target.libraries[0].tag)
 	assert.Equal(t, []corev1.EnvVar{
 		{Name: "DD_INJECT_NATIVE", Value: "always"},
 		{Name: "DD_TRACE_HOOK_MODULES", Value: "gpu"},
 		fieldRefEnvVar(trainingRunIDEnvVar, "metadata.annotations['example/job-id']"),
 		fieldRefEnvVar(trainingGroupIDEnvVar, "metadata.annotations['example/task-name']"),
-	}, target.envVars)
+	}, target.tracerEnvVars)
+}
+
+func TestGPUTargetInjectionEnvIdentifiers(t *testing.T) {
+	const cfg = `
+gpu:
+  tracing:
+    enabled: true
+  jobs:
+    run:
+      key: FOO
+      type: env
+    group:
+      key: example/job-group-annotation
+      type: annotation
+`
+	m := newMatchMutator(t, cfg, newMatchTestWmeta(t))
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "ml", Labels: gpuPodLabels}}
+
+	resolved := m.resolveTarget(pod)
+
+	require.NotNil(t, resolved)
+	require.Equal(t, injectionSourceGPU, resolved.selectedBy)
+	require.True(t, resolved.isSSI)
+	target := resolved.plan
+	require.NotNil(t, target)
+	require.False(t, target.blocked)
+	assert.Equal(t, []corev1.EnvVar{
+		{Name: "DD_INJECT_NATIVE", Value: "always"},
+		{Name: "DD_TRACE_HOOK_MODULES", Value: "gpu"},
+		{Name: "DD_TRAINING_RUN_ID", Value: "env:FOO"},
+		fieldRefEnvVar(trainingGroupIDEnvVar, "metadata.annotations['example/job-group-annotation']"),
+	}, target.tracerEnvVars)
 }
 
 func TestLabelSelectorsGPUTracing(t *testing.T) {

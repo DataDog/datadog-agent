@@ -116,15 +116,16 @@ TAIL_CALL_FNC(dr_setxattr_callback, ctx_t *ctx) {
     }
 
     if (syscall->resolver.ret == DENTRY_INVALID) {
-        pop_syscall(EVENT_SETXATTR);
-        return 0;
+        goto pop_and_exit;
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_SETXATTR);
-    if (syscall->state == DISCARDED) {
-        pop_syscall(EVENT_SETXATTR);
+    if (syscall->state != DISCARDED) {
+        return 0;
     }
 
+pop_and_exit:
+    pop_syscall(EVENT_SETXATTR);
     return 0;
 }
 
@@ -145,18 +146,18 @@ int __attribute__((always_inline)) trace_io_fsetxattr(ctx_t *ctx) {
 }
 
 int __attribute__((always_inline)) sys_xattr_ret_impl(void *ctx, int retval, u64 event_type, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(event_type);
+    struct syscall_cache_t *syscall = peek_syscall(event_type);
     if (!syscall) {
         return 0;
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
+        goto pop_and_exit;
     }
 
     struct setxattr_event_t *event = SPAN_FILL_EVENT(struct setxattr_event_t, event_type);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
 
     event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
@@ -176,8 +177,12 @@ int __attribute__((always_inline)) sys_xattr_ret_impl(void *ctx, int retval, u64
     fill_cgroup_context(entry, &event->cgroup);
     fill_file(syscall->xattr.dentry, &event->file);
 
+    pop_syscall(event_type);
+
     span_fill_tail_call(ctx, prog_type);
 
+pop_and_exit:
+    pop_syscall(event_type);
     return 0;
 }
 

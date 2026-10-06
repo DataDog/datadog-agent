@@ -74,12 +74,14 @@ impl ProcmgrLifecycle {
         }
     }
 
-    /// Whether the executor exited or failed. A missing definition is also gone.
+    /// Whether the executor exited, crashed or failed. A missing definition is
+    /// also gone.
     pub async fn has_exited(&self) -> Result<bool> {
         match self.describe_state().await? {
-            None | Some(procmgr::ProcessState::Exited) | Some(procmgr::ProcessState::Failed) => {
-                Ok(true)
-            }
+            None
+            | Some(procmgr::ProcessState::Exited)
+            | Some(procmgr::ProcessState::Crashed)
+            | Some(procmgr::ProcessState::Failed) => Ok(true),
             Some(procmgr::ProcessState::Unknown) => bail!(
                 "process-manager reports an unknown state for {:?}",
                 self.process_name
@@ -189,6 +191,7 @@ mod tests {
             (FakeProcmgr::in_state(procmgr::ProcessState::Running), false),
             (FakeProcmgr::in_state(procmgr::ProcessState::Stopped), false),
             (FakeProcmgr::in_state(procmgr::ProcessState::Exited), true),
+            (FakeProcmgr::in_state(procmgr::ProcessState::Crashed), true),
             (FakeProcmgr::in_state(procmgr::ProcessState::Failed), true),
             (FakeProcmgr::vanished(), true),
         ] {
