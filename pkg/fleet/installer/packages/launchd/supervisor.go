@@ -48,8 +48,6 @@ func (d Deadline) Write(window time.Duration) error {
 		tmp.Close()
 		return fmt.Errorf("could not set deadline file mode: %w", err)
 	}
-	// Owned by root:wheel so a compromised experiment, running as _dd-agent, cannot extend its
-	// own window. Best-effort: this also runs unprivileged in tests.
 	if err := tmp.Chown(0, 0); err != nil {
 		log.Warnf("could not set root:wheel ownership on deadline file %s: %v", path, err)
 	}
