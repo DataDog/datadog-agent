@@ -270,6 +270,18 @@ func TestSendNowSerializerError(t *testing.T) {
 
 	assert.ErrorContains(t, i.SendNow(), "boom")
 	assert.Equal(t, lastCollect, i.LastCollect)
+	assert.True(t, i.forceRefresh.Load(), "a failed send should be retried by the next collect")
+}
+
+func TestSendNowKeepsRefreshRaisedDuringSend(t *testing.T) {
+	i := getTestInventoryPayload(t, nil)
+	i.createdAt = time.Now().Add(-2 * time.Minute)
+
+	serializerMock := i.serializer.(*serializermock.MetricSerializer)
+	serializerMock.On("SendMetadata", mock.Anything).Run(func(mock.Arguments) { i.Refresh() }).Return(nil).Once()
+
+	assert.NoError(t, i.SendNow())
+	assert.True(t, i.forceRefresh.Load())
 }
 
 func TestSendNowBeforeFirstRunDelay(t *testing.T) {

@@ -244,16 +244,18 @@ func (i *InventoryPayload) SendNow() error {
 		return fmt.Errorf("first payload not sent yet, retry after %s", i.firstRunDelay-timeSince(i.createdAt))
 	}
 
+	// Cleared before taking the snapshot so a Refresh raised during the send stays pending
+	i.forceRefresh.Store(false)
 	p := i.getPayload()
 	if p == nil {
 		i.log.Debugf("inventory payload is nil, skipping submission")
 		return nil
 	}
 	if err := i.serializer.SendMetadata(p); err != nil {
+		i.forceRefresh.Store(true)
 		return fmt.Errorf("unable to submit inventories payload: %w", err)
 	}
 
-	i.forceRefresh.Store(false)
 	i.LastCollect = time.Now()
 	return nil
 }

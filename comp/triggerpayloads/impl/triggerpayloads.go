@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sync"
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -92,23 +91,57 @@ func (t *triggerPayloads) Trigger(ctx context.Context, payloads []string) error 
 	slices.Sort(payloads)
 	payloads = slices.Compact(payloads)
 
+	type result struct {
+		idx int
+		err error
+	}
+	// Buffered so senders still running after a timeout never block
+	results := make(chan result, len(payloads))
 	errs := make([]error, len(payloads))
-	var wg sync.WaitGroup
+	pending := 0
 	for idx, name := range payloads {
 		send, ok := t.payloads[name]
 		if !ok {
 			errs[idx] = fmt.Errorf("%s: unknown payload", name)
 			continue
 		}
-		wg.Add(1)
+		pending++
 		go func() {
-			defer wg.Done()
-			if err := send(ctx); err != nil {
-				errs[idx] = fmt.Errorf("%s: %w", name, err)
-			}
+			results <- result{idx: idx, err: send(ctx)}
 		}()
 	}
-	wg.Wait()
+
+	done := make([]bool, len(payloads))
+	record := func(r result) {
+		done[r.idx] = true
+		if r.err != nil {
+			errs[r.idx] = fmt.Errorf("%s: %w", payloads[r.idx], r.err)
+		}
+	}
+wait:
+	for ; pending > 0; pending-- {
+		select {
+		case r := <-results:
+			record(r)
+		case <-ctx.Done():
+			// Keep the results that completed before the deadline
+		drain:
+			for {
+				select {
+				case r := <-results:
+					record(r)
+				default:
+					break drain
+				}
+			}
+			for idx, name := range payloads {
+				if errs[idx] == nil && !done[idx] {
+					errs[idx] = fmt.Errorf("%s: %w", name, ctx.Err())
+				}
+			}
+			break wait
+		}
+	}
 
 	var failed []error
 	for idx, err := range errs {
