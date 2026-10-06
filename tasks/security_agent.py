@@ -35,15 +35,10 @@ from tasks.system_probe import (
     copy_ebpf_and_related_files,
     ebpf_bazel_flags,
     get_libpcap_cgo_flags,
-    ninja_define_ebpf_compiler,
-    ninja_define_exe_compiler,
 )
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 is_windows = sys.platform == "win32"
-
-# Bound so the ninja compiler helpers stay live until remaining ninja graphs are gone.
-_NINJA_COMPILER_HELPERS = (ninja_define_ebpf_compiler, ninja_define_exe_compiler)
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
@@ -212,8 +207,9 @@ OTEL_TLS_BAZEL_TARGET = "//pkg/security/tests/syscall_tester/c:otel_tls_artifact
 
 
 # The OTel TLS testers go through Bazel so they link against the hermetic
-# crosstool-NG sysroot: glibc 2.23, of which only 2.17 symbols end up referenced. The host toolchain would link them against the
-# build image's glibc instead, which is newer than every KMT host and than the
+# crosstool-NG sysroot: glibc 2.23, of which only 2.17 symbols end up
+# referenced. The host toolchain would link them against the build image's
+# glibc instead, which is newer than every KMT host and than the
 # ubuntu:20.04 image RunMultiMode's docker leg uses, and every dynamically
 # linked variant would then be skipped outside the newest legs. The Node.js
 # tester is Bazel-built the same way, alongside the native one; it is glibc-only,
@@ -260,8 +256,7 @@ _SYSCALL_TESTER_TARGETS = {
 
 
 @task
-def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True, compiler="clang"):
-    del ctx, static, compiler  # Bazel always produces static testers; ninja/clang are gone.
+def build_embed_syscall_tester(_, arch: str | Arch = CURRENT_ARCH):
     arch = Arch.from_str(arch)
     build_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "bin")
     create_dir_if_needed(build_dir)
@@ -291,7 +286,6 @@ def build_functional_tests(
     skip_linters=False,
     race=False,
     skip_object_files=False,
-    syscall_tester_compiler='clang',
 ):
     if not is_windows:
         if not skip_object_files:
@@ -299,11 +293,7 @@ def build_functional_tests(
                 ctx,
                 arch=arch,
             )
-        build_embed_syscall_tester(
-            ctx,
-            compiler=syscall_tester_compiler,
-            arch=arch,
-        )
+        build_embed_syscall_tester(ctx, arch=arch)
 
     arch = Arch.from_str(arch)
     ldflags, gcflags, env = get_build_flags(ctx, static=static, arch=arch)
