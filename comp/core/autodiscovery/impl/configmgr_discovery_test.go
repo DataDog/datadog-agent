@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build python
-
 package autodiscoveryimpl
 
 import (
@@ -24,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
+
+const configDiscoveryTag = discoverer.ConfigDiscoveryTag
 
 // stubDiscoverer is a discoverer.ConfigDiscoverer used by configmgr tests.
 type stubDiscoverer struct {
@@ -118,7 +118,7 @@ func TestConfigMgr_DiscoveryTemplate_RoutesThroughDiscoverer(t *testing.T) {
 			disco := newStubDiscoverer(func(_, _ string) (string, error) {
 				return `[{"instances":[{"openmetrics_endpoint":"http://%%host%%:8080/metrics"}]}]`, nil
 			})
-			cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
+			cm := newReconcilingConfigManager(&mockResolver, nil, nil, discoverer.NewFactory(disco), nil).(*reconcilingConfigManager)
 			cm.start()
 			defer cm.stop()
 
@@ -207,7 +207,7 @@ func TestConfigMgr_DiscoveryTemplate_TagsAllInstances(t *testing.T) {
 			"ignore_autodiscovery_tags": true
 		}]`, nil
 	})
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, discoverer.NewFactory(disco), nil).(*reconcilingConfigManager)
 	cm.start()
 	defer cm.stop()
 
@@ -276,11 +276,13 @@ func TestConfigMgr_DiscoveryTemplate_TagPersistsAcrossRediscovery(t *testing.T) 
 
 	// The discovery worker is never started: this test drives
 	// applyDiscoveredConfigsLocked directly (as the worker's callback would),
-	// so no discoverer or running goroutine is needed.
+	// so no probe or running goroutine is needed.
 	cm := newReconcilingConfigManager(&mockResolver, nil, nil, nil, nil).(*reconcilingConfigManager)
 	_, _ = cm.processNewConfig(tpl)
 	_ = cm.processNewService(svc)
 
+	// Supply only the stateless result transformer, without constructing a queue.
+	cm.discoveryWorker = &discoverer.Worker{}
 	tplDigest := tpl.Digest()
 	firstConfigs := []integration.Config{{
 		Instances: []integration.Data{integration.Data(`openmetrics_endpoint: http://%%host%%:8080/metrics`)},
@@ -314,7 +316,7 @@ func TestConfigMgr_DiscoveryTemplate_ServiceDeletionCancels(t *testing.T) {
 		// forgotten.
 		return "", assert.AnError
 	})
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, discoverer.NewFactory(disco), nil).(*reconcilingConfigManager)
 	cm.start()
 	defer cm.stop()
 
@@ -371,7 +373,7 @@ func newMidFlightDiscoverySuppressionHarness(t *testing.T, staticConfigIndex *li
 		<-release
 		return `[{"instances":[{"openmetrics_endpoint":"http://%%host%%:8080/metrics"}]}]`, nil
 	})
-	cm := newReconcilingConfigManager(&mockResolver, nil, staticConfigIndex, disco, nil).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, staticConfigIndex, discoverer.NewFactory(disco), nil).(*reconcilingConfigManager)
 	cm.start()
 	t.Cleanup(cm.stop)
 
@@ -544,7 +546,7 @@ func makeDiscoveryCM(t *testing.T, payload string) (*reconcilingConfigManager, *
 	t.Helper()
 	mockResolver := MockSecretResolver{}
 	disco := newStubDiscoverer(func(_, _ string) (string, error) { return payload, nil })
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, discoverer.NewFactory(disco), nil).(*reconcilingConfigManager)
 	cm.start()
 	t.Cleanup(cm.stop)
 	return cm, disco
@@ -760,7 +762,7 @@ func TestConfigMgr_Lifecycle_HostPortsPassedToDiscoverer(t *testing.T) {
 		capturedJSON.Store(serviceJSON)
 		return `[{"instances":[{"port":8080}]}]`, nil
 	})
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, discoverer.NewFactory(disco), nil).(*reconcilingConfigManager)
 	cm.start()
 	t.Cleanup(cm.stop)
 
@@ -813,7 +815,7 @@ func TestConfigMgr_Lifecycle_HostMultiNetworkBridge(t *testing.T) {
 		capturedJSON.Store(serviceJSON)
 		return `[{"instances":[{"port":8080}]}]`, nil
 	})
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, discoverer.NewFactory(disco), nil).(*reconcilingConfigManager)
 	cm.start()
 	t.Cleanup(cm.stop)
 
