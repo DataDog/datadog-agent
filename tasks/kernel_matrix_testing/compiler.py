@@ -15,6 +15,7 @@ from invoke.exceptions import CommandTimedOut
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.tool import Exit, info, warn
+from tasks.libs.build.bazel import bazel
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.utils import get_repo_root
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
@@ -163,8 +164,8 @@ class CompilerImage:
         Resolved via `bazel info` so all rc layers (workspace, user, home) apply.
         """
         with chdir(get_repo_root()):
-            res = self.ctx.run("bazel info repository_cache", hide=True, warn=True)
-        if res is None or not res.ok:
+            res = bazel("info", "repository_cache", capture_output=True, ignore_errors=True)
+        if isinstance(res, str) or res.returncode != 0:
             warn("[!] Could not resolve Bazel repository_cache; container will not share the host cache")
             return None
 
