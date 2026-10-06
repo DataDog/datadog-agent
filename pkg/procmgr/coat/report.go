@@ -44,15 +44,17 @@ type SupportReport struct {
 
 // reportNotes explains how to interpret a process that is not Running.
 //
-// dd-procmgrd does not report a start-block reason over its RPC: the wire format carries
-// condition_path_exists but not condition_config_any, and there is no Blocked state, so a
-// config-gated process is indistinguishable from one waiting on start ordering. The daemon logs the
-// gate decision, so the notes point a reader at that log rather than guessing.
+// A start pass that declined to spawn is Skipped, not Created. skip_reasons names each
+// applying label (auto_start_false, path_missing, config_gate, config_veto, ordering), so a
+// config-gated process is no longer indistinguishable from one waiting on start ordering. The
+// notes send the reader to skip_reasons for that case.
 //
-// Where the log is depends on the platform, which is why the location comes from
-// daemonLogLocation rather than being written inline: only the Windows service writes a file the
-// flare can collect. Naming a path the host never produces sends support somewhere there is
-// nothing to find, in the one place that is supposed to explain a process that will not start.
+// Spawn failures are still Failed with no last_exit_code, and those are not labeled the same
+// way. The daemon log is where the spawn error is, so the notes keep pointing there. Where
+// that log is depends on the platform, which is why the location comes from daemonLogLocation
+// rather than being written inline: only the Windows service writes a file the flare can
+// collect. Naming a path the host never produces sends support somewhere there is nothing to
+// find, in the one place that is supposed to explain a process that will not start.
 //
 // What separates a failed spawn from a failed workload is last_exit_code, not restart_count. The
 // supervisor reports Failed for both a spawn that never produced a process and a process that ran

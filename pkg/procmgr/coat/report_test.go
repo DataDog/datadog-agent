@@ -116,6 +116,15 @@ func TestReportNotesSeparateSpawnFailureFromWorkloadFailure(t *testing.T) {
 		"a restart count above zero is not by itself a crash loop")
 }
 
+func TestReportNotesPointAtSkipReasonsForSkippedHolds(t *testing.T) {
+	notes := strings.Join(reportNotes(), "\n")
+
+	assert.Contains(t, notes, "state=skipped",
+		"a start-hold is Skipped, not an unnamed Created or Blocked state")
+	assert.Contains(t, notes, "skip_reasons",
+		"skip_reasons is what separates a config gate from ordering or auto_start_false")
+}
+
 func TestReportUnreachableDaemonIsRecordedNotDropped(t *testing.T) {
 	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
 		connectErr: errors.New("open \\\\.\\pipe\\datadog-procmgrd: file does not exist"),
