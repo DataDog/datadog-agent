@@ -111,7 +111,13 @@ class JevDynTestExecutor(DynTestExecutor):
     def init_index(self):
         pipeline = get_pipeline("DataDog/datadog-agent", self.pipeline_id)
         if pipeline.sha != self.commit_sha:
-            raise RuntimeError("The evaluated pipeline SHA must match --commit-sha and the checked-out HEAD")
+            raise RuntimeError(
+                f"Pipeline {self.pipeline_id} ran {pipeline.sha}, but the checkout is at {self.commit_sha}. "
+                "The Jev selection is computed from the pipeline commit's PR context: either check out that "
+                f"commit (git checkout {pipeline.sha}) or evaluate the pipeline of the current HEAD. "
+                "Note the evaluation code also comes from the checkout, so old pipelines run their old "
+                "evaluation code."
+            )
         jobs: list = []
         # python-gitlab collapses list-valued query params (scope=["success",
         # "failed"] reaches the API as a single scope), so query each status

@@ -44,7 +44,7 @@ class JevDynTestExecutorTests(unittest.TestCase):
         pipeline = get_pipeline.return_value
         pipeline.sha = "b" * 40
         executor = JevDynTestExecutor(MagicMock(), SHA, "42")
-        with self.assertRaisesRegex(RuntimeError, "SHA"):
+        with self.assertRaisesRegex(RuntimeError, "Pipeline 42 ran"):
             executor.init_index()
         pipeline.jobs.list.assert_not_called()
         pipeline.sha = SHA
