@@ -127,25 +127,6 @@ def _job_candidates() -> dict[str, set[str]]:
         return {job: set(tests) for job, tests in json.load(f).items()}
 
 
-def jev_run_for(names: set[str]) -> set[str]:
-    """The tests Jev would RUN among `names`, over the suites containing them.
-
-    Only suites with something to decide are evaluated (live selector calls).
-    Tests the selector did not decide about (missing or failed-open
-    decisions) run, and a bare name occurring in several suites runs if any
-    occurrence runs.
-    """
-    suites = {suite: entries for suite, entries in suite_entry_points().items() if entries & names}
-    print(f"[jev] deciding {len(names)} tests with Jev; suites: {', '.join(sorted(suites))}")
-    run: set[str] = set()
-    for suite, entries in sorted(suites.items()):
-        summary = jev_selection(suite)
-        skip = set(summary.get("skip", [])) - set(summary.get("run", []))
-        run.update(entries - skip)
-        print(f"[jev] {suite}: {len(entries - skip)} run / {len(entries & skip)} skip")
-    return run
-
-
 class JevDynTestExecutor(DynTestExecutor):
     """Jev executor whose index is the committed job -> candidate tests map.
 
@@ -213,12 +194,25 @@ class JevDynTestExecutor(DynTestExecutor):
         print(f"[jev] index: {len(index.get_jobs())} jobs, {total} candidate tests (committed candidate file)")
 
     def _jev_run(self) -> set[str]:
-        """Lazily: the candidate tests Jev would RUN (see jev_run_for)."""
+        """Lazily: the candidate tests Jev would RUN, over the suites with candidates.
+
+        Only suites with something to decide are evaluated. Tests the selector
+        did not decide about (missing or failed-open decisions) run, and a bare
+        name occurring in several suites runs if any occurrence runs.
+        """
         if self._run is None:
             names: set[str] = set()
             for job in self.index().get_jobs():
                 names |= self.index().get_indexed_tests_for_job(job)
-            self._run = jev_run_for(names)
+            suites = {suite: entries for suite, entries in suite_entry_points().items() if entries & names}
+            print(f"[jev] deciding {len(names)} tests with Jev; suites: {', '.join(sorted(suites))}")
+            run: set[str] = set()
+            for suite, entries in sorted(suites.items()):
+                summary = jev_selection(suite)
+                skip = set(summary.get("skip", [])) - set(summary.get("run", []))
+                run.update(entries - skip)
+                print(f"[jev] {suite}: {len(entries - skip)} run / {len(entries & skip)} skip")
+            self._run = run
         return self._run
 
     def tests_to_run_per_job(self, changes: list[str]) -> dict[str, set[str]]:
