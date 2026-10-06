@@ -8,7 +8,7 @@ use crate::platform;
 use anyhow::{Context, Result};
 use log::{debug, info, warn};
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -378,19 +378,21 @@ pub fn load_configs(dir: &Path) -> Result<LoadedCatalog> {
         }
     }
 
-    // `.yaml` and `.yml` share a file stem, so a broken sibling would land in
-    // the catalog under the name of a valid file. The valid one is spawnable
-    // and the stub would shadow it in describe and start, so it wins.
+    // `.yaml` and `.yml` share a file stem, so sibling files claim one catalog name. A valid file
+    // wins because it is spawnable and a stub of its name would shadow it in describe and start.
+    // Between two broken siblings the first of the sorted scan wins, which keeps one row per name
+    // instead of two that only one of them can ever be reached through.
+    let mut claimed: HashSet<String> = processes.iter().map(|p| p.name.clone()).collect();
     invalid.retain(|entry| {
-        let shadowed = processes.iter().any(|p| p.name == entry.name);
-        if shadowed {
-            warn!(
-                "[{}] ignoring {}: a valid config of the same name was loaded",
-                entry.name,
-                entry.path.display()
-            );
+        if claimed.insert(entry.name.clone()) {
+            return true;
         }
-        !shadowed
+        warn!(
+            "[{}] ignoring {}: another config of the same name was loaded",
+            entry.name,
+            entry.path.display()
+        );
+        false
     });
 
     Ok(LoadedCatalog { processes, invalid })
@@ -543,6 +545,25 @@ condition_path_exists: /usr/bin/sleep
                 .iter()
                 .any(|e| e.contains("invalid type: integer `1234567`")),
             "{errors:?}"
+        );
+    }
+
+    /// Two broken siblings claim the same catalog name, and only the first of them could ever be
+    /// described or counted as itself, so the second is not a row worth having.
+    #[test]
+    fn test_invalid_siblings_collapse_to_one_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("svc.yaml"), "not: valid: yaml: [").unwrap();
+        fs::write(dir.path().join("svc.yml"), "description: no command\n").unwrap();
+
+        let catalog = load_configs(dir.path()).unwrap();
+        assert!(catalog.processes.is_empty());
+        assert_eq!(catalog.invalid.len(), 1);
+        assert_eq!(catalog.invalid[0].name, "svc");
+        assert_eq!(
+            catalog.invalid[0].path,
+            dir.path().join("svc.yaml"),
+            "the winner should follow the sorted scan rather than readdir order"
         );
     }
 
