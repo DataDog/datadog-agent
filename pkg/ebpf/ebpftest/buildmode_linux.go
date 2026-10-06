@@ -7,7 +7,6 @@ package ebpftest
 
 import (
 	"os"
-	"runtime"
 	"testing"
 
 	"github.com/cilium/ebpf/rlimit"
@@ -18,12 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-var hostPlatform string
 var kv = kernel.MustHostVersion()
-
-func init() {
-	hostPlatform, _ = kernel.Platform()
-}
 
 // SupportedBuildModes returns the build modes supported on the current host
 func SupportedBuildModes() []BuildMode {
@@ -31,10 +25,10 @@ func SupportedBuildModes() []BuildMode {
 	if !prebuilt.IsDeprecated() || os.Getenv("TEST_PREBUILT_OVERRIDE") == "true" {
 		modes = append(modes, Prebuilt)
 	}
-	if os.Getenv("TEST_FENTRY_OVERRIDE") == "true" ||
-		// TODO: replace hardcoded 6.9 kernel version gate with features.SupportsFentry().
-		kv >= kernel.VersionCode(6, 9, 0) ||
-		(runtime.GOARCH == "amd64" && (hostPlatform == "amazon" || hostPlatform == "amzn") && kv.Major() == 5 && kv.Minor() == 10) {
+	// fentry availability is patch-level dependent (the RCU-exit detach deadlock
+	// was AUTOSEL-backported to 6.6/6.7/6.8), so probe the runtime kernel instead
+	// of gating on a kernel-version floor.
+	if supportsFentry() {
 		modes = append(modes, Fentry)
 	}
 	if os.Getenv("TEST_EBPFLESS_OVERRIDE") == "true" {
