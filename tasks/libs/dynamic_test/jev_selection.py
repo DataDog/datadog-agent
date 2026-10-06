@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
+from typing import cast
 
 from tasks.libs.ciproviders.gitlab_api import get_pipeline
 from tasks.libs.common.datadog_api import get_ci_test_events
@@ -236,4 +237,6 @@ class JevDynTestEvaluator(DatadogDynTestEvaluator):
     """
 
     def list_tests_for_job(self, job_name: str) -> list[ExecutedTest]:
-        return self.executor.executed.get(job_name, [])
+        # The base class types the executor as DynTestExecutor; the Jev
+        # executor carries the executed tests fetched for its index build
+        return cast(JevDynTestExecutor, self.executor).executed.get(job_name, [])

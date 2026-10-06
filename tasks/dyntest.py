@@ -119,6 +119,7 @@ def evaluate_index(
     head = get_commit_sha(ctx)
     commit_sha = commit_sha or head
     evaluator_type: type[DatadogDynTestEvaluator] = DatadogDynTestEvaluator
+    executors: list[DynTestExecutor] = []
     if selector == "jev":
         if commit_sha != head:
             raise Exit("For Jev, check out the pipeline commit and pass its full SHA (or omit --commit-sha)", code=1)
