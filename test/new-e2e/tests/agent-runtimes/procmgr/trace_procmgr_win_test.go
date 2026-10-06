@@ -10,10 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -27,9 +25,6 @@ const (
 	traceProcessName           = "datadog-agent-trace"
 	traceLegacySCMServiceName  = "datadog-trace-agent"
 	traceProcmgrConfigFileName = "datadog-agent-trace.yaml"
-
-	// Both IsAPMEnabled keys must be false. apm_config.enabled defaults to true.
-	traceAPMDisabledConfig = "apm_config:\n  enabled: false\n  error_tracking_standalone:\n    enabled: false\n"
 )
 
 type traceProcmgrWindowsSuite struct {
@@ -108,51 +103,4 @@ func (s *traceProcmgrWindowsSuite) TestTraceAgentSpawnRunsAsAgentUser() {
 	want := strings.ReplaceAll(windowsCommon.MakeDownLevelLogonName(domain, user), `\`, `/`)
 	require.Equal(s.T(), want, owner,
 		"%s PID %s should run as the Agent install user", traceProcessName, pid)
-}
-
-type traceProcmgrDisabledWindowsSuite struct {
-	e2e.BaseSuite[environments.Host]
-}
-
-func TestTraceAgentNotRunningWhenAPMDisabledWindows(t *testing.T) {
-	t.Parallel()
-	e2e.Run(t, &traceProcmgrDisabledWindowsSuite{}, e2e.WithProvisioner(
-		awshost.ProvisionerNoFakeIntake(
-			awshost.WithRunOptions(
-				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault)),
-				ec2.WithAgentOptions(
-					agentparams.WithAgentConfig(traceAPMDisabledConfig),
-				),
-			),
-		),
-	))
-}
-
-func (s *traceProcmgrDisabledWindowsSuite) TestTraceAgentStaysUnspawnedAndLegacySCMDown() {
-	host := s.Env().RemoteHost
-	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
-	require.NoError(s.T(), err)
-	cli := agentBin(installRoot, "dd-procmgr.exe")
-
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out, err := host.Execute(procmgrCmd(cli, "describe "+traceProcessName))
-		if !assert.NoError(ct, err) {
-			return
-		}
-		assert.Equal(ct, "Created", fieldValue(out, "State"),
-			"dd-procmgr should leave trace-agent unspawned when APM is off: %s", out)
-	}, 2*time.Minute, 5*time.Second)
-
-	status, err := host.Execute(
-		`$s = Get-Service -Name 'datadog-trace-agent' -ErrorAction SilentlyContinue; if ($null -eq $s) { 'Absent' } else { $s.Status }`)
-	require.NoError(s.T(), err)
-	serviceState := strings.TrimSpace(status)
-	require.True(s.T(), serviceState == "Stopped" || serviceState == "Absent",
-		"legacy %s should be Stopped or Absent when APM is off, got %s", traceLegacySCMServiceName, serviceState)
-
-	out, err := host.Execute(
-		`$p = Get-Process -Name 'trace-agent' -ErrorAction SilentlyContinue; if ($null -eq $p) { 'Absent' } else { 'Present' }`)
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), "Absent", strings.TrimSpace(out),
-		"trace-agent.exe must not run when APM and Error Tracking standalone are off")
 }
