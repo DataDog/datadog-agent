@@ -8,8 +8,6 @@ go_library(
         "containers.go",
         "datadog_agent.go",
         "discovery.go",
-        "discovery_nopy.go",
-        "embed_nopy.go",
         "embed_python.go",
         "health_platform.go",
         "helpers.go",
@@ -38,7 +36,6 @@ go_library(
         "test_util_nix.go",
         "test_util_windows.go",
         "util.go",
-        "version_nopy.go",
         "version_python.go",
     ],
     cdeps = select({
@@ -201,9 +198,7 @@ dd_agent_go_test(
         "docker",
         "kubeapiserver",
         "kubelet",
-        "python",
     ]],
-    include_default = False,
     deps = [
         "//pkg/util/cache",
         "@com_github_stretchr_testify//require",
