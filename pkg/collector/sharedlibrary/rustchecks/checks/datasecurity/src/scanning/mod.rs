@@ -72,6 +72,8 @@ fn aggregate_matches(rule_ids: &[String], hits: &[RuleMatch]) -> Result<Vec<Matc
                 .get(rule_index)
                 .cloned()
                 .with_context(|| format!("scanner returned unknown rule index {rule_index}"))?;
+            // TODO(DATASEC-347): include precise sensitive-data locations, including
+            // paths within JSON values and arrays, in the SDS result.
             Ok(Match {
                 rule_id,
                 column_name: column.to_string(),

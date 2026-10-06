@@ -10,8 +10,10 @@ package container
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -520,7 +522,7 @@ func (t *Tailer) wait() {
 // isConnClosedError returns true if the error is related to a closed connection,
 // for more details, see: https://golang.org/src/internal/poll/fd.go#L18.
 func isClosedConnError(err error) bool {
-	return strings.Contains(err.Error(), "use of closed network connection")
+	return errors.Is(err, net.ErrClosed)
 }
 
 // isContextCanceled returns true if the error is related to a canceled context,

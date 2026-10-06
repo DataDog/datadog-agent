@@ -92,7 +92,6 @@ func TestAzureFunctionsRunningMetricTranslation(t *testing.T) {
 					"subscription_id:subscription-1",
 					"resource_group:resource-group-1",
 					"name:function-app-1",
-					"instance:instance-1",
 				}, consumer.tagSetCalls[0].tags)
 				assert.Empty(t, consumer.hosts)
 			})
@@ -108,8 +107,8 @@ func TestAzureFunctionsRunningMetricNotEmittedForIncompleteIdentity(t *testing.T
 				"cloud.platform":            "azure.functions",
 				"cloud.account.id":          "subscription-1",
 				"azure.resource_group.name": "resource-group-1",
-				"service.name":              "function-app-1",
-				"faas.instance":             "",
+				"service.name":              "",
+				"faas.instance":             "instance-1",
 				"host.id":                   "fallback-host",
 			}), consumer, nil)
 			require.NoError(t, err)

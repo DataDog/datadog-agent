@@ -2,6 +2,8 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules:windows_resources.bzl", "win_resource")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 
+package(default_package_metadata = ["//:package_metadata"])
+
 # gazelle:exclude version.h
 
 win_resource(

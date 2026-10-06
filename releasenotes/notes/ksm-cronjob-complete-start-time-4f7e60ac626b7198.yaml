@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The ``kubernetes_state.cronjob.complete`` service check now reports the
+    status of the most recently started Job of a CronJob. Before, it picked
+    the Job with the highest numeric name suffix, so a manually created Job
+    (for example from ``kubectl create job --from=cronjob/...`` or Argo CD)
+    could hide the result of later scheduled runs.

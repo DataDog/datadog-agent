@@ -27,6 +27,10 @@ const (
 	Unknown LockdownMode = "unknown"
 )
 
+// SecurityFSHostRootPath is where securityfs can be reached through the host root mount,
+// when it is not mounted explicitly in the container
+const SecurityFSHostRootPath = "/host/root/sys/kernel/security"
+
 var re = regexp.MustCompile(`\[(.*)\]`)
 
 func getLockdownMode(data string) LockdownMode {
@@ -47,7 +51,9 @@ func getLockdownMode(data string) LockdownMode {
 func GetLockdownMode() LockdownMode {
 	data, err := os.ReadFile(filepath.Join(SysFSRoot(), "kernel/security/lockdown"))
 	if err != nil {
-		return Unknown
+		if data, err = os.ReadFile(filepath.Join(SecurityFSHostRootPath, "lockdown")); err != nil {
+			return Unknown
+		}
 	}
 
 	return getLockdownMode(string(data))

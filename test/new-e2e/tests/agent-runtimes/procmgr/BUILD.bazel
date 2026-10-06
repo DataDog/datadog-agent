@@ -8,6 +8,7 @@ dd_agent_go_test(
         "procmgr_common_test.go",
         "procmgr_nix_test.go",
         "procmgr_win_test.go",
+        "sysprobe_procmgr_win_test.go",
     ],
     tags = ["manual"],
     deps = [

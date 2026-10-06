@@ -62,6 +62,8 @@ func TestHumanFormatProcess(t *testing.T) {
 					OpenFdCount:            200,
 					VoluntaryCtxSwitches:   1234,
 					InvoluntaryCtxSwitches: 55,
+					ZombieChildrenCount:    3,
+					ZombieNetRate:          1.5,
 					IoStat: &model.IOStat{
 						ReadRate:       10.0,
 						WriteRate:      30.0,
@@ -141,6 +143,7 @@ Processes
   Nice: 2
   Open Files: 200
   Context Switches: Voluntary: 1234 Involuntary: 55
+  Zombie Children: 3 Net Rate: 1.50/s
   IO:
     Read:  100 B/s 10 Ops/s
     Write: 200 B/s 30 Ops/s

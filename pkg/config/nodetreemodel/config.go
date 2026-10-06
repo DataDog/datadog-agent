@@ -782,7 +782,9 @@ func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envvar stri
 	if transformer, found := c.envTransform[key]; found {
 		actualValue = transformer(envvar)
 	} else if defaultNode := c.leafAtPathFromNode(key, c.defaults); defaultNode != missingLeaf {
-		if converted, err := basic.ConvertToDefaultType(actualValue, defaultNode.Get(), false); err == nil {
+		if decoded, ok := decodeJSONEnv(envvar, defaultNode.Get()); ok {
+			actualValue = decoded
+		} else if converted, err := basic.ConvertToDefaultType(actualValue, defaultNode.Get(), false); err == nil {
 			actualValue = converted
 		}
 	}
@@ -1376,4 +1378,28 @@ func (c *ntmConfig) GetSequenceID() uint64 {
 	c.RLock()
 	defer c.RUnlock()
 	return c.sequenceID
+}
+
+// decodeJSONEnv decodes a JSON env value for a map- or list-of-maps-typed setting, so it is stored in the
+// same shape as when read from a config file; ok is false when the value isn't JSON of that shape.
+func decodeJSONEnv(envvar string, defaultValue interface{}) (interface{}, bool) {
+	switch defaultValue.(type) {
+	case map[string]interface{}, map[string]string, map[string][]string:
+		var decoded map[string]interface{}
+		if err := json.Unmarshal([]byte(envvar), &decoded); err != nil {
+			return nil, false
+		}
+		converted, err := basic.ConvertToDefaultType(decoded, defaultValue, true)
+		if err != nil {
+			return nil, false
+		}
+		return converted, true
+	case []map[string]interface{}, []map[string]string, []interface{}:
+		var decoded []interface{}
+		if err := json.Unmarshal([]byte(envvar), &decoded); err != nil {
+			return nil, false
+		}
+		return decoded, true
+	}
+	return nil, false
 }

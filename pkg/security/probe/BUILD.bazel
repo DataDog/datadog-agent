@@ -1,12 +1,14 @@
-load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/cws_codegen:defs.bzl", "easyjson")
+load("@rules_go//go:def.bzl", "go_library", "go_source")
+load("//bazel/rules/cws_codegen:defs.bzl", "easyjson", "easyjson_stubs")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:go_split_generated *_easyjson.go
 
 easyjson(
     name = "actions_easyjson",
     src = "actions.go",
     output = "actions_easyjson.go",
-    package = ":probe",
+    package = ":probe_easyjson_stubs",
     package_path = "github.com/DataDog/datadog-agent/pkg/security/probe",
     visibility = ["//pkg/security:__pkg__"],
 )
@@ -16,7 +18,7 @@ easyjson(
     src = "actions_linux.go",
     build_tags = "linux",
     output = "actions_linux_easyjson.go",
-    package = ":probe",
+    package = ":probe_easyjson_stubs",
     package_path = "github.com/DataDog/datadog-agent/pkg/security/probe",
     visibility = ["//pkg/security:__pkg__"],
 )
@@ -26,7 +28,7 @@ easyjson(
     src = "custom_events.go",
     build_tags = "linux",
     output = "custom_events_easyjson.go",
-    package = ":probe",
+    package = ":probe_easyjson_stubs",
     package_path = "github.com/DataDog/datadog-agent/pkg/security/probe",
     visibility = ["//pkg/security:__pkg__"],
 )
@@ -36,22 +38,44 @@ easyjson(
     src = "remediations_linux.go",
     build_tags = "linux",
     output = "remediations_linux_easyjson.go",
-    package = ":probe",
+    package = ":probe_easyjson_stubs",
     package_path = "github.com/DataDog/datadog-agent/pkg/security/probe",
     visibility = ["//pkg/security:__pkg__"],
+)
+
+easyjson_stubs(
+    name = "probe_easyjson_stubs",
+    package_path = "github.com/DataDog/datadog-agent/pkg/security/probe",
+    sources = ":probe_sources",
+    stubs = [
+        ":actions_easyjson_stub",
+        ":actions_linux_easyjson_stub",
+        ":custom_events_easyjson_stub",
+        ":remediations_linux_easyjson_stub",
+    ],
 )
 
 go_library(
     name = "probe",
     srcs = [
-        "actions.go",
         "actions_easyjson.go",
-        "actions_linux.go",
         "actions_linux_easyjson.go",
+        "custom_events_easyjson.go",
+        "remediations_linux_easyjson.go",
+    ],
+    embed = [":probe_sources"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/probe",
+    visibility = ["//visibility:public"],
+)
+
+go_source(
+    name = "probe_sources",
+    srcs = [
+        "actions.go",
+        "actions_linux.go",
         "bpf.go",
         "coredump.go",
         "custom_events.go",
-        "custom_events_easyjson.go",
         "discarders.go",
         "discarders_linux.go",
         "discarders_windows.go",
@@ -87,12 +111,9 @@ go_library(
         "process_killer_others.go",
         "process_killer_windows.go",
         "remediations_linux.go",
-        "remediations_linux_easyjson.go",
         "ssh_user_session.go",
         "stateful_probe_excluder.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/security/probe",
-    visibility = ["//visibility:public"],
     deps = [
         "//pkg/security/events",
         "//pkg/security/secl/compiler/eval",
@@ -384,6 +405,7 @@ go_library(
 dd_agent_go_test(
     name = "probe_test",
     srcs = [
+        "coredump_test.go",
         "discarders_test.go",
         "field_handlers_test.go",
         "fuzz_test.go",
