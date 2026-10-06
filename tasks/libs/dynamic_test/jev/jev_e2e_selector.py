@@ -128,14 +128,18 @@ def select_suite(
 
         try:
             answer = ask_jev(token, state, model=model, dc=dc, source=source)
-            row = {
-                "test": name,
-                **decide(answer["answers"], run_threshold),
-                "usage": answer.get("usage"),
-            }
         except Exception as e:  # fail open: if Jev is unavailable, run the test
             print(f"[warn] Jev call failed for {name}: {e} -> defaulting to RUN")
             return {"test": name, **fail_open(e)}
+        try:
+            row = {
+                "test": name,
+                **decide(answer.get("answers") or {}, run_threshold),
+                "usage": answer.get("usage"),
+            }
+        except ValueError as e:  # fail open: an answer we cannot interpret
+            print(f"[warn] Invalid Jev answer for {name}: {e} -> defaulting to RUN")
+            return {"test": name, **fail_open(e), "answers": answer.get("answers")}
         print(
             f"[jev] {name:<45} -> {row['decision'].upper():4}  should_execute={row['should_execute']:.2f}  "
             f"relation={row['relation']}  confidence={row['confidence']:.2f}"

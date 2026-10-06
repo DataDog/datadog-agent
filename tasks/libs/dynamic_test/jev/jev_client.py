@@ -153,21 +153,32 @@ def decide(answers: dict, run_threshold: float = DEFAULT_RUN_THRESHOLD) -> dict:
       - its relation to the PR is not "unrelated" (code, infra or packaging link)
       - its should_execute score is at least run_threshold
     otherwise it is skipped. Any error in the pipeline fails open to run
-    (see fail_open).
+    (see fail_open). Validation errors name the offending field, the value
+    received and the full raw answers, so bad model output is diagnosable
+    from the log alone.
     """
-    should = answers["should_execute"]["noul"]
-    relation = answers["relation"]["choice"]
-    confidence = answers["confidence"]["score"]
-    for value in (should, confidence):
+    try:
+        should = answers["should_execute"]["noul"]
+        relation = answers["relation"]["choice"]
+        confidence = answers["confidence"]["score"]
+    except (KeyError, TypeError) as e:
+        raise ValueError(f"Jev answer is missing or malformed ({e!r}); answers: {json.dumps(answers)}") from e
+    for field, value in (("should_execute", should), ("confidence", confidence)):
         if (
             isinstance(value, bool)
             or not isinstance(value, int | float)
             or not math.isfinite(value)
             or not 0 <= value <= 1
         ):
-            raise ValueError("Jev scores must be finite numbers between 0 and 1")
+            raise ValueError(
+                f"Jev returned an invalid {field} score: {value!r} "
+                f"(expected a finite number between 0 and 1); answers: {json.dumps(answers)}"
+            )
     if relation not in QUESTIONS["relation"]["criteria"]:
-        raise ValueError(f"Unknown Jev relation: {relation}")
+        raise ValueError(
+            f"Jev returned an unknown relation: {relation!r} "
+            f"(expected one of {sorted(QUESTIONS['relation']['criteria'])}); answers: {json.dumps(answers)}"
+        )
     decision = "run" if should >= run_threshold and relation != "unrelated" else "skip"
     return {
         "should_execute": should,

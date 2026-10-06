@@ -1,4 +1,5 @@
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -24,11 +25,17 @@ class JevToolsTests(unittest.TestCase):
 
     def test_invalid_model_scores_and_relations(self):
         for value in (float("nan"), float("inf"), None, True, "0.1", -1, 2):
-            with self.subTest(value=value), self.assertRaises(ValueError):
+            with (
+                self.subTest(value=value),
+                # The error names the offending field and carries the raw value
+                self.assertRaisesRegex(ValueError, rf"invalid should_execute score: {re.escape(repr(value))}"),
+            ):
                 decide(answers(should=value))
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "invalid confidence score: 2"):
+            decide(answers(confidence=2))
+        with self.assertRaisesRegex(ValueError, "unknown relation: 'typo'"):
             decide(answers(relation="typo"))
-        with self.assertRaises(KeyError):
+        with self.assertRaisesRegex(ValueError, "missing or malformed"):
             decide({})
 
     @patch("tasks.libs.dynamic_test.jev.jev_client.subprocess.run")
