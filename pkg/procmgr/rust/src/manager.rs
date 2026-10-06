@@ -539,6 +539,8 @@ struct StartupOrderResult {
 
 /// After a start pass, never-spawned rows that were declined (or excluded for
 /// a dependency cycle) rest in `Skipped` with every applying reason label.
+/// Terminal rows that a closed condition already stranded keep their state,
+/// but the labels are rebuilt so a later reload cannot leave a stale reason.
 fn finalize_start_holds(procs: &mut [ManagedProcess], order: &[usize]) {
     let in_order: HashSet<usize> = order.iter().copied().collect();
     for (idx, proc) in procs.iter_mut().enumerate() {
@@ -551,6 +553,14 @@ fn finalize_start_holds(procs: &mut [ManagedProcess], order: &[usize]) {
         match proc.state() {
             ProcessState::Created | ProcessState::Skipped => {
                 if cycle || !proc.start_pass_would_spawn() {
+                    proc.apply_start_hold(extra);
+                }
+            }
+            ProcessState::Exited
+            | ProcessState::Crashed
+            | ProcessState::Failed
+            | ProcessState::Stopped => {
+                if proc.restart_blocked_by_conditions() {
                     proc.apply_start_hold(extra);
                 }
             }
@@ -1577,6 +1587,51 @@ mod tests {
             );
 
             cleanup_first_process(&mgr).await;
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_reload_refreshes_skip_reasons_on_stranded_process() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let config_loader = Arc::new(MutableConfigLoader::new(vec![
+                gated_on_failure_sleep_def("gated-svc", &yaml),
+            ]));
+            let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+            let (restart_tx, mut restart_rx) = mpsc::channel::<String>(8);
+
+            mgr.start(&exit_tx).await;
+            write_agent_yaml(dir.path(), false);
+            crash(&mgr, "gated-svc", &restart_tx).await;
+            assert!(restart_rx.try_recv().is_err());
+            assert_stranded_by_gate(&mgr, ProcessState::Failed).await;
+            assert_eq!(
+                mgr.processes().await[0].skip_reasons(),
+                &[ManagedProcess::SKIP_REASON_CONFIG_GATE.to_string()]
+            );
+
+            // The gate opens, but the process YAML now requires a missing path.
+            // Reload must not respawn, and must not keep reporting config_gate.
+            write_agent_yaml(dir.path(), true);
+            let mut next = gated_on_failure_sleep_def("gated-svc", &yaml);
+            next.config.condition_config_any.clear();
+            next.config.condition_path_exists =
+                Some("/nonexistent/path/that/should/not/exist".to_string());
+            config_loader.set(vec![next]);
+            let result = mgr.handle_reload_config(&exit_tx).await?;
+
+            assert!(result.modified.contains(&"gated-svc".to_string()));
+            let procs = mgr.processes().await;
+            assert_eq!(procs[0].state(), ProcessState::Failed);
+            assert!(
+                !procs[0].is_running(),
+                "a missing path must still decline the recovered spawn"
+            );
+            assert_eq!(
+                procs[0].skip_reasons(),
+                &[ManagedProcess::SKIP_REASON_PATH_MISSING.to_string()]
+            );
             Ok(())
         }
 
