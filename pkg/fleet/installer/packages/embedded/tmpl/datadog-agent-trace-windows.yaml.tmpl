@@ -3,9 +3,10 @@ command: '{{.InstallDir}}/bin/agent/trace-agent.exe'
 args:
   - --config
   - '{{.EtcDir}}/datadog.yaml'
-# The core Agent still starts datadog-trace-agent through the SCM. Until that service is
-# suppressed, auto_start here would run two trace-agents.
-auto_start: false
+# dd-procmgr is the only supervisor for trace-agent on Windows: whenever this file exists
+# and process_manager.enabled is set, the core Agent skips the legacy datadog-trace-agent
+# service. Setting this back to false would leave trace-agent unsupervised entirely.
+auto_start: true
 condition_path_exists: '{{.InstallDir}}/bin/agent/trace-agent.exe'
 # Transcribes the apm Servicedef (apm_config.enabled) and closes the IsAPMEnabled gap
 # (error_tracking_standalone) that the Windows SCM start path does not have.

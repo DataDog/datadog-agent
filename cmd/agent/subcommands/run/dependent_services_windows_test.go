@@ -268,8 +268,17 @@ func TestServicedefNeedsProcmgrStartupGate(t *testing.T) {
 
 	t.Run("false without definition file field", func(t *testing.T) {
 		cfg.Set("process_manager.enabled", true, model.SourceDefault)
-		apmSvc := Servicedef{name: "apm"}
-		assert.False(t, apmSvc.needsProcmgrStartupGate(cfg))
+		ungated := Servicedef{name: "cws"}
+		assert.False(t, ungated.needsProcmgrStartupGate(cfg))
+	})
+
+	t.Run("true for apm when process manager enabled", func(t *testing.T) {
+		cfg.Set("process_manager.enabled", true, model.SourceDefault)
+		apmSvc := Servicedef{
+			name:                  "apm",
+			procmgrDefinitionFile: traceProcmgrDefinitionFile,
+		}
+		assert.True(t, apmSvc.needsProcmgrStartupGate(cfg))
 	})
 
 	t.Run("false when process manager disabled", func(t *testing.T) {

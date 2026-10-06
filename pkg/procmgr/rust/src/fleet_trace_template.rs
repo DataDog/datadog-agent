@@ -10,7 +10,7 @@
 
 use crate::config::ProcessConfig;
 use crate::config_gate::{condition_config_any_met, gated_key_names, test_env_guard};
-use crate::fleet_template_support::{INSTALL_DIR, scm_service_keys};
+use crate::fleet_template_support::{scm_service_keys, INSTALL_DIR};
 use std::path::Path;
 
 /// Catalog name of the shipped entry, from `datadog-agent-trace.yaml` in `processes.d`.
@@ -53,9 +53,8 @@ fn fleet_trace_template_declares_legacy_scm_gate() {
         ]
     );
     assert!(
-        !config.auto_start,
-        "the core Agent still starts datadog-trace-agent through the SCM; auto_start here \
-         would run two trace-agents"
+        config.auto_start,
+        "the Agent suppresses the legacy SCM service whenever this entry is installed"
     );
 
     let (core_keys, sysprobe_keys) = scm_service_keys("apm");
