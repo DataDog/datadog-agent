@@ -388,37 +388,72 @@ impl ProcessManager {
         }
 
         // A previously valid file that no longer parses: stop the child, then
-        // keep the name as InvalidConfig instead of treating it as removed.
+        // keep the name as InvalidConfig instead of treating it as removed. A
+        // live child holds on to its `ManagedProcess` until the stop below
+        // finishes, so reads taken meanwhile report `Stopping` with its real pid
+        // rather than a pid-0 InvalidConfig row for a workload still up.
+        let mut stopping_to_invalid: Vec<(String, InvalidConfigEntry)> = Vec::new();
         {
             let mut procs = self.processes.write().await;
             let mut invalid = self.invalid.write().await;
             let mut i = 0;
             while i < procs.len() {
-                if procs[i].origin() == ProcessOrigin::Config
-                    && incoming_invalid.contains_key(procs[i].name())
+                if procs[i].origin() != ProcessOrigin::Config
+                    || !incoming_invalid.contains_key(procs[i].name())
                 {
-                    let mut proc = procs.remove(i);
-                    let name = proc.name().to_owned();
-                    info!("[{name}] config is no longer valid, stopping");
-                    if proc.is_running() {
-                        proc.request_stop();
-                    }
-                    stopped_procs.push(proc);
-                    let entry = incoming_invalid
-                        .get(&name)
-                        .cloned()
-                        .expect("name was present");
-                    invalid.retain(|e| e.name != name);
-                    invalid.push(InvalidProcess::from_entry(entry, self.uuid_gen.generate()));
-                    valid_to_invalid.push(name);
-                } else {
                     i += 1;
+                    continue;
                 }
+                let name = procs[i].name().to_owned();
+                let entry = incoming_invalid
+                    .get(&name)
+                    .cloned()
+                    .expect("name was present");
+                info!("[{name}] config is no longer valid, stopping");
+                if procs[i].is_running() {
+                    procs[i].request_stop();
+                    stopping_to_invalid.push((name.clone(), entry));
+                    valid_to_invalid.push(name);
+                    i += 1;
+                    continue;
+                }
+                // Nothing to wait for, so the name can change hands right here.
+                let proc = procs.remove(i);
+                invalid.retain(|e| e.name != name);
+                invalid.push(InvalidProcess::from_entry(entry, proc.uuid().to_owned()));
+                valid_to_invalid.push(name);
             }
         }
 
         for proc in &mut stopped_procs {
             proc.wait_for_stop().await;
+        }
+
+        // The stub takes over the name once the child is down, keeping the uuid
+        // so clients holding it can still describe the row. The lock goes back
+        // between each one for the same reason as in `handle_stop`: reads must
+        // not queue behind the wait.
+        for (name, entry) in stopping_to_invalid {
+            let wait = {
+                let mut procs = self.processes.write().await;
+                procs
+                    .iter_mut()
+                    .find(|p| p.name() == name)
+                    .and_then(|proc| proc.take_stop_wait())
+            };
+            if let Some(wait) = wait {
+                wait.run().await;
+            }
+
+            let mut procs = self.processes.write().await;
+            let mut invalid = self.invalid.write().await;
+            let Some(idx) = procs.iter().position(|p| p.name() == name) else {
+                continue;
+            };
+            let mut proc = procs.remove(idx);
+            proc.finish_stop();
+            invalid.retain(|e| e.name != name);
+            invalid.push(InvalidProcess::from_entry(entry, proc.uuid().to_owned()));
         }
 
         let mut added = Vec::new();
@@ -1084,7 +1119,7 @@ mod tests {
             },
         }]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        assert_eq!(mgr.processes().await.len(), 1);
+        let uuid = mgr.processes().await[0].uuid().to_owned();
         config_loader.set_catalog(LoadedCatalog {
             processes: vec![],
             invalid: vec![InvalidConfigEntry {
@@ -1097,7 +1132,80 @@ mod tests {
         let result = mgr.handle_reload_config(&exit_tx).await?;
         assert_eq!(result.modified, vec!["svc-a".to_string()]);
         assert!(mgr.processes().await.is_empty());
-        assert_eq!(mgr.invalid_configs().await[0].name, "svc-a");
+        let invalid = mgr.invalid_configs().await;
+        assert_eq!(invalid[0].name, "svc-a");
+        assert_eq!(
+            invalid[0].uuid, uuid,
+            "a uuid a client already holds must keep resolving across the transition"
+        );
+        Ok(())
+    }
+
+    /// The stub must not take over the name while the child is still shutting
+    /// down: consumers read InvalidConfig as "nothing is running under it", so
+    /// publishing it early reports a live workload as gone.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_reload_to_invalid_publishes_only_once_the_child_is_down() -> anyhow::Result<()> {
+        use std::time::{Duration, Instant};
+
+        let dir = tempfile::tempdir()?;
+        let ready = dir.path().join("ready");
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![ignores_stop_def(
+            "svc", 60, &ready,
+        )]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.handle_start("svc", &exit_tx).await?;
+        let (pid, uuid) = {
+            let procs = mgr.processes().await;
+            (
+                procs[0].pid().expect("spawned pid"),
+                procs[0].uuid().to_owned(),
+            )
+        };
+        test_helpers::wait_for_file(&ready, Duration::from_secs(10)).await;
+
+        config_loader.set_catalog(LoadedCatalog {
+            processes: vec![],
+            invalid: vec![InvalidConfigEntry {
+                name: "svc".to_string(),
+                path: PathBuf::from("/tmp/svc.yaml"),
+                error: "parse failed".to_string(),
+            }],
+        });
+        let reloading = tokio::spawn({
+            let mgr = mgr.clone();
+            let exit_tx = exit_tx.clone();
+            async move { mgr.handle_reload_config(&exit_tx).await }
+        });
+
+        // The child ignores its graceful stop, so the reload sits in the stop
+        // wait long enough to read the state it publishes meanwhile.
+        let started = Instant::now();
+        loop {
+            let procs = tokio::time::timeout(Duration::from_secs(5), mgr.processes())
+                .await
+                .map_err(|_| anyhow::anyhow!("a read queued behind an in-flight reload"))?;
+            if procs[0].state() == ProcessState::Stopping {
+                assert_eq!(procs[0].uuid(), uuid);
+                assert!(
+                    mgr.invalid_configs().await.is_empty(),
+                    "InvalidConfig must wait for the child it replaces"
+                );
+                break;
+            }
+            assert!(
+                started.elapsed() < Duration::from_secs(10),
+                "a read taken mid-reload should report Stopping, got {}",
+                procs[0].state()
+            );
+            drop(procs);
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        reloading.abort();
+        test_helpers::cleanup_process(pid);
         Ok(())
     }
 
