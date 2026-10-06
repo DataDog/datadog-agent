@@ -1,7 +1,4 @@
-import json
-import subprocess
 import unittest
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
@@ -19,37 +16,26 @@ SHA = "a" * 40
 
 
 class JevSelectionTests(unittest.TestCase):
-    @patch(f"{MODULE}.subprocess.run")
-    def test_selector_uses_current_interpreter_and_module(self, run):
-        def write_output(cmd, **kwargs):
-            Path(cmd[cmd.index("--output") + 1]).write_text(json.dumps({"run": ["TestA"], "skip": []}))
-            return SimpleNamespace(returncode=0)
-
-        run.side_effect = write_output
+    @patch(f"{MODULE}.select_suite")
+    def test_selector_runs_in_process_with_overrides(self, select):
+        select.return_value = {"run": ["TestA"], "skip": [], "decisions": []}
         with patch.dict("os.environ", {"JEV_DC": "us1.ddbuild.io", "JEV_TOKEN_CMD": "custom-token"}):
-            self.assertEqual(jev_selection("installer")["run"], ["TestA"])
-        cmd = run.call_args.args[0]
-        self.assertEqual(cmd[:3], [__import__("sys").executable, "-m", "tasks.libs.dynamic_test.jev.jev_e2e_selector"])
-        self.assertIn("installer", cmd)
-        self.assertIn("custom-token", cmd)
+            self.assertEqual(jev_selection("installer"), select.return_value)
+        # In-process call, no interpreter/module/output-file arguments
+        self.assertEqual(select.call_args.args, ("installer",))
+        self.assertEqual(select.call_args.kwargs, {"dc": "us1.ddbuild.io", "token_cmd": "custom-token"})
 
-    @patch(f"{MODULE}.subprocess.run")
-    def test_selector_failures_return_no_skip_decisions(self, run):
-        for error in (OSError("missing interpreter"), subprocess.TimeoutExpired("selector", 1)):
-            run.side_effect = error
+    @patch(f"{MODULE}.select_suite")
+    def test_selector_failures_return_no_skip_decisions(self, select):
+        for error in (RuntimeError("gateway unreachable"), TimeoutError("request timed out"), ValueError("bad args")):
+            select.side_effect = error
             self.assertEqual(jev_selection("fleet"), {})
-        run.side_effect = None
-        run.return_value = SimpleNamespace(returncode=1, stderr="selector error")
-        self.assertEqual(jev_selection("fleet"), {})
 
-    @patch(f"{MODULE}.subprocess.run")
-    def test_invalid_selector_summary(self, run):
-        def write_output(cmd, **kwargs):
-            Path(cmd[cmd.index("--output") + 1]).write_text('{"skip": "TestA"}')
-            return SimpleNamespace(returncode=0)
-
-        run.side_effect = write_output
-        self.assertEqual(jev_selection("fleet"), {})
+    @patch(f"{MODULE}.select_suite")
+    def test_invalid_selector_summary(self, select):
+        for summary in ({"skip": "TestA"}, {"run": ["TestA"], "skip": [], "decisions": "nope"}, None):
+            select.return_value = summary
+            self.assertEqual(jev_selection("fleet"), {})
 
 
 class JevDynTestExecutorTests(unittest.TestCase):

@@ -12,17 +12,14 @@ conservatively.
 
 from __future__ import annotations
 
-import json
 import os
-import subprocess
-import sys
-import tempfile
 from pathlib import Path
 
 from tasks.libs.ciproviders.gitlab_api import get_pipeline
 from tasks.libs.dynamic_test.evaluator import DatadogDynTestEvaluator, EvaluationResult
 from tasks.libs.dynamic_test.executor import DynTestExecutor
 from tasks.libs.dynamic_test.index import IndexKind
+from tasks.libs.dynamic_test.jev.jev_e2e_selector import select_suite
 from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suites
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -33,44 +30,32 @@ class NothingToEvaluateError(RuntimeError):
 
 
 def jev_selection(suite: str) -> dict:
-    """Run the selector for a relative E2E suite path; return {} on failure."""
-    with tempfile.TemporaryDirectory(prefix="jev-selection-") as tmp:
-        output = Path(tmp) / "decisions.json"
-        cmd = [
-            sys.executable,
-            "-m",
-            "tasks.libs.dynamic_test.jev.jev_e2e_selector",
-            "--suite",
+    """Run the Jev selector for a suite in-process; return {} on any failure.
+
+    Jev calls run concurrently inside the selector, with a per-request timeout.
+    Any failure fails open to run all the suite's tests.
+    """
+    try:
+        summary = select_suite(
             suite,
-            "--output",
-            str(output),
-            "--dc",
-            os.environ.get("JEV_DC", "us1.ddbuild.io"),
-        ]
-        if token_cmd := os.environ.get("JEV_TOKEN_CMD"):
-            cmd += ["--token-cmd", token_cmd]
-        try:
-            # Calls run concurrently in the selector, with a per-request timeout.
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, cwd=_REPO_ROOT)
-            if result.returncode:
-                raise RuntimeError(result.stderr.strip()[-500:] or "selector failed with no output")
-            with output.open() as f:
-                summary = json.load(f)
-            if not isinstance(summary, dict) or not all(
-                isinstance(summary.get(key), list) and all(isinstance(name, str) for name in summary[key])
-                for key in ("run", "skip")
-            ):
-                raise ValueError("invalid selector summary")
-            decisions = summary.get("decisions", [])
-            if not isinstance(decisions, list) or not all(isinstance(row, dict) for row in decisions):
-                raise ValueError("invalid selector decisions")
-            errors = [row["error"] for row in decisions if "error" in row]
-            if errors:
-                print(f"[jev] {suite}: {len(errors)} decisions failed open; first error: {errors[0]}")
-            return summary
-        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as e:
-            print(f"[jev] selection failed for {suite}, running all its tests: {e}")
-            return {}
+            dc=os.environ.get("JEV_DC", "us1.ddbuild.io"),
+            token_cmd=os.environ.get("JEV_TOKEN_CMD"),
+        )
+        if not isinstance(summary, dict) or not all(
+            isinstance(summary.get(key), list) and all(isinstance(name, str) for name in summary[key])
+            for key in ("run", "skip")
+        ):
+            raise ValueError("invalid selector summary")
+        decisions = summary.get("decisions", [])
+        if not isinstance(decisions, list) or not all(isinstance(row, dict) for row in decisions):
+            raise ValueError("invalid selector decisions")
+        errors = [row["error"] for row in decisions if "error" in row]
+        if errors:
+            print(f"[jev] {suite}: {len(errors)} decisions failed open; first error: {errors[0]}")
+        return summary
+    except Exception as e:
+        print(f"[jev] selection failed for {suite}, running all its tests: {e}")
+        return {}
 
 
 def suite_entry_points() -> dict[str, set[str]]:
