@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "http",
     srcs = [
+        "blocking_destination.go",
         "destination.go",
         "sync_destination.go",
         "test_utils.go",
@@ -31,6 +32,7 @@ go_library(
 dd_agent_go_test(
     name = "http_test",
     srcs = [
+        "blocking_destination_test.go",
         "destination_test.go",
         "worker_pool_test.go",
     ],
