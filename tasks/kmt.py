@@ -1051,32 +1051,6 @@ def build_run_config(run: str | None, packages: list[str]):
     return c
 
 
-def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: list[str]) -> dict[str, set[str]]:
-    dd_pkg_name = "github.com/DataDog/datadog-agent/"
-    pkg_deps: dict[str, set[str]] = defaultdict(set)
-    if not packages:
-        return pkg_deps
-
-    packages_list = " ".join(packages)
-    list_format = "{{ .ImportPath }}: {{ join .Deps \" \" }}"
-    res = ctx.run(
-        f"go list -buildvcs=false -test -f '{list_format}' -tags \"{','.join(build_tags)}\" {packages_list}", hide=True
-    )
-    if res is None or not res.ok:
-        raise Exit("Failed to get dependencies for system-probe")
-
-    for line in res.stdout.split("\n"):
-        if ":" not in line:
-            continue
-        pkg, deps = line.split(":", 1)
-        deps = [d.strip() for d in deps.split(" ")]
-        dd_deps = [d[len(dd_pkg_name) :] for d in deps if d.startswith(dd_pkg_name)]
-        pkg = pkg.split(" ")[0].removeprefix(dd_pkg_name).removesuffix(".test")
-        pkg_deps[pkg].update(dd_deps)
-
-    return pkg_deps
-
-
 def build_target_packages(filter_packages: list[str], build_tags: list[str]):
     all_packages = go_package_dirs(TEST_PACKAGES_LIST, build_tags)
     if not filter_packages:
@@ -1092,6 +1066,38 @@ def build_object_files(ctx, arch: Arch):
     runtime_dir = get_ebpf_runtime_dir()
     bazel_build_ebpf(ctx, arch, str(build_dir), str(runtime_dir), strip=False)
     bazel("test", *ebpf_bazel_flags(arch), "--build_tests_only", "//pkg/ebpf:verify_generated_files")
+
+
+def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: list[str]) -> dict[str, set[str]]:
+    dd_pkg_name = "github.com/DataDog/datadog-agent/"
+    pkg_deps: dict[str, set[str]] = defaultdict(set)
+
+    packages_list = " ".join(packages)
+    list_format = "{{ .ImportPath }}: {{ join .Deps \" \" }}"
+    res = ctx.run(
+        f"go list -buildvcs=false -test -f '{list_format}' -tags \"{','.join(build_tags)}\" {packages_list}", hide=True
+    )
+    if res is None or not res.ok:
+        raise Exit("Failed to get dependencies for system-probe")
+
+    for line in res.stdout.split("\n"):
+        if ":" not in line:
+            continue
+
+        pkg, deps = line.split(":", 1)
+        deps = [d.strip() for d in deps.split(" ")]
+        dd_deps = [d[len(dd_pkg_name) :] for d in deps if d.startswith(dd_pkg_name)]
+
+        # The import path printed by "go list" is usually path/to/pkg  (e.g., pkg/ebpf/verifier).
+        # However, for test packages it might be either:
+        # - path/to/pkg.test
+        # - path/to/pkg [path/to/pkg.test]
+        # In any case all variants refer to the same variant. This code controls for that
+        # so that we keep the usual package name.
+        pkg = pkg.split(" ")[0].removeprefix(dd_pkg_name).removesuffix(".test")
+        pkg_deps[pkg].update(dd_deps)
+
+    return pkg_deps
 
 
 @task
