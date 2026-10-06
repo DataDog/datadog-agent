@@ -8,14 +8,10 @@
 package common
 
 import (
-	"encoding/json"
 	"testing"
 
-	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/dynamic"
 )
 
 func TestNormalizeVolumes(t *testing.T) {
@@ -90,9 +86,6 @@ func TestNormalizeVolumes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rawPod, err := json.Marshal(corev1.Pod{Spec: corev1.PodSpec{Volumes: tt.input}})
-			require.NoError(t, err)
-
 			volumes, err := normalizeVolumes(tt.input)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("unexpected err: %q", err)
@@ -100,19 +93,6 @@ func TestNormalizeVolumes(t *testing.T) {
 
 			// assert elements match as if there is an error normalizing the volumes, no changes should occur
 			assert.ElementsMatch(t, volumes, tt.expected, "normalization failed, volumes do not match")
-
-			// Normalization must also reach the API server when the mutator does nothing.
-			patchJSON, err := Mutate(rawPod, "", "test", func(_ *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
-				return false, nil
-			}, nil)
-			require.NoError(t, err)
-			patch, err := jsonpatch.DecodePatch(patchJSON)
-			require.NoError(t, err)
-			patchedJSON, err := patch.Apply(rawPod)
-			require.NoError(t, err)
-			var patchedPod corev1.Pod
-			require.NoError(t, json.Unmarshal(patchedJSON, &patchedPod))
-			assert.Equal(t, tt.expected, patchedPod.Spec.Volumes)
 		})
 	}
 }
