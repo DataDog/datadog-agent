@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
@@ -1072,6 +1073,87 @@ func TestUpdateFromOpsAnnotations(t *testing.T) {
 	}
 }
 
+func TestUpdateFromOpsAnnotationsForceReplicas(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    string
+		expected *int32
+	}{
+		{name: "positive integer", value: "28", expected: pointer.Ptr[int32](28)},
+		{name: "one", value: "1", expected: pointer.Ptr[int32](1)},
+		// Scaling to zero is not something the autoscaler does, so "0" is a mistake rather
+		// than a way to stop a workload.
+		{name: "zero is invalid", value: "0"},
+		{name: "negative is invalid", value: "-3"},
+		{name: "non-numeric is invalid", value: "lots"},
+		{name: "float is invalid", value: "2.5"},
+		{name: "empty is unset", value: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pai := PodAutoscalerInternal{}
+			pai.UpdateFromOpsAnnotations(map[string]string{ForceReplicasAnnotationKey: tt.value})
+
+			replicas, forced := pai.ForcedReplicas()
+			if tt.expected == nil {
+				assert.False(t, forced, "value %q must be ignored", tt.value)
+				return
+			}
+			assert.True(t, forced)
+			assert.Equal(t, *tt.expected, replicas)
+		})
+	}
+}
+
+// TestSetActiveScalingValuesForcedReplicas verifies that the pinned count does not replace the
+// active scaling values: the recommendations keep being tracked, in the status and in the history
+// used by the stabilization windows, so that they are used again as soon as the annotation is removed.
+func TestSetActiveScalingValuesForcedReplicas(t *testing.T) {
+	currentTime := time.Now()
+
+	pai := PodAutoscalerInternal{}
+	pai.UpdateFromOpsAnnotations(map[string]string{ForceReplicasAnnotationKey: "28"})
+	pai.UpdateFromMainValues(ScalingValues{
+		Horizontal: &HorizontalScalingValues{
+			Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+			Timestamp: currentTime,
+			Replicas:  5,
+		},
+	}, 1)
+
+	pai.SetActiveScalingValues(currentTime, pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource), nil)
+
+	require.NotNil(t, pai.ScalingValues().Horizontal)
+	assert.Equal(t, int32(5), pai.ScalingValues().Horizontal.Replicas)
+	require.Len(t, pai.HorizontalLastRecommendations(), 1)
+	assert.Equal(t, int32(5), pai.HorizontalLastRecommendations()[0].Replicas)
+
+	status := pai.BuildStatus(metav1.NewTime(currentTime), nil)
+	require.NotNil(t, status.Horizontal)
+	assert.Equal(t, int32(5), status.Horizontal.Target.Replicas, "the status target is the recommendation, the pin is in the HorizontalScalingLimited condition")
+}
+
+// TestParseForceReplicasAnnotation checks that only a positive integer pins a replica count: any other
+// value is ignored, as if the annotation were absent.
+func TestParseForceReplicasAnnotation(t *testing.T) {
+	for _, tt := range []struct {
+		value    string
+		expected *int32
+	}{
+		{value: "", expected: nil},
+		{value: "28", expected: pointer.Ptr[int32](28)},
+		{value: "abc", expected: nil},
+		{value: "0", expected: nil},
+		{value: "-3", expected: nil},
+		{value: "28 ", expected: nil},
+	} {
+		t.Run(tt.value, func(t *testing.T) {
+			assert.Equal(t, tt.expected, parseForceReplicasAnnotation(tt.value))
+		})
+	}
+}
+
 // TestUpdateFromOpsAnnotationsClearedOnRemoval verifies that removing the annotations resumes the
 // autoscaler, i.e. that the parsed state is not sticky.
 func TestUpdateFromOpsAnnotationsClearedOnRemoval(t *testing.T) {
@@ -1209,4 +1291,45 @@ func BenchmarkUpdateFromPodAutoscaler(b *testing.B) {
 	for b.Loop() {
 		pai.UpdateFromPodAutoscaler(dpa)
 	}
+}
+
+func TestParseForceResourcesAnnotation(t *testing.T) {
+	forced := parseForceResourcesAnnotation(`[{"name": "app", "requests": {"cpu": "2", "memory": "200Mi"}, "limits": {"cpu": "4"}}, {"name": "sidecar", "limits": {"memory": "1Gi"}}]`)
+	require.Len(t, forced, 2)
+	app, sidecar := forced[0], forced[1]
+	assert.Equal(t, "app", app.Name, "the annotation order is kept")
+	assert.Equal(t, "sidecar", sidecar.Name)
+	assert.True(t, app.Requests[corev1.ResourceCPU].Equal(resource.MustParse("2")))
+	assert.True(t, app.Limits[corev1.ResourceCPU].Equal(resource.MustParse("4")))
+	assert.True(t, app.Requests[corev1.ResourceMemory].Equal(resource.MustParse("200Mi")))
+	assert.NotContains(t, app.Limits, corev1.ResourceMemory, "a limit that is not set is not forced")
+	assert.NotContains(t, sidecar.Requests, corev1.ResourceMemory)
+
+	// The values are checked when merged on the recommendation; only a value that is not a list of
+	// container resources is ignored here.
+	for name, value := range map[string]string{
+		"absent":           ``,
+		"empty list":       `[]`,
+		"bad JSON":         `[{"name": `,
+		"object, not list": `{"app": {"cpu": {"request": "1"}}}`,
+		"invalid quantity": `[{"name": "app", "requests": {"memory": "200Mb"}}]`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Nil(t, parseForceResourcesAnnotation(value))
+		})
+	}
+}
+
+// TestUpdateFromOpsAnnotationsForcedResources checks that an invalid force-resources annotation is
+// ignored, as if it were absent.
+func TestUpdateFromOpsAnnotationsForcedResources(t *testing.T) {
+	pai := PodAutoscalerInternal{}
+	pai.UpdateFromOpsAnnotations(map[string]string{ForceResourcesAnnotationKey: `[{"name": "app", "requests": {"cpu": "2"}}]`})
+	require.Len(t, pai.ForcedResources(), 1)
+
+	pai.UpdateFromOpsAnnotations(map[string]string{ForceResourcesAnnotationKey: `[{"name": "app", "requests": {"memory": "200Mb"}}]`})
+	assert.Nil(t, pai.ForcedResources())
+
+	pai.UpdateFromOpsAnnotations(nil)
+	assert.Nil(t, pai.ForcedResources())
 }

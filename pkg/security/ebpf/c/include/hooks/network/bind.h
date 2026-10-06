@@ -28,19 +28,19 @@ HOOK_SYSCALL_ENTRY3(bind, int, socket, struct sockaddr *, addr, unsigned int, ad
 }
 
 int __attribute__((always_inline)) sys_bind_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_BIND);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_BIND);
     if (!syscall) {
         return 0;
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
+        goto pop_and_exit;
     }
 
     /* pre-fill the event */
     struct bind_event_t *event = SPAN_FILL_EVENT(struct bind_event_t, EVENT_BIND);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->addr[0] = syscall->bind.addr[0];
@@ -55,6 +55,9 @@ int __attribute__((always_inline)) sys_bind_ret_impl(void *ctx, int retval, enum
     } else {
         entry = fill_process_context(&event->process);
     }
+
+    pop_syscall(EVENT_BIND);
+
     fill_cgroup_context(entry, &event->cgroup);
 
     // v1: check if this PID is traced by an activity dump
@@ -66,6 +69,9 @@ int __attribute__((always_inline)) sys_bind_ret_impl(void *ctx, int retval, enum
     }
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_BIND);
     return 0;
 }
 

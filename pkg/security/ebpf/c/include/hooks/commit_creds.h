@@ -16,22 +16,25 @@ int __attribute__((always_inline)) credentials_update(void *ctx, u64 type) {
 }
 
 int __attribute__((always_inline)) credentials_update_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall_with(credentials_predicate);
+    struct syscall_cache_t *syscall = peek_syscall_with(credentials_predicate);
     if (!syscall) {
         return 0;
     }
 
     if (retval < 0) {
-        return 0;
+        goto pop_and_exit;
     }
 
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
     if (!pid_entry) {
-        return 0;
+        goto pop_and_exit;
     }
 
-    switch (syscall->type) {
+    u64 type = syscall->type;
+    pop_syscall_with(credentials_predicate);
+
+    switch (type) {
     case EVENT_SETUID: {
         struct setuid_event_t *event = SPAN_FILL_EVENT(struct setuid_event_t, EVENT_SETUID);
         if (!event) {
@@ -75,6 +78,8 @@ int __attribute__((always_inline)) credentials_update_ret_impl(void *ctx, int re
     }
     }
 
+pop_and_exit:
+    pop_syscall_with(credentials_predicate);
     return 0;
 }
 

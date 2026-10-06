@@ -295,7 +295,6 @@ AIX_EXCLUDED_TAGS = set([
     "cri",
     "crio",
     "docker",
-    "etcd",
     "fargateprocess",
     "jetson",
     "jmx",

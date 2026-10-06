@@ -38,7 +38,11 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *p
         //     before sending the event to userspace
         //   - because the "real" thread leader will be terminated during this exec syscall, we also need to make sure to not send
         //     the corresponding exit event
-        bpf_map_update_elem(&exec_pid_transfer, &tgid, &pid_tgid, BPF_ANY);
+        struct exec_pid_transfer_t transfer = {
+            .pid_tgid = pid_tgid,
+            .task = bpf_get_current_task(),
+        };
+        bpf_map_update_elem(&exec_pid_transfer, &tgid, &transfer, BPF_ANY);
     }
 
     cache_syscall_update_cgroup(ctx, &syscall);
@@ -182,7 +186,7 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
         u8 value = 1;
         bpf_map_update_elem(&kernel_thread_pids, &pid, &value, BPF_ANY);
         if (syscall) {
-            pop_syscall(EVENT_FORK);
+            goto pop_and_exit;
         }
         return 0;
     }
@@ -198,8 +202,7 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
 
     // if this is a thread, leave
     if (syscall->fork.is_thread) {
-        pop_syscall(EVENT_FORK);
-        return 0;
+        goto pop_and_exit;
     }
 
     u64 ts = bpf_ktime_get_ns();
@@ -208,8 +211,7 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
     // by the tail-called fill_span_and_send program.
     struct process_event_t *event = SPAN_FILL_EVENT(struct process_event_t, EVENT_FORK);
     if (event == NULL) {
-        pop_syscall(EVENT_FORK);
-        return 0;
+        goto pop_and_exit;
     }
 
     event->pid_entry.fork_timestamp = ts;
@@ -225,8 +227,7 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
     if (IS_KTHREADD(ppid)) {
         u8 value = 1;
         bpf_map_update_elem(&kernel_thread_pids, &pid, &value, BPF_ANY);
-        pop_syscall(EVENT_FORK);
-        return 0;
+        goto pop_and_exit;
     }
 
     // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value.
@@ -288,6 +289,8 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
     // fill_span_and_send program matching this caller's program type.
     span_fill_tail_call(ctx, prog_type);
 
+pop_and_exit:
+    pop_syscall(EVENT_FORK);
     return 0;
 }
 
@@ -353,18 +356,17 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
     // every thread has its own capability context, not just the group leader
     cleanup_capabilities_context(pid);
 
-    u64 *pid_tgid_execing = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
+    struct exec_pid_transfer_t *exec_transfer = (struct exec_pid_transfer_t *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
 
     // only send the exit event if this is the thread group leader that isn't being killed by an execing thread
-    if (tgid == pid && pid_tgid_execing == NULL) {
+    if (tgid == pid && exec_transfer == NULL) {
         // update exit time
         struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {
             pid_entry->exit_timestamp = bpf_ktime_get_ns();
             flush_capabilities_usage(ctx, tgid, pid_entry->cookie);
         } else if (is_current_kworker_dying()) {
-            pop_syscall(EVENT_ANY);
-            return 0;
+            goto pop_and_exit;
         }
 
         // send the entry to maintain userspace cache
@@ -373,8 +375,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
             // tear down the process state even if the event can't be staged
             unregister_span_context();
             cleanup_traced_state(tgid);
-            pop_syscall(EVENT_ANY);
-            return 0;
+            goto pop_and_exit;
         }
 
         struct proc_cache_t *pc = fill_process_context(&event->process);
@@ -396,6 +397,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
         return 0;
     }
 
+pop_and_exit:
     // cleanup any remaining syscall cache entry for this pid_tgid
     pop_syscall(EVENT_ANY);
 
@@ -781,7 +783,7 @@ int hook_setup_arg_pages(ctx_t *ctx) {
 }
 
 int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = pop_current_or_impersonated_exec_syscall();
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
     }
@@ -790,8 +792,6 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 now = bpf_ktime_get_ns();
     u32 tgid = pid_tgid >> 32;
-
-    bpf_map_delete_elem(&exec_pid_transfer, &tgid);
 
     struct proc_cache_t pc = {
         .entry = {
@@ -856,14 +856,13 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         bpf_map_update_elem(&pid_cache, &tgid, &new_pid_entry, BPF_ANY);
         fork_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (fork_entry == NULL) {
-            // should never happen, ignore
-            return 0;
+            goto pop_and_exit;
         }
     }
 
     struct process_event_t *event = new_process_event(0);
     if (event == NULL) {
-        return 0;
+        goto pop_and_exit;
     }
 
     // copy proc_cache data
@@ -900,11 +899,15 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
     // Through symlink
     event->is_through_symlink = syscall->exec.is_through_symlink;
+
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
 
     unregister_span_context();
 
+pop_and_exit:
+    pop_current_or_impersonated_exec_syscall();
+    bpf_map_delete_elem(&exec_pid_transfer, &tgid);
     return 0;
 }
 

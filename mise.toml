@@ -18,4 +18,4 @@ run = "dotagents"
 
 [tasks.dotagents.tools]
 node = "24.21.0"
-"npm:@sentry/dotagents" = "3.2.0"
+"npm:@sentry/dotagents" = "3.3.0"

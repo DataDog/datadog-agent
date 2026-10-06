@@ -90,6 +90,16 @@ type PodAutoscalerInternal struct {
 	// fallbackForced is set from the force-fallback annotation on the DPA object
 	fallbackForced bool
 
+	// forcedReplicas is set from the force-replicas annotation on the DPA object: nil when the
+	// annotation is absent or its value is not a positive integer.
+	forcedReplicas *int32
+
+	// forcedResources is set from the force-resources annotation on the DPA object: nil when the
+	// annotation is absent or invalid. The vertical controller and the pod patcher overlay it on the
+	// recommendation; it is not a source of its own. It is never mutated once parsed, so it can be
+	// shared between copies of the autoscaler.
+	forcedResources []datadoghqcommon.DatadogPodAutoscalerContainerResources
+
 	// scalingValues represents the active scaling values that should be used
 	scalingValues ScalingValues
 
@@ -319,12 +329,14 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 }
 
 // UpdateFromOpsAnnotations updates the PodAutoscalerInternal from the operational annotations
-// (pause, force-fallback). They are set by the user on the Kubernetes object whatever the owner,
-// so they are read separately from UpdateFromPodAutoscaler, which the leader only calls for
-// local owners once the object exists.
+// (pause, force-fallback, force-replicas, force-resources). They are set by the user on the
+// Kubernetes object whatever the owner, so they are read separately from UpdateFromPodAutoscaler,
+// which the leader only calls for local owners once the object exists.
 func (p *PodAutoscalerInternal) UpdateFromOpsAnnotations(annotations map[string]string) {
 	p.paused = parseOpsBoolAnnotation(annotations, PauseAnnotationKey)
 	p.fallbackForced = parseOpsBoolAnnotation(annotations, ForceFallbackAnnotationKey)
+	p.forcedReplicas = parseForceReplicasAnnotation(annotations[ForceReplicasAnnotationKey])
+	p.forcedResources = parseForceResourcesAnnotation(annotations[ForceResourcesAnnotationKey])
 }
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
@@ -481,6 +493,12 @@ func (p *PodAutoscalerInternal) UpdateFromVerticalAction(action *datadoghqcommon
 	if action != nil {
 		p.verticalLastAction = action
 	}
+}
+
+// ClearHorizontalLimitReason clears the reason the last horizontal action was limited, when there is
+// no longer anything to scale to: nothing is being limited.
+func (p *PodAutoscalerInternal) ClearHorizontalLimitReason() {
+	p.horizontalLastLimitReason = ""
 }
 
 // ClearHorizontalState clears horizontal scaling status data when horizontal scaling is disabled.
@@ -723,6 +741,20 @@ func (p *PodAutoscalerInternal) IsPaused() bool {
 // IsFallbackForced returns true if the force-fallback annotation is set.
 func (p *PodAutoscalerInternal) IsFallbackForced() bool {
 	return p.fallbackForced
+}
+
+// ForcedReplicas returns the replica count pinned by the force-replicas annotation, if any.
+func (p *PodAutoscalerInternal) ForcedReplicas() (int32, bool) {
+	if p.forcedReplicas == nil {
+		return 0, false
+	}
+
+	return *p.forcedReplicas, true
+}
+
+// ForcedResources returns the container resources overridden by annotation, nil if none.
+func (p *PodAutoscalerInternal) ForcedResources() []datadoghqcommon.DatadogPodAutoscalerContainerResources {
+	return p.forcedResources
 }
 
 // IsLocalFallbackEnabled returns true unless the spec disables the horizontal local fallback.
@@ -1055,14 +1087,19 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		status.CurrentReplicas = p.currentReplicas
 	}
 
-	// Produce Horizontal status only if we have a desired number of replicas
-	if horizontalEnabled && p.scalingValues.Horizontal != nil {
-		status.Horizontal = &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{
-			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+	// Produce Horizontal status only if we have a desired number of replicas, or scaling actions of a
+	// replica count pinned by the force-replicas annotation: the pin applies without a
+	// recommendation, and what it did must be visible in the status. The target only reports the
+	// recommendation.
+	_, pinned := p.ForcedReplicas()
+	if horizontalEnabled && (p.scalingValues.Horizontal != nil || (pinned && len(p.horizontalLastActions) > 0)) {
+		status.Horizontal = &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{}
+		if p.scalingValues.Horizontal != nil {
+			status.Horizontal.Target = &datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
 				Source:      p.scalingValues.Horizontal.Source,
 				GeneratedAt: metav1.NewTime(p.scalingValues.Horizontal.Timestamp),
 				Replicas:    p.scalingValues.Horizontal.Replicas,
-			},
+			}
 		}
 
 		if lenActions := len(p.horizontalLastActions); lenActions > 0 {
@@ -1469,4 +1506,27 @@ func parseOpsBoolAnnotation(annotations map[string]string, key string) bool {
 	}
 
 	return value
+}
+
+// parseForceReplicasAnnotation parses the force-replicas annotation value. An absent value, or one that
+// is not a positive integer, is ignored: the autoscaler never scales to zero.
+func parseForceReplicasAnnotation(value string) *int32 {
+	replicas, err := strconv.ParseInt(value, 10, 32)
+	if err != nil || replicas <= 0 {
+		return nil
+	}
+
+	return pointer.Ptr(int32(replicas))
+}
+
+// parseForceResourcesAnnotation parses the force-resources annotation value, a JSON list of container
+// resources as in the DPA. A value that is not such a list is ignored. The values are checked when
+// they are merged on the recommendation.
+func parseForceResourcesAnnotation(value string) []datadoghqcommon.DatadogPodAutoscalerContainerResources {
+	var forced []datadoghqcommon.DatadogPodAutoscalerContainerResources
+	if err := json.Unmarshal([]byte(value), &forced); err != nil || len(forced) == 0 {
+		return nil
+	}
+
+	return forced
 }

@@ -165,8 +165,13 @@ func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta 
 		isOpenShift = apiCl.DetectOpenShiftAPILevel() != apiserver.NotOpenShift
 	}
 
+	var apmRCClient autoinstrumentation.RemoteConfigClient
+	if rcClient != nil {
+		apmRCClient = rcClient
+	}
+
 	// Setup APM Instrumentation webhook. APM Instrumentation webhook needs to be registered after the config webhook.
-	apmWebhook, err := autoinstrumentation.NewAutoInstrumentation(datadogConfig, wmeta, serverVersion, isOpenShift, csiDriverWatcher, rcClient, ddiTargets)
+	apmWebhook, err := autoinstrumentation.NewAutoInstrumentation(datadogConfig, wmeta, serverVersion, isOpenShift, csiDriverWatcher, apmRCClient, ddiTargets)
 	if err != nil {
 		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
 	} else {
