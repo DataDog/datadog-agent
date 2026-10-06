@@ -47,6 +47,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
+	"github.com/DataDog/datadog-agent/pkg/kubestatemetrics/sharding"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -329,6 +330,10 @@ type KSMConfig struct {
 	ShardCriteria []string `yaml:"shard_criteria"`
 	ShardID       int      `yaml:"shard_id"`
 	ShardCount    int      `yaml:"shard_count"`
+
+	// ColocateResources assigns every collector in a group to the shard chosen
+	// for the group's first collector, for example [deployments, replicasets].
+	ColocateResources [][]string `yaml:"colocate_resources"`
 }
 
 type storeState struct {
@@ -345,6 +350,7 @@ type KSMCheck struct {
 	core.CheckBase
 	agentConfig                model.Config
 	instance                   *KSMConfig
+	resourceColocation         map[string]string
 	stores                     storeState
 	namespaceInformer          namespaceInformer
 	telemetry                  *telemetryCache
@@ -407,6 +413,10 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	}
 
 	err = k.instance.parse(config)
+	if err != nil {
+		return err
+	}
+	k.resourceColocation, err = buildResourceColocation(k.instance)
 	if err != nil {
 		return err
 	}
@@ -652,9 +662,10 @@ func (k *KSMCheck) buildStores() error {
 			ctx,
 			storeFactoryRegistry,
 			ksmstore.DynamicStoreConfig{
-				ShardCriteria: k.instance.ShardCriteria,
-				ShardCount:    k.instance.ShardCount,
-				ShardID:       k.instance.ShardID,
+				ShardCriteria:      k.instance.ShardCriteria,
+				ResourceColocation: k.resourceColocation,
+				ShardCount:         k.instance.ShardCount,
+				ShardID:            k.instance.ShardID,
 			},
 		)
 
@@ -748,6 +759,24 @@ func filterUnknownCollectors(collectors []string, resources []*v1.APIResourceLis
 
 func (c *KSMConfig) parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
+}
+
+func buildResourceColocation(config *KSMConfig) (map[string]string, error) {
+	// Colocation only changes the resource portion of a hash key.
+	if !slices.Contains(config.ShardCriteria, sharding.CriterionResource) {
+		return nil, nil
+	}
+
+	collectors := config.Collectors
+	if len(collectors) == 0 {
+		collectors = defaultCollectors()
+	}
+
+	resourceColocation, err := sharding.BuildResourceColocation(config.ColocateResources, collectors)
+	if err != nil {
+		return nil, fmt.Errorf("invalid colocate_resources: %w", err)
+	}
+	return resourceColocation, nil
 }
 
 func (c *KSMConfig) usesCustomResourceMetrics() bool {

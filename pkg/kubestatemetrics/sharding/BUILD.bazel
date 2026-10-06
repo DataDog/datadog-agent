@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "sharding",
     srcs = [
+        "resource_colocation.go",
         "sharding.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/sharding",
@@ -14,10 +15,12 @@ go_library(
 dd_agent_go_test(
     name = "sharding_test",
     srcs = [
+        "resource_colocation_test.go",
         "sharding_test.go",
     ],
     embed = [":sharding"],
     deps = [
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

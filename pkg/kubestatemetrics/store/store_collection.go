@@ -38,10 +38,11 @@ type storeFactory struct {
 }
 
 // factoryKey distinguishes collectors that watch the same Kubernetes
-// GroupKind. collector keeps factories such as pods and pods_extended from
-// replacing each other.
+// GroupKind. resource applies configured colocation while collector keeps
+// factories such as pods and pods_extended from replacing each other.
 type factoryKey struct {
 	groupKind string
+	resource  string
 	collector string
 }
 
@@ -66,8 +67,8 @@ func NewStoreFactoryRegistry() *FactoryRegistry {
 
 // Register adds a factory to the registry. Collector may be empty for the
 // standard collector, or identify a custom collector for the same GroupKind.
-func (r *FactoryRegistry) Register(groupKind, collector string, scope ResourceScope, build BuildStoreFunc) {
-	r.factories[factoryKey{groupKind: groupKind, collector: collector}] = storeFactory{
+func (r *FactoryRegistry) Register(groupKind, resource, collector string, scope ResourceScope, build BuildStoreFunc) {
+	r.factories[factoryKey{groupKind: groupKind, resource: resource, collector: collector}] = storeFactory{
 		build: build,
 		scope: scope,
 	}
@@ -75,9 +76,10 @@ func (r *FactoryRegistry) Register(groupKind, collector string, scope ResourceSc
 
 // DynamicStoreConfig describes the ownership rules for one dynamic store.
 type DynamicStoreConfig struct {
-	ShardCriteria []string
-	ShardCount    int
-	ShardID       int
+	ShardCriteria      []string
+	ResourceColocation map[string]string
+	ShardCount         int
+	ShardID            int
 }
 
 // NewDynamicStore snapshots its factory and sharding configuration. Copies keep
@@ -92,12 +94,13 @@ func NewDynamicStore(ctx context.Context, registry *FactoryRegistry, config Dyna
 	}
 
 	dynamicStore := &dynamicStoreImpl{
-		ctx:           ctx,
-		factories:     factories,
-		stores:        make(map[string]map[factoryKey]storeAndCancelPair),
-		shardCriteria: slices.Clone(config.ShardCriteria),
-		shardCount:    config.ShardCount,
-		shardID:       config.ShardID,
+		ctx:                ctx,
+		factories:          factories,
+		stores:             make(map[string]map[factoryKey]storeAndCancelPair),
+		shardCriteria:      slices.Clone(config.ShardCriteria),
+		resourceColocation: maps.Clone(config.ResourceColocation),
+		shardCount:         config.ShardCount,
+		shardID:            config.ShardID,
 	}
 	// Cluster resources use the empty namespace and are built once by their owning shard.
 	dynamicStore.add("", ResourceScopeCluster)
@@ -123,10 +126,11 @@ type dynamicStoreImpl struct {
 
 	// namespace -> factory key -> store and cancel pair
 	// [example-ns][{groupKind: core/Pod, collector: pods_extended}]{store, cancel}
-	stores        map[string]map[factoryKey]storeAndCancelPair
-	shardCriteria []string
-	shardCount    int
-	shardID       int
+	stores             map[string]map[factoryKey]storeAndCancelPair
+	shardCriteria      []string
+	resourceColocation map[string]string
+	shardCount         int
+	shardID            int
 }
 
 func (d *dynamicStoreImpl) Add(ns string) {
@@ -135,6 +139,9 @@ func (d *dynamicStoreImpl) Add(ns string) {
 
 func (d *dynamicStoreImpl) hashKey(ns string, key factoryKey) sharding.HashKey {
 	resource := key.groupKind
+	if colocatedResource, found := d.resourceColocation[key.resource]; found {
+		resource = colocatedResource
+	}
 	return sharding.NewHashKey(d.shardCriteria, ns, resource)
 }
 

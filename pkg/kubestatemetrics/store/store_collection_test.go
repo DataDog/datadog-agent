@@ -19,7 +19,7 @@ func TestNewDynamicStoreCopiesFactoryRegistry(t *testing.T) {
 	registry := NewStoreFactoryRegistry()
 	built := 0
 	var storeContext context.Context
-	registry.Register("core/Pod", "", ResourceScopeNamespaced, func(ctx context.Context, _ string) cache.Store {
+	registry.Register("core/Pod", "pods", "", ResourceScopeNamespaced, func(ctx context.Context, _ string) cache.Store {
 		built++
 		storeContext = ctx
 		return cache.NewStore(cache.MetaNamespaceKeyFunc)
@@ -30,7 +30,7 @@ func TestNewDynamicStoreCopiesFactoryRegistry(t *testing.T) {
 		ShardCount:    1,
 	})
 	lateFactoryBuilt := false
-	registry.Register("apps/Deployment", "", ResourceScopeNamespaced, func(context.Context, string) cache.Store {
+	registry.Register("apps/Deployment", "deployments", "", ResourceScopeNamespaced, func(context.Context, string) cache.Store {
 		lateFactoryBuilt = true
 		return cache.NewStore(cache.MetaNamespaceKeyFunc)
 	})
@@ -52,12 +52,12 @@ func TestDynamicStoreBuildsClusterScopedFactoriesOnce(t *testing.T) {
 	namespacedBuilds := 0
 	var clusterNamespace string
 
-	registry.Register("core/Node", "", ResourceScopeCluster, func(_ context.Context, namespace string) cache.Store {
+	registry.Register("core/Node", "nodes", "", ResourceScopeCluster, func(_ context.Context, namespace string) cache.Store {
 		clusterBuilds++
 		clusterNamespace = namespace
 		return cache.NewStore(cache.MetaNamespaceKeyFunc)
 	})
-	registry.Register("core/Pod", "", ResourceScopeNamespaced, func(context.Context, string) cache.Store {
+	registry.Register("core/Pod", "pods", "", ResourceScopeNamespaced, func(context.Context, string) cache.Store {
 		namespacedBuilds++
 		return cache.NewStore(cache.MetaNamespaceKeyFunc)
 	})
@@ -81,7 +81,7 @@ func TestDynamicStoreBuildsClusterScopedFactoriesOnce(t *testing.T) {
 func TestClusterScopedFactoryHasOneOwner(t *testing.T) {
 	registry := NewStoreFactoryRegistry()
 	builds := 0
-	registry.Register("core/Node", "", ResourceScopeCluster, func(context.Context, string) cache.Store {
+	registry.Register("core/Node", "nodes", "", ResourceScopeCluster, func(context.Context, string) cache.Store {
 		builds++
 		return cache.NewStore(cache.MetaNamespaceKeyFunc)
 	})
@@ -99,17 +99,17 @@ func TestClusterScopedFactoryHasOneOwner(t *testing.T) {
 
 func TestCollectorsForSameResourceStayOnSameShard(t *testing.T) {
 	registry := NewStoreFactoryRegistry()
-	registry.Register("core/Pod", "", ResourceScopeNamespaced, func(context.Context, string) cache.Store {
+	registry.Register("core/Pod", "pods", "", ResourceScopeNamespaced, func(context.Context, string) cache.Store {
 		return cache.NewStore(cache.MetaNamespaceKeyFunc)
 	})
-	registry.Register("core/Pod", "pods_extended", ResourceScopeNamespaced, func(context.Context, string) cache.Store {
+	registry.Register("core/Pod", "pods", "pods_extended", ResourceScopeNamespaced, func(context.Context, string) cache.Store {
 		return cache.NewStore(cache.MetaNamespaceKeyFunc)
 	})
 
 	criteria := []string{"namespace", "resource"}
 	keyBuilder := &dynamicStoreImpl{shardCriteria: criteria}
-	standardHashKey := keyBuilder.hashKey("default", factoryKey{groupKind: "core/Pod"})
-	extendedHashKey := keyBuilder.hashKey("default", factoryKey{groupKind: "core/Pod", collector: "pods_extended"})
+	standardHashKey := keyBuilder.hashKey("default", factoryKey{groupKind: "core/Pod", resource: "pods"})
+	extendedHashKey := keyBuilder.hashKey("default", factoryKey{groupKind: "core/Pod", resource: "pods", collector: "pods_extended"})
 	require.Equal(t, sharding.HashKey("default|core/Pod"), standardHashKey)
 	require.Equal(t, standardHashKey, extendedHashKey)
 
@@ -142,4 +142,37 @@ func TestNewDynamicStoreCopiesShardCriteria(t *testing.T) {
 	impl, ok := dynamicStore.(*dynamicStoreImpl)
 	require.True(t, ok)
 	require.Equal(t, []string{"namespace"}, impl.shardCriteria)
+}
+
+func TestColocatedResourcesUseCanonicalCollectorInHashKey(t *testing.T) {
+	dynamicStore := &dynamicStoreImpl{
+		shardCriteria: []string{"namespace", "resource"},
+		resourceColocation: map[string]string{
+			"deployments": "deployments",
+			"replicasets": "deployments",
+		},
+	}
+
+	deploymentKey := dynamicStore.hashKey("default", factoryKey{groupKind: "apps/Deployment", resource: "deployments"})
+	extendedDeploymentKey := dynamicStore.hashKey("default", factoryKey{groupKind: "apps/Deployment", resource: "deployments", collector: "deployments_extended"})
+	replicaSetKey := dynamicStore.hashKey("default", factoryKey{groupKind: "apps/ReplicaSet", resource: "replicasets"})
+
+	require.Equal(t, sharding.HashKey("default|deployments"), deploymentKey)
+	require.Equal(t, deploymentKey, extendedDeploymentKey)
+	require.Equal(t, deploymentKey, replicaSetKey)
+}
+
+func TestNewDynamicStoreCopiesResourceColocation(t *testing.T) {
+	resourceColocation := map[string]string{"replicasets": "deployments"}
+	dynamicStore := NewDynamicStore(context.Background(), NewStoreFactoryRegistry(), DynamicStoreConfig{
+		ShardCriteria:      []string{"resource"},
+		ResourceColocation: resourceColocation,
+		ShardCount:         2,
+	})
+
+	resourceColocation["replicasets"] = "pods"
+
+	impl, ok := dynamicStore.(*dynamicStoreImpl)
+	require.True(t, ok)
+	require.Equal(t, "deployments", impl.resourceColocation["replicasets"])
 }

@@ -286,9 +286,10 @@ func TestCreateShardedKSMHashConfigs(t *testing.T) {
 	manager := newKSMHashShardingManager(true)
 
 	config := createKSMHashConfig(map[string]interface{}{
-		"collectors":     []string{"deployments", "replicasets"},
-		"shard_criteria": []string{"resource", "namespace"},
-		"shard_count":    3,
+		"collectors":         []string{"deployments", "replicasets"},
+		"colocate_resources": [][]string{{"deployments", "replicasets"}},
+		"shard_criteria":     []string{"resource", "namespace"},
+		"shard_count":        3,
 	})
 
 	shards, err := manager.createShardedKSMHashConfigs(config)
@@ -308,6 +309,7 @@ func TestCreateShardedKSMHashConfigs(t *testing.T) {
 		assert.Equal(t, true, instance["skip_leader_election"])
 		// Non-sharding keys are inherited.
 		assert.Equal(t, []interface{}{"deployments", "replicasets"}, instance["collectors"])
+		assert.Equal(t, []interface{}{[]interface{}{"deployments", "replicasets"}}, instance["colocate_resources"])
 
 		id, ok := instance["shard_id"].(int)
 		require.True(t, ok, "shard_id must be present and an int")

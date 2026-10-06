@@ -33,6 +33,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/kubestatemetrics/builder",
+        "//pkg/kubestatemetrics/sharding",
         "//pkg/kubestatemetrics/store",
         "//pkg/metrics/servicecheck",
         "//pkg/util/common",

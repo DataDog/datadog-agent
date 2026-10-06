@@ -44,6 +44,40 @@ type metricsExpected struct {
 	hostname string
 }
 
+func TestBuildResourceColocationUsesDefaultCollectors(t *testing.T) {
+	config := &KSMConfig{
+		ShardCriteria:     []string{"resource"},
+		ColocateResources: [][]string{{"deployments", "replicasets"}},
+	}
+
+	resourceColocation, err := buildResourceColocation(config)
+	require.NoError(t, err)
+	require.Equal(t, "deployments", resourceColocation["replicasets"])
+}
+
+func TestBuildResourceColocationRejectsCollectorNotEnabled(t *testing.T) {
+	config := &KSMConfig{
+		Collectors:        []string{"deployments"},
+		ShardCriteria:     []string{"resource"},
+		ColocateResources: [][]string{{"deployments", "replicasets"}},
+	}
+
+	_, err := buildResourceColocation(config)
+	require.EqualError(t, err, `invalid colocate_resources: colocated resource "replicasets" is not an enabled collector`)
+}
+
+func TestBuildResourceColocationIgnoredWithoutResourceSharding(t *testing.T) {
+	config := &KSMConfig{
+		Collectors:        []string{"deployments"},
+		ShardCriteria:     []string{"namespace"},
+		ColocateResources: [][]string{{"deployments", "replicasets"}},
+	}
+
+	resourceColocation, err := buildResourceColocation(config)
+	require.NoError(t, err)
+	require.Nil(t, resourceColocation)
+}
+
 func TestProcessMetrics(t *testing.T) {
 	tests := []struct {
 		name               string

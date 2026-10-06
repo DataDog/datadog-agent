@@ -414,6 +414,7 @@ func registerStoreFactory[T any](
 
 	registry.Register(
 		resourceKey(groupKind),
+		resourceInfo.name,
 		collector,
 		resourceInfo.scope,
 		func(ctx context.Context, ns string) cache.Store {
