@@ -25,7 +25,6 @@ import (
 	cmdhealth "github.com/DataDog/datadog-agent/cmd/agent/subcommands/health"
 	cmdhostname "github.com/DataDog/datadog-agent/cmd/agent/subcommands/hostname"
 	cmdimport "github.com/DataDog/datadog-agent/cmd/agent/subcommands/import"
-	cmdintegrations "github.com/DataDog/datadog-agent/cmd/agent/subcommands/integrations"
 	cmdjmx "github.com/DataDog/datadog-agent/cmd/agent/subcommands/jmx"
 	cmdlaunchgui "github.com/DataDog/datadog-agent/cmd/agent/subcommands/launchgui"
 	cmdremoteconfig "github.com/DataDog/datadog-agent/cmd/agent/subcommands/remoteconfig"
@@ -72,7 +71,6 @@ func IotAgentSubcommands() []command.SubcommandFactory {
 		cmdworkloadlist.Commands,
 		cmdjmx.Commands,
 		cmdsecrethelper.Commands,
-		cmdintegrations.Commands,
 		cmdstop.Commands,
 		cmdcontrolsvc.Commands,
 		cmdcoverage.Commands,
