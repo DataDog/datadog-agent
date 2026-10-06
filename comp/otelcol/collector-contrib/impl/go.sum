@@ -96,8 +96,8 @@ github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.4 h1:dD4MR81I7YkpEBRk6UP
 github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.4/go.mod h1:EcXV1kAFd5XwSkDHlj94gnF3q5CkJyYiIJfH8N0VmrE=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.4 h1:7Wo47d/xn/7KttCSBd8EGYeZ7ULRFRkUHr6vkZPBzVQ=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.4/go.mod h1:tDB2IVC1xC3vX8o+6uRlzhTxP3g1b77CZXFX/oD2FnQ=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.337.0 h1:qvRAMBHqlGIc0mqv4jhgpfUSpBAIInwf3EXgBGZ/Nyk=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.337.0/go.mod h1:d0e0acsyS3WnFCFJiByGwnUgPpn2wAk97PTIksHN2NI=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.338.0 h1:nstK6ywHhUEdsGKkjg426iz8EucgZh9nZBZ7FGBh6NM=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.338.0/go.mod h1:d0e0acsyS3WnFCFJiByGwnUgPpn2wAk97PTIksHN2NI=
 github.com/aws/aws-sdk-go-v2/service/ecs v1.99.1 h1:rVVvtFSTJnHJ+tyrFvzvFGaKv09tygTCAHjFtHju6AY=
 github.com/aws/aws-sdk-go-v2/service/ecs v1.99.1/go.mod h1:1BjycrF8UaNiy2N2Y+piEMKuOtoR7FeYwYTMhEY5Gp8=
 github.com/aws/aws-sdk-go-v2/service/elasticache v1.54.3 h1:KZDlMf8V5riU8xBCMJLWhfa+RP/MIagz2qJFwRg/b1g=
@@ -110,8 +110,8 @@ github.com/aws/aws-sdk-go-v2/service/kafka v1.52.6 h1:1Cn7pNj5Knye9dx2KFY0UmSdXM
 github.com/aws/aws-sdk-go-v2/service/kafka v1.52.6/go.mod h1:5SCWP3gW59x0gRYHuwzXoj/ZuxEoa+j9/OeynrJd/sk=
 github.com/aws/aws-sdk-go-v2/service/lightsail v1.56.1 h1:bbOZEcMgnUQocfDoaaU2f148Te/MpUk6FkOGtJyfwlg=
 github.com/aws/aws-sdk-go-v2/service/lightsail v1.56.1/go.mod h1:428ttHou5n2J4/oQAQS9EmOU6LrBv48F2bGk+Ta7EF4=
-github.com/aws/aws-sdk-go-v2/service/rds v1.129.1 h1:tLLKlVNRH6YIWCIq/9a8b6LMamBsIDCOQ5hdlhYl3qk=
-github.com/aws/aws-sdk-go-v2/service/rds v1.129.1/go.mod h1:ISB8224E71TShRfUITcXvgbjlq0MVx/KWpvF0jbiFmg=
+github.com/aws/aws-sdk-go-v2/service/rds v1.130.0 h1:d6xg7OOvlly1HOTXoAqDnttPaEB37KEsmMk5dVz+V8U=
+github.com/aws/aws-sdk-go-v2/service/rds v1.130.0/go.mod h1:ISB8224E71TShRfUITcXvgbjlq0MVx/KWpvF0jbiFmg=
 github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.43.4 h1:yDpDGCB+WQ86x3h3feiVr6IYknnNX8by8+FSy8uYSis=
 github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.43.4/go.mod h1:2HybnlpdcfJa/ojiBUvuUJ+QRPlCkfAO4ebWTIurEcg=
 github.com/aws/aws-sdk-go-v2/service/signin v1.10.1 h1:DzCCWLzcIRQ77F3DEUljud7bEjTgFOIKXP52NmVRyhU=
