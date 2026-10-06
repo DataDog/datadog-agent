@@ -47,11 +47,13 @@ func CheckSigningKeys(t *testing.T, client *TestClient) {
 	})
 }
 
+// versionRegexPattern is hoisted because it is matched on every poll of the EventuallyWithT loop below.
+var versionRegexPattern = regexp.MustCompile(`(?m:^(IoT )?Agent \(v([0-9]).*\)$)`)
+
 // CheckInstallationMajorAgentVersion run tests to check the installation of an agent has the correct major version
 func CheckInstallationMajorAgentVersion(t *testing.T, client *TestClient, expectedVersion string) bool {
 	return t.Run("Check datadog-agent status version", func(tt *testing.T) {
 		require.EventuallyWithT(tt, func(c *assert.CollectT) {
-			versionRegexPattern := regexp.MustCompile(`(?m:^(IoT )?Agent \(v([0-9]).*\)$)`)
 			tmpCmd := fmt.Sprintf("sudo %s status", client.Helper.GetBinaryPath())
 			output, err := client.ExecuteWithRetry(tmpCmd)
 			require.NoError(c, err, "datadog-agent status failed")
@@ -65,9 +67,9 @@ func CheckInstallationMajorAgentVersion(t *testing.T, client *TestClient, expect
 // CheckAgentVersion run tests to check that the agent has the correct version
 func (client *TestClient) CheckAgentVersion(t *testing.T, expected string) bool {
 	return t.Run("Check datadog-agent version", func(t *testing.T) {
-		versionRegexPattern := regexp.MustCompile("^(?m:IoT )?Agent (.*?) -")
+		agentVersionRegexPattern := regexp.MustCompile("^(?m:IoT )?Agent (.*?) -")
 		output := client.AgentClient.Version()
-		matchList := versionRegexPattern.FindStringSubmatch(output)
+		matchList := agentVersionRegexPattern.FindStringSubmatch(output)
 		require.Len(t, matchList, 2, "wasn't able to retrieve datadog-agent version on the following output : %s", output)
 
 		// regex to get major.minor.build parts

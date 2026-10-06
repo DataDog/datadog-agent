@@ -155,9 +155,10 @@ func (c *assertedRule) WithScope(scope string) *assertedRule {
 	return c
 }
 
+var leadingTabsRegex = regexp.MustCompile(`(?m)^\t+`)
+
 func (c *assertedRule) WithInput(input string, args ...any) *assertedRule {
-	r := regexp.MustCompile(`(?m)^\t+`)
-	input = r.ReplaceAllStringFunc(input, func(p string) string { return strings.Repeat("  ", len(p)) })
+	input = leadingTabsRegex.ReplaceAllStringFunc(input, func(p string) string { return strings.Repeat("  ", len(p)) })
 	c.input = strings.TrimSpace(fmt.Sprintf(input, args...))
 	return c
 }
