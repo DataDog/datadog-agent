@@ -6,12 +6,11 @@ from __future__ import annotations
 import json
 import math
 import os
+import shlex
+import subprocess
 import urllib.error
 import urllib.request
 
-from invoke import Context
-
-from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.dynamic_test.jev.pr_context import MAX_DESCRIPTION_BYTES, truncate
 from tasks.libs.dynamic_test.jev.test_discovery import MAX_TEST_CODE_BYTES
 
@@ -60,13 +59,18 @@ def get_ai_gateway_token(token: str | None = None, token_cmd: str | None = None,
         return token
     if os.environ.get("AI_GATEWAY_TOKEN"):
         return os.environ["AI_GATEWAY_TOKEN"]
-    if token_cmd:
-        # A shell command string from JEV_TOKEN_CMD/--token-cmd: run it as-is
-        # (any failure raises, caught by the evaluation's fail-open)
-        return Context().run(token_cmd, hide=True, encoding="utf-8", timeout=60).stdout.strip()
-    # The repo-standard infra token (authanywhere in CI, ddtool locally);
-    # returns the 'Bearer <token>' header value - ask_jev wants it raw
-    return datadog_infra_token(Context(), "rapid-ai-platform", dc).removeprefix("Bearer ")
+    # token_cmd is a shell command string (JEV_TOKEN_CMD/--token-cmd);
+    # otherwise authanywhere provides the infra token for the selected
+    # datacenter (preinstalled in the CI build image, brew on laptops)
+    cmd = (
+        shlex.split(token_cmd)
+        if token_cmd
+        else ["authanywhere", "--audience", "rapid-ai-platform", "--raw", "--dc", dc]
+    )
+    res = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    if res.returncode != 0:
+        raise RuntimeError(f"token command {shlex.join(cmd)} failed: {res.stderr.strip()}")
+    return res.stdout.strip()
 
 
 def ask_jev(token: str, state: str, *, model: str, dc: str, source: str) -> dict:

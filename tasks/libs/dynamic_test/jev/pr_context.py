@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import urllib.request
 
-from invoke import Context
-
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.common.utils import join_command
 
 DDCI_METADATA_URL = "https://cimetadataserver.us1.ddbuild.io/internal/ddci/metadata"
 
@@ -25,16 +23,14 @@ MAX_DESCRIPTION_BYTES = 4_000
 
 
 def git(*args: str) -> str:
-    """Run a git command through invoke - the canonical task mechanism (see
-    the ~140 ctx.run call sites) - with Windows-safe join_command quoting.
+    """Run a git command and return its stdout.
 
     Raises RuntimeError with the command's stderr on failure.
     """
-    command = join_command(["git", *args])
-    result = Context().run(command, hide=True, warn=True, encoding="utf-8", timeout=60)
-    if result.failed:
-        raise RuntimeError(f"command {command} failed: {result.stderr.strip()}")
-    return result.stdout.strip()
+    res = subprocess.run(["git", *args], capture_output=True, text=True, timeout=60)
+    if res.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args)} failed: {res.stderr.strip()}")
+    return res.stdout.strip()
 
 
 def truncate(text: str, limit: int, label: str) -> str:

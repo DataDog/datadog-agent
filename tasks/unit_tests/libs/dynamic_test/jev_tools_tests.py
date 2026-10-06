@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import ANY, patch
+from unittest.mock import patch
 
 from tasks.libs.dynamic_test.jev.jev_client import decide, get_ai_gateway_token
 from tasks.libs.dynamic_test.jev.jev_e2e_selector import select_suite
@@ -31,26 +31,25 @@ class JevToolsTests(unittest.TestCase):
         with self.assertRaises(KeyError):
             decide({})
 
-    @patch("tasks.libs.dynamic_test.jev.jev_client.datadog_infra_token")
-    def test_auth_uses_the_repo_infra_token_helper(self, infra_token):
-        """The fallback delegates to datadog_infra_token (authanywhere in CI, ddtool locally)."""
-        infra_token.return_value = "Bearer token"
-        with patch.dict("os.environ", {}, clear=True):
-            self.assertEqual(get_ai_gateway_token(dc="us1.ddbuild.io"), "token")
-            infra_token.assert_called_once_with(ANY, "rapid-ai-platform", "us1.ddbuild.io")
-            # The explicit token/token_cmd overrides short-circuit before it
-            self.assertEqual(get_ai_gateway_token(token="override"), "override")
-            infra_token.assert_called_once_with(ANY, "rapid-ai-platform", "us1.ddbuild.io")
-
-    @patch("tasks.libs.dynamic_test.jev.jev_client.Context")
-    def test_token_cmd_runs_through_the_shell_as_is(self, context):
-        context.return_value.run.return_value.stdout = "token\n"
+    @patch("tasks.libs.dynamic_test.jev.jev_client.subprocess.run")
+    def test_token_cmd_is_shell_split(self, run):
+        run.return_value = SimpleNamespace(returncode=0, stdout="token\n", stderr="")
         with patch.dict("os.environ", {}, clear=True):
             self.assertEqual(get_ai_gateway_token(token_cmd='tool --name "two words"'), "token")
-        # The token command is a shell command string: passed as-is, no
-        # argv round-trip
-        context.return_value.run.assert_called_once_with(
-            'tool --name "two words"', hide=True, encoding="utf-8", timeout=60
+        run.assert_called_once_with(["tool", "--name", "two words"], capture_output=True, text=True, timeout=60)
+
+    @patch("tasks.libs.dynamic_test.jev.jev_client.subprocess.run")
+    def test_auth_fallback_runs_authanywhere(self, run):
+        run.return_value = SimpleNamespace(returncode=0, stdout="token", stderr="")
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(get_ai_gateway_token(dc="us1.ddbuild.io"), "token")
+            # The explicit token override short-circuits before it
+            self.assertEqual(get_ai_gateway_token(token="override"), "override")
+        run.assert_called_once_with(
+            ["authanywhere", "--audience", "rapid-ai-platform", "--raw", "--dc", "us1.ddbuild.io"],
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
 
     @patch("tasks.libs.dynamic_test.jev.pr_context.GithubAPI")
