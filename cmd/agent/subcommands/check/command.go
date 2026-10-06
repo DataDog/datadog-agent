@@ -37,7 +37,7 @@ func Commands(globalParams *command.GlobalParams, product command.ProductComposi
 		}),
 		fx.Options(product.AutodiscoveryOptions...),
 	),
-		check.WithPythonRuntimeOptions(product.CheckOptions...),
+		check.WithProductOptions(product.CheckOptions...),
 		check.WithPythonVersionGetFunc(product.PythonVersionGetFunc),
 	)
 

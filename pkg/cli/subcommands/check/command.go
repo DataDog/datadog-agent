@@ -35,6 +35,7 @@ import (
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	collectornoopimpl "github.com/DataDog/datadog-agent/comp/collector/collector/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/collector/pythonruntime"
+	"github.com/DataDog/datadog-agent/comp/collector/sharedlibrary"
 	"github.com/DataDog/datadog-agent/comp/core"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
@@ -81,7 +82,6 @@ import (
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	sharedlibrarycheck "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -150,18 +150,23 @@ type GlobalParams struct {
 
 // CommandOptions contains optional product-specific composition for the check command.
 type CommandOptions struct {
-	PythonRuntimeOptions []fx.Option
+	ProductOptions       []fx.Option
 	PythonVersionGetFunc func() string
 }
 
 // Option configures the check command.
 type Option func(*CommandOptions)
 
+// WithProductOptions adds product-specific Fx options to the check command graph.
+func WithProductOptions(options ...fx.Option) Option {
+	return func(opts *CommandOptions) {
+		opts.ProductOptions = append(opts.ProductOptions, options...)
+	}
+}
+
 // WithPythonRuntimeOptions adds product-specific Python runtime Fx options to the check command graph.
 func WithPythonRuntimeOptions(options ...fx.Option) Option {
-	return func(opts *CommandOptions) {
-		opts.PythonRuntimeOptions = append(opts.PythonRuntimeOptions, options...)
-	}
+	return WithProductOptions(options...)
 }
 
 // WithPythonVersionGetFunc configures the Python version function used by status output.
@@ -216,7 +221,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option, op
 				workloadfilterfx.Module(),
 				adfx.Module(),
 				healthplatform.Bundle(),
-				fx.Options(commandOptions.PythonRuntimeOptions...),
+				fx.Options(commandOptions.ProductOptions...),
 				defaultforwardernoop.Module(),
 				inventorychecksfx.Module(),
 				logscompression.Module(),
@@ -290,10 +295,11 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option, op
 	return cmd
 }
 
-type pythonRuntimeDeps struct {
+type optionalDeps struct {
 	fx.In
 
-	PythonRuntime pythonruntime.Runtime `optional:"true"`
+	PythonRuntime pythonruntime.Runtime           `optional:"true"`
+	SharedLibrary sharedlibrary.LoaderInitializer `optional:"true"`
 }
 
 func run(
@@ -315,7 +321,7 @@ func run(
 	ipc ipc.Component,
 	traceroute traceroute.Component,
 	healthPlatform healthplatformdef.Component,
-	pythonDeps pythonRuntimeDeps,
+	optionalDeps optionalDeps,
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -340,15 +346,15 @@ func run(
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
-	if pythonDeps.PythonRuntime != nil {
-		pythonDeps.PythonRuntime.SetHealthPlatform(healthPlatform)
+	if optionalDeps.PythonRuntime != nil {
+		optionalDeps.PythonRuntime.SetHealthPlatform(healthPlatform)
 		if !config.GetBool("python_lazy_loading") {
-			pythonDeps.PythonRuntime.InitPython(common.GetPythonPaths()...)
+			optionalDeps.PythonRuntime.InitPython(common.GetPythonPaths()...)
 		}
 	}
 
-	if config.GetBool("shared_library_check.enabled") {
-		sharedlibrarycheck.InitSharedLibraryChecksLoader()
+	if config.GetBool("shared_library_check.enabled") && optionalDeps.SharedLibrary != nil {
+		optionalDeps.SharedLibrary.InitSharedLibraryChecksLoader()
 	}
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
