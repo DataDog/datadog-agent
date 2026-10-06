@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/discoverer",
+        "//comp/core/autodiscovery/discoverer/def",
         "//pkg/collector/python",
         "@org_uber_go_fx//:fx",
     ],
