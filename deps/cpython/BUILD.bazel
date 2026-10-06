@@ -3,7 +3,10 @@
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 
-exports_files(["fix_sysconfigdata.py"])
+exports_files([
+    "fix_sysconfigdata.py",
+    "pyconfig-linux-x86_64.h",
+])
 
 py_library(
     name = "fix_sysconfigdata_lib",
