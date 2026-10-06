@@ -776,7 +776,7 @@ def stage_kmt_testsuites(kmt_paths: KMTPaths, arch: Arch, packages: list[str], b
 
     if dest_by_target:
         info("[+] Building KMT testsuites via Bazel...")
-        build_binaries_with_bazel(dest_by_target, args=kmt_bazel_flags(arch))
+        build_binaries_with_bazel(dest_by_target, args=linux_platform_flags(arch))
 
     for pkg in packages:
         testdata = Path(pkg) / "testdata"
