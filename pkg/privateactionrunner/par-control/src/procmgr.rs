@@ -67,13 +67,16 @@ impl ProcmgrLifecycle {
             }
             // Start uses FailedPrecondition for both "already running" and
             // InvalidConfig. Describe to tell those apart: only a live child
-            // is the start-race that another caller already won.
+            // is the start-race that another caller already won. A Describe
+            // that fails on its own terms surfaces as itself, so a daemon blip
+            // stays retryable instead of reading as a precondition failure.
             Err(status) if status.code() == tonic::Code::FailedPrecondition => {
-                match self.describe_state().await {
-                    Ok(state) if process_is_alive(state) => Ok(()),
-                    _ => Err(status).with_context(|| {
+                if process_is_alive(self.describe_state().await?) {
+                    Ok(())
+                } else {
+                    Err(status).with_context(|| {
                         format!("process-manager Start failed for {:?}", self.process_name)
-                    }),
+                    })
                 }
             }
             Err(status) => Err(status).with_context(|| {
@@ -203,6 +206,23 @@ mod tests {
         assert!(rendered.contains("Start failed"), "{rendered}");
         assert!(rendered.contains("invalid config"), "{rendered}");
         assert_eq!(fake.describe_count(), 1);
+    }
+
+    /// `bootstrap` retries transport errors and gives up on preconditions, so a
+    /// describe that could not answer must not be reported as the start race.
+    #[tokio::test]
+    async fn ensure_started_surfaces_a_failed_describe() {
+        let fake = FakeProcmgr::failing_start_and_describe(
+            Status::failed_precondition("process is already running"),
+            Status::unavailable("daemon went away"),
+        );
+        let (lifecycle, _dir) = lifecycle_for(fake).await;
+
+        let error = lifecycle.ensure_started().await.unwrap_err();
+        let status = error
+            .downcast_ref::<Status>()
+            .expect("the describe failure should surface as a gRPC status");
+        assert_eq!(status.code(), tonic::Code::Unavailable, "{status}");
     }
 
     #[tokio::test]
