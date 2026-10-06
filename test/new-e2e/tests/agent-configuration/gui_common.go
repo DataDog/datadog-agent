@@ -139,7 +139,9 @@ func checkStaticFiles(t *testing.T, client *http.Client, host *components.Remote
 			t.Logf("trying to reach asset %v", link)
 			fullLink := fmt.Sprintf("http://%v/%v", net.JoinHostPort("localhost", strconv.Itoa(guiPort)), link)
 			resp, err := client.Get(fullLink)
-			assert.NoErrorf(t, err, "failed to reach GUI asset at address %s", fullLink)
+			if !assert.NoErrorf(t, err, "failed to reach GUI asset at address %s", fullLink) {
+				return
+			}
 			defer resp.Body.Close()
 			assert.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", fullLink)
 
