@@ -76,6 +76,10 @@ type ManagerV2 struct {
 	queueSize       *atomic.Uint64 // total events currently queued (gauge)
 	pendingProfiles *atomic.Uint64 // cgroups currently waiting for tags
 
+	// Selectors we reported as disabled on the previous SendStats run, so we can emit a 0
+	// for any that have since recovered or disappeared. Only touched from SendStats.
+	lastDisabledProfiles map[cgroupModel.WorkloadSelector]struct{}
+
 	// Track cgroups with resolved tags (for cgroups_resolved gauge)
 	resolvedCgroups     map[containerutils.CGroupID]struct{}
 	resolvedCgroupsLock sync.Mutex
@@ -580,21 +584,37 @@ func (m *ManagerV2) SendStats() error {
 		return err
 	}
 
-	var tags [][]string
 	m.profilesLock.Lock()
+	disabled := make(map[cgroupModel.WorkloadSelector]struct{})
 	for selector, prof := range m.profiles {
-		if prof.IsEnabled() {
-			continue
+		if !prof.IsEnabled() {
+			disabled[selector] = struct{}{}
 		}
-		tags = append(tags, []string{"profile_image_name:" + selector.Image, "profile_image_tag:" + selector.Tag})
 	}
 	m.profilesLock.Unlock()
 
-	for _, tag := range tags {
-		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2DisabledProfiles, 1, tag, 1.0); err != nil {
+	disabledTags := func(selector cgroupModel.WorkloadSelector) []string {
+		return []string{"profile_image_name:" + selector.Image, "profile_image_tag:" + selector.Tag}
+	}
+
+	for selector := range disabled {
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2DisabledProfiles, 1, disabledTags(selector), 1.0); err != nil {
 			return err
 		}
 	}
+
+	// Gauges are last-write-wins per tag set: if we stop emitting for a profile that has
+	// recovered or been removed, it would stay stuck at 1 forever. Emit a 0 for every
+	// selector we reported disabled last run that is no longer disabled.
+	for selector := range m.lastDisabledProfiles {
+		if _, stillDisabled := disabled[selector]; stillDisabled {
+			continue
+		}
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2DisabledProfiles, 0, disabledTags(selector), 1.0); err != nil {
+			return err
+		}
+	}
+	m.lastDisabledProfiles = disabled
 
 	// Event filtering metrics
 	for entry, count := range m.eventFiltering {
