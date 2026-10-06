@@ -309,8 +309,9 @@ func TestBundledEventsTransform(t *testing.T) {
 
 func TestBundledEventsTransformOversizedEvent(t *testing.T) {
 	// A single event too long to fit in any bundle is dropped with an
-	// errEventTextTooLong error, which the check logs at debug level. The
-	// error message format is preserved for log-based alerting.
+	// errEventTextTooLong error, which the check logs at debug level. The error
+	// carries the event's reason and source so the emitter is identifiable from
+	// the log alone.
 	oversizedMessage := strings.Repeat("a", 4000)
 
 	tests := []struct {
@@ -348,7 +349,8 @@ func TestBundledEventsTransformOversizedEvent(t *testing.T) {
 				}
 			}
 			require.Len(t, tooLongErrs, 1)
-			expectedMsg := fmt.Sprintf("event text length exceeds the maximum allowed length: %d > %d", len("**Failed**: "+oversizedMessage+"\n"), 3750)
+			expectedMsg := fmt.Sprintf("event text length exceeds the maximum allowed length: %d > %d (reason: %s, source: %s, involved_object: %s)",
+				len("**Failed**: "+oversizedMessage+"\n"), 3750, "Failed", "kubelet", "Pod default/pod")
 			assert.Equal(t, expectedMsg, tooLongErrs[0].Error())
 		})
 	}

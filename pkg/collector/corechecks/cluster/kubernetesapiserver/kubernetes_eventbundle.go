@@ -73,7 +73,15 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 
 	eventText, fits := b.fitsEvent(event)
 	if !fits {
-		return fmt.Errorf("%w: %d > %d", errEventTextTooLong, len(eventText), maxEstimatedEventTextLength)
+		// Source.Component is only set on old-style events; ReportingController is
+		// the new-style equivalent.
+		source := event.Source.Component
+		if source == "" {
+			source = event.ReportingController
+		}
+		return fmt.Errorf("%w: %d > %d (reason: %s, source: %s, involved_object: %s)",
+			errEventTextTooLong, len(eventText), maxEstimatedEventTextLength,
+			event.Reason, source, buildReadableKey(event.InvolvedObject))
 	}
 
 	// We do not process the events in chronological order necessarily.
