@@ -926,8 +926,8 @@ workflow:
       - omnibus/lib/**/*
       - omnibus/config/projects/agent.rb
       - omnibus/config/software/**/*
-      - omnibus/config/templates/**/*
       - release.json
+      - packages/installer/README.md.in
       # dd-procmgr supervises Agent processes on Windows: the MSI writes their processes.d
       # entries, and the core Agent skips the legacy SCM service each one replaces.
       - pkg/procmgr/**/*
