@@ -870,7 +870,6 @@ properties:
     type: boolean
     default: true
     tags:
-    - template_section:Common
     - full-agent-only:true
     comment: should the agent leverage DMI information to know if it's running on
       GCE or not.
@@ -927,7 +926,6 @@ properties:
     type: boolean
     default: true
     tags:
-    - template_section:Common
     - full-agent-only:true
     comment: should the agent leverage DMI information to know if it's running on
       Azure or not.
