@@ -14,13 +14,23 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	corev1Informers "k8s.io/client-go/informers/core/v1"
-	corev1Listers "k8s.io/client-go/listers/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/metadata/metadatalister"
 	"k8s.io/client-go/tools/cache"
 )
+
+var configMapGVR = schema.GroupVersionResource{
+	Group:    utilTypes.ConfigMapGroup,
+	Version:  utilTypes.ConfigMapVersion,
+	Resource: utilTypes.ConfigMapName,
+}
 
 // NewConfigMapCollectorVersions builds the group of collector versions.
 func NewConfigMapCollectorVersions(_ tagger.Component) collectors.CollectorVersions {
@@ -30,9 +40,11 @@ func NewConfigMapCollectorVersions(_ tagger.Component) collectors.CollectorVersi
 }
 
 // ConfigMapCollector is a collector for Kubernetes ConfigMaps.
+// It relies on a metadata-only informer so that ConfigMap data and binaryData
+// are never fetched from the API server nor held in the informer cache.
 type ConfigMapCollector struct {
-	informer  corev1Informers.ConfigMapInformer
-	lister    corev1Listers.ConfigMapLister
+	informer  informers.GenericInformer
+	lister    metadatalister.Lister
 	metadata  *collectors.CollectorMetadata
 	processor *processors.Processor
 }
@@ -64,8 +76,23 @@ func (c *ConfigMapCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *ConfigMapCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Core().V1().ConfigMaps()
-	c.lister = c.informer.Lister()
+	c.informer = rcfg.OrchestratorInformerFactory.MetadataInformerFactory.ForResource(configMapGVR)
+	if err := c.informer.Informer().SetTransform(trimConfigMapMetadata); err != nil {
+		log.Debugf("Unable to set transform on the ConfigMap informer: %v", err)
+	}
+	c.lister = metadatalister.New(c.informer.Informer().GetIndexer(), configMapGVR)
+}
+
+// trimConfigMapMetadata drops fields that are never sent before objects are
+// stored in the informer cache, to reduce its memory footprint. The
+// last-applied-configuration annotation, when present, holds a full copy of
+// the ConfigMap data.
+func trimConfigMapMetadata(obj interface{}) (interface{}, error) {
+	if m, ok := obj.(*metav1.PartialObjectMetadata); ok {
+		m.ManagedFields = nil
+		redact.RemoveSensitiveAnnotationsAndLabels(m.Annotations, m.Labels)
+	}
+	return obj, nil
 }
 
 // Metadata is used to access information about the collector.
