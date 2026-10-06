@@ -2,7 +2,7 @@ load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper"
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@@//bazel/rules/foreign_cc_runnable:foreign_cc_runnable.bzl", "foreign_cc_runnable")
-load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MODULE_SRCS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS", "SHARED_MODULES", "SYSCONFIG_VARS_LINUX_X86_64")
+load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MODULE_SRCS", "NATIVE_PLATFORMS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS", "SHARED_MODULES", "sysconfig_vars")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
@@ -575,7 +575,9 @@ NATIVE_CORE_DEFINES = [
 copy_file(
     name = "native_pyconfig_h",
     src = select({
-        "@@//:linux_x86_64": "@@//deps/cpython:pyconfig-linux-x86_64.h",
+        condition: platform["pyconfig"]
+        for condition, platform in NATIVE_PLATFORMS.items()
+    } | {
         "//conditions:default": "@platforms//:incompatible",
     }),
     out = "pyconfig.h",
@@ -678,9 +680,16 @@ cc_library(
         "GITTAG=\\\"\\\"",
         "GITVERSION=\\\"\\\"",
         "PLATFORM=\\\"linux\\\"",
-        "MULTIARCH=\\\"x86_64-linux-gnu\\\"",
-        "SOABI=\\\"cpython-{}-x86_64-linux-gnu\\\"".format(PYTHON_MAJOR_MINOR_FLAT),
-    ],
+    ] + select({
+        condition: [
+            "MULTIARCH=\\\"{}\\\"".format(platform["multiarch"]),
+            "SOABI=\\\"cpython-{}-{}\\\"".format(
+                PYTHON_MAJOR_MINOR_FLAT,
+                platform["multiarch"],
+            ),
+        ]
+        for condition, platform in NATIVE_PLATFORMS.items()
+    }),
     deps = [":native_internal_headers"],
     alwayslink = True,
 )
@@ -768,7 +777,13 @@ cc_binary(
     deps = [":native_headers"],
 )
 
-NATIVE_EXT_SUFFIX = ".cpython-{}-x86_64-linux-gnu.so".format(PYTHON_MAJOR_MINOR_FLAT)
+NATIVE_EXT_SUFFIXES = {
+    condition: ".cpython-{}-{}.so".format(
+        PYTHON_MAJOR_MINOR_FLAT,
+        platform["multiarch"],
+    )
+    for condition, platform in NATIVE_PLATFORMS.items()
+}
 
 cc_library(
     name = "native_libmpdec",
@@ -846,7 +861,10 @@ cc_library(
     cc_shared_library(
         name = "native_module_" + name,
         dynamic_deps = module.get("dynamic_deps", []),
-        shared_lib_name = name + NATIVE_EXT_SUFFIX,
+        shared_lib_name = select({
+            condition: name + NATIVE_EXT_SUFFIXES[condition]
+            for condition, platform in NATIVE_PLATFORMS.items()
+        }),
         deps = [":native_module_{}_lib".format(name)],
     )
     for name, module in SHARED_MODULES.items()
@@ -857,12 +875,16 @@ filegroup(
     srcs = [":native_module_" + name for name in SHARED_MODULES],
 )
 
-NATIVE_SYSCONFIGDATA = "_sysconfigdata__linux_x86_64-linux-gnu.py"
-
 write_file(
     name = "native_sysconfig_vars",
     out = "native_sysconfig_vars.json",
-    content = [json.encode(SYSCONFIG_VARS_LINUX_X86_64)],
+    content = select({
+        condition: [json.encode(sysconfig_vars(
+            platform["multiarch"],
+            platform["gnu_type"],
+        ))]
+        for condition, platform in NATIVE_PLATFORMS.items()
+    }),
 )
 
 genrule(
@@ -871,7 +893,7 @@ genrule(
         ":native_pyconfig_h",
         ":native_sysconfig_vars",
     ],
-    outs = [NATIVE_SYSCONFIGDATA],
+    outs = ["native_sysconfigdata.py"],
     cmd = " ".join([
         "$(execpath {})".format(DEFAULT_PYTHON),
         "$(execpath @@//deps/cpython:gen_sysconfigdata.py)",
@@ -902,15 +924,25 @@ copy_to_directory(
             "Lib/test/**",
         ],
     ),
-    replace_prefixes = {
-        "Lib/": "lib/python{}/".format(PYTHON_MAJOR_MINOR),
-        "native_python": "bin/python{}".format(PYTHON_MAJOR_MINOR),
-        LINUX_SO: "lib/" + LINUX_SO,
-        NATIVE_SYSCONFIGDATA: "lib/python{}/{}".format(PYTHON_MAJOR_MINOR, NATIVE_SYSCONFIGDATA),
-    } | {
-        name + NATIVE_EXT_SUFFIX: "lib/python{}/lib-dynload/{}{}".format(PYTHON_MAJOR_MINOR, name, NATIVE_EXT_SUFFIX)
-        for name in SHARED_MODULES
-    },
+    replace_prefixes = select({
+        condition: {
+            "Lib/": "lib/python{}/".format(PYTHON_MAJOR_MINOR),
+            "native_python": "bin/python{}".format(PYTHON_MAJOR_MINOR),
+            "native_sysconfigdata.py": "lib/python{}/_sysconfigdata__linux_{}.py".format(
+                PYTHON_MAJOR_MINOR,
+                platform["multiarch"],
+            ),
+            LINUX_SO: "lib/" + LINUX_SO,
+        } | {
+            name + NATIVE_EXT_SUFFIXES[condition]: "lib/python{}/lib-dynload/{}{}".format(
+                PYTHON_MAJOR_MINOR,
+                name,
+                NATIVE_EXT_SUFFIXES[condition],
+            )
+            for name in SHARED_MODULES
+        }
+        for condition, platform in NATIVE_PLATFORMS.items()
+    }),
 )
 
 NATIVE_TEST_SHARED_LIBS = [
