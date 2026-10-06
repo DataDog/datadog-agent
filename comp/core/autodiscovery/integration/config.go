@@ -142,10 +142,11 @@ type HealthCheckConfig struct {
 
 // RemediationConfig describes remediation steps and their rate limits.
 type RemediationConfig struct {
-	Steps        []RemediationStep `yaml:"steps"`
-	Cooldown     string            `yaml:"cooldown"`
-	MaxAttempts  int               `yaml:"max_attempts"`
-	AllowedPaths []string          `yaml:"allowed_paths"`
+	Steps           []RemediationStep   `yaml:"steps"`
+	Cooldown        string              `yaml:"cooldown"`
+	MaxAttempts     int                 `yaml:"max_attempts"`
+	AllowedPaths    []string            `yaml:"allowed_paths"`
+	AllowedServices map[string][]string `yaml:"allowed_services"`
 }
 
 // RemediationStep describes a command for a remediation dispatcher.

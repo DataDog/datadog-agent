@@ -409,6 +409,10 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 		return runCtx, nil, err
 	}
 	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
+	// Local remediation deliberately trusts the on-host agent; action-platform must review this boundary.
+	if p.coreConfig.GetBool("health_check_remediation.enabled") {
+		p.executorServer.SetLocalRemediationExecutor(taskExecutor.ForLocalRemediation())
+	}
 	go p.encryptionStore.Start()
 	keysManager.Start(runCtx)
 	go func() {

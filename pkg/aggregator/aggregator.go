@@ -395,8 +395,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tagFilterList:     filterList.GetTagFilterList(),
 	}
 
-	if pkgconfigsetup.Datadog().GetBool("health_check_remediation.enabled") {
-		aggregator.remediationObserver = healthcheck.NewObserver(healthcheck.NewEventDispatcher(aggregator.eventIn, hostname))
+	aggregator.remediationObserver = healthcheck.NewObserver(healthcheck.NewRemediationDispatcher(pkgconfigsetup.Datadog(), aggregator.eventIn, hostname))
+	if aggregator.remediationObserver != nil {
 		aggregator.SetServiceCheckObserver(aggregator.remediationObserver)
 	}
 	return aggregator

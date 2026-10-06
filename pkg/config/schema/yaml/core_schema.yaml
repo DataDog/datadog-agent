@@ -5076,7 +5076,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        description: Emits dry-run events for configured health-check remediation without executing commands.
+        description: Executes configured health-check remediation through the local non-privileged Private Action Runner, falling back to dry-run events when its executor is unavailable.
   anomaly_detection:
     node_type: section
     type: object

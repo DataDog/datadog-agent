@@ -86,5 +86,11 @@ func cloneConfig(cfg *integration.HealthCheckConfig) *integration.HealthCheckCon
 	copy := *cfg
 	copy.Remediation.Steps = slices.Clone(cfg.Remediation.Steps)
 	copy.Remediation.AllowedPaths = slices.Clone(cfg.Remediation.AllowedPaths)
+	if cfg.Remediation.AllowedServices != nil {
+		copy.Remediation.AllowedServices = make(map[string][]string, len(cfg.Remediation.AllowedServices))
+		for service, actions := range cfg.Remediation.AllowedServices {
+			copy.Remediation.AllowedServices[service] = slices.Clone(actions)
+		}
+	}
 	return &copy
 }

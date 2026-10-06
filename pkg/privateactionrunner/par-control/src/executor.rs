@@ -165,6 +165,15 @@ mod tests {
         type RunActionStream =
             Pin<Box<dyn Stream<Item = std::result::Result<pb::RunActionResponse, Status>> + Send>>;
 
+        async fn run_local_remediation(
+            &self,
+            _request: Request<pb::RunLocalRemediationRequest>,
+        ) -> std::result::Result<Response<pb::RunLocalRemediationResponse>, Status> {
+            Err(Status::unimplemented(
+                "local remediation is not used by the control plane",
+            ))
+        }
+
         async fn run_action(
             &self,
             _request: Request<pb::RunActionRequest>,
