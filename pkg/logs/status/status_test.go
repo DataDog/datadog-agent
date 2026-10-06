@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -47,6 +48,78 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 			assert.Fail(t, "Expected foo or bar, got "+integration.Name)
 		}
 	}
+}
+
+func TestIntegrationsRespectVerbose(t *testing.T) {
+	defer Clear()
+
+	logSource := sources.NewLogSource("foo", &config.LogsConfig{
+		Type:        config.FileType,
+		Path:        "/var/log/foo.log",
+		Identifier:  "foo-id",
+		Service:     "foo-service",
+		Source:      "foo-source",
+		TailingMode: "beginning",
+		Format:      "json",
+	})
+	logSource.Status().Success()
+	logSource.AddInput("/var/log/foo.log")
+	logSource.Messages.AddMessage("warning", "source warning")
+	logSource.RecordBytes(42)
+
+	mockConfig := configmock.New(t)
+	InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{logSource}))
+
+	status := Get(false)
+	require.Len(t, status.Integrations, 1)
+	require.Len(t, status.Integrations[0].Sources, 1)
+	sourceStatus := status.Integrations[0].Sources[0]
+	assert.Equal(t, map[string]interface{}{
+		"Path":    "/var/log/foo.log",
+		"Service": "foo-service",
+		"Source":  "foo-source",
+	}, sourceStatus.Configuration)
+	assert.Equal(t, "OK", sourceStatus.Status)
+	assert.Equal(t, []string{"source warning"}, sourceStatus.Messages)
+	assert.Nil(t, sourceStatus.Inputs)
+	assert.Nil(t, sourceStatus.Info)
+
+	verboseStatus := Get(true)
+	require.Len(t, verboseStatus.Integrations, 1)
+	require.Len(t, verboseStatus.Integrations[0].Sources, 1)
+	verboseSourceStatus := verboseStatus.Integrations[0].Sources[0]
+	assert.Equal(t, map[string]interface{}{
+		"Format":      "json",
+		"Identifier":  "foo-id",
+		"Path":        "/var/log/foo.log",
+		"Service":     "foo-service",
+		"Source":      "foo-source",
+		"TailingMode": "beginning",
+	}, verboseSourceStatus.Configuration)
+	assert.Equal(t, []string{"/var/log/foo.log"}, verboseSourceStatus.Inputs)
+	assert.Contains(t, verboseSourceStatus.Info, "Bytes Read")
+}
+
+func TestNonFileConfigurationIsAvailableWithoutVerbose(t *testing.T) {
+	logSource := sources.NewLogSource("tcp", &config.LogsConfig{
+		Type:       config.TCPType,
+		Port:       10518,
+		Format:     "syslog",
+		AllowedIPs: config.StringSliceField{"10.0.0.0/8"},
+		DeniedIPs:  config.StringSliceField{"10.0.0.1"},
+		Service:    "tcp-service",
+		Source:     "tcp-source",
+	})
+
+	builder := &Builder{}
+	assert.Equal(t, map[string]interface{}{
+		"AllowedIPs": "10.0.0.0/8",
+		"DeniedIPs":  "10.0.0.1",
+		"Format":     "syslog",
+		"Port":       10518,
+		"Service":    "tcp-service",
+		"Source":     "tcp-source",
+	}, builder.configToDictionary(logSource, false))
 }
 
 func TestStatusDeduplicateWarnings(t *testing.T) {
@@ -112,6 +185,10 @@ func TestStatusMetrics(t *testing.T) {
 	initStatus(t)
 
 	status := Get(false)
+	assert.Empty(t, status.StatusMetrics)
+	assert.Empty(t, status.ProcessFileStats)
+
+	status = Get(true)
 	assert.Equal(t, "0", status.StatusMetrics["LogsProcessed"])
 	assert.Equal(t, "0", status.StatusMetrics["LogsSent"])
 	assert.Equal(t, "0", status.StatusMetrics["BytesSent"])
@@ -127,7 +204,7 @@ func TestStatusMetrics(t *testing.T) {
 	metrics.RetryCount.Set(42)
 	metrics.RetryTimeSpent.Set(int64(time.Hour * 2))
 	metrics.LogsTruncated.Set(64)
-	status = Get(false)
+	status = Get(true)
 
 	assert.Equal(t, "5", status.StatusMetrics["LogsProcessed"])
 	assert.Equal(t, "3", status.StatusMetrics["LogsSent"])
@@ -139,7 +216,7 @@ func TestStatusMetrics(t *testing.T) {
 
 	metrics.LogsProcessed.Set(math.MaxInt64)
 	metrics.LogsProcessed.Add(1)
-	status = Get(false)
+	status = Get(true)
 	assert.Equal(t, strconv.Itoa(math.MinInt64), status.StatusMetrics["LogsProcessed"])
 }
 
@@ -161,6 +238,21 @@ func TestGetBackpressureStatus_Healthy(t *testing.T) {
 	bp := b.getBackpressureStatus(utils)
 	assert.Equal(t, "HEALTHY", bp.State)
 	assert.Empty(t, bp.Reason)
+}
+
+func TestFormatBackpressureSectionRespectsVerbose(t *testing.T) {
+	b := &Builder{}
+	utils := []ComponentUtilization{{Name: "processor", Instance: "0"}}
+
+	healthy := BackpressureStatus{State: "HEALTHY"}
+	assert.Empty(t, b.formatBackpressureSection(utils, healthy, false))
+	assert.Contains(t, b.formatBackpressureSection(utils, healthy, true), "Component")
+
+	warning := BackpressureStatus{State: "WARNING", Reason: "processor pipeline 0 was saturated"}
+	section := b.formatBackpressureSection(utils, warning, false)
+	assert.Contains(t, section, "Overall state: WARNING")
+	assert.Contains(t, section, warning.Reason)
+	assert.NotContains(t, section, "Component")
 }
 
 func TestGetBackpressureStatus_Saturated(t *testing.T) {

@@ -55,24 +55,34 @@ func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *
 // BuildStatus returns the status of the logs-agent.
 func (b *Builder) BuildStatus(verbose bool) Status {
 	tailers := []Tailer{}
+	statusMetrics := make(map[string]string)
+	processFileStats := make(map[string]uint64)
+	componentUtilization := []ComponentUtilization{}
 	if verbose {
 		tailers = b.getTailers()
+		statusMetrics = b.getMetricsStatus()
+		processFileStats = b.getProcessFileStats()
 	}
+
 	utils := b.getComponentUtilization()
 	bp := b.getBackpressureStatus(utils)
+	if verbose {
+		componentUtilization = utils
+	}
+
 	return Status{
 		IsRunning:            b.getIsRunning(),
 		Endpoints:            b.getEndpoints(),
-		Integrations:         b.getIntegrations(),
+		Integrations:         b.getIntegrations(verbose),
 		Tailers:              tailers,
-		StatusMetrics:        b.getMetricsStatus(),
-		ProcessFileStats:     b.getProcessFileStats(),
+		StatusMetrics:        statusMetrics,
+		ProcessFileStats:     processFileStats,
 		Warnings:             b.getWarnings(),
 		Errors:               b.getErrors(),
 		UseHTTP:              b.getUseHTTP(),
-		ComponentUtilization: utils,
+		ComponentUtilization: componentUtilization,
 		Backpressure:         bp,
-		BackpressureTable:    b.formatBackpressureSection(utils, bp),
+		BackpressureTable:    b.formatBackpressureSection(utils, bp, verbose),
 	}
 }
 
@@ -206,8 +216,8 @@ func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) Backpressu
 }
 
 // formatBackpressureSection renders the backpressure section as preformatted text (omitted from JSON).
-func (b *Builder) formatBackpressureSection(utils []ComponentUtilization, bp BackpressureStatus) string {
-	if len(utils) == 0 {
+func (b *Builder) formatBackpressureSection(utils []ComponentUtilization, bp BackpressureStatus, verbose bool) string {
+	if len(utils) == 0 || (!verbose && bp.Reason == "") {
 		return ""
 	}
 	var sb strings.Builder
@@ -217,6 +227,9 @@ func (b *Builder) formatBackpressureSection(utils []ComponentUtilization, bp Bac
 	sb.WriteString(fmt.Sprintf("  Overall state: %s\n", bp.State))
 	if bp.Reason != "" {
 		sb.WriteString(fmt.Sprintf("  Reason: %s\n", bp.Reason))
+	}
+	if !verbose {
+		return sb.String()
 	}
 	sb.WriteString("\n")
 
@@ -309,20 +322,23 @@ func (b *Builder) getErrors() []string {
 	return b.errors.GetMessages()
 }
 
-// getIntegrations returns all the information about the logs integrations.
-func (b *Builder) getIntegrations() []Integration {
+// getIntegrations returns information about the logs integrations.
+func (b *Builder) getIntegrations(verbose bool) []Integration {
 	var integrations []Integration
 	for name, logSources := range b.groupSourcesByName() {
 		var sources []Source
 		for _, source := range logSources {
-			sources = append(sources, Source{
+			sourceStatus := Source{
 				Type:          source.Config.Type,
-				Configuration: b.configToDictionary(source),
+				Configuration: b.configToDictionary(source, verbose),
 				Status:        b.toString(source.Status()),
-				Inputs:        source.GetInputs(),
 				Messages:      source.Messages.GetMessages(),
-				Info:          source.GetInfoStatus(),
-			})
+			}
+			if verbose {
+				sourceStatus.Inputs = source.GetInputs()
+				sourceStatus.Info = source.GetInfoStatus()
+			}
+			sources = append(sources, sourceStatus)
 		}
 		integrations = append(integrations, Integration{
 			Name:    name,
@@ -379,7 +395,7 @@ func (b *Builder) toString(status *status.LogStatus) string {
 }
 
 // configToDictionary returns a representation of the source's configuration.
-func (b *Builder) configToDictionary(source *sourcesPkg.LogSource) map[string]interface{} {
+func (b *Builder) configToDictionary(source *sourcesPkg.LogSource, verbose bool) map[string]interface{} {
 	c := source.Config
 	dictionary := make(map[string]interface{})
 	dictionary["Service"] = c.Service
@@ -412,10 +428,12 @@ func (b *Builder) configToDictionary(source *sourcesPkg.LogSource) map[string]in
 		}
 	case config.FileType:
 		dictionary["Path"] = c.Path
-		dictionary["TailingMode"] = source.GetTailingMode()
-		dictionary["Identifier"] = c.Identifier
-		if c.Format != "" {
-			dictionary["Format"] = c.Format
+		if verbose {
+			dictionary["TailingMode"] = source.GetTailingMode()
+			dictionary["Identifier"] = c.Identifier
+			if c.Format != "" {
+				dictionary["Format"] = c.Format
+			}
 		}
 	case config.DockerType:
 		dictionary["Image"] = c.Image
