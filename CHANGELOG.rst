@@ -2,6 +2,64 @@
 Release Notes
 =============
 
+.. _Release Notes_7.84.2:
+
+7.84.2
+======
+
+.. _Release Notes_7.84.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-10-07
+
+- Please refer to the `7.84.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7842>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.84.2_New Features:
+
+New Features
+------------
+
+- Add Fleet-managed upgrades and rollback for Windows FIPS Agents.
+
+
+.. _Release Notes_7.84.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Allow enabling Private Action Runner split mode during a Windows Agent
+  installation with the ``DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED`` MSI
+  property.
+
+
+.. _Release Notes_7.84.2_Security Notes:
+
+Security Notes
+--------------
+
+- Bumped pip to 26.2.1 in the embedded Python distribution.
+
+- Patch the embedded MIT krb5 library so NegoEx GSS token parsing rejects
+  truncated headers and missing extension vectors instead of reading past the
+  buffer.
+
+
+.. _Release Notes_7.84.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix Kueue pods sometimes missing the ``kueue_workload``,
+  ``kueue_workload_uid`` and ``kueue_resource_flavor`` tags after an Agent
+  restart.
+
+- Windows Fleet installer setup now rejects standard/FIPS Agent mismatches
+  before stopping the installed Agent, with a message to use the matching installer.
+
+
 .. _Release Notes_7.84.1:
 
 7.84.1

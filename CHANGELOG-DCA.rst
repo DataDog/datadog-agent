@@ -2,6 +2,34 @@
 Release Notes
 =============
 
+.. _Release Notes_7.84.2:
+
+7.84.2
+======
+
+.. _Release Notes_7.84.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-10-07
+Pinned to datadog-agent v7.84.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7842>`_.
+
+
+.. _Release Notes_7.84.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The Cluster Agent now collects namespace metadata when
+  ``apm_config.instrumentation.on_demand`` is enabled, even if
+  ``apm_config.instrumentation.enabled`` is false. Before this fix,
+  Remote Configuration instrumentation policies that match on namespace
+  labels never matched, and injected pods in namespaces that enforce the ``restricted`` Pod
+  Security Standard were rejected because the init containers did not
+  get a restricted security context.
+
+
 .. _Release Notes_7.84.1:
 
 7.84.1
