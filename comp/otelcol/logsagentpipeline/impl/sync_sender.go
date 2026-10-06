@@ -11,10 +11,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"sync"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
@@ -93,18 +95,20 @@ func buildSyncSender(cfg pkgconfigmodel.Reader, logger log.Component, hostname h
 		inFlight:       make(chan struct{}, sendConcurrency(cfg, endpoints)),
 	}
 
-	newDestination := func(endpoint config.Endpoint) *http.BlockingDestination {
-		return http.NewBlockingDestination(endpoint, http.JSONContentType, cfg)
+	newDestination := func(endpoint config.Endpoint, kind string, index int) *http.BlockingDestination {
+		// The component name of the logs pipelines, which tags their traffic with source logs.
+		destMeta := client.NewDestinationMetadata("logs", "sync", kind, strconv.Itoa(index), "")
+		return http.NewBlockingDestination(endpoint, http.JSONContentType, destMeta, cfg)
 	}
 
-	for _, endpoint := range endpoints.GetReliableEndpoints() {
+	for i, endpoint := range endpoints.GetReliableEndpoints() {
 		if !endpoint.IsMRF {
-			s.reliable = append(s.reliable, newDestination(endpoint))
+			s.reliable = append(s.reliable, newDestination(endpoint, "reliable", i))
 		}
 	}
-	for _, endpoint := range endpoints.GetUnReliableEndpoints() {
+	for i, endpoint := range endpoints.GetUnReliableEndpoints() {
 		if !endpoint.IsMRF {
-			s.unreliable = append(s.unreliable, newDestination(endpoint))
+			s.unreliable = append(s.unreliable, newDestination(endpoint, "unreliable", i))
 		}
 	}
 	if len(s.reliable) == 0 {
