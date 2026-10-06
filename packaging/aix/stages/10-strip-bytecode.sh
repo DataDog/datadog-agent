@@ -106,11 +106,10 @@ log "Bytecode compilation complete"
 
 # ─── Step 4: Record compiled bytecode files ───────────────────────────────────
 #
-# The preinst and prerm package scripts read this manifest to delete .pyc files
-# before file replacement (upgrade) or removal (uninstall). mkinstallp does not
-# track .pyc files created post-install (they are generated at package-build time
-# and again at postinst time), so the manifest is the only reliable way to clean
-# them up without leaving orphaned bytecode behind.
+# The prerm package script reads this manifest to delete .pyc files during
+# upgrades, before the old files are replaced (the old manifest is still on
+# disk at that point). installp does not track post-install .pyc files, so
+# the manifest is the only reliable cleanup.
 
 log "Recording .pyc/.pyo files to $EMBEDDED_DESTDIR/.pyc_compiled_files.txt"
 find "$EMBEDDED_DESTDIR" \( -name "*.pyc" -o -name "*.pyo" \) -print \

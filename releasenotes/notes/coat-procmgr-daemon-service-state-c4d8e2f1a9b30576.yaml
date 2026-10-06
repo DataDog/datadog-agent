@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    The Agent now reports ``runtime.procmgr_daemon_service_state``, a bool gauge
+    tagged by ``state`` (``running``, ``starting``, ``stopping``, ``stopped``,
+    ``failed``, ``unknown``, or ``not_installed``) for the OS systemd unit or
+    Windows SCM service that runs ``dd-procmgrd``.
+
+    Unlike ``runtime.procmgr_daemon_reachable`` / ``ready``, which are gRPC health
+    signals, this metric reflects the unit/service state even when the daemon
+    socket is unreachable. State vocabulary matches ``runtime.procmgr_process_state``.
