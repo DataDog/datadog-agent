@@ -37,6 +37,11 @@ const (
 	bundleFixedOverhead = 250
 )
 
+// errEventTextTooLong is returned when a single event's text is too long to fit
+// in any bundle, so the event is dropped. This is expected behavior, callers
+// log it at debug level.
+var errEventTextTooLong = errors.New("event text length exceeds the maximum allowed length")
+
 type kubernetesEventBundle struct {
 	involvedObject      v1.ObjectReference // Parent object for this event bundle
 	component           string             // Used to identify the Kubernetes component which generated the event
@@ -68,7 +73,7 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 
 	eventText, fits := b.fitsEvent(event)
 	if !fits {
-		return fmt.Errorf("event text length exceeds the maximum allowed length: %d > %d", len(eventText), maxEstimatedEventTextLength)
+		return fmt.Errorf("%w: %d > %d", errEventTextTooLong, len(eventText), maxEstimatedEventTextLength)
 	}
 
 	// We do not process the events in chronological order necessarily.

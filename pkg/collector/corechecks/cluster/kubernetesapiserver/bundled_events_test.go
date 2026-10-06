@@ -8,12 +8,15 @@
 package kubernetesapiserver
 
 import (
+	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -300,6 +303,53 @@ func TestBundledEventsTransform(t *testing.T) {
 				assert.Equal(t, tt.expected[i].EventType, events[i].EventType)
 				assert.ElementsMatch(t, tt.expected[i].Tags, events[i].Tags)
 			}
+		})
+	}
+}
+
+func TestBundledEventsTransformOversizedEvent(t *testing.T) {
+	// A single event too long to fit in any bundle is dropped with an
+	// errEventTextTooLong error, which the check logs at debug level. The
+	// error message format is preserved for log-based alerting.
+	oversizedMessage := strings.Repeat("a", 4000)
+
+	tests := []struct {
+		name             string
+		events           []*v1.Event
+		expectTooLongErr bool
+	}{
+		{
+			name:             "oversized event returns errEventTextTooLong",
+			events:           []*v1.Event{createEvent(1, "default", "pod", "Pod", "uid-oversized", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600)},
+			expectTooLongErr: true,
+		},
+		{
+			name:             "normal event batch returns no errors",
+			events:           []*v1.Event{createEvent(1, "default", "pod", "Pod", "uid-normal", "kubelet", "kubelet", "", "Killing", "Stopping container pod", "Normal", 709662600)},
+			expectTooLongErr: false,
+		},
+	}
+
+	transformer := newBundledTransformer("test-cluster", taggerfxmock.SetupFakeTagger(t), []collectedEventType{}, false)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, errs := transformer.Transform(tt.events)
+
+			if !tt.expectTooLongErr {
+				assert.Empty(t, errs)
+				return
+			}
+
+			var tooLongErrs []error
+			for _, err := range errs {
+				if errors.Is(err, errEventTextTooLong) {
+					tooLongErrs = append(tooLongErrs, err)
+				}
+			}
+			require.Len(t, tooLongErrs, 1)
+			expectedMsg := fmt.Sprintf("event text length exceeds the maximum allowed length: %d > %d", len("**Failed**: "+oversizedMessage+"\n"), 3750)
+			assert.Equal(t, expectedMsg, tooLongErrs[0].Error())
 		})
 	}
 }
