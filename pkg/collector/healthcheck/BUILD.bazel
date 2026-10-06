@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "allowlist.go",
         "dispatcher.go",
+        "local_exec_dispatcher.go",
         "observer.go",
         "par_dispatcher.go",
         "par_dispatcher_unsupported.go",

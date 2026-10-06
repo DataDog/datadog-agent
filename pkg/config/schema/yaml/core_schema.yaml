@@ -5077,6 +5077,11 @@ properties:
         type: boolean
         default: false
         description: Executes configured health-check remediation through the local non-privileged Private Action Runner, falling back to dry-run events when its executor is unavailable.
+      execution_mode:
+        node_type: setting
+        type: string
+        default: par
+        description: Where remediation steps run. "par" routes through the local Private Action Runner rshell sandbox (default). "local" runs steps in-process on the host; intended for demos on bare hosts where the PAR sandbox path allowlist cannot be configured out-of-band.
   anomaly_detection:
     node_type: section
     type: object

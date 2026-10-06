@@ -46,6 +46,10 @@ func NewRemediationDispatcher(config configmodel.Reader, out chan<- event.Event,
 	if !config.GetBool("health_check_remediation.enabled") {
 		return nil
 	}
+	// Demo-only: run steps in-process on the host instead of routing through the PAR rshell sandbox.
+	if config.GetString("health_check_remediation.execution_mode") == "local" {
+		return NewLocalExecDispatcher(out, hostname)
+	}
 	return &PARDispatcher{
 		fallback: NewEventDispatcher(out, hostname),
 		address:  config.GetString(privateactionrunner.PARExecutorSocketPath),
