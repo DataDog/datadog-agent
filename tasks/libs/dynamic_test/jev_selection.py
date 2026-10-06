@@ -46,6 +46,7 @@ def jev_selection(suite: str) -> dict:
     try:
         summary = select_suite(
             suite,
+            debug=bool(os.environ.get("JEV_DEBUG")),
             dc=os.environ.get("JEV_DC", "us1.ddbuild.io"),
             token_cmd=os.environ.get("JEV_TOKEN_CMD"),
         )

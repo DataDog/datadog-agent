@@ -24,19 +24,26 @@ class TestJevTools(unittest.TestCase):
         self.assertEqual(decide(answers(should=0.1))["decision"], "run")
 
     def test_invalid_model_scores_and_relations(self):
-        for value in (float("nan"), float("inf"), None, True, "0.1", -1, 2):
+        for value in (float("nan"), float("inf"), None, True, "0.1", -1):
             with (
                 self.subTest(value=value),
                 # The error names the offending field and carries the raw value
                 self.assertRaisesRegex(ValueError, rf"invalid should_execute score: {re.escape(repr(value))}"),
             ):
                 decide(answers(should=value))
-        with self.assertRaisesRegex(ValueError, "invalid confidence score: 2"):
-            decide(answers(confidence=2))
         with self.assertRaisesRegex(ValueError, "unknown relation: 'typo'"):
             decide(answers(relation="typo"))
         with self.assertRaisesRegex(ValueError, "missing or malformed"):
             decide({})
+
+    def test_legend_scale_scores_are_accepted(self):
+        """The model answers on a 0-2 legend scale (the confidence question
+        carries a {0,1,2} legend): scores at or above 0 are accepted, so a
+        1.2 confidence does not fail the decision open."""
+        for value in (0, 0.5, 1, 1.2, 2):
+            with self.subTest(value=value):
+                decide(answers(confidence=value))
+        self.assertEqual(decide(answers(should=2))["decision"], "run")
 
     @patch("tasks.libs.dynamic_test.jev.jev_client.subprocess.run")
     def test_token_cmd_is_shell_split(self, run):

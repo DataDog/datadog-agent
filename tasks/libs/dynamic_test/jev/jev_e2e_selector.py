@@ -58,13 +58,15 @@ def select_suite(
     workers: int = 8,
     output: str | None = None,
     dry_run: bool = False,
+    debug: bool = False,
 ) -> dict | None:
     """Run the Jev selection for one suite and return its summary dict.
 
     Returns None on a dry run (states printed, nothing decided). The summary is
     {"suite", "team", "base", "pr", "changed_files", "run", "skip", "decisions"}.
     Fail-open is per test: a failed Jev call yields a RUN decision, never a
-    skip. Raises ValueError on invalid arguments.
+    skip. Raises ValueError on invalid arguments. debug=True prints the full
+    state sent for every call (see also JEV_DEBUG through jev_selection).
     """
     if workers < 1 or not 0 <= run_threshold <= 1:
         raise ValueError("workers must be positive and run_threshold must be between 0 and 1")
@@ -116,15 +118,16 @@ def select_suite(
             print(f"--- state for {name} (dry run, not sent) ---\n{state}\n")
             return {"test": name, "dry_run": True}
 
-        # Print exactly what is sent to Jev for every call, in a collapsed
-        # section when running in GitLab CI (echo: the bold title locally)
-        section_body = (
-            f"endpoint: https://ai-gateway.{dc}{SYSTEMONE_PATH}  model: {model}  source: {source}\n"
-            f"state ({len(state)} chars):\n{state}\n"
-            f"questions: {json.dumps(QUESTIONS)}"
-        )
-        with gitlab_section(f"Jev call input: {name}", collapsed=True, echo=True):
-            print(section_body)
+        # What is sent to Jev is printed only in debug mode (or a dry run):
+        # the full state per call dwarfs the one-line decisions otherwise
+        if debug:
+            section_body = (
+                f"endpoint: https://ai-gateway.{dc}{SYSTEMONE_PATH}  model: {model}  source: {source}\n"
+                f"state ({len(state)} chars):\n{state}\n"
+                f"questions: {json.dumps(QUESTIONS)}"
+            )
+            with gitlab_section(f"Jev call input: {name}", collapsed=True, echo=True):
+                print(section_body)
 
         try:
             answer = ask_jev(token, state, model=model, dc=dc, source=source)

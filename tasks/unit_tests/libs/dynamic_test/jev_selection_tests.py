@@ -23,7 +23,11 @@ class TestJevSelection(unittest.TestCase):
             self.assertEqual(jev_selection("installer"), select.return_value)
         # In-process call, no interpreter/module/output-file arguments
         self.assertEqual(select.call_args.args, ("installer",))
-        self.assertEqual(select.call_args.kwargs, {"dc": "us1.ddbuild.io", "token_cmd": "custom-token"})
+        self.assertEqual(select.call_args.kwargs, {"dc": "us1.ddbuild.io", "token_cmd": "custom-token", "debug": False})
+        # JEV_DEBUG=1 propagates as debug=True (the full state printing)
+        with patch.dict("os.environ", {"JEV_DC": "us1.ddbuild.io", "JEV_TOKEN_CMD": "t", "JEV_DEBUG": "1"}):
+            self.assertEqual(jev_selection("installer"), select.return_value)
+            self.assertTrue(select.call_args.kwargs["debug"])
 
     @patch(f"{MODULE}.select_suite")
     def test_selector_failures_return_no_skip_decisions(self, select):
