@@ -85,12 +85,12 @@ type ProcessSnapshot struct {
 	AutoStart     bool   `json:"auto_start"`
 	// ConditionPathExists is the path gating the start, if any.
 	ConditionPathExists string   `json:"condition_path_exists,omitempty"`
-	// SkipReasons are why the start pass declined to spawn (or a later respawn).
-	SkipReasons []string `json:"skip_reasons,omitempty"`
 	After               []string `json:"after,omitempty"`
 	Before              []string `json:"before,omitempty"`
 	Stdout              string   `json:"stdout,omitempty"`
 	Stderr              string   `json:"stderr,omitempty"`
+	// SkipReasons are why the start pass declined to spawn (or a later respawn).
+	SkipReasons []string `json:"skip_reasons,omitempty"`
 }
 
 // ServiceSnapshot captures install and supervision state for a migratable agent service.

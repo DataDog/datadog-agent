@@ -195,7 +195,7 @@ func (s *baseProcmgrSuite) TestConditionPathExistsSkipsMissingBinary() {
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
 		assertTableRow(ct, out, "missing-binary", map[string]string{
-			"STATE": "Created",
+			"STATE": "Skipped",
 			"PID":   "-",
 		})
 	}, 30*time.Second, 2*time.Second)
