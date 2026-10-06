@@ -87,6 +87,7 @@ from tasks.system_probe import (
     get_sysprobe_test_buildtags,
     get_test_timeout,
     go_package_dirs,
+    linux_platform_flags,
     ninja_add_dyninst_test_programs,
     setup_runtime_clang,
 )
@@ -673,11 +674,6 @@ def ninja_define_rules(
     )
 
 
-_KMT_LINUX_PLATFORMS = {
-    "x86_64": "//bazel/platforms:linux_x86_64",
-    "arm64": "//bazel/platforms:linux_arm64",
-}
-
 # Shared KMT tooling binaries; dest is relative to KMTPaths.dependencies.
 _KMT_TOOL_TARGETS: dict[str, str] = {
     "//test/new-e2e/system-probe/test-runner:test-runner": "test-runner",
@@ -711,14 +707,6 @@ _KMT_PKG_HELPER_TARGETS: dict[str, str] = {
     ),
     "//pkg/gpu/testdata:cudasample": "pkg/gpu/testdata/cudasample",
 }
-
-
-def kmt_linux_platform(arch: Arch) -> str:
-    return _KMT_LINUX_PLATFORMS[arch.kmt_arch]
-
-
-def kmt_bazel_flags(arch: Arch) -> list[str]:
-    return [f"--platforms={kmt_linux_platform(arch)}"]
 
 
 def canonical_go_test_label(label: str) -> str:
@@ -801,7 +789,7 @@ def stage_kmt_testsuites(kmt_paths: KMTPaths, arch: Arch, packages: list[str], b
 
 def stage_kmt_helper_binaries(ctx: Context, kmt_paths: KMTPaths, arch: Arch, *, include_pkg_helpers: bool) -> None:
     """Build KMT helper binaries with Bazel and copy them into the KMT layout."""
-    flags = kmt_bazel_flags(arch)
+    flags = linux_platform_flags(arch)
     dest_by_target = {target: str(kmt_paths.dependencies / dest) for target, dest in _KMT_TOOL_TARGETS.items()}
     if include_pkg_helpers:
         dest_by_target.update(

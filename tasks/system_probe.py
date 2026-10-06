@@ -921,6 +921,17 @@ def ebpf_bazel_flags(arch: Arch) -> list[str]:
     return []
 
 
+LINUX_BAZEL_PLATFORMS = {
+    "x86_64": "//bazel/platforms:linux_x86_64",
+    "arm64": "//bazel/platforms:linux_arm64",
+}
+
+
+def linux_platform_flags(arch: Arch) -> list[str]:
+    """Return the Bazel flags targeting Linux on `arch`."""
+    return [f"--platforms={LINUX_BAZEL_PLATFORMS[arch.kmt_arch]}"]
+
+
 def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str, strip: bool = True) -> None:
     """Build all eBPF artifacts via a single ``bazel build``.
 
@@ -1143,14 +1154,9 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
     if is_windows or is_macos:
         return
 
-    platform_map = {
-        "x86_64": "//bazel/platforms:linux_x86_64",
-        "arm64": "//bazel/platforms:linux_arm64",
-    }
-
     platform_flags = []
-    if arch.is_cross_compiling() and arch.kmt_arch in platform_map:
-        platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
+    if arch.is_cross_compiling() and arch.kmt_arch in LINUX_BAZEL_PLATFORMS:
+        platform_flags = linux_platform_flags(arch)
 
     for source_path in RUST_BINARIES:
         if packages and not any(source_path.startswith(package) for package in packages):

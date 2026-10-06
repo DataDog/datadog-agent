@@ -95,10 +95,10 @@ class TestFilterByCIComponent(unittest.TestCase):
 
 class TestKMTHelperTargets(unittest.TestCase):
     def test_linux_platforms(self):
-        from tasks.kmt import kmt_linux_platform
+        from tasks.system_probe import linux_platform_flags
 
-        self.assertEqual(kmt_linux_platform(Arch.from_str("x86_64")), "//bazel/platforms:linux_x86_64")
-        self.assertEqual(kmt_linux_platform(Arch.from_str("arm64")), "//bazel/platforms:linux_arm64")
+        self.assertEqual(linux_platform_flags(Arch.from_str("x86_64")), ["--platforms=//bazel/platforms:linux_x86_64"])
+        self.assertEqual(linux_platform_flags(Arch.from_str("arm64")), ["--platforms=//bazel/platforms:linux_arm64"])
 
     def test_helper_dests_are_unique_and_exist(self):
         from tasks.kmt import _KMT_PKG_HELPER_TARGETS, _KMT_TOOL_TARGETS
