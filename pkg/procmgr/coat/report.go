@@ -70,6 +70,8 @@ func reportNotes() []string {
 			"workload failing rather than the spawn. See last_exit_code and last_signal, and " +
 			daemonLogLocation() + ".",
 		"state=crashed: the process died on a signal. See last_signal.",
+		"state=invalid_config: processes.d YAML did not load. See config_error and " +
+			daemonLogLocation() + ".",
 		"restart_count is not a verdict on its own. It counts restarts dd-procmgrd performed, so " +
 			"restart_policy bounds it: the default policy is never, which cannot retry and leaves " +
 			"the count at 0 however badly the process failed. It is also reset once a spawn stays " +

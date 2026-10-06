@@ -91,6 +91,7 @@ type ProcessSnapshot struct {
 	Before              []string `json:"before,omitempty"`
 	Stdout              string   `json:"stdout,omitempty"`
 	Stderr              string   `json:"stderr,omitempty"`
+	ConfigError         string   `json:"config_error,omitempty"`
 }
 
 // ServiceSnapshot captures install and supervision state for a migratable agent service.

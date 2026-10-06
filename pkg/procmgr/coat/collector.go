@@ -149,13 +149,17 @@ func (c *Collector) collectService(ctx context.Context, service MigratableServic
 	}
 
 	if process, ok := processes[service.ProcmgrProcessName]; ok {
-		// Install marker may be missing for layouts the marker paths don't cover
-		// (e.g. Windows DDOT installed outside the checked roots); procmgr
-		// supervision is as strong an install signal as systemd/SCM below.
-		status.Installed = true
 		status.ProcmgrState = process.State
-		status.ManagementMode = ManagementModeProcmgr
-		return status
+		if process.State != ProcessStateInvalidConfig {
+			// Install marker may be missing for layouts the marker paths don't cover
+			// (e.g. Windows DDOT installed outside the checked roots); procmgr
+			// supervision is as strong an install signal as systemd/SCM below.
+			status.Installed = true
+			status.ManagementMode = ManagementModeProcmgr
+			return status
+		}
+		// A broken processes.d file is in the catalog, but procmgr does not own the
+		// workload. Fall through to the legacy SCM/systemd probe.
 	}
 
 	if legacyMode := detectLegacySupervisor(ctx, service); legacyMode != ManagementModeNone {

@@ -9,7 +9,7 @@ use crate::command::Command;
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::grpc::caller_auth::require_mutating_pipe_client;
 use crate::grpc::proto;
-use crate::manager::ProcessManager;
+use crate::manager::{InvalidProcess, ProcessManager};
 use crate::platform;
 use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::state::ProcessState;
@@ -40,7 +40,9 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         _request: Request<proto::ListRequest>,
     ) -> Result<Response<proto::ListResponse>, Status> {
         let procs = self.mgr.processes().await;
-        let processes = procs.iter().map(process_to_proto).collect();
+        let invalid = self.mgr.invalid_configs().await;
+        let mut processes: Vec<proto::Process> = procs.iter().map(process_to_proto).collect();
+        processes.extend(invalid.iter().map(invalid_to_proto));
         Ok(Response::new(proto::ListResponse { processes }))
     }
 
@@ -49,6 +51,14 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         request: Request<proto::DescribeRequest>,
     ) -> Result<Response<proto::DescribeResponse>, Status> {
         let name_or_uuid = request.into_inner().name_or_uuid;
+        {
+            let invalid = self.mgr.invalid_configs().await;
+            if let Some(inv) = crate::manager::find_invalid(&invalid, &name_or_uuid)? {
+                return Ok(Response::new(proto::DescribeResponse {
+                    detail: Some(invalid_detail_fields(inv)),
+                }));
+            }
+        }
         let (mut detail, pid) = {
             let procs = self.mgr.processes().await;
             let proc = resolve_process(&procs, &name_or_uuid)?;
@@ -73,7 +83,8 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         _request: Request<proto::GetStatusRequest>,
     ) -> Result<Response<proto::GetStatusResponse>, Status> {
         let procs = self.mgr.processes().await;
-        let total = procs.len() as u32;
+        let invalid = self.mgr.invalid_configs().await;
+        let total = (procs.len() + invalid.len()) as u32;
         let counts = StateCounts::tally(&procs);
 
         Ok(Response::new(proto::GetStatusResponse {
@@ -89,6 +100,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             starting_processes: counts.starting,
             stopping_processes: counts.stopping,
             crashed_processes: counts.crashed,
+            invalid_config_processes: invalid.len() as u32,
         }))
     }
 
@@ -197,11 +209,12 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         _request: Request<proto::GetConfigRequest>,
     ) -> Result<Response<proto::GetConfigResponse>, Status> {
         let procs = self.mgr.processes().await;
+        let invalid = self.mgr.invalid_configs().await;
         let runtime = procs
             .iter()
             .filter(|p| p.origin() == ProcessOrigin::Runtime)
             .count() as u32;
-        let loaded = procs.len() as u32 - runtime;
+        let loaded = procs.len() as u32 - runtime + invalid.len() as u32;
         Ok(Response::new(proto::GetConfigResponse {
             source: self.mgr.config_source().to_string(),
             location: self.mgr.config_location(),
@@ -277,6 +290,24 @@ fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
         last_signal: proc.last_signal(),
         profile: proc.profile().to_string(),
         user: proc.user().to_owned(),
+        config_error: String::new(),
+    }
+}
+
+fn invalid_to_proto(inv: &InvalidProcess) -> proto::Process {
+    proto::Process {
+        uuid: inv.uuid.clone(),
+        name: inv.name.clone(),
+        pid: 0,
+        command: String::new(),
+        args: Vec::new(),
+        state: proto::ProcessState::InvalidConfig.into(),
+        restart_count: 0,
+        last_exit_code: None,
+        last_signal: None,
+        profile: String::new(),
+        user: String::new(),
+        config_error: inv.error.clone(),
     }
 }
 
@@ -383,6 +414,35 @@ fn process_detail_fields(proc: &ManagedProcess) -> proto::ProcessDetail {
         profile: proc.profile().to_string(),
         user: proc.user().to_owned(),
         runtime_user: String::new(),
+        config_error: String::new(),
+    }
+}
+
+fn invalid_detail_fields(inv: &InvalidProcess) -> proto::ProcessDetail {
+    proto::ProcessDetail {
+        uuid: inv.uuid.clone(),
+        name: inv.name.clone(),
+        description: String::new(),
+        pid: 0,
+        state: proto::ProcessState::InvalidConfig.into(),
+        command: String::new(),
+        args: Vec::new(),
+        working_dir: String::new(),
+        env: Default::default(),
+        restart_policy: String::new(),
+        stdout: String::new(),
+        stderr: String::new(),
+        auto_start: false,
+        condition_path_exists: String::new(),
+        after: Vec::new(),
+        before: Vec::new(),
+        restart_count: 0,
+        last_exit_code: None,
+        last_signal: None,
+        profile: String::new(),
+        user: String::new(),
+        runtime_user: String::new(),
+        config_error: inv.error.clone(),
     }
 }
 
@@ -474,6 +534,25 @@ mod tests {
         assert_eq!(proto.state, proto::ProcessState::Created as i32);
         assert_eq!(proto.profile, "agent");
         assert_eq!(proto.user, proc.user());
+    }
+
+    #[test]
+    fn test_invalid_to_proto() {
+        let inv = InvalidProcess {
+            uuid: test_helpers::test_uuid(),
+            name: "broken".to_string(),
+            path: std::path::PathBuf::from("/tmp/broken.yaml"),
+            error: "parsing /tmp/broken.yaml: missing field".to_string(),
+        };
+        let proto = invalid_to_proto(&inv);
+        assert_eq!(proto.name, "broken");
+        assert_eq!(proto.pid, 0);
+        assert_eq!(proto.state, proto::ProcessState::InvalidConfig as i32);
+        assert_eq!(proto.command, "");
+        assert_eq!(proto.config_error, inv.error);
+        let detail = invalid_detail_fields(&inv);
+        assert_eq!(detail.config_error, inv.error);
+        assert_eq!(detail.state, proto::ProcessState::InvalidConfig as i32);
     }
 
     #[test]

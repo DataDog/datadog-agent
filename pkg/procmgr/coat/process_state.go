@@ -11,16 +11,17 @@ import "strings"
 const ServiceIDDDOT = "ddot"
 
 const (
-	ProcessStateNotInstalled = "not_installed"
-	ProcessStateUnknown      = "unknown"
-	ProcessStateCreated      = "created"
-	ProcessStateStarting     = "starting"
-	ProcessStateRunning      = "running"
-	ProcessStateStopping     = "stopping"
-	ProcessStateStopped      = "stopped"
-	ProcessStateCrashed      = "crashed"
-	ProcessStateExited       = "exited"
-	ProcessStateFailed       = "failed"
+	ProcessStateNotInstalled  = "not_installed"
+	ProcessStateUnknown       = "unknown"
+	ProcessStateCreated       = "created"
+	ProcessStateStarting      = "starting"
+	ProcessStateRunning       = "running"
+	ProcessStateStopping      = "stopping"
+	ProcessStateStopped       = "stopped"
+	ProcessStateCrashed       = "crashed"
+	ProcessStateExited        = "exited"
+	ProcessStateFailed        = "failed"
+	ProcessStateInvalidConfig = "invalid_config"
 )
 
 // procmgrProcessStates are the states reported as a tag on the procmgr_process_state gauge.
@@ -36,6 +37,7 @@ var procmgrProcessStates = []string{
 	ProcessStateCrashed,
 	ProcessStateExited,
 	ProcessStateFailed,
+	ProcessStateInvalidConfig,
 }
 
 // procmgrStateIsActive reports whether the procmgr_process_state gauge for state should be set
@@ -89,6 +91,8 @@ func parseProcmgrState(name string) string {
 		return ProcessStateExited
 	case "FAILED":
 		return ProcessStateFailed
+	case "INVALID_CONFIG", "INVALIDCONFIG":
+		return ProcessStateInvalidConfig
 	default:
 		return ProcessStateUnknown
 	}
