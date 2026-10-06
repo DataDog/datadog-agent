@@ -38,14 +38,19 @@ func lookupHostUser(uid string) *user.User {
 	uidBytes := strconv.AppendUint(uidBuffer[:0], id, 10)
 
 	scanner := bufio.NewScanner(file)
+	// Bound scanner memory for oversized records.
+	// If scanning fails, the caller falls back to the local user database.
 	scanner.Buffer(nil, 1024*1024)
 	// passwd fields: name:password:UID:GID:GECOS:home:shell.
 	// Compare UIDs as bytes; allocate strings only for matching UIDs.
 	for scanner.Scan() {
 		line := bytes.TrimSpace(scanner.Bytes())
+		// Ignore blank lines, comments, and +/- NIS compatibility entries.
 		if len(line) == 0 || line[0] == '#' || line[0] == '+' || line[0] == '-' {
 			continue
 		}
+		// Extract the username and UID, skipping the password field.
+		// Leave GID and later fields unparsed until the UID matches.
 		name, rest, ok := bytes.Cut(line, []byte(":"))
 		if !ok || len(name) == 0 {
 			continue
