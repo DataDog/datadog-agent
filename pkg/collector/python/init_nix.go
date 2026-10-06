@@ -10,6 +10,7 @@ package python
 import (
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -33,8 +34,17 @@ func initializePlatform() error {
 	// Setup crash handling specifics - *NIX-only
 
 	var cCoreDump int
-	if pkgconfigsetup.Datadog().GetBool("c_core_dump") {
-		cCoreDump = 1
+	if cfg := pkgconfigsetup.Datadog(); cfg.GetBool("c_core_dump") {
+		if coredump.BoundedEnabled(cfg) {
+			// rtloader's handle_crashes sets RLIMIT_CORE to unlimited. With
+			// python_lazy_loading (the default), it runs after coredump.Setup and
+			// would remove the bound. So rtloader does not touch RLIMIT_CORE
+			// here, and we apply the bounded limit instead (RLIMIT_CORE is
+			// process-wide, so it covers C crashes too).
+			coredump.ApplyBounded(cfg)
+		} else {
+			cCoreDump = 1
+		}
 	}
 
 	var cStacktraceCollection int

@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    (Unix only) Add the ``core_dump.dir``, ``core_dump.max_size``,
+    ``core_dump.min_free_disk`` and ``core_dump.max_age`` settings to bound
+    the core dumps enabled by ``go_core_dump`` and ``c_core_dump``. When
+    ``core_dump.dir`` is set, the core dump size limit is
+    ``core_dump.max_size`` instead of unlimited. The limit is 0 when the free
+    disk space in ``core_dump.dir`` is less than ``core_dump.min_free_disk``,
+    or when a core dump of the same binary that is younger than
+    ``core_dump.max_age`` is already in ``core_dump.dir``. Core dumps older
+    than ``core_dump.max_age`` are deleted from ``core_dump.dir``. When
+    ``core_dump.dir`` is empty (the default), the behavior does not change.

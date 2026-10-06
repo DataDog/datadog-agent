@@ -6181,6 +6181,46 @@ properties:
         default: true
         comment: Core agent (disabled for Error Tracking Standalone, Logs Collection
           Only)
+  core_dump:
+    node_type: section
+    type: object
+    comment: Bounded core dumps. Used with go_core_dump and c_core_dump (Unix only).
+      See pkg/util/coredump/bounded.go.
+    properties:
+      dir:
+        node_type: setting
+        type: string
+        default: ''
+        description: |
+          Directory where the kernel core pattern writes core dumps. When set, and
+          `go_core_dump` or `c_core_dump` is true, the core dump size limit
+          (RLIMIT_CORE) is bounded by the other `core_dump` settings instead of
+          unlimited. When empty, the bounds are off.
+      max_size:
+        node_type: setting
+        type: string
+        default: 2GB
+        description: |
+          Maximum size of one core dump, for example `3GB`. The suffixes KB, MB and
+          GB are powers of 1024. Set it below the size of the volume that holds
+          `core_dump.dir`. The kernel truncates a core that is larger.
+      min_free_disk:
+        node_type: setting
+        type: string
+        default: 10GB
+        description: |
+          Minimum free space in `core_dump.dir`. When the free space is lower,
+          core dumps are disabled (RLIMIT_CORE=0).
+      max_age:
+        node_type: setting
+        type: string
+        default: 72h
+        format: duration
+        description: |
+          Core dumps in `core_dump.dir` older than this are deleted at start and
+          every hour. While a core dump of this binary that is younger than this
+          is in the directory, core dumps are disabled (at most one core per
+          binary). Set 0 to never delete.
   csi:
     node_type: section
     type: object
