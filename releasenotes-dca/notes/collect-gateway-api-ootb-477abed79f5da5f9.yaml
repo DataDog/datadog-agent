@@ -8,3 +8,7 @@ enhancements:
     ``orchestrator_explorer.custom_resources.ootb.ingress_controllers``, or
     ``orchestrator_explorer.custom_resources.ootb.service_mesh`` to ``false`` to
     disable automatic collection for the corresponding family.
+fixes:
+  - |
+    Scrub sensitive values in custom resource fields outside ``spec``, including
+    inline credentials in the top-level ``config`` field of Kong plugins.
