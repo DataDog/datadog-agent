@@ -13,6 +13,9 @@ env_vars(
     # target using it is potentially uncachable.
     # ⚠️ Keep in sync with the `--repo_env=` entries in .bazelrc
     variables = [
+        # Stamps pkg/version.{Commit,FullCommit}, only in builds that also set
+        # PACKAGE_VERSION, so other CI jobs keep caching across commits.
+        "CI_COMMIT_SHA",
         # This gets set by omnibus builds in many cases. It's used in the script
         # to set things like compression, so we'll mimic that for now.
         "DEPLOY_AGENT",
