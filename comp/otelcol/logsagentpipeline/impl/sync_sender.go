@@ -44,7 +44,13 @@ type SyncSender struct {
 	unreliable     []*http.BlockingDestination
 	maxBatchSize   int
 	maxContentSize int
+	// inFlight bounds the payloads being sent across concurrent calls to Send.
+	inFlight chan struct{}
 }
+
+// maxConcurrencyPerPipeline mirrors the concurrency of the HTTP sender of each logs pipeline, in
+// comp/logs-library/pipeline/provider.go.
+const maxConcurrencyPerPipeline = 10
 
 var (
 	_ logsagentpipeline.SyncSender        = (*SyncSender)(nil)
@@ -84,6 +90,7 @@ func buildSyncSender(cfg pkgconfigmodel.Reader, logger log.Component, hostname h
 		compressor:     compressor,
 		maxBatchSize:   endpoints.BatchMaxSize,
 		maxContentSize: endpoints.BatchMaxContentSize,
+		inFlight:       make(chan struct{}, sendConcurrency(cfg, endpoints)),
 	}
 
 	newDestination := func(endpoint config.Endpoint) *http.BlockingDestination {
@@ -109,26 +116,40 @@ func buildSyncSender(cfg pkgconfigmodel.Reader, logger log.Component, hostname h
 	return s, nil
 }
 
+// sendConcurrency returns the number of payloads that the HTTP sender of the logs pipelines sends at
+// the same time.
+func sendConcurrency(cfg pkgconfigmodel.Reader, endpoints *config.Endpoints) int {
+	perPipeline := maxConcurrencyPerPipeline
+	if endpoints.BatchMaxConcurrentSend > 0 {
+		perPipeline = endpoints.BatchMaxConcurrentSend
+	}
+	return max(1, cfg.GetInt("logs_config.pipelines")*perPipeline)
+}
+
 // Send processes msgs and sends them to the intake, split into as many payloads as its limits
-// require. Payloads are sent concurrently. Unreliable endpoints are served on a best-effort basis
-// and their errors are not reported.
+// require. Payloads are sent concurrently, within a limit shared by concurrent calls. Unreliable
+// endpoints are served on a best-effort basis and their errors are not reported.
 func (s *SyncSender) Send(ctx context.Context, msgs []*message.Message) []error {
 	errs := make([]error, len(msgs))
-	batches := s.batch(msgs, errs)
-	send := func(b payloadBatch) {
-		if err := s.deliver(ctx, b.payload); err != nil {
-			for _, i := range b.members {
-				errs[i] = err
-			}
+	fail := func(b payloadBatch, err error) {
+		for _, i := range b.members {
+			errs[i] = err
 		}
 	}
-	if len(batches) == 1 {
-		send(batches[0])
-		return errs
-	}
 	var wg sync.WaitGroup
-	for _, b := range batches {
-		wg.Go(func() { send(b) })
+	for _, b := range s.batch(msgs, errs) {
+		select {
+		case s.inFlight <- struct{}{}:
+		case <-ctx.Done():
+			fail(b, ctx.Err())
+			continue
+		}
+		wg.Go(func() {
+			defer func() { <-s.inFlight }()
+			if err := s.deliver(ctx, b.payload); err != nil {
+				fail(b, err)
+			}
+		})
 	}
 	wg.Wait()
 	return errs

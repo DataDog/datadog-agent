@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -144,6 +145,41 @@ func TestSyncSenderSplitsPayloadsAtTheBatchSize(t *testing.T) {
 	payloads, delivered := intake.stats()
 	assert.Equal(t, 3, payloads)
 	assert.ElementsMatch(t, []string{"a", "b", "c", "d", "e"}, delivered)
+}
+
+func TestSyncSenderBoundsPayloadsInFlight(t *testing.T) {
+	var mu sync.Mutex
+	inFlight, maxInFlight := 0, 0
+	intake := newRecordingIntake(t, func([]string) int {
+		mu.Lock()
+		inFlight++
+		maxInFlight = max(maxInFlight, inFlight)
+		mu.Unlock()
+		time.Sleep(20 * time.Millisecond)
+		mu.Lock()
+		inFlight--
+		mu.Unlock()
+		return http.StatusOK
+	})
+	s := newTestSyncSender(t, intake.URL, map[string]interface{}{
+		"logs_config.pipelines":                 1,
+		"logs_config.batch_max_concurrent_send": 2,
+		"logs_config.batch_max_size":            1,
+	})
+
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Go(func() {
+			assert.Equal(t, make([]error, 4), s.Send(context.Background(), testMessages("a", "b", "c", "d")))
+		})
+	}
+	wg.Wait()
+
+	payloads, _ := intake.stats()
+	assert.Equal(t, 8, payloads)
+	mu.Lock()
+	defer mu.Unlock()
+	assert.LessOrEqual(t, maxInFlight, 2, "concurrent calls to Send share the limit of payloads in flight")
 }
 
 func TestSyncSenderReportsIntakeErrors(t *testing.T) {
