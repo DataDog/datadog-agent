@@ -292,9 +292,13 @@ use_repo(linux_headers_ext, "linux_headers", "linux_headers_aarch64", "linux_hea
 archive_override(
     module_name = "toolchains_msvc",
     patch_strip = 1,
-    # Adds MSBuild + the VC project system, and whole-tree filegroups, so MSBuild-driven
-    # builds (CPython) can run against the same hermetic toolchain as rules_cc.
-    patches = ["//bazel/patches:toolchains_msvc/0001-hermetic-msbuild-and-toolchain-trees.patch"],
+    # Adds MSBuild + the VC project system and whole-tree filegroups for CPython,
+    # then scopes MSVC archiver arguments to the C++ static-library action for
+    # compatibility with the current rules_cc action groups.
+    patches = [
+        "//bazel/patches:toolchains_msvc/0001-hermetic-msbuild-and-toolchain-trees.patch",
+        "//bazel/patches:toolchains_msvc/0002-scope-archiver-args-to-cpp-static-library.patch",
+    ],
     sha256 = "1ab52698bd8b1eac2e005a07e25e62538daed471e9657586213b88d7cd7cb14d",
     strip_prefix = "toolchains_msvc-8e2aa4624bbb5a53a94f135e90995f307875d1ad",
     urls = ["https://github.com/Dragnalith/toolchains_msvc/archive/8e2aa4624bbb5a53a94f135e90995f307875d1ad.tar.gz"],
@@ -473,8 +477,25 @@ rust.repository_set(
     target_compatible_with = [
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
+        "//bazel/platforms:rust_abi_gnu",
     ],
     target_triple = "x86_64-pc-windows-gnu",
+    versions = ["1.94.0"],
+)
+
+# AWS-LC FIPS does not support the Windows GNU ABI. Keep an MSVC Rust toolchain
+# available for the isolated libdd-rc native spike without changing the
+# MinGW-built Agent's default toolchain above.
+rust.repository_set(
+    name = "rust_windows_msvc_x86_64",
+    edition = "2024",
+    exec_triple = "x86_64-pc-windows-msvc",
+    target_compatible_with = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+        "//bazel/platforms:rust_abi_msvc",
+    ],
+    target_triple = "x86_64-pc-windows-msvc",
     versions = ["1.94.0"],
 )
 rust.toolchain(

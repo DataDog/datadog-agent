@@ -4,9 +4,21 @@ package(default_visibility = ["//visibility:public"])
 
 constraint_setting(name = "crypto")
 
+constraint_setting(name = "rust_abi")
+
 constraint_value(
     name = "fips",
     constraint_setting = ":crypto",
+)
+
+constraint_value(
+    name = "rust_abi_gnu",
+    constraint_setting = ":rust_abi",
+)
+
+constraint_value(
+    name = "rust_abi_msvc",
+    constraint_setting = ":rust_abi",
 )
 
 platform(
@@ -46,6 +58,19 @@ platform(
     constraint_values = [
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
+        ":rust_abi_gnu",
+    ],
+)
+
+# Feasibility platform for native dependencies that require the MSVC ABI.
+# The shipping Agent remains on the MinGW/GNU platform above.
+platform(
+    name = "windows_x86_64_msvc_fips",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+        ":fips",
+        ":rust_abi_msvc",
     ],
 )
 
@@ -91,5 +116,6 @@ platform(
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
         ":fips",
+        ":rust_abi_gnu",
     ],
 )
