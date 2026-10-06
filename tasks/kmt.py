@@ -1106,12 +1106,8 @@ def kmt_sysprobe_prepare(
     arch: str | Arch,
     stack: str | None = None,
     packages=None,
-    extra_arguments: str | None = None,
     ci: bool = False,
 ):
-    if extra_arguments:
-        raise Exit("kmt.sysprobe-prepare --extra-arguments is not supported with Bazel testsuites")
-
     if ci:
         stack = "ci"
 
