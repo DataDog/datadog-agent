@@ -57,18 +57,10 @@ func score(key HashKey, shard int) uint64 {
 	return xxhash.Sum64String(string(key) + "|" + strconv.Itoa(shard))
 }
 
-// ShardResponsible accepts the shard count, hash criteria (namespace and/or resource type)
-// and determines which shard will be responsible for tracking the KSM metric through rendezvous
-// hashing.
+// ShardResponsibleForKey determines which shard owns a precomputed hash key
+// using rendezvous hashing.
 //
-// Rendezvous hashing computes score(HashKey, shard ID) for every candidate shard; the shard with
-// the highest score owns the object. Ties are broken by defaulting to the higher shard ID.
-func ShardResponsible(count int, criteria []string, namespace, resource string) int {
-	key := NewHashKey(criteria, namespace, resource)
-	return ShardResponsibleForKey(count, key)
-}
-
-// ShardResponsibleForKey determines which shard owns a precomputed hash key.
+// The shard with the highest score owns the key. Ties favor the higher shard ID.
 func ShardResponsibleForKey(count int, key HashKey) int {
 	winningShard := 0
 	winningScore := score(key, 0)

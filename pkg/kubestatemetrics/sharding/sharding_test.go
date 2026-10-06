@@ -75,7 +75,7 @@ func TestScoreGoldenValues(t *testing.T) {
 	}
 }
 
-func TestShardResponsibleGoldenValues(t *testing.T) {
+func TestShardResponsibleForKeyGoldenValues(t *testing.T) {
 	tests := []struct {
 		name       string
 		count      int
@@ -91,8 +91,8 @@ func TestShardResponsibleGoldenValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedID, ShardResponsible(tt.count, tt.criteria, tt.namespace, tt.resource))
-			assert.Equal(t, tt.expectedID, ShardResponsibleForKey(tt.count, NewHashKey(tt.criteria, tt.namespace, tt.resource)))
+			key := NewHashKey(tt.criteria, tt.namespace, tt.resource)
+			assert.Equal(t, tt.expectedID, ShardResponsibleForKey(tt.count, key))
 		})
 	}
 }
