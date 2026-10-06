@@ -59,26 +59,28 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []err
 		}
 
 		id := buildBundleID(event)
+		bundles := bundlesByObject[id]
 
-		bundles, found := bundlesByObject[id]
-		if !found {
-			bundles = []*kubernetesEventBundle{newKubernetesEventBundler(c.clusterName, event)}
-			bundlesByObject[id] = bundles
+		// Add the event to the last bundle for the object when it fits.
+		if len(bundles) > 0 {
+			lastBundle := bundles[len(bundles)-1]
+			if _, fits := lastBundle.fitsEvent(event); fits {
+				if err := lastBundle.addEvent(event); err != nil {
+					errors = append(errors, err)
+				}
+				continue
+			}
 		}
 
-		lastBundle := bundles[len(bundles)-1]
-		_, fits := lastBundle.fitsEvent(event)
-		if !fits {
-			lastBundle = newKubernetesEventBundler(c.clusterName, event)
-			bundles = append(bundles, lastBundle)
-			bundlesByObject[id] = bundles
-		}
-
-		err := lastBundle.addEvent(event)
-		if err != nil {
+		// Start a new bundle. Register it only once the event is added, so an event
+		// too large for any bundle is dropped without leaving an empty bundle behind
+		// (empty bundles fail to export).
+		newBundle := newKubernetesEventBundler(c.clusterName, event)
+		if err := newBundle.addEvent(event); err != nil {
 			errors = append(errors, err)
 			continue
 		}
+		bundlesByObject[id] = append(bundles, newBundle)
 	}
 
 	datadogEvs := make([]event.Event, 0, len(bundlesByObject))

@@ -353,3 +353,63 @@ func TestBundledEventsTransformOversizedEvent(t *testing.T) {
 		})
 	}
 }
+
+// TestBundledEventsTransformOversizedEventNoEmptyBundle tests that dropping
+// events too large for any bundle never leaves an empty registered bundle
+// behind, which previously surfaced as "no event to export" errors.
+// Test partitions:
+// - oversized event position: first event for its object | after a fitting event
+// - oversized event count for one object: one | repeated
+func TestBundledEventsTransformOversizedEventNoEmptyBundle(t *testing.T) {
+	oversizedMessage := strings.Repeat("a", 4000)
+
+	tests := []struct {
+		name         string
+		events       []*v1.Event
+		wantErrs     int
+		wantDDEvents int
+	}{
+		{
+			name: "oversized first event for object",
+			events: []*v1.Event{
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
+			},
+			wantErrs:     1,
+			wantDDEvents: 0,
+		},
+		{
+			name: "oversized event after fitting event",
+			events: []*v1.Event{
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Killing", "Stopping container pod", "Warning", 709662600),
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
+			},
+			wantErrs:     1,
+			wantDDEvents: 1,
+		},
+		{
+			name: "repeated oversized events for one object",
+			events: []*v1.Event{
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
+			},
+			wantErrs:     3,
+			wantDDEvents: 0,
+		},
+	}
+
+	transformer := newBundledTransformer("test-cluster", taggerfxmock.SetupFakeTagger(t), []collectedEventType{}, false)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ddEvents, errs := transformer.Transform(tt.events)
+
+			// Only the too-long drop error is expected, never "no event to export".
+			require.Len(t, errs, tt.wantErrs)
+			for _, err := range errs {
+				assert.ErrorIs(t, err, errEventTextTooLong)
+			}
+			require.Len(t, ddEvents, tt.wantDDEvents)
+		})
+	}
+}
