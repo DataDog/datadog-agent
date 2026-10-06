@@ -5067,6 +5067,16 @@ properties:
     comment: |-
       Legacy alias for backward compatibility
       This applies to the current infrastructure_mode
+  health_check_remediation:
+    node_type: section
+    type: object
+    description: Configuration for integration health-check remediation.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        description: Emits dry-run events for configured health-check remediation without executing commands.
   anomaly_detection:
     node_type: section
     type: object

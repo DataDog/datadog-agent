@@ -22,6 +22,40 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
+func TestGetIntegrationConfigHealthCheck(t *testing.T) {
+	configPath := path.Join(t.TempDir(), "conf.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`init_config: {}
+instances:
+  - {}
+health_check:
+  enabled: true
+  service_check: test.can_connect
+  remediation:
+    steps:
+      - command: /usr/bin/true
+    cooldown: 10m
+    max_attempts: 2
+    allowed_paths:
+      - /usr/bin
+`), 0600))
+	config, _, err := GetIntegrationConfigFromFile("test", configPath)
+	require.NoError(t, err)
+	assert.Equal(t, &integration.HealthCheckConfig{
+		Enabled:      true,
+		ServiceCheck: "test.can_connect",
+		Remediation: integration.RemediationConfig{
+			Steps:        []integration.RemediationStep{{Command: "/usr/bin/true"}},
+			Cooldown:     "10m",
+			MaxAttempts:  2,
+			AllowedPaths: []string{"/usr/bin"},
+		},
+	}, config.HealthCheck)
+
+	config, _, err = GetIntegrationConfigFromFile("test", "testdata/testcheck.yaml")
+	require.NoError(t, err)
+	assert.Nil(t, config.HealthCheck)
+}
+
 func TestGetIntegrationConfig(t *testing.T) {
 	// file does not exist
 	_, _, err := GetIntegrationConfigFromFile("foo", "")

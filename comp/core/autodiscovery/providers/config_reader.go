@@ -44,6 +44,7 @@ type configFormat struct {
 	IgnoreAutodiscoveryTags bool                               `yaml:"ignore_autodiscovery_tags,omitempty"` // Use to ignore tags coming from autodiscovery
 	CheckTagCardinality     string                             `yaml:"check_tag_cardinality,omitempty"`     // Use to set the tag cardinality override for the check
 	Discovery               *integration.DiscoveryConfig       `yaml:"discovery,omitempty"`                 // Marks this config as a discovery template (instances are populated at runtime)
+	HealthCheck             *integration.HealthCheckConfig     `yaml:"health_check,omitempty"`
 }
 
 // ConfigFormatWrapper is a wrapper for the config format
@@ -589,6 +590,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 
 	// Copy discovery marker
 	conf.Discovery = cf.Discovery
+	conf.HealthCheck = cf.HealthCheck
 
 	// DockerImages entry was found: we ignore it if no ADIdentifiers has been found
 	if len(cf.DockerImages) > 0 && len(cf.ADIdentifiers) == 0 {

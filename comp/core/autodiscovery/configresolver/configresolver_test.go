@@ -927,6 +927,26 @@ func TestResolve(t *testing.T) {
 				ServiceID:     "a5901276aed1",
 			},
 		},
+		{
+			testName: "file health-check declaration is preserved through resolution",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			},
+			tpl: integration.Config{
+				Name:          "redis",
+				ADIdentifiers: []string{"redis"},
+				HealthCheck:   &integration.HealthCheckConfig{Enabled: true, ServiceCheck: "redis.can_connect", Remediation: integration.RemediationConfig{Steps: []integration.RemediationStep{{Command: "/usr/bin/true"}}}},
+			},
+			out: integration.Config{
+				Name:          "redis",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{},
+				HealthCheck:   &integration.HealthCheckConfig{Enabled: true, ServiceCheck: "redis.can_connect", Remediation: integration.RemediationConfig{Steps: []integration.RemediationStep{{Command: "/usr/bin/true"}}}},
+				ServiceID:     "a5901276aed1",
+			},
+		},
 	}
 
 	for i, tc := range testCases {

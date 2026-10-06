@@ -95,6 +95,13 @@ func TestDefaults(t *testing.T) {
 	assert.True(t, config.GetBool("logs_config.tag_truncated_logs"))
 
 	assert.True(t, config.GetBool("process_manager.enabled"))
+	assert.False(t, config.GetBool("health_check_remediation.enabled"))
+}
+
+func TestHealthCheckRemediationEnabledEnvOverride(t *testing.T) {
+	t.Setenv("DD_HEALTH_CHECK_REMEDIATION_ENABLED", "true")
+	config := newTestConf(t)
+	assert.True(t, config.GetBool("health_check_remediation.enabled"))
 }
 
 func TestRelativePathResolvedByDefault(t *testing.T) {

@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/healthcheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
@@ -111,11 +112,17 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 		for _, c := range checks {
 			// Check if this check is allowed in infra basic mode
 			if !IsCheckAllowed(c.String(), setup.Datadog()) {
+				if !s.isCheckRunning(c.ID()) {
+					healthcheck.Unregister(c.ID())
+				}
 				log.Warnf("Check %s is not allowed in infrastructure mode %q, skipping", c.String(), setup.Datadog().GetString("infrastructure_mode"))
 				continue
 			}
 			_, err := coll.RunCheck(c)
 			if err != nil {
+				if !s.isCheckRunning(c.ID()) {
+					healthcheck.Unregister(c.ID())
+				}
 				log.Errorf("Unable to run Check %s: %v", c, err)
 				errorStats.setRunError(c.ID(), err.Error())
 				continue
@@ -148,8 +155,10 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 				if err != nil {
 					log.Errorf("Error stopping check %s: %s", id, err)
 					errorStats.setRunError(id, err.Error())
-				} else {
+				}
+				if err == nil || !s.isCheckRunning(id) {
 					stopped[id] = struct{}{}
+					healthcheck.Unregister(id)
 				}
 			} else {
 				log.Errorf("Collector not available, unable to stop check %s", id)
@@ -175,6 +184,13 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 
 // Stop satisfies the autodiscovery scheduler interface.
 func (s *CheckScheduler) Stop() {}
+
+func (s *CheckScheduler) isCheckRunning(id checkid.ID) bool {
+	if coll, ok := s.collector.Get(); ok {
+		return slices.ContainsFunc(coll.GetChecks(), func(c check.Check) bool { return c.ID() == id })
+	}
+	return false
+}
 
 // addLoader adds a new Loader that AutoConfig can use to load a check.
 func (s *CheckScheduler) addLoader(loader check.Loader) {
@@ -299,6 +315,9 @@ func (s *CheckScheduler) loadCheckInstance(senderManager sender.SenderManager, c
 		}
 		c, err := loader.Load(senderManager, config, instance, instanceIndex)
 		if err == nil {
+			if setup.Datadog().GetBool("health_check_remediation.enabled") && config.HealthCheck != nil && config.HealthCheck.Enabled && !s.isCheckRunning(c.ID()) {
+				healthcheck.Register(c.ID(), config.HealthCheck)
+			}
 			result.check = c
 			result.loader = loader
 			return result
