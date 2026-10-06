@@ -15,7 +15,7 @@ MODULE = "tasks.libs.dynamic_test.jev_selection"
 SHA = "a" * 40
 
 
-class JevSelectionTests(unittest.TestCase):
+class TestJevSelection(unittest.TestCase):
     @patch(f"{MODULE}.select_suite")
     def test_selector_runs_in_process_with_overrides(self, select):
         select.return_value = {"run": ["TestA"], "skip": [], "decisions": []}
@@ -49,7 +49,7 @@ def _event(name, job, job_id, status="pass", flaky=False):
     }
 
 
-class JevDynTestExecutorTests(unittest.TestCase):
+class TestJevDynTestExecutor(unittest.TestCase):
     @patch(f"{MODULE}.get_pipeline")
     def test_rejects_wrong_commit_and_empty_pipeline(self, get_pipeline):
         pipeline = get_pipeline.return_value
@@ -143,7 +143,7 @@ class JevDynTestExecutorTests(unittest.TestCase):
         self.assertEqual(executor.triggering_paths("job", "TestA"), [])
 
 
-class GenerateJobCandidatesTests(unittest.TestCase):
+class TestGenerateJobCandidates(unittest.TestCase):
     @patch(f"{MODULE}.suite_entry_points")
     @patch(f"{MODULE}.get_ci_test_events")
     @patch(f"{MODULE}.get_pipeline")
@@ -176,7 +176,7 @@ class GenerateJobCandidatesTests(unittest.TestCase):
             self.assertNotIn("@ci.job.name:", c.args[0])
 
 
-class SharedEvaluatorTests(unittest.TestCase):
+class TestSharedEvaluator(unittest.TestCase):
     """The payoff: the plain shared evaluator runs the Jev executor untouched."""
 
     @patch("tasks.libs.dynamic_test.evaluator.get_ci_test_events")

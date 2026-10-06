@@ -10,7 +10,7 @@ from tasks.libs.dynamic_test.jev_selection import NothingToEvaluateError
 from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler
 
 
-class EvaluateIndexTests(unittest.TestCase):
+class TestEvaluateIndex(unittest.TestCase):
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
     @patch("tasks.dyntest.S3Backend")
     @patch("tasks.dyntest.JevDynTestExecutor")

@@ -16,7 +16,7 @@ def answers(should=0.5, relation="code_under_test", confidence=0.8):
     return {"should_execute": {"noul": should}, "relation": {"choice": relation}, "confidence": {"score": confidence}}
 
 
-class JevToolsTests(unittest.TestCase):
+class TestJevTools(unittest.TestCase):
     def test_decision(self):
         self.assertEqual(decide(answers())["decision"], "run")
         self.assertEqual(decide(answers(should=0.01))["decision"], "skip")
