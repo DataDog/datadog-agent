@@ -1594,9 +1594,11 @@ mod tests {
         async fn test_reload_refreshes_skip_reasons_on_stranded_process() -> anyhow::Result<()> {
             let (_env, dir) = gate_env();
             let yaml = write_agent_yaml(dir.path(), true);
-            let config_loader = Arc::new(MutableConfigLoader::new(vec![
-                gated_on_failure_sleep_def("gated-svc", &yaml),
-            ]));
+            let config_loader =
+                Arc::new(MutableConfigLoader::new(vec![gated_on_failure_sleep_def(
+                    "gated-svc",
+                    &yaml,
+                )]));
             let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
             let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
             let (restart_tx, mut restart_rx) = mpsc::channel::<String>(8);
