@@ -76,28 +76,39 @@ func SyncSenderQueueConfig(queue configoptional.Optional[exporterhelper.QueueBat
 }
 
 // sendSync sends msgs through the sync sender. records[i] is the position, in the iteration order of
-// ld, of the log record msgs[i] was built from. When some messages failed with an error worth
-// retrying, the returned error carries only their records, so that exporterhelper does not resend
-// the delivered ones.
-func (e *Exporter) sendSync(ctx context.Context, ld plog.Logs, msgs []*message.Message, records []int) error {
-	if len(msgs) == 0 {
+// ld, of the log record msgs[i] was built from. rejected holds the errors of the log records that
+// could not be turned into messages; they fail permanently. When some messages failed with an error
+// worth retrying, the returned error carries only their records, so that exporterhelper does not
+// resend the delivered ones.
+func (e *Exporter) sendSync(ctx context.Context, ld plog.Logs, msgs []*message.Message, records []int, rejected []error) error {
+	if len(msgs) == 0 && len(rejected) == 0 {
 		return nil
 	}
 	var causes []error
 	var messages []string
-	failed := 0
-	retry := make([]bool, ld.LogRecordCount())
-	retried := 0
-	for i, err := range e.syncSender.Send(ctx, msgs) {
-		if err == nil {
-			continue
-		}
-		failed++
-		// Messages sent in the same payload share their error.
+	// Records that fail for the same reason, such as messages sent in the same payload, share their error.
+	addCause := func(err error) {
 		if msg := err.Error(); !slices.Contains(messages, msg) {
 			messages = append(messages, msg)
 			causes = append(causes, err)
 		}
+	}
+	for _, err := range rejected {
+		addCause(err)
+	}
+	failed := len(rejected)
+	retry := make([]bool, ld.LogRecordCount())
+	retried := 0
+	var errs []error
+	if len(msgs) > 0 {
+		errs = e.syncSender.Send(ctx, msgs)
+	}
+	for i, err := range errs {
+		if err == nil {
+			continue
+		}
+		failed++
+		addCause(err)
 		if isRetryable(err) {
 			retry[records[i]] = true
 			retried++
@@ -107,7 +118,7 @@ func (e *Exporter) sendSync(ctx context.Context, ld plog.Logs, msgs []*message.M
 		return nil
 	}
 
-	err := scrubError(fmt.Errorf("failed to send %d of %d log records: %w", failed, len(msgs), errors.Join(causes...)))
+	err := scrubError(fmt.Errorf("failed to send %d of %d log records: %w", failed, len(msgs)+len(rejected), errors.Join(causes...)))
 	if retried == 0 {
 		return consumererror.NewPermanent(err)
 	}

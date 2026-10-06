@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -148,6 +149,39 @@ func TestSyncSenderRetriesOnlyFailedRecords(t *testing.T) {
 	require.ErrorAs(t, err, &logsErr)
 	assert.Equal(t, []string{"b", "d"}, recordBodies(logsErr.Data()))
 	assert.Equal(t, 2, logsErr.Data().ResourceLogs().Len(), "records keep their resource")
+}
+
+func TestSyncSenderReportsRecordsThatCannotBeMarshaled(t *testing.T) {
+	// encoding/json cannot encode NaN, which the logs mapper keeps as a float.
+	withNaN := func(ld plog.Logs, record int) plog.Logs {
+		ld.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(record).Attributes().PutDouble("ratio", math.NaN())
+		return ld
+	}
+
+	t.Run("alone", func(t *testing.T) {
+		sender := &fakeSyncSender{}
+
+		err := newSyncExporter(t, sender).ConsumeLogs(context.Background(), withNaN(logsWithBodies("a"), 0))
+
+		require.Error(t, err)
+		assert.True(t, consumererror.IsPermanent(err), "a record that cannot be marshaled must fail permanently: %v", err)
+		assert.Contains(t, err.Error(), "failed to send 1 of 1 log records")
+		assert.Contains(t, err.Error(), "unsupported value: NaN")
+		assert.Empty(t, sender.sent)
+	})
+
+	t.Run("with other records", func(t *testing.T) {
+		sender := &fakeSyncSender{}
+
+		err := newSyncExporter(t, sender).ConsumeLogs(context.Background(), withNaN(logsWithBodies("a", "b"), 1))
+
+		require.Error(t, err)
+		assert.True(t, consumererror.IsPermanent(err), "a record that cannot be marshaled must fail permanently: %v", err)
+		assert.Contains(t, err.Error(), "failed to send 1 of 2 log records")
+		require.Len(t, sender.sent, 1)
+		require.Len(t, sender.sent[0], 1)
+		assert.Equal(t, "a", messageBody(t, sender.sent[0][0]))
+	})
 }
 
 func TestSyncSenderContextErrorsAreRetryable(t *testing.T) {

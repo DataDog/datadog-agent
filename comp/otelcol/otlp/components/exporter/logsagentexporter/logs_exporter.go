@@ -132,13 +132,19 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) error {
 	// records[i] is the position in ld of the log record msgs[i] was built from: MapLogs returns one
 	// payload per log record, in iteration order.
 	var records []int
+	var rejected []error
 	if e.syncSender != nil {
 		msgs = make([]*message.Message, 0, len(payloads))
 		records = make([]int, 0, len(payloads))
 	}
 	for i, ddLog := range payloads {
-		msg, ok := e.newMessage(ddLog)
-		if !ok {
+		msg, err := e.newMessage(ddLog)
+		if err != nil {
+			if e.syncSender != nil {
+				rejected = append(rejected, fmt.Errorf("unable to marshal the log record: %w", err))
+			} else {
+				e.set.Logger.Error("error marshaling log, dropping log record", zap.Error(err))
+			}
 			continue
 		}
 		if e.syncSender != nil {
@@ -153,7 +159,7 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) error {
 		}
 	}
 	if e.syncSender != nil {
-		if err := e.sendSync(ctx, ld, msgs, records); err != nil {
+		if err := e.sendSync(ctx, ld, msgs, records, rejected); err != nil {
 			return err
 		}
 	}
@@ -166,8 +172,8 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) error {
 	return nil
 }
 
-// newMessage builds the logs agent message of ddLog. It returns false when the log cannot be encoded.
-func (e *Exporter) newMessage(ddLog datadogV2.HTTPLogItem) (*message.Message, bool) {
+// newMessage builds the logs agent message of ddLog. It returns an error when the log cannot be encoded.
+func (e *Exporter) newMessage(ddLog datadogV2.HTTPLogItem) (*message.Message, error) {
 	tags := strings.Split(ddLog.GetDdtags(), ",")
 	// Tags are set in the message origin instead
 	ddLog.Ddtags = nil
@@ -192,10 +198,9 @@ func (e *Exporter) newMessage(ddLog datadogV2.HTTPLogItem) (*message.Message, bo
 	}
 	origin.SetSource(src)
 
-	content, marshalErr := ddLog.MarshalJSON()
-	if marshalErr != nil {
-		e.set.Logger.Error("error marshaling log, dropping log record", zap.Error(marshalErr))
-		return nil, false
+	content, err := ddLog.MarshalJSON()
+	if err != nil {
+		return nil, err
 	}
 
 	// ingestionTs is an internal field used for latency tracking on the status page, not the actual log timestamp.
@@ -204,7 +209,7 @@ func (e *Exporter) newMessage(ddLog datadogV2.HTTPLogItem) (*message.Message, bo
 	if ddLog.Hostname != nil {
 		msg.Hostname = *ddLog.Hostname
 	}
-	return msg, true
+	return msg, nil
 }
 
 // scrubError removes secrets from the message of err. The returned error does not wrap err.
