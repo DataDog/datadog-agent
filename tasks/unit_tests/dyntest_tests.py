@@ -14,7 +14,7 @@ class EvaluateIndexTests(unittest.TestCase):
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
     @patch("tasks.dyntest.S3Backend")
     @patch("tasks.dyntest.JevDynTestExecutor")
-    @patch("tasks.dyntest.DatadogDynTestEvaluator")
+    @patch("tasks.dyntest.JevDynTestEvaluator")
     def test_jev_uses_shared_evaluator_without_s3_or_publishing(self, evaluator, executor, s3, _):
         executor.return_value.kind = IndexKind.JEV
         result = MagicMock()
@@ -67,7 +67,7 @@ class EvaluateIndexTests(unittest.TestCase):
 
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
     @patch("tasks.dyntest.JevDynTestExecutor")
-    @patch("tasks.dyntest.DatadogDynTestEvaluator")
+    @patch("tasks.dyntest.JevDynTestEvaluator")
     def test_empty_evaluation_fails_without_sending_stats(self, evaluator, executor, _):
         executor.return_value.kind = IndexKind.JEV
         for results in ([], [MagicMock(actual_count=lambda: 0)]):
@@ -78,7 +78,7 @@ class EvaluateIndexTests(unittest.TestCase):
 
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
     @patch("tasks.dyntest.JevDynTestExecutor")
-    @patch("tasks.dyntest.DatadogDynTestEvaluator")
+    @patch("tasks.dyntest.JevDynTestEvaluator")
     def test_nothing_to_evaluate_is_benign(self, evaluator, executor, _):
         """A pipeline with no completed E2E test jobs exits cleanly, not red."""
         executor.return_value.kind = IndexKind.JEV
@@ -90,7 +90,7 @@ class EvaluateIndexTests(unittest.TestCase):
 
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
     @patch("tasks.dyntest.JevDynTestExecutor")
-    @patch("tasks.dyntest.DatadogDynTestEvaluator")
+    @patch("tasks.dyntest.JevDynTestEvaluator")
     def test_initialization_failure_is_visible(self, evaluator, executor, _):
         executor.return_value.kind = IndexKind.JEV
         evaluator.return_value.initialize.return_value = False

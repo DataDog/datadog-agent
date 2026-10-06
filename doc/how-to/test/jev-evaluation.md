@@ -54,26 +54,25 @@ This preview can still read GitHub/DDCI PR metadata when configured.
 
 ## Integration and interpretation
 
-- `JevDynTestExecutor` uses the shared GitLab client to paginate the selected
-  pipeline's completed jobs. The resolved GitLab configuration and existing
-  matrix expansion helper supply each job's `TARGETS` and `EXTRA_PARAMS`.
-- A normal in-memory `DynamicTestIndex` records the candidate root tests per job.
-  It is independent of coverage data, including for new tests. Cleanup/unit-test
-  jobs are excluded. Root `--run`/`--skip` filters and nested suite paths are
-  honored; a subtest-only skip does not exclude the whole root suite.
-- The shared evaluator queries the latest job attempt. Skipped tests are not
-  counted as executed. Flaky failures and allow-failure jobs are not critical
-  misses. The `index_kind:jev` tag identifies Jev metrics.
+- `JevDynTestExecutor` loads the pipeline's completed (success/failed) E2E jobs
+  from the shared GitLab client (each status queried separately, all pages).
+  No CI-configuration parsing is involved.
+- The decidable universe is the E2E test filetree (`test/new-e2e/tests`), and
+  each job's universe is the tests that actually executed in it (CI
+  Visibility). Cleanup/unit-test jobs without executions are not evaluated;
+  executed tests that are not filetree entry points are not decidable.
+- `JevDynTestEvaluator` shares the executed-test queries, flaky/allow-failure
+  handling, miss logic and telemetry with the coverage evaluation. The
+  `index_kind:jev` tag identifies Jev metrics.
 - Only explicit, valid Jev skip decisions remove tests. Transport, authentication,
   timeout or parsing failures run the affected tests. Duplicate bare test names
   run conservatively if any occurrence should run.
 
-The reported miss count concerns **observed executions**, not tests that the
-coverage selector already skipped or jobs that never ran. Zero observed misses
+The reported miss count concerns **observed executions**. Zero observed misses
 is not proof that skipping tests is safe. Use a pipeline that ran the full E2E
-suite when comparing selector recall. Candidate discovery is source-based rather
-than build-tag/runtime-aware, so predicted counts can include tests that the
-particular platform or runtime setup would skip.
+suite when comparing selector recall. The per-job efficiency is measured over
+executed tests (i.e., on top of the coverage `--impacted` selection), and
+suites are asked for Jev decisions only when one of their tests executed.
 
 ## Regression tests
 

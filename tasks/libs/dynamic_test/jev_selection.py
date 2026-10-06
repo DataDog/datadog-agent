@@ -1,30 +1,28 @@
-"""Jev selection adapter for the existing dynamic-test executor/evaluator.
+"""Jev-based (System One) E2E test selection for the dynamic-test evaluation.
 
-The evaluation universe comes from the evaluated pipeline's jobs and their
-resolved TARGETS/EXTRA_PARAMS, not from coverage data. Only explicit, successful
-Jev skip decisions may remove tests; errors and unknown tests run conservatively.
+The decidable universe is the E2E test filetree (test/new-e2e/tests), and each
+evaluated job's universe is the tests that actually executed in it (CI
+Visibility). No CI-configuration or coverage data is involved: reconstructing
+per-job TARGETS/EXTRA_PARAMS from the CI config is fragile (rule evaluation is
+context-dependent, the lint endpoint alphabetizes matrix variables) and can
+never cover jobs generated outside the repo config. Only explicit, successful
+Jev skip decisions may remove tests; errors and unknown tests run
+conservatively.
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
-import re
-import shlex
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from string import Template
 
-from tasks.libs.ciproviders.gitlab_api import (
-    get_pipeline,
-    post_process_gitlab_ci_configuration,
-    resolve_gitlab_ci_configuration,
-)
+from tasks.libs.ciproviders.gitlab_api import get_pipeline
+from tasks.libs.dynamic_test.evaluator import DatadogDynTestEvaluator, EvaluationResult
 from tasks.libs.dynamic_test.executor import DynTestExecutor
-from tasks.libs.dynamic_test.index import DynamicTestIndex, IndexKind
+from tasks.libs.dynamic_test.index import IndexKind
 from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suites
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -75,55 +73,55 @@ def jev_selection(suite: str) -> dict:
             return {}
 
 
-def _suite_path(target: str) -> str:
-    """Keep nested suite paths (installer/unix), rather than just the basename."""
-    target = target.removeprefix("./").removesuffix("/...").rstrip("/")
-    if not target.startswith("tests/") or ".." in Path(target).parts or "$" in target:
-        raise ValueError(f"Unsupported E2E TARGETS value: {target}")
-    return target.removeprefix("tests/")
+def suite_entry_points() -> dict[str, set[str]]:
+    """Suite name -> its test entry points, discovered from the filetree."""
+    root = _REPO_ROOT / E2E_TESTS_DIR
+    return {
+        suite: {name for name, _, _ in list_suites(str(root / suite))}
+        for suite in sorted(os.listdir(root))
+        if (root / suite).is_dir()
+    }
 
 
-def _expand_variables(value: str, variables: dict) -> str:
-    """Expand job/matrix variables while preserving regex anchors such as '$'."""
-    for _ in range(10):
-        expanded = Template(value).safe_substitute(variables)
-        if expanded == value:
-            return expanded
-        value = expanded
-    raise ValueError("Cyclic CI variable expansion")
+def all_entry_points() -> set[str]:
+    """Every E2E test entry point under test/new-e2e/tests, across all suites."""
+    entries = set()
+    for names in suite_entry_points().values():
+        entries |= names
+    print(f"[jev] e2e test universe: {len(entries)} entry points across all suites")
+    return entries
 
 
-def _candidates_for_job(extra_params: str, universe: set[str]) -> set[str]:
-    """Apply Go's root-test run/skip regexes from the resolved job variables.
+class JevTestUniverse:
+    """Index-like object: the completed E2E jobs of the evaluated pipeline.
 
-    Subtest-only skips must not remove a root suite. Go splits run patterns at
-    '/', so TestFleetConfig$/TestConfig still selects the TestFleetConfig root.
+    Per-job test universes are NOT defined here: JevDynTestEvaluator restricts
+    each job to the tests that actually executed in it. The base
+    DynTestEvaluator.evaluate() cannot run against this index.
     """
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--run", default="")
-    parser.add_argument("--skip", default="")
-    args, _ = parser.parse_known_args(shlex.split(extra_params))
-    if any(re.search(r"\$(?:\w+|\{)", pattern) for pattern in (args.run, args.skip)):
-        raise ValueError("Unresolved CI variable in the job's run/skip filters")
-    run = args.run.split("/", 1)[0]
-    skip = args.skip if "/" not in args.skip else ""
-    return {name for name in universe if re.search(run, name) and not (skip and re.search(skip, name))}
+
+    def __init__(self, jobs: list[str]):
+        self.jobs = list(jobs)
 
 
 class JevDynTestExecutor(DynTestExecutor):
-    """Evaluation-only Jev executor, with an in-memory DynamicTestIndex.
+    """Loads the pipeline's completed E2E jobs and computes the Jev run-set.
 
-    Uses the shared GitLab helpers for pipeline jobs and CI configuration. The
-    shared Datadog evaluator owns all executed-test queries and comparisons.
+    - jobs: every completed (success/failed) new-e2e job of the pipeline, with
+      the latest-attempt job id and the allow-failure flag
+    - entry_points(): every E2E test entry point in the filetree (the decidable
+      universe)
+    - jev_run(names): the Jev run-set for the suites containing `names`; the
+      selector gathers its own PR context from this checkout
     """
 
     def __init__(self, ctx, commit_sha: str, pipeline_id: str):
         super().__init__(ctx, None, IndexKind.JEV, commit_sha)
         self.pipeline_id = pipeline_id
+        self.jobs: list[str] = []
         self.job_ids: dict[str, str] = {}
         self.unreliable_jobs: set[str] = set()
-        self._suites: set[str] = set()
-        self._jev_run_tests: set[str] | None = None
+        self._entry_points: set[str] | None = None
 
     def init_index(self):
         pipeline = get_pipeline("DataDog/datadog-agent", self.pipeline_id)
@@ -138,68 +136,56 @@ class JevDynTestExecutor(DynTestExecutor):
         jobs = [job for job in jobs if job.name.startswith("new-e2e")]
         if not jobs:
             raise NothingToEvaluateError(f"No completed E2E jobs in pipeline {self.pipeline_id}")
-        config = post_process_gitlab_ci_configuration(resolve_gitlab_ci_configuration(self.ctx), expand_matrix=True)
-        index = DynamicTestIndex()
-        self.job_ids.clear()
-        self.unreliable_jobs.clear()
-        self._suites.clear()
-        self._jev_run_tests = None
-        for job in jobs:
-            # Non-matrix parallel jobs have a ' 1/N' suffix, not separate configs.
-            job_config = config.get(job.name) or config.get(re.sub(r" \d+/\d+$", "", job.name))
-            if not job_config:
-                raise RuntimeError(f"Cannot find CI configuration for {job.name}")
-            variables = {**config.get("variables", {}), **job_config.get("variables", {})}
-            targets = _expand_variables(variables.get("TARGETS", ""), variables)
-            if not targets:
-                # new-e2e-unit-tests and cleanup jobs are not E2E test runs.
-                continue
-            candidates = set()
-            for target in targets.split(","):
-                suite = _suite_path(target.strip())
-                directory = _REPO_ROOT / E2E_TESTS_DIR / suite
-                if not directory.is_dir():
-                    raise RuntimeError(f"E2E suite does not exist: {directory}")
-                self._suites.add(suite)
-                candidates.update(name for name, _, _ in list_suites(str(directory)))
-            candidates = _candidates_for_job(
-                _expand_variables(variables.get("EXTRA_PARAMS", ""), variables), candidates
+        self.jobs = [job.name for job in jobs]
+        self.job_ids = {job.name: str(job.id) for job in jobs}
+        self.unreliable_jobs = {job.name for job in jobs if job.allow_failure}
+        self._index = JevTestUniverse(self.jobs)
+        print(f"[jev] universe: {len(self.jobs)} completed E2E jobs in pipeline {self.pipeline_id}")
+
+    def entry_points(self) -> set[str]:
+        if self._entry_points is None:
+            self._entry_points = all_entry_points()
+        return self._entry_points
+
+    def jev_run(self, names: set[str]) -> set[str]:
+        """The entry points Jev would RUN, decided via the suites containing `names`.
+
+        Only suites with something to decide are evaluated. Tests the selector
+        did not decide about (missing or failed-open decisions) run, and a bare
+        name occurring in several suites runs if any occurrence runs.
+        """
+        suites = {suite: entries for suite, entries in suite_entry_points().items() if entries & names}
+        run: set[str] = set()
+        for suite, entries in sorted(suites.items()):
+            summary = jev_selection(suite)
+            skip = set(summary.get("skip", [])) - set(summary.get("run", []))
+            run.update(entries - skip)
+            print(f"[jev] {suite}: {len(entries - skip)} run / {len(entries & skip)} skip")
+        return run
+
+
+class JevDynTestEvaluator(DatadogDynTestEvaluator):
+    """Evaluates the Jev selection with executed tests as the per-job universe."""
+
+    def evaluate(self, changes: list[str]) -> list[EvaluationResult]:
+        # changes are ignored: the Jev selector gathers its own PR context.
+        executor: JevDynTestExecutor = self.executor  # type: ignore[assignment]
+        executed_per_job: dict[str, list] = {}
+        for job in executor.jobs:
+            if tests := self.list_tests_for_job(job):
+                executed_per_job[job] = tests
+        if not executed_per_job:
+            return []
+        if empty := sorted(set(executor.jobs) - executed_per_job.keys()):
+            print(f"[jev] {len(empty)} completed E2E jobs executed no tests (not evaluated): {', '.join(empty)}")
+        universe = executor.entry_points()
+        names = {test.name for tests in executed_per_job.values() for test in tests}
+        if unknown := names - universe:
+            print(
+                f"[jev] {len(unknown)} executed tests are not filetree entry points (not decidable): {sorted(unknown)}"
             )
-            index.add_tests(job.name, "jev", candidates)
-            self.job_ids[job.name] = str(job.id)
-            if job.allow_failure:
-                self.unreliable_jobs.add(job.name)
-        if not index.get_jobs():
-            raise NothingToEvaluateError(f"No completed E2E test jobs in pipeline {self.pipeline_id}")
-        self._index = index
-        print(
-            f"[jev] universe: {len(index.get_jobs())} E2E jobs, {len(self._suites)} suites in pipeline {self.pipeline_id}"
-        )
-
-    def _jev_run(self) -> set[str]:
-        self.index()
-        if self._jev_run_tests is None:
-            run = set()
-            for suite in sorted(self._suites):
-                discovered = {name for name, _, _ in list_suites(str(_REPO_ROOT / E2E_TESTS_DIR / suite))}
-                summary = jev_selection(suite)
-                # Unknown/missing decisions run. Duplicate bare names across suites
-                # run if ANY occurrence runs, matching the index's bare-name keys.
-                skip = set(summary.get("skip", [])) - set(summary.get("run", []))
-                run.update(discovered - skip)
-                print(f"[jev] {suite}: {len(discovered - skip)} run / {len(discovered & skip)} skip")
-            self._jev_run_tests = run
-        return self._jev_run_tests
-
-    def tests_to_run_per_job(self, changes: list[str]) -> dict[str, set[str]]:
-        run = self._jev_run()
-        return {job: self.index().get_indexed_tests_for_job(job) & run for job in self.index().get_jobs()}
-
-    def tests_to_run(self, job_name: str, changes: list[str]) -> set[str]:
-        return self.index().get_indexed_tests_for_job(job_name) & self._jev_run()
-
-    def tests_to_skip(self, job_name: str, changes: list[str]) -> set[str]:
-        return self.index().get_indexed_tests_for_job(job_name) - self._jev_run()
-
-    def triggering_paths(self, job_name: str, test_name: str) -> list[str]:
-        return []
+        run = executor.jev_run(names & universe) if names & universe else set()
+        return [
+            self._evaluate_job(job, tests, run, indexed_tests=universe & {test.name for test in tests})
+            for job, tests in executed_per_job.items()
+        ]

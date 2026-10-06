@@ -21,7 +21,7 @@ from tasks.libs.dynamic_test.indexers.e2e import (
     FileCoverageDynTestIndexer,
     PackageCoverageDynTestIndexer,
 )
-from tasks.libs.dynamic_test.jev_selection import JevDynTestExecutor, NothingToEvaluateError
+from tasks.libs.dynamic_test.jev_selection import JevDynTestEvaluator, JevDynTestExecutor, NothingToEvaluateError
 from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler, DatadogTelemetryHandler
 from tasks.new_e2e_tests import DEFAULT_DYNTEST_BUCKET_URI
 
@@ -100,7 +100,8 @@ def evaluate_index(
     """Compare a selector's predictions with executed tests using the shared evaluator.
 
     Coverage evaluates the package/file/diffed-package indexes. Jev evaluates
-    completed E2E jobs using their configured targets, without requiring coverage
+    completed E2E jobs (executed tests as the per-job universe, discovered from
+    the test filetree), without requiring coverage
     data or S3 access. Jev must run from the evaluated pipeline's checkout.
 
     Requires DD_API_KEY/DD_APP_KEY with CI Visibility read access (and DD_SITE
@@ -116,6 +117,7 @@ def evaluate_index(
     head = get_commit_sha(ctx)
     commit_sha = commit_sha or head
     options = {"test_env": test_env or ("nativetest" if selector == "jev" else "prod"), "lookback_days": lookback_days}
+    evaluator_type: type[DatadogDynTestEvaluator] = DatadogDynTestEvaluator
     if selector == "jev":
         if commit_sha != head:
             raise Exit("For Jev, check out the pipeline commit and pass its full SHA (or omit --commit-sha)", code=1)
@@ -123,6 +125,7 @@ def evaluate_index(
         executors = [executor]
         options.update(job_ids=executor.job_ids, unreliable_jobs=executor.unreliable_jobs)
         changes = []  # Jev gathers the richer PR diff/context from this checkout.
+        evaluator_type = JevDynTestEvaluator
     else:
         backend = S3Backend(bucket_uri)
         changed_files = get_modified_files(ctx)
@@ -148,9 +151,7 @@ def evaluate_index(
             if send_stats
             else ConsoleTelemetryHandler()
         )
-        evaluator = DatadogDynTestEvaluator(
-            ctx, executor.kind, executor, pipeline_id, telemetry_handler=telemetry, **options
-        )
+        evaluator = evaluator_type(ctx, executor.kind, executor, pipeline_id, telemetry_handler=telemetry, **options)
         if not evaluator.initialize():
             if isinstance(evaluator.initialization_error, NothingToEvaluateError):
                 # E.g. a dev-branch pipeline where no E2E test jobs ran:

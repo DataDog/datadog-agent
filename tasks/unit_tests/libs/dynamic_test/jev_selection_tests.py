@@ -5,13 +5,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
-from tasks.libs.dynamic_test.index import DynamicTestIndex, IndexKind
+from tasks.libs.dynamic_test.evaluator import ExecutedTest
+from tasks.libs.dynamic_test.index import IndexKind
 from tasks.libs.dynamic_test.jev_selection import (
+    JevDynTestEvaluator,
     JevDynTestExecutor,
     NothingToEvaluateError,
-    _candidates_for_job,
-    _expand_variables,
-    _suite_path,
     jev_selection,
 )
 
@@ -20,36 +19,6 @@ SHA = "a" * 40
 
 
 class JevSelectionTests(unittest.TestCase):
-    def test_nested_target(self):
-        self.assertEqual(_suite_path("./tests/installer/unix/..."), "installer/unix")
-        for target in ("../tests/fleet", "tests/../fleet", "$TARGETS", "pkg/foo"):
-            with self.subTest(target=target), self.assertRaises(ValueError):
-                _suite_path(target)
-
-    def test_job_regexes(self):
-        tests = {"TestFleetConfig", "TestFleetUpgrade", "TestFleetConfigExtra"}
-        cases = [
-            ('--run "TestFleetConfig$"', {"TestFleetConfig"}),
-            ('--run "TestFleetConfig$" --skip "TestOther$"', {"TestFleetConfig"}),
-            ('--run "TestFleet(Config|Upgrade)$"', {"TestFleetConfig", "TestFleetUpgrade"}),
-            ('--run "TestFleetConfig$/Subtest" --skip "TestFleetConfig$/Other"', {"TestFleetConfig"}),
-            ('--skip "TestFleetConfig$"', {"TestFleetUpgrade", "TestFleetConfigExtra"}),
-            ('--run=TestFleetUpgrade --platform linux', {"TestFleetUpgrade"}),
-            ("", tests),
-        ]
-        for params, expected in cases:
-            with self.subTest(params=params):
-                self.assertEqual(_candidates_for_job(params, tests), expected)
-
-    def test_matrix_variable_expansion_preserves_regex_anchors(self):
-        params = _expand_variables('--run "$E2E_MSI_TEST$"', {"E2E_MSI_TEST": "${TEST_NAME}", "TEST_NAME": "TestMSI"})
-        self.assertEqual(params, '--run "TestMSI$"')
-        self.assertEqual(_candidates_for_job(params, {"TestMSI", "TestMSIExtra"}), {"TestMSI"})
-        with self.assertRaisesRegex(ValueError, "Unresolved CI variable"):
-            _candidates_for_job('--run "$UNKNOWN$"', {"TestA"})
-        with self.assertRaisesRegex(ValueError, "Cyclic"):
-            _expand_variables("$A", {"A": "$B", "B": "$A"})
-
     @patch(f"{MODULE}.subprocess.run")
     def test_selector_uses_current_interpreter_and_module(self, run):
         def write_output(cmd, **kwargs):
@@ -58,10 +27,10 @@ class JevSelectionTests(unittest.TestCase):
 
         run.side_effect = write_output
         with patch.dict("os.environ", {"JEV_DC": "us1.ddbuild.io", "JEV_TOKEN_CMD": "custom-token"}):
-            self.assertEqual(jev_selection("installer/unix")["run"], ["TestA"])
+            self.assertEqual(jev_selection("installer")["run"], ["TestA"])
         cmd = run.call_args.args[0]
         self.assertEqual(cmd[:3], [__import__("sys").executable, "-m", "tasks.libs.dynamic_test.jev.jev_e2e_selector"])
-        self.assertIn("installer/unix", cmd)
+        self.assertIn("installer", cmd)
         self.assertIn("custom-token", cmd)
 
     @patch(f"{MODULE}.subprocess.run")
@@ -82,83 +51,8 @@ class JevSelectionTests(unittest.TestCase):
         run.side_effect = write_output
         self.assertEqual(jev_selection("fleet"), {})
 
-    @patch(f"{MODULE}.list_suites")
-    @patch(f"{MODULE}.jev_selection")
-    def test_fail_open_and_cached_predictions(self, select, discover):
-        executor = JevDynTestExecutor(MagicMock(), SHA, "42")
-        executor._index = DynamicTestIndex({"job": {"jev": ["TestA", "TestB", "TestUnknown"]}})
-        executor._suites = {"fleet"}
-        discover.return_value = [(name, "path", "code") for name in ("TestA", "TestB", "TestUnknown")]
-        # A missing decision is run, and contradictory decisions run as well.
-        select.return_value = {"run": ["TestB"], "skip": ["TestA", "TestB"]}
-        self.assertEqual(executor.tests_to_run_per_job([]), {"job": {"TestB", "TestUnknown"}})
-        self.assertEqual(executor.tests_to_skip("job", []), {"TestA"})
-        self.assertEqual(executor.tests_to_run("job", []), {"TestB", "TestUnknown"})
-        select.assert_called_once_with("fleet")
-        executor._jev_run_tests = None
-        select.return_value = {}
-        self.assertEqual(executor.tests_to_skip("job", []), set())
-        self.assertEqual(executor.tests_to_run("unknown-job", []), set())
 
-    @patch(f"{MODULE}.list_suites", return_value=[("TestDuplicate", "path", "code")])
-    @patch(f"{MODULE}.jev_selection")
-    def test_duplicate_names_run_if_either_suite_runs(self, select, _):
-        executor = JevDynTestExecutor(MagicMock(), SHA, "42")
-        executor._index = DynamicTestIndex({"job": {"jev": ["TestDuplicate"]}})
-        executor._suites = {"a", "b"}
-        select.side_effect = [{"run": [], "skip": ["TestDuplicate"]}, {}]
-        self.assertEqual(executor.tests_to_run("job", []), {"TestDuplicate"})
-
-    @patch(f"{MODULE}.Path.is_dir", return_value=True)
-    @patch(f"{MODULE}.list_suites")
-    @patch(f"{MODULE}.resolve_gitlab_ci_configuration")
-    @patch(f"{MODULE}.get_pipeline")
-    def test_pipeline_scoping_pagination_and_real_index(self, get_pipeline, resolve, discover, _):
-        pipeline = get_pipeline.return_value
-        pipeline.sha = SHA
-        pipeline.jobs.list.side_effect = [
-            iter(
-                [
-                    SimpleNamespace(name='new-e2e-fleet: [--run "TestFleet$"]', id=1, allow_failure=False),
-                    SimpleNamespace(name="new-e2e-unit-tests", id=3, allow_failure=False),
-                ]
-            ),
-            iter(
-                [
-                    SimpleNamespace(name="new-e2e-installer", id=2, allow_failure=True),
-                    SimpleNamespace(name="unit-tests", id=4, allow_failure=False),
-                ]
-            ),
-        ]
-        resolve.return_value = {
-            "new-e2e-fleet": {
-                "variables": {"TARGETS": "./tests/fleet"},
-                "parallel": {"matrix": [{"EXTRA_PARAMS": ['--run "TestFleet$"']}]},
-            },
-            "new-e2e-installer": {"variables": {"TARGETS": "./tests/installer/unix"}},
-            "new-e2e-unit-tests": {"script": "unit tests"},
-        }
-        discover.side_effect = lambda directory: [
-            (name, "path", "code")
-            for name in (["TestFleet", "TestFleetExtra"] if directory.endswith("fleet") else ["TestInstaller"])
-        ]
-        executor = JevDynTestExecutor(MagicMock(), SHA, "42")
-        executor.init_index()
-        get_pipeline.assert_called_once_with("DataDog/datadog-agent", "42")
-        self.assertEqual(
-            pipeline.jobs.list.call_args_list,
-            [call(scope="success", iterator=True), call(scope="failed", iterator=True)],
-        )
-        self.assertIsInstance(executor.index(), DynamicTestIndex)
-        self.assertEqual(executor.kind, IndexKind.JEV)
-        self.assertEqual(
-            executor.index().get_indexed_tests_for_job('new-e2e-fleet: [--run "TestFleet$"]'), {"TestFleet"}
-        )
-        self.assertEqual(executor.index().get_indexed_tests_for_job("new-e2e-installer"), {"TestInstaller"})
-        self.assertEqual(executor.unreliable_jobs, {"new-e2e-installer"})
-        self.assertEqual(executor.job_ids["new-e2e-installer"], "2")
-        self.assertEqual(executor._suites, {"fleet", "installer/unix"})
-
+class JevDynTestExecutorTests(unittest.TestCase):
     @patch(f"{MODULE}.get_pipeline")
     def test_rejects_wrong_commit_and_empty_pipeline(self, get_pipeline):
         pipeline = get_pipeline.return_value
@@ -171,15 +65,95 @@ class JevSelectionTests(unittest.TestCase):
         pipeline.jobs.list.side_effect = [iter([]), iter([])]
         with self.assertRaisesRegex(NothingToEvaluateError, "No completed E2E jobs"):
             executor.init_index()
-        # Completed new-e2e jobs, but none is an E2E test run (no TARGETS,
-        # e.g. cleanup/unit-test jobs): benign as well, not a failure
+
+    @patch(f"{MODULE}.get_pipeline")
+    def test_jobs_are_scoped_statuses_paginated_and_recorded(self, get_pipeline):
+        pipeline = get_pipeline.return_value
+        pipeline.sha = SHA
+        # The pipeline-scoped jobs of each status; python-gitlab collapses
+        # list-valued scopes, so each status is queried separately
         pipeline.jobs.list.side_effect = [
-            iter([SimpleNamespace(name="new-e2e-unit-tests", id=1, allow_failure=False)]),
-            iter([]),
+            iter([SimpleNamespace(name="new-e2e-fleet", id=1, allow_failure=False)]),
+            iter(
+                [
+                    SimpleNamespace(name="new-e2e-installer", id=2, allow_failure=True),
+                    SimpleNamespace(name="unit-tests", id=3, allow_failure=False),
+                ]
+            ),
         ]
-        config = {"new-e2e-unit-tests": {"variables": {}}}
-        with (
-            patch(f"{MODULE}.resolve_gitlab_ci_configuration", return_value=config),
-            self.assertRaisesRegex(NothingToEvaluateError, "No completed E2E test jobs"),
-        ):
-            executor.init_index()
+        executor = JevDynTestExecutor(MagicMock(), SHA, "42")
+        executor.init_index()
+        get_pipeline.assert_called_once_with("DataDog/datadog-agent", "42")
+        self.assertEqual(
+            pipeline.jobs.list.call_args_list,
+            [call(scope="success", iterator=True), call(scope="failed", iterator=True)],
+        )
+        self.assertEqual(executor.kind, IndexKind.JEV)
+        self.assertEqual(executor.jobs, ["new-e2e-fleet", "new-e2e-installer"])
+        self.assertEqual(executor.job_ids, {"new-e2e-fleet": "1", "new-e2e-installer": "2"})
+        self.assertEqual(executor.unreliable_jobs, {"new-e2e-installer"})
+
+    @patch(f"{MODULE}.suite_entry_points")
+    @patch(f"{MODULE}.jev_selection")
+    def test_jev_run_decides_suites_containing_the_names(self, select, suites):
+        suites.return_value = {
+            "a": {"TestA", "TestB", "TestDup"},
+            # Fail-open suite (selector error): everything runs
+            "b": {"TestB", "TestDup"},
+            "unused": {"TestOther"},
+        }
+        select.side_effect = [
+            {"run": [], "skip": ["TestA", "TestDup"]},  # suite a: skip TestA and TestDup
+            {},  # suite b: selector failed, fail open
+        ]
+        executor = JevDynTestExecutor(MagicMock(), SHA, "42")
+        self.assertEqual(executor.jev_run({"TestA", "TestB", "TestDup"}), {"TestB", "TestDup"})
+        self.assertEqual([c.args[0] for c in select.call_args_list], ["a", "b"])
+
+
+class JevDynTestEvaluatorTests(unittest.TestCase):
+    def _evaluator(self, executor, job="job"):
+        evaluator = JevDynTestEvaluator(MagicMock(), IndexKind.JEV, executor, "42", telemetry_handler=MagicMock())
+        evaluator.job_ids = {job: "7"}
+        return evaluator
+
+    def test_evaluate_uses_executed_tests_as_the_per_job_universe(self):
+        executor = MagicMock(spec=JevDynTestExecutor)
+        executor.jobs = ["job", "cleanup-job"]
+        executor.entry_points.return_value = {"TestPass", "TestFail", "TestFlaky", "TestSkipKeep"}
+        executor.jev_run.return_value = {"TestPass", "TestSkipKeep"}
+        tests = [
+            ExecutedTest("TestPass", "pass", "42", "7", "job", False),
+            ExecutedTest("TestFail", "fail", "42", "7", "job", False),
+            ExecutedTest("TestFlaky", "fail", "42", "7", "job", True),
+            ExecutedTest("TestNotAnEntryPoint", "fail", "42", "7", "job", False),
+        ]
+        evaluator = self._evaluator(executor)
+        with patch.object(evaluator, "list_tests_for_job", side_effect=[tests, []]):
+            results = evaluator.evaluate([])
+        self.assertEqual(len(results), 1)  # the job with no executions is dropped
+        result = results[0]
+        self.assertEqual(result.job_name, "job")
+        # Actual universe = executed entry points only
+        self.assertEqual(result.actual_executed_tests, {"TestPass", "TestFail", "TestFlaky"})
+        self.assertEqual(
+            result.predicted_executed_tests,
+            {"TestPass"},
+        )  # TestSkipKeep is predicted but did not run; not a miss
+        # Only reliable failures that Jev would skip count as misses
+        self.assertEqual(result.not_executed_failing_tests, {"TestFail"})
+        # Jev is only asked about suites containing executed entry points
+        executor.jev_run.assert_called_once_with({"TestPass", "TestFail", "TestFlaky"})
+
+    def test_evaluate_with_no_executions_anywhere_is_empty(self):
+        executor = MagicMock(spec=JevDynTestExecutor)
+        executor.jobs = ["job"]
+        evaluator = self._evaluator(executor)
+        with patch.object(evaluator, "list_tests_for_job", return_value=[]):
+            self.assertEqual(evaluator.evaluate([]), [])
+        executor.jev_run.assert_not_called()
+        executor.entry_points.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()

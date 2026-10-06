@@ -383,10 +383,17 @@ This indicates an issue with the dynamic test system that may affect CI performa
                 self.telemetry_handler.send_event(event)
 
     def _evaluate_job(
-        self, job: str, current_job_tests: list[ExecutedTest], predicted_tests: set[str]
+        self,
+        job: str,
+        current_job_tests: list[ExecutedTest],
+        predicted_tests: set[str],
+        indexed_tests: set[str] | None = None,
     ) -> EvaluationResult:
-        # Only consider indexed tests, the system is currently not able to determine whether other tests should be executed or not.
-        indexed_tests = self.index.get_indexed_tests_for_job(job)
+        # Only consider tests the selection can decide about. Subclasses that
+        # derive the per-job universe another way (e.g. from executed tests)
+        # inject it via indexed_tests.
+        if indexed_tests is None:
+            indexed_tests = self.index.get_indexed_tests_for_job(job)
         actual_executed_tests = {test.name for test in current_job_tests if test.name in indexed_tests}
         predicted_executed_tests = predicted_tests & indexed_tests
         not_executed_failing_tests = set()
