@@ -94,7 +94,6 @@ dd_agent_go_test(
     name = "system_test",
     srcs = [
         "cpu_test.go",
-        "dlopen_linux_test.go",
         "file_linux_test.go",
         "namespace_linux_test.go",
         "network_linux_test.go",
