@@ -21,6 +21,11 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/oracle"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 )
 
 func setupTest(t *testing.T) (model.Config, context.Context) {
@@ -32,7 +37,15 @@ func setupTest(t *testing.T) (model.Config, context.Context) {
 
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("autoconfig_from_environment", false)
+	// avoid querying the cloud providers metadata endpoints
+	setupCloudProvider(t, "")
 	return mockConfig, context.Background()
+}
+
+// setupCloudProvider mocks cloudproviders.DetectCloudProvider so that it returns the given cloud provider name,
+// an empty name meaning that no cloud provider was detected.
+func setupCloudProvider(t *testing.T, cloudProviderName string) {
+	cloudproviders.Mock(t, cloudProviderName, "", "", "")
 }
 
 func TestGet(t *testing.T) {
@@ -218,13 +231,13 @@ func TestSanitizeEUDMTagValue(t *testing.T) {
 }
 
 func TestGetProvidersDefinitionsSkipsKubernetesNodeTagsOnCLCRunner(t *testing.T) {
-	mockConfig, _ := setupTest(t)
+	mockConfig, ctx := setupTest(t)
 	env.SetFeatures(t, env.Kubernetes)
 
 	mockConfig.SetInTest("clc_runner_enabled", true)
 	mockConfig.SetInTest("config_providers", []map[string]interface{}{{"name": "clusterchecks"}})
 
-	providers := getProvidersDefinitions(mockConfig)
+	providers := getProvidersDefinitions(ctx, mockConfig)
 	_, hasKubernetesNodeTags := providers["kubernetes"]
 	assert.False(t, hasKubernetesNodeTags, "kubernetes node-tags provider should be skipped on Cluster Checks Runners, which have no reachable local Kubelet")
 
@@ -233,12 +246,87 @@ func TestGetProvidersDefinitionsSkipsKubernetesNodeTagsOnCLCRunner(t *testing.T)
 }
 
 func TestGetProvidersDefinitionsIncludesKubernetesNodeTagsOnNodeAgent(t *testing.T) {
-	mockConfig, _ := setupTest(t)
+	mockConfig, ctx := setupTest(t)
 	env.SetFeatures(t, env.Kubernetes)
 
-	providers := getProvidersDefinitions(mockConfig)
+	providers := getProvidersDefinitions(ctx, mockConfig)
 	_, hasKubernetesNodeTags := providers["kubernetes"]
 	assert.True(t, hasKubernetesNodeTags, "kubernetes node-tags provider should be registered on a regular node Agent")
+}
+
+func TestGetProvidersDefinitionsSkipsEC2AndGCEWhenRunningOnAzure(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	mockConfig.SetInTest("collect_ec2_tags", true)
+	mockConfig.SetInTest("collect_ec2_instance_info", true)
+	setupCloudProvider(t, azure.CloudProviderName)
+
+	providers := getProvidersDefinitions(ctx, mockConfig)
+	_, hasGCE := providers["gce"]
+	assert.False(t, hasGCE, "gce provider should be skipped when the host is running on Azure")
+	_, hasEC2 := providers["ec2"]
+	assert.False(t, hasEC2, "ec2 provider should be skipped when the host is running on Azure")
+	_, hasEC2InstanceInfo := providers["ec2_instance_info"]
+	assert.False(t, hasEC2InstanceInfo, "ec2_instance_info provider should be skipped when the host is running on Azure")
+}
+
+func TestGetProvidersDefinitionsSkipsEC2AndGCEWhenRunningOnOracle(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	mockConfig.SetInTest("collect_ec2_tags", true)
+	mockConfig.SetInTest("collect_ec2_instance_info", true)
+	setupCloudProvider(t, oracle.CloudProviderName)
+
+	providers := getProvidersDefinitions(ctx, mockConfig)
+	_, hasGCE := providers["gce"]
+	assert.False(t, hasGCE, "gce provider should be skipped when the host is running on Oracle Cloud")
+	_, hasEC2 := providers["ec2"]
+	assert.False(t, hasEC2, "ec2 provider should be skipped when the host is running on Oracle Cloud")
+	_, hasEC2InstanceInfo := providers["ec2_instance_info"]
+	assert.False(t, hasEC2InstanceInfo, "ec2_instance_info provider should be skipped when the host is running on Oracle Cloud")
+}
+
+func TestGetProvidersDefinitionsKeepsMatchingProviderWhenRunningOnGCE(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	mockConfig.SetInTest("collect_ec2_tags", true)
+	mockConfig.SetInTest("collect_ec2_instance_info", true)
+	setupCloudProvider(t, gce.CloudProviderName)
+
+	providers := getProvidersDefinitions(ctx, mockConfig)
+	_, hasGCE := providers["gce"]
+	assert.True(t, hasGCE, "gce provider should still be registered when the host is running on GCE")
+	_, hasEC2 := providers["ec2"]
+	assert.False(t, hasEC2, "ec2 provider should be skipped when the host is running on GCE")
+	_, hasEC2InstanceInfo := providers["ec2_instance_info"]
+	assert.False(t, hasEC2InstanceInfo, "ec2_instance_info provider should be skipped when the host is running on GCE")
+}
+
+func TestGetProvidersDefinitionsKeepsMatchingProviderWhenRunningOnEC2(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	mockConfig.SetInTest("collect_ec2_tags", true)
+	mockConfig.SetInTest("collect_ec2_instance_info", true)
+	setupCloudProvider(t, ec2.CloudProviderName)
+
+	providers := getProvidersDefinitions(ctx, mockConfig)
+	_, hasGCE := providers["gce"]
+	assert.False(t, hasGCE, "gce provider should be skipped when the host is running on EC2")
+	_, hasEC2 := providers["ec2"]
+	assert.True(t, hasEC2, "ec2 provider should still be registered when the host is running on EC2")
+	_, hasEC2InstanceInfo := providers["ec2_instance_info"]
+	assert.True(t, hasEC2InstanceInfo, "ec2_instance_info provider should still be registered when the host is running on EC2")
+}
+
+func TestGetProvidersDefinitionsKeepsAllProvidersWhenNoCloudProviderDetected(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	mockConfig.SetInTest("collect_ec2_tags", true)
+	mockConfig.SetInTest("collect_ec2_instance_info", true)
+	setupCloudProvider(t, "")
+
+	providers := getProvidersDefinitions(ctx, mockConfig)
+	_, hasGCE := providers["gce"]
+	assert.True(t, hasGCE, "gce provider should still be registered when no cloud provider is detected")
+	_, hasEC2 := providers["ec2"]
+	assert.True(t, hasEC2, "ec2 provider should still be registered when no cloud provider is detected")
+	_, hasEC2InstanceInfo := providers["ec2_instance_info"]
+	assert.True(t, hasEC2InstanceInfo, "ec2_instance_info provider should still be registered when no cloud provider is detected")
 }
 
 func TestHostTagsCache(t *testing.T) {
@@ -249,7 +337,7 @@ func TestHostTagsCache(t *testing.T) {
 	var fooErr error
 	nbCall := 0
 
-	getProvidersDefinitionsFunc = func(model.Reader) map[string]*providerDef {
+	getProvidersDefinitionsFunc = func(context.Context, model.Reader) map[string]*providerDef {
 		return map[string]*providerDef{
 			"foo": {
 				retries: 2,
