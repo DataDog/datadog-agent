@@ -252,6 +252,21 @@ def _bazel_output_path(target: str, args: list[str]) -> str:
     return os.path.join(execroot, outputs[0])
 
 
+def _install_bazel_binary(src: str, bin_path: str, embedded_path: str | None = None) -> None:
+    os.makedirs(os.path.dirname(bin_path), exist_ok=True)
+    shutil.copy2(src, bin_path)
+    os.chmod(bin_path, 0o755)
+    uid = os.environ.get("HOST_UID", "-1")
+    gid = os.environ.get("HOST_GID", "-1")
+    if uid != "-1" and gid != "-1":
+        os.chown(bin_path, int(uid), int(gid))
+
+    if embedded_path:
+        # `bazel run` executes with the execution root as cwd, not the caller's cwd,
+        # so bin_path must be absolute for the tool to find it.
+        bazel("run", "//bazel/rules:replace_prefix", "--", "--prefix", embedded_path, os.path.abspath(bin_path))
+
+
 def build_binary_with_bazel(
     target: str, args: list[str] | None = None, bin_path: str = None, embedded_path: str | None = None
 ) -> None:
@@ -260,7 +275,7 @@ def build_binary_with_bazel(
     Args:
         target: Bazel target
         args: extra arguments passed to both the build and cquery invocations
-        bin_path: directory to copy the binary to. None for no copy.
+        bin_path: path to copy the binary to. None for no copy.
         embedded_path: directory holding shared libraries the binary links
         against.
         When set, rewrites the copied binary's RPATH to point there instead of
@@ -271,18 +286,22 @@ def build_binary_with_bazel(
     src = _bazel_output_path(target, args)
 
     if bin_path:
-        os.makedirs(os.path.dirname(bin_path), exist_ok=True)
-        shutil.copy2(src, bin_path)
-        os.chmod(bin_path, 0o755)
-        uid = os.environ.get("HOST_UID", "-1")
-        gid = os.environ.get("HOST_GID", "-1")
-        if uid != "-1" and gid != "-1":
-            os.chown(bin_path, int(uid), int(gid))
+        _install_bazel_binary(src, bin_path, embedded_path)
 
-        if embedded_path:
-            # `bazel run` executes with the execution root as cwd, not the caller's cwd,
-            # so bin_path must be absolute for the tool to find it.
-            bazel("run", "//bazel/rules:replace_prefix", "--", "--prefix", embedded_path, os.path.abspath(bin_path))
+
+def build_binaries_with_bazel(
+    dest_by_target: dict[str, str], args: list[str] | None = None, embedded_path: str | None = None
+) -> None:
+    """Build many Bazel targets in one invocation and copy each output.
+
+    dest_by_target maps labels to destination paths.
+    """
+    if not dest_by_target:
+        return
+    args = args or []
+    bazel("build", *dest_by_target, *args)
+    for target, bin_path in dest_by_target.items():
+        _install_bazel_binary(_bazel_output_path(target, args), bin_path, embedded_path)
 
 
 def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:

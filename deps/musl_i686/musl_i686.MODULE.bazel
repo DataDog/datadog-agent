@@ -1,0 +1,13 @@
+bootlin_musl_archive = use_repo_rule("//deps/musl_i686:archive.bzl", "bootlin_musl_archive")
+
+# Bootlin i686 musl cross (gcc + sysroot). gcc is an x86_64 Linux ELF.
+# SHA-256 from the published .sha256 sidecar next to the tarball.
+bootlin_musl_archive(
+    name = "bootlin_i686_musl",
+    build_file = "//deps/musl_i686:overlay.BUILD.bazel",
+    sha256 = "72f5e80c6d5b47eac20d63634b56d49600600230bbb33c621f83250a9d6b3cb4",
+    strip_prefix = "x86-i686--musl--stable-2026.08-1",
+    urls = [
+        "https://toolchains.bootlin.com/downloads/releases/toolchains/x86-i686/tarballs/x86-i686--musl--stable-2026.08-1.tar.xz",
+    ],
+)

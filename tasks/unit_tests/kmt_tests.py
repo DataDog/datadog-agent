@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from tasks.kernel_matrix_testing import platforms, vmconfig
@@ -90,3 +91,74 @@ class TestFilterByCIComponent(unittest.TestCase):
                         f"{component}: job {job.name} is missing microVMs for "
                         f"{job.kernels - set(by_set[test_set][job.arch].keys())}",
                     )
+
+
+class TestKMTHelperTargets(unittest.TestCase):
+    def test_linux_platforms(self):
+        from tasks.kmt import kmt_linux_platform
+
+        self.assertEqual(kmt_linux_platform(Arch.from_str("x86_64")), "//bazel/platforms:linux_x86_64")
+        self.assertEqual(kmt_linux_platform(Arch.from_str("arm64")), "//bazel/platforms:linux_arm64")
+
+    def test_helper_dests_are_unique_and_exist(self):
+        from tasks.kmt import _KMT_PKG_HELPER_TARGETS, _KMT_TOOL_TARGETS
+
+        dests = list(_KMT_TOOL_TARGETS.values()) + list(_KMT_PKG_HELPER_TARGETS.values())
+        self.assertEqual(len(dests), len(set(dests)))
+
+        repo = Path(__file__).resolve().parents[2]
+        for dest in _KMT_PKG_HELPER_TARGETS.values():
+            # dest is .../<pkg>/<binary>; the package dir must exist in the tree
+            pkg_dir = repo / Path(dest).parent
+            self.assertTrue(pkg_dir.is_dir(), pkg_dir)
+
+        self.assertTrue((repo / "pkg/gpu/testdata/cudasample.c").is_file())
+        self.assertTrue((repo / "pkg/gpu/testdata/BUILD.bazel").is_file())
+
+
+class TestKMTGoTestTargetPick(unittest.TestCase):
+    KMT_TAGS = {"bpf", "ec2", "netcgo", "npm", "nvml", "test", "zlib"}
+
+    @staticmethod
+    def _go_test(label: str, macro: str, *gotags: str):
+        from tasks.kmt import KMTGoTest
+
+        return KMTGoTest(label, macro, frozenset(gotags))
+
+    def _pick(self, pkg, tests):
+        from tasks.kmt import pick_kmt_go_test_target
+
+        return pick_kmt_go_test_target(pkg, tests, self.KMT_TAGS)
+
+    def test_prefers_variant_covering_most_kmt_tags(self):
+        tests = [
+            self._go_test("//pkg/gpu:gpu_test", "gpu_test", "test"),
+            self._go_test("//pkg/gpu:gpu_test_bpf", "gpu_test", "bpf", "test"),
+            self._go_test("//pkg/gpu:gpu_test_bpf_nvml", "gpu_test", "bpf", "nvml", "test"),
+        ]
+        self.assertEqual(self._pick("pkg/gpu", tests), "//pkg/gpu:gpu_test_bpf_nvml")
+
+    def test_ties_go_to_bpf(self):
+        tests = [
+            self._go_test("//pkg/network/usm:usm_test_npm", "usm_test", "npm", "test"),
+            self._go_test("//pkg/network/usm:usm_test_bpf", "usm_test", "bpf", "test"),
+        ]
+        self.assertEqual(self._pick("pkg/network/usm", tests), "//pkg/network/usm:usm_test_bpf")
+
+    def test_skips_variants_needing_tags_kmt_does_not_build(self):
+        tests = [
+            self._go_test("//pkg/foo:foo_test", "foo_test", "test"),
+            self._go_test("//pkg/foo:foo_test_docker", "foo_test", "docker", "test"),
+        ]
+        self.assertEqual(self._pick("pkg/foo", tests), "//pkg/foo:foo_test")
+
+    def test_ignores_split_go_test_rules(self):
+        tests = [
+            self._go_test("//pkg/dyninst/loader:relocations_test_bpf", "relocations_test", "bpf", "test"),
+            self._go_test("//pkg/dyninst/loader:stats_test_bpf", "stats_test", "bpf", "test"),
+        ]
+        self.assertIsNone(self._pick("pkg/dyninst/loader", tests))
+
+    def test_missing_package(self):
+        tests = [self._go_test("//pkg/ebpf:ebpf_test_bpf", "ebpf_test", "bpf", "test")]
+        self.assertIsNone(self._pick("pkg/network/usm", tests))

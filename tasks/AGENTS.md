@@ -177,3 +177,21 @@ py_binary(
 > (2-4 lines each) and include *why* the idiom is needed.
 
 <!-- Add new idioms below this line -->
+
+- **KMT helper binaries** — compile with Bazel (`build_binaries_with_bazel`) and copy into
+  `kmt-deps/<stack>/<arch>/…`. Do not add ninja `gobin`/`cbin` edges for those helpers.
+  `cmd/test2json` is stdlib and still uses `go_build` with `get_build_flags` so cross-arch
+  KMT keeps the right GOARCH. Copy `cudasample` *after* the testdata `copyextra` step so
+  `cp -r` does not nest a pre-created testdata directory.
+
+- **CWS syscall testers** — `build_embed_syscall_tester` copies Bazel outputs into
+  `pkg/security/tests/syscall_tester/bin` for `//go:embed`. `syscall_x86_tester` is a
+  static i686 musl binary (`musl_i686_cc_binary`, Bootlin gcc); it only builds when
+  exec is Linux x86_64 (KMT compiler image) and `arch` is amd64.
+
+- **KMT testsuites** — `kmt_sysprobe_prepare` Bazel-builds the `{dir}_test` variant
+  whose `gotags` best cover the KMT build tags (e.g. `gpu_test_bpf_nvml`, not
+  `gpu_test_bpf`: a name-based pick silently drops `nvml`-gated tests) and copies it
+  as `<pkg>/testsuite`. Packages without such a variant, and dyninst test
+  *programs*, stay ninja. `go_test` needs a Linux execution platform
+  (`--platforms=linux_*` in the compiler image). Do not `bazel test` on KMT VMs.
