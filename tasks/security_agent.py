@@ -35,6 +35,7 @@ from tasks.system_probe import (
     copy_ebpf_and_related_files,
     ebpf_bazel_flags,
     get_libpcap_cgo_flags,
+    linux_platform_flags,
 )
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -261,14 +262,12 @@ def build_embed_syscall_tester(_, arch: str | Arch = CURRENT_ARCH):
     build_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "bin")
     create_dir_if_needed(build_dir)
 
-    from tasks.kmt import kmt_bazel_flags
-
     dest_by_target = {target: os.path.join(build_dir, dest) for target, dest in _SYSCALL_TESTER_TARGETS.items()}
     if arch == ARCH_AMD64:
         dest_by_target["//pkg/security/tests/syscall_tester/c:syscall_x86_tester"] = os.path.join(
             build_dir, "syscall_x86_tester"
         )
-    flags = kmt_bazel_flags(arch) + ebpf_bazel_flags(arch)
+    flags = linux_platform_flags(arch) + ebpf_bazel_flags(arch)
     build_binaries_with_bazel(dest_by_target, args=flags)
     build_otel_tls_artifacts(build_dir, arch)
 
