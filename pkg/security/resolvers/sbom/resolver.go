@@ -1042,6 +1042,27 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	return pkg
 }
 
+// HostPackageVersion returns the version of the host package that owns path,
+// and the empty string for a path outside the host packages. The usage of the
+// package stays as it is.
+func (r *Resolver) HostPackageVersion(path string) string {
+	sbom := r.getSBOM("")
+	if sbom == nil {
+		return ""
+	}
+
+	sbom.RLock()
+	defer sbom.RUnlock()
+
+	if !sbom.IsComputed() {
+		return ""
+	}
+	if pkg := sbom.data.files.queryFile(path); pkg != nil {
+		return pkg.Version
+	}
+	return ""
+}
+
 // queuePendingFileEvent stores a file access that arrived before the SBOM for the
 // given container was ready, keeping up to maxPendingFileEvents distinct paths per
 // container. Accesses are merged per path: the snapshot replay emits one open event

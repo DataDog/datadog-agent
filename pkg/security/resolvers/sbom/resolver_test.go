@@ -574,6 +574,39 @@ func TestResolvePackageWithoutHostSBOM(t *testing.T) {
 	}
 }
 
+// TestHostPackageVersion checks that a systemd service takes the version of the
+// host package of its unit file. dpkg lists the units of Debian under /lib,
+// which a merged /usr makes an alias of the path the tags resolver asks for.
+func TestHostPackageVersion(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	r.hostSBOM.usrMerged = true
+	r.hostSBOM.setReport([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "openssh-server", Epoch: 1, Version: "9.9p1", Release: "3"},
+		InstalledFiles: []string{"/lib/systemd/system/ssh.service"},
+	}})
+
+	for path, want := range map[string]string{
+		"/usr/lib/systemd/system/ssh.service":       "9.9p1",
+		"/usr/lib/systemd/system/transient.service": "",
+	} {
+		if got := r.HostPackageVersion(path); got != want {
+			t.Errorf("version of %s = %q, want %q", path, got, want)
+		}
+	}
+	if pkg := r.hostSBOM.data.packages[0]; !pkg.LastAccess.IsZero() || pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want its usage as it was", pkg)
+	}
+}
+
+// TestHostPackageVersionWithoutHostSBOM checks that the version is empty while
+// the host index is off, which the tags resolver turns into version:latest.
+func TestHostPackageVersionWithoutHostSBOM(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	if got := r.HostPackageVersion("/usr/lib/systemd/system/ssh.service"); got != "" {
+		t.Errorf("version = %q without a host SBOM, want empty", got)
+	}
+}
+
 // TestHostForwardingSkipsImageSBOM checks that the report of the host goes out
 // at once. A container report waits for the Trivy SBOM of its image, while the
 // core agent keeps the report of the host for its next host scan. Here every
