@@ -1,12 +1,13 @@
 import unittest
 from packages import extract_version, create_python_installed_packages_file, create_diff_installed_packages_file, check_file_owner_system_windows
 from packages import run_command, install_datadog_package, install_dependency_package, install_diff_packages_file
-from packages import load_requirements, has_expected_diff_file_permissions, secure_wheelhouse
+from packages import load_requirements, has_expected_diff_file_permissions, secure_wheelhouse, protected_script_names, wheel_protected_script_collisions
 from packages import IntegrationInstallError, IntegrationsRestoreError
 import packages
 import packaging.requirements
 import os
 import tempfile
+import zipfile
 from unittest.mock import patch, call, MagicMock
 
 class TestPackages(unittest.TestCase):
@@ -79,7 +80,7 @@ class TestPackages(unittest.TestCase):
     # ------------------------------------------------------------------ #
 
     def test_load_requirements_rejects_registry_bypasses(self):
-        """Direct URL references and non-PEP 508 lines must be filtered out, they bypass the registry."""
+        """Direct URL references, non-PEP 508 lines, and file references in any case must be filtered out."""
         test_directory = tempfile.mkdtemp()
         req_file = os.path.join(test_directory, "requirements.txt")
 
@@ -91,6 +92,8 @@ class TestPackages(unittest.TestCase):
             f.write("git+https://attacker.example/evil.git\n")
             f.write("-e ./evil\n")
             f.write("evil.whl\n")
+            f.write("Evil.WHL\n")
+            f.write("evil.Zip\n")
 
         requirements = load_requirements(req_file)
 
@@ -171,28 +174,71 @@ class TestPackages(unittest.TestCase):
         self.assertEqual(ctx.exception.returncode, 2)
 
     # ------------------------------------------------------------------ #
-    # secure_wheelhouse
+    # secure_wheelhouse / protected script collisions
     # ------------------------------------------------------------------ #
 
     @unittest.skipIf(os.name == 'nt', "Skip on Windows")
-    def test_secure_wheelhouse_reowns_dir_and_contents_to_root(self):
-        """After securing, no wheel in the wheelhouse is writable by the demoted user."""
+    def test_secure_wheelhouse_reowns_dir_and_contents_without_following_symlinks(self):
+        """After securing, no entry is dd-agent-writable and planted symlinks never chown their targets."""
         test_directory = tempfile.mkdtemp()
         os.makedirs(os.path.join(test_directory, 'build'))
         wheel_path = os.path.join(test_directory, 'pkg-1.0-py3-none-any.whl')
         with open(wheel_path, 'w') as f:
             f.write('')
+        # symlink planted by the demoted user during the build
+        target_path = os.path.join(test_directory, 'target')
+        with open(target_path, 'w') as f:
+            f.write('')
+        os.symlink(target_path, os.path.join(test_directory, 'planted-link'))
 
-        with patch('packages.os.chown') as mock_chown:
+        with patch('packages.os.lchown') as mock_lchown, patch('packages.os.chown') as mock_chown:
             secure_wheelhouse(test_directory)
 
-        mock_chown.assert_any_call(os.path.join(test_directory, 'build'), 0, 0)
-        mock_chown.assert_any_call(wheel_path, 0, 0)
-        mock_chown.assert_any_call(test_directory, 0, 0)
+        mock_lchown.assert_any_call(os.path.join(test_directory, 'build'), 0, 0)
+        mock_lchown.assert_any_call(wheel_path, 0, 0)
+        mock_lchown.assert_any_call(os.path.join(test_directory, 'planted-link'), 0, 0)
+        mock_lchown.assert_any_call(test_directory, 0, 0)
+        mock_chown.assert_not_called()
+
+        # Cleanup
+        os.remove(os.path.join(test_directory, 'planted-link'))
+        os.remove(target_path)
+        os.remove(wheel_path)
+        os.rmdir(os.path.join(test_directory, 'build'))
+        os.rmdir(test_directory)
+
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    def test_protected_script_names_covers_rshell_pip_and_interpreter(self):
+        pip_path = os.path.join(tempfile.mkdtemp(), 'pip')
+        with open(pip_path, 'w') as f:
+            f.write('#!/opt/datadog-agent/embedded/bin/python3\n')
+
+        names = protected_script_names(pip_path)
+
+        self.assertIn('rshell', names)
+        self.assertIn('pip', names)
+        self.assertIn('python3', names)
+
+        os.remove(pip_path)
+        os.rmdir(os.path.dirname(pip_path))
+
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    def test_wheel_protected_script_collisions_detects_entry_points_and_data_payloads(self):
+        """A wheel must not overwrite a root-executed script, via entry points or .data payloads."""
+        test_directory = tempfile.mkdtemp()
+        wheel_path = os.path.join(test_directory, 'evilpkg-1.0-py3-none-any.whl')
+        with zipfile.ZipFile(wheel_path, 'w') as zf:
+            zf.writestr('evilpkg-1.0.dist-info/entry_points.txt',
+                        '[console_scripts]\nrshell = evilpkg:main\nsafe-tool = evilpkg:tool\n')
+            zf.writestr('evilpkg-1.0.data/scripts/pip', '#!/bin/sh\n')
+            zf.writestr('evilpkg-1.0.data/data/bin/python3', '#!/bin/sh\n')
+
+        collisions = wheel_protected_script_collisions(test_directory, {'rshell', 'pip', 'python3'})
+
+        self.assertEqual(collisions, {'rshell', 'pip', 'python3'})
 
         # Cleanup
         os.remove(wheel_path)
-        os.rmdir(os.path.join(test_directory, 'build'))
         os.rmdir(test_directory)
 
     # ------------------------------------------------------------------ #
@@ -211,6 +257,7 @@ class TestPackages(unittest.TestCase):
              patch('packages.tempfile.mkdtemp', return_value='/tmp/wheelhouse'), \
              patch('packages.demote_fn', return_value=demote) as mock_demote_fn, \
              patch('packages.secure_wheelhouse') as mock_secure, \
+             patch('packages.protected_script_names', return_value=set()) as mock_protected, \
              patch('packages.os.chown') as mock_chown, \
              patch('packages.shutil.rmtree') as mock_rmtree:
             install_dependency_package(pip, 'pynvml==11.5.3', run_as=user)
@@ -230,7 +277,31 @@ class TestPackages(unittest.TestCase):
         self.assertEqual(len(install_args), 1)
         mock_demote_fn.assert_called_once_with(user)
         mock_secure.assert_called_once_with('/tmp/wheelhouse')
+        mock_protected.assert_called_once_with(pip[0])
         mock_chown.assert_called_with('/tmp/wheelhouse', 1000, 1000)
+        mock_rmtree.assert_called_once_with('/tmp/wheelhouse', ignore_errors=True)
+
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    def test_install_dependency_package_refuses_wheels_overwriting_protected_scripts(self):
+        """A wheel that would overwrite a root-executed script is refused before the root install."""
+        pip = [os.path.join('/opt/datadog-agent', "embedded", "bin", "pip")]
+        user = MagicMock()
+        user.pw_uid = 1000
+        user.pw_gid = 1000
+        with patch('packages.run_command', return_value=('', '', 0)) as mock_cmd, \
+             patch('packages.tempfile.mkdtemp', return_value='/tmp/wheelhouse'), \
+             patch('packages.secure_wheelhouse'), \
+             patch('packages.protected_script_names', return_value={'rshell'}), \
+             patch('packages.wheel_protected_script_collisions', return_value={'rshell'}) as mock_collisions, \
+             patch('packages.os.chown'), \
+             patch('packages.shutil.rmtree') as mock_rmtree:
+            with self.assertRaises(IntegrationInstallError) as ctx:
+                install_dependency_package(pip, 'evilpkg==1.0', run_as=user)
+
+        # only the demoted build ran; the root install was never invoked
+        self.assertEqual(mock_cmd.call_count, 1)
+        self.assertIn('rshell', str(ctx.exception))
+        mock_collisions.assert_called_once_with('/tmp/wheelhouse', {'rshell'})
         mock_rmtree.assert_called_once_with('/tmp/wheelhouse', ignore_errors=True)
 
     # ------------------------------------------------------------------ #

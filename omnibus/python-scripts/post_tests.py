@@ -49,6 +49,11 @@ class TestPost(unittest.TestCase):
         with open(diff_file, 'w', encoding='utf-8') as f:
             pass
 
+        # Create empty exclude file: the real install_diff_packages_file loads it
+        req_file = os.path.join(install_directory, 'requirements-agent-release.txt')
+        with open(req_file, 'w', encoding='utf-8') as f:
+            pass
+
         # Create empty skip flag file
         with open(skip_flag_file, 'w', encoding='utf-8') as f:
             pass
@@ -67,6 +72,7 @@ class TestPost(unittest.TestCase):
         # Cleanup
         os.remove(post_file)
         os.remove(diff_file)
+        os.remove(req_file)
         os.remove(skip_flag_file)
 
         # running rmdir verifies that the directory is empty

@@ -3,12 +3,15 @@ if not os.name == 'nt':
     import pwd
 else:
     import win32security
+import configparser
+import glob
 import importlib.metadata
 import packaging
 import shutil
 import subprocess
 import tempfile
 import time
+import zipfile
 
 import packaging.requirements
 import packaging.version
@@ -222,11 +225,51 @@ def secure_wheelhouse(wheelhouse):
     """
     Hand the wheelhouse and its contents back to root once the build is done,
     so the demoted user can no longer replace wheels between build and install.
+    lchown is used because the demoted user controlled the wheelhouse during
+    the build: plain chown would follow a planted symlink and change the
+    ownership of a path outside the wheelhouse.
     """
     for root, dirs, files in os.walk(wheelhouse):
         for name in dirs + files:
-            os.chown(os.path.join(root, name), 0, 0)
-    os.chown(wheelhouse, 0, 0)
+            os.lchown(os.path.join(root, name), 0, 0)
+    os.lchown(wheelhouse, 0, 0)
+
+def protected_script_names(pip_path):
+    """
+    Return the script names in the scripts directory that root executes: the
+    privileged helper (run by systemd; see privilegedRshellPackagePermissions
+    in the fleet installer) and the pip/interpreter pair this restore itself
+    runs as root. Wheels restored from the dd-agent-writable diff file must
+    never overwrite them.
+    """
+    names = {"rshell", os.path.basename(pip_path)}
+    with open(pip_path, 'r', encoding='utf-8') as f:
+        shebang = f.readline().strip()
+    if shebang.startswith('#!'):
+        names.add(os.path.basename(shebang[2:]))
+    return names
+
+def wheel_protected_script_collisions(wheelhouse, protected_names):
+    """
+    Return the protected script names that wheels in the wheelhouse would
+    overwrite, via console-script entry points or .data script payloads.
+    """
+    collisions = set()
+    for wheel_file in glob.glob(os.path.join(wheelhouse, '*.whl')):
+        entry_points = configparser.RawConfigParser(strict=False)
+        with zipfile.ZipFile(wheel_file) as zf:
+            for entry in zf.namelist():
+                parts = entry.split('/')
+                if entry.endswith('.dist-info/entry_points.txt'):
+                    entry_points.read_string(zf.read(entry).decode('utf-8'))
+                elif len(parts) >= 3 and parts[0].endswith('.data') and parts[1] == 'scripts' and parts[-1] in protected_names:
+                    collisions.add(parts[-1])
+                elif len(parts) >= 4 and parts[0].endswith('.data') and parts[1] == 'data' and parts[2] == 'bin' and parts[-1] in protected_names:
+                    collisions.add(parts[-1])
+        for section in ('console_scripts', 'gui_scripts'):
+            if entry_points.has_section(section):
+                collisions.update(name for name, _ in entry_points.items(section) if name in protected_names)
+    return collisions
 
 
 def create_python_installed_packages_file(filename):
@@ -317,7 +360,9 @@ def install_dependency_package(pip, package, run_as=None):
     This also keeps embedded/bin root-owned: it contains privileged helpers
     that systemd executes as root. Wheel content is trusted to the run_as
     user, so the wheelhouse is handed back to root between the phases to
-    close the window where it could be swapped.
+    close the window where it could be swapped. Wheels whose scripts would
+    overwrite a file root executes (the privileged helper, or the pip and
+    interpreter this restore runs as root) are refused.
 
     Retries once on failure.  Raises IntegrationInstallError if both attempts fail.
     """
@@ -339,6 +384,11 @@ def install_dependency_package(pip, package, run_as=None):
                 _, stderr, rc = run_command(download_command, demote_fn(run_as))
                 if rc == 0:
                     secure_wheelhouse(wheelhouse)
+                    collisions = wheel_protected_script_collisions(wheelhouse, protected_script_names(pip[0]))
+                    if collisions:
+                        stderr = f"wheel would overwrite protected root-executed script(s): {', '.join(sorted(collisions))}"
+                        print(f"ERROR: refusing to install '{package}': {stderr}")
+                        raise IntegrationInstallError(package, 1, stderr)
                     _, stderr, rc = run_command(install_command)
             else:
                 _, stderr, rc = run_command(install_command)
@@ -419,7 +469,7 @@ def load_requirements(filename):
             req_stripped = req.strip()
             if not req_stripped or req_stripped.startswith('#'):
                 continue
-            if req_stripped.endswith(('.whl', '.zip')):
+            if req_stripped.lower().endswith(('.whl', '.zip')):
                 print(f"Skipping direct file reference: {req_stripped!r}")
                 continue
             try:

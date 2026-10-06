@@ -5,5 +5,7 @@ security:
     upgrades. Wheels for restored custom integrations are downloaded and built as the ``dd-agent``
     user first and only installed afterwards (wheel installation unpacks files without running
     package code), the saved package list is validated against tampering before being used, and
-    direct URL references in that list are rejected. This prevents a compromised ``dd-agent``
-    account from escalating to root through the upgrade process.
+    direct URL references in that list are rejected. Wheels whose scripts would overwrite a file
+    the agent or systemd executes as root (such as the privileged helper) are refused. This
+    prevents a compromised ``dd-agent`` account from escalating to root through the upgrade
+    process.
