@@ -364,9 +364,26 @@ gcc_toolchains.toolchain(
     }}}""",
     target_arch = "armv7",
 )
+gcc_toolchains.toolchain(
+    name = "gcc_toolchain_aarch64_cross",
+    binary_prefix = "aarch64-linux-gnu-",
+    enable_fortran = False,
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    extra_ldflags = ["-Wl,--build-id=sha1"],
+    gcc_version = "11.4.0",
+    gcc_versions = """{"11.4.0": {"aarch64": {
+        "url": "https://dd-agent-build-artifacts.s3.amazonaws.com/toolchains/main/237fb3a17c568087bde15ca3bd575af90f173c8ab6a18176e8c82faeaec3b3ac/x86_64/aarch64-linux-gnu-gcc.tar.xz",
+        "sha256": "24d329975aee9e1f873a68709fd6190b93beb660762a740faf7c05e138a56141"
+    }}}""",
+    target_arch = "aarch64",
+)
 use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
 use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
 use_repo(gcc_toolchains, "gcc_toolchain_armv7")
+use_repo(gcc_toolchains, "gcc_toolchain_aarch64_cross")
 
 sysroot = use_repo_rule("@toolchains_llvm//toolchain:sysroot.bzl", "sysroot")
 
@@ -437,6 +454,7 @@ register_toolchains(
     "@gcc_toolchain_x86_64//:cc_toolchain",
     "@gcc_toolchain_aarch64//:cc_toolchain",
     "@gcc_toolchain_armv7//:cc_toolchain",
+    "@gcc_toolchain_aarch64_cross//:cc_toolchain",
     "@llvm//toolchain:linux_x86_64_to_windows_x86_64_msvc",
     "@llvm//toolchain:linux_aarch64_to_windows_x86_64_msvc",
     "@winlibs_mingw64//:mingw_cc_toolchain",
