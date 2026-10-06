@@ -5,6 +5,7 @@ go_library(
     name = "config",
     srcs = [
         "config.go",
+        "data_observability.go",
         "metric.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config",
@@ -16,18 +17,23 @@ go_library(
         "//pkg/config/setup",
         "//pkg/obfuscate",
         "//pkg/util/log",
+        "@com_github_robfig_cron_v3//:cron",
         "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
 dd_agent_go_test(
     name = "config_test",
-    srcs = ["config_test.go"],
+    srcs = [
+        "config_test.go",
+        "data_observability_test.go",
+    ],
     embed = [":config"],
     gotags_sets = [["oracle"]],
     include_default = False,
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
