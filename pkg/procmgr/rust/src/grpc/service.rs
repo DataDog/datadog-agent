@@ -51,16 +51,18 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         request: Request<proto::DescribeRequest>,
     ) -> Result<Response<proto::DescribeResponse>, Status> {
         let name_or_uuid = request.into_inner().name_or_uuid;
-        {
+        // Both collections come from one snapshot. A reload swapping a name
+        // between them commits under both write locks, so resolving them one
+        // after the other could miss the name in each and report NotFound for
+        // a process that never left the catalog.
+        let (mut detail, pid) = {
+            let procs = self.mgr.processes().await;
             let invalid = self.mgr.invalid_configs().await;
             if let Some(inv) = crate::manager::find_invalid(&invalid, &name_or_uuid)? {
                 return Ok(Response::new(proto::DescribeResponse {
                     detail: Some(invalid_detail_fields(inv)),
                 }));
             }
-        }
-        let (mut detail, pid) = {
-            let procs = self.mgr.processes().await;
             let proc = resolve_process(&procs, &name_or_uuid)?;
             (process_detail_fields(proc), proc.pid())
         };
