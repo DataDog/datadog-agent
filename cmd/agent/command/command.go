@@ -83,6 +83,18 @@ type ProductComposition struct {
 	// shared run command graph to enable metric lookback shadow checks.
 	MetricLookbackOptions []fx.Option
 
+	// AnomalyDetectionOptions are product-specific Fx options included alongside the
+	// shared run command graph to enable anomaly detection features.
+	AnomalyDetectionOptions []fx.Option
+
+	// DataObservabilityOptions are product-specific Fx options included alongside the
+	// shared run command graph to enable Data Observability features.
+	DataObservabilityOptions []fx.Option
+
+	// LogsSeverityOptions are product-specific Fx options included alongside the
+	// shared run command graph to enable smart logs severity providers.
+	LogsSeverityOptions []fx.Option
+
 	// StatusOptions are product-specific Fx options included alongside the
 	// shared status module.
 	StatusOptions []fx.Option
