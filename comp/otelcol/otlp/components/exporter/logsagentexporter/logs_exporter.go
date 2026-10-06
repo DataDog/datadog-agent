@@ -20,6 +20,7 @@ import (
 	logsmapping "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -38,6 +39,8 @@ type Exporter struct {
 	cfg                  *Config
 	coatGwUsageMetric    telemetry.Gauge
 	buildInfo            component.BuildInfo
+	// syncSender, when set, replaces logsAgentChannel.
+	syncSender SyncSender
 }
 
 // NewExporter initializes a new logs agent exporter with the given parameters
@@ -102,8 +105,9 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
 	return errors.Join(errs...)
 }
 
-// consumeRegularLogs maps logs from OTLP to DD format and ingests them through the exporter channel
-func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err error) {
+// consumeRegularLogs maps logs from OTLP to DD format and ingests them through the exporter channel,
+// or sends them with the sync sender when the exporter has one.
+func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) error {
 	otelSource := e.cfg.OtelSource
 	if otelSource == "datadog_agent" {
 		OTLPIngestAgentLogsRequests.Inc()
@@ -112,18 +116,6 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err er
 		OTLPIngestDDOTLogsRequests.Inc()
 		OTLPIngestDDOTLogsEvents.Add(float64(ld.LogRecordCount()))
 	}
-	var errs []error
-	defer func() {
-		err = errors.Join(errs...)
-		if err != nil {
-			newErr, scrubbingErr := scrubber.ScrubString(err.Error())
-			if scrubbingErr != nil {
-				err = scrubbingErr
-			} else {
-				err = errors.New(newErr)
-			}
-		}
-	}()
 
 	if e.cfg.HostMetadata.Enabled && e.reporter != nil {
 		// Consume resources for host metadata
@@ -136,49 +128,33 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err er
 	}
 
 	payloads := e.translator.MapLogs(ctx, ld, e.gatewaysUsage.GetHostFromAttributesHandler())
+	var msgs []*message.Message
+	// records[i] is the position in ld of the log record msgs[i] was built from: MapLogs returns one
+	// payload per log record, in iteration order.
+	var records []int
+	if e.syncSender != nil {
+		msgs = make([]*message.Message, 0, len(payloads))
+		records = make([]int, 0, len(payloads))
+	}
 	for i, ddLog := range payloads {
-		tags := strings.Split(ddLog.GetDdtags(), ",")
-		// Tags are set in the message origin instead
-		ddLog.Ddtags = nil
-		service := ""
-		if ddLog.Service != nil {
-			service = *ddLog.Service
-		}
-		status := message.StatusInfo
-		if val, ok := ddLog.AdditionalProperties["status"]; ok {
-			if strVal, ok := val.(string); ok && strVal != "" {
-				status = strVal
-			}
-		}
-		origin := message.NewOrigin(e.logSource)
-		origin.SetTags(tags)
-		origin.SetService(service)
-		src := e.logSource.Name
-		if val, ok := ddLog.AdditionalProperties["datadog.log.source"]; ok {
-			if strVal, ok := val.(string); ok && strVal != "" {
-				src = strVal
-			}
-		}
-		origin.SetSource(src)
-
-		content, marshalErr := ddLog.MarshalJSON()
-		if marshalErr != nil {
-			e.set.Logger.Error("error marshaling log, dropping log record", zap.Error(marshalErr))
+		msg, ok := e.newMessage(ddLog)
+		if !ok {
 			continue
 		}
-
-		// ingestionTs is an internal field used for latency tracking on the status page, not the actual log timestamp.
-		ingestionTs := time.Now().UnixNano()
-		message := message.NewMessage(content, origin, status, ingestionTs)
-		if ddLog.Hostname != nil {
-			message.Hostname = *ddLog.Hostname
+		if e.syncSender != nil {
+			msgs = append(msgs, msg)
+			records = append(records, i)
+			continue
 		}
-
 		select {
-		case e.logsAgentChannel <- message:
+		case e.logsAgentChannel <- msg:
 		case <-ctx.Done():
-			errs = append(errs, fmt.Errorf("logs export interrupted, %d log records remaining: %w", len(payloads)-i, ctx.Err()))
-			return
+			return scrubError(fmt.Errorf("logs export interrupted, %d log records remaining: %w", len(payloads)-i, ctx.Err()))
+		}
+	}
+	if e.syncSender != nil {
+		if err := e.sendSync(ctx, ld, msgs, records); err != nil {
+			return err
 		}
 	}
 
@@ -187,7 +163,57 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err er
 		e.coatGwUsageMetric.Set(value, e.buildInfo.Version, e.buildInfo.Command)
 	}
 
-	return
+	return nil
+}
+
+// newMessage builds the logs agent message of ddLog. It returns false when the log cannot be encoded.
+func (e *Exporter) newMessage(ddLog datadogV2.HTTPLogItem) (*message.Message, bool) {
+	tags := strings.Split(ddLog.GetDdtags(), ",")
+	// Tags are set in the message origin instead
+	ddLog.Ddtags = nil
+	service := ""
+	if ddLog.Service != nil {
+		service = *ddLog.Service
+	}
+	status := message.StatusInfo
+	if val, ok := ddLog.AdditionalProperties["status"]; ok {
+		if strVal, ok := val.(string); ok && strVal != "" {
+			status = strVal
+		}
+	}
+	origin := message.NewOrigin(e.logSource)
+	origin.SetTags(tags)
+	origin.SetService(service)
+	src := e.logSource.Name
+	if val, ok := ddLog.AdditionalProperties["datadog.log.source"]; ok {
+		if strVal, ok := val.(string); ok && strVal != "" {
+			src = strVal
+		}
+	}
+	origin.SetSource(src)
+
+	content, marshalErr := ddLog.MarshalJSON()
+	if marshalErr != nil {
+		e.set.Logger.Error("error marshaling log, dropping log record", zap.Error(marshalErr))
+		return nil, false
+	}
+
+	// ingestionTs is an internal field used for latency tracking on the status page, not the actual log timestamp.
+	ingestionTs := time.Now().UnixNano()
+	msg := message.NewMessage(content, origin, status, ingestionTs)
+	if ddLog.Hostname != nil {
+		msg.Hostname = *ddLog.Hostname
+	}
+	return msg, true
+}
+
+// scrubError removes secrets from the message of err. The returned error does not wrap err.
+func scrubError(err error) error {
+	scrubbed, scrubErr := scrubber.ScrubString(err.Error())
+	if scrubErr != nil {
+		return scrubErr
+	}
+	return errors.New(scrubbed)
 }
 
 // ScopeName represents the name of a scope
