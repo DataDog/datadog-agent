@@ -564,6 +564,42 @@ func TestScrubConfigErrorSurvivesStripArguments(t *testing.T) {
 	assert.Equal(t, err, report.Processes[0].ConfigError)
 }
 
+// An args array written as a string comes back quoted in the parse error, so the setting that
+// drops arguments has to drop them on this route too, without taking the diagnosis with it.
+func TestScrubConfigErrorStripsEchoedScalars(t *testing.T) {
+	report := SupportReport{Processes: []ProcessSnapshot{{
+		ConfigError: `parsing /tmp/broken.yaml: args: invalid type: string "--token abc123", expected a sequence at line 3 column 7`,
+	}}}
+
+	report.Scrub(ScrubOptions{StripArguments: true})
+
+	assert.Equal(t,
+		`parsing /tmp/broken.yaml: args: invalid type: string "`+wantRedacted+`", expected a sequence at line 3 column 7`,
+		report.Processes[0].ConfigError)
+}
+
+// Stripping is what removes a value procutil does not recognize as a secret. Without it the echo
+// is the parse error's diagnostic, and support reads it to see what the file actually said.
+func TestScrubConfigErrorKeepsEchoedScalarsWithoutStripping(t *testing.T) {
+	err := `parsing /tmp/broken.yaml: args: invalid type: string "--verbose", expected a sequence`
+	report := SupportReport{Processes: []ProcessSnapshot{{ConfigError: err}}}
+
+	report.Scrub(ScrubOptions{})
+
+	assert.Equal(t, err, report.Processes[0].ConfigError)
+}
+
+// Serde spells identifiers in backticks and data in double quotes, so stripping must not reach the
+// name of the field that failed: it is not a value and support needs it to find the mistake.
+func TestScrubConfigErrorKeepsFieldNamesWhenStripping(t *testing.T) {
+	err := "parsing /tmp/broken.yaml: unknown field `comand`, expected one of `description`, `command`"
+	report := SupportReport{Processes: []ProcessSnapshot{{ConfigError: err}}}
+
+	report.Scrub(ScrubOptions{StripArguments: true})
+
+	assert.Equal(t, err, report.Processes[0].ConfigError)
+}
+
 // Every leak found in this scrubber has been one instance of a single invariant: a flare must keep
 // nothing procutil would have redacted. The cases above pin the shapes known to have gone wrong,
 // which only ever catches the next one if somebody thinks to write it down. This asserts the

@@ -8,6 +8,7 @@ package coat
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -238,10 +239,22 @@ func scrubProcessArgs(processes []ProcessSnapshot, opts ScrubOptions) {
 	}
 }
 
+// echoedScalar matches the value serde quotes back when a scalar fails to type-check, as in
+// `invalid type: string "--token abc123", expected a sequence`. Only data is spelled with double
+// quotes: serde writes field and variant names in backticks, so a message naming the field that
+// went missing is left alone by this.
+var echoedScalar = regexp.MustCompile(`(invalid (?:type|value): string )"(?:[^"\\]|\\.)*"`)
+
 // scrubConfigErrors redacts secret sequences inside parse errors. Serde echoes the offending
 // scalar, so a processes.d value that failed to type-check can otherwise reach the flare as
 // config_error. AddFile's line scrubber still runs on the JSON, but SupportReport.Scrub is the
 // last point that sees this field as a structured string rather than a pretty-printed line.
+//
+// Under StripArguments the echo goes whether or not it names a secret. `args: "--token abc123"` is
+// an ordinary mistake, and the error quoting it back is the argument array the operator asked to
+// keep out of the flare, arriving by another route. Only the quoted value is removed: the file, the
+// field, the expected type and the position are the whole diagnostic value of this field, and
+// scrubProcessArgs drops arguments outright precisely because it has nothing else worth keeping.
 func scrubConfigErrors(processes []ProcessSnapshot, opts ScrubOptions) {
 	scrubber := procutil.NewDefaultDataScrubber()
 	scrubber.AddCustomSensitiveWords(slices.Concat(hyphenSpelledSecretWords, opts.CustomSensitiveWords))
@@ -249,6 +262,10 @@ func scrubConfigErrors(processes []ProcessSnapshot, opts ScrubOptions) {
 	for i := range processes {
 		if processes[i].ConfigError == "" {
 			continue
+		}
+		if opts.StripArguments {
+			processes[i].ConfigError = echoedScalar.ReplaceAllString(
+				processes[i].ConfigError, `${1}"`+redactedValue+`"`)
 		}
 		processes[i].ConfigError = scrubSecretSequences(processes[i].ConfigError, scrubber.SensitivePatterns)
 	}
