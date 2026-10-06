@@ -110,15 +110,20 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		// - Namespace labels/annotations as tags require GLOBAL config (kubernetes_resources_labels_as_tags)
 		// - Check-specific labels_as_tags in KSM config is NOT supported with sharding
 		// - Sharding also breaks check-specific label_joins across different resource types
-		log.Info("KSM resource sharding enabled. For namespace labels/annotations as tags, check-specific config (labels_as_tags in KSM config) is not supported with sharding - use global kubernetes_resources_labels_as_tags instead.")
+		log.Info("KSM sharding enabled. For namespace labels/annotations as tags, check-specific config (labels_as_tags in KSM config) is not supported with sharding - use global kubernetes_resources_labels_as_tags instead.")
 	}
+
+	// An instance declaring shard_criteria gets hash sharding; otherwise it can
+	// use resource-group sharding. Both KSM strategies precede generic instance
+	// sharding, but are mutually exclusive with each other.
+	ksmHashSharding := newKSMHashShardingManager(ksmShardingEnabled)
 	ksmSharding := newKSMShardingManager(ksmShardingEnabled)
 
 	instanceShardingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.instance_sharding_enabled")
 	excludedInstanceShardingChecks := toSet(pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.instance_sharding_exclude_checks"))
 	instanceSharding := newInstanceShardingManager(instanceShardingEnabled, excludedInstanceShardingChecks)
 
-	d.shardingStrategies = []shardingStrategy{ksmSharding, instanceSharding}
+	d.shardingStrategies = []shardingStrategy{ksmHashSharding, ksmSharding, instanceSharding}
 
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
 	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")

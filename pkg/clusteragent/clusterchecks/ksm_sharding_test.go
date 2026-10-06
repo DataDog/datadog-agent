@@ -18,8 +18,6 @@ import (
 )
 
 func TestIsKSMCheck(t *testing.T) {
-	manager := newKSMShardingManager(true)
-
 	tests := []struct {
 		name     string
 		config   integration.Config
@@ -50,7 +48,7 @@ func TestIsKSMCheck(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := manager.isKSMCheck(tt.config)
+			result := isKSMCheck(tt.config)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -497,7 +495,7 @@ func TestCreateShardedKSMConfigs_PodsGroup_WarnsOnNonSuppression(t *testing.T) {
 	manager := newKSMShardingManager(true)
 	config := createKSMConfigWithAggregateAndSuppression([]string{"pods", "nodes"}, false)
 
-	message, isError, ok := diagnosticFor(t, manager, config)
+	message, isError, ok := diagnosticFor(t, config)
 	assert.False(t, ok)
 	assert.True(t, isError, "a genuine pods group must be a certain double-count, not downgraded to a warning")
 	assert.Contains(t, message, "will not suppress its own .total")
@@ -515,7 +513,7 @@ func TestCreateShardedKSMConfigs_SafeNoPodsCollectors_WarnsNotErrors(t *testing.
 	manager := newKSMShardingManager(true)
 	config := createKSMConfigWithAggregateAndSuppression([]string{"nodes", "deployments"}, false)
 
-	message, isError, ok := diagnosticFor(t, manager, config)
+	message, isError, ok := diagnosticFor(t, config)
 	assert.False(t, ok)
 	assert.False(t, isError, "no pods group and always-available collectors means this isn't a certain double-count")
 	assert.Contains(t, message, "will not suppress its own .total")
@@ -538,7 +536,7 @@ func TestCreateShardedKSMConfigs_UnavailableCollectorRisk_WarnsOnNonSuppression(
 	manager := newKSMShardingManager(true)
 	config := createKSMConfigWithAggregateAndSuppression([]string{"nodes", "unavailable-resource"}, false)
 
-	message, _, ok := diagnosticFor(t, manager, config)
+	message, _, ok := diagnosticFor(t, config)
 	assert.False(t, ok)
 	assert.Contains(t, message, "will not suppress its own .total",
 		"the 'others' shard's only collector could be filtered out by the runner and fall back to full defaults (including pods) — this risk must still surface")
@@ -548,16 +546,14 @@ func TestCreateShardedKSMConfigs_UnavailableCollectorRisk_WarnsOnNonSuppression(
 	require.Len(t, configs, 3, "nodes shard + others shard (unavailable-resource) + standalone aggregate")
 }
 
-// diagnosticFor re-derives the shardable+groups from config and calls
+// diagnosticFor re-derives the shardable instance from config and calls
 // suppressionDiagnostic directly, so severity/wording can be asserted without
 // capturing actual log output.
-func diagnosticFor(t *testing.T, manager *ksmShardingManager, config integration.Config) (message string, isError bool, ok bool) {
+func diagnosticFor(t *testing.T, config integration.Config) (message string, isError bool, ok bool) {
 	t.Helper()
 	shardable, _, err := classifyKSMInstances(config)
 	require.NoError(t, err)
-	groups, err := manager.analyzeKSMConfig(shardable)
-	require.NoError(t, err)
-	return suppressionDiagnostic(shardable, groups)
+	return suppressionDiagnostic(shardable)
 }
 
 // TestCreateShardedKSMConfigs_AggregateFirstOrdering guards order-independence:
@@ -725,4 +721,46 @@ func TestShardableSuppressesTotal(t *testing.T) {
 func TestShardableSuppressesTotal_Unparseable(t *testing.T) {
 	_, _, ok := shardableSuppressesTotal(integration.Data("pod_collection_mode: [not, a, string]"))
 	assert.False(t, ok, "unparseable instance must conservatively report not-suppressing")
+}
+
+// TestInstanceCollectsPods covers the predicate that decides whether a missing
+// .total suppression is a certain double-count (ERROR) or a conditional one
+// (WARN). It answers from the instance's collectors alone, so both sharding
+// strategies can use it, and it must honour the empty-collectors default.
+func TestInstanceCollectsPods(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		instance integration.Data
+		want     bool
+	}{
+		{
+			name:     "explicit pods collector",
+			instance: mustYAML(map[string]interface{}{"collectors": []string{"pods", "nodes"}}),
+			want:     true,
+		},
+		{
+			name:     "explicit collectors without pods",
+			instance: mustYAML(map[string]interface{}{"collectors": []string{"nodes", "deployments"}}),
+			want:     false,
+		},
+		{
+			name:     "empty collectors falls back to defaults, which include pods",
+			instance: mustYAML(map[string]interface{}{"collectors": []string{}}),
+			want:     true,
+		},
+		{
+			name:     "absent collectors key falls back to defaults",
+			instance: mustYAML(map[string]interface{}{"shard_count": 4}),
+			want:     true,
+		},
+		{
+			name:     "unparseable instance reports false, routing callers to the WARN wording",
+			instance: integration.Data("collectors: not-a-list\n  bad: indent"),
+			want:     false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, instanceCollectsPods(tc.instance))
+		})
+	}
 }
