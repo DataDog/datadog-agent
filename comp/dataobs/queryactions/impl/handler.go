@@ -30,6 +30,7 @@ const (
 	mysqlConfigIDPrefix    = "do-mysql-"
 	mssqlConfigIDPrefix    = "do-mssql-"
 	sapHANAConfigIDPrefix  = "do-hana-"
+	oracleConfigIDPrefix   = "do-oracle-"
 
 	mysqlPortFallback    = "0"
 	postgresPortFallback = "5432"
@@ -68,7 +69,7 @@ type managedBaseEntry struct {
 
 // isSupportedIntegration reports whether name is a supported DB integration.
 func isSupportedIntegration(name string) bool {
-	return name == "mysql" || name == "postgres" || name == "sap_hana" || name == "sqlserver"
+	return name == "mysql" || name == "postgres" || name == "sap_hana" || name == "sqlserver" || name == "oracle"
 }
 
 // integrationForConfigID maps the platform-specific prefixes assigned by the DO RC reconciler to
@@ -82,6 +83,8 @@ func integrationForConfigID(configID string) (string, bool) {
 		return "sqlserver", true
 	case strings.HasPrefix(configID, sapHANAConfigIDPrefix):
 		return "sap_hana", true
+	case strings.HasPrefix(configID, oracleConfigIDPrefix):
+		return "oracle", true
 	case strings.HasPrefix(configID, postgresConfigIDPrefix):
 		return "postgres", true
 	default:
@@ -508,6 +511,8 @@ func evaluateInstanceIdentifier(instance map[string]any, identifier DBIdentifier
 		return evaluateSapHanaIdentifier(instance, identifier.Host)
 	case "sqlserver":
 		return evaluateSQLServerIdentifier(instance, identifier.Host, queries)
+	case "oracle":
+		return evaluateOracleIdentifier(instance, identifier.Host)
 	default:
 		return identifierMatchEvaluation{strategy: "unsupported_integration"}
 	}
@@ -576,6 +581,50 @@ func evaluateSapHanaIdentifier(instance map[string]any, targetHost string) ident
 		match.strategy = "sap_hana_endpoint"
 	}
 	return match
+}
+
+func evaluateOracleIdentifier(instance map[string]any, targetHost string) identifierMatchEvaluation {
+	connectionHost, ok := oracleConnectionHost(instance)
+	return identifierMatchEvaluation{matched: ok && connectionHost == targetHost, strategy: "oracle_connection_host"}
+}
+
+// Match the connection_host emitted by Oracle's config.GetConnectData after NewCheckConfig
+// normalizes server and port. That package requires the oracle build tag; this component does not.
+func oracleConnectionHost(instance map[string]any) (string, bool) {
+	if alias, _ := instance["tns_alias"].(string); alias != "" {
+		return alias, true
+	}
+	server, _ := instance["server"].(string)
+	parts := strings.Split(server, ":")
+	server = parts[0]
+	if server == "" {
+		return "", false
+	}
+	port, ok := instancePort(instance)
+	if _, configured := instance["port"]; configured && !ok {
+		return "", false
+	}
+	if port == 0 {
+		port = 1521
+		if len(parts) > 1 {
+			var err error
+			port, err = strconv.Atoi(parts[1])
+			if err != nil {
+				return "", false
+			}
+		}
+	}
+	if reportedHostname, _ := instance["reported_hostname"].(string); reportedHostname != "" {
+		server = fmt.Sprintf("%s[%s]", server, reportedHostname)
+	}
+	connectionHost := server
+	if port != 0 {
+		connectionHost = fmt.Sprintf("%s:%d", server, port)
+	}
+	if service, _ := instance["service_name"].(string); service != "" {
+		connectionHost += "/" + service
+	}
+	return connectionHost, true
 }
 
 // evaluateEndpointIdentifier contains only the host/port mechanics shared by database-specific
