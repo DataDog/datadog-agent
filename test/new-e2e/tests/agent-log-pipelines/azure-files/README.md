@@ -49,11 +49,14 @@ documentation warns that lower values cost performance, so real deployments
 are likely to run 30 or more. Every mount also uses `cache=strict`,
 `nosharesock`, `serverino`, `closetimeo=0` and `persistenthandles`.
 
-The writers rotate each minute and vary completed file sizes around 81-85 KB.
-After four rotations, the test checks the first three completed files against
-Fakeintake: every writer sequence must arrive exactly once, and every log of
-the cell's service must carry `source:java` and the `e2e_run_id` and
-`e2e_cell` tags of its log source.
+By default the writers rotate each minute by rename and vary completed file
+sizes around 81-85 KB; [Writer options](#writer-options) change the rotation
+mode, the period, the rate and the number of files for every cell of a run.
+After four rotations of every writer stream, the test checks the first three
+completed files of each stream against Fakeintake: every record the ledger
+lists must arrive exactly once, except that a record its rotation put at risk
+may be missing, and every log of the cell's service must carry `source:java`
+and the `e2e_run_id` and `e2e_cell` tags of its log source.
 
 `AZURE_FILES_E2E_CELLS` restricts a run to named cells, so a single cell can be
 provisioned instead of the whole matrix. An unknown name fails before any cloud
@@ -104,7 +107,21 @@ each new rotated file it appends one marker line to the rotated path shortly
 after the rename (1.5s for the file cells, 0.5s for the `smb` cell), and
 another at 45s. Every attempt is journalled to `markers.jsonl` on the share,
 and each marker carries a `marker_id=<run-id>-<cell>-r<rotation>-m<age-ms>`
-identity, so the test can tell exactly which append is missing.
+identity, so the test can tell exactly which append is missing. Each rotation
+gets its own background job, so markers keep their ages when rotations come
+faster than 45s apart or in several stream directories at once.
+
+The markers need a renamed file that stays where it was renamed to, so they
+depend on the [rotation mode](#writer-options):
+
+| Mode | Markers |
+|---|---|
+| `rename` | early and 45s, as described here |
+| `gzip` | early only. The rotated file is compressed and deleted 5s after the rename, so a 45s marker would find it gone |
+| `copytruncate`, `delete-recreate` | none: no renamed file is ever read (the copy is not a path the sources match) or there is none. The appender idles |
+
+The appender never appends to a rotated file that is gone: it journals that
+marker as `skipped` instead of creating the file again.
 
 The marker ages straddle each reader's drain window on purpose. See the marker
 constants at the top of `provisioner.go`:
@@ -190,7 +207,9 @@ Every evidence file has the `smb` account key replaced by
 that it cannot redact the key and writes no Agent output or Fakeintake logs to
 the evidence. The evidence contains:
 
-- writer ledgers, marker journals and pod manifests;
+- writer ledgers, writer journals (`<cell>-periods.jsonl`), marker journals
+  and pod manifests, each with the files of every stream one after the
+  other;
 - writer, ledger, appender and Agent container logs;
 - the kernel version and effective mount options on both sides;
 - active-path metadata and the Agent's file descriptors;
@@ -201,10 +220,10 @@ the evidence. The evidence contains:
   as resolved, and the Agent-wide `BytesMissed` counter (see below);
 - the Agent registry snapshot;
 - `azure-files-run.json`: the run ID, stack, writer workload (the stock
-  image and the checksum of its ConfigMap scripts, or the Java writer image),
-  profile, cells (with the SMB source's host, share, user, password handle and
-  poll interval), storage accounts, shares, and the gated cells that were
-  skipped.
+  image and the checksum of its ConfigMap scripts, or the Java writer image,
+  and the writer options with every timing they imply), profile, cells (with
+  the SMB source's host, share, user, path pattern, password handle and poll
+  interval), storage accounts, shares, and the gated cells that were skipped.
 
 The test prints the evidence directory and the run's resource names at the end.
 
@@ -219,9 +238,10 @@ az resource list -g dd-agent-sandbox --tag username=$USER -o table
 ## The writer workload
 
 Each cell's writer pod runs three containers on the cell's share: the
-`writer`, which writes sequence-numbered records and rotates `app.log` every
-minute; the `ledger`, which records every rotated file in `ledger.jsonl`; and
-the `appender` (see [Post-rename markers](#post-rename-markers)).
+`writer`, which writes sequence-numbered records and rotates `app.log` (every
+minute by rename unless [Writer options](#writer-options) say otherwise); the
+`ledger`, which records every completed file in `ledger.jsonl`; and the
+`appender` (see [Post-rename markers](#post-rename-markers)).
 
 By default the pods run a stock public image, so a run needs no image build
 and no registry push:
@@ -237,9 +257,9 @@ and no registry push:
   stack restarts the writers when a script changes;
 - the containers run as UID 1000; the Java image runs as a non-root user too.
 
-`logwriter.py` is a port of the Java writer in `workload/src`. It reads the
-same `LOGWRITER_*` variables, and it keeps everything the assertions read from
-the share:
+`logwriter.py` is a port of the Java writer in `workload/java`. It reads the
+same `LOGWRITER_*` variables, and with the default writer options it keeps
+everything the assertions read from the share:
 
 - record lines: the log4j2 `LOG_PATTERN` of `log4j2.xml`
   (`%d{yyyy-MM-dd HH:mm:ss.SSS}  %-5level %pid --- [%20t] %-40c{1.} : %msg%n`,
@@ -254,14 +274,133 @@ the share:
   newline, so the appender's first marker extends that line;
 - schedule: a 250ms fixed-delay tick, a head record, a 5s head pause, and no
   first period with 15s or less left in its minute;
-- ledger: `ledger.sh` is the same script. It computes its CRC64 values with
-  `logwriter.py crc64` instead of the Java image's `Crc64` class
-  (`LOGWRITER_CRC64_COMMAND`); both print Go's `hash/crc64` ISO checksum.
+- ledger: `ledger.sh` is the same script, with two sources. The Java image
+  runs its default, `scan`: each rotated file is recorded from its content,
+  with the image's `Crc64` class. The stock image sets
+  `LOGWRITER_LEDGER_SOURCE=journal`: each file is recorded from the Python
+  writer's journal (below), whose checksums `logwriter.py` computes; it also
+  prints them as `logwriter.py crc64` (`LOGWRITER_CRC64_COMMAND`). For the
+  default rename mode, both sources write the same ledger fields.
 
 `workload_test.go` runs `logwriter.py` on a simulated clock, then `ledger.sh`
 and `appender.sh` on its files, and checks them against that contract (see
 [Checks that do not create cloud resources](#checks-that-do-not-create-cloud-resources)).
-A change to what either writer writes has to be made in the other one too.
+A change to what either writer writes with the default options has to be made
+in the other one too.
+
+### The writer journal and the ledger
+
+Some rotation modes compress or delete a file before the ledger could read
+it, and copytruncate destroys records on purpose. So the Python writer
+journals each completed file itself: before it renames, copies, truncates,
+compresses or deletes anything, it appends one JSON line for the file to
+`periods.jsonl` next to `app.log`. `ledger.sh` copies every journal line into
+`ledger.jsonl` once, adding what the share holds for that file when it looks:
+`observed` is `file`, `archive` (only the `.gz` is left), `deleted` (by
+design) or `missing`, with `observed_bytes`.
+
+The journal has the Java ledger's fields, computed from what the writer
+wrote, and these:
+
+| Field | Meaning |
+|---|---|
+| `first_sequence`, `last_sequence`, `bytes`, `line_count` | The records and bytes the writer wrote while the file was active; for copytruncate, while its period was current |
+| `unwritten_sequences` | `[first, last]` ranges the writer failed to write, for example while an open handle elsewhere keeps a deleted `app.log` from being created again. They are in no file, so the test does not expect them, and it logs how many there were |
+| `at_risk_sequences` | copytruncate only: what the writer appended between the start of the copy and the truncation. A reader of `app.log` can lose these without being at fault |
+| `disposition`, `archive` | What the writer did with the file: `renamed`, `copied`, `compressed` (into `archive`) or `deleted`; `missing`, `empty` or `copy-failed` when no rotation happened |
+| `stream`, `rotation_mode`, `rotated_at` | The stream directory (empty for the share root), the mode and the time of the rotation |
+
+From the first three entries of each stream, the test expects every sequence
+except the unwritten ones. A record in an at-risk range of its stream may be
+missing, but never duplicated; every other record must arrive exactly once.
+The number of at-risk records that were lost is logged, not failed.
+
+### Writer options
+
+These apply to every cell of a run, like the profile, and need the stock
+Python writer:
+
+| Variable | Default | Values |
+|---|---|---|
+| `AZURE_FILES_E2E_ROTATION_MODE` | `rename` | `rename`, `copytruncate`, `delete-recreate`, `gzip` |
+| `AZURE_FILES_E2E_PERIOD_MS` | `60000` | 5000 to 600000, in whole seconds |
+| `AZURE_FILES_E2E_RATE_BYTES_PER_SEC` | `0` | 0 to 20000000: the writer pod's total, shared by its streams |
+| `AZURE_FILES_E2E_STREAMS` | `0` | 0 to 32 |
+
+The rotation modes (the timings are constants in `provisioner.go`):
+
+| Mode | At each period boundary | What a reader may lose without failing the cell |
+|---|---|---|
+| `rename` | The first record of the new period closes `app.log`, renames it to `app.log.<suffix>` and creates a new `app.log` (Log4j2's `RollingFile`) | Nothing |
+| `copytruncate` | A rotator copies `app.log` to `app.log.<suffix>` while the writer keeps appending through its one `O_APPEND` descriptor, waits 3s (`copyTruncateHoldMs`), then truncates `app.log` in place. The writer's next append lands at offset 0 | The at-risk records, written between the start of the copy and the truncation. A record written before the copy stayed in `app.log` for at least 3s, which is more than two file scans or SMB polls |
+| `delete-recreate` | The first record of the new period closes `app.log`, waits 1s (`deleteRecreatePauseMs`), deletes it and creates a new `app.log` | Nothing. A record the reader had not read when the file was deleted counts as lost |
+| `gzip` | Like `rename`; 5s later (`gzipDelayMs`) the rotated file is compressed to `app.log.<suffix>.gz` and deleted | Nothing |
+
+The copy and the compression run in 1 MiB steps between the writer's own
+writes, so a paced writer keeps its rate during them. A copy therefore never
+holds a torn line, which logrotate's copytruncate can produce.
+
+The period: periods start at multiples of it since the epoch. A period that is
+not a whole number of minutes names its records and files to the second
+(`period=20260813T120010Z`, `app.log.13082026_120010`). The head pause and the
+first-period runway shrink to a sixth of a shorter period, 1666ms at 10s. The
+suite waits up to `max(6 minutes, 6 periods)` for four rotations.
+
+The rate: `0` keeps the Java writer's schedule, which fills each period to its
+target size right after the head pause, one write per record. Above `0`,
+each stream writes its share of the rate from the end of the head pause to
+the end of the period, so a period carries `rate * (period - head pause)`:
+5 MB/s with 10s periods averages 4.2 MB/s. A paced writer also:
+
+- batches records into writes of up to 64 KiB and gives them 1 KiB payloads
+  (1,253-byte records), so 5 MB/s takes about 4,000 records and, with ten
+  streams, 80 writes a second;
+- does not echo records to its container log;
+- keeps at least 6 rotated files and at least the last 2 minutes of them,
+  and deletes older ones, so a kept stack stays within the 5 GiB share quota.
+  The suite refuses a rate and period whose files would not fit in 80% of it:
+  5 MB/s fits periods up to 107s;
+- skips a backlog of more than 5s instead of writing it in one burst, for
+  example after the share stalled.
+
+Ten streams at 5,000,000 bytes/s on a laptop disk wrote 4.85 MB/s during
+their fills in the rename, gzip and copytruncate modes; the tick cut off by
+each boundary accounts for the rest. Azure Files latency has not been
+measured with it yet.
+
+Streams: `0` writes one `app.log` at the root of the share. `N` writes
+`svc-1/app.log` to `svc-<N>/app.log`, one thread each, and each stream has its
+own run ID (`<run ID>-<cell>-svc-<i>`), sequences, journal, ledger and marker
+journal. One log source per cell still reads them all: a file cell matches
+`/mnt/azure-files/<cell>/*/app.log` and excludes `*/app.log.*`, and the `smb`
+cell matches `path: "*/app.log"`.
+
+Mind the costs:
+
+- the appender lists each stream directory 5 times a second and the ledger
+  once a second, and Azure bills every listing as a transaction. That is why
+  streams stop at 32;
+- Fakeintake returns every log of a cell's service on each check. At 5 MB/s,
+  the three asserted periods are about 100,000 records with 10s periods, and
+  about 660,000 with 60s ones. Use short periods for high rates.
+
+For example, ten services rotating by copytruncate every 10s at 5 MB/s,
+read by one SMB source:
+
+```sh
+AZURE_FILES_E2E_RUN=1 \
+E2E_SMB_AZURE=1 \
+AZURE_FILES_E2E_CELLS=smb \
+AZURE_FILES_E2E_ROTATION_MODE=copytruncate \
+AZURE_FILES_E2E_PERIOD_MS=10000 \
+AZURE_FILES_E2E_RATE_BYTES_PER_SEC=5000000 \
+AZURE_FILES_E2E_STREAMS=10 \
+E2E_OUTPUT_DIR=$HOME/azure-files-e2e-runs \
+dda inv new-e2e-tests.run \
+  --targets=./tests/agent-log-pipelines/azure-files \
+  --run='^TestAzureFiles$' \
+  --pipeline-id=<smb-tailer-pipeline-id>
+```
 
 ### Use the Java writer image
 
@@ -269,6 +408,11 @@ Set `AZURE_FILES_E2E_WRITER_IMAGE` to run the Log4j2 writer instead. The pods
 then run that image as they did before the stock workload existed: its
 entrypoint runs the writer, its own `ledger.sh` and `appender.sh` run from
 `/app`, and no ConfigMap is created.
+
+The Java writer only has the default writer options: rename every minute,
+the target-size schedule and one `app.log`. The suite refuses to run it with
+any other [writer option](#writer-options). Its ledger scans the rotated
+files, as it always did.
 
 The image carries the writer, the ledger, and the appender, so it has to be
 rebuilt when any of them changes. Build and push the fixture to a registry that
@@ -519,16 +663,51 @@ which need `python3` (3.8 or later) and skip without it:
   skips;
 - `logwriter.py crc64` must print what Go's `hash/crc64` computes;
 - `ledger.sh` must record the rotated files exactly as the suite decodes and
-  asserts on them. It also needs `sha256sum`, which macOS keeps in `/sbin`,
-  outside the PATH Bazel gives tests; add
+  asserts on them, from the files and from the writer's journal alike. It
+  also needs `sha256sum`, which macOS keeps in `/sbin`, outside the PATH Bazel
+  gives tests; add
   `--test_env=PATH=/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin` to run it;
 - `appender.sh`, with its ages scaled down to 50ms and 100ms, must journal and
-  append both markers to each rotation the writer makes.
+  append both markers to each rotation the writer makes;
+- every rotation mode, both on one `app.log` with the Java schedule and on two
+  paced streams with 10s periods, must journal each period before its file is
+  touched. Each rotated, copied or decompressed file must hold exactly the
+  journalled sequences, bytes and head checksums, and every record written
+  must be on the share once, unless its file was deleted by design or its
+  copytruncate rotation put it at risk, in which case at most once;
+- a paced writer must write its share of the rate from the end of the head
+  pause to the end of each period, with the paced payload;
+- the real writer, with three streams on one-second gzip periods, must rotate,
+  compress and journal each stream on its own thread and exit with 143 on
+  SIGTERM;
+- `ledger.sh` must record the journal of the gzip, delete-recreate and
+  copytruncate modes as it is, with what the share holds for each file, per
+  stream directory;
+- `appender.sh` must mark each stream's rotations in that stream's journal
+  with the stream's run ID, never append to a `.gz` file or to a rotated file
+  that is gone (it journals those markers as `skipped`), and idle with
+  `LOGWRITER_APPEND_DELAYS_MS=none`.
+
+`config_test.go` checks the writer options against the pod spec and the Agent
+sources they produce: the validation, the Java writer refusing them, the env
+of each container, the stream run IDs, the `*/app.log` sources, the marker
+plan of each mode, the retention against the markers, and the at-risk and
+unwritten handling of the record check.
 
 You can also run the writer on its own:
 
 ```sh
 LOGWRITER_LOG_DIR=$(mktemp -d) LOGWRITER_RUN_ID=local \
+  python3 workload/logwriter.py selftest --start 2026-08-13T12:00:10Z --rotations 4
+```
+
+Any writer option works the same way, for example two paced copytruncate
+streams on 10s periods:
+
+```sh
+LOGWRITER_LOG_DIR=$(mktemp -d) LOGWRITER_RUN_ID=local LOGWRITER_ROTATION_MODE=copytruncate \
+  LOGWRITER_PERIOD_MS=10000 LOGWRITER_HEAD_PAUSE_MS=1666 LOGWRITER_INITIAL_FILL_RUNWAY_MS=1666 \
+  LOGWRITER_RATE_BYTES_PER_SEC=40000 LOGWRITER_STREAMS=2 LOGWRITER_CONSOLE_RECORDS=false \
   python3 workload/logwriter.py selftest --start 2026-08-13T12:00:10Z --rotations 4
 ```
 

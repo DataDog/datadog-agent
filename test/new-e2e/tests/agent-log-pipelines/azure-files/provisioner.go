@@ -13,7 +13,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -48,11 +50,16 @@ const (
 	logMountPath          = "/mnt/azure-files"
 	activeLogName         = "app.log"
 	ledgerName            = "ledger.jsonl"
-	writerTargetSequence  = "81792,82885,84060,81920,85000,82500"
-	partOfLabel           = "app.kubernetes.io/part-of"
-	partOfLabelValue      = "azure-files-e2e"
-	runIDLabel            = "e2e.datadoghq.com/run-id"
-	cellLabel             = "e2e.datadoghq.com/cell"
+	// periodsJournalName is the stock writer's journal, which its ledger reads.
+	periodsJournalName   = "periods.jsonl"
+	writerTargetSequence = "81792,82885,84060,81920,85000,82500"
+	// streamDirPrefix names the stream directories of a multi-stream writer,
+	// svc-1 to svc-<N>.
+	streamDirPrefix  = "svc-"
+	partOfLabel      = "app.kubernetes.io/part-of"
+	partOfLabelValue = "azure-files-e2e"
+	runIDLabel       = "e2e.datadoghq.com/run-id"
+	cellLabel        = "e2e.datadoghq.com/cell"
 )
 
 // The writer pods run the stock image below unless a run names its own image.
@@ -150,7 +157,13 @@ func (spec runSpec) workloadRuntime(dockerhubMirror string) workloadRuntime {
 		writerCommand:   []string{"python3", writer},
 		ledgerCommand:   ledgerCommand,
 		appenderCommand: appenderCommand,
-		ledgerEnv:       []envVar{{"LOGWRITER_CRC64_COMMAND", "python3 " + writer + " crc64"}},
+		// The Python writer journals each period before it touches the file,
+		// so its ledger comes from that journal rather than from the files,
+		// which some rotation modes compress or delete.
+		ledgerEnv: []envVar{
+			{"LOGWRITER_CRC64_COMMAND", "python3 " + writer + " crc64"},
+			{"LOGWRITER_LEDGER_SOURCE", "journal"},
+		},
 		scripts: map[string]string{
 			pythonWriterScript: pythonWriterSource,
 			ledgerScript:       ledgerSource,
@@ -216,7 +229,6 @@ const (
 	fileHandoffQuietSeconds = 30
 	smbPollIntervalSeconds  = 1
 	smbDrainIdlePolls       = 2
-	writerRotationSeconds   = 60
 )
 
 // Post-rename marker calibration.
@@ -243,14 +255,19 @@ const (
 // source sees the rename after up to one file scan plus the mount's attribute
 // cache lifetime, so with actimeo=30 the window of the file-line-actimeo30 cell
 // can open late enough to cover the lost marker in the unreliable-mount
-// profile. The lost marker cannot be moved later: the appender works inline
-// and must finish before the writer rotates again.
+// profile.
 //
 // If the lost marker starts arriving, treat the run as suspicious rather than
 // as a pass and investigate the harness before the product: it usually means
 // the marker no longer lands past the drain window (the constants above
 // drifted from the Agent, the rotation was detected late so both markers
 // slipped, or the surviving marker kept the drain alive longer than expected).
+//
+// The markers need a renamed file that stays where it was renamed to, so they
+// depend on the rotation mode (markerDelaysFor): gzip deletes the rotated file
+// after gzipDelayMs and keeps only the surviving marker, and copytruncate and
+// delete-recreate leave no renamed file to append to, so their cells have no
+// marker at all.
 const (
 	fileSurvivingMarkerDelayMs       = 1500
 	smbSurvivingMarkerDelayMs        = smbPollIntervalSeconds * 1000 / 2
@@ -262,24 +279,311 @@ const (
 )
 
 // markerDelays are the ages, after the rename, at which a cell's appender
-// appends its two markers to the rotated file.
+// appends its markers to the rotated file. Zero means no such marker.
 type markerDelays struct {
 	survivingMs int
 	lostMs      int
 }
 
 // markerDelaysFor returns the marker ages calibrated for a reader's drain
-// window.
-func markerDelaysFor(reader readerKind) markerDelays {
+// window, for the markers the rotation mode leaves a file for.
+func markerDelaysFor(reader readerKind, mode rotationMode) markerDelays {
+	survivingMs := fileSurvivingMarkerDelayMs
 	if reader == smbReader {
-		return markerDelays{survivingMs: smbSurvivingMarkerDelayMs, lostMs: postRotationMarkerLostDelayMs}
+		survivingMs = smbSurvivingMarkerDelayMs
 	}
-	return markerDelays{survivingMs: fileSurvivingMarkerDelayMs, lostMs: postRotationMarkerLostDelayMs}
+	switch mode {
+	case copyTruncateRotation, deleteRecreateRotation:
+		return markerDelays{}
+	case gzipRotation:
+		// The rotated file is gone long before the lost marker's age.
+		return markerDelays{survivingMs: survivingMs}
+	}
+	return markerDelays{survivingMs: survivingMs, lostMs: postRotationMarkerLostDelayMs}
+}
+
+// count is the number of markers appended to each rotated file.
+func (m markerDelays) count() int {
+	count := 0
+	for _, delay := range []int{m.survivingMs, m.lostMs} {
+		if delay > 0 {
+			count++
+		}
+	}
+	return count
 }
 
 // appenderValue is the LOGWRITER_APPEND_DELAYS_MS value of the appender.
 func (m markerDelays) appenderValue() string {
-	return fmt.Sprintf("%d,%d", m.survivingMs, m.lostMs)
+	var delays []string
+	for _, delay := range []int{m.survivingMs, m.lostMs} {
+		if delay > 0 {
+			delays = append(delays, strconv.Itoa(delay))
+		}
+	}
+	if len(delays) == 0 {
+		return "none"
+	}
+	return strings.Join(delays, ",")
+}
+
+// Writer options. A run applies one writer configuration to every cell, like
+// the profile on the Agent side, and the defaults are the Java writer's:
+// rename rotation every minute, each period filled to its target size at once,
+// and one app.log at the root of the share. Only the stock Python writer
+// supports anything else.
+type rotationMode string
+
+const (
+	// renameRotation is Log4j2's RollingFile: close, rename, reopen.
+	renameRotation rotationMode = "rename"
+	// copyTruncateRotation is logrotate's copytruncate: copy app.log, then
+	// truncate it in place while the writer keeps appending.
+	copyTruncateRotation rotationMode = "copytruncate"
+	// deleteRecreateRotation closes app.log, deletes it after a pause, and
+	// creates a new one at the same path.
+	deleteRecreateRotation rotationMode = "delete-recreate"
+	// gzipRotation renames app.log, then compresses the rotated file to .gz
+	// and deletes it.
+	gzipRotation rotationMode = "gzip"
+)
+
+var knownRotationModes = []rotationMode{renameRotation, copyTruncateRotation, deleteRecreateRotation, gzipRotation}
+
+const (
+	defaultWriterPeriodMs = 60000
+	minWriterPeriodMs     = 5000
+	maxWriterPeriodMs     = 600000
+	// Each stream adds a directory that the appender lists five times a
+	// second and the ledger once a second, and Azure bills every listing.
+	maxWriterStreams         = 32
+	maxWriterRateBytesPerSec = 20 * 1000 * 1000
+
+	// The Java writer's head pause and first-period runway; a shorter period
+	// scales them down to a sixth of itself.
+	defaultHeadPauseMs         = 5000
+	defaultInitialFillRunwayMs = 10000
+
+	// A paced writer batches records into writes of up to this size, like a
+	// Log4j2 appender with a buffer and no immediateFlush, and gives each
+	// record a 1 KiB payload, so a high rate takes fewer writes and records.
+	pacedWriterBufferBytes  = 64 * 1024
+	pacedWriterPayloadBytes = 1024
+	// A paced writer keeps at least this many rotated files, and at least
+	// the last two minutes of them, so a kept stack stays within the share
+	// quota while every drain and marker is long over.
+	minRetainedRotations = 6
+	retainedRotationsMs  = 120000
+
+	// deleteRecreatePauseMs is how long the closed app.log stays before the
+	// writer deletes it and creates the next one.
+	deleteRecreatePauseMs = 1000
+	// gzipDelayMs is how long a rotated file stays before it is compressed
+	// and deleted. The surviving marker must land before.
+	gzipDelayMs = 5000
+	// copyTruncateHoldMs is how long app.log keeps the copied records before
+	// it is truncated: a record written before the copy started stayed in
+	// app.log for at least this long, longer than a file scan or an SMB poll.
+	copyTruncateHoldMs = 3000
+
+	// shareQuotaGiB is the size of every cell's share. A paced writer's
+	// retained files, its active files and one file being rotated must fit
+	// in 80% of it.
+	shareQuotaGiB = 5
+)
+
+// writerOptions configure what every writer of a run writes.
+type writerOptions struct {
+	mode     rotationMode
+	periodMs int
+	// rateBytesPerSec is each writer pod's total rate, shared by its streams.
+	// Zero keeps the Java writer's schedule: each period is filled to its
+	// target size right after the head pause.
+	rateBytesPerSec int
+	// streams is the number of app.log files, under svc-1 to svc-<N>. Zero
+	// writes one app.log at the root of the share.
+	streams int
+}
+
+func defaultWriterOptions() writerOptions {
+	return writerOptions{mode: renameRotation, periodMs: defaultWriterPeriodMs}
+}
+
+func parseWriterOptions(opts runOptions) (writerOptions, error) {
+	w := defaultWriterOptions()
+	if mode := strings.TrimSpace(opts.rotationMode); mode != "" {
+		w.mode = rotationMode(mode)
+		if !slices.Contains(knownRotationModes, w.mode) {
+			names := make([]string, 0, len(knownRotationModes))
+			for _, known := range knownRotationModes {
+				names = append(names, string(known))
+			}
+			return writerOptions{}, fmt.Errorf("unknown rotation mode %q; known modes are %s", mode, strings.Join(names, ","))
+		}
+	}
+	var err error
+	if w.periodMs, err = parseBoundedInt("writer period", opts.periodMs, defaultWriterPeriodMs, minWriterPeriodMs, maxWriterPeriodMs); err != nil {
+		return writerOptions{}, err
+	}
+	if w.periodMs%1000 != 0 {
+		return writerOptions{}, fmt.Errorf("writer period %dms must be whole seconds", w.periodMs)
+	}
+	if w.rateBytesPerSec, err = parseBoundedInt("writer rate", opts.rateBytesPerSec, 0, 0, maxWriterRateBytesPerSec); err != nil {
+		return writerOptions{}, err
+	}
+	if w.streams, err = parseBoundedInt("writer streams", opts.streams, 0, 0, maxWriterStreams); err != nil {
+		return writerOptions{}, err
+	}
+	if w.paced() {
+		periodBytes := int64(w.rateBytesPerSec) * int64(w.periodMs) / 1000
+		if needed := int64(w.retainedRotations()+2) * periodBytes; needed > (shareQuotaGiB<<30)*8/10 {
+			return writerOptions{}, fmt.Errorf("writer rate %d with a %dms period keeps %d MB on the share, more than its %d GiB quota allows; shorten the period or lower the rate",
+				w.rateBytesPerSec, w.periodMs, needed/1000/1000, shareQuotaGiB)
+		}
+	}
+	return w, nil
+}
+
+func parseBoundedInt(what, value string, fallback, minimum, maximum int) (int, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, fmt.Errorf("%s %q is not a number", what, value)
+	}
+	if parsed < minimum || parsed > maximum {
+		return 0, fmt.Errorf("%s %d must be between %d and %d", what, parsed, minimum, maximum)
+	}
+	return parsed, nil
+}
+
+func (w writerOptions) isDefault() bool {
+	return w == defaultWriterOptions()
+}
+
+func (w writerOptions) paced() bool {
+	return w.rateBytesPerSec > 0
+}
+
+func (w writerOptions) headPauseMs() int {
+	if w.periodMs == defaultWriterPeriodMs {
+		return defaultHeadPauseMs
+	}
+	return min(defaultHeadPauseMs, w.periodMs/6)
+}
+
+func (w writerOptions) initialFillRunwayMs() int {
+	if w.periodMs == defaultWriterPeriodMs {
+		return defaultInitialFillRunwayMs
+	}
+	return min(defaultInitialFillRunwayMs, w.periodMs/6)
+}
+
+// retainedRotations is LOGWRITER_MAX_ROTATED_FILES: zero keeps every file.
+func (w writerOptions) retainedRotations() int {
+	if !w.paced() {
+		return 0
+	}
+	return max(minRetainedRotations, (retainedRotationsMs+w.periodMs-1)/w.periodMs)
+}
+
+// streamDirs are the directories of the writer's streams, relative to the
+// share root; "" is the root itself.
+func (w writerOptions) streamDirs() []string {
+	if w.streams == 0 {
+		return []string{""}
+	}
+	dirs := make([]string, 0, w.streams)
+	for i := 1; i <= w.streams; i++ {
+		dirs = append(dirs, streamDirPrefix+strconv.Itoa(i))
+	}
+	return dirs
+}
+
+// sharePaths are the paths of a file of every stream on the writer's mount.
+func (w writerOptions) sharePaths(name string) []string {
+	var paths []string
+	for _, dir := range w.streamDirs() {
+		paths = append(paths, path.Join(logMountPath, dir, name))
+	}
+	return paths
+}
+
+// activeLogPattern is the path of the active files relative to the share
+// root, as a log source matches it.
+func (w writerOptions) activeLogPattern() string {
+	if w.streams == 0 {
+		return activeLogName
+	}
+	return "*/" + activeLogName
+}
+
+// streamEnv tells the ledger and the appender where the streams are.
+func (w writerOptions) streamEnv() []envVar {
+	if w.streams == 0 {
+		return nil
+	}
+	return []envVar{{"LOGWRITER_STREAMS", strconv.Itoa(w.streams)}}
+}
+
+// writerEnv is what the Python writer needs beyond the Java writer's
+// configuration; it is empty for the defaults.
+func (w writerOptions) writerEnv() []envVar {
+	var vars []envVar
+	switch w.mode {
+	case copyTruncateRotation:
+		vars = append(vars, envVar{"LOGWRITER_ROTATION_MODE", string(w.mode)},
+			envVar{"LOGWRITER_COPYTRUNCATE_HOLD_MS", strconv.Itoa(copyTruncateHoldMs)})
+	case deleteRecreateRotation:
+		vars = append(vars, envVar{"LOGWRITER_ROTATION_MODE", string(w.mode)},
+			envVar{"LOGWRITER_DELETE_PAUSE_MS", strconv.Itoa(deleteRecreatePauseMs)})
+	case gzipRotation:
+		vars = append(vars, envVar{"LOGWRITER_ROTATION_MODE", string(w.mode)},
+			envVar{"LOGWRITER_GZIP_DELAY_MS", strconv.Itoa(gzipDelayMs)})
+	}
+	if w.periodMs != defaultWriterPeriodMs {
+		vars = append(vars, envVar{"LOGWRITER_PERIOD_MS", strconv.Itoa(w.periodMs)},
+			envVar{"LOGWRITER_INITIAL_FILL_RUNWAY_MS", strconv.Itoa(w.initialFillRunwayMs())})
+	}
+	if w.paced() {
+		vars = append(vars,
+			envVar{"LOGWRITER_RATE_BYTES_PER_SEC", strconv.Itoa(w.rateBytesPerSec)},
+			envVar{"LOGWRITER_BUFFER_BYTES", strconv.Itoa(pacedWriterBufferBytes)},
+			envVar{"LOGWRITER_PAYLOAD_BYTES", strconv.Itoa(pacedWriterPayloadBytes)},
+			// At these rates the records would flood the container log.
+			envVar{"LOGWRITER_CONSOLE_RECORDS", "false"},
+			envVar{"LOGWRITER_MAX_ROTATED_FILES", strconv.Itoa(w.retainedRotations())},
+		)
+	}
+	return append(vars, w.streamEnv()...)
+}
+
+// metadata describes the options in the run metadata.
+func (w writerOptions) metadata() map[string]any {
+	metadata := map[string]any{
+		"rotation_mode":      w.mode,
+		"period_ms":          w.periodMs,
+		"rate_bytes_per_sec": w.rateBytesPerSec,
+		"streams":            w.streams,
+		"head_pause_ms":      w.headPauseMs(),
+		"active_log_pattern": w.activeLogPattern(),
+	}
+	switch w.mode {
+	case copyTruncateRotation:
+		metadata["copytruncate_hold_ms"] = copyTruncateHoldMs
+	case deleteRecreateRotation:
+		metadata["delete_pause_ms"] = deleteRecreatePauseMs
+	case gzipRotation:
+		metadata["gzip_delay_ms"] = gzipDelayMs
+	}
+	if w.paced() {
+		metadata["buffer_bytes"] = pacedWriterBufferBytes
+		metadata["payload_bytes"] = pacedWriterPayloadBytes
+		metadata["max_rotated_files"] = w.retainedRotations()
+	}
+	return metadata
 }
 
 // readerKind is the Agent log source that collects a cell's share.
@@ -385,6 +689,11 @@ type runOptions struct {
 	// smbEnabled provisions the smb cell, which needs an Agent built with the
 	// native SMB log source.
 	smbEnabled bool
+	// The writer options, as given; empty keeps each default.
+	rotationMode    string
+	periodMs        string
+	rateBytesPerSec string
+	streams         string
 }
 
 type runSpec struct {
@@ -392,6 +701,7 @@ type runSpec struct {
 	stackName   string
 	writerImage string
 	profile     agentProfile
+	writer      writerOptions
 	// cells are provisioned and asserted on.
 	cells []cell
 	// gatedCells were selected but are left out of the stack because their
@@ -407,6 +717,14 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 	stackName, err := resolveStackName(opts.stackName, opts.runID)
 	if err != nil {
 		return runSpec{}, err
+	}
+	writer, err := parseWriterOptions(opts)
+	if err != nil {
+		return runSpec{}, err
+	}
+	if opts.writerImage != "" && !writer.isDefault() {
+		return runSpec{}, errors.New("the Java writer image only rotates by rename every minute at the root of the share; " +
+			"other rotation modes, periods, rates and streams need the stock Python writer")
 	}
 
 	// Storage accounts follow the stack, so a reused stack keeps them. Shares
@@ -450,7 +768,7 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 		},
 	}
 	for i := range all {
-		all[i].markers = markerDelaysFor(all[i].reader)
+		all[i].markers = markerDelaysFor(all[i].reader, writer.mode)
 		all[i].service = "azure-files-" + all[i].name
 		all[i].volumeName = "azure-files-" + all[i].name
 		all[i].writerName = "writer-" + all[i].name
@@ -465,6 +783,7 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 		stackName:   stackName,
 		writerImage: opts.writerImage,
 		profile:     profile,
+		writer:      writer,
 	}
 	for _, c := range selected {
 		if c.reader == smbReader && !opts.smbEnabled {
@@ -661,7 +980,7 @@ func (spec runSpec) storageWorkload(env config.Env, kubeProvider *kubernetes.Pro
 			"accountName":       account.Name,
 			"resourceGroupName": pulumi.String(azureEnv.DefaultResourceGroup()),
 			"shareName":         pulumi.String(c.shareName),
-			"shareQuota":        pulumi.Int(5),
+			"shareQuota":        pulumi.Int(shareQuotaGiB),
 		}, share, pulumi.Parent(workload), azureEnv.WithProviders(config.ProviderAzure), pulumi.DependsOn([]pulumi.Resource{account}))
 		if err != nil {
 			return nil, err
@@ -801,16 +1120,33 @@ func (spec runSpec) writerRunID(c cell) string {
 	return spec.runID + "-" + c.name
 }
 
-// writerEnv is the writer configuration that both writers read.
+// streamRunIDs are the run IDs of a cell's streams, in their records, ledgers
+// and markers: the cell's run ID for a single app.log, and <run ID>-svc-<i>
+// for each stream of a multi-stream writer, as logwriter.py and appender.sh
+// derive them.
+func (spec runSpec) streamRunIDs(c cell) []string {
+	if spec.writer.streams == 0 {
+		return []string{spec.writerRunID(c)}
+	}
+	ids := make([]string, 0, spec.writer.streams)
+	for _, dir := range spec.writer.streamDirs() {
+		ids = append(ids, spec.writerRunID(c)+"-"+dir)
+	}
+	return ids
+}
+
+// writerEnv is the writer configuration that both writers read, followed by
+// the options only the Python writer has, when they are not the defaults.
 func (spec runSpec) writerEnv(c cell) []envVar {
-	return []envVar{
+	vars := []envVar{
 		{"LOGWRITER_LOG_DIR", logMountPath},
 		{"LOGWRITER_RUN_ID", spec.writerRunID(c)},
 		{"LOGWRITER_TARGET_BYTES_SEQUENCE", writerTargetSequence},
-		{"LOGWRITER_HEAD_PAUSE_MS", "5000"},
+		{"LOGWRITER_HEAD_PAUSE_MS", strconv.Itoa(spec.writer.headPauseMs())},
 		{"LOGWRITER_MAX_RECORDS_PER_PERIOD", "5000"},
 		{"TZ", "UTC"},
 	}
+	return append(vars, spec.writer.writerEnv()...)
 }
 
 func toEnvVarArray(vars []envVar) corev1.EnvVarArray {
@@ -859,6 +1195,25 @@ func (spec runSpec) newWriterDeployment(
 	}, opts...)
 }
 
+func (spec runSpec) ledgerEnv(runtime workloadRuntime) []envVar {
+	vars := append([]envVar{{"LOGWRITER_LOG_DIR", logMountPath}}, runtime.ledgerEnv...)
+	return append(vars, spec.writer.streamEnv()...)
+}
+
+// appenderEnv configures the appender. Its journal path only applies to a
+// single app.log; each stream directory has a journal of its own.
+func (spec runSpec) appenderEnv(c cell) []envVar {
+	vars := []envVar{
+		{"LOGWRITER_LOG_DIR", logMountPath},
+		{"LOGWRITER_RUN_ID", spec.writerRunID(c)},
+		{"LOGWRITER_MARKER_JOURNAL_PATH", logMountPath + "/" + postRotationMarkerJournalName},
+		{"LOGWRITER_APPEND_DELAYS_MS", c.markers.appenderValue()},
+		{"LOGWRITER_APPEND_POLL_MS", strconv.Itoa(postRotationMarkerPollMs)},
+		{"TZ", "UTC"},
+	}
+	return append(vars, spec.writer.streamEnv()...)
+}
+
 // writerPodSpec runs a cell's writer, ledger and appender on its share.
 func (spec runSpec) writerPodSpec(c cell, runtime workloadRuntime, imagePullSecret bool) *corev1.PodSpecArgs {
 	volume := corev1.VolumeArgs{
@@ -905,7 +1260,7 @@ func (spec runSpec) writerPodSpec(c cell, runtime workloadRuntime, imagePullSecr
 		VolumeMounts:    volumeMounts,
 		ReadinessProbe: corev1.ProbeArgs{
 			Exec: corev1.ExecActionArgs{Command: pulumi.ToStringArray([]string{
-				"/bin/sh", "-c", fmt.Sprintf("test $(wc -c < %s/%s) -ge 4096", logMountPath, activeLogName),
+				"/bin/sh", "-c", fmt.Sprintf("test $(wc -c < %s) -ge 4096", spec.writer.sharePaths(activeLogName)[0]),
 			})},
 			PeriodSeconds:    pulumi.Int(2),
 			FailureThreshold: pulumi.Int(45),
@@ -926,7 +1281,7 @@ func (spec runSpec) writerPodSpec(c cell, runtime workloadRuntime, imagePullSecr
 				Image:           pulumi.String(runtime.image),
 				ImagePullPolicy: pulumi.String("IfNotPresent"),
 				Command:         pulumi.ToStringArray(runtime.ledgerCommand),
-				Env:             toEnvVarArray(append([]envVar{{"LOGWRITER_LOG_DIR", logMountPath}}, runtime.ledgerEnv...)),
+				Env:             toEnvVarArray(spec.ledgerEnv(runtime)),
 				VolumeMounts:    volumeMounts,
 			},
 			// The appender shares the writer pod, so it appends through the
@@ -938,15 +1293,8 @@ func (spec runSpec) writerPodSpec(c cell, runtime workloadRuntime, imagePullSecr
 				Image:           pulumi.String(runtime.image),
 				ImagePullPolicy: pulumi.String("IfNotPresent"),
 				Command:         pulumi.ToStringArray(runtime.appenderCommand),
-				Env: toEnvVarArray([]envVar{
-					{"LOGWRITER_LOG_DIR", logMountPath},
-					{"LOGWRITER_RUN_ID", spec.writerRunID(c)},
-					{"LOGWRITER_MARKER_JOURNAL_PATH", logMountPath + "/" + postRotationMarkerJournalName},
-					{"LOGWRITER_APPEND_DELAYS_MS", c.markers.appenderValue()},
-					{"LOGWRITER_APPEND_POLL_MS", strconv.Itoa(postRotationMarkerPollMs)},
-					{"TZ", "UTC"},
-				}),
-				VolumeMounts: volumeMounts,
+				Env:             toEnvVarArray(spec.appenderEnv(c)),
+				VolumeMounts:    volumeMounts,
 			},
 		},
 		Volumes: volumes,
@@ -971,6 +1319,14 @@ func agentMountPath(c cell) string {
 	return logMountPath + "/" + c.name
 }
 
+// yamlPattern quotes a path pattern that YAML would otherwise read as an alias.
+func yamlPattern(pattern string) string {
+	if strings.HasPrefix(pattern, "*") {
+		return strconv.Quote(pattern)
+	}
+	return pattern
+}
+
 // smbPasswordHandle is the secret backend handle the SMB source resolves to
 // the cell's storage account key. The key reaches the Agent pod only as a file
 // of its mounted Secret; /readsecret_multiple_providers.sh reads that file.
@@ -982,6 +1338,9 @@ func (spec runSpec) agentHelmValues() string {
 	var sources strings.Builder
 	var volumes strings.Builder
 	var mounts strings.Builder
+	// One source per cell reads every stream of its share. The rotated names
+	// never match the active file's pattern.
+	pattern := spec.writer.activeLogPattern()
 	for _, c := range spec.cells {
 		switch c.reader {
 		case fileReader:
@@ -997,7 +1356,7 @@ func (spec runSpec) agentHelmValues() string {
           count: %[5]d
           count_to_skip: 0
           max_bytes: %[6]d
-`, agentMountPath(c), activeLogName, c.service, c.fingerprint.strategy, c.fingerprint.count, c.fingerprint.maxBytes)
+`, agentMountPath(c), pattern, c.service, c.fingerprint.strategy, c.fingerprint.count, c.fingerprint.maxBytes)
 			fmt.Fprintf(&volumes, `    - name: %s
       csi:
         driver: file.csi.azure.com
@@ -1015,9 +1374,10 @@ func (spec runSpec) agentHelmValues() string {
       readOnly: true
 `, c.volumeName, agentMountPath(c))
 		case smbReader:
-			// The writer writes at the share root, so the path is relative to
-			// it. Rotated names do not match it: the source has to follow the
-			// rotated file by its server FileId to drain it.
+			// The path is relative to the share root. Rotated names do not
+			// match it: the source has to follow the rotated file by its
+			// server FileId to drain it. A pattern starting with * must be
+			// quoted in YAML.
 			fmt.Fprintf(&sources, `      - type: smb
         path: %s
         service: %s
@@ -1029,7 +1389,7 @@ func (spec runSpec) agentHelmValues() string {
           username: %s
           password: %q
           poll_interval: %d
-`, activeLogName, c.service, c.host(), c.shareName, c.accountName, smbPasswordHandle(c), smbPollIntervalSeconds)
+`, yamlPattern(pattern), c.service, c.host(), c.shareName, c.accountName, smbPasswordHandle(c), smbPollIntervalSeconds)
 			// The chart mounts agents.volumeMounts into every container of
 			// the Agent pod; only the core Agent resolves the handle. The
 			// Agent runs as root, so 0400 (256) still lets it read the key.
