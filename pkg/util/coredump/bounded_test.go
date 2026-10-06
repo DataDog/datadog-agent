@@ -30,6 +30,7 @@ func fakeEnv(free uint64, limits *[][2]uint64) sysEnv {
 		freeBytes:       func(string) (uint64, error) { return free, nil },
 		procName:        func() string { return "agent" },
 		exePath:         func() (string, error) { return "/opt/datadog-agent/bin/agent/agent", nil },
+		hostname:        func() (string, error) { return "node-1", nil },
 		getwd:           func() (string, error) { return "/", nil },
 		now:             func() time.Time { return now },
 		setCoreLimit: func(cur, maxLimit uint64) error {
@@ -56,6 +57,7 @@ func TestParseCorePattern(t *testing.T) {
 		name       string
 		raw        string
 		cwd        string
+		subs       map[byte]string
 		pipe       bool
 		inDir      bool
 		perBinary  bool
@@ -66,7 +68,6 @@ func TestParseCorePattern(t *testing.T) {
 	}{
 		{
 			name:       "plain",
-			canDelete:  true,
 			raw:        "/var/crash/core",
 			inDir:      true,
 			dir:        "/var/crash",
@@ -160,6 +161,27 @@ func TestParseCorePattern(t *testing.T) {
 			nonMatches: []string{"foo.crash"},
 		},
 		{
+			// The host name is known: it is matched exactly.
+			name:       "%h before %e with known host",
+			raw:        "/var/crash/%h-%e-%p",
+			subs:       map[byte]string{'e': "agent", 'h': "node-1"},
+			inDir:      true,
+			perBinary:  true,
+			canDelete:  true,
+			dir:        "/var/crash",
+			matches:    []string{"node-1-agent-12"},
+			nonMatches: []string{"node-1-trace-agent-12", "node-2-agent-12"},
+		},
+		{
+			// Unknown host: the wildcard can swallow "trace-", so the name
+			// does not identify this binary.
+			name:    "%h before %e with unknown host",
+			raw:     "/var/crash/%h-%e-%p",
+			inDir:   true,
+			dir:     "/var/crash",
+			matches: []string{"node-1-agent-12", "node-1-trace-agent-12"},
+		},
+		{
 			// %h alone matches any file: never delete.
 			name:    "only %h",
 			raw:     "/var/crash/%h",
@@ -168,13 +190,12 @@ func TestParseCorePattern(t *testing.T) {
 			matches: []string{"_usr_bin_foo.0.crash"},
 		},
 		{
-			name:      "relative pattern resolved against cwd",
-			canDelete: true,
-			raw:       "core",
-			cwd:       "/var/crash",
-			inDir:     true,
-			dir:       "/var/crash",
-			matches:   []string{"core"},
+			name:    "relative pattern resolved against cwd",
+			raw:     "core",
+			cwd:     "/var/crash",
+			inDir:   true,
+			dir:     "/var/crash",
+			matches: []string{"core"},
 		},
 		{
 			name:  "relative pattern in other cwd",
@@ -196,7 +217,11 @@ func TestParseCorePattern(t *testing.T) {
 			if cwd == "" {
 				cwd = "/"
 			}
-			p := parseCorePattern(tt.raw, "/var/crash/", cwd, linuxSubs)
+			subs := tt.subs
+			if subs == nil {
+				subs = linuxSubs
+			}
+			p := parseCorePattern(tt.raw, "/var/crash/", cwd, subs)
 			assert.Equal(t, tt.pipe, p.pipe, "pipe")
 			assert.Equal(t, tt.inDir, p.inDir, "inDir")
 			assert.Equal(t, tt.perBinary, p.perBinary, "perBinary")
@@ -396,6 +421,19 @@ func TestRefreshDoesNotDeleteWithUnsafePattern(t *testing.T) {
 	assert.FileExists(t, filepath.Join(dir, "1234"))
 }
 
+func TestRefreshDoesNotDeleteWithoutBinaryName(t *testing.T) {
+	dir := t.TempDir()
+	var limits [][2]uint64
+	env := fakeEnv(100*gib, &limits)
+	env.readCorePattern = func() (string, error) { return filepath.Join(dir, "core.%p"), nil }
+	writeFile(t, filepath.Join(dir, "core.1234"), 1000*time.Hour)
+
+	s := newBoundedState(testConfig(dir), env)
+	require.False(t, s.pattern.canDelete)
+	s.refresh()
+	assert.FileExists(t, filepath.Join(dir, "core.1234"))
+}
+
 func TestRefreshDoesNotDeleteWithOtherDir(t *testing.T) {
 	dir := t.TempDir()
 	var limits [][2]uint64
@@ -465,9 +503,11 @@ func TestParseBoundedConfig(t *testing.T) {
 	assert.Empty(t, bc.invalid)
 	assert.EqualValues(t, 4*gib, bc.maxTotalSize)
 
-	bc = parseBoundedConfig(get(with("core_dump.max_age", "0")))
-	assert.Empty(t, bc.invalid)
-	assert.Zero(t, bc.maxAge)
+	for _, v := range []string{"0", "0s", "0h"} {
+		bc = parseBoundedConfig(get(with("core_dump.max_age", v)))
+		assert.Empty(t, bc.invalid, v)
+		assert.Zero(t, bc.maxAge, v)
+	}
 
 	for key, value := range map[string]string{
 		"core_dump.max_size":       "3.5GB",

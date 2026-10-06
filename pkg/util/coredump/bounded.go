@@ -40,7 +40,8 @@ import (
 // Cores in `core_dump.dir` that are older than `core_dump.max_age` are deleted
 // at start and then every refreshInterval. Only regular files directly in the
 // directory whose name matches the kernel core pattern are deleted, and only
-// when the pattern writes into `core_dump.dir`. Symlinks and directories are
+// when the pattern writes into `core_dump.dir` and holds the binary name
+// with no free-text specifier. Symlinks and directories are
 // never followed nor deleted.
 //
 // The kernel core pattern is node-wide and the Agent does not change it. The
@@ -48,7 +49,9 @@ import (
 // `core_dump.dir`.
 
 const (
-	refreshInterval = time.Hour
+	// refreshInterval is short, so that a core written by one process lowers
+	// the limit of the other processes that share core_dump.dir quickly.
+	refreshInterval = time.Minute
 	// minMaxAge protects against a unitless max_age (for example `72`, read as 72ns).
 	minMaxAge = time.Minute
 )
@@ -74,6 +77,7 @@ type sysEnv struct {
 	freeBytes       func(dir string) (uint64, error)
 	procName        func() string
 	exePath         func() (string, error)
+	hostname        func() (string, error)
 	getwd           func() (string, error)
 	now             func() time.Time
 	setCoreLimit    func(cur, maxLimit uint64) error
@@ -86,6 +90,7 @@ func defaultEnv() sysEnv {
 		freeBytes:       freeBytes,
 		procName:        procName,
 		exePath:         os.Executable,
+		hostname:        os.Hostname,
 		getwd:           os.Getwd,
 		now:             time.Now,
 		setCoreLimit:    setCoreLimit,
@@ -117,7 +122,8 @@ const numericSpecifiers = "pPiIugstcd"
 // parseCorePattern parses a kernel core pattern.
 //
 // subs maps a pattern specifier (for example 'e' on Linux) to the binary name
-// that the kernel puts in place of it.
+// that the kernel puts in place of it. The hostSpecifier key, when present,
+// holds the host name.
 func parseCorePattern(raw, coreDir, cwd string, subs map[byte]string) corePattern {
 	raw = strings.TrimRight(raw, "\n")
 	p := corePattern{raw: raw, matcher: fallbackMatcher}
@@ -152,13 +158,12 @@ func parseCorePattern(raw, coreDir, cwd string, subs map[byte]string) corePatter
 	}
 
 	var b strings.Builder
-	hasLiteral := false
+	wildcard := false
 	perBinary := false
 	b.WriteString("^")
 	for i := 0; i < len(base); i++ {
 		c := base[i]
 		if c != '%' {
-			hasLiteral = true
 			b.WriteString(regexp.QuoteMeta(string(c)))
 			continue
 		}
@@ -170,15 +175,20 @@ func parseCorePattern(raw, coreDir, cwd string, subs map[byte]string) corePatter
 		spec := base[i]
 		switch {
 		case spec == '%':
-			hasLiteral = true
 			b.WriteString("%")
+		case spec == hostSpecifier && subs[spec] != "":
+			// The host name is known: match it exactly, so that it does not
+			// swallow a part of another binary name.
+			b.WriteString(regexp.QuoteMeta(subs[spec]))
 		case subs[spec] != "":
 			perBinary = true
 			b.WriteString(regexp.QuoteMeta(subs[spec]))
 		case strings.IndexByte(numericSpecifiers, spec) >= 0:
 			b.WriteString("[0-9]+")
 		default:
-			// %h (hostname), %e without a known name, unknown specifiers.
+			// %e without a known name, unknown specifiers. A wildcard can
+			// swallow a part of another binary name: see below.
+			wildcard = true
 			b.WriteString(".+")
 		}
 	}
@@ -190,10 +200,12 @@ func parseCorePattern(raw, coreDir, cwd string, subs map[byte]string) corePatter
 		return p
 	}
 	p.matcher = m
-	p.perBinary = perBinary
-	// A pattern made only of specifiers (for example `%p` or `%h`) matches
-	// files that are not cores: use it to find cores, never to delete files.
-	p.canDelete = hasLiteral || perBinary
+	// With a wildcard, `%h-%e` with name `agent` also matches the cores of
+	// `trace-agent`: the name does not identify this binary.
+	p.perBinary = perBinary && !wildcard
+	// Delete only the cores of this binary. Without the binary name, the
+	// matcher can match the cores of other programs, or other files.
+	p.canDelete = p.perBinary
 	return p
 }
 
@@ -405,10 +417,9 @@ func newBoundedState(bc boundedConfig, env sysEnv) *boundedState {
 	case !p.inDir:
 		log.Warnf("Core dumps: the kernel core pattern %q writes cores in %s, not in core_dump.dir %s: "+
 			"cores will not land in core_dump.dir, expired cores are not deleted, and the checks use core_dump.dir", p.raw, p.dir, bc.dir)
-	case !p.canDelete:
-		log.Warnf("Core dumps: the kernel core pattern %q matches any file name: expired cores are not deleted", p.raw)
 	case !p.perBinary:
-		log.Infof("Core dumps: the kernel core pattern %q has no binary name (%%e): at most one core per directory", p.raw)
+		log.Warnf("Core dumps: the kernel core pattern %q does not identify the binary (no %%e, %%E or %%f, or a free-text specifier): "+
+			"at most one core per directory, and expired cores are not deleted", p.raw)
 	}
 
 	return &boundedState{cfg: bc, pattern: p, env: env, last: math.MaxUint64}
@@ -432,6 +443,14 @@ func nameSubstitutions(env sysEnv) map[byte]string {
 			if exe != "" {
 				subs[spec] = filepath.Base(exe)
 			}
+		case specHost:
+			// The kernel uses the host name of the UTS namespace of the
+			// crashing process, which is the namespace of this process.
+			if env.hostname != nil {
+				if h, err := env.hostname(); err == nil {
+					subs[spec] = h
+				}
+			}
 		}
 	}
 	return subs
@@ -441,7 +460,11 @@ const (
 	specName = iota // comm, for example %e
 	specPath        // executable path with '/' replaced by '!', for example %E
 	specFile        // executable file name, for example %f
+	specHost        // host name, %h on Linux
 )
+
+// hostSpecifier is the key of the host name in the substitutions.
+const hostSpecifier = 'h'
 
 // parseSize parses a size such as `3GB`, `3G`, `3Gi`, `3GiB` or `1048576`.
 // All suffixes (K, M, G, T, with or without `i` and `B`) are powers of 1024.
@@ -509,6 +532,8 @@ func parseBoundedConfig(get func(key string) string) boundedConfig {
 		switch {
 		case err != nil:
 			invalid = append(invalid, fmt.Sprintf("core_dump.max_age: %v", err))
+		case d == 0:
+			// Same as "0": never delete.
 		case d < minMaxAge:
 			invalid = append(invalid, fmt.Sprintf("core_dump.max_age: %s is less than %s", d, minMaxAge))
 		default:
@@ -538,7 +563,7 @@ func BoundedEnabled(cfg model.Reader) bool {
 
 // ApplyBounded computes and applies the bounded RLIMIT_CORE. The first call
 // also starts a background task that deletes expired cores and applies the
-// limit again every hour. It is safe to call it more than once: Setup calls it
+// limit again every refreshInterval. It is safe to call it more than once: Setup calls it
 // for Go crashes, and the Python loader calls it for C crashes (c_core_dump).
 //
 // All errors are logged as warnings.

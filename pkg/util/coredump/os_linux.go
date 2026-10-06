@@ -16,8 +16,9 @@ import (
 // nameSpecifiers are the core_pattern specifiers that the Linux kernel
 // replaces with the binary name: %e is the comm (15 characters max), %E is
 // the executable path with '/' replaced by '!', and %f is the executable file
-// name (Linux 5.9 and later).
-var nameSpecifiers = map[byte]int{'e': specName, 'E': specPath, 'f': specFile}
+// name (Linux 5.9 and later). %h is the host name: it is not a binary name,
+// but knowing it keeps the match exact.
+var nameSpecifiers = map[byte]int{'e': specName, 'E': specPath, 'f': specFile, 'h': specHost}
 
 func readCorePattern() (string, error) {
 	b, err := os.ReadFile("/proc/sys/kernel/core_pattern")

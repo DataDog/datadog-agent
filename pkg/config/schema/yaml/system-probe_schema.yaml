@@ -1556,15 +1556,17 @@ properties:
         description: |
           Maximum total size of the regular files in `core_dump.dir`, for example
           `4Gi`. When the files in the directory plus `core_dump.max_size` are
-          larger, core dumps are disabled. Set it to the sizeLimit of the volume,
-          or less, when the volume is shared. Empty means no total limit.
+          larger, core dumps are disabled. Set it to the sizeLimit of the volume.
+          The directory is read once a minute: when N containers share the
+          volume, set `core_dump.max_size` to `max_total_size / N` or less.
+          Empty means no total limit.
       max_age:
         node_type: setting
         type: string
         default: 72h
         description: |
           Core dumps of this binary in `core_dump.dir` that are older than this
-          duration (for example `72h`) are deleted at start and every hour. While
+          duration (for example `72h`) are deleted at start and every minute. While
           a younger core of this binary is in the directory, core dumps are
           disabled (at most one core per binary). A value of 0 never deletes
           cores: one core then disables core dumps until you delete it. A value
