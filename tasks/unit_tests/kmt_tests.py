@@ -1,3 +1,5 @@
+import os
+import tempfile
 import unittest
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -162,3 +164,26 @@ class TestKMTGoTestTargetPick(unittest.TestCase):
     def test_missing_package(self):
         tests = [self._go_test("//pkg/ebpf:ebpf_test_bpf", "ebpf_test", "bpf", "test")]
         self.assertIsNone(self._pick("pkg/network/usm", tests))
+
+
+class TestCopyKMTTestdata(unittest.TestCase):
+    def test_copies_testdata_of_each_package(self):
+        from tasks.kmt import copy_kmt_testdata
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            src = root / "src"
+            (src / "pkg/a/testdata").mkdir(parents=True)
+            (src / "pkg/a/testdata/fixture.yml").write_text("a")
+            (src / "pkg/b").mkdir(parents=True)
+            dest = root / "dest"
+
+            cwd = os.getcwd()
+            os.chdir(src)
+            try:
+                copy_kmt_testdata(dest, [str(src / "pkg/a"), str(src / "pkg/b")])
+            finally:
+                os.chdir(cwd)
+
+            self.assertEqual((dest / "pkg/a/testdata/fixture.yml").read_text(), "a")
+            self.assertFalse((dest / "pkg/b").exists())

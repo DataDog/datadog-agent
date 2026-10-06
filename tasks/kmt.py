@@ -778,13 +778,14 @@ def stage_kmt_testsuites(kmt_paths: KMTPaths, arch: Arch, packages: list[str], b
         info("[+] Building KMT testsuites via Bazel...")
         build_binaries_with_bazel(dest_by_target, args=linux_platform_flags(arch))
 
+    return missing
+
+
+def copy_kmt_testdata(dest_root: Path, packages: list[str]) -> None:
     for pkg in packages:
         testdata = Path(pkg) / "testdata"
         if testdata.is_dir():
-            dest = kmt_paths.sysprobe_tests / os.path.relpath(pkg) / "testdata"
-            shutil.copytree(testdata, dest, dirs_exist_ok=True)
-
-    return missing
+            shutil.copytree(testdata, dest_root / os.path.relpath(pkg) / "testdata", dirs_exist_ok=True)
 
 
 def stage_kmt_helper_binaries(ctx: Context, kmt_paths: KMTPaths, arch: Arch, *, include_pkg_helpers: bool) -> None:
@@ -1134,7 +1135,8 @@ def kmt_sysprobe_prepare(
     build_object_files(ctx, arch)
 
     build_tags = get_sysprobe_test_buildtags(False, False)
-    target_packages = build_target_packages(filter_pkgs, build_tags)
+    all_packages = build_target_packages([], build_tags)
+    target_packages = build_target_packages(filter_pkgs, build_tags) if filter_pkgs else all_packages
 
     info("[+] Building Rust binaries...")
     build_rust_binaries(
@@ -1146,6 +1148,8 @@ def kmt_sysprobe_prepare(
 
     schema_codegen(ctx)
     ninja_pkgs = stage_kmt_testsuites(kmt_paths, arch, target_packages, build_tags)
+    # Fixtures are shared across packages (e.g. usm tests use gotls/testdata), so ignore --packages here.
+    copy_kmt_testdata(kmt_paths.sysprobe_tests, all_packages)
     wants_dyninst = any(os.path.relpath(p).startswith("pkg/dyninst") for p in target_packages)
 
     if ninja_pkgs or wants_dyninst:
