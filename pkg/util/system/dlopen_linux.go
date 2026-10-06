@@ -23,11 +23,7 @@ package system
 //
 //     const char *dl_error = dlerror();
 //     if (dl_error != NULL) {
-//         size_t error_len = strlen(dl_error);
-//         *error = malloc(error_len + 1);
-//         if (*error != NULL) {
-//             memcpy(*error, dl_error, error_len + 1);
-//         }
+//         *error = strdup(dl_error);
 //     }
 //     return 0;
 // }
