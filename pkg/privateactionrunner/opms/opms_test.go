@@ -16,6 +16,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/DataDog/jsonapi"
@@ -384,6 +385,26 @@ func TestEnrollmentCredentialRejectionStopsRetrying(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEnrollmentRejectionWithUnreadableBodyStopsRetrying(t *testing.T) {
+	calls := 0
+	p := &publicClient{
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+				calls++
+				return &http.Response{
+					StatusCode: http.StatusBadRequest,
+					Body:       io.NopCloser(iotest.ErrReader(errors.New("connection reset"))),
+				}, nil
+			}),
+		},
+	}
+
+	_, err := p.doEnrollRequestWithRetry(context.Background(), "https://app.datadoghq.com/enroll", []byte("{}"), "api-key", "app-key")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrEnrollmentRejected)
+	assert.Equal(t, 1, calls)
 }
 
 func TestEnrollmentTransientStatusIsRetried(t *testing.T) {
