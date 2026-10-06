@@ -143,9 +143,11 @@ cc_binary(
 
 # Static i686 musl binary so TestChown32 can issue SYS_chown32. Bootlin gcc is
 # an x86_64 Linux ELF (exec_compatible_with); output runs on amd64 via ia32.
+# manual keeps //... patterns from fetching the toolchain, which macOS cannot extract.
 musl_i686_cc_binary(
     name = "syscall_x86_tester",
     srcs = ["syscall_x86_tester.c"],
+    tags = ["manual"],
     target_compatible_with = [
         "@platforms//cpu:x86_64",
         "@platforms//os:linux",

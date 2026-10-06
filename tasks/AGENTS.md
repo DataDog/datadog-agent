@@ -186,7 +186,8 @@ py_binary(
 
 - **CWS syscall testers** — `build_embed_syscall_tester` copies Bazel outputs into
   `pkg/security/tests/syscall_tester/bin` for `//go:embed`. `syscall_x86_tester` is a
-  static i686 musl binary (`musl_i686_cc_binary`, Bootlin gcc); it only builds when
+  static i686 musl binary (`musl_i686_cc_binary`, Bootlin gcc), tagged `manual` so
+  `//...` never fetches the toolchain (macOS cannot extract it); it only builds when
   exec is Linux x86_64 (KMT compiler image) and `arch` is amd64.
 
 - **KMT testsuites** — `kmt_sysprobe_prepare` Bazel-builds the `{dir}_test` variant

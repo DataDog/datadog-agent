@@ -1,8 +1,8 @@
-bootlin_musl_archive = use_repo_rule("//deps/musl_i686:archive.bzl", "bootlin_musl_archive")
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 # Bootlin i686 musl cross (gcc + sysroot). gcc is an x86_64 Linux ELF.
 # SHA-256 from the published .sha256 sidecar next to the tarball.
-bootlin_musl_archive(
+http_archive(
     name = "bootlin_i686_musl",
     build_file = "//deps/musl_i686:overlay.BUILD.bazel",
     sha256 = "72f5e80c6d5b47eac20d63634b56d49600600230bbb33c621f83250a9d6b3cb4",
