@@ -39,6 +39,7 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
     ] + select({
         "@rules_go//go/platform:windows": [
+            "//comp/core/agenttelemetry/def",
             "//comp/core/log/mock",
             "//comp/core/sysprobeconfig/mock",
             "//comp/etw/def",

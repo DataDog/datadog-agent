@@ -46,7 +46,6 @@ const (
 	ddInjectorProviderGUID      = "{9933a039-281b-4342-a4e0-7109c8d3f22c}"
 	ddInjectorETWSessionName    = "Datadog DDInjector crash telemetry"
 	ddInjectorETWCrashKeyword   = uint64(0x40)
-	ddInjectorCrashQueueSize    = 64
 	ddInjectorCrashEventsPerMin = 10
 )
 
@@ -61,10 +60,8 @@ type ddInjectorCrashListener struct {
 	decodeErrors *utillog.Limit
 	suppressed   atomic.Uint64
 
-	session    etw.Session
-	events     chan ddInjectorCrashEvent
-	traceDone  chan struct{}
-	workerDone chan struct{}
+	session   etw.Session
+	traceDone chan struct{}
 }
 
 func newDDInjectorCrashListener(
@@ -120,11 +117,8 @@ func (l *ddInjectorCrashListener) start(_ context.Context) error {
 	}
 
 	l.session = session
-	l.events = make(chan ddInjectorCrashEvent, ddInjectorCrashQueueSize)
 	l.traceDone = make(chan struct{})
-	l.workerDone = make(chan struct{})
 
-	go l.runWorker()
 	go l.runTrace()
 	l.log.Info("DDInjector per-crash telemetry is enabled")
 	return nil
@@ -155,9 +149,19 @@ func (l *ddInjectorCrashListener) handleEvent(record *etw.DDEventRecord) {
 	}
 
 	event.EventsSuppressed = l.suppressed.Swap(0)
-	select {
-	case l.events <- event:
-	default:
+	message, err := json.Marshal(event)
+	if err != nil {
+		l.log.Debugf("Could not marshal DDInjector crash telemetry: %v", err)
+		l.suppressed.Add(event.EventsSuppressed + 1)
+		return
+	}
+	if !l.atel.SubmitLog(agenttelemetry.Log{
+		Message:    string(message),
+		Level:      agenttelemetry.LogLevelError,
+		TracerTime: time.Now().Unix(),
+		Count:      1,
+		ErrorKind:  ddInjectorCrashErrorKind,
+	}) {
 		// Restore the prior suppressed count and include the event that could not be queued.
 		l.suppressed.Add(event.EventsSuppressed + 1)
 	}
@@ -166,27 +170,6 @@ func (l *ddInjectorCrashListener) handleEvent(record *etw.DDEventRecord) {
 func (l *ddInjectorCrashListener) logDecodeError(part string, err error) {
 	if l.decodeErrors.ShouldLog() {
 		l.log.Warnf("Could not decode DDInjector crash ETW event %s: %v", part, err)
-	}
-}
-
-func (l *ddInjectorCrashListener) runWorker() {
-	defer close(l.workerDone)
-	for event := range l.events {
-		message, err := json.Marshal(event)
-		if err != nil {
-			l.log.Debugf("Could not marshal DDInjector crash telemetry: %v", err)
-			continue
-		}
-		payload := agenttelemetry.LogsPayload{Logs: []agenttelemetry.Log{{
-			Message:    string(message),
-			Level:      agenttelemetry.LogLevelError,
-			TracerTime: time.Now().Unix(),
-			Count:      1,
-			ErrorKind:  ddInjectorCrashErrorKind,
-		}}}
-		if err = l.atel.SendLogs(payload); err != nil {
-			l.log.Debugf("Could not send DDInjector crash telemetry: %v", err)
-		}
 	}
 }
 
@@ -202,12 +185,7 @@ func (l *ddInjectorCrashListener) stop(ctx context.Context) error {
 	select {
 	case <-l.traceDone:
 	case <-ctx.Done():
-		return nil
-	}
-	close(l.events)
-	select {
-	case <-l.workerDone:
-	case <-ctx.Done():
+		return ctx.Err()
 	}
 	return nil
 }

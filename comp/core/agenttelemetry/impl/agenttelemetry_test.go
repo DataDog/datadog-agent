@@ -27,7 +27,6 @@ import (
 
 	"github.com/DataDog/zstd"
 
-	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -296,14 +295,19 @@ func getTestAtel(t *testing.T,
 	if sndr == nil {
 		sndr, err = newSenderImpl(cfg, log, client)
 	}
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	atel := createAtel(cfg, log, tel, sndr, runner)
-	if atel == nil {
-		err = errors.New("failed to create atel")
-	}
-	assert.NoError(t, err)
+	require.NotNil(t, atel)
 
+	t.Cleanup(func() {
+		if atel.cancel != nil {
+			atel.cancel()
+		}
+		if atel.logsDone != nil {
+			<-atel.logsDone
+		}
+	})
 	return atel
 }
 
@@ -3053,26 +3057,6 @@ func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {
 	assert.True(t, len(atCfg.events) > 0)
 	assert.True(t, len(atCfg.schedule) > 0)
 	assert.True(t, len(atCfg.Profiles) > len(atCfg.events))
-}
-
-func TestAgentTelemetrySendLogs(t *testing.T) {
-	s := &senderMock{}
-	a := &atel{
-		enabled:   true,
-		sender:    s,
-		cancelCtx: context.Background(),
-	}
-	payload := agenttelemetry.LogsPayload{Logs: []agenttelemetry.Log{{
-		Message:    `{"process_name":"crashy.exe"}`,
-		Level:      agenttelemetry.LogLevelError,
-		TracerTime: 1234567890,
-		Count:      1,
-		ErrorKind:  "ddinjector_crash",
-	}}}
-
-	require.NoError(t, a.SendLogs(payload))
-	assert.Equal(t, payload.Logs, s.capturedLogs())
-	assert.Equal(t, 1, s.sendLogsCalls())
 }
 
 func TestAgentTelemetryEventConfiguration(t *testing.T) {
