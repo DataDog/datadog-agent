@@ -6,7 +6,7 @@
 // Package gui provides the GUI server component for the Datadog Agent.
 package gui
 
-// team: fleet-remediation
+// team: windows-products
 
 // Component is the component type.
 type Component interface {

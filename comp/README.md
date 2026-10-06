@@ -176,7 +176,7 @@ Package fxinstrumentation enables the Fx initialization spans to be sent to Data
 
 ### [comp/core/gui](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/gui)
 
-*Datadog Team*: fleet-remediation
+*Datadog Team*: windows-products
 
 Package gui provides the GUI server component for the Datadog Agent.
 
