@@ -15,4 +15,18 @@ type OriginInfo struct {
 	ExternalData          origindetection.ExternalData  // ExternalData is the external data list.
 	Cardinality           string                        // Cardinality is the cardinality of the resolved origin.
 	ProductOrigin         origindetection.ProductOrigin // ProductOrigin is the product that sent the origin information.
+	// Resolved, when non-nil, holds container IDs the producer already resolved from the inode
+	// or the external data, so that the tagger does not resolve them a second time.
+	// It must be treated as read-only since it can be shared across many samples.
+	Resolved *ResolvedOrigin
+}
+
+// ResolvedOrigin holds the container IDs resolved from origin detection data.
+// A resolution is only reused when its "Done" field is set, which allows storing
+// failed resolutions (empty container ID) without retrying them.
+type ResolvedOrigin struct {
+	InodeContainerID        string // InodeContainerID is the container ID resolved from LocalData.Inode.
+	InodeDone               bool   // InodeDone is true when the inode resolution was attempted.
+	ExternalDataContainerID string // ExternalDataContainerID is the container ID resolved from ExternalData.
+	ExternalDataDone        bool   // ExternalDataDone is true when the external data resolution was attempted.
 }

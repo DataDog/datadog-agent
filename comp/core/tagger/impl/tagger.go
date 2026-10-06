@@ -418,7 +418,9 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 	containerIDFromSocketCutIndex := len(types.ContainerID) + types.GetSeparatorLength()
 
 	// Generate container ID from Inode
-	if originInfo.LocalData.ContainerID == "" {
+	if originInfo.LocalData.ContainerID == "" && originInfo.Resolved != nil && originInfo.Resolved.InodeDone {
+		originInfo.LocalData.ContainerID = originInfo.Resolved.InodeContainerID
+	} else if originInfo.LocalData.ContainerID == "" {
 		var inodeResolutionError error
 		originInfo.LocalData.ContainerID, inodeResolutionError = t.generateContainerIDFromInode(originInfo.LocalData, metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector())
 		if inodeResolutionError != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
@@ -524,9 +526,15 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 		}
 
 		// 3. ContainerID generated from ExternalData
-		generatedContainerID, err := t.generateContainerIDFromExternalData(originInfo.ExternalData, metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector())
-		if err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
-			t.log.Tracef("Failed to generate container ID from %v: %s", originInfo.ExternalData, err)
+		var generatedContainerID string
+		if originInfo.Resolved != nil && originInfo.Resolved.ExternalDataDone {
+			generatedContainerID = originInfo.Resolved.ExternalDataContainerID
+		} else {
+			var err error
+			generatedContainerID, err = t.generateContainerIDFromExternalData(originInfo.ExternalData, metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector())
+			if err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
+				t.log.Tracef("Failed to generate container ID from %v: %s", originInfo.ExternalData, err)
+			}
 		}
 		if generatedContainerID != "" {
 			if err := t.accumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil {

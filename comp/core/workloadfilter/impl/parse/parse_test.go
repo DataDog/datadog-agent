@@ -150,3 +150,25 @@ cel_workload_exclude:
 		},
 	})
 }
+
+func TestGetProductConfigsDogstatsdContainerOnly(t *testing.T) {
+	config := []workloadfilter.RuleBundle{
+		{
+			Products: []workloadfilter.Product{workloadfilter.ProductDogstatsd},
+			Rules: map[workloadfilter.ResourceType][]string{
+				workloadfilter.ResourceType("containers"): {"container.pod.namespace == 'noisy'"},
+				// Pods are not supported for the dogstatsd product
+				workloadfilter.ResourceType("pods"): {"pod.namespace == 'noisy'"},
+			},
+		},
+	}
+
+	results, errs := GetProductConfigs(config)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), "on dogstatsd product: pod")
+
+	dsdRules, exists := results[workloadfilter.ProductDogstatsd]
+	require.True(t, exists)
+	assert.Equal(t, []string{"container.pod.namespace == 'noisy'"}, dsdRules[workloadfilter.ContainerType])
+	assert.NotContains(t, dsdRules, workloadfilter.PodType)
+}

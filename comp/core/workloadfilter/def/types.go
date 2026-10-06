@@ -29,6 +29,8 @@ const (
 	ProductLogs    Product = "logs"
 	ProductSBOM    Product = "sbom"
 	ProductGlobal  Product = "global"
+	// ProductDogstatsd filters custom metrics, events and service checks received by DogStatsD
+	ProductDogstatsd Product = "dogstatsd"
 )
 
 // GetAllProducts returns a slice of all defined products
@@ -38,6 +40,7 @@ func GetAllProducts() []Product {
 		ProductLogs,
 		ProductSBOM,
 		ProductGlobal,
+		ProductDogstatsd,
 	}
 }
 
@@ -330,6 +333,8 @@ const (
 	ContainerCELLogs    ContainerFilter = "container-cel-logs"
 	ContainerCELSBOM    ContainerFilter = "container-cel-sbom"
 	ContainerCELGlobal  ContainerFilter = "container-cel-global"
+	// ContainerCELDogstatsd filters DogStatsD data based on its origin container
+	ContainerCELDogstatsd ContainerFilter = "container-cel-dogstatsd"
 )
 
 //

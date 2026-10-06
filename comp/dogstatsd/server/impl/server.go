@@ -21,6 +21,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
@@ -85,6 +86,7 @@ type dependencies struct {
 	PidMap          pidmap.Component
 	Params          server.Params
 	WMeta           option.Option[workloadmeta.Component]
+	WorkloadFilter  option.Option[workloadfilter.Component] `optional:"true"`
 	Telemetry       telemetry.Component
 	Hostname        hostnameinterface.Component
 	FilterList      filterlist.Component
@@ -178,6 +180,11 @@ type dsdServer struct {
 	wmeta           option.Option[workloadmeta.Component]
 	offlineReporter offlinereporter.Component
 
+	// workloadFilter is used to drop data based on its origin container when
+	// originFilterEnabled is true.
+	workloadFilter      option.Option[workloadfilter.Component]
+	originFilterEnabled bool
+
 	// telemetry
 	telemetry               telemetry.Component
 	tlmProcessed            telemetry.Counter
@@ -211,6 +218,18 @@ func initTelemetry() {
 func NewComponent(deps dependencies) Provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
 	s.offlineReporter = deps.OfflineReporter
+	s.workloadFilter = deps.WorkloadFilter
+	s.originFilterEnabled = !deps.Params.Serverless && workloadFilterEnabled(deps.Config)
+	if s.originFilterEnabled {
+		_, hasWmeta := deps.WMeta.Get()
+		_, hasFilter := deps.WorkloadFilter.Get()
+		if hasWmeta && hasFilter {
+			s.log.Info("DogStatsD workload filtering is enabled")
+		} else {
+			s.log.Warn("DogStatsD workload filtering is configured but workloadmeta or workloadfilter is not available, it is disabled")
+			s.originFilterEnabled = false
+		}
+	}
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
 	if dsdConfig.EnabledInternal() {
@@ -718,14 +737,18 @@ func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, packe
 					s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
 					continue
 				}
-				batcher.appendServiceCheck(serviceCheck)
+				if serviceCheck != nil {
+					batcher.appendServiceCheck(serviceCheck)
+				}
 			case eventType:
 				event, err := s.parseEventMessage(parser, message, packet.Origin, packet.ProcessID)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
 					continue
 				}
-				batcher.appendEvent(event)
+				if event != nil {
+					batcher.appendEvent(event)
+				}
 			case metricSampleType:
 				var err error
 
@@ -845,10 +868,23 @@ func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, par
 		}
 	}
 
+	firstSample := len(metricSamples)
 	metricSamples = enrichMetricSample(metricSamples, sample, origin, processID, listenerID, s.enrichConfig, filterList)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)
+	}
+
+	// All the samples from a message share the same origin.
+	if parser.originFilter != nil && len(metricSamples) > firstSample {
+		originInfo := metricSamples[firstSample].OriginInfo
+		if parser.originFilter.shouldDrop(&originInfo) {
+			tlmWorkloadFilteredPoints.Inc("metrics")
+			return metricSamples[:firstSample], nil
+		}
+		for idx := firstSample; idx < len(metricSamples); idx++ {
+			metricSamples[idx].OriginInfo.Resolved = originInfo.Resolved
+		}
 	}
 
 	for idx := range metricSamples {
@@ -879,6 +915,10 @@ func (s *dsdServer) parseEventMessage(parser *parser, message []byte, origin str
 		return nil, err
 	}
 	event := enrichEvent(sample, origin, processID, s.enrichConfig)
+	if parser.originFilter != nil && parser.originFilter.shouldDrop(&event.OriginInfo) {
+		tlmWorkloadFilteredPoints.Inc("events")
+		return nil, nil
+	}
 	event.Tags = append(event.Tags, s.extraTags...)
 	s.tlmProcessed.Inc("events", "ok", "")
 	dogstatsdEventPackets.Add(1)
@@ -893,6 +933,10 @@ func (s *dsdServer) parseServiceCheckMessage(parser *parser, message []byte, ori
 		return nil, err
 	}
 	serviceCheck := enrichServiceCheck(sample, origin, processID, s.enrichConfig)
+	if parser.originFilter != nil && parser.originFilter.shouldDrop(&serviceCheck.OriginInfo) {
+		tlmWorkloadFilteredPoints.Inc("service_checks")
+		return nil, nil
+	}
 	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
 	dogstatsdServiceCheckPackets.Add(1)
 	s.tlmProcessed.Inc("service_checks", "ok", "")

@@ -36,6 +36,11 @@ func ContainerCELSBOMProgram(b *ProgramBuilder) program.FilterProgram {
 	return b.CreateCELProgram(workloadfilter.ContainerCELSBOM, workloadfilter.ProductSBOM)
 }
 
+// ContainerCELDogstatsdProgram creates a program for filtering DogStatsD data by origin container via CEL rules
+func ContainerCELDogstatsdProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateCELProgram(workloadfilter.ContainerCELDogstatsd, workloadfilter.ProductDogstatsd)
+}
+
 // ContainerCELGlobalProgram creates a program for filtering containers globally via CEL rules
 func ContainerCELGlobalProgram(b *ProgramBuilder) program.FilterProgram {
 	return b.CreateCELProgram(workloadfilter.ContainerCELGlobal, workloadfilter.ProductGlobal)

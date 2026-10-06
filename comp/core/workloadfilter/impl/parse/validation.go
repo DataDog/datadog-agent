@@ -27,6 +27,9 @@ var ProductSupportMap = map[workloadfilter.Product]map[workloadfilter.ResourceTy
 	workloadfilter.ProductSBOM: {
 		workloadfilter.ContainerType: {},
 	},
+	workloadfilter.ProductDogstatsd: {
+		workloadfilter.ContainerType: {},
+	},
 	workloadfilter.ProductGlobal: {
 		workloadfilter.ContainerType:    {},
 		workloadfilter.PodType:          {},
