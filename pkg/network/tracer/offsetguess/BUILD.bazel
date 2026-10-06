@@ -72,6 +72,7 @@ dd_agent_go_test(
     ],
     embed = [":offsetguess"],
     gotags_sets = [["bpf"]],
+    tags = ["requires_ebpf"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/ebpf/ebpftest:cgo_align",
