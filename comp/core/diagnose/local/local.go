@@ -15,7 +15,6 @@ import (
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -37,7 +36,6 @@ func Run(
 	filterStore workloadfilter.Component,
 	ac autodiscovery.Component,
 	tagger tagger.Component,
-	config config.Component,
 ) (*diagnose.Result, error) {
 
 	localSuite := diagnose.Suites{
