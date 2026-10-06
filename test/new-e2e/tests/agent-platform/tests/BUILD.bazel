@@ -13,8 +13,8 @@ dd_agent_go_test(
         "step_by_step_test.go",
         "upgrade_test.go",
     ],
-    data = ["//cmd/agent:macos/uninstall_mac_os.sh"],
     deps = [
+        "//cmd/agent/macos",
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/scenarios/aws/ec2",
         "//test/e2e-framework/testing/components",
