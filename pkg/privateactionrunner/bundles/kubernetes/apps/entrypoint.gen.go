@@ -21,7 +21,6 @@ func NewKubernetesApps() *KubernetesApps {
 			"scaleDeploymentVertically":    NewScaleDeploymentVerticallyHandler(),
 			"scaleStatefulSetHorizontally": NewScaleStatefulSetHorizontallyHandler(),
 			"scaleStatefulSetVertically":   NewScaleStatefulSetVerticallyHandler(),
-			"updateAutoscalerLimits":       NewUpdateAutoscalerLimitsHandler(),
 			// Auto-generated actions
 			"createControllerRevision":          NewCreateControllerRevisionHandler(),
 			"updateControllerRevision":          NewUpdateControllerRevisionHandler(),

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package com_datadoghq_kubernetes_apps
+package com_datadoghq_kubernetes_autoscaling
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ import (
 	ktesting "k8s.io/client-go/testing"
 )
 
-func (suite *AppsTestSuite) TestUpdateAutoscalerLimits() {
+func (suite *AutoscalingTestSuite) TestUpdateAutoscalerLimits() {
 	const (
 		namespace = "production"
 		hpaName   = "checkout"
