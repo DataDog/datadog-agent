@@ -64,6 +64,9 @@ type Config struct {
 	CgroupReapplyInfinitely bool
 	// JobsConfig provides the ability for the user to define run/group identifiers to be attached to traces and metrics.
 	JobsConfig JobsConfig
+	// TrainingInfoAllowedEnvVars lists additional environment variables that system-probe may read from GPU processes
+	// for the env identifiers of JobsConfig. It is read from system-probe.yaml, which only root can modify.
+	TrainingInfoAllowedEnvVars []string
 	// TracingConfig configures the tracers injected into GPU workloads.
 	TracingConfig TracingConfig
 }
@@ -123,6 +126,16 @@ func (i IdentifierConfig) Configured() bool {
 	default:
 		return false
 	}
+}
+
+// IsEnv returns true if the identifier is configured to be read from an environment variable of the process using the GPU.
+func (i IdentifierConfig) IsEnv() bool {
+	return i.Configured() && i.Type == IdentifierTypeEnv
+}
+
+// HasEnvIdentifier returns true if any training job identifier is read from an environment variable.
+func (j JobsConfig) HasEnvIdentifier() bool {
+	return j.Run.IsEnv() || j.Group.IsEnv()
 }
 
 // NewJobsConfig reads the training job identifiers from the agent configuration.
@@ -191,6 +204,7 @@ func New() *Config {
 		CgroupReapplyInterval:      spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_interval")),
 		CgroupReapplyInfinitely:    spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_infinitely")),
 		JobsConfig:                 NewJobsConfig(agentCfg),
+		TrainingInfoAllowedEnvVars: spCfg.GetStringSlice(sysconfig.FullKeyPath(consts.GPUNS, "training_info", "allowed_env_vars")),
 		TracingConfig:              NewTracingConfig(agentCfg),
 	}
 }

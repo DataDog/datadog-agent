@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -60,6 +61,7 @@ type Check struct {
 	deviceCache         ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
 	spCache             *nvidia.SystemProbeCache         // spCache holds system-probe GPU process metrics
 	prmCache            *nvidia.PRMCache                 // prmCache holds system-probe privileged NVLink metrics
+	trainingInfoCache   *nvidia.TrainingInfoCache        // trainingInfoCache holds the system-probe training job tags of each device
 	gpuConfig           *gpuconfig.Config                // gpuConfig is shared with the system-probe GPU module
 	deviceEvtGatherer   *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
 	workloadTagCache    *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
@@ -191,9 +193,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 
 	c.spCache = nil
 	c.prmCache = nil
+	c.trainingInfoCache = nil
 	var driverEventsSource nvidia.DriverEventsSource
 	if c.gpuConfig.Enabled {
-		if c.gpuConfig.EnableEBPFProbes || c.gpuConfig.PRMEndpointEnabled || c.gpuConfig.DriverEventsEnabled {
+		trainingInfoEnabled := c.gpuConfig.JobsConfig.HasEnvIdentifier()
+		if c.gpuConfig.EnableEBPFProbes || c.gpuConfig.PRMEndpointEnabled || c.gpuConfig.DriverEventsEnabled || trainingInfoEnabled {
 			client := nvidia.NewSystemProbeClient()
 			if c.gpuConfig.EnableEBPFProbes {
 				log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
@@ -204,6 +208,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 			}
 			if c.gpuConfig.DriverEventsEnabled {
 				driverEventsSource = nvidia.NewDriverEventsCache(client)
+			}
+			if trainingInfoEnabled {
+				c.trainingInfoCache = nvidia.NewTrainingInfoCache(client)
 			}
 		}
 	}
@@ -405,6 +412,13 @@ func (c *Check) Run() error {
 		}
 	}
 
+	if c.trainingInfoCache != nil {
+		if err := c.trainingInfoCache.Refresh(); err != nil && logLimitCheck.ShouldLog() {
+			log.Warnf("error refreshing training info cache: %v", err)
+			// Continue without training job tags
+		}
+	}
+
 	// start device event gatherer if we have not already
 	if !c.deviceEvtGatherer.Started() {
 		if err := c.deviceEvtGatherer.Start(); err != nil {
@@ -565,7 +579,7 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		deduplicatedSamples := nvidia.RemoveDuplicateSamples(deviceData.collectorSamples)
 		c.telemetry.metrics.duplicateMetrics.Add(float64(deviceData.totalCount-len(deduplicatedSamples)), deviceUUID)
 		deviceContainers := gpuToContainersMap[deviceUUID]
-		deviceTags := c.deviceTags[deviceUUID]
+		deviceTags := c.getDeviceTags(deviceUUID)
 
 		deduplicatedSamples = c.strictIntervals.ProcessSamples(deduplicatedSamples, currentExecutionTime, deviceUUID)
 		deduplicatedSamples = c.rateCalculator.ProcessSamples(deduplicatedSamples, currentExecutionTime, deviceUUID)
@@ -578,6 +592,14 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 	}
 
 	return errors.Join(multiErr...)
+}
+
+// getDeviceTags returns the tags of the device, along with the training job tags of the processes using it.
+func (c *Check) getDeviceTags(deviceUUID string) []string {
+	if c.trainingInfoCache == nil {
+		return c.deviceTags[deviceUUID]
+	}
+	return slices.Concat(c.deviceTags[deviceUUID], c.trainingInfoCache.DeviceTags(deviceUUID))
 }
 
 func collectSamplesSerial(collectors []nvidia.Collector) []collectorSamplesCollection {

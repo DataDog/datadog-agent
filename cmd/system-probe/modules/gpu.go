@@ -31,6 +31,7 @@ import (
 	gpuconfigconsts "github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	"github.com/DataDog/datadog-agent/pkg/gpu/prm"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/gpu/traininginfo"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -127,6 +128,9 @@ var GPUMonitoring = &module.Factory{
 				defer ddnvml.EndNVMLUse()
 				return deviceCache.GetByUUID(uuid)
 			}),
+			trainingInfoHandler: traininginfo.NewHandler(c.JobsConfig, c.TrainingInfoAllowedEnvVars, kernel.ProcFSRoot(), func() ([]traininginfo.GPUProcess, error) {
+				return listGPUProcesses(deviceCache)
+			}),
 			cfg:           c,
 			contextCancel: cancel,
 			context:       ctx,
@@ -149,6 +153,7 @@ type GPUMonitoringModule struct {
 	*gpu.Probe
 	driverEventSubscriber driverEventSubscriber
 	prmHandler            *prm.Handler
+	trainingInfoHandler   *traininginfo.Handler
 	cfg                   *gpuconfig.Config
 	context               context.Context    // Context associated with the module
 	contextCancel         context.CancelFunc // Cancel function associated with the context
@@ -214,6 +219,17 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 			t.prmHandler.HandlePRMMetrics(w, req)
 		}))
 	}
+
+	// Gate the whole operation: the GPU processes are listed through NVML,
+	// and the release monitor must not shut NVML down mid-request.
+	httpMux.HandleFunc("/training-info", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
+		if err := ddnvml.BeginNVMLUse(); err != nil {
+			http.Error(w, fmt.Sprintf("NVML unavailable (release window active): %v", err), http.StatusServiceUnavailable)
+			return
+		}
+		defer ddnvml.EndNVMLUse()
+		t.trainingInfoHandler.HandleTrainingInfo(w, req)
+	}))
 
 	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpuconfigconsts.GpuModuleName))
 	httpMux.HandleFunc("/debug/blocked-processes", usm.GetBlockedPathIDEndpoint(gpuconfigconsts.GpuModuleName))
@@ -384,6 +400,31 @@ func (t *GPUMonitoringModule) Close() {
 	if t.Probe != nil {
 		t.Probe.Close()
 	}
+}
+
+// listGPUProcesses returns the compute processes running on every GPU device. Devices whose processes cannot be listed
+// are skipped, and their errors are returned along with the processes of the other devices.
+func listGPUProcesses(deviceCache ddnvml.DeviceCache) ([]traininginfo.GPUProcess, error) {
+	devices, err := deviceCache.All()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list GPU devices: %w", err)
+	}
+
+	var processes []traininginfo.GPUProcess
+	var multiErr error
+	for _, device := range devices {
+		deviceUUID := device.GetDeviceInfo().UUID
+		procs, err := device.GetComputeRunningProcesses()
+		if err != nil {
+			multiErr = errors.Join(multiErr, fmt.Errorf("failed to list processes of GPU %s: %w", deviceUUID, err))
+			continue
+		}
+		for _, proc := range procs {
+			processes = append(processes, traininginfo.GPUProcess{PID: proc.Pid, DeviceUUID: deviceUUID})
+		}
+	}
+
+	return processes, multiErr
 }
 
 func refreshDeviceCache(ctx context.Context, deviceCache ddnvml.DeviceCache, interval time.Duration) {

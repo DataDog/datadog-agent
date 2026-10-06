@@ -142,7 +142,9 @@ properties:
             visibility: public
             description: |-
               Where key is read from: a pod `label`, a pod `annotation`, or an `env`
-              (environment variable of the process using the GPU).
+              (environment variable of the process using the GPU). The environment
+              variable must be allowlisted, see gpu_monitoring.training_info.allowed_env_vars
+              in system-probe.yaml.
       group:
         node_type: section
         type: object
@@ -170,7 +172,9 @@ properties:
             visibility: public
             description: |-
               Where key is read from: a pod `label`, a pod `annotation`, or an `env`
-              (environment variable of the process using the GPU).
+              (environment variable of the process using the GPU). The environment
+              variable must be allowlisted, see gpu_monitoring.training_info.allowed_env_vars
+              in system-probe.yaml.
   nvlink:
     node_type: section
     type: object
