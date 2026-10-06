@@ -246,16 +246,9 @@
 /cmd/secrethelper/                                  @DataDog/fleet-automation
 /cmd/testdata/                                      @DataDog/agent-integrations @DataDog/agent-runtimes
 /cmd/trace-agent/                                   @DataDog/agent-apm
-/cmd/agent/*.go                                     @DataDog/agent-runtimes
-/cmd/agent/BUILD.bazel                              @DataDog/agent-runtimes
-/cmd/agent/.gitignore                               @DataDog/agent-runtimes
-/cmd/agent/dist/dd-agent                            @DataDog/agent-runtimes
-/cmd/agent/command/                                 @DataDog/agent-runtimes
-/cmd/agent/common/                                  @DataDog/agent-runtimes
+/cmd/agent/                                         @DataDog/agent-runtimes
 /cmd/agent/common/import*.go                        @DataDog/fleet-automation
 /cmd/agent/common/testdata/                         @DataDog/fleet-automation
-/cmd/agent/subcommands/subcommands.go               @DataDog/agent-runtimes
-/cmd/agent/subcommands/BUILD.bazel                  @DataDog/agent-runtimes
 /cmd/agent/subcommands/controlsvc                   @DataDog/windows-products
 /cmd/agent/subcommands/otel                         @DataDog/opentelemetry-agent
 /cmd/agent/subcommands/check                        @DataDog/agent-runtimes @DataDog/agent-integrations
@@ -278,7 +271,6 @@
 /cmd/agent/subcommands/run/internal/clcrunnerapi/   @DataDog/container-platform
 /cmd/agent/subcommands/coverage                     @DataDog/agent-devx
 /cmd/agent/subcommands/configcheck                  @DataDog/container-platform
-/cmd/agent/subcommands/remotecommand                @DataDog/agent-runtimes
 /cmd/agent/subcommands/secret                       @DataDog/fleet-automation
 /cmd/agent/subcommands/diagnose                     @DataDog/fleet-remediation
 /cmd/agent/subcommands/flare                        @DataDog/fleet-remediation
@@ -289,7 +281,6 @@
 /cmd/agent/subcommands/experimental                 @DataDog/fleet-automation
 /cmd/agent/subcommands/import                       @DataDog/fleet-automation
 /cmd/agent/subcommands/secrethelper                 @DataDog/fleet-automation
-/cmd/agent/subcommands/stop                         @DataDog/agent-runtimes
 /cmd/agent/windows                                  @DataDog/windows-products
 /cmd/agent/windows_resources                        @DataDog/windows-products
 /cmd/agent/dist/conf.d/agentcrashdetect.d/             @DataDog/windows-products
