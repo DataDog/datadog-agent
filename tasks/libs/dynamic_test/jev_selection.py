@@ -66,9 +66,9 @@ def jev_selection(suite: str) -> dict:
         return {}
 
 
-def suite_entry_points() -> dict[str, set[str]]:
+def suite_entry_points(root: Path | None = None) -> dict[str, set[str]]:
     """Suite name -> its test entry points, discovered from the filetree."""
-    root = _REPO_ROOT / E2E_TESTS_DIR
+    root = (root or _REPO_ROOT) / E2E_TESTS_DIR
     return {
         suite: {name for name, _, _ in list_suites(str(root / suite))}
         for suite in sorted(os.listdir(root))
@@ -127,15 +127,19 @@ def _job_candidates() -> dict[str, set[str]]:
         return {job: set(tests) for job, tests in json.load(f).items()}
 
 
-def jev_run_for(names: set[str]) -> set[str]:
+def jev_run_for(names: set[str], root: Path | None = None) -> set[str]:
     """The tests Jev would RUN among `names`, over the suites containing them.
+
+    The selector gathers its own PR context (diff, description, test sources)
+    from `root`'s checkout - the replay passes a worktree checked out at the
+    replayed pipeline's commit, so the decisions are that commit's.
 
     Only suites with something to decide are evaluated (live selector calls).
     Tests the selector did not decide about (missing or failed-open
     decisions) run, and a bare name occurring in several suites runs if any
     occurrence runs.
     """
-    suites = {suite: entries for suite, entries in suite_entry_points().items() if entries & names}
+    suites = {suite: entries for suite, entries in suite_entry_points(root).items() if entries & names}
     print(f"[jev] deciding {len(names)} tests with Jev; suites: {', '.join(sorted(suites))}")
     run: set[str] = set()
     for suite, entries in sorted(suites.items()):
