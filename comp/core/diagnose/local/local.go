@@ -55,7 +55,7 @@ func Run(
 		},
 	}
 
-	integrationConfigs, err := getLocalIntegrationConfigs(filterStore, ac, tagger, config)
+	integrationConfigs, err := getLocalIntegrationConfigs(filterStore, ac, tagger)
 
 	if err != nil {
 		localSuite[diagnose.CheckDatadog] = func(_ diagnose.Config) []diagnose.Diagnosis {
@@ -95,10 +95,10 @@ func Run(
 func getLocalIntegrationConfigs(
 	filterStore workloadfilter.Component,
 	ac autodiscovery.Component,
-	tagger tagger.Component,
-	config config.Component) ([]integration.Config, error) {
-	ac.LoadComponents(config)
-	ac.LoadAndRun(context.Background())
+	tagger tagger.Component) ([]integration.Config, error) {
+	if err := ac.LoadAndRun(context.Background()); err != nil {
+		return nil, err
+	}
 
 	// Create the CheckScheduler, but do not attach it to AutoDiscovery.
 	pkgcollector.InitCheckScheduler(option.None[collector.Component](), aggregator.NewNoOpSenderManager(), option.None[integrations.Component](), tagger, filterStore)

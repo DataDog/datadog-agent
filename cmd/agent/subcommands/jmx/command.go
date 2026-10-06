@@ -279,10 +279,9 @@ func runJmxCommandConsole(config config.Component,
 	// Disabling it is both more efficient and gets rid of this log spam
 	config.Set("language_detection.enabled", false, model.SourceAgentRuntime)
 
-	// The Autoconfig instance setup happens in the workloadmeta start hook
-	// create and setup the Collector and others.
-	ac.LoadComponents(config)
-	ac.LoadAndRun(context.Background())
+	if err := ac.LoadAndRun(context.Background()); err != nil {
+		return err
+	}
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;
 	// otherwise, we fetch only the matching cehck configs.

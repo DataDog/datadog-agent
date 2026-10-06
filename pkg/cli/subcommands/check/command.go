@@ -314,8 +314,9 @@ func run(
 	//  so the subcommand can't read the RC database if the agent is also running.
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, option.None[networkconfigmanagement.Component]())
 
-	ac.LoadComponents(config)
-	ac.LoadAndRun(context.Background())
+	if err := ac.LoadAndRun(context.Background()); err != nil {
+		return err
+	}
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.

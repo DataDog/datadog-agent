@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
@@ -37,9 +36,9 @@ type noopAutoConfig struct{}
 
 func (n *noopAutoConfig) AddConfigProvider(types.ConfigProvider, bool, time.Duration) {}
 
-func (n *noopAutoConfig) LoadComponents(config.Component) {}
+func (n *noopAutoConfig) Preload(context.Context) {}
 
-func (n *noopAutoConfig) LoadAndRun(context.Context) {}
+func (n *noopAutoConfig) LoadAndRun(context.Context) error { return nil }
 
 func (n *noopAutoConfig) GetUnresolvedConfigs() []integration.Config {
 	return []integration.Config{}

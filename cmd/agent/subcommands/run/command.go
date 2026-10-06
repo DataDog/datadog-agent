@@ -508,21 +508,16 @@ func getSharedFxOption() fx.Option {
 		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) {
 			proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 		}),
-		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
-		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
-		// have to ensure this code gets run first. Once the common package is made into a component, this can be removed.
-		//
-		// Workloadmeta component needs to be initialized before this hook is executed, and thus is included
-		// in the function args to order the execution. This pattern might be worth revising because it is
-		// error prone.
-		fx.Invoke(func(lc fx.Lifecycle, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, ac autodiscovery.Component, _ secrets.Component, cfg config.Component) {
-			lc.Append(fx.Hook{
-				OnStart: func(_ context.Context) error {
-					//  setup the AutoConfig instance
-					ac.LoadComponents(cfg)
-					return nil
-				},
-			})
+		// Preload immediately after AutoConfig's own startup hook, before its
+		// consumers. A root Invoke is too late: child-module invokes may already
+		// have registered slow hooks. Keep setup dependencies explicit so their
+		// startup hooks run first; AutoConfig joins preparation during shutdown.
+		fx.Decorate(func(lc fx.Lifecycle, ac autodiscovery.Component, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, _ secrets.Component, _ config.Component) autodiscovery.Component {
+			lc.Append(fx.Hook{OnStart: func(ctx context.Context) error {
+				ac.Preload(ctx)
+				return nil
+			}})
+			return ac
 		}),
 		logs.Bundle(),
 		observerfx.Module(),
@@ -729,8 +724,10 @@ func startAgent(
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
-	// load and run all configs in AD
-	ac.LoadAndRun(ctx)
+	// LoadAndRun joins preloading before snapshotting and starting the providers.
+	if err = ac.LoadAndRun(ctx); err != nil {
+		return err
+	}
 
 	// check for common misconfigurations and report them to log
 	misconfig.ToLog(misconfig.CoreAgent)

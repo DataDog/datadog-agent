@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"time"
 
-	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -23,20 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// LoadComponents configures several common Agent components:
-// tagger, collector, scheduler and autodiscovery
-func (ac *AutoConfig) LoadComponents(config config.Component) {
-	confdPath := config.GetString("confd_path")
-
-	confSearchPaths := []string{
-		confdPath,
-		filepath.Join(defaultpaths.GetDistPath(), "conf.d"),
-		"",
-	}
-
-	setupAutoDiscovery(confSearchPaths, ac, config)
-}
-
 // This is due to an AD limitation that does not allow several listeners to work in parallel
 // if they can provide for the same objects.
 // When this is solved, we can remove this check and simplify code below
@@ -49,7 +34,12 @@ var (
 	legacyProviders = []string{"kubelet", "container", "docker"}
 )
 
-func setupAutoDiscovery(confSearchPaths []string, ac autodiscovery.Component, cfg config.Component) {
+func (ac *AutoConfig) prepareDefaults(cfg config.Component) {
+	confSearchPaths := []string{
+		cfg.GetString("confd_path"),
+		filepath.Join(defaultpaths.GetDistPath(), "conf.d"),
+		"",
+	}
 	if cfg.GetString("fleet_policies_dir") != "" {
 		confSearchPaths = append(confSearchPaths, filepath.Join(cfg.GetString("fleet_policies_dir"), "conf.d"))
 	}

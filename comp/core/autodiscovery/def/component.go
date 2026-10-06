@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
@@ -24,9 +23,20 @@ import (
 // team: container-platform
 type Component interface {
 	AddConfigProvider(provider types.ConfigProvider, shouldPoll bool, pollInterval time.Duration)
-	// LoadComponents synchronously configures the default providers and listeners.
-	LoadComponents(config.Component)
-	LoadAndRun(ctx context.Context)
+
+	// Preload optionally starts default provider/listener preparation in the
+	// background. Call after the component's startup hook, for example from a
+	// subsequent lifecycle hook. Concurrent/repeated calls share one operation.
+	// The first preload context bounds the wait in LoadAndRun, not setup itself.
+	// Shutdown waits for setup to finish, even if its context expires.
+	Preload(ctx context.Context)
+
+	// LoadAndRun starts default preparation if needed, waits for it, then starts
+	// all registered providers, including manually added ones. A canceled wait
+	// returns an error without starting providers or canceling preparation.
+	// Call after startup and before shutdown. After a successful call it must not
+	// be called again, including concurrently. Mocks may omit default preparation.
+	LoadAndRun(ctx context.Context) error
 	GetUnresolvedConfigs() []integration.Config
 	GetAllConfigs() []integration.Config
 	AddListeners(listenerConfigs []pkgconfigsetup.Listeners)
