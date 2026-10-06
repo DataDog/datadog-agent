@@ -75,7 +75,7 @@ else
    startup_args+=(--max_idle_secs=28800)  # 8 hours
 fi
 
-# Splice extra_args in right after the bazel command
+# Splice extra_args in immediately after the bazel verb
 # "--startup cmd ..." -> "--startup cmd --config=ci ..."
 if [[ $# -gt 0 && ${#extra_args[@]} -gt 0 ]]; then
   args=()
@@ -89,7 +89,6 @@ if [[ $# -gt 0 && ${#extra_args[@]} -gt 0 ]]; then
   done
   set -- "${args[@]}"
 fi
-
 
 # Emulate the CPU limit containers should normally see via cgroup quota, currently inhibited on Datadog's k8s clusters:
 # https://datadoghq.atlassian.net/wiki/spaces/cxg/pages/3473212607/Container+CPU+limits+in+internal+environments
