@@ -169,13 +169,12 @@ func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string 
 
 // resourcesForAPMConfig returns the list of resources to collect metadata from
 // for the auto instrumentation configuration. Namespaces are collected in order
-// to utilize namespace labels for target based configuration and to determine
-// pod security policies to apply to restricted namespaces.
+// to utilize namespace labels for target and remote policy matching, and to
+// determine pod security policies to apply to restricted namespaces.
 func resourcesForAPMConfig(cfg config.Reader) []string {
-	// If APM is not enabled, we don't need to collect any resources for the
-	// auto instrumentation configuration.
-	apmEnabled := cfg.GetBool("apm_config.instrumentation.enabled")
-	if !apmEnabled {
+	// Both implicit and on-demand instrumentation can inject pods, so both need
+	// namespace labels.
+	if !cfg.GetBool("apm_config.instrumentation.enabled") && !cfg.GetBool("apm_config.instrumentation.on_demand") {
 		return nil
 	}
 

@@ -135,10 +135,10 @@ func TestReplaceGoTests_ConfiguredTagSets(t *testing.T) {
 
 	orig := rule.NewRule("go_test", "pkg_test")
 	orig.SetAttr("srcs", []string{"pkg_test.go"})
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, [][]string{tagsList("zstd", "zlib")})
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, [][]string{tagsList("zlib", "otlp")})
 
 	got := attrGotagsSets(result.Gen[0])
-	want := [][]string{tagsList("zlib", "zstd")}
+	want := [][]string{tagsList("otlp", "zlib")}
 	if !tagSetsEqual(got, want) {
 		t.Errorf("gotags_sets = %v, want %v", got, want)
 	}
@@ -735,7 +735,7 @@ func TestConfigure_DirectiveOn(t *testing.T) {
 func TestConfigure_TagSets(t *testing.T) {
 	f := &rule.File{}
 	f.Directives = []rule.Directive{
-		{Key: canonicalTagSetDirective, Value: "zstd zlib"},
+		{Key: canonicalTagSetDirective, Value: "zlib otlp"},
 		{Key: canonicalTagSetDirective, Value: "kubeapiserver"},
 	}
 
@@ -743,7 +743,7 @@ func TestConfigure_TagSets(t *testing.T) {
 	NewLanguage().(*lang).Configure(c, "some/pkg", f)
 
 	got := c.Exts[extName].(ddAgentGoTestConfig).tagSets
-	want := [][]string{tagsList("kubeapiserver"), tagsList("zlib", "zstd")}
+	want := [][]string{tagsList("kubeapiserver"), tagsList("otlp", "zlib")}
 	if !tagSetsEqual(got, want) {
 		t.Errorf("tagSets = %v, want %v", got, want)
 	}
@@ -886,8 +886,8 @@ func TestApplicableTagSets(t *testing.T) {
 	relatedTags := write("related_tags_test.go", "//go:build trivy && docker")
 	crioTags := write("crio_tags_test.go", "//go:build trivy && crio")
 	oneTag := write("one_tag_test.go", "//go:build trivy")
-	negativeTag := write("negative_tag_test.go", "//go:build zlib && !zstd")
-	compression := write("compression_test.go", "//go:build zlib && zstd")
+	negativeTag := write("negative_tag_test.go", "//go:build zlib && !otlp")
+	positiveTag := write("positive_tag_test.go", "//go:build zlib && otlp")
 	alternatives := write("alternatives_test.go", "//go:build docker || containerd")
 	depOnly := write("dep_only_test.go", "//go:build trivy_no_javadb")
 	taggedLibrary := write("tagged.go", "//go:build kubeapiserver")
@@ -991,8 +991,8 @@ func TestApplicableTagSets(t *testing.T) {
 		},
 		{
 			name:        "superset does not remove negative-tag mode",
-			srcs:        []string{negativeTag, compression},
-			wantTagSets: [][]string{tagsList("zlib"), tagsList("zlib", "zstd")},
+			srcs:        []string{negativeTag, positiveTag},
+			wantTagSets: [][]string{tagsList("zlib"), tagsList("otlp", "zlib")},
 		},
 		{
 			name:        "or expression gets minimal alternatives",

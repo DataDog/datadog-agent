@@ -195,7 +195,7 @@ def _ebpf_prog_impl(ctx):
     return [DefaultInfo(files = depset([obj_file]))]
 
 def _stripped_ebpf_impl(ctx):
-    """Strip debug info and LBB symbols from an eBPF object file."""
+    """Strip debug info, LBB symbols and .BTF.ext relocations from an eBPF object file."""
     tc = ctx.toolchains[_TOOLCHAIN_TYPE].llvm_bpf
     if not tc.valid:
         fail("LLVM BPF toolchain is not available")
@@ -207,7 +207,7 @@ def _stripped_ebpf_impl(ctx):
         inputs = [src],
         outputs = [out],
         executable = tc.llvm_strip,
-        arguments = ["-g", "-w", "-N", "LBB*", "-o", out.path, src.path],
+        arguments = ["-g", "-w", "-N", "LBB*", "--remove-section=.rel.BTF.ext", "-o", out.path, src.path],
         mnemonic = "EbpfStrip",
         progress_message = "Stripping eBPF %{label}",
     )

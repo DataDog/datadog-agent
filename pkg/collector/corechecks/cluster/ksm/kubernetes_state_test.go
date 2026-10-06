@@ -2026,6 +2026,21 @@ func TestCreationMetricsFiltering(t *testing.T) {
 	}
 }
 
+func TestCronJobStartTimeMetricsNotDenied(t *testing.T) {
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(defaultCollectors()))
+	assert.NoError(t, err)
+
+	err = allowDenyList.Parse()
+	assert.NoError(t, err)
+
+	// The kubernetes_state.cronjob.complete service check needs these families
+	for _, metric := range []string{"kube_job_complete_start_time", "kube_job_failed_start_time"} {
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isExcluded, metric)
+	}
+}
+
 func TestKSMCheckInitTags(t *testing.T) {
 	type fields struct {
 		instance    *KSMConfig

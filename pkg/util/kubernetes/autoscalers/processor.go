@@ -185,14 +185,27 @@ func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Durati
 	// Set query time
 	currentTime := time.Now()
 
-	// Preparing storage for results
+	// Preparing storage for results. Reject unsafe queries individually before
+	// constructing any comma-delimited request, so one tenant cannot create
+	// additional API subqueries or prevent safe queries from being evaluated.
 	responses := make(map[string]Point, len(queries))
+	validQueries := make([]string, 0, len(queries))
+	for _, query := range queries {
+		if err := validateDatadogExternalQuery(query); err != nil {
+			responses[query] = Point{Error: NewProcessingError(fmt.Sprintf("invalid query: %v", err))}
+			continue
+		}
+		validQueries = append(validQueries, query)
+	}
+	if len(validQueries) == 0 {
+		return responses
+	}
 	responsesGlobalErrors := 0
 	// Protect both responses and responsesGlobalError
 	responsesLock := sync.Mutex{}
 
 	// Chunk the queries
-	chunks := makeChunks(queries)
+	chunks := makeChunks(validQueries)
 
 	var group errgroup.Group
 	group.SetLimit(p.parallelQueries)
