@@ -79,7 +79,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 	}
 
 	if config != nil && config.GetBool(ExperimentalCharacterizationEnabled) {
-		p.characterizer = newCharacterizationObserver()
+		p.characterizer = newCharacterizationObserver(instanceID)
 	}
 
 	// Initialize cached failover config

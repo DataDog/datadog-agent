@@ -139,6 +139,9 @@ var (
 	// TlmCharacterizationObserverDrops counts observations discarded when the bounded queue is full.
 	TlmCharacterizationObserverDrops = telemetryimpl.GetCompatComponent().NewCounter("logs_characterization", "observer_drops",
 		[]string{"pipeline"}, "Characterization observations dropped because the bounded queue was full")
+	// TlmCharacterizationObserverStartTime records when each pipeline-local observer began collecting.
+	TlmCharacterizationObserverStartTime = telemetryimpl.GetCompatComponent().NewGauge("logs_characterization", "observer_start_time_seconds",
+		[]string{"pipeline"}, "Unix time when characterization began for a Logs pipeline")
 	// TlmCharacterizationSourceCardinality records bounded source cardinality without exporting source identifiers.
 	TlmCharacterizationSourceCardinality = telemetryimpl.GetCompatComponent().NewGauge("logs_characterization", "source_cardinality",
 		[]string{"source_type", "pipeline"}, "Distinct source identities observed at Logs pipeline ingress")

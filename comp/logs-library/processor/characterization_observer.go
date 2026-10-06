@@ -46,6 +46,7 @@ type characterizationObservation struct {
 
 type characterizationSourceIdentity struct {
 	sourceType string
+	pipeline   string
 	hash       uint64
 }
 
@@ -58,24 +59,27 @@ type characterizationObserver struct {
 	queue        chan characterizationObservation
 	done         chan struct{}
 	once         sync.Once
+	pipeline     string
 	sourceSeed   maphash.Seed
 	sourceIDs    map[characterizationSourceIdentity]struct{}
-	sourceCounts map[string]int
+	sourceCounts map[characterizationStream]int
 	lastIngress  map[characterizationStream]time.Time
 }
 
-func newCharacterizationObserver() *characterizationObserver {
+func newCharacterizationObserver(pipeline string) *characterizationObserver {
 	return &characterizationObserver{
 		queue:        make(chan characterizationObservation, characterizationQueueSize),
 		done:         make(chan struct{}),
+		pipeline:     pipeline,
 		sourceSeed:   maphash.MakeSeed(),
 		sourceIDs:    make(map[characterizationSourceIdentity]struct{}),
-		sourceCounts: make(map[string]int),
+		sourceCounts: make(map[characterizationStream]int),
 		lastIngress:  make(map[characterizationStream]time.Time),
 	}
 }
 
 func (o *characterizationObserver) start() {
+	metrics.TlmCharacterizationObserverStartTime.Set(float64(time.Now().UnixNano())/float64(time.Second), o.pipeline)
 	go func() {
 		defer close(o.done)
 		for observation := range o.queue {
@@ -134,7 +138,11 @@ func (o *characterizationObserver) recordSource(observation characterizationObse
 		metrics.TlmCharacterizationSourceIdentityMissing.Inc(observation.sourceType, observation.pipeline)
 		return
 	}
-	identity := characterizationSourceIdentity{sourceType: observation.sourceType, hash: observation.sourceHash}
+	identity := characterizationSourceIdentity{
+		sourceType: observation.sourceType,
+		pipeline:   observation.pipeline,
+		hash:       observation.sourceHash,
+	}
 	if _, found := o.sourceIDs[identity]; found {
 		return
 	}
@@ -143,9 +151,10 @@ func (o *characterizationObserver) recordSource(observation characterizationObse
 		return
 	}
 	o.sourceIDs[identity] = struct{}{}
-	o.sourceCounts[observation.sourceType]++
+	stream := characterizationStream{sourceType: observation.sourceType, pipeline: observation.pipeline}
+	o.sourceCounts[stream]++
 	metrics.TlmCharacterizationSourceCardinality.Set(
-		float64(o.sourceCounts[observation.sourceType]), observation.sourceType, observation.pipeline,
+		float64(o.sourceCounts[stream]), observation.sourceType, observation.pipeline,
 	)
 }
 

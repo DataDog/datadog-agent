@@ -27,7 +27,7 @@ func TestMakeCharacterizationObservation(t *testing.T) {
 	msg.RawDataLen = 7
 	msg.ParsingExtra.Tags = []string{"parser:tag"}
 
-	observer := newCharacterizationObserver()
+	observer := newCharacterizationObserver("2")
 	observation := makeCharacterizationObservation(msg, "2", observer.sourceSeed)
 	require.Equal(t, 5, observation.contentBytes)
 	require.Equal(t, 7, observation.rawBytes)
@@ -42,7 +42,7 @@ func TestMakeCharacterizationObservation(t *testing.T) {
 }
 
 func TestCharacterizationObserverQueueIsBoundedAndNonBlocking(t *testing.T) {
-	observer := newCharacterizationObserver()
+	observer := newCharacterizationObserver("0")
 	msg := message.NewMessage([]byte("hello"), nil, "info", 0)
 
 	for range characterizationQueueSize + 1 {
@@ -53,7 +53,7 @@ func TestCharacterizationObserverQueueIsBoundedAndNonBlocking(t *testing.T) {
 }
 
 func TestCharacterizationInterarrivalUsesObservationTime(t *testing.T) {
-	observer := newCharacterizationObserver()
+	observer := newCharacterizationObserver("0")
 	start := time.Unix(100, 0)
 	stream := characterizationObservation{
 		sourceType: config.FileType,
@@ -87,7 +87,7 @@ func TestCharacterizationSourceTypeIsAllowlisted(t *testing.T) {
 
 func TestCharacterizationSourceCardinalityIsBoundedAndDoesNotRetainIdentifiers(t *testing.T) {
 	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.FileType})
-	observer := newCharacterizationObserver()
+	observer := newCharacterizationObserver("1")
 	first := message.NewMessageWithSource([]byte("first"), "info", source, 0)
 	first.Origin.Identifier = "/private/first.log"
 	second := message.NewMessageWithSource([]byte("second"), "info", source, 0)
@@ -102,7 +102,13 @@ func TestCharacterizationSourceCardinalityIsBoundedAndDoesNotRetainIdentifiers(t
 	observer.recordSource(firstObservation)
 	observer.recordSource(secondObservation)
 	require.Len(t, observer.sourceIDs, 2)
-	require.Equal(t, 2, observer.sourceCounts[config.FileType])
+	require.Equal(t, 2, observer.sourceCounts[characterizationStream{sourceType: config.FileType, pipeline: "1"}])
+
+	secondPipeline := secondObservation
+	secondPipeline.pipeline = "2"
+	observer.recordSource(secondPipeline)
+	require.Len(t, observer.sourceIDs, 3)
+	require.Equal(t, 1, observer.sourceCounts[characterizationStream{sourceType: config.FileType, pipeline: "2"}])
 
 	observer.sourceIDs = make(map[characterizationSourceIdentity]struct{})
 	for index := 0; index < characterizationSourceLimit; index++ {
