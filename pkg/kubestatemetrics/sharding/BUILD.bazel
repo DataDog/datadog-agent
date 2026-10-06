@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "sharding",
+    srcs = [
+        "sharding.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/sharding",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_cespare_xxhash_v2//:xxhash"],
+)
+
+dd_agent_go_test(
+    name = "sharding_test",
+    srcs = [
+        "sharding_test.go",
+    ],
+    embed = [":sharding"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+    ],
+)
