@@ -667,7 +667,6 @@
 /comp/core/autodiscovery/providers/datastreams                        @DataDog/data-streams-monitoring
 /comp/core/autodiscovery/providers/datasecurity                       @DataDog/sensitive-data-scanner
 /comp/core/autodiscovery/providers/networkpath                        @DataDog/network-path @DataDog/container-platform
-/comp/core/gui/impl/systray/                                          @DataDog/windows-products
 /comp/healthplatform/issues/ad-misconfiguration                       @DataDog/container-platform @DataDog/fleet-remediation
 /comp/healthplatform/issues/gpuenvironment                            @DataDog/gpu-monitoring-agent @DataDog/fleet-remediation
 /comp/healthplatform/issues/missedbytes                               @DataDog/agent-log-pipelines @DataDog/fleet-remediation
