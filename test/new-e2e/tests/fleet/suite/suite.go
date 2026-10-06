@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
 	fleethost "github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/host"
@@ -66,7 +65,7 @@ const platformGroupEnvVar = "E2E_FLEET_PLATFORM_GROUP"
 func Platforms() []e2eos.Descriptor {
 	windowsEnabled, err := runner.GetProfile().ParamStore().WindowsEnabled()
 	if err != nil {
-		panic(fmt.Sprintf("failed to get %s parameter %v\n", parameters.RunWindows, err))
+		panic(fmt.Sprintf("failed to determine whether Windows platforms should run: %v\n", err))
 	}
 
 	switch strings.ToLower(os.Getenv(platformGroupEnvVar)) {

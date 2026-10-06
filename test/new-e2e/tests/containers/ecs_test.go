@@ -29,7 +29,6 @@ import (
 
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
 const (
@@ -63,7 +62,7 @@ func TestECSSuite(t *testing.T) {
 	}
 
 	windowsEnabled, err := runner.GetProfile().ParamStore().WindowsEnabled()
-	require.NoError(t, err, "failed to get %s parameter", parameters.RunWindows)
+	require.NoError(t, err, "failed to determine whether Windows workloads should run")
 	if windowsEnabled {
 		// WithWindowsNodeGroup is the dedicated ECS option to opt-in to Windows
 		// infrastructure and workloads (Windows EC2 nodes + Windows Fargate apps).

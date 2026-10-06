@@ -568,6 +568,9 @@ workflow:
     #   hard-gated on the main branch itself still don't run)
     # - "full_deploy": full matrix + deploy pipeline (uploads artifacts to the staging
     #   repositories, target selected by BUCKET_BRANCH)
+    # These rules include the main-branch settings (Bazel cache push, no flaky-test
+    # skipping) so that a full pipeline started on main keeps them - the main rule
+    # below would otherwise never match (only the first matching rule applies).
     - if: $PIPELINE_TYPE == "full_deploy"
       variables:
         DEPLOY_AGENT: "true"
@@ -576,6 +579,8 @@ workflow:
         RUN_KMT_TESTS: "true"
         RUN_UNIT_TESTS: "true"
         RUN_WINDOWS: "true"
+        BAZEL_CACHE_POLICY_SUFFIX: "-push"
+        GO_TEST_SKIP_FLAKE: "false"
     - if: $PIPELINE_TYPE == "full"
       variables:
         RUN_MACOS_BUILD: "true"
@@ -583,6 +588,8 @@ workflow:
         RUN_KMT_TESTS: "true"
         RUN_UNIT_TESTS: "true"
         RUN_WINDOWS: "true"
+        BAZEL_CACHE_POLICY_SUFFIX: "-push"
+        GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_triggered_pipeline
     - <<: *if_main_branch
       variables:

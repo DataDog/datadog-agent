@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	proveks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/eks"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
 //go:embed values.yaml
@@ -44,7 +43,7 @@ func TestEKSSuite(t *testing.T) {
 	}
 
 	windowsEnabled, err := runner.GetProfile().ParamStore().WindowsEnabled()
-	require.NoError(t, err, "failed to get %s parameter", parameters.RunWindows)
+	require.NoError(t, err, "failed to determine whether Windows workloads should run")
 	if windowsEnabled {
 		eksOptions = append(eksOptions, sceneks.WithWindowsNodeGroup())
 		agentOptions = append(agentOptions, kubernetesagentparams.WithWindowsImage())

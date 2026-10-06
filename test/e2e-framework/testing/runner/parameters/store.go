@@ -7,6 +7,7 @@ package parameters
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 )
 
@@ -62,11 +63,11 @@ func (s Store) GetIntWithDefault(key StoreKey, def int) (int, error) {
 func (s Store) WindowsEnabled() (bool, error) {
 	runWindows, err := s.GetBoolWithDefault(RunWindows, true)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("parameter %s: %w", RunWindows, err)
 	}
 	skipWindows, err := s.GetBoolWithDefault(SkipWindows, false)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("parameter %s: %w", SkipWindows, err)
 	}
 	return runWindows && !skipWindows, nil
 }
