@@ -244,7 +244,7 @@ func start(remoteTagger *remoteTagger) error {
 
 				port, err := strconv.ParseUint(sPort, 10, 16)
 				if err != nil {
-					return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
+					return nil, fmt.Errorf("invalid port for vsock listener: %w", err)
 				}
 
 				cid, err := socket.ParseVSockAddress(vsockAddr)
