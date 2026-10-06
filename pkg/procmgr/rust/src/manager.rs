@@ -432,6 +432,13 @@ impl ProcessManager {
                 let name = invalid[i].name.clone();
                 if let Some(config) = valid.remove(&name) {
                     let uuid = invalid.remove(i).uuid;
+                    if procs.iter().any(|p| p.name() == name) {
+                        warn!(
+                            "[{name}] valid config not loaded as a new process: a process with this name already exists"
+                        );
+                        valid.insert(name, config);
+                        continue;
+                    }
                     info!("[{name}] config is valid again, loading");
                     let mut proc = ManagedProcess::new_config(name.clone(), uuid, config);
                     if proc.should_start()
@@ -492,8 +499,15 @@ impl ProcessManager {
         }
 
         {
+            let procs = self.processes.read().await;
             let mut invalid = self.invalid.write().await;
             for (name, entry) in incoming_invalid {
+                if procs.iter().any(|p| p.name() == name) {
+                    warn!(
+                        "[{name}] invalid config ignored: a process with this name already exists"
+                    );
+                    continue;
+                }
                 info!("[{name}] invalid config, not starting");
                 invalid.push(InvalidProcess::from_entry(entry, self.uuid_gen.generate()));
                 added.push(name);
@@ -1105,6 +1119,50 @@ mod tests {
         assert_eq!(result.modified, vec!["svc-a".to_string()]);
         assert!(mgr.invalid_configs().await.is_empty());
         assert_eq!(mgr.processes().await[0].name(), "svc-a");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_invalid_config_does_not_collide_with_runtime() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let mut config = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        config.auto_start = false;
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.handle_create("svc".to_string(), config, &exit_tx)
+            .await?;
+        mgr.handle_start("svc", &exit_tx).await?;
+
+        config_loader.set_catalog(LoadedCatalog {
+            processes: vec![],
+            invalid: vec![InvalidConfigEntry {
+                name: "svc".to_string(),
+                path: PathBuf::from("/tmp/svc.yaml"),
+                error: "parse failed".to_string(),
+            }],
+        });
+        mgr.handle_reload_config(&exit_tx).await?;
+        assert!(
+            mgr.invalid_configs().await.is_empty(),
+            "invalid yaml must not hide a runtime process of the same name"
+        );
+        assert_eq!(mgr.processes().await.len(), 1);
+        mgr.handle_stop("svc").await?;
+
+        config_loader.set(vec![ProcessDefinition {
+            name: "svc".to_string(),
+            config: ProcessConfig {
+                auto_start: false,
+                command: "/bin/true".to_string(),
+                ..Default::default()
+            },
+        }]);
+        mgr.handle_reload_config(&exit_tx).await?;
+        assert_eq!(
+            mgr.processes().await.len(),
+            1,
+            "recovered yaml must not spawn a second process with the runtime name"
+        );
         Ok(())
     }
 
