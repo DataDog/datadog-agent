@@ -146,6 +146,9 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 	configTags := configUtils.GetConfiguredTags(conf, false)
 	hostTags := make([]string, 0, len(configTags))
 	hostTags = appendToHostTags(hostTags, configTags)
+	if conf.GetBool("private_action_runner.enabled") {
+		hostTags = appendToHostTags(hostTags, []string{"private_action_runner_enabled:true"})
+	}
 
 	env := conf.GetString("env")
 	if env != "" {

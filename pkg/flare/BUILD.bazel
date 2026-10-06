@@ -15,6 +15,7 @@ go_library(
         "archive_nolinux.go",
         "archive_notaix.go",
         "archive_win.go",
+        "certificates.go",
         "config_check.go",
         "flare.go",
         "runtime_debug.go",
@@ -80,6 +81,7 @@ dd_agent_go_test(
     srcs = [
         "archive_docker_test.go",
         "archive_test.go",
+        "certificates_test.go",
         "config_check_test.go",
         "runtime_debug_test.go",
         "service_windows_test.go",

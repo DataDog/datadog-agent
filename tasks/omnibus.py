@@ -88,6 +88,11 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
         if gem_path:
             cmd += f" --path {gem_path}"
 
+        # The native extensions of ffi-yajl fail to compile as C23, the default of GCC 15 and later, because they
+        # pass typed callbacks to Ruby 2.6 APIs declared with empty parameter lists.
+        # gnu11 rather than gnu17 because some build images still ship GCC 4.8, which doesn't know gnu17.
+        env = {**(env or {}), "BUNDLE_BUILD__FFI___YAJL": "--with-cflags=-std=gnu11"}
+
         with gitlab_section("Bundle install omnibus", collapsed=True):
             for trial in range(max_try):
                 try:

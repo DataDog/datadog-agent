@@ -61,7 +61,7 @@ func (s *packageApmInjectSuite) SetupTest() {
 }
 
 func (s *packageApmInjectSuite) TestInstall() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
@@ -101,7 +101,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 }
 
 func (s *packageApmInjectSuite) TestUninstall() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	s.Purge()
 
@@ -116,7 +116,7 @@ func (s *packageApmInjectSuite) TestUninstall() {
 }
 
 func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	// Broken /etc/docker/daemon.json syntax
 	s.host.SetBrokenDockerConfig()
 	defer s.host.RemoveBrokenDockerConfig()
@@ -128,7 +128,7 @@ func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
 }
 
 func (s *packageApmInjectSuite) TestDockerBrokenJSON() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	// Additional fields in /etc/docker/daemon.json
 	s.host.SetBrokenDockerConfigAdditionalFields()
 	defer s.host.RemoveBrokenDockerConfig()
@@ -140,7 +140,7 @@ func (s *packageApmInjectSuite) TestDockerBrokenJSON() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDocker() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=docker", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
@@ -166,7 +166,7 @@ func (s *packageApmInjectSuite) TestInstrumentProfilingEnabled() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDefault() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
@@ -175,7 +175,7 @@ func (s *packageApmInjectSuite) TestInstrumentDefault() {
 }
 
 func (s *packageApmInjectSuite) TestSystemdReload() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript()
 	defer s.Purge()
 
@@ -196,7 +196,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 		s.T().Skip("Ansible doesn't support upgrading from OCI to DEB")
 	}
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	// Deb install using today's defaults
 	s.RunInstallScript(
@@ -239,7 +239,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 		s.T().Skip("Ansible doesn't support upgrading from OCI to DEB")
 	}
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	// OCI install
 	s.RunInstallScript(
@@ -278,7 +278,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	prevApmLibraryPythonVersion := previousApmLibraryPythonVersion()
 	pinnedApmLibraryPythonVersion := pinnedApmLibraryPythonVersion()
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python:"+prevApmLibraryPythonVersion,
@@ -341,7 +341,7 @@ func (s *packageApmInjectSuite) TestInstrument() {
 	s.assertSocketPath()
 	s.assertDockerdNotInstrumented()
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer apm instrument docker")
 	assert.NoError(s.T(), err)
@@ -352,7 +352,7 @@ func (s *packageApmInjectSuite) TestInstrument() {
 }
 
 func (s *packageApmInjectSuite) TestPackagePinning() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	prevApmLibraryPythonVersion := previousApmLibraryPythonVersion()
 
@@ -373,7 +373,7 @@ func (s *packageApmInjectSuite) TestPackagePinning() {
 }
 
 func (s *packageApmInjectSuite) TestUninstrument() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
@@ -404,7 +404,7 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 		s.T().Skip("Ansible doesn't support upgrading from OCI to DEB")
 	}
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	// Deb install using today's defaults
 	s.RunInstallScript(
@@ -444,13 +444,13 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.Env().RemoteHost.MustExecute("sudo systemctl stop docker")
 
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
-	s.host.InstallDocker() // Restart docker cleanly
+	s.host.PrepareDocker() // Restart docker cleanly
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()

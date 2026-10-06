@@ -14,8 +14,7 @@ startup --max_idle_secs=28800 # Keep the server alive for at most 8 hours of ina
 
 # Common options -------------------------------------------------------------------------------------------------------
 common --@rules_python//python/config_settings:bootstrap_impl=script # https://github.com/bazel-contrib/rules_python/blob/main/BZLMOD_SUPPORT.md
-#TODO(regis): uncomment once https://github.com/bazel-contrib/rules_python/pull/4079 is released:
-#common --@rules_python//python/config_settings:validate_test_main=enabled # Reject a py_test whose main never runs tests
+common --@rules_python//python/config_settings:validate_test_main=enabled # https://rules-python.readthedocs.io/en/latest/api/rules_python/python/config_settings/index.html#validate_test_main
 common --check_direct_dependencies=error # Escalate any bypassed `bazel_dep` to a resolution failure
 common --credential_helper_cache_duration=55m # Refresh a little earlier than the Vault OIDC token TTL (1h)
 common --credential_helper_timeout=2m # Interactive Vault login might involve a browser and exceed the 10s default
