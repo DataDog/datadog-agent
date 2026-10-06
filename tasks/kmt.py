@@ -1186,7 +1186,7 @@ def kmt_sysprobe_prepare(
         info("[+] Compiling leftover testsuites with ninja...")
         ctx.run(f"ninja -d explain -v -f {nf_path}")
 
-    # After testdata copy so cudasample lands in the copied testdata dir, not under it.
+    # After copy_kmt_testdata so a locally built cudasample in testdata/ cannot overwrite the Bazel one.
     stage_kmt_helper_binaries(ctx, kmt_paths, arch, include_pkg_helpers=True)
     copy_ebpf_files("system-probe", kmt_paths, arch)
 

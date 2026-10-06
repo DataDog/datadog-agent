@@ -181,8 +181,8 @@ py_binary(
 - **KMT helper binaries** — compile with Bazel (`build_binaries_with_bazel`) and copy into
   `kmt-deps/<stack>/<arch>/…`. Do not add ninja `gobin`/`cbin` edges for those helpers.
   `cmd/test2json` is stdlib and still uses `go_build` with `get_build_flags` so cross-arch
-  KMT keeps the right GOARCH. Copy `cudasample` *after* the testdata `copyextra` step so
-  `cp -r` does not nest a pre-created testdata directory.
+  KMT keeps the right GOARCH. Stage helpers *after* `copy_kmt_testdata` so a locally
+  built `cudasample` in the source `testdata/` cannot overwrite the Bazel one.
 
 - **CWS syscall testers** — `build_embed_syscall_tester` copies Bazel outputs into
   `pkg/security/tests/syscall_tester/bin` for `//go:embed`. `syscall_x86_tester` is a
