@@ -7,7 +7,6 @@ go_library(
         "main.go",
         "testowners.go",
     ],
-    gotags = ["test"],  # keep — flake is //go:build test
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/system-probe/test-json-review",
     tags = ["manual"],
     visibility = ["//visibility:private"],
