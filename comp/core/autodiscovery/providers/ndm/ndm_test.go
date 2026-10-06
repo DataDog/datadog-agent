@@ -23,12 +23,17 @@ import (
 )
 
 // backendDocument is the payload the backend writes: one document per Agent.
+// Ping arrives in its own key, naming the devices it covers.
 const backendDocument = `{
+	"ping": {
+		"init_config": {"count": 2, "timeout_ms": 3000},
+		"instances": [{"ip_address": "10.0.0.1"}]
+	},
 	"snmp": {
-		"init_config": {"namespace": "prod", "ping": {"enabled": true}},
+		"init_config": {"namespace": "prod"},
 		"instances": [
-			{"ip_address": "10.0.0.1", "cred": {"id": "id-abc", "name": "cred-abc"}},
-			{"ip_address": "10.0.0.2", "cred": {"id": "id-abc", "name": "cred-abc"}}
+			{"ip_address": "10.0.0.1", "cred_id": "id-abc"},
+			{"ip_address": "10.0.0.2", "cred_id": "id-abc"}
 		]
 	}
 }`
@@ -74,12 +79,16 @@ func TestABackendDocumentBecomesSchedulableSNMPChecks(t *testing.T) {
 	for _, c := range changes[0].Schedule {
 		assert.Equal(t, "snmp", c.Name)
 		assert.Equal(t, "ndm-remote-config:snmp", c.Source)
-		assert.YAMLEq(t, "namespace: prod\nping:\n  enabled: true\n", string(c.InitConfig))
+		assert.YAMLEq(t, "namespace: prod\nping:\n  count: 2\n  timeout: 3000\n", string(c.InitConfig))
 		require.Len(t, c.Instances, 1)
 		assert.Contains(t, string(c.Instances[0]), "community_string: public")
 	}
 	assert.Contains(t, string(changes[0].Schedule[0].Instances[0]), "ip_address: 10.0.0.1")
+	assert.Contains(t, string(changes[0].Schedule[0].Instances[0]), "enabled: true",
+		"the device the ping key names has ping enabled on its instance")
 	assert.Contains(t, string(changes[0].Schedule[1].Instances[0]), "ip_address: 10.0.0.2")
+	assert.NotContains(t, string(changes[0].Schedule[1].Instances[0]), "ping:",
+		"a device the ping key omits keeps the check's own default of disabled")
 
 	assert.Len(t, rec.states, 1)
 	assert.Equal(t, state.ApplyStateAcknowledged,
@@ -98,8 +107,8 @@ func TestADocumentWithAMissingCredentialSchedulesTheRestAndReportsAnError(t *tes
 	const path = "datadog/2/NDM_CONFIG/ndm-1/config"
 
 	p.Update(map[string]state.RawConfig{path: rawConfig(`{"snmp":{"instances":[
-		{"ip_address":"10.0.0.1","cred":{"id":"id-abc","name":"cred-abc"}},
-		{"ip_address":"10.0.0.2","cred":{"id":"id-not-delivered-yet","name":"cred-not-delivered-yet"}}
+		{"ip_address":"10.0.0.1","cred_id":"id-abc"},
+		{"ip_address":"10.0.0.2","cred_id":"id-not-delivered-yet"}
 	]}}`)}, rec.callback)
 
 	changes := drain(t, ch)
@@ -108,7 +117,7 @@ func TestADocumentWithAMissingCredentialSchedulesTheRestAndReportsAnError(t *tes
 
 	assert.Equal(t, state.ApplyStateError, rec.states[path].State)
 	assert.Contains(t, rec.states[path].Error, "snmp: ")
-	assert.Contains(t, rec.states[path].Error, "cred-not-delivered-yet")
+	assert.Contains(t, rec.states[path].Error, "id-not-delivered-yet")
 
 	errs := p.GetConfigErrors()
 	require.Contains(t, errs, path)
@@ -168,8 +177,8 @@ func TestADocumentWhoseInstancesAreAllUnresolvableSchedulesNothingAndErrors(t *t
 	const path = "datadog/2/NDM_CONFIG/ndm-1/config"
 
 	p.Update(map[string]state.RawConfig{path: rawConfig(`{"snmp":{"instances":[
-		{"ip_address":"10.0.0.1","cred":{"id":"id-unknown-1","name":"cred-unknown-1"}},
-		{"ip_address":"10.0.0.2","cred":{"id":"id-unknown-2","name":"cred-unknown-2"}}
+		{"ip_address":"10.0.0.1","cred_id":"id-unknown-1"},
+		{"ip_address":"10.0.0.2","cred_id":"id-unknown-2"}
 	]}}`)}, rec.callback)
 
 	changes := drain(t, ch)
@@ -177,8 +186,8 @@ func TestADocumentWhoseInstancesAreAllUnresolvableSchedulesNothingAndErrors(t *t
 
 	assert.Equal(t, state.ApplyStateError, rec.states[path].State)
 	assert.Contains(t, rec.states[path].Error, "snmp: ")
-	assert.Contains(t, rec.states[path].Error, "cred-unknown-1")
-	assert.Contains(t, rec.states[path].Error, "cred-unknown-2")
+	assert.Contains(t, rec.states[path].Error, "id-unknown-1")
+	assert.Contains(t, rec.states[path].Error, "id-unknown-2")
 
 	errs := p.GetConfigErrors()
 	require.Contains(t, errs, path)

@@ -47,7 +47,7 @@ func (p *Provider) dispatch(path string, keys map[string]json.RawMessage) (map[s
 		}
 		owned = true
 
-		configs, err := p.handlers[key].Render(path, raw)
+		configs, err := p.handlers[key].Render(path, raw, siblingKeys(keys, key))
 		if err != nil {
 			if errsByKey == nil {
 				errsByKey = make(map[string]error, 1)
@@ -63,6 +63,18 @@ func (p *Provider) dispatch(path string, keys map[string]json.RawMessage) (map[s
 	}
 
 	return configsByKey, errsByKey, owned
+}
+
+// siblingKeys returns the document's keys other than own, for a handler whose
+// settings the backend sends outside the key it owns.
+func siblingKeys(keys map[string]json.RawMessage, own string) map[string]json.RawMessage {
+	siblings := make(map[string]json.RawMessage, len(keys)-1)
+	for key, raw := range keys {
+		if key != own {
+			siblings[key] = raw
+		}
+	}
+	return siblings
 }
 
 // applyStatus aggregates a path's per-key results into the one apply state

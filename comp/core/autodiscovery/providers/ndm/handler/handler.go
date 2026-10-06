@@ -20,7 +20,9 @@ type Handler interface {
 	Key() string
 
 	// Render turns raw, the value of Key() in path's document, into the check
-	// configs to schedule for that path and key. It must be free of side
-	// effects, and must not block: the component holds its state lock.
-	Render(path string, raw json.RawMessage) ([]integration.Config, error)
+	// configs to schedule for that path and key. siblings holds the document's
+	// other top-level keys, for a handler whose settings the backend sends
+	// outside its own key. It must be free of side effects, and must not
+	// block: the component holds its state lock.
+	Render(path string, raw json.RawMessage, siblings map[string]json.RawMessage) ([]integration.Config, error)
 }

@@ -7,6 +7,7 @@ go_library(
         "credentials.go",
         "handler.go",
         "instance.go",
+        "ping.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/snmp",
     visibility = ["//visibility:public"],
@@ -29,6 +30,7 @@ dd_agent_go_test(
         "credentials_test.go",
         "handler_test.go",
         "instance_test.go",
+        "ping_test.go",
     ],
     embed = [":snmp"],
     deps = [

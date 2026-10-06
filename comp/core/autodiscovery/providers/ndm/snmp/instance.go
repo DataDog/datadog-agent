@@ -33,33 +33,12 @@ type initConfig struct {
 	CollectTopology       *bool                             `json:"collect_topology"`
 	CollectVPN            *bool                             `json:"collect_vpn"`
 	GlobalMetrics         []profiledefinition.MetricsConfig `json:"global_metrics"`
-	Ping                  pingConfig                        `json:"ping"`
-}
-
-// pingConfig is the document's ping block, in either init_config or an instance.
-type pingConfig struct {
-	Enabled    *bool           `json:"enabled"`
-	Count      int             `json:"count"`
-	IntervalMS int             `json:"interval_ms"`
-	TimeoutMS  int             `json:"timeout_ms"`
-	Linux      pingLinuxConfig `json:"linux"`
-}
-
-type pingLinuxConfig struct {
-	UseRawSocket *bool `json:"use_raw_socket"`
-}
-
-// credentialRef points an instance at a credential file entry. It carries no
-// credential value: the Agent resolves ID against its own credential files.
-type credentialRef struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
 }
 
 // documentInstance is one device of the document's instances list.
 type documentInstance struct {
 	IPAddress             string                              `json:"ip_address"`
-	Cred                  credentialRef                       `json:"cred"`
+	CredID                string                              `json:"cred_id"`
 	Port                  int                                 `json:"port"`
 	TimeoutSec            int                                 `json:"timeout_sec"`
 	Retries               int                                 `json:"retries"`
@@ -76,7 +55,6 @@ type documentInstance struct {
 	DeviceTagsSource      string                              `json:"device_tags_source"`
 	Metrics               []profiledefinition.MetricsConfig   `json:"metrics"`
 	MetricTags            []profiledefinition.MetricTagConfig `json:"metric_tags"`
-	Ping                  pingConfig                          `json:"ping"`
 	InterfaceConfigs      []snmpintegration.InterfaceConfig   `json:"interface_configs"`
 }
 
@@ -142,8 +120,9 @@ type checkInstance struct {
 	InterfaceConfigs      []snmpintegration.InterfaceConfig   `yaml:"interface_configs,omitempty"`
 }
 
-// renderInitConfig turns the document's init_config into the check's.
-func renderInitConfig(ic initConfig) (integration.Data, error) {
+// renderInitConfig turns the document's init_config into the check's, with
+// the ping options every pinged device of the document inherits.
+func renderInitConfig(ic initConfig, sharedPing *pingOptions) (integration.Data, error) {
 	body, err := yaml.Marshal(checkInitConfig{
 		Namespace:             ic.Namespace,
 		DeviceTagsSource:      ic.DeviceTagsSource,
@@ -154,7 +133,7 @@ func renderInitConfig(ic initConfig) (integration.Data, error) {
 		CollectTopology:       ic.CollectTopology,
 		CollectVPN:            ic.CollectVPN,
 		GlobalMetrics:         ic.GlobalMetrics,
-		Ping:                  renderPing(ic.Ping),
+		Ping:                  renderSharedPing(sharedPing),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to render the init config: %w", err)
@@ -163,8 +142,9 @@ func renderInitConfig(ic initConfig) (integration.Data, error) {
 }
 
 // renderInstance joins a document instance with its resolved credential into
-// one check instance.
-func renderInstance(in documentInstance, c credential) (integration.Data, error) {
+// one check instance. ping carries the device's ping options when the
+// document's ping section lists it, and is nil otherwise.
+func renderInstance(in documentInstance, c credential, ping *pingOptions) (integration.Data, error) {
 	body, err := yaml.Marshal(checkInstance{
 		IPAddress:             in.IPAddress,
 		SNMPVersion:           c.SNMPVersion,
@@ -192,7 +172,7 @@ func renderInstance(in documentInstance, c credential) (integration.Data, error)
 		DeviceTagsSource:      in.DeviceTagsSource,
 		Metrics:               in.Metrics,
 		MetricTags:            in.MetricTags,
-		Ping:                  renderPing(in.Ping),
+		Ping:                  renderDevicePing(ping),
 		InterfaceConfigs:      in.InterfaceConfigs,
 	})
 	if err != nil {
@@ -202,11 +182,37 @@ func renderInstance(in documentInstance, c credential) (integration.Data, error)
 	return integration.Data(body), nil
 }
 
-// renderPing turns the document's ping block into the check's, or nil when the
-// document set nothing and the check must keep its own defaults.
-func renderPing(p pingConfig) *checkPingBlock {
+// renderSharedPing turns the ping section's init_config into the check's ping
+// block. It carries no enabled flag: only the devices the section lists are
+// pinged, and each one enables ping on its own instance.
+func renderSharedPing(p *pingOptions) *checkPingBlock {
+	if p == nil {
+		return nil
+	}
+	block := pingBlock(*p)
+	if block == (checkPingBlock{}) {
+		return nil
+	}
+	return &block
+}
+
+// renderDevicePing turns one device's ping options into the check's ping
+// block, enabling ping on it. A nil p means the document does not ping the
+// device, which leaves the check's own default of disabled.
+func renderDevicePing(p *pingOptions) *checkPingBlock {
+	if p == nil {
+		return nil
+	}
+	block := pingBlock(*p)
+	block.Enabled = &pingEnabled
+	return &block
+}
+
+// pingEnabled is the value every pinged device's instance points enabled at.
+var pingEnabled = true
+
+func pingBlock(p pingOptions) checkPingBlock {
 	block := checkPingBlock{
-		Enabled:  p.Enabled,
 		Count:    p.Count,
 		Interval: p.IntervalMS,
 		Timeout:  p.TimeoutMS,
@@ -214,8 +220,5 @@ func renderPing(p pingConfig) *checkPingBlock {
 	if p.Linux.UseRawSocket != nil {
 		block.Linux = &checkPingLinuxBlock{UseRawSocket: p.Linux.UseRawSocket}
 	}
-	if block == (checkPingBlock{}) {
-		return nil
-	}
-	return &block
+	return block
 }

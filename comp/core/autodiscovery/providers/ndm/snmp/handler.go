@@ -43,14 +43,20 @@ func (h *Handler) Key() string { return Key }
 
 // Render turns a path's snmp key into one check config per device. An instance
 // whose credential is missing or unusable is skipped and named in the error,
-// the others are still returned.
-func (h *Handler) Render(path string, raw json.RawMessage) ([]integration.Config, error) {
+// the others are still returned. The document's ping settings arrive in a
+// sibling key and are folded back into the instance they name.
+func (h *Handler) Render(path string, raw json.RawMessage, siblings map[string]json.RawMessage) ([]integration.Config, error) {
 	var doc keyConfig
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("the snmp key is not an object: %w", err)
 	}
 
-	initConfigData, err := renderInitConfig(doc.InitConfig)
+	ping, err := parsePingSection(siblings[pingKey])
+	if err != nil {
+		h.log.Errorf("ndm: ignoring the ping settings of config %s: %v", path, err)
+	}
+
+	initConfigData, err := renderInitConfig(doc.InitConfig, ping.shared())
 	if err != nil {
 		return nil, err
 	}
@@ -61,9 +67,14 @@ func (h *Handler) Render(path string, raw json.RawMessage) ([]integration.Config
 	}
 
 	configs := make([]integration.Config, 0, len(doc.Instances))
+	polled := make(map[string]struct{}, len(doc.Instances))
 	var skipped []string
 
 	for _, instance := range doc.Instances {
+		if instance.IPAddress != "" {
+			polled[instance.IPAddress] = struct{}{}
+		}
+
 		cred, reason := resolve(instance, creds)
 		if reason != "" {
 			skipped = append(skipped, reason)
@@ -71,7 +82,13 @@ func (h *Handler) Render(path string, raw json.RawMessage) ([]integration.Config
 			continue
 		}
 
-		instanceData, err := renderInstance(instance, cred)
+		devicePing, pinged := ping.forDevice(instance.IPAddress)
+		var pingOverrides *pingOptions
+		if pinged {
+			pingOverrides = &devicePing
+		}
+
+		instanceData, err := renderInstance(instance, cred, pingOverrides)
 		if err != nil {
 			skipped = append(skipped, err.Error())
 			h.log.Warnf("ndm: skipping an snmp instance of config %s: %v", path, err)
@@ -86,6 +103,11 @@ func (h *Handler) Render(path string, raw json.RawMessage) ([]integration.Config
 		})
 	}
 
+	if orphans := ping.unmatched(polled); len(orphans) > 0 {
+		h.log.Errorf("ndm: config %s pings %d device(s) no snmp instance polls, so they cannot be scheduled: %s",
+			path, len(orphans), strings.Join(orphans, ", "))
+	}
+
 	if len(skipped) > 0 {
 		return configs, errors.New(strings.Join(skipped, "; "))
 	}
@@ -96,23 +118,14 @@ func (h *Handler) Render(path string, raw json.RawMessage) ([]integration.Config
 // scheduled. The reason never names a credential value.
 func resolve(instance documentInstance, creds map[string]credential) (credential, string) {
 	if instance.IPAddress == "" {
-		return credential{}, fmt.Sprintf("an instance referencing credential %s has no ip_address", describe(instance.Cred))
+		return credential{}, fmt.Sprintf("an instance referencing credential %q has no ip_address", instance.CredID)
 	}
-	cred, found := creds[instance.Cred.ID]
+	cred, found := creds[instance.CredID]
 	if !found {
-		return credential{}, fmt.Sprintf("%s references credential %s, which is not available on this Agent", instance.IPAddress, describe(instance.Cred))
+		return credential{}, fmt.Sprintf("%s references credential %q, which is not available on this Agent", instance.IPAddress, instance.CredID)
 	}
 	if err := validate(cred); err != nil {
 		return credential{}, fmt.Sprintf("%s cannot be scheduled: %s", instance.IPAddress, err.Error())
 	}
 	return cred, ""
-}
-
-// describe renders a credential reference for a log line or an error. Both the
-// id and the name are labels, never a credential value.
-func describe(ref credentialRef) string {
-	if ref.Name == "" {
-		return fmt.Sprintf("%q", ref.ID)
-	}
-	return fmt.Sprintf("%q (%s)", ref.Name, ref.ID)
 }
