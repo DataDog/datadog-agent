@@ -514,6 +514,56 @@ func TestScrubProcessArgsHonoursOperatorSettings(t *testing.T) {
 	})
 }
 
+func TestScrubConfigErrorRedactsSecretSequences(t *testing.T) {
+	report := SupportReport{
+		Processes: []ProcessSnapshot{{
+			Name:        "broken",
+			State:       ProcessStateInvalidConfig,
+			ConfigError: "parsing /tmp/broken.yaml: --password s3cret",
+		}},
+	}
+
+	report.Scrub(ScrubOptions{})
+
+	assert.Equal(t, "parsing /tmp/broken.yaml: --password "+wantRedacted, report.Processes[0].ConfigError)
+}
+
+func TestScrubConfigErrorHonoursCustomWords(t *testing.T) {
+	report := SupportReport{
+		Processes: []ProcessSnapshot{{
+			ConfigError: "parsing /tmp/broken.yaml: start --PASSPHRASE s3cret",
+		}},
+	}
+
+	report.Scrub(ScrubOptions{CustomSensitiveWords: []string{"PASSPHRASE"}})
+
+	assert.Equal(t,
+		"parsing /tmp/broken.yaml: start --PASSPHRASE "+wantRedacted,
+		report.Processes[0].ConfigError)
+}
+
+func TestScrubConfigErrorKeepsNonSecretParseErrors(t *testing.T) {
+	err := "parsing /tmp/broken.yaml: missing field `command`"
+	report := SupportReport{Processes: []ProcessSnapshot{{ConfigError: err}}}
+
+	report.Scrub(ScrubOptions{})
+
+	assert.Equal(t, err, report.Processes[0].ConfigError)
+}
+
+func TestScrubConfigErrorSurvivesStripArguments(t *testing.T) {
+	err := "parsing /tmp/broken.yaml: missing field `command`"
+	report := SupportReport{Processes: []ProcessSnapshot{{
+		Args:        []string{"--config", "/etc/datadog-agent/datadog.yaml"},
+		ConfigError: err,
+	}}}
+
+	report.Scrub(ScrubOptions{StripArguments: true})
+
+	assert.Nil(t, report.Processes[0].Args)
+	assert.Equal(t, err, report.Processes[0].ConfigError)
+}
+
 // Every leak found in this scrubber has been one instance of a single invariant: a flare must keep
 // nothing procutil would have redacted. The cases above pin the shapes known to have gone wrong,
 // which only ever catches the next one if somebody thinks to write it down. This asserts the

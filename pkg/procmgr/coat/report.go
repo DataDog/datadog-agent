@@ -197,6 +197,7 @@ type ScrubOptions struct {
 // the cost of missing it is a leaked credential. It is safe to call more than once.
 func (r *SupportReport) Scrub(opts ScrubOptions) {
 	scrubProcessArgs(r.Processes, opts)
+	scrubConfigErrors(r.Processes, opts)
 }
 
 // redactedValue replaces a secret. It matches the placeholder procutil substitutes, so redactions
@@ -234,6 +235,22 @@ func scrubProcessArgs(processes []ProcessSnapshot, opts ScrubOptions) {
 
 	for i := range processes {
 		redactSecretValues(processes[i].Args, scrubber.SensitivePatterns)
+	}
+}
+
+// scrubConfigErrors redacts secret sequences inside parse errors. Serde echoes the offending
+// scalar, so a processes.d value that failed to type-check can otherwise reach the flare as
+// config_error. AddFile's line scrubber still runs on the JSON, but SupportReport.Scrub is the
+// last point that sees this field as a structured string rather than a pretty-printed line.
+func scrubConfigErrors(processes []ProcessSnapshot, opts ScrubOptions) {
+	scrubber := procutil.NewDefaultDataScrubber()
+	scrubber.AddCustomSensitiveWords(slices.Concat(hyphenSpelledSecretWords, opts.CustomSensitiveWords))
+
+	for i := range processes {
+		if processes[i].ConfigError == "" {
+			continue
+		}
+		processes[i].ConfigError = scrubSecretSequences(processes[i].ConfigError, scrubber.SensitivePatterns)
 	}
 }
 
