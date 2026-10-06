@@ -60,6 +60,10 @@ fn invalid_yaml_visible_as_invalid_config() {
     procmgr
         .wait_for_process_running("sleeper")
         .expect("expected sleeper running");
+    procmgr
+        .cli_config()
+        .assert_success()
+        .assert_field("Loaded Processes", "1");
     let list = procmgr.require_list();
     list.assert_len(2);
     list.assert_process_state("sleeper", ProcessExpect::Running);

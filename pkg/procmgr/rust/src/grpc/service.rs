@@ -209,12 +209,13 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         _request: Request<proto::GetConfigRequest>,
     ) -> Result<Response<proto::GetConfigResponse>, Status> {
         let procs = self.mgr.processes().await;
-        let invalid = self.mgr.invalid_configs().await;
         let runtime = procs
             .iter()
             .filter(|p| p.origin() == ProcessOrigin::Runtime)
             .count() as u32;
-        let loaded = procs.len() as u32 - runtime + invalid.len() as u32;
+        // InvalidConfig rows are catalogued but never successfully loaded; they
+        // show up on GetStatus.invalid_config_processes instead.
+        let loaded = procs.len() as u32 - runtime;
         Ok(Response::new(proto::GetConfigResponse {
             source: self.mgr.config_source().to_string(),
             location: self.mgr.config_location(),
