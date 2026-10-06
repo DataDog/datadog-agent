@@ -111,6 +111,8 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		// - Check-specific labels_as_tags in KSM config is NOT supported with sharding
 		// - Sharding also breaks check-specific label_joins across different resource types
 		log.Info("KSM sharding enabled. For namespace labels/annotations as tags, check-specific config (labels_as_tags in KSM config) is not supported with sharding - use global kubernetes_resources_labels_as_tags instead.")
+		log.Warn("KSM sharding can separate pod and node collectors, preventing node-to-pod label joins. Pod metrics may lose node-derived tags: kube_region, kube_zone, container_runtime_version, kernel_version, kubelet_version, os_image, and configured node label/annotation tags. " +
+			"Running a separate KSM instance with pod_collection_mode: node_kubelet on each node Agent can retain host-level tags for locally collected pod metrics, but does not restore node-to-pod label joins.")
 	}
 
 	// An instance declaring shard_criteria gets hash sharding; otherwise it can
