@@ -51,9 +51,9 @@ func TestLoadPackage_WithIsolatedDependencies(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{commandPath}, pkg.Command)
 	assert.Equal(t, []string{
-		filepath.Join(artifact.DependencyDirectory("helm"), "helm"),
-		filepath.Join(artifact.DependencyDirectory("jq"), "jq"),
-	}, pkg.ToolPaths)
+		artifact.DependencyDirectory("helm"),
+		artifact.DependencyDirectory("jq"),
+	}, pkg.ExecutableDirectories)
 }
 
 func TestLoadPackage_RejectsEscapingSymlinkCommand(t *testing.T) {

@@ -48,6 +48,7 @@ dd_agent_go_test(
         "docker_test.go",
         "ecs_test.go",
         "fargate_test.go",
+        "infra_mode_test.go",
         "k8s_test.go",
         "linux_test.go",
         "testing_test.go",

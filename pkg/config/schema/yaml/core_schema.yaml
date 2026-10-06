@@ -3108,8 +3108,6 @@ properties:
     description: |-
       Number of goroutines used to read and parse integration configuration files
       concurrently when scanning a configuration directory. This value must be >= 1.
-    tags:
-    - template_section:CoreAgent
   config_providers:
     node_type: setting
     type: array
