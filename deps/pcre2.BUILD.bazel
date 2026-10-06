@@ -15,7 +15,7 @@ package(
     ],
 )
 
-VERSION = "10.46"
+VERSION = "10.49"
 
 package_metadata(
     name = "package_metadata",
@@ -64,6 +64,7 @@ cc_library(
         "src/pcre2_chkdint.c",
         "src/pcre2_compile.c",
         "src/pcre2_compile.h",
+        "src/pcre2_compile_cgroup.c",
         "src/pcre2_compile_class.c",
         "src/pcre2_config.c",
         "src/pcre2_context.c",
@@ -78,6 +79,7 @@ cc_library(
         "src/pcre2_maketables.c",
         "src/pcre2_match.c",
         "src/pcre2_match_data.c",
+        "src/pcre2_match_next.c",
         "src/pcre2_newline.c",
         "src/pcre2_ord2utf.c",
         "src/pcre2_pattern_info.c",
@@ -102,16 +104,18 @@ cc_library(
     includes = ["src"],
     local_defines = [
         "HAVE_CONFIG_H",
-        "HAVE_MEMMOVE",
         "PCRE2_CODE_UNIT_WIDTH=8",
         "PCRE2_STATIC",
         "SUPPORT_UNICODE",
     ],
     strip_include_prefix = "src",
     textual_hdrs = [
-        "src/pcre2_jit_match.c",
-        "src/pcre2_jit_misc.c",
-        "src/pcre2_ucptables.c",
+        "src/pcre2_jit_char_inc.h",
+        "src/pcre2_jit_match_inc.h",
+        "src/pcre2_jit_misc_inc.h",
+        "src/pcre2_jit_simd_inc.h",
+        "src/pcre2_printint_inc.h",
+        "src/pcre2_ucptables_inc.h",
     ],
     visibility = ["//visibility:public"],
 )
@@ -119,6 +123,10 @@ cc_library(
 cc_library(
     name = "libpcre2-posix",
     srcs = [
+        "src/pcre2_internal.h",
+        "src/pcre2_intmodedep.h",
+        "src/pcre2_ucp.h",
+        "src/pcre2_util.h",
         "src/pcre2posix.c",
         ":config_h_generic",
     ],
@@ -128,12 +136,15 @@ cc_library(
     includes = ["src"],
     local_defines = [
         "HAVE_CONFIG_H",
-        "HAVE_MEMMOVE",
         "PCRE2_CODE_UNIT_WIDTH=8",
         "PCRE2_STATIC",
         "SUPPORT_UNICODE",
     ],
     strip_include_prefix = "src",
+    textual_hdrs = [
+        "src/pcre2_tables.c",
+        "src/pcre2_ucptables_inc.h",
+    ],
     visibility = ["//visibility:public"],
     deps = [":libpcre2"],
 )
@@ -152,7 +163,6 @@ cc_library(
     name = "pcre2test_dotc_headers",
     hdrs = [
         "src/pcre2_chkdint.c",
-        "src/pcre2_printint.c",
         "src/pcre2_tables.c",
         "src/pcre2_ucd.c",
         "src/pcre2_valid_utf.c",
@@ -164,7 +174,9 @@ cc_library(
 cc_binary(
     name = "pcre2test",
     srcs = [
+        "src/pcre2_printint_inc.h",
         "src/pcre2test.c",
+        "src/pcre2test_inc.h",
         ":config_h_generic",
     ],
     dynamic_deps = [
@@ -177,12 +189,14 @@ cc_binary(
     }),
     local_defines = [
         "HAVE_CONFIG_H",
-        "HAVE_MEMMOVE",
-        "HAVE_STRERROR",
         "PCRE2_STATIC",
         "SUPPORT_UNICODE",
         "SUPPORT_PCRE2_8",
     ] + select({
+        "@platforms//os:linux": [
+            "HAVE_SETRLIMIT",
+            "HAVE_UNISTD_H",
+        ],
         "@platforms//os:windows": [],
         "//conditions:default": ["HAVE_UNISTD_H"],
     }),
@@ -243,7 +257,7 @@ dd_cc_packaged(
     dest_dir = "embedded/lib",
     input = ":pcre2-8",
     installed_files = [":headers"],
-    version = "0.11.2",
+    version = "0.16.1",
     visibility = ["//visibility:public"],
 )
 
@@ -251,7 +265,7 @@ dd_cc_packaged(
     name = "pcre2-posix_pkg",
     dest_dir = "embedded/lib",
     input = ":pcre2-posix",
-    version = "3.0.4",
+    version = "3.0.9",
     visibility = ["//visibility:public"],
 )
 

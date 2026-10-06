@@ -1142,6 +1142,7 @@ type GetStatusResponse struct {
 	ExitedProcesses   uint32                 `protobuf:"varint,9,opt,name=exited_processes,json=exitedProcesses,proto3" json:"exited_processes,omitempty"`
 	StartingProcesses uint32                 `protobuf:"varint,10,opt,name=starting_processes,json=startingProcesses,proto3" json:"starting_processes,omitempty"`
 	StoppingProcesses uint32                 `protobuf:"varint,11,opt,name=stopping_processes,json=stoppingProcesses,proto3" json:"stopping_processes,omitempty"`
+	CrashedProcesses  uint32                 `protobuf:"varint,12,opt,name=crashed_processes,json=crashedProcesses,proto3" json:"crashed_processes,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1249,6 +1250,13 @@ func (x *GetStatusResponse) GetStartingProcesses() uint32 {
 func (x *GetStatusResponse) GetStoppingProcesses() uint32 {
 	if x != nil {
 		return x.StoppingProcesses
+	}
+	return 0
+}
+
+func (x *GetStatusResponse) GetCrashedProcesses() uint32 {
+	if x != nil {
+		return x.CrashedProcesses
 	}
 	return 0
 }
@@ -1461,7 +1469,7 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\aremoved\x18\x02 \x03(\tR\aremoved\x12\x1a\n" +
 	"\bmodified\x18\x03 \x03(\tR\bmodified\x12\x1c\n" +
 	"\tunchanged\x18\x04 \x03(\tR\tunchanged\"\x12\n" +
-	"\x10GetStatusRequest\"\xce\x03\n" +
+	"\x10GetStatusRequest\"\xfb\x03\n" +
 	"\x11GetStatusResponse\x12\x14\n" +
 	"\x05ready\x18\x01 \x01(\bR\x05ready\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12%\n" +
@@ -1474,7 +1482,8 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\x10exited_processes\x18\t \x01(\rR\x0fexitedProcesses\x12-\n" +
 	"\x12starting_processes\x18\n" +
 	" \x01(\rR\x11startingProcesses\x12-\n" +
-	"\x12stopping_processes\x18\v \x01(\rR\x11stoppingProcesses\"\x12\n" +
+	"\x12stopping_processes\x18\v \x01(\rR\x11stoppingProcesses\x12+\n" +
+	"\x11crashed_processes\x18\f \x01(\rR\x10crashedProcesses\"\x12\n" +
 	"\x10GetConfigRequest\"\x9f\x01\n" +
 	"\x11GetConfigResponse\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1a\n" +

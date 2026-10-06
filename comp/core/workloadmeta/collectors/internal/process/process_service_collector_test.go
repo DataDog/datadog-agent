@@ -1205,6 +1205,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 
 				c.collector.lastCollectedProcesses[process.Pid] = &procutil.Process{
 					Pid:     process.Pid,
+					Ppid:    process.Ppid,
 					Cmdline: []string{"python3", "--version"},
 					Stats:   &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()},
 				}
@@ -1450,6 +1451,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 
 				c.collector.lastCollectedProcesses[process.Pid] = &procutil.Process{
 					Pid:     process.Pid,
+					Ppid:    process.Ppid,
 					Cmdline: []string{"python3", "--version"},
 					Stats:   &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()},
 				}

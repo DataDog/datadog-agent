@@ -14,6 +14,7 @@ go_library(
     deps = [
         "//cmd/system-probe/api/debug",
         "//cmd/system-probe/modules",
+        "//comp/api/api/apiimpl/observability",
         "//comp/core/settings/def",
         "//comp/remote-config/rcclient/def",
         "//pkg/api/coverage",
