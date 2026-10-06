@@ -79,6 +79,10 @@ type ProductComposition struct {
 	// module.
 	GUIOptions []fx.Option
 
+	// MetricLookbackOptions are product-specific Fx options included alongside the
+	// shared run command graph to enable metric lookback shadow checks.
+	MetricLookbackOptions []fx.Option
+
 	// StatusOptions are product-specific Fx options included alongside the
 	// shared status module.
 	StatusOptions []fx.Option

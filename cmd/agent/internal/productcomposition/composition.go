@@ -11,11 +11,12 @@ import "github.com/DataDog/datadog-agent/cmd/agent/command"
 // CoreAgent returns the product composition for the core Agent binary.
 func CoreAgent() command.ProductComposition {
 	return command.ProductComposition{
-		AutodiscoveryOptions: autodiscoveryOptions(),
-		HostMetadataOptions:  hostMetadataOptions(),
-		CollectorOptions:     collectorOptions(),
-		CheckOptions:         checkOptions(),
-		GUIOptions:           guiOptions(),
-		StatusOptions:        statusOptions(),
+		AutodiscoveryOptions:  autodiscoveryOptions(),
+		HostMetadataOptions:   hostMetadataOptions(),
+		CollectorOptions:      collectorOptions(),
+		CheckOptions:          checkOptions(),
+		GUIOptions:            guiOptions(),
+		MetricLookbackOptions: metricLookbackOptions(),
+		StatusOptions:         statusOptions(),
 	}
 }
