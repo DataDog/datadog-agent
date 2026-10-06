@@ -643,6 +643,55 @@ func TestSchemaCollectionViews(t *testing.T) {
 	require.Contains(t, columns, "STATUS")
 }
 
+func TestSchemaCollectionViewHiddenColumns(t *testing.T) {
+	setupSchemaFixtures(t)
+	admin, err := getSysConnection(t)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, admin.Close()) })
+
+	for _, query := range []string{
+		fmt.Sprintf("create type %s.dd_order_view_t as object (order_id number, status varchar2(20))", schemaTestUser),
+		fmt.Sprintf(`create view %s.dd_object_view of %s.dd_order_view_t
+			with object identifier (order_id)
+			as select order_id, status from %s.dd_orders`, schemaTestUser, schemaTestUser, schemaTestUser),
+		fmt.Sprintf(`create view %s.dd_invisible_view (order_id, status invisible)
+			as select order_id, status from %s.dd_orders`, schemaTestUser, schemaTestUser),
+	} {
+		_, err := admin.Exec(query)
+		require.NoError(t, err)
+	}
+
+	var systemColumns int
+	require.NoError(t, admin.QueryRow(`SELECT COUNT(*) FROM cdb_tab_cols
+		WHERE owner = :1 AND table_name = 'DD_OBJECT_VIEW'
+		AND hidden_column = 'YES' AND user_generated = 'NO'`, strings.ToUpper(schemaTestUser)).Scan(&systemColumns))
+	require.Positive(t, systemColumns, "the object view must have system-generated hidden columns to exercise the filter")
+
+	events := viewEvents(collectSchemaEventsWithConfig(t, `collect_schemas:
+  enabled: true
+  max_columns: 2
+  include_databases: ['^CDB[$]ROOT$']
+  include_schemas: ['^C##DD_SCHEMA_TEST$']
+  include_tables: ['^DD_(OBJECT|INVISIBLE)_VIEW$']
+`))
+	require.NotEmpty(t, events)
+	for _, event := range events {
+		assert.False(t, event.Truncated, "system-generated columns must not count toward max_columns")
+	}
+	for _, name := range []string{"dd_object_view", "dd_invisible_view"} {
+		t.Run(name, func(t *testing.T) {
+			view := findView(events, schemaTestUser, name)
+			require.NotNil(t, view)
+			columns := columnMap(view.Columns)
+			assert.Len(t, view.Columns, 2)
+			require.Contains(t, columns, "ORDER_ID")
+			require.Contains(t, columns, "STATUS")
+			assert.False(t, columns["ORDER_ID"].Invisible)
+			assert.Equal(t, name == "dd_invisible_view", columns["STATUS"].Invisible)
+		})
+	}
+}
+
 func TestSchemaCollectionFiltersUseOracleCaseInsensitiveMatching(t *testing.T) {
 	setupSchemaFixtures(t)
 	events := collectSchemaEventsWithConfig(t, `collect_schemas:
