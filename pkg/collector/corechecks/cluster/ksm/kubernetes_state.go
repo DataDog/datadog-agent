@@ -10,6 +10,7 @@ package ksm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"regexp"
@@ -47,6 +48,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -322,6 +324,20 @@ type KSMConfig struct {
 	// the sole authoritative source. Off by default (legacy behavior). Set by
 	// the operator/helm on the suppressing instances alongside that deployment.
 	ClusterAggregatesEnabled bool `yaml:"cluster_aggregates_enabled"`
+
+	// Hash sharding fields
+	ShardCriteria []string `yaml:"shard_criteria"`
+	ShardID       int      `yaml:"shard_id"`
+	ShardCount    int      `yaml:"shard_count"`
+}
+
+type storeState struct {
+	mu               sync.Mutex
+	eager            [][]cache.Store
+	dynamic          ksmstore.DynamicStore
+	namespaceHandler cache.ResourceEventHandlerRegistration
+	cancel           context.CancelFunc
+	cancelled        bool
 }
 
 // KSMCheck wraps the config and the metric stores needed to run the check
@@ -329,10 +345,10 @@ type KSMCheck struct {
 	core.CheckBase
 	agentConfig                model.Config
 	instance                   *KSMConfig
-	allStores                  [][]cache.Store
+	stores                     storeState
+	namespaceInformer          namespaceInformer
 	telemetry                  *telemetryCache
 	tagger                     tagger.Component
-	cancel                     context.CancelFunc
 	cancelCR                   context.CancelFunc
 	crMu                       sync.Mutex
 	isCLCRunner                bool
@@ -553,6 +569,7 @@ func (k *KSMCheck) buildStores() error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	builder.WithContext(ctx)
+	hashSharded := len(k.instance.ShardCriteria) > 0
 
 	resyncPeriod := k.instance.ResyncPeriod
 	if resyncPeriod == 0 {
@@ -561,12 +578,16 @@ func (k *KSMCheck) buildStores() error {
 
 	builder.WithResync(time.Duration(resyncPeriod) * time.Second)
 
-	builder.WithGenerateStoresFunc(builder.GenerateStores)
+	if !hashSharded {
+		builder.WithGenerateStoresFunc(builder.GenerateStores)
+	}
 
 	// configure custom resources required for extended features and
 	// compatibility across deprecated/removed versions of APIs
 	cr := k.discoverCustomResources(apiServerClient, collectors, resources)
-	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
+	if !hashSharded {
+		builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
+	}
 	builder.WithCustomResourceStoreFactories(cr.factories...)
 	builder.WithCustomResourceClients(cr.clients)
 
@@ -614,17 +635,78 @@ func (k *KSMCheck) buildStores() error {
 	// Configure builder to enable callbacks for specific resource types
 	builder.WithCallbacksForResources(callbackResourceTypes)
 
-	// Start the collection process
-	k.allStores = builder.BuildStores()
+	// Start the collection process using either the dynamic hash-sharded path or
+	// the traditional eager-store path.
+	if hashSharded {
+		if apiServerClient == nil {
+			cancel()
+			return errors.New("cannot start namespace informer without an API server client")
+		}
+		if k.namespaceInformer == nil {
+			cancel()
+			return errors.New("cannot start hash-sharded KSM without a namespace informer")
+		}
 
-	// Cancel the old reflectors after the new store is created. Cancelling the
-	// old context ensures previous reflectors release their resources.
-	if k.cancel != nil {
-		k.cancel()
+		storeFactoryRegistry := builder.BuildStoreFactoryRegistry(resources)
+		dynamicStore := ksmstore.NewDynamicStore(
+			ctx,
+			storeFactoryRegistry,
+			ksmstore.DynamicStoreConfig{
+				ShardCriteria: k.instance.ShardCriteria,
+				ShardCount:    k.instance.ShardCount,
+				ShardID:       k.instance.ShardID,
+			},
+		)
+
+		namespaceHandler, err := k.namespaceInformer.Subscribe(apiServerClient.InformerCl, dynamicStore, []string(namespaces))
+		if err != nil {
+			cancel()
+			return err
+		}
+		return k.replaceStores(nil, dynamicStore, namespaceHandler, cancel)
 	}
-	k.cancel = cancel
+
+	return k.replaceStores(builder.BuildStores(), nil, nil, cancel)
+}
+
+func (k *KSMCheck) replaceStores(
+	allStores [][]cache.Store,
+	dynamicStore ksmstore.DynamicStore,
+	namespaceHandler cache.ResourceEventHandlerRegistration,
+	cancel context.CancelFunc,
+) error {
+	k.stores.mu.Lock()
+	if k.stores.cancelled {
+		k.stores.mu.Unlock()
+		k.unsubscribeNamespaceHandler(namespaceHandler)
+		cancel()
+		return context.Canceled
+	}
+
+	oldNamespaceHandler := k.stores.namespaceHandler
+	oldCancel := k.stores.cancel
+	k.stores.eager = allStores
+	k.stores.dynamic = dynamicStore
+	k.stores.namespaceHandler = namespaceHandler
+	k.stores.cancel = cancel
+	k.stores.mu.Unlock()
+
+	// Stop the old handler before its reflector contexts are cancelled.
+	k.unsubscribeNamespaceHandler(oldNamespaceHandler)
+	if oldCancel != nil {
+		oldCancel()
+	}
 
 	return nil
+}
+
+func (k *KSMCheck) unsubscribeNamespaceHandler(handler cache.ResourceEventHandlerRegistration) {
+	if handler == nil || k.namespaceInformer == nil {
+		return
+	}
+	if err := k.namespaceInformer.Unsubscribe(handler); err != nil {
+		log.Warnf("unable to remove namespace event handler: %s", err)
+	}
 }
 
 func discoverResources(client discovery.DiscoveryInterface) ([]*v1.APIResourceList, error) {
@@ -939,7 +1021,8 @@ func (k *KSMCheck) Run() error {
 	defer sender.Commit()
 
 	labelJoiner := newLabelJoiner(k.instance.labelJoins)
-	for _, stores := range k.allStores {
+	allStores := k.storeSnapshot()
+	for _, stores := range allStores {
 		for _, store := range stores {
 			var metricsStore *ksmstore.MetricsStore
 			if ms, ok := store.(*ksmstore.MetricsStore); ok {
@@ -954,7 +1037,7 @@ func (k *KSMCheck) Run() error {
 	}
 
 	currentTime := time.Now()
-	for _, stores := range k.allStores {
+	for _, stores := range allStores {
 		for _, store := range stores {
 			var metricsStore *ksmstore.MetricsStore
 			if ms, ok := store.(*ksmstore.MetricsStore); ok {
@@ -974,11 +1057,34 @@ func (k *KSMCheck) Run() error {
 	return nil
 }
 
+func (k *KSMCheck) storeSnapshot() [][]cache.Store {
+	k.stores.mu.Lock()
+	eagerStores := k.stores.eager
+	dynamicStore := k.stores.dynamic
+	k.stores.mu.Unlock()
+
+	if dynamicStore != nil {
+		return [][]cache.Store{dynamicStore.Snapshot()}
+	}
+	return eagerStores
+}
+
 // Cancel is called when the check is unscheduled, it stops the informers used by the metrics store
 func (k *KSMCheck) Cancel() {
 	log.Infof("Shutting down informers used by the check '%s'", k.ID())
-	if k.cancel != nil {
-		k.cancel()
+	k.stores.mu.Lock()
+	k.stores.cancelled = true
+	namespaceHandler := k.stores.namespaceHandler
+	cancel := k.stores.cancel
+	k.stores.namespaceHandler = nil
+	k.stores.cancel = nil
+	k.stores.eager = nil
+	k.stores.dynamic = nil
+	k.stores.mu.Unlock()
+
+	k.unsubscribeNamespaceHandler(namespaceHandler)
+	if cancel != nil {
+		cancel()
 	}
 	k.crMu.Lock()
 	if k.cancelCR != nil {
@@ -1443,13 +1549,15 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 
 // Factory creates a new check factory
 func Factory(tagger tagger.Component, wmeta workloadmeta.Component) option.Option[func() check.Check] {
+	mainCtx, _ := pkgcommon.GetMainCtxCancel()
+	namespaceInformer := newSharedNamespaceInformer(mainCtx)
 	return option.New(func() check.Check {
-		return newCheck(tagger, wmeta)
+		return newCheck(tagger, wmeta, namespaceInformer)
 	})
 }
 
-func newCheck(tagger tagger.Component, wmeta workloadmeta.Component) check.Check {
-	return newKSMCheck(
+func newCheck(tagger tagger.Component, wmeta workloadmeta.Component, namespaceInformer namespaceInformer) check.Check {
+	check := newKSMCheck(
 		core.NewCheckBase(CheckName),
 		&KSMConfig{
 			LabelsMapper: make(map[string]string),
@@ -1459,6 +1567,8 @@ func newCheck(tagger tagger.Component, wmeta workloadmeta.Component) check.Check
 		tagger,
 		wmeta,
 	)
+	check.namespaceInformer = namespaceInformer
+	return check
 }
 
 // KubeStateMetricsFactoryWithParam is used only by test/benchmarks/kubernetes_state
@@ -1477,7 +1587,7 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 		tagger,
 		nil,
 	)
-	check.allStores = allStores
+	check.stores.eager = allStores
 	// Configure() is skipped here, so initRetry is never set up by SetupRetrier and
 	// would otherwise stay at its zero-value NeedSetup status, making Run() return
 	// immediately with a nil error on every call without processing any metrics.
