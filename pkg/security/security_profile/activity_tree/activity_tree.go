@@ -1223,7 +1223,7 @@ func (at *ActivityTree) SyscallsByImageTagID() map[uint64][]uint32 {
 				continue
 			}
 			syscall := uint32(syscallNode.Syscall)
-			syscallNode.EachSeen(func(imageTagID uint64, _ ImageTagTimes) {
+			syscallNode.EachSeen(func(imageTagID uint64, _, _ int64) {
 				set, ok := sets[imageTagID]
 				if !ok {
 					set = make(map[uint32]struct{})

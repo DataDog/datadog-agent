@@ -12,12 +12,6 @@ import (
 	"time"
 )
 
-// ImageTagTimes holds the first and last seen timestamps for a specific ImageTag (image tag).
-type ImageTagTimes struct {
-	FirstSeen time.Time
-	LastSeen  time.Time
-}
-
 type seenEntry struct {
 	id        uint64
 	firstSeen int64
@@ -29,13 +23,6 @@ func timeToNanos(t time.Time) int64 {
 		return 0
 	}
 	return t.UnixNano()
-}
-
-func nanosToTime(n int64) time.Time {
-	if n == 0 {
-		return time.Time{}
-	}
-	return time.Unix(0, n)
 }
 
 // NodeBase provides the base functionality for all nodes in the activity tree.
@@ -135,19 +122,21 @@ func (b *NodeBase) SeenLen() int {
 	return len(b.seen)
 }
 
-// GetSeenTimes returns the timestamps for the given imageTagID, or the zero value and false if not found.
-func (b *NodeBase) GetSeenTimes(imageTagID uint64) (ImageTagTimes, bool) {
+// GetSeenTimes returns the first and last seen timestamps (unix nanoseconds, 0 = unset) for the
+// given imageTagID, or (0, 0, false) if not found.
+func (b *NodeBase) GetSeenTimes(imageTagID uint64) (firstSeen, lastSeen int64, found bool) {
 	for _, entry := range b.seen {
 		if entry.id == imageTagID {
-			return ImageTagTimes{FirstSeen: nanosToTime(entry.firstSeen), LastSeen: nanosToTime(entry.lastSeen)}, true
+			return entry.firstSeen, entry.lastSeen, true
 		}
 	}
-	return ImageTagTimes{}, false
+	return 0, 0, false
 }
 
-// EachSeen calls fn for every recorded image tag ID and its timestamps.
-func (b *NodeBase) EachSeen(fn func(id uint64, times ImageTagTimes)) {
+// EachSeen calls fn for every recorded image tag ID and its first/last seen timestamps
+// (unix nanoseconds, 0 = unset).
+func (b *NodeBase) EachSeen(fn func(id uint64, firstSeen, lastSeen int64)) {
 	for _, entry := range b.seen {
-		fn(entry.id, ImageTagTimes{FirstSeen: nanosToTime(entry.firstSeen), LastSeen: nanosToTime(entry.lastSeen)})
+		fn(entry.id, entry.firstSeen, entry.lastSeen)
 	}
 }

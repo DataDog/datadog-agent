@@ -1019,13 +1019,13 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 
 		m.HandleSampleRefresh(1)
 
-		procTimes, ok := processNode.GetSeenTimes(imageTagID)
+		_, procLastSeen, ok := processNode.GetSeenTimes(imageTagID)
 		assert.True(t, ok)
-		assert.True(t, procTimes.LastSeen.After(initialTime))
+		assert.Greater(t, procLastSeen, initialTime.UnixNano())
 
-		evtTimes, ok := eventNodeBase.GetSeenTimes(imageTagID)
+		_, evtLastSeen, ok := eventNodeBase.GetSeenTimes(imageTagID)
 		assert.True(t, ok)
-		assert.True(t, evtTimes.LastSeen.After(initialTime))
+		assert.Greater(t, evtLastSeen, initialTime.UnixNano())
 	})
 
 	t.Run("valid_cookie_nil_event_node_updates_process_only", func(t *testing.T) {
@@ -1048,9 +1048,9 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 
 		m.HandleSampleRefresh(1)
 
-		procTimes, ok := processNode.GetSeenTimes(imageTagID)
+		_, procLastSeen, ok := processNode.GetSeenTimes(imageTagID)
 		assert.True(t, ok)
-		assert.True(t, procTimes.LastSeen.After(initialTime))
+		assert.Greater(t, procLastSeen, initialTime.UnixNano())
 	})
 
 	t.Run("nil_process_node_removes_cookie", func(t *testing.T) {
