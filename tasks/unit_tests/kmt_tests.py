@@ -103,13 +103,16 @@ class TestKMTHelperTargets(unittest.TestCase):
         self.assertEqual(linux_platform_flags(Arch.from_str("arm64")), ["--platforms=//bazel/platforms:linux_arm64"])
 
     def test_helper_dests_are_unique_and_exist(self):
-        from tasks.kmt import _KMT_PKG_HELPER_TARGETS, _KMT_TOOL_TARGETS
+        from tasks.kmt import _KMT_PKG_HELPER_TARGETS, _KMT_TOOL_TARGETS, kmt_pkg_helper_dest
 
-        dests = list(_KMT_TOOL_TARGETS.values()) + list(_KMT_PKG_HELPER_TARGETS.values())
+        pkg_dests = [kmt_pkg_helper_dest(t) for t in _KMT_PKG_HELPER_TARGETS]
+        self.assertEqual(kmt_pkg_helper_dest("//pkg/gpu/testdata:cudasample"), "pkg/gpu/testdata/cudasample")
+
+        dests = list(_KMT_TOOL_TARGETS.values()) + pkg_dests
         self.assertEqual(len(dests), len(set(dests)))
 
         repo = Path(__file__).resolve().parents[2]
-        for dest in _KMT_PKG_HELPER_TARGETS.values():
+        for dest in pkg_dests:
             # dest is .../<pkg>/<binary>; the package dir must exist in the tree
             pkg_dir = repo / Path(dest).parent
             self.assertTrue(pkg_dir.is_dir(), pkg_dir)

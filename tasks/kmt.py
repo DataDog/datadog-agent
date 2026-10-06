@@ -682,31 +682,22 @@ _KMT_TOOL_TARGETS: dict[str, str] = {
     "//pkg/ebpf/verifier/calculator:calculator": "verifier-calculator",
 }
 
-# Per-package helpers copied next to the matching testsuite directory.
-# dest is relative to KMTPaths.sysprobe_tests.
-_KMT_PKG_HELPER_TARGETS: dict[str, str] = {
-    "//pkg/network/protocols/tls/gotls/testutil/gotls_client:gotls_client": (
-        "pkg/network/protocols/tls/gotls/testutil/gotls_client/gotls_client"
-    ),
-    "//pkg/network/protocols/tls/gotls/testutil/gotls_server:gotls_server": (
-        "pkg/network/protocols/tls/gotls/testutil/gotls_server/gotls_server"
-    ),
-    "//pkg/network/usm/testutil/grpc/grpc_external_server:grpc_external_server": (
-        "pkg/network/usm/testutil/grpc/grpc_external_server/grpc_external_server"
-    ),
-    "//pkg/network/tracer/testutil/proxy/external_unix_proxy_server:external_unix_proxy_server": (
-        "pkg/network/tracer/testutil/proxy/external_unix_proxy_server/external_unix_proxy_server"
-    ),
-    "//pkg/network/usm/sharedlibraries/testutil/fmapper:fmapper": (
-        "pkg/network/usm/sharedlibraries/testutil/fmapper/fmapper"
-    ),
-    "//pkg/network/usm/testutil/prefetch_file:prefetch_file": "pkg/network/usm/testutil/prefetch_file/prefetch_file",
-    "//pkg/discovery/module/testutil/fake_server:fake_server": "pkg/discovery/module/testutil/fake_server/fake_server",
-    "//pkg/ebpf/uprobes/testutil/standalone_attacher:standalone_attacher": (
-        "pkg/ebpf/uprobes/testutil/standalone_attacher/standalone_attacher"
-    ),
-    "//pkg/gpu/testdata:cudasample": "pkg/gpu/testdata/cudasample",
-}
+# Per-package helpers, copied to <package>/<name> under KMTPaths.sysprobe_tests.
+_KMT_PKG_HELPER_TARGETS = [
+    "//pkg/network/protocols/tls/gotls/testutil/gotls_client:gotls_client",
+    "//pkg/network/protocols/tls/gotls/testutil/gotls_server:gotls_server",
+    "//pkg/network/usm/testutil/grpc/grpc_external_server:grpc_external_server",
+    "//pkg/network/tracer/testutil/proxy/external_unix_proxy_server:external_unix_proxy_server",
+    "//pkg/network/usm/sharedlibraries/testutil/fmapper:fmapper",
+    "//pkg/network/usm/testutil/prefetch_file:prefetch_file",
+    "//pkg/discovery/module/testutil/fake_server:fake_server",
+    "//pkg/ebpf/uprobes/testutil/standalone_attacher:standalone_attacher",
+    "//pkg/gpu/testdata:cudasample",
+]
+
+
+def kmt_pkg_helper_dest(target: str) -> str:
+    return target.removeprefix("//").replace(":", "/")
 
 
 def canonical_go_test_label(label: str) -> str:
@@ -794,7 +785,7 @@ def stage_kmt_helper_binaries(ctx: Context, kmt_paths: KMTPaths, arch: Arch, *, 
     dest_by_target = {target: str(kmt_paths.dependencies / dest) for target, dest in _KMT_TOOL_TARGETS.items()}
     if include_pkg_helpers:
         dest_by_target.update(
-            {target: str(kmt_paths.sysprobe_tests / dest) for target, dest in _KMT_PKG_HELPER_TARGETS.items()}
+            {target: str(kmt_paths.sysprobe_tests / kmt_pkg_helper_dest(target)) for target in _KMT_PKG_HELPER_TARGETS}
         )
 
     info("[+] Building KMT helper binaries via Bazel...")
