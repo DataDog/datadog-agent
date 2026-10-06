@@ -23,7 +23,6 @@ import (
 	"github.com/cloudfoundry-community/go-cfclient/v2"
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/command"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
@@ -231,7 +230,7 @@ func run(
 		return err
 	}
 
-	common.LoadComponents(ac, config)
+	ac.LoadComponents(config)
 
 	// Set up check collector
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, taggerComp, filterStore), true)

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
@@ -23,6 +24,8 @@ import (
 // team: container-platform
 type Component interface {
 	AddConfigProvider(provider types.ConfigProvider, shouldPoll bool, pollInterval time.Duration)
+	// LoadComponents synchronously configures the default providers and listeners.
+	LoadComponents(config.Component)
 	LoadAndRun(ctx context.Context)
 	GetUnresolvedConfigs() []integration.Config
 	GetAllConfigs() []integration.Config

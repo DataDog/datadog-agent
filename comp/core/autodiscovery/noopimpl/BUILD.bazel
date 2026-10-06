@@ -11,6 +11,7 @@ go_library(
         "//comp/core/autodiscovery/providers/types",
         "//comp/core/autodiscovery/scheduler",
         "//comp/core/autodiscovery/telemetry",
+        "//comp/core/config",
         "//pkg/collector/check/id",
         "//pkg/config/setup",
         "//pkg/config/setup/constants",

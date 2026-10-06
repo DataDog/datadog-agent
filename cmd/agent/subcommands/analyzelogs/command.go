@@ -196,7 +196,7 @@ func resolveCheckConfig(ac autodiscovery.Component, cliParams *CliParams) ([]*so
 		context.Background(), waitTime)
 
 	config := pkgconfigsetup.Datadog()
-	common.LoadComponents(ac, config)
+	ac.LoadComponents(config)
 	ac.LoadAndRun(context.Background())
 	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.LogConfigPath}, 1, "", ac)
 	cancelTimeout()

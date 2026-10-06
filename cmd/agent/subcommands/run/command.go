@@ -519,7 +519,7 @@ func getSharedFxOption() fx.Option {
 			lc.Append(fx.Hook{
 				OnStart: func(_ context.Context) error {
 					//  setup the AutoConfig instance
-					common.LoadComponents(ac, cfg)
+					ac.LoadComponents(cfg)
 					return nil
 				},
 			})
