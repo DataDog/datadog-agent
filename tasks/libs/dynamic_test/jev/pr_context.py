@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import urllib.request
 
+from invoke import Context
+
 from tasks.libs.ciproviders.github_api import GithubAPI
+from tasks.libs.common.utils import join_command
 
 DDCI_METADATA_URL = "https://cimetadataserver.us1.ddbuild.io/internal/ddci/metadata"
 
@@ -22,15 +24,20 @@ MAX_CHANGED_FILES = 300
 MAX_DESCRIPTION_BYTES = 4_000
 
 
-def run_cmd(cmd: list[str], cwd: str | None = None) -> str:
-    res = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, timeout=60)
-    if res.returncode != 0:
-        raise RuntimeError(f"command {' '.join(cmd)} failed: {res.stderr.strip()}")
-    return res.stdout.strip()
+def run_cmd(cmd: list[str]) -> str:
+    """Run a command through invoke - the canonical task mechanism (see the
+    ~140 ctx.run call sites) - with the Windows-safe join_command quoting.
+
+    Raises RuntimeError with the command's stderr on failure.
+    """
+    result = Context().run(join_command(cmd), hide=True, warn=True, encoding="utf-8", timeout=60)
+    if result.failed:
+        raise RuntimeError(f"command {join_command(cmd)} failed: {result.stderr.strip()}")
+    return result.stdout.strip()
 
 
-def git(*args: str, cwd: str | None = None) -> str:
-    return run_cmd(["git", *args], cwd=cwd)
+def git(*args: str) -> str:
+    return run_cmd(["git", *args])
 
 
 def current_branch() -> str:
