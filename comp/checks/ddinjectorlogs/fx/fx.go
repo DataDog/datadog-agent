@@ -5,17 +5,17 @@
 
 //go:build windows
 
-// Package fx provides the fx module for the DDInjector crash telemetry component.
+// Package fx provides the fx module for the DDInjector ETW logs forwarding component.
 package fx
 
 import (
-	ddinjectorcrashimpl "github.com/DataDog/datadog-agent/comp/checks/ddinjectorcrash/impl"
+	ddinjectorlogsimpl "github.com/DataDog/datadog-agent/comp/checks/ddinjectorlogs/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(ddinjectorcrashimpl.NewComponent),
+		fxutil.ProvideComponentConstructor(ddinjectorlogsimpl.NewComponent),
 	)
 }

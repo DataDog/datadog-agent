@@ -5,11 +5,11 @@
 
 //go:build windows
 
-// Package ddinjectorcrash defines the DDInjector crash telemetry component.
-package ddinjectorcrash
+// Package ddinjectorlogs defines the DDInjector ETW logs forwarding component.
+package ddinjectorlogs
 
 // team: windows-products
 
-// Component listens for DDInjector crash events and reports them through Agent Telemetry.
+// Component forwards selected DDInjector ETW events as Agent Telemetry logs.
 type Component interface {
 }

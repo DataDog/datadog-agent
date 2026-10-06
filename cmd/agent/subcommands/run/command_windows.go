@@ -36,8 +36,8 @@ import (
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	agentcrashdetect "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/def"
 	agentcrashdetectfx "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/fx"
-	ddinjectorcrash "github.com/DataDog/datadog-agent/comp/checks/ddinjectorcrash/def"
-	ddinjectorcrashfx "github.com/DataDog/datadog-agent/comp/checks/ddinjectorcrash/fx"
+	ddinjectorlogs "github.com/DataDog/datadog-agent/comp/checks/ddinjectorlogs/def"
+	ddinjectorlogsfx "github.com/DataDog/datadog-agent/comp/checks/ddinjectorlogs/fx"
 	windowseventlog "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/def"
 	windowseventlogfx "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/fx"
 	notableeventsfx "github.com/DataDog/datadog-agent/comp/notableevents/fx"
@@ -255,7 +255,7 @@ func reRegisterCtrlHandler(log log.Component, _ collector.Component) {
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectfx.Module(),
-		ddinjectorcrashfx.Module(),
+		ddinjectorlogsfx.Module(),
 		etwtracerimpl.Module(),
 		windowseventlogfx.Module(),
 		winregistryfx.Module(),
@@ -269,7 +269,7 @@ func getPlatformModules() fx.Option {
 		}),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ agentcrashdetect.Component) {}),
-		fx.Invoke(func(_ ddinjectorcrash.Component) {}),
+		fx.Invoke(func(_ ddinjectorlogs.Component) {}),
 		fx.Invoke(func(_ etwtracer.Component) {}),
 		fx.Invoke(func(_ windowseventlog.Component) {}),
 		fx.Invoke(func(_ winregistry.Component) {}),

@@ -35,12 +35,15 @@ const (
 )
 
 type crashProcessResult struct {
-	ProcessName      string `json:"process_name"`
-	ProcessID        uint32 `json:"process_id"`
-	ExitStatus       string `json:"exit_status"`
-	ElapsedMs        int64  `json:"elapsed_ms"`
-	Phase            string `json:"phase"`
-	EventsSuppressed uint64 `json:"events_suppressed"`
+	ProcessID  uint32 `json:"process_id"`
+	ExitStatus string `json:"exit_status"`
+}
+
+// ddInjectorLog is the message the ddinjectorlogs component forwards: the ETW event with all its
+// properties, as formatted by TDH.
+type ddInjectorLog struct {
+	Event      string            `json:"event"`
+	Properties map[string]string `json:"properties"`
 }
 
 type testInjectorCrashTelemetry struct {
@@ -94,20 +97,29 @@ func (s *testInjectorCrashTelemetry) TestCrashLogReachesAgentTelemetry() {
 			if log.ErrorKind != "ddinjector_crash" {
 				continue
 			}
-			var crash crashProcessResult
+			var crash ddInjectorLog
 			if err := json.Unmarshal([]byte(log.Message), &crash); err != nil {
 				continue
 			}
-			if crash.ProcessID != process.ProcessID {
+			if crash.Event != "CrashAttribution_Event" || crash.Properties["ProcessId"] != strconv.FormatUint(uint64(process.ProcessID), 10) {
 				continue
 			}
 			assert.Equal(c, "ERROR", log.Level)
 			assert.Equal(c, 1, log.Count)
-			assert.Equal(c, "ddinjector-e2e-crash.exe", crash.ProcessName)
-			assert.Equal(c, process.ExitStatus, crash.ExitStatus)
-			assert.GreaterOrEqual(c, crash.ElapsedMs, int64(0))
-			assert.LessOrEqual(c, crash.ElapsedMs, int64(1000))
-			assert.Contains(c, []string{"during_injection", "post_injection"}, crash.Phase)
+			assert.True(c, strings.HasSuffix(crash.Properties["ProcessName"], `\ddinjector-e2e-crash.exe`), "unexpected ProcessName %q", crash.Properties["ProcessName"])
+			crashExitStatus, err := strconv.ParseUint(crash.Properties["ExitStatus"], 0, 32)
+			if assert.NoError(c, err, "unexpected ExitStatus %q", crash.Properties["ExitStatus"]) {
+				assert.Equal(c, exitStatus, crashExitStatus)
+			}
+			elapsedMs, err := strconv.ParseInt(crash.Properties["ElapsedMs"], 10, 64)
+			if assert.NoError(c, err, "unexpected ElapsedMs %q", crash.Properties["ElapsedMs"]) {
+				assert.GreaterOrEqual(c, elapsedMs, int64(0))
+				assert.LessOrEqual(c, elapsedMs, int64(1000))
+			}
+			assert.Contains(c, []string{
+				"Injection-related crash during injection detected",
+				"Injection-related crash post injection detected",
+			}, crash.Properties["Message"])
 			return
 		}
 		assert.Fail(c, "DDInjector crash telemetry not found", "no log for PID %d among %d Agent telemetry logs", process.ProcessID, len(logs))
