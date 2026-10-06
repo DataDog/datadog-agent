@@ -10,6 +10,7 @@ require (
 	github.com/go-delve/delve v1.27.2
 	github.com/go-enry/go-license-detector/v4 v4.3.1
 	github.com/golangci/golangci-lint/v2 v2.13.2
+	github.com/golangci/plugin-module-register v0.1.2
 	github.com/goware/modvendor v0.5.0
 	github.com/mailru/easyjson v0.9.1
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
@@ -131,7 +132,6 @@ require (
 	github.com/golangci/gofmt v0.0.0-20260820135601-e84e05053792 // indirect
 	github.com/golangci/golines v0.15.0 // indirect
 	github.com/golangci/misspell v0.8.0 // indirect
-	github.com/golangci/plugin-module-register v0.1.2 // indirect
 	github.com/golangci/revgrep v0.8.0 // indirect
 	github.com/golangci/rowserrcheck v0.0.0-20260419091836-c5f79b8a11ba // indirect
 	github.com/golangci/swaggoswag v0.0.0-20250504205917-77f2aca3143e // indirect

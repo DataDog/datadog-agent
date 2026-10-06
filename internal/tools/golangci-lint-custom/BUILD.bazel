@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+package(default_visibility = ["//internal/tools:__subpackages__"])
+
+go_library(
+    name = "golangci-lint-custom_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/internal/tools/golangci-lint-custom",
+    deps = [
+        "//internal/tools/regexphoist",
+        "@com_github_golangci_golangci_lint_v2//pkg/commands",
+        "@com_github_golangci_golangci_lint_v2//pkg/exitcodes",
+    ],
+)
+
+go_binary(
+    name = "golangci-lint-custom",
+    embed = [":golangci-lint-custom_lib"],
+)

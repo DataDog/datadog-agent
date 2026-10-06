@@ -5,7 +5,7 @@ load("//bazel/rules/go_shim:defs.bzl", "go_shim")
 
 go_shim(
     name = "golangci-lint",
-    tool = "@com_github_golangci_golangci_lint_v2//cmd/golangci-lint",
+    tool = "//internal/tools/golangci-lint-custom",
 )
 
 go_shim(
