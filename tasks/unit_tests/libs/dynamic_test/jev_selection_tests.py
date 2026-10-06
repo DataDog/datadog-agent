@@ -1,9 +1,9 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 from tasks.libs.dynamic_test.evaluator import ExecutedTest
-from tasks.libs.dynamic_test.index import IndexKind
+from tasks.libs.dynamic_test.index import DynamicTestIndex, IndexKind
 from tasks.libs.dynamic_test.jev_selection import (
     JevDynTestEvaluator,
     JevDynTestExecutor,
@@ -38,9 +38,22 @@ class JevSelectionTests(unittest.TestCase):
             self.assertEqual(jev_selection("fleet"), {})
 
 
+def _event(name, job, job_id, status="pass", flaky=False):
+    return {
+        "attributes": {
+            "attributes": {
+                "test": {"name": name, "status": status, "agent_is_flaky_failure": flaky},
+                "ci": {"job": {"id": job_id, "name": job}, "pipeline": {"id": "42"}},
+            }
+        }
+    }
+
+
 class JevDynTestExecutorTests(unittest.TestCase):
+    @patch(f"{MODULE}.get_ci_test_events", return_value=[])
+    @patch(f"{MODULE}.suite_entry_points", return_value={})
     @patch(f"{MODULE}.get_pipeline")
-    def test_rejects_wrong_commit_and_empty_pipeline(self, get_pipeline):
+    def test_rejects_wrong_commit_and_empty_pipeline(self, get_pipeline, _, __):
         pipeline = get_pipeline.return_value
         pipeline.sha = "b" * 40
         executor = JevDynTestExecutor(MagicMock(), SHA, "42")
@@ -52,9 +65,10 @@ class JevDynTestExecutorTests(unittest.TestCase):
         with self.assertRaisesRegex(NothingToEvaluateError, "No completed E2E jobs"):
             executor.init_index()
 
+    @patch(f"{MODULE}.get_ci_test_events", return_value=[])
+    @patch(f"{MODULE}.suite_entry_points", return_value={})
     @patch(f"{MODULE}.get_pipeline")
-    def test_sha_mismatch_can_be_allowed_explicitly(self, get_pipeline):
-        """--ignore-sha-mismatch: decide from the current checkout's context instead of failing."""
+    def test_sha_mismatch_can_be_allowed_explicitly(self, get_pipeline, _, __):
         pipeline = get_pipeline.return_value
         pipeline.sha = "b" * 40  # differs from the checkout SHA
         pipeline.jobs.list.side_effect = [
@@ -65,133 +79,110 @@ class JevDynTestExecutorTests(unittest.TestCase):
         executor.init_index()
         self.assertEqual(executor.jobs, ["new-e2e-fleet"])
 
+    @patch(f"{MODULE}.suite_entry_points")
+    @patch(f"{MODULE}.get_ci_test_events")
     @patch(f"{MODULE}.get_pipeline")
-    def test_jobs_are_scoped_statuses_paginated_and_recorded(self, get_pipeline):
+    def test_index_is_the_observed_execution_map(self, get_pipeline, events, suites):
+        """One pipeline-wide query builds the index: job -> executed entry points."""
         pipeline = get_pipeline.return_value
         pipeline.sha = SHA
-        # The pipeline-scoped jobs of each status; python-gitlab collapses
-        # list-valued scopes, so each status is queried separately
         pipeline.jobs.list.side_effect = [
-            iter([SimpleNamespace(name="new-e2e-fleet", id=1, allow_failure=False)]),
+            iter([SimpleNamespace(name="new-e2e-job-a", id=7, allow_failure=False)]),
             iter(
                 [
-                    SimpleNamespace(name="new-e2e-installer", id=2, allow_failure=True),
-                    SimpleNamespace(name="unit-tests", id=3, allow_failure=False),
+                    SimpleNamespace(name="new-e2e-job-b", id=8, allow_failure=True),
+                    SimpleNamespace(name="unit-tests", id=9, allow_failure=False),
                 ]
             ),
         ]
+        events.return_value = [
+            _event("TestA", "new-e2e-job-a", "7"),
+            _event("TestA", "new-e2e-job-a", "6"),  # older attempt of job-a: dropped
+            _event("TestB", "new-e2e-job-b", "8", status="fail"),
+            _event("TestRoot/Sub", "new-e2e-job-a", "7"),  # subtest: dropped
+            _event("TestSkipped", "new-e2e-job-a", "7", status="skip"),  # not executed: dropped
+            _event("TestC", "other-job", "99"),  # not a latest e2e job: dropped
+            _event("TestNotAnEntry", "new-e2e-job-a", "7"),  # not a filetree entry point: not decidable
+        ]
+        suites.return_value = {"fleet": {"TestA", "TestB", "TestXOnlyFiletree"}}
         executor = JevDynTestExecutor(MagicMock(), SHA, "42")
         executor.init_index()
-        get_pipeline.assert_called_once_with("DataDog/datadog-agent", "42")
-        self.assertEqual(
-            pipeline.jobs.list.call_args_list,
-            [call(scope="success", iterator=True), call(scope="failed", iterator=True)],
-        )
-        self.assertEqual(executor.kind, IndexKind.JEV)
-        self.assertEqual(executor.jobs, ["new-e2e-fleet", "new-e2e-installer"])
-        self.assertEqual(executor.job_ids, {"new-e2e-fleet": "1", "new-e2e-installer": "2"})
-        self.assertEqual(executor.unreliable_jobs, {"new-e2e-installer"})
+        # The query is pipeline-wide: no per-job scoping, no job-name escaping
+        query, days = events.call_args.args
+        self.assertIn("@ci.pipeline.id:42", query)
+        self.assertNotIn("@ci.job.name:", query)
+        self.assertEqual(days, 3)
+        # The index: only latest-attempt executed entry points, per job
+        self.assertEqual(sorted(executor.index().get_jobs()), ["new-e2e-job-a", "new-e2e-job-b"])
+        self.assertEqual(executor.index().get_indexed_tests_for_job("new-e2e-job-a"), {"TestA"})
+        self.assertEqual(executor.index().get_indexed_tests_for_job("new-e2e-job-b"), {"TestB"})
+        # The evaluator's data: statuses and allow-failure marking preserved
+        job_a = executor.executed["new-e2e-job-a"]
+        self.assertEqual([t.name for t in job_a], ["TestA", "TestNotAnEntry"])
+        self.assertTrue(all(t.status == "pass" for t in job_a))
+        self.assertTrue(executor.executed["new-e2e-job-b"][0].unreliable_status)
+        self.assertFalse(job_a[0].unreliable_status)
 
-    @patch(f"{MODULE}.suite_entry_points")
-    @patch(f"{MODULE}.jev_selection")
-    def test_jev_run_decides_suites_containing_the_names(self, select, suites):
-        suites.return_value = {
-            "a": {"TestA", "TestB", "TestDup"},
-            # Fail-open suite (selector error): everything runs
-            "b": {"TestB", "TestDup"},
-            "unused": {"TestOther"},
-        }
-        select.side_effect = [
-            {"run": [], "skip": ["TestA", "TestDup"]},  # suite a: skip TestA and TestDup
-            {},  # suite b: selector failed, fail open
-        ]
+    def test_predictions_decide_via_the_suites_that_executed(self):
         executor = JevDynTestExecutor(MagicMock(), SHA, "42")
-        self.assertEqual(executor.jev_run({"TestA", "TestB", "TestDup"}), {"TestB", "TestDup"})
-        self.assertEqual([c.args[0] for c in select.call_args_list], ["a", "b"])
+        executor._index = DynamicTestIndex()
+        executor._index.add_tests("job", "executed", {"TestA", "TestDup"})
+        with (
+            patch(f"{MODULE}.suite_entry_points", return_value={"a": {"TestA", "TestDup"}, "b": {"TestDup"}}),
+            patch(
+                f"{MODULE}.jev_selection",
+                side_effect=[
+                    {"run": [], "skip": ["TestA", "TestDup"]},  # suite a: skips both
+                    {},  # suite b: selector failure, fail open
+                ],
+            ),
+        ):
+            self.assertEqual(executor.tests_to_run_per_job([]), {"job": {"TestDup"}})
+            self.assertEqual(executor.tests_to_run("job", []), {"TestDup"})
+            self.assertEqual(executor.tests_to_skip("job", []), {"TestA"})
+        self.assertEqual(executor.triggering_paths("job", "TestA"), [])
 
 
 class JevDynTestEvaluatorTests(unittest.TestCase):
-    @staticmethod
-    def _event(name, job, job_id, status="pass", flaky=False):
-        return {
-            "attributes": {
-                "attributes": {
-                    "test": {"name": name, "status": status, "agent_is_flaky_failure": flaky},
-                    "ci": {"job": {"id": job_id, "name": job}, "pipeline": {"id": "42"}},
-                }
-            }
+    def _executor_with_index(self, executed):
+        executor = JevDynTestExecutor(MagicMock(), SHA, "42")
+        executor.executed = executed
+        executor._index = DynamicTestIndex()
+        for job, tests in executed.items():
+            executor._index.add_tests(job, "executed", {t.name for t in tests if t.name != "TestNotAnEntry"})
+        return executor
+
+    @patch.object(JevDynTestExecutor, "_jev_run", return_value={"TestPass", "TestSkipKeep"})
+    def test_base_evaluation_flow_runs_untouched(self, _):
+        """The shared evaluate() works against the Jev executor's index."""
+        executed = {
+            "job": [
+                ExecutedTest("TestPass", "pass", "42", "7", "job", False),
+                ExecutedTest("TestFail", "fail", "42", "7", "job", False),
+                ExecutedTest("TestFlaky", "fail", "42", "7", "job", True),
+                ExecutedTest("TestNotAnEntry", "fail", "42", "7", "job", False),
+            ]
         }
-
-    def _evaluator(self, executor, job="job"):
+        executor = self._executor_with_index(executed)
         evaluator = JevDynTestEvaluator(MagicMock(), IndexKind.JEV, executor, "42", telemetry_handler=MagicMock())
-        evaluator.job_ids = {job: "7"}
-        return evaluator
-
-    def test_evaluate_uses_executed_tests_as_the_per_job_universe(self):
-        executor = MagicMock(spec=JevDynTestExecutor)
-        executor.jobs = ["job", "cleanup-job"]
-        executor.entry_points.return_value = {"TestPass", "TestFail", "TestFlaky", "TestSkipKeep"}
-        executor.jev_run.return_value = {"TestPass", "TestSkipKeep"}
-        tests = [
-            ExecutedTest("TestPass", "pass", "42", "7", "job", False),
-            ExecutedTest("TestFail", "fail", "42", "7", "job", False),
-            ExecutedTest("TestFlaky", "fail", "42", "7", "job", True),
-            ExecutedTest("TestNotAnEntryPoint", "fail", "42", "7", "job", False),
-        ]
-        evaluator = self._evaluator(executor)
-        with patch.object(evaluator, "list_tests_per_job", return_value={"job": tests}):
-            results = evaluator.evaluate([])
-        self.assertEqual(len(results), 1)  # the job with no executions is dropped
+        evaluator.index = executor.index()  # normally set by initialize()
+        results = evaluator.evaluate([])  # DatadogDynTestEvaluator.evaluate, not overridden
+        self.assertEqual(len(results), 1)
         result = results[0]
         self.assertEqual(result.job_name, "job")
         # Actual universe = executed entry points only
         self.assertEqual(result.actual_executed_tests, {"TestPass", "TestFail", "TestFlaky"})
-        self.assertEqual(
-            result.predicted_executed_tests,
-            {"TestPass"},
-        )  # TestSkipKeep is predicted but did not run; not a miss
+        # TestSkipKeep is predicted but did not run: visible as prediction, not a miss
+        self.assertEqual(result.predicted_executed_tests, {"TestPass"})
         # Only reliable failures that Jev would skip count as misses
         self.assertEqual(result.not_executed_failing_tests, {"TestFail"})
-        # Jev is only asked about suites containing executed entry points
-        executor.jev_run.assert_called_once_with({"TestPass", "TestFail", "TestFlaky"})
 
-    def test_evaluate_with_no_executions_anywhere_is_empty(self):
-        executor = MagicMock(spec=JevDynTestExecutor)
-        executor.jobs = ["job"]
-        evaluator = self._evaluator(executor)
-        with patch.object(evaluator, "list_tests_per_job", return_value={}):
-            self.assertEqual(evaluator.evaluate([]), [])
-        executor.jev_run.assert_not_called()
-        executor.entry_points.assert_not_called()
-
-    @patch(f"{MODULE}.get_ci_test_events")
-    def test_list_tests_per_job_groups_by_job_and_keeps_latest_attempts(self, events):
-        """One pipeline-wide query; the events carry their job."""
-        events.return_value = [
-            self._event("TestA", "job-a", "7"),
-            self._event("TestA", "job-a", "6"),  # older attempt of job-a: dropped
-            self._event("TestB", "job-b", "8", status="fail", flaky=True),
-            self._event("TestRoot/Sub", "job-a", "7"),  # subtest: dropped
-            self._event("TestSkipped", "job-a", "7", status="skip"),  # not executed: dropped
-            self._event("TestC", "other-job", "99"),  # not a latest e2e job: dropped
-        ]
-        executor = MagicMock(spec=JevDynTestExecutor)
+    def test_list_tests_for_job_reads_the_executor_index_fetch(self):
+        executed = {"job": [ExecutedTest("TestPass", "pass", "42", "7", "job", False)]}
+        executor = self._executor_with_index(executed)
         evaluator = JevDynTestEvaluator(MagicMock(), IndexKind.JEV, executor, "42", telemetry_handler=MagicMock())
-        evaluator.job_ids = {"job-a": "7", "job-b": "8"}
-        evaluator.unreliable_jobs = {"job-b"}
-        grouped = evaluator.list_tests_per_job()
-        self.assertEqual(
-            {job: [t.name for t in ts] for job, ts in grouped.items()}, {"job-a": ["TestA"], "job-b": ["TestB"]}
-        )
-        # the query is pipeline-wide: no per-job scoping, no job-name escaping
-        query, days = events.call_args.args
-        self.assertIn("@ci.pipeline.id:42", query)
-        self.assertNotIn("@ci.job.name:", query)
-        self.assertEqual(days, evaluator.lookback_days)
-        # flaky and allow-failure markings survive the bulk path
-        job_b = grouped["job-b"][0]
-        self.assertEqual(job_b.status, "fail")
-        self.assertTrue(job_b.unreliable_status)
+        self.assertEqual(evaluator.list_tests_for_job("job"), executed["job"])
+        self.assertEqual(evaluator.list_tests_for_job("unknown-job"), [])
 
 
 if __name__ == "__main__":

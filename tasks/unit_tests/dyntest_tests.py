@@ -24,11 +24,15 @@ class EvaluateIndexTests(unittest.TestCase):
         s3.assert_not_called()
         self.assertEqual(executor.call_args.args[1:], ("abc", "42"))
         self.assertTrue(executor.call_args.kwargs["require_pipeline_commit"])
+        # The executor owns the CI Visibility fetch (index build), the evaluator reads from it
+        self.assertEqual(executor.call_args.kwargs["test_env"], "nativetest")
+        self.assertEqual(executor.call_args.kwargs["lookback_days"], 3)
         evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False, ignore_sha_mismatch=True)
         self.assertFalse(executor.call_args.kwargs["require_pipeline_commit"])
+        # The evaluator gets no CI Visibility options: its data comes from the executor
         options = evaluator.call_args.kwargs
-        self.assertEqual(options["test_env"], "nativetest")
-        self.assertIs(options["job_ids"], executor.return_value.job_ids)
+        self.assertNotIn("test_env", options)
+        self.assertNotIn("job_ids", options)
         self.assertIsInstance(options["telemetry_handler"], ConsoleTelemetryHandler)
         evaluator.return_value.send_stats_to_datadog.assert_not_called()
 

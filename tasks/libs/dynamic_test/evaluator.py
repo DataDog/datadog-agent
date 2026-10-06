@@ -406,6 +406,40 @@ This indicates an issue with the dynamic test system that may affect CI performa
         return EvaluationResult(job, actual_executed_tests, predicted_executed_tests, not_executed_failing_tests)
 
 
+def executed_tests_from_events(events: list, unreliable_jobs: set[str] | None = None) -> list[ExecutedTest]:
+    """Executed tests from CI Visibility events: root tests, pass/fail only.
+
+    Flaky failures and tests from allow-failure jobs are marked unreliable.
+    The job comes from the event itself, so this works for per-job queries and
+    a pipeline-wide bulk query alike.
+    """
+    unreliable_jobs = unreliable_jobs or set()
+    tests: list[ExecutedTest] = []
+    for item in events:
+        attrs = item.get("attributes", {}).get("attributes", {})
+        test_attrs = attrs.get("test", {})
+        ci_attrs = attrs.get("ci", {})
+        job_attrs = ci_attrs.get("job", {})
+        # Only consider root tests, not sub-tests
+        if not test_attrs.get("name") or "/" in test_attrs["name"] or test_attrs.get("status") not in {"pass", "fail"}:
+            continue
+
+        tests.append(
+            ExecutedTest(
+                name=test_attrs["name"],
+                status=test_attrs["status"],
+                pipeline_id=ci_attrs.get("pipeline", {}).get("id"),
+                job_id=job_attrs.get("id"),
+                job_name=job_attrs.get("name"),
+                unreliable_status=(
+                    job_attrs.get("name") in unreliable_jobs
+                    or str(test_attrs.get("agent_is_flaky_failure", False)).lower() == "true"
+                ),
+            )
+        )
+    return tests
+
+
 class DatadogDynTestEvaluator(DynTestEvaluator):
     """Datadog API-based implementation of DynTestEvaluator.
 
@@ -433,40 +467,8 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
         self.unreliable_jobs = unreliable_jobs if unreliable_jobs is not None else set()
 
     def _parse_test_events(self, events: list) -> list[ExecutedTest]:
-        """Executed tests from CI Visibility events: root tests, pass/fail only.
-
-        Flaky failures and tests from allow-failure jobs are marked unreliable.
-        The job comes from the event itself, so this works for both per-job
-        queries and a pipeline-wide bulk query.
-        """
-        tests: list[ExecutedTest] = []
-        for item in events:
-            attrs = item.get("attributes", {}).get("attributes", {})
-            test_attrs = attrs.get("test", {})
-            ci_attrs = attrs.get("ci", {})
-            job_attrs = ci_attrs.get("job", {})
-            # Only consider root tests, not sub-tests
-            if (
-                not test_attrs.get("name")
-                or "/" in test_attrs["name"]
-                or test_attrs.get("status") not in {"pass", "fail"}
-            ):
-                continue
-
-            tests.append(
-                ExecutedTest(
-                    name=test_attrs["name"],
-                    status=test_attrs["status"],
-                    pipeline_id=ci_attrs.get("pipeline", {}).get("id"),
-                    job_id=job_attrs.get("id"),
-                    job_name=job_attrs.get("name"),
-                    unreliable_status=(
-                        job_attrs.get("name") in self.unreliable_jobs
-                        or str(test_attrs.get("agent_is_flaky_failure", False)).lower() == "true"
-                    ),
-                )
-            )
-        return tests
+        """Executed tests from CI Visibility events: root tests, pass/fail only."""
+        return executed_tests_from_events(events, self.unreliable_jobs)
 
     def list_tests_for_job(self, job_name: str) -> list[ExecutedTest]:
         """Retrieve tests executed in a specific job using Datadog CI API.

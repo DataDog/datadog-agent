@@ -118,17 +118,26 @@ def evaluate_index(
         raise Exit("Provide a numeric --pipeline-id and positive --lookback-days", code=1)
     head = get_commit_sha(ctx)
     commit_sha = commit_sha or head
-    options = {"test_env": test_env or ("nativetest" if selector == "jev" else "prod"), "lookback_days": lookback_days}
     evaluator_type: type[DatadogDynTestEvaluator] = DatadogDynTestEvaluator
     if selector == "jev":
         if commit_sha != head:
             raise Exit("For Jev, check out the pipeline commit and pass its full SHA (or omit --commit-sha)", code=1)
-        executor = JevDynTestExecutor(ctx, commit_sha, pipeline_id, require_pipeline_commit=not ignore_sha_mismatch)
+        # The executor fetches the executed tests itself when building its
+        # index (one pipeline-wide query); the evaluator reads them from it.
+        executor = JevDynTestExecutor(
+            ctx,
+            commit_sha,
+            pipeline_id,
+            require_pipeline_commit=not ignore_sha_mismatch,
+            test_env=test_env or "nativetest",
+            lookback_days=lookback_days,
+        )
         executors = [executor]
-        options.update(job_ids=executor.job_ids, unreliable_jobs=executor.unreliable_jobs)
+        options = {}
         changes = []  # Jev gathers the richer PR diff/context from this checkout.
         evaluator_type = JevDynTestEvaluator
     else:
+        options = {"test_env": test_env or "prod", "lookback_days": lookback_days}
         backend = S3Backend(bucket_uri)
         changed_files = get_modified_files(ctx)
         changes = list({os.path.dirname(change) for change in changed_files}) + changed_files

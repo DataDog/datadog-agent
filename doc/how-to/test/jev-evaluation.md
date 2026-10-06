@@ -56,18 +56,22 @@ This preview can still read GitHub/DDCI PR metadata when configured.
 
 ## Integration and interpretation
 
-- `JevDynTestExecutor` loads the pipeline's completed (success/failed) E2E jobs
-  from the shared GitLab client (each status queried separately, all pages).
+- `JevDynTestExecutor` is a real `DynTestExecutor`: its index is the
+  pipeline's observed execution map (job -> executed tests), loaded by
+  `init_index()` with ONE pipeline-wide CI Visibility query - the coverage
+  executors load theirs from S3, this one from the execution it evaluates.
+  The pipeline's completed e2e jobs come from the shared GitLab client (each
+  status queried separately, all pages; older retries dropped by job id).
   No CI-configuration parsing is involved.
 - The decidable universe is the E2E test filetree (`test/new-e2e/tests`), and
   each job's universe is the tests that actually executed in it (CI
   Visibility). Cleanup/unit-test jobs without executions are not evaluated;
   executed tests that are not filetree entry points are not decidable.
-- `JevDynTestEvaluator` fetches the executed tests with ONE pipeline-wide
-  CI Visibility query (the events carry their job, older attempts of retried
-  jobs are dropped by job id) and shares the flaky/allow-failure handling,
-  miss logic and telemetry with the coverage evaluation. The `index_kind:jev`
-  tag identifies Jev metrics.
+- `JevDynTestEvaluator` runs the shared evaluation flow unmodified; its only
+  Jev-specific method reads the executed tests the executor already fetched
+  (no per-job CI Visibility query). Flaky/allow-failure handling, miss logic
+  and telemetry are the coverage evaluation's. The `index_kind:jev` tag
+  identifies Jev metrics.
 - Only explicit, valid Jev skip decisions remove tests. Transport, authentication,
   timeout or parsing failures run the affected tests. Duplicate bare test names
   run conservatively if any occurrence should run.
