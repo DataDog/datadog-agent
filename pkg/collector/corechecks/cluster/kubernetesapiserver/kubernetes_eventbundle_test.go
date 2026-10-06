@@ -320,3 +320,42 @@ func TestKubernetesEventBundle_fitsEvent(t *testing.T) {
 		})
 	}
 }
+
+// TestTruncateOversizedEvent tests that events whose text fits an empty
+// bundle are returned unchanged, that oversized messages are cut down to the
+// bundle budget and marked as truncated, and that the input event is never
+// modified.
+func TestTruncateOversizedEvent(t *testing.T) {
+	component := "kubelet"
+	limit := maxEstimatedEventTextLength - bundleFixedOverhead - len(component) - estimateEventOverhead("")
+	atLimitMessage := strings.Repeat("a", limit-len(buildEventText("Failed", "")))
+
+	tests := []struct {
+		name          string
+		message       string
+		wantTruncated bool
+	}{
+		{"message fits an empty bundle", "short message", false},
+		{"message exactly at the limit", atLimitMessage, false},
+		{"message over the limit", atLimitMessage + "tail", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ev := createEvent(1, "default", "pod", "Pod", "uid-trunc", component, component, "", "Failed", tt.message, "Warning", 100)
+
+			got, truncated := truncateOversizedEvent(ev)
+
+			assert.Equal(t, tt.wantTruncated, truncated)
+			if !tt.wantTruncated {
+				assert.Same(t, ev, got)
+				return
+			}
+
+			assert.True(t, strings.HasSuffix(got.Message, truncatedMessageMarker))
+			assert.Len(t, buildEventText(got.Reason, got.Message), limit)
+			// The input event is never mutated.
+			assert.Equal(t, tt.message, ev.Message)
+		})
+	}
+}

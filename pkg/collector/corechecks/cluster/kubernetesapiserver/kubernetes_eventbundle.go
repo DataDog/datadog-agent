@@ -197,11 +197,9 @@ func estimateEventOverhead(eventText string) int {
 
 // truncateOversizedEvent truncates the event message if it exceeds the limit, otherwise returns the event unchanged.
 func truncateOversizedEvent(event *v1.Event) (*v1.Event, bool) {
-	// If we had an event with no text, the limit for the event text would be:
-	limit := maxEstimatedEventTextLength // The total limit
-	-bundleFixedOverhead                 // The fixed overhead
-	-len(event.Source.Component)         // The component name
-	-estimatedEventOverhead("")          // The estimated overhead for an (empty) event
+	// The event text limit for an empty bundle: the total budget minus the
+	// fixed overhead, the component name and the estimated count prefix.
+	limit := maxEstimatedEventTextLength - bundleFixedOverhead - len(event.Source.Component) - estimateEventOverhead("")
 
 	// If the event text fits the limit, return the event unchanged
 	if len(buildEventText(event.Reason, event.Message)) <= limit {
@@ -209,7 +207,7 @@ func truncateOversizedEvent(event *v1.Event) (*v1.Event, bool) {
 	}
 
 	// Leave room for the reason, the marker and the newline.
-	messageBudget := math.Max(limit-len(buildEventText(event.Reason, ""))-len(truncatedMessageMarker), 0)
+	messageBudget := max(limit-len(buildEventText(event.Reason, ""))-len(truncatedMessageMarker), 0)
 
 	truncated := *event
 	truncated.Message = strings.ToValidUTF8(event.Message[:messageBudget], "") + truncatedMessageMarker

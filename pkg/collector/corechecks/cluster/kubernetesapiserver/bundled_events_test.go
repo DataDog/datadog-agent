@@ -8,7 +8,6 @@
 package kubernetesapiserver
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -307,88 +306,40 @@ func TestBundledEventsTransform(t *testing.T) {
 	}
 }
 
+// TestBundledEventsTransformOversizedEvent tests that a single event too long
+// to fit in any bundle is truncated and still exported. Only an event whose
+// reason alone busts the budget cannot be truncated and is dropped.
 func TestBundledEventsTransformOversizedEvent(t *testing.T) {
 	oversizedMessage := strings.Repeat("a", 4000)
+	oversizedReason := strings.Repeat("r", 3500)
 
 	tests := []struct {
-		name             string
-		events           []*v1.Event
-		expectTooLongErr bool
+		name          string
+		events        []*v1.Event
+		wantDDEvents  int
+		wantErrs      int
+		wantTruncated bool
 	}{
 		{
-			name:             "oversized event returns errEventTextTooLong",
-			events:           []*v1.Event{createEvent(1, "default", "pod", "Pod", "uid-oversized", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600)},
-			expectTooLongErr: true,
+			name:          "oversized message is truncated and exported",
+			events:        []*v1.Event{createEvent(1, "default", "pod", "Pod", "uid-oversized", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600)},
+			wantDDEvents:  1,
+			wantErrs:      0,
+			wantTruncated: true,
 		},
 		{
-			name:             "normal event batch returns no errors",
-			events:           []*v1.Event{createEvent(1, "default", "pod", "Pod", "uid-normal", "kubelet", "kubelet", "", "Killing", "Stopping container pod", "Normal", 709662600)},
-			expectTooLongErr: false,
-		},
-	}
-
-	transformer := newBundledTransformer("test-cluster", taggerfxmock.SetupFakeTagger(t), []collectedEventType{}, false)
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, errs := transformer.Transform(tt.events)
-
-			if !tt.expectTooLongErr {
-				assert.Empty(t, errs)
-				return
-			}
-
-			var tooLongErrs []error
-			for _, err := range errs {
-				if errors.Is(err, errEventTextTooLong) {
-					tooLongErrs = append(tooLongErrs, err)
-				}
-			}
-			require.Len(t, tooLongErrs, 1)
-			expectedMsg := fmt.Sprintf("event text length exceeds the maximum allowed length: %d > %d (reason: %s, source: %s, involved_object: %s)",
-				len("**Failed**: "+oversizedMessage+"\n"), 3750, "Failed", "kubelet", "Pod default/pod")
-			assert.Equal(t, expectedMsg, tooLongErrs[0].Error())
-		})
-	}
-}
-
-// TestBundledEventsTransformOversizedEventNoEmptyBundle tests that dropping
-// events too large for any bundle never leaves an empty registered bundle. 
-func TestBundledEventsTransformOversizedEventNoEmptyBundle(t *testing.T) {
-	oversizedMessage := strings.Repeat("a", 4000)
-
-	tests := []struct {
-		name         string
-		events       []*v1.Event
-		wantErrs     int
-		wantDDEvents int
-	}{
-		{
-			name: "oversized first event for object",
-			events: []*v1.Event{
-				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
-			},
-			wantErrs:     1,
-			wantDDEvents: 0,
+			name:          "normal event is exported as is",
+			events:        []*v1.Event{createEvent(1, "default", "pod", "Pod", "uid-normal", "kubelet", "kubelet", "", "Killing", "Stopping container pod", "Warning", 709662600)},
+			wantDDEvents:  1,
+			wantErrs:      0,
+			wantTruncated: false,
 		},
 		{
-			name: "oversized event after fitting event",
-			events: []*v1.Event{
-				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Killing", "Stopping container pod", "Warning", 709662600),
-				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
-			},
-			wantErrs:     1,
-			wantDDEvents: 1,
-		},
-		{
-			name: "repeated oversized events for one object",
-			events: []*v1.Event{
-				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
-				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
-				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
-			},
-			wantErrs:     3,
-			wantDDEvents: 0,
+			name:          "reason alone over the budget is dropped",
+			events:        []*v1.Event{createEvent(1, "default", "pod", "Pod", "uid-degenerate", "kubelet", "kubelet", "", oversizedReason, "message", "Warning", 709662600)},
+			wantDDEvents:  0,
+			wantErrs:      1,
+			wantTruncated: false,
 		},
 	}
 
@@ -398,11 +349,68 @@ func TestBundledEventsTransformOversizedEventNoEmptyBundle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ddEvents, errs := transformer.Transform(tt.events)
 
-			// Only the too-long drop error is expected, never "no event to export".
+			require.Len(t, ddEvents, tt.wantDDEvents)
 			require.Len(t, errs, tt.wantErrs)
-			for _, err := range errs {
-				assert.ErrorIs(t, err, errEventTextTooLong)
+			if tt.wantTruncated {
+				assert.Contains(t, ddEvents[0].Text, truncatedMessageMarker)
+				assert.Contains(t, ddEvents[0].Text, "**Failed**")
+				// The events API rejects event text over 4000 characters.
+				assert.LessOrEqual(t, len(ddEvents[0].Text), 4000)
 			}
+			if tt.wantErrs > 0 {
+				assert.ErrorIs(t, errs[0], errEventTextTooLong)
+				assert.Contains(t, errs[0].Error(), "reason: ")
+			}
+		})
+	}
+}
+
+// TestBundledEventsTransformOversizedEventNoEmptyBundle tests that oversized
+// events never leave an empty registered bundle behind ("no event to export")
+// and that repeated identical oversized messages aggregate into one bundle.
+func TestBundledEventsTransformOversizedEventNoEmptyBundle(t *testing.T) {
+	oversizedMessage := strings.Repeat("a", 4000)
+
+	tests := []struct {
+		name         string
+		events       []*v1.Event
+		wantDDEvents int
+	}{
+		{
+			name: "oversized first event for object",
+			events: []*v1.Event{
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
+			},
+			wantDDEvents: 1,
+		},
+		{
+			name: "oversized event after fitting event",
+			events: []*v1.Event{
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Killing", "Stopping container pod", "Warning", 709662600),
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
+			},
+			wantDDEvents: 2,
+		},
+		{
+			name: "repeated oversized events for one object",
+			events: []*v1.Event{
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
+			},
+			wantDDEvents: 1,
+		},
+	}
+
+	transformer := newBundledTransformer("test-cluster", taggerfxmock.SetupFakeTagger(t), []collectedEventType{}, false)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ddEvents, errs := transformer.Transform(tt.events)
+
+			// No errors at all: no drop error, and no "no event to export" from
+			// an empty bundle.
+			assert.Empty(t, errs)
 			require.Len(t, ddEvents, tt.wantDDEvents)
 		})
 	}
