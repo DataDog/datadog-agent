@@ -28,6 +28,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/startup"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -44,13 +45,16 @@ var (
 	legacyProviders = []string{"kubelet", "container", "docker"}
 )
 
-func setupAutoDiscovery(confSearchPaths []string, ac autodiscovery.Component, cfg config.Component) {
+func setupAutoDiscovery(confSearchPaths []string, ac autodiscovery.Component, cfg config.Component, recorder *startup.Recorder) {
 	if cfg.GetString("fleet_policies_dir") != "" {
 		confSearchPaths = append(confSearchPaths, filepath.Join(cfg.GetString("fleet_policies_dir"), "conf.d"))
 	}
 
+	phase := recorder.Start("autodiscovery.config_files.initialize", "file")
 	providers.InitConfigFilesReader(confSearchPaths)
+	phase.Finish(nil)
 
+	phase = recorder.Start("autodiscovery.file_provider.register", "file")
 	acTelemetryStore := ac.GetTelemetryStore()
 
 	ac.AddConfigProvider(
@@ -59,16 +63,23 @@ func setupAutoDiscovery(confSearchPaths []string, ac autodiscovery.Component, cf
 		time.Duration(cfg.GetInt("autoconf_config_files_poll_interval"))*time.Second,
 	)
 
+	phase.Finish(nil)
+
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
+	phase = recorder.Start("autodiscovery.discover.config", "config")
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig(cfg)
+	phase.Finish(nil)
 
 	var extraEnvProviders []constants.ConfigurationProviders
 	var extraEnvListeners []pkgconfigsetup.Listeners
 	if pkgconfigenv.IsAutoconfigEnabled(cfg) && !helper.IsCLCRunner(cfg) {
+		phase = recorder.Start("autodiscovery.discover.environment", "environment")
 		extraEnvProviders, extraEnvListeners = confad.DiscoverComponentsFromEnv(cfg)
+		phase.Finish(nil)
 	}
 
 	// Register additional configuration providers
+	phase = recorder.Start("autodiscovery.providers.configure", "config")
 	var configProviders []constants.ConfigurationProviders
 	var uniqueConfigProviders map[string]constants.ConfigurationProviders
 	err := structure.UnmarshalKey(cfg, "config_providers", &configProviders)
@@ -116,6 +127,8 @@ func setupAutoDiscovery(confSearchPaths []string, ac autodiscovery.Component, cf
 		log.Errorf("Error while reading 'config_providers' settings: %v", err)
 	}
 
+	phase.Finish(err)
+
 	// Adding all found providers
 	for _, cp := range uniqueConfigProviders {
 		if err := ac.AddConfigProviderFromCatalog(cp); err != nil {
@@ -123,6 +136,7 @@ func setupAutoDiscovery(confSearchPaths []string, ac autodiscovery.Component, cf
 		}
 	}
 
+	phase = recorder.Start("autodiscovery.listeners.configure", "config")
 	var listeners []pkgconfigsetup.Listeners
 	err = structure.UnmarshalKey(cfg, "listeners", &listeners)
 	if err == nil {
@@ -188,8 +202,10 @@ func setupAutoDiscovery(confSearchPaths []string, ac autodiscovery.Component, cf
 			listeners[i].SetEnabledProviders(providersSet)
 		}
 
+		phase.Finish(nil)
 		ac.AddListeners(listeners)
 	} else {
+		phase.Finish(err)
 		log.Errorf("Error while reading 'listeners' settings: %v", err)
 	}
 }

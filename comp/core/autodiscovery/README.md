@@ -35,6 +35,37 @@ Cluster      │ ┌────────────────┐
                  └─────────────┘
 ```
 
+## Synchronous startup tracing
+
+With `DD_FX_TRACING_ENABLED=true`, the core Agent records AD setup phases in the
+existing `dd-agent-fx-init` trace. Initialization remains synchronous: these spans
+are children of the original `LoadComponents` Fx startup hook, not a new
+background preparation operation.
+
+Phase names identify file-reader initialization (including its initial scan,
+parsing, and cache fill), configuration/environment discovery, provider/listener
+configuration, and each registered provider factory. Listener initialization has
+nested spans for candidate registration, lock acquisition, each factory attempt,
+and each `Listen` call. Resources are fixed phase labels or registered
+provider/listener types; no configuration values, paths, URLs, or error messages
+are recorded. A factory error marks its phase as failed without changing Fx's
+startup outcome or the existing retry policy.
+
+The recorder is app-local and is supplied by `DefaultFxLoggingOption`. It records
+only inside synchronous `OnStart` hooks. Listener retries are intentionally
+excluded, and late phase completions are discarded rather than attached to a
+later hook. If startup ends while work is still running, its partial hook/phase
+spans are retained with `startup.incomplete=1`; these are elapsed times at the
+snapshot boundary, not completed operation durations. This also preserves the
+parent chain of phases that already finished. It captures at most 128 phases per startup; any cap-related omissions
+are reported in the root span's `startup.phase_spans_dropped` metric. Disabled or
+absent recorders do no I/O and allocate no phase objects.
+
+These timings distinguish expensive setup work from other startup hooks. They do
+not measure first provider collection, workloadmeta readiness, first check
+execution, or end-to-end telemetry delivery. Asynchronous preparation would need
+a different recorder lifetime; it must not reuse this synchronous hook scope.
+
 ## Config Providers
 
 The [config providers](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers) draw configuration information from many sources
