@@ -7,6 +7,7 @@ package lsof
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -46,14 +47,20 @@ type procfsProc interface {
 }
 
 type socketInfo struct {
-	Protocol   string
-	State      string
+	Protocol string
+
+	// common
+	State string
+
+	// tcp/tcp6/udp/udp6
 	LocalAddr  net.IP
 	LocalPort  uint64
 	RemoteAddr net.IP
 	RemotePort uint64
-	UnixType   procfs.NetUNIXType
-	Path       string
+
+	// unix
+	UnixType procfs.NetUNIXType
+	Path     string
 }
 
 func openFiles(ctx context.Context, pid int) (Files, error) {
@@ -316,10 +323,16 @@ func (ofl *openFilesLister) renderSocketInfo(si socketInfo) string {
 		remoteInfo = fmt.Sprintf(" (%s)", strings.Join(host, ","))
 	} else {
 		log.Debugf("Failed to lookup address %s: %s", addr, err)
-		if si.RemoteAddr.IsPrivate() {
-			remoteInfo = " (private)"
+
+		var dnsErr *net.DNSError
+		if errors.As(err, &dnsErr) && dnsErr.IsNotFound {
+			if si.RemoteAddr.IsPrivate() {
+				remoteInfo = " (private)"
+			} else {
+				remoteInfo = " (not found)"
+			}
 		} else {
-			remoteInfo = " (unknown)"
+			remoteInfo = fmt.Sprintf(" (%s)", err)
 		}
 	}
 

@@ -431,7 +431,13 @@ func TestRenderSocketInfo(t *testing.T) {
 		case "20.199.39.225":
 			return []string{"example2.com", "example3.com"}, nil
 		case "20.199.39.226", "192.168.1.50":
-			return nil, errors.New("failed")
+			return nil, &net.DNSError{Err: "no such host", Name: addr, IsNotFound: true}
+		case "20.199.39.227":
+			return nil, errors.New("resolver unavailable")
+		case "20.199.39.228":
+			return nil, context.DeadlineExceeded
+		case "?010203":
+			return nil, &net.DNSError{Err: "invalid address", Name: addr}
 		default:
 			t.Fatalf("unexpected address: %s", addr)
 			return nil, nil
@@ -454,9 +460,31 @@ func TestRenderSocketInfo(t *testing.T) {
 			expected: "172.17.0.2:44594->20.199.39.225:443 (example2.com,example3.com)",
 		},
 		{
-			name:     "unknown",
+			name:     "not found",
 			info:     newNetworkSocketInfo("20.199.39.226"),
-			expected: "172.17.0.2:44594->20.199.39.226:443 (unknown)",
+			expected: "172.17.0.2:44594->20.199.39.226:443 (not found)",
+		},
+		{
+			name:     "resolver error",
+			info:     newNetworkSocketInfo("20.199.39.227"),
+			expected: "172.17.0.2:44594->20.199.39.227:443 (resolver unavailable)",
+		},
+		{
+			name:     "timeout",
+			info:     newNetworkSocketInfo("20.199.39.228"),
+			expected: "172.17.0.2:44594->20.199.39.228:443 (context deadline exceeded)",
+		},
+		{
+			name: "invalid address",
+			info: socketInfo{
+				Protocol:   "tcp6",
+				State:      "ESTABLISHED",
+				LocalAddr:  parseIPv4("172.17.0.2"),
+				LocalPort:  44594,
+				RemoteAddr: net.IP{1, 2, 3},
+				RemotePort: 443,
+			},
+			expected: "172.17.0.2:44594->?010203:443 (lookup ?010203: invalid address)",
 		},
 		{
 			name:     "loopback",
@@ -516,8 +544,8 @@ func TestRenderSocketInfoUsesContextAndCache(t *testing.T) {
 	}
 	info := newNetworkSocketInfo("20.199.39.224")
 
-	require.Equal(t, "172.17.0.2:44594->20.199.39.224:443 (unknown)", ofl.renderSocketInfo(info))
-	require.Equal(t, "172.17.0.2:44594->20.199.39.224:443 (unknown)", ofl.renderSocketInfo(info))
+	require.Equal(t, "172.17.0.2:44594->20.199.39.224:443 (context canceled)", ofl.renderSocketInfo(info))
+	require.Equal(t, "172.17.0.2:44594->20.199.39.224:443 (context canceled)", ofl.renderSocketInfo(info))
 	require.Equal(t, 1, lookups)
 }
 
