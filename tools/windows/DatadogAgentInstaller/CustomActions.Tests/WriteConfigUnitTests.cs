@@ -7,7 +7,7 @@ using Datadog.CustomActions;
 using Moq;
 using Xunit;
 using YamlDotNet.RepresentationModel;
-using WixToolset.Dtf.WindowsInstaller;
+using ActionResult = WixToolset.Dtf.WindowsInstaller.ActionResult;
 using ISession = Datadog.CustomActions.Interfaces.ISession;
 
 namespace CustomActions.Tests
