@@ -701,7 +701,8 @@ def run(
             use_prebuilt_binaries = False
 
     if use_prebuilt_binaries:
-        ctx.run("go build -o ./gotest-custom ./internal/tools/gotest-custom")
+        # Run through the bazel wrapper so the taskset CPU pin (see tools/bazel, #56994) applies
+        bazel("run", "//:go", "--", "build", "-o", "./gotest-custom", "./internal/tools/gotest-custom")
         raw_command = "--raw-command ./gotest-custom {packages}"
         env_vars["GOTEST_COMMAND"] = "./gotest-custom"
 

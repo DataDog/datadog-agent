@@ -182,7 +182,6 @@ cc_library(
     ],
     local_defines = [
         "HAVE_CONFIG_H",
-        "HAVE_CONFIG_H",
         "UNIXODBC",
         "_THREAD_SAFE",
         'SYSCONFDIR=\\"/opt/datadog-agent/embedded/etc\\"',

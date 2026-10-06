@@ -424,5 +424,45 @@ class TestCheckRenamedFrom(unittest.TestCase):
             )
 
 
+class TestCheckSnakeCaseNames(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_snake_case_names, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_non_snake_case_names_are_errors(self):
+        errors = errors_for(lint.check_snake_case_names, "bad_snake_case.yaml")
+        for path in (
+            "camelCase",
+            "UPPER_prefix",
+            "double__underscore",
+            "_leading_underscore",
+            "trailing_underscore_",
+            "kebab-case",
+            "BadSection",
+            "valid_section.nestedBad",
+        ):
+            self.assertTrue(
+                any(f"[{path}]" in e and "is not snake_case" in e for e in errors),
+                f"Expected error for {path}, got: {errors}",
+            )
+
+    def test_only_offending_name_is_reported(self):
+        # A non snake_case section does not make its snake_case children fail.
+        errors = errors_for(lint.check_snake_case_names, "bad_snake_case.yaml")
+        self.assertFalse(any("good_child" in e for e in errors), f"Unexpected error for good_child, got: {errors}")
+
+    def test_valid_names_pass(self):
+        errors = errors_for(lint.check_snake_case_names, "bad_snake_case.yaml")
+        for path in ("[valid_section]", "valid_v2_setting", "[valid_setting]"):
+            self.assertFalse(any(path in e for e in errors), f"Unexpected error for {path}, got: {errors}")
+
+    def test_excepted_names_pass(self):
+        errors = errors_for(
+            lint.check_snake_case_names, "bad_snake_case.yaml", {"camelCase", "valid_section.nestedBad"}
+        )
+        self.assertFalse(any("camelCase" in e or "nestedBad" in e for e in errors), f"Got: {errors}")
+        self.assertTrue(any("UPPER_prefix" in e for e in errors))
+
+
 if __name__ == "__main__":
     unittest.main()

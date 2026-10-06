@@ -20,7 +20,7 @@ func GetUnixListener(path string) (net.Listener, error) {
 			return nil, fmt.Errorf("cannot reuse %q; not a unix socket", path)
 		}
 		if err := os.Remove(path); err != nil {
-			return nil, fmt.Errorf("unable to remove stale socket: %v", err)
+			return nil, fmt.Errorf("unable to remove stale socket: %w", err)
 		}
 	}
 	ln, err := net.Listen("unix", path)

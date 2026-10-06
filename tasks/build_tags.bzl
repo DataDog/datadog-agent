@@ -30,7 +30,6 @@ ALL_TAGS = set([
     "anomalydetection_recorder",  # development-only recorder image
     "bundle_installer",
     "clusterchecks",
-    "consul",
     "containerd",
     "cri",
     "crio",
@@ -38,13 +37,13 @@ ALL_TAGS = set([
     "datadog.no_waf",
     "docker",
     "ec2",
-    "etcd",
     "fargateprocess",
     "goexperiment.systemcrypto",  # used for FIPS mode
     "jetson",
     "jmx",
     "kubeapiserver",
     "kubelet",
+    "kvstore",
     "bpf",
     "ncm",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
@@ -53,7 +52,6 @@ ALL_TAGS = set([
     "npm",
     "nvml",  # used for the nvidia go-nvml library
     "oracle",
-    "orchestrator",
     "osusergo",
     "otlp",
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
@@ -67,7 +65,6 @@ ALL_TAGS = set([
     "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
     "trivy",
-    "zk",
     "zlib",
     "cel",
     "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
@@ -89,7 +86,7 @@ GAZELLE_EXTRA_TAGS = set([
 # Tags in ALL_TAGS that we deliberately keep out of Gazelle's set, typically
 # because they require cgo/native deps that Gazelle's static analysis can't
 # resolve cleanly.
-GAZELLE_OMIT_TAGS = set(["pcap", "remove_all_sd"])
+GAZELLE_OMIT_TAGS = set(["remove_all_sd"])
 
 # Build tags Gazelle considers when analysing tag-gated .go files. Loaded by the
 # root BUILD.bazel as the `build_tags` attribute of //:gazelle, so it must be a
@@ -100,24 +97,22 @@ GAZELLE_BUILD_TAGS = sorted((ALL_TAGS - GAZELLE_OMIT_TAGS) | GAZELLE_EXTRA_TAGS)
 
 # AGENT_TAGS lists the tags needed when building the agent.
 AGENT_TAGS = set([
-    "consul",
     "containerd",
     "cri",
     "datadog.no_waf",
     "crio",
     "docker",
     "ec2",
-    "etcd",
     "fargateprocess",
     "jetson",
     "jmx",
     "kubeapiserver",
     "kubelet",
+    "kvstore",
     "ncm",
     "netcgo",
     "nvml",
     "oracle",
-    "orchestrator",
     "otlp",
     "podman",
     "python",
@@ -125,7 +120,6 @@ AGENT_TAGS = set([
     "systemd",
     "systemprobechecks",
     "trivy",
-    "zk",
     "zlib",
     "cel",
 ])
@@ -147,7 +141,6 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "kubelet",
         "nvml",
         "oracle",
-        "orchestrator",
         "podman",
         "systemd",
         "trivy",
@@ -166,7 +159,6 @@ CLUSTER_AGENT_TAGS = set([
     "clusterchecks",
     "datadog.no_waf",
     "kubeapiserver",
-    "orchestrator",
     "zlib",
     "ec2",
     "cel",
@@ -304,7 +296,6 @@ AIX_EXCLUDED_TAGS = set([
     "netcgo",
     "npm",
     "nvml",
-    "orchestrator",
     "pcap",
     "podman",
     "sharedlibrarycheck",
