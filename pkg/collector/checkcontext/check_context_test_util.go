@@ -5,10 +5,11 @@
 
 //go:build test
 
-package aggregator
+package checkcontext
 
-import "github.com/DataDog/datadog-agent/pkg/collector/checkcontext"
-
-func releaseCheckContext() {
-	checkcontext.ReleaseCheckContext()
+// ReleaseCheckContext releases the global check context in tests.
+func ReleaseCheckContext() {
+	checkContextMutex.Lock()
+	checkCtx = nil
+	checkContextMutex.Unlock()
 }
