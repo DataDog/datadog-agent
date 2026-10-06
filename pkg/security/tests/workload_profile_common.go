@@ -431,6 +431,23 @@ func profileHasFile(p *profile.Profile, basename string) bool {
 	})) > 0
 }
 
+// profileHasFileOpenedBy returns true if the profile contains a file node with the provided name under a process
+// node with the provided argv0
+func profileHasFileOpenedBy(p *profile.Profile, argv0 string, basename string) bool {
+	var hasFile func(files map[string]*activity_tree.FileNode) bool
+	hasFile = func(files map[string]*activity_tree.FileNode) bool {
+		for name, file := range files {
+			if name == basename || hasFile(file.Children) {
+				return true
+			}
+		}
+		return false
+	}
+	return len(walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {
+		return node.Process.Argv0 == argv0 && hasFile(node.Files)
+	})) > 0
+}
+
 // profileHasDNS returns true if the profile contains a DNS node for the provided domain
 func profileHasDNS(p *profile.Profile, domain string) bool {
 	return len(walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {
