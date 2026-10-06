@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubelet && orchestrator
+//go:build kubelet && kubeapiserver
 
 package kubelet
 
@@ -20,7 +20,7 @@ import (
 )
 
 // KubeUtilInterface defines the interface for kubelet api
-// and includes extra functions for the orchestrator build flag
+// and includes extra functions for the kubeapiserver build tag
 type KubeUtilInterface interface {
 	GetNodename(ctx context.Context) (string, error)
 	GetLocalPodList(ctx context.Context) ([]*Pod, error)
