@@ -271,6 +271,12 @@ func Commands(globalParams *command.GlobalParams, product command.ProductComposi
 	return []*cobra.Command{startCmd, runCmd}
 }
 
+type optionalMetricLookbackDeps struct {
+	fx.In
+
+	MetricLookback metriclookbackdef.Component `optional:"true"`
+}
+
 // run starts the main loop.
 func run(log log.Component,
 	cfg config.Component,
@@ -288,7 +294,7 @@ func run(log log.Component,
 	rcclient rcclient.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
-	metricLookback metriclookbackdef.Component,
+	metricLookback optionalMetricLookbackDeps,
 	_ serializer.MetricSerializer,
 	_ option.Option[logsAgent.Component],
 	_ statsd.Component,
@@ -472,7 +478,7 @@ func getSharedFxOption(product command.ProductComposition) fx.Option {
 		grpcAgentfx.Module(),
 		commonendpoints.Module(),
 		filterlist.Module(),
-		metriclookbackModule(),
+		fx.Options(product.MetricLookbackOptions...),
 		dogstatsdclientdropdetectorfx.Module(),
 		dogstatsdclienttelemetryfx.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
@@ -610,7 +616,7 @@ func startAgent(
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
 	demultiplexer demultiplexer.Component,
-	metricLookback metriclookbackdef.Component,
+	metricLookback optionalMetricLookbackDeps,
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
 	collectorComponent collector.Component,
@@ -712,7 +718,9 @@ func startAgent(
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp)
 	checkScheduler := pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore)
-	checkScheduler.SetMetricLookbackShadowSenderManager(metricLookback.NewSenderManager(ctx, hostnameDetected))
+	if metricLookback.MetricLookback != nil {
+		checkScheduler.SetShadowCheckFactory(metricLookback.MetricLookback.NewShadowCheckFactory(ctx, hostnameDetected))
+	}
 	ac.AddScheduler("check", checkScheduler, true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)

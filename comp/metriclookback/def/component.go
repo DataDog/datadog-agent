@@ -9,7 +9,10 @@ package metriclookback
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 // team: q-branch
@@ -20,4 +23,20 @@ type Component interface {
 	// lookback shadow checks. It returns nil when lookback is unavailable in the
 	// current Agent build.
 	NewSenderManager(context.Context, string) sender.SenderManager
+
+	// NewShadowCheckFactory creates optional shadow-check support for a scheduler.
+	// Each scheduler owns its factory; calls are serialized by the scheduler.
+	NewShadowCheckFactory(context.Context, string) ShadowCheckFactory
 }
+
+// ShadowCheckFactory prepares loaders for selected instances without exposing
+// metric lookback policy, retention, or foreign-runtime routing to the scheduler.
+// Implementations need not support concurrent calls.
+type ShadowCheckFactory interface {
+	Prepare(integration.Config) map[int]ShadowCheckLoader
+}
+
+// ShadowCheckLoader loads a shadow of a successfully loaded source check.
+// Returning nil, nil means that the source loader does not support shadows.
+// The returned check owns its sender-manager override and its cleanup.
+type ShadowCheckLoader func(check.Loader, checkid.ID) (check.Check, error)

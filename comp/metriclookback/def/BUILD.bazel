@@ -5,5 +5,10 @@ go_library(
     srcs = ["component.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/metriclookback/def",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/aggregator/sender"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+    ],
 )

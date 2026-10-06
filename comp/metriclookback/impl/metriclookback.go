@@ -39,12 +39,18 @@ type Provides struct {
 
 type component struct {
 	retention *metriclookback.Retention
+	config    config.Component
 }
 
 // NewSenderManager returns a shadow-check sender manager backed by the shared
 // metric lookback retention ring.
 func (c component) NewSenderManager(ctx context.Context, defaultHostname string) sender.SenderManager {
 	return collectormetriclookback.NewSenderManager(ctx, defaultHostname, c.retention)
+}
+
+// NewShadowCheckFactory keeps feature policy and loading out of the shared scheduler.
+func (c component) NewShadowCheckFactory(ctx context.Context, defaultHostname string) metriclookbackdef.ShadowCheckFactory {
+	return collectormetriclookback.NewShadowCheckFactory(c.config, c.NewSenderManager(ctx, defaultHostname))
 }
 
 // NewComponent creates the metric lookback component.
@@ -54,7 +60,7 @@ func NewComponent(req Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
-	return Provides{Comp: component{retention: retention}, DogStatsDLookbackFactory: factory}, nil
+	return Provides{Comp: component{retention: retention, config: req.Config}, DogStatsDLookbackFactory: factory}, nil
 }
 
 const (

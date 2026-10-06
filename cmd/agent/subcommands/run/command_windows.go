@@ -76,7 +76,6 @@ import (
 	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
 	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
-	metriclookbackdef "github.com/DataDog/datadog-agent/comp/metriclookback/def"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent/def"
@@ -125,7 +124,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context, product command.Prod
 			_ serializer.MetricSerializer,
 			_ otelcollector.Component,
 			demultiplexer demultiplexer.Component,
-			metricLookback metriclookbackdef.Component,
+			metricLookback optionalMetricLookbackDeps,
 			_ host.Component,
 			_ inventoryagent.Component,
 			_ inventoryhost.Component,
