@@ -2913,6 +2913,60 @@ func TestDefaultProfilesExportRARTransactionSuccessCounters(t *testing.T) {
 	require.Empty(t, expectedMetrics)
 }
 
+// GPU telemetry is registered with nested subsystems (e.g. "gpu__collectors"), whose
+// Prometheus names contain two "__" separators.
+func TestDefaultProfilesExportGPUMetrics(t *testing.T) {
+	config := getCommonYAMLConfig(true, "")
+	tel := makeTelMock(t)
+	created := tel.NewCounter("gpu__collectors", "created", []string{"status", "collector", "gpu_device", "gpu_nvlink_capable"}, "")
+	created.Add(2, "error", "device", "h100", "true")
+	created.Add(3, "success", "device", "h100", "true")
+	created.Add(5, "unsupported", "gpm", "h100", "true")
+	created.Add(7, "disabled", "ebpf", "h100", "true")
+	parseFailures := tel.NewCounter("gpu__driver_events", "parse_failures", []string{"reason"}, "")
+	parseFailures.Add(4, "missing_pci_bus_id")
+	mappingFailurePct := tel.NewGauge("gpu", "container_gpu_mapping_failure_pct", nil, "")
+	mappingFailurePct.Set(0)
+
+	sender := &senderMock{}
+	runner := newRunnerMock()
+	a := getTestAtel(t, tel, config, sender, nil, runner)
+	require.True(t, a.enabled)
+
+	a.start()
+	runner.(*runnerMock).run()
+
+	sent := make(map[string][]*dto.Metric)
+	for _, payload := range sender.sentMetrics {
+		sent[payload.name] = append(sent[payload.name], payload.metrics...)
+	}
+
+	labelsWithoutEmitter := func(metric *dto.Metric) map[string]string {
+		labels := metricLabels(metric)
+		delete(labels, emitterTagName)
+		return labels
+	}
+
+	createdMetrics := sent["gpu.collectors__created"]
+	require.Len(t, createdMetrics, 2, "unsupported and disabled statuses must be excluded")
+	createdByStatus := make(map[string]float64)
+	for _, metric := range createdMetrics {
+		labels := labelsWithoutEmitter(metric)
+		assert.NotContains(t, labels, "gpu_nvlink_capable")
+		createdByStatus[labels["status"]] = metric.GetCounter().GetValue()
+	}
+	assert.Equal(t, map[string]float64{"error": 2, "success": 3}, createdByStatus)
+
+	parseFailureMetrics := sent["gpu.driver_events__parse_failures"]
+	require.Len(t, parseFailureMetrics, 1)
+	assert.Equal(t, 4.0, parseFailureMetrics[0].GetCounter().GetValue())
+	assert.Equal(t, map[string]string{"reason": "missing_pci_bus_id"}, labelsWithoutEmitter(parseFailureMetrics[0]))
+
+	mappingMetrics := sent["gpu.container_gpu_mapping_failure_pct"]
+	require.Len(t, mappingMetrics, 1, "zero values must be reported")
+	assert.Equal(t, 0.0, mappingMetrics[0].GetGauge().GetValue())
+}
+
 func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
 	require.NoError(t, err)

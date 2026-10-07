@@ -404,9 +404,48 @@ profiles:
 - name: gpu
   metric:
     exclude:
-      zero_metric: true
+      # Zero values are meaningful here (e.g. 0% container mapping failures on a healthy host).
+      zero_metric: false
+      # Collectors that are disabled by configuration or not supported by the device are
+      # expected outcomes, only creation errors and successes are useful. This applies to
+      # every metric in the profile with a status tag.
+      tags:
+        - status:unsupported
+        - status:disabled
     metrics:
       - name: gpu.device_total
+      # GPU telemetry uses nested subsystems (e.g. "gpu__collectors"), and only the first
+      # "__" of the Prometheus name is normalized, so the second one must be kept here.
+      - name: gpu.collectors__created
+        preserve_tags:
+          - status
+          - collector
+          - gpu_device
+          - gpu_architecture
+          - gpu_driver_version
+          - gpu_slicing_mode
+          - gpu_virtualization_mode
+      - name: gpu.collectors__collection_runs
+        preserve_tags:
+          - collector
+          - gpu_device
+          - gpu_architecture
+          - gpu_driver_version
+          - gpu_slicing_mode
+          - gpu_virtualization_mode
+      - name: gpu.collectors__collection_errors
+        preserve_tags:
+          - collector
+          - gpu_device
+          - gpu_architecture
+          - gpu_driver_version
+          - gpu_slicing_mode
+          - gpu_virtualization_mode
+      - name: gpu.container_gpu_mapping_failure_pct
+      # Registered in system-probe
+      - name: gpu.driver_events__parse_failures
+        preserve_tags:
+          - reason
   schedule:
     start_after: 60
     iterations: 0
