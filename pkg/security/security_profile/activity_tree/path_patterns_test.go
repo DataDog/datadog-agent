@@ -129,7 +129,9 @@ func TestPatternMatches(t *testing.T) {
 func TestIsPatternName(t *testing.T) {
 	assert.True(t, isPatternName("<num>"))
 	assert.True(t, isPatternName("sess-<alpha>"))
-	// PathsReducer output is a literal, not a mined pattern
+	assert.True(t, isPatternName("kubepods-<any>.slice"))
+	assert.True(t, isPatternName("<container_id>"))
+	// "*" written by the PathsReducer in older profiles is a literal
 	assert.False(t, isPatternName("*"))
 	assert.False(t, isPatternName("kubepods-*.slice"))
 	assert.False(t, isPatternName("<unknown>"))
@@ -534,6 +536,40 @@ func TestRulePathFromProfilePath(t *testing.T) {
 	assert.Equal(t, `~"/var/job/*/out.log"`, rulePathFromProfilePath("/var/job/<num>/out.log"))
 	assert.Equal(t, `~"/tmp/sess-*"`, rulePathFromProfilePath("/tmp/sess-<alpha>"))
 	assert.Equal(t, `"/etc/passwd"`, rulePathFromProfilePath("/etc/passwd"))
+	assert.Equal(t, `~"/var/run/docker/overlay2/*/merged"`, rulePathFromProfilePath("/var/run/docker/overlay2/<container_id>/merged"))
+	assert.Equal(t, `~"/sys/fs/cgroup/kubepods-*.slice"`, rulePathFromProfilePath("/sys/fs/cgroup/kubepods-<any>.slice"))
+}
+
+// The PathsReducer writes placeholders, so its output is a pattern node
+// from the first event, in every tree type.
+func TestInsertFileEvent_ReducerWritesPatternNodes(t *testing.T) {
+	for name, stats := range map[string]*Stats{
+		"mining enabled":  enablePatternsTestStats(),
+		"mining disabled": NewActivityTreeNodeStats(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			pn := &ProcessNode{Files: make(map[string]*FileNode), NodeBase: NewNodeBase()}
+			pn.Process.Pid = 5
+			reducer := NewPathsReducer()
+			insert := func(path string) bool {
+				ev := newTestEvent(path)
+				isNew, _ := pn.InsertFileEvent(&ev.Open.File, ev, 1, Unknown, stats, false, reducer, nil)
+				return isNew
+			}
+
+			assert.True(t, insert("/proc/111/status"))
+			assert.False(t, insert("/proc/222/status"), "another pid is already covered")
+			assert.True(t, insert("/proc/5/status"), "own pid is recorded as self")
+
+			proc := pn.Files["proc"]
+			if !assert.NotNil(t, proc) {
+				return
+			}
+			assert.Equal(t, []string{"<num>", "self"}, childrenNames(proc.Children))
+			assert.True(t, proc.Children["<num>"].IsPattern)
+			assert.False(t, proc.Children["self"].IsPattern)
+		})
+	}
 }
 
 func TestFindChildWithPatternFallback(t *testing.T) {
@@ -631,7 +667,8 @@ func TestFindChildWithPatternFallback_StrictAfterReload(t *testing.T) {
 	}
 }
 
-// A literal "*" written by the PathsReducer must not act as a wildcard.
+// A literal "*", written by the PathsReducer in older profiles, must not
+// act as a wildcard.
 func TestFindChildWithPatternFallback_ReducerStarIsLiteral(t *testing.T) {
 	star := NewFileNode(nil, nil, "*", 0, Unknown, "", nil)
 	assert.False(t, star.IsPattern)

@@ -61,6 +61,10 @@ const (
 	classAlpha
 	classAlnum
 	classDate
+	// classContainerID and classAny are only written by the PathsReducer;
+	// the tokenizer never produces them.
+	classContainerID
+	classAny
 )
 
 // minHexLen is the shortest piece classified as a hex identifier, so
@@ -83,15 +87,20 @@ var classes = [...]classInfo{
 	classAlnum: {code: "M", placeholder: "<alnum>", regex: `[0-9A-Za-z]*(?:[0-9][A-Za-z]|[A-Za-z][0-9])[0-9A-Za-z]*`, width: 4},
 	classDate: {code: "D", placeholder: "<date>", regex: `(?:19|20)[0-9]{2}[-_.]?(?:0[1-9]|1[0-2])[-_.]?(?:0[1-9]|[12][0-9]|3[01])` +
 		`(?:[T_-](?:[01][0-9]|2[0-3])[-_.:]?[0-5][0-9][-_.:]?[0-5][0-9]Z?)?`, width: 1},
+	classContainerID: {code: "C", placeholder: "<container_id>", regex: `(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{32}-[0-9]+|[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){4})`, width: 1},
+	// <any> must always sit between literals, or it would match every sibling.
+	classAny: {code: "X", placeholder: "<any>", regex: `[^/]*`, width: 5},
 }
 
 var placeholderClasses = map[string]tokenClass{
-	classes[classNum].placeholder:   classNum,
-	classes[classUUID].placeholder:  classUUID,
-	classes[classHex].placeholder:   classHex,
-	classes[classAlpha].placeholder: classAlpha,
-	classes[classAlnum].placeholder: classAlnum,
-	classes[classDate].placeholder:  classDate,
+	classes[classNum].placeholder:         classNum,
+	classes[classUUID].placeholder:        classUUID,
+	classes[classHex].placeholder:         classHex,
+	classes[classAlpha].placeholder:       classAlpha,
+	classes[classAlnum].placeholder:       classAlnum,
+	classes[classDate].placeholder:        classDate,
+	classes[classContainerID].placeholder: classContainerID,
+	classes[classAny].placeholder:         classAny,
 }
 
 type nameToken struct {
@@ -538,8 +547,9 @@ func parseTemplate(template string) (parts []templatePart, ok bool) {
 	return parts, ok
 }
 
-// isPatternName reports whether name is a mined template. Literal "*"
-// written by the PathsReducer is not a pattern.
+// isPatternName reports whether name holds a placeholder, either mined or
+// written by the PathsReducer. A literal "*", found in profiles saved
+// before the reducer wrote placeholders, is not a pattern.
 func isPatternName(name string) bool {
 	_, ok := parseTemplate(name)
 	return ok
@@ -666,15 +676,15 @@ func groupChildrenBySignature(children map[string]*FileNode) []signatureBucket {
 	return out
 }
 
-// mergeInto folds src into dst in place: unions NodeBase observations,
+// mergeInto folds src into fn in place: unions NodeBase observations,
 // Children, MatchedRules, Open flags/mode, and keeps the more
-// authoritative GenerationType. dst.Name is left to the caller.
-func (dst *FileNode) mergeInto(src *FileNode) {
+// authoritative GenerationType. fn.Name is left to the caller.
+func (fn *FileNode) mergeInto(src *FileNode) {
 	if src == nil {
 		return
 	}
 	src.EachSeen(func(id uint64, times ImageTagTimes) {
-		if existing, ok := dst.GetSeenTimes(id); ok {
+		if existing, ok := fn.GetSeenTimes(id); ok {
 			firstSeen := existing.FirstSeen
 			lastSeen := existing.LastSeen
 			if times.FirstSeen.Before(firstSeen) {
@@ -683,37 +693,37 @@ func (dst *FileNode) mergeInto(src *FileNode) {
 			if times.LastSeen.After(lastSeen) {
 				lastSeen = times.LastSeen
 			}
-			dst.RecordWithTimestamps(id, firstSeen, lastSeen)
+			fn.RecordWithTimestamps(id, firstSeen, lastSeen)
 		} else {
-			dst.RecordWithTimestamps(id, times.FirstSeen, times.LastSeen)
+			fn.RecordWithTimestamps(id, times.FirstSeen, times.LastSeen)
 		}
 	})
 
-	dst.MatchedRules = model.AppendMatchedRule(dst.MatchedRules, src.MatchedRules)
+	fn.MatchedRules = model.AppendMatchedRule(fn.MatchedRules, src.MatchedRules)
 
-	if dst.File == nil {
-		dst.File = src.File
+	if fn.File == nil {
+		fn.File = src.File
 	}
 
 	if src.Open != nil {
-		if dst.Open == nil {
+		if fn.Open == nil {
 			cp := *src.Open
-			dst.Open = &cp
+			fn.Open = &cp
 		} else {
-			dst.Open.Flags |= src.Open.Flags
-			dst.Open.Mode |= src.Open.Mode
+			fn.Open.Flags |= src.Open.Flags
+			fn.Open.Mode |= src.Open.Mode
 		}
 	}
 
-	if generationPriority(src.GenerationType) > generationPriority(dst.GenerationType) {
-		dst.GenerationType = src.GenerationType
+	if generationPriority(src.GenerationType) > generationPriority(fn.GenerationType) {
+		fn.GenerationType = src.GenerationType
 	}
 
 	for name, child := range src.Children {
-		if existing, ok := dst.Children[name]; ok {
+		if existing, ok := fn.Children[name]; ok {
 			existing.mergeInto(child)
 		} else {
-			dst.Children[name] = child
+			fn.Children[name] = child
 		}
 	}
 }
