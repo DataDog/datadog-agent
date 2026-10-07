@@ -408,3 +408,47 @@ func TestBuildIssue_FirstRemediationStep(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildIssue_ProfileRecommendationHint(t *testing.T) {
+	tests := []struct {
+		name      string
+		component string
+		blamed    int64
+		bp        *backpressureWire
+		want      bool
+	}{
+		{name: "all rotations blamed on one stage", component: "strategy", blamed: 4, want: true},
+		{name: "some rotations blamed on one stage", component: "strategy", blamed: 2, want: true},
+		{name: "healthy at loss time", component: logsmetrics.NoBottleneck, blamed: 4},
+		{name: "partially healthy at loss time", component: logsmetrics.NoBottleneck, blamed: 2},
+		{
+			name: "unmeasured with a live bottleneck",
+			bp:   &backpressureWire{State: logsmetrics.BackpressureSaturated, Bottleneck: saturatedComponent("strategy", 60)},
+		},
+		{name: "nothing known"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := map[string]string{
+				contextKeyRotations:               "4",
+				contextKeyLossBottleneck:          tc.component,
+				contextKeyLossBottleneckRotations: strconv.FormatInt(tc.blamed, 10),
+			}
+			if tc.bp != nil {
+				ctx[contextKeyBackpressure] = backpressureContext(t, *tc.bp)
+			}
+			issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+			require.NoError(t, err)
+
+			step1 := issue.GetRemediation().GetSteps()[0].GetText()
+			if tc.want {
+				assert.Contains(t, step1, "logs_performance_profile_recommended")
+				assert.Contains(t, step1, "Logs Performance Profile Recommended")
+			} else {
+				assert.NotContains(t, step1, "logs_performance_profile_recommended")
+			}
+			assert.NotContains(t, issue.GetExtra().GetFields(), "logs_performance_profile_recommended")
+		})
+	}
+}

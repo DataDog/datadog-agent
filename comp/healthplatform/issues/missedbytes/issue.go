@@ -54,6 +54,8 @@ const (
 	nameEllipsis = "..."
 
 	unknownValue = "unknown"
+
+	profileRecommendationHint = " If Agent Health also reports \"Logs Performance Profile Recommended\" (`logs_performance_profile_recommended`) on this host, applying that profile is the one-click fix."
 )
 
 // sourceLoss is one tuple's share of the host total. Its JSON tags are the wire
@@ -367,10 +369,10 @@ func firstRemediationStep(bp *backpressureWire, component string, blamed, rotati
 			blamed, rotations, pluralize(rotations, "rotation"))
 	case component != "" && whole:
 		return fmt.Sprintf("The `%s` component was saturated when this data was lost. Follow the step below that names it, then confirm with `sudo datadog-agent status`.",
-			component)
+			component) + profileRecommendationHint
 	case component != "":
 		return fmt.Sprintf("The `%s` component was saturated during %d of %d %s. Follow the step below that names it, then check the others in this issue's details.",
-			component, blamed, rotations, pluralize(rotations, "rotation"))
+			component, blamed, rotations, pluralize(rotations, "rotation")) + profileRecommendationHint
 	case saturatedNow(bp):
 		return fmt.Sprintf("The saturated component at loss time was not measured, but `%s` is saturated now. Follow the step below that names it.",
 			bp.Bottleneck.Component)

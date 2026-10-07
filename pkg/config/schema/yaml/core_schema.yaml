@@ -7740,6 +7740,35 @@ properties:
             node_type: setting
             type: boolean
             default: true
+      logs_profile_recommendation:
+        node_type: section
+        type: object
+        properties:
+          efficiency_min_saturated_30m:
+            node_type: setting
+            type: string
+            default: 10m0s
+            format: duration
+            tags:
+            - golang_type:duration
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          interval:
+            node_type: setting
+            type: string
+            default: 1m0s
+            format: duration
+            tags:
+            - golang_type:duration
+          min_healthy_period:
+            node_type: setting
+            type: string
+            default: 10m0s
+            format: duration
+            tags:
+            - golang_type:duration
       persist_on_kubernetes:
         node_type: setting
         type: boolean
