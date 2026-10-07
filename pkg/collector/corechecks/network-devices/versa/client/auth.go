@@ -143,7 +143,7 @@ func (client *Client) loginOAuth() error {
 		GrantType:    "password",
 	})
 	if err != nil {
-		return fmt.Errorf("failed to marshal oauth request body: %v", err)
+		return fmt.Errorf("failed to marshal oauth request body: %w", err)
 	}
 
 	// Request to /auth/token to perform OAuth authentication
@@ -175,7 +175,7 @@ func (client *Client) loginOAuth() error {
 	err = json.Unmarshal(bodyBytes, &oauthResp)
 	if err != nil {
 		// If JSON parsing fails, return the raw response for debugging
-		return fmt.Errorf("failed to parse OAuth response as JSON: %v, response: %s", err, string(bodyBytes))
+		return fmt.Errorf("failed to parse OAuth response as JSON: %w, response: %s", err, string(bodyBytes))
 	}
 
 	// Set director token and expiration on the client
@@ -184,7 +184,7 @@ func (client *Client) loginOAuth() error {
 	// Handle expiry
 	expiresInSeconds, err := strconv.ParseInt(oauthResp.ExpiresIn, 10, 64)
 	if err != nil {
-		return fmt.Errorf("failed to parse expires_in as integer: %v, value: %s", err, oauthResp.ExpiresIn)
+		return fmt.Errorf("failed to parse expires_in as integer: %w, value: %s", err, oauthResp.ExpiresIn)
 	}
 	expirationDuration := time.Duration(expiresInSeconds) * time.Second
 	client.directorTokenExpiry = timeNow().Add(expirationDuration)

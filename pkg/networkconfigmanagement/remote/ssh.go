@@ -97,7 +97,7 @@ func buildAuthMethods(auth ncmconfig.AuthCredentials) ([]ssh.AuthMethod, error) 
 	if auth.PrivateKeyFile != "" {
 		key, err := os.ReadFile(auth.PrivateKeyFile)
 		if err != nil {
-			return nil, fmt.Errorf("error reading private key: %s", err)
+			return nil, fmt.Errorf("error reading private key: %w", err)
 		}
 
 		var signer ssh.Signer
@@ -107,7 +107,7 @@ func buildAuthMethods(auth ncmconfig.AuthCredentials) ([]ssh.AuthMethod, error) 
 			signer, err = ssh.ParsePrivateKey(key)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("error parsing private key: %s", err)
+			return nil, fmt.Errorf("error parsing private key: %w", err)
 		}
 		methods = append(methods, ssh.PublicKeys(signer))
 	}

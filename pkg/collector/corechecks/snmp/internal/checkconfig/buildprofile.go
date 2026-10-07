@@ -40,7 +40,7 @@ func (c *CheckConfig) BuildProfile(sysObjectID string) (profiledefinition.Profil
 		// empty sysObjectID happens when we need the profile but couldn't connect to the device.
 		if sysObjectID != "" {
 			if profileConfig, err := c.ProfileProvider.GetProfileForSysObjectID(sysObjectID); err != nil {
-				profileErr = fmt.Errorf("failed to get profile for sysObjectID %q: %v", sysObjectID, err)
+				profileErr = fmt.Errorf("failed to get profile for sysObjectID %q: %w", sysObjectID, err)
 			} else {
 				rootProfile = &profileConfig.Definition
 				log.Debugf("detected profile %q for sysobjectid %q", rootProfile.Name, sysObjectID)

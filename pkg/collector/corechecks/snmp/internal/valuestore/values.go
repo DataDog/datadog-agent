@@ -139,7 +139,7 @@ func (v *ResultValueStore) GetColumnIndexes(columnOid string) ([]string, error) 
 		if errors.Is(err, &OIDNotFoundError{}) {
 			return nil, err
 		}
-		return nil, fmt.Errorf("error getting column value oid=%s: %s", columnOid, err)
+		return nil, fmt.Errorf("error getting column value oid=%s: %w", columnOid, err)
 	}
 	for fullIndex := range metricValues {
 		indexesMap[fullIndex] = struct{}{}

@@ -199,7 +199,7 @@ func (d *Discovery) checkDevice(job checkDeviceJob) error {
 	config.IPAddress = deviceIP
 	sess, err := d.sessionFactory(&config)
 	if err != nil {
-		return fmt.Errorf("error configure session for ip %s: %v", deviceIP, err)
+		return fmt.Errorf("error configure session for ip %s: %w", deviceIP, err)
 	}
 	deviceDigest := job.subnet.config.DeviceDigest(deviceIP)
 	if err := sess.Connect(); err != nil {
@@ -308,14 +308,14 @@ func (d *Discovery) deleteDevice(deviceDigest checkconfig.DeviceDigest, subnet *
 func (d *Discovery) readCache(subnet *snmpSubnet) ([]net.IP, error) {
 	cacheValue, err := persistentcache.Read(subnet.cacheKey)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't read cache for %s: %s", subnet.cacheKey, err)
+		return nil, fmt.Errorf("couldn't read cache for %s: %w", subnet.cacheKey, err)
 	}
 	if cacheValue == "" {
 		return []net.IP{}, nil
 	}
 	var devices []net.IP
 	if err = json.Unmarshal([]byte(cacheValue), &devices); err != nil {
-		return nil, fmt.Errorf("couldn't unmarshal cache for %s: %s", subnet.cacheKey, err)
+		return nil, fmt.Errorf("couldn't unmarshal cache for %s: %w", subnet.cacheKey, err)
 	}
 	return devices, nil
 }

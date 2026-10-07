@@ -19,17 +19,17 @@ import (
 func GetFreePort() (uint16, error) {
 	conn, err := net.ListenPacket("udp", ":0")
 	if err != nil {
-		return 0, fmt.Errorf("can't find an available udp port: %s", err)
+		return 0, fmt.Errorf("can't find an available udp port: %w", err)
 	}
 	defer conn.Close()
 
 	_, portString, err := net.SplitHostPort(conn.LocalAddr().String())
 	if err != nil {
-		return 0, fmt.Errorf("can't find an available udp port: %s", err)
+		return 0, fmt.Errorf("can't find an available udp port: %w", err)
 	}
 	portInt, err := strconv.Atoi(portString)
 	if err != nil {
-		return 0, fmt.Errorf("can't convert udp port: %s", err)
+		return 0, fmt.Errorf("can't convert udp port: %w", err)
 	}
 
 	return uint16(portInt), nil

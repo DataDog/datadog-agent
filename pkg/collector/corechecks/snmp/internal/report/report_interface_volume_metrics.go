@@ -92,7 +92,7 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.Symbol
 
 	octetsFloatValue, err := octetsValue.ToFloat64()
 	if err != nil {
-		return fmt.Errorf("failed to convert octetsValue to float64: %s", err)
+		return fmt.Errorf("failed to convert octetsValue to float64: %w", err)
 	}
 	usageValue := ((octetsFloatValue * 8) / (float64(ifSpeed))) * 100.0
 
@@ -168,7 +168,7 @@ func (ms *MetricSender) getIfHighSpeed(fullIndex string, values *valuestore.Resu
 
 	ifHighSpeedFloatValue, err := ifHighSpeedValue.ToFloat64()
 	if err != nil {
-		return 0, fmt.Errorf("failed to convert ifHighSpeedValue to float64: %s", err)
+		return 0, fmt.Errorf("failed to convert ifHighSpeedValue to float64: %w", err)
 	}
 	if ifHighSpeedFloatValue == 0.0 {
 		return 0, fmt.Errorf("bandwidth usage: zero or invalid value for ifHighSpeed, skipping this row. fullIndex=%s, ifHighSpeedValue=%#v", fullIndex, ifHighSpeedValue)

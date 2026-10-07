@@ -255,7 +255,7 @@ func combineAnalyticsFixtures(fixtures ...string) (string, error) {
 		}
 
 		if err := json.Unmarshal([]byte(fixtureData), &response); err != nil {
-			return "", fmt.Errorf("failed to parse fixture: %v", err)
+			return "", fmt.Errorf("failed to parse fixture: %w", err)
 		}
 
 		combinedAaData = append(combinedAaData, response.AaData...)
@@ -278,7 +278,7 @@ func combineAnalyticsFixtures(fixtures ...string) (string, error) {
 
 	combinedBytes, err := json.Marshal(combinedResponse)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal combined response: %v", err)
+		return "", fmt.Errorf("failed to marshal combined response: %w", err)
 	}
 
 	return string(combinedBytes), nil

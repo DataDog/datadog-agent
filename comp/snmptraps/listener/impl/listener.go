@@ -143,7 +143,7 @@ func (t *trapListener) blockUntilReady() error {
 	// If the listener failed to start (eg because it couldn't bind to a socket),
 	// we'll get an error here.
 	case err := <-t.errorsChannel:
-		return fmt.Errorf("error happened when listening for SNMP Traps: %s", err)
+		return fmt.Errorf("error happened when listening for SNMP Traps: %w", err)
 	}
 }
 

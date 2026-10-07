@@ -606,7 +606,7 @@ func parseUptimeString(uptime string) (float64, error) {
 
 		value, err := strconv.Atoi(valueStr)
 		if err != nil {
-			return 0, fmt.Errorf("invalid number %s: %v", valueStr, err)
+			return 0, fmt.Errorf("invalid number %s: %w", valueStr, err)
 		}
 
 		switch unit {

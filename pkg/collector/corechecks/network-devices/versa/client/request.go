@@ -117,7 +117,7 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 	}
 
 	log.Tracef("%d error code hitting endpoint %q with error %+v and response: %s", statusCode, endpoint, lastErr, string(bytes))
-	return nil, fmt.Errorf("%s http responded with %d code and error %v", endpoint, statusCode, lastErr)
+	return nil, fmt.Errorf("%s http responded with %d code and error %w", endpoint, statusCode, lastErr)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
@@ -162,7 +162,7 @@ func getPaginatedAnalytics[T any](
 	// TODO: store client.maxCount as both string and int?
 	maxCount, err := strconv.Atoi(client.maxCount)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse maxCount: %v", err)
+		return nil, fmt.Errorf("failed to parse maxCount: %w", err)
 	}
 
 	var allMetrics []T
@@ -174,12 +174,12 @@ func getPaginatedAnalytics[T any](
 
 		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get analytics metrics page %d: %v", page+1, err)
+			return nil, fmt.Errorf("failed to get analytics metrics page %d: %w", page+1, err)
 		}
 
 		metrics, err := parser(resp.AaData)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse analytics metrics page %d: %v", page+1, err)
+			return nil, fmt.Errorf("failed to parse analytics metrics page %d: %w", page+1, err)
 		}
 
 		allMetrics = append(allMetrics, metrics...)

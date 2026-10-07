@@ -163,7 +163,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, connMgr ConnectionManager, 
 	if config.PingEnabled {
 		devicePinger, err = createPinger(config.PingConfig)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create pinger: %s", err)
+			return nil, fmt.Errorf("failed to create pinger: %w", err)
 		}
 	}
 
@@ -256,7 +256,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	var checkErr error
 	if err != nil {
 		d.diagnoses.Add("error", "SNMP_FAILED_TO_OPEN_CONNECTION", "Agent failed to open connection.")
-		checkErr = fmt.Errorf("snmp connection error: %s", err)
+		checkErr = fmt.Errorf("snmp connection error: %w", err)
 		sess = nil // Prevent using invalid session
 	} else if !deviceReachable {
 		d.diagnoses.Add("error", "SNMP_FAILED_TO_POLL_DEVICE", "Agent failed to poll this network device. Check the authentication method and ensure the agent can ping it.")

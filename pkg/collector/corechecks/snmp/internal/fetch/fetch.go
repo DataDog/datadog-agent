@@ -45,7 +45,7 @@ func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSizeOptim
 	// fetch scalar values
 	scalarResults, err := fetchScalarOidsWithBatching(sess, scalarOIDs, batchSizeOptimizers.snmpGetOptimizer)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch scalar oids with batching: %v", err)
+		return nil, fmt.Errorf("failed to fetch scalar oids with batching: %w", err)
 	}
 
 	columnResults, err := fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetBulkOptimizer,
@@ -56,7 +56,7 @@ func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSizeOptim
 		columnResults, err = fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetNextOptimizer,
 			bulkMaxRepetitions, useGetNext)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
+			return nil, fmt.Errorf("failed to fetch oids with GetNext batching: %w", err)
 		}
 	}
 

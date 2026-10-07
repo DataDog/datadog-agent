@@ -51,7 +51,7 @@ func getOidPatternSpecificity(pattern string) ([]int, error) {
 		} else {
 			intPart, err := strconv.Atoi(part)
 			if err != nil {
-				return nil, fmt.Errorf("error parsing part `%s` for pattern `%s`: %v", part, pattern, err)
+				return nil, fmt.Errorf("error parsing part `%s` for pattern `%s`: %w", part, pattern, err)
 			}
 			parts = append(parts, intPart)
 		}

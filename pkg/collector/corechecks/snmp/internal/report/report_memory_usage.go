@@ -57,14 +57,14 @@ func (ms *MetricSender) trySendScalarMemoryUsage(scalarSamples map[string]Metric
 	if scalarMemoryUsedOk {
 		floatMemoryUsed, err := scalarMemoryUsed.value.ToFloat64()
 		if err != nil {
-			return fmt.Errorf("metric `%s`: failed to convert to float64: %s", "memory.used", err)
+			return fmt.Errorf("metric `%s`: failed to convert to float64: %w", "memory.used", err)
 		}
 
 		if scalarMemoryTotalOk {
 			// memory total and memory used
 			floatMemoryTotal, err := scalarMemoryTotal.value.ToFloat64()
 			if err != nil {
-				return fmt.Errorf("metric `%s`: failed to convert to float64: %s", "memory.total", err)
+				return fmt.Errorf("metric `%s`: failed to convert to float64: %w", "memory.total", err)
 			}
 
 			memoryUsageValue, err := evaluateMemoryUsage(floatMemoryUsed, floatMemoryTotal)
@@ -182,12 +182,12 @@ func (ms *MetricSender) trySendColumnMemoryUsage(columnSamples map[string]map[st
 				}
 				floatMemoryTotal, err := memoryTotalSample.value.ToFloat64()
 				if err != nil {
-					return fmt.Errorf("metric `%s[%s]`: failed to convert to float64: %s", "memory.total", rowIndex, err)
+					return fmt.Errorf("metric `%s[%s]`: failed to convert to float64: %w", "memory.total", rowIndex, err)
 				}
 
 				floatMemoryUsed, err := memoryUsedSample.value.ToFloat64()
 				if err != nil {
-					return fmt.Errorf("metric `%s[%s]`: failed to convert to float64: %s", "memory.used", rowIndex, err)
+					return fmt.Errorf("metric `%s[%s]`: failed to convert to float64: %w", "memory.used", rowIndex, err)
 				}
 
 				memoryUsageValue, err := evaluateMemoryUsage(floatMemoryUsed, floatMemoryTotal)
@@ -216,12 +216,12 @@ func (ms *MetricSender) trySendColumnMemoryUsage(columnSamples map[string]map[st
 				}
 				floatMemoryFree, err := memoryFreeSample.value.ToFloat64()
 				if err != nil {
-					return fmt.Errorf("metric `%s[%s]`: failed to convert to float64: %s", "memory.free", rowIndex, err)
+					return fmt.Errorf("metric `%s[%s]`: failed to convert to float64: %w", "memory.free", rowIndex, err)
 				}
 
 				floatMemoryUsed, err := memoryUsedSample.value.ToFloat64()
 				if err != nil {
-					return fmt.Errorf("metric `%s[%s]`: failed to convert to float64: %s", "memory.used", rowIndex, err)
+					return fmt.Errorf("metric `%s[%s]`: failed to convert to float64: %w", "memory.used", rowIndex, err)
 				}
 
 				memoryUsageValue, err := evaluateMemoryUsage(floatMemoryUsed, floatMemoryFree+floatMemoryUsed)
@@ -251,12 +251,12 @@ func (ms *MetricSender) trySendColumnMemoryUsage(columnSamples map[string]map[st
 			}
 			floatMemoryFree, err := memoryFreeSample.value.ToFloat64()
 			if err != nil {
-				return fmt.Errorf("metric `%s[%s]`: failed to convert to float64: %s", "memory.free", rowIndex, err)
+				return fmt.Errorf("metric `%s[%s]`: failed to convert to float64: %w", "memory.free", rowIndex, err)
 			}
 
 			floatMemoryTotal, err := memoryTotalSample.value.ToFloat64()
 			if err != nil {
-				return fmt.Errorf("metric `%s[%s]`: failed to convert to float64: %s", "memory.total", rowIndex, err)
+				return fmt.Errorf("metric `%s[%s]`: failed to convert to float64: %w", "memory.total", rowIndex, err)
 			}
 
 			memoryUsageValue, err := evaluateMemoryUsage(floatMemoryTotal-floatMemoryFree, floatMemoryTotal)

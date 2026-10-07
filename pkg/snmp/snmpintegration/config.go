@@ -43,13 +43,13 @@ func (pc *PackedPingConfig) UnmarshalYAML(unmarshal func(interface{}) error) err
 	if err != nil {
 		var pingCfgJSON string
 		if err = unmarshal(&pingCfgJSON); err != nil {
-			return fmt.Errorf("cannot unmarshal to string: %s", err)
+			return fmt.Errorf("cannot unmarshal to string: %w", err)
 		}
 		if pingCfgJSON == "" {
 			return nil
 		}
 		if err = json.Unmarshal([]byte(pingCfgJSON), &pingCfg); err != nil {
-			return fmt.Errorf("cannot unmarshal json to snmpintegration.PingConfig: %s", err)
+			return fmt.Errorf("cannot unmarshal json to snmpintegration.PingConfig: %w", err)
 		}
 	}
 

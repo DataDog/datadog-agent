@@ -28,7 +28,7 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, batchSizeO
 
 	batches, err := common.CreateStringBatches(oids, batchSizeOptimizer.batchSize)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create column oid batches: %s", err)
+		return nil, fmt.Errorf("failed to create column oid batches: %w", err)
 	}
 
 	for _, batchColumnOids := range batches {

@@ -184,7 +184,7 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 	}
 	sender.SendNCMCheckFailure(errTypes...)
 	sender.SendNCMCheckMetrics(startTime, dc.lastReportTime, false)
-	return fmt.Errorf("check completed but with errors: %v", errors.Join(nonBlockingErrors...))
+	return fmt.Errorf("check completed but with errors: %w", errors.Join(nonBlockingErrors...))
 }
 
 func (n *networkDeviceConfigImpl) buildInventoryReport() ([]ncmreport.InventoryEntry, error) {

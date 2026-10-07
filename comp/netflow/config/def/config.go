@@ -98,7 +98,7 @@ func (mainConfig *NetflowConfig) SetDefaults(namespace string, logger log.Compon
 		}
 		normalizedNamespace, err := utils.NormalizeNamespace(listenerConfig.Namespace)
 		if err != nil {
-			return fmt.Errorf("invalid namespace `%s` error: %s", listenerConfig.Namespace, err)
+			return fmt.Errorf("invalid namespace `%s` error: %w", listenerConfig.Namespace, err)
 		}
 		listenerConfig.Namespace = normalizedNamespace
 

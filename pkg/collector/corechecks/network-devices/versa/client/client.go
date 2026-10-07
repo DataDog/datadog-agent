@@ -211,7 +211,7 @@ func (client *Client) GetOrganizations() ([]Organization, error) {
 	var organizations []Organization
 	resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", nil, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get organizations: %v", err)
+		return nil, fmt.Errorf("failed to get organizations: %w", err)
 	}
 	organizations = append(organizations, resp.Organizations...)
 
@@ -225,7 +225,7 @@ func (client *Client) GetOrganizations() ([]Organization, error) {
 		}
 		resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", params, false)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get organizations: %v", err)
+			return nil, fmt.Errorf("failed to get organizations: %w", err)
 		}
 		if resp == nil {
 			return nil, errors.New("failed to get organizations: returned nil")
@@ -251,7 +251,7 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 	// Get the total count of appliances
 	totalCount, err := get[int](client, uri, params, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get appliance detail response: %v", err)
+		return nil, fmt.Errorf("failed to get appliance detail response: %w", err)
 	}
 	if totalCount == nil {
 		return nil, errors.New("failed to get appliance detail response: returned nil")
@@ -265,7 +265,7 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 		params["offset"] = strconv.Itoa(i * maxCount)
 		resp, err := get[[]Appliance](client, uri, params, false)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get appliance detail response: %v", err)
+			return nil, fmt.Errorf("failed to get appliance detail response: %w", err)
 		}
 		if resp == nil {
 			return nil, errors.New("failed to get appliance detail response: returned nil")
@@ -287,7 +287,7 @@ func (client *Client) GetAppliances() ([]Appliance, error) {
 	// Make the first request to get the first page and total count
 	resp, err := get[ApplianceListResponse](client, "/vnms/appliance/appliance", params, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get appliances: %v", err)
+		return nil, fmt.Errorf("failed to get appliances: %w", err)
 	}
 	if resp == nil {
 		return nil, errors.New("failed to get appliances: returned nil")
@@ -310,7 +310,7 @@ func (client *Client) GetAppliances() ([]Appliance, error) {
 
 		pageResp, err := get[ApplianceListResponse](client, "/vnms/appliance/appliance", params, false)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get appliances page %d: %v", i+1, err)
+			return nil, fmt.Errorf("failed to get appliances page %d: %w", i+1, err)
 		}
 		if pageResp == nil {
 			return nil, fmt.Errorf("failed to get appliances page %d: returned nil", i+1)
@@ -339,7 +339,7 @@ func (client *Client) GetInterfaces(tenantName string) ([]Interface, error) {
 
 	resp, err := get[InterfaceListResponse](client, "/vnms/dashboard/health/interface", params, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get interfaces: %v", err)
+		return nil, fmt.Errorf("failed to get interfaces: %w", err)
 	}
 	if resp == nil {
 		return nil, errors.New("failed to get interfaces: returned nil")
@@ -368,7 +368,7 @@ func (client *Client) GetInterfaceMetrics(applianceName string, tenantName strin
 
 	resp, err := get[InterfaceMetricsResponse](client, initialEndpoint, params, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get interface metrics (initial request): %v", err)
+		return nil, fmt.Errorf("failed to get interface metrics (initial request): %w", err)
 	}
 	if resp == nil {
 		return nil, errors.New("failed to get interface metrics: initial response was nil")
@@ -400,7 +400,7 @@ func (client *Client) GetInterfaceMetrics(applianceName string, tenantName strin
 
 		pageResp, err := get[InterfaceMetricsResponse](client, nextPageEndpoint, pageParams, false)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get interface metrics (pagination): %v", err)
+			return nil, fmt.Errorf("failed to get interface metrics (pagination): %w", err)
 		}
 		if pageResp == nil {
 			return nil, errors.New("failed to get interface metrics: page response was nil")
@@ -437,7 +437,7 @@ func (client *Client) closeQuery(queryID string) {
 func (client *Client) GetDirectorStatus() (*DirectorStatus, error) {
 	resp, err := get[DirectorStatus](client, "/vnms/dashboard/vdStatus", nil, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get director status: %v", err)
+		return nil, fmt.Errorf("failed to get director status: %w", err)
 	}
 
 	return resp, nil

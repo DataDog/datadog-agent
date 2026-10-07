@@ -76,7 +76,7 @@ func (o *OIDTrie) getNode(oid string) (*OIDTrie, error) {
 	for digit := range digits {
 		num, err := strconv.Atoi(digit)
 		if err != nil {
-			return nil, fmt.Errorf("invalid OID: %s", err)
+			return nil, fmt.Errorf("invalid OID: %w", err)
 		}
 		child, ok := current.Children[num]
 		if !ok {

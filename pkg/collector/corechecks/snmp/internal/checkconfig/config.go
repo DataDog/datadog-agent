@@ -323,7 +323,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	if c.Network != "" {
 		_, _, err = net.ParseCIDR(c.Network)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't parse SNMP network: %s", err)
+			return nil, fmt.Errorf("couldn't parse SNMP network: %w", err)
 		}
 	}
 

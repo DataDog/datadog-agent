@@ -193,7 +193,7 @@ func (q *rdnsQuerierImpl) GetHostname(ctx context.Context, ipAddr string) (strin
 	netipAddr, err := netip.ParseAddr(ipAddr)
 	if err != nil {
 		q.internalTelemetry.invalidIPAddress.Inc()
-		return "", fmt.Errorf("invalid IP address %s: %v", ipAddr, err)
+		return "", fmt.Errorf("invalid IP address %s: %w", ipAddr, err)
 	}
 
 	if !netipAddr.IsPrivate() {

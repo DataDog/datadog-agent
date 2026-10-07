@@ -205,7 +205,7 @@ func defaultPrivProtocol() string {
 func FetchSysObjectID(session Session) (string, error) {
 	result, err := session.Get([]string{sysObjectIDOid})
 	if err != nil {
-		return "", fmt.Errorf("cannot get sysobjectid: %s", err)
+		return "", fmt.Errorf("cannot get sysobjectid: %w", err)
 	}
 	if len(result.Variables) != 1 {
 		return "", fmt.Errorf("expected 1 value, but got %d: variables=%v", len(result.Variables), result.Variables)
@@ -213,14 +213,14 @@ func FetchSysObjectID(session Session) (string, error) {
 	pduVar := result.Variables[0]
 	oid, value, err := valuestore.GetResultValueFromPDU(pduVar)
 	if err != nil {
-		return "", fmt.Errorf("error getting value from pdu: %s", err)
+		return "", fmt.Errorf("error getting value from pdu: %w", err)
 	}
 	if oid != sysObjectIDOid {
 		return "", fmt.Errorf("expect `%s` OID but got `%s` OID with value `%v`", sysObjectIDOid, oid, value)
 	}
 	strValue, err := value.ToString()
 	if err != nil {
-		return "", fmt.Errorf("error converting value (%#v) to string : %v", value, err)
+		return "", fmt.Errorf("error converting value (%#v) to string : %w", value, err)
 	}
 	return strValue, err
 }

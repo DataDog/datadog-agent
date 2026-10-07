@@ -130,7 +130,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	var err error
 	c.config, err = checkconfig.NewCheckConfig(rawInstance, rawInitConfig, c.rcClient)
 	if err != nil {
-		return fmt.Errorf("build config failed: %s", err)
+		return fmt.Errorf("build config failed: %w", err)
 	}
 	log.Debugf("SNMP configuration: %s", c.config.ToString())
 
@@ -155,7 +155,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 
 	err = c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source, provider)
 	if err != nil {
-		return fmt.Errorf("common configure failed: %s", err)
+		return fmt.Errorf("common configure failed: %w", err)
 	}
 
 	if c.config.IsDiscovery() {
@@ -165,7 +165,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		connMgr := devicecheck.NewConnectionManager(c.config, c.sessionFactory)
 		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, connMgr, c.agentConfig)
 		if err != nil {
-			return fmt.Errorf("failed to create device check: %s", err)
+			return fmt.Errorf("failed to create device check: %w", err)
 		}
 
 		if c.scanManager == nil {

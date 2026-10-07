@@ -30,7 +30,7 @@ func fetchScalarOidsWithBatching(sess session.Session, oids []string, batchSizeO
 
 	batches, err := common.CreateStringBatches(oids, batchSizeOptimizer.batchSize)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create oid batches: %s", err)
+		return nil, fmt.Errorf("failed to create oid batches: %w", err)
 	}
 
 	for _, batchOids := range batches {

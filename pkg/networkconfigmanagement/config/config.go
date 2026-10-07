@@ -99,7 +99,7 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	var initConfig InitConfig
 	err = yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal init config: %s", err)
+		return nil, fmt.Errorf("failed to unmarshal init config: %w", err)
 	}
 	// Apply defaults if missing optional values
 	initConfig.applyDefaults()
@@ -110,7 +110,7 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	var deviceInstance DeviceInstance
 	err = yaml.Unmarshal(rawInstance, &deviceInstance)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal device config: %s", err)
+		return nil, fmt.Errorf("failed to unmarshal device config: %w", err)
 	}
 	deviceInstance.applyDefaults(&initConfig)
 	if err = deviceInstance.Validate(); err != nil {
@@ -153,7 +153,7 @@ func GetNCMContextFromCoreCheck(ctx context.Context, client ipc.HTTPClient, ipAd
 				var deviceInstance DeviceInstance
 				err := yaml.Unmarshal(instance, &deviceInstance)
 				if err != nil {
-					return nil, fmt.Errorf("unable to parse NCM config: %v", err)
+					return nil, fmt.Errorf("unable to parse NCM config: %w", err)
 				}
 				if deviceInstance.IPAddress != ipAddr {
 					continue
