@@ -888,7 +888,10 @@ cc_binary(
     copts = NATIVE_COPTS,
     dynamic_deps = [":native_libpython"],
     linkopts = select({
-        NATIVE_WINDOWS: ["/NODEFAULTLIB:python{}.lib".format(PYTHON_MAJOR_MINOR_FLAT)],
+        NATIVE_WINDOWS: [
+            "/STACK:2000000",
+            "/NODEFAULTLIB:python{}.lib".format(PYTHON_MAJOR_MINOR_FLAT),
+        ],
         "//conditions:default": [
             "-Wl,--export-dynamic",
             "-Wl,-rpath,$$ORIGIN/../lib",
@@ -1160,4 +1163,45 @@ filegroup(
     name = "native_win_shared_modules",
     srcs = [":native_win_module_" + name for name in WINDOWS_SHARED_MODULES],
     target_compatible_with = ["@platforms//os:windows"],
+)
+
+cc_binary(
+    name = "native_pythonw",
+    srcs = ["PC/WinMain.c"],
+    copts = NATIVE_WINDOWS_COPTS,
+    dynamic_deps = [":native_libpython"],
+    linkopts = [
+        "/SUBSYSTEM:WINDOWS",
+        "/STACK:2000000",
+        "/NODEFAULTLIB:python{}.lib".format(PYTHON_MAJOR_MINOR_FLAT),
+    ],
+    local_defines = [
+        "NDEBUG",
+        "WIN32",
+        "_WIN64",
+        "PY3_DLLNAME=L\\\"python3\\\"",
+    ],
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = [":native_headers"],
+)
+
+cc_library(
+    name = "native_python3dll_lib",
+    srcs = ["PC/python3dll.c"],
+    copts = NATIVE_WINDOWS_COPTS,
+    local_defines = [
+        "NDEBUG",
+        "WIN32",
+        "_WIN64",
+        "PYTHON_DLL_NAME=\\\"python{}\\\"".format(PYTHON_MAJOR_MINOR_FLAT),
+    ],
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+cc_shared_library(
+    name = "native_python3dll",
+    shared_lib_name = "python3.dll",
+    target_compatible_with = ["@platforms//os:windows"],
+    user_link_flags = ["/NOENTRY"],
+    deps = [":native_python3dll_lib"],
 )
