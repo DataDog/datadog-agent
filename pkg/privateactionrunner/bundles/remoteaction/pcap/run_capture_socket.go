@@ -26,18 +26,16 @@ import (
 )
 
 // setupGracePeriod is added to the requested capture duration when bounding
-// the HTTP round trip to system-probe, to allow for TC attach/detach and
+// the HTTP round trip to system-probe, to allow for capture setup/teardown and
 // response streaming overhead beyond the capture window itself. It is also
-// used as the response-header timeout below, since attaching the eBPF TC
-// program can itself take several seconds.
+// used as the response-header timeout below.
 const setupGracePeriod = 30 * time.Second
 
 // captureHTTPClient returns an http.Client dedicated to packet_capture
 // requests. It deliberately does not reuse sysprobeclient.Get's shared
 // client: that client's 5s ResponseHeaderTimeout and 10s overall Timeout are
 // sized for quick check-style requests and are too short for a capture,
-// which can take several seconds just to attach its eBPF TC program before
-// headers are sent, and can legitimately stream for up to
+// which can legitimately stream for up to
 // maxDurationSecs (120s) afterwards.
 var captureHTTPClient = funcs.MemoizeArgNoError[string, *http.Client](func(socketPath string) *http.Client {
 	return &http.Client{
@@ -61,7 +59,6 @@ type captureRequest struct {
 	MaxPackets   uint64 `json:"maxPackets,omitempty"`
 	MaxBytes     uint64 `json:"maxBytes,omitempty"`
 	SnapLen      uint32 `json:"snapLen,omitempty"`
-	HeaderOnly   bool   `json:"headerOnly,omitempty"`
 }
 
 // socketCaptureTrigger triggers captures via system-probe's packet_capture
@@ -80,9 +77,6 @@ func (*socketCaptureTrigger) Capture(ctx context.Context, inputs RunCaptureInput
 		return 0, 0, 0, "", errors.New("system-probe socket path not configured (system_probe_config.sysprobe_socket)")
 	}
 
-	// HeaderOnly is unconditional, not sourced from inputs: the settled snap-length
-	// design (NET/7010419694) has no payload opt-in, so this trigger never sends a
-	// request that could return full packet payloads.
 	reqBody, err := json.Marshal(captureRequest{
 		Interface:    inputs.Interface,
 		BPFFilter:    inputs.BPFFilter,
@@ -90,7 +84,6 @@ func (*socketCaptureTrigger) Capture(ctx context.Context, inputs RunCaptureInput
 		MaxPackets:   uint64(inputs.MaxPackets),
 		MaxBytes:     uint64(inputs.MaxBytes),
 		SnapLen:      uint32(inputs.SnapLen),
-		HeaderOnly:   true,
 	})
 	if err != nil {
 		return 0, 0, 0, "", fmt.Errorf("marshalling capture request: %w", err)
