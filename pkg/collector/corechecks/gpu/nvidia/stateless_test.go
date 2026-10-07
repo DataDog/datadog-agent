@@ -1262,6 +1262,155 @@ func TestRetiredPagesSampleError(t *testing.T) {
 	}
 }
 
+func gridFeature(code nvml.GridLicenseFeatureCode, state, enabled bool) nvml.GridLicensableFeature {
+	return nvml.GridLicensableFeature{
+		FeatureCode:    uint32(code),
+		FeatureState:   boolUint(state),
+		FeatureEnabled: boolUint(enabled),
+	}
+}
+
+func gridFeatures(supported bool, features ...nvml.GridLicensableFeature) nvml.GridLicensableFeatures {
+	out := nvml.GridLicensableFeatures{
+		IsGridLicenseSupported:  int32(boolUint(supported)),
+		LicensableFeaturesCount: uint32(len(features)),
+	}
+	copy(out.GridLicensableFeatures[:], features)
+	return out
+}
+
+func boolUint(b bool) uint32 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func TestGridLicenseStatusSample(t *testing.T) {
+	rtx := nvml.GRID_LICENSE_FEATURE_CODE_NVIDIA_RTX
+
+	tests := []struct {
+		name         string
+		deviceMode   testutil.DeviceFeatureMode
+		features     nvml.GridLicensableFeatures
+		expected     []float64
+		expectedTags []string
+		expectedErr  error
+	}{
+		{
+			name:         "licensed vgpu",
+			deviceMode:   testutil.DeviceFeatureVGPU,
+			features:     gridFeatures(true, gridFeature(rtx, true, true)),
+			expected:     []float64{1},
+			expectedTags: []string{"vgpu_product:nvidia_rtx"},
+		},
+		{
+			name:         "unlicensed vgpu",
+			deviceMode:   testutil.DeviceFeatureVGPU,
+			features:     gridFeatures(true, gridFeature(rtx, false, true)),
+			expected:     []float64{0},
+			expectedTags: []string{"vgpu_product:nvidia_rtx"},
+		},
+		{
+			// Only the enabled product is reported
+			name:       "multiple products, one enabled",
+			deviceMode: testutil.DeviceFeatureVGPU,
+			features: gridFeatures(true,
+				gridFeature(nvml.GRID_LICENSE_FEATURE_CODE_COMPUTE, true, false),
+				gridFeature(rtx, false, true),
+			),
+			expected:     []float64{0},
+			expectedTags: []string{"vgpu_product:nvidia_rtx"},
+		},
+		{
+			name:         "unknown feature code",
+			deviceMode:   testutil.DeviceFeatureVGPU,
+			features:     gridFeatures(true, gridFeature(nvml.GridLicenseFeatureCode(42), true, true)),
+			expected:     []float64{1},
+			expectedTags: []string{"vgpu_product:unknown_42"},
+		},
+		{
+			name:        "physical device",
+			deviceMode:  testutil.DeviceFeaturePhysical,
+			expectedErr: errUnsupportedDevice,
+		},
+		{
+			name:        "grid licensing unsupported",
+			deviceMode:  testutil.DeviceFeatureVGPU,
+			features:    gridFeatures(false),
+			expectedErr: errUnsupportedDevice,
+		},
+		{
+			name:       "no features listed",
+			deviceMode: testutil.DeviceFeatureVGPU,
+			features:   gridFeatures(true),
+		},
+		{
+			name:       "no enabled product",
+			deviceMode: testutil.DeviceFeatureVGPU,
+			features:   gridFeatures(true, gridFeature(rtx, true, false)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDevice := setupMockDevice(t, testutil.WithDeviceOptions(0,
+				testutil.WithDeviceFeatureMode(tt.deviceMode),
+				testutil.WithGridLicensableFeatures(tt.features, nil),
+			))
+
+			samples, _, err := gridLicenseStatusSample(mockDevice)
+			if tt.expectedErr != nil {
+				require.ErrorIs(t, err, tt.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+
+			metricsOut := requireMetrics(t, samples)
+			require.Len(t, metricsOut, len(tt.expected))
+			for i, value := range tt.expected {
+				require.Equal(t, "vgpu.license_status", metricsOut[i].Name)
+				require.Equal(t, metrics.GaugeType, metricsOut[i].Type)
+				require.Equal(t, value, metricsOut[i].Value)
+				require.Equal(t, tt.expectedTags, metricsOut[i].Tags())
+			}
+
+			// Only unsupported devices drop the handler; every other state is retried
+			api := findAPICallByName(t, createStatelessAPIs(&CollectorDependencies{}), "grid_license_status")
+			kept := len(filterSupportedAPIs(mockDevice, []apiCallInfo{api})) == 1
+			require.Equal(t, !errors.Is(tt.expectedErr, errUnsupportedDevice), kept)
+		})
+	}
+}
+
+func TestGridLicenseStatusSampleError(t *testing.T) {
+	tests := []struct {
+		name                string
+		ret                 nvml.Return
+		unsupportedOnDevice bool
+	}{
+		{name: "not supported", ret: nvml.ERROR_NOT_SUPPORTED, unsupportedOnDevice: true},
+		{name: "unexpected error", ret: nvml.ERROR_UNKNOWN, unsupportedOnDevice: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ret := tt.ret
+			mockDevice := setupMockDevice(t,
+				testutil.WithDeviceOptions(0,
+					testutil.WithDeviceFeatureMode(testutil.DeviceFeatureVGPU),
+					testutil.WithGridLicensableFeatures(nvml.GridLicensableFeatures{}, &ret),
+				),
+			)
+
+			samples, _, err := gridLicenseStatusSample(mockDevice)
+			require.Error(t, err)
+			require.Empty(t, samples)
+			require.Equal(t, tt.unsupportedOnDevice, safenvml.IsAPIUnsupportedOnDevice(err, mockDevice))
+		})
+	}
+}
+
 func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInfo {
 	t.Helper()
 	for _, api := range apis {

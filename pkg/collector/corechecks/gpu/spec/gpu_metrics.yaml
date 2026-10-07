@@ -2424,3 +2424,27 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  vgpu.license_status:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether the vGPU software license for the device's enabled product is
+        active (1) or inactive (0), as reported by NVML from inside the guest
+        VM. An inactive license exposes the workload to driver performance
+        limitations but does not by itself indicate that throttling is in
+        effect. Tagged with vgpu_product. Only emitted for vGPU devices that
+        support vGPU software licensing.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    custom_tags:
+      - vgpu_product
+    validator:
+      values: [0, 1]
+    optional: true
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: false
+        vgpu: true

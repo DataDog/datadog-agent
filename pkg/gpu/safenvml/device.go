@@ -175,6 +175,9 @@ type SafeDevice interface {
 	IsMigDeviceHandle() (bool, error)
 	// GetVirtualizationMode returns the virtualization mode of the device
 	GetVirtualizationMode() (nvml.GpuVirtualizationMode, error)
+	// GetGridLicensableFeatures returns the vGPU software licensable features
+	// of the device and their license state
+	GetGridLicensableFeatures() (nvml.GridLicensableFeatures, error)
 	// GetSupportedEventTypes returns a bitmask of all supported device events
 	GetSupportedEventTypes() (uint64, error)
 	// RegisterEvents registers the device for events to be waited in the given set

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // nvlinkSample handles NVLink metrics collection logic
@@ -466,6 +467,21 @@ var clockThrottleReasons = []clockThrottleReason{
 const notThrottledReason = "not_throttled"
 const throttleReasonTag = "throttle_reason"
 
+// vgpuProductTag identifies the licensed vGPU software product of each
+// vgpu.license_status sample.
+const vgpuProductTag = "vgpu_product"
+
+// gridFeatureCodeToTag maps the NVML licensable feature code to the
+// vgpu_product tag value. The code is used instead of the product name, which
+// NVIDIA has renamed across driver releases.
+var gridFeatureCodeToTag = map[nvml.GridLicenseFeatureCode]string{
+	nvml.GRID_LICENSE_FEATURE_CODE_UNKNOWN:    "unknown",
+	nvml.GRID_LICENSE_FEATURE_CODE_VGPU:       "vgpu",
+	nvml.GRID_LICENSE_FEATURE_CODE_NVIDIA_RTX: "nvidia_rtx",
+	nvml.GRID_LICENSE_FEATURE_CODE_GAMING:     "gaming",
+	nvml.GRID_LICENSE_FEATURE_CODE_COMPUTE:    "compute",
+}
+
 func clockThrottleReasonMetrics(reasons uint64) []Sample {
 	allSamples := make([]Sample, 0, len(clockThrottleReasons)*2)
 
@@ -520,6 +536,53 @@ func maxClockInfoSample(device ddnvml.Device, clockType nvml.ClockType, metricNa
 	}
 
 	return []Sample{&Metric{Name: metricName, Value: float64(clock), Type: metrics.GaugeType}}, 0, nil
+}
+
+// gridLicenseStatusSample reports whether the vGPU software license of each
+// enabled product is active (1) or not (0).
+func gridLicenseStatusSample(device ddnvml.Device) ([]Sample, uint64, error) {
+	if device.GetDeviceInfo().VirtualizationMode != nvml.GPU_VIRTUALIZATION_MODE_VGPU {
+		return nil, 0, errUnsupportedDevice
+	}
+
+	features, err := device.GetGridLicensableFeatures()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if features.IsGridLicenseSupported == 0 {
+		return nil, 0, errUnsupportedDevice
+	}
+
+	var samples []Sample
+	for i := uint32(0); i < features.LicensableFeaturesCount && i < uint32(len(features.GridLicensableFeatures)); i++ {
+		feature := features.GridLicensableFeatures[i]
+		// featureEnabled marks the product the driver runs as, not the license
+		// state. Skip the other products so they don't report as unlicensed.
+		if feature.FeatureEnabled == 0 {
+			continue
+		}
+
+		productTag, ok := gridFeatureCodeToTag[nvml.GridLicenseFeatureCode(feature.FeatureCode)]
+		if !ok {
+			productTag = "unknown_" + strconv.FormatUint(uint64(feature.FeatureCode), 10)
+		}
+
+		samples = append(samples, &Metric{
+			baseSample: baseSample{tags: []string{vgpuProductTag + ":" + productTag}},
+			Name:       "vgpu.license_status",
+			Value:      boolToFloat(feature.FeatureState != 0),
+			Type:       metrics.GaugeType,
+		})
+	}
+
+	if len(samples) == 0 {
+		// Without an enabled product there is no license state to report. Keep
+		// the handler without returning an error, as the state may change.
+		log.Debugf("vGPU licensing is supported on device %s but no licensable product is enabled", device.GetDeviceInfo().UUID)
+	}
+
+	return samples, 0, nil
 }
 
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
@@ -909,6 +972,13 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			},
 		})
 	}
+
+	apis = append(apis, apiCallInfo{
+		Name: "grid_license_status",
+		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+			return gridLicenseStatusSample(device)
+		},
+	})
 
 	return apis
 }
