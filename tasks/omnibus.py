@@ -20,6 +20,7 @@ from tasks.go import deps
 from tasks.libs.common.check_tools_version import expected_go_repo_v
 from tasks.libs.common.omnibus import (
     ENV_PASSHTROUGH,
+    OPTIONAL_ENV_PASSTHROUGH,
     OS_SPECIFIC_ENV_PASSTHROUGH,
     install_dir_for_project,
     omnibus_compute_cache_key,
@@ -216,7 +217,7 @@ def _passthrough_env_for_os(starting_env: dict[str, str], platform: str) -> dict
             f'Missing expected environment variables for Omnibus build: {missing_env}',
             stacklevel=1,
         )
-    passthrough_env = {k: v for k, v in starting_env.items() if k in expected_env}
+    passthrough_env = {k: v for k, v in starting_env.items() if k in expected_env or k in OPTIONAL_ENV_PASSTHROUGH}
 
     return passthrough_env
 
