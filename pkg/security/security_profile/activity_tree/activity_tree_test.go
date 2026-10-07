@@ -404,9 +404,9 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Len(t, tree.ProcessNodes, 1, "Expected process node to remain in tree")
 
 		// Verify that the LastSeen timestamp was updated to protect the node
-		imageTagTimes, exists := processNode.GetSeenTimes(testTagID)
+		_, lastSeen, exists := processNode.GetSeenTimes(testTagID)
 		assert.True(t, exists, "Expected image tag to still exist")
-		assert.True(t, imageTagTimes.LastSeen.After(evictionTime), "Expected LastSeen to be updated to current time")
+		assert.Greater(t, lastSeen, evictionTime.UnixNano(), "Expected LastSeen to be updated to current time")
 	})
 
 	t.Run("mixed_scenario_some_protected_some_evicted", func(t *testing.T) {
@@ -462,9 +462,9 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Equal(t, "/usr/bin/protected", tree.ProcessNodes[0].Process.FileEvent.PathnameStr, "Expected protected node to remain")
 
 		// Verify that the protected node's timestamp was updated
-		imageTagTimes, exists := tree.ProcessNodes[0].GetSeenTimes(testTagID)
+		_, lastSeen, exists := tree.ProcessNodes[0].GetSeenTimes(testTagID)
 		assert.True(t, exists, "Expected image tag to still exist")
-		assert.True(t, imageTagTimes.LastSeen.After(evictionTime), "Expected LastSeen to be updated to current time")
+		assert.Greater(t, lastSeen, evictionTime.UnixNano(), "Expected LastSeen to be updated to current time")
 	})
 
 	t.Run("node_with_multiple_image_tags_partial_protection", func(t *testing.T) {
@@ -516,21 +516,21 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		// Verify that only the profile's image tag was refreshed
 		node := tree.ProcessNodes[0]
-		veryOldTagTimes, _ := node.GetSeenTimes(veryOldTagID)
-		oldTagTimes, _ := node.GetSeenTimes(oldTagID)
-		recentTagTimes, _ := node.GetSeenTimes(recentTagID)
-		testTagTimes, _ := node.GetSeenTimes(testTagID)
+		_, _, veryOldExists := node.GetSeenTimes(veryOldTagID)
+		_, _, oldExists := node.GetSeenTimes(oldTagID)
+		_, recentLastSeen, recentExists := node.GetSeenTimes(recentTagID)
+		_, testLastSeen, testExists := node.GetSeenTimes(testTagID)
 
 		// The very-old-tag and old-tag should have been evicted since they weren't refreshed
-		assert.Zero(t, veryOldTagTimes, "Expected very-old-tag to be evicted")
-		assert.Zero(t, oldTagTimes, "Expected old-tag to be evicted")
-		assert.NotZero(t, recentTagTimes, "Expected recent-tag to still exist")
-		assert.NotZero(t, testTagTimes, "Expected test-tag to still exist")
+		assert.False(t, veryOldExists, "Expected very-old-tag to be evicted")
+		assert.False(t, oldExists, "Expected old-tag to be evicted")
+		assert.True(t, recentExists, "Expected recent-tag to still exist")
+		assert.True(t, testExists, "Expected test-tag to still exist")
 
 		// The test-tag should have been refreshed to current time (it's the profile tag)
-		assert.True(t, testTagTimes.LastSeen.After(evictionTime), "Expected test-tag LastSeen to be updated")
+		assert.Greater(t, testLastSeen, evictionTime.UnixNano(), "Expected test-tag LastSeen to be updated")
 		// Recent tag should remain unchanged since it wasn't expired
-		assert.True(t, recentTagTimes.LastSeen.Equal(recentTime), "Expected recent-tag LastSeen to remain unchanged")
+		assert.Equal(t, recentTime.UnixNano(), recentLastSeen, "Expected recent-tag LastSeen to remain unchanged")
 	})
 
 	t.Run("empty_process_cache_allows_normal_eviction", func(t *testing.T) {
