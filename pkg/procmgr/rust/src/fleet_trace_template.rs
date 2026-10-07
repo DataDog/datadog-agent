@@ -10,7 +10,7 @@
 
 use crate::config::ProcessConfig;
 use crate::config_gate::{condition_config_any_met, gated_key_names, test_env_guard};
-use crate::fleet_template_support::{INSTALL_DIR, scm_service_keys};
+use crate::fleet_template_support::{INSTALL_DIR, scm_service_keys, sorted};
 use std::path::Path;
 
 /// Catalog name of the shipped entry, from `datadog-agent-trace.yaml` in `processes.d`.
@@ -19,8 +19,6 @@ const TRACE_NAME: &str = "datadog-agent-trace";
 const TRACE_TEMPLATE: &str = include_str!(
     "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-trace-windows.yaml.tmpl"
 );
-
-const STANDALONE_KEY: &str = "apm_config.error_tracking_standalone.enabled";
 
 /// Gate keys all absent, so each one falls through to the Agent's schema default.
 const EMPTY_AGENT_YAML: &str = "api_key: 0000001\n";
@@ -53,9 +51,8 @@ fn fleet_trace_template_declares_legacy_scm_gate() {
         ]
     );
     assert!(
-        !config.auto_start,
-        "the core Agent still starts datadog-trace-agent through the SCM; auto_start here \
-         would run two trace-agents"
+        config.auto_start,
+        "cutover ships auto_start true together with SCM suppression"
     );
 
     let (core_keys, sysprobe_keys) = scm_service_keys("apm");
@@ -71,20 +68,10 @@ fn fleet_trace_template_declares_legacy_scm_gate() {
         format!("{}/datadog.yaml", etc.path().display())
     );
 
-    for key in &core_keys {
-        assert!(
-            gate[0].keys.contains(key),
-            "{key} is in the apm Servicedef but missing from the template"
-        );
-    }
-    assert!(
-        gate[0].keys.iter().any(|key| key == STANDALONE_KEY),
-        "the template must name {STANDALONE_KEY} in addition to the Servicedef keys"
-    );
     assert_eq!(
-        gate[0].keys.len(),
-        core_keys.len() + 1,
-        "expected the Servicedef keys plus {STANDALONE_KEY}, got {:?}",
+        sorted(&gate[0].keys),
+        sorted(&core_keys),
+        "the template must transcribe the apm Servicedef keys, got {:?}",
         gate[0].keys
     );
 
@@ -137,8 +124,7 @@ fn fleet_trace_template_gate_closed_when_apm_disabled() {
     assert!(!condition_config_any_met(&gate));
 }
 
-/// Error Tracking standalone is the other half of `utils.IsAPMEnabled`. The Windows SCM
-/// start path does not honor it; this gate does.
+/// Gate opens on Error Tracking standalone, matching `utils.IsAPMEnabled`.
 #[test]
 fn fleet_trace_template_gate_opens_on_error_tracking_standalone() {
     let _env = test_env_guard();

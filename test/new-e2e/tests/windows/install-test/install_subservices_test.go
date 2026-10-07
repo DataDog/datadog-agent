@@ -123,7 +123,10 @@ func (s *testSubServicesOptsSuite) TestAPMEnabled() {
 		assert.Equal(s.T(), tc.apmEnabled, apmConf["enabled"], "apm_config enabled should match")
 	}
 
-	s.testServiceState("datadog-trace-agent", tc.apmEnabled)
+	s.testServiceState("datadog-trace-agent", false)
+	if tc.apmEnabled {
+		s.testProcmgrProcessRunning("datadog-agent-trace")
+	}
 }
 
 func (s *testSubServicesOptsSuite) testServiceState(serviceName string, running bool) {
