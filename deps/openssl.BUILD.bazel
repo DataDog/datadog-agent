@@ -81,6 +81,15 @@ configure_make(
         "//conditions:default": ["DESTDIR=$$BUILD_TMPDIR$$/dest"],
     }),
     build_data = select({
+        "@llvm//platforms/config:windows_x86_64_gnu": [
+            "@@//bazel/toolchains/hermetic_llvm:libssp",
+            "@@//bazel/toolchains/hermetic_llvm:llvm_windres.sh",
+            "@llvm//tools:clang",
+            "@llvm//tools:llvm-windres",
+            "@mingw//:mingw-w64-headers/crt/_mingw.h",
+            "@mingw//:mingw_w64_headers_crt_directory",
+            "@mingw//:mingw_w64_headers_include_directory",
+        ],
         "@platforms//os:windows": [
             "@winlibs_mingw64//:windres",
         ],
@@ -123,6 +132,11 @@ configure_make(
         ] + DEFAULT_CONFIG[:-1],
         "//conditions:default": DEFAULT_CONFIG,
     }) + select({
+        "@llvm//platforms/config:windows_x86_64_gnu": [
+            "-L$(execpath @@//bazel/toolchains/hermetic_llvm:libssp)",
+        ],
+        "//conditions:default": [],
+    }) + select({
         ":fips_windows": [
             "-DOSSL_WINCTX=datadog-fips-agent",
             "--openssldir='C:/Program Files/Datadog/Datadog Agent/embedded3/ssl'",
@@ -146,6 +160,14 @@ configure_make(
         "//conditions:default": [],
     }),
     env = select({
+        "@llvm//platforms/config:windows_x86_64_gnu": {
+            "LLVM_WINDRES": "$(execpath @llvm//tools:llvm-windres)",
+            "MINGW_CRT_DIR": "$(execpath @mingw//:mingw_w64_headers_crt_directory)",
+            "MINGW_GENERATED_CRT_H": "$(execpath @mingw//:mingw-w64-headers/crt/_mingw.h)",
+            "MINGW_INCLUDE_DIR": "$(execpath @mingw//:mingw_w64_headers_include_directory)",
+            "RC": "$(execpath @@//bazel/toolchains/hermetic_llvm:llvm_windres.sh)",
+            "WINDRES": "$(execpath @@//bazel/toolchains/hermetic_llvm:llvm_windres.sh)",
+        },
         "@platforms//os:windows": {
             # Configure resolves RC from RC or WINDRES, then emits it into Makefile.
             # Keep both for clarity and to avoid tool lookup through PATH.
