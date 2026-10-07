@@ -80,6 +80,7 @@ bazel_dep(name = "gawk", version = "5.4.0.bcr.2")
 bazel_dep(name = "gazelle", version = "0.54.0")
 bazel_dep(name = "gcc_toolchain", version = "0.12.1")
 bazel_dep(name = "llvm", version = "0.8.24")
+bazel_dep(name = "windows_support", version = "0.4.1")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.3")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "35.1")
@@ -425,6 +426,9 @@ winlibs_mingw_repository(
         "https://downloads.sourceforge.net/project/winlibs-mingw/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-mingw-w64msvcrt-12.0.0-r3.zip",
     ],
 )
+
+msvc_runtime = use_extension("@windows_support//windows:extensions.bzl", "msvc_runtime")
+use_repo(msvc_runtime, "msvc_runtime")
 
 # Hermetic MSVC + Windows SDK + MSBuild for CPython and DatadogInterop
 # (see deps/cpython/build_python.bat, tools/windows/DatadogInterop). MinGW stays
