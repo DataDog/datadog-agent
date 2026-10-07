@@ -46,6 +46,12 @@ func (c *Check) runDataObservabilityJob(run func(context.Context) error) error {
 		c.dataObservabilityWorkerMu.Unlock()
 		return nil
 	}
+	emitter, err := c.newDataObservabilityEmitter()
+	if err != nil {
+		c.dataObservabilityWorkerMu.Unlock()
+		return err
+	}
+	c.dataObservabilityEmitter = emitter
 	now := c.clock.Now()
 	c.dataObservabilityLastCheckRun = now
 	if c.dataObservabilityWorkerRunning {

@@ -42,16 +42,16 @@ type DataObservabilityQuery struct {
 }
 
 type DataObservabilityEntity struct {
-	Platform string `yaml:"platform"`
-	Account  string `yaml:"account"`
-	Database string `yaml:"database"`
-	Schema   string `yaml:"schema"`
-	Table    string `yaml:"table"`
+	Platform string `yaml:"platform" json:"platform"`
+	Account  string `yaml:"account" json:"account"`
+	Database string `yaml:"database" json:"database"`
+	Schema   string `yaml:"schema" json:"schema"`
+	Table    string `yaml:"table" json:"table"`
 }
 
 type DataObservabilityCustomSQLSelectFields struct {
-	MetricConfigID *int64  `yaml:"metric_config_id"`
-	EntityID       *string `yaml:"entity_id"`
+	MetricConfigID *int64  `yaml:"metric_config_id" json:"metric_config_id,omitempty"`
+	EntityID       *string `yaml:"entity_id" json:"entity_id,omitempty"`
 }
 
 func (q DataObservabilityQuery) QueryTimeoutDuration() time.Duration {

@@ -9,6 +9,7 @@ package oracle
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"regexp"
 	"testing"
@@ -47,6 +48,7 @@ func newDataObservabilityWorkerCheck(t *testing.T) (*Check, *dataObservabilityWo
 		Queries: []config.DataObservabilityQuery{{IntervalSeconds: 1}},
 	}
 	c.dataObservabilityQueries = newDataObservabilityScheduledQueries(c.config.DataObservability.Queries)
+	newDataObservabilityTestSender(t, c)
 	t.Cleanup(c.Cancel)
 	return c, clk
 }
@@ -258,6 +260,8 @@ data_observability:
 	require.Len(t, c.dataObservabilityQueries, 1)
 	assert.Equal(t, "PDB2", c.dataObservabilityQueries[0].query.DBName)
 	assert.True(t, c.dataObservabilityLastEvent.IsZero())
+	assert.Nil(t, c.dataObservabilityEmitter)
+	newDataObservabilityTestSender(t, c)
 	c.clock = clk
 	calls := 0
 	require.NoError(t, c.runDataObservabilityJob(func(context.Context) error {
@@ -315,32 +319,26 @@ data_observability:
 	defer regularDB.Close()
 	c.db = sqlx.NewDb(regularDB, "sqlmock")
 	c.db.SetMaxOpenConns(1)
-	held, err := c.db.Connx(context.Background())
-	require.NoError(t, err)
-	defer held.Close()
+	regularMock.ExpectQuery(`FROM v\$instance`).WillReturnRows(sqlmock.NewRows([]string{"HOST_NAME", "INSTANCE_NAME", "VERSION_FULL"}).AddRow("db-host", "orcl", "12.1.0.2.0"))
+	regularMock.ExpectQuery(`FROM v\$database`).WillReturnRows(sqlmock.NewRows([]string{"NAME", "CDB"}).AddRow("orcl", "YES"))
+	regularMock.ExpectQuery(`sys_context\('USERENV','CON_ID'\)`).WillReturnRows(sqlmock.NewRows([]string{"TYPE"}).AddRow("PDB"))
+	regularMock.ExpectQuery("SELECT 1 FROM dual").WillReturnRows(sqlmock.NewRows([]string{"N"}).AddRow(1))
 	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
 	require.NoError(t, err)
 	c.dataObservabilityDB = sqlx.NewDb(db, "sqlmock")
-	c.initialized = true
-	c.cdbName = "orcl"
-	c.multitenant = true
-	c.connectedToPdb = true
-	c.metricLastRun = time.Now()
-	c.dbInstanceLastRun = c.metricLastRun
 	expectDataObservabilityConnection(mock, "SALES")
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT 1 FROM dual")).WillReturnRows(sqlmock.NewRows([]string{"N"}).AddRow(1)).RowsWillBeClosed()
 	mock.ExpectClose()
-	var results []dataObservabilityQueryResult
-	c.dataObservabilityEmitter = func(_ dataObservabilityDueQuery, result dataObservabilityQueryResult) {
-		results = append(results, result)
-	}
 	defer c.Cancel()
 	require.NoError(t, c.Run())
 	assert.False(t, c.dbmEnabled)
-	require.Len(t, results, 1)
-	assert.Equal(t, "success", results[0].Status)
+	sender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
+	sender.AssertMetric(t, "Count", "dd.oracle.data_observability.query_executions", 1, "db-host", []string{
+		"status:success", "db_type:oracle", "monitor_id:0", "cdb:orcl", "real_hostname:db-host",
+		"oracle_version:12.1.0.2.0", "hosting_type:self-managed", "database_instance:" + c.dbInstanceIdentifier,
+	})
 	assert.Nil(t, c.dataObservabilityDB)
-	sender.AssertNumberOfCalls(t, "Commit", 1)
+	sender.AssertNumberOfCalls(t, "Commit", 2)
 	require.NoError(t, mock.ExpectationsWereMet())
 	require.NoError(t, regularMock.ExpectationsWereMet())
 }
@@ -373,4 +371,68 @@ func TestDataObservabilityWorkerCancelDuringExecution(t *testing.T) {
 	assert.Nil(t, c.dataObservabilityDB)
 	assert.NotNil(t, c.dataObservabilityQueries[0].pendingRetry)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDataObservabilityBackgroundEmission(t *testing.T) {
+	query := dataObservabilityTestQuery("orcl.SALES", "SELECT 1 FROM dual")
+	query.IntervalSeconds = 2
+	c, clk := newDataObservabilityWorkerCheck(t)
+	c.cdbName = "orcl"
+	c.dataObservabilityQueries = newDataObservabilityScheduledQueries([]config.DataObservabilityQuery{query})
+	c.connectedToPdb = true
+	c.dbHostname = "db-host"
+	c.tags = []string{"env:test", "database_role:primary"}
+	c.dataObservabilityEmitter = nil
+	sender := newDataObservabilityTestSender(t, c)
+	started, release := make(chan struct{}), make(chan struct{})
+	released, firstQuery := false, true
+	defer func() {
+		if !released {
+			close(release)
+		}
+	}()
+	db, dbMock, err := sqlmock.New(sqlmock.MonitorPingsOption(true), sqlmock.QueryMatcherOption(sqlmock.QueryMatcherFunc(func(expected, actual string) error {
+		if actual == query.Query && firstQuery {
+			firstQuery = false
+			close(started)
+			<-release
+		}
+		return sqlmock.QueryMatcherRegexp.Match(expected, actual)
+	})))
+	require.NoError(t, err)
+	c.dataObservabilityDB = sqlx.NewDb(db, "sqlmock")
+	expectDataObservabilityConnection(dbMock, "SALES")
+	dbMock.ExpectQuery(query.Query).WillReturnRows(sqlmock.NewRows([]string{"N"}).AddRow(1))
+	dbMock.ExpectQuery(query.Query).WillReturnRows(sqlmock.NewRows([]string{"N"}).AddRow(2))
+	dbMock.ExpectClose()
+	require.NoError(t, c.runDataObservabilityJob(c.collectDataObservability))
+	waitForDataObservabilityWorker(t, started)
+	done := dataObservabilityWorkerDone(c)
+	c.tags[0] = "changed"
+	c.tags = []string{"env:test", "database_role:physical_standby", "dd.internal.resource:test"}
+	require.NoError(t, c.runDataObservabilityJob(c.collectDataObservability))
+	assert.Equal(t, done, dataObservabilityWorkerDone(c))
+	close(release)
+	released = true
+	assert.Equal(t, 2*time.Second, <-clk.timers)
+	clk.Add(2 * time.Second)
+	assert.Equal(t, 2*time.Second, <-clk.timers)
+	c.Cancel()
+	waitForDataObservabilityWorker(t, dataObservabilityWorkerDone(c))
+	sender.AssertNumberOfCalls(t, "EventPlatformEvent", 2)
+	sender.AssertMetric(t, "Count", "dd.oracle.data_observability.query_executions", 1, "db-host", []string{"env:test", "status:success", "database_role:primary"})
+	sender.AssertMetric(t, "Count", "dd.oracle.data_observability.query_executions", 1, "db-host", []string{"env:test", "status:success", "database_role:physical_standby"})
+	sender.AssertMetricNotTaggedWith(t, "Count", "dd.oracle.data_observability.query_executions", []string{"dd.internal.resource:test"})
+	sender.AssertNotCalled(t, "Commit")
+	var rows []any
+	for _, call := range sender.Calls {
+		if call.Method == "EventPlatformEvent" {
+			var payload map[string]any
+			require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &payload))
+			assert.Equal(t, "db-host", payload["db_host"])
+			rows = append(rows, payload["rows"])
+		}
+	}
+	assert.Equal(t, []any{[]any{[]any{float64(1)}}, []any{[]any{float64(2)}}}, rows)
+	require.NoError(t, dbMock.ExpectationsWereMet())
 }

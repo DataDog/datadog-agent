@@ -82,9 +82,11 @@ dd_agent_go_test(
     gotags_sets = [["oracle"]],
     deps = [
         "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks/oracle/common",
         "//pkg/collector/corechecks/oracle/config",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_data_dog_go_sqlmock//:go-sqlmock",
+        "@com_github_godror_godror//:godror",
         "@com_github_jmoiron_sqlx//:sqlx",
         "@com_github_sijms_go_ora_v2//network",
         "@com_github_stretchr_testify//assert",

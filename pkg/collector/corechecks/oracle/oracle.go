@@ -198,10 +198,6 @@ func (c *Check) Run() error {
 			return fmt.Errorf("%s failed to initialize: %w", c.logPrompt, err)
 		}
 	}
-	if err := c.runDataObservabilityJob(c.collectDataObservability); err != nil {
-		allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to execute data observability queries: %w", c.logPrompt, err))
-	}
-
 	if c.driver == "oracle" && c.connection == nil {
 		conn, err := connectGoOra(c)
 		if err != nil {
@@ -266,6 +262,10 @@ func (c *Check) Run() error {
 				}
 			}
 		}
+	}
+
+	if err := c.runDataObservabilityJob(c.collectDataObservability); err != nil {
+		allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to execute data observability queries: %w", c.logPrompt, err))
 	}
 
 	if len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0 {
@@ -406,6 +406,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.clock = clock.New()
 	c.dataObservabilityQueries = newDataObservabilityScheduledQueries(c.config.DataObservability.Queries)
 	c.dataObservabilityLastEvent = time.Time{}
+	c.dataObservabilityEmitter = nil
 
 	// Must be called before c.CommonConfigure because this integration supports multiple instances
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)

@@ -9,6 +9,7 @@ package oracle
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -24,7 +25,7 @@ func TestDataObservabilityAgainstDatabase(t *testing.T) {
 		t.Run(oracleDriver, func(t *testing.T) {
 			connection := getConnectData(t, useDefaultUser)
 			connection.OracleClient = oracleDriver == common.Godror
-			c, _ := newTestCheck(t, connection, "data_observability:\n  enabled: true", "")
+			c, sender := newTestCheck(t, connection, "data_observability:\n  enabled: true", "")
 			t.Cleanup(c.Teardown)
 			var err error
 			c.db, err = c.Connect()
@@ -70,6 +71,46 @@ func TestDataObservabilityAgainstDatabase(t *testing.T) {
 			var regularContainer string
 			require.NoError(t, c.db.Get(&regularContainer, dataObservabilityCurrentContainerQuery))
 			assert.Equal(t, initialContainer, regularContainer)
+
+			t.Run("payload", func(t *testing.T) {
+				var emptyLOB any = ""
+				if oracleDriver == common.GoOra {
+					// go-ora v2.9.0 returns nil for both NULL and empty LOBs.
+					emptyLOB = nil
+				}
+				query := dataObservabilityTestQuery(c.getFullPDBName(pdb), `SELECT
+					42.25 AS N, '42.25' AS TEXT, HEXTORAW('68656C6C6F') AS BYTES,
+					TO_CLOB('clob') AS CLOB_VALUE, TO_NCLOB('nclob') AS NCLOB_VALUE,
+					TO_BLOB(HEXTORAW('626C6F62')) AS BLOB_VALUE,
+					CAST(NULL AS NUMBER) AS NULL_VALUE,
+					CAST(NULL AS VARCHAR2(10)) AS NULL_VARCHAR, CAST(NULL AS NVARCHAR2(10)) AS NULL_NVARCHAR,
+					CAST(NULL AS CHAR(10)) AS NULL_CHAR, CAST(NULL AS NCHAR(10)) AS NULL_NCHAR,
+					TO_CLOB(NULL) AS NULL_CLOB, TO_NCLOB(NULL) AS NULL_NCLOB, TO_BLOB(NULL) AS NULL_BLOB,
+					EMPTY_CLOB() AS EMPTY_CLOB_VALUE, TO_NCLOB(EMPTY_CLOB()) AS EMPTY_NCLOB_VALUE, EMPTY_BLOB() AS EMPTY_BLOB_VALUE,
+					TO_DATE('2026-01-02 03:04:05', 'YYYY-MM-DD HH24:MI:SS') AS DATE_VALUE,
+					TIMESTAMP '2026-01-02 03:04:05.123456' AS TIMESTAMP_VALUE,
+					TO_TIMESTAMP_TZ('2026-01-02 03:04:05.123456 -05:00', 'YYYY-MM-DD HH24:MI:SS.FF TZH:TZM') AS TZ_VALUE,
+					BINARY_DOUBLE_NAN AS NAN_VALUE FROM dual`)
+				result, err := c.executeDataObservabilityQuery(context.Background(), query, pdb)
+				require.NoError(t, err)
+				emit, err := c.newDataObservabilityEmitter()
+				require.NoError(t, err)
+				emit(dataObservabilityDueQuery{scheduledQuery: &dataObservabilityScheduledQuery{query: query}, scheduledTime: c.clock.Now()}, result)
+				sender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
+				for _, call := range sender.Calls {
+					if call.Method != "EventPlatformEvent" {
+						continue
+					}
+					assert.Equal(t, "do-query-results", call.Arguments.String(1))
+					var payload map[string]any
+					require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &payload))
+					assert.Equal(t, "success", payload["status"])
+					assert.Equal(t, query.DBName, payload["db_name"])
+					assert.Equal(t, []any{[]any{42.25, "42.25", "hello", "clob", "nclob", "blob", nil,
+						nil, nil, nil, nil, nil, nil, nil, emptyLOB, emptyLOB, emptyLOB,
+						"2026-01-02T03:04:05", "2026-01-02T03:04:05.123456", "2026-01-02T03:04:05.123456-05:00", nil}}, payload["rows"])
+				}
+			})
 
 			t.Run("timeout", func(t *testing.T) {
 				query := dataObservabilityTestQuery(c.getFullPDBName(pdb), "SELECT SUM(SQRT(LEVEL)) FROM dual CONNECT BY LEVEL <= 10000000")
