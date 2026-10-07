@@ -756,6 +756,10 @@ func TestHealthPlatformDefaults(t *testing.T) {
 	assert.Equal(t, true, config.GetBool("health_platform.enabled"))
 	assert.Equal(t, 15*time.Minute, config.GetDuration("health_platform.forwarder.interval"))
 	assert.Equal(t, true, config.GetBool("health_platform.invalidconfig_check.enabled"))
+	assert.Equal(t, true, config.GetBool("health_platform.logs_profile_recommendation.enabled"))
+	assert.Equal(t, 1*time.Minute, config.GetDuration("health_platform.logs_profile_recommendation.interval"))
+	assert.Equal(t, 10*time.Minute, config.GetDuration("health_platform.logs_profile_recommendation.min_healthy_period"))
+	assert.Equal(t, 10*time.Minute, config.GetDuration("health_platform.logs_profile_recommendation.efficiency_min_saturated_30m"))
 	assert.Equal(t, true, config.GetBool("dogstatsd_client_drop_detection.enabled"))
 }
 

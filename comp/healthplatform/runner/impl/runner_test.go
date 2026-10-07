@@ -96,6 +96,17 @@ func TestRunFnError(t *testing.T) {
 	assert.Equal(t, 1, count)
 }
 
+func TestRunFnStateUnknown(t *testing.T) {
+	r, _ := newTestRunner(t)
+
+	ids, err := r.Run("mycomp", func() ([]runnerdef.IssueReport, error) {
+		return nil, fmt.Errorf("not ready: %w", runnerdef.ErrStateUnknown)
+	})
+
+	require.ErrorIs(t, err, runnerdef.ErrStateUnknown)
+	assert.Empty(t, ids)
+}
+
 func TestRunFnPanic(t *testing.T) {
 	r, store := newTestRunner(t)
 

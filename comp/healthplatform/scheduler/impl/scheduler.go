@@ -161,7 +161,11 @@ func (s *scheduler) runAndSchedule(check *registeredHealthCheck) {
 func (s *scheduler) tick(check *registeredHealthCheck) {
 	newIDs, err := s.runner.Run(check.source, check.fn)
 	if err != nil {
-		s.log.Warnf("health check %q returned error: %v", check.source, err)
+		if errors.Is(err, runnerdef.ErrStateUnknown) {
+			s.log.Debugf("health check %q state unknown: %v", check.source, err)
+		} else {
+			s.log.Warnf("health check %q returned error: %v", check.source, err)
+		}
 		return
 	}
 
