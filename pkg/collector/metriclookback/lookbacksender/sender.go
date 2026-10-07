@@ -119,7 +119,7 @@ type sender struct {
 	mu                      sync.Mutex
 	defaultHostnameDisabled bool
 	checkTags               []string
-	infraTagger             *infratags.Tagger
+	infraTagger             *infratags.MetricTagger
 	service                 string
 	noIndex                 bool
 	samples                 []metrics.MetricSample
@@ -232,7 +232,7 @@ func (s *sender) SetCheckCustomTags(tags []string) {
 }
 
 // SetInfraTagger stores the tagger that appends infra mode tags to scalar metric samples.
-func (s *sender) SetInfraTagger(tagger *infratags.Tagger) {
+func (s *sender) SetInfraTagger(tagger *infratags.MetricTagger) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.infraTagger = tagger
@@ -411,7 +411,7 @@ func (n *noopSender) DisableDefaultHostname(_ bool) {}
 
 func (n *noopSender) SetCheckCustomTags(_ []string) {}
 
-func (n *noopSender) SetInfraTagger(_ *infratags.Tagger) {}
+func (n *noopSender) SetInfraTagger(_ *infratags.MetricTagger) {}
 
 func (n *noopSender) SetCheckService(_ string) {}
 

@@ -521,7 +521,7 @@ func TestCheckSenderInfraTagger_OnlyTagsEligibleChecks(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
 	cfg.Set("integration.cloud_cost_only.tagged", []string{"my.metric"}, pkgconfigmodel.SourceFile)
-	tagger := infratags.NewTagger(cfg)
+	tagger := infratags.NewMetricTagger(cfg)
 	require.NotNil(t, tagger)
 
 	// eligible check: scheduler sets the tagger on the sender
@@ -556,7 +556,7 @@ func TestCheckSenderInfraTagger_EmptyTaggedList(t *testing.T) {
 	// empty tagged list means all non-custom checks are eligible
 	cfg := configmock.New(t)
 	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-	tagger := infratags.NewTagger(cfg)
+	tagger := infratags.NewMetricTagger(cfg)
 	require.NotNil(t, tagger)
 
 	s := initSender(checkID1, "")

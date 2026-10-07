@@ -1588,7 +1588,7 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 
 func enrichConfigWithInfraTags(t *testing.T, cfg pkgconfigmodel.Reader) enrichConfig {
 	t.Helper()
-	return enrichConfig{defaultHostname: "h", infraTagger: infratags.NewTagger(cfg)}
+	return enrichConfig{defaultHostname: "h", infraTagger: infratags.NewMetricTagger(cfg)}
 }
 
 func TestEnrichMetricSampleJMXInfraTag(t *testing.T) {

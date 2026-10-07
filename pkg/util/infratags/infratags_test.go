@@ -16,7 +16,7 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
-func TestNewTagger(t *testing.T) {
+func TestNewMetricTagger(t *testing.T) {
 	tests := []struct {
 		name             string
 		mode             string
@@ -58,7 +58,7 @@ func TestNewTagger(t *testing.T) {
 				cfg.Set("integration.cloud_cost_only.tagged", tt.taggedChecks, pkgconfigmodel.SourceFile)
 			}
 
-			tagger := NewTagger(cfg)
+			tagger := NewMetricTagger(cfg)
 			if tt.wantNil {
 				assert.Nil(t, tagger)
 				return
@@ -75,15 +75,15 @@ func TestNewTagger(t *testing.T) {
 }
 
 func TestIsCheckEligible(t *testing.T) {
-	allChecks := &Tagger{infraModeTags: []string{InfraModeCloudCostTag}}
-	selective := &Tagger{
+	allChecks := &MetricTagger{infraModeTags: []string{InfraModeCloudCostTag}}
+	selective := &MetricTagger{
 		infraModeTags: []string{InfraModeCloudCostTag},
 		taggedChecks:  map[string]struct{}{"cpu": {}},
 	}
 
 	tests := []struct {
 		name      string
-		tagger    *Tagger
+		tagger    *MetricTagger
 		checkName string
 		want      bool
 	}{
@@ -101,11 +101,11 @@ func TestIsCheckEligible(t *testing.T) {
 	}
 }
 
-func TestTaggerAppendTags(t *testing.T) {
+func TestMetricTaggerAppendTags(t *testing.T) {
 	eudmTag := fmt.Sprintf("%s:%s", configutils.InfraModeTagKey, "end_user_device")
 	tests := []struct {
 		name      string
-		tagger    *Tagger
+		tagger    *MetricTagger
 		inputTags []string
 		wantTags  []string
 	}{
@@ -117,25 +117,25 @@ func TestTaggerAppendTags(t *testing.T) {
 		},
 		{
 			name:      "empty infraModeTags is no-op",
-			tagger:    &Tagger{},
+			tagger:    &MetricTagger{},
 			inputTags: []string{"env:prod"},
 			wantTags:  []string{"env:prod"},
 		},
 		{
 			name:      "single infra tag appended",
-			tagger:    &Tagger{infraModeTags: []string{InfraModeCloudCostTag}},
+			tagger:    &MetricTagger{infraModeTags: []string{InfraModeCloudCostTag}},
 			inputTags: []string{"env:prod"},
 			wantTags:  []string{"env:prod", InfraModeCloudCostTag},
 		},
 		{
 			name:      "dedupes when mark already present",
-			tagger:    &Tagger{infraModeTags: []string{InfraModeCloudCostTag}},
+			tagger:    &MetricTagger{infraModeTags: []string{InfraModeCloudCostTag}},
 			inputTags: []string{"env:prod", InfraModeCloudCostTag},
 			wantTags:  []string{"env:prod", InfraModeCloudCostTag},
 		},
 		{
 			name:      "end_user_device tag appended",
-			tagger:    &Tagger{infraModeTags: []string{eudmTag}},
+			tagger:    &MetricTagger{infraModeTags: []string{eudmTag}},
 			inputTags: []string{"env:prod"},
 			wantTags:  []string{"env:prod", eudmTag},
 		},
