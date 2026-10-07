@@ -85,6 +85,7 @@ type checkTelemetryMetrics struct {
 	duplicateMetrics           telemetry.Counter
 	activeMetrics              telemetry.Gauge
 	missingContainerGpuMapping telemetry.Counter
+	containerMappingFailurePct telemetry.Gauge
 	deviceCount                telemetry.Gauge // emitted as a telemetry metric too in order to send it through COAT
 }
 
@@ -141,6 +142,7 @@ func newCheckTelemetryMetrics(tm telemetry.Component) *checkTelemetryMetrics {
 		activeMetrics:              tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
 		duplicateMetrics:           tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
 		missingContainerGpuMapping: tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching GPU device"),
+		containerMappingFailurePct: tm.NewGauge(CheckName, "container_gpu_mapping_failure_pct", nil, "Percentage of GPU containers whose devices could not be fully matched in the last check run"),
 		deviceCount:                tm.NewGauge(CheckName, "device_total", nil, "Number of GPU devices"),
 	}
 }
@@ -484,6 +486,7 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 		return nil
 	}
 	gpuToContainers := make(map[string][]*workloadmeta.Container, len(allPhysicalDevices))
+	var gpuContainers, unmatchedContainers int
 
 	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
 		if containers.IsDatadogAgentContainer(c.wmeta, container) {
@@ -491,8 +494,10 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 			continue
 		}
 
+		gpuContainers++
 		containerDevices, err := containers.MatchContainerDevices(container, allPhysicalDevices)
 		if err != nil {
+			unmatchedContainers++
 			c.telemetry.metrics.missingContainerGpuMapping.Inc(container.Name)
 		}
 
@@ -503,6 +508,12 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 			gpuToContainers[deviceID] = append(gpuToContainers[deviceID], container)
 		}
 	}
+
+	failurePct := 0.0
+	if gpuContainers > 0 {
+		failurePct = 100 * float64(unmatchedContainers) / float64(gpuContainers)
+	}
+	c.telemetry.metrics.containerMappingFailurePct.Set(failurePct)
 
 	return gpuToContainers
 }
