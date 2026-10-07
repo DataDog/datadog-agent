@@ -42,6 +42,7 @@ func TestSessionBoundsAndAggregation(t *testing.T) {
 	require.Equal(t, uint64(2), result.PayloadFamilies["json"].Events)
 	require.Len(t, result.Groups, 1)
 	require.Len(t, result.RateWindows, 1)
+	require.Equal(t, uint64(1), result.RateWindows[0].FileSourceCount)
 	require.Equal(t, uint64(2), result.RateWindows[0].Events)
 }
 

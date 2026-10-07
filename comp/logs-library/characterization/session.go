@@ -88,11 +88,12 @@ type Group struct {
 
 // RateWindow is a fixed ten-second ingress bucket used to preserve burst shape.
 type RateWindow struct {
-	StartedAt    time.Time `json:"started_at"`
-	EndsAt       time.Time `json:"ends_at"`
-	Events       uint64    `json:"events"`
-	ContentBytes uint64    `json:"content_bytes"`
-	RawBytes     uint64    `json:"raw_bytes"`
+	StartedAt       time.Time `json:"started_at"`
+	EndsAt          time.Time `json:"ends_at"`
+	Events          uint64    `json:"events"`
+	ContentBytes    uint64    `json:"content_bytes"`
+	FileSourceCount uint64    `json:"file_source_count"`
+	RawBytes        uint64    `json:"raw_bytes"`
 }
 
 // Lifecycle contains file lifecycle signals observed inside the same session window.
@@ -113,6 +114,7 @@ type Snapshot struct {
 	RequestedDurationSeconds float64              `json:"requested_duration_seconds"`
 	Totals                   Aggregate            `json:"totals"`
 	PayloadFamilies          map[string]Aggregate `json:"payload_families"`
+	FilePayloadFamilies      map[string]Aggregate `json:"file_payload_families"`
 	Groups                   []Group              `json:"groups"`
 	RateWindows              []RateWindow         `json:"rate_windows"`
 	Lifecycle                *Lifecycle           `json:"lifecycle,omitempty"`
@@ -132,13 +134,14 @@ type groupKey struct {
 }
 
 type session struct {
-	mu          sync.Mutex
-	snapshot    Snapshot
-	groups      map[groupKey]*Aggregate
-	sources     map[sourceIdentity]struct{}
-	lastIngress map[groupKey]time.Time
-	rateWindows map[int]*RateWindow
-	closed      bool
+	mu                    sync.Mutex
+	snapshot              Snapshot
+	groups                map[groupKey]*Aggregate
+	sources               map[sourceIdentity]struct{}
+	lastIngress           map[groupKey]time.Time
+	rateWindows           map[int]*RateWindow
+	rateWindowFileSources map[int]map[sourceIdentity]struct{}
+	closed                bool
 }
 
 // Manager permits at most one active session and retains only the latest result.
@@ -175,11 +178,13 @@ func (m *Manager) Start(duration time.Duration) (Snapshot, error) {
 			RequestedDurationSeconds: duration.Seconds(),
 			Totals:                   newAggregate(),
 			PayloadFamilies:          make(map[string]Aggregate),
+			FilePayloadFamilies:      make(map[string]Aggregate),
 		},
-		groups:      make(map[groupKey]*Aggregate),
-		sources:     make(map[sourceIdentity]struct{}),
-		lastIngress: make(map[groupKey]time.Time),
-		rateWindows: make(map[int]*RateWindow),
+		groups:                make(map[groupKey]*Aggregate),
+		sources:               make(map[sourceIdentity]struct{}),
+		lastIngress:           make(map[groupKey]time.Time),
+		rateWindows:           make(map[int]*RateWindow),
+		rateWindowFileSources: make(map[int]map[sourceIdentity]struct{}),
 	}
 	m.active.Store(s)
 	return s.copySnapshot(), nil
@@ -218,6 +223,14 @@ func (m *Manager) Record(observation MessageObservation) {
 	}
 	updateAggregate(&familyAggregate, observation)
 	s.snapshot.PayloadFamilies[family] = familyAggregate
+	if key.sourceType == "file" {
+		fileFamily := s.snapshot.FilePayloadFamilies[family]
+		if fileFamily.MessageSizes.Bounds == nil {
+			fileFamily = newAggregate()
+		}
+		updateAggregate(&fileFamily, observation)
+		s.snapshot.FilePayloadFamilies[family] = fileFamily
+	}
 	updateAggregate(group, observation)
 	s.recordRateWindow(observation)
 	if previous, found := s.lastIngress[key]; found && observation.ObservedAt.After(previous) {
@@ -274,6 +287,18 @@ func (s *session) recordRateWindow(observation MessageObservation) {
 		}
 		window = &RateWindow{StartedAt: startedAt, EndsAt: endsAt}
 		s.rateWindows[index] = window
+	}
+	if observation.HasSourceID && normalizeSourceType(observation.SourceType) == "file" {
+		identity := sourceIdentity{
+			sourceType: "file",
+			pipeline:   observation.Pipeline,
+			hash:       observation.SourceHash,
+		}
+		if s.rateWindowFileSources[index] == nil {
+			s.rateWindowFileSources[index] = make(map[sourceIdentity]struct{})
+		}
+		s.rateWindowFileSources[index][identity] = struct{}{}
+		window.FileSourceCount = uint64(len(s.rateWindowFileSources[index]))
 	}
 	window.Events++
 	window.ContentBytes += nonnegative(observation.ContentBytes)
@@ -366,6 +391,11 @@ func cloneSnapshot(snapshot Snapshot) Snapshot {
 	}
 	snapshot.PayloadFamilies = families
 	groups := make([]Group, len(snapshot.Groups))
+	fileFamilies := make(map[string]Aggregate, len(snapshot.FilePayloadFamilies))
+	for family, aggregate := range snapshot.FilePayloadFamilies {
+		fileFamilies[family] = cloneAggregate(aggregate)
+	}
+	snapshot.FilePayloadFamilies = fileFamilies
 	for i, group := range snapshot.Groups {
 		groups[i] = group
 		groups[i].Aggregate = cloneAggregate(group.Aggregate)
