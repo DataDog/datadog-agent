@@ -92,7 +92,7 @@ func DoHTTPRequest(ctx context.Context, url string, allowedIMDSVersions Ec2IMDSV
 		tokenValue, err := getToken().Get(ctx)
 		if err != nil {
 			if allowedIMDSVersions.V2Only() {
-				return "", fmt.Errorf("could not fetch token from IMDSv2: %s", err)
+				return "", fmt.Errorf("could not fetch token from IMDSv2: %w", err)
 			}
 			log.Debugf("ec2_prefer_imdsv2 is set to true in the configuration but the agent was unable to proceed: %s", err)
 		} else {

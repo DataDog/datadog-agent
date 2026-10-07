@@ -239,7 +239,7 @@ func (r *Repository) Update(update Update) ([]string, error) {
 		// the TUF metadata
 		err = validateTargetFileHash(targetFileMetadata, raw)
 		if err != nil {
-			return nil, fmt.Errorf("error validating %s hash with TUF metadata - %v", path, err)
+			return nil, fmt.Errorf("error validating %s hash with TUF metadata - %w", path, err)
 		}
 
 		// 3.e: Deserialize the configuration.

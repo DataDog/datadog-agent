@@ -168,17 +168,17 @@ func recreate(path string, agentVersion string, apiKeyHash string, url string) (
 	log.Infof("Clear remote configuration database")
 	_, err := os.Stat(path)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("could not check if rc db exists: (%s): %v", path, err)
+		return nil, fmt.Errorf("could not check if rc db exists: (%s): %w", path, err)
 	}
 	if err == nil {
 		err := os.Remove(path)
 		if err != nil {
-			return nil, fmt.Errorf("could not remove existing rc db (%s): %v", path, err)
+			return nil, fmt.Errorf("could not remove existing rc db (%s): %w", path, err)
 		}
 	}
 	err = os.MkdirAll(filepath.Dir(path), 0700)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create rc db dir: (%s): %v", path, err)
+		return nil, fmt.Errorf("failed to create rc db dir: (%s): %w", path, err)
 	}
 	db, err := bbolt.Open(path, 0600, &bbolt.Options{
 		Timeout: databaseLockTimeout,

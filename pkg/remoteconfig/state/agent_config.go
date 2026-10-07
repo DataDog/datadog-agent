@@ -56,7 +56,7 @@ func parseConfigAgentConfig(data []byte, metadata Metadata) (AgentConfig, error)
 
 	err := json.Unmarshal(data, &d)
 	if err != nil {
-		return AgentConfig{}, fmt.Errorf("Unexpected AGENT_CONFIG received through remote-config: %s", err)
+		return AgentConfig{}, fmt.Errorf("Unexpected AGENT_CONFIG received through remote-config: %w", err)
 	}
 
 	return AgentConfig{
@@ -71,7 +71,7 @@ func parseConfigAgentConfigOrder(data []byte, metadata Metadata) (AgentConfigOrd
 
 	err := json.Unmarshal(data, &d)
 	if err != nil {
-		return AgentConfigOrder{}, fmt.Errorf("Unexpected AGENT_CONFIG received through remote-config: %s", err)
+		return AgentConfigOrder{}, fmt.Errorf("Unexpected AGENT_CONFIG received through remote-config: %w", err)
 	}
 
 	return AgentConfigOrder{

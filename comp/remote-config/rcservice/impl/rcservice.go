@@ -191,7 +191,7 @@ func rcFillFlare(svc rcservice.Component, runPath string) func(context.Context, 
 		}
 		state, err := svc.ConfigGetState()
 		if err != nil {
-			return fmt.Errorf("couldn't get the repositories state: %v", err)
+			return fmt.Errorf("couldn't get the repositories state: %w", err)
 		}
 		var buf bytes.Buffer
 		rcservice.PrintRemoteConfigStates(&buf, state, nil)

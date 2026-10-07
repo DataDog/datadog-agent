@@ -199,7 +199,7 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 	// WebSocket handshake.
 	conn, resp, err := dialer.DialContext(ctx, url.String(), headers)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open websocket connection: %s", err)
+		return nil, fmt.Errorf("failed to open websocket connection: %w", err)
 	}
 	_ = resp.Body.Close()
 

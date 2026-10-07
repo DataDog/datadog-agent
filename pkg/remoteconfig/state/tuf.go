@@ -101,7 +101,7 @@ func (trc *tufRootsClient) validateTargets(rawTargets []byte) (*data.Targets, er
 	}
 	role := &data.Role{Threshold: targetsRole.Threshold, KeyIDs: targetsRole.KeyIDs}
 	if err := db.AddRole("targets", role); err != nil {
-		return nil, fmt.Errorf("could not add targets role to db: %v", err)
+		return nil, fmt.Errorf("could not add targets role to db: %w", err)
 	}
 	var targets data.Targets
 	err = db.Unmarshal(rawTargets, &targets, "targets", 0)

@@ -58,7 +58,7 @@ func parseDatadogConfigPath(path string) (configPath, error) {
 	rawOrgID := matchedGroups[1]
 	orgID, err := strconv.ParseInt(rawOrgID, 10, 64)
 	if err != nil {
-		return configPath{}, fmt.Errorf("could not parse orgID '%s' in config file path: %v", rawOrgID, err)
+		return configPath{}, fmt.Errorf("could not parse orgID '%s' in config file path: %w", rawOrgID, err)
 	}
 	rawProduct := matchedGroups[2]
 	if len(rawProduct) == 0 {

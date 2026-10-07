@@ -880,7 +880,7 @@ func (s *CoreAgentService) refresh() error {
 	err = s.mu.uptane.Update(response)
 	if err != nil {
 		s.mu.backoffErrorCount = s.backoffPolicy.IncError(s.mu.backoffErrorCount)
-		s.mu.lastUpdateErr = fmt.Errorf("tuf: %v", err)
+		s.mu.lastUpdateErr = fmt.Errorf("tuf: %w", err)
 		return err
 	}
 	// If a user hasn't explicitly set the refresh interval, allow the backend to override it based

@@ -41,13 +41,13 @@ func GetSecurityCredentials(ctx context.Context) (*SecurityCredentials, error) {
 
 	res, err := ec2internal.DoHTTPRequest(ctx, ec2internal.MetadataURL+"/iam/security-credentials/"+iamRole, ec2internal.UseIMDSv2(), true)
 	if err != nil {
-		return nil, fmt.Errorf("unable to fetch EC2 API to get iam role: %s", err)
+		return nil, fmt.Errorf("unable to fetch EC2 API to get iam role: %w", err)
 	}
 
 	creds := &SecurityCredentials{}
 	err = json.Unmarshal([]byte(res), creds)
 	if err != nil {
-		return nil, fmt.Errorf("unable to unmarshall json, %s", err)
+		return nil, fmt.Errorf("unable to unmarshall json, %w", err)
 	}
 	return creds, nil
 }
@@ -56,7 +56,7 @@ func GetSecurityCredentials(ctx context.Context) (*SecurityCredentials, error) {
 func getIAMRole(ctx context.Context) (string, error) {
 	res, err := ec2internal.DoHTTPRequest(ctx, ec2internal.MetadataURL+"/iam/security-credentials/", ec2internal.UseIMDSv2(), true)
 	if err != nil {
-		return "", fmt.Errorf("unable to fetch EC2 API to get security credentials: %s", err)
+		return "", fmt.Errorf("unable to fetch EC2 API to get security credentials: %w", err)
 	}
 
 	return res, nil

@@ -72,7 +72,7 @@ func newMrfRemoteConfigService(deps Dependencies) (rcservicemrf.Component, error
 	apiKey := configUtils.SanitizeAPIKey(deps.Cfg.GetString("multi_region_failover.api_key"))
 	baseRawURL, err := configUtils.GetMRFEndpoint(deps.Cfg, "https://config.", "multi_region_failover.remote_configuration.rc_dd_url")
 	if err != nil {
-		return nil, fmt.Errorf("unable to get MRF remote config endpoint: %s", err)
+		return nil, fmt.Errorf("unable to get MRF remote config endpoint: %w", err)
 	}
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(deps.Cfg)
 	options := []remoteconfig.Option{
@@ -135,7 +135,7 @@ func mrfFillFlare(svc rcservicemrf.Component) func(context.Context, flaretypes.F
 	return func(_ context.Context, fb flaretypes.FlareBuilder) error {
 		state, err := svc.ConfigGetState()
 		if err != nil {
-			return fmt.Errorf("couldn't get the MRF repositories state: %v", err)
+			return fmt.Errorf("couldn't get the MRF repositories state: %w", err)
 		}
 		var buf bytes.Buffer
 		rcservice.PrintRemoteConfigStates(&buf, nil, state)
