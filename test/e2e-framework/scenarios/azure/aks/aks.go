@@ -6,6 +6,8 @@
 package aks
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -20,18 +22,31 @@ import (
 
 type Params struct {
 	kataNodePool bool
+	nodeCount    int
 }
 
 type Option = func(*Params) error
 
 func NewParams(options ...Option) (*Params, error) {
-	params := &Params{}
+	params := &Params{nodeCount: 1}
 	return common.ApplyOption(params, options)
 }
 
 func WithKataNodePool() Option {
 	return func(params *Params) error {
 		params.kataNodePool = true
+		return nil
+	}
+}
+
+// WithNodeCount sets the number of nodes of the system node pool, 1 by
+// default. A DaemonSet such as the node Agent then runs on each of them.
+func WithNodeCount(count int) Option {
+	return func(params *Params) error {
+		if count < 1 {
+			return fmt.Errorf("the AKS node count must be at least 1, got %d", count)
+		}
+		params.nodeCount = count
 		return nil
 	}
 }
@@ -44,7 +59,7 @@ func NewAKSCluster(env azure.Environment, opts ...Option) (*kubeComp.Cluster, er
 
 	return components.NewComponent(&env, env.Namer.ResourceName("aks"), func(comp *kubeComp.Cluster) error {
 
-		cluster, kubeConfig, err := aks.NewCluster(env, "aks", params.kataNodePool)
+		cluster, kubeConfig, err := aks.NewCluster(env, "aks", params.kataNodePool, params.nodeCount)
 		if err != nil {
 			return err
 		}

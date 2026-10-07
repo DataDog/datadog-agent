@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "aks",
@@ -29,5 +30,15 @@ go_library(
         "//test/e2e-framework/scenarios/azure/fakeintake",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)
+
+dd_agent_go_test(
+    name = "aks_test",
+    srcs = ["aks_test.go"],
+    embed = [":aks"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

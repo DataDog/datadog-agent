@@ -187,6 +187,11 @@ When that's not enough, common advanced patterns:
   Use `e2e.WithPulumiProvisioner()` to wire it up with inline Pulumi code.
   Start from the examples in `test/new-e2e/examples/customenv_*` and see
   `test/new-e2e/tests/npm/` and `test/new-e2e/tests/ha-agent/` for real usage.
+  To add resources next to a stock environment, run its provisioner in a cloud
+  environment you created: `eks.RunWithEnv` and the other AWS `RunWithEnv`
+  functions, or `azurekubernetes.AKSRunWithEnv` with
+  `azurekubernetes.GetProvisionerParams` for AKS (used by
+  `test/new-e2e/tests/agent-log-pipelines/azure-files/` for a Windows VM).
 - **Custom provisioners** — environments also support custom provisioners beyond
   the stock ones. Implement the `provisioners.Provisioner` interface to
   target different infrastructure.
