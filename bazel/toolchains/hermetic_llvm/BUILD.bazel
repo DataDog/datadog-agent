@@ -1,7 +1,29 @@
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_foreign_cc//toolchains/native_tools:native_tools_toolchain.bzl", "native_tool_toolchain")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(":windows_gnu.bzl", "windows_gnu_filegroup")
+
+exports_files(["llvm_windres.sh"])
+
+# Empty stand-ins for libssp, which the clang MinGW driver links whenever a
+# -fstack-protector flag is on the link line, even if -fno-stack-protector
+# follows. The hermetic sysroot has no libssp; mingwex provides __stack_chk_fail.
+genrule(
+    name = "libssp_archives",
+    outs = [
+        "libssp.a",
+        "libssp_nonshared.a",
+    ],
+    cmd = "for f in $(OUTS); do printf '!<arch>\\n' > $$f; done",
+)
+
+# A directory, for -L in configure_make builds.
+copy_to_directory(
+    name = "libssp",
+    srcs = [":libssp_archives"],
+    visibility = ["//visibility:public"],
+)
 
 # Windows x86_64 with the MinGW ABI, for deps that only build with a GNU
 # toolchain (OpenSSL). Their DLLs are consumed by windows_x86_64_msvc targets,
@@ -30,6 +52,36 @@ toolchain(
     target_compatible_with = ["@platforms//os:windows"],
     toolchain = ":make",
     toolchain_type = "@rules_foreign_cc//toolchains:make_toolchain",
+)
+
+windows_gnu_filegroup(
+    name = "openssl_windows",
+    srcs = [
+        "@openssl//:libcrypto_shared_file",
+        "@openssl//:libssl_shared_file",
+        "@openssl//:openssl_binary",
+    ],
+    tags = ["manual"],
+)
+
+sh_test(
+    name = "openssl_wine_test",
+    srcs = ["openssl_wine_test.sh"],
+    data = [
+        ":openssl_windows",
+        "//bazel/tools/wine:wine_run",
+    ],
+    env = {
+        "OPENSSL_FILES": "$(rlocationpaths :openssl_windows)",
+        "WINE_RUN": "$(rlocationpath //bazel/tools/wine:wine_run)",
+    },
+    tags = ["manual"],
+    target_compatible_with = select({
+        "//:linux_arm64": [],
+        "//:linux_x86_64": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = ["@rules_shell//shell/runfiles"],
 )
 
 # Checks that the toolchain's default stack protector, with __stack_chk_* from
