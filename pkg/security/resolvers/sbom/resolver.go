@@ -25,7 +25,6 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/samber/lo"
 	"github.com/skydive-project/go-debouncer"
-	"github.com/twmb/murmur3"
 	"go.uber.org/atomic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -67,9 +66,9 @@ const (
 )
 
 // pendingFileEvent holds the accesses to a file made before the SBOM of its container
-// was ready: the hash of its usr-merge alias, the latest time, the sticky properties.
+// was ready: the keys of the file, the latest time and the sticky properties.
 type pendingFileEvent struct {
-	alias          uint64
+	keys           fileKeys
 	lastAccess     time.Time
 	suidBit        bool
 	accessedByRoot bool
@@ -999,7 +998,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 
 	seclog.Tracef("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
 
-	pkg := r.owner(sbom, pc.Pid, file.PathnameStr)
+	pkg := r.owner(sbom, pc.Pid, newUsageKeys(file.PathnameStr))
 
 	// rpm lists the directories a package owns among its files. A directory
 	// resolves to its package, and opening it, as a listing or a walk of the
@@ -1063,14 +1062,13 @@ func (r *Resolver) LookupPackage(pc *model.ProcessContext, file *model.FileEvent
 	if !sbom.IsComputed() {
 		return nil
 	}
-	return r.owner(sbom, pc.Pid, file.PathnameStr)
+	return r.owner(sbom, pc.Pid, newFileKeys(file.PathnameStr))
 }
 
-// owner returns the package of sbom that owns the file at path, opened by the
-// process pid. A process on a root of its own opens the files of that root
-// under the paths of host files, and its root is read once the path matches.
-func (r *Resolver) owner(sbom *SBOM, pid uint32, path string) *sbomtypes.Package {
-	pkg := sbom.data.files.queryFile(path)
+// owner returns the package of sbom that keys match, opened by the process pid. A
+// process on a root of its own opens host paths, so its root is read on a match.
+func (r *Resolver) owner(sbom *SBOM, pid uint32, keys fileKeys) *sbomtypes.Package {
+	pkg := sbom.data.files.queryKeys(keys)
 	if pkg != nil && sbom.ContainerID == "" && !r.onHostRoot(pid) {
 		return nil
 	}
@@ -1090,14 +1088,12 @@ func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID,
 	}
 
 	event := pendingFileEvent{
+		keys:           newUsageKeys(filePath),
 		lastAccess:     time.Now(),
 		suidBit:        fs.FileMode(fileMode)&04000 != 0,
 		accessedByRoot: root,
 	}
-	if alias := pathAlias(filePath); alias != "" {
-		event.alias = murmur3.StringSum64(alias)
-	}
-	hash := murmur3.StringSum64(filePath)
+	hash := event.keys.path
 
 	r.pendingFileEventsLock.Lock()
 	defer r.pendingFileEventsLock.Unlock()
@@ -1135,8 +1131,8 @@ func (r *Resolver) processPendingFileEvents(sbom *SBOM) {
 
 	recorded := false
 	sbom.data.mu.Lock()
-	for hash, event := range events {
-		pkg := sbom.data.files.queryHashes(hash, event.alias)
+	for _, event := range events {
+		pkg := sbom.data.files.queryKeys(event.keys)
 		if pkg == nil {
 			continue
 		}
