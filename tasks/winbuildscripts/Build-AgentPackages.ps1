@@ -13,6 +13,11 @@ Specifies whether to build the upgrade package. Default is false.
 
 Use this options to build an aditional MSI for testing upgrading the MSI.
 
+.PARAMETER BuildMsi
+Specifies whether to package the MSI. Default is $true.
+
+Use -BuildMsi 0 to only build the agent and produce the MSI payload, packaged separately by Build-AgentMsi.ps1.
+
 .PARAMETER BuildOutOfSource
 Specifies whether to build out of source. Default is $false.
 
@@ -40,7 +45,8 @@ param(
     [nullable[bool]] $CheckGoVersion,
     [bool] $InstallDeps = $true,
     [string] $Flavor = $env:AGENT_FLAVOR,
-    [bool] $BuildUpgrade = $false
+    [bool] $BuildUpgrade = $false,
+    [bool] $BuildMsi = $true
 )
 
 . "$PSScriptRoot\common.ps1"
@@ -65,12 +71,17 @@ Invoke-BuildScript `
         $env:AGENT_FLAVOR=$Flavor
     }
 
-    if ($BuildUpgrade) {
-        $inv_args += "--build-upgrade"
+    if ($BuildMsi) {
+        $inv_task = "winbuild.agent-package"
+        if ($BuildUpgrade) {
+            $inv_args += "--build-upgrade"
+        }
+    } else {
+        $inv_task = "winbuild.agent-build"
     }
 
-    Write-Host "dda inv -- -e winbuild.agent-package $inv_args"
-    dda inv -- -e winbuild.agent-package @inv_args
+    Write-Host "dda inv -- -e $inv_task $inv_args"
+    dda inv -- -e $inv_task @inv_args
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build the agent package"
         exit 1
@@ -85,5 +96,8 @@ Invoke-BuildScript `
         # Copy the resulting package to the mnt directory
         mkdir C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID -Force -ErrorAction Stop | Out-Null
         Copy-Item -Path ".\omnibus\pkg\*" -Destination "C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID" -Recurse -Force -ErrorAction Stop
+        if (-not $BuildMsi) {
+            Copy-Item -Path ".\omnibus\msi-payload" -Destination "C:\mnt\omnibus" -Recurse -Force -ErrorAction Stop
+        }
     }
 }
