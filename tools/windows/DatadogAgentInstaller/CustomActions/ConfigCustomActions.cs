@@ -390,6 +390,11 @@ namespace Datadog.CustomActions
                 foreach (var c in configFiles)
                 {
                     var configPath = Path.Combine(configFolder, c.Path);
+                    if (c.Path == ParConfigMigrationCustomActions.RelativePath && ParConfigMigrationCustomActions.IsPending(session))
+                    {
+                        session.Log("PAR config restoration is pending; not initializing defaults.");
+                        continue;
+                    }
                     if (File.Exists(configPath + ".example"))
                     {
                         if (!File.Exists(configPath))

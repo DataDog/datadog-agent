@@ -34,6 +34,30 @@ if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/
     fi
 fi
 
+# Retain legacy package-owned PAR config before dpkg removes its old payload.
+PAR_CONFIG=/etc/datadog-agent/private-action-runner/script-config.yaml
+PAR_MIGRATION=/etc/datadog-agent-par-config-migration
+if dpkg-query -L datadog-agent 2>/dev/null | grep -Fxq "$PAR_CONFIG" && { [ -e "$PAR_CONFIG" ] || [ -L "$PAR_CONFIG" ]; }; then
+    if [ ! -e "$PAR_MIGRATION" ] && [ ! -L "$PAR_MIGRATION" ]; then
+        mkdir -m 0700 "$PAR_MIGRATION"
+    fi
+    if [ -L "$PAR_MIGRATION" ] || [ ! -d "$PAR_MIGRATION" ] || [ "$(stat -c '%u:%a' "$PAR_MIGRATION")" != '0:700' ]; then
+        echo "PAR config migration requires a root-owned 0700 directory" >&2
+        exit 1
+    fi
+    if [ ! -f "$PAR_CONFIG" ] && [ ! -L "$PAR_CONFIG" ]; then
+        echo "Unsupported PAR config file type" >&2
+        exit 1
+    fi
+    if [ ! -e "$PAR_MIGRATION/script-config.yaml" ] && [ ! -L "$PAR_MIGRATION/script-config.yaml" ]; then
+        # No cross-filesystem copy: retain the exact inode, or fail before unpacking.
+        ln -P -- "$PAR_CONFIG" "$PAR_MIGRATION/script-config.yaml"
+    elif [ "$(stat -c '%d:%i' "$PAR_CONFIG")" != "$(stat -c '%d:%i' "$PAR_MIGRATION/script-config.yaml")" ]; then
+        echo "PAR config changed while migration is pending; manual recovery is required" >&2
+        exit 1
+    fi
+fi
+
 # Uninstall the agent if it was installed by the installer
 if command -v datadog-installer >/dev/null 2>&1 && datadog-installer is-installed datadog-agent; then
     datadog-installer remove datadog-agent || printf "[ WARNING ]\tFailed to remove datadog-agent installed by the installer\n"
