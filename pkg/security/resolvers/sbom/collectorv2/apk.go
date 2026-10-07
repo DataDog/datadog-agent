@@ -37,11 +37,7 @@ func (s *apkScanner) ListPackages(_ context.Context, root *os.Root) ([]sbomtypes
 	}
 	defer f.Close()
 
-	pkgs, err := parseAPKDatabase(f)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse apk database: %w", err)
-	}
-	return pkgs, nil
+	return parseAPKDatabase(f), nil
 }
 
 type apkPackage struct {
@@ -52,7 +48,7 @@ type apkPackage struct {
 	files   []string
 }
 
-func parseAPKDatabase(r io.Reader) ([]sbomtypes.PackageWithInstalledFiles, error) {
+func parseAPKDatabase(r io.Reader) []sbomtypes.PackageWithInstalledFiles {
 	var packages []sbomtypes.PackageWithInstalledFiles
 	var current apkPackage
 	var currentDir string
@@ -107,13 +103,14 @@ func parseAPKDatabase(r io.Reader) ([]sbomtypes.PackageWithInstalledFiles, error
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("failed to scan apk database: %w", err)
+		seclog.Warnf("failed to scan apk database past %d packages: %v", len(packages), err)
+		return packages
 	}
 
 	// Handle the last package if the file does not end with a blank line
 	finalize()
 
-	return packages, nil
+	return packages
 }
 
 // parseAPKVersion parses an APK version string (e.g. "1.2.3-r4" or "2:1.2.3-r4")
