@@ -256,21 +256,28 @@ type IPv6AddressCommand struct {
 }
 
 func (c IPv6AddressCommand) render() (string, error) {
+	// Render the parsed form rather than c.Prefix, so only characters
+	// produced by netip reach the device.
+	var prefix string
 	switch c.Modifier {
 	case "", "eui-64":
 		p, err := netip.ParsePrefix(c.Prefix)
 		if err != nil || !p.Addr().Is6() || p.Addr().Is4In6() {
 			return "", fmt.Errorf("prefix must be an IPv6 prefix in CIDR notation, got %q", c.Prefix)
 		}
+		prefix = p.String()
 	case "link-local":
+		// ParseAddr accepts a zone suffix ("fe80::1%<zone>") containing
+		// arbitrary characters, including newlines, so reject zones.
 		a, err := netip.ParseAddr(c.Prefix)
-		if err != nil || !a.Is6() || !a.IsLinkLocalUnicast() {
+		if err != nil || !a.Is6() || !a.IsLinkLocalUnicast() || a.Zone() != "" {
 			return "", fmt.Errorf("prefix must be a bare link-local IPv6 address, got %q", c.Prefix)
 		}
+		prefix = a.String()
 	default:
 		return "", fmt.Errorf("modifier must be \"eui-64\" or \"link-local\", got %q", c.Modifier)
 	}
-	cmd := "ipv6 address " + c.Prefix
+	cmd := "ipv6 address " + prefix
 	if c.Modifier != "" {
 		cmd += " " + c.Modifier
 	}
