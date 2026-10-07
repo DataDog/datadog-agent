@@ -515,3 +515,81 @@ WINDOWS_CORE_SRCS = [
     "PC/dl_nt.c",
     "PC/invalid_parameter_handler.c",
 ]
+
+WINDOWS_SHARED_MODULES = {
+    "winsound": {"srcs": ["PC/winsound.c"], "linkopts": ["winmm.lib"]},
+    "_decimal": {
+        "srcs": ["Modules/_decimal/_decimal.c"] + LIBMPDEC_SRCS,
+        "defines": ["BUILD_LIBMPDEC", "_CRT_SECURE_NO_WARNINGS", "CONFIG_64", "ANSI"],
+        "deps": [":native_win_libmpdec_headers"],
+    },
+    "_ctypes": {
+        "srcs": [
+            "Modules/_ctypes/_ctypes.c",
+            "Modules/_ctypes/callbacks.c",
+            "Modules/_ctypes/callproc.c",
+            "Modules/_ctypes/cfield.c",
+            "Modules/_ctypes/malloc_closure.c",
+            "Modules/_ctypes/stgdict.c",
+        ],
+        "defines": ["USING_MALLOC_CLOSURE_DOT_C=1", "FFI_STATIC_BUILD"],
+        "deps": ["@libffi//:ffi"],
+    },
+    "_elementtree": {
+        "srcs": ["Modules/_elementtree.c"] + LIBEXPAT_SRCS,
+        "defines": ["XML_STATIC", "_CRT_SECURE_NO_WARNINGS"],
+        "deps": [":native_expat_headers"],
+    },
+    "_socket": {"srcs": ["Modules/socketmodule.c"], "linkopts": ["Rpcrt4.lib", "iphlpapi.lib", "ws2_32.lib"]},
+    "_sqlite3": {
+        "srcs": [
+            "Modules/_sqlite/connection.c",
+            "Modules/_sqlite/cursor.c",
+            "Modules/_sqlite/microprotocols.c",
+            "Modules/_sqlite/module.c",
+            "Modules/_sqlite/prepare_protocol.c",
+            "Modules/_sqlite/row.c",
+            "Modules/_sqlite/statement.c",
+            "Modules/_sqlite/util.c",
+            "Modules/_sqlite/blob.c",
+        ],
+        "defines": ["PY_SQLITE_ENABLE_LOAD_EXTENSION", "PY_SQLITE_HAVE_SERIALIZE"],
+        "deps": ["@sqlite3//:libsqlite3"],
+    },
+    "_bz2": {
+        "srcs": ["Modules/_bz2module.c"],
+        "defines": ["_CRT_NONSTDC_NO_DEPRECATE", "_CRT_SECURE_NO_DEPRECATE", "_FILE_OFFSET_BITS=64"],
+        "deps": ["@bzip2//:libbz2"],
+    },
+    "select": {"srcs": ["Modules/selectmodule.c"], "linkopts": ["ws2_32.lib"]},
+    "_lzma": {
+        "srcs": ["Modules/_lzmamodule.c"],
+        "defines": ["LZMA_API_STATIC", "_CRT_NONSTDC_NO_DEPRECATE", "_CRT_SECURE_NO_DEPRECATE", "_FILE_OFFSET_BITS=64"],
+        "deps": ["@xz//:liblzma"],
+    },
+    "unicodedata": {"srcs": ["Modules/unicodedata.c"]},
+    "pyexpat": {
+        "srcs": ["Modules/pyexpat.c"] + LIBEXPAT_SRCS,
+        "defines": ["PYEXPAT_EXPORTS", "XML_STATIC", "_CRT_SECURE_NO_WARNINGS"],
+        "deps": [":native_expat_headers"],
+    },
+    "_multiprocessing": {
+        "srcs": ["Modules/_multiprocessing/multiprocessing.c", "Modules/_multiprocessing/semaphore.c"],
+        "linkopts": ["ws2_32.lib"],
+    },
+    "_overlapped": {"srcs": ["Modules/overlapped.c"], "linkopts": ["ws2_32.lib"]},
+    "_asyncio": {"srcs": ["Modules/_asynciomodule.c"]},
+    "_zoneinfo": {"srcs": ["Modules/_zoneinfo.c"]},
+    "_queue": {"srcs": ["Modules/_queuemodule.c"]},
+    "_uuid": {"srcs": ["Modules/_uuidmodule.c"], "linkopts": ["rpcrt4.lib"]},
+    "_wmi": {
+        "srcs": ["PC/_wmimodule.cpp"],
+        "linkopts": [
+            "propsys.lib",
+            "wbemuuid.lib",
+            "$(execpath :native_msvc_comsupp_lib)",
+            "/NODEFAULTLIB:comsupp.lib",
+        ],
+        "link_inputs": [":native_msvc_comsupp_lib"],
+    },
+}
