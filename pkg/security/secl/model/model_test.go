@@ -51,7 +51,20 @@ func TestPathValidation(t *testing.T) {
 		},
 		{
 			val:        "/etc/apache/./httpd.conf",
-			errMessage: ErrPathMustBeAbsolute,
+			errMessage: "use `/etc/apache/httpd.conf` instead",
+		},
+		{
+			val:        "/etc//apache/httpd.conf",
+			errMessage: "use `/etc/apache/httpd.conf` instead",
+		},
+		{
+			val:        "/mnt/",
+			errMessage: "trailing slashes are not allowed: use `/mnt` to match the directory itself or `/mnt/*` to match its content",
+		},
+		{
+			val:            "/mnt/*/",
+			fieldValueType: eval.PatternValueType,
+			errMessage:     "trailing slashes are not allowed",
 		},
 		{
 			val:        "*/",
@@ -112,6 +125,9 @@ func TestPathValidation(t *testing.T) {
 		err := mod.ValidateField("open.file.path", eval.FieldValue{Value: test.val})
 		if err != nil && test.errMessage == "" {
 			t.Errorf("shouldn't return an error: %s", err)
+		}
+		if err == nil && test.errMessage != "" {
+			t.Errorf("`%s` should return an error containing `%s`", test.val, test.errMessage)
 		}
 		if err != nil && !strings.Contains(err.Error(), test.errMessage) {
 			t.Errorf("Error message is `%s`, wanted it to contain `%s`", err.Error(), test.errMessage)

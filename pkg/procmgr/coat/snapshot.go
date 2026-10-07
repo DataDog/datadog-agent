@@ -49,6 +49,10 @@ type DaemonSnapshot struct {
 	// TotalProcesses is the process count dd-procmgrd reports. A mismatch with the number of
 	// processes in a List result is itself diagnostic.
 	TotalProcesses uint32 `json:"total_processes"`
+	// ServiceState is the mapped OS unit/SCM state of dd-procmgrd
+	// (running|starting|stopping|stopped|failed|unknown|not_installed).
+	// Empty on non-linux/windows hosts. Independent of Reachable/Ready.
+	ServiceState string `json:"service_state,omitempty"`
 }
 
 // ProcessSnapshot captures a single managed process reported by dd-procmgrd.

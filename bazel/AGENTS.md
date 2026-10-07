@@ -114,8 +114,10 @@ This repo uses **Bzlmod** (MODULE.bazel). WORKSPACE is fully removed in Bazel 9 
   extensions for complex logic.
 - Keep `use_repo(...)` lists accurate. Run `bazel mod tidy` after extension changes to update them automatically.
 - `bazel mod explain <module>` shows why a version is selected. `bazel mod graph` visualises the full dependency graph.
-- In CI, pass `--lockfile_mode=error` to fail the build if the lockfile would need updating — prevents stale lockfiles
-  from silently merging. Only `registryFileHashes` sections are safe to resolve manually in merge conflicts.
+- CI checks lock freshness with `bazel mod deps --lockfile_mode=refresh` followed by `git diff --exit-code`
+  (see `.gitlab/build/bazel/lint.yml`). Prefer that over `--lockfile_mode=error`, which can miss stale cached
+  repository checks and does not report discrepancies exhaustively. Only `registryFileHashes` sections are safe
+  to resolve manually in merge conflicts.
 
 ## Module extensions
 
@@ -356,7 +358,7 @@ This only applies when the canonical set and the constraint can coexist. A const
 contradicts a canonical set produces no combination at all, and its sources stay out of the wildcard
 test runs. For example `//go:build kubeapiserver && !kubelet` grows to include `kubelet`, because
 `kubeapiserver` and `kubelet` share the canonical set
-`cel clusterchecks kubeapiserver kubelet orchestrator` — and the result then fails the constraint's
+`cel clusterchecks kubeapiserver kubelet` — and the result then fails the constraint's
 own `!kubelet`.
 
 Combinations built this way can be long, and target names are budgeted against the Windows runfiles

@@ -48,8 +48,9 @@ type factory struct {
 	reporter     *inframetadata.Reporter
 	gatewayUsage otel.GatewayUsage
 
-	ipath ingestionPath
-	store TelemetryStore
+	ipath      ingestionPath
+	standalone bool
+	store      TelemetryStore
 }
 
 // TelemetryStore stores the internal COAT (cross-org agent telemetry) metrics in DDOT
@@ -133,6 +134,7 @@ func newFactoryForAgentWithType(
 		options:      options,
 		gatewayUsage: gatewayUsage,
 		ipath:        ipath,
+		standalone:   standalone,
 		store:        store,
 	}
 
@@ -279,7 +281,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		usageMetric = f.store.DDOTMetrics
 	}
 
-	newExp, err := NewExporter(s, cfg, hostGetter, f.createConsumer, tr, params, reporter, f.gatewayUsage, usageMetric, f.store.DDOTGWUsage, f.ipath)
+	newExp, err := NewExporter(s, cfg, hostGetter, f.createConsumer, tr, params, reporter, f.gatewayUsage, usageMetric, f.store.DDOTGWUsage, f.ipath, f.standalone)
 	if err != nil {
 		return nil, err
 	}
