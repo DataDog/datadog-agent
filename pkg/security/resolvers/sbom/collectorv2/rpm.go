@@ -72,14 +72,11 @@ func (s *rpmScanner) ListPackages(_ context.Context, root *os.Root) ([]sbomtypes
 
 		packages := make([]sbomtypes.PackageWithInstalledFiles, 0, len(pkgs))
 		for _, pkg := range pkgs {
-			files, err := pkg.InstalledFileNames()
+			installed, err := pkg.InstalledFiles()
 			if err != nil {
 				return nil, fmt.Errorf("unable to get installed files: %w", err)
 			}
-
-			for i, file := range files {
-				files[i] = filepath.ToSlash(file)
-			}
+			files := indexedRPMFiles(installed)
 
 			var srcVer, srcRel string
 			if pkg.SourceRpm != "(none)" && pkg.SourceRpm != "" {
@@ -109,6 +106,23 @@ func (s *rpmScanner) ListPackages(_ context.Context, root *os.Root) ([]sbomtypes
 	}
 
 	return nil, fmt.Errorf("no rpmdb found in any of the known paths: %w", os.ErrNotExist)
+}
+
+// unindexedRPMFlags marks the files of a package that its index leaves out: its
+// configuration, as dpkg conffiles, the files created at runtime and the docs.
+const unindexedRPMFlags = rpmdb.RPMFILE_CONFIG | rpmdb.RPMFILE_GHOST | rpmdb.RPMFILE_DOC | rpmdb.RPMFILE_LICENSE
+
+// indexedRPMFiles returns the paths of the installed files of a package that
+// the index of its files holds.
+func indexedRPMFiles(installed []rpmdb.FileInfo) []string {
+	files := make([]string, 0, len(installed))
+	for _, file := range installed {
+		if int32(file.Flags)&unindexedRPMFlags != 0 {
+			continue
+		}
+		files = append(files, filepath.ToSlash(file.Path))
+	}
+	return files
 }
 
 // splitFileName returns a name, version, release, epoch, arch:

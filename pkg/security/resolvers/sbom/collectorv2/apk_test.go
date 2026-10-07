@@ -99,6 +99,25 @@ func TestParseAPKDatabaseNoTrailingNewline(t *testing.T) {
 	assert.Len(t, pkgs, 2)
 }
 
+// TestParseAPKDatabaseSkipsConfiguration checks that the files apk keeps as
+// configuration, those of /etc, stay out of the index of the package.
+func TestParseAPKDatabaseSkipsConfiguration(t *testing.T) {
+	db := `P:alpine-baselayout-data
+V:3.6.8-r1
+F:etc
+R:passwd
+R:hosts
+F:etc/apk
+R:arch
+F:usr/lib/os-release.d
+R:alpine
+`
+	pkgs, err := parseAPKDatabase(strings.NewReader(db))
+	require.NoError(t, err)
+	require.Len(t, pkgs, 1)
+	assert.Equal(t, []string{"/usr/lib/os-release.d/alpine"}, pkgs[0].InstalledFiles)
+}
+
 func TestParseAPKDatabaseEmpty(t *testing.T) {
 	pkgs, err := parseAPKDatabase(strings.NewReader(""))
 	require.NoError(t, err)
