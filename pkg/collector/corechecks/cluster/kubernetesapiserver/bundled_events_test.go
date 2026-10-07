@@ -311,6 +311,7 @@ func TestBundledEventsTransform(t *testing.T) {
 // reason alone busts the budget cannot be truncated and is dropped.
 func TestBundledEventsTransformOversizedEvent(t *testing.T) {
 	oversizedMessage := strings.Repeat("a", 4000)
+	oversizedEscapedMessage := strings.Repeat("~", 4000)
 	oversizedReason := strings.Repeat("r", 3500)
 
 	tests := []struct {
@@ -323,6 +324,13 @@ func TestBundledEventsTransformOversizedEvent(t *testing.T) {
 		{
 			name:          "oversized message is truncated and exported",
 			events:        []*v1.Event{createEvent(1, "default", "pod", "Pod", "uid-oversized", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600)},
+			wantDDEvents:  1,
+			wantErrs:      0,
+			wantTruncated: true,
+		},
+		{
+			name:          "escape-heavy oversized message is truncated and exported",
+			events:        []*v1.Event{createEvent(1, "default", "pod", "Pod", "uid-escape-heavy", "kubelet", "kubelet", "", "Failed", oversizedEscapedMessage, "Warning", 709662600)},
 			wantDDEvents:  1,
 			wantErrs:      0,
 			wantTruncated: true,

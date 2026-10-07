@@ -195,22 +195,44 @@ func estimateEventOverhead(eventText string) int {
 	return 10 + 1 + len(eventText)
 }
 
+// escapedLength returns the length of s after formatEventText escapes every
+// '~' as '\~'.
+func escapedLength(s string) int {
+	return len(s) + strings.Count(s, "~")
+}
+
+// escapedPrefixLen returns the byte length of the longest prefix of s whose
+// escaped length fits budget.
+func escapedPrefixLen(s string, budget int) int {
+	for i := 0; i < len(s); i++ {
+		cost := 1
+		if s[i] == '~' {
+			cost = 2
+		}
+		if budget < cost {
+			return i
+		}
+		budget -= cost
+	}
+	return len(s)
+}
+
 // truncateOversizedEvent truncates the event message if it exceeds the limit, otherwise returns the event unchanged.
 func truncateOversizedEvent(event *v1.Event) (*v1.Event, bool) {
 	// The event text limit for an empty bundle: the total budget minus the
 	// fixed overhead, the component name and the estimated count prefix.
-	limit := maxEstimatedEventTextLength - bundleFixedOverhead - len(event.Source.Component) - estimateEventOverhead("")
+	limit := maxEstimatedEventTextLength - bundleFixedOverhead - escapedLength(event.Source.Component) - estimateEventOverhead("")
 
 	// If the event text fits the limit, return the event unchanged
-	if len(buildEventText(event.Reason, event.Message)) <= limit {
+	if escapedLength(buildEventText(event.Reason, event.Message)) <= limit {
 		return event, false
 	}
 
 	// Leave room for the reason, the marker and the newline.
-	messageBudget := max(limit-len(buildEventText(event.Reason, ""))-len(truncatedMessageMarker), 0)
+	messageBudget := max(limit-escapedLength(buildEventText(event.Reason, ""))-escapedLength(truncatedMessageMarker), 0)
 
 	truncated := *event
-	truncated.Message = strings.ToValidUTF8(event.Message[:messageBudget], "") + truncatedMessageMarker
+	truncated.Message = strings.ToValidUTF8(event.Message[:escapedPrefixLen(event.Message, messageBudget)], "") + truncatedMessageMarker
 	return &truncated, true
 }
 

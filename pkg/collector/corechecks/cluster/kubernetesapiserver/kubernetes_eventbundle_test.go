@@ -321,10 +321,9 @@ func TestKubernetesEventBundle_fitsEvent(t *testing.T) {
 	}
 }
 
-// TestTruncateOversizedEvent tests that events whose text fits an empty
-// bundle are returned unchanged, that oversized messages are cut down to the
-// bundle budget and marked as truncated, and that the input event is never
-// modified.
+// TestTruncateOversizedEvent tests that events whose escaped text fits an
+// empty bundle are returned unchanged, that oversized messages are cut down
+// to the bundle budget, and that the input event is never modified.
 func TestTruncateOversizedEvent(t *testing.T) {
 	component := "kubelet"
 	limit := maxEstimatedEventTextLength - bundleFixedOverhead - len(component) - estimateEventOverhead("")
@@ -338,6 +337,9 @@ func TestTruncateOversizedEvent(t *testing.T) {
 		{"message fits an empty bundle", "short message", false},
 		{"message exactly at the limit", atLimitMessage, false},
 		{"message over the limit", atLimitMessage + "tail", true},
+		{"escape-heavy message at the escaped limit", strings.Repeat("~", (limit-len(buildEventText("Failed", "")))/2), false},
+		{"escape-heavy message at the unescaped limit", strings.Repeat("~", limit-len(buildEventText("Failed", ""))), true},
+		{"escape-heavy message over the limit", strings.Repeat("~", 4000), true},
 	}
 
 	for _, tt := range tests {
@@ -353,7 +355,7 @@ func TestTruncateOversizedEvent(t *testing.T) {
 			}
 
 			assert.True(t, strings.HasSuffix(got.Message, truncatedMessageMarker))
-			assert.Len(t, buildEventText(got.Reason, got.Message), limit)
+			assert.LessOrEqual(t, escapedLength(buildEventText(got.Reason, got.Message)), limit)
 			// The input event is never mutated.
 			assert.Equal(t, tt.message, ev.Message)
 		})
