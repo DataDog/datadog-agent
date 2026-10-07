@@ -109,7 +109,7 @@ func (s ShowConfig) render() ([]string, error) {
 		if s.Target != "running-config" {
 			return nil, fmt.Errorf("interface filter is not supported for %s", s.Target)
 		}
-		if err := checkToken("interface", s.Interface); err != nil {
+		if err := checkInterfaceName("interface", s.Interface); err != nil {
 			return nil, err
 		}
 		parts = append(parts, "interface", s.Interface)
@@ -128,7 +128,7 @@ type ShowInterfaces struct {
 func (s ShowInterfaces) render() ([]string, error) {
 	parts := []string{"interfaces"}
 	if s.Interface != "" {
-		if err := checkToken("interface", s.Interface); err != nil {
+		if err := checkInterfaceName("interface", s.Interface); err != nil {
 			return nil, err
 		}
 		parts = append(parts, s.Interface)
@@ -157,7 +157,7 @@ func (s ShowIPInterface) render() ([]string, error) {
 	case s.Brief:
 		parts = append(parts, "brief")
 	case s.Interface != "":
-		if err := checkToken("interface", s.Interface); err != nil {
+		if err := checkInterfaceName("interface", s.Interface); err != nil {
 			return nil, err
 		}
 		parts = append(parts, s.Interface)
@@ -175,7 +175,7 @@ type ShowIPRoute struct {
 func (s ShowIPRoute) render() ([]string, error) {
 	parts := []string{"ip", "route"}
 	if s.Vrf != "" {
-		if err := checkToken("vrf", s.Vrf); err != nil {
+		if err := checkName("vrf", s.Vrf); err != nil {
 			return nil, err
 		}
 		parts = append(parts, "vrf", s.Vrf)
@@ -242,7 +242,7 @@ func (s ShowMacAddressTable) render() ([]string, error) {
 	case s.Interface != "" && s.Vlan != 0:
 		return nil, errors.New("interface and vlan are mutually exclusive")
 	case s.Interface != "":
-		if err := checkToken("interface", s.Interface); err != nil {
+		if err := checkInterfaceName("interface", s.Interface); err != nil {
 			return nil, err
 		}
 		parts = append(parts, "interface", s.Interface)
