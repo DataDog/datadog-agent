@@ -1384,6 +1384,7 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_gpu_integration_tests:
+  - !reference [.except_mergequeue]
   - !reference [.on_scheduled_main]
   # Run on GPU-related changes
   - changes:
