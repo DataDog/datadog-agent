@@ -11,17 +11,38 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	// baseRetryBackoff is the initial wait before retrying a transient failure
+	baseRetryBackoff = 1 * time.Second
+	// maxRetryBackoff caps the wait between retries, including server-provided Retry-After values
+	maxRetryBackoff = 30 * time.Second
+)
+
+// newRetryBackOff builds the exponential backoff policy used when backoff is enabled.
+// Useful for mocking
+var newRetryBackOff = func() backoff.BackOff {
+	b := backoff.NewExponentialBackOff()
+	b.InitialInterval = baseRetryBackoff
+	b.Multiplier = 2
+	b.MaxInterval = maxRetryBackoff
+	return b
+}
+
 // newRequest creates a new request for this client.
 func (client *Client) newRequest(method, uri string, body io.Reader) (*http.Request, error) {
-	return http.NewRequest(method, client.endpoint+uri, body)
+	return http.NewRequestWithContext(client.ctx, method, client.endpoint+uri, body)
 }
 
 // do exec a request with authentication
-func (client *Client) do(req *http.Request) ([]byte, int, error) {
+func (client *Client) do(req *http.Request) ([]byte, int, http.Header, error) {
 	// Cross-forgery token
 	client.authenticationMutex.Lock()
 	req.Header.Add("X-XSRF-TOKEN", client.token)
@@ -30,7 +51,7 @@ func (client *Client) do(req *http.Request) ([]byte, int, error) {
 	log.Tracef("Executing cisco sd-wan api request %s %s", req.Method, req.URL.Path)
 	resp, err := client.httpClient.Do(req)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, nil, err
 	}
 	log.Tracef("Executed cisco sd-wan api request %d %s %s", resp.StatusCode, req.Method, req.URL.Path)
 
@@ -41,15 +62,15 @@ func (client *Client) do(req *http.Request) ([]byte, int, error) {
 		// clear auth to trigger re-authentication
 		client.clearAuth()
 		// Return 401 on auth errors
-		return nil, 401, nil
+		return nil, 401, nil, nil
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, resp.StatusCode, err
+		return nil, resp.StatusCode, resp.Header, err
 	}
 
-	return body, resp.StatusCode, nil
+	return body, resp.StatusCode, resp.Header, nil
 }
 
 // get executes a GET request to the given endpoint with the given query params
@@ -65,24 +86,114 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 	}
 	req.URL.RawQuery = query.Encode()
 
-	var bytes []byte
 	var statusCode int
 
-	for attempts := 0; attempts < client.maxAttempts; attempts++ {
-		err = client.authenticate()
+	operation := func() ([]byte, error) {
+		err := client.authenticate()
 		if err != nil {
-			return nil, err
+			return nil, backoff.Permanent(err)
 		}
 
-		bytes, statusCode, err = client.do(req)
+		// Retrying would not help if the rate limiter wait failed or the check was cancelled
+		err = client.waitForRateLimit()
+		if err != nil {
+			return nil, backoff.Permanent(err)
+		}
+
+		var bytes []byte
+		var header http.Header
+		bytes, statusCode, header, err = client.do(req)
+		if client.ctx.Err() != nil {
+			return nil, backoff.Permanent(client.ctx.Err())
+		}
 
 		if err == nil && isValidStatusCode(statusCode) {
 			// Got a valid response, stop retrying
 			return bytes, nil
 		}
+
+		return nil, client.retryError(statusCode, header, err)
+	}
+
+	// The client context interrupts backoff waits when the check is cancelled
+	bytes, err := backoff.Retry(client.ctx, operation,
+		backoff.WithBackOff(client.retryBackOff()),
+		backoff.WithMaxTries(uint(max(client.maxAttempts, 1))),
+		// Attempts are bounded by maxAttempts, each wait by maxRetryBackoff and all of them by maxRetryDuration
+		backoff.WithMaxElapsedTime(client.maxRetryDuration),
+		backoff.WithNotify(func(err error, wait time.Duration) {
+			if wait > 0 {
+				log.Debugf("Cisco sd-wan api request to %s failed (%s), retrying in %s", endpoint, err, wait)
+			}
+		}),
+	)
+	if err == nil {
+		return bytes, nil
+	}
+	if client.ctx.Err() != nil {
+		return nil, client.ctx.Err()
+	}
+	if errors.Is(err, backoff.ErrPermanent) {
+		// Authentication or rate limiter wait failed, surface the underlying error
+		return nil, backoff.AsRetryError(err).LastErr
 	}
 
 	return nil, fmt.Errorf("%s http responded with %d code", endpoint, statusCode)
+}
+
+// retryBackOff returns the policy used between attempts. Without backoff enabled,
+// failed requests are retried immediately.
+func (client *Client) retryBackOff() backoff.BackOff {
+	if !client.backoffEnabled {
+		return &backoff.ZeroBackOff{}
+	}
+	return newRetryBackOff()
+}
+
+// retryError builds the error returned for a failed attempt. When backoff is enabled,
+// transient failures wait for the backoff policy (or the server-provided Retry-After);
+// every other failure, including 401 which triggers re-authentication, is retried immediately.
+func (client *Client) retryError(statusCode int, header http.Header, err error) error {
+	retryable := client.backoffEnabled && isRetryable(statusCode, err)
+	if err == nil {
+		err = fmt.Errorf("http responded with %d code", statusCode)
+	}
+
+	if !retryable {
+		return backoff.RetryAfter(0, err)
+	}
+
+	if retryAfter := parseRetryAfter(header); retryAfter > 0 {
+		return backoff.RetryAfter(min(retryAfter, maxRetryBackoff), err)
+	}
+
+	return err
+}
+
+// isRetryable reports whether a failed request is worth waiting on and retrying:
+// network errors, rate-limiting (429) and transient server errors (5xx). Auth
+// failures (401) are excluded as they trigger immediate re-authentication.
+func isRetryable(statusCode int, err error) bool {
+	if err != nil {
+		return true
+	}
+	return statusCode == http.StatusTooManyRequests || statusCode >= 500
+}
+
+// parseRetryAfter parses the Retry-After header, which may be a number of seconds or
+// an HTTP date. It returns 0 when the header is absent or invalid.
+func parseRetryAfter(header http.Header) time.Duration {
+	value := header.Get("Retry-After")
+	if value == "" {
+		return 0
+	}
+	if seconds, err := strconv.Atoi(value); err == nil {
+		return time.Duration(seconds) * time.Second
+	}
+	if date, err := http.ParseTime(value); err == nil {
+		return date.Sub(timeNow())
+	}
+	return 0
 }
 
 // get wraps client.get with generic type content and unmarshalling (methods can't use generics)

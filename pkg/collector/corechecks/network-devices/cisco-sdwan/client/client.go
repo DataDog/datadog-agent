@@ -7,9 +7,11 @@
 package client
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -17,6 +19,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 const timeFormat = "2006-01-02T15:04:05"
@@ -46,6 +50,11 @@ type Client struct {
 	maxPages            int
 	maxCount            string // Stored as string to be passed as an HTTP param
 	lookback            time.Duration
+	backoffEnabled      bool
+	maxRetryDuration    time.Duration   // 0 means retries are only bounded by maxAttempts
+	ctx                 context.Context // cancels in-flight requests and rate limiter waits
+	rateLimiter         *rate.Limiter   // nil means requests are not rate limited
+	rateLimitMaxWait    time.Duration
 }
 
 // ClientOptions are the functional options for the Cisco SD-WAN client
@@ -88,6 +97,7 @@ func NewClient(endpoint, username, password string, useHTTP bool, options ...Cli
 		maxPages:            defaultMaxPages,
 		maxCount:            defaultMaxCount,
 		lookback:            defaultLookback,
+		ctx:                 context.Background(),
 	}
 
 	for _, opt := range options {
@@ -148,6 +158,22 @@ func WithMaxAttempts(maxAttempts int) ClientOptions {
 	}
 }
 
+// WithBackoff is a functional option to wait with exponential backoff before retrying
+// transient failures (network errors, 429 and 5xx), honoring the Retry-After header
+func WithBackoff(enabled bool) ClientOptions {
+	return func(c *Client) {
+		c.backoffEnabled = enabled
+	}
+}
+
+// WithMaxRetryDuration is a functional option to bound the total time spent retrying a request:
+// no new backoff wait is started if it would end after maxRetryDuration
+func WithMaxRetryDuration(maxRetryDuration time.Duration) ClientOptions {
+	return func(c *Client) {
+		c.maxRetryDuration = maxRetryDuration
+	}
+}
+
 // WithMaxCount is a functional option to set the client max count
 func WithMaxCount(maxCount int) ClientOptions {
 	return func(c *Client) {
@@ -167,6 +193,37 @@ func WithLookback(lookback time.Duration) ClientOptions {
 	return func(c *Client) {
 		c.lookback = lookback
 	}
+}
+
+// WithContext is a functional option to set the context used to cancel requests and rate limiter waits
+func WithContext(ctx context.Context) ClientOptions {
+	return func(c *Client) {
+		c.ctx = ctx
+	}
+}
+
+// WithRateLimit is a functional option to limit the number of requests sent to the
+// Cisco SD-WAN API using a token bucket refilled at requestsPerSecond, holding up to burst tokens.
+// A request fails instead of waiting longer than maxWait for a token.
+func WithRateLimit(requestsPerSecond float64, burst int, maxWait time.Duration) ClientOptions {
+	return func(c *Client) {
+		c.rateLimiter = rate.NewLimiter(rate.Limit(requestsPerSecond), burst)
+		c.rateLimitMaxWait = maxWait
+	}
+}
+
+// waitForRateLimit blocks until the rate limiter allows a new request to be sent,
+// the client context is cancelled, or rateLimitMaxWait is reached
+func (client *Client) waitForRateLimit() error {
+	if client.rateLimiter == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(client.ctx, client.rateLimitMaxWait)
+	defer cancel()
+	if err := client.rateLimiter.Wait(ctx); err != nil {
+		return fmt.Errorf("cisco sd-wan api rate limiter: %w", err)
+	}
+	return nil
 }
 
 // GetDevices get all devices from this SD-WAN network
