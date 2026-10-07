@@ -17278,8 +17278,8 @@
       "prefixes": [
         "setns"
       ],
-      "constants": "Namespace types",
-      "constants_link": "namespace-types",
+      "constants": "Clone flags",
+      "constants_link": "clone-flags",
       "examples": []
     },
     {
@@ -21218,45 +21218,6 @@
         {
           "name": "MAP_32BIT",
           "architecture": "amd64"
-        }
-      ]
-    },
-    {
-      "name": "Namespace types",
-      "link": "namespace-types",
-      "description": "Namespace types are the supported namespace types for the setns syscall.",
-      "all": [
-        {
-          "name": "CLONE_NEWTIME",
-          "architecture": "all"
-        },
-        {
-          "name": "CLONE_NEWNS",
-          "architecture": "all"
-        },
-        {
-          "name": "CLONE_NEWCGROUP",
-          "architecture": "all"
-        },
-        {
-          "name": "CLONE_NEWUTS",
-          "architecture": "all"
-        },
-        {
-          "name": "CLONE_NEWIPC",
-          "architecture": "all"
-        },
-        {
-          "name": "CLONE_NEWUSER",
-          "architecture": "all"
-        },
-        {
-          "name": "CLONE_NEWPID",
-          "architecture": "all"
-        },
-        {
-          "name": "CLONE_NEWNET",
-          "architecture": "all"
         }
       ]
     },

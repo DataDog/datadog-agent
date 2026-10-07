@@ -899,19 +899,6 @@ var (
 		"RLIMIT_RTTIME":     unix.RLIMIT_RTTIME,
 	}
 
-	// NamespaceTypeConstants are the supported namespace types for the setns syscall
-	// generate_constants:Namespace types,Namespace types are the supported namespace types for the setns syscall.
-	NamespaceTypeConstants = map[string]int{
-		"CLONE_NEWTIME":   unix.CLONE_NEWTIME,
-		"CLONE_NEWNS":     unix.CLONE_NEWNS,
-		"CLONE_NEWCGROUP": unix.CLONE_NEWCGROUP,
-		"CLONE_NEWUTS":    unix.CLONE_NEWUTS,
-		"CLONE_NEWIPC":    unix.CLONE_NEWIPC,
-		"CLONE_NEWUSER":   unix.CLONE_NEWUSER,
-		"CLONE_NEWPID":    unix.CLONE_NEWPID,
-		"CLONE_NEWNET":    unix.CLONE_NEWNET,
-	}
-
 	// SocketDomainConstants is the list of socket domains
 	// generate_constants:Socket domains,Socket domains are the supported socket domains.
 	SocketDomainConstants = map[string]int{
@@ -1501,13 +1488,6 @@ func initCloneFlagsConstants() {
 			seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		}
 		cloneFlagsStrings[v] = k
-	}
-}
-
-func initNamespaceTypeConstants() {
-	for k, v := range NamespaceTypeConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
-		namespaceTypeStrings[v] = k
 	}
 }
 
@@ -2395,7 +2375,7 @@ func (nst NamespaceType) String() string {
 	if nst == 0 {
 		return "ANY"
 	}
-	return bitmaskToString(int(nst), namespaceTypeStrings)
+	return CloneFlags(nst).String()
 }
 
 // Signal represents a type of unix signal (ie, SIGKILL, SIGSTOP etc)
@@ -2425,7 +2405,6 @@ var (
 	sysctlActionStrings               = map[uint32]string{}
 	rlimitStrings                     = map[int]string{}
 	cloneFlagsStrings                 = map[uint64]string{}
-	namespaceTypeStrings              = map[int]string{}
 	setsockoptOptNameStringsIP        = map[int]string{}
 	setsockoptOptNameStringsSolSocket = map[int]string{}
 	setsockoptOptNameStringsTCP       = map[int]string{}

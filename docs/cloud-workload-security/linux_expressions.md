@@ -4913,7 +4913,7 @@ Type: int
 Definition: Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined
 
 
-Constants: [Namespace types](#namespace-types)
+Constants: [Clone flags](#clone-flags)
 
 
 
@@ -6187,20 +6187,6 @@ MMap flags are the supported flags for the mmap syscall.
 | `MAP_HUGE_2GB` | all |
 | `MAP_HUGE_16GB` | all |
 | `MAP_32BIT` | amd64 |
-
-### `Namespace types` {#namespace-types}
-Namespace types are the supported namespace types for the setns syscall.
-
-| Name | Architectures |
-| ---- |---------------|
-| `CLONE_NEWTIME` | all |
-| `CLONE_NEWNS` | all |
-| `CLONE_NEWCGROUP` | all |
-| `CLONE_NEWUTS` | all |
-| `CLONE_NEWIPC` | all |
-| `CLONE_NEWUSER` | all |
-| `CLONE_NEWPID` | all |
-| `CLONE_NEWNET` | all |
 
 ### `Network Address Family constants` {#network-address-family-constants}
 Network Address Family constants are the supported network address families.
