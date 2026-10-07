@@ -893,6 +893,8 @@ def _prepare(
 ):
     if not ci:
         cc = get_compiler(ctx)
+        # Re-mint the Buildbarn token if expiring so the in-container Bazel builds can use the remote cache
+        cc.refresh_buildbarn_id_token()
 
     pkgs = ""
     if packages:
@@ -1487,6 +1489,8 @@ def build(
     paths.arch_dir.mkdir(parents=True, exist_ok=True)
 
     cc = get_compiler(ctx)
+    # Re-mint the Buildbarn token if expiring so the in-container Bazel build can use the remote cache
+    cc.refresh_buildbarn_id_token()
 
     inv_echo = "-e" if ctx.config.run["echo"] else ""
     cc.exec(

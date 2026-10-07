@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import base64
 import json
+import os
 import shlex
 import sys
 import tempfile
+import time
 from contextlib import chdir
 from functools import cached_property
 from pathlib import Path
@@ -30,6 +33,25 @@ MARKER_IMAGE_PREPARED = "/tmp/kmt-image-prepared"
 APT_URIS = {"amd64": "http://archive.ubuntu.com/ubuntu/", "arm64": "http://ports.ubuntu.com/ubuntu-ports/"}
 
 
+def buildbarn_token_expiry(token: str) -> float | None:
+    """Return the `exp` claim of a Buildbarn OIDC token (a JWT), or None if it can't be read.
+
+    The signature is not verified: Buildbarn does that, this is only used to decide when to re-mint.
+    """
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        return float(json.loads(base64.urlsafe_b64decode(payload))["exp"])
+    except (IndexError, ValueError, KeyError, TypeError):
+        return None
+
+
+def buildbarn_token_needs_refresh(token: str, margin_s: int = 300) -> bool:
+    """True when the token is unreadable or expires within margin_s seconds."""
+    exp = buildbarn_token_expiry(token)
+    return exp is None or exp - time.time() < margin_s
+
+
 def get_build_image_suffix_and_version() -> tuple[str, str]:
     gitlab_ci_file = Path(__file__).parent.parent.parent / ".gitlab-ci.yml"
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
@@ -53,6 +75,8 @@ class CompilerImage:
     def __init__(self, ctx: Context, arch: Arch):
         self.ctx = ctx
         self.arch: Arch = arch
+        # Set by refresh_buildbarn_id_token(); injected into every exec() when present
+        self.buildbarn_id_token: str | None = None
 
     @property
     def name(self):
@@ -181,6 +205,35 @@ class CompilerImage:
             return None
         return cache
 
+    def refresh_buildbarn_id_token(self) -> None:
+        """Mint a Buildbarn OIDC token for the Bazel remote cache if the current one is missing or expiring.
+
+        Containers can't do an interactive Vault login, so the token is minted on the host and injected
+        into every `docker exec` (see bazel/tools/remote-cache-select.sh).
+        """
+        if self.buildbarn_id_token is None:
+            self.buildbarn_id_token = os.environ.get("BUILDBARN_ID_TOKEN") or None
+        if self.buildbarn_id_token is not None and not buildbarn_token_needs_refresh(self.buildbarn_id_token):
+            return
+        if os.environ.get("CI"):
+            return
+
+        vault_addr = os.environ.get("VAULT_ADDR", "https://vault.us1.ddbuild.io")
+        res = self.ctx.run(
+            f"vault read -address={shlex.quote(vault_addr)} -field=token identity/oidc/token/buildbarn",
+            hide=True,
+            warn=True,
+        )
+        token = res.stdout.strip() if res is not None and res.ok else ""
+        if not token:
+            warn(
+                f"[!] Could not mint a Buildbarn token (try `vault login -address={vault_addr} -method=oidc`); "
+                "Bazel remote cache will be skipped in the container"
+            )
+            self.buildbarn_id_token = None
+            return
+        self.buildbarn_id_token = token
+
     def host_go_caches(self) -> dict[str, Path]:
         """Return the host GOMODCACHE/GOCACHE paths that exist, keyed by env var name."""
         res = self.ctx.run("go env GOMODCACHE GOCACHE", hide=True, warn=True)
@@ -223,13 +276,21 @@ class CompilerImage:
         if not force_color:
             color_env = ""
 
+        # Pass the token by name only so its value never appears in the echoed command line
+        token_env = ""
+        run_env = {}
+        if token := self.buildbarn_id_token:
+            token_env = "-e BUILDBARN_ID_TOKEN"
+            run_env["BUILDBARN_ID_TOKEN"] = token
+
         # Set FORCE_COLOR=1 so that termcolor works in the container
         return cast(
             Result,
             self.ctx.run(
-                f"docker exec -u {user} -i {color_env} {self.name} bash -l -c \"{cmd}\"",
+                f"docker exec -u {user} -i {color_env} {token_env} {self.name} bash -l -c \"{cmd}\"",
                 hide=not self.ctx.config.run["echo"],
                 warn=allow_fail,
+                env=run_env,
             ),
         )
 
