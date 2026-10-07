@@ -273,7 +273,7 @@ SHARED_MODULES = {
     "_posixshmem": {
         "srcs": ["_multiprocessing/posixshmem.c"],
         "deps": [":native_multiprocessing_headers"],
-        "linkopts": ["-lrt"],
+        "linux_linkopts": ["-lrt"],
     },
     "_multiprocessing": {
         "srcs": ["_multiprocessing/multiprocessing.c", "_multiprocessing/semaphore.c"],
@@ -339,31 +339,95 @@ LIBEXPAT_SRCS = [
     "Modules/expat/xmltok.c",
 ]
 
+MACOS_SHARED_MODULES = {
+    "readline": {"srcs": ["readline.c"], "linkopts": ["-lreadline"]},
+    "_curses": {
+        "srcs": ["_cursesmodule.c"],
+        "defines": ["_XOPEN_SOURCE_EXTENDED=1"],
+        "linkopts": ["-lncurses"],
+    },
+    "_curses_panel": {
+        "srcs": ["_curses_panel.c"],
+        "defines": ["_XOPEN_SOURCE_EXTENDED=1"],
+        "linkopts": ["-lpanel", "-lncurses"],
+    },
+    "_scproxy": {
+        "srcs": ["_scproxy.c"],
+        "linkopts": ["-framework", "SystemConfiguration", "-framework", "CoreFoundation"],
+    },
+    "_uuid": {"srcs": ["_uuidmodule.c"]},
+}
+
+MACOS_SHARED_MODULE_EXTRAS = {
+    "_ctypes": {
+        "srcs": ["_ctypes/malloc_closure.c"],
+        "defines": ["USING_MALLOC_CLOSURE_DOT_C=1"],
+    },
+}
+
 NATIVE_PLATFORMS = {
     "@@//:linux_arm64": {
         "gnu_type": "aarch64-unknown-linux-gnu",
+        "libpython": "libpython3.13.so.1.0",
+        "machdep": "linux",
         "multiarch": "aarch64-linux-gnu",
         "pyconfig": "@@//deps/cpython:pyconfig-linux-arm64.h",
     },
     "@@//:linux_x86_64": {
         "gnu_type": "x86_64-pc-linux-gnu",
+        "libpython": "libpython3.13.so.1.0",
+        "machdep": "linux",
         "multiarch": "x86_64-linux-gnu",
         "pyconfig": "@@//deps/cpython:pyconfig-linux-x86_64.h",
     },
+    "@@//:macos_arm64": {
+        "gnu_type": "aarch64-apple-darwin",
+        "libpython": "libpython3.13.dylib",
+        "machdep": "darwin",
+        "multiarch": "darwin",
+        "pyconfig": "@@//deps/cpython:pyconfig-macos-arm64.h",
+    },
+    "@@//:macos_x86_64": {
+        "gnu_type": "x86_64-apple-darwin",
+        "libpython": "libpython3.13.dylib",
+        "machdep": "darwin",
+        "multiarch": "darwin",
+        "pyconfig": "@@//deps/cpython:pyconfig-macos-x86_64.h",
+    },
 }
 
-def sysconfig_vars(multiarch, gnu_type):
+_SYSCONFIG_DARWIN_OVERRIDES = {
+    "ARFLAGS": "rcs",
+    "BASECFLAGS": "-fno-strict-overflow -Wsign-compare -Wunreachable-code",
+    "BLDSHARED": "clang -bundle -undefined dynamic_lookup",
+    "CC": "clang",
+    "CCSHARED": "",
+    "CXX": "clang",
+    "INSTSONAME": "libpython3.13.dylib",
+    "LDCXXSHARED": "clang -bundle -undefined dynamic_lookup",
+    "LDLIBRARY": "libpython3.13.dylib",
+    "LDSHARED": "clang -bundle -undefined dynamic_lookup",
+    "LIBS": "-ldl  -framework CoreFoundation",
+    "LINKCC": "clang",
+    "LINKFORSHARED": "-Wl,-stack_size,1000000  -framework CoreFoundation",
+    "MACOSX_DEPLOYMENT_TARGET": "12.0",
+    "PY3LIBRARY": "",
+    "SYSLIBS": "",
+}
+
+def sysconfig_vars(platform):
     """Returns the sysconfig build_time_vars for a target platform.
 
     Args:
-        multiarch: the multiarch tuple, e.g. x86_64-linux-gnu.
-        gnu_type: the GNU host type, e.g. x86_64-pc-linux-gnu.
+        platform: a NATIVE_PLATFORMS entry.
 
     Returns:
         A dict of sysconfig variable names to values, with @PREFIX@ standing
         for the install prefix.
     """
-    return {
+    multiarch = platform["multiarch"]
+    gnu_type = platform["gnu_type"]
+    base = {
         "ABIFLAGS": "",
         "AR": "ar",
         "ARFLAGS": "rcsD",
@@ -408,7 +472,7 @@ def sysconfig_vars(multiarch, gnu_type):
         "LIBS": "-ldl  -lutil",
         "LINKCC": "gcc",
         "LINKFORSHARED": "-Xlinker -export-dynamic",
-        "MACHDEP": "linux",
+        "MACHDEP": platform["machdep"],
         "MULTIARCH": multiarch,
         "OPT": "-DNDEBUG -fwrapv",
         "PLATLIBDIR": "lib",
@@ -432,6 +496,9 @@ def sysconfig_vars(multiarch, gnu_type):
         "exec_prefix": "@PREFIX@",
         "prefix": "@PREFIX@",
     }
+    if platform["machdep"] == "darwin":
+        base.update(_SYSCONFIG_DARWIN_OVERRIDES)
+    return base
 
 WINDOWS_BUILTIN_MODULE_SRCS = [
     "Modules/_abc.c",
