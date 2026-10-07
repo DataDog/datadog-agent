@@ -24,12 +24,58 @@ var _ memSized = (*sparseStore)(nil)
 
 type sparseStore struct {
 	bins binList
-	// count is the sum of the n of the bins, in units of 1<<shift observations.
+	// count is the sum of the n of the bins, in units of 1<<shift() observations.
 	count int
-	// shift is the scale of the bins: each unit of their n stands for 1<<shift
-	// observations. It stays 0 until the store is given more observations than its
-	// bins can count, see fit.
+	// scaled stays nil until the store is given more observations than its bins
+	// can count, see fit.
+	scaled *scaling
+}
+
+// scaling is the state of a store whose bins count units of 1<<shift
+// observations.
+type scaling struct {
 	shift uint
+	// pending holds, sorted by key, the observations of each key that fall short
+	// of a unit. Keeping them rather than rounding every insert makes the units
+	// of a key its observations divided by 1<<shift, however they were batched.
+	pending []remainder
+}
+
+// A remainder holds observations of a key that fall short of a unit.
+type remainder struct {
+	k Key
+	n uint64
+}
+
+func (sc *scaling) clone() *scaling {
+	if sc == nil {
+		return nil
+	}
+	return &scaling{shift: sc.shift, pending: slices.Clone(sc.pending)}
+}
+
+func (sc *scaling) equals(o *scaling) bool {
+	if sc == nil || o == nil {
+		return sc == o
+	}
+	return sc.shift == o.shift && slices.Equal(sc.pending, o.pending)
+}
+
+// shift returns the scale of the bins: each unit of their n stands for
+// 1<<shift observations.
+func (s *sparseStore) shift() uint {
+	if s.scaled == nil {
+		return 0
+	}
+	return s.scaled.shift
+}
+
+// pending returns the observations short of a unit, see scaling.
+func (s *sparseStore) pending() []remainder {
+	if s.scaled == nil {
+		return nil
+	}
+	return s.scaled.pending
 }
 
 // Cols returns an array of k and n.
@@ -41,9 +87,9 @@ func (s *sparseStore) Cols() (k []int32, n []uint32) {
 	k = make([]int32, len(s.bins))
 	n = make([]uint32, len(s.bins))
 
-	// Past maxColsShift the bins keep their proportions, but no longer add up to
-	// the number of observations.
-	shift := min(s.shift, maxColsShift)
+	// The observations short of a unit are left out. Past maxColsShift the bins
+	// keep their proportions, but no longer add up to the number of observations.
+	shift := min(s.shift(), maxColsShift)
 
 	// TODO: do this better.
 	for i, b := range s.bins {
@@ -60,13 +106,19 @@ func (s *sparseStore) Cols() (k []int32, n []uint32) {
 //	allocated: uses cap(bins)
 func (s *sparseStore) MemSize() (used, allocated int) {
 	const (
-		binSize   = int(unsafe.Sizeof(bin{}))
-		storeSize = int(unsafe.Sizeof(sparseStore{}))
+		binSize       = int(unsafe.Sizeof(bin{}))
+		storeSize     = int(unsafe.Sizeof(sparseStore{}))
+		scalingSize   = int(unsafe.Sizeof(scaling{}))
+		remainderSize = int(unsafe.Sizeof(remainder{}))
 	)
 	// cap is used instead of len because an improved algorithm would take advantage
 	// of the unused space after a slice is resized.
 	used = storeSize + (len(s.bins) * binSize)
 	allocated = storeSize + (cap(s.bins) * binSize)
+	if s.scaled != nil {
+		used += scalingSize + len(s.scaled.pending)*remainderSize
+		allocated += scalingSize + cap(s.scaled.pending)*remainderSize
+	}
 	return
 }
 
@@ -140,105 +192,34 @@ func unitCapacity(c *Config) uint64 {
 	return uint64(c.MaxCount())
 }
 
-// A scaler converts observations into units of 1<<shift observations. It rounds
-// the running total of the counts it converts rather than each of them, so that
-// rounding errors do not pile up along the keys: every rank stays within half a
-// unit of its exact value.
-type scaler struct {
-	shift uint
-	// rem holds the observations carried over to the next count, plus half a
-	// unit to round to the nearest one.
-	rem uint64
-}
-
-func newScaler(shift uint) scaler {
-	if shift == 0 {
-		return scaler{}
-	}
-	return scaler{shift: shift, rem: 1 << (shift - 1)}
-}
-
-// units returns the number of units the next n observations add up to.
-func (sc *scaler) units(n uint64) uint64 {
-	unit := uint64(1) << sc.shift
-	q := n >> sc.shift
-	sc.rem += n & (unit - 1)
-	if sc.rem >= unit {
-		q++
-		sc.rem -= unit
-	}
-	return q
-}
-
-// scaledCount returns what n units become once rescaled by 1<<by.
-func scaledCount(n int, by uint) uint64 {
-	sc := newScaler(by)
-	return sc.units(uint64(n))
-}
-
-// rescaleBins appends bins, sorted by key, to dst with their n divided by 1<<by,
-// and returns them with their count. It merges the bins of each key and drops
-// the ones left empty: with by > 0, a key never needs more bins than it had, so
-// dst can share the backing array of bins.
-func rescaleBins(dst, bins []bin, by uint) ([]bin, int) {
-	var (
-		sc    = newScaler(by)
-		count int
-	)
-
-	for i := 0; i < len(bins); {
-		k := bins[i].k
-		n := 0
-		for ; i < len(bins) && bins[i].k == k; i++ {
-			n += int(sc.units(uint64(bins[i].n)))
-		}
-
-		if n > 0 {
-			dst = appendSafe(dst, k, n)
-			count += n
-		}
-	}
-
-	return dst, count
-}
-
-// rescale converts the bins of s to units of 1<<shift observations.
-func (s *sparseStore) rescale(shift uint) {
-	if shift <= s.shift {
-		return
-	}
-
-	s.bins, s.count = rescaleBins(s.bins[:0], s.bins, shift-s.shift)
-	s.shift = shift
-}
-
-// fit makes room in s for the counts of kcs, sorted by key. It rescales s to the
-// smallest shift at which its bins can count those observations on top of its
-// own, and returns the scaler converting kcs to it.
-func (s *sparseStore) fit(c *Config, kcs []KeyCount) scaler {
+// fit rescales s to the smallest shift at which its bins can count the
+// observations of kcs on top of their own.
+func (s *sparseStore) fit(c *Config, kcs []KeyCount) {
 	capacity := unitCapacity(c)
 
-	shift := s.shift
+	shift := s.shift()
 	for shift < maxShift && !s.fits(capacity, shift, kcs) {
 		shift++
 	}
 
 	s.rescale(shift)
-	return newScaler(shift)
 }
 
 // fits reports whether, rescaled to shift, the bins of s can count the
-// observations of kcs on top of their own.
+// observations of kcs on top of their own. Past a shift of 0, it allows for the
+// units the remainders can make up: one per remainder involved, and one more.
 func (s *sparseStore) fits(capacity uint64, shift uint, kcs []KeyCount) bool {
-	units := scaledCount(s.count, shift-s.shift)
+	units := uint64(s.count) >> (shift - s.shift())
+	if shift > 0 {
+		units += uint64(len(s.pending()) + len(kcs) + 1)
+	}
 	if units > capacity {
 		return false
 	}
 
-	sc := newScaler(shift)
 	for _, kc := range kcs {
 		// Checking against the room left cannot overflow, unlike a sum.
-		u := sc.units(uint64(kc.n))
+		u := uint64(kc.n) >> shift
 		if u > capacity-units {
 			return false
 		}
@@ -248,32 +229,171 @@ func (s *sparseStore) fits(capacity uint64, shift uint, kcs []KeyCount) bool {
 	return true
 }
 
+// mergeFits is fits, for the observations of o.
+func (s *sparseStore) mergeFits(capacity uint64, shift uint, o *sparseStore) bool {
+	units := uint64(s.count)>>(shift-s.shift()) + uint64(o.count)>>(shift-o.shift())
+	if shift > 0 {
+		units += uint64(len(s.pending()) + len(o.pending()) + 1)
+	}
+	return units <= capacity
+}
+
+// rescale converts the bins of s to units of 1<<shift observations. What a key
+// no longer has a whole unit for goes to its remainder.
+func (s *sparseStore) rescale(shift uint) {
+	from := s.shift()
+	if shift <= from {
+		return
+	}
+
+	var (
+		by      = shift - from
+		pending = s.pending()
+		rems    = make([]remainder, 0, len(pending)+1)
+		count   int
+		p       int
+		// A key never needs more bins than it had: rescale them in place.
+		bins = s.bins[:0]
+	)
+
+	for i := 0; i < len(s.bins); {
+		k := s.bins[i].k
+		var n uint64
+		for ; i < len(s.bins) && s.bins[i].k == k; i++ {
+			n += uint64(s.bins[i].n)
+		}
+
+		for ; p < len(pending) && pending[p].k < k; p++ {
+			rems = append(rems, pending[p])
+		}
+		rem := (n & (1<<by - 1)) << from
+		if p < len(pending) && pending[p].k == k {
+			rem += pending[p].n
+			p++
+		}
+
+		if units := int(n >> by); units > 0 {
+			bins = appendSafe(bins, k, units)
+			count += units
+		}
+		if rem > 0 {
+			rems = append(rems, remainder{k: k, n: rem})
+		}
+	}
+	rems = append(rems, pending[p:]...)
+
+	s.bins, s.count = bins, count
+	s.scaled = &scaling{shift: shift, pending: rems}
+}
+
+// carry adds obs, sorted by key, to the remainders of s, and returns the whole
+// units they make up, as counts sorted by key. It keeps remainders for at most
+// limit keys, folding the lowest ones into the next as trimLeft does for bins.
+func (s *sparseStore) carry(obs []remainder, limit int) []KeyCount {
+	type entry struct {
+		k          Key
+		units, rem uint64
+	}
+
+	var (
+		shift   = s.scaled.shift
+		unit    = uint64(1) << shift
+		pending = s.scaled.pending
+		acc     = make([]entry, 0, len(pending)+len(obs))
+		p       int
+	)
+
+	add := func(e *entry, n uint64) {
+		e.units += n >> shift
+		e.rem += n & (unit - 1)
+		if e.rem >= unit {
+			e.units++
+			e.rem -= unit
+		}
+	}
+
+	for _, o := range obs {
+		for ; p < len(pending) && pending[p].k < o.k; p++ {
+			acc = append(acc, entry{k: pending[p].k, rem: pending[p].n})
+		}
+		if len(acc) == 0 || acc[len(acc)-1].k != o.k {
+			acc = append(acc, entry{k: o.k})
+			if p < len(pending) && pending[p].k == o.k {
+				acc[len(acc)-1].rem = pending[p].n
+				p++
+			}
+		}
+		add(&acc[len(acc)-1], o.n)
+	}
+	for ; p < len(pending); p++ {
+		acc = append(acc, entry{k: pending[p].k, rem: pending[p].n})
+	}
+
+	held := 0
+	for _, e := range acc {
+		if e.rem > 0 {
+			held++
+		}
+	}
+	// With more than limit >= 1 remainders left from i on, another one follows it.
+	for i := 0; held > max(limit, 1); i++ {
+		if acc[i].rem == 0 {
+			continue
+		}
+		j := i + 1
+		for acc[j].rem == 0 {
+			j++
+		}
+
+		add(&acc[j], acc[i].rem)
+		acc[i].rem = 0
+		held--
+		if acc[j].rem == 0 {
+			held--
+		}
+	}
+
+	var units []KeyCount
+	rems := pending[:0]
+	for _, e := range acc {
+		if e.units > 0 {
+			units = append(units, KeyCount{k: e.k, n: uint(e.units)})
+		}
+		if e.rem > 0 {
+			rems = append(rems, remainder{k: e.k, n: e.rem})
+		}
+	}
+	s.scaled.pending = rems
+
+	return units
+}
+
 func (s *sparseStore) merge(c *Config, o *sparseStore) {
 	// Bring both stores to the smallest shift at which the bins can count the
 	// observations of both.
 	capacity := unitCapacity(c)
-	shift := max(s.shift, o.shift)
-	for shift < maxShift &&
-		scaledCount(s.count, shift-s.shift)+scaledCount(o.count, shift-o.shift) > capacity {
+	shift := max(s.shift(), o.shift())
+	for shift < maxShift && !s.mergeFits(capacity, shift, o) {
 		shift++
 	}
 	s.rescale(shift)
 
-	// o must not be mutated: rescale a copy of its bins.
-	obins, ocount := []bin(o.bins), o.count
-	if shift > o.shift {
-		obins, ocount = rescaleBins(getBinList(), o.bins, shift-o.shift)
-		defer putBinList(obins)
+	// o must not be mutated: rescale a copy of it.
+	if shift > o.shift() {
+		rescaled := &sparseStore{bins: append(getBinList(), o.bins...), count: o.count, scaled: o.scaled.clone()}
+		rescaled.rescale(shift)
+		defer putBinList(rescaled.bins)
+		o = rescaled
 	}
 
 	// TODO|PERF: Compare blocky merge with other methods.
 	// TODO|PERF: We have essentially unlimited tmp space, can we merge into a
 	// dense store and then copy back to the sparse version?
-	s.count += ocount
+	s.count += o.count
 	tmp := getBinList()[:0]
 
 	sIdx := 0
-	for _, ob := range obins {
+	for _, ob := range o.bins {
 
 		for sIdx < s.bins.Len() && s.bins[sIdx].k < ob.k {
 			tmp = append(tmp, s.bins[sIdx])
@@ -295,6 +415,12 @@ func (s *sparseStore) merge(c *Config, o *sparseStore) {
 	s.bins = s.bins.ensureLen(len(tmp))
 	copy(s.bins, tmp)
 	putBinList(tmp)
+
+	if s.scaled != nil {
+		if units := s.carry(o.pending(), c.binLimit); len(units) > 0 {
+			s.insertUnits(c, units)
+		}
+	}
 }
 
 func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
@@ -307,9 +433,20 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 
 	// appendSafe adds a bin per maxBinWidth of count: scale the counts down when
 	// they would take more bins than trimLeft can bound, whatever their size.
-	// Rounding can leave a count with no unit, and its key with no bin.
-	sc := s.fit(c, kcs)
+	s.fit(c, kcs)
+	if s.scaled != nil {
+		obs := make([]remainder, len(kcs))
+		for i, kc := range kcs {
+			obs[i] = remainder{k: kc.k, n: uint64(kc.n)}
+		}
+		kcs = s.carry(obs, c.binLimit)
+	}
 
+	s.insertUnits(c, kcs)
+}
+
+// insertUnits merges kcs, sorted by key and counting units, into the bins of s.
+func (s *sparseStore) insertUnits(c *Config, kcs []KeyCount) {
 	// TODO|PERF: Add a non-allocating fast path. When every key is already contained
 	// in the sketch (and no overflow happens) we can just directly update.
 	tmp := getBinList()
@@ -321,6 +458,7 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 	for sIdx < len(s.bins) && keyIdx < len(kcs) {
 		b := s.bins[sIdx]
 		vk := kcs[keyIdx].k
+		kn := int(kcs[keyIdx].n)
 
 		switch {
 		case b.k < vk:
@@ -328,14 +466,10 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 			sIdx++
 		case b.k > vk:
 			// When vk[i] == vk[i+1] we need to make sure they go in the same bucket.
-			kn := int(sc.units(uint64(kcs[keyIdx].n)))
-			if kn > 0 {
-				tmp = appendSafe(tmp, vk, kn)
-			}
+			tmp = appendSafe(tmp, vk, kn)
 			s.count += kn
 			keyIdx++
 		default:
-			kn := int(sc.units(uint64(kcs[keyIdx].n)))
 			tmp = appendSafe(tmp, b.k, int(b.n)+kn)
 			s.count += kn
 			sIdx++
@@ -346,10 +480,8 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 	tmp = append(tmp, s.bins[sIdx:]...)
 
 	for keyIdx < len(kcs) {
-		kn := int(sc.units(uint64(kcs[keyIdx].n)))
-		if kn > 0 {
-			tmp = appendSafe(tmp, kcs[keyIdx].k, kn)
-		}
+		kn := int(kcs[keyIdx].n)
+		tmp = appendSafe(tmp, kcs[keyIdx].k, kn)
 		s.count += kn
 		keyIdx++
 	}
@@ -363,7 +495,7 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 }
 
 func (s *sparseStore) insert(c *Config, keys []Key) {
-	if s.shift > 0 || uint64(s.count)+uint64(len(keys)) > unitCapacity(c) {
+	if s.scaled != nil || uint64(s.count)+uint64(len(keys)) > unitCapacity(c) {
 		// The keys need scaling, which insertCounts takes care of.
 		s.insertKeysAsCounts(c, keys)
 		return
