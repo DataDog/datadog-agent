@@ -13,7 +13,7 @@
 
 // pid_tgid == 0 selects SYNC_SYSCALL with the current task; a non-zero pid_tgid
 // switches the syscall to ASYNC_SYSCALL and identifies the owner thread.
-int __attribute__((always_inline)) trace__sys_openat2(void *ctx, const char *path, int flags, umode_t mode, u64 pid_tgid) {
+static __always_inline int trace__sys_openat2(void *ctx, const char *path, int flags, umode_t mode, u64 pid_tgid) {
     if (is_discarded_by_pid() || is_auid_discarder(EVENT_OPEN)) {
         return 0;
     }
@@ -35,7 +35,7 @@ int __attribute__((always_inline)) trace__sys_openat2(void *ctx, const char *pat
     return 0;
 }
 
-int __attribute__((always_inline)) trace__sys_openat(void *ctx, const char *path, int flags, umode_t mode) {
+static __always_inline int trace__sys_openat(void *ctx, const char *path, int flags, umode_t mode) {
     return trace__sys_openat2(ctx, path, flags, mode, 0);
 }
 
@@ -76,7 +76,7 @@ HOOK_SYSCALL_ENTRY4(openat2, int, dirfd, const char *, filename, struct openat2_
     return trace__sys_openat(ctx, filename, how.flags, how.mode);
 }
 
-int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
+static __always_inline int handle_open(ctx_t *ctx, struct path *path) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall || syscall->open.dentry) {
         return 0;
@@ -127,7 +127,7 @@ int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
     return 0;
 }
 
-int __attribute__((always_inline)) handle_truncate_path(ctx_t *ctx, struct path *path) {
+static __always_inline int handle_truncate_path(ctx_t *ctx, struct path *path) {
     if (path == NULL) {
         return 0;
     }
@@ -208,7 +208,7 @@ int hook_do_dentry_open(ctx_t *ctx) {
     return handle_exec_event(ctx, syscall, file, inode);
 }
 
-int __attribute__((always_inline)) trace_io_openat(ctx_t *ctx) {
+static __always_inline int trace_io_openat(ctx_t *ctx) {
     void *raw_req = (void *)CTX_PARM1(ctx);
 
     struct io_open req;
@@ -251,9 +251,9 @@ int hook_io_ftruncate(ctx_t *ctx) {
 }
 
 // used by both tail call callback and directly for tracepoints
-int __attribute__((always_inline)) _sys_open_ret_impl(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int _sys_open_ret_impl(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (IS_UNHANDLED_ERROR(syscall->retval)) {
-        return 0;
+        goto pop_and_exit;
     }
 
     // emit a sample refresh if the dedup map flagged one
@@ -265,16 +265,16 @@ int __attribute__((always_inline)) _sys_open_ret_impl(void *ctx, struct syscall_
 
     apply_dentry_resolution_outcome(syscall, EVENT_OPEN);
     if (syscall->state == DISCARDED) {
-        return 0;
+        goto pop_and_exit;
     }
 
     if (syscall->resolver.ret == DENTRY_INVALID) {
-        return 0;
+        goto pop_and_exit;
     }
 
     struct open_event_t *event = SPAN_FILL_EVENT(struct open_event_t, EVENT_OPEN);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = syscall->retval;
     event->syscall_ctx.id = syscall->ctx_id;
@@ -292,7 +292,7 @@ int __attribute__((always_inline)) _sys_open_ret_impl(void *ctx, struct syscall_
     // INTERNAL cgroupfs events are forwarded only to feed the userspace cgroup resolver,
     // which only cares about directory entries; drop the rest.
     if (syscall->state == INTERNAL && !S_ISDIR(event->file.metadata.mode)) {
-        return 0;
+        goto pop_and_exit;
     }
 
     struct proc_cache_t *entry;
@@ -303,25 +303,31 @@ int __attribute__((always_inline)) _sys_open_ret_impl(void *ctx, struct syscall_
     }
     fill_cgroup_context(entry, &event->cgroup);
 
+    pop_syscall(EVENT_OPEN);
+
     span_fill_tail_call(ctx, prog_type);
 
+pop_and_exit:
+    pop_syscall(EVENT_OPEN);
     return 0;
 }
 
-int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache_t *syscall) {
+static __always_inline int _sys_open_ret(void *ctx, struct syscall_cache_t *syscall) {
     return _sys_open_ret_impl(ctx, syscall, KPROBE_OR_FENTRY_TYPE);
 }
 
 TAIL_CALL_FNC(sys_open_ret_cb, void *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall || !syscall->open.dentry) {
+        pop_syscall(EVENT_OPEN);
         return 0;
     }
+    // the entry is released inside _sys_open_ret_impl, after its last read
     return _sys_open_ret(ctx, syscall);
 }
 
 // get and set the retval then tail call so that only one program is used for all the syscall ret
-int __attribute__((always_inline)) sys_open_ret(void *ctx) {
+static __always_inline int sys_open_ret(void *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall) {
         return 0;
@@ -351,11 +357,13 @@ HOOK_SYSCALL_COMPAT_EXIT(ftruncate) {
 
 HOOK_EXIT("io_ftruncate")
 int rethook_io_ftruncate(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall || !syscall->open.dentry) {
+        pop_syscall(EVENT_OPEN);
         return 0;
     }
     syscall->retval = CTX_PARMRET(ctx);
+    // the entry is released inside _sys_open_ret_impl, after its last read
     return _sys_open_ret(ctx, syscall);
 }
 
@@ -372,21 +380,25 @@ HOOK_SYSCALL_EXIT(openat2) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_open_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall || !syscall->open.dentry) {
+        pop_syscall(EVENT_OPEN);
         return 0;
     }
     syscall->retval = args->ret;
+    // the entry is released inside _sys_open_ret_impl, after its last read
     return _sys_open_ret_impl(args, syscall, TRACEPOINT_TYPE);
 }
 
 HOOK_EXIT("io_openat2")
 int rethook_io_openat2(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall || !syscall->open.dentry) {
+        pop_syscall(EVENT_OPEN);
         return 0;
     }
     syscall->retval = CTX_PARMRET(ctx);
+    // the entry is released inside _sys_open_ret_impl, after its last read
     return _sys_open_ret(ctx, syscall);
 }
 

@@ -126,8 +126,7 @@ struct otel_v8_layout_t {
     u16 tagged_size;                  // width of a tagged word; only 8 is supported
     u16 js_map_table_offset;          // JSMap -> backing OrderedHashMap
     u16 ordered_hash_map_header_size; // header before the OrderedHashMap fields
-    u16 js_object_record_offset;      // JSObject -> internal field 0, the record pointer
-    u16 _pad[4];
+    u16 _pad[5];
 };
 
 // OTel TLS registration for a process, written once by user space after
@@ -148,7 +147,8 @@ struct otel_nodejs_ctx_t {
     u64 cped_slot;          // isolate slot holding the live AsyncContextFrame
     u64 als_handle;         // handle to the AsyncLocalStorage the frame is keyed by
     u32 als_identity_hash;  // its identity hash, which picks a single bucket
-    u32 _pad;
+    u8 record_slot_offset;  // JSObject -> internal field 0, the record pointer
+    u8 _pad[3];
     u64 undefined_addr;     // this isolate's undefined, i.e. "no context here"
 };
 

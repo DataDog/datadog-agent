@@ -129,7 +129,7 @@ func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Compon
 			sw = &pb
 			pbs = append(pbs, sw)
 		} else {
-			pb, err := newPayloadsBuilderV3WithConfig(config, strategy, pipelineConfig, pipelineContext)
+			pb, err := newSeriesPayloadBuilderV3WithConfig(config, strategy, pipelineConfig, pipelineContext)
 			if err != nil {
 				return err
 			}

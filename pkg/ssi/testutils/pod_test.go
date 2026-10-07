@@ -50,6 +50,21 @@ func TestPodValidator(t *testing.T) {
 				v.RequireVolumeNames(t, []string{"foo", "bar"})
 			},
 		},
+		"ensure init container versions are parsed from tags and digests": {
+			in: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{
+						{Name: "datadog-init-apm-inject", Image: "registry.datadoghq.com/apm-inject:0.54.0"},
+						{Name: "datadog-lib-java-init", Image: "gcr.io/datadoghq/dd-lib-java-init:v1"},
+						{Name: "datadog-lib-python-init", Image: "registry.local:5000/dd-lib-python-init@sha256:abc"},
+					},
+				},
+			},
+			require: func(t *testing.T, v *testutils.PodValidator) {
+				v.RequireInjectorVersion(t, "0.54.0")
+				v.RequireLibraryVersions(t, map[string]string{"java": "v1", "python": "sha256:abc"})
+			},
+		},
 	}
 
 	for name, test := range tests {

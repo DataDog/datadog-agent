@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -28,6 +29,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 )
+
+const stringInternerSize = 4096
+
+var stringInterner = utils.NewLRUStringInterner(stringInternerSize)
 
 // NodeDroppedReason is used to list the reasons to drop a node
 type NodeDroppedReason byte
@@ -564,6 +569,10 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		newEntry, eventNodeBase := node.InsertConnectEvent(event, imageTagID, generationType, at.Stats, dryRun)
 		return newEntry, node, eventNodeBase, nil
 	case model.SyscallsEventType:
+		if event.Syscalls.EventReason == model.SampleReason {
+			newEntry, eventNodeBase := node.InsertSyscallSample(event, imageTagID, at.SyscallsMask, at.Stats, dryRun)
+			return newEntry, node, eventNodeBase, nil
+		}
 		return node.InsertSyscalls(event, imageTagID, at.SyscallsMask, at.Stats, dryRun), node, nil, nil
 	case model.NetworkFlowMonitorEventType:
 		return node.InsertNetworkFlowMonitorEvent(event, imageTagID, generationType, at.Stats, dryRun), node, nil, nil
@@ -1201,6 +1210,40 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 		}
 	})
 	return syscalls
+}
+
+// SyscallsByImageTagID returns the sorted, deduplicated syscall numbers observed
+// under each image tag ID.
+func (at *ActivityTree) SyscallsByImageTagID() map[uint64][]uint32 {
+	sets := make(map[uint64]map[uint32]struct{})
+
+	at.visit(func(processNode *ProcessNode) {
+		for _, syscallNode := range processNode.Syscalls {
+			if syscallNode.Syscall < 0 || uint64(syscallNode.Syscall) > math.MaxUint32 {
+				continue
+			}
+			syscall := uint32(syscallNode.Syscall)
+			syscallNode.EachSeen(func(imageTagID uint64, _, _ int64) {
+				set, ok := sets[imageTagID]
+				if !ok {
+					set = make(map[uint32]struct{})
+					sets[imageTagID] = set
+				}
+				set[syscall] = struct{}{}
+			})
+		}
+	})
+
+	out := make(map[uint64][]uint32, len(sets))
+	for imageTagID, set := range sets {
+		syscalls := make([]uint32, 0, len(set))
+		for syscall := range set {
+			syscalls = append(syscalls, syscall)
+		}
+		slices.Sort(syscalls)
+		out[imageTagID] = syscalls
+	}
+	return out
 }
 
 // ImageProcessKey represents a unique key for process cache entries by image name, tag, and filepath
