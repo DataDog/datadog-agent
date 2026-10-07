@@ -16,9 +16,9 @@ import (
 
 // Package contains a validated authored script and the paths needed to execute it.
 type Package struct {
-	Manifest  *Manifest
-	Command   []string
-	ToolPaths []string
+	Manifest              *Manifest
+	Command               []string
+	ExecutableDirectories []string
 }
 
 func LoadPackage(fqn string, descriptor Descriptor, artifact LocalArtifact) (*Package, error) {
@@ -37,19 +37,23 @@ func LoadPackage(fqn string, descriptor Descriptor, artifact LocalArtifact) (*Pa
 	}
 	command := append([]string{commandPath}, manifest.Command.Args...)
 
-	toolPaths := make([]string, 0, len(manifest.Dependencies))
+	executableDirectories := make([]string, 0, len(manifest.Dependencies))
 	for _, dependency := range manifest.Dependencies {
-		toolPath, err := resolvePackageFile(artifact.DependencyDirectory(dependency.Name), dependency.Name)
+		binDir := dependency.BinDir
+		if binDir == "" {
+			binDir = "."
+		}
+		directory, err := resolvePackageDirectory(artifact.DependencyDirectory(dependency.Name), binDir)
 		if err != nil {
 			return nil, fmt.Errorf("invalid authored-script dependency %q: %w", dependency.Name, err)
 		}
-		toolPaths = append(toolPaths, toolPath)
+		executableDirectories = append(executableDirectories, directory)
 	}
 
 	return &Package{
-		Manifest:  manifest,
-		Command:   command,
-		ToolPaths: toolPaths,
+		Manifest:              manifest,
+		Command:               command,
+		ExecutableDirectories: executableDirectories,
 	}, nil
 }
 
@@ -79,6 +83,28 @@ func resolvePackageFile(root, path string) (string, error) {
 	}
 	if !info.Mode().IsRegular() {
 		return "", fmt.Errorf("path %q is not a regular file", path)
+	}
+
+	return filepath.Join(root, path), nil
+}
+
+func resolvePackageDirectory(root, path string) (string, error) {
+	if !filepath.IsLocal(path) {
+		return "", fmt.Errorf("path %q is not relative to the package", path)
+	}
+
+	rootHandle, err := os.OpenRoot(root)
+	if err != nil {
+		return "", fmt.Errorf("could not open package root: %w", err)
+	}
+	defer rootHandle.Close()
+
+	info, err := rootHandle.Stat(path)
+	if err != nil {
+		return "", fmt.Errorf("could not access directory %q: %w", path, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("path %q is not a directory", path)
 	}
 
 	return filepath.Join(root, path), nil

@@ -49,6 +49,10 @@ type DaemonSnapshot struct {
 	// TotalProcesses is the process count dd-procmgrd reports. A mismatch with the number of
 	// processes in a List result is itself diagnostic.
 	TotalProcesses uint32 `json:"total_processes"`
+	// ServiceState is the mapped OS unit/SCM state of dd-procmgrd
+	// (running|starting|stopping|stopped|failed|unknown|not_installed).
+	// Empty on non-linux/windows hosts. Independent of Reachable/Ready.
+	ServiceState string `json:"service_state,omitempty"`
 }
 
 // ProcessSnapshot captures a single managed process reported by dd-procmgrd.
@@ -79,14 +83,14 @@ type ProcessSnapshot struct {
 	RuntimeUser   string `json:"runtime_user,omitempty"`
 	RestartPolicy string `json:"restart_policy,omitempty"`
 	AutoStart     bool   `json:"auto_start"`
-	// ConditionPathExists is the path gating the start, if any. dd-procmgrd does not report
-	// condition_config_any over its RPC, so a config-gated process is only identifiable as
-	// State == ProcessStateCreated while AutoStart is true.
+	// ConditionPathExists is the path gating the start, if any.
 	ConditionPathExists string   `json:"condition_path_exists,omitempty"`
 	After               []string `json:"after,omitempty"`
 	Before              []string `json:"before,omitempty"`
 	Stdout              string   `json:"stdout,omitempty"`
 	Stderr              string   `json:"stderr,omitempty"`
+	// SkipReasons are why the start pass declined to spawn (or a later respawn).
+	SkipReasons []string `json:"skip_reasons,omitempty"`
 }
 
 // ServiceSnapshot captures install and supervision state for a migratable agent service.

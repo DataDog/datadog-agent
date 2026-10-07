@@ -6,6 +6,7 @@
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - comp/core/tagger/**/*
         - comp/forwarder/defaultforwarder/**/*
         - pkg/collector/corechecks/cluster/orchestrator/**/*
         - pkg/collector/corechecks/orchestrator/**/*

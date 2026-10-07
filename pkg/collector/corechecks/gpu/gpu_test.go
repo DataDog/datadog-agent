@@ -873,6 +873,60 @@ func TestStrictIntervalMetricsEmitOnTheirOwnCadence(t *testing.T) {
 	require.Equal(t, expected, strictTimestamps)
 }
 
+func TestLostGPUStillReportsDeviceTotal(t *testing.T) {
+	lost := atomic.Bool{}
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(1),
+		testutil.WithDeviceHandleByIndexCallback(func(_ int, device nvml.Device) (nvml.Device, nvml.Return) {
+			if lost.Load() {
+				return nil, nvml.ERROR_GPU_IS_LOST
+			}
+			return device, nvml.SUCCESS
+		}),
+		testutil.WithCustomHook(func(d *testutil.MockDevice) {
+			getIndex := d.GetIndexFunc
+			d.GetIndexFunc = func() (int, nvml.Return) {
+				if lost.Load() {
+					return 0, nvml.ERROR_GPU_IS_LOST
+				}
+				return getIndex()
+			}
+		}),
+	)
+
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	wmeta := testutil.GetWorkloadMetaMock(t)
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
+	mockSender := mocksender.NewMockSender(t, "gpu")
+	mockSender.SetupAcceptAll()
+
+	// Emit device.total on every run instead of on its fixed reporting cadence.
+	pkgconfigsetup.Datadog().SetInTest("gpu.static_metrics_reporting_interval", 0)
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().SetInTest("gpu.static_metrics_reporting_interval", "15s")
+	})
+
+	check := newConfiguredGPUCheck(t, fakeTagger, wmeta, senderManager, map[int]string{})
+
+	runCheck := func(runTime time.Time) float64 {
+		mockSender.ResetCalls()
+		require.NoError(t, check.deviceCache.Refresh())
+		require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, runTime))
+		return float64(runTime.UnixNano()) / float64(time.Second)
+	}
+
+	start := time.Now()
+	ts := runCheck(start)
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "gpu.device.total", 1, "", nil, ts)
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "gpu.device.unavailable", 0, "", []string{"unavailable_reason:lost"}, ts)
+
+	lost.Store(true)
+	ts = runCheck(start.Add(5 * time.Second))
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "gpu.device.total", 1, "", nil, ts)
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "gpu.device.unavailable", 1, "", []string{"unavailable_reason:lost"}, ts)
+}
+
 func TestRunEmitsCorrectTags(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
