@@ -93,6 +93,7 @@ dd_cc_packaged(
 
 cc_static_library(
     name = "rtloader_static",
+    features = ["-validate-static-library"],
     deps = [":rtloader"],
 )
 
