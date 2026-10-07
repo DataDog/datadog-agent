@@ -15,8 +15,8 @@ load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_ATTRS", "find_cc_toolc
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("//bazel/rules:version_info.bzl", "agent_version_defines")
 
-_WINDRES = "@winlibs_mingw64//:windres"
-_WINDMC = "@winlibs_mingw64//:windmc"
+_WINDRES = "//bazel/rules:windres"
+_WINDMC = "//bazel/rules:windmc"
 
 def _cc_env(ctx):
     """Returns (env, cc_toolchain, feature_configuration) from the resolved CC toolchain."""
@@ -122,8 +122,8 @@ _win_messagetable = rule(
     doc = "Compiles a .mc message file into a .syso resource and .h header via windmc + windres.",
     attrs = {
         "src": attr.label(mandatory = True, allow_single_file = [".mc"]),
-        "_windmc": attr.label(default = _WINDMC, executable = True, cfg = "exec", allow_single_file = True),
-        "_windres": attr.label(default = _WINDRES, executable = True, cfg = "exec", allow_single_file = True),
+        "_windmc": attr.label(default = _WINDMC, executable = True, cfg = "exec"),
+        "_windres": attr.label(default = _WINDRES, executable = True, cfg = "exec"),
     } | CC_TOOLCHAIN_ATTRS,
     toolchains = use_cc_toolchain(),
     fragments = ["cpp"],
@@ -190,7 +190,7 @@ _win_resource = rule(
         "src": attr.label(mandatory = True, allow_single_file = [".rc"]),
         "deps": attr.label_list(allow_files = True),
         "defines": attr.string_dict(),
-        "_windres": attr.label(default = _WINDRES, executable = True, cfg = "exec", allow_single_file = True),
+        "_windres": attr.label(default = _WINDRES, executable = True, cfg = "exec"),
     } | CC_TOOLCHAIN_ATTRS,
     toolchains = use_cc_toolchain(),
     fragments = ["cpp"],
