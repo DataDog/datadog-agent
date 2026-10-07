@@ -39,10 +39,8 @@ instances:
 `
 )
 
-// checkEventsSuite installs a custom check that submits one classic event per
-// run through checkSender.Event, then asserts the infra_mode mark on that event
-// in fakeintake. Metrics from the same check stay unmarked: custom_* is outside
-// the metrics-plane allowlist.
+// checkEventsSuite asserts infra_mode on a check-submitted event in fakeintake,
+// and that the same check's custom_* metric stays unmarked.
 type checkEventsSuite struct {
 	e2e.BaseSuite[environments.Host]
 	infraMode  string
@@ -76,9 +74,6 @@ process_config:
 	}
 }
 
-// TestCheckEventInfraMode verifies that a check-submitted event reaches
-// fakeintake with (or without) the infrastructure-mode mark, and that the
-// metric from the same custom check never carries the mark.
 func (s *checkEventsSuite) TestCheckEventInfraMode() {
 	fakeintake := s.Env().FakeIntake.Client()
 
@@ -106,8 +101,6 @@ func (s *checkEventsSuite) TestCheckEventInfraMode() {
 		}
 	}, 5*time.Minute, 15*time.Second, "check event infra_mode mark did not match expectation in fakeintake")
 
-	// Positive signal that the custom check flushed metrics, then assert the
-	// mark stays off that series (custom_* exclusion on the metrics plane).
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		metrics, err := fakeintake.FilterMetrics(
 			checkEventsMetricName,
