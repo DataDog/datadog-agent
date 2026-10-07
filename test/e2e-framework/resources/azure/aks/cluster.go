@@ -30,14 +30,16 @@ const (
 	kataRuntime = "KataMshvVmIsolation"
 )
 
-func NewCluster(e azure.Environment, name string, kataNodePoolEnabled bool, opts ...pulumi.ResourceOption) (*containerservice.ManagedCluster, pulumi.StringOutput, error) {
+// NewCluster creates an AKS cluster whose system node pool has systemNodeCount
+// nodes, plus a one-node Kata pool when kataNodePoolEnabled is set.
+func NewCluster(e azure.Environment, name string, kataNodePoolEnabled bool, systemNodeCount int, opts ...pulumi.ResourceOption) (*containerservice.ManagedCluster, pulumi.StringOutput, error) {
 	sshPublicKey, err := utils.GetSSHPublicKey(e.DefaultPublicKeyPath())
 	if err != nil {
 		return nil, pulumi.StringOutput{}, err
 	}
 
 	// Warning: we're modifying passed array as it should normally never be used anywhere else
-	nodePool := containerservice.ManagedClusterAgentPoolProfileArray{systemNodePool(e, "system")}
+	nodePool := containerservice.ManagedClusterAgentPoolProfileArray{systemNodePool(e, "system", systemNodeCount)}
 
 	if kataNodePoolEnabled {
 		nodePool = append(nodePool, kataNodePool(e))
@@ -149,14 +151,14 @@ func NewCluster(e azure.Environment, name string, kataNodePoolEnabled bool, opts
 	return cluster, kubeconfig, nil
 }
 
-func systemNodePool(e azure.Environment, name string) containerservice.ManagedClusterAgentPoolProfileInput {
+func systemNodePool(e azure.Environment, name string, nodeCount int) containerservice.ManagedClusterAgentPoolProfileInput {
 	return BuildNodePool(NodePoolParams{
 		Environment:  e,
 		Name:         name,
 		Mode:         string(containerservice.AgentPoolModeSystem),
 		InstanceType: e.DefaultInstanceType(),
 		OSType:       string(containerservice.OSTypeLinux),
-		NodeCount:    1,
+		NodeCount:    nodeCount,
 	})
 }
 
