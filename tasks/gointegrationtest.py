@@ -53,7 +53,7 @@ CORE_AGENT_WINDOWS_IT_CONF = IntegrationTestsConfig(
 
 # The SMB log source's tests against a Samba server in Docker
 # (pkg/logs/launchers/smb/samba_integration_test.go). They need a Docker daemon
-# running Linux containers, and skip without one.
+# running Linux containers, and fail without one.
 LOGS_SMB_IT_CONF = IntegrationTestsConfig(
     name="Logs SMB",
     go_build_tags=get_default_build_tags(build="test"),

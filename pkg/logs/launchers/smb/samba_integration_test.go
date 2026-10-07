@@ -22,8 +22,10 @@ package smb
 // do not go through Docker Desktop's file sharing, which caches attributes.
 //
 // It needs Docker and is skipped unless INTEGRATION is set, so the unit test
-// jobs, which have no Docker, only build it. The first run builds the image,
-// which pulls alpine from Docker Hub and Samba from the Alpine repository.
+// jobs, which have no Docker, only build it. With INTEGRATION set, it fails
+// when no Docker daemon running Linux containers answers. The first run
+// builds the image, which pulls alpine from Docker Hub and Samba from the
+// Alpine repository.
 // Run it with one of:
 //
 //	dda inv integration-tests --only="Logs SMB" --timeout=20m
@@ -43,6 +45,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -64,6 +67,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/smb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -159,20 +163,27 @@ func testRenameRotation(t *testing.T, env *sambaEnv, report *itReport) {
 // testFixedWindowRotation rotates like Log4j2's DefaultRolloverStrategy with
 // max=3 (app.log -> app.log.1 -> app.log.2 -> app.log.3, then deleted), with
 // a pattern that also matches the rotated names: a file must not be read
-// again under its next name. The rollovers are over 4 seconds apart, longer
-// than the drain of a rotated file (two idle polls), as with rollovers
-// minutes or hours apart. Samba can give the next app.log the inode, and so
-// the FileId, of the app.log.3 it just deleted.
+// again under its next name. Each rollover comes right after a burst of
+// writes, so the rotated file holds lines not read yet. The writer then waits
+// until the source tails every file of the window again under its new name,
+// from where its drain ended, as with rollovers minutes or hours apart:
+// until then, where a drain ended is only kept by path, and another rollover
+// loses it (see testFastFixedWindowRotation). That takes up to about 4s after
+// a rollover: up to a poll interval to see it, the drain's polls until two in
+// a row find nothing new, and one more scan to start the tailer that resumes
+// the drained file. Samba can give the next app.log the inode, and so the
+// FileId, of the app.log.3 it just deleted.
 func testFixedWindowRotation(t *testing.T, env *sambaEnv, report *itReport) {
 	s := newITScenario(t, env, report, "window")
 	file := s.dir + "/app.log"
 	s.startSource(s.newSource(env.currentPassword(), file+"*"))
 	s.startFile(file)
-	s.rollFixedWindow(file, 5, 3*time.Second)
+	settled := s.rollFixedWindow(file, 5, true)
 
 	s.verify(nil, nil)
 	assert.Zero(t, s.missedBytes(), "no bytes are reported missed")
-	s.reportf("%d lines over 5 rollovers over 4s apart of a 3-file window matched by %s*: each delivered once", s.writtenCount(), file)
+	s.reportf("%d lines over 5 rollovers of a 3-file window matched by %s*, each once the previous one's files were tailed again (%s after it): each delivered once",
+		s.writtenCount(), file, durationRange(settled))
 }
 
 // testFastFixedWindowRotation rolls the same window over every 1.2 seconds,
@@ -186,7 +197,7 @@ func testFastFixedWindowRotation(t *testing.T, env *sambaEnv, report *itReport) 
 	file := s.dir + "/app.log"
 	s.startSource(s.newSource(env.currentPassword(), file+"*"))
 	s.startFile(file)
-	s.rollFixedWindow(file, 5, 0)
+	s.rollFixedWindow(file, 5, false)
 
 	_, dups := s.verify(nil, func(*itLine) bool { return true })
 	s.reportf("%d lines over 5 rollovers 1.2s apart of a 3-file window matched by %s*: no loss, %d lines delivered twice (%s)%s",
@@ -194,29 +205,79 @@ func testFastFixedWindowRotation(t *testing.T, env *sambaEnv, report *itReport) 
 		knownIssue(len(dups) > 0, "a drained file renamed again before its path's tailer starts is read again from offset 0"))
 }
 
-// rollFixedWindow writes 200 lines to file, rolls the window over and waits
-// pause, rollovers times, then writes 200 more lines.
-func (s *itScenario) rollFixedWindow(file string, rollovers int, pause time.Duration) {
+// rollFixedWindow writes 200 lines to file and rolls the window over,
+// rollovers times, then writes 200 more lines. With settle, it waits after
+// each rollover until the source tails every file of the window again (see
+// waitWindowTailed), and returns how long each wait took.
+func (s *itScenario) rollFixedWindow(file string, rollovers int, settle bool) (settled []time.Duration) {
 	s.t.Helper()
-	exists := map[string]bool{}
+	window := []string{file}
 	for range rollovers {
 		require.NoError(s.t, s.writeLines(file, 200, itWriteEvery, nil))
-		if exists[file+".3"] {
-			require.NoError(s.t, s.writer.remove(file+".3"))
+		if len(window) == 4 {
+			require.NoError(s.t, s.writer.remove(window[3]))
+			window = window[:3]
 		}
-		for i := 2; i >= 1; i-- {
-			from, to := file+"."+strconv.Itoa(i), file+"."+strconv.Itoa(i+1)
-			if exists[from] {
-				require.NoError(s.t, s.writer.rename(from, to, false))
-				exists[to] = true
-			}
+		for i := len(window) - 1; i >= 1; i-- {
+			require.NoError(s.t, s.writer.rename(window[i], file+"."+strconv.Itoa(i+1), false))
 		}
 		require.NoError(s.t, s.writer.rename(file, file+".1", false))
-		exists[file+".1"] = true
 		require.NoError(s.t, s.writer.create(file))
-		time.Sleep(pause)
+		window = append(window, file+"."+strconv.Itoa(len(window)))
+		if settle {
+			settled = append(settled, s.waitWindowTailed(window))
+		}
 	}
 	require.NoError(s.t, s.writeLines(file, 200, itWriteEvery, nil))
+	return settled
+}
+
+// waitWindowTailed waits until each of paths is read by an active tailer of
+// the file the share lists under that name, and no rotated file is being
+// drained anymore: the scanner saw the rollover, every drain ended, and each
+// drained file is tailed again under its new name. It returns how long that
+// took. The FileIds tell these tailers from those that read the same names
+// before the rollover, which the scanner may not have seen yet.
+func (s *itScenario) waitWindowTailed(paths []string) time.Duration {
+	s.t.Helper()
+	start := time.Now()
+	entries, err := s.env.listDir(s.dir)
+	require.NoError(s.t, err)
+	listed := make(map[string]uint64, len(entries))
+	for _, e := range entries {
+		listed[join(s.dir, e.Name)] = e.FileID
+	}
+	pending := func() []string {
+		var waiting []string
+		tailed := map[string]uint64{} // FileId of each active tailer, by identifier
+		for _, t := range s.launcher.tailers.All() {
+			if t.GetID() != t.Identifier() {
+				waiting = append(waiting, "drain "+t.GetID())
+				continue
+			}
+			tailed[t.Identifier()] = t.FileID()
+		}
+		for _, p := range paths {
+			if id := tailed[tailer.Identifier(s.env.host, sambaShare, p)]; id == 0 || id != listed[p] {
+				waiting = append(waiting, fmt.Sprintf("%s (FileId %d listed, %d tailed)", p, listed[p], id))
+			}
+		}
+		sort.Strings(waiting)
+		return waiting
+	}
+	s.waitFor(func() bool { return len(pending()) == 0 }, itDeliverTimeout, func() string {
+		return "the files of the window are not all tailed again after the rollover: " + strings.Join(pending(), ", ")
+	})
+	return time.Since(start)
+}
+
+// durationRange prints the smallest and the largest of ds: "3.1s-3.9s".
+func durationRange(ds []time.Duration) string {
+	if len(ds) == 0 {
+		return "none"
+	}
+	lo, hi := slices.Min(ds), slices.Max(ds)
+	return lo.Round(100*time.Millisecond).String() + "-" + hi.Round(100*time.Millisecond).String()
 }
 
 // knownIssue flags a reported outcome that a product change should fix.
@@ -233,21 +294,30 @@ func knownIssue(happened bool, issue string) string {
 // delivered twice. Each rotation waits for the reader to catch up first, as
 // a rotation hours apart would: the lines written before the copy are then
 // all readable.
+//
+// The reader only sees a truncation while the file is shorter than what it
+// read: a file that grows past that between two polls looks like a file that
+// grew. So after each truncation the writer writes fewer lines than the
+// reader read, and waits until they are delivered before writing more: the
+// truncation is seen whatever the poll's phase and the write speed.
 func testCopyTruncate(t *testing.T, env *sambaEnv, report *itReport) {
 	s := newITScenario(t, env, report, "copytruncate")
 	file := s.dir + "/app.log"
 	s.startSource(s.newSource(env.currentPassword(), file))
 	s.startFile(file)
+	require.NoError(t, s.writeLines(file, 200, itWriteEvery, nil))
 	for r := 1; r <= 3; r++ {
-		require.NoError(t, s.writeLines(file, 200, itWriteEvery, nil))
 		s.waitDelivered(s.lastSeq())
 		require.NoError(t, s.writer.copyFile(file, fmt.Sprintf("%s.%d", file, r)))
 		require.NoError(t, s.writeLines(file, 20, 0, func(l *itLine) { l.mayLose = true }))
 		require.NoError(t, s.writer.truncate(file))
+		require.NoError(t, s.writeLines(file, 50, itWriteEvery, nil))
+		s.waitDelivered(s.lastSeq())
+		require.NoError(t, s.writeLines(file, 150, itWriteEvery, nil))
 	}
-	require.NoError(t, s.writeLines(file, 200, itWriteEvery, nil))
 
 	lost, _ := s.verify(func(l *itLine) bool { return l.mayLose }, nil)
+	s.assertMissedBytesBound(lost)
 	window := s.count(func(l *itLine) bool { return l.mayLose })
 	s.reportf("%d lines, 3 copytruncates: %d of the %d lines written between copy and truncate lost (%s), none duplicated; %d bytes reported missed",
 		s.writtenCount(), len(lost), window, seqRanges(lost), s.missedBytes())
@@ -332,17 +402,25 @@ func testCompressOnRotate(t *testing.T, env *sambaEnv, report *itReport) {
 }
 
 // testCompressOnRotateUnpaced rotates and compresses right after bursts of
-// writes, with nothing slowing the reader down. Lines the reader never saw
-// in a listing can be lost without being reported; the test only checks that
-// nothing is duplicated and that the launcher never reports more bytes
-// missed than were lost, and reports the numbers.
+// writes, with nothing slowing the reader down. The lines of a burst the
+// reader had not read when its file was compressed and deleted can be lost,
+// without being reported when the reader never saw them in a listing. The
+// test checks that only those are lost: the end of a compressed file, after
+// the last line delivered from it (the reader reads a file in order). Every
+// line written to the file that is never compressed must arrive, nothing may
+// be delivered twice, and the launcher must never report more bytes missed
+// than were lost.
 func testCompressOnRotateUnpaced(t *testing.T, env *sambaEnv, report *itReport) {
 	s := newITScenario(t, env, report, "compress-unpaced")
 	file := s.dir + "/app.log"
 	s.startSource(s.newSource(env.currentPassword(), file))
 	s.startFile(file)
+	type burst struct{ from, to int } // seqs of the lines of a compressed file
+	var bursts []burst
 	for r := 1; r <= 3; r++ {
-		require.NoError(t, s.writeLines(file, 200, itWriteEvery, nil))
+		from := s.lastSeq() + 1
+		require.NoError(t, s.writeLines(file, 200, itWriteEvery, func(l *itLine) { l.mayLose = true }))
+		bursts = append(bursts, burst{from, s.lastSeq()})
 		require.NoError(t, s.writer.rename(file, file+".1", false))
 		require.NoError(t, s.writer.create(file))
 		require.NoError(t, s.writer.gzipFile(file+".1", fmt.Sprintf("%s.%d.gz", file, r)))
@@ -350,10 +428,24 @@ func testCompressOnRotateUnpaced(t *testing.T, env *sambaEnv, report *itReport) 
 	}
 	require.NoError(t, s.writeLines(file, 200, itWriteEvery, nil))
 
-	lost, _ := s.verify(func(*itLine) bool { return true }, nil)
+	lost, _ := s.verify(func(l *itLine) bool { return l.mayLose }, nil)
+	for _, b := range bursts {
+		firstLost := 0
+		for seq := b.from; seq <= b.to; seq++ {
+			delivered := s.coll.deliveries(seq) > 0
+			if !delivered && firstLost == 0 {
+				firstLost = seq
+			}
+			if delivered && firstLost != 0 {
+				assert.Failf(t, "a line was lost from the middle of a compressed file",
+					"line %d was lost but line %d, later in the same file (lines %d-%d), was delivered", firstLost, seq, b.from, b.to)
+				break
+			}
+		}
+	}
+	s.assertMissedBytesBound(lost)
 	lostBytes := int64(len(lost) * itLineLen)
-	assert.LessOrEqual(t, s.missedBytes(), lostBytes, "no more bytes are reported missed than were lost")
-	s.reportf("%d lines, 3 rotations compressed at once: %d lines (%d bytes) lost (%s), %d bytes reported missed",
+	s.reportf("%d lines, 3 rotations compressed at once: %d lines (%d bytes) lost (%s), all at the end of their file; %d bytes reported missed",
 		s.writtenCount(), len(lost), lostBytes, seqRanges(lost), s.missedBytes())
 }
 
@@ -382,6 +474,7 @@ func testLateAppend(t *testing.T, env *sambaEnv, report *itReport) {
 	}
 
 	lost, _ := s.verify(func(l *itLine) bool { return l.late > delays[0] }, nil)
+	s.assertMissedBytesBound(lost)
 	missing := map[time.Duration]bool{}
 	for _, l := range lost {
 		missing[l.late] = true
@@ -591,7 +684,7 @@ func testPasswordChange(t *testing.T, env *sambaEnv, report *itReport) {
 type itLine struct {
 	seq     int
 	file    string
-	mayLose bool          // written between a copytruncate's copy and its truncation
+	mayLose bool          // written between a copytruncate's copy and its truncation, or to a file compressed and deleted at once
 	doomed  bool          // destroyed while the reader's read was held (readGate)
 	late    time.Duration // written to the rotated file this long after the rename
 }
@@ -880,6 +973,17 @@ func (s *itScenario) missedBytes() int64 {
 		}
 	}
 	return total
+}
+
+// assertMissedBytesBound checks the bytes reported missed by a scenario that
+// may lose lines, lost being the lines it lost: they are a lower bound of
+// what was lost, as the launcher only reports the bytes it knew were there,
+// so they are whole lines and never more than the bytes lost.
+func (s *itScenario) assertMissedBytesBound(lost []*itLine) {
+	s.t.Helper()
+	missed := s.missedBytes()
+	assert.LessOrEqual(s.t, missed, int64(len(lost)*itLineLen), "no more bytes are reported missed than were lost")
+	assert.Zero(s.t, missed%itLineLen, "the bytes reported missed (%d) are whole lines", missed)
 }
 
 func (s *itScenario) reportf(format string, args ...any) {

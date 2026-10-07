@@ -59,7 +59,9 @@ const (
 )
 
 // requireSambaIntegration skips the test unless the integration tests were
-// asked for and a Docker daemon running Linux containers answers.
+// asked for, and on Windows. Once they were asked for, it fails the test when
+// no Docker daemon running Linux containers answers: a run that asked for the
+// scenarios must not pass without running one.
 func requireSambaIntegration(t *testing.T) {
 	t.Helper()
 	if os.Getenv(sambaIntegrationEnv) == "" {
@@ -69,16 +71,16 @@ func requireSambaIntegration(t *testing.T) {
 		t.Skip("Samba integration test: needs a Docker daemon running Linux containers, not available on Windows runners")
 	}
 	if _, err := exec.LookPath("docker"); err != nil {
-		t.Skipf("Samba integration test: Docker is unavailable: %v", err)
+		t.Fatalf("Samba integration test: %s is set but Docker is unavailable: %v", sambaIntegrationEnv, err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "docker", "version", "--format", "{{.Server.Os}}").CombinedOutput()
 	if err != nil {
-		t.Skipf("Samba integration test: Docker is unavailable (docker version: %v): %s", err, strings.TrimSpace(string(out)))
+		t.Fatalf("Samba integration test: %s is set but Docker is unavailable (docker version: %v): %s", sambaIntegrationEnv, err, strings.TrimSpace(string(out)))
 	}
 	if serverOS := strings.TrimSpace(string(out)); serverOS != "linux" {
-		t.Skipf("Samba integration test: the Docker daemon runs %q containers, the Samba image needs linux", serverOS)
+		t.Fatalf("Samba integration test: %s is set but the Docker daemon runs %q containers; the Samba image needs linux", sambaIntegrationEnv, serverOS)
 	}
 }
 
