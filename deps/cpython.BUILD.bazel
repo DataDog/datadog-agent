@@ -2,7 +2,7 @@ load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper"
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@@//bazel/rules/foreign_cc_runnable:foreign_cc_runnable.bzl", "foreign_cc_runnable")
-load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MODULE_SRCS", "NATIVE_PLATFORMS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS", "SHARED_MODULES", "WINDOWS_BUILTIN_MODULE_SRCS", "WINDOWS_CORE_SRCS", "sysconfig_vars")
+load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MODULE_SRCS", "NATIVE_PLATFORMS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS", "SHARED_MODULES", "WINDOWS_BUILTIN_MODULE_SRCS", "WINDOWS_CORE_SRCS", "WINDOWS_SHARED_MODULES", "sysconfig_vars")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
@@ -609,6 +609,21 @@ NATIVE_CORE_DEFINES = [
     "//conditions:default": [],
 })
 
+NATIVE_WINDOWS_DEFAULT_LIBS = [
+    "kernel32.lib",
+    "user32.lib",
+    "gdi32.lib",
+    "winspool.lib",
+    "comdlg32.lib",
+    "advapi32.lib",
+    "shell32.lib",
+    "ole32.lib",
+    "oleaut32.lib",
+    "uuid.lib",
+    "odbc32.lib",
+    "odbccp32.lib",
+]
+
 NATIVE_WINDOWS_VPATH = "VPATH=\\\"..\\\\\\\\..\\\""
 
 copy_file(
@@ -725,13 +740,9 @@ cc_library(
     }),
     copts = NATIVE_COPTS,
     linkopts = select({
-        NATIVE_WINDOWS: [
-            "advapi32.lib",
+        NATIVE_WINDOWS: NATIVE_WINDOWS_DEFAULT_LIBS + [
             "bcrypt.lib",
-            "ole32.lib",
-            "oleaut32.lib",
             "pathcch.lib",
-            "shell32.lib",
             "version.lib",
             "ws2_32.lib",
         ],
@@ -877,13 +888,25 @@ cc_binary(
     copts = NATIVE_COPTS,
     dynamic_deps = [":native_libpython"],
     linkopts = select({
-        NATIVE_WINDOWS: [],
+        NATIVE_WINDOWS: ["/NODEFAULTLIB:python{}.lib".format(PYTHON_MAJOR_MINOR_FLAT)],
         "//conditions:default": [
             "-Wl,--export-dynamic",
             "-Wl,-rpath,$$ORIGIN/../lib",
         ],
     }),
-    local_defines = NATIVE_CORE_DEFINES,
+    local_defines = select({
+        NATIVE_WINDOWS: [
+            "NDEBUG",
+            "WIN32",
+            "_WIN64",
+            "PY3_DLLNAME=L\\\"python3\\\"",
+            "_MBCS",
+        ],
+        "//conditions:default": [
+            "NDEBUG",
+            "Py_BUILD_CORE",
+        ],
+    }),
     deps = [":native_headers"],
 )
 
@@ -1079,4 +1102,62 @@ sh_test(
         "PYTHON_MAJOR_MINOR": PYTHON_MAJOR_MINOR,
     },
     target_compatible_with = NATIVE_UNIX,
+)
+
+genrule(
+    name = "native_msvc_comsupp_lib",
+    srcs = ["@llvm//runtimes/msvc:msvc_lib_x64"],
+    outs = ["msvc_lib/comsupp.lib"],
+    cmd = "for f in $(execpaths @llvm//runtimes/msvc:msvc_lib_x64); do case $$f in */comsupp.lib) cp $$f $@;; esac; done",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+cc_library(
+    name = "native_win_libmpdec_headers",
+    includes = [
+        "Modules/_decimal",
+        "Modules/_decimal/libmpdec",
+    ],
+    target_compatible_with = ["@platforms//os:windows"],
+    textual_hdrs = glob([
+        "Modules/_decimal/**/*.h",
+        "Modules/_decimal/**/*.c",
+    ]),
+)
+
+[
+    cc_library(
+        name = "native_win_module_{}_lib".format(name),
+        srcs = module["srcs"],
+        copts = NATIVE_WINDOWS_COPTS,
+        local_defines = [
+            "NDEBUG",
+            "WIN32",
+            "_WIN64",
+        ] + module.get("defines", []),
+        target_compatible_with = ["@platforms//os:windows"],
+        deps = [":native_internal_headers"] + module.get("deps", []),
+    )
+    for name, module in WINDOWS_SHARED_MODULES.items()
+]
+
+[
+    cc_shared_library(
+        name = "native_win_module_" + name,
+        additional_linker_inputs = module.get("link_inputs", []),
+        dynamic_deps = [":native_libpython"] + module.get("dynamic_deps", []),
+        shared_lib_name = name + ".pyd",
+        target_compatible_with = ["@platforms//os:windows"],
+        user_link_flags = module.get("linkopts", []) + NATIVE_WINDOWS_DEFAULT_LIBS + [
+            "/NODEFAULTLIB:python{}.lib".format(PYTHON_MAJOR_MINOR_FLAT),
+        ],
+        deps = [":native_win_module_{}_lib".format(name)],
+    )
+    for name, module in WINDOWS_SHARED_MODULES.items()
+]
+
+filegroup(
+    name = "native_win_shared_modules",
+    srcs = [":native_win_module_" + name for name in WINDOWS_SHARED_MODULES],
+    target_compatible_with = ["@platforms//os:windows"],
 )
