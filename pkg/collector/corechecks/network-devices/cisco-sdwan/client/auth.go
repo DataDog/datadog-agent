@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client/middleware"
 )
 
 // authError is a failed authentication request. It keeps the response status and headers
@@ -33,6 +35,15 @@ func (e *authError) transient() bool {
 	return e.statusCode == 0 || isRetryable(e.statusCode, nil)
 }
 
+// newRequestAuthError wraps the error of an authentication request that could not be sent.
+// Rate limiter timeouts are returned as is so they are not retried like network errors.
+func newRequestAuthError(err error) error {
+	if errors.Is(err, middleware.ErrRateLimitTimeout) {
+		return err
+	}
+	return &authError{err: err}
+}
+
 // Login logs in to the Cisco SDWAN API and gets a CSRF prevention token
 func (client *Client) login() error {
 	authPayload := url.Values{}
@@ -46,13 +57,9 @@ func (client *Client) login() error {
 	}
 
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	err = client.waitForRateLimit()
-	if err != nil {
-		return err
-	}
 	sessionRes, err := client.httpClient.Do(req)
 	if err != nil {
-		return &authError{err: err}
+		return newRequestAuthError(err)
 	}
 
 	defer sessionRes.Body.Close()
@@ -79,13 +86,9 @@ func (client *Client) login() error {
 	if err != nil {
 		return err
 	}
-	err = client.waitForRateLimit()
-	if err != nil {
-		return err
-	}
 	tokenRes, err := client.httpClient.Do(req)
 	if err != nil {
-		return &authError{err: err}
+		return newRequestAuthError(err)
 	}
 
 	defer tokenRes.Body.Close()

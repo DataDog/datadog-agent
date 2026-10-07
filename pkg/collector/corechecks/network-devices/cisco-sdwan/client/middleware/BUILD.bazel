@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "middleware",
+    srcs = [
+        "ratelimits.go",
+        "timeout.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client/middleware",
+    visibility = ["//visibility:public"],
+    deps = ["@org_golang_x_time//rate"],
+)
+
+dd_agent_go_test(
+    name = "middleware_test",
+    srcs = [
+        "ratelimits_test.go",
+        "timeout_test.go",
+    ],
+    embed = [":middleware"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_time//rate",
+    ],
+)

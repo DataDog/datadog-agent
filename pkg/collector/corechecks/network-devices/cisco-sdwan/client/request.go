@@ -16,6 +16,7 @@ import (
 
 	"github.com/cenkalti/backoff/v7"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client/middleware"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -104,16 +105,14 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 			return nil, client.authRetryError(err)
 		}
 
-		err = client.waitForRateLimit()
-		if err != nil {
-			return nil, backoff.Permanent(err)
-		}
-
 		var bytes []byte
 		var header http.Header
 		bytes, statusCode, header, err = client.do(req)
 		if client.ctx.Err() != nil {
 			return nil, backoff.Permanent(client.ctx.Err())
+		}
+		if errors.Is(err, middleware.ErrRateLimitTimeout) {
+			return nil, backoff.Permanent(err)
 		}
 
 		if err == nil && isValidStatusCode(statusCode) {

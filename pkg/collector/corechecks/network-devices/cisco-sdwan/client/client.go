@@ -11,7 +11,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -21,6 +20,8 @@ import (
 	"time"
 
 	"golang.org/x/time/rate"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client/middleware"
 )
 
 const timeFormat = "2006-01-02T15:04:05"
@@ -53,7 +54,7 @@ type Client struct {
 	backoffEnabled      bool
 	maxRetryDuration    time.Duration   // 0 means retries are only bounded by maxAttempts
 	ctx                 context.Context // cancels in-flight requests and rate limiter waits
-	rateLimiter         *rate.Limiter   // nil means requests are not rate limited
+	rateLimiter         *rate.Limiter   // nil means requests are not rate limited, applied by the transport
 	rateLimitMaxWait    time.Duration
 }
 
@@ -73,8 +74,7 @@ func NewClient(endpoint, username, password string, useHTTP bool, options ...Cli
 	}
 
 	httpClient := &http.Client{
-		Timeout: defaultHTTPTimeout * time.Second,
-		Jar:     cookieJar,
+		Jar: cookieJar,
 	}
 
 	scheme := defaultHTTPScheme
@@ -103,6 +103,14 @@ func NewClient(endpoint, username, password string, useHTTP bool, options ...Cli
 	for _, opt := range options {
 		opt(client)
 	}
+
+	// Options may replace the base transport, wrap it once they are all applied. The timeout
+	// is enforced below the rate limiter so waiting for a token does not count against it.
+	var transport http.RoundTripper = middleware.NewTimeoutTransport(httpClient.Transport, defaultHTTPTimeout*time.Second)
+	if client.rateLimiter != nil {
+		transport = middleware.NewRateLimitedTransport(transport, client.rateLimiter, client.rateLimitMaxWait)
+	}
+	httpClient.Transport = transport
 
 	return client, nil
 }
@@ -198,18 +206,6 @@ func WithRateLimit(requestsPerSecond float64, burst int, maxWait time.Duration) 
 		c.rateLimiter = rate.NewLimiter(rate.Limit(requestsPerSecond), burst)
 		c.rateLimitMaxWait = maxWait
 	}
-}
-
-func (client *Client) waitForRateLimit() error {
-	if client.rateLimiter == nil {
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(client.ctx, client.rateLimitMaxWait)
-	defer cancel()
-	if err := client.rateLimiter.Wait(ctx); err != nil {
-		return fmt.Errorf("cisco sd-wan api rate limiter: %w", err)
-	}
-	return nil
 }
 
 // GetDevices get all devices from this SD-WAN network

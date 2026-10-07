@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client/fixtures"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client/middleware"
 )
 
 func TestNewRequest(t *testing.T) {
@@ -437,10 +438,10 @@ func (rt *recordingTransport) RoundTrip(req *http.Request) (*http.Response, erro
 
 func rateLimitedTestClient(t *testing.T, options ...ClientOptions) (*Client, *recordingTransport, handler) {
 	mux, handler := setupCommonServerMuxWithFixture("/test", "")
-	client, err := NewClient("sdwan.test", "testuser", "testpass", true, options...)
-	require.NoError(t, err)
 	transport := &recordingTransport{mux: mux, start: time.Now()}
-	client.httpClient.Transport = transport
+	// The base transport must be set as an option to be wrapped by the rate limiter
+	client, err := NewClient("sdwan.test", "testuser", "testpass", true, append(options, WithTransport(transport))...)
+	require.NoError(t, err)
 	return client, transport, handler
 }
 
@@ -480,16 +481,57 @@ func TestGetRequestRateLimited(t *testing.T) {
 }
 
 func TestGetRequestRateLimitMaxWait(t *testing.T) {
+	tests := []struct {
+		name         string
+		burst        int
+		backoff      bool
+		expectedSent []time.Duration
+	}{
+		{
+			name:         "login request refused",
+			burst:        1,
+			expectedSent: []time.Duration{0},
+		},
+		{
+			name:         "login request refused with backoff",
+			burst:        1,
+			backoff:      true,
+			expectedSent: []time.Duration{0},
+		},
+		{
+			name:         "API request refused with backoff",
+			burst:        2,
+			backoff:      true,
+			expectedSent: []time.Duration{0, 0},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				// Once the burst is used, the next request would wait ~1000s for a token
+				client, transport, handler := rateLimitedTestClient(t, WithBackoff(tt.backoff), WithRateLimit(0.001, tt.burst, 100*time.Millisecond))
+
+				_, err := client.get("/test", nil)
+				require.ErrorIs(t, err, middleware.ErrRateLimitTimeout)
+				// The limiter fails immediately instead of waiting for a token it cannot get in time,
+				// and the failure is not retried
+				require.Equal(t, tt.expectedSent, transport.sent)
+				require.Zero(t, time.Since(transport.start))
+				require.Equal(t, 0, handler.numberOfCalls())
+			})
+		})
+	}
+}
+
+func TestGetRequestRateLimitWaitExcludedFromTimeout(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		// The second login request would wait ~1000s for a token
-		client, transport, handler := rateLimitedTestClient(t, WithRateLimit(0.001, 1, 100*time.Millisecond))
+		// Requests are paced 20s apart, longer than the HTTP timeout
+		client, transport, handler := rateLimitedTestClient(t, WithRateLimit(0.05, 1, time.Minute))
 
 		_, err := client.get("/test", nil)
-		require.ErrorContains(t, err, "cisco sd-wan api rate limiter")
-		// The limiter fails immediately instead of waiting for a token it cannot get in time
-		require.Equal(t, []time.Duration{0}, transport.sent)
-		require.Zero(t, time.Since(transport.start))
-		require.Equal(t, 0, handler.numberOfCalls())
+		require.NoError(t, err)
+		require.Equal(t, []time.Duration{0, 20 * time.Second, 40 * time.Second}, transport.sent)
+		require.Equal(t, 1, handler.numberOfCalls())
 	})
 }
 
