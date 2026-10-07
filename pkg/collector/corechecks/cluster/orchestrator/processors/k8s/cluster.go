@@ -221,7 +221,7 @@ func fillClusterResourceVersion(c *model.Cluster) error {
 	marshaller := jsoniter.ConfigCompatibleWithStandardLibrary
 	jsonClustermodel, err := marshaller.Marshal(c)
 	if err != nil {
-		return fmt.Errorf("could not marshal model to JSON: %s", err)
+		return fmt.Errorf("could not marshal model to JSON: %w", err)
 	}
 
 	version := murmur3.Sum64(jsonClustermodel)

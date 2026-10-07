@@ -140,7 +140,7 @@ func extractEndpoints(URL *url.URL, configPath string, endpoints *[]apicfg.Endpo
 	for endpointURL, apiKeys := range pkgconfigsetup.Datadog().GetStringMapStringSlice(configPath) {
 		u, err := URL.Parse(endpointURL)
 		if err != nil {
-			return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
+			return fmt.Errorf("invalid additional endpoint url '%s': %w", endpointURL, err)
 		}
 		for _, k := range apiKeys {
 			*endpoints = append(*endpoints, apicfg.Endpoint{
@@ -159,7 +159,7 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 	processURL := key(processNS, "orchestrator_dd_url")
 	URL, err := url.Parse(utils.GetMainEndpointBackwardCompatible(pkgconfigsetup.Datadog(), "https://orchestrator.", orchestratorURL, processURL))
 	if err != nil {
-		return nil, fmt.Errorf("error parsing orchestrator_dd_url: %s", err)
+		return nil, fmt.Errorf("error parsing orchestrator_dd_url: %w", err)
 	}
 	return URL, nil
 }

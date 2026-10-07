@@ -207,7 +207,7 @@ func FillK8sPodResourceVersion(p *model.Pod) error {
 	marshaller := jsoniter.ConfigCompatibleWithStandardLibrary
 	jsonPodModel, err := marshaller.Marshal(p)
 	if err != nil {
-		return fmt.Errorf("could not marshal pod model to JSON: %s", err)
+		return fmt.Errorf("could not marshal pod model to JSON: %w", err)
 	}
 
 	// Replace the payload metadata field with the custom version.

@@ -39,7 +39,7 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 	err = module.Register(cfg, mux, modules.All(), rcclient, deps)
 	if err != nil {
 		_ = conn.Close()
-		return fmt.Errorf("failed to create system probe: %s", err)
+		return fmt.Errorf("failed to create system probe: %w", err)
 	}
 
 	// Register stats endpoint. Note that this endpoint is also used by core
