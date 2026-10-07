@@ -54,12 +54,12 @@ func NewKubeServiceConfigProvider(_ *constants.ConfigurationProviders, hp health
 	// Using GetAPIClient() (no retry)
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
-		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
+		return nil, fmt.Errorf("cannot connect to apiserver: %w", err)
 	}
 
 	servicesInformer := ac.InformerFactory.Core().V1().Services()
 	if servicesInformer == nil {
-		return nil, fmt.Errorf("cannot get service informer: %s", err)
+		return nil, fmt.Errorf("cannot get service informer: %w", err)
 	}
 
 	p := &KubeServiceConfigProvider{
@@ -75,7 +75,7 @@ func NewKubeServiceConfigProvider(_ *constants.ConfigurationProviders, hp health
 		UpdateFunc: p.invalidateIfChanged,
 		DeleteFunc: p.invalidate,
 	}); err != nil {
-		return nil, fmt.Errorf("cannot add event handler to services informer: %s", err)
+		return nil, fmt.Errorf("cannot add event handler to services informer: %w", err)
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {

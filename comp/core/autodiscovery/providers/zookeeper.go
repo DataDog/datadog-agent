@@ -51,7 +51,7 @@ func NewZookeeperConfigProvider(providerConfig *constants.ConfigurationProviders
 
 	c, _, err := zk.Connect(urls, sessionTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to %q (%s): %s", providerConfig.TemplateURL, strings.Join(urls, ", "), err)
+		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to %q (%s): %w", providerConfig.TemplateURL, strings.Join(urls, ", "), err)
 	}
 	cache := newProviderCache()
 	return &ZookeeperConfigProvider{
@@ -115,7 +115,7 @@ func (z *ZookeeperConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
 			gcnPath := path.Join(identifier, gcn)
 			_, stat, err := z.client.Get(gcnPath)
 			if err != nil {
-				return false, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
+				return false, fmt.Errorf("couldn't get key '%s' from zookeeper: %w", identifier, err)
 			}
 			outdated = math.Max(float64(stat.Mtime), outdated)
 		}
@@ -138,7 +138,7 @@ func (z *ZookeeperConfigProvider) getIdentifiers(key string) ([]string, error) {
 
 	children, _, err := z.client.Children(key)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to list '%s' to get identifiers from zookeeper: %s", key, err)
+		return nil, fmt.Errorf("Failed to list '%s' to get identifiers from zookeeper: %w", key, err)
 	}
 
 	for _, child := range children {
@@ -207,7 +207,7 @@ func (z *ZookeeperConfigProvider) getTemplates(key string) []integration.Config 
 func (z *ZookeeperConfigProvider) getJSONValue(key string) ([][]integration.Data, error) {
 	rawValue, _, err := z.client.Get(key)
 	if err != nil {
-		return nil, fmt.Errorf("Couldn't get key '%s' from zookeeper: %s", key, err)
+		return nil, fmt.Errorf("Couldn't get key '%s' from zookeeper: %w", key, err)
 	}
 
 	return utils.ParseJSONValue(string(rawValue))

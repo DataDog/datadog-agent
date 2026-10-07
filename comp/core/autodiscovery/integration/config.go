@@ -366,7 +366,7 @@ func (c *Data) SetNameForInstance(name string) error {
 	rawConfig := map[interface{}]interface{}{}
 	err := yaml.Unmarshal(*c, &rawConfig)
 	if err != nil {
-		return fmt.Errorf("invalid instance section: %s", err)
+		return fmt.Errorf("invalid instance section: %w", err)
 	}
 	rawConfig["name"] = name
 

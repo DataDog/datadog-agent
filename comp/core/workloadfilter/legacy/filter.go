@@ -165,7 +165,7 @@ func filterToRegex(filter string, filterPrefix string) (*regexp.Regexp, error) {
 	pat := strings.TrimPrefix(filter, filterPrefix)
 	r, err := regexp.Compile(pat)
 	if err != nil {
-		errormsg := fmt.Errorf("invalid regex '%s': %s", pat, err)
+		errormsg := fmt.Errorf("invalid regex '%s': %w", pat, err)
 		return nil, errormsg
 	}
 	return r, nil

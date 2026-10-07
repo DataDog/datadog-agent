@@ -364,7 +364,7 @@ func GetHost(tplVar string, res Resolvable) (string, error) {
 
 	hosts, err := res.GetHosts()
 	if err != nil {
-		return "", fmt.Errorf("failed to extract IP address for container %s, ignoring it. Source error: %s", res.GetServiceID(), err)
+		return "", fmt.Errorf("failed to extract IP address for container %s, ignoring it. Source error: %w", res.GetServiceID(), err)
 	}
 	if len(hosts) == 0 {
 		return "", fmt.Errorf("no network found for container %s, ignoring it", res.GetServiceID())
@@ -379,7 +379,7 @@ func GetHost(tplVar string, res Resolvable) (string, error) {
 	// otherwise use fallback policy
 	ip, err := getFallbackHost(hosts)
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve IP address for container %s, ignoring it. Source error: %s", res.GetServiceID(), err)
+		return "", fmt.Errorf("failed to resolve IP address for container %s, ignoring it. Source error: %w", res.GetServiceID(), err)
 	}
 
 	return ip, nil
@@ -413,7 +413,7 @@ func GetPort(tplVar string, res Resolvable) (string, error) {
 
 	ports, err := res.GetPorts()
 	if err != nil {
-		return "", fmt.Errorf("failed to extract port list for container %s, ignoring it. Source error: %s", res.GetServiceID(), err)
+		return "", fmt.Errorf("failed to extract port list for container %s, ignoring it. Source error: %w", res.GetServiceID(), err)
 	} else if len(ports) == 0 {
 		return "", fmt.Errorf("no port found for container %s - ignoring it", res.GetServiceID())
 	}
@@ -451,7 +451,7 @@ func GetPid(_ string, res Resolvable) (string, error) {
 
 	pid, err := res.GetPid()
 	if err != nil {
-		return "", fmt.Errorf("failed to get pid for service %s, skipping config - %s", res.GetServiceID(), err)
+		return "", fmt.Errorf("failed to get pid for service %s, skipping config - %w", res.GetServiceID(), err)
 	}
 	return strconv.Itoa(pid), nil
 }
@@ -464,7 +464,7 @@ func GetHostname(_ string, res Resolvable) (string, error) {
 
 	name, err := res.GetHostname()
 	if err != nil {
-		return "", fmt.Errorf("failed to get hostname for service %s, skipping config - %s", res.GetServiceID(), err)
+		return "", fmt.Errorf("failed to get hostname for service %s, skipping config - %w", res.GetServiceID(), err)
 	}
 	return name, nil
 }
@@ -477,7 +477,7 @@ func GetAdditionalTplVariables(tplVar string, res Resolvable) (string, error) {
 
 	value, err := res.GetExtraConfig(tplVar)
 	if err != nil {
-		return "", fmt.Errorf("failed to get extra info for service %s, skipping config - %s", res.GetServiceID(), err)
+		return "", fmt.Errorf("failed to get extra info for service %s, skipping config - %w", res.GetServiceID(), err)
 	}
 	return value, nil
 }

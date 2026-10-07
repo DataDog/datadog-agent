@@ -226,7 +226,7 @@ func (c *Controller) reconcile() error {
 func (c *Controller) createSecret() error {
 	data, err := certificate.GenerateSecretData(notBefore(), c.notAfter(), c.dnsNames)
 	if err != nil {
-		return fmt.Errorf("failed to generate the Secret data: %v", err)
+		return fmt.Errorf("failed to generate the Secret data: %w", err)
 	}
 
 	secret := &corev1.Secret{
@@ -245,7 +245,7 @@ func (c *Controller) createSecret() error {
 func (c *Controller) updateSecret(secret *corev1.Secret) error {
 	data, err := certificate.GenerateSecretData(notBefore(), c.notAfter(), c.dnsNames)
 	if err != nil {
-		return fmt.Errorf("failed to generate the Secret data: %v", err)
+		return fmt.Errorf("failed to generate the Secret data: %w", err)
 	}
 
 	secret = secret.DeepCopy()

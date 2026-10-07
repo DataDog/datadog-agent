@@ -128,7 +128,7 @@ func (w *Webhook) podCreated(request *admission.Request) *admiv1.AdmissionRespon
 func (w *Webhook) podDeleted(request *admission.Request) *admiv1.AdmissionResponse {
 	var pm metav1.PartialObjectMetadata
 	if err := json.Unmarshal(request.OldObject, &pm); err != nil {
-		return common.MutationResponse(nil, fmt.Errorf("failed to decode raw object: %v", err))
+		return common.MutationResponse(nil, fmt.Errorf("failed to decode raw object: %w", err))
 	}
 	pod := &corev1.Pod{ObjectMeta: pm.ObjectMeta}
 	w.handler.PodDeleted(pod)

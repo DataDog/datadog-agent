@@ -248,7 +248,7 @@ func TestCLCRunnerSuite(t *testing.T) {
 	fakeDir := t.TempDir()
 
 	f, err := os.CreateTemp(fakeDir, "fake-datadog-yaml-")
-	require.Nil(t, err, fmt.Errorf("%v", err))
+	require.Nil(t, err, fmt.Errorf("%w", err))
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())
 	})

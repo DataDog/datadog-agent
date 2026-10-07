@@ -25,7 +25,7 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 		if cfg.GetBool("sbom.host.enabled") || cfg.GetBool("sbom.container_image.enabled") {
 			sbomScanner, err := scanner.CreateGlobalScanner(cfg, option.New(wm))
 			if err != nil {
-				return fmt.Errorf("failed to create SBOM scanner: %s", err)
+				return fmt.Errorf("failed to create SBOM scanner: %w", err)
 			}
 
 			sbomScanner.Start(ctx)

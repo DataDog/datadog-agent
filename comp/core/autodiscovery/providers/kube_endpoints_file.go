@@ -82,12 +82,12 @@ func NewKubeEndpointsFileConfigProvider(*constants.ConfigurationProviders, *tele
 
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
-		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
+		return nil, fmt.Errorf("cannot connect to apiserver: %w", err)
 	}
 
 	epInformer := ac.InformerFactory.Core().V1().Endpoints()
 	if epInformer == nil {
-		return nil, fmt.Errorf("cannot get endpoint informer: %s", err)
+		return nil, fmt.Errorf("cannot get endpoint informer: %w", err)
 	}
 
 	provider.epLister = epInformer.Lister()
@@ -96,7 +96,7 @@ func NewKubeEndpointsFileConfigProvider(*constants.ConfigurationProviders, *tele
 		UpdateFunc: provider.updateHandler,
 		DeleteFunc: provider.deleteHandler,
 	}); err != nil {
-		return nil, fmt.Errorf("cannot add event handler to endpoint informer: %s", err)
+		return nil, fmt.Errorf("cannot add event handler to endpoint informer: %w", err)
 	}
 
 	return provider, nil

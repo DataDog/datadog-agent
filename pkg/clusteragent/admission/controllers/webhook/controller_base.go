@@ -198,7 +198,7 @@ func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta 
 func generateConfigWebhook(datadogConfig config.Component) (*configWebhook.Webhook, error) {
 	filter, err := configWebhook.NewFilter(datadogConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create config filter: %v", err)
+		return nil, fmt.Errorf("failed to create config filter: %w", err)
 	}
 	mutatorCfg := configWebhook.NewMutatorConfig(datadogConfig)
 	mutator := configWebhook.NewMutator(mutatorCfg, filter)
@@ -208,7 +208,7 @@ func generateConfigWebhook(datadogConfig config.Component) (*configWebhook.Webho
 func generateTagsFromLabelsWebhook(datadogConfig config.Component) (*tagsfromlabels.Webhook, error) {
 	filter, err := tagsfromlabels.NewFilter(datadogConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create tags from labels filter: %v", err)
+		return nil, fmt.Errorf("failed to create tags from labels filter: %w", err)
 	}
 	mutator := tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), filter)
 	return tagsfromlabels.NewWebhook(datadogConfig, mutator), nil

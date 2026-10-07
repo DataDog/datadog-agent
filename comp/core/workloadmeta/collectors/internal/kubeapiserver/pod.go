@@ -237,14 +237,14 @@ func (d *minimalPodDecoder) Decode() (watch.EventType, runtime.Object, error) {
 	if eventType == watch.Error {
 		var status metav1.Status
 		if err := json.Unmarshal(event.Object.Raw, &status); err != nil {
-			return "", nil, fmt.Errorf("unable to decode watch event status: %v", err)
+			return "", nil, fmt.Errorf("unable to decode watch event status: %w", err)
 		}
 		return eventType, &status, nil
 	}
 
 	var pod MinimalPod
 	if err := json.Unmarshal(event.Object.Raw, &pod); err != nil {
-		return "", nil, fmt.Errorf("unable to decode pod in watch event: %v", err)
+		return "", nil, fmt.Errorf("unable to decode pod in watch event: %w", err)
 	}
 
 	return eventType, &pod, nil

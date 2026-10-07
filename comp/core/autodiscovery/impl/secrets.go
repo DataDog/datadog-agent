@@ -26,7 +26,7 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component, or
 	conf.InitConfig, err = secretResolver.Resolve(conf.InitConfig, origin, conf.ImageName, conf.PodNamespace, false)
 	if err != nil {
 		conf.Instances = nil
-		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
+		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %w", err)
 	}
 
 	// instances — failing instances are skipped so surviving ones are still scheduled.
@@ -35,7 +35,7 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component, or
 	for _, inputInstance := range conf.Instances {
 		decryptedInstance, err := secretResolver.Resolve(inputInstance, origin, conf.ImageName, conf.PodNamespace, false)
 		if err != nil {
-			instanceErr = fmt.Errorf("error while decrypting secrets in an instance: %s", err)
+			instanceErr = fmt.Errorf("error while decrypting secrets in an instance: %w", err)
 			continue
 		}
 		instances = append(instances, decryptedInstance)
@@ -46,14 +46,14 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component, or
 	conf.MetricConfig, err = secretResolver.Resolve(conf.MetricConfig, origin, conf.ImageName, conf.PodNamespace, false)
 	if err != nil {
 		conf.Instances = nil
-		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)
+		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %w", err)
 	}
 
 	// logs
 	conf.LogsConfig, err = secretResolver.Resolve(conf.LogsConfig, origin, conf.ImageName, conf.PodNamespace, false)
 	if err != nil {
 		conf.Instances = nil
-		return conf, fmt.Errorf("error while decrypting secrets in 'logs': %s", err)
+		return conf, fmt.Errorf("error while decrypting secrets in 'logs': %w", err)
 	}
 
 	return conf, instanceErr

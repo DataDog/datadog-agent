@@ -38,7 +38,7 @@ func loadSidecarProfiles(profilesJSON string) ([]ProfileOverride, error) {
 
 	err := json.Unmarshal([]byte(profilesJSON), &profiles)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse profiles for admission controller agent sidecar injection: %s", err)
+		return nil, fmt.Errorf("failed to parse profiles for admission controller agent sidecar injection: %w", err)
 	}
 
 	if len(profiles) > 1 {

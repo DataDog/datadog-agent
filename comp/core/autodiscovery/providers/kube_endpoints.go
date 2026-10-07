@@ -65,12 +65,12 @@ func NewKubeEndpointsConfigProvider(_ *constants.ConfigurationProviders, hp heal
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
-		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
+		return nil, fmt.Errorf("cannot connect to apiserver: %w", err)
 	}
 
 	servicesInformer := ac.InformerFactory.Core().V1().Services()
 	if servicesInformer == nil {
-		return nil, fmt.Errorf("cannot get service informer: %s", err)
+		return nil, fmt.Errorf("cannot get service informer: %w", err)
 	}
 
 	p := &kubeEndpointsConfigProvider{
@@ -86,12 +86,12 @@ func NewKubeEndpointsConfigProvider(_ *constants.ConfigurationProviders, hp heal
 		UpdateFunc: p.invalidateOnServiceUpdate,
 		DeleteFunc: p.invalidateOnServiceDelete,
 	}); err != nil {
-		return nil, fmt.Errorf("cannot add event handler to service informer: %s", err)
+		return nil, fmt.Errorf("cannot add event handler to service informer: %w", err)
 	}
 
 	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
 	if endpointsInformer == nil {
-		return nil, fmt.Errorf("cannot get endpoint informer: %s", err)
+		return nil, fmt.Errorf("cannot get endpoint informer: %w", err)
 	}
 
 	p.endpointsLister = endpointsInformer.Lister()
@@ -99,7 +99,7 @@ func NewKubeEndpointsConfigProvider(_ *constants.ConfigurationProviders, hp heal
 	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: p.invalidateOnEndpointsUpdate,
 	}); err != nil {
-		return nil, fmt.Errorf("cannot add event handler to endpoint informer: %s", err)
+		return nil, fmt.Errorf("cannot add event handler to endpoint informer: %w", err)
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {

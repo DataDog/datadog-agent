@@ -93,7 +93,7 @@ func NewConsulConfigProvider(providerConfig *constants.ConfigurationProviders, _
 	cache := newProviderCache()
 	cli, err := consul.NewClient(clientCfg)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to instantiate the consul client: %s", err)
+		return nil, fmt.Errorf("Unable to instantiate the consul client: %w", err)
 	}
 
 	c := &consulWrapper{
@@ -266,7 +266,7 @@ func (p *ConsulConfigProvider) getValue(ctx context.Context, key string) ([]byte
 func (p *ConsulConfigProvider) getCheckNames(ctx context.Context, key string) ([]string, error) {
 	raw, err := p.getValue(ctx, key)
 	if err != nil {
-		err := fmt.Errorf("couldn't get check names from consul: %s", err)
+		err := fmt.Errorf("couldn't get check names from consul: %w", err)
 		return nil, err
 	}
 
@@ -283,7 +283,7 @@ func (p *ConsulConfigProvider) getCheckNames(ctx context.Context, key string) ([
 func (p *ConsulConfigProvider) getJSONValue(ctx context.Context, key string) ([][]integration.Data, error) {
 	rawValue, err := p.getValue(ctx, key)
 	if err != nil {
-		err := fmt.Errorf("Couldn't get key %s from consul: %s", key, err)
+		err := fmt.Errorf("Couldn't get key %s from consul: %w", key, err)
 		return nil, err
 	}
 

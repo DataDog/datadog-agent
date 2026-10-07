@@ -34,7 +34,7 @@ func ParseFilters(annotationsExclude []string) ([]*regexp.Regexp, error) {
 func filterToRegex(filter string) (*regexp.Regexp, error) {
 	r, err := regexp.Compile(filter)
 	if err != nil {
-		errormsg := fmt.Errorf("invalid regex '%s': %s", filter, err)
+		errormsg := fmt.Errorf("invalid regex '%s': %w", filter, err)
 		return nil, errormsg
 	}
 	return r, nil

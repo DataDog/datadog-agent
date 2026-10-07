@@ -66,12 +66,12 @@ type configInfoSlices struct {
 func NewKubeEndpointSlicesConfigProvider(_ *constants.ConfigurationProviders, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
-		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
+		return nil, fmt.Errorf("cannot connect to apiserver: %w", err)
 	}
 
 	servicesInformer := ac.InformerFactory.Core().V1().Services()
 	if servicesInformer == nil {
-		return nil, fmt.Errorf("cannot get service informer: %s", err)
+		return nil, fmt.Errorf("cannot get service informer: %w", err)
 	}
 
 	p := &kubeEndpointSlicesConfigProvider{
@@ -87,12 +87,12 @@ func NewKubeEndpointSlicesConfigProvider(_ *constants.ConfigurationProviders, hp
 		UpdateFunc: p.invalidateOnServiceUpdate,
 		DeleteFunc: p.invalidateOnServiceDelete,
 	}); err != nil {
-		return nil, fmt.Errorf("cannot add event handler to service informer: %s", err)
+		return nil, fmt.Errorf("cannot add event handler to service informer: %w", err)
 	}
 
 	endpointSliceInformer := ac.InformerFactory.Discovery().V1().EndpointSlices()
 	if endpointSliceInformer == nil {
-		return nil, fmt.Errorf("cannot get endpointslice informer: %s", err)
+		return nil, fmt.Errorf("cannot get endpointslice informer: %w", err)
 	}
 
 	p.endpointSliceLister = endpointSliceInformer.Lister()
@@ -100,7 +100,7 @@ func NewKubeEndpointSlicesConfigProvider(_ *constants.ConfigurationProviders, hp
 	if _, err := endpointSliceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: p.invalidateOnEndpointSliceUpdate,
 	}); err != nil {
-		return nil, fmt.Errorf("cannot add event handler to endpointslice informer: %s", err)
+		return nil, fmt.Errorf("cannot add event handler to endpointslice informer: %w", err)
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {

@@ -90,7 +90,7 @@ func (p *patcher) patchDeployment(req Request) error {
 	case EnableConfig:
 		conf, err := json.Marshal(req.LibConfig)
 		if err != nil {
-			return fmt.Errorf("failed to encode library config: %v", err)
+			return fmt.Errorf("failed to encode library config: %w", err)
 		}
 		versionAnnotKey := annotation.LibraryVersion.Format(req.LibConfig.Language)
 		configAnnotKey := annotation.LibraryConfigV1.Format(req.LibConfig.Language)

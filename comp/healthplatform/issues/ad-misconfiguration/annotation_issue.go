@@ -79,7 +79,7 @@ func (t *ADAnnotationIssue) BuildIssue(context map[string]string) (*healthplatfo
 		"impact":        impactMsg,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create extra: %v", err)
+		return nil, fmt.Errorf("failed to create extra: %w", err)
 	}
 
 	return &healthplatform.Issue{

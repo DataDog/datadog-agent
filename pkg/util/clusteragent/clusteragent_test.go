@@ -742,7 +742,7 @@ func TestClusterAgentSuite(t *testing.T) {
 	fakeDir := t.TempDir()
 
 	f, err := os.CreateTemp(fakeDir, "fake-datadog-yaml-")
-	require.Nil(t, err, fmt.Errorf("%v", err))
+	require.Nil(t, err, fmt.Errorf("%w", err))
 	defer os.Remove(f.Name())
 
 	cfg := configmock.New(t)

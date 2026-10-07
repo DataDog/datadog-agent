@@ -30,7 +30,7 @@ import (
 func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.Component, serverVersion *version.Info, isOpenShift bool, csiDriverWatcher libraryinjection.CSIDriverWatcher, rcClient RemoteConfigClient, ddiTargets DDITargetProvider) (*Webhook, error) {
 	config, err := NewConfig(datadogConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
+		return nil, fmt.Errorf("failed to create auto instrumentation config: %w", err)
 	}
 
 	// Populate Kubernetes server version and distribution for feature gating.
@@ -39,7 +39,7 @@ func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.C
 	imageResolver := imageresolver.New(imageresolver.NewConfig(datadogConfig))
 	apm, err := NewTargetMutator(config, wmeta, imageResolver, csiDriverWatcher, rcClient, ddiTargets)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %v", err)
+		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %w", err)
 	}
 
 	// For auto instrumentation, we need all the mutators to be applied for SSI to function. Specifically, we need

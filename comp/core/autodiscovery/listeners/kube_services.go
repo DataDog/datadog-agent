@@ -87,12 +87,12 @@ func NewKubeServiceListener(options ServiceListernerDeps) (ServiceListener, erro
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
-		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
+		return nil, fmt.Errorf("cannot connect to apiserver: %w", err)
 	}
 
 	servicesInformer := ac.InformerFactory.Core().V1().Services()
 	if servicesInformer == nil {
-		return nil, fmt.Errorf("cannot get service informer: %s", err)
+		return nil, fmt.Errorf("cannot get service informer: %w", err)
 	}
 
 	return &KubeServiceListener{

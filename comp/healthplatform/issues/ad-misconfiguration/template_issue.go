@@ -51,7 +51,7 @@ func (t *ADTemplateIssue) BuildIssue(context map[string]string) (*healthplatform
 		"impact":        impactMsg,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create extra: %v", err)
+		return nil, fmt.Errorf("failed to create extra: %w", err)
 	}
 
 	return &healthplatform.Issue{

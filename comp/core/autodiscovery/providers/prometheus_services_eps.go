@@ -75,7 +75,7 @@ func NewPrometheusServicesEndpointSlicesConfigProvider(*constants.ConfigurationP
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
-		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
+		return nil, fmt.Errorf("cannot connect to apiserver: %w", err)
 	}
 
 	servicesInformer := ac.InformerFactory.Core().V1().Services()
@@ -112,7 +112,7 @@ func NewPrometheusServicesEndpointSlicesConfigProvider(*constants.ConfigurationP
 		UpdateFunc: p.invalidateIfChanged,
 		DeleteFunc: p.invalidate,
 	}); err != nil {
-		return nil, fmt.Errorf("cannot add event handler to services informer: %s", err)
+		return nil, fmt.Errorf("cannot add event handler to services informer: %w", err)
 	}
 
 	if endpointSliceInformer != nil {
@@ -120,7 +120,7 @@ func NewPrometheusServicesEndpointSlicesConfigProvider(*constants.ConfigurationP
 			AddFunc:    p.invalidateIfAddedEndpointSlices,
 			UpdateFunc: p.invalidateIfChangedEndpointSlices,
 		}); err != nil {
-			return nil, fmt.Errorf("cannot add event handler to endpointslice informer: %s", err)
+			return nil, fmt.Errorf("cannot add event handler to endpointslice informer: %w", err)
 		}
 	}
 	return p, nil

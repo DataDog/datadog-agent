@@ -40,7 +40,7 @@ func (w *workloadmeta) sbomFlareProvider(_ context.Context, fb flaretypes.FlareB
 
 		content, err := json.MarshalIndent(sbom, "", "    ")
 		if err != nil {
-			return fmt.Errorf("failed to marshal results to JSON: %v", err)
+			return fmt.Errorf("failed to marshal results to JSON: %w", err)
 		}
 
 		name := idToFileSafe(image.ID)

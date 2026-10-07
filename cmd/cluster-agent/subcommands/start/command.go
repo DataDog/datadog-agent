@@ -384,7 +384,7 @@ func start(log log.Component,
 
 	// Starting server early to ease investigations
 	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagnoseComp, dcametadataComp, clusterChecksMetadataComp, telemetry); err != nil {
-		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
+		return fmt.Errorf("Error while starting agent API, exiting: %w", err)
 	}
 
 	// Getting connection to APIServer, it's done before Hostname resolution
@@ -392,14 +392,14 @@ func start(log log.Component,
 	pkglog.Info("Waiting to obtain APIClient connection")
 	apiCl, err := apiserver.WaitForAPIClient(mainCtx) // make sure we can connect to the apiserver
 	if err != nil {
-		return fmt.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
+		return fmt.Errorf("Fatal error: Cannot connect to the apiserver: %w", err)
 	}
 	pkglog.Infof("Got APIClient connection")
 
 	// Get hostname as aggregator requires hostname
 	hname, err := hostname.Get(mainCtx)
 	if err != nil {
-		return fmt.Errorf("Error while getting hostname, exiting: %v", err)
+		return fmt.Errorf("Error while getting hostname, exiting: %w", err)
 	}
 	pkglog.Infof("Hostname is: %s", hname)
 
@@ -600,7 +600,7 @@ func start(log log.Component,
 		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer, autoscalingGate); err == nil {
 			pp = patcher
 		} else {
-			return fmt.Errorf("Error while starting workload autoscaling: %v", err)
+			return fmt.Errorf("Error while starting workload autoscaling: %w", err)
 		}
 	}
 
@@ -632,7 +632,7 @@ func start(log log.Component,
 		log.Infof("[KubeActions] Starting with cluster_id=%s, cluster_name=%s", clusterID, clusterName)
 
 		if kubeactionsRetriever, err = kubeactions.Setup(mainCtx, apiCl.Cl, apiCl.DynamicCl, clusterName, clusterID, le.IsLeader, rcClient, epForwarder, demultiplexer); err != nil {
-			return fmt.Errorf("Error while starting kubernetes actions: %v", err)
+			return fmt.Errorf("Error while starting kubernetes actions: %w", err)
 		}
 		log.Info("Kubernetes actions subsystem started successfully")
 	}

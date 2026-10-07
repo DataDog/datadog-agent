@@ -1679,7 +1679,7 @@ func buildTaggerSource(entityID workloadmeta.EntityID) string {
 func parseJSONValue(value string, tags *taglist.TagList) error {
 	result := map[string]interface{}{}
 	if err := json.Unmarshal([]byte(value), &result); err != nil {
-		return fmt.Errorf("failed to unmarshal JSON: %s", err)
+		return fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
 
 	for key, value := range result {

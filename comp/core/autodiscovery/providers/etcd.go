@@ -56,7 +56,7 @@ func NewEtcdConfigProvider(providerConfig *constants.ConfigurationProviders, _ *
 
 	cl, err := client.New(clientCfg)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to instantiate the etcd client: %s", err)
+		return nil, fmt.Errorf("Unable to instantiate the etcd client: %w", err)
 	}
 	cache := newProviderCache()
 	c := client.NewKeysAPI(cl)
@@ -138,7 +138,7 @@ func (p *EtcdConfigProvider) getTemplates(ctx context.Context, key string) []int
 func (p *EtcdConfigProvider) getEtcdValue(ctx context.Context, key string) (string, error) {
 	resp, err := p.Client.Get(ctx, key, nil)
 	if err != nil {
-		return "", fmt.Errorf("Failed to retrieve %s from etcd: %s", key, err)
+		return "", fmt.Errorf("Failed to retrieve %s from etcd: %w", key, err)
 	}
 
 	return resp.Node.Value, nil
@@ -147,7 +147,7 @@ func (p *EtcdConfigProvider) getEtcdValue(ctx context.Context, key string) (stri
 func (p *EtcdConfigProvider) getCheckNames(ctx context.Context, key string) ([]string, error) {
 	rawNames, err := p.getEtcdValue(ctx, key)
 	if err != nil {
-		err := fmt.Errorf("Couldn't get check names from etcd: %s", err)
+		err := fmt.Errorf("Couldn't get check names from etcd: %w", err)
 		return nil, err
 	}
 
@@ -157,7 +157,7 @@ func (p *EtcdConfigProvider) getCheckNames(ctx context.Context, key string) ([]s
 func (p *EtcdConfigProvider) getJSONValue(ctx context.Context, key string) ([][]integration.Data, error) {
 	rawValue, err := p.getEtcdValue(ctx, key)
 	if err != nil {
-		return nil, fmt.Errorf("Couldn't get key %s from etcd: %s", key, err)
+		return nil, fmt.Errorf("Couldn't get key %s from etcd: %w", key, err)
 	}
 
 	return utils.ParseJSONValue(rawValue)

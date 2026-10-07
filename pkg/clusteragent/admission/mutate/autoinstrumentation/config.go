@@ -471,7 +471,7 @@ func parseInitSecurityContext(datadogConfig config.Component) (*corev1.SecurityC
 		var securityContext corev1.SecurityContext
 		err := json.Unmarshal([]byte(confValue), &securityContext)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get init security context from configuration, %s=`%s`: %v", confKey, confValue, err)
+			return nil, fmt.Errorf("failed to get init security context from configuration, %s=`%s`: %w", confKey, confValue, err)
 		}
 
 		return &securityContext, nil

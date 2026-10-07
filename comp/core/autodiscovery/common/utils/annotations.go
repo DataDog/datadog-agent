@@ -49,13 +49,13 @@ func ExtractTemplatesFromMap(key string, input map[string]string, prefix string)
 
 	checksConfigs, err := extractCheckTemplatesFromMap(key, input, prefix)
 	if err != nil {
-		errors = append(errors, fmt.Errorf("could not extract checks config: %v", err))
+		errors = append(errors, fmt.Errorf("could not extract checks config: %w", err))
 	}
 	configs = append(configs, checksConfigs...)
 
 	logsConfigs, err := extractLogsTemplatesFromMap(configs, key, input, prefix)
 	if err != nil {
-		errors = append(errors, fmt.Errorf("could not extract logs config: %v", err))
+		errors = append(errors, fmt.Errorf("could not extract logs config: %w", err))
 	}
 	configs = append(configs, logsConfigs...)
 
@@ -70,7 +70,7 @@ func extractCheckTemplatesFromMap(key string, input map[string]string, prefix st
 	}
 	checkNames, err := ParseCheckNames(value)
 	if err != nil {
-		return []integration.Config{}, fmt.Errorf("in %s: %s", checkNamePath, err)
+		return []integration.Config{}, fmt.Errorf("in %s: %w", checkNamePath, err)
 	}
 
 	value, found = input[prefix+initConfigPath]
@@ -79,7 +79,7 @@ func extractCheckTemplatesFromMap(key string, input map[string]string, prefix st
 	}
 	initConfigs, err := ParseJSONValue(value)
 	if err != nil {
-		return []integration.Config{}, fmt.Errorf("in %s: %s", initConfigPath, err)
+		return []integration.Config{}, fmt.Errorf("in %s: %w", initConfigPath, err)
 	}
 
 	value, found = input[prefix+instancePath]
@@ -88,7 +88,7 @@ func extractCheckTemplatesFromMap(key string, input map[string]string, prefix st
 	}
 	instances, err := ParseJSONValue(value)
 	if err != nil {
-		return []integration.Config{}, fmt.Errorf("in %s: %s", instancePath, err)
+		return []integration.Config{}, fmt.Errorf("in %s: %w", instancePath, err)
 	}
 	// ParseBool returns `true` only on success cases
 	ignoreAdTags, _ := strconv.ParseBool(input[prefix+ignoreAutodiscoveryTags])
@@ -117,7 +117,7 @@ func extractLogsTemplatesFromMap(configs []integration.Config, key string, input
 	var data interface{}
 	err := json.Unmarshal([]byte(value), &data)
 	if err != nil {
-		return []integration.Config{}, fmt.Errorf("in %s: %s", logsConfigPath, err)
+		return []integration.Config{}, fmt.Errorf("in %s: %w", logsConfigPath, err)
 	}
 	switch data.(type) {
 	case []interface{}:
@@ -153,7 +153,7 @@ func ParseJSONValue(value string) ([][]integration.Data, error) {
 
 	err := json.Unmarshal([]byte(value), &rawRes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JSON: %s", err)
+		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
 
 	for _, r := range rawRes {
@@ -164,7 +164,7 @@ func ParseJSONValue(value string) ([][]integration.Data, error) {
 				var init integration.Data
 				init, err = parseJSONObjToData(objs[idx])
 				if err != nil {
-					return nil, fmt.Errorf("failed to decode JSON Object '%v' to integration.Data struct: %v", objs[idx], err)
+					return nil, fmt.Errorf("failed to decode JSON Object '%v' to integration.Data struct: %w", objs[idx], err)
 				}
 				subResult = append(subResult, init)
 			}
@@ -175,7 +175,7 @@ func ParseJSONValue(value string) ([][]integration.Data, error) {
 			var init integration.Data
 			init, err = parseJSONObjToData(r)
 			if err != nil {
-				return nil, fmt.Errorf("failed to decode JSON Object '%v' to integration.Data struct: %v", r, err)
+				return nil, fmt.Errorf("failed to decode JSON Object '%v' to integration.Data struct: %w", r, err)
 			}
 			result = append(result, []integration.Data{init})
 		}
@@ -312,7 +312,7 @@ func extractTemplatesFromMapWithV2(entityName string, annotations map[string]str
 		if actualPrefix != "" {
 			c, err := extractCheckTemplatesFromMap(entityName, annotations, actualPrefix)
 			if err != nil {
-				errors = append(errors, fmt.Errorf("could not extract checks config: %v", err))
+				errors = append(errors, fmt.Errorf("could not extract checks config: %w", err))
 			} else {
 				configs = append(configs, c...)
 			}
@@ -337,7 +337,7 @@ func extractTemplatesFromMapWithV2(entityName string, annotations map[string]str
 		c, err := extractLogsTemplatesFromMap(configs, entityName, annotations, actualPrefix)
 
 		if err != nil {
-			errors = append(errors, fmt.Errorf("could not extract logs config: %v", err))
+			errors = append(errors, fmt.Errorf("could not extract logs config: %w", err))
 		} else {
 			configs = append(configs, c...)
 		}

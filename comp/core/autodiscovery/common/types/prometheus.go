@@ -157,7 +157,7 @@ func PrometheusScrapeChecksTransformer(in string) ([]*PrometheusCheck, error) {
 
 	var promChecks []*PrometheusCheck
 	if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
-		return promChecks, fmt.Errorf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
+		return promChecks, fmt.Errorf(`"prometheus_scrape.checks" can not be parsed: %w`, err)
 	}
 	return promChecks, nil
 }
@@ -293,7 +293,7 @@ func (ad *ADConfig) setContainersRegex() error {
 	regexString := strings.Join(ad.KubeContainerNames, "|")
 	re, err := regexp.Compile(regexString)
 	if err != nil {
-		return fmt.Errorf("Invalid container names - regex: '%s': %v", regexString, err)
+		return fmt.Errorf("Invalid container names - regex: '%s': %w", regexString, err)
 	}
 
 	ad.ContainersRe = re

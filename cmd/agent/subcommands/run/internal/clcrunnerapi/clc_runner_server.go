@@ -50,7 +50,7 @@ func StartCLCRunnerServer(extraHandlers map[string]http.Handler, ac autodiscover
 	var err error
 	clcListener, err = getCLCRunnerListener()
 	if err != nil {
-		return fmt.Errorf("unable to create the clc runner api server: %v", err)
+		return fmt.Errorf("unable to create the clc runner api server: %w", err)
 	}
 
 	// CLC Runner token

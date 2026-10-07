@@ -90,7 +90,7 @@ func NewKubeEndpointSlicesFileConfigProvider(_ *constants.ConfigurationProviders
 
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
-		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
+		return nil, fmt.Errorf("cannot connect to apiserver: %w", err)
 	}
 
 	epSliceInformer := ac.InformerFactory.Discovery().V1().EndpointSlices()
@@ -103,7 +103,7 @@ func NewKubeEndpointSlicesFileConfigProvider(_ *constants.ConfigurationProviders
 		UpdateFunc: provider.updateHandler,
 		DeleteFunc: provider.deleteHandler,
 	}); err != nil {
-		return nil, fmt.Errorf("cannot add event handler to endpointslice informer: %s", err)
+		return nil, fmt.Errorf("cannot add event handler to endpointslice informer: %w", err)
 	}
 
 	return provider, nil

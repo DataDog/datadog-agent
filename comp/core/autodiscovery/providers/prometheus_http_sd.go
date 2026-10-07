@@ -106,12 +106,12 @@ func buildEntries(rawConfigs []httpSDConfigEntry, sharedClient *http.Client) ([]
 		}
 		tmpl, err := parseCheckTemplate(raw.CheckTemplate)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: %v", i, err))
+			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: %w", i, err))
 			continue
 		}
 		filterProg, err := compileExcludeFilter(raw.ExcludeFilter)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: invalid exclude_filter: %v", i, err))
+			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: invalid exclude_filter: %w", i, err))
 			continue
 		}
 		entries = append(entries, &httpSDEntry{
@@ -143,7 +143,7 @@ func NewPrometheusHTTPSDConfigProvider(
 
 	var rawConfigs []httpSDConfigEntry
 	if err := structure.UnmarshalKey(cfg, "prometheus_http_sd.configs", &rawConfigs); err != nil {
-		return nil, fmt.Errorf("cannot parse prometheus_http_sd.configs: %v", err)
+		return nil, fmt.Errorf("cannot parse prometheus_http_sd.configs: %w", err)
 	}
 	if legacyURL := cfg.GetString("prometheus_http_sd.url"); legacyURL != "" {
 		rawConfigs = append([]httpSDConfigEntry{{
@@ -174,7 +174,7 @@ func NewPrometheusHTTPSDConfigProvider(
 func parseCheckTemplate(templateJSON string) (httpSDCheckTemplate, error) {
 	var tmpl httpSDCheckTemplate
 	if err := json.Unmarshal([]byte(templateJSON), &tmpl); err != nil {
-		return tmpl, fmt.Errorf("cannot parse check_template: %v", err)
+		return tmpl, fmt.Errorf("cannot parse check_template: %w", err)
 	}
 	if tmpl.Name == "" {
 		return tmpl, errors.New("prometheus_http_sd check_template must specify a check name")
@@ -192,7 +192,7 @@ func buildHTTPSDClient(providerConfig *constants.ConfigurationProviders) (*http.
 	if providerConfig != nil && providerConfig.CAFile != "" {
 		caCert, err := os.ReadFile(providerConfig.CAFile)
 		if err != nil {
-			return nil, fmt.Errorf("cannot read ca_file %s: %v", providerConfig.CAFile, err)
+			return nil, fmt.Errorf("cannot read ca_file %s: %w", providerConfig.CAFile, err)
 		}
 		caCertPool := x509.NewCertPool()
 		if ok := caCertPool.AppendCertsFromPEM(caCert); !ok {
@@ -203,7 +203,7 @@ func buildHTTPSDClient(providerConfig *constants.ConfigurationProviders) (*http.
 	if providerConfig != nil && providerConfig.CertFile != "" && providerConfig.KeyFile != "" {
 		cert, err := tls.LoadX509KeyPair(providerConfig.CertFile, providerConfig.KeyFile)
 		if err != nil {
-			return nil, fmt.Errorf("cannot load client certificate: %v", err)
+			return nil, fmt.Errorf("cannot load client certificate: %w", err)
 		}
 		transport.TLSClientConfig.Certificates = []tls.Certificate{cert}
 	}
@@ -305,12 +305,12 @@ func (e *httpSDEntry) collect() ([]integration.Config, error) {
 func (e *httpSDEntry) fetchTargets() ([]httpSDTargetGroup, error) {
 	req, err := http.NewRequest(http.MethodGet, e.url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create request: %v", err)
+		return nil, fmt.Errorf("cannot create request: %w", err)
 	}
 
 	resp, err := e.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %v", err)
+		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -321,7 +321,7 @@ func (e *httpSDEntry) fetchTargets() ([]httpSDTargetGroup, error) {
 
 	var targetGroups []httpSDTargetGroup
 	if err := json.NewDecoder(resp.Body).Decode(&targetGroups); err != nil {
-		return nil, fmt.Errorf("cannot decode response: %v", err)
+		return nil, fmt.Errorf("cannot decode response: %w", err)
 	}
 
 	return targetGroups, nil
@@ -330,7 +330,7 @@ func (e *httpSDEntry) fetchTargets() ([]httpSDTargetGroup, error) {
 func (e *httpSDEntry) buildConfig(host, port string, tags []string) (integration.Config, error) {
 	initConfigBytes, err := yaml.Marshal(e.checkTemplate.InitConfig)
 	if err != nil {
-		return integration.Config{}, fmt.Errorf("cannot marshal init_config: %v", err)
+		return integration.Config{}, fmt.Errorf("cannot marshal init_config: %w", err)
 	}
 
 	// Apply template substitution on the first instance template
@@ -351,7 +351,7 @@ func (e *httpSDEntry) buildConfig(host, port string, tags []string) (integration
 
 	instanceBytes, err := yaml.Marshal(instance)
 	if err != nil {
-		return integration.Config{}, fmt.Errorf("cannot marshal instance: %v", err)
+		return integration.Config{}, fmt.Errorf("cannot marshal instance: %w", err)
 	}
 
 	return integration.Config{

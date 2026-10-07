@@ -173,12 +173,12 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 		case admissionregistrationv1.Delete:
 			var pod corev1.Pod
 			if err := json.Unmarshal(request.OldObject, &pod); err != nil {
-				return common.MutationResponse(nil, fmt.Errorf("failed to decode raw object: %v", err))
+				return common.MutationResponse(nil, fmt.Errorf("failed to decode raw object: %w", err))
 			}
 			matched, _, outcome, err := w.callPattern(&pod, request.Namespace, request.DynamicClient, appsecconfig.SidecarInjectionPattern.PodDeleted)
 			if matched {
 				if _, admErr := appsecconfig.NormalizeOutcomeForAdmission(outcome, err); admErr != nil {
-					return common.MutationResponse(nil, fmt.Errorf("failed to delete resources associated with sidecar: %v", admErr))
+					return common.MutationResponse(nil, fmt.Errorf("failed to delete resources associated with sidecar: %w", admErr))
 				}
 			}
 			const emptyPatch = "[]"

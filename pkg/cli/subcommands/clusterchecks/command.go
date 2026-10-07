@@ -139,7 +139,7 @@ func rebalance(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) err
 	postData, err := json.Marshal(payload)
 
 	if err != nil {
-		return fmt.Errorf("error marshalling payload: %v", err)
+		return fmt.Errorf("error marshalling payload: %w", err)
 	}
 
 	r, err := client.Post(urlstr, "application/json", bytes.NewBuffer(postData))
