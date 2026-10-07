@@ -505,7 +505,7 @@ Package host implements a component to generate the 'host' metadata payload (als
 
 ### [comp/metadata/hostgpu](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/hostgpu)
 
-*Datadog Team*: accelerator-telemetry
+*Datadog Team*: gpu-monitoring-agent
 
 Package hostgpu exposes the interface for the component to generate the 'host_gpu' metadata payload for inventory.
 
