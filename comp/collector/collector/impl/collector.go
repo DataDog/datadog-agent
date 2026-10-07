@@ -235,7 +235,7 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 	// checkInstances sizes the pool for periodic checks, so it is not
 	// incremented here: this extra worker already accounts for the check.
 	if ch.Interval() == 0 && !check.IsShadow(ch) {
-		c.log.Infof("Adding an extra runner for the '%s' long running check", ch)
+		c.log.Infof("Adding an extra runner for the '%s' zero-interval check", ch)
 		c.runner.AddWorker()
 	}
 
