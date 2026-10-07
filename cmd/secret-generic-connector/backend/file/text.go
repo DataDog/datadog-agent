@@ -36,7 +36,7 @@ func NewTextFileBackend(bc map[string]interface{}) (*TextFileBackend, error) {
 	backendConfig := TextFileBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
+		return nil, fmt.Errorf("failed to map backend configuration: %w", err)
 	}
 
 	if backendConfig.SecretsPath == "" {

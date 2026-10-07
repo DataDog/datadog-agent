@@ -17,7 +17,7 @@ import (
 func (r *secretResolver) getExecutablePermissions() (*permissionsDetails, error) {
 	var stat syscall.Stat_t
 	if err := syscall.Stat(r.backendCommand, &stat); err != nil {
-		return nil, fmt.Errorf("could not stat %s: %s", r.backendCommand, err)
+		return nil, fmt.Errorf("could not stat %s: %w", r.backendCommand, err)
 	}
 
 	details := &permissionsDetails{FileMode: fmt.Sprintf("%o", stat.Mode)}

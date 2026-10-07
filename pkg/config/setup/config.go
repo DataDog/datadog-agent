@@ -610,7 +610,7 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 
 	localAddress, err := system.IsLocalAddress(config.GetString("fips.local_address"))
 	if err != nil {
-		return fmt.Errorf("fips.local_address: %s", err)
+		return fmt.Errorf("fips.local_address: %w", err)
 	}
 
 	portRangeStart := config.GetInt("fips.port_range_start")
@@ -733,7 +733,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 			}
 		})
 		if _, err = secretResolver.Resolve(yamlConf, origin, "", "", true); err != nil {
-			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
+			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %w", err)
 		}
 	}
 	log.Info("Finished resolving secrets")

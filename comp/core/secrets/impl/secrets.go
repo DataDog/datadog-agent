@@ -564,7 +564,7 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 	var config interface{}
 	err := yaml.Unmarshal(data, &config)
 	if err != nil {
-		return nil, fmt.Errorf("could not Unmarshal config: %s", err)
+		return nil, fmt.Errorf("could not Unmarshal config: %w", err)
 	}
 
 	// First we collect all new handles in the config
@@ -657,7 +657,7 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 
 	finalConfig, err := yaml.Marshal(config)
 	if err != nil {
-		return nil, fmt.Errorf("could not Marshal config after replacing encrypted secrets: %s", err)
+		return nil, fmt.Errorf("could not Marshal config after replacing encrypted secrets: %w", err)
 	}
 	return finalConfig, resolveErr
 }

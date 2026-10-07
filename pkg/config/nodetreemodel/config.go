@@ -1222,7 +1222,7 @@ func (c *ntmConfig) AddExtraConfigPaths(ins []string) error {
 	for _, in := range ins {
 		in, err := filepath.Abs(in)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("could not get absolute path of extra config file '%s': %s", in, err))
+			errs = append(errs, fmt.Errorf("could not get absolute path of extra config file '%s': %w", in, err))
 			continue
 		}
 		if slices.Index(c.extraConfigFilePaths, in) == -1 && slices.Index(pathsToAdd, in) == -1 {

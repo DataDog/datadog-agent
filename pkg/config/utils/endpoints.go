@@ -210,7 +210,7 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 	ddURL := GetInfraEndpoint(c)
 	// Validating domain
 	if _, err := url.Parse(ddURL); err != nil {
-		return nil, fmt.Errorf("could not parse main endpoint: %s", err)
+		return nil, fmt.Errorf("could not parse main endpoint: %w", err)
 	}
 
 	keysPerDomain := map[string][]APIKeys{
@@ -224,7 +224,7 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 		// Validating domain
 		_, err := url.Parse(domain)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse url from 'additional_endpoints' %s: %s", domain, err)
+			return nil, fmt.Errorf("could not parse url from 'additional_endpoints' %s: %w", domain, err)
 		}
 
 		if oldAPIKeys, ok := keysPerDomain[domain]; ok {
@@ -240,7 +240,7 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 	if c.GetBool("multi_region_failover.enabled") {
 		haURL, err := GetMRFInfraEndpoint(c)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse MRF endpoint: %s", err)
+			return nil, fmt.Errorf("could not parse MRF endpoint: %w", err)
 		}
 		ed := newEndpointDescriptor(
 			haURL,

@@ -48,7 +48,7 @@ func (m *Mock) Resolve(data []byte, origin string, _ string, _ string, notify bo
 	var config interface{}
 	err := yaml.Unmarshal(data, &config)
 	if err != nil {
-		return nil, fmt.Errorf("could not Unmarshal config: %s", err)
+		return nil, fmt.Errorf("could not Unmarshal config: %w", err)
 	}
 
 	unknownSecrets := []string{}
@@ -80,7 +80,7 @@ func (m *Mock) Resolve(data []byte, origin string, _ string, _ string, notify bo
 
 	finalConfig, err := yaml.Marshal(config)
 	if err != nil {
-		return nil, fmt.Errorf("could not Marshal config after replacing encrypted secrets: %s", err)
+		return nil, fmt.Errorf("could not Marshal config after replacing encrypted secrets: %w", err)
 	}
 	return finalConfig, nil
 

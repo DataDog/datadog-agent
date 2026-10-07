@@ -53,7 +53,7 @@ func NewSecretManagerBackend(bc map[string]interface{}) (*SecretManagerBackend, 
 	backendConfig := SecretManagerBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
+		return nil, fmt.Errorf("failed to map backend configuration: %w", err)
 	}
 
 	if backendConfig.Session.ProjectID == "" {
@@ -64,7 +64,7 @@ func NewSecretManagerBackend(bc map[string]interface{}) (*SecretManagerBackend, 
 	ctx := context.Background()
 	credentials, err := google.FindDefaultCredentials(ctx, secretManagerScope)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find default credentials: %v", err)
+		return nil, fmt.Errorf("failed to find default credentials: %w", err)
 	}
 
 	// oauth2.NewClient automatically adds the Bearer token to all requests

@@ -30,7 +30,7 @@ func getSchema(name string) ([]byte, error) {
 
 	uncompressSchema, err := zstd.Decompress(nil, data)
 	if err != nil {
-		return nil, fmt.Errorf("could not Decompress schema '%s': %s", name, err)
+		return nil, fmt.Errorf("could not Decompress schema '%s': %w", name, err)
 	}
 
 	return uncompressSchema, nil
@@ -45,17 +45,17 @@ func loadSchema(name string) (*jsonschema.Schema, error) {
 	var loadSchema map[string]interface{}
 	err = yaml.Unmarshal(uncompressSchema, &loadSchema)
 	if err != nil {
-		return nil, fmt.Errorf("could not unmarshal schema '%s': %s", name, err)
+		return nil, fmt.Errorf("could not unmarshal schema '%s': %w", name, err)
 	}
 
 	c := jsonschema.NewCompiler()
 
 	if err := c.AddResource(name, loadSchema); err != nil {
-		return nil, fmt.Errorf("could not add schema resource '%s': %s", name, err)
+		return nil, fmt.Errorf("could not add schema resource '%s': %w", name, err)
 	}
 	res, err := c.Compile(name)
 	if err != nil {
-		return nil, fmt.Errorf("could not compile schema '%s': %s", name, err)
+		return nil, fmt.Errorf("could not compile schema '%s': %w", name, err)
 	}
 
 	return res, nil

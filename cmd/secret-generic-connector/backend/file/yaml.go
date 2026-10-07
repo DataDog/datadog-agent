@@ -37,7 +37,7 @@ func NewYAMLBackend(bc map[string]interface{}) (
 	backendConfig := YamlBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
+		return nil, fmt.Errorf("failed to map backend configuration: %w", err)
 	}
 
 	if backendConfig.MaxFileReadSize <= 0 {
@@ -50,12 +50,12 @@ func NewYAMLBackend(bc map[string]interface{}) (
 
 	content, err := os.ReadFile(backendConfig.FilePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read yaml secret file '%s': %s", backendConfig.FilePath, err)
+		return nil, fmt.Errorf("failed to read yaml secret file '%s': %w", backendConfig.FilePath, err)
 	}
 
 	secretValue := make(map[string]string, 0)
 	if err := yaml.Unmarshal(content, secretValue); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal yaml secret from '%s': %s", backendConfig.FilePath, err)
+		return nil, fmt.Errorf("failed to unmarshal yaml secret from '%s': %w", backendConfig.FilePath, err)
 	}
 
 	backend := &YamlBackend{

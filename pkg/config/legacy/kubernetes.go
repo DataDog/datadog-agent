@@ -96,7 +96,7 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool, converter *
 	// read kubernetes.yaml
 	c, _, err := providers.GetIntegrationConfigFromFile("kubernetes", src)
 	if err != nil {
-		return deprecations, fmt.Errorf("Could not load %s: %s", src, err)
+		return deprecations, fmt.Errorf("Could not load %s: %w", src, err)
 	}
 
 	if len(c.Instances) == 0 {
@@ -109,21 +109,21 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool, converter *
 	// kubelet.yaml (only tags for now)
 	newKube := &newKubeletInstance{}
 	if err := yaml.Unmarshal(c.Instances[0], newKube); err != nil {
-		return deprecations, fmt.Errorf("Could not parse instance from %s: %s", src, err)
+		return deprecations, fmt.Errorf("Could not parse instance from %s: %w", src, err)
 	}
 	newCfg := map[string][]*newKubeletInstance{
 		"instances": {newKube},
 	}
 	data, err := yaml.Marshal(newCfg)
 	if err != nil {
-		return deprecations, fmt.Errorf("Could not marshall final configuration for the new kubelet check: %s", err)
+		return deprecations, fmt.Errorf("Could not marshall final configuration for the new kubelet check: %w", err)
 	}
 	if _, err := os.Stat(dst); !os.IsNotExist(err) {
 		if overwrite {
 			// we'll overwrite, backup the original file first
 			err = os.Rename(dst, dst+".bak")
 			if err != nil {
-				return deprecations, fmt.Errorf("unable to create a backup copy of the destination file: %v", err)
+				return deprecations, fmt.Errorf("unable to create a backup copy of the destination file: %w", err)
 			}
 		} else {
 			return deprecations, errors.New("destination file already exists, run the command again with --force or -f to overwrite it")
@@ -135,14 +135,14 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool, converter *
 		return deprecations, err
 	}
 	if err := os.WriteFile(dst, data, 0640); err != nil {
-		return deprecations, fmt.Errorf("Could not write new kubelet configuration to %s: %s", dst, err)
+		return deprecations, fmt.Errorf("Could not write new kubelet configuration to %s: %w", dst, err)
 	}
 	fmt.Printf("Successfully imported the contents of %s into %s\n", src, dst)
 
 	// datadog.yaml
 	instance := &legacyKubernetesInstance{}
 	if err := yaml.Unmarshal(c.Instances[0], instance); err != nil {
-		return deprecations, fmt.Errorf("Could not Unmarshal instances from %s: %s", src, err)
+		return deprecations, fmt.Errorf("Could not Unmarshal instances from %s: %w", src, err)
 	}
 
 	if instance.KubeletPort > 0 {

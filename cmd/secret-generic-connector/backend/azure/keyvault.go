@@ -41,12 +41,12 @@ var getKeyvaultClient = func(cfg KeyVaultBackendConfig) (keyvaultClient, error) 
 	case s.AzureTenantID != "" && s.AzureClientID != "" && s.AzureClientSecret != "":
 		cred, err = azidentity.NewClientSecretCredential(s.AzureTenantID, s.AzureClientID, s.AzureClientSecret, nil)
 		if err != nil {
-			return nil, fmt.Errorf("getting client secret credentials: %s", err)
+			return nil, fmt.Errorf("getting client secret credentials: %w", err)
 		}
 	case s.AzureTenantID != "" && s.AzureClientID != "" && s.AzureClientCertificatePath != "":
 		certData, err := os.ReadFile(s.AzureClientCertificatePath)
 		if err != nil {
-			return nil, fmt.Errorf("reading certificate file: %s", err)
+			return nil, fmt.Errorf("reading certificate file: %w", err)
 		}
 		var password []byte
 		if s.AzureClientCertificatePassword != "" {
@@ -54,31 +54,31 @@ var getKeyvaultClient = func(cfg KeyVaultBackendConfig) (keyvaultClient, error) 
 		}
 		certs, key, err := azidentity.ParseCertificates(certData, password)
 		if err != nil {
-			return nil, fmt.Errorf("parsing certificate: %s", err)
+			return nil, fmt.Errorf("parsing certificate: %w", err)
 		}
 		opts := &azidentity.ClientCertificateCredentialOptions{
 			SendCertificateChain: s.AzureClientSendCertificateChain,
 		}
 		cred, err = azidentity.NewClientCertificateCredential(s.AzureTenantID, s.AzureClientID, certs, key, opts)
 		if err != nil {
-			return nil, fmt.Errorf("getting client certificate credentials: %s", err)
+			return nil, fmt.Errorf("getting client certificate credentials: %w", err)
 		}
 	case s.AzureClientID != "":
 		opts := azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ClientID(s.AzureClientID)}
 		cred, err = azidentity.NewManagedIdentityCredential(&opts)
 		if err != nil {
-			return nil, fmt.Errorf("getting identity credentials: %s", err)
+			return nil, fmt.Errorf("getting identity credentials: %w", err)
 		}
 	default:
 		cred, err = azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
-			return nil, fmt.Errorf("could not get default credentials: %s", err)
+			return nil, fmt.Errorf("could not get default credentials: %w", err)
 		}
 	}
 
 	client, err := azsecrets.NewClient(cfg.KeyVaultURL, cred, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create client: %v", err)
+		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
 	return client, nil
 }
@@ -143,7 +143,7 @@ func NewKeyVaultBackend(bc map[string]interface{}) (*KeyVaultBackend, error) {
 	backendConfig := KeyVaultBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
+		return nil, fmt.Errorf("failed to map backend configuration: %w", err)
 	}
 
 	client, err := getKeyvaultClient(backendConfig)

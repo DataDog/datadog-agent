@@ -30,7 +30,7 @@ func GetIPCAddress(config model.Reader) (string, error) {
 
 	address, err := system.IsLocalAddress(config.GetString(key))
 	if err != nil {
-		return "", fmt.Errorf("%s: %s", key, err)
+		return "", fmt.Errorf("%s: %w", key, err)
 	}
 	return address, nil
 }

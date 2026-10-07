@@ -200,7 +200,7 @@ func NewVaultBackend(bc map[string]interface{}) (*VaultBackend, error) {
 	backendConfig := VaultBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
+		return nil, fmt.Errorf("failed to map backend configuration: %w", err)
 	}
 
 	vaultAddress := os.Getenv("VAULT_ADDR")
@@ -208,7 +208,7 @@ func NewVaultBackend(bc map[string]interface{}) (*VaultBackend, error) {
 		if configPath := backendConfig.VaultAddress; configPath != "" {
 			vaultAddress = configPath
 		} else {
-			return nil, fmt.Errorf("failed to provide a vault address: %s", err)
+			return nil, fmt.Errorf("failed to provide a vault address: %w", err)
 		}
 	}
 
@@ -225,13 +225,13 @@ func NewVaultBackend(bc map[string]interface{}) (*VaultBackend, error) {
 		}
 		err := clientConfig.ConfigureTLS(tlsConfig)
 		if err != nil {
-			return nil, fmt.Errorf("failed to initialize vault tls configuration: %s", err)
+			return nil, fmt.Errorf("failed to initialize vault tls configuration: %w", err)
 		}
 	}
 
 	client, err := api.NewClient(clientConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create vault client: %s", err)
+		return nil, fmt.Errorf("failed to create vault client: %w", err)
 	}
 
 	if backendConfig.VaultNamespace != "" {
@@ -249,7 +249,7 @@ func NewVaultBackend(bc map[string]interface{}) (*VaultBackend, error) {
 
 		authInfo, err := client.Auth().Login(ctx, authMethod)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create auth info: %s", err)
+			return nil, fmt.Errorf("failed to create auth info: %w", err)
 		}
 		if authInfo == nil {
 			return nil, errors.New("no auth info returned")

@@ -21,7 +21,7 @@ import (
 func CheckRights(path string, allowGroupExec bool) error {
 	var stat syscall.Stat_t
 	if err := syscall.Stat(path, &stat); err != nil {
-		return fmt.Errorf("invalid executable '%s': can't stat it: %s", path, err)
+		return fmt.Errorf("invalid executable '%s': can't stat it: %w", path, err)
 	}
 
 	if allowGroupExec {
@@ -35,7 +35,7 @@ func CheckRights(path string, allowGroupExec bool) error {
 	}
 
 	if err := syscall.Access(path, unix.X_OK); err != nil {
-		return fmt.Errorf("invalid executable '%s': can't access it: %s", path, err)
+		return fmt.Errorf("invalid executable '%s': can't access it: %w", path, err)
 	}
 
 	return nil

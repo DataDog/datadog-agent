@@ -50,11 +50,11 @@ func setRuntimeSetting(c Client, name string, value int) (interface{}, error) {
 
 	oldVal, err := c.Get(name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get current value of %s: %v", name, err)
+		return nil, fmt.Errorf("failed to get current value of %s: %w", name, err)
 	}
 
 	if _, err := c.Set(name, strconv.Itoa(value)); err != nil {
-		return nil, fmt.Errorf("failed to set %s to %v: %v", name, value, err)
+		return nil, fmt.Errorf("failed to set %s to %v: %w", name, value, err)
 	}
 
 	return oldVal, nil

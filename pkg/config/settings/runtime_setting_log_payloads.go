@@ -48,7 +48,7 @@ func (l *LogPayloadsRuntimeSetting) Set(config config.Component, v interface{}, 
 	var err error
 
 	if newValue, err = GetBool(v); err != nil {
-		return fmt.Errorf("LogPayloadsRuntimeSetting: %v", err)
+		return fmt.Errorf("LogPayloadsRuntimeSetting: %w", err)
 	}
 
 	config.Set("log_payloads", newValue, source)

@@ -39,10 +39,10 @@ func WriteInstallInfo(tool, toolVersion, installType string) error {
 		return nil
 	}
 	if err := writeInstallInfo(tool, toolVersion, installType); err != nil {
-		return fmt.Errorf("failed to write install info file: %v", err)
+		return fmt.Errorf("failed to write install info file: %w", err)
 	}
 	if err := writeInstallSignature(installType); err != nil {
-		return fmt.Errorf("failed to write install signature file: %v", err)
+		return fmt.Errorf("failed to write install signature file: %w", err)
 	}
 	return nil
 }

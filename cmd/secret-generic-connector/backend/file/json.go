@@ -37,7 +37,7 @@ func NewJSONBackend(bc map[string]interface{}) (
 	backendConfig := JSONBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
+		return nil, fmt.Errorf("failed to map backend configuration: %w", err)
 	}
 
 	if backendConfig.MaxFileReadSize <= 0 {
@@ -50,12 +50,12 @@ func NewJSONBackend(bc map[string]interface{}) (
 
 	content, err := os.ReadFile(backendConfig.FilePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read json secret file '%s': %s", backendConfig.FilePath, err)
+		return nil, fmt.Errorf("failed to read json secret file '%s': %w", backendConfig.FilePath, err)
 	}
 
 	secretValue := make(map[string]string, 0)
 	if err := json.Unmarshal(content, &secretValue); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal json secret '%s': %s", backendConfig.FilePath, err)
+		return nil, fmt.Errorf("failed to unmarshal json secret '%s': %w", backendConfig.FilePath, err)
 	}
 
 	backend := &JSONBackend{

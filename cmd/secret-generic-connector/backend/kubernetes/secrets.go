@@ -87,7 +87,7 @@ func NewK8sSecretsBackend(bc map[string]interface{}) (*SecretsBackend, error) {
 	backendConfig := SecretsBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
+		return nil, fmt.Errorf("failed to map backend configuration: %w", err)
 	}
 
 	tokenPath := backendConfig.TokenPath

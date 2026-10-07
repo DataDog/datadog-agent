@@ -72,7 +72,7 @@ func (l *ProfilingRuntimeSetting) Set(config config.Component, v interface{}, so
 	profile, err = GetBool(v)
 
 	if err != nil {
-		return fmt.Errorf("Unsupported type for profile runtime setting: %v", err)
+		return fmt.Errorf("Unsupported type for profile runtime setting: %w", err)
 	}
 
 	if profile {

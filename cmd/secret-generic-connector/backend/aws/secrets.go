@@ -52,12 +52,12 @@ func NewSecretsManagerBackend(bc map[string]interface{}) (
 	backendConfig := SecretsManagerBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
+		return nil, fmt.Errorf("failed to map backend configuration: %w", err)
 	}
 
 	cfg, err := newConfigFromBackendConfig(backendConfig.Session)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize aws session: %s", err)
+		return nil, fmt.Errorf("failed to initialize aws session: %w", err)
 	}
 	client := getSecretsManagerClient(*cfg)
 

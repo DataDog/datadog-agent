@@ -114,7 +114,7 @@ func (r *secretResolver) execCommand(inputPayload string, timeout int) ([]byte, 
 			log.Warnf("'%s' failed (exit code %s, message: '%s'). See docs for FAQ and troubleshooting methods: %s",
 				r.backendCommand, exitCode, err, secretsManagementDocsURL)
 		}
-		return nil, fmt.Errorf("error while running '%s': %s. See docs for FAQ and troubleshooting methods: %s", r.backendCommand, err, secretsManagementDocsURL)
+		return nil, fmt.Errorf("error while running '%s': %w. See docs for FAQ and troubleshooting methods: %s", r.backendCommand, err, secretsManagementDocsURL)
 	}
 
 	log.Debugf("secret_backend_command stderr: %s", stderr.buf.String())
@@ -284,7 +284,7 @@ func (r *secretResolver) fetchSingleBackend(backendType string, backendConfig ma
 	}
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not serialize secrets IDs to fetch password: %s", err)
+		return nil, nil, fmt.Errorf("could not serialize secrets IDs to fetch password: %w", err)
 	}
 	output, err := r.execCommand(string(jsonPayload), backendTimeout)
 	if err != nil {
@@ -294,7 +294,7 @@ func (r *secretResolver) fetchSingleBackend(backendType string, backendConfig ma
 	secretVals := map[string]secrets.SecretVal{}
 	if err = json.Unmarshal(output, &secretVals); err != nil {
 		r.tlmSecretUnmarshalError.Inc()
-		return nil, nil, fmt.Errorf("'%s' returned invalid JSON: '%s'. See docs for expected format: %s",
+		return nil, nil, fmt.Errorf("'%s' returned invalid JSON: '%w'. See docs for expected format: %s",
 			r.backendCommand, err, secretsManagementDocsURL)
 	}
 
