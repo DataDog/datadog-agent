@@ -3455,3 +3455,34 @@ func TestShippedTroubleshootingProfileIsGated(t *testing.T) {
 	assert.NotContains(t, names, "transactions.errors")
 	assert.Contains(t, names, "transactions.retries")
 }
+
+func TestGetDeployment(t *testing.T) {
+	envVars := []string{
+		"ECS_FARGATE", "AWS_EXECUTION_ENV", "KUBERNETES_SERVICE_PORT", "KUBERNETES",
+		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "ECS_CONTAINER_METADATA_URI", "ECS_CONTAINER_METADATA_URI_V4",
+		"DOCKER_DD_AGENT",
+	}
+	tests := []struct {
+		name     string
+		env      map[string]string
+		expected string
+	}{
+		{"host", nil, "host"},
+		{"container", map[string]string{"DOCKER_DD_AGENT": "true"}, "container"},
+		{"kubernetes", map[string]string{"DOCKER_DD_AGENT": "true", "KUBERNETES_SERVICE_PORT": "443"}, "kubernetes"},
+		{"ecs", map[string]string{"DOCKER_DD_AGENT": "true", "AWS_EXECUTION_ENV": "AWS_ECS_EC2"}, "ecs"},
+		{"ecs fargate", map[string]string{"DOCKER_DD_AGENT": "true", "ECS_FARGATE": "true"}, "ecs_fargate"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// clear variables possibly set by the environment running the test
+			for _, k := range envVars {
+				t.Setenv(k, "")
+			}
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+			assert.Equal(t, tt.expected, getDeployment())
+		})
+	}
+}

@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -101,6 +102,9 @@ type AgentMetadataPayload struct {
 	Hostname string `json:"hostname"`
 	OS       string `json:"os"`
 	OSVer    string `json:"osver"`
+	// Deployment is where the Agent runs (see getDeployment). It is copied into every
+	// payload, so telemetry can be split by environment without correlating payloads.
+	Deployment string `json:"deployment"`
 }
 
 // Payload defines the top level object in the payload
@@ -209,6 +213,24 @@ func getEndpoints(cfgComp config.Component) (*logconfig.Endpoints, error) {
 		telemetryHostnameEndpointPrefix, telemetryIntakeTrackType, logconfig.DefaultIntakeProtocol, logconfig.DefaultIntakeOrigin)
 }
 
+// getDeployment returns where the Agent runs: "ecs_fargate", "kubernetes", "ecs",
+// "container" (any other containerized Agent, usually Docker) or "host". It only reads
+// environment variables, so it does not depend on feature detection having run.
+func getDeployment() string {
+	switch {
+	case env.IsECSFargate():
+		return "ecs_fargate"
+	case env.IsKubernetes():
+		return "kubernetes"
+	case env.IsECS():
+		return "ecs"
+	case env.IsContainerized():
+		return "container"
+	default:
+		return "host"
+	}
+}
+
 func newSenderImpl(
 	cfgComp config.Component,
 	logComp log.Component,
@@ -255,10 +277,11 @@ func newSenderImpl(
 			Host:       host,
 		},
 		metadataPayloadTemplate: AgentMetadataPayload{
-			HostID:   info.HostID,
-			Hostname: info.Hostname,
-			OS:       info.OS,
-			OSVer:    info.PlatformVersion,
+			HostID:     info.HostID,
+			Hostname:   info.Hostname,
+			OS:         info.OS,
+			OSVer:      info.PlatformVersion,
+			Deployment: getDeployment(),
 		},
 		agentMetricsPayloadTemplate: AgentMetricsPayload{
 			Message: "Agent metrics",
