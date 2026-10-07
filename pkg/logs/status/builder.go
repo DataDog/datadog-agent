@@ -58,8 +58,12 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 	if verbose {
 		tailers = b.getTailers()
 	}
-	utils := b.getComponentUtilization()
-	bp := b.getBackpressureStatus(utils)
+	var snaps []logsMetrics.ComponentSnapshot
+	if b.pipelineMonitor != nil {
+		snaps = b.pipelineMonitor.Snapshots()
+	}
+	utils := b.getComponentUtilization(snaps)
+	bp := b.getBackpressureStatus(snaps)
 	return Status{
 		IsRunning:            b.getIsRunning(),
 		Endpoints:            b.getEndpoints(),
@@ -91,17 +95,15 @@ func componentRank(name string) int {
 }
 
 // getComponentUtilization returns per-component snapshots sorted in pipeline order.
-func (b *Builder) getComponentUtilization() []ComponentUtilization {
-	if b.pipelineMonitor == nil {
+func (b *Builder) getComponentUtilization(snaps []logsMetrics.ComponentSnapshot) []ComponentUtilization {
+	if snaps == nil {
 		return nil
 	}
-	snaps := b.pipelineMonitor.Snapshots()
 	result := make([]ComponentUtilization, 0, len(snaps))
 	for _, s := range snaps {
-		// "sender" is a capacity-only aggregation point (items/bytes between the strategy and the
-		// workers) with no utilization monitor, so its ratio/saturation is always 0. It carries no
-		// signal for the backpressure table, so omit it.
-		if s.Name == logsMetrics.SenderTlmName {
+		// A capacity-only aggregation point ("sender", between the strategy and the workers)
+		// has no utilization monitor, so it carries no signal for this table.
+		if !s.Measured {
 			continue
 		}
 		lastSat := ""
@@ -145,64 +147,26 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 }
 
 // getBackpressureStatus returns SATURATED (saturated in last 1m), WARNING (last 30m only), or HEALTHY.
-func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) BackpressureStatus {
-	// SATURATED signal: among currently-saturated components, surface the one with the highest EWMA.
-	var hasCurrSat bool
-	var maxCurrRatio float64
-	var currSatName, currSatInst string
-	var currSat30m int64
-
-	// WARNING signal: the component with the most recent 1m/30m saturation.
-	var maxSat1m, maxSat30m int64
-	var sat30mForMaxSat1m int64
-	var satName1m, satInst1m string
-	var satName30m, satInst30m string
-
-	for _, u := range utils {
-		if u.CurrentlySaturated && u.AvgRatio > maxCurrRatio {
-			hasCurrSat = true
-			maxCurrRatio = u.AvgRatio
-			currSatName = u.Name
-			currSatInst = u.Instance
-			currSat30m = u.Saturated30mSeconds
-		}
-		if u.Saturated1mSeconds > maxSat1m {
-			maxSat1m = u.Saturated1mSeconds
-			sat30mForMaxSat1m = u.Saturated30mSeconds
-			satName1m = u.Name
-			satInst1m = u.Instance
-		}
-		if u.Saturated30mSeconds > maxSat30m {
-			maxSat30m = u.Saturated30mSeconds
-			satName30m = u.Name
-			satInst30m = u.Instance
-		}
+func (b *Builder) getBackpressureStatus(snaps []logsMetrics.ComponentSnapshot) BackpressureStatus {
+	// Unlike loss attribution, this ranks non-blocking destinations too: they drop payloads when saturated.
+	state, bottleneck := logsMetrics.SelectBottleneck(logsMetrics.BackpressureComponents(snaps))
+	if bottleneck == nil {
+		return BackpressureStatus{State: state}
 	}
 
-	// SATURATED: a component is at or above threshold right now. Clears within seconds of recovery.
-	if hasCurrSat {
-		dur30m := time.Duration(currSat30m) * time.Second
+	dur30m := fmtDuration(time.Duration(bottleneck.Saturated30mSeconds) * time.Second)
+	// SATURATED means at or above threshold right now; it clears within seconds of recovery.
+	if state == logsMetrics.BackpressureSaturated {
 		return BackpressureStatus{
-			State:  "SATURATED",
-			Reason: fmt.Sprintf("%s pipeline %s is currently saturated (saturated for %s in the last 30m)", currSatName, currSatInst, fmtDuration(dur30m)),
+			State:  state,
+			Reason: fmt.Sprintf("%s pipeline %s is currently saturated (saturated for %s in the last 30m)", bottleneck.Component, bottleneck.Instance, dur30m),
 		}
 	}
-	// WARNING: saturation occurred in the last 1m or 30m but no component is currently at threshold.
-	if maxSat1m > 0 {
-		dur30m := time.Duration(sat30mForMaxSat1m) * time.Second
-		return BackpressureStatus{
-			State:  "WARNING",
-			Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName1m, satInst1m, fmtDuration(dur30m)),
-		}
+	// WARNING: saturation occurred in the last 1m or 30m but nothing is currently at threshold.
+	return BackpressureStatus{
+		State:  state,
+		Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", bottleneck.Component, bottleneck.Instance, dur30m),
 	}
-	if maxSat30m > 0 {
-		dur30m := time.Duration(maxSat30m) * time.Second
-		return BackpressureStatus{
-			State:  "WARNING",
-			Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName30m, satInst30m, fmtDuration(dur30m)),
-		}
-	}
-	return BackpressureStatus{State: "HEALTHY"}
 }
 
 // formatBackpressureSection renders the backpressure section as preformatted text (omitted from JSON).
