@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2026-present Datadog, Inc.
 
 //go:build linux
 
@@ -10,10 +10,6 @@ package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// nsInstallHooks are the proc_ns_operations install callbacks. Hooking them is how the namespace
-// type actually joined is recovered, since a setns nstype of 0 leaves the kernel to resolve the
-// type from the file descriptor. They are best effort: timens_install requires CONFIG_TIME_NS and
-// cgroupns_install requires CONFIG_CGROUPS, so neither is guaranteed to be present.
 var nsInstallHooks = []string{
 	"hook_mntns_install",
 	"hook_netns_install",
