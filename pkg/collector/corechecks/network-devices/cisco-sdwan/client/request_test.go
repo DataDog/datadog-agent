@@ -252,14 +252,14 @@ func rateLimitedHandler(failures int32) handler {
 	})
 }
 
-func TestGetRequestBacksOffOn429(t *testing.T) {
+func TestGetRequestBacksOffExponentially(t *testing.T) {
 	policy := &countingBackOff{}
 	originalBackOff := newRetryBackOff
 	newRetryBackOff = func() backoff.BackOff { return policy }
 	defer func() { newRetryBackOff = originalBackOff }()
 
 	mux := setupCommonServerMux()
-	handler := rateLimitedHandler(2)
+	handler := rateLimitedHandler(2) // mock "server" returns 2 failures, then success
 	mux.HandleFunc("/test", handler.Func)
 
 	server := httptest.NewServer(mux)
@@ -274,9 +274,8 @@ func TestGetRequestBacksOffOn429(t *testing.T) {
 	resp, err := client.get("/test", nil)
 	require.NoError(t, err)
 	require.Equal(t, []byte("ok"), resp)
-	require.Equal(t, 3, handler.numberOfCalls())
-	// Backed off before each of the two retries
-	require.Equal(t, 2, policy.calls)
+	require.Equal(t, 3, handler.numberOfCalls()) // 3 total calls made
+	require.Equal(t, 2, policy.calls)            // 2 backoff calls were made
 }
 
 func TestGetRequestBackoffDisabledByDefault(t *testing.T) {
@@ -286,7 +285,7 @@ func TestGetRequestBackoffDisabledByDefault(t *testing.T) {
 	defer func() { newRetryBackOff = originalBackOff }()
 
 	mux := setupCommonServerMux()
-	handler := rateLimitedHandler(2)
+	handler := rateLimitedHandler(2) // mock "server" returns 2 failures, then success
 	mux.HandleFunc("/test", handler.Func)
 
 	server := httptest.NewServer(mux)
@@ -300,9 +299,8 @@ func TestGetRequestBackoffDisabledByDefault(t *testing.T) {
 	resp, err := client.get("/test", nil)
 	require.NoError(t, err)
 	require.Equal(t, []byte("ok"), resp)
-	require.Equal(t, 3, handler.numberOfCalls())
-	// Retried immediately, the exponential policy was never used
-	require.Equal(t, 0, policy.calls)
+	require.Equal(t, 3, handler.numberOfCalls()) // 3 total calls made
+	require.Equal(t, 0, policy.calls)            // no exponential backoff was used
 }
 
 // recordingTransport serves requests from a mux without opening sockets, so it can be used
