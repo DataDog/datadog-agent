@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe leaves out of its rpm index the files
+    whose size differs from their package's, such as a file copied over a
+    package path when the image was built.
