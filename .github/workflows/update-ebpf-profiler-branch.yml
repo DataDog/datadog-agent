@@ -32,7 +32,7 @@ jobs:
 
       - name: Tidy and generate licenses
         run: |
-          go mod tidy
+          GONOPROXY=github.com/DataDog/opentelemetry-ebpf-profiler go mod tidy
           dda inv -- -e tidy
           dda inv -- -e install-tools
           dda inv -- -e generate-licenses
