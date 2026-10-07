@@ -101,8 +101,7 @@ class TestEvaluateIndex(unittest.TestCase):
     @patch("tasks.dyntest.is_enabled", return_value=False)
     @patch("tasks.dyntest.JevDynTestExecutor")
     def test_jev_disabled_by_feature_flag_exits_0(self, executor, enabled, _):
-        """The jev-evaluation feature flag disabled: the task exits 0 and
-        builds no executor at all (the CI job stays green)."""
+        """Flag disabled: the task exits 0 and builds no executor at all."""
         evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False)
         enabled.assert_called_once()
         executor.assert_not_called()
