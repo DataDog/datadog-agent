@@ -20,6 +20,7 @@ go_library(
         "//test/fakeintake/client",
         "@com_github_davecgh_go_spew//spew",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
     ],
 )

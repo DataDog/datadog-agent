@@ -34,8 +34,8 @@ static inline void call_free(void* ptr) {
 import "C"
 
 var (
-	rtloader *C.rtloader_t
-	tmpfile  *os.File
+	rtloader     *C.rtloader_t
+	tmpfile      *os.File
 	stdout       string
 	stderr       string
 	setException bool
