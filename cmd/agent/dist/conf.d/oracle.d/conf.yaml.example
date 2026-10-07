@@ -491,6 +491,9 @@ instances:
 
     ## Start an SQL trace for Agent queries. This feature is only meant for Agent troubleshooting, and
     ## should normally be switched off.
+    ## If tracing and schema collection are enabled, schema collection runs synchronously because
+    ## tracing uses a single shared connection. This can delay metrics collection and make a check run
+    ## longer than its configured interval. Without tracing, schema collection runs in the background.
     ## Requires execute the execute privilege on `dbms_monitor` to datadog user
     #
     # agent_sql_trace:

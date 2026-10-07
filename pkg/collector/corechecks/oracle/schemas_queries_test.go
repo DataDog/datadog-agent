@@ -8,12 +8,15 @@
 package oracle
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,6 +79,42 @@ func TestSchemaBindingsBoundPaddingAcrossGroups(t *testing.T) {
 		require.Len(t, filters, 2)
 		for _, filter := range filters {
 			require.LessOrEqual(t, len(filter.args), 5*maxSchemaRelationsPerQuery)
+		}
+	}
+}
+
+func TestSchemaBindingsHydrationSuppliesEveryNamedArgument(t *testing.T) {
+	c, _, _, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	keys := []tableKey{
+		{conID: 3, owner: "APP", table: "O'RDER"},
+		{conID: 3, owner: "OTHER", table: "TABLE"},
+	}
+	for _, view := range []bool{false, true} {
+		c.schemaQueryer = schemaQueryFunc(func(_ context.Context, query string, args ...any) (*sqlx.Rows, error) {
+			require.NotContains(t, query, "O'RDER")
+			require.NotContains(t, query, "/*RELATIONS*/")
+			provided := make(map[string]bool)
+			for _, arg := range args {
+				named := arg.(sql.NamedArg)
+				require.False(t, provided[named.Name], "duplicate bind %s", named.Name)
+				provided[named.Name] = true
+			}
+			for _, match := range regexp.MustCompile(`:[a-zA-Z][a-zA-Z0-9_]*`).FindAllString(query, -1) {
+				require.True(t, provided[match[1:]], "missing bind %s", match)
+			}
+			for name := range provided {
+				require.Contains(t, query, ":"+name)
+			}
+			return nil, context.Canceled
+		})
+		c.schemaQueryError = nil
+		if view {
+			_, err := c.viewPageRows(context.Background(), keys, 17)
+			require.ErrorIs(t, err, context.Canceled)
+		} else {
+			_, err := c.tablePageRows(context.Background(), keys, 17)
+			require.ErrorIs(t, err, context.Canceled)
 		}
 	}
 }
