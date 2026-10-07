@@ -20,78 +20,11 @@ constants_repo(
 http_archive(
     name = "cpython",
     build_file = "//deps:cpython.BUILD.bazel",
-    files = {
-        "build_python.bat": "//deps/cpython:build_python.bat",
-        "redacted_compat.h": "//deps/cpython:redacted_compat.h",
-    },
     patch_strip = 1,
     patches = [
-        "//deps/cpython:0001-customize-windows-build-script.patch",
-        "//deps/cpython:0002-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
-        "//deps/cpython:0003-propagate-pgo-test-exit-code.patch",
         "//deps/cpython:0004-Skip-bytecode-compilation-during-install.patch",
-        "//deps/cpython:0005-Honor-explicit-libffi-flags-on-Darwin.patch",
     ],
     sha256 = "c28d9d213c09b5b5ab2c29812950e12f746999e099b82894231be954b26baed9",
     strip_prefix = "Python-{}".format(PYTHON_VERSION),
     url = "https://python.org/ftp/python/{0}/Python-{0}.tgz".format(PYTHON_VERSION),
 )
-
-# Python dependencies for Windows
-
-python_src_deps = {
-    "bzip2": ("1.0.8", "12c17d15f99e27235529574a722fb484a4e8fdf2427cef53b1b68bdf07e404a9"),
-    "mpdecimal": ("4.0.0", "270f5fbee4cc02f6ebe28d5be9c4e1268696bff9ead14d1e7f674e2eef759a07"),
-    "xz": ("5.2.5", "6a4389cc05143beb2679b1299cecee71b02baa55e70f68a88b44dc01ad495424"),
-    "zlib": ("1.3.1", "a8f166f0f819ff084042554f39d763c41de5f19f8e9cdc68bc3e7f373cfba036"),
-}
-
-# TODO: Move back into python_src_deps once cpython-source-deps has sqlite-3.53.2.0.
-# As of 2026-04-13, neither CPython 3.13 nor main have bumped past 3.50.4.
-# Fetched directly from sqlite.org; the amalgamation contents are identical.
-http_archive(
-    name = "sqlite_win",
-    build_file_content = "filegroup(name = 'sqlite_win', srcs = glob(['**']), visibility = ['//visibility:public'])",
-    sha256 = "8a310d0a16c7a90cacd4c884e70faa51c902afed2a89f63aaa0126ab83558a32",
-    strip_prefix = "sqlite-amalgamation-3530200",
-    url = "https://www.sqlite.org/2026/sqlite-amalgamation-3530200.zip",
-)
-
-[
-    http_archive(
-        name = "{}_win".format(name),
-        build_file_content = "filegroup(name = '{name}_win', srcs = glob(['**']), visibility = ['//visibility:public'])".format(name = name),
-        sha256 = sha256,
-        strip_prefix = "cpython-source-deps-{name}-{version}".format(
-            name = name,
-            version = version,
-        ),
-        url = "https://github.com/python/cpython-source-deps/archive/{name}-{version}.zip".format(
-            name = name,
-            version = version,
-        ),
-    )
-    for name, (version, sha256) in python_src_deps.items()
-]
-
-python_bin_deps = {
-    "libffi": ("3.4.4", "681c0e6306b4bcb54ecce8305f67ca88ab03be922b6c4dcfd18240ad46e357d8"),
-    "tcltk": ("8.6.15.0", "60adc5fc31c02347666198ffc74e5b6d0948f6765bb9034ae423a5a16c22a4e5"),
-}
-
-[
-    http_archive(
-        name = "{}_win".format(name),
-        build_file_content = "filegroup(name = '{name}_win', srcs = glob(['**']), visibility = ['//visibility:public'])".format(name = name),
-        sha256 = sha256,
-        strip_prefix = "cpython-bin-deps-{name}-{version}".format(
-            name = name,
-            version = version,
-        ),
-        url = "https://github.com/python/cpython-bin-deps/archive/{name}-{version}.zip".format(
-            name = name,
-            version = version,
-        ),
-    )
-    for name, (version, sha256) in python_bin_deps.items()
-]

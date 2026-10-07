@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-install_dir="$1"
+install_dir="$(dirname "$(dirname "$1")")"
 shift
 
 lib_dirs=""
