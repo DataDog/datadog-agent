@@ -54,7 +54,7 @@ runfiles = "0.3.0"
 rustls = { version = "0.23", default-features = false, features = ["logging", "std", "tls12"] }
 rustls-native-certs = { version = "0.8", default-features = false }
 rustls-pki-types = { version = "1", default-features = false, features = ["std"] }
-saluki-tls = { git = "https://github.com/DataDog/saluki", tag = "1.6.1" }
+saluki-tls = { git = "https://github.com/DataDog/saluki", tag = "1.6.2" }
 openssl = { version = "0.10", default-features = false }
 postgres = "0.19"
 postgres-openssl = { version = "0.5", default-features = false, features = ["runtime"] }

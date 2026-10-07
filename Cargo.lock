@@ -898,10 +898,10 @@ dependencies = [
  "pin-project-lite",
  "rustls",
  "rustls-pki-types",
- "saluki-error",
+ "saluki-error 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
  "saluki-io",
  "saluki-metadata",
- "saluki-tls",
+ "saluki-tls 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
  "tokio",
  "tokio-vsock",
  "tonic",
@@ -1050,7 +1050,7 @@ dependencies = [
  "float-cmp",
  "ordered-float 5.3.0",
  "protobuf",
- "saluki-antithesis",
+ "saluki-antithesis 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
  "smallvec",
 ]
 
@@ -2576,7 +2576,7 @@ dependencies = [
  "reqwest",
  "rustls",
  "rustls-pki-types",
- "saluki-tls",
+ "saluki-tls 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.2)",
  "serde",
  "serde_json",
  "tempfile",
@@ -3563,6 +3563,11 @@ version = "0.1.0"
 source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 
 [[package]]
+name = "saluki-antithesis"
+version = "0.1.0"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.2#ffe5e7938b3cdf146885e73bfe79e52d7efbae92"
+
+[[package]]
 name = "saluki-api"
 version = "0.1.0"
 source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
@@ -3589,14 +3594,43 @@ dependencies = [
  "pin-project",
  "quick_cache",
  "regex",
- "saluki-antithesis",
- "saluki-error",
- "saluki-metrics",
+ "saluki-antithesis 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
+ "saluki-error 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
+ "saluki-metrics 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
  "serde",
  "serde_with",
  "shake",
  "smallvec",
- "stringtheory",
+ "stringtheory 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "saluki-common"
+version = "0.1.0"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.2#ffe5e7938b3cdf146885e73bfe79e52d7efbae92"
+dependencies = [
+ "bytes",
+ "crossbeam-queue",
+ "foldhash 0.2.0",
+ "http-body",
+ "indexmap 2.14.0",
+ "itoa",
+ "libc",
+ "papaya",
+ "pin-project",
+ "quick_cache",
+ "regex",
+ "saluki-antithesis 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.2)",
+ "saluki-error 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.2)",
+ "saluki-metrics 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.2)",
+ "serde",
+ "serde_with",
+ "shake",
+ "smallvec",
+ "stringtheory 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.2)",
  "tokio",
  "tokio-util",
  "tracing",
@@ -3610,13 +3644,13 @@ dependencies = [
  "indexmap 2.14.0",
  "memchr",
  "metrics",
- "saluki-antithesis",
- "saluki-common",
- "saluki-error",
- "saluki-metrics",
+ "saluki-antithesis 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
+ "saluki-common 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
+ "saluki-error 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
+ "saluki-metrics 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
  "serde",
  "smallvec",
- "stringtheory",
+ "stringtheory 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
  "tokio",
  "tracing",
 ]
@@ -3642,17 +3676,17 @@ dependencies = [
  "pin-project",
  "process-memory",
  "prometheus-exposition",
- "saluki-antithesis",
+ "saluki-antithesis 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
  "saluki-api",
- "saluki-common",
+ "saluki-common 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
  "saluki-context",
- "saluki-error",
- "saluki-metrics",
+ "saluki-error 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
+ "saluki-metrics 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
  "serde",
  "serde_json",
  "smallvec",
  "snafu",
- "stringtheory",
+ "stringtheory 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
  "tokio",
  "tokio-util",
  "tracing",
@@ -3662,6 +3696,14 @@ dependencies = [
 name = "saluki-error"
 version = "0.1.0"
 source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
+name = "saluki-error"
+version = "0.1.0"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.2#ffe5e7938b3cdf146885e73bfe79e52d7efbae92"
 dependencies = [
  "anyhow",
 ]
@@ -3693,19 +3735,19 @@ dependencies = [
  "pin-project-lite",
  "rand 0.10.2",
  "rustls",
- "saluki-antithesis",
- "saluki-common",
+ "saluki-antithesis 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
+ "saluki-common 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
  "saluki-context",
  "saluki-core",
- "saluki-error",
- "saluki-metrics",
- "saluki-tls",
+ "saluki-error 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
+ "saluki-metrics 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
+ "saluki-tls 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
  "serde",
  "serde_json",
  "simdutf8",
  "snafu",
  "socket2",
- "stringtheory",
+ "stringtheory 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
  "tokio",
  "tokio-rustls",
  "tokio-stream",
@@ -3733,13 +3775,33 @@ source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff50
 dependencies = [
  "metrics",
  "papaya",
- "saluki-metrics-macros",
+ "saluki-metrics-macros 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
+]
+
+[[package]]
+name = "saluki-metrics"
+version = "0.1.0"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.2#ffe5e7938b3cdf146885e73bfe79e52d7efbae92"
+dependencies = [
+ "metrics",
+ "papaya",
+ "saluki-metrics-macros 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.2)",
 ]
 
 [[package]]
 name = "saluki-metrics-macros"
 version = "0.1.0"
 source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.2",
+]
+
+[[package]]
+name = "saluki-metrics-macros"
+version = "0.1.0"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.2#ffe5e7938b3cdf146885e73bfe79e52d7efbae92"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3754,8 +3816,21 @@ dependencies = [
  "rustls",
  "rustls-cng-crypto",
  "rustls-native-certs",
- "saluki-common",
- "saluki-error",
+ "saluki-common 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
+ "saluki-error 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
+ "tracing",
+]
+
+[[package]]
+name = "saluki-tls"
+version = "0.1.0"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.2#ffe5e7938b3cdf146885e73bfe79e52d7efbae92"
+dependencies = [
+ "rustls",
+ "rustls-cng-crypto",
+ "rustls-native-certs",
+ "saluki-common 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.2)",
+ "saluki-error 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.2)",
  "tracing",
 ]
 
@@ -4246,7 +4321,18 @@ source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff50
 dependencies = [
  "foldhash 0.2.0",
  "protobuf",
- "saluki-antithesis",
+ "saluki-antithesis 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.1)",
+ "serde",
+]
+
+[[package]]
+name = "stringtheory"
+version = "0.1.0"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.2#ffe5e7938b3cdf146885e73bfe79e52d7efbae92"
+dependencies = [
+ "foldhash 0.2.0",
+ "protobuf",
+ "saluki-antithesis 0.1.0 (git+https://github.com/DataDog/saluki?tag=1.6.2)",
  "serde",
 ]
 
