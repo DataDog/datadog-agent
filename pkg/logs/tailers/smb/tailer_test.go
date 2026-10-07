@@ -183,7 +183,7 @@ func TestPollForwardsLinesWithOffsetsAndTags(t *testing.T) {
 	assert.Equal(t, EncodeOffset(file, 8), second.Origin.Offset)
 	assert.Contains(t, second.Origin.Tags(), "filename:app.log")
 	assert.Contains(t, second.Origin.Tags(), "dirname:smb://files.example.com/logs/app")
-	assert.True(t, tt.CaughtUp())
+	assert.Zero(t, tt.UnreadBytes())
 
 	share.Append(testPath, []byte("three\n"))
 	_, err = tt.Poll(context.Background(), entryOf(t, share, testPath))
@@ -222,13 +222,13 @@ func TestPollReadsInChunksWithinItsBudget(t *testing.T) {
 	require.NoError(t, err)
 	assert.EqualValues(t, 10, tt.Offset(), "the poll budget bounds one poll")
 	assert.Equal(t, 2, share.Calls(fake.OpReadAt))
-	assert.False(t, tt.CaughtUp())
+	assert.EqualValues(t, 5, tt.UnreadBytes())
 
 	_, err = tt.Poll(context.Background(), entryOf(t, share, testPath))
 	require.NoError(t, err)
 	assert.EqualValues(t, 15, tt.Offset())
 	assert.Equal(t, 3, share.Calls(fake.OpReadAt), "no extra read to discover the end of the file")
-	assert.True(t, tt.CaughtUp())
+	assert.Zero(t, tt.UnreadBytes())
 	assert.Equal(t, []string{"aaaa", "bbbb", "cccc"}, tt.lines(t, 3))
 }
 
@@ -385,7 +385,7 @@ func TestDrainingMessagesCommitNoOffset(t *testing.T) {
 	require.NoError(t, share.Rename(testPath, "app/app.log.1"))
 	tt.SetReadPath("app/app.log.1")
 
-	// A draining tailer reads even when the listing shows nothing new.
+	// A drain's first poll reads even when the listing shows nothing new.
 	listed := entryOf(t, share, "app/app.log.1")
 	listed.Size = 0
 	_, err := tt.Poll(context.Background(), listed)
@@ -398,6 +398,90 @@ func TestDrainingMessagesCommitNoOffset(t *testing.T) {
 	assert.Contains(t, msg.Origin.Tags(), "filename:app.log", "tags keep the original file name")
 	assert.Equal(t, "app/app.log.1", tt.ReadPath())
 	assert.Equal(t, testPath, tt.Path())
+}
+
+// TestDrainSkipsUnchangedListingsAfterItsFirstPoll checks that a drain reads
+// its file as an active tailer does once its first poll read it: a drain lasts
+// as long as its file keeps getting new data, so its idle polls must not open
+// the file.
+func TestDrainSkipsUnchangedListingsAfterItsFirstPoll(t *testing.T) {
+	share := fake.New()
+	id := share.Write(testPath, []byte("one\n"))
+	tt := newTestTailer(t, share, id, 0, func(o *TailerOptions) { o.ForceReadEvery = 3 })
+	ctx := context.Background()
+	_, err := tt.Poll(ctx, entryOf(t, share, testPath))
+	require.NoError(t, err)
+	require.Equal(t, 1, share.Calls(fake.OpReadAt))
+
+	// Rotated after its last line was listed and read. The writer keeps
+	// appending through its handle, which the listing does not show: it keeps
+	// reporting the size already read, a stale size.
+	require.NoError(t, share.Rename(testPath, "app/app.log.1"))
+	stale := *entryOf(t, share, "app/app.log.1")
+	share.Append("app/app.log.1", []byte("two\n"))
+	tt.StartDraining()
+	tt.SetReadPath("app/app.log.1")
+	outcome, err := tt.Poll(ctx, &stale)
+	require.NoError(t, err)
+	assert.Equal(t, OutcomeRead, outcome, "the first poll of a drain reads whatever the listing shows")
+	assert.Equal(t, 2, share.Calls(fake.OpReadAt))
+
+	share.Append("app/app.log.1", []byte("three\n"))
+	for range 2 {
+		outcome, err := tt.Poll(ctx, &stale)
+		require.NoError(t, err)
+		assert.Equal(t, OutcomeUnchanged, outcome)
+	}
+	assert.Equal(t, 2, share.Calls(fake.OpReadAt), "no read while the listing shows nothing new")
+	outcome, err = tt.Poll(ctx, &stale)
+	require.NoError(t, err)
+	assert.Equal(t, OutcomeRead, outcome, "every third poll reads anyway")
+	assert.Equal(t, 3, share.Calls(fake.OpReadAt))
+
+	share.Append("app/app.log.1", []byte("four\n"))
+	outcome, err = tt.Poll(ctx, entryOf(t, share, "app/app.log.1"))
+	require.NoError(t, err)
+	assert.Equal(t, OutcomeRead, outcome, "a listing that shows new data is read at once")
+	assert.Equal(t, 4, share.Calls(fake.OpReadAt))
+	assert.Equal(t, []string{"one", "two", "three", "four"}, tt.lines(t, 4))
+}
+
+// TestDrainReadsOnWhileBytesItSawRemainUnread covers a drain whose read
+// stopped at the poll budget while the listing shows a stale size: the drain
+// reads the rest at its next poll, since its file may go away at any time,
+// and only then waits ForceReadEvery polls between reads.
+func TestDrainReadsOnWhileBytesItSawRemainUnread(t *testing.T) {
+	share := fake.New()
+	id := share.Write(testPath, []byte("one\ntwo\nsix\n")) // 12 bytes
+	tt := newTestTailer(t, share, id, 0, func(o *TailerOptions) {
+		o.PollBudget = 5
+		o.ForceReadEvery = 1000
+	})
+	ctx := context.Background()
+	tt.StartDraining()
+	stale := *entryOf(t, share, testPath)
+	stale.Size = 0 // the listing does not show the writer's bytes
+
+	outcome, err := tt.Poll(ctx, &stale)
+	require.NoError(t, err)
+	require.Equal(t, OutcomeRead, outcome, "the first poll of a drain reads whatever the listing shows")
+	require.EqualValues(t, 5, tt.Offset(), "the poll budget bounds one poll")
+	require.EqualValues(t, 7, tt.UnreadBytes(), "the read learned the file's size")
+	for _, offset := range []int64{10, 12} {
+		outcome, err = tt.Poll(ctx, &stale)
+		require.NoError(t, err)
+		assert.Equal(t, OutcomeRead, outcome, "a drain reads the bytes it saw at its next poll")
+		assert.EqualValues(t, offset, tt.Offset())
+	}
+	assert.Zero(t, tt.UnreadBytes())
+	reads := share.Calls(fake.OpReadAt)
+	for range 2 {
+		outcome, err = tt.Poll(ctx, &stale)
+		require.NoError(t, err)
+		assert.Equal(t, OutcomeUnchanged, outcome, "caught up: the idle interval applies again")
+	}
+	assert.Equal(t, reads, share.Calls(fake.OpReadAt))
+	assert.Equal(t, []string{"one", "two", "six"}, tt.lines(t, 3))
 }
 
 func TestDrainCommitsUnderTheIdentifierItIsGiven(t *testing.T) {

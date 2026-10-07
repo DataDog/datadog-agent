@@ -21,6 +21,7 @@ package smb
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -43,9 +44,17 @@ import (
 const (
 	// defaultPollInterval applies when a source sets no poll_interval.
 	defaultPollInterval = time.Second
-	// drainCaughtUpPolls is how many consecutive polls must find no new data
-	// in a rotated file, already read to its end, before its drain ends.
-	drainCaughtUpPolls = 2
+	// drainMaxCloseTimeouts bounds the drain of a rotated file to that many
+	// close timeouts: 10 minutes with the default logs_config.close_timeout
+	// of 60 seconds. A drain ends once its file has had no new data for one
+	// close timeout, so the bound only matters for a writer that keeps
+	// appending to the rotated file instead of reopening the path: without
+	// it, the drain would last as long as that writer. Ten close timeouts
+	// leave a writer that reopens the path late, on a signal or a schedule,
+	// time to finish, and scale with the setting an operator raises when
+	// rotated files lose data. What the writer appends after that is lost;
+	// only the bytes the drain saw but did not read are reported missed.
+	drainMaxCloseTimeouts = 10
 	// blockedReportAfter is how long a matched file may keep failing to open
 	// with a sharing violation or a not found error, as it does for a moment
 	// during a rotation, before the source status reports it.
@@ -54,7 +63,8 @@ const (
 
 // Launcher starts and stops the scanners of smb sources.
 type Launcher struct {
-	// closeTimeout bounds the drain of a rotated file.
+	// closeTimeout is how long a rotated file must have no new data before
+	// its drain ends; drainMaxCloseTimeouts of them bound the drain.
 	closeTimeout time.Duration
 
 	// Test seams.
@@ -88,8 +98,10 @@ type Launcher struct {
 	closing      map[client.Client]chan struct{} // clients logging off in the background; the channel closes when done
 }
 
-// NewLauncher returns a Launcher. closeTimeout bounds how long a rotated file
-// keeps being read under its new name (logs_config.close_timeout).
+// NewLauncher returns a Launcher. closeTimeout is logs_config.close_timeout,
+// which file sources wait for before they stop reading a rotated file: a
+// rotated file keeps being read under its new name until it has had no new
+// data for closeTimeout, and for drainMaxCloseTimeouts close timeouts at most.
 func NewLauncher(closeTimeout time.Duration) *Launcher {
 	return &Launcher{
 		closeTimeout: closeTimeout,
@@ -105,6 +117,14 @@ func NewLauncher(closeTimeout time.Duration) *Launcher {
 		clients:      make(map[clientKey]*sharedClient),
 		closing:      make(map[client.Client]chan struct{}),
 	}
+}
+
+// maxDrain returns how long the drain of a rotated file lasts at most.
+func (l *Launcher) maxDrain() time.Duration {
+	if l.closeTimeout > math.MaxInt64/drainMaxCloseTimeouts {
+		return math.MaxInt64
+	}
+	return l.closeTimeout * drainMaxCloseTimeouts
 }
 
 // Start implements launchers.Launcher. It does no network I/O: each source's

@@ -44,16 +44,18 @@ import (
 //   - path no longer listed: the tailer becomes a drain the same way;
 //   - shorter than the offset (truncation): a new tailer reads from offset 0.
 //
-// A drain ends when two consecutive polls find no new data in the file, when
-// closeTimeout elapses, or when its file is no longer listed; bytes known to
-// exist but not read are then reported as missed, unless the file sits at a
-// path the pattern matches: the file's next tailer then resumes where the
-// drain ended, whatever name the file has by the time it starts. Until then,
-// the drain commits its offsets under the identifier of that path, so that an
-// Agent restart resumes the file there too (see commitDrainAt). While a drain
-// lasts, agent status lists it next to the path's new tailer. A source that
-// stops for good while a drain lasts reports the drain's unread bytes as
-// missed, unless a restart resumes its file (see stopTailers).
+// A drain ends once its file has had no new data for closeTimeout
+// (logs_config.close_timeout, which file sources wait for after a rotation
+// too), drainMaxCloseTimeouts close timeouts after it started at the latest,
+// or when its file is no longer listed (see pollDrain). Bytes known to exist
+// but not read are then reported as missed, unless the file sits at a path the
+// pattern matches: the file's next tailer then resumes where the drain ended,
+// whatever name the file has by the time it starts. Until then, the drain
+// commits its offsets under the identifier of that path, so that an Agent
+// restart resumes the file there too (see commitDrainAt). While a drain lasts,
+// agent status lists it next to the path's new tailer. A source that stops for
+// good while a drain lasts reports the drain's unread bytes as missed, unless
+// a restart resumes its file (see stopTailers).
 //
 // A path tailed for the first time can hold another file than its stored
 // position names (where the scanner this one replaces stopped reading it, or
@@ -115,9 +117,9 @@ type scanner struct {
 
 type drain struct {
 	t        *tailer.Tailer
-	deadline time.Time
-	caughtUp int    // consecutive polls that found no new data
-	commitAt string // path whose identifier the drain commits its offsets under, "" for none (see commitDrainAt)
+	deadline time.Time // the drain ends then at the latest (see drainMaxCloseTimeouts)
+	lastData time.Time // when the drain started or last found new data in its file
+	commitAt string    // path whose identifier the drain commits its offsets under, "" for none (see commitDrainAt)
 	// committed is an offset of the file the registry can hold for it without
 	// skipping a byte that was not delivered: the offset last committed for
 	// the file before it rotated, or the committed offset its tailer started
@@ -162,7 +164,7 @@ type drainHandoff struct {
 	readPath    string         // where the file was found last
 	pattern     *regexp.Regexp // the multiline pattern its decoder detected
 	deadline    time.Time
-	caughtUp    int
+	lastData    time.Time
 	resumePaths map[string]bool
 }
 
@@ -248,8 +250,8 @@ func (s *scanner) resumeFrom(prev *scanner) {
 }
 
 // continueDrain starts a drain that goes on with h, a drain of the scanner
-// this one replaces: from the same offset and with the same deadline, read
-// through this scanner's client.
+// this one replaces: from the same offset, with the same deadline and since
+// the same last new data, read through this scanner's client.
 func (s *scanner) continueDrain(h drainHandoff) {
 	log.Infof("SMB rotation drain of %s (%s, read as %s) goes on at offset %d with the source's new configuration", tailer.Identifier(s.host, s.share, h.path), h.file, h.readPath, h.offset)
 	t := s.newTailer(h.path, h.file, h.pattern, false)
@@ -258,7 +260,7 @@ func (s *scanner) continueDrain(h drainHandoff) {
 	t.Start(h.offset)
 	t.StartDraining()
 	s.l.tailers.Add(t)
-	s.draining = append(s.draining, &drain{t: t, deadline: h.deadline, caughtUp: h.caughtUp, committed: h.committed, resumePaths: h.resumePaths})
+	s.draining = append(s.draining, &drain{t: t, deadline: h.deadline, lastData: h.lastData, committed: h.committed, resumePaths: h.resumePaths})
 }
 
 func (s *scanner) start(ctx context.Context) {
@@ -378,7 +380,7 @@ func (s *scanner) handOver(d *drain) drainHandoff {
 		readPath:    t.ReadPath(),
 		pattern:     t.GetDetectedPattern(),
 		deadline:    d.deadline,
-		caughtUp:    d.caughtUp,
+		lastData:    d.lastData,
 		resumePaths: d.resumePaths,
 	}
 }
@@ -856,9 +858,11 @@ func (s *scanner) startDrain(t *tailer.Tailer, committed int64) {
 		resumePaths[t.Path()] = true
 	}
 	s.l.tailers.Add(t)
+	now := s.l.clock.Now()
 	s.draining = append(s.draining, &drain{
 		t:           t,
-		deadline:    s.l.clock.Now().Add(s.l.closeTimeout),
+		deadline:    now.Add(s.l.maxDrain()),
+		lastData:    now,
 		committed:   committed,
 		resumePaths: resumePaths,
 	})
@@ -916,6 +920,18 @@ func (s *scanner) pollDrains(ctx context.Context, v *view, errs *scanErrors) {
 
 // pollDrain polls one drain and reports whether it goes on.
 //
+// Once its file has had no new data for closeTimeout, the drain reads the file
+// one last time whatever the listing shows, since listing sizes can be stale,
+// and ends unless that read finds new data. Until then it reads the file when
+// the listing shows it changed, at every poll while bytes a read or a listing
+// showed remain unread (a read stops at the poll budget, and the file may be
+// deleted at any time), and otherwise every ForceReadEvery polls, as an
+// active tailer does. Bytes the listing shows but a read cannot fetch yet,
+// while the file is locked, count as new data too. A last read that fails is
+// retried at the next poll when it failed with the session, or when the
+// listing shows bytes the drain has not read: a writer can keep the file
+// locked for longer than closeTimeout. The deadline still bounds the drain.
+//
 // When a directory could not be listed and the listing does not show the
 // drain's file, the drain goes on: the file may be in that directory. Past its
 // deadline, it goes on only while the directory its file was found in last
@@ -925,7 +941,8 @@ func (s *scanner) pollDrains(ctx context.Context, v *view, errs *scanErrors) {
 // reading it again.
 func (s *scanner) pollDrain(ctx context.Context, d *drain, v *view, errs *scanErrors) bool {
 	t := d.t
-	expired := !s.l.clock.Now().Before(d.deadline)
+	now := s.l.clock.Now()
+	expired := !now.Before(d.deadline)
 	at, entry, found := v.findFile(t.Identity())
 	if !found && v.failed {
 		if _, _, known := v.lookup(t.ReadPath()); !expired || !known {
@@ -933,7 +950,12 @@ func (s *scanner) pollDrain(ctx context.Context, d *drain, v *view, errs *scanEr
 		}
 	}
 	if expired {
-		s.endDrain(d, v, t.Offset(), fmt.Sprintf("SMB rotation drain timed out after %s (logs_config.close_timeout)", s.l.closeTimeout))
+		if found {
+			// The drain ends without reading what this listing shows: those
+			// bytes are missed too.
+			t.AssumeSize(entry.Size)
+		}
+		s.endDrain(d, v, t.Offset(), fmt.Sprintf("SMB rotation drain reached its longest duration, %s (%d times logs_config.close_timeout)", s.l.maxDrain(), drainMaxCloseTimeouts))
 		return false
 	}
 	if !found {
@@ -942,12 +964,30 @@ func (s *scanner) pollDrain(ctx context.Context, d *drain, v *view, errs *scanEr
 	}
 	t.SetReadPath(at)
 	s.commitDrainAt(d, at, v)
-	offset := t.Offset()
-	outcome, err := t.Poll(ctx, &entry)
+	quiet := now.Sub(d.lastData) >= s.l.closeTimeout
+	offset, size := t.Offset(), t.Offset()+t.UnreadBytes()
+	listed := &entry
+	if quiet {
+		// A last read, whatever the listing shows. The size the listing
+		// shows still counts: findFile found the entry by FileId.
+		t.AssumeSize(entry.Size)
+		listed = nil
+	}
+	outcome, err := t.Poll(ctx, listed)
+	if t.Offset() > offset || t.Offset()+t.UnreadBytes() > size {
+		d.lastData = now
+		quiet = false
+	}
 	switch {
 	case err != nil:
 		errs.addFileErr(t.Identifier(), err)
-		return true
+		if client.Classify(err) == client.ErrTransient || entry.Size > t.Offset() {
+			// The session failed, not the file: the client redials, and the
+			// next poll reads again. Or the file holds bytes the drain has
+			// not read, which a lock keeps it from reading for now. The
+			// deadline still bounds the drain.
+			return true
+		}
 	case outcome == tailer.OutcomeIdentityChanged:
 		return true // moved again since the listing: found again next scan
 	case outcome == tailer.OutcomeTruncated:
@@ -958,18 +998,12 @@ func (s *scanner) pollDrain(ctx context.Context, d *drain, v *view, errs *scanEr
 		s.stopCommitting(d)
 		s.endDrain(d, v, 0, "")
 		return false
-	case t.CaughtUp() && t.Offset() == offset:
-		// Nothing new since the previous poll: the writer may be done.
-		d.caughtUp++
-		if d.caughtUp >= drainCaughtUpPolls {
-			s.endDrain(d, v, t.Offset(), "")
-			return false
-		}
-		return true
-	default:
-		d.caughtUp = 0
+	}
+	if !quiet {
 		return true
 	}
+	s.endDrain(d, v, t.Offset(), fmt.Sprintf("SMB rotation drain ended after %s without new data (logs_config.close_timeout)", s.l.closeTimeout))
+	return false
 }
 
 // endDrain stops the drain d. While its file is listed, the file's next tailer

@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -287,6 +288,26 @@ func (h *harness) scan() {
 	h.scanner.scan(h.ctx)
 }
 
+// scanAfterCloseTimeout lets the close timeout pass, then scans: the drains
+// whose file got no new data since their previous poll read it one last time
+// and end.
+func (h *harness) scanAfterCloseTimeout() {
+	h.t.Helper()
+	h.clock.Add(closeTimeout)
+	h.scan()
+}
+
+// countReads counts the reads of the file at p from now on.
+func (h *harness) countReads(p string) *atomic.Int32 {
+	var reads atomic.Int32
+	h.share.SetHook(func(op fake.Op, path string) {
+		if op == fake.OpReadAt && path == p {
+			reads.Add(1)
+		}
+	})
+	return &reads
+}
+
 // stop stops every tailer, which flushes them, and closes the client.
 func (h *harness) stop() {
 	if h.stopped {
@@ -434,10 +455,14 @@ func TestRotationByRenameAndCreateDrainsTheOldFile(t *testing.T) {
 		"agent status lists the drain next to the path's new tailer")
 	assert.Contains(t, h.scanner.draining[0].t.GetInfo().Rendered(), "Draining Since")
 
+	for range 3 {
+		h.clock.Add(closeTimeout / 4)
+		h.scan()
+		require.Len(t, h.scanner.draining, 1, "the drain goes on until its file had no new data for the close timeout")
+	}
+	h.clock.Add(closeTimeout / 4)
 	h.scan()
-	require.Len(t, h.scanner.draining, 1)
-	h.scan()
-	assert.Empty(t, h.scanner.draining, "the drain ends after two polls without new data")
+	assert.Empty(t, h.scanner.draining, "a close timeout after the drain last found new data, it ends")
 	assert.Equal(t, []string{identifier("app/app.log")}, trackedIDs(h.launcher))
 
 	committed, uncommitted := h.messagesFor("app/app.log")
@@ -456,15 +481,270 @@ func TestDrainFollowsAWriterStillAppendingToTheRotatedFile(t *testing.T) {
 
 	h.scan()
 	for i := 2; i <= 4; i++ {
-		// The writer kept its handle on the rotated file.
+		// The writer kept its handle on the rotated file, and appends to it
+		// once in a while, within the close timeout.
+		h.clock.Add(closeTimeout - time.Second)
 		h.share.Append("app/app.log.1", []byte(lines(i, i)))
 		h.scan()
 		require.Len(t, h.scanner.draining, 1, "a growing file keeps being drained")
 	}
-	h.scan()
-	h.scan()
+	h.scanAfterCloseTimeout()
 	assert.Empty(t, h.scanner.draining)
 	assert.Equal(t, want(1, 4), h.finish())
+}
+
+// TestIdleDrainReadsOnlyWhenForced checks that a drain whose file gets no new
+// data reads it as an active tailer does: when the drain starts, then every
+// ForceReadEvery polls (3 in these tests), plus once more when the close
+// timeout ends the drain.
+func TestIdleDrainReadsOnlyWhenForced(t *testing.T) {
+	h := newHarness(t)
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", nil)
+	reads := h.countReads("app/app.log.1")
+
+	h.scan()
+	require.Len(t, h.scanner.draining, 1)
+	assert.EqualValues(t, 1, reads.Load(), "the drain reads its file when it starts")
+	for range 9 {
+		h.clock.Add(time.Second)
+		h.scan()
+	}
+	require.Len(t, h.scanner.draining, 1)
+	assert.EqualValues(t, 4, reads.Load(), "then every third poll while the listing shows nothing new")
+	h.scanAfterCloseTimeout()
+	assert.Empty(t, h.scanner.draining)
+	assert.EqualValues(t, 5, reads.Load(), "and once more before it ends")
+	assert.Equal(t, want(1, 1), h.finish())
+}
+
+// TestDrainReadsOnceMoreBeforeItEnds covers a server whose listing does not
+// show a rotated file grow while its writer holds it open: when the close
+// timeout would end the drain, it reads the file whatever the listing shows,
+// and goes on since that read finds new data.
+func TestDrainReadsOnceMoreBeforeItEnds(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t, withLauncher(func(l *Launcher) { l.forceReadEvery = 1000 }))
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", nil)
+	h.scan()
+	require.Len(t, h.scanner.draining, 1)
+
+	h.share.SetStaleListing(true)
+	reads := h.countReads("app/app.log.1")
+	h.clock.Add(closeTimeout - time.Second)
+	h.share.Append("app/app.log.1", []byte(lines(2, 2)))
+	h.scan()
+	assert.Zero(t, reads.Load(), "the listing shows nothing new")
+	h.clock.Add(time.Second)
+	h.scan()
+	assert.EqualValues(t, 1, reads.Load())
+	assert.Equal(t, want(1, 2), h.out.waitLines(t, 2))
+	require.Len(t, h.scanner.draining, 1, "the last read found new data: the drain goes on")
+
+	h.scanAfterCloseTimeout()
+	assert.Empty(t, h.scanner.draining)
+	assert.Equal(t, want(1, 2), h.finish())
+	assert.Empty(t, metrics.MissedBytesSnapshot())
+}
+
+// TestDrainReadsItsBacklogBeforeTheArchiveIsDeleted covers a rotated file
+// holding more unread bytes than one poll reads, under a listing whose size is
+// stale: the drain reads the rest at its next poll rather than every
+// ForceReadEvery polls, so that the archive's deletion soon after does not
+// lose it.
+func TestDrainReadsItsBacklogBeforeTheArchiveIsDeleted(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t, withLauncher(func(l *Launcher) {
+		l.pollBudget = 14
+		l.forceReadEvery = 1000
+	}))
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	h.out.waitLines(t, 1)
+	h.share.SetStaleListing(true) // the listing keeps showing 7 bytes
+	h.share.Append("app/app.log", []byte(lines(2, 5)))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", nil)
+	h.scan() // the drain starts; its first read stops at the budget
+	require.Len(t, h.scanner.draining, 1)
+	h.out.waitLines(t, 3)
+
+	h.clock.Add(time.Second)
+	h.scan() // reads lines 4 and 5: the drain knows they exist
+	require.NoError(t, h.share.Delete("app/app.log.1"))
+	h.clock.Add(time.Second)
+	h.scan()
+	assert.Empty(t, h.scanner.draining)
+	assert.Equal(t, want(1, 5), h.finish())
+	assert.Empty(t, metrics.MissedBytesSnapshot())
+}
+
+// TestDrainLastsTenCloseTimeoutsAtMost covers a writer that keeps appending to
+// the rotated file instead of reopening the path: its drain ends ten close
+// timeouts after it started, and the bytes it saw but could not read are
+// reported missed.
+func TestDrainLastsTenCloseTimeoutsAtMost(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t)
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", nil)
+	h.scan()
+
+	last := 2 * drainMaxCloseTimeouts // a line every half close timeout
+	for i := 2; i <= last; i++ {
+		h.clock.Add(closeTimeout / 2)
+		h.share.Append("app/app.log.1", []byte(lines(i, i)))
+		if i == last {
+			// Listed, but the file is locked when the drain reads it.
+			h.share.FailNextPath(fake.OpReadAt, "app/app.log.1", fake.ErrSharing)
+		}
+		h.scan()
+		require.Len(t, h.scanner.draining, 1, "the drain goes on while its file gets new data")
+	}
+	h.clock.Add(closeTimeout / 2)
+	h.scan()
+	assert.Empty(t, h.scanner.draining, "ten close timeouts after it started, the drain ends")
+	snapshot := metrics.MissedBytesSnapshot()
+	require.Len(t, snapshot, 1)
+	assert.Equal(t, int64(len(lines(last, last))), snapshot[0].Bytes, "the line it saw but could not read")
+	assert.Equal(t, want(1, last-1), h.finish())
+}
+
+// TestDrainCountsTheListedSizeBeforeItsLastRead covers a file the listing shows
+// grow just as its drain would end, while the file is locked: the bytes listed
+// count as new data, so the drain goes on and reads them once the lock is
+// gone.
+func TestDrainCountsTheListedSizeBeforeItsLastRead(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t)
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", nil)
+	h.scan()
+	require.Len(t, h.scanner.draining, 1)
+
+	h.clock.Add(closeTimeout - time.Second)
+	h.scan()
+	h.clock.Add(time.Second)
+	h.share.Append("app/app.log.1", []byte(lines(2, 2)))
+	h.share.FailNextPath(fake.OpReadAt, "app/app.log.1", fake.ErrSharing)
+	h.scan()
+	require.Len(t, h.scanner.draining, 1, "the listing shows a line the locked file did not let the drain read: the drain goes on")
+	assert.Empty(t, metrics.MissedBytesSnapshot())
+
+	h.scan()
+	assert.Equal(t, want(1, 2), h.out.waitLines(t, 2), "the next poll reads it")
+	h.scanAfterCloseTimeout()
+	assert.Empty(t, h.scanner.draining)
+	assert.Equal(t, want(1, 2), h.finish())
+	assert.Empty(t, metrics.MissedBytesSnapshot())
+}
+
+// TestDrainCountsWhatTheListingShowsAtItsLongestDuration covers a writer that
+// keeps appending to the rotated file: when the drain reaches its longest
+// duration, it ends without reading the line this scan lists, and reports that
+// line missed.
+func TestDrainCountsWhatTheListingShowsAtItsLongestDuration(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t)
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", nil)
+	h.scan()
+
+	last := 2*drainMaxCloseTimeouts + 1 // a line every half close timeout, the last one listed at the drain's deadline
+	for i := 2; i <= last; i++ {
+		h.clock.Add(closeTimeout / 2)
+		h.share.Append("app/app.log.1", []byte(lines(i, i)))
+		h.scan()
+		if i < last {
+			require.Len(t, h.scanner.draining, 1, "the drain goes on while its file gets new data")
+		}
+	}
+	assert.Empty(t, h.scanner.draining, "ten close timeouts after it started, the drain ends")
+	snapshot := metrics.MissedBytesSnapshot()
+	require.Len(t, snapshot, 1)
+	assert.Equal(t, int64(len(lines(last, last))), snapshot[0].Bytes, "the line listed when the drain ended")
+	assert.Equal(t, want(1, last-1), h.finish())
+}
+
+// TestDrainWaitsOutALockLongerThanTheCloseTimeout covers a writer that keeps
+// the rotated file locked for longer than the close timeout, after appending a
+// line the listing shows: the drain keeps trying to read it instead of ending
+// once the close timeout passed, and reads it once the lock is gone.
+func TestDrainWaitsOutALockLongerThanTheCloseTimeout(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t)
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	h.share.Append("app/app.log", []byte(lines(2, 2)))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", nil)
+	// Locked for the scan that sees the rotation and the three after it,
+	// three close timeouts.
+	h.share.FailNextPath(fake.OpReadAt, "app/app.log.1", fake.ErrSharing, fake.ErrSharing, fake.ErrSharing, fake.ErrSharing)
+	h.scan()
+	require.Len(t, h.scanner.draining, 1)
+	for range 3 {
+		h.scanAfterCloseTimeout()
+		require.Len(t, h.scanner.draining, 1, "the listing shows a line the drain could not read yet: the drain goes on")
+	}
+	assert.Empty(t, metrics.MissedBytesSnapshot())
+
+	h.scanAfterCloseTimeout()
+	assert.Equal(t, want(1, 2), h.out.waitLines(t, 2), "the lock is gone: the drain reads the line")
+	h.scanAfterCloseTimeout()
+	assert.Empty(t, h.scanner.draining)
+	assert.Equal(t, want(1, 2), h.finish())
+	assert.Empty(t, metrics.MissedBytesSnapshot())
+}
+
+// TestDrainRetriesALastReadThatLostTheSession covers a stale listing and a
+// session lost just as the drain reads its file one last time: the drain
+// retries that read at its next poll instead of ending without it.
+func TestDrainRetriesALastReadThatLostTheSession(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t, withLauncher(func(l *Launcher) { l.forceReadEvery = 1000 }))
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", nil)
+	h.scan()
+	require.Len(t, h.scanner.draining, 1)
+
+	h.share.SetStaleListing(true)
+	h.clock.Add(closeTimeout / 2)
+	h.share.Append("app/app.log.1", []byte(lines(2, 2)))
+	h.scan() // the listing shows nothing new: no read
+	h.clock.Add(closeTimeout / 2)
+	h.share.FailNextPath(fake.OpReadAt, "app/app.log.1", fake.ErrTransient)
+	h.scan()
+	require.Len(t, h.scanner.draining, 1, "the last read failed with the session: the drain retries it")
+
+	h.clock.Add(time.Second)
+	h.scan()
+	assert.Equal(t, want(1, 2), h.out.waitLines(t, 2), "the retry reads the line the listing does not show")
+	require.Len(t, h.scanner.draining, 1, "and the drain goes on, since it found new data")
+	h.scanAfterCloseTimeout()
+	assert.Empty(t, h.scanner.draining)
+	assert.Equal(t, want(1, 2), h.finish())
+	assert.Empty(t, metrics.MissedBytesSnapshot())
 }
 
 func TestMultipleRotationsBetweenScans(t *testing.T) {
@@ -480,9 +760,8 @@ func TestMultipleRotationsBetweenScans(t *testing.T) {
 	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
 	h.share.Write("app/app.log", []byte(lines(3, 3)))
 
-	for range 3 {
-		h.scan()
-	}
+	h.scan()
+	h.scanAfterCloseTimeout()
 	assert.Empty(t, h.scanner.draining)
 	// The first file is found by FileId two renames later. The file that
 	// lived at app/app.log only between two scans was never seen: it is
@@ -583,9 +862,8 @@ func TestDrainDoesNotFollowAReusedFileID(t *testing.T) {
 	h.share.Recreate("app/app.log", oldID)
 	h.share.Append("app/app.log", []byte(lines(4, 6)))
 
-	for range 3 {
-		h.scan()
-	}
+	h.scan()
+	h.scanAfterCloseTimeout()
 	assert.Empty(t, h.scanner.draining)
 	assert.ElementsMatch(t, []string{"line 1", "line 3", "line 4", "line 5", "line 6"}, h.finish(),
 		"the new file is read once, from its beginning")
@@ -660,8 +938,7 @@ func TestRenameToAnotherMatchedPathIsNotReadTwice(t *testing.T) {
 
 	h.scan() // a.log is gone: its file is drained at b.log, b.log waits
 	assert.Nil(t, h.scanner.active["app/b.log"])
-	h.scan()
-	h.scan() // second poll without new data: the drain hands b.log over
+	h.scanAfterCloseTimeout() // no new data for the close timeout: the drain hands b.log over
 	assert.Empty(t, h.scanner.draining)
 	h.share.Append("app/b.log", []byte(lines(3, 3)))
 	h.scan()
@@ -683,18 +960,18 @@ func TestRotationChainMatchedByThePatternIsNotReadTwice(t *testing.T) {
 
 	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
 	second := h.share.Write("app/app.log", []byte(lines(2, 2)))
-	for range 3 {
-		h.scan()
-	}
+	h.scan()
+	h.scanAfterCloseTimeout() // the drain ends: app.log.1 resumes at the next scan
+	h.scan()
 	require.Empty(t, h.scanner.draining)
 	assert.Equal(t, first, h.activeTailer("app/app.log.1").FileID())
 
 	require.NoError(t, h.share.Rename("app/app.log.1", "app/app.log.2"))
 	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
 	h.share.Write("app/app.log", []byte(lines(3, 3)))
-	for range 3 {
-		h.scan()
-	}
+	h.scan()
+	h.scanAfterCloseTimeout()
+	h.scan()
 	require.Empty(t, h.scanner.draining)
 	assert.Equal(t, second, h.activeTailer("app/app.log.1").FileID())
 	assert.Equal(t, first, h.activeTailer("app/app.log.2").FileID())
@@ -719,18 +996,17 @@ func TestDrainedFileRenamedAgainBeforeItsPathIsTailed(t *testing.T) {
 	h.share.Append("app/app.log", []byte(lines(3, 3)))
 	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
 	second := h.share.Write("app/app.log", []byte(lines(4, 4)))
-	for range 3 {
-		h.scan() // the drain reads line 3, then ends after two polls without new data
-	}
+	h.scan()                  // the drain reads line 3
+	h.scanAfterCloseTimeout() // then ends: nothing new for the close timeout
 	require.Empty(t, h.scanner.draining)
 	require.Nil(t, h.scanner.active["app/app.log.1"], "the drain ended after this scan started its tailers")
 
 	require.NoError(t, h.share.Rename("app/app.log.1", "app/app.log.2"))
 	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
 	h.share.Write("app/app.log", []byte(lines(5, 5)))
-	for range 4 {
-		h.scan()
-	}
+	h.scan()
+	h.scanAfterCloseTimeout()
+	h.scan()
 	require.Empty(t, h.scanner.draining)
 	assert.Equal(t, first, h.activeTailer("app/app.log.2").FileID())
 	assert.Equal(t, second, h.activeTailer("app/app.log.1").FileID())
@@ -765,9 +1041,8 @@ func TestPathADrainCommittedUnderIsNotResumedFromItsRegistryOffset(t *testing.T)
 		require.Equal(t, identifier("app/app.log.1"), h.scanner.draining[0].t.CommitIdentifier())
 
 		require.NoError(t, h.share.Rename("app/app.log.1", "app/app.log.2"))
-		for range 3 {
-			h.scan() // the drain ends at app.log.2, which the source excludes
-		}
+		h.scan()
+		h.scanAfterCloseTimeout() // the drain ends at app.log.2, which the source excludes
 		require.Empty(t, h.scanner.draining)
 		require.NotEmpty(t, h.registry.GetOffset(identifier("app/app.log.1")), "the drain committed under app.log.1")
 
@@ -855,8 +1130,8 @@ func TestResumePointOfADeletedFileIsForgotten(t *testing.T) {
 	h.scan()
 	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
 	h.share.Write("app/app.log", []byte(lines(2, 2)))
-	h.scan() // the drain of app.log.1 starts
-	h.scan() // and ends: app.log.1 resumes at the next scan
+	h.scan()                  // the drain of app.log.1 starts
+	h.scanAfterCloseTimeout() // and ends: app.log.1 resumes at the next scan
 	require.Len(t, h.scanner.resume, 1)
 
 	require.NoError(t, h.share.Delete("app/app.log.1"))
@@ -954,9 +1229,8 @@ func TestFileRenamedAwayAndBackIsNotReadTwice(t *testing.T) {
 	h.out.waitLines(t, 2)
 	require.NoError(t, h.share.Rename("app/app.log.tmp", "app/app.log"))
 	h.share.Append("app/app.log", []byte(lines(3, 3)))
-	for range 3 {
-		h.scan() // the drain follows the file back, then hands app.log over
-	}
+	h.scan()                  // the drain follows the file back
+	h.scanAfterCloseTimeout() // then hands app.log over
 	require.Empty(t, h.scanner.draining)
 
 	h.share.Append("app/app.log", []byte(lines(4, 4)))
@@ -997,11 +1271,17 @@ func TestDrainTimeoutRecordsMissedBytes(t *testing.T) {
 	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
 	h.share.Write("app/app.log", nil)
 	// The rotated file stays locked by its writer for the whole drain.
-	h.share.FailNextPath(fake.OpReadAt, "app/app.log.1", fake.ErrSharing, fake.ErrSharing)
+	locked := make([]error, 2*drainMaxCloseTimeouts)
+	for i := range locked {
+		locked[i] = fake.ErrSharing
+	}
+	h.share.FailNextPath(fake.OpReadAt, "app/app.log.1", locked...)
 
 	h.scan()
 	assert.True(t, h.source.Status().IsSuccess(), "a sharing violation is retried without an error status")
-	h.clock.Add(closeTimeout)
+	h.scanAfterCloseTimeout()
+	require.Len(t, h.scanner.draining, 1, "the listing shows a line the drain could not read: the drain waits for it")
+	h.clock.Add(h.scanner.draining[0].deadline.Sub(h.clock.Now()))
 	h.scan()
 	assert.Empty(t, h.scanner.draining)
 	snapshot := metrics.MissedBytesSnapshot()

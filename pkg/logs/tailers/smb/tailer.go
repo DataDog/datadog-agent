@@ -208,7 +208,6 @@ type Tailer struct {
 	// Read state, owned by the goroutine calling Poll.
 	lastListedSize int64 // size from the previous listing, -1 before the first one
 	skippedPolls   int   // polls since the last read
-	caughtUp       bool  // the last read reached the end of the file
 
 	chunkSize      int
 	pollBudget     int
@@ -307,8 +306,9 @@ func (t *Tailer) Start(offset int64) {
 }
 
 // AssumeSize records that the file held size bytes when another tailer of it
-// last saw it, so that UnreadBytes counts the bytes past the offset before this
-// tailer sees the file itself.
+// last saw it, or when a listing Poll is not given showed it, so that
+// UnreadBytes counts the bytes past the offset before this tailer sees the
+// file itself.
 func (t *Tailer) AssumeSize(size int64) {
 	if size > t.lastSeenSize.Load() {
 		t.lastSeenSize.Store(size)
@@ -341,8 +341,10 @@ func (t *Tailer) AssumeCommitted() {
 	t.committed = true
 }
 
-// StartDraining turns the tailer into the drain of a rotated file: Poll then
-// reads on every call, ignoring listing sizes, and its messages stop committing
+// StartDraining turns the tailer into the drain of a rotated file: its next
+// Poll reads whatever the listing shows, since the file may have grown since
+// the last listing of its previous name, later ones read while bytes it saw
+// remain unread (see shouldRead), and its messages stop committing
 // offsets under the path's identifier, which now belongs to the path's new
 // file (see CommitTo). GetID changes too, so a tailer container holding the
 // tailer must remove it before this call.
@@ -350,6 +352,7 @@ func (t *Tailer) StartDraining() {
 	if t.draining.Swap(true) {
 		return
 	}
+	t.lastListedSize = -1
 	t.CommitTo("")
 	draining := status.NewMappedInfo("Draining Since")
 	draining.SetMessage("Draining Since", time.Now().UTC().Format("2006-01-02 15:04:05 UTC"))
@@ -446,9 +449,10 @@ func (t *Tailer) SetReadPath(p string) {
 
 // Poll reads the bytes the file gained since the previous poll and sends them
 // to the decoder, up to the poll budget. entry is the file's directory entry
-// from the current scan; nil, or a draining tailer, always reads. Without new
-// data in the listing, a read is still made every ForceReadEvery polls, since
-// listing sizes can be stale.
+// from the current scan; nil always reads. Without new data in the listing, a
+// read is still made every ForceReadEvery polls, since listing sizes can be
+// stale, and a draining tailer reads at every poll while bytes a read or a
+// listing showed remain unread.
 //
 // Bytes are sent to the decoder only after ReadAt returned, so no file handle
 // is open while Poll waits for the pipeline. Offsets only move past bytes the
@@ -500,10 +504,9 @@ func (t *Tailer) Poll(ctx context.Context, entry *client.Entry) (Outcome, error)
 			t.recordBytes(int64(n))
 			budget -= n
 		}
-		t.caughtUp = offset+int64(n) >= res.Size
 		// Stop at the end of the file (as of this read) rather than paying
 		// for another round trip to learn it.
-		if n == 0 || t.caughtUp || budget <= 0 {
+		if n == 0 || offset+int64(n) >= res.Size || budget <= 0 {
 			return OutcomeRead, nil
 		}
 	}
@@ -528,19 +531,22 @@ func (t *Tailer) adopt(file client.Identity) {
 
 // shouldRead reports whether Poll needs to read. It records the listed size.
 func (t *Tailer) shouldRead(entry *client.Entry) bool {
-	if entry == nil || t.draining.Load() {
+	if entry == nil {
 		return true
 	}
 	listed := entry.Size
 	changed := listed != t.lastListedSize
 	t.lastListedSize = listed
-	return listed > t.offset.Load() || changed || t.skippedPolls+1 >= t.forceReadEvery
-}
-
-// CaughtUp reports whether the last read reached the end of the file as the
-// server reported it when that read opened the file.
-func (t *Tailer) CaughtUp() bool {
-	return t.caughtUp
+	// A drain whose last read stopped at the poll budget, or failed, reads on
+	// while bytes it saw remain unread, whatever the listing shows: its file
+	// may go away at any time. Only drains do: lastSeenSize never shrinks, so
+	// a file truncated to a size between offset and lastSeenSize keeps
+	// UnreadBytes above 0. A drain's reads of it find no new data, and the
+	// drain ends after close_timeout; an active tailer would read it at every
+	// poll for as long as it runs.
+	return listed > t.offset.Load() || changed ||
+		(t.draining.Load() && t.UnreadBytes() > 0) ||
+		t.skippedPolls+1 >= t.forceReadEvery
 }
 
 // UnreadBytes returns the bytes known to exist in the file that were not read:
