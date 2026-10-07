@@ -50,6 +50,7 @@ func newObserverPipeline(
 		inputChan,
 		outputChan,
 		processingRules,
+		nil, // Tag filters are intake-only; AAD reads canonical Origin tags.
 		processor.PassthroughEncoder,
 		diagnostic.NewBufferedMessageReceiver(nil, hostname, cfg),
 		hostname,
