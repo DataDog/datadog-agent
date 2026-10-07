@@ -204,6 +204,17 @@ Secondary CI: pull-request/repository-configuration checks and release automatio
 PRs should follow `.github/PULL_REQUEST_TEMPLATE.md` and the guidelines in
 `doc/guidelines/` (contributing, coding style, components, etc.).
 
+### Code ownership
+`.github/CODEOWNERS` is partly generated. The block between `# BEGIN COMPONENTS`
+and `# END COMPONENTS` is built from the `// team:` annotation in each
+component's `def/component.go` (or bundle's `bundle.go`). To change who owns a
+component or bundle, edit that annotation and run
+`dda inv components.lint-components --fix`, which also regenerates
+`comp/README.md`; never hand-edit lines inside the block (CI's `lint_components`
+job fails if they disagree with the annotations). Edit `CODEOWNERS` directly for
+everything else. To override part of a component (a subfolder or single file),
+add the line after `# END COMPONENTS`: rules are last-match-wins.
+
 ## Code Review
 
 Code reviewer plugins for Go and Python are available from the

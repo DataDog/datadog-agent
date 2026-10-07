@@ -82,6 +82,7 @@ func TestProcmgrSmokeLinuxSuite(t *testing.T) {
 					agentparams.WithFile(linuxConfigDir+"/test-sleep.yaml", linuxTestProcessConfig, true),
 					agentparams.WithFile(linuxConfigDir+"/datadog-agent-ddot.yaml", string(ddotConfig), true),
 					agentparams.WithFile(linuxConfigDir+"/missing-binary.yaml", linuxMissingBinaryConfig, true),
+					agentparams.WithFile(linuxConfigDir+"/datadog-agent-par-control.yaml", skippedCatalogProcessYAML("/nonexistent/par-control", "/nonexistent/par-control"), true),
 				),
 			),
 		),
