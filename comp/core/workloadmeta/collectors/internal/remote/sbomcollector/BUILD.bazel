@@ -40,6 +40,8 @@ dd_agent_go_test(
     deps = [
         "//comp/core/workloadmeta/collectors/sbomutil",
         "//comp/core/workloadmeta/def",
+        "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/proto/pbgo/sbom",
         "//pkg/util/pointer",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",

@@ -247,10 +247,8 @@ func (s *streamHandler) IsEnabled() bool {
 		return false
 	}
 
-	sbomEnrichmentEnabled := s.agentConfig.GetBool("sbom.enrichment.usage.enabled")
-	runtimeSecuritySBOMDisabled := s.systemProbeConfig.IsConfigured("runtime_security_config.sbom.enabled") && !s.systemProbeConfig.GetBool("runtime_security_config.sbom.enabled")
-
-	return sbomEnrichmentEnabled && !runtimeSecuritySBOMDisabled
+	// system-probe serves runtime usage on this setting alone
+	return s.agentConfig.GetBool("sbom.enrichment.usage.enabled")
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
