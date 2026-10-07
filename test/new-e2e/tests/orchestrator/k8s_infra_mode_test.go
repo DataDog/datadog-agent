@@ -90,17 +90,8 @@ func (suite *k8sInfraModeSuite) TestManifestEnvelopeCarriesInfraMode() {
 	}, defaultTimeout, 15*time.Second)
 }
 
-// kubernetesEventSource is the source the kubernetes_apiserver check reports
-// events under while kubernetes_events_source_detection stays disabled.
 const kubernetesEventSource = "kubernetes"
 
-// TestKubernetesEventCarriesInfraMode covers the bundled Kubernetes events
-// path, the one the kubernetes_apiserver check serves by default. Event
-// collection is enabled for this suite alone, through
-// DD_COLLECT_KUBERNETES_EVENTS in agent_infra_mode_values.yaml.
-//
-// The events come from the cluster's own activity, so no workload is deployed
-// to produce them.
 func (suite *k8sInfraModeSuite) TestKubernetesEventCarriesInfraMode() {
 	suite.EventuallyWithT(func(c *assert.CollectT) {
 		events, err := suite.Env().FakeIntake.Client().FilterEvents(kubernetesEventSource)

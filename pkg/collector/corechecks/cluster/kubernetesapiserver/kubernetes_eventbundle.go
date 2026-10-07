@@ -113,10 +113,6 @@ func (b *kubernetesEventBundle) formatEvents(taggerInstance tagger.Component) (e
 		tags = append(tags, "host_provider_id:"+b.hostInfo.providerID)
 	}
 
-	// The infrastructure mode mark lives on its own Tagger entity, so no earlier
-	// source here carries it. Append it uniquely anyway: unlike the unbundled
-	// path this tagset never goes through SortUniq, so a mark later reaching the
-	// involved-object tags would otherwise be emitted twice.
 	tags = taggerutils.AppendUniqueTags(tags, taggerInstance.GetInfraTags()...)
 
 	// If hostname was not defined, the aggregator will then set the local hostname

@@ -252,8 +252,6 @@ func TestFormatEvent(t *testing.T) {
 			if tt.infraMode != "" {
 				overrides["infrastructure_mode"] = tt.infraMode
 			}
-			// The mode is read when the Tagger is built, so it has to be set
-			// through overrides rather than on the config afterwards.
 			output, err := b.formatEvents(taggerfxmock.SetupFakeTaggerWithOverrides(t, overrides))
 
 			assert.Nil(t, err)
@@ -340,8 +338,6 @@ func TestEventsTagging(t *testing.T) {
 			if tt.infraMode != "" {
 				overrides["infrastructure_mode"] = tt.infraMode
 			}
-			// The mode is read when the Tagger is built, so it has to be set
-			// through overrides rather than on the config afterwards.
 			got, err := bundle.formatEvents(taggerfxmock.SetupFakeTaggerWithOverrides(t, overrides))
 			assert.NoError(t, err)
 			assert.ElementsMatch(t, tt.expectedTags, got.Tags)
@@ -349,9 +345,6 @@ func TestEventsTagging(t *testing.T) {
 	}
 }
 
-// The involved object can in principle resolve to an entity that already holds
-// the mark. The bundle tagset is never deduplicated downstream, so the append
-// has to be the one that keeps it single.
 func TestEventsTaggingInfraModeNotDuplicated(t *testing.T) {
 	const podUID = "c9f47d37-68d1-46a4-9295-419b054cb351"
 
