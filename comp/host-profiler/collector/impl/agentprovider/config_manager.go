@@ -98,7 +98,7 @@ func newConfigManager(config config.Component) configManager {
 	// mapstructure.Decode on the parent map silently drops env-var-set values.
 
 	healthMetricsEnabled := config.GetBool("hostprofiler.health_metrics.enabled") &&
-		config.GetString("infrastructure_mode") != "none"
+		(config.GetString("infrastructure_mode") == "basic" || config.GetString("infrastructure_mode") == "full")
 	hostProfilerConfig := hostProfilerConfig{
 		DebugVerbosity:        config.GetString("hostprofiler.debug.verbosity"),
 		AdditionalHTTPHeaders: config.GetStringMapString("hostprofiler.additional_http_headers"),
