@@ -1,6 +1,7 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
-load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MACOS_SHARED_MODULES", "MACOS_SHARED_MODULE_EXTRAS", "MODULE_SRCS", "NATIVE_PLATFORMS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS", "SHARED_MODULES", "WINDOWS_BUILTIN_MODULE_SRCS", "WINDOWS_CORE_SRCS", "WINDOWS_SHARED_MODULES", "sysconfig_vars")
+load("@@//bazel/toolchains/hermetic_llvm:windows_gnu.bzl", "windows_gnu_filegroup")
+load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MACOS_SHARED_MODULES", "MACOS_SHARED_MODULE_EXTRAS", "MODULE_SRCS", "NATIVE_PLATFORMS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS", "SHARED_MODULES", "WINDOWS_BUILTIN_MODULE_SRCS", "WINDOWS_CORE_SRCS", "WINDOWS_SHARED_MODULES", "cc_interface_libraries", "sysconfig_vars")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:transitions.bzl", "platform_transition_filegroup")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
@@ -1099,6 +1100,28 @@ genrule(
     target_compatible_with = ["@platforms//os:windows"],
 )
 
+windows_gnu_filegroup(
+    name = "native_win_openssl_dlls",
+    srcs = [
+        "@openssl//:libcrypto_shared_file",
+        "@openssl//:libssl_shared_file",
+    ],
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+cc_interface_libraries(
+    name = "native_win_openssl_import_libraries",
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = ["@openssl//:openssl_msvc"],
+)
+
+cc_library(
+    name = "native_win_openssl",
+    srcs = [":native_win_openssl_import_libraries"],
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = ["@openssl//:openssl_msvc"],
+)
+
 copy_to_directory(
     name = "native_win_install",
     srcs = [
@@ -1112,6 +1135,7 @@ copy_to_directory(
         ":native_venvlauncher",
         ":native_venvwlauncher",
         ":native_win_license",
+        ":native_win_openssl_dlls",
         ":native_win_shared_modules",
         ":native_win_vcruntime",
     ] + glob(["Include/**/*.h"]) + glob(
@@ -1128,7 +1152,9 @@ copy_to_directory(
             "Lib/turtledemo/**",
         ],
     ),
+    include_external_repositories = ["*openssl*"],
     replace_prefixes = {
+        "openssl/bin/": "DLLs/",
         "Include/": "include/",
         "win_license/": "",
         "native_libpython.if.lib": "libs/python{}.lib".format(PYTHON_MAJOR_MINOR_FLAT),

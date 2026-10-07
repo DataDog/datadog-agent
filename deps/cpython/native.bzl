@@ -1,5 +1,7 @@
 """Source lists for the native CPython build."""
 
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
+
 PARSER_SRCS = [
     "Parser/token.c",
     "Parser/pegen.c",
@@ -608,6 +610,16 @@ WINDOWS_SHARED_MODULES = {
         "deps": [":native_expat_headers"],
     },
     "_socket": {"srcs": ["Modules/socketmodule.c"], "linkopts": ["Rpcrt4.lib", "iphlpapi.lib", "ws2_32.lib"]},
+    "_ssl": {
+        "srcs": ["Modules/_ssl.c"],
+        "linkopts": ["crypt32.lib", "ws2_32.lib"],
+        "deps": [":native_win_openssl"],
+    },
+    "_hashlib": {
+        "srcs": ["Modules/_hashopenssl.c"],
+        "linkopts": ["ws2_32.lib"],
+        "deps": [":native_win_openssl"],
+    },
     "_sqlite3": {
         "srcs": [
             "Modules/_sqlite/connection.c",
@@ -667,3 +679,18 @@ WINDOWS_SHARED_MODULES = {
         }),
     },
 }
+
+def _cc_interface_libraries_impl(ctx):
+    return DefaultInfo(files = depset([
+        library.interface_library
+        for dep in ctx.attr.deps
+        for linker_input in dep[CcInfo].linking_context.linker_inputs.to_list()
+        for library in linker_input.libraries
+        if library.interface_library
+    ]))
+
+cc_interface_libraries = rule(
+    implementation = _cc_interface_libraries_impl,
+    doc = "Exposes the interface libraries of its deps as files.",
+    attrs = {"deps": attr.label_list(providers = [CcInfo])},
+)
