@@ -25,8 +25,8 @@ const (
 )
 
 var (
-	datadogSourceKey = []byte(`"ddsource"`)
-	messageKey       = []byte(`"message"`)
+	datadogSourceKey = []byte("ddsource")
+	messageKey       = []byte("message")
 	httpMarker       = []byte(` HTTP/`)
 )
 
@@ -221,7 +221,7 @@ func characterizationPayloadFamily(content []byte) string {
 	}
 	switch sample[0] {
 	case '{':
-		if bytes.Contains(sample, datadogSourceKey) && bytes.Contains(sample, messageKey) {
+		if characterizationHasTopLevelDatadogJSONKeys(sample) {
 			return "datadog_json"
 		}
 		return "json"
@@ -232,6 +232,55 @@ func characterizationPayloadFamily(content []byte) string {
 		return "apache_common"
 	}
 	return "plain"
+}
+
+func characterizationHasTopLevelDatadogJSONKeys(sample []byte) bool {
+	depth := 0
+	hasMessage := false
+	hasSource := false
+	for index := 0; index < len(sample); index++ {
+		switch sample[index] {
+		case '{', '[':
+			depth++
+		case '}', ']':
+			depth--
+		case '"':
+			end := index + 1
+			escaped := false
+			for ; end < len(sample); end++ {
+				if escaped {
+					escaped = false
+					continue
+				}
+				if sample[end] == '\\' {
+					escaped = true
+					continue
+				}
+				if sample[end] == '"' {
+					break
+				}
+			}
+			if end >= len(sample) {
+				return false
+			}
+			if depth == 1 {
+				next := end + 1
+				for next < len(sample) && (sample[next] == ' ' || sample[next] == '\t' || sample[next] == '\r' || sample[next] == '\n') {
+					next++
+				}
+				if next < len(sample) && sample[next] == ':' {
+					key := sample[index+1 : end]
+					hasMessage = hasMessage || bytes.Equal(key, messageKey)
+					hasSource = hasSource || bytes.Equal(key, datadogSourceKey)
+					if hasMessage && hasSource {
+						return true
+					}
+				}
+			}
+			index = end
+		}
+	}
+	return false
 }
 
 func characterizationIsSyslog5424(sample []byte) bool {
