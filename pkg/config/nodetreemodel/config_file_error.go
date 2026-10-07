@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // go-yaml reports a line number but no column, so quote whole lines.
@@ -24,9 +25,17 @@ const yamlErrorContextRadius = 2
 // the GUI and flare can surface it. loadCustom returns before logging warnings when
 // the file is unparseable, so log here too.
 func (c *ntmConfig) recordConfigFileError(msg string) {
-	log.Error(msg)
-	c.warnings = append(c.warnings, msg)
-	c.configFileError = msg
+	// The message quotes raw YAML, which routinely holds credentials. log scrubs its
+	// own output but not msg, and status/the GUI render what we retain here verbatim.
+	scrubbed, err := scrubber.ScrubString(msg)
+	if err != nil {
+		// Never retain unscrubbed content; drop the detail instead.
+		scrubbed = "could not parse the Agent configuration file. See the Agent log for details."
+	}
+
+	log.Error(scrubbed)
+	c.warnings = append(c.warnings, scrubbed)
+	c.configFileError = scrubbed
 }
 
 // describeConfigSource names the config source for error messages.

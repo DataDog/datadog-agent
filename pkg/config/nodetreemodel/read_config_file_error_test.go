@@ -94,6 +94,42 @@ func TestConfigFileErrorEmptyForValidFile(t *testing.T) {
 	assert.Empty(t, conf.ConfigFileError())
 }
 
+// TestConfigFileErrorScrubsSecrets guards the quoted context: the surrounding
+// lines of a broken datadog.yaml routinely hold credentials, and the message is
+// rendered by agent status and the Agent Manager.
+func TestConfigFileErrorScrubsSecrets(t *testing.T) {
+	const apiKey = "abcdef0123456789abcdef0123456789"
+
+	// The syntax error is on line 3, so lines 1 and 2 land in the quoted context.
+	conf, _ := newFileConfig(t, "api_key: "+apiKey+"\npassword: hunter2\nfoo: bar: baz\n")
+
+	require.Error(t, conf.ReadInConfig())
+
+	assert.NotContains(t, conf.ConfigFileError(), apiKey, "api_key must not be retained")
+	assert.NotContains(t, conf.ConfigFileError(), "hunter2", "password must not be retained")
+
+	warnings := strings.Join(conf.Warnings(), "\n")
+	assert.NotContains(t, warnings, apiKey, "api_key must not reach flare via Warnings()")
+	assert.NotContains(t, warnings, "hunter2")
+
+	// The diagnostic must survive scrubbing, otherwise the message is useless.
+	assert.Contains(t, conf.ConfigFileError(), "mapping values are not allowed")
+	assert.Contains(t, conf.ConfigFileError(), "> 3 |")
+}
+
+// TestConfigFileErrorScrubsSecretsOnDuplicateKeys covers the strict-only class,
+// where a duplicated api_key is exactly what gets quoted.
+func TestConfigFileErrorScrubsSecretsOnDuplicateKeys(t *testing.T) {
+	const apiKey = "abcdef0123456789abcdef0123456789"
+
+	conf, _ := newFileConfig(t, "api_key: "+apiKey+"\napi_key: "+apiKey+"\n")
+
+	require.NoError(t, conf.ReadInConfig())
+
+	assert.NotContains(t, conf.ConfigFileError(), apiKey)
+	assert.NotContains(t, strings.Join(conf.Warnings(), "\n"), apiKey)
+}
+
 func TestValidConfigFileRecordsNoParseWarning(t *testing.T) {
 	conf, _ := newFileConfig(t, "api_key: abc123\nsite: datadoghq.eu\n")
 

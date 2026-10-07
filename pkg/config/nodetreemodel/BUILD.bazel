@@ -24,6 +24,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/util/defaultpaths",
         "//pkg/util/log",
+        "//pkg/util/scrubber",
         "@com_github_mohae_deepcopy//:deepcopy",
         "@com_github_spf13_cast//:cast",
         "@in_yaml_go_yaml_v2//:yaml",
