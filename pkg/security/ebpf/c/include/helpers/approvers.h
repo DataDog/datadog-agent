@@ -535,11 +535,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_by_flags(s
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct dentry *dentry, struct file_t *file, struct syscall_cache_t *syscall) {
-    // Sampling only feeds v2 profiles.
-    if (!is_security_profile_v2_enabled()) {
-        return DISCARDED;
-    }
-
+    // event_sampling_open_enabled covers v2 profiles and runtime package usage.
     u64 event_sampling_open_enabled = 0;
     LOAD_CONSTANT("event_sampling_open_enabled", event_sampling_open_enabled);
 
