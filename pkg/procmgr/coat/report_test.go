@@ -72,6 +72,25 @@ func TestReportIncludesEveryProcessNotJustCatalogServices(t *testing.T) {
 	assert.NotEmpty(t, report.Notes, "the report must explain how to read a process that is down")
 }
 
+// The dd-procmgrd unit/SCM state does not come back from Status(), so a report that only copied the
+// RPC answer left service_state empty on every host. It is collected here the way Collect does,
+// because a stopped or failed unit is what explains a daemon that cannot be reached.
+func TestReportSetsDaemonServiceStateWhenConnectFails(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
+		t.Skip("daemon service state is only collected on linux/windows")
+	}
+
+	collector := NewCollectorWithClient(t.TempDir(), &mockClient{connectErr: os.ErrNotExist})
+
+	report := collector.Report(context.Background(), ScrubOptions{})
+
+	assert.False(t, report.Daemon.Reachable)
+	assert.NotEmpty(t, report.DaemonError)
+	require.NotEmpty(t, report.Daemon.ServiceState,
+		"an unreachable daemon is exactly when its unit state has to be reported")
+	assert.Contains(t, daemonServiceStates, report.Daemon.ServiceState)
+}
+
 // The notes are the only thing in the report that tells a reader where to look when a process will
 // not start, so they must not name an artifact this platform never produces. Only the Windows
 // service writes a log file the flare collects: the Unix daemon starts with no log file and its
@@ -682,6 +701,34 @@ func TestDaemonCallsLeaveTimeForTheServiceSweep(t *testing.T) {
 		"the daemon calls must give up while the collection context still has time on it")
 	// Tolerance well under the reserve: at a tolerance of the reserve itself this would hold whether
 	// or not any time was actually held back.
+	assert.WithinDuration(t, collectionDeadline.Add(-serviceSweepReserve), daemonDeadline,
+		serviceSweepReserve/4)
+}
+
+// Agent status calls Report on a budget of its own, far shorter than the flare's, so that a status
+// request stays quick. The reserve is what keeps that from being bought at the cost of the service
+// mapping: subtract the write margin from a status-sized budget and there still has to be enough
+// left that the sweep is carved out, or a hung daemon would report no supervisor for every service.
+func TestAShortCallerBudgetStillLeavesTheServiceSweepReserve(t *testing.T) {
+	// The smallest budget that has to keep working, stated here rather than imported so that
+	// lowering the status budget past it fails this test instead of silently changing behaviour.
+	const shortestSupportedCallerBudget = 4 * time.Second
+
+	parent, cancelParent := context.WithTimeout(context.Background(), shortestSupportedCallerBudget)
+	defer cancelParent()
+
+	collection, cancelCollection := flareContext(parent)
+	defer cancelCollection()
+	collectionDeadline, ok := collection.Deadline()
+	require.True(t, ok)
+
+	daemon, cancelDaemon := daemonPhaseContext(collection)
+	defer cancelDaemon()
+
+	daemonDeadline, ok := daemon.Deadline()
+	require.True(t, ok)
+	assert.True(t, daemonDeadline.Before(collectionDeadline),
+		"on a status-sized budget the daemon calls must still give up with time left for the sweep")
 	assert.WithinDuration(t, collectionDeadline.Add(-serviceSweepReserve), daemonDeadline,
 		serviceSweepReserve/4)
 }
