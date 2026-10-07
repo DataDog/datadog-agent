@@ -1,0 +1,61 @@
+version: 1
+scenario:
+  name: zoom-bad-update
+  description: Correlates elevated host CPU with a bad Zoom update on one macOS cohort.
+expectation:
+  affected_cohorts:
+    - zoom-rollout
+  conclusion: process_software_version
+monitor_window: 5m
+visibility_delay: 5m
+fleet:
+  - group: zoom-rollout
+    count: 3
+    os: macos
+    baseline_variance: 0.05
+  - group: zoom-comparison
+    count: 3
+    os: macos
+software_inventory:
+  zoom-rollout:
+    - name: zoom.us
+      version: 6.3.5
+  zoom-comparison:
+    - name: zoom.us
+      version: 6.3.5
+phases:
+  - name: healthy
+    duration: 10m
+  - name: onset
+    duration: 5m
+    processes:
+      zoom-rollout:
+        - name: zoom.us
+          synthesize_if_missing: true
+          cpu: {ramp: {from: 4, to: 75}}
+    software_inventory:
+      zoom-rollout:
+        - name: zoom.us
+          version: 6.4.0
+  - name: sustained
+    duration: 10m
+    processes:
+      zoom-rollout:
+        - name: zoom.us
+          synthesize_if_missing: true
+          cpu: 75
+    software_inventory:
+      zoom-rollout:
+        - name: zoom.us
+          version: 6.4.0
+  - name: recovery
+    duration: 10m
+    processes:
+      zoom-rollout:
+        - name: zoom.us
+          synthesize_if_missing: true
+          cpu: {ramp: {from: 75, to: 4}}
+    software_inventory:
+      zoom-rollout:
+        - name: zoom.us
+          version: 6.3.5

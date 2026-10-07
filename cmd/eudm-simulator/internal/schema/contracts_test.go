@@ -308,6 +308,45 @@ func TestProcessEvidenceRequiresReconciliationMetrics(t *testing.T) {
 	}
 }
 
+func TestCPUOnlyProcessOverlayPreservesMemoryEvidence(t *testing.T) {
+	s := healthy(t)
+	s.Phases[0].Processes = map[string][]ProcessDef{"mac": {{Name: "Chrome", CPU: Pattern{Steady: &SteadyPattern{Value: 2}}}}}
+	if err := s.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	profile := baselineRef("macos").Profile
+	profile.MetricNames = []string{"system.cpu.user", "system.cpu.system", "system.cpu.idle"}
+	if err := s.ValidateEvidence(s.Fleet[0], profile); err != nil {
+		t.Fatal(err)
+	}
+	s.Phases[0].Processes["mac"][0].Memory = Pattern{Steady: &SteadyPattern{Value: 100}}
+	if err := s.ValidateEvidence(s.Fleet[0], profile); err == nil || !strings.Contains(err.Error(), "system.mem") {
+		t.Fatalf("memory override did not require captured host memory metrics: %v", err)
+	}
+}
+
+func TestSynthesizedProcessRequiresSoftwareAndCapturedTemplate(t *testing.T) {
+	s := healthy(t)
+	s.Phases[0].Processes = map[string][]ProcessDef{"mac": {{Name: "Chrome", SynthesizeIfMissing: true, CPU: Pattern{Steady: &SteadyPattern{Value: 2}}}}}
+	if err := s.Validate(); err == nil || !strings.Contains(err.Error(), "software_inventory") {
+		t.Fatalf("process synthesis did not require matching software: %v", err)
+	}
+	s.Software = map[string][]SoftwareItem{"mac": {{Name: "Chrome", Version: "1.0"}}}
+	if err := s.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	profile := baselineRef("macos").Profile
+	profile.MetricNames = []string{"system.cpu.user", "system.cpu.system", "system.cpu.idle"}
+	profile.SoftwareNames = append(profile.SoftwareNames, "Chrome")
+	if err := s.ValidateEvidence(s.Fleet[0], profile); err != nil {
+		t.Fatal(err)
+	}
+	profile.ProcessNames = nil
+	if err := s.ValidateEvidence(s.Fleet[0], profile); err == nil || !strings.Contains(err.Error(), "process") {
+		t.Fatalf("process synthesis did not require a captured template: %v", err)
+	}
+}
+
 func TestPlanAcceptsExactRecordingDuration(t *testing.T) {
 	s := healthy(t)
 	s.Fleet[1].OS = "macos"

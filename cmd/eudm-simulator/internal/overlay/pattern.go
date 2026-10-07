@@ -20,6 +20,8 @@ import (
 
 // Context identifies one deterministic emission. BaselineProcesses contains all
 // chunks of the selected captured process cycle, never previously overlaid data.
+// ProcessTemplates contains immutable exemplars discovered elsewhere in the
+// same capture for process declarations that may fill gaps.
 type Context struct {
 	Scenario             *schema.Scenario
 	Group                schema.GroupDef
@@ -30,7 +32,9 @@ type Context struct {
 	Stream               schema.Stream
 	SampleOrdinal        int64
 	ProcessSampleOrdinal int64
+	ProcessChunkIndex    int
 	BaselineProcesses    []*model.CollectorProc
+	ProcessTemplates     map[string]*model.Process
 }
 
 // PatternValue evaluates a declared pattern with bounded, independently keyed

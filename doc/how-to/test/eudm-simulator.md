@@ -178,8 +178,7 @@ endpoints never substitute for observed submissions, and configuration stays
 unchanged.
 
 Capture at least as long as the scenario you intend to replay: both enrichment
-probes run for 35 minutes, while the longest shipped incident scenarios need
-a 60-minute recording. Replay
+probes and the checked-in Zoom incident run for 35 minutes. Replay
 uses recorded offsets once, without repeating cycles or filling gaps. A shorter
 scenario must still reach the first sample of every selected stream and metric
 family. If a required ordinary metadata/software interval exceeds the chosen
@@ -253,8 +252,8 @@ rejects a missing key. Use the API key for the intended staging organization.
 Validation needs `DD_SITE` but no API key. Capture needs neither
 environment variable.
 
-The checked-in healthy macOS scenario declares three baseline devices without
-overlays. This optional check validates all required bundle files, digests,
+The checked-in scenarios provide a three-device healthy replay and a six-device
+Zoom regression with affected and comparison cohorts. This optional healthy check validates all required bundle files, digests,
 typed evidence inventories, scenario declarations, platform compatibility,
 replay schedules, and staging routes:
 
@@ -358,16 +357,28 @@ marker as telemetry. Correlate products using the exact opaque hostnames in the
 report ledger. Custom access-point scenarios also record their neutral NDM
 namespace locally in the report.
 
-## Checked-in scenario and bundle requirements
+## Checked-in scenarios and bundle requirements
 
 | Scenario | Fleet | Additional captured evidence |
 | --- | --- | --- |
 | `healthy-macos.yaml` | 3 macOS devices | Required baseline streams |
+| `zoom-bad-update.yaml` | 3 affected and 3 comparison macOS devices | At least one complete `zoom.us` process observation and matching `zoom.us` software entry in a 35-minute capture |
 
-The scenario uses one macOS baseline for all three devices. It applies no
+The healthy scenario uses one macOS baseline for all three devices. It applies no
 incident overlays: replay changes device identities and observation times while
 preserving the captured evidence. Test fixtures exercise portable replay without
 contacting staging; real staging replay remains separate acceptance work.
+
+The Zoom scenario uses the same healthy macOS baseline for both cohorts. At 10
+minutes it changes the rollout cohort from Zoom `6.3.5` to `6.4.0` while Zoom
+CPU rises, sustains the high process and reconciled host CPU through 25 minutes,
+then restores `6.3.5` while CPU recovers. Software collections at 0, 10, 20,
+and 30 minutes make the version transition observable. Validate or run it by
+substituting `zoom-bad-update.yaml` in the commands above and using a compatible
+35-minute bundle. If Zoom is absent from an affected-cohort process cycle, the
+scenario clones the process captured elsewhere in the bundle and applies the
+phase CPU value. It does not add a duplicate when that cycle already contains
+`zoom.us`.
 
 ## Required proof: normal EUDM host enrichment
 

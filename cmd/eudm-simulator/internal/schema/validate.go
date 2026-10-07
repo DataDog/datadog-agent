@@ -243,10 +243,13 @@ func (s *Scenario) Validate() error {
 					add("%s", err)
 				}
 
-				if isZeroPattern(proc.Memory) {
-					add("%s.memory: required — set one of: steady, ramp, spike, step", ppfx)
-				} else if err := validateProcessPattern(proc.Memory, ppfx+".memory"); err != nil {
-					add("%s", err)
+				if !isZeroPattern(proc.Memory) {
+					if err := validateProcessPattern(proc.Memory, ppfx+".memory"); err != nil {
+						add("%s", err)
+					}
+				}
+				if proc.SynthesizeIfMissing && !s.hasSoftware(gname, proc.Name) {
+					add("%s.synthesize_if_missing: requires a matching %q software_inventory entry", ppfx, proc.Name)
 				}
 
 				cpuTotal += peakCPU(proc.CPU)
@@ -293,6 +296,22 @@ func (s *Scenario) Validate() error {
 	sort.Strings(errs)
 	return fmt.Errorf("scenario validation failed (%d error(s)):\n  - %s",
 		len(errs), strings.Join(errs, "\n  - "))
+}
+
+func (s *Scenario) hasSoftware(group, name string) bool {
+	for _, item := range s.Software[group] {
+		if item.Name == name {
+			return true
+		}
+	}
+	for _, phase := range s.Phases {
+		for _, item := range phase.Software[group] {
+			if item.Name == name {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ── pattern validation ─────────────────────────────────────────────────────────

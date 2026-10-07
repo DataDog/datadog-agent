@@ -193,15 +193,16 @@ type Phase struct {
 }
 
 // ProcessDef defines a named process within a group for a phase.
-// Every named process must exist in the baseline capture. Unspecified
-// background processes retain their captured values.
+// Every named process must have a template somewhere in the baseline capture.
+// Unspecified background processes retain their captured values.
 type ProcessDef struct {
-	Name   string   `yaml:"name"`
-	User   string   `yaml:"user,omitempty"` // OS user; empty preserves the captured user
-	Exe    string   `yaml:"exe,omitempty"`  // full executable path; empty preserves capture
-	Args   []string `yaml:"args,omitempty"` // full argv; omitted preserves capture; argv[0] follows the executable
-	CPU    Pattern  `yaml:"cpu"`            // whole-host percent (0-100); converted to Agent per-core process accounting
-	Memory Pattern  `yaml:"memory"`         // MB
+	Name                string   `yaml:"name"`
+	User                string   `yaml:"user,omitempty"`                  // OS user; empty preserves the captured user
+	Exe                 string   `yaml:"exe,omitempty"`                   // full executable path; empty preserves capture
+	Args                []string `yaml:"args,omitempty"`                  // full argv; omitted preserves capture; argv[0] follows the executable
+	SynthesizeIfMissing bool     `yaml:"synthesize_if_missing,omitempty"` // clone the captured template into cycles where it is absent
+	CPU                 Pattern  `yaml:"cpu"`                             // whole-host percent (0-100); converted to Agent per-core process accounting
+	Memory              Pattern  `yaml:"memory"`                          // optional MB override; omitted preserves captured RSS/VMS
 }
 
 // Pattern defines how a metric value evolves over a phase.

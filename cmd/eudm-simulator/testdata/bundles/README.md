@@ -63,8 +63,10 @@ in. Scenarios longer than their bundle are rejected before delivery.
 
 The fixtures include Acme application/process names, a publisher, a prerelease
 version, stable product codes, an installation timestamp, native-shaped paths,
-process I/O counters, and `api.acme.example` DNS associations. Replay assertions
-verify these values survive encoding while device identities change.
+process I/O counters, and `api.acme.example` DNS associations. The macOS fixture
+also includes a `zoom.us` process and software entry used by the Zoom regression
+scenario. Replay assertions verify these values survive encoding while device
+identities change.
 
 Generate into a separate output directory, then review the artifacts before
 updating these two checked-in synthetic directories. For example, from the

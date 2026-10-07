@@ -14,6 +14,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 const megabyte = 1024 * 1024
@@ -45,8 +46,9 @@ func Apply(ctx Context, sample *telemetry.Sample) error {
 }
 
 func applyMetrics(ctx Context, sample *telemetry.Sample, phase schema.Phase) error {
+	processes := phase.Processes[ctx.Group.Group]
 	var userDelta, systemDelta, memoryDelta, totalMemory float64
-	for _, def := range phase.Processes[ctx.Group.Group] {
+	for _, def := range processes {
 		changes, err := processChanges(ctx, def)
 		if err != nil {
 			return err
@@ -58,12 +60,13 @@ func applyMetrics(ctx Context, sample *telemetry.Sample, phase schema.Phase) err
 			totalMemory = change.totalMemory / megabyte
 		}
 	}
+	userDelta, systemDelta = saturateCPUDelta(sample.Metrics, userDelta, systemDelta)
 	for _, serie := range sample.Metrics {
 		if serie == nil {
 			return errors.New("nil captured metric")
 		}
 		pattern, explicit := phase.Metrics[ctx.Group.Group][serie.Name]
-		if explicit && len(phase.Processes[ctx.Group.Group]) != 0 && reconciledMetric(serie.Name) {
+		if explicit && processReconcilesMetric(processes, serie.Name) {
 			return fmt.Errorf("explicit %s conflicts with process resource reconciliation", serie.Name)
 		}
 		for i := range serie.Points {
@@ -92,7 +95,7 @@ func applyMetrics(ctx Context, sample *telemetry.Sample, phase schema.Phase) err
 					}
 				}
 			}
-			if explicit || len(phase.Processes[ctx.Group.Group]) != 0 && reconciledMetric(serie.Name) {
+			if explicit || len(processes) != 0 && reconciledMetric(serie.Name) {
 				if !metricValueValid(serie.Name, value) {
 					return fmt.Errorf("overlay exceeds captured resource capacity for %s", serie.Name)
 				}
@@ -101,6 +104,45 @@ func applyMetrics(ctx Context, sample *telemetry.Sample, phase schema.Phase) err
 		}
 	}
 	return nil
+}
+
+// A declared process target can be larger than the captured host's idle
+// headroom. In that case the simulated host is CPU-saturated: retain the
+// process target, consume all available idle, and proportionally attenuate its
+// host user/system contribution instead of emitting impossible negative idle.
+func saturateCPUDelta(series []*metrics.Serie, userDelta, systemDelta float64) (float64, float64) {
+	total := userDelta + systemDelta
+	if total <= 0 {
+		return userDelta, systemDelta
+	}
+	available := math.Inf(1)
+	for _, serie := range series {
+		if serie == nil || serie.Name != "system.cpu.idle" {
+			continue
+		}
+		for _, point := range serie.Points {
+			available = min(available, max(0, point.Value))
+		}
+	}
+	if math.IsInf(available, 1) || total <= available {
+		return userDelta, systemDelta
+	}
+	scale := available / total
+	return userDelta * scale, systemDelta * scale
+}
+
+func processReconcilesMetric(processes []schema.ProcessDef, name string) bool {
+	if slices.Contains([]string{"system.cpu.user", "system.cpu.system", "system.cpu.idle"}, name) {
+		return len(processes) != 0
+	}
+	if slices.Contains([]string{"system.mem.used", "system.mem.free", "system.mem.usable", "system.mem.pct_usable"}, name) {
+		for _, process := range processes {
+			if patternSet(process.Memory) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func reconciledMetric(name string) bool {

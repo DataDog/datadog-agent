@@ -22,7 +22,7 @@ import (
 // validateOverlays checks conservative pattern bounds for each scheduled
 // collection in its actual phase. Process reconciliation uses the same latest
 // observed group as delivery, retaining at most that one decoded group.
-func validateOverlays(s *schema.Scenario, group schema.GroupDef, b *bundle.Loaded, timelines map[schema.Stream]*timeline) error {
+func validateOverlays(s *schema.Scenario, group schema.GroupDef, b *bundle.Loaded, timelines map[schema.Stream]*timeline, templates map[string]*model.Process) error {
 	processes := timelines[schema.Processes]
 	for phaseIndex, phase := range s.Phases {
 		for _, name := range requiredMetricEvidence(phase, group) {
@@ -64,9 +64,10 @@ func validateOverlays(s *schema.Scenario, group schema.GroupDef, b *bundle.Loade
 						}
 					}
 					for i := range bounds {
-						ctx := overlay.Context{Scenario: &bounds[i], Group: fixedGroup, PhaseIndex: phaseIndex, Elapsed: elapsed, Stream: stream, ProcessSampleOrdinal: processOrdinal, BaselineProcesses: baseline}
+						ctx := overlay.Context{Scenario: &bounds[i], Group: fixedGroup, PhaseIndex: phaseIndex, Elapsed: elapsed, Stream: stream, ProcessSampleOrdinal: processOrdinal, BaselineProcesses: baseline, ProcessTemplates: templates}
 						for _, ref := range cycle.refs {
 							sample, err := decodeCapturedSample(b, ref)
+							ctx.ProcessChunkIndex = ref.ChunkIndex
 							if err == nil {
 								err = overlay.Apply(ctx, sample)
 							}
@@ -141,7 +142,13 @@ func requiredMetricEvidence(phase schema.Phase, group schema.GroupDef) []string 
 		required = append(required, name)
 	}
 	if len(phase.Processes[group.Group]) > 0 {
-		required = append(required, "system.cpu.user", "system.cpu.system", "system.cpu.idle", "system.mem.used", "system.mem.free", "system.mem.usable", "system.mem.pct_usable")
+		required = append(required, "system.cpu.user", "system.cpu.system", "system.cpu.idle")
+		for _, process := range phase.Processes[group.Group] {
+			if patternSet(process.Memory) {
+				required = append(required, "system.mem.used", "system.mem.free", "system.mem.usable", "system.mem.pct_usable")
+				break
+			}
+		}
 	}
 	if group.AccessPoint != "" || group.BSSID != "" || group.SSID != "" {
 		required = append(required, "system.wlan.rssi", "system.wlan.noise", "system.wlan.txrate", "system.wlan.rxrate")
@@ -154,7 +161,10 @@ func boundedPhase(phase schema.Phase, group schema.GroupDef, upper bool) schema.
 	bound := func(p schema.Pattern) schema.Pattern { return boundPattern(p, spread, upper) }
 	processes := slices.Clone(phase.Processes[group.Group])
 	for i := range processes {
-		processes[i].CPU, processes[i].Memory = bound(processes[i].CPU), bound(processes[i].Memory)
+		processes[i].CPU = bound(processes[i].CPU)
+		if patternSet(processes[i].Memory) {
+			processes[i].Memory = bound(processes[i].Memory)
+		}
 	}
 	phase.Processes = map[string][]schema.ProcessDef{group.Group: processes}
 	metrics := map[string]schema.Pattern{}
@@ -178,6 +188,10 @@ func boundedPhase(phase schema.Phase, group schema.GroupDef, upper bool) schema.
 	}
 	phase.Connections = map[string][]schema.ConnectionOverlay{group.Group: connections}
 	return phase
+}
+
+func patternSet(pattern schema.Pattern) bool {
+	return pattern.Steady != nil || pattern.Ramp != nil || pattern.Spike != nil || pattern.Step != nil
 }
 
 func boundPattern(pattern schema.Pattern, spread float64, upper bool) schema.Pattern {

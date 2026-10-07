@@ -230,7 +230,14 @@ func (s *Scenario) ValidateEvidence(group GroupDef, profile Profile) error {
 	}
 	for _, phase := range s.Phases {
 		if len(phase.Processes[group.Group]) > 0 {
-			for _, metric := range []string{"system.cpu.user", "system.cpu.system", "system.cpu.idle", "system.mem.used", "system.mem.free", "system.mem.usable", "system.mem.pct_usable"} {
+			metrics := []string{"system.cpu.user", "system.cpu.system", "system.cpu.idle"}
+			for _, process := range phase.Processes[group.Group] {
+				if !isZeroPattern(process.Memory) {
+					metrics = append(metrics, "system.mem.used", "system.mem.free", "system.mem.usable", "system.mem.pct_usable")
+					break
+				}
+			}
+			for _, metric := range metrics {
 				if _, explicit := phase.Metrics[group.Group][metric]; explicit {
 					return fmt.Errorf("cohort %q: %s conflicts with process resource reconciliation", group.Group, metric)
 				}

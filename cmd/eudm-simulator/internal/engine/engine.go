@@ -81,6 +81,7 @@ type device struct {
 	id        *identity.Map
 	capture   *bundle.Loaded
 	timelines map[schema.Stream]*timeline
+	templates map[string]*model.Process
 	wireless  *identity.Wireless
 }
 type prepared struct {
@@ -119,12 +120,21 @@ func prepare(request Request) (*prepared, error) {
 		}
 	}
 	baseline := identity.NewBaseline()
+	processTemplates := map[string]*model.Process{}
 	for _, ref := range b.Manifest.Samples {
 		sample, err := decodeCapturedSample(b, ref)
 		if err != nil {
 			return nil, fmt.Errorf("invalid captured %s sample: %w", ref.Stream, err)
 		}
 		baseline.Observe(sample)
+		if sample.Processes != nil {
+			for _, process := range sample.Processes.Processes {
+				if process == nil || process.Command == nil || process.Command.Comm == "" || process.Cpu == nil || process.Memory == nil || processTemplates[process.Command.Comm] != nil {
+					continue
+				}
+				processTemplates[process.Command.Comm] = process
+			}
+		}
 	}
 	aps, err := accesspoint.New(request.Scenario, request.Plan.RunID, request.Plan.Seed)
 	if err != nil {
@@ -151,7 +161,7 @@ func prepare(request Request) (*prepared, error) {
 		if err := validateRegressionVersions(request.Scenario, group, b); err != nil {
 			return nil, err
 		}
-		if err := validateOverlays(request.Scenario, group, b, timelines); err != nil {
+		if err := validateOverlays(request.Scenario, group, b, timelines, processTemplates); err != nil {
 			return nil, err
 		}
 		wireless, err := aps.Wireless(group)
@@ -160,7 +170,7 @@ func prepare(request Request) (*prepared, error) {
 		}
 		for j := 0; j < group.Count; j++ {
 			id := identity.NewWithBaseline(request.Plan.RunID, request.Plan.Seed, group.Group, ordinal, baseline)
-			d := &device{group: group, ordinal: ordinal, id: id, capture: b, timelines: timelines, wireless: wireless}
+			d := &device{group: group, ordinal: ordinal, id: id, capture: b, timelines: timelines, templates: processTemplates, wireless: wireless}
 			p.devices = append(p.devices, d)
 			p.report.AddDevice(ordinal, id.Hostname, group.Group, b.Digest, streams)
 			for _, stream := range streams {
@@ -485,14 +495,16 @@ func (p *prepared) deliver(ctx context.Context, out Delivery, work job, events *
 			baseline = append(baseline, decoded.Processes)
 		}
 	}
-	context := overlay.Context{Scenario: p.request.Scenario, Group: d.group, Seed: p.request.Plan.Seed, DeviceOrdinal: d.ordinal, PhaseIndex: phase, Elapsed: elapsed, Stream: work.stream, SampleOrdinal: work.ordinal, ProcessSampleOrdinal: processOrdinal, BaselineProcesses: baseline}
+	context := overlay.Context{Scenario: p.request.Scenario, Group: d.group, Seed: p.request.Plan.Seed, DeviceOrdinal: d.ordinal, PhaseIndex: phase, Elapsed: elapsed, Stream: work.stream, SampleOrdinal: work.ordinal, ProcessSampleOrdinal: processOrdinal, BaselineProcesses: baseline, ProcessTemplates: d.templates}
 	samples := make([]*telemetry.Sample, 0, len(c.refs))
 	for _, ref := range c.refs {
 		sample, err := decodeCapturedSample(d.capture, ref)
 		if err != nil {
 			return err
 		}
-		if err := overlay.Apply(context, sample); err != nil {
+		chunkContext := context
+		chunkContext.ProcessChunkIndex = ref.ChunkIndex
+		if err := overlay.Apply(chunkContext, sample); err != nil {
 			return err
 		}
 		rebase(sample, p.request.Plan.Start, work.ordinal, len(c.refs))

@@ -91,7 +91,7 @@ func closeEnough(t *testing.T, got, want float64) {
 }
 
 func TestCorrelatedScenarioProgression(t *testing.T) {
-	for _, app := range []struct{ process, software string }{{"Google Chrome", "Google Chrome"}, {"SentinelAgent.exe", "SentinelOne"}} {
+	for _, app := range []struct{ process, software string }{{"Google Chrome", "Google Chrome"}, {"zoom.us", "zoom.us"}, {"SentinelAgent.exe", "SentinelOne"}} {
 		t.Run(app.software, func(t *testing.T) {
 			base := contextFixture(app.process, app.software)
 			for _, point := range []struct {
@@ -151,6 +151,148 @@ func TestCorrelatedScenarioProgression(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCPUOnlyProcessOverlayPreservesProcessAndHostMemory(t *testing.T) {
+	ctx := contextFixture("zoom.us", "zoom.us")
+	ctx.PhaseIndex = 2
+	ctx.Scenario.Phases[2].Processes["rollout"][0].Memory = schema.Pattern{}
+	for _, chunk := range ctx.BaselineProcesses {
+		sample := &telemetry.Sample{Processes: clone(t, chunk)}
+		ctx.Stream = schema.Processes
+		if err := Apply(ctx, sample); err != nil {
+			t.Fatal(err)
+		}
+		for i, process := range sample.Processes.Processes {
+			if process.Memory.Rss != chunk.Processes[i].Memory.Rss || process.Memory.Vms != chunk.Processes[i].Memory.Vms {
+				t.Fatal("CPU-only process overlay changed captured process memory")
+			}
+		}
+	}
+	ctx.Stream, ctx.SampleOrdinal = schema.Metrics, 103
+	sample := &telemetry.Sample{Metrics: metricFixture()}
+	if err := Apply(ctx, sample); err != nil {
+		t.Fatal(err)
+	}
+	values := metricValues(sample)
+	closeEnough(t, values["system.mem.used"], 2048)
+	closeEnough(t, values["system.mem.free"], 6144)
+	closeEnough(t, values["system.mem.usable"], 6144)
+	closeEnough(t, values["system.mem.pct_usable"], .75)
+	if values["system.cpu.user"] == 20 || values["system.cpu.idle"] == 75 {
+		t.Fatal("CPU-only process overlay did not reconcile host CPU")
+	}
+	ctx.Scenario.Phases[2].Metrics = map[string]map[string]schema.Pattern{"rollout": {"system.mem.pct_usable": steady(.5)}}
+	sample = &telemetry.Sample{Metrics: metricFixture()}
+	if err := Apply(ctx, sample); err != nil {
+		t.Fatal(err)
+	}
+	closeEnough(t, metricValues(sample)["system.mem.pct_usable"], .5)
+}
+
+func TestMissingProcessIsSynthesizedOnceFromCapturedTemplate(t *testing.T) {
+	ctx := contextFixture("zoom.us", "zoom.us")
+	ctx.PhaseIndex = 2
+	ctx.Scenario.Phases[1].Processes["rollout"][0].SynthesizeIfMissing = true
+	ctx.Scenario.Phases[2].Processes["rollout"][0].SynthesizeIfMissing = true
+	ctx.Scenario.Phases[2].Processes["rollout"][0].Memory = schema.Pattern{}
+	template := clone(t, ctx.BaselineProcesses[0].Processes[0])
+	template.CreateTime = 90_000
+	originalTemplate := clone(t, template)
+	ctx.ProcessTemplates = map[string]*model.Process{"zoom.us": template}
+	ctx.BaselineProcesses[0].Processes = ctx.BaselineProcesses[0].Processes[1:]
+	ctx.BaselineProcesses[1].Processes = nil
+
+	var count int
+	for i, chunk := range ctx.BaselineProcesses {
+		ctx.Stream, ctx.SampleOrdinal, ctx.ProcessChunkIndex = schema.Processes, int64(i), i
+		sample := &telemetry.Sample{Processes: clone(t, chunk)}
+		if err := Apply(ctx, sample); err != nil {
+			t.Fatal(err)
+		}
+		for _, process := range sample.Processes.Processes {
+			if process.Command.GetComm() != "zoom.us" {
+				continue
+			}
+			count++
+			closeEnough(t, float64(process.Cpu.TotalPct), 160)
+			if process.Pid != template.Pid || process.CreateTime != 60_000 || process.Memory.Rss != template.Memory.Rss || process.Command.Exe != template.Command.Exe {
+				t.Fatalf("synthetic process lost its captured template: %+v", process)
+			}
+		}
+	}
+	if count != 1 {
+		t.Fatalf("synthetic process count = %d, want 1", count)
+	}
+	if !reflect.DeepEqual(template, originalTemplate) {
+		t.Fatal("shared process template was mutated")
+	}
+
+	ctx.Stream, ctx.SampleOrdinal = schema.Metrics, 100
+	metricSample := &telemetry.Sample{Metrics: metricFixture()}
+	if err := Apply(ctx, metricSample); err != nil {
+		t.Fatal(err)
+	}
+	values := metricValues(metricSample)
+	closeEnough(t, values["system.cpu.user"], 50)
+	closeEnough(t, values["system.cpu.system"], 15)
+	closeEnough(t, values["system.cpu.idle"], 35)
+	closeEnough(t, values["system.mem.used"], 2048)
+	closeEnough(t, values["system.mem.free"], 6144)
+}
+
+func TestSynthesisDoesNotDuplicateCapturedProcess(t *testing.T) {
+	ctx := contextFixture("zoom.us", "zoom.us")
+	ctx.PhaseIndex = 2
+	ctx.Scenario.Phases[2].Processes["rollout"][0].SynthesizeIfMissing = true
+	ctx.ProcessTemplates = map[string]*model.Process{"zoom.us": ctx.BaselineProcesses[0].Processes[0]}
+	var count int
+	for i, chunk := range ctx.BaselineProcesses {
+		ctx.Stream, ctx.ProcessChunkIndex = schema.Processes, i
+		sample := &telemetry.Sample{Processes: clone(t, chunk)}
+		if err := Apply(ctx, sample); err != nil {
+			t.Fatal(err)
+		}
+		for _, process := range sample.Processes.Processes {
+			if process.Command.GetComm() == "zoom.us" {
+				count++
+			}
+		}
+	}
+	if count != 2 {
+		t.Fatalf("captured process instances were duplicated: got %d, want 2", count)
+	}
+}
+
+func TestProcessCPUReconciliationSaturatesAtHostCapacity(t *testing.T) {
+	ctx := contextFixture("zoom.us", "zoom.us")
+	ctx.PhaseIndex = 2
+	ctx.Scenario.Phases[2].Processes["rollout"][0].SynthesizeIfMissing = true
+	ctx.Scenario.Phases[2].Processes["rollout"][0].Memory = schema.Pattern{}
+	template := clone(t, ctx.BaselineProcesses[0].Processes[0])
+	ctx.ProcessTemplates = map[string]*model.Process{"zoom.us": template}
+	ctx.BaselineProcesses[0].Processes = ctx.BaselineProcesses[0].Processes[1:]
+	ctx.BaselineProcesses[1].Processes = nil
+	metrics := metricFixture()
+	for _, serie := range metrics {
+		switch serie.Name {
+		case "system.cpu.user":
+			serie.Points[0].Value = 70
+		case "system.cpu.system":
+			serie.Points[0].Value = 10
+		case "system.cpu.idle":
+			serie.Points[0].Value = 20
+		}
+	}
+	ctx.Stream = schema.Metrics
+	sample := &telemetry.Sample{Metrics: metrics}
+	if err := Apply(ctx, sample); err != nil {
+		t.Fatal(err)
+	}
+	values := metricValues(sample)
+	closeEnough(t, values["system.cpu.user"], 85)
+	closeEnough(t, values["system.cpu.system"], 15)
+	closeEnough(t, values["system.cpu.idle"], 0)
 }
 
 func TestVariationCorrelatesAcrossStreamsAndChunking(t *testing.T) {
@@ -240,7 +382,12 @@ func TestMissingEvidenceFailsWithoutFabrication(t *testing.T) {
 	if err := Apply(ctx, sample); err == nil {
 		t.Fatal("invented an absent process")
 	}
+	ctx.Scenario.Phases[2].Processes["rollout"][0].SynthesizeIfMissing = true
+	if err := Apply(ctx, sample); err == nil || !strings.Contains(err.Error(), "template") {
+		t.Fatalf("synthesized a process without a captured template: %v", err)
+	}
 	ctx.Scenario.Phases[2].Processes["rollout"][0].Name = "Google Chrome"
+	ctx.Scenario.Phases[2].Processes["rollout"][0].SynthesizeIfMissing = false
 	ctx.BaselineProcesses[0].Info.Cpus = nil
 	if err := Apply(ctx, sample); err == nil {
 		t.Fatal("invented CPU topology")

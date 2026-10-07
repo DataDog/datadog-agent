@@ -10,10 +10,12 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/telemetry"
+	"github.com/gogo/protobuf/proto"
 )
 
 type processChange struct {
@@ -21,6 +23,7 @@ type processChange struct {
 	cpu               model.CPUStat
 	rss               uint64
 	cpus, totalMemory float64
+	synthetic         bool
 }
 
 func processChanges(ctx Context, def schema.ProcessDef) ([]processChange, error) {
@@ -55,8 +58,24 @@ func processChanges(ctx Context, def schema.ProcessDef) ([]processChange, error)
 			baseMemory += float64(process.Memory.Rss)
 		}
 	}
-	if len(matches) == 0 {
-		return nil, fmt.Errorf("process %q is absent from captured cycle", def.Name)
+	synthetic := len(matches) == 0
+	if synthetic {
+		if !def.SynthesizeIfMissing {
+			return nil, fmt.Errorf("process %q is absent from captured cycle", def.Name)
+		}
+		template := ctx.ProcessTemplates[def.Name]
+		if template == nil || template.Command == nil || template.Command.Comm != def.Name || template.Cpu == nil || template.Memory == nil {
+			return nil, fmt.Errorf("process %q has no complete captured template for synthesis", def.Name)
+		}
+		for _, chunk := range ctx.BaselineProcesses {
+			for _, process := range chunk.Processes {
+				if process != nil && process.Pid == template.Pid {
+					return nil, fmt.Errorf("synthetic process %q PID conflicts with captured process %q", def.Name, process.GetCommand().GetComm())
+				}
+			}
+		}
+		matches = []*model.Process{template}
+		baseMemory = float64(template.Memory.Rss)
 	}
 	slices.SortFunc(matches, func(a, b *model.Process) int {
 		if a.Pid < b.Pid {
@@ -78,14 +97,22 @@ func processChanges(ctx Context, def schema.ProcessDef) ([]processChange, error)
 	if err != nil {
 		return nil, err
 	}
-	memory, err := PatternValue(key, def.Memory, "process/"+def.Name+"/memory")
-	if err != nil {
-		return nil, err
+	memoryOverride := patternSet(def.Memory)
+	var memory float64
+	if memoryOverride {
+		memory, err = PatternValue(key, def.Memory, "process/"+def.Name+"/memory")
+		if err != nil {
+			return nil, err
+		}
 	}
 	if cpu < 0 || cpu > 100 || memory < 0 || memory*megabyte > totalMemory {
 		return nil, errors.New("process overlay exceeds captured resource capacity")
 	}
-	targetCPU, targetMemory := cpu*cpus, uint64(math.Round(memory*megabyte))
+	targetCPU := cpu * cpus
+	var targetMemory uint64
+	if memoryOverride {
+		targetMemory = uint64(math.Round(memory * megabyte))
+	}
 	changes := make([]processChange, 0, len(matches))
 	var allocated uint64
 	for i, process := range matches {
@@ -96,11 +123,14 @@ func processChanges(ctx Context, def schema.ProcessDef) ([]processChange, error)
 		if baseMemory > 0 {
 			memoryShare = float64(process.Memory.Rss) / baseMemory
 		}
-		newMemory := uint64(math.Floor(float64(targetMemory) * memoryShare))
-		if i == len(matches)-1 {
-			newMemory = targetMemory - allocated
+		newMemory := process.Memory.Rss
+		if memoryOverride {
+			newMemory = uint64(math.Floor(float64(targetMemory) * memoryShare))
+			if i == len(matches)-1 {
+				newMemory = targetMemory - allocated
+			}
+			allocated += newMemory
 		}
-		allocated += newMemory
 		userShare := 1.0
 		if sum := float64(process.Cpu.UserPct) + float64(process.Cpu.SystemPct); sum > 0 {
 			userShare = float64(process.Cpu.UserPct) / sum
@@ -109,9 +139,43 @@ func processChanges(ctx Context, def schema.ProcessDef) ([]processChange, error)
 		stat.TotalPct = float32(targetCPU * cpuShare)
 		stat.UserPct = stat.TotalPct * float32(userShare)
 		stat.SystemPct = stat.TotalPct - stat.UserPct
-		changes = append(changes, processChange{before: process, cpu: stat, rss: newMemory, cpus: cpus, totalMemory: totalMemory})
+		before := process
+		if synthetic {
+			before = proto.Clone(process).(*model.Process)
+			before.CreateTime = synthesizedCreateTime(ctx, def.Name, before.CreateTime)
+			baselineCPU := *before.Cpu
+			baselineCPU.TotalPct, baselineCPU.UserPct, baselineCPU.SystemPct = 0, 0, 0
+			before.Cpu = &baselineCPU
+			if memoryOverride {
+				baselineMemory := *before.Memory
+				baselineMemory.Rss = 0
+				before.Memory = &baselineMemory
+			}
+		}
+		changes = append(changes, processChange{before: before, cpu: stat, rss: newMemory, cpus: cpus, totalMemory: totalMemory, synthetic: synthetic})
 	}
 	return changes, nil
+}
+
+func synthesizedCreateTime(ctx Context, name string, captured int64) int64 {
+	var phaseStart time.Duration
+	for _, phase := range ctx.Scenario.Phases {
+		for _, process := range phase.Processes[ctx.Group.Group] {
+			if process.Name == name && process.SynthesizeIfMissing {
+				start := phaseStart.Milliseconds()
+				if captured > start {
+					return start
+				}
+				return captured
+			}
+		}
+		phaseStart += phase.Duration.Duration
+	}
+	return captured
+}
+
+func patternSet(pattern schema.Pattern) bool {
+	return pattern.Steady != nil || pattern.Ramp != nil || pattern.Spike != nil || pattern.Step != nil
 }
 
 func applyProcesses(ctx Context, payload *model.CollectorProc, defs []schema.ProcessDef) error {
@@ -119,6 +183,16 @@ func applyProcesses(ctx Context, payload *model.CollectorProc, defs []schema.Pro
 		changes, err := processChanges(ctx, def)
 		if err != nil {
 			return err
+		}
+		if len(changes) == 1 && changes[0].synthetic {
+			if ctx.ProcessChunkIndex == 0 {
+				process := proto.Clone(changes[0].before).(*model.Process)
+				if err := applyProcessChange(ctx, def, process, changes[0]); err != nil {
+					return err
+				}
+				payload.Processes = append(payload.Processes, process)
+			}
+			continue
 		}
 		byPID := map[int32]processChange{}
 		for _, change := range changes {
@@ -132,32 +206,45 @@ func applyProcesses(ctx Context, payload *model.CollectorProc, defs []schema.Pro
 			if !exists || process.Memory == nil {
 				return errors.New("process clone differs from its captured cycle")
 			}
-			cpu := change.cpu
-			process.Cpu = &cpu
-			if process.Memory.Vms > 0 {
-				process.Memory.Vms = uint64(max(float64(change.rss), float64(process.Memory.Vms)+float64(change.rss)-float64(process.Memory.Rss)))
-			}
-			process.Memory.Rss = change.rss
-			if def.User != "" && process.User != nil {
-				process.User.Name = def.User
-			}
-			if def.Exe != "" {
-				process.Command.Exe = def.Exe
-			}
-			if def.Args != nil {
-				process.Command.Args = slices.Clone(def.Args)
-			}
-			// SentinelOne includes its release in the installation directory.
-			// Chrome's executable path is stable across releases.
-			if def.Name == "SentinelAgent.exe" {
-				if item, ok := softwareItem(ctx, "SentinelOne"); ok {
-					process.Command.Exe = sentinelDirectory(item.Version) + `\SentinelAgent.exe`
-				}
-			}
-			if process.Command.Exe != "" && len(process.Command.Args) > 0 {
-				process.Command.Args[0] = process.Command.Exe
+			if err := applyProcessChange(ctx, def, process, change); err != nil {
+				return err
 			}
 		}
+	}
+	return nil
+}
+
+func applyProcessChange(ctx Context, def schema.ProcessDef, process *model.Process, change processChange) error {
+	if process == nil || process.Command == nil || process.Memory == nil {
+		return errors.New("process clone differs from its captured cycle")
+	}
+	cpu := change.cpu
+	process.Cpu = &cpu
+	if process.Memory.Vms > 0 {
+		process.Memory.Vms = uint64(max(float64(change.rss), float64(process.Memory.Vms)+float64(change.rss)-float64(process.Memory.Rss)))
+	}
+	process.Memory.Rss = change.rss
+	if def.SynthesizeIfMissing {
+		process.CreateTime = synthesizedCreateTime(ctx, def.Name, process.CreateTime)
+	}
+	if def.User != "" && process.User != nil {
+		process.User.Name = def.User
+	}
+	if def.Exe != "" {
+		process.Command.Exe = def.Exe
+	}
+	if def.Args != nil {
+		process.Command.Args = slices.Clone(def.Args)
+	}
+	// SentinelOne includes its release in the installation directory.
+	// Chrome's executable path is stable across releases.
+	if def.Name == "SentinelAgent.exe" {
+		if item, ok := softwareItem(ctx, "SentinelOne"); ok {
+			process.Command.Exe = sentinelDirectory(item.Version) + `\SentinelAgent.exe`
+		}
+	}
+	if process.Command.Exe != "" && len(process.Command.Args) > 0 {
+		process.Command.Args[0] = process.Command.Exe
 	}
 	return nil
 }

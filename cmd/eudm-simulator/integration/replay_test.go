@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -63,32 +64,8 @@ func (c *replayClock) WaitUntil(ctx context.Context, at time.Time) error {
 
 func replayFixture(t *testing.T, platform string) *bundle.Loaded {
 	t.Helper()
-	read := func(name string) []byte {
-		t.Helper()
-		relative := "testdata/bundles/" + platform + "/" + name
-		path := filepath.Join("..", filepath.FromSlash(relative))
-		if os.Getenv("TEST_SRCDIR") != "" {
-			r, err := runfiles.New()
-			if err != nil {
-				t.Fatal(err)
-			}
-			repository := runfiles.CallerRepository()
-			if repository == "" {
-				repository = "_main"
-			}
-			path, err = r.Rlocation(repository + "/cmd/eudm-simulator/" + relative)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return data
-	}
 	var manifest bundle.Manifest
-	if err := json.Unmarshal(read("manifest.json"), &manifest); err != nil {
+	if err := json.Unmarshal(replayFile(t, "testdata/bundles/"+platform+"/manifest.json"), &manifest); err != nil {
 		t.Fatal(err)
 	}
 	// Bazel input runfiles are symlinks. Materialize them as regular files so
@@ -99,7 +76,7 @@ func replayFixture(t *testing.T, platform string) *bundle.Loaded {
 		names = append(names, name)
 	}
 	for _, name := range names {
-		if err := os.WriteFile(filepath.Join(directory, name), read(name), 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(directory, name), replayFile(t, "testdata/bundles/"+platform+"/"+name), 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -108,6 +85,30 @@ func replayFixture(t *testing.T, platform string) *bundle.Loaded {
 		t.Fatal(err)
 	}
 	return loaded
+}
+
+func replayFile(t *testing.T, relative string) []byte {
+	t.Helper()
+	path := filepath.Join("..", filepath.FromSlash(relative))
+	if os.Getenv("TEST_SRCDIR") != "" {
+		r, err := runfiles.New()
+		if err != nil {
+			t.Fatal(err)
+		}
+		repository := runfiles.CallerRepository()
+		if repository == "" {
+			repository = "_main"
+		}
+		path, err = r.Rlocation(repository + "/cmd/eudm-simulator/" + relative)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
 }
 
 func TestSharedBaselineReplayThroughAgentPayloadDelivery(t *testing.T) {
@@ -231,6 +232,167 @@ func TestRecordedInventoryAndMetricFamiliesKeepNativeCadences(t *testing.T) {
 	}
 }
 
+type zoomCorrelationPoint struct {
+	processCPU float64
+	processes  int
+	processRSS uint64
+	cpuUser    float64
+	cpuIdle    float64
+	memUsed    float64
+	memFree    float64
+	version    string
+}
+
+type zoomCorrelationRecorder struct {
+	mu     sync.Mutex
+	start  time.Time
+	points map[string]map[time.Duration]*zoomCorrelationPoint
+}
+
+func (d *zoomCorrelationRecorder) point(host string, offset time.Duration) *zoomCorrelationPoint {
+	if d.points[host] == nil {
+		d.points[host] = map[time.Duration]*zoomCorrelationPoint{}
+	}
+	if d.points[host][offset] == nil {
+		d.points[host][offset] = &zoomCorrelationPoint{}
+	}
+	return d.points[host][offset]
+}
+
+func (d *zoomCorrelationRecorder) Send(_ context.Context, at time.Time, stream schema.Stream, samples []*telemetry.Sample) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	offset := at.Sub(d.start)
+	switch stream {
+	case schema.Processes:
+		var host string
+		var cpu float64
+		for _, sample := range samples {
+			host = sample.Processes.HostName
+			for _, process := range sample.Processes.Processes {
+				if process.Command.GetComm() == "zoom.us" {
+					d.point(host, offset).processes++
+					cpu += float64(process.Cpu.GetTotalPct())
+					d.point(host, offset).processRSS += process.Memory.GetRss()
+				}
+			}
+		}
+		d.point(host, offset).processCPU = cpu
+	case schema.Metrics:
+		for _, sample := range samples {
+			for _, serie := range sample.Metrics {
+				point := d.point(serie.Host, offset)
+				for _, value := range serie.Points {
+					switch serie.Name {
+					case "system.cpu.user":
+						point.cpuUser = value.Value
+					case "system.cpu.idle":
+						point.cpuIdle = value.Value
+					case "system.mem.used":
+						point.memUsed = value.Value
+					case "system.mem.free":
+						point.memFree = value.Value
+					}
+				}
+			}
+		}
+	case schema.Software:
+		for _, sample := range samples {
+			for _, entry := range sample.Software.Metadata.Software {
+				if entry.DisplayName == "zoom.us" {
+					d.point(sample.Software.Hostname, offset).version = entry.Version
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (*zoomCorrelationRecorder) NetworkMetrics(context.Context, []*metrics.Serie) error { return nil }
+func (*zoomCorrelationRecorder) NetworkMetadata(context.Context, []metadata.NetworkDevicesMetadata) error {
+	return nil
+}
+func (*zoomCorrelationRecorder) Wait(context.Context) error { return nil }
+
+func TestZoomBadUpdateCorrelatesSoftwareProcessAndHostCPU(t *testing.T) {
+	data := replayFile(t, "scenarios/zoom-bad-update.yaml")
+	var scenario schema.Scenario
+	if err := schema.DecodeStrict(data, &scenario); err != nil {
+		t.Fatal(err)
+	}
+	if err := scenario.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	var duration time.Duration
+	for _, phase := range scenario.Phases {
+		duration += phase.Duration.Duration
+	}
+	fixtureRoot := t.TempDir()
+	generateFixtureDuration(t, "macos", fixtureRoot, duration, 24*time.Minute)
+	captured, err := bundle.Load(filepath.Join(fixtureRoot, "macos"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)
+	plan, err := schema.NewPlan(&scenario, schema.Digest(data), fixtureCommit, 17, start, captured.Ref())
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan.RunID = "0123456789abcdef0123456789abcdef"
+	recorder := &zoomCorrelationRecorder{start: start, points: map[string]map[time.Duration]*zoomCorrelationPoint{}}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	result, err := engine.Run(ctx, engine.Request{Scenario: &scenario, Plan: plan, Bundle: captured}, engine.Options{Workers: 6, QueueCapacity: 1, Clock: &replayClock{now: start}, Delivery: recorder})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Complete() || result.Status != "succeeded" || len(result.Ledger) != 6 || !result.End.Equal(start.Add(duration)) {
+		t.Fatalf("Zoom scenario did not deliver its complete fleet: %+v", result)
+	}
+	for name, digest := range captured.Manifest.Files {
+		if schema.Digest(captured.Files[name]) != digest {
+			t.Fatal("Zoom overlays mutated the shared baseline capture")
+		}
+	}
+	wantVersions := map[time.Duration]string{0: "6.3.5", 10 * time.Minute: "6.4.0", 20 * time.Minute: "6.4.0", 30 * time.Minute: "6.3.5"}
+	for _, device := range result.Ledger {
+		points := recorder.points[device.Hostname]
+		if points == nil {
+			t.Fatalf("missing replay evidence for %s", device.Hostname)
+		}
+		for offset, version := range wantVersions {
+			want := version
+			if device.Cohort == "zoom-comparison" {
+				want = "6.3.5"
+			}
+			if got := points[offset].version; got != want {
+				t.Fatalf("%s Zoom version at %s = %q, want %q", device.Cohort, offset, got, want)
+			}
+		}
+		healthy, sustained, recovered := points[0], points[15*time.Minute], points[34*time.Minute+30*time.Second]
+		if device.Cohort == "zoom-comparison" {
+			if healthy.processCPU != 0 || sustained.processCPU != 0 || sustained.processes != 0 || sustained.cpuUser != 5 || sustained.cpuIdle != 93 || recovered.processCPU != 16 || recovered.processes != 1 || sustained.processRSS != 0 || sustained.memUsed != 4096 || sustained.memFree != 12288 {
+				t.Fatal("comparison cohort changed with the Zoom rollout")
+			}
+			continue
+		}
+		if device.Cohort != "zoom-rollout" {
+			t.Fatalf("unexpected Zoom scenario cohort %q", device.Cohort)
+		}
+		if healthy.processCPU != 0 || sustained.processCPU < 285 || sustained.processCPU > 315 || sustained.processes != 1 || recovered.processCPU >= 35 || recovered.processes != 1 {
+			t.Fatalf("Zoom CPU did not progress from healthy through sustained high usage and recovery: healthy=%v sustained=%v recovery=%v", healthy.processCPU, sustained.processCPU, recovered.processCPU)
+		}
+		wantUser := 5 + sustained.processCPU*.75/4
+		wantIdle := 93 - sustained.processCPU/4
+		if math.Abs(sustained.cpuUser-wantUser) > .001 || math.Abs(sustained.cpuIdle-wantIdle) > .001 {
+			t.Fatalf("host CPU does not reconcile to Zoom CPU: process=%v user=%v idle=%v", sustained.processCPU, sustained.cpuUser, sustained.cpuIdle)
+		}
+		if sustained.processRSS != 400<<20 || sustained.memUsed != 4096 || sustained.memFree != 12288 {
+			t.Fatalf("CPU-only Zoom incident changed captured memory: rss=%d used=%v free=%v", sustained.processRSS, sustained.memUsed, sustained.memFree)
+		}
+	}
+}
+
 func testSharedBaselineReplay(t *testing.T, platform string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -345,7 +507,7 @@ func testSharedBaselineReplay(t *testing.T, platform string) {
 					if process.User.GetName() != "fixture-user" || process.IoStat.GetReadRate() != 5 || process.IoStat.GetWriteRate() != 9 || !slices.Contains(process.Tags, "team:desktop") || !slices.Contains(process.Tags, "interactive") || !slices.Contains(process.Command.Args, "--profile=work") {
 						t.Fatal("native process user, I/O, tags, or arguments changed")
 					}
-					if process.Command.Comm != wantChrome && process.Command.Comm != "SentinelAgent.exe" && process.Command.Comm != "AcmeSync" && process.Command.Comm != "AcmeSync.exe" {
+					if process.Command.Comm != wantChrome && process.Command.Comm != "zoom.us" && process.Command.Comm != "SentinelAgent.exe" && process.Command.Comm != "AcmeSync" && process.Command.Comm != "AcmeSync.exe" {
 						t.Fatal("native background process name changed")
 					}
 					if process.Command.Comm == wantChrome {

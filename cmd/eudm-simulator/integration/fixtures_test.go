@@ -51,8 +51,11 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 	generateFixtureDuration(t, platform, outputDirectory, 5*time.Minute+time.Second)
 }
 
-func generateFixtureDuration(t *testing.T, platform, outputDirectory string, captureDuration time.Duration) {
+func generateFixtureDuration(t *testing.T, platform, outputDirectory string, captureDuration time.Duration, zoomStart ...time.Duration) {
 	t.Helper()
+	if len(zoomStart) > 1 {
+		t.Fatal("at most one Zoom process start offset is supported")
+	}
 	directory := filepath.Join(outputDirectory, platform)
 	if err := os.MkdirAll(filepath.Dir(directory), 0700); err != nil {
 		t.Fatal(err)
@@ -71,6 +74,10 @@ func generateFixtureDuration(t *testing.T, platform, outputDirectory string, cap
 		background += ".exe"
 	}
 	profile := schema.Profile{OS: platform, Architecture: arch, MemoryBytes: 16 << 30, Streams: []schema.Stream{schema.Metrics, schema.HostMetadata, schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo, schema.Processes, schema.Connections, schema.Software}, ProcessNames: []string{chrome, background}, SoftwareNames: []string{"Google Chrome", "OS", "Acme Workspace"}}
+	if platform == "macos" {
+		profile.ProcessNames = append(profile.ProcessNames, "zoom.us")
+		profile.SoftwareNames = append(profile.SoftwareNames, "zoom.us")
+	}
 	if platform == "windows" {
 		profile.ProcessNames = append(profile.ProcessNames, "SentinelAgent.exe")
 		profile.SoftwareNames = append(profile.SoftwareNames, "SentinelOne")
@@ -161,6 +168,9 @@ func generateFixtureDuration(t *testing.T, platform, outputDirectory string, cap
 	}
 	for cycle, offset := 0, time.Duration(0); offset < captureDuration; cycle, offset = cycle+1, offset+10*time.Second {
 		proc := &model.CollectorProc{HostName: "capture-host", NetworkId: "network-" + strings.Repeat("4", 32), GroupId: int32(cycle + 1), GroupSize: 1, Info: &model.SystemInfo{Uuid: "00000000-0000-4000-8000-000000000001", Os: &model.OSInfo{Name: osname, Version: "15.6"}, TotalMemory: 16 << 30, Cpus: []*model.CPUInfo{{Cores: 4}}}, Processes: []*model.Process{process(100, chrome, 8, 300<<20), process(300, background, 3, 100<<20)}}
+		if platform == "macos" && (len(zoomStart) == 0 || offset >= zoomStart[0]) {
+			proc.Processes = append(proc.Processes, process(400, "zoom.us", 16, 400<<20))
+		}
 		proc.Hints = &model.CollectorProc_HintMask{HintMask: 1}
 		if platform == "windows" {
 			proc.Processes = append(proc.Processes, process(200, "SentinelAgent.exe", 4, 200<<20))
@@ -235,6 +245,9 @@ func generateFixtureDuration(t *testing.T, platform, outputDirectory string, cap
 		productCode, installPath = "{28DA55C3-E174-49F3-8411-441CFABEF0D2}", `C:\Program Files\Acme\Workspace`
 	}
 	sw.Metadata.Software = append(sw.Metadata.Software, software.Entry{DisplayName: "Acme Workspace", Publisher: "Acme Software Ltd.", Version: "2025.10-beta+build.7", Source: kind, Status: "installed", ProductCode: productCode, InstallDate: "2025-06-12T10:30:00Z", InstallPaths: []string{installPath}})
+	if platform == "macos" {
+		sw.Metadata.Software = append(sw.Metadata.Software, software.Entry{DisplayName: "zoom.us", Publisher: "Zoom Video Communications, Inc.", Version: "6.3.5", Source: "app", Status: "installed", ProductCode: "us.zoom.xos", InstallPaths: []string{"/Applications/zoom.us.app"}})
+	}
 	if platform == "windows" {
 		sw.Metadata.Software = append(sw.Metadata.Software, software.Entry{DisplayName: "SentinelOne", Version: "23.4.2", Source: "desktop", Status: "installed"})
 	}

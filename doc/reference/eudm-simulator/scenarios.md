@@ -2,13 +2,14 @@
 
 Scenarios describe how captured evidence is replayed and, when needed, how it changes over time. Read the [overview](index.md) for scope and status, and use the [runbook](../../how-to/test/eudm-simulator.md) for the commands. The authoritative contracts are <<<repo("cmd/eudm-simulator/internal/schema/schema.go")>>> and <<<repo("cmd/eudm-simulator/internal/schema/contracts.go")>>>.
 
-## Checked-in scenario
+## Checked-in scenarios
 
-The definition is in <<<repo("cmd/eudm-simulator/scenarios")>>>.
+The definitions are in <<<repo("cmd/eudm-simulator/scenarios")>>>.
 
 | File | Fleet | Required evidence beyond the common baseline |
 | --- | --- | --- |
 | `healthy-macos.yaml` | 3 macOS devices | No incident overlay |
+| `zoom-bad-update.yaml` | 3 affected and 3 comparison macOS devices | At least one captured `zoom.us` process template and a `zoom.us` software inventory entry |
 
 Every endpoint requires metrics, legacy host metadata, Agent/host inventories, processes, and software inventory. An advertised host-system-info provider contributes hardware evidence. macOS includes connections when its running producer advertises them.
 
@@ -30,6 +31,18 @@ It contains only schema identity, scenario metadata, and inputs that constrain
 replay. The runner internally normalizes it to one cohort and one phase so it
 uses the same scheduling and accounting path as an advanced scenario. Capture
 for at least its 20-minute duration.
+
+The Zoom incident uses the advanced form and lasts 35 minutes. It keeps both
+cohorts on version `6.3.5`, changes the rollout cohort to `6.4.0` during onset
+and sustained phases, and restores `6.3.5` during recovery. The rollout
+cohort's `zoom.us` process ramps from 4% to 75% whole-host CPU, remains high,
+then recovers; the simulator reconciles that process delta into host CPU
+metrics. Its 10-, 20-, and 30-minute software snapshots align with the native
+10-minute software inventory cadence so the bad version and recovery are both
+observable. Capture a healthy macOS endpoint with the exact `zoom.us` process
+at least once, the exact application name in software inventory, and at least
+35 minutes of telemetry. Missing Zoom process cycles in the affected cohort are
+filled from the captured process template.
 
 ## Advanced scenarios
 
@@ -75,7 +88,7 @@ Save custom YAML locally and run with `--scenario /path/to/scenario.yaml --bundl
 
 The compact form has an implicit local healthy expectation. Explicit conclusions are `healthy`, `process_software_version`, `vpn_path`, and `wireless_access_points`. Healthy requires an empty affected list. An incident requires declared affected cohorts and exactly four phases named `healthy`, `onset`, `sustained`, and `recovery`, in that order. The expectation is an acceptance declaration, not an instruction that automatically changes cohort behavior: put the intended changes under the relevant phase/cohort.
 
-All names referenced by process, software, metric, and connection overlays must exist in the baseline capture. Missing required evidence rejects the scenario; overlays do not create missing processes, installations, metrics, or connections. Validation checks resource capacity and all relevant captured cycles. A scenario that parses successfully can still fail evidence validation. The total scenario duration must not exceed the bundle recording duration; validation rejects longer scenarios before delivery. Replay sends each recorded cycle once and never loops the baseline or fills gaps. Shorter scenarios must reach the first captured sample of every selected stream and metric family. Phase transitions do not force additional collections; where an investigation needs a phase-specific software version or metadata snapshot, choose phase lengths that contain a relevant native collection cycle.
+All names referenced by process, software, metric, and connection overlays must exist in the baseline capture. Missing required evidence rejects the scenario. The explicit `synthesize_if_missing` process option can fill individual process-cycle gaps from a template captured elsewhere in the same bundle; it cannot invent an uncaptured process identity or installation. Other overlays do not create missing processes, installations, metrics, or connections. Validation checks resource capacity and all relevant captured cycles. A scenario that parses successfully can still fail evidence validation. The total scenario duration must not exceed the bundle recording duration; validation rejects longer scenarios before delivery. Replay sends each recorded cycle once and never loops the baseline or fills gaps. Shorter scenarios must reach the first captured sample of every selected stream and metric family. Phase transitions do not force additional collections; where an investigation needs a phase-specific software version or metadata snapshot, choose phase lengths that contain a relevant native collection cycle.
 
 ## Cohorts, identities, and variation
 
@@ -118,13 +131,22 @@ Phase `metrics`, `processes`, `software_inventory`, and `connections` are maps k
 
 ### Process and software regressions
 
-Each process entry requires `name`, `cpu`, and `memory`. Names match captured process names exactly. CPU is the total whole-host percentage assigned to all matching PIDs, from 0 to 100. Memory is total RSS in MiB, distributed over those PIDs according to captured shares. The runner converts CPU to Agent process units and reconciles the delta into host user/system/idle CPU and used/free/usable memory metrics. Do not independently overlay those host metrics in the same phase and cohort.
+Each process entry requires `name` and `cpu`; `memory` is optional. Names match captured process names exactly. CPU is the total whole-host percentage assigned to all matching PIDs, from 0 to 100. When set, memory is total RSS in MiB, distributed over those PIDs according to captured shares. When omitted, captured RSS and VMS are preserved. The runner converts CPU to Agent process units and reconciles the CPU delta into host user/system/idle metrics. If the captured background load leaves less idle capacity than a positive process delta requires, host CPU saturates at 100% busy rather than emitting negative idle. A declared memory override is likewise reconciled into used/free/usable memory metrics. Do not independently overlay the corresponding host metrics in the same phase and cohort.
 
 Optional `user`, `exe`, and `args` alter existing process fields; omitted fields preserve the native capture. `args` is the full argument vector, including argument zero, which is set to the executable when arguments exist. The `SentinelAgent.exe` path follows the active SentinelOne version, including the version directory.
 
+Set `synthesize_if_missing: true` to ensure one process cloned from a captured
+template is present when an individual process collection lacks an exact-name
+match. The process must still occur in at least one collection in the bundle,
+and the scenario must declare a same-name captured software entry. Existing
+matching processes are overlaid in place and are never duplicated. A CPU-only
+synthetic process retains the template's command, user, tags, RSS, and VMS while
+only its process and reconciled host CPU change; host memory metrics remain at
+their captured values.
+
 Software entries match existing display names, set `version`, and optionally change nonempty `publisher`, `software_type`, `deployment_status`, `deployment_time`, `product_code`, and `user`. A phase entry takes precedence over a top-level entry of the same name. Entries update the existing application rather than adding duplicates. `is_64_bit: true` sets the field; false/omitted preserves the capture rather than forcing a 32-bit application. Product codes, users, paths, and historical installation dates remain native unless explicitly overridden. There is no default installation date derived from the run start.
 
-For a custom process/software scenario, confirm that the process stays present throughout the capture, the matching software version is healthy, and resource headroom supports the incident values plus variation. A declaration cannot invent a missing installation.
+For a custom process/software scenario, confirm that the process is captured at least once (and throughout the capture unless `synthesize_if_missing` is set), the matching software version is healthy, and resource headroom supports the incident values plus variation. A declaration cannot invent a missing installation.
 
 ### Metrics
 

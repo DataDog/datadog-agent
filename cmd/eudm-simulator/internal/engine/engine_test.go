@@ -116,8 +116,18 @@ func requestFor(t *testing.T, scenario *schema.Scenario, digest string, capture 
 
 func healthyMacOSRequest(t *testing.T) Request {
 	t.Helper()
+	return checkedMacOSScenarioRequest(t, "healthy-macos.yaml")
+}
+
+func zoomBadUpdateRequest(t *testing.T) Request {
+	t.Helper()
+	return checkedMacOSScenarioRequest(t, "zoom-bad-update.yaml")
+}
+
+func checkedMacOSScenarioRequest(t *testing.T, name string) Request {
+	t.Helper()
 	capture := capturedFixture(t, "macos")
-	data, err := os.ReadFile(testFile(t, "scenarios/healthy-macos.yaml"))
+	data, err := os.ReadFile(testFile(t, "scenarios/"+name))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -401,6 +411,21 @@ func TestHealthyMacOSFleetRunsAtNativeCadence(t *testing.T) {
 	}
 }
 
+func TestZoomBadUpdateFleetRunsAtNativeCadence(t *testing.T) {
+	request := zoomBadUpdateRequest(t)
+	sink := &recordingDelivery{start: request.Plan.Start}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	result, err := Run(ctx, request, Options{Workers: 4, QueueCapacity: 1, Clock: &advancingClock{now: request.Plan.Start}, Delivery: sink})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertCompleteCadences(t, request, result, sink)
+	if len(result.Ledger) != 6 || result.DeclaredDevices != 6 || result.Expectation.Conclusion != schema.ProcessSoftwareVersion || !slices.Equal(result.Expectation.AffectedCohorts, []string{"zoom-rollout"}) {
+		t.Fatal("Zoom incident lost its complete fleet or expected process/software conclusion")
+	}
+}
+
 func TestMetadataBootstrapPrecedesCapturedCycles(t *testing.T) {
 	request := healthyMacOSRequest(t)
 	sink := &recordingDelivery{start: request.Plan.Start, retainPayload: true}
@@ -453,6 +478,23 @@ func TestHealthyMacOSScenarioRequiresLongerRecording(t *testing.T) {
 	}
 	if err := Validate(request); err == nil || !strings.Contains(err.Error(), "recapture") || !strings.Contains(err.Error(), request.Bundle.Manifest.Duration.String()) {
 		t.Fatalf("healthy macOS scenario accepted a short recording: %v", err)
+	}
+}
+
+func TestZoomBadUpdateScenarioRequiresLongerRecording(t *testing.T) {
+	request := zoomBadUpdateRequest(t)
+	data, err := os.ReadFile(testFile(t, "scenarios/zoom-bad-update.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := schema.DecodeStrict(data, request.Scenario); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := schema.NewPlan(request.Scenario, schema.Digest(data), fixtureCommit, 1, request.Plan.Start, request.Bundle.Ref()); err == nil || !strings.Contains(err.Error(), "recapture") {
+		t.Fatalf("new plan accepted the Zoom incident with a short recording: %v", err)
+	}
+	if err := Validate(request); err == nil || !strings.Contains(err.Error(), "recapture") || !strings.Contains(err.Error(), request.Bundle.Manifest.Duration.String()) {
+		t.Fatalf("Zoom incident accepted a short recording: %v", err)
 	}
 }
 
