@@ -72,6 +72,11 @@ const (
 	columnOriginRef
 	columnDictUnitStr
 	columnUnitRef
+	columnReserved27
+	columnReserved28
+	columnReserved29
+	columnPointFlags
+	columnValsUint64
 	numberOfColumns
 )
 
@@ -103,6 +108,11 @@ var columnNames = []string{
 	"OriginInfo",
 	"DictUnitStr",
 	"UnitRef",
+	"Reserved27",
+	"Reserved28",
+	"Reserved29",
+	"PointFlags",
+	"ValsUint64",
 }
 
 // Constants for type column
