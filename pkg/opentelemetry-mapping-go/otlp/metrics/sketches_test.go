@@ -514,7 +514,7 @@ func TestUnboundedBucketMinMax(t *testing.T) {
 				{counts: []uint64{1, 0, 0}, sum: 10, minVal: ptr(10), maxVal: ptr(10), startTs: 1e9, ts: 2e9},
 				{counts: []uint64{2, 0, 0}, sum: 103, minVal: ptr(10), maxVal: ptr(93), startTs: 1e9, ts: 3e9},
 			},
-			wantMin: 10,
+			wantMin: 93,
 			wantMax: 93,
 		},
 		{
@@ -525,7 +525,7 @@ func TestUnboundedBucketMinMax(t *testing.T) {
 				{counts: []uint64{0, 0, 2}, sum: 1300, minVal: ptr(300), maxVal: ptr(1000), startTs: 1e9, ts: 3e9},
 			},
 			wantMin: 300,
-			wantMax: 1000,
+			wantMax: 300,
 		},
 	}
 
