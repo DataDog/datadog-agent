@@ -945,6 +945,14 @@ rest of the Windows tree stays on MinGW. CPython builds with `cl.exe` through th
 Only do this for a library the Go side loads over a C ABI: MSVC and MinGW objects must not
 be linked into the same binary.
 
+**GNU-only deps for MSVC consumers.** Deps that only build with a GNU toolchain (OpenSSL) are
+cross built from Linux with hermetic-llvm MinGW, through `windows_gnu_filegroup` /
+`windows_gnu_cc_library` in `//bazel/toolchains/hermetic_llvm:windows_gnu.bzl`, and handed to
+`windows_x86_64_msvc` targets as DLLs (see `@openssl//:openssl_msvc`). That only works across a
+DLL boundary, for libraries that export functions but no data: both sides use the UCRT and lld
+writes MSVC import libraries. The MinGW toolchains are only added inside that transition: their
+`target_settings` would also match `//bazel/platforms:windows_x86_64`.
+
 **Path separators.** Bazel stores paths with `/` internally. When constructing command lines or environment variables
 for actions, replace `/` with `\` for Windows tools that don't accept forward slashes:
 
