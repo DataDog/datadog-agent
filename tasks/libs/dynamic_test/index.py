@@ -34,7 +34,6 @@ class IndexKind(Enum):
     PACKAGE = "package"
     FILE = "file"
     DIFFED_PACKAGE = "diffed_package"
-    # Jev predictions use an in-memory test universe, not a stored coverage index.
     JEV = "jev"
 
 

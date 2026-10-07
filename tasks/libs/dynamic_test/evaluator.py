@@ -466,11 +466,9 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
             - Queries up to 3 days of historical data
         """
         escaped_job_name = job_name.replace('"', '\\"')
-        # The env facet is deliberately not part of the query: pipeline and
-        # job identify the tests, and the e2e jobs tag their events
-        # env:nativetest while the go test jobs use the default
         query = (
             f'@ci.pipeline.name:DataDog/datadog-agent '
-            f'@ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}"'
+            f'@ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}" '
+            f'-@test.status:skip'
         )
         return executed_tests_from_events(get_ci_test_events(query, 3))

@@ -113,6 +113,8 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
         self.assertNotIn("env:", query)
         self.assertIn("@ci.pipeline.id:42", query)
         self.assertIn(r'@ci.job.name:"job: [\"matrix\"]"', query)
+        # Skipped tests are excluded by the query itself
+        self.assertIn("-@test.status:skip", query)
         self.assertEqual(days, 3)
         self.assertEqual([test.name for test in tests], ["TestPass", "TestFail", "TestFlaky", "TestFlakyBool"])
         self.assertFalse(tests[1].unreliable_status)
