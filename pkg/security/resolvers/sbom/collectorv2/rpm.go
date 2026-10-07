@@ -98,6 +98,7 @@ func (s *rpmScanner) ListPackages(_ context.Context, root *os.Root) ([]sbomtypes
 					Version:    pkg.Version,
 					Epoch:      epoch,
 					Release:    pkg.Release,
+					Arch:       pkg.Arch,
 					SrcVersion: srcVer,
 					SrcEpoch:   epoch,
 					SrcRelease: srcRel,

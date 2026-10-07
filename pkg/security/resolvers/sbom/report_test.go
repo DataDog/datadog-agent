@@ -84,3 +84,18 @@ func TestToCycloneDXRuntimeProperties(t *testing.T) {
 		})
 	}
 }
+
+// TestToCycloneDXArch checks that the report names the architecture of an rpm
+// build, which the core agent matches with the Trivy component.
+func TestToCycloneDXArch(t *testing.T) {
+	bom := NewPackagesReport([]sbomtypes.Package{
+		{Name: "glibc", Version: "2.34", Release: "100.el9", Arch: "i686"},
+		{Name: "bash", Version: "5.2.15", Release: "2"},
+	}, "").ToCycloneDX()
+
+	for i, want := range []string{"pkg:glibc@2.34-100.el9?arch=i686", "pkg:bash@5.2.15-2"} {
+		if got := bom.Components[i].GetPurl(); got != want {
+			t.Errorf("purl = %q, want %q", got, want)
+		}
+	}
+}

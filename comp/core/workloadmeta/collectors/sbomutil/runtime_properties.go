@@ -75,10 +75,15 @@ func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 	// Build a lookup map from newBom (system-probe) components by name+normalised version.
 	// We normalise versions to handle epoch differences (e.g. "1:4.4.36" vs "4.4.36").
 	newComponentsMap := make(map[string]*cyclonedx_v1_4.Component)
+	// Trivy reports an rpm package once per architecture, as the report does.
+	archComponents := make(map[string]*cyclonedx_v1_4.Component)
 	for _, comp := range newBom.Components {
 		if comp != nil {
 			normalizedVersion, _ := normalizeVersion(comp.Version)
 			key := comp.Name + "@" + normalizedVersion
+			if arch := purlArch(comp.GetPurl()); arch != "" {
+				archComponents[key+"?arch="+arch] = comp
+			}
 			if prev, ok := newComponentsMap[key]; ok {
 				comp = foldUsage(prev, comp)
 			}
@@ -152,6 +157,9 @@ func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 		// dpkg, rpm and apk databases, so a component whose purl sits elsewhere
 		// shares a name and a version with it and nothing more.
 		newComp, reported := newComponentsMap[key]
+		if comp, ok := archComponents[key+"?arch="+purlArch(existingComp.GetPurl())]; ok {
+			newComp = comp
+		}
 		if reported && hasForeignPurl(mergedComp) {
 			reported = false
 		}
@@ -199,6 +207,21 @@ func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 	}
 
 	return mergedBom
+}
+
+// purlArch returns the arch qualifier of purl.
+func purlArch(purl string) string {
+	_, qualifiers, ok := strings.Cut(purl, "?")
+	if !ok {
+		return ""
+	}
+	qualifiers, _, _ = strings.Cut(qualifiers, "#")
+	for qualifier := range strings.SplitSeq(qualifiers, "&") {
+		if arch, ok := strings.CutPrefix(qualifier, "arch="); ok {
+			return arch
+		}
+	}
+	return ""
 }
 
 // foldUsage combines the usage of two report entries of one name and version,
