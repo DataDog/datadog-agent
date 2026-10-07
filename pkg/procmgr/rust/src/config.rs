@@ -388,8 +388,7 @@ pub fn load_configs(dir: &Path) -> Result<LoadedCatalog> {
         match parse_config(&path) {
             Ok(config) => processes.push(ProcessDefinition { name, config }),
             Err(e) => {
-                let error =
-                    truncate_config_error(&format!("{e:#}"), STORED_CONFIG_ERROR_MAX_CHARS);
+                let error = truncate_config_error(&format!("{e:#}"), STORED_CONFIG_ERROR_MAX_CHARS);
                 warn!("[{name}] skipping config: {error}");
                 invalid.push(InvalidConfigEntry { name, path, error });
             }
