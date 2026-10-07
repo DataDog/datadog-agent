@@ -396,9 +396,11 @@ func TestDatadogMetricInternal_resolveQuery(t *testing.T) {
 			assert.Equal(t, tt.expected.query, tt.ddmInternal.query)
 			assert.Equal(t, tt.expected.resolvedQuery, tt.ddmInternal.resolvedQuery)
 			assert.Equal(t, tt.expected.Valid, tt.ddmInternal.Valid)
-			assert.Equal(t, tt.expected.Error, tt.ddmInternal.Error)
 			if tt.expected.Error != nil {
+				assert.EqualError(t, tt.ddmInternal.Error, tt.expected.Error.Error())
 				assert.NotEqual(t, tt.expected.UpdateTime, tt.ddmInternal.UpdateTime)
+			} else {
+				assert.NoError(t, tt.ddmInternal.Error)
 			}
 		})
 	}
