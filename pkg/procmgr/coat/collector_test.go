@@ -517,6 +517,7 @@ func TestCollectInvalidConfigDoesNotSetProcmgrManagement(t *testing.T) {
 	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.True(t, service.ProcmgrConfigured)
 	assert.Equal(t, ProcessStateInvalidConfig, service.ProcmgrState)
-	assert.NotEqual(t, ManagementModeProcmgr, service.ManagementMode,
-		"a broken yaml is catalogued, but procmgr does not own the workload")
+	assert.NotEqual(t, ManagementModeProcmgr, service.ManagementMode)
+	assert.Equal(t, ProcessStateInvalidConfig, snapshot.ServiceProcessState("ddot"))
+	assert.True(t, procmgrStateIsActive(service, ProcessStateInvalidConfig))
 }

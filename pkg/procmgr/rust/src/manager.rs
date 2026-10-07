@@ -696,11 +696,6 @@ fn ambiguous_uuid_prefix(prefix: &str, matches: usize) -> Status {
     ))
 }
 
-/// Count UUID-prefix hits across the whole catalog (valid and invalid rows).
-///
-/// Returns `None` when the prefix matches nothing, so callers can fall through
-/// to name lookup. A single hit yields that side's index; two or more hits
-/// (including one on each side) are ambiguous.
 fn resolve_uuid_prefix_across_catalog(
     procs: &[ManagedProcess],
     invalid: &[InvalidProcess],
@@ -734,10 +729,7 @@ pub(crate) fn find_invalid<'a>(
     if looks_like_uuid_prefix(name_or_uuid) {
         match resolve_uuid_prefix_across_catalog(procs, invalid, name_or_uuid) {
             Some(Ok((_, Some(i)))) => return Ok(Some(&invalid[i])),
-            Some(Ok((_, None))) => {
-                // Exactly one valid process matched; this is not an invalid hit.
-                return Ok(None);
-            }
+            Some(Ok((_, None))) => return Ok(None),
             Some(Err(status)) => return Err(status),
             None => {}
         }
@@ -754,18 +746,13 @@ fn resolve_index(
         match resolve_uuid_prefix_across_catalog(procs, invalid, name_or_uuid) {
             Some(Ok((Some(i), None))) => return Ok(i),
             Some(Ok((None, Some(_)))) => {
-                // Caller should have short-circuited via find_invalid; treat as missing
-                // among managed processes so start/stop do not invent a row.
                 return Err(Status::not_found(format!(
                     "process '{name_or_uuid}' not found"
                 )));
             }
             Some(Err(status)) => return Err(status),
             None => {}
-            Some(Ok(_)) => {
-                // (None, None) and (Some, Some) are unreachable for total == 1 / Err.
-                return Err(ambiguous_uuid_prefix(name_or_uuid, 2));
-            }
+            Some(Ok(_)) => return Err(ambiguous_uuid_prefix(name_or_uuid, 2)),
         }
     }
     procs

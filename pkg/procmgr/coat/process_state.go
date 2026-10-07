@@ -44,6 +44,9 @@ var procmgrProcessStates = []string{
 // for service. It is only ever active while procmgr supervises the service, so a service that
 // moves off procmgr clears every state series instead of leaving the last one latched at 1.
 func procmgrStateIsActive(service ServiceSnapshot, state string) bool {
+	if state == ProcessStateInvalidConfig && service.ProcmgrState == ProcessStateInvalidConfig {
+		return true
+	}
 	return service.ManagementMode == ManagementModeProcmgr && service.ProcmgrState == state
 }
 
@@ -58,6 +61,9 @@ func (s Snapshot) ServiceProcessState(id string) string {
 		case ManagementModeSystemd, ManagementModeWindowsService:
 			// These modes are only set when the unit or service is active.
 			return ProcessStateRunning
+		}
+		if service.ProcmgrState == ProcessStateInvalidConfig {
+			return ProcessStateInvalidConfig
 		}
 		if !service.Installed && !service.ProcmgrConfigured {
 			return ProcessStateNotInstalled

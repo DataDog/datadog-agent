@@ -26,25 +26,11 @@ pub struct InvalidConfigEntry {
     pub error: String,
 }
 
-/// Marker appended when a parse error is cut short for storage or list.
 const CONFIG_ERROR_TRUNCATED_SUFFIX: &str = "… (truncated)";
 
-/// Bound on the diagnostic kept with an InvalidConfig catalog row.
-///
-/// Serde can echo an entire rejected scalar. Without a cap, a mistyped multi-MiB
-/// value would live in the daemon for as long as the broken file does, and would
-/// ride every Describe of that row.
 pub const STORED_CONFIG_ERROR_MAX_CHARS: usize = 4096;
-
-/// Bound on `config_error` in List responses.
-///
-/// Describe keeps the stored (already capped) text. List is the catalog overview
-/// and must stay small even when many rows are invalid, or a single oversized
-/// diagnostic can push the gRPC payload past client decode limits.
 pub const LIST_CONFIG_ERROR_MAX_CHARS: usize = 256;
 
-/// Cut `error` to at most `max_chars` Unicode scalar values, appending a marker
-/// when anything is dropped. The result never exceeds `max_chars`.
 pub fn truncate_config_error(error: &str, max_chars: usize) -> String {
     let mut iter = error.chars();
     let head: String = iter.by_ref().take(max_chars).collect();
@@ -556,7 +542,6 @@ condition_path_exists: /usr/bin/sleep
         assert!(out.ends_with(CONFIG_ERROR_TRUNCATED_SUFFIX));
     }
 
-    /// A mistyped scalar that serde echoes in full must not become an unbounded catalog row.
     #[test]
     fn test_load_configs_caps_stored_parse_error() {
         let dir = tempfile::tempdir().unwrap();

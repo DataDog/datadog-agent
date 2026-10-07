@@ -310,7 +310,6 @@ fn invalid_to_proto(inv: &InvalidProcess) -> proto::Process {
         last_signal: None,
         profile: String::new(),
         user: String::new(),
-        // List carries a short diagnostic; Describe keeps the stored text.
         config_error: crate::config::truncate_config_error(
             &inv.error,
             crate::config::LIST_CONFIG_ERROR_MAX_CHARS,
@@ -376,9 +375,6 @@ fn resolve_process<'a>(
     invalid: &[InvalidProcess],
     name_or_uuid: &str,
 ) -> Result<&'a ManagedProcess, Status> {
-    // UUID prefixes are resolved catalog-wide via find_invalid first; by the
-    // time we are here either the prefix is unique among managed processes or
-    // it matched nothing and we fall through to a name lookup.
     if crate::manager::looks_like_uuid_prefix(name_or_uuid) {
         let matches: Vec<&ManagedProcess> = procs
             .iter()

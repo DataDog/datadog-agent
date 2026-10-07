@@ -158,8 +158,6 @@ func (c *Collector) collectService(ctx context.Context, service MigratableServic
 			status.ManagementMode = ManagementModeProcmgr
 			return status
 		}
-		// A broken processes.d file is in the catalog, but procmgr does not own the
-		// workload. Fall through to the legacy SCM/systemd probe.
 	}
 
 	if legacyMode := detectLegacySupervisor(ctx, service); legacyMode != ManagementModeNone {
