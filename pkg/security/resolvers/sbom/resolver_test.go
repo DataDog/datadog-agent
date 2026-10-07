@@ -24,10 +24,12 @@ import (
 	"github.com/skydive-project/go-debouncer"
 	"github.com/twmb/murmur3"
 	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -72,8 +74,8 @@ func TestRefreshScanResetsStateForRescan(t *testing.T) {
 	}
 }
 
-func newPendingFileEvents(t *testing.T) *simplelru.LRU[containerutils.ContainerID, map[uint64]pendingFileEvent] {
-	events, err := simplelru.NewLRU[containerutils.ContainerID, map[uint64]pendingFileEvent](maxSBOMEntries, nil)
+func newPendingFileEvents(t *testing.T) *simplelru.LRU[containerutils.ContainerID, map[pendingFileKey]pendingFileEvent] {
+	events, err := simplelru.NewLRU[containerutils.ContainerID, map[pendingFileKey]pendingFileEvent](maxSBOMEntries, nil)
 	if err != nil {
 		t.Fatalf("NewLRU: %v", err)
 	}
@@ -96,7 +98,7 @@ func TestDeleteReleasesPendingFileEventsWithoutSBOM(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
 	r.sboms = sboms
 
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true, 0, 0)
 	r.Delete("container-id")
 
 	if r.pendingFileEvents.Len() != 0 {
@@ -116,10 +118,10 @@ func TestEvictedSBOMReleasesPendingFileEvents(t *testing.T) {
 	r.sboms = sboms
 
 	sboms.Add("evicted-container-id", NewSBOM("evicted-container-id", nil, "image:tag"))
-	r.queuePendingFileEvent("evicted-container-id", "/usr/bin/su", 04755, true)
+	r.queuePendingFileEvent("evicted-container-id", "/usr/bin/su", 04755, true, 0, 0)
 
 	sboms.Add("container-id", NewSBOM("container-id", nil, "image:tag"))
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true, 0, 0)
 
 	if _, ok := r.pendingFileEvents.Get("evicted-container-id"); ok {
 		t.Errorf("queued file accesses of the evicted SBOM were not released")
@@ -158,7 +160,7 @@ func TestAnalyzeWorkloadReusesCachedDataAsComputed(t *testing.T) {
 
 	sbom := NewSBOM("container-id", nil, "image:tag")
 	t.Cleanup(sbom.stop)
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true, 0, 0)
 
 	if err := r.analyzeWorkload(sbom); err != nil {
 		t.Fatalf("analyzeWorkload: %v", err)
@@ -257,7 +259,7 @@ func TestQueueWorkloadAppliesQueuedAccessesOnCacheHit(t *testing.T) {
 		sbom := NewSBOM("container-id", nil, "image:tag")
 		sbom.status = workloadmeta.Success
 		t.Cleanup(sbom.stop)
-		r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true)
+		r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true, 0, 0)
 
 		r.queueWorkload(sbom)
 
@@ -289,19 +291,19 @@ func TestPendingFileEventsAreDeduplicatedPerPath(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
 
 	for range 3 {
-		r.queuePendingFileEvent("container-id", "/usr/lib/libc.so.6", 0644, false)
+		r.queuePendingFileEvent("container-id", "/usr/lib/libc.so.6", 0644, false, 0, 0)
 	}
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, false)
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 0755, true)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, false, 0, 0)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 0755, true, 0, 0)
 
 	events, _ := r.pendingFileEvents.Get("container-id")
 	if len(events) != 2 {
 		t.Fatalf("queued %d distinct events, want 2", len(events))
 	}
-	if event := events[murmur3.StringSum64("/usr/lib/libc.so.6")]; event.suidBit || event.accessedByRoot {
+	if event := events[pendingFileKey{path: murmur3.StringSum64("/usr/lib/libc.so.6")}]; event.suidBit || event.accessedByRoot {
 		t.Errorf("libc event = %+v, want no sticky property set", event)
 	}
-	if event := events[murmur3.StringSum64("/usr/bin/su")]; !event.suidBit || !event.accessedByRoot {
+	if event := events[pendingFileKey{path: murmur3.StringSum64("/usr/bin/su")}]; !event.suidBit || !event.accessedByRoot {
 		t.Errorf("su event = %+v, want both sticky properties merged", event)
 	}
 }
@@ -313,19 +315,19 @@ func TestPendingFileEventsBoundDistinctPathsPerContainer(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
 
 	for i := range maxPendingFileEvents {
-		r.queuePendingFileEvent("container-id", fmt.Sprintf("/usr/lib/lib%d.so", i), 0644, false)
+		r.queuePendingFileEvent("container-id", fmt.Sprintf("/usr/lib/lib%d.so", i), 0644, false, 0, 0)
 	}
-	r.queuePendingFileEvent("container-id", "/usr/lib/overflow.so", 0644, false)
-	r.queuePendingFileEvent("container-id", "/usr/lib/lib0.so", 0644, true)
+	r.queuePendingFileEvent("container-id", "/usr/lib/overflow.so", 0644, false, 0, 0)
+	r.queuePendingFileEvent("container-id", "/usr/lib/lib0.so", 0644, true, 0, 0)
 
 	events, _ := r.pendingFileEvents.Get("container-id")
 	if len(events) != maxPendingFileEvents {
 		t.Fatalf("queued %d distinct events, want %d", len(events), maxPendingFileEvents)
 	}
-	if _, ok := events[murmur3.StringSum64("/usr/lib/overflow.so")]; ok {
+	if _, ok := events[pendingFileKey{path: murmur3.StringSum64("/usr/lib/overflow.so")}]; ok {
 		t.Errorf("path queued past the maximum number of pending events")
 	}
-	if !events[murmur3.StringSum64("/usr/lib/lib0.so")].accessedByRoot {
+	if !events[pendingFileKey{path: murmur3.StringSum64("/usr/lib/lib0.so")}].accessedByRoot {
 		t.Errorf("access to an already queued path was not merged")
 	}
 }
@@ -336,7 +338,7 @@ func TestPendingFileEventsHoldAReplayedProcess(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
 
 	for i := range 1024 {
-		r.queuePendingFileEvent("container-id", fmt.Sprintf("/usr/lib/python3/dist-packages/ext%d.so", i), 0755, false)
+		r.queuePendingFileEvent("container-id", fmt.Sprintf("/usr/lib/python3/dist-packages/ext%d.so", i), 0755, false, 0, 0)
 	}
 
 	if events, _ := r.pendingFileEvents.Get("container-id"); len(events) != 1024 {
@@ -357,7 +359,7 @@ func TestProcessPendingFileEventsUsrMergeAlias(t *testing.T) {
 		InstalledFiles: []string{"/usr/bin/bash"},
 	}}, true)
 
-	r.queuePendingFileEvent("container-id", "/bin/bash", 0755, false)
+	r.queuePendingFileEvent("container-id", "/bin/bash", 0755, false, 0, 0)
 	sbom.Lock()
 	r.processPendingFileEvents(sbom)
 	sbom.Unlock()
@@ -380,8 +382,8 @@ func TestProcessPendingFileEventsEnrichesPackages(t *testing.T) {
 		InstalledFiles: []string{"/usr/bin/su"},
 	}}, false)
 
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true)
-	r.queuePendingFileEvent("container-id", "/usr/bin/not-in-any-package", 0644, false)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true, 0, 0)
+	r.queuePendingFileEvent("container-id", "/usr/bin/not-in-any-package", 0644, false, 0, 0)
 
 	sbom.Lock()
 	r.processPendingFileEvents(sbom)
@@ -429,7 +431,7 @@ func TestSharedDataConcurrentForwardingAndResolve(t *testing.T) {
 	// LastAccess/SuidBit/AccessedByRoot on the shared Data).
 	wg.Go(func() {
 		for range 2000 {
-			r.queuePendingFileEvent("container-a", "/usr/bin/su", 04755, true)
+			r.queuePendingFileEvent("container-a", "/usr/bin/su", 04755, true, 0, 0)
 			sbomA.Lock()
 			r.processPendingFileEvents(sbomA)
 			sbomA.Unlock()
@@ -878,7 +880,7 @@ func TestResolvePackageSkipsPartialPath(t *testing.T) {
 func TestPendingFileEventsSkipDirectories(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
 
-	r.queuePendingFileEvent("container-id", "/usr/share/doc", syscall.S_IFDIR|0755, true)
+	r.queuePendingFileEvent("container-id", "/usr/share/doc", syscall.S_IFDIR|0755, true, 0, 0)
 	if r.pendingFileEvents.Len() != 0 {
 		t.Errorf("the directory open was queued")
 	}
@@ -1206,7 +1208,7 @@ func TestProcessPendingFileEventsKeepsAccessTime(t *testing.T) {
 			InstalledFiles: []string{"/usr/bin/bash"},
 		}}, false)
 
-		r.queuePendingFileEvent("container-id", "/usr/bin/bash", 0755, false)
+		r.queuePendingFileEvent("container-id", "/usr/bin/bash", 0755, false, 0, 0)
 		queued := time.Now()
 		time.Sleep(2 * time.Millisecond)
 		sbom.Lock()
@@ -1233,7 +1235,7 @@ func TestProcessPendingFileEventsKeepsNewerAccess(t *testing.T) {
 			InstalledFiles: []string{"/usr/bin/bash"},
 		}}, false)
 
-		r.queuePendingFileEvent("container-id", "/usr/bin/bash", 0755, false)
+		r.queuePendingFileEvent("container-id", "/usr/bin/bash", 0755, false, 0, 0)
 		time.Sleep(2 * time.Millisecond)
 		later := time.Now()
 		sbom.data.packages[0].LastAccess = later
@@ -1324,4 +1326,105 @@ func TestResolvePackageRefreshesSteadyUsage(t *testing.T) {
 			t.Errorf("the steady usage was not forwarded")
 		}
 	})
+}
+
+// TestResolvePackageSkipsOtherMounts checks that a file on another mount than
+// the root, as a bind mount or a ConfigMap, records no usage in its namespace.
+func TestResolvePackageSkipsOtherMounts(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](maxSBOMEntries, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r.sboms = sboms
+
+	sbom := NewSBOM("container-id", nil, "image")
+	sbom.setReport([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "nginx"},
+		InstalledFiles: []string{"/usr/sbin/nginx"},
+	}})
+	sbom.state.Store(computedState)
+	sbom.root = containerRoot{mountID: 42, mntNS: 7}
+	t.Cleanup(sbom.stop)
+	r.sboms.Add(sbom.ContainerID, sbom)
+
+	for _, tc := range []struct {
+		name           string
+		mountID, mntNS uint32
+		want           bool
+	}{
+		{"root mount", 42, 7, true},
+		{"unknown mount", 0, 7, true},
+		{"other mount", 9, 7, false},
+		{"other namespace", 9, 8, true},
+		{"unknown namespace", 9, 0, true},
+	} {
+		pc := &model.ProcessContext{}
+		pc.ContainerContext.ContainerID = "container-id"
+		pc.MntNS = tc.mntNS
+		file := &model.FileEvent{}
+		file.SetPathnameStr("/usr/sbin/nginx")
+		file.MountID = tc.mountID
+		if pkg := r.ResolvePackage(pc, file); (pkg != nil) != tc.want {
+			t.Errorf("%s: package = %+v, want found = %v", tc.name, pkg, tc.want)
+		}
+	}
+}
+
+// TestPendingFileEventsSkipOtherMounts checks that an access queued before the
+// scan from another mount than the root records no usage, flags included.
+func TestPendingFileEventsSkipOtherMounts(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	r.cfg = &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour}
+
+	sbom := NewSBOM("container-id", nil, "image")
+	t.Cleanup(sbom.stop)
+	sbom.setReport([]sbomtypes.PackageWithInstalledFiles{
+		{Package: sbomtypes.Package{Name: "nginx"}, InstalledFiles: []string{"/usr/sbin/nginx"}},
+		{Package: sbomtypes.Package{Name: "util-linux"}, InstalledFiles: []string{"/usr/bin/su"}},
+		{Package: sbomtypes.Package{Name: "coreutils"}, InstalledFiles: []string{"/usr/bin/cat"}},
+	})
+	sbom.root = containerRoot{mountID: 42, mntNS: 7}
+
+	r.queuePendingFileEvent("container-id", "/usr/sbin/nginx", 04755, true, 9, 7)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 0755, false, 42, 7)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 0755, false, 0, 7)
+	r.queuePendingFileEvent("container-id", "/usr/bin/cat", 0755, false, 9, 8)
+	sbom.Lock()
+	r.processPendingFileEvents(sbom)
+	sbom.Unlock()
+
+	used := map[string]bool{"nginx": false, "util-linux": true, "coreutils": true}
+	for _, pkg := range sbom.data.packages {
+		if !pkg.LastAccess.IsZero() != used[pkg.Name] || pkg.SuidBit || pkg.AccessedByRoot {
+			t.Errorf("%s = %+v, want used %v and no flag", pkg.Name, pkg, used[pkg.Name])
+		}
+	}
+}
+
+// TestReadContainerRoot checks that the root mount of a container and its mount
+// namespace are read from its processes, as statx and /proc give them.
+func TestReadContainerRoot(t *testing.T) {
+	var stx unix.Statx_t
+	if err := unix.Statx(unix.AT_FDCWD, "/", 0, unix.STATX_MNT_ID, &stx); err != nil || stx.Mask&unix.STATX_MNT_ID == 0 {
+		t.Skip("statx gives no mount ID on this kernel")
+	}
+
+	pid := uint32(os.Getpid())
+	id, _, _, err := utils.DefaultCGroupFS().FindCGroupContext(pid, pid)
+	if err != nil {
+		t.Skipf("no cgroup context for the test process: %v", err)
+	}
+	mntNS, err := utils.NewNSPathFromPid(pid, utils.MntNsType).GetNSID()
+	if err != nil {
+		t.Skipf("no mount namespace for the test process: %v", err)
+	}
+	cgroup := cgroupModel.NewCacheEntry(model.ContainerContext{ContainerID: id}, model.CGroupContext{}, pid)
+
+	if got, want := readContainerRoot(id, cgroup), (containerRoot{mountID: uint32(stx.Mnt_id), mntNS: mntNS}); got != want {
+		t.Errorf("root = %+v, want %+v", got, want)
+	}
+	if got := readContainerRoot("another-container", cgroup); got != (containerRoot{}) {
+		t.Errorf("root = %+v for a process of another container, want none", got)
+	}
 }

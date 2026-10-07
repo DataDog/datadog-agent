@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe counts as usage of the packages of an
+    image the files on the root mount of its containers alone. A file on a
+    bind mount or a ConfigMap at a package path marked the package of that
+    path in use.
