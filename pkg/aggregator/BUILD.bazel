@@ -42,6 +42,7 @@ go_library(
         "//comp/core/tagger/impl-noop",
         "//comp/core/tagger/origindetection",
         "//comp/core/tagger/types",
+        "//comp/core/tagger/utils",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/filterlist/def",

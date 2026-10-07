@@ -10,9 +10,13 @@ import (
 	"sync"
 	"time"
 
+	taggerutils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -45,8 +49,15 @@ type checkSender struct {
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
 	infraTagger             *infratags.Tagger // nil = no infra mode tagging
-	service                 string
-	noIndex                 bool
+	// infraModeEventTags holds `infra_mode:<mode>` when the Agent runs in a mode
+	// that carries a mark, and nil otherwise. It is resolved once at construction
+	// and appended to events only, so that Event Management can hide cost-only
+	// events. It is deliberately not infraTagger: that one is the metrics-plane
+	// allowlist, and this one must never reach a metric sample, where the intake
+	// renames series tagged `infra_mode:cloud_cost_only` into `dd.cloud_cost`.
+	infraModeEventTags []string
+	service            string
+	noIndex            bool
 }
 
 // senderItem knows how the aggregator should handle it
@@ -118,7 +129,22 @@ func newCheckSender(
 		orchestratorMetadataOut: orchestratorMetadataOut,
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
+		infraModeEventTags:      resolveInfraModeEventTags(pkgconfigsetup.Datadog()),
 	}
+}
+
+// resolveInfraModeEventTags returns the `infra_mode` tagset for events the Agent
+// produces, or nil when the resolved mode carries no mark.
+//
+// A check runs in the process that holds the local `infrastructure_mode`, so the
+// mode is read from the config here rather than streamed through the Tagger the
+// way the Kubernetes event paths do it.
+func resolveInfraModeEventTags(cfg pkgconfigmodel.Reader) []string {
+	mode := configutils.MarkedInfraMode(cfg)
+	if mode == "" {
+		return nil
+	}
+	return []string{configutils.InfraModeTagKey + ":" + mode}
 }
 
 // DisableDefaultHostname allows check to override the default hostname that will be injected
@@ -408,6 +434,9 @@ func (s *checkSender) ServiceCheck(checkName string, status servicecheck.Service
 // Event submits an event
 func (s *checkSender) Event(e event.Event) {
 	e.Tags = append(e.Tags, s.checkTags...)
+	// Append uniquely: a check configuration is free to carry the mark in its
+	// custom tags, and an event is not deduplicated downstream.
+	e.Tags = taggerutils.AppendUniqueTags(e.Tags, s.infraModeEventTags...)
 
 	if log.ShouldLog(log.TraceLvl) {
 		log.Trace("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
