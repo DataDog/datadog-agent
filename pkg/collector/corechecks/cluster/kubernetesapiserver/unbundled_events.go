@@ -168,11 +168,6 @@ func (c *unbundledTransformer) getTagsFromTagger(tagsAcc tagset.TagsAccumulator)
 		log.Debugf("error getting global tags: %s", err)
 	}
 	tagsAcc.Append(globalTags...)
-
-	// The infrastructure mode mark lives on its own Tagger entity, so the global
-	// tags never carry it and it has to be appended here. Callers of this
-	// accumulator run SortUniq, so appending a mark another source already added
-	// does not emit it twice.
 	tagsAcc.Append(c.taggerInstance.GetInfraTags()...)
 }
 
