@@ -26,7 +26,10 @@ func TestTrainingInfoCacheRefresh(t *testing.T) {
 		case "/debug/stats":
 			_, _ = w.Write([]byte(`{}`))
 		case "/gpu/training-info":
-			_, _ = w.Write([]byte(`[{"pid":10,"device_uuid":"GPU-1","training_run_id":"raysubmit_1","training_group_id":"group"}]`))
+			_, _ = w.Write([]byte(`[
+				{"pid":10,"device_uuid":"GPU-1","training_run_id":"run-a","training_group_id":"group"},
+				{"pid":20,"device_uuid":"GPU-1","training_run_id":"run-b","training_group_id":"group"}
+			]`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -38,12 +41,16 @@ func TestTrainingInfoCacheRefresh(t *testing.T) {
 	cache := NewTrainingInfoCache(sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath)))
 
 	require.NoError(t, cache.Refresh())
-	assert.Equal(t, []string{"training_group_id:group", "training_run_id:raysubmit_1"}, cache.DeviceTags("GPU-1"))
+	assert.Equal(t, []string{"training_group_id:group", "training_run_id:run-a", "training_run_id:run-b"}, cache.DeviceTags("GPU-1"))
 	assert.Empty(t, cache.DeviceTags("GPU-2"))
+	assert.Equal(t, []string{"training_group_id:group", "training_run_id:run-a"}, cache.ProcessTags(10))
+	assert.Equal(t, []string{"training_group_id:group", "training_run_id:run-a", "training_run_id:run-b"}, cache.ProcessTags(10, 20))
+	assert.Empty(t, cache.ProcessTags(30))
+	assert.Empty(t, cache.ProcessTags())
 }
 
-func TestTrainingInfoDeviceTags(t *testing.T) {
-	deviceTags := trainingInfoDeviceTags([]model.TrainingInfo{
+func TestTrainingInfoTags(t *testing.T) {
+	deviceTags, processTags := trainingInfoTags([]model.TrainingInfo{
 		{PID: 1, DeviceUUID: "GPU-1", TrainingRunID: "run-a", TrainingGroupID: "group"},
 		{PID: 2, DeviceUUID: "GPU-1", TrainingRunID: "run-a", TrainingGroupID: "group"},
 		{PID: 3, DeviceUUID: "GPU-1", TrainingRunID: "run-b"},
@@ -54,4 +61,9 @@ func TestTrainingInfoDeviceTags(t *testing.T) {
 		"GPU-1": {"training_group_id:group", "training_run_id:run-a", "training_run_id:run-b"},
 		"GPU-2": {"training_group_id:group"},
 	}, deviceTags)
+	assert.Equal(t, map[uint32][]string{
+		1: {"training_group_id:group", "training_run_id:run-a"},
+		2: {"training_group_id:group", "training_run_id:run-a"},
+		3: {"training_group_id:group", "training_run_id:run-b"},
+	}, processTags)
 }

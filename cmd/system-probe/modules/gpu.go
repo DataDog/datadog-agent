@@ -129,6 +129,14 @@ var GPUMonitoring = &module.Factory{
 				return deviceCache.GetByUUID(uuid)
 			}),
 			trainingInfoHandler: traininginfo.NewHandler(c.JobsConfig, c.TrainingInfoAllowedEnvVars, kernel.ProcFSRoot(), func() ([]traininginfo.GPUProcess, error) {
+				// Gate the device access: the release monitor can shut NVML
+				// down concurrently with an active training info request.
+				// The handler only lists GPU processes when an env identifier
+				// is configured, so NVML is not required otherwise.
+				if err := ddnvml.BeginNVMLUse(); err != nil {
+					return nil, err
+				}
+				defer ddnvml.EndNVMLUse()
 				return listGPUProcesses(deviceCache)
 			}),
 			cfg:           c,
@@ -220,16 +228,7 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 		}))
 	}
 
-	// Gate the whole operation: the GPU processes are listed through NVML,
-	// and the release monitor must not shut NVML down mid-request.
-	httpMux.HandleFunc("/training-info", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
-		if err := ddnvml.BeginNVMLUse(); err != nil {
-			http.Error(w, fmt.Sprintf("NVML unavailable (release window active): %v", err), http.StatusServiceUnavailable)
-			return
-		}
-		defer ddnvml.EndNVMLUse()
-		t.trainingInfoHandler.HandleTrainingInfo(w, req)
-	}))
+	httpMux.HandleFunc("/training-info", utils.WithConcurrencyLimit(1, t.trainingInfoHandler.HandleTrainingInfo))
 
 	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpuconfigconsts.GpuModuleName))
 	httpMux.HandleFunc("/debug/blocked-processes", usm.GetBlockedPathIDEndpoint(gpuconfigconsts.GpuModuleName))

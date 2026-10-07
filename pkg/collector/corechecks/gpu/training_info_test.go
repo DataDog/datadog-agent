@@ -16,10 +16,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sptestutil "github.com/DataDog/datadog-agent/pkg/system-probe/api/server/testutil"
 )
@@ -71,14 +73,17 @@ func TestConfigureTrainingInfoCacheFeatureGating(t *testing.T) {
 	}
 }
 
-func TestGetDeviceTagsIncludesTrainingTags(t *testing.T) {
+func TestGetTrainingTagsPreservesProcessAttribution(t *testing.T) {
 	socketPath := sptestutil.SystemProbeSocketPath(t, "gpu-training-info")
 	server, err := sptestutil.NewSystemProbeTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/debug/stats":
 			_, _ = w.Write([]byte(`{}`))
 		case "/gpu/training-info":
-			_, _ = w.Write([]byte(`[{"pid":10,"device_uuid":"GPU-1","training_run_id":"raysubmit_1"}]`))
+			_, _ = w.Write([]byte(`[
+				{"pid":10,"device_uuid":"GPU-1","training_run_id":"run-a"},
+				{"pid":20,"device_uuid":"GPU-1","training_run_id":"run-b"}
+			]`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -89,15 +94,36 @@ func TestGetDeviceTagsIncludesTrainingTags(t *testing.T) {
 
 	cache := nvidia.NewTrainingInfoCache(sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath)))
 	require.NoError(t, cache.Refresh())
+	check := &Check{trainingInfoCache: cache}
 
-	deviceTags := make([]string, 1, 4) // spare capacity to detect aliasing
-	deviceTags[0] = "gpu_uuid:gpu-1"
-	check := &Check{
-		deviceTags:        map[string][]string{"GPU-1": deviceTags, "GPU-2": {"gpu_uuid:gpu-2"}},
-		trainingInfoCache: cache,
+	process := func(pid string) workloadmeta.EntityID {
+		return workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: pid}
+	}
+	metric := func(workloads ...workloadmeta.EntityID) nvidia.Sample {
+		return nvidia.NewMetric("test", 1, ddmetrics.GaugeType, nvidia.Medium, nil, workloads)
 	}
 
-	assert.Equal(t, []string{"gpu_uuid:gpu-1", "training_run_id:raysubmit_1"}, check.getDeviceTags("GPU-1"))
-	assert.Equal(t, []string{"gpu_uuid:gpu-2"}, check.getDeviceTags("GPU-2"))
-	assert.Equal(t, []string{"gpu_uuid:gpu-1"}, check.deviceTags["GPU-1"])
+	tests := []struct {
+		name     string
+		sample   nvidia.Sample
+		expected []string
+	}{
+		{"device-wide sample", metric(), []string{"training_run_id:run-a", "training_run_id:run-b"}},
+		{"process of run A", metric(process("10")), []string{"training_run_id:run-a"}},
+		{"process of run B", metric(process("20")), []string{"training_run_id:run-b"}},
+		{"all processes", metric(process("10"), process("20")), []string{"training_run_id:run-a", "training_run_id:run-b"}},
+		{"process without training info", metric(process("30")), nil},
+		{"container workload", metric(workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "abc"}), nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, check.getTrainingTags(tt.sample, "GPU-1"))
+		})
+	}
+}
+
+func TestGetTrainingTagsDisabled(t *testing.T) {
+	check := &Check{}
+	assert.Nil(t, check.getTrainingTags(nvidia.NewMetric("test", 1, ddmetrics.GaugeType, nvidia.Medium, nil, nil), "GPU-1"))
 }

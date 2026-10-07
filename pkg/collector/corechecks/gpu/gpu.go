@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -579,13 +580,14 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		deduplicatedSamples := nvidia.RemoveDuplicateSamples(deviceData.collectorSamples)
 		c.telemetry.metrics.duplicateMetrics.Add(float64(deviceData.totalCount-len(deduplicatedSamples)), deviceUUID)
 		deviceContainers := gpuToContainersMap[deviceUUID]
-		deviceTags := c.getDeviceTags(deviceUUID)
+		deviceTags := c.deviceTags[deviceUUID]
 
 		deduplicatedSamples = c.strictIntervals.ProcessSamples(deduplicatedSamples, currentExecutionTime, deviceUUID)
 		deduplicatedSamples = c.rateCalculator.ProcessSamples(deduplicatedSamples, currentExecutionTime, deviceUUID)
 
 		for _, sample := range deduplicatedSamples {
-			if err := c.emitSample(sample, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
+			sampleDeviceTags := slices.Concat(deviceTags, c.getTrainingTags(sample, deviceUUID))
+			if err := c.emitSample(sample, snd, currentExecutionTime, deviceContainers, sampleDeviceTags); err != nil {
 				multiErr = append(multiErr, fmt.Errorf("error emitting sample %s: %w", sample.Key(), err))
 			}
 		}
@@ -594,12 +596,31 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 	return errors.Join(multiErr...)
 }
 
-// getDeviceTags returns the tags of the device, along with the training job tags of the processes using it.
-func (c *Check) getDeviceTags(deviceUUID string) []string {
+// getTrainingTags returns the training job tags for a sample. Samples associated with processes only get the tags of
+// those processes, so that a process metric is not attributed to other training runs sharing the device. Device-wide
+// samples get the tags of all the processes using the device.
+func (c *Check) getTrainingTags(sample nvidia.Sample, deviceUUID string) []string {
 	if c.trainingInfoCache == nil {
-		return c.deviceTags[deviceUUID]
+		return nil
 	}
-	return slices.Concat(c.deviceTags[deviceUUID], c.trainingInfoCache.DeviceTags(deviceUUID))
+
+	workloads := sample.AssociatedWorkloads()
+	if len(workloads) == 0 {
+		return c.trainingInfoCache.DeviceTags(deviceUUID)
+	}
+
+	var pids []uint32
+	for _, workload := range workloads {
+		if workload.Kind != workloadmeta.KindProcess {
+			continue
+		}
+		pid, err := strconv.ParseUint(workload.ID, 10, 32)
+		if err != nil {
+			continue
+		}
+		pids = append(pids, uint32(pid))
+	}
+	return c.trainingInfoCache.ProcessTags(pids...)
 }
 
 func collectSamplesSerial(collectors []nvidia.Collector) []collectorSamplesCollection {
