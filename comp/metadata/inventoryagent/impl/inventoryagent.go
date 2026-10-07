@@ -36,6 +36,7 @@ import (
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher/tracers"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -196,18 +197,27 @@ func (z *zeroConfigGetter) GetString(string) string { return "" }
 
 // getCorrectConfig tries to fetch the configuration from another process. It returns a new
 // configuration object on success and the local config upon failure.
-func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, configFetcher func(config model.Reader, client ipc.HTTPClient) (string, error)) configGetter {
+func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, configFetcher func(config model.Reader, client ipc.HTTPClient) (string, error), setup func(model.Setup)) configGetter {
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
 	if remoteConfig, err := configFetcher(localConf, ia.client); err == nil {
-		// Build a config object from the fetched YAML only. No env var is bound on this config,
-		// so the current process's environment variables are not applied
-		// and the values reflect the remote process's YAML exactly. A dynamic schema is used since
-		// the remote config's keys are not part of this freshly created config's schema.
+		// Build a config object from the fetched YAML only. The current process's environment
+		// must not be applied, so the values reflect the remote process's YAML exactly.
 		cfg := create.NewConfig(name)
-		cfg.SetTestOnlyDynamicSchema(true)
+		if setup == nil {
+			// Most remote process settings are not part of a schema available here.
+			cfg.SetTestOnlyDynamicSchema(true)
+		} else {
+			setup(cfg)
+		}
 		cfg.SetConfigType("yaml")
 		cfg.BuildSchema()
+		if setup != nil {
+			// The fetched values must not be overridden by this process's environment.
+			if clearer, ok := cfg.(interface{ ClearEnvVars() }); ok {
+				clearer.ClearEnvVars()
+			}
+		}
 		if perr := cfg.ReadConfig(strings.NewReader(remoteConfig)); perr != nil {
 			ia.log.Errorf("Could not parse '%s' configuration: %s", name, perr)
 		} else {
@@ -274,21 +284,21 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 }
 
 func (ia *inventoryagent) fetchSecurityAgentMetadata() {
-	securityCfg := ia.getCorrectConfig("security-agent", ia.conf, fetchSecurityConfig)
+	securityCfg := ia.getCorrectConfig("security-agent", ia.conf, fetchSecurityConfig, nil)
 
 	ia.data["feature_cspm_enabled"] = securityCfg.GetBool("compliance_config.enabled")
 	ia.data["feature_cspm_host_benchmarks_enabled"] = securityCfg.GetBool("compliance_config.enabled") && securityCfg.GetBool("compliance_config.host_benchmarks.enabled")
 }
 
 func (ia *inventoryagent) fetchTraceAgentMetadata() {
-	traceCfg := ia.getCorrectConfig("trace-agent", ia.conf, fetchTraceConfig)
+	traceCfg := ia.getCorrectConfig("trace-agent", ia.conf, fetchTraceConfig, nil)
 
 	ia.data["config_apm_dd_url"] = scrub(traceCfg.GetString("apm_config.apm_dd_url"))
 	ia.data["feature_apm_enabled"] = traceCfg.GetBool("apm_config.enabled")
 }
 
 func (ia *inventoryagent) fetchProcessAgentMetadata() {
-	processCfg := ia.getCorrectConfig("process-agent", ia.conf, fetchProcessConfig)
+	processCfg := ia.getCorrectConfig("process-agent", ia.conf, fetchProcessConfig, nil)
 
 	ia.data["feature_process_enabled"] = processCfg.GetBool("process_config.process_collection.enabled")
 	ia.data["feature_processes_container_enabled"] = processCfg.GetBool("process_config.container_collection.enabled")
@@ -301,7 +311,7 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	if isSet {
 		// If we can fetch the configuration from the system-probe process, we use it. If not we fallback on the
 		// local instance.
-		sysProbeConf = ia.getCorrectConfig("system-probe", localSysProbeConf, fetchSystemProbeConfig)
+		sysProbeConf = ia.getCorrectConfig("system-probe", localSysProbeConf, fetchSystemProbeConfig, pkgconfigsetup.InitSystemProbeConfig)
 	} else {
 		// If the system-probe configuration is not loaded we fallback on zero value for all metadata
 		sysProbeConf = &zeroConfigGetter{}
