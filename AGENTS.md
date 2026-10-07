@@ -133,9 +133,26 @@ derives the keypair name from the container username; use the host instead.
 - Full guide (scenarios, commands, stack lifecycle): `doc/how-to/test/manual-qa/index.md`
 
 ### Linting
+- Go: `dda inv linter.go` (see the `dda inv` table above)
 - Python: various linters via `dda inv linter.python`
 - YAML: yamllint
 - Shell: shellcheck
+
+#### Typechecking code for another platform
+Build-tagged files are invisible to the host test run, so `//go:build windows`
+code can be broken for a long time before CI says so. Prefix the linter with
+`GOOS`/`GOARCH` to typecheck it locally:
+
+```bash
+GOOS=windows GOARCH=amd64 dda inv linter.go --module=<module path>
+```
+
+Cross-linting for Windows needs mingw-w64 on `PATH` (`brew install mingw-w64` on
+macOS). `CGO_ENABLED=0` is not a substitute: core packages reach
+`pkg/util/winutil`, which requires real cgo. Note that
+`bazel build --platforms=@rules_go//go/toolchain:windows_amd64` builds libraries
+but cannot build `*_test` targets — Bazel requires exec platform == target
+platform for test rules — so the linter is the route for test files.
 
 ## Build System
 
@@ -186,6 +203,17 @@ Secondary CI: pull-request/repository-configuration checks and release automatio
 ### Contributing
 PRs should follow `.github/PULL_REQUEST_TEMPLATE.md` and the guidelines in
 `doc/guidelines/` (contributing, coding style, components, etc.).
+
+### Code ownership
+`.github/CODEOWNERS` is partly generated. The block between `# BEGIN COMPONENTS`
+and `# END COMPONENTS` is built from the `// team:` annotation in each
+component's `def/component.go` (or bundle's `bundle.go`). To change who owns a
+component or bundle, edit that annotation and run
+`dda inv components.lint-components --fix`, which also regenerates
+`comp/README.md`; never hand-edit lines inside the block (CI's `lint_components`
+job fails if they disagree with the annotations). Edit `CODEOWNERS` directly for
+everything else. To override part of a component (a subfolder or single file),
+add the line after `# END COMPONENTS`: rules are last-match-wins.
 
 ## Code Review
 

@@ -160,6 +160,54 @@ func (s *baseProcmgrSuite) TestDaemonServiceStateTelemetry() {
 	}, 7*time.Minute, 10*time.Second)
 }
 
+// processStateMetric is the COAT one-hot for each catalog process supervised by
+// dd-procmgrd. Tags are process (processes.d name) and state (lowercase procmgr state).
+const processStateMetric = "runtime__procmgr_process_state"
+
+// skippedCatalogProcessName is a migratable catalog entry the smoke suites pin in
+// Skipped via a missing condition_path_exists. Arbitrary processes.d names never
+// appear on this gauge.
+const skippedCatalogProcessName = "datadog-agent-par-control"
+
+func skippedCatalogProcessYAML(command, conditionPath string) string {
+	return fmt.Sprintf(`command: %s
+condition_path_exists: %s
+auto_start: true
+restart: never
+description: catalog process held in Skipped for COAT process_state
+`, command, conditionPath)
+}
+
+// TestSkippedProcessStateTelemetry checks that a catalog process in Skipped is
+// reported on runtime.procmgr_process_state with state=skipped.
+//
+// COAT gauges are dumped by diagnose show-metadata agent-full-telemetry, which
+// is the same path TestDaemonServiceStateTelemetry and the fleet installer
+// assertions use. They are not in the telemetry-check allowlist, so they never
+// show up as fakeintake metric payloads.
+func (s *baseProcmgrSuite) TestSkippedProcessStateTelemetry() {
+	s.requireCLI()
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		assertTableRow(ct, out, skippedCatalogProcessName, map[string]string{
+			"STATE": "Skipped",
+			"PID":   "-",
+		})
+	}, 30*time.Second, 2*time.Second)
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		output := s.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "agent-full-telemetry"}))
+		assert.True(ct, telemetryGaugeIsTrue(output, processStateMetric, map[string]string{
+			"process": skippedCatalogProcessName,
+			"state":   "skipped",
+		}), "catalog process in Skipped should set process_state skipped=1: %s", output)
+		assert.False(ct, telemetryGaugeIsTrue(output, processStateMetric, map[string]string{
+			"process": skippedCatalogProcessName,
+			"state":   "running",
+		}), "skipped catalog process must not also report running=1: %s", output)
+	}, 7*time.Minute, 10*time.Second)
+}
+
 func (s *baseProcmgrSuite) TestCLIStatus() {
 	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
@@ -195,7 +243,7 @@ func (s *baseProcmgrSuite) TestConditionPathExistsSkipsMissingBinary() {
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
 		assertTableRow(ct, out, "missing-binary", map[string]string{
-			"STATE": "Created",
+			"STATE": "Skipped",
 			"PID":   "-",
 		})
 	}, 30*time.Second, 2*time.Second)

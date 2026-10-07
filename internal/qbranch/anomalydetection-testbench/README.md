@@ -130,6 +130,12 @@ dda inv -- anomalydetection.launch-testbench --logs-only
 
 ## Headless Mode
 
+The [F1 scoring contract](../anomalydetection-scorer/README.md) rewards the first
+high-severity anomaly-scorer episode near disruption onset and penalizes new
+high-severity episodes during baseline and the final recovery quiet window.
+Early recovery is unscored. Use high-threshold scorer output for F1; medium
+episodes and TimeCluster correlations are excluded.
+
 Run a scenario without the HTTP server — load data, run the full detector→correlator pipeline, write a JSON results file, and exit.
 
 ```bash

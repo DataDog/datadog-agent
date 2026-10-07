@@ -84,6 +84,20 @@ var migratableServices = []MigratableService{
 		LegacyWindowsService: "datadog-system-probe",
 	},
 	{
+		ID:                 "trace",
+		ProcmgrProcessName: "datadog-agent-trace",
+		ProcmgrConfigFile:  "datadog-agent-trace.yaml",
+		InstallMarkerRels: []string{
+			"embedded/bin/trace-agent",
+			"bin/agent/trace-agent",
+		},
+		LegacySystemdUnits: []string{
+			"datadog-agent-trace.service",
+			"datadog-agent-trace-exp.service",
+		},
+		LegacyWindowsService: "datadog-trace-agent",
+	},
+	{
 		// Combined Private Action Runner. Still a legacy systemd/SCM unit on hosts that have
 		// not split it into par-control + action-executor under dd-procmgrd.
 		ID:                 "action",

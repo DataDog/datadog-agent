@@ -94,6 +94,7 @@ def bazel_not_found_message(color: str) -> str:
 def _run_command(
     cmd: tuple[str, ...],
     *,
+    capture_stderr: bool,
     capture_stdout: bool,
     capture_for_result: bool,
     env: dict[str, str] | None,
@@ -108,7 +109,7 @@ def _run_command(
             input=input,
             env=subprocess_env,
             tee_stdout=not capture_stdout,
-            tee_stderr=True,
+            tee_stderr=not capture_stderr,
         )
 
     return subprocess.run(
@@ -206,6 +207,7 @@ def _run_command_with_tee(
 
 def bazel(
     *args: str,
+    capture_stderr: bool = False,
     capture_output: bool = False,
     env: dict[str, str] | None = None,
     ignore_errors: bool = False,
@@ -228,6 +230,7 @@ def bazel(
 
     completed = _run_command(
         cmd,
+        capture_stderr=capture_stderr,
         capture_stdout=capture_output,
         capture_for_result=ignore_errors,
         env=env,

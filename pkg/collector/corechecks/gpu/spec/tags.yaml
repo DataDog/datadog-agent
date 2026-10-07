@@ -56,6 +56,8 @@ tags:
     regex: "^(parity|secded)$"
   cause:
     regex: "^(multiple_single_bit|double_bit)$"
+  vgpu_product:
+    regex: "^(unknown|vgpu|nvidia_rtx|gaming|compute|unknown_\\d+)$"
   nvlink_port:
     regex: "^\\d+$"
   fan_index:
