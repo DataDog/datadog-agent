@@ -44,6 +44,8 @@ The installer supports a safer upgrade path for `oci` packages called "experimen
 
 ### Start experiment
 
+On Linux, the installer extracts the package and config layers before `PreStartExperiment`. Config extraction writes into the shared user config directory, so this hook cannot protect files from extraction-time overwrites. The steps below describe package activation, not archive extraction.
+
 1. v1's `PreStartExperiment` hook is executed.
 2. v2's files are written to disk. v1's files are kept intact.
 3. v2's `PostStartExperiment` hook is executed.
