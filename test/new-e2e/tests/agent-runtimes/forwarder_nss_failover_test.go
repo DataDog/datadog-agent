@@ -288,7 +288,10 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *fi.Client, intakeMaxW
 		assert.NotEmpty(t, traces)
 
 		// check flares
-		v.Env().Agent.Client.Flare(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+		_, flareErr := v.Env().Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+		if !assert.NoError(t, flareErr) {
+			return
+		}
 		_, err = intake.GetLatestFlare()
 		if err != nil {
 			require.ErrorIs(t, err, fi.ErrNoFlareAvailable)
@@ -310,8 +313,9 @@ func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *fi.Client, intakeMax
 		// write a log
 		v.Env().Host.MustExecuteOn(t, "echo 'totoro' >> "+logFile)
 
-		// send a flare
-		v.Env().Agent.Client.Flare(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+		// send a flare to generate outbound traffic; a transient failure here is
+		// irrelevant to the "intake not used" assertion
+		_, _ = v.Env().Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 		// send traces
 		teardownTraceGen := runUDSTraceGenerator(v.Env().Host, "test", "extratags")
