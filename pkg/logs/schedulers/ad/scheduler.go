@@ -222,7 +222,7 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	commonGlobalOptions := integration.CommonGlobalConfig{}
 	err = yaml.Unmarshal(config.InitConfig, &commonGlobalOptions)
 	if err != nil {
-		return nil, fmt.Errorf("invalid init_config section for source %s: %s", config.Name, err)
+		return nil, fmt.Errorf("invalid init_config section for source %s: %w", config.Name, err)
 	}
 
 	globalServiceDefined := commonGlobalOptions.Service != ""
@@ -234,7 +234,7 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 		var err error
 		service, err = toService(config)
 		if err != nil {
-			return nil, fmt.Errorf("invalid entity: %v", err)
+			return nil, fmt.Errorf("invalid entity: %w", err)
 		}
 	}
 

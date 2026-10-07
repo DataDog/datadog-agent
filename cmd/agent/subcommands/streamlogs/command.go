@@ -109,13 +109,13 @@ func streamLogs(lc log.Component, config config.Component, client ipc.HTTPClient
 
 	if cliParams.FilePath != "" {
 		if err = filesystem.EnsureParentDirsExist(cliParams.FilePath); err != nil {
-			return fmt.Errorf("error creating directory for file %s: %v", cliParams.FilePath, err)
+			return fmt.Errorf("error creating directory for file %s: %w", cliParams.FilePath, err)
 		}
 
 		lc.Infof("Opening file %s for writing logs. This file will be used to store streamlog output.", cliParams.FilePath)
 		f, bufWriter, err = filesystem.OpenFileForWriting(cliParams.FilePath)
 		if err != nil {
-			return fmt.Errorf("error opening file %s for writing: %v", cliParams.FilePath, err)
+			return fmt.Errorf("error opening file %s for writing: %w", cliParams.FilePath, err)
 		}
 		defer func() {
 			err := bufWriter.Flush()

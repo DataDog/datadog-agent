@@ -25,7 +25,7 @@ func ParseJSON(data []byte) ([]*LogsConfig, error) {
 	log.Debugf("Parsing JSON logs config: %s", string(data))
 	err := json.Unmarshal(data, &configs)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse JSON logs config: %v", err)
+		return nil, fmt.Errorf("could not parse JSON logs config: %w", err)
 	}
 	for _, cfg := range configs {
 		log.Debugf("Parsed JSON logs config: %#v", cfg)
@@ -39,7 +39,7 @@ func ParseYAML(data []byte) ([]*LogsConfig, error) {
 	var yamlConfigsWrapper yamlLogsConfigsWrapper
 	err := yaml.Unmarshal(data, &yamlConfigsWrapper)
 	if err != nil {
-		return nil, fmt.Errorf("could not decode YAML logs config: %v", err)
+		return nil, fmt.Errorf("could not decode YAML logs config: %w", err)
 	}
 	for _, cfg := range yamlConfigsWrapper.Logs {
 		log.Debugf("Parsed YAML logs config: %+v", cfg)
@@ -56,5 +56,5 @@ func ParseJSONOrYAML(data []byte) ([]*LogsConfig, error) {
 	if err == nil {
 		return configs, nil
 	}
-	return nil, fmt.Errorf("could not parse logs config as JSON or YAML: %v", err)
+	return nil, fmt.Errorf("could not parse logs config as JSON or YAML: %w", err)
 }

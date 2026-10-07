@@ -70,7 +70,7 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("can't encode the message: %v", err)
+		return fmt.Errorf("can't encode the message: %w", err)
 	}
 
 	msg.SetEncoded(encoded)

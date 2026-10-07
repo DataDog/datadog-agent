@@ -112,7 +112,7 @@ func setupUnixConn(conn syscall.RawConn, originDetection bool, address string) (
 func setupSocketBeforeListen(socketPath string, transport string) (*net.UnixAddr, error) {
 	address, addrErr := net.ResolveUnixAddr(transport, socketPath)
 	if addrErr != nil {
-		return nil, fmt.Errorf("dogstatsd-uds: can't ResolveUnixAddr: %v", addrErr)
+		return nil, fmt.Errorf("dogstatsd-uds: can't ResolveUnixAddr: %w", addrErr)
 	}
 	fileInfo, err := os.Stat(socketPath)
 	// Socket file already exists
@@ -123,7 +123,7 @@ func setupSocketBeforeListen(socketPath string, transport string) (*net.UnixAddr
 		}
 		err = os.Remove(socketPath)
 		if err != nil {
-			return nil, fmt.Errorf("dogstatsd-uds: cannot remove stale UNIX socket: %v", err)
+			return nil, fmt.Errorf("dogstatsd-uds: cannot remove stale UNIX socket: %w", err)
 		}
 	}
 	return address, nil
@@ -132,7 +132,7 @@ func setupSocketBeforeListen(socketPath string, transport string) (*net.UnixAddr
 func setSocketWriteOnly(socketPath string) error {
 	err := os.Chmod(socketPath, 0722)
 	if err != nil {
-		return fmt.Errorf("can't set the socket at write only: %s", err)
+		return fmt.Errorf("can't set the socket at write only: %w", err)
 	}
 	return nil
 }

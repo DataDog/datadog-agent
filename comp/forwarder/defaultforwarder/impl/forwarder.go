@@ -49,20 +49,20 @@ func createOptions(params defaultforwarderdef.Params, config config.Component, l
 	endpoints, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
-		return nil, fmt.Errorf("Misconfiguration of agent endpoints: %s", err)
+		return nil, fmt.Errorf("Misconfiguration of agent endpoints: %w", err)
 	}
 
 	if !params.Resolver() {
 		options, err = NewOptionsWithOPW(config, log, endpoints)
 		if err != nil {
 			log.Error("Error creating forwarder options: ", err)
-			return nil, fmt.Errorf("Error creating forwarder options: %s", err)
+			return nil, fmt.Errorf("Error creating forwarder options: %w", err)
 		}
 	} else {
 		r, err := resolver.NewSingleDomainResolvers2(endpoints)
 		if err != nil {
 			log.Error("Error creating resolver: ", err)
-			return nil, fmt.Errorf("Error creating resolver: %s", err)
+			return nil, fmt.Errorf("Error creating resolver: %w", err)
 		}
 		options = NewOptionsWithResolvers(config, log, r)
 	}

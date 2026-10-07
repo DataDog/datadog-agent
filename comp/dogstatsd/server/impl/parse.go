@@ -167,7 +167,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 			values, err = p.parseFloat64List(rawValue)
 		}
 		if err != nil {
-			return dogstatsdMetricSample{}, fmt.Errorf("could not parse dogstatsd metric values: %v", err)
+			return dogstatsdMetricSample{}, fmt.Errorf("could not parse dogstatsd metric values: %w", err)
 		}
 	}
 
@@ -200,7 +200,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 			}
 			ts, err := strconv.ParseInt(string(optionalField[len(timestampFieldPrefix):]), 10, 0)
 			if err != nil {
-				return dogstatsdMetricSample{}, fmt.Errorf("could not parse dogstatsd timestamp %q: %v", optionalField[len(timestampFieldPrefix):], err)
+				return dogstatsdMetricSample{}, fmt.Errorf("could not parse dogstatsd timestamp %q: %w", optionalField[len(timestampFieldPrefix):], err)
 			}
 			if ts < 1 {
 				return dogstatsdMetricSample{}, errors.New("dogstatsd timestamp should be > 0")

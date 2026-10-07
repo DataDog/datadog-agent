@@ -136,7 +136,7 @@ func getObsPipelineURLForPrefix(log log.Component, datatype string, prefix strin
 		}
 		_, err := url.Parse(pipelineURL)
 		if err != nil {
-			return "", fmt.Errorf("could not parse %s %s endpoint: %s", prefix, datatype, err)
+			return "", fmt.Errorf("could not parse %s %s endpoint: %w", prefix, datatype, err)
 		}
 		return pipelineURL, nil
 	}

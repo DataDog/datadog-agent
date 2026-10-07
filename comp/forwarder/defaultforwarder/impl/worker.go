@@ -227,7 +227,7 @@ func (w *Worker) Start() {
 func (w *Worker) acquireRequestSemaphore(ctx context.Context) error {
 	err := w.maxConcurrentRequests.Acquire(ctx, 1)
 	if err != nil {
-		return fmt.Errorf("unable to acquire request semaphore: %v", err)
+		return fmt.Errorf("unable to acquire request semaphore: %w", err)
 	}
 
 	return nil

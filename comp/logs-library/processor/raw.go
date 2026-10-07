@@ -29,7 +29,7 @@ func NewRawEncoder(useContainerTimestamp bool) Encoder {
 func (r *rawEncoder) Encode(msg *message.Message, hostname string) error {
 	rendered, err := msg.Render()
 	if err != nil {
-		return fmt.Errorf("can't render the message: %v", err)
+		return fmt.Errorf("can't render the message: %w", err)
 	}
 
 	// if the first char is '<', we can assume it's already formatted as RFC5424, thus skip this step

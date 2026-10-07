@@ -75,16 +75,16 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 
 	addr, err := net.ResolveUDPAddr("udp", url)
 	if err != nil {
-		return nil, fmt.Errorf("could not resolve udp addr: %s", err)
+		return nil, fmt.Errorf("could not resolve udp addr: %w", err)
 	}
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		return nil, fmt.Errorf("can't listen: %s", err)
+		return nil, fmt.Errorf("can't listen: %w", err)
 	}
 
 	if rcvbuf := cfg.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
 		if err := conn.SetReadBuffer(rcvbuf); err != nil {
-			return nil, fmt.Errorf("could not set socket rcvbuf: %s", err)
+			return nil, fmt.Errorf("could not set socket rcvbuf: %w", err)
 		}
 	}
 

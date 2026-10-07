@@ -49,7 +49,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if reqs.Params.IsFromCLI() {
 		inner, err = pkglogsetup.BuildJMXLogger(reqs.Params.GetLogFile(), "", false, true, false, config)
 		if err != nil {
-			return Provides{}, fmt.Errorf("Unable to set up JMX logger: %v", err)
+			return Provides{}, fmt.Errorf("Unable to set up JMX logger: %w", err)
 		}
 	} else {
 		syslogURI := pkglogsetup.GetSyslogURI(config)
@@ -70,7 +70,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		)
 
 		if err != nil {
-			return Provides{}, fmt.Errorf("Error while setting up logging, exiting: %v", err)
+			return Provides{}, fmt.Errorf("Error while setting up logging, exiting: %w", err)
 		}
 	}
 

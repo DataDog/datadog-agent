@@ -51,7 +51,7 @@ func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManage
 
 	unixListener, err := conf.Listen(context.Background(), transport, socketPath)
 	if err != nil {
-		return nil, fmt.Errorf("can't listen: %s", err)
+		return nil, fmt.Errorf("can't listen: %w", err)
 	}
 
 	conn, ok := unixListener.(*net.UnixListener)

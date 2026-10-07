@@ -75,7 +75,7 @@ func buildEventsJSON(payloads []payloadsType) (*eventsJSON, error) {
 		events := eventsJSON{}
 		err := json.Unmarshal(p, &events)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode %q: %v", string(p), err)
+			return nil, fmt.Errorf("failed to decode %q: %w", string(p), err)
 		}
 
 		if allEventsJSON == nil {

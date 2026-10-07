@@ -293,7 +293,7 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 		// By default ssl is enabled ; to disable ssl set 'logs_config.logs_no_ssl' to true.
 		host, port, err := parseAddress(logsDDURL)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
+			return nil, fmt.Errorf("could not parse %s: %w", logsDDURL, err)
 		}
 		main.Host = host
 		main.Port = port
@@ -320,12 +320,12 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 	if coreConfig.GetBool("multi_region_failover.enabled") {
 		mrfURL, err := pkgconfigutils.GetMRFLogsEndpoint(coreConfig, tcpEndpointPrefix)
 		if err != nil {
-			return nil, fmt.Errorf("cannot construct MRF endpoint: %s", err)
+			return nil, fmt.Errorf("cannot construct MRF endpoint: %w", err)
 		}
 
 		mrfHost, mrfPort, err := parseAddress(mrfURL)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
+			return nil, fmt.Errorf("could not parse %s: %w", mrfURL, err)
 		}
 
 		apiKeyConfigPath := "multi_region_failover.api_key"
@@ -433,7 +433,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 	if opwEnabled {
 		host, port, _, useSSL, err := parseAddressWithScheme(vectorURL, defaultNoSSL, parseAddress)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", vectorURL, err)
+			return nil, fmt.Errorf("could not parse %s: %w", vectorURL, err)
 		}
 		if logsConfig.obsPipelineWorkerDualShip() {
 			// dual_ship=true: Datadog remains the primary endpoint; OPW is appended as
@@ -487,7 +487,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
 			host, port, pathPrefix, useSSL, err := parseAddressWithScheme(logsDDURL, defaultNoSSL, parseAddress)
 			if err != nil {
-				return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
+				return nil, fmt.Errorf("could not parse %s: %w", logsDDURL, err)
 			}
 			main.Host = host
 			main.Port = port
@@ -497,7 +497,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 			addr := pkgconfigutils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
 			host, port, _, useSSL, err := parseAddressWithScheme(addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
 			if err != nil {
-				return nil, fmt.Errorf("could not parse %s: %v", addr, err)
+				return nil, fmt.Errorf("could not parse %s: %w", addr, err)
 			}
 
 			main.Host = host
@@ -515,12 +515,12 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 	if coreConfig.GetBool("multi_region_failover.enabled") {
 		mrfURL, err := pkgconfigutils.GetMRFLogsEndpoint(coreConfig, endpointPrefix)
 		if err != nil {
-			return nil, fmt.Errorf("cannot construct MRF endpoint: %s", err)
+			return nil, fmt.Errorf("cannot construct MRF endpoint: %w", err)
 		}
 
 		mrfHost, mrfPort, mrfPathPrefix, mrfUseSSL, err := parseAddressWithScheme(mrfURL, defaultNoSSL, parseAddressAsHost)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
+			return nil, fmt.Errorf("could not parse %s: %w", mrfURL, err)
 		}
 
 		apiKeyConfigPath := "multi_region_failover.api_key"
@@ -565,7 +565,7 @@ func parseAddressWithScheme(address string, defaultNoSSL bool, defaultParser def
 	} else {
 		host, port, err = defaultParser(address)
 		if err != nil {
-			err = fmt.Errorf("could not parse %s: %v", address, err)
+			err = fmt.Errorf("could not parse %s: %w", address, err)
 			return
 		}
 		useSSL = !defaultNoSSL

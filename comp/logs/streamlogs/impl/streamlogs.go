@@ -86,7 +86,7 @@ func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLog
 	logger.Infof("Opening file %s for writing logs. This file will be used to store streamlog output.", fp)
 	f, bufWriter, err := filesystem.OpenFileForWriting(fp)
 	if err != nil {
-		return fmt.Errorf("error opening file %s for writing: %v", fp, err)
+		return fmt.Errorf("error opening file %s for writing: %w", fp, err)
 	}
 	defer func() {
 		if err = bufWriter.Flush(); err != nil {

@@ -428,7 +428,7 @@ func (j *JMXFetch) Up() (bool, error) {
 	// TODO: write windows implementation
 	process, err := os.FindProcess(j.cmd.Process.Pid)
 	if err != nil {
-		return false, fmt.Errorf("failed to find process: %s", err)
+		return false, fmt.Errorf("failed to find process: %w", err)
 	}
 
 	// from man kill(2):

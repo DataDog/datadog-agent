@@ -300,7 +300,7 @@ func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, 
 
 		return files, err
 	default:
-		return nil, fmt.Errorf("cannot read file %s: %s", path, err)
+		return nil, fmt.Errorf("cannot read file %s: %w", path, err)
 	}
 }
 
@@ -353,7 +353,7 @@ func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer
 			excludedGlob, err = filepath.Glob(excludePattern)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("malformed exclusion pattern: %s, %s", excludePattern, err)
+			return nil, fmt.Errorf("malformed exclusion pattern: %s, %w", excludePattern, err)
 		}
 		for _, excludedPath := range excludedGlob {
 			log.Debugf("Adding excluded path: %s", excludedPath)

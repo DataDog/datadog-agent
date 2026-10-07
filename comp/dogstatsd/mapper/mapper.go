@@ -130,7 +130,7 @@ func buildRegex(matchRe string, matchType string) (*regexp.Regexp, error) {
 	}
 	regex, err := regexp.Compile("^" + matchRe + "$")
 	if err != nil {
-		return nil, fmt.Errorf("invalid match `%s`. cannot compile regex: %v", matchRe, err)
+		return nil, fmt.Errorf("invalid match `%s`. cannot compile regex: %w", matchRe, err)
 	}
 	return regex, nil
 }

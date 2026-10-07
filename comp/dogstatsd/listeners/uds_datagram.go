@@ -49,7 +49,7 @@ func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolMana
 
 	connGeneric, err := conf.ListenPacket(context.Background(), transport, socketPath)
 	if err != nil {
-		return nil, fmt.Errorf("can't listen: %s", err)
+		return nil, fmt.Errorf("can't listen: %w", err)
 	}
 
 	conn, ok := connGeneric.(*net.UnixConn)

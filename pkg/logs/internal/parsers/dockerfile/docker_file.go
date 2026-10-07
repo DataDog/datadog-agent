@@ -58,7 +58,7 @@ func (p *dockerFileFormat) Parse(msg *message.Message) (*message.Message, error)
 	err := json.Unmarshal(msg.GetContent(), &log)
 	if err != nil {
 		msg.Status = message.StatusInfo
-		return msg, fmt.Errorf("cannot parse docker message, invalid JSON: %v", err)
+		return msg, fmt.Errorf("cannot parse docker message, invalid JSON: %w", err)
 	}
 
 	// Check if log is nil (e.g., when input is the JSON literal null)

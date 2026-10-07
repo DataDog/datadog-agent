@@ -191,7 +191,7 @@ func (s *Serializer) SendEvents(events event.Events) error {
 
 	payloads, err := metricsserializer.MarshalEvents(events, s.hostname, s.config, s.logger, s.Strategy)
 	if err != nil {
-		return fmt.Errorf("dropping event payloads: %v", err)
+		return fmt.Errorf("dropping event payloads: %w", err)
 	}
 	if len(payloads) == 0 {
 		return nil
@@ -212,7 +212,7 @@ func (s *Serializer) SendAgentShutdownEvent(ctx context.Context, e *event.Event)
 
 	payloads, err := metricsserializer.MarshalEvents(event.Events{e}, s.hostname, s.config, s.logger, s.Strategy)
 	if err != nil {
-		return fmt.Errorf("dropping Agent Shutdown event payload: %v", err)
+		return fmt.Errorf("dropping Agent Shutdown event payload: %w", err)
 	}
 	if len(payloads) == 0 {
 		return nil
@@ -231,7 +231,7 @@ func (s *Serializer) SendServiceChecks(serviceChecks servicecheck.ServiceChecks)
 
 	serviceCheckPayloads, extraHeaders, err := s.serializeStreamablePayload(serviceChecksSerializer, stream.DropItemOnErrItemTooBig)
 	if err != nil {
-		return fmt.Errorf("dropping service check payload: %s", err)
+		return fmt.Errorf("dropping service check payload: %w", err)
 	}
 
 	return s.Forwarder.SubmitV1CheckRuns(serviceCheckPayloads, extraHeaders)
@@ -259,7 +259,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	if useV1API {
 		seriesBytesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
 		if err != nil {
-			return fmt.Errorf("dropping series payload: %s", err)
+			return fmt.Errorf("dropping series payload: %w", err)
 		}
 		return s.Forwarder.SubmitV1Series(seriesBytesPayloads, extraHeaders)
 	}
@@ -267,7 +267,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	pipelines := s.buildPipelines(metricsKindSeries)
 	err = seriesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines)
 	if err != nil {
-		return fmt.Errorf("dropping series payload: %s", err)
+		return fmt.Errorf("dropping series payload: %w", err)
 	}
 
 	return pipelines.Send(s.Forwarder, s.protobufExtraHeadersWithCompression)
@@ -331,7 +331,7 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	pipelines := s.buildPipelines(metricsKindSketches)
 	err := sketchesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines, s.logger)
 	if err != nil {
-		return fmt.Errorf("dropping sketch payload: %v", err)
+		return fmt.Errorf("dropping sketch payload: %w", err)
 	}
 
 	return pipelines.Send(s.Forwarder, s.protobufExtraHeadersWithCompression)
@@ -355,7 +355,7 @@ func (s *Serializer) SendAgentchecksMetadata(m marshaler.JSONMarshaler) error {
 func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload transaction.BytesPayloads, extra http.Header) error) error {
 	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, s.Strategy)
 	if err != nil {
-		return fmt.Errorf("could not determine size of metadata payload: %s", err)
+		return fmt.Errorf("could not determine size of metadata payload: %w", err)
 	}
 
 	s.logger.Debugf("Sending metadata payload, content: %v", string(payload))
@@ -382,11 +382,11 @@ func (s *Serializer) SendProcessesMetadata(data interface{}) error {
 
 	payload, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("could not serialize processes metadata payload: %s", err)
+		return fmt.Errorf("could not serialize processes metadata payload: %w", err)
 	}
 	compressedPayload, err := s.Strategy.Compress(payload)
 	if err != nil {
-		return fmt.Errorf("could not compress processes metadata payload: %s", err)
+		return fmt.Errorf("could not compress processes metadata payload: %w", err)
 	}
 	if err := s.Forwarder.SubmitV1Intake(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}),
 		transaction.Events, s.jsonExtraHeadersWithCompression); err != nil {

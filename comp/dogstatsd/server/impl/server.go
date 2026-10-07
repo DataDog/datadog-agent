@@ -917,7 +917,7 @@ func getDogstatsdMappingProfiles(cfg model.Reader) ([]mapper.MappingProfileConfi
 	if cfg.IsConfigured("dogstatsd_mapper_profiles") {
 		err := structure.UnmarshalKey(cfg, "dogstatsd_mapper_profiles", &mappings)
 		if err != nil {
-			return []mapper.MappingProfileConfig{}, fmt.Errorf("Could not parse dogstatsd_mapper_profiles: %v", err)
+			return []mapper.MappingProfileConfig{}, fmt.Errorf("Could not parse dogstatsd_mapper_profiles: %w", err)
 		}
 	}
 	return mappings, nil

@@ -115,7 +115,7 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 		}
 		diskErr = errors.Join(diskErrs...)
 		if diskErr != nil {
-			diskErr = fmt.Errorf("Cannot store transactions on disk: %v", diskErr)
+			diskErr = fmt.Errorf("Cannot store transactions on disk: %w", diskErr)
 			tc.telemetry.incErrorsCount()
 		}
 	}
