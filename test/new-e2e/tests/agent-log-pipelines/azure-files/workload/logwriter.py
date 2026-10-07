@@ -18,6 +18,10 @@ reproduces every part of the Java writer that the suite's assertions read:
 - ledger: `crc64` prints what Crc64.java prints, so ledger.sh writes the same
   ledger with either helper.
 
+The Windows file server of the smb-windows cell runs this writer too, on the
+embeddable Python distribution, with sidecars.py in place of ledger.sh and
+appender.sh, which need a POSIX shell.
+
 Unset, the settings below keep that behaviour. The Java writer has none of
 them:
 
@@ -120,6 +124,11 @@ PERIOD_FORMAT = "%Y%m%dT%H%MZ"
 # A period that is not a whole number of minutes is named to the second.
 SECOND_ROTATED_SUFFIX_FORMAT = "%d%m%Y_%H%M%S"
 SECOND_PERIOD_FORMAT = "%Y%m%dT%H%M%SZ"
+
+# Windows opens a descriptor in text mode unless told otherwise, and text mode
+# writes every newline as CRLF. The writer also runs on the Windows file server
+# of the smb-windows cell, where its files must hold the bytes it journals.
+O_BINARY = getattr(os, "O_BINARY", 0)
 
 CRC64_ISO_POLYNOMIAL = 0xD800000000000000
 CRC64_MASK = (1 << 64) - 1
@@ -441,7 +450,7 @@ class RollingFile:
             self._rollover(rotated_file_time_ms)
         if self.fd is None:
             # FileOutputStream(path, true): O_WRONLY | O_CREAT | O_APPEND.
-            self.fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)
+            self.fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | O_BINARY, 0o666)
         # immediateFlush: one write per event.
         write_all(self.fd, data)
 
@@ -567,7 +576,7 @@ class CopyTruncateFile:
 
     def append(self, event_ms, data):
         if self.fd is None:
-            self.fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)
+            self.fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | O_BINARY, 0o666)
         write_all(self.fd, data)
 
     def active_size(self):
@@ -852,7 +861,7 @@ class LogWriter:
         )
         line = json.dumps(entry, separators=(",", ":")) + "\n"
         try:
-            fd = os.open(self.journal_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)
+            fd = os.open(self.journal_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | O_BINARY, 0o666)
             try:
                 write_all(fd, line.encode())
                 os.fsync(fd)
@@ -925,7 +934,7 @@ class LogWriter:
         if count > MAX_PADDING_BYTES:
             raise ValueError("padding must not exceed 512 bytes")
         # Files.write(path, bytes, APPEND): its own descriptor, no create.
-        fd = os.open(self.log_path, os.O_WRONLY | os.O_APPEND)
+        fd = os.open(self.log_path, os.O_WRONLY | os.O_APPEND | O_BINARY)
         try:
             write_all(fd, b"p" * count)
         finally:

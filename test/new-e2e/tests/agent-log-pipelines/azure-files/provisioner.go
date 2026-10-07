@@ -32,7 +32,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubecomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	azureresources "github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/aks"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	azurekubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/azure/kubernetes"
@@ -726,11 +728,24 @@ type fingerprintConfig struct {
 	maxBytes int
 }
 
+// fileServerKind is what serves a cell's share.
+type fileServerKind string
+
+const (
+	// azureFilesServer is an Azure Files share of the cell's own storage
+	// account, written by a writer pod through its CIFS mount.
+	azureFilesServer fileServerKind = "azure-files"
+	// windowsFileServer is a share of the run's Windows Server VM, written
+	// by a writer that runs on the VM itself (see windows.go).
+	windowsFileServer fileServerKind = "windows"
+)
+
 // cell is one independent measurement. Each cell has its own storage account,
 // share and writer, so no two readers ever see the same files.
 type cell struct {
 	name        string
 	reader      readerKind
+	server      fileServerKind
 	service     string
 	fingerprint fingerprintConfig
 	// mountOptions applies to the writer's mount, and to the Agent's mount
@@ -760,6 +775,14 @@ type cell struct {
 	// cell's Secret holds: 0 for key1, which the writer mounts with, and 1
 	// for key2 in the key-rotation scenario.
 	agentKeyIndex int
+	// serverHost is the private IP address of the Windows file server, which
+	// the test learns from the storage pass, for a cell it serves.
+	serverHost string
+}
+
+// onWindows reports whether the Windows file server serves the cell's share.
+func (c cell) onWindows() bool {
+	return c.server == windowsFileServer
 }
 
 // lossAccounted reports whether the cell's records may only go missing when
@@ -778,8 +801,21 @@ func (c cell) secretName() string {
 	return storageSecretPrefix + "-" + c.name
 }
 
+// host is the SMB server of the cell's share.
 func (c cell) host() string {
+	if c.onWindows() {
+		return c.serverHost
+	}
 	return c.accountName + ".file.core.windows.net"
+}
+
+// smbUsername is the user the SMB source authenticates as: the storage
+// account for Azure Files, a local user of the Windows file server.
+func (c cell) smbUsername() string {
+	if c.onWindows() {
+		return windowsReaderUser
+	}
+	return c.accountName
 }
 
 // agentKeyVolumeName is the Agent pod volume that holds an SMB cell's key.
@@ -843,8 +879,8 @@ const (
 	logsBatchWaitSeconds      = 5
 )
 
-// scenarioKind names a disruption of the Agent, which runs as its own test
-// method on the smb cell (see scenarios_test.go).
+// scenarioKind names a scenario, which runs as its own test method on the smb
+// cell (see scenarios_test.go): a disruption of the Agent, or several Agents.
 type scenarioKind string
 
 const (
@@ -852,12 +888,35 @@ const (
 	agentRestartScenario scenarioKind = "agent-restart"
 	keyRotationScenario  scenarioKind = "key-rotation"
 	networkDropScenario  scenarioKind = "network-drop"
+	// multiNodeScenario runs the Agent DaemonSet on several AKS nodes, all
+	// with the same smb source.
+	multiNodeScenario scenarioKind = "multi-node"
 )
 
-var knownScenarios = []scenarioKind{agentRestartScenario, keyRotationScenario, networkDropScenario}
+var (
+	// disruptionScenarios disrupt the Agent while the smb cell's writer runs.
+	disruptionScenarios = []scenarioKind{agentRestartScenario, keyRotationScenario, networkDropScenario}
+	knownScenarios      = append(slices.Clone(disruptionScenarios), multiNodeScenario)
+)
 
-// scenarioCellName is the cell every scenario disrupts.
+// disrupts reports whether the scenario disrupts the Agent.
+func (k scenarioKind) disrupts() bool {
+	return slices.Contains(disruptionScenarios, k)
+}
+
+// scenarioCellName is the cell every scenario runs on.
 const scenarioCellName = "smb"
+
+// AKS node counts. The multi-node scenario runs one Agent per node, so every
+// record of the smb cell is collected once per node: the SMB source has no
+// single-reader election, each Agent with the source reads the whole share.
+// Any other cell would be collected as many times, so only that scenario may
+// run more than one node.
+const (
+	defaultNodes          = 1
+	defaultMultiNodeNodes = 2
+	maxNodes              = 5
+)
 
 // Scenario timings. Each scenario disrupts the second period of the smb
 // cell's writer, the first full one, and the disruption has to be over before
@@ -955,16 +1014,17 @@ func (s scenarioOptions) writerDefaults() writerDefaults {
 	return writerDefaults{}
 }
 
-// validateWriter refuses writer options the scenario cannot judge: it reads
-// one app.log rotated by rename, written at a rate, with a period that holds
-// the disruption.
+// validateWriter refuses writer options the scenario cannot judge. Every
+// scenario rotates by rename. A disruption reads one app.log, written at a
+// rate, with a period that holds the disruption.
 func (s scenarioOptions) validateWriter(w writerOptions) error {
-	if s.kind == noScenario {
-		return nil
-	}
 	switch {
+	case s.kind == noScenario:
+		return nil
 	case w.mode != renameRotation:
 		return fmt.Errorf("the %s scenario rotates by rename; unset the rotation mode", s.kind)
+	case !s.kind.disrupts():
+		return nil
 	case w.streams != 0:
 		return fmt.Errorf("the %s scenario reads one app.log; unset the writer streams", s.kind)
 	case !w.paced():
@@ -983,6 +1043,8 @@ func (s scenarioOptions) validateWriter(w writerOptions) error {
 // cells, whose CIFS mounts the kernel runs in the node's namespace, are not
 // affected and keep their usual assertions. Other SMB cells are refused:
 // several storage accounts can share the blocked endpoint's IP address.
+// multi-node runs an Agent per node, which would read every other cell once
+// per node too.
 func (s scenarioOptions) checkCells(cells []cell) error {
 	if s.kind == noScenario {
 		return nil
@@ -995,6 +1057,8 @@ func (s scenarioOptions) checkCells(cells []cell) error {
 		case s.kind == networkDropScenario && c.reader == fileReader:
 		case s.kind == networkDropScenario:
 			return fmt.Errorf("the %s scenario cannot run with cell %s: SMB cells may share the blocked storage endpoint's IP address", s.kind, c.name)
+		case s.kind == multiNodeScenario:
+			return fmt.Errorf("the %s scenario runs an Agent on every node, each collecting every cell, so it runs with the %s cell alone, not with %s", s.kind, scenarioCellName, c.name)
 		default:
 			return fmt.Errorf("the %s scenario disturbs every source of the Agent, so it runs with the %s cell alone, not with %s", s.kind, scenarioCellName, c.name)
 		}
@@ -1005,9 +1069,14 @@ func (s scenarioOptions) checkCells(cells []cell) error {
 	return nil
 }
 
-// stackNamePattern keeps a reused stack name valid as a Pulumi stack name once
-// the framework prefixes it with the user name.
-var stackNamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$`)
+var (
+	// stackNamePattern keeps a reused stack name valid as a Pulumi stack name
+	// once the framework prefixes it with the user name.
+	stackNamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$`)
+	// nodeSuffixPattern is the suffix the suite gives the stack of a
+	// multi-node run, which a reused stack name must not carry itself.
+	nodeSuffixPattern = regexp.MustCompile(`-n[0-9]+$`)
+)
 
 // runOptions are the inputs of one run, read from the environment by
 // TestAzureFiles.
@@ -1029,10 +1098,15 @@ type runOptions struct {
 	streams         string
 	// calibrate records the marker outcomes instead of asserting them.
 	calibrate bool
-	// scenario names a disruption to run on the smb cell, and
+	// scenario names a scenario to run on the smb cell, and
 	// networkDropSeconds how long network-drop lasts; empty keeps 90s.
 	scenario           string
 	networkDropSeconds string
+	// nodes is the AKS node count; empty keeps 1, or 2 for multi-node.
+	nodes string
+	// windowsEnabled provisions the Windows file server of the smb-windows
+	// cell.
+	windowsEnabled bool
 }
 
 type runSpec struct {
@@ -1040,6 +1114,8 @@ type runSpec struct {
 	stackName   string
 	writerImage string
 	profile     agentProfile
+	// nodes is the number of AKS nodes, and so of Agent pods.
+	nodes int
 	// writer is the run's writer options. Each cell's are in cell.writer.
 	writer    writerOptions
 	calibrate bool
@@ -1060,11 +1136,15 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 	if err != nil {
 		return runSpec{}, err
 	}
-	stackName, err := resolveStackName(opts.stackName, opts.runID)
+	scenario, err := parseScenario(opts.scenario, opts.networkDropSeconds)
 	if err != nil {
 		return runSpec{}, err
 	}
-	scenario, err := parseScenario(opts.scenario, opts.networkDropSeconds)
+	nodes, err := parseNodes(opts.nodes, scenario)
+	if err != nil {
+		return runSpec{}, err
+	}
+	stackName, err := resolveStackName(opts.stackName, opts.runID, nodes)
 	if err != nil {
 		return runSpec{}, err
 	}
@@ -1101,6 +1181,7 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 		stackName:   stackName,
 		writerImage: opts.writerImage,
 		profile:     profile,
+		nodes:       nodes,
 		writer:      writer,
 		calibrate:   opts.calibrate,
 		scenario:    scenario,
@@ -1109,11 +1190,14 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 		if c.writer, err = c.writerOptions(writer, set); err != nil {
 			return runSpec{}, err
 		}
+		if c.onWindows() && !c.writer.isDefault() {
+			return runSpec{}, fmt.Errorf("cell %s: %w", c.name, errWindowsWriterOptions)
+		}
 		if opts.writerImage != "" && !c.writer.isDefault() {
 			return runSpec{}, fmt.Errorf("cell %s: %w", c.name, errJavaWriterOptions)
 		}
 		switch {
-		case scenario.kind != noScenario && c.name == scenarioCellName:
+		case scenario.kind.disrupts() && c.name == scenarioCellName:
 			// A disruption delays the drains past every marker age, so the
 			// markers would say nothing about the drain window.
 			c.markers = markerDelays{}
@@ -1125,13 +1209,56 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 		default:
 			c.markers = markerDelaysFor(c.reader, c.writer.mode)
 		}
-		if c.reader == smbReader && !opts.smbEnabled {
+		// An SMB cell needs an Agent built with the SMB source, and the
+		// smb-windows cell a Windows VM, which costs more than a share.
+		if (c.reader == smbReader && !opts.smbEnabled) || (c.onWindows() && !opts.windowsEnabled) {
 			spec.gatedCells = append(spec.gatedCells, c)
 			continue
 		}
 		spec.cells = append(spec.cells, c)
 	}
 	return spec, nil
+}
+
+// parseNodes reads the AKS node count. More than one node runs as many
+// Agents, which each collect every record, so only the multi-node scenario,
+// which expects that, may ask for them, and it needs two at least.
+func parseNodes(value string, scenario scenarioOptions) (int, error) {
+	fallback := defaultNodes
+	if scenario.kind == multiNodeScenario {
+		fallback = defaultMultiNodeNodes
+	}
+	nodes, err := parseBoundedInt("node count", value, fallback, 1, maxNodes)
+	switch {
+	case err != nil:
+		return 0, err
+	case scenario.kind == multiNodeScenario && nodes < 2:
+		return 0, fmt.Errorf("the %s scenario needs at least 2 nodes, not %d", multiNodeScenario, nodes)
+	case scenario.kind != multiNodeScenario && nodes > 1:
+		return 0, fmt.Errorf("%d nodes run %d Agents, which would each collect every record of every cell; only the %s scenario runs more than one node", nodes, nodes, multiNodeScenario)
+	}
+	return nodes, nil
+}
+
+// windowsCell returns the provisioned cell that the Windows file server
+// serves, if the run has one.
+func (spec runSpec) windowsCell() (cell, bool) {
+	for _, c := range spec.cells {
+		if c.onWindows() {
+			return c, true
+		}
+	}
+	return cell{}, false
+}
+
+// setWindowsServerHost gives the Windows file server's address to the cells
+// it serves, once the storage pass has created it.
+func (spec *runSpec) setWindowsServerHost(host string) {
+	for i := range spec.cells {
+		if spec.cells[i].onWindows() {
+			spec.cells[i].serverHost = host
+		}
+	}
 }
 
 // writerOptions applies the cell's fixed rotation mode and its defaults to the
@@ -1253,7 +1380,20 @@ func allCells(stackName, runID string) []cell {
 	}
 	all = append(all, globLoad)
 
+	// The SMB source against a Windows Server share that requires signing,
+	// rather than Azure Files. It has no storage account: its share is on the
+	// run's Windows VM (see windows.go).
+	all = append(all, cell{
+		name:      windowsCellName,
+		reader:    smbReader,
+		server:    windowsFileServer,
+		shareName: "smbwin-" + runDigest[:12],
+	})
+
 	for i := range all {
+		if all[i].server == "" {
+			all[i].server = azureFilesServer
+		}
 		all[i].service = "azure-files-" + all[i].name
 		all[i].volumeName = "azure-files-" + all[i].name
 		all[i].writerName = "writer-" + all[i].name
@@ -1262,16 +1402,26 @@ func allCells(stackName, runID string) []cell {
 }
 
 // resolveStackName returns the reused stack name when one is given, and a
-// stack of this run's own otherwise.
-func resolveStackName(override, runID string) (string, error) {
+// stack of this run's own otherwise. A run with more than one node gets a
+// stack of its own, with the node count as a suffix, so that it never resizes
+// the cluster of a reused one-node stack: AZURE_FILES_E2E_STACK=dev runs on
+// dev with one node and on dev-n2 with two.
+func resolveStackName(override, runID string, nodes int) (string, error) {
+	suffix := ""
+	if nodes > 1 {
+		suffix = "-n" + strconv.Itoa(nodes)
+	}
 	override = strings.TrimSpace(override)
 	if override == "" {
-		return "azure-files-" + hexDigest(runID)[:8], nil
+		return "azure-files-" + hexDigest(runID)[:8] + suffix, nil
 	}
 	if !stackNamePattern.MatchString(override) {
 		return "", fmt.Errorf("stack name %q must be 1 to 40 lowercase letters, digits or inner hyphens", override)
 	}
-	return override, nil
+	if nodeSuffixPattern.MatchString(override) {
+		return "", fmt.Errorf("stack name %q ends like the stack of a multi-node run, whose -n<nodes> suffix the suite adds itself; name the one-node stack and set the node count instead", override)
+	}
+	return override + suffix, nil
 }
 
 func hexDigest(value string) string {
@@ -1347,13 +1497,29 @@ func fakeintakeOptions() azurekubernetes.ProvisionerOption {
 	)
 }
 
+// azureFilesEnv is the suite's environment: the AKS cluster with its Agent
+// and Fakeintake, and the Windows file server of the smb-windows cell, a VM
+// on the cluster's subnet.
+type azureFilesEnv struct {
+	environments.Kubernetes
+	// WindowsServer is nil unless the run provisions the smb-windows cell.
+	WindowsServer *components.RemoteHost
+}
+
+const (
+	provisionerName = "azurefiles"
+	// provisionerID is the ID azurekubernetes.AKSProvisioner gave this
+	// suite's provisioner before it needed an environment of its own. Both
+	// passes must use the same ID: UpdateEnv destroys the stack of a
+	// provisioner whose ID is not in the new set.
+	provisionerID = "azure-aks" + provisionerName
+)
+
 // storageProvisioner creates AKS and the Azure Files resources without an
 // Agent. The second UpdateEnv pass installs the Agent only after the CSI
 // secrets and shares already exist on the stack.
-func (spec runSpec) storageProvisioner() provisioners.TypedProvisioner[environments.Kubernetes] {
-	return azurekubernetes.AKSProvisioner(
-		azurekubernetes.WithName("azurefiles"),
-		fakeintakeOptions(),
+func (spec runSpec) storageProvisioner() provisioners.TypedProvisioner[azureFilesEnv] {
+	return spec.provisioner(
 		// Called without arguments, this sets the Agent options to nil, which
 		// makes the provisioner skip the Agent. Its default, an empty non-nil
 		// list, would install one.
@@ -1362,10 +1528,8 @@ func (spec runSpec) storageProvisioner() provisioners.TypedProvisioner[environme
 	)
 }
 
-func (spec runSpec) agentProvisioner() provisioners.TypedProvisioner[environments.Kubernetes] {
-	return azurekubernetes.AKSProvisioner(
-		azurekubernetes.WithName("azurefiles"),
-		fakeintakeOptions(),
+func (spec runSpec) agentProvisioner() provisioners.TypedProvisioner[azureFilesEnv] {
+	return spec.provisioner(
 		azurekubernetes.WithAgentOptions(
 			kubernetesagentparams.WithHelmValues(spec.agentHelmValues()),
 			kubernetesagentparams.WithoutLogsContainerCollectAll(),
@@ -1373,6 +1537,40 @@ func (spec runSpec) agentProvisioner() provisioners.TypedProvisioner[environment
 		azurekubernetes.WithAgentDependentWorkloadApp(spec.writerWorkload),
 		azurekubernetes.WithWorkloadApp(spec.storageWorkload),
 	)
+}
+
+// aksOptions are the provisioner options both passes share. They must be
+// identical in both: the passes update one stack, and any difference would
+// replace the cluster or the Fakeintake VM between them.
+func (spec runSpec) aksOptions() []azurekubernetes.ProvisionerOption {
+	return []azurekubernetes.ProvisionerOption{
+		azurekubernetes.WithName(provisionerName),
+		fakeintakeOptions(),
+		azurekubernetes.WithAKSOptions(aks.WithNodeCount(spec.nodes)),
+	}
+}
+
+// provisioner runs the AKS provisioner in an Azure environment of its own, in
+// which it also creates the Windows file server when the run has the
+// smb-windows cell, on the same subnet as the AKS nodes and the Fakeintake.
+func (spec runSpec) provisioner(opts ...azurekubernetes.ProvisionerOption) provisioners.TypedProvisioner[azureFilesEnv] {
+	return provisioners.NewTypedPulumiProvisioner(provisionerID, func(ctx *pulumi.Context, env *azureFilesEnv) error {
+		azureEnv, err := azureresources.NewEnvironment(ctx)
+		if err != nil {
+			return err
+		}
+		if _, ok := spec.windowsCell(); ok {
+			if err := newWindowsServer(azureEnv, env); err != nil {
+				return err
+			}
+		} else {
+			// The suite creates every component of the environment, so one
+			// this run does not provision is set to nil.
+			env.WindowsServer = nil
+		}
+		params := azurekubernetes.GetProvisionerParams(append(spec.aksOptions(), opts...)...)
+		return azurekubernetes.AKSRunWithEnv(ctx, azureEnv, &env.Kubernetes, params)
+	}, nil)
 }
 
 type azureStorageAccount struct {
@@ -1450,6 +1648,14 @@ func (spec runSpec) storageWorkload(env config.Env, kubeProvider *kubernetes.Pro
 	accountIDs := pulumi.StringMap{}
 	var accounts []pulumi.Resource
 	for _, c := range spec.cells {
+		if c.onWindows() {
+			// No storage account: the share is on the Windows VM, and the
+			// Secrets hold the password of its local reader account.
+			if err := newWindowsReaderSecrets(azureEnv, workload, c, kubeOpts, agentSecretOpts); err != nil {
+				return nil, err
+			}
+			continue
+		}
 		account := &azureStorageAccount{}
 		err := ctx.RegisterResource("azure-native:storage:StorageAccount", c.accountName, pulumi.Map{
 			"accountName":       pulumi.String(c.accountName),
@@ -1625,6 +1831,10 @@ func (spec runSpec) writerWorkload(
 		kubeOpts = append(kubeOpts, utils.PulumiDependsOn(configMap))
 	}
 	for _, c := range spec.cells {
+		if c.onWindows() {
+			// Its writer runs on the Windows VM, started by the test.
+			continue
+		}
 		if _, err := spec.newWriterDeployment(env, c, runtime, kubeOpts); err != nil {
 			return nil, err
 		}
@@ -1914,7 +2124,7 @@ func (spec runSpec) agentHelmValues() string {
           username: %s
           password: %q
           poll_interval: %d
-`, yamlPattern(pattern), c.service, c.host(), c.shareName, c.accountName, smbPasswordHandle(c), smbPollIntervalSeconds)
+`, yamlPattern(pattern), c.service, c.host(), c.shareName, c.smbUsername(), smbPasswordHandle(c), smbPollIntervalSeconds)
 			// The chart mounts agents.volumeMounts into every container of
 			// the Agent pod; only the core Agent resolves the handle. The
 			// Agent runs as root, so 0400 (256) still lets it read the key.

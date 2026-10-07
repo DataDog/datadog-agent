@@ -28,9 +28,10 @@ import (
 )
 
 // Scenarios disrupt the Agent while the smb cell's writer runs, then hold the
-// cell to the usual exactly-once check, with what the disruption allows. Each
-// is its own test method, selected with AZURE_FILES_E2E_SCENARIO; the others
-// skip. See the scenario constants in provisioner.go for their timings.
+// cell to the usual exactly-once check, with what the disruption allows; the
+// multi-node one (multinode_test.go) runs several Agents instead. Each is its
+// own test method, selected with AZURE_FILES_E2E_SCENARIO; the others skip.
+// See the scenario constants in provisioner.go for their timings.
 
 const (
 	// logsRunPath is logs_config.run_path, where the registry lives.
@@ -59,12 +60,14 @@ func (spec runSpec) scenarioMetadata() map[string]any {
 		metadata["forced_drop_seconds"] = keyRotationForcedDropSeconds
 	case networkDropScenario:
 		metadata["drop_seconds"] = spec.scenario.dropSeconds
+	case multiNodeScenario:
+		metadata["nodes"] = spec.nodes
 	}
 	return metadata
 }
 
 // scenarioCell skips unless the run selected the scenario, and returns the
-// cell it disrupts.
+// cell it runs on.
 func (suite *azureFilesSuite) scenarioCell(kind scenarioKind) cell {
 	suite.T().Helper()
 	if suite.spec.scenario.kind != kind {
@@ -146,8 +149,7 @@ func (suite *azureFilesSuite) restartAgentMidPeriod(c cell) restartRule {
 	// every file would be read again from its start.
 	require.NoError(t, checkRegistryPersists(old))
 	suite.requireSMBSourceRunning(c)
-	writer := suite.writerPod(c)
-	suite.waitForLedger(c, writer, 1)
+	suite.waitForLedger(c, suite.writerSite(c), 1)
 
 	deleteAt, periodEnd := disruptionTiming(time.Now(), c.writer.periodMs, agentRestartDeleteAfterMs*time.Millisecond)
 	sleepUntil(deleteAt)
@@ -350,7 +352,7 @@ func (suite *azureFilesSuite) rotateAgentKey(c cell) {
 	_, err = exec.LookPath("az")
 	require.NoError(t, err, "the key-rotation scenario renews key2 with the Azure CLI, which must be on PATH and logged in (az login)")
 	suite.requireSMBSourceRunning(c)
-	suite.waitForLedger(c, suite.writerPod(c), 1)
+	suite.waitForLedger(c, suite.writerSite(c), 1)
 
 	renewAt, periodEnd := disruptionTiming(time.Now(), c.writer.periodMs, keyRotationStartAfterMs*time.Millisecond)
 	sleepUntil(renewAt)
@@ -543,7 +545,7 @@ type dropWindow struct {
 func (suite *azureFilesSuite) dropSMBAcrossRotation(c cell) dropWindow {
 	t := suite.T()
 	suite.requireSMBSourceRunning(c)
-	suite.waitForLedger(c, suite.writerPod(c), 1)
+	suite.waitForLedger(c, suite.writerSite(c), 1)
 	// The helper takes a while to start, so it starts before the drop is
 	// timed.
 	helper := suite.startNetworkHelper(c)
@@ -591,7 +593,7 @@ func (suite *azureFilesSuite) dropSMBAcrossRotation(c cell) dropWindow {
 // requireWriterRotatedDuring requires a rotation of the writer inside the
 // drop, with every record written: its CIFS mount was not affected.
 func (suite *azureFilesSuite) requireWriterRotatedDuring(c cell, window dropWindow) {
-	ledger, err := suite.readLedger(c, suite.writerPod(c))
+	ledger, err := suite.readLedger(suite.writerSite(c))
 	require.NoError(suite.T(), err)
 	for _, entry := range ledger {
 		at, ok := entry.rotatedAt()

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -950,17 +951,24 @@ func TestDefaultMatrixKeepsItsFourCells(t *testing.T) {
 	}
 	assert.Equal(t, []string{"file-line", "file-byte", "file-line-actimeo30", "smb"}, names)
 
-	// Every cell, named, has an account, a share and a service of its own.
+	// Every cell, named, has an account (but the Windows server's), a share
+	// and a service of its own.
 	all := allCells(spec.stackName, testRunID)
 	accounts, shares, services := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	for _, c := range all {
-		assert.Regexp(t, `^[a-z0-9]{3,24}$`, c.accountName, c.name)
+		if c.onWindows() {
+			assert.Empty(t, c.accountName, c.name)
+		} else {
+			assert.Equal(t, azureFilesServer, c.server, c.name)
+			assert.Regexp(t, `^[a-z0-9]{3,24}$`, c.accountName, c.name)
+			assert.False(t, accounts[c.accountName], "%s reuses an account name", c.name)
+			accounts[c.accountName] = true
+		}
 		assert.Regexp(t, `^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])$`, c.shareName, c.name)
 		assert.LessOrEqual(t, len(c.volumeName+"-key"), 63, c.name)
-		assert.False(t, accounts[c.accountName], "%s reuses an account name", c.name)
 		assert.False(t, shares[c.shareName], "%s reuses a share name", c.name)
 		assert.False(t, services[c.service], "%s reuses a service", c.name)
-		accounts[c.accountName], shares[c.shareName], services[c.service] = true, true, true
+		shares[c.shareName], services[c.service] = true, true
 	}
 	for _, name := range newSMBCells {
 		found := false
@@ -1176,7 +1184,7 @@ func TestScenariosAreValidated(t *testing.T) {
 }
 
 func TestScenariosRunOnTheSMBCell(t *testing.T) {
-	for _, kind := range knownScenarios {
+	for _, kind := range disruptionScenarios {
 		spec := testRunSpec(t, runOptions{scenario: " " + string(kind) + " ", smbEnabled: true})
 		assert.Equal(t, kind, spec.scenario.kind)
 		require.Len(t, spec.cells, 1, kind)
@@ -1599,4 +1607,311 @@ func TestLoadReportMeasuresThroughputAndLag(t *testing.T) {
 	_, ok := recordWriteTime("short")
 	assert.False(t, ok)
 	assert.Equal(t, latencySummary{}, summarizeLatencies(nil))
+}
+
+func TestMultiNodeScenarioRunsTheSMBCellOnSeveralNodes(t *testing.T) {
+	spec := testRunSpec(t, runOptions{scenario: " multi-node ", smbEnabled: true})
+	assert.Equal(t, multiNodeScenario, spec.scenario.kind)
+	assert.Equal(t, defaultMultiNodeNodes, spec.nodes)
+	require.Len(t, spec.cells, 1)
+	c := spec.cells[0]
+	assert.Equal(t, scenarioCellName, c.name)
+	// Nothing disrupts the Agents, so the markers still calibrate each of
+	// them, and the writer keeps its defaults.
+	assert.False(t, multiNodeScenario.disrupts())
+	assert.Equal(t, markerDelaysFor(smbReader, renameRotation), c.markers)
+	assert.Equal(t, defaultWriterOptions(), c.writer)
+	assert.Zero(t, spec.scenario.minPeriodMs())
+	assert.Equal(t, 2, spec.scenarioMetadata()["nodes"])
+	assert.Contains(t, knownScenarios, multiNodeScenario)
+	assert.NotContains(t, disruptionScenarios, multiNodeScenario)
+
+	// The run's writer options apply, but for another rotation mode.
+	paced := testRunSpec(t, runOptions{scenario: "multi-node", smbEnabled: true, nodes: "3", periodMs: "10000", rateBytesPerSec: "100000", streams: "2"})
+	assert.Equal(t, 3, paced.nodes)
+	assert.Equal(t, writerOptions{mode: renameRotation, periodMs: 10000, rateBytesPerSec: 100000, streams: 2}, paced.cells[0].writer)
+
+	for name, opts := range map[string]runOptions{
+		"only the multi-node scenario runs more than one node": {nodes: "2"},
+		"2 nodes run 2 Agents":                                 {scenario: "agent-restart", nodes: "2"},
+		"needs at least 2 nodes, not 1":                        {scenario: "multi-node", nodes: "1"},
+		"node count 6 must be between 1 and 5":                 {scenario: "multi-node", nodes: "6"},
+		`node count "two" is not a number`:                     {scenario: "multi-node", nodes: "two"},
+		"runs with the smb cell alone, not with file-line":     {scenario: "multi-node", cells: "smb,file-line"},
+		"runs with the smb cell alone, not with smb-gzip":      {scenario: "multi-node", cells: "smb,smb-gzip"},
+		"rotates by rename":                                    {scenario: "multi-node", rotationMode: "copytruncate"},
+	} {
+		opts.runID, opts.smbEnabled = testRunID, true
+		_, err := newRunSpec(opts)
+		assert.ErrorContains(t, err, name)
+	}
+	// One node is the default of every other run, and may be asked for.
+	assert.Equal(t, 1, testRunSpec(t, runOptions{}).nodes)
+	assert.Equal(t, 1, testRunSpec(t, runOptions{nodes: "1"}).nodes)
+	assert.Equal(t, 1, testRunSpec(t, runOptions{scenario: "agent-restart", smbEnabled: true}).nodes)
+	// The gate still applies.
+	assert.Empty(t, testRunSpec(t, runOptions{scenario: "multi-node"}).cells)
+}
+
+func TestMultiNodeRunsGetAStackOfTheirOwn(t *testing.T) {
+	one := testRunSpec(t, runOptions{stackName: "azure-files-dev", smbEnabled: true})
+	two := testRunSpec(t, runOptions{stackName: "azure-files-dev", scenario: "multi-node", smbEnabled: true})
+	assert.Equal(t, "azure-files-dev", one.stackName)
+	// A reused one-node stack is never resized: the two-node run has a stack,
+	// and so storage accounts, of its own.
+	assert.Equal(t, "azure-files-dev-n2", two.stackName)
+	smb, ok := one.cellNamed("smb")
+	require.True(t, ok)
+	assert.NotEqual(t, smb.accountName, two.cells[0].accountName)
+	assert.Regexp(t, `^azure-files-[0-9a-f]{8}-n3$`, testRunSpec(t, runOptions{scenario: "multi-node", nodes: "3", smbEnabled: true}).stackName)
+
+	// The suffix is the suite's to add.
+	for _, nodes := range []string{"", "2"} {
+		opts := runOptions{runID: testRunID, stackName: "azure-files-dev-n2", smbEnabled: true, nodes: nodes}
+		if nodes != "" {
+			opts.scenario = "multi-node"
+		}
+		_, err := newRunSpec(opts)
+		assert.ErrorContains(t, err, "-n<nodes> suffix the suite adds itself", nodes)
+	}
+}
+
+func TestEveryAgentMustCollectEveryRecordOnce(t *testing.T) {
+	c := cell{name: "smb", reader: smbReader, markers: markerDelaysFor(smbReader, renameRotation)}
+	expected := map[recordKey]struct{}{{"r", 1}: {}, {"r", 2}: {}}
+	markers := []markerEntry{
+		{MarkerID: "r-r1-m500", MarkerAgeMs: 500, RotatedFile: "app.log.1"},
+		{MarkerID: "r-r1-m45000", MarkerAgeMs: 45000, RotatedFile: "app.log.1"},
+	}
+	record := func(host string, sequence int) collectedLog {
+		return collectedLog{hostname: host, message: fmt.Sprintf("x run_id=r period=p sequence=%d record=%d", sequence, sequence)}
+	}
+	marker := func(host, id string) collectedLog {
+		return collectedLog{hostname: host, message: "pppp post_rotation_marker run_id=r marker_id=" + id}
+	}
+	hosts := []string{"node-a", "node-b"}
+	both := []collectedLog{
+		record("node-a", 1), record("node-a", 2), marker("node-a", "r-r1-m500"),
+		record("node-b", 1), record("node-b", 2), marker("node-b", "r-r1-m500"),
+	}
+	judge := func(logs []collectedLog, calibrate bool) ([]string, string) {
+		recorded := new(recordingT)
+		summary := assertCollectedOncePerHost(recorded, c, expected, nil, markers, logs, hosts, calibrate)
+		return recorded.failures, summary
+	}
+
+	failures, summary := judge(both, false)
+	assert.Empty(t, failures)
+	assert.Contains(t, summary, "each of the 2 Agents collected every record once, 2 copies of each in all; node-a: 2 records expected")
+	assert.Contains(t, summary, "; node-b: 2 records expected")
+
+	// Exactly once in all, what a single elected reader would give, fails:
+	// every Agent has the source, so each must read every record.
+	failures, _ = judge([]collectedLog{record("node-a", 1), record("node-b", 2), marker("node-a", "r-r1-m500")}, false)
+	require.Len(t, failures, 3)
+	assert.Contains(t, failures[0], "smb@node-a: 1 of 2 expected records were never collected")
+	assert.Contains(t, failures[0], "r:2")
+	assert.Contains(t, failures[1], "smb@node-b: 1 of 2 expected records were never collected")
+	assert.Contains(t, failures[2], "smb@node-b: marker r-r1-m500")
+
+	// An Agent collecting a record twice, a host that runs no Agent, and the
+	// calibration marker surviving on one Agent.
+	failures, _ = judge(append(slices.Clone(both), record("node-a", 2)), false)
+	require.Len(t, failures, 1)
+	assert.Contains(t, failures[0], "smb@node-a: 1 of 2 expected records were collected more than once")
+	failures, _ = judge(append(slices.Clone(both), record("node-c", 1)), false)
+	require.Len(t, failures, 1)
+	assert.Contains(t, failures[0], "sent by hosts that run none of the 2 Agents (node-a, node-b)")
+	failures, _ = judge(append(slices.Clone(both), marker("node-b", "r-r1-m45000")), false)
+	require.Len(t, failures, 1)
+	assert.Contains(t, failures[0], "smb@node-b: marker r-r1-m45000")
+	// Calibration records the markers instead of asserting them.
+	failures, _ = judge(append(slices.Clone(both), marker("node-b", "r-r1-m45000")), true)
+	assert.Empty(t, failures)
+
+	byHost := messagesByHost(append(slices.Clone(both), record("node-c", 1)), hosts)
+	assert.Len(t, byHost, 2)
+	assert.Len(t, byHost["node-a"], 3)
+	assert.Equal(t, "aks-system-1-vmss000000", lastLine("2026-10-06 12:00:00 UTC | CORE | WARN | something\naks-system-1-vmss000000\n\n"))
+}
+
+func TestWindowsCellIsGatedByItsOwnOptIn(t *testing.T) {
+	for _, opts := range []runOptions{
+		{cells: windowsCellName},
+		{cells: windowsCellName, smbEnabled: true},
+		{cells: windowsCellName, windowsEnabled: true},
+	} {
+		spec := testRunSpec(t, opts)
+		assert.Empty(t, spec.cells)
+		require.Len(t, spec.gatedCells, 1)
+		reason := gateReason(spec.gatedCells[0])
+		assert.Contains(t, reason, smbOptIn+"=1")
+		assert.Contains(t, reason, windowsOptIn+"=1")
+		_, ok := spec.windowsCell()
+		assert.False(t, ok)
+	}
+	// Not in the default matrix, even with both opt-ins: it only runs when named.
+	_, ok := testRunSpec(t, runOptions{smbEnabled: true, windowsEnabled: true}).windowsCell()
+	assert.False(t, ok)
+	assert.NotContains(t, gateReason(cell{name: "smb", reader: smbReader}), windowsOptIn)
+}
+
+// windowsTestSpec is a run with the smb and smb-windows cells, after the
+// storage pass gave the Windows file server's address.
+func windowsTestSpec(t *testing.T) (runSpec, cell) {
+	t.Helper()
+	spec := testRunSpec(t, runOptions{cells: "smb," + windowsCellName, smbEnabled: true, windowsEnabled: true})
+	spec.setWindowsServerHost("10.1.2.3")
+	c, ok := spec.windowsCell()
+	require.True(t, ok)
+	return spec, c
+}
+
+func TestWindowsCellReadsTheShareOfTheVM(t *testing.T) {
+	spec := testRunSpec(t, runOptions{cells: "smb," + windowsCellName, smbEnabled: true, windowsEnabled: true})
+	c, ok := spec.windowsCell()
+	require.True(t, ok)
+	assert.True(t, c.onWindows())
+	assert.Equal(t, smbReader, c.reader)
+	assert.Empty(t, c.accountName, "the share is on the VM, not in a storage account")
+	assert.Regexp(t, `^smbwin-[0-9a-f]{12}$`, c.shareName)
+	assert.Equal(t, markerDelaysFor(smbReader, renameRotation), c.markers)
+	assert.Equal(t, defaultWriterOptions(), c.writer)
+	assert.Empty(t, c.host(), "the address comes from the storage pass")
+
+	spec, c = windowsTestSpec(t)
+	assert.Equal(t, "10.1.2.3", c.host())
+	assert.Equal(t, windowsReaderUser, c.smbUsername())
+	smb, _ := spec.cellNamed("smb")
+	assert.Empty(t, smb.serverHost)
+	assert.Equal(t, smb.accountName, smb.smbUsername())
+	assert.Equal(t, smb.accountName+".file.core.windows.net", smb.host())
+
+	values := spec.agentHelmValues()
+	assert.Contains(t, values, "      - type: smb\n        path: app.log\n        service: azure-files-smb-windows\n")
+	assert.Contains(t, values, "        smb:\n          host: 10.1.2.3\n          share: "+c.shareName+"\n          username: ddlogreader\n"+
+		"          password: \"ENC[file@/etc/azure-files-secrets/smb-windows/azurestorageaccountkey]\"\n")
+	// The password reaches the Agent like a storage account key: a file of
+	// the cell's Secret, copied into the Agent namespace.
+	assert.Contains(t, values, "    - name: azure-files-smb-windows-key\n      secret:\n        secretName: azure-files-storage-smb-windows\n")
+	assert.Contains(t, values, "    - name: azure-files-smb-windows-key\n      mountPath: /etc/azure-files-secrets/smb-windows\n      readOnly: true\n")
+	assert.Equal(t, "smb://10.1.2.3/"+c.shareName+"/app.log", smbIdentifier(c, ""))
+	assert.Equal(t, map[string]any{
+		"address": "10.1.2.3", "share_dir": `C:\azure-files-e2e\shares\` + c.shareName, "username": windowsReaderUser,
+		"signing": "required", "python_url": windowsPythonURL(), "scheduled_tasks": windowsTasks,
+	}, windowsServerMetadata(c))
+
+	// The writer runs its default options only, and no scenario runs with it.
+	_, err := newRunSpec(runOptions{runID: testRunID, cells: windowsCellName, smbEnabled: true, windowsEnabled: true, periodMs: "10000"})
+	assert.ErrorContains(t, err, "cell smb-windows: the Windows file server only runs the writer's default options")
+	for _, scenario := range knownScenarios {
+		_, err := newRunSpec(runOptions{runID: testRunID, scenario: string(scenario), cells: "smb," + windowsCellName, smbEnabled: true, windowsEnabled: true})
+		assert.ErrorContains(t, err, windowsCellName, scenario)
+	}
+	// It can share a run with any other cell.
+	all := testRunSpec(t, runOptions{cells: "file-line,smb,smb-gzip," + windowsCellName, smbEnabled: true, windowsEnabled: true})
+	assert.Len(t, all.cells, 4)
+}
+
+func TestWindowsTasksRunTheStockWorkloadOnTheVM(t *testing.T) {
+	spec, c := windowsTestSpec(t)
+	files, err := spec.windowsFiles(c)
+	require.NoError(t, err)
+	assert.Len(t, files, 6)
+	assert.Equal(t, pythonWriterSource, files[`C:\azure-files-e2e\workload\logwriter.py`])
+	assert.Equal(t, sidecarsSource, files[`C:\azure-files-e2e\workload\sidecars.py`])
+	assert.Equal(t, fileServerSource, files[`C:\azure-files-e2e\workload\fileserver.ps1`])
+
+	shareDir := `C:\azure-files-e2e\shares\` + c.shareName
+	python := `"C:\azure-files-e2e\python-3.12.10\python.exe" -u `
+	writer := files[`C:\azure-files-e2e\run\writer.cmd`]
+	// The writer pod's configuration, on the VM's paths.
+	for _, v := range spec.writerEnv(c) {
+		if v.name == "LOGWRITER_LOG_DIR" {
+			v.value = shareDir
+		}
+		assert.Contains(t, writer, "set \""+v.name+"="+v.value+"\"\r\n")
+	}
+	assert.Contains(t, writer, "set \"HOSTNAME="+c.writerName+"\"\r\n")
+	assert.True(t, strings.HasSuffix(writer, python+`"C:\azure-files-e2e\workload\logwriter.py" >> "C:\azure-files-e2e\logs\`+c.shareName+"-writer.log\" 2>&1\r\n"), writer)
+	assert.NotContains(t, writer, logMountPath)
+
+	ledger := files[`C:\azure-files-e2e\run\ledger.cmd`]
+	assert.Contains(t, ledger, "set \"LOGWRITER_LOG_DIR="+shareDir+"\"\r\n")
+	assert.Contains(t, ledger, "set \"LOGWRITER_LEDGER_SOURCE=journal\"\r\n")
+	assert.True(t, strings.HasSuffix(ledger, python+`"C:\azure-files-e2e\workload\sidecars.py" ledger >> "C:\azure-files-e2e\logs\`+c.shareName+"-ledger.log\" 2>&1\r\n"), ledger)
+
+	appender := files[`C:\azure-files-e2e\run\appender.cmd`]
+	assert.Contains(t, appender, "set \"LOGWRITER_RUN_ID="+spec.writerRunID(c)+"\"\r\n")
+	assert.Contains(t, appender, "set \"LOGWRITER_MARKER_JOURNAL_PATH="+shareDir+"\\markers.jsonl\"\r\n")
+	assert.Contains(t, appender, "set \"LOGWRITER_APPEND_DELAYS_MS=500,45000\"\r\n")
+	assert.True(t, strings.HasSuffix(appender, python+`"C:\azure-files-e2e\workload\sidecars.py" appender >> "C:\azure-files-e2e\logs\`+c.shareName+"-appender.log\" 2>&1\r\n"), appender)
+
+	for name, script := range files {
+		if !strings.HasSuffix(name, ".cmd") {
+			continue
+		}
+		assert.True(t, strings.HasPrefix(script, "@echo off\r\n"), name)
+		for _, line := range strings.SplitAfter(script, "\n") {
+			if line != "" {
+				assert.True(t, strings.HasSuffix(line, "\r\n"), "%s: %q", name, line)
+			}
+		}
+	}
+
+	// A value cmd.exe would expand or split is refused.
+	bad := c
+	bad.writerName = "writer-%PATH%"
+	_, err = spec.windowsTaskScript(bad, writerContainerName)
+	assert.ErrorContains(t, err, "the writer task's HOSTNAME cannot be set from cmd.exe")
+	assert.Equal(t, "https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip", windowsPythonURL())
+}
+
+func TestFileServerCommandsCarryNoSecret(t *testing.T) {
+	_, c := windowsTestSpec(t)
+	script := `& 'C:\azure-files-e2e\workload\fileserver.ps1'`
+	// The password goes in a file, which the script deletes once read.
+	assert.Equal(t, script+` prepare -Root 'C:\azure-files-e2e' -ShareName '`+c.shareName+`' -UserName 'ddlogreader'`+
+		` -PasswordFile 'C:\azure-files-e2e\secrets\reader-password' -PythonUrl '`+windowsPythonURL()+`'`+
+		` -PythonDir 'C:\azure-files-e2e\python-3.12.10' -TaskPrefix 'azure-files-e2e'`, windowsPrepareCommand(c))
+	assert.Equal(t, script+` read -Root 'C:\azure-files-e2e' -Paths 'C:\azure-files-e2e\shares\`+c.shareName+`\ledger.jsonl',`+
+		`'C:\azure-files-e2e\shares\`+c.shareName+`\markers.jsonl'`, windowsReadCommand(c, ledgerName, postRotationMarkerJournalName))
+	assert.Equal(t, script+` read -Root 'C:\azure-files-e2e' -Paths 'C:\azure-files-e2e\logs\`+c.shareName+`-ledger.log'`,
+		windowsLogsCommand(c, ledgerContainerName))
+
+	assert.Contains(t, fileServerSource, "Remove-Item -LiteralPath $PasswordFile -Force")
+	for number, line := range strings.Split(fileServerSource, "\n") {
+		if strings.Contains(line, "$plain") || strings.Contains(line, "$password") {
+			assert.NotRegexp(t, `Write-|Out-|\[Console\]|throw`, line, "fileserver.ps1 line %d may print the password", number+1)
+		}
+	}
+	for _, action := range []string{"prepare", "start", "read", "sessions", "describe"} {
+		assert.Contains(t, fileServerSource, "    '"+action+"' {\n", action)
+	}
+	// Signing is required of every session, not only offered.
+	assert.Contains(t, fileServerSource, "Set-SmbServerConfiguration -RequireSecuritySignature $true")
+	// The share is the reader's to read, nothing more.
+	assert.Contains(t, fileServerSource, "New-SmbShare -Name $ShareName -Path $dir -ReadAccess $account")
+	// Only a python.exe that python.org signed runs.
+	assert.Contains(t, fileServerSource, "Get-AuthenticodeSignature -FilePath $python")
+}
+
+func TestWindowsServerStateIsDecoded(t *testing.T) {
+	single, err := parseWindowsServerState(`{"require_security_signature":true,"encrypt_data":false,"sessions":` +
+		`{"ClientComputerName":"10.224.0.4","ClientUserName":"AZ-SMBWIN\\ddlogreader","Dialect":"3.1.1","NumOpens":2,"SecondsExists":40}}`)
+	require.NoError(t, err)
+	assert.True(t, single.RequireSecuritySignature)
+	assert.Equal(t, []windowsSession{{ClientComputerName: "10.224.0.4", ClientUserName: `AZ-SMBWIN\ddlogreader`, Dialect: "3.1.1", NumOpens: 2, SecondsExists: 40}}, single.Sessions)
+
+	several, err := parseWindowsServerState("\r\n" + `{"require_security_signature":true,"encrypt_data":false,"sessions":[{"Dialect":"3.1.1"},{"Dialect":"3.0.2"}]}` + "\r\n")
+	require.NoError(t, err)
+	assert.Len(t, several.Sessions, 2)
+	for _, empty := range []string{`[]`, `null`} {
+		none, err := parseWindowsServerState(`{"require_security_signature":false,"encrypt_data":false,"sessions":` + empty + `}`)
+		require.NoError(t, err)
+		assert.False(t, none.RequireSecuritySignature)
+		assert.Empty(t, none.Sessions)
+	}
+	_, err = parseWindowsServerState("not json")
+	assert.Error(t, err)
 }
