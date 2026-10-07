@@ -460,3 +460,15 @@ func TestMatchesGroupVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateDiscoveryCache(t *testing.T) {
+	dc := &DiscoveryCollector{}
+	oldResources := []*v1.APIResourceList{{GroupVersion: "example.com/v1", APIResources: []v1.APIResource{{Name: "oldresources"}}}}
+	assert.NoError(t, dc.updateCache(nil, oldResources))
+	newResources := []*v1.APIResourceList{{GroupVersion: "example.com/v1", APIResources: []v1.APIResource{{Name: "newresources"}}}}
+	assert.NoError(t, dc.updateCache(nil, newResources))
+	assert.Equal(t, []CollectorVersion{{GroupVersion: "example.com/v1", Kind: "newresources"}}, dc.List("example.com", "v1", ""))
+	assert.True(t, dc.cache.Filled)
+	assert.Error(t, dc.updateCache(nil, nil))
+	assert.Equal(t, []CollectorVersion{{GroupVersion: "example.com/v1", Kind: "newresources"}}, dc.List("example.com", "v1", ""))
+}

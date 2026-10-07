@@ -110,6 +110,7 @@ dd_agent_go_test(
         "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_apimachinery//pkg/types",
         "@io_k8s_autoscaler_vertical_pod_autoscaler//pkg/client/clientset/versioned/fake",
+        "@io_k8s_client_go//discovery/fake",
         "@io_k8s_client_go//dynamic/fake",
         "@io_k8s_client_go//kubernetes/fake",
         "@io_k8s_client_go//kubernetes/scheme",

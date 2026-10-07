@@ -8,9 +8,18 @@
 package orchestrator
 
 import (
+	"context"
+	"fmt"
 	"testing"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	crdfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	fakediscovery "k8s.io/client-go/discovery/fake"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -732,4 +741,83 @@ func TestFilterCRCollectorsByPermission(t *testing.T) {
 		result := filterCRCollectorsByPermission([]collectors.K8sCollector{}, isForbidden)
 		require.Len(t, result, 0)
 	})
+}
+
+// TestLateCRDCollection starts the bundle before the CR API exists.
+func TestLateCRDCollection(t *testing.T) {
+	for _, explicit := range []bool{false, true} {
+		t.Run(fmt.Sprintf("explicit=%t", explicit), func(t *testing.T) {
+			cfg := mockconfig.New(t)
+			cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.enabled", true)
+			client := createMockAPIClient()
+			client.CRDInformerClient = crdfake.NewSimpleClientset()
+			client.DynamicInformerCl = client.DynamicCl
+			stopCh := make(chan struct{})
+			defer close(stopCh)
+			discoveryClient := client.Cl.Discovery().(*fakediscovery.FakeDiscovery)
+			discoveryClient.Resources = []*v1.APIResourceList{{GroupVersion: "v1", APIResources: []v1.APIResource{{Name: "pods"}}}}
+			dc := &discovery.DiscoveryCollector{}
+			require.NoError(t, dc.Refresh(discoveryClient))
+			chk := &OrchestratorCheck{CheckBase: corechecks.NewCheckBase("orchestrator"), instance: &OrchestratorInstance{}}
+			cb := &CollectorBundle{
+				check: chk, inventory: inventory.NewCollectorInventory(cfg, nil, nil),
+				collectorDiscovery: dc, activatedCollectors: make(map[string]struct{}),
+				stopCh: stopCh, extraSyncTimeout: 5 * time.Second,
+				runCfg: &collectors.CollectorRunConfig{K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+					APIClient: client, OrchestratorInformerFactory: getOrchestratorInformerFactory(client),
+				}, Config: orchcfg.NewDefaultOrchestratorConfig(nil), MsgGroupRef: atomic.NewInt32(0), ClusterID: "late-crd-test"},
+			}
+			cb.runCfg.Config.IsManifestCollectionEnabled = true
+			if explicit {
+				chk.instance.Collectors = []string{}
+				chk.instance.CRDCollectors = []string{"datadoghq.com/v1alpha1/datadogmetrics"}
+				cb.importCRDCollectorsFromCheckConfig()
+			} else {
+				cb.collectors = []collectors.K8sCollector{k8s.NewCRDCollector()}
+				cb.importBuiltinCollectors()
+			}
+			initialCount := len(cb.collectors)
+			cb.Initialize()
+			require.Len(t, cb.collectors, initialCount)
+
+			// Install the CR API and create a resource after initialization.
+			gvr := schema.GroupVersionResource{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmetrics"}
+			discoveryClient.Resources = append(discoveryClient.Resources, &v1.APIResourceList{
+				GroupVersion: "datadoghq.com/v1alpha1", APIResources: []v1.APIResource{{Name: "datadogmetrics", Kind: "DatadogMetric"}},
+			})
+			_, err := client.DynamicCl.Resource(gvr).Namespace("default").Create(context.Background(), &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "datadoghq.com/v1alpha1", "kind": "DatadogMetric",
+				"metadata": map[string]interface{}{"name": "late-metric", "namespace": "default", "uid": fmt.Sprintf("late-metric-uid-%t", explicit), "resourceVersion": "1"},
+			}}, v1.CreateOptions{})
+			require.NoError(t, err)
+			cb.Initialize()
+			require.Len(t, cb.collectors, initialCount, "discovery must respect its interval")
+			cb.lastCRDDiscovery = time.Now().Add(-defaultCRDDiscoveryInterval)
+			cb.Initialize()
+			require.Len(t, cb.collectors, initialCount+1)
+			collector := cb.collectors[len(cb.collectors)-1]
+			require.Equal(t, "datadoghq.com/v1alpha1/datadogmetrics", collector.Metadata().FullName())
+			require.False(t, collector.Metadata().IsSkipped)
+			objects := collector.Informer().GetStore().List()
+			require.Len(t, objects, 1)
+			require.Equal(t, "late-metric", objects[0].(*unstructured.Unstructured).GetName())
+			result, err := collector.Run(cb.runCfg)
+			require.NoError(t, err)
+			require.Equal(t, 1, result.ResourcesListed)
+			require.Equal(t, 1, result.ResourcesProcessed)
+			require.NotEmpty(t, result.Result.ManifestMessages)
+
+			// Repeated discovery must retain the existing collector and informer.
+			cb.lastCRDDiscovery = time.Now().Add(-defaultCRDDiscoveryInterval)
+			cb.Initialize()
+			require.Len(t, cb.collectors, initialCount+1)
+			require.Same(t, collector, cb.collectors[len(cb.collectors)-1])
+
+			// A CR informer that syncs after its timeout can collect again.
+			cb.skipCollector(apiserver.InformerName(collector.Metadata().FullName()), fmt.Errorf("sync timeout"))
+			cb.Initialize()
+			require.False(t, collector.Metadata().IsSkipped)
+			require.Empty(t, collector.Metadata().SkippedReason)
+		})
+	}
 }

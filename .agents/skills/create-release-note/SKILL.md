@@ -39,13 +39,16 @@ Use `AskUserQuestion` to collect the following. If `$ARGUMENTS` provides the top
 Generate the file using reno:
 
 ```bash
-reno new <topic> --no-edit
+reno new <topic>
 ```
 
 Or for non-default directories:
 ```bash
-reno --rel-notes-dir <directory> new <topic> --no-edit
+reno --rel-notes-dir <directory> new <topic>
 ```
+
+The command does not open an editor unless you pass `--edit`. Do not use
+`--no-edit`: reno does not support that option.
 
 This creates a file at `<directory>/notes/<topic>-<hash>.yaml` with a template.
 
@@ -95,8 +98,13 @@ Release note content must follow these rules:
 Run the release note linter to validate:
 
 ```bash
-dda inv linter.releasenote
+dda inv linter.rst-releasenotes --files=<path-to-note>
+dda inv linter.releasenote-unique-ids --files=<path-to-note>
 ```
+
+When a PR exists, also run `dda inv linter.releasenote` to check that the PR
+has a release note or the required label. This task skips its check when there
+is no PR; it does not validate the note content.
 
 This checks:
 - Valid YAML structure
