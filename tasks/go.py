@@ -151,7 +151,7 @@ def deps_vendored(ctx, verbose=False):
         gomodcache = bazel("run", "//:go", "--", "env", "GOMODCACHE", capture_output=True).strip()
         with tempfile.TemporaryDirectory() as gopath:
             os.mkdir(os.path.join(gopath, "pkg"))
-            os.symlink(gomodcache, os.path.join(gopath, "pkg", "mod"))
+            os.symlink(gomodcache, os.path.join(gopath, "pkg", "mod"), target_is_directory=True)
             bazel(
                 "run",
                 f"--run_env=GOPATH={gopath}",  # modvendor ignores GOMODCACHE and instead hardcodes $GOPATH/pkg/mod
