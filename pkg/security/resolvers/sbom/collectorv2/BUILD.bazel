@@ -5,6 +5,7 @@ go_library(
     name = "collectorv2",
     srcs = [
         "apk.go",
+        "canonical.go",
         "collector.go",
         "dpkg.go",
         "rpm.go",
@@ -33,7 +34,10 @@ go_library(
 
 dd_agent_go_test(
     name = "collectorv2_test",
-    srcs = ["apk_test.go"],
+    srcs = [
+        "apk_test.go",
+        "canonical_test.go",
+    ],
     embed = [":collectorv2"],
     deps = select({
         "@rules_go//go/platform:android": [
