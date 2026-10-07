@@ -149,6 +149,46 @@ func TestScriptCredentialFileResolutionFollowsReplacedAllowedRoot(t *testing.T) 
 	assert.Equal(t, "replacement", credentials.AsTokenMap()["configFileLocation"])
 }
 
+func TestScriptCredentialFileResolutionWithSymlinkedRoot(t *testing.T) {
+	realRoot := t.TempDir()
+	resolvedRealRoot, err := filepath.EvalSymlinks(realRoot)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(realRoot, "credentials.yaml"), []byte("credentials"), 0o600))
+	outsidePath := filepath.Join(t.TempDir(), "outside.yaml")
+	require.NoError(t, os.WriteFile(outsidePath, []byte("outside secret"), 0o600))
+
+	linkedRoot := filepath.Join(t.TempDir(), "linked")
+	if err := os.Symlink(realRoot, linkedRoot); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if err := os.Symlink(outsidePath, filepath.Join(realRoot, "escape.yaml")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		path    string
+		wantErr bool
+	}{
+		{name: "configured form", path: filepath.Join(linkedRoot, "credentials.yaml")},
+		{name: "resolved form", path: filepath.Join(resolvedRealRoot, "credentials.yaml")},
+		{name: "symlink escape through resolved form", path: filepath.Join(resolvedRealRoot, "escape.yaml"), wantErr: true},
+	}
+
+	resolver := newTestResolver(t, []string{linkedRoot})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(tt.path), nil)
+			if tt.wantErr {
+				require.ErrorIs(t, err, errCouldNotLoadScriptCredentialFile)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, "credentials", credentials.AsTokenMap()["configFileLocation"])
+		})
+	}
+}
+
 func TestScriptCredentialFileResolutionRejectsAuthTokenPoC(t *testing.T) {
 	path := "/etc/datadog-agent/auth_token"
 	resolver := newTestResolver(t, []string{t.TempDir()})

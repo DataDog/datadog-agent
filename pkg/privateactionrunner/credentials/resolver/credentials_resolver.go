@@ -67,7 +67,7 @@ func NewPrivateCredentialResolver(scriptCredentialFileAllowedRoots []string) Pri
 		if _, ok := seen[path]; ok {
 			continue
 		}
-		root, err := openScriptCredentialRoot(path)
+		root, _, err := openScriptCredentialRoot(path)
 		if err != nil {
 			log.Warn("Skipping Script credential file root", log.String("root", configuredRoot), log.ErrorField(err))
 			continue
@@ -79,26 +79,26 @@ func NewPrivateCredentialResolver(scriptCredentialFileAllowedRoots []string) Pri
 	return &privateCredentialResolver{scriptCredentialFileRoots: roots}
 }
 
-func openScriptCredentialRoot(path string) (*os.Root, error) {
+func openScriptCredentialRoot(path string) (*os.Root, string, error) {
 	if !filepath.IsAbs(path) {
-		return nil, errScriptCredentialRootNotAbsolute
+		return nil, "", errScriptCredentialRootNotAbsolute
 	}
 	resolvedPath, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	root, err := os.OpenRoot(path)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	openedInfo, openedErr := root.Stat(".")
 	resolvedInfo, resolvedErr := os.Stat(resolvedPath)
 	filesystemRootInfo, filesystemRootErr := os.Stat(filesystemRootPath(resolvedPath))
 	if openedErr != nil || resolvedErr != nil || filesystemRootErr != nil || !os.SameFile(openedInfo, resolvedInfo) || os.SameFile(openedInfo, filesystemRootInfo) {
 		_ = root.Close()
-		return nil, errCouldNotOpenScriptCredentialRoots
+		return nil, "", errCouldNotOpenScriptCredentialRoots
 	}
-	return root, nil
+	return root, resolvedPath, nil
 }
 
 func filesystemRootPath(path string) string {
@@ -186,23 +186,28 @@ func (p *privateCredentialResolver) openScriptCredentialFile(path string) (crede
 	path = filepath.Clean(path)
 
 	for _, rootPath := range p.scriptCredentialFileRoots {
-		relativePath, err := filepath.Rel(rootPath, path)
-		if err != nil || !filepath.IsLocal(relativePath) {
-			continue
-		}
-
-		root, err := openScriptCredentialRoot(rootPath)
+		root, resolvedRootPath, err := openScriptCredentialRoot(rootPath)
 		if err != nil {
 			continue
 		}
-		file, err := root.Open(relativePath)
+		file, err := openInScriptCredentialRoot(root, path, rootPath, resolvedRootPath)
 		_ = root.Close()
-		if err != nil {
-			continue
+		if err == nil {
+			return file, nil
 		}
-		return file, nil
 	}
 
+	return nil, errCouldNotLoadScriptCredentialFile
+}
+
+// The path may use either the configured or the resolved root form; os.Root enforces containment.
+func openInScriptCredentialRoot(root *os.Root, path string, rootForms ...string) (credentialFile, error) {
+	for _, rootForm := range rootForms {
+		relativePath, err := filepath.Rel(rootForm, path)
+		if err == nil && filepath.IsLocal(relativePath) {
+			return root.Open(relativePath)
+		}
+	}
 	return nil, errCouldNotLoadScriptCredentialFile
 }
 
