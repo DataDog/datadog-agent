@@ -654,9 +654,16 @@ WINDOWS_SHARED_MODULES = {
         "linkopts": [
             "propsys.lib",
             "wbemuuid.lib",
-            "$(execpath :native_msvc_comsupp_lib)",
-            "/NODEFAULTLIB:comsupp.lib",
-        ],
-        "link_inputs": [":native_msvc_comsupp_lib"],
+        ] + select({
+            "@rules_cc//cc/compiler:clang-cl": [
+                "$(execpath :native_msvc_comsupp_lib)",
+                "/NODEFAULTLIB:comsupp.lib",
+            ],
+            "//conditions:default": [],
+        }),
+        "link_inputs": select({
+            "@rules_cc//cc/compiler:clang-cl": [":native_msvc_comsupp_lib"],
+            "//conditions:default": [],
+        }),
     },
 }

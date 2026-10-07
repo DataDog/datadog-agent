@@ -11,6 +11,7 @@ load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@cpython_versions//:constants.bzl", "PYTHON_MAJOR_MINOR", "PYTHON_MAJOR_MINOR_FLAT")
+load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("@pythons_hub//:versions.bzl", "DEFAULT_PYTHON_VERSION")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_import", "cc_library", "cc_shared_library")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
@@ -576,20 +577,28 @@ NATIVE_LINUX_COPTS = [
     "-fvisibility=hidden",
 ]
 
-NATIVE_WINDOWS_COPTS = [
-    "/utf-8",
-    "-Wno-deprecated-non-prototype",
-    "-Wno-unused-label",
-    "-Wno-pointer-sign",
-    "-Wno-incompatible-pointer-types-discards-qualifiers",
-    "-Wno-unused-function",
-    "-Wno-incompatible-pointer-types",
-]
+NATIVE_CLANG_CL = "@rules_cc//cc/compiler:clang-cl"
+
+NATIVE_WINDOWS_HOST = "@platforms//os:windows" in HOST_CONSTRAINTS
+
+NATIVE_CLANG_CL_COPTS = select({
+    NATIVE_CLANG_CL: [
+        "-Wno-deprecated-non-prototype",
+        "-Wno-unused-label",
+        "-Wno-pointer-sign",
+        "-Wno-incompatible-pointer-types-discards-qualifiers",
+        "-Wno-unused-function",
+        "-Wno-incompatible-pointer-types",
+    ],
+    "//conditions:default": [],
+})
+
+NATIVE_WINDOWS_COPTS = ["/utf-8"] + NATIVE_CLANG_CL_COPTS
 
 NATIVE_COPTS = select({
-    NATIVE_WINDOWS: NATIVE_WINDOWS_COPTS,
+    NATIVE_WINDOWS: ["/utf-8"],
     "//conditions:default": NATIVE_LINUX_COPTS,
-})
+}) + NATIVE_CLANG_CL_COPTS
 
 NATIVE_WINDOWS_DEFINES = [
     "WIN32",
@@ -723,9 +732,11 @@ cc_library(
     deps = [":native_internal_headers"] + select({
         NATIVE_WINDOWS: [
             ":native_hacl_headers",
-            ":native_msvc_extra_headers",
             "@zlib",
         ],
+        "//conditions:default": [],
+    }) + select({
+        NATIVE_CLANG_CL: [":native_msvc_extra_headers"],
         "//conditions:default": [],
     }),
     alwayslink = True,
@@ -826,10 +837,10 @@ cc_binary(
 [
     genrule(
         name = "native_frozen_" + name,
-        srcs = [src],
+        srcs = [src] + ([":native_freeze_module"] if NATIVE_WINDOWS_HOST else []),
         outs = ["Python/frozen_modules/{}.h".format(name)],
-        cmd = "$(execpath :native_freeze_module) {} $< $@".format(name),
-        tools = [":native_freeze_module"],
+        cmd = "$(execpath :native_freeze_module) {} $(execpath {}) $@".format(name, src),
+        tools = [] if NATIVE_WINDOWS_HOST else [":native_freeze_module"],
     )
     for name, src in FROZEN_MODULES + [("getpath", "Modules/getpath.py")]
 ]
