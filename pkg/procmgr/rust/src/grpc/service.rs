@@ -89,6 +89,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             starting_processes: counts.starting,
             stopping_processes: counts.stopping,
             crashed_processes: counts.crashed,
+            skipped_processes: counts.skipped,
         }))
     }
 
@@ -223,6 +224,7 @@ struct StateCounts {
     crashed: u32,
     failed: u32,
     exited: u32,
+    skipped: u32,
 }
 
 impl StateCounts {
@@ -241,6 +243,7 @@ impl StateCounts {
                 ProcessState::Crashed => &mut counts.crashed,
                 ProcessState::Failed => &mut counts.failed,
                 ProcessState::Exited => &mut counts.exited,
+                ProcessState::Skipped => &mut counts.skipped,
             };
             *slot += 1;
         }
@@ -259,6 +262,7 @@ impl From<ProcessState> for proto::ProcessState {
             ProcessState::Crashed => Self::Crashed,
             ProcessState::Failed => Self::Failed,
             ProcessState::Stopped => Self::Stopped,
+            ProcessState::Skipped => Self::Skipped,
         }
     }
 }
@@ -277,6 +281,7 @@ fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
         last_signal: proc.last_signal(),
         profile: proc.profile().to_string(),
         user: proc.user().to_owned(),
+        skip_reasons: proc.skip_reasons().to_vec(),
     }
 }
 
@@ -383,6 +388,7 @@ fn process_detail_fields(proc: &ManagedProcess) -> proto::ProcessDetail {
         profile: proc.profile().to_string(),
         user: proc.user().to_owned(),
         runtime_user: String::new(),
+        skip_reasons: proc.skip_reasons().to_vec(),
     }
 }
 
@@ -426,6 +432,10 @@ mod tests {
         assert_eq!(
             proto::ProcessState::from(ProcessState::Stopped),
             proto::ProcessState::Stopped,
+        );
+        assert_eq!(
+            proto::ProcessState::from(ProcessState::Skipped),
+            proto::ProcessState::Skipped,
         );
     }
 

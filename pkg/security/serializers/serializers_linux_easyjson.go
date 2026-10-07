@@ -4155,7 +4155,7 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers26(
 			if in.IsNull() {
 				in.Skip()
 			} else {
-				out.MountRootPathResolutionError = string(in.String())
+				out.MountPointPathResolutionError = string(in.String())
 			}
 		case "source.path_error":
 			if in.IsNull() {
@@ -4245,10 +4245,10 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers26(
 		out.RawString(prefix)
 		out.String(string(in.MountSourcePath))
 	}
-	if in.MountRootPathResolutionError != "" {
+	if in.MountPointPathResolutionError != "" {
 		const prefix string = ",\"mountpoint.path_error\":"
 		out.RawString(prefix)
-		out.String(string(in.MountRootPathResolutionError))
+		out.String(string(in.MountPointPathResolutionError))
 	}
 	if in.MountSourcePathResolutionError != "" {
 		const prefix string = ",\"source.path_error\":"

@@ -123,7 +123,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.66.0 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
-	github.com/DataDog/go-sqllexer v0.2.4 // indirect
+	github.com/DataDog/go-sqllexer v0.2.5 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
@@ -191,7 +191,7 @@ require (
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
-	github.com/tinylib/msgp v1.6.4 // indirect
+	github.com/tinylib/msgp v1.6.5 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/twmb/murmur3 v1.2.0 // indirect

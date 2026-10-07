@@ -44,7 +44,7 @@ require (
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.48.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.10.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.2
-	github.com/pulumi/pulumi/sdk/v3 v3.265.0
+	github.com/pulumi/pulumi/sdk/v3 v3.266.0
 	github.com/samber/lo v1.53.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
@@ -107,7 +107,7 @@ require (
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-libddwaf/v5 v5.0.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
-	github.com/DataDog/go-sqllexer v0.2.4 // indirect
+	github.com/DataDog/go-sqllexer v0.2.5 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
@@ -130,15 +130,15 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.89.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.336.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.338.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.66.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/eks v1.101.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/eks v1.102.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.10.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.78.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.79.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.38.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.43.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.51.1 // indirect
@@ -326,7 +326,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/texttheater/golang-levenshtein v1.0.1 // indirect
-	github.com/tinylib/msgp v1.6.4 // indirect
+	github.com/tinylib/msgp v1.6.5 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/trailofbits/go-mutexasserts v0.0.0-20250514102930-c1f3d2e37561 // indirect

@@ -29,15 +29,15 @@ go_deps.gazelle_default_attributes(
     ],
 )
 go_deps.gazelle_override(
-    directives = [
-        "gazelle:build_file_generation on",
-    ],
+    directives = ["gazelle:go_naming_convention go_default_library"],
+    path = "cel.dev/cel-go",
+)
+go_deps.gazelle_override(
+    directives = ["gazelle:build_file_generation on"],
     path = "github.com/coreos/etcd",
 )
 go_deps.gazelle_override(
-    directives = [
-        "gazelle:go_naming_convention go_default_library",
-    ],
+    directives = ["gazelle:go_naming_convention go_default_library"],
     path = "github.com/google/cel-go",
 )
 go_deps.gazelle_override(
@@ -175,7 +175,6 @@ use_repo(
     "com_github_golang_mock",
     "com_github_golangci_golangci_lint_v2",
     "com_github_google_btree",
-    "com_github_google_cel_go",
     "com_github_google_go_cmp",
     "com_github_google_go_containerregistry",
     "com_github_google_gofuzz",
@@ -370,6 +369,7 @@ use_repo(
     "com_gitlab_gitlab_org_api_client_go_v3",
     "com_google_cloud_go_compute",
     "com_google_cloud_go_compute_metadata",
+    "dev_cel_cel_go",
     "dev_essio_al_pkg_shellescape",
     "in_gopkg_ini_v1",
     "in_gopkg_zorkian_go_datadog_api_v2",
@@ -572,7 +572,16 @@ go_deps.module_override(
     path = "sigs.k8s.io/kustomize/api",
 )
 
-inject_repo(go_deps, "systemd")
+# gopacket/pcap links -lpcap, but the hermetic Linux sysroot ships neither pcap.h
+# nor libpcap. Link the vendored static @libpcap instead; other platforms keep
+# the system library (e.g. the macOS SDK).
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:gopacket-pcap-libpcap-cdeps.patch"],
+    path = "github.com/google/gopacket",
+)
+
+inject_repo(go_deps, "systemd", "libpcap")
 
 register_toolchains("@go_civisibility_sdk//:go_civisibility_linux_amd64")
 

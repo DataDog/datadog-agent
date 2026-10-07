@@ -91,7 +91,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
-	github.com/DataDog/go-sqllexer v0.2.4 // indirect
+	github.com/DataDog/go-sqllexer v0.2.5 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -137,7 +137,7 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/tinylib/msgp v1.6.4 // indirect
+	github.com/tinylib/msgp v1.6.5 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/twmb/murmur3 v1.2.0 // indirect

@@ -37,7 +37,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.159.0
 	github.com/shirou/gopsutil/v4 v4.26.8
 	github.com/stretchr/testify v1.12.1
-	github.com/tinylib/msgp v1.6.4
+	github.com/tinylib/msgp v1.6.5
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	go.opentelemetry.io/collector/component/componenttest v0.159.0
 	go.opentelemetry.io/collector/consumer v1.65.0
@@ -62,7 +62,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
-	github.com/DataDog/go-sqllexer v0.2.4 // indirect
+	github.com/DataDog/go-sqllexer v0.2.5 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect

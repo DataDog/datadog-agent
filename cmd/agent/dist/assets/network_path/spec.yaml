@@ -132,6 +132,24 @@ files:
         Available methods: syn, sack, prefer_sack, syn_socket (syn_socket only works on Windows OSes)
         Note: Windows client versions only support syn_socket
       required: false
+    - name: traceroute_queries
+      fleet_configurable: true
+      value:
+        type: integer
+        example: 3
+        default: 3
+      description: |
+        The number of traceroutes to send per check run.
+      required: false
+    - name: e2e_queries
+      fleet_configurable: true
+      value:
+        type: integer
+        example: 50
+        default: 50
+      description: |
+        The number of end-to-end probes to send per check run.
+      required: false
     - name: tags
       fleet_configurable: true
       value:

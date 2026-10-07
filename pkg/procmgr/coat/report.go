@@ -44,15 +44,17 @@ type SupportReport struct {
 
 // reportNotes explains how to interpret a process that is not Running.
 //
-// dd-procmgrd does not report a start-block reason over its RPC: the wire format carries
-// condition_path_exists but not condition_config_any, and there is no Blocked state, so a
-// config-gated process is indistinguishable from one waiting on start ordering. The daemon logs the
-// gate decision, so the notes point a reader at that log rather than guessing.
+// A start pass that declined to spawn is Skipped, not Created. skip_reasons names each
+// applying label (auto_start_false, path_missing, config_gate, config_veto, ordering), so a
+// config-gated process is no longer indistinguishable from one waiting on start ordering. The
+// notes send the reader to skip_reasons for that case.
 //
-// Where the log is depends on the platform, which is why the location comes from
-// daemonLogLocation rather than being written inline: only the Windows service writes a file the
-// flare can collect. Naming a path the host never produces sends support somewhere there is
-// nothing to find, in the one place that is supposed to explain a process that will not start.
+// Spawn failures are still Failed with no last_exit_code, and those are not labeled the same
+// way. The daemon log is where the spawn error is, so the notes keep pointing there. Where
+// that log is depends on the platform, which is why the location comes from daemonLogLocation
+// rather than being written inline: only the Windows service writes a file the flare can
+// collect. Naming a path the host never produces sends support somewhere there is nothing to
+// find, in the one place that is supposed to explain a process that will not start.
 //
 // What separates a failed spawn from a failed workload is last_exit_code, not restart_count. The
 // supervisor reports Failed for both a spawn that never produced a process and a process that ran
@@ -75,11 +77,7 @@ func reportNotes() []string {
 			"the count at 0 however badly the process failed. It is also reset once a spawn stays " +
 			"up long enough, so a low count can follow a history of restarts. Read it with " +
 			"restart_policy and last_exit_code rather than as evidence of a loop by itself.",
-		"state=created with auto_start=true: the process was never started, because a config gate " +
-			"(condition_config_any) is closed, the condition_path_exists path is missing, or a start " +
-			"ordering dependency is unmet. dd-procmgrd does not report which one over its RPC: " +
-			"search " + daemonLogLocation() + " for the gate decision.",
-		"state=created with auto_start=false: an inert catalog entry, expected until the matching service is migrated.",
+		"state=skipped: start pass declined to spawn. See skip_reasons.",
 		"A legacy service reported Stopped in servicestatus.json is the expected state when the same " +
 			"workload appears in the services list with management_mode=procmgr.",
 	}
@@ -167,6 +165,13 @@ func (c *Collector) Report(ctx context.Context, opts ScrubOptions) SupportReport
 			}
 		}
 	}
+
+	// The OS unit/SCM state does not go through dd-procmgrd, so it is collected whether or not the
+	// calls above succeeded: a unit that is stopped or failed is what a reader needs when the daemon
+	// cannot answer. Status() does not carry it, so without this the field stays empty on every host.
+	serviceStateCtx, cancelServiceState := daemonServiceStateContext(ctx)
+	out.Daemon.ServiceState = detectDaemonServiceState(serviceStateCtx)
+	cancelServiceState()
 
 	for _, service := range migratableServices {
 		out.Services = append(out.Services, c.collectService(ctx, service, processes))
@@ -386,9 +391,8 @@ func namesSecret(patterns []procutil.DataScrubberPattern, flag string) bool {
 	return false
 }
 
-// describeAll enriches each listed process with the fields only Describe carries, above all
-// auto_start, without which a Created process cannot be told from an inert catalog entry. A
-// process whose Describe fails keeps its List data and contributes a warning.
+// describeAll enriches each listed process with the fields only Describe carries,
+// including skip_reasons on a Skipped hold and auto_start as declared config.
 func describeAll(ctx context.Context, sess ProcmgrSession, processes map[string]ProcessSnapshot) ([]ProcessSnapshot, []string) {
 	names := make([]string, 0, len(processes))
 	for name := range processes {

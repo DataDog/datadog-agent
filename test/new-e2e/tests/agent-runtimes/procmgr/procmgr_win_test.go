@@ -397,6 +397,7 @@ func TestProcmgrSmokeWindowsSuite(t *testing.T) {
 				ec2.WithAgentOptions(
 					agentparams.WithFile(winConfigDir+"/test-sleep.yaml", winTestProcessConfig, true),
 					agentparams.WithFile(winConfigDir+"/missing-binary.yaml", winMissingBinaryConfig, true),
+					agentparams.WithFile(winConfigDir+"/datadog-agent-par-control.yaml", skippedCatalogProcessYAML(`C:\nonexistent\par-control.exe`, `C:\nonexistent\par-control.exe`), true),
 					withADPEnabled(),
 				),
 			),
