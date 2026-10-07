@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "sbom",
     srcs = [
+        "data_cache.go",
         "file_querier.go",
         "report.go",
         "resolver.go",
@@ -62,6 +63,7 @@ go_library(
 dd_agent_go_test(
     name = "sbom_test",
     srcs = [
+        "data_cache_test.go",
         "file_querier_test.go",
         "report_test.go",
         "resolver_test.go",

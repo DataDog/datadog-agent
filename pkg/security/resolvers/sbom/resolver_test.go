@@ -39,10 +39,7 @@ import (
 // without the reset the refresh re-scan is silently discarded and the runtime
 // properties are never recomputed.
 func TestRefreshScanResetsStateForRescan(t *testing.T) {
-	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
-	if err != nil {
-		t.Fatalf("NewLRU: %v", err)
-	}
+	dataCache := newTestDataCache(t, 10)
 	r := &Resolver{
 		dataCache: dataCache,
 		scanChan:  make(chan *SBOM, 10),
@@ -50,14 +47,14 @@ func TestRefreshScanResetsStateForRescan(t *testing.T) {
 
 	sbom := NewSBOM("container-id", nil, "image:tag")
 	sbom.state.Store(computedState)
-	dataCache.Add("image:tag", &Data{})
+	dataCache.unused.Add("image:tag", &Data{})
 
 	r.refreshScan(sbom)
 
 	if got := sbom.state.Load(); got != pendingState {
 		t.Errorf("state = %d, want pendingState (%d)", got, pendingState)
 	}
-	if _, ok := dataCache.Get("image:tag"); ok {
+	if _, ok := dataCache.peek("image:tag"); ok {
 		t.Errorf("cached SBOM data was not invalidated")
 	}
 	select {
@@ -79,7 +76,8 @@ func newPendingFileEvents(t *testing.T) *simplelru.LRU[containerutils.ContainerI
 }
 
 func newPendingFileEventsResolver(t *testing.T) *Resolver {
-	return &Resolver{pendingFileEvents: newPendingFileEvents(t)}
+	dataCache := newTestDataCache(t, 10)
+	return &Resolver{pendingFileEvents: newPendingFileEvents(t), dataCache: dataCache}
 }
 
 // TestDeleteReleasesPendingFileEventsWithoutSBOM checks that a container leaving
@@ -166,10 +164,7 @@ func TestEvictedSBOMStopsUnderItsLock(t *testing.T) {
 // its queued accesses are never applied — which is the fate of every replica of an
 // image but the one that gets scanned.
 func TestAnalyzeWorkloadReusesCachedDataAsComputed(t *testing.T) {
-	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
-	if err != nil {
-		t.Fatalf("NewLRU: %v", err)
-	}
+	dataCache := newTestDataCache(t, 10)
 	r := &Resolver{
 		// long enough that the forwarding debouncer cannot fire during the test
 		cfg:               &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour},
@@ -179,7 +174,7 @@ func TestAnalyzeWorkloadReusesCachedDataAsComputed(t *testing.T) {
 		sbomsCacheMiss:    atomic.NewUint64(0),
 	}
 
-	dataCache.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
+	dataCache.unused.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
 		Package:        sbomtypes.Package{Name: "shadow-utils"},
 		InstalledFiles: []string{"/usr/bin/su"},
 	}}, false))
@@ -214,10 +209,7 @@ func TestAnalyzeWorkloadReusesCachedDataAsComputed(t *testing.T) {
 // debouncer that can never be stopped again, since a stopped workload is no longer
 // reachable from the resolver, and reports an SBOM for a container that is gone.
 func TestAnalyzeWorkloadSkipsStoppedWorkload(t *testing.T) {
-	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
-	if err != nil {
-		t.Fatalf("NewLRU: %v", err)
-	}
+	dataCache := newTestDataCache(t, 10)
 	r := &Resolver{
 		cfg:               &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour},
 		dataCache:         dataCache,
@@ -226,7 +218,7 @@ func TestAnalyzeWorkloadSkipsStoppedWorkload(t *testing.T) {
 		sbomsCacheMiss:    atomic.NewUint64(0),
 	}
 
-	dataCache.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
+	dataCache.unused.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
 		Package:        sbomtypes.Package{Name: "shadow-utils"},
 		InstalledFiles: []string{"/usr/bin/su"},
 	}}, false))
@@ -253,10 +245,7 @@ func TestAnalyzeWorkloadSkipsStoppedWorkload(t *testing.T) {
 // that admits it, so a workload going idle right after would otherwise never have
 // them applied.
 func TestQueueWorkloadAppliesQueuedAccessesOnCacheHit(t *testing.T) {
-	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
-	if err != nil {
-		t.Fatalf("NewLRU: %v", err)
-	}
+	dataCache := newTestDataCache(t, 10)
 	r := &Resolver{
 		dataCache:         dataCache,
 		scanChan:          make(chan *SBOM, 1),
@@ -265,7 +254,7 @@ func TestQueueWorkloadAppliesQueuedAccessesOnCacheHit(t *testing.T) {
 		sbomsCacheMiss:    atomic.NewUint64(0),
 	}
 
-	dataCache.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
+	dataCache.unused.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
 		Package:        sbomtypes.Package{Name: "shadow-utils"},
 		InstalledFiles: []string{"/usr/bin/su"},
 	}}, false))
@@ -284,6 +273,120 @@ func TestQueueWorkloadAppliesQueuedAccessesOnCacheHit(t *testing.T) {
 	}
 	if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
 		t.Errorf("package = %+v, want last access and both sticky properties set", pkg)
+	}
+}
+
+// TestQueueWorkloadSharesDataOfRunningImage checks that a new container shares the
+// scan of its running image, however many other images the host ran since.
+func TestQueueWorkloadSharesDataOfRunningImage(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	r.dataCache = newTestDataCache(t, 1)
+	r.scanChan = make(chan *SBOM, 1)
+	r.sbomsCacheHit = atomic.NewUint64(0)
+
+	running := &Data{}
+	r.dataCache.add("image-x", running)
+	for _, other := range []workloadKey{"image-y", "image-z"} {
+		r.dataCache.add(other, &Data{})
+		r.dataCache.release(other)
+	}
+
+	sbom := NewSBOM("container-id", nil, "image-x")
+	t.Cleanup(sbom.stop)
+	r.queueWorkload(sbom)
+
+	if !sbom.IsComputed() || sbom.data != running {
+		t.Errorf("state = %d, data = %p, want the data of the running image, %p", sbom.state.Load(), sbom.data, running)
+	}
+	if len(r.scanChan) != 0 {
+		t.Errorf("the container was queued for a scan")
+	}
+}
+
+// TestDeleteReleasesSharedData checks that the data of an image stays in use until
+// its last container leaves, then serves the next container from the cache.
+func TestDeleteReleasesSharedData(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	sboms, err := simplelru.NewLRU(10, r.onSBOMEvicted)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r.sboms = sboms
+	r.scanChan = make(chan *SBOM, 1)
+	r.sbomsCacheHit = atomic.NewUint64(0)
+
+	scanned := &Data{}
+	r.dataCache.unused.Add("image-k", scanned)
+
+	for _, id := range []containerutils.ContainerID{"a", "b"} {
+		sbom := NewSBOM(id, nil, "image-k")
+		sboms.Add(id, sbom)
+		r.queueWorkload(sbom)
+	}
+	if users := r.dataCache.users("image-k"); users != 2 {
+		t.Fatalf("image-k has %d users, want 2", users)
+	}
+
+	r.Delete("a")
+	if used, unused := r.dataCache.lens(); r.dataCache.users("image-k") != 1 || used != 1 || unused != 0 {
+		t.Fatalf("after a leaves: %d users, %d used and %d unused keys, want image-k used by b", r.dataCache.users("image-k"), used, unused)
+	}
+
+	r.Delete("b")
+	if used, unused := r.dataCache.lens(); used != 0 || unused != 1 {
+		t.Fatalf("after b leaves: %d used and %d unused keys, want image-k unused", used, unused)
+	}
+
+	sbom := NewSBOM("c", nil, "image-k")
+	t.Cleanup(sbom.stop)
+	r.queueWorkload(sbom)
+	if !sbom.IsComputed() || sbom.data != scanned || len(r.scanChan) != 0 {
+		t.Errorf("state = %d, data = %p, %d queued scans, want the unused data, %p, without a scan", sbom.state.Load(), sbom.data, len(r.scanChan), scanned)
+	}
+}
+
+// TestEvictedSBOMReleasesData checks that an SBOM evicted to make room releases
+// the data of its image.
+func TestEvictedSBOMReleasesData(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newPendingFileEventsResolver(t)
+		sboms, err := simplelru.NewLRU(1, r.onSBOMEvicted)
+		if err != nil {
+			t.Fatalf("NewLRU: %v", err)
+		}
+		r.sboms = sboms
+		r.sbomsCacheHit = atomic.NewUint64(0)
+
+		r.dataCache.unused.Add("image-k", &Data{})
+		evicted := NewSBOM("evicted", nil, "image-k")
+		sboms.Add(evicted.ContainerID, evicted)
+		r.queueWorkload(evicted)
+
+		sboms.Add("other", NewSBOM("other", nil, "image-o"))
+		synctest.Wait()
+
+		if used, unused := r.dataCache.lens(); used != 0 || unused != 1 {
+			t.Errorf("image-k has %d users after the eviction of its container, want 0", r.dataCache.users("image-k"))
+		}
+	})
+}
+
+// TestSetScanLeavesEmptyScanUncached checks that an empty scan, as a failing
+// scanner returns, serves its container and stays out of the cache.
+func TestSetScanLeavesEmptyScanUncached(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+
+	sbom := NewSBOM("container-id", nil, "image-k")
+	t.Cleanup(sbom.stop)
+	sbom.Lock()
+	data := r.setScan(sbom, nil)
+	sbom.Unlock()
+
+	if sbom.data != data || sbom.cached {
+		t.Errorf("data = %p, cached = %v, want %p kept out of the cache", sbom.data, sbom.cached, data)
+	}
+	if _, ok := r.dataCache.acquire("image-k"); ok {
+		t.Errorf("the empty scan was cached")
 	}
 }
 
@@ -473,10 +576,7 @@ func TestForwardSkipsStoppedSBOM(t *testing.T) {
 // workload was deleted keeps the SBOM stopped and out of the scan queue, and
 // keeps the cached data of the image for its other containers.
 func TestRefreshScanKeepsStoppedSBOM(t *testing.T) {
-	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
-	if err != nil {
-		t.Fatalf("NewLRU: %v", err)
-	}
+	dataCache := newTestDataCache(t, 10)
 	r := &Resolver{
 		dataCache: dataCache,
 		scanChan:  make(chan *SBOM, 10),
@@ -484,7 +584,7 @@ func TestRefreshScanKeepsStoppedSBOM(t *testing.T) {
 
 	sbom := NewSBOM("container-id", nil, "image:tag")
 	sbom.stop()
-	dataCache.Add("image:tag", &Data{})
+	dataCache.unused.Add("image:tag", &Data{})
 
 	r.refreshScan(sbom)
 
@@ -494,7 +594,7 @@ func TestRefreshScanKeepsStoppedSBOM(t *testing.T) {
 	if len(r.scanChan) != 0 {
 		t.Errorf("the deleted workload was queued for a scan")
 	}
-	if _, ok := dataCache.Get("image:tag"); !ok {
+	if _, ok := dataCache.peek("image:tag"); !ok {
 		t.Errorf("the deleted workload dropped the cached data of its image")
 	}
 }
@@ -762,10 +862,7 @@ func TestPendingFileEventsSkipDirectories(t *testing.T) {
 // scans, and keeps the usage of the packages it finds again, upgraded ones
 // included.
 func TestRefreshScanRescansHost(t *testing.T) {
-	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
-	if err != nil {
-		t.Fatalf("NewLRU: %v", err)
-	}
+	dataCache := newTestDataCache(t, 10)
 
 	r := newHostSBOMResolver(t)
 	r.dataCache = dataCache
@@ -809,7 +906,7 @@ func TestRefreshScanRescansHost(t *testing.T) {
 	if len(r.scanChan) != 0 {
 		t.Errorf("the host was queued as a workload")
 	}
-	if dataCache.Len() != 0 {
+	if used, unused := dataCache.lens(); used+unused != 0 {
 		t.Errorf("the host entered the workload cache")
 	}
 }
