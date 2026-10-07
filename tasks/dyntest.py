@@ -104,10 +104,13 @@ def evaluate_index(
     """Compare a selector's predictions with executed tests using the shared evaluator.
 
     Coverage evaluates the package/file/diffed-package indexes. Jev evaluates
-    completed E2E jobs against the committed job -> test candidates file
-    (tasks/libs/dynamic_test/jev/job_test_candidates.json), without requiring
-    coverage data or S3 access. Jev must run from the evaluated pipeline's
-    checkout.
+    the ENTIRE committed job -> test candidates file
+    (tasks/libs/dynamic_test/jev/job_test_candidates.json) - every job it
+    knows, whether or not that job ran in the pipeline - against the
+    pipeline's executed tests: the evaluation therefore also shows which
+    tests and jobs Jev would run but the pipeline did not (over-selection),
+    without requiring coverage data or S3 access. Jev must run from the
+    evaluated pipeline's checkout.
 
     Requires DD_API_KEY/DD_APP_KEY with CI Visibility read access (and DD_SITE
     when not datadoghq.com). Jev additionally uses the standard GitLab task

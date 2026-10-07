@@ -79,10 +79,11 @@ class TestJevDynTestExecutor(unittest.TestCase):
 
     @patch(f"{MODULE}._job_candidates")
     @patch(f"{MODULE}.get_pipeline")
-    def test_index_is_the_committed_candidate_map(self, get_pipeline, candidates):
-        """The index: the pipeline's completed e2e jobs, restricted to their
-        static candidates; jobs absent from the committed file are reported
-        and not evaluated."""
+    def test_index_is_the_whole_candidate_file(self, get_pipeline, candidates):
+        """The index: the ENTIRE committed candidate file - every job it knows,
+        whether or not that job ran in this pipeline - so the evaluation
+        shows Jev's over-selection. Pipeline jobs absent from the file are
+        reported (their executed tests are not decidable)."""
         pipeline = get_pipeline.return_value
         pipeline.sha = SHA
         pipeline.jobs.list.side_effect = [
@@ -98,15 +99,15 @@ class TestJevDynTestExecutor(unittest.TestCase):
         candidates.return_value = {
             "new-e2e-job-a": ["TestA"],
             "new-e2e-job-b": ["TestB"],
-            "new-e2e-never-ran": ["TestX"],  # not a completed job: ignored
+            "new-e2e-never-ran": ["TestX"],  # not a completed job of this pipeline
         }
         executor = JevDynTestExecutor(MagicMock(), SHA, "42")
         executor.init_index()
-        # Only the pipeline's completed jobs that are in the committed file
-        self.assertEqual(sorted(executor.index().get_jobs()), ["new-e2e-job-a", "new-e2e-job-b"])
+        # Every file job is indexed, ran or not
+        self.assertEqual(sorted(executor.index().get_jobs()), ["new-e2e-job-a", "new-e2e-job-b", "new-e2e-never-ran"])
         self.assertEqual(executor.index().get_indexed_tests_for_job("new-e2e-job-a"), {"TestA"})
-        self.assertEqual(executor.index().get_indexed_tests_for_job("new-e2e-job-b"), {"TestB"})
-        self.assertNotIn("new-e2e-missing", executor.index().get_jobs())
+        self.assertEqual(executor.index().get_indexed_tests_for_job("new-e2e-never-ran"), {"TestX"})
+        self.assertNotIn("new-e2e-missing", executor.index().get_jobs())  # ran but absent from the file: reported
         # The GitLab facts still recorded: latest job ids
         self.assertEqual(executor.job_ids, {"new-e2e-job-a": "7", "new-e2e-job-b": "8", "new-e2e-missing": "9"})
 

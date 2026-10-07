@@ -3,13 +3,15 @@
 JevDynTestExecutor is a plain DynTestExecutor: its index is a static job ->
 candidate tests map, loaded from a file committed in the repo
 (tasks/libs/dynamic_test/jev/job_test_candidates.json, generated once from
-CI Visibility) and restricted to the pipeline's completed e2e jobs. The
-coverage executors load their index from S3; this one loads its own from Git.
-Predictions come from the Jev selector over the suites whose tests are
+CI Visibility) and indexing the ENTIRE file - every job it knows, whether or
+not that job ran in the evaluated pipeline - so the evaluation measures Jev's
+over-selection: which tests and jobs Jev would run but the pipeline did not.
+The coverage executors load their index from S3; this one loads its own from
+Git. Predictions come from the Jev selector over the suites whose tests are
 candidates. The shared DatadogDynTestEvaluator runs it like any other executor:
-it owns the executed-tests queries and the miss logic. Only explicit,
-successful Jev skip decisions may remove tests - errors and unknown tests run
-conservatively.
+it owns the executed-tests queries (only from the pipeline) and the miss
+logic. Only explicit, successful Jev skip decisions may remove tests -
+errors and unknown tests run conservatively.
 """
 
 from __future__ import annotations
@@ -131,12 +133,16 @@ class JevDynTestExecutor(DynTestExecutor):
     """Jev executor whose index is the committed job -> candidate tests map.
 
     init_index() lazily loads it like every DynTestExecutor - from Git, where
-    the coverage executors load theirs from S3: each of the pipeline's
-    completed e2e jobs (GitLab API, latest attempts) gets its candidates from
-    the committed file; jobs absent from the file are reported and not
-    evaluated. Predictions: the Jev selector's run-set over the suites whose
-    tests are candidates (the selector gathers its own PR context from this
-    checkout).
+    the coverage executors load theirs from S3 - and indexes the ENTIRE
+    candidate file: every job it knows, whether or not that job ran in the
+    evaluated pipeline. The evaluation therefore measures over-selection
+    too: which tests and jobs Jev would run but the pipeline did not (jobs
+    that did not run in the pipeline contribute zero executed tests, showing
+    as predicted-but-not-executed). The pipeline's completed e2e jobs
+    (GitLab API, latest attempts) are still fetched, for the executed-tests
+    side of the comparison and to report jobs absent from the file.
+    Predictions: the Jev selector's run-set over the suites whose tests are
+    candidates (the selector gathers its own PR context from this checkout).
     """
 
     def __init__(self, ctx, commit_sha: str, pipeline_id: str, require_pipeline_commit: bool = True):
@@ -175,23 +181,31 @@ class JevDynTestExecutor(DynTestExecutor):
 
         candidates = _job_candidates()
         index = DynamicTestIndex()
+        # The whole candidate file is indexed - every job it knows, whether or
+        # not the job ran in this pipeline - so the evaluation shows Jev's
+        # over-selection: tests and jobs Jev would run but the pipeline did
+        # not (executed tests still come only from the pipeline, via the
+        # shared evaluator)
+        for job, tests in candidates.items():
+            index.add_tests(job, "candidates", tests)
         missing = [job for job in self.jobs if not candidates.get(job)]
-        for job in self.jobs:
-            if tests := candidates.get(job):
-                index.add_tests(job, "candidates", tests)
         if missing:
             print(
-                f"[jev] {len(missing)} completed E2E jobs are not in the candidate index (not evaluated): "
-                f"{', '.join(missing)}"
+                f"[jev] {len(missing)} completed E2E jobs are not in the candidate index "
+                f"(no candidates known, their executed tests are not evaluated): {', '.join(missing)}"
             )
-        if not index.get_jobs():
+        if not set(self.jobs) & set(candidates):
             raise NothingToEvaluateError(
                 f"No completed E2E test jobs in the candidate index for pipeline {self.pipeline_id}"
             )
+        not_ran = len(candidates) - len(set(candidates) & set(self.jobs))
         self._run = None
         self._index = index
         total = sum(len(index.get_indexed_tests_for_job(job)) for job in index.get_jobs())
-        print(f"[jev] index: {len(index.get_jobs())} jobs, {total} candidate tests (committed candidate file)")
+        print(
+            f"[jev] index: all {len(index.get_jobs())} jobs / {total} candidate tests from the committed "
+            f"file ({len(self.jobs)} of them ran in this pipeline, {not_ran} did not)"
+        )
 
     def _jev_run(self) -> set[str]:
         """Lazily: the candidate tests Jev would RUN, over the suites with candidates.
