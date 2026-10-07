@@ -151,60 +151,48 @@ func WithTLSConfig(insecure bool, CAFile string) (ClientOptions, error) {
 	}, nil
 }
 
-// WithMaxAttempts is a functional option to set the client max attempts
 func WithMaxAttempts(maxAttempts int) ClientOptions {
 	return func(c *Client) {
 		c.maxAttempts = maxAttempts
 	}
 }
 
-// WithBackoff is a functional option to wait with exponential backoff before retrying
-// transient failures (network errors, 429 and 5xx), honoring the Retry-After header
 func WithBackoff(enabled bool) ClientOptions {
 	return func(c *Client) {
 		c.backoffEnabled = enabled
 	}
 }
 
-// WithMaxRetryDuration is a functional option to bound the total time spent retrying a request:
-// no new backoff wait is started if it would end after maxRetryDuration
 func WithMaxRetryDuration(maxRetryDuration time.Duration) ClientOptions {
 	return func(c *Client) {
 		c.maxRetryDuration = maxRetryDuration
 	}
 }
 
-// WithMaxCount is a functional option to set the client max count
 func WithMaxCount(maxCount int) ClientOptions {
 	return func(c *Client) {
 		c.maxCount = strconv.Itoa(maxCount)
 	}
 }
 
-// WithMaxPages is a functional option to set the client max pages
 func WithMaxPages(maxPages int) ClientOptions {
 	return func(c *Client) {
 		c.maxPages = maxPages
 	}
 }
 
-// WithLookback is a functional option to set the client lookback interval
 func WithLookback(lookback time.Duration) ClientOptions {
 	return func(c *Client) {
 		c.lookback = lookback
 	}
 }
 
-// WithContext is a functional option to set the context used to cancel requests and rate limiter waits
 func WithContext(ctx context.Context) ClientOptions {
 	return func(c *Client) {
 		c.ctx = ctx
 	}
 }
 
-// WithRateLimit is a functional option to limit the number of requests sent to the
-// Cisco SD-WAN API using a token bucket refilled at requestsPerSecond, holding up to burst tokens.
-// A request fails instead of waiting longer than maxWait for a token.
 func WithRateLimit(requestsPerSecond float64, burst int, maxWait time.Duration) ClientOptions {
 	return func(c *Client) {
 		c.rateLimiter = rate.NewLimiter(rate.Limit(requestsPerSecond), burst)
@@ -212,8 +200,6 @@ func WithRateLimit(requestsPerSecond float64, burst int, maxWait time.Duration) 
 	}
 }
 
-// waitForRateLimit blocks until the rate limiter allows a new request to be sent,
-// the client context is cancelled, or rateLimitMaxWait is reached
 func (client *Client) waitForRateLimit() error {
 	if client.rateLimiter == nil {
 		return nil

@@ -20,14 +20,10 @@ import (
 )
 
 const (
-	// baseRetryBackoff is the initial wait before retrying a transient failure
 	baseRetryBackoff = 1 * time.Second
-	// maxRetryBackoff caps the wait between retries, including server-provided Retry-After values
-	maxRetryBackoff = 30 * time.Second
+	maxRetryBackoff  = 30 * time.Second
 )
 
-// newRetryBackOff builds the exponential backoff policy used when backoff is enabled.
-// Useful for mocking
 var newRetryBackOff = func() backoff.BackOff {
 	b := backoff.NewExponentialBackOff()
 	b.InitialInterval = baseRetryBackoff
@@ -108,7 +104,6 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 			return nil, backoff.Permanent(err)
 		}
 
-		// Retrying would not help if the rate limiter wait failed or the check was cancelled
 		err = client.waitForRateLimit()
 		if err != nil {
 			return nil, backoff.Permanent(err)
@@ -122,18 +117,15 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 		}
 
 		if err == nil && isValidStatusCode(statusCode) {
-			// Got a valid response, stop retrying
 			return bytes, nil
 		}
 
 		return nil, client.retryError(statusCode, header, err)
 	}
 
-	// The client context interrupts backoff waits when the check is cancelled
 	bytes, err := backoff.Retry(client.ctx, operation,
 		backoff.WithBackOff(client.retryBackOff()),
 		backoff.WithMaxTries(uint(max(client.maxAttempts, 1))),
-		// Attempts are bounded by maxAttempts, each wait by maxRetryBackoff and all of them by maxRetryDuration
 		backoff.WithMaxElapsedTime(client.maxRetryDuration),
 		backoff.WithNotify(func(err error, wait time.Duration) {
 			if wait > 0 {
@@ -155,8 +147,6 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 	return nil, fmt.Errorf("%s http responded with %d code", endpoint, statusCode)
 }
 
-// retryBackOff returns the policy used between attempts. Without backoff enabled,
-// failed requests are retried immediately.
 func (client *Client) retryBackOff() backoff.BackOff {
 	if !client.backoffEnabled {
 		return &backoff.ZeroBackOff{}
@@ -184,9 +174,6 @@ func (client *Client) retryError(statusCode int, header http.Header, err error) 
 	return err
 }
 
-// isRetryable reports whether a failed request is worth waiting on and retrying:
-// network errors, rate-limiting (429) and transient server errors (5xx). Auth
-// failures (401) are excluded as they trigger immediate re-authentication.
 func isRetryable(statusCode int, err error) bool {
 	if err != nil {
 		return true
