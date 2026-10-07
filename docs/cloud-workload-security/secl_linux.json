@@ -7963,7 +7963,7 @@
       "name": "setns",
       "definition": "A thread joined an existing namespace",
       "type": "Kernel",
-      "from_agent_version": "7.84",
+      "from_agent_version": "7.86",
       "experimental": false,
       "properties": [
         {
@@ -7988,7 +7988,7 @@
         },
         {
           "name": "setns.nstype",
-          "definition": "Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined",
+          "definition": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined",
           "property_doc_link": "setns-nstype-doc"
         },
         {
@@ -17407,7 +17407,7 @@
       "name": "setns.nstype",
       "link": "setns-nstype-doc",
       "type": "int",
-      "definition": "Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined",
+      "definition": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined",
       "prefixes": [
         "setns"
       ],

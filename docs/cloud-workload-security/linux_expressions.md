@@ -59,7 +59,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `rmdir` | File | A directory was removed | 7.27 |
 | `selinux` | Kernel | An SELinux operation was run | 7.30 |
 | `setgid` | Process | A process changed its effective gid | 7.27 |
-| `setns` | Kernel | A thread joined an existing namespace | 7.84 |
+| `setns` | Kernel | A thread joined an existing namespace | 7.86 |
 | `setrlimit` | Process | A setrlimit command was executed | 7.68 |
 | `setsockopt` | Network | A setsockopt was executed | 7.68 |
 | `setuid` | Process | A process changed its effective uid | 7.27 |
@@ -1946,7 +1946,7 @@ A thread joined an existing namespace
 | [`setns.ipcns`](#common-namespaceids-ipcns-doc) | IPC namespace ID, 0 if it couldn't be resolved |
 | [`setns.mntns`](#common-namespaceids-mntns-doc) | Mount namespace ID, 0 if it couldn't be resolved |
 | [`setns.netns`](#common-namespaceids-netns-doc) | Network namespace ID, 0 if it couldn't be resolved |
-| [`setns.nstype`](#setns-nstype-doc) | Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined |
+| [`setns.nstype`](#setns-nstype-doc) | Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined |
 | [`setns.pidns`](#common-namespaceids-pidns-doc) | ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved |
 | [`setns.previous.cgroupns`](#common-namespaceids-cgroupns-doc) | Cgroup namespace ID, 0 if it couldn't be resolved |
 | [`setns.previous.ipcns`](#common-namespaceids-ipcns-doc) | IPC namespace ID, 0 if it couldn't be resolved |
@@ -4974,7 +4974,7 @@ Definition: New group of the process
 ### `setns.nstype` {#setns-nstype-doc}
 Type: int
 
-Definition: Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined
+Definition: Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined
 
 
 Constants: [Clone flags](#clone-flags)

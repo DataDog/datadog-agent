@@ -137,7 +137,7 @@ type Event struct {
 	SysCtl       SysCtlEvent       `field:"sysctl" event:"sysctl"`               // [7.65] [Kernel] A sysctl parameter was read or modified
 	CgroupWrite  CgroupWriteEvent  `field:"cgroup_write" event:"cgroup_write"`   // [7.68] [Kernel] A process migrated another process to a cgroup
 	Unshare      UnshareEvent      `field:"unshare" event:"unshare"`             // [7.84] [Kernel] A process created new namespaces
-	SetNS        SetNSEvent        `field:"setns" event:"setns"`                 // [7.84] [Kernel] A thread joined an existing namespace
+	SetNS        SetNSEvent        `field:"setns" event:"setns"`                 // [7.86] [Kernel] A thread joined an existing namespace
 
 	// network events
 	DNS                DNSEvent                `field:"dns" event:"dns"`                                   // [7.36] [Network] A DNS request was sent
@@ -1190,7 +1190,7 @@ type SetrlimitEvent struct {
 // SetNSEvent represents a setns event
 type SetNSEvent struct {
 	SyscallEvent
-	NSType int `field:"nstype"` // SECLDoc[nstype] Definition:`Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined` Constants:`Clone flags`
+	NSType int `field:"nstype"` // SECLDoc[nstype] Definition:`Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined` Constants:`Clone flags`
 	NamespaceIDs
 	Previous NamespaceIDs `field:"previous"` // SECLDoc[previous] Definition:`Namespace IDs of the thread before the syscall`
 }

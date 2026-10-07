@@ -13,7 +13,7 @@
 // setns accepts a nstype of 0, in which case the kernel resolves the type from the file
 // descriptor (`flags = ns->ops->type`). The syscall arguments alone therefore don't tell us which
 // namespace was joined, so the type is recovered from the per-namespace install callbacks below
-// and merged into the reported nstype. These values are uapi and can never change; guarded
+// and reported in that case. These values are uapi and can never change; guarded
 // because linux/sched.h may also define them.
 #ifndef CLONE_NEWTIME
 #define CLONE_NEWTIME 0x00000080
@@ -113,9 +113,11 @@ static int __attribute__((always_inline)) sys_setns_ret(void *ctx, int retval, e
         return 0;
     }
 
-    u32 nstype = syscall->setns.effective_nstype;
+    // a non-zero nstype is reported as requested: through a pidfd the kernel stops at the first
+    // namespace that fails to validate, so the install callbacks may only cover part of it
+    u32 nstype = (u32)syscall->setns.nstype;
     if (nstype == 0) {
-        nstype = (u32)syscall->setns.nstype;
+        nstype = syscall->setns.effective_nstype;
     }
 
     struct setns_event_t *event = SPAN_FILL_EVENT(struct setns_event_t, EVENT_SETNS);

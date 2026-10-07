@@ -2053,8 +2053,11 @@
     "SetNSEvent": {
       "properties": {
         "nstype": {
-          "type": "string",
-          "description": "Namespace types the thread joined, ANY if the type couldn't be determined"
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0"
         },
         "mntns": {
           "type": "integer",
@@ -2095,9 +2098,6 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "required": [
-        "nstype"
-      ],
       "description": "SetNSEventSerializer serializes a setns event"
     },
     "SetSockOptEvent": {
