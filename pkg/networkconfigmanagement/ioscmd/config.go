@@ -23,7 +23,7 @@ type HostnameCommand struct {
 func (HostnameCommand) isConfig() bool { return true }
 
 func (c HostnameCommand) render() ([]string, error) {
-	if err := checkToken("hostname", c.Hostname); err != nil {
+	if err := checkHostname("hostname", c.Hostname); err != nil {
 		return nil, err
 	}
 	return []string{"hostname " + c.Hostname}, nil
@@ -43,7 +43,7 @@ type InterfaceCommand struct {
 func (InterfaceCommand) isConfig() bool { return true }
 
 func (c InterfaceCommand) render() ([]string, error) {
-	if err := checkToken("interface name", c.Name); err != nil {
+	if err := checkInterfaceName("interface name", c.Name); err != nil {
 		return nil, err
 	}
 	var out []string
@@ -307,7 +307,7 @@ func (c VrfForwardingCommand) render() (string, error) {
 	if c.Value.Value == nil {
 		return "no vrf forwarding", nil
 	}
-	if err := checkToken("vrf", *c.Value.Value); err != nil {
+	if err := checkName("vrf", *c.Value.Value); err != nil {
 		return "", err
 	}
 	return "vrf forwarding " + *c.Value.Value, nil
@@ -506,7 +506,7 @@ type IPAccessGroupCommand struct {
 }
 
 func (c IPAccessGroupCommand) render() (string, error) {
-	if err := checkToken("acl", c.ACL); err != nil {
+	if err := checkName("acl", c.ACL); err != nil {
 		return "", err
 	}
 	if err := checkOneOf("direction", c.Direction, "in", "out"); err != nil {

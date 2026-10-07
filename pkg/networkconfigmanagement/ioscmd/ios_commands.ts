@@ -52,8 +52,25 @@ export type IPv4Mask = string;
 /** IPv6 prefix in CIDR notation, e.g. "2001:db8::1/64". */
 export type IPv6Prefix = string;
 
-/** Full or abbreviated IOS interface name, e.g. "GigabitEthernet1/0/1", "Vlan10", "Loopback0". */
+/**
+ * Full or abbreviated IOS interface name, e.g. "GigabitEthernet1/0/1", "Vlan10",
+ * "Loopback0", "Port-channel1", "Gi1/0/1.100", "Serial0/0/0:0". Must match
+ * /^[A-Za-z][A-Za-z-]*[0-9][0-9\/.:]*$/ (no spaces).
+ */
 export type InterfaceName = string;
+
+/** Device hostname: letters, digits, and hyphens, starting with a letter, at most 63 characters. */
+export type Hostname = string;
+
+/** VRF or ACL name: letters, digits, "_", ".", and "-", at most 64 characters. */
+export type ObjectName = string;
+
+/**
+ * Free-form text (descriptions, pipe regexes): printable ASCII, not blank, and
+ * without "|" or "?", which the CLI would interpret as a pipe or a help request.
+ * Regex alternation ("a|b") is therefore not supported.
+ */
+export type CliText = string;
 
 /** VLAN ID, 1-4094. */
 export type VlanId = number;
@@ -77,15 +94,15 @@ export type TopLevelCommand = ShowCommand | HostnameCommand | InterfaceCommand;
 /** Output filter applied with `| <modifier> <arg>`. */
 export type OutputPipe =
   /** `| section <regex>` */
-  | { type: "section"; section: string }
+  | { type: "section"; section: CliText }
   /** `| include <regex>` */
-  | { type: "include"; pattern: string }
+  | { type: "include"; pattern: CliText }
   /** `| exclude <regex>` */
-  | { type: "exclude"; pattern: string }
+  | { type: "exclude"; pattern: CliText }
   /** `| begin <regex>` */
-  | { type: "begin"; pattern: string }
+  | { type: "begin"; pattern: CliText }
   /** `| count <regex>` */
-  | { type: "count"; pattern: string };
+  | { type: "count"; pattern: CliText };
 
 interface ShowBase {
   type: "show";
@@ -117,7 +134,7 @@ export type ShowIpInterface = ShowBase & { target: "ip interface" } & (
 /** `show ip route [vrf <vrf>] [<prefix>]` */
 export interface ShowIpRoute extends ShowBase {
   target: "ip route";
-  vrf?: string;
+  vrf?: ObjectName;
   prefix?: IPv4Address;
 }
 
@@ -161,7 +178,7 @@ export type ShowCommand =
 /** `hostname <name>` */
 export interface HostnameCommand {
   type: "hostname";
-  hostname: string;
+  hostname: Hostname;
 }
 
 /**
@@ -204,7 +221,7 @@ export interface ToggleCommand {
 /** `description <text>`; `value: null` emits `no description`. */
 export interface DescriptionCommand {
   type: "description";
-  value: string | null;
+  value: CliText | null;
 }
 
 /** `ip address <addr> <mask> [secondary]` */
@@ -247,7 +264,7 @@ export interface IpHelperAddressCommand {
 /** `vrf forwarding <name>`; `value: null` emits `no vrf forwarding`. */
 export interface VrfForwardingCommand {
   type: "vrf_forwarding";
-  value: string | null;
+  value: ObjectName | null;
 }
 
 /** `switchport mode <mode>` */
@@ -314,7 +331,7 @@ export interface ChannelGroupCommand {
 /** `ip access-group <acl> {in | out}`; `remove` emits the `no` form. */
 export interface IpAccessGroupCommand {
   type: "ip_access_group";
-  acl: string;
+  acl: ObjectName;
   direction: "in" | "out";
   remove?: boolean;
 }

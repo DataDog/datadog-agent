@@ -12,32 +12,59 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"unicode"
 )
 
-// checkText rejects empty strings and strings containing control characters.
-// Every user-supplied string goes through this (or checkToken), since an
-// embedded newline would let a value inject arbitrary commands.
+// Every user-supplied string goes through checkText or one of the allowlist
+// checks below before it is rendered. Values are spliced into CLI lines
+// verbatim, so anything the device interprets specially must be rejected: a
+// newline starts a new command, `|` chains an output modifier (`redirect`,
+// `tee`, ...) or a shell escape, and `?` invokes context-sensitive help.
+
+// checkText rejects blank strings, strings containing anything other than
+// printable ASCII, and strings containing `|` or `?`. It is for free-form
+// values such as descriptions and pipe regexes.
 func checkText(field, s string) error {
 	if strings.TrimSpace(s) == "" {
 		return fmt.Errorf("%s is required", field)
 	}
-	if strings.IndexFunc(s, unicode.IsControl) >= 0 {
-		return fmt.Errorf("%s must not contain control characters", field)
+	if strings.IndexFunc(s, func(r rune) bool { return r < ' ' || r > '~' || r == '|' || r == '?' }) >= 0 {
+		return fmt.Errorf("%s must be printable ASCII without '|' or '?', got %q", field, s)
 	}
 	return nil
 }
 
-// checkToken is like checkText but also rejects whitespace, for values that
-// must be a single CLI word (interface names, VRF names, ...).
-func checkToken(field, s string) error {
+// checkPattern returns an error unless s is non-empty and matches re.
+func checkPattern(field, s string, re *regexp.Regexp, want string) error {
 	if s == "" {
 		return fmt.Errorf("%s is required", field)
 	}
-	if strings.IndexFunc(s, func(r rune) bool { return unicode.IsControl(r) || unicode.IsSpace(r) }) >= 0 {
-		return fmt.Errorf("%s must be a single word, got %q", field, s)
+	if !re.MatchString(s) {
+		return fmt.Errorf("%s must be %s, got %q", field, want, s)
 	}
 	return nil
+}
+
+// interfaceNameRe matches full or abbreviated interface names, including
+// subinterfaces and channelized ports: Gi1/0/1, Port-channel1,
+// TenGigabitEthernet1/1/1.100, Serial0/0/0:0.
+var interfaceNameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z-]*[0-9][0-9/.:]*$`)
+
+func checkInterfaceName(field, s string) error {
+	return checkPattern(field, s, interfaceNameRe, `an interface name like "GigabitEthernet1/0/1"`)
+}
+
+// hostnameRe matches an RFC 1123 hostname label that starts with a letter.
+var hostnameRe = regexp.MustCompile(`^[A-Za-z]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
+
+func checkHostname(field, s string) error {
+	return checkPattern(field, s, hostnameRe, "a hostname of letters, digits, and hyphens")
+}
+
+// nameRe matches names of configuration objects such as VRFs and ACLs.
+var nameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`)
+
+func checkName(field, s string) error {
+	return checkPattern(field, s, nameRe, "a name of letters, digits, '_', '.', and '-'")
 }
 
 func checkOneOf(field, s string, allowed ...string) error {
