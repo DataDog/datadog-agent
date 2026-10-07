@@ -105,6 +105,7 @@ type Provides struct {
 type PrivateActionRunner struct {
 	workloadAuthorizer     enrollment.WorkloadAuthorizer
 	workloadRefreshEnabled bool
+	workloadRefreshCancel  context.CancelFunc
 	coreConfig             model.ReaderWriter
 	hostnameGetter         hostnameinterface.Component
 	rcClient               pkgrcclient.Client
@@ -435,6 +436,9 @@ func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
 	if err := p.waitForStartup(waitCtx); err != nil {
 		p.logger.Warn("PAR executor startup did not complete in time, forcing cleanup")
 	}
+	if p.workloadRefreshCancel != nil {
+		p.workloadRefreshCancel()
+	}
 
 	if p.executorDone != nil {
 		select {
@@ -529,6 +533,9 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 	if err != nil {
 		p.logger.Warn("PAR startup did not complete in time, forcing cleanup")
 		// Don't return - continue to cleanup what we can
+	}
+	if p.workloadRefreshCancel != nil {
+		p.workloadRefreshCancel()
 	}
 
 	var stopErr error
@@ -643,6 +650,9 @@ func (p *PrivateActionRunner) performWorkloadEnrollment(ctx context.Context, cfg
 	return cfg, nil
 }
 func (p *PrivateActionRunner) startWorkloadRefresh(ctx context.Context) {
+	// Migration retries must survive the lifecycle startup deadline. Stop owns
+	// cancellation once startup has completed, as it does for the runner loops.
+	ctx, p.workloadRefreshCancel = context.WithCancel(context.WithoutCancel(ctx))
 	go func() {
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
