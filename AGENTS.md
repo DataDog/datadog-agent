@@ -161,6 +161,14 @@ Bazel/Gazelle build-tag handling is documented in `bazel/AGENTS.md` ("Go build t
 
 ## CI/CD Pipeline
 
+### Branch-specific push workflow
+
+On the `focus/create-eudm-simulator` branch, pushes may use
+`git push --no-verify`. The repository-wide pre-push hook includes unrelated
+Go linking checks that can fail when the local `datadog-agent-rtloader` library
+is unavailable. Run the relevant focused EUDM simulator tests, build, and
+scenario validation before pushing, and report that the hook was skipped.
+
 ### GitLab CI
 - Primary CI system
 - Defined in `.gitlab-ci.yml` and `.gitlab/` directory
