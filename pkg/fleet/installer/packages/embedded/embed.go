@@ -70,6 +70,12 @@ var ProcessWindowsProcmgrConfig string
 //go:embed tmpl/gen/windows/datadog-agent-sysprobe.yaml
 var SysprobeWindowsProcmgrConfig string
 
+// TraceWindowsProcmgrConfig is the codegen-rendered process manager config for the trace
+// agent on Windows (see embedded/tmpl/main.go). Install time replaces __TRACE_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-trace.yaml
+var TraceWindowsProcmgrConfig string
+
 // PARExecutorWindowsProcmgrConfig is the codegen-rendered process manager config for the PAR
 // on-demand executor on Windows (see embedded/tmpl/main.go).
 //

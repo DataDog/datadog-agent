@@ -75,9 +75,10 @@ function converge-procmgrstate {
 }
 
 # A settled state is anything but Running that dd-procmgrd will not leave on its own: a process
-# whose config gate is closed sits in Created and never transitions, and stopping runs both
-# before and after the test body, so an already-stopped process is the normal case.
-$settledStates = @("Stopped", "Created", "Exited", "Failed")
+# whose start pass declined (auto_start false, closed gate, missing path) sits in Skipped, and
+# stopping runs both before and after the test body, so an already-stopped process is the normal
+# case. Created remains accepted for the brief window before finalize_start_holds.
+$settledStates = @("Stopped", "Created", "Skipped", "Exited", "Failed")
 
 function stop-procmgrprocess {
     param([Parameter(Mandatory=$true)][string]$Name)

@@ -34,6 +34,7 @@ needs-rules:
     - lint_macos_gitlab_amd64
     - new-e2e-cleanup-on-failure
     - lint_macos_gitlab_arm64
+    - jev-dyntest-evaluate
     - publish_winget_7_x64
     - revert_latest_7
     - security_go_generate_check
@@ -61,6 +62,7 @@ needs-rules:
 job-owners:
   allowed-jobs:
     - index-consolidation
+    - jev-dyntest-evaluate
     - benchmark
     - benchmark_commenter
     - build_dogstatsd-binary_arm64
