@@ -27,6 +27,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/characterization"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
@@ -85,11 +86,12 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp           option.Option[agent.Component]
-	FlareProvider  flaretypes.Provider
-	StatusProvider statusComponent.InformationProvider
-	LogsReciever   option.Option[integrations.Component]
-	APIStreamLogs  api.AgentEndpointProvider
+	Comp                    option.Option[agent.Component]
+	FlareProvider           flaretypes.Provider
+	StatusProvider          statusComponent.InformationProvider
+	LogsReciever            option.Option[integrations.Component]
+	APIStreamLogs           api.AgentEndpointProvider
+	APILoadCharacterization api.AgentEndpointProvider
 }
 
 // logAgent represents the data pipeline that collects, decodes,
@@ -174,6 +176,11 @@ func NewComponent(deps Requires) Provides {
 			APIStreamLogs: api.NewAgentEndpointProvider(streamLogsEvents(logsAgent),
 				"/stream-logs",
 				"POST",
+			),
+			APILoadCharacterization: api.NewAgentEndpointProvider(
+				loadCharacterizationHandler(characterization.Default, deps.Config.GetBool(characterization.EnabledConfigKey)),
+				loadCharacterizationRoute,
+				"POST", "GET", "DELETE",
 			),
 		}
 	}

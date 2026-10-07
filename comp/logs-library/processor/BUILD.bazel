@@ -17,6 +17,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname/hostnameinterface/def",
+        "//comp/logs-library/characterization",
         "//comp/logs-library/diagnostic",
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",

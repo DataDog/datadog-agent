@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/characterization"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -95,6 +96,20 @@ func (o *characterizationObserver) stop() {
 
 func (o *characterizationObserver) observe(msg *message.Message, pipeline string) {
 	observation := makeCharacterizationObservation(msg, pipeline, o.sourceSeed)
+	characterization.Default.Record(characterization.MessageObservation{
+		ObservedAt:    observation.observedAt,
+		ContentBytes:  observation.contentBytes,
+		RawBytes:      observation.rawBytes,
+		TagCount:      observation.tagCount,
+		TagBytes:      observation.tagBytes,
+		SourceType:    observation.sourceType,
+		Pipeline:      observation.pipeline,
+		PayloadFamily: observation.payloadFamily,
+		HasService:    observation.hasService,
+		HasSource:     observation.hasSource,
+		SourceHash:    observation.sourceHash,
+		HasSourceID:   observation.hasSourceID,
+	})
 	select {
 	case o.queue <- observation:
 	default:

@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/characterization"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -28,7 +29,7 @@ const (
 	configMRFFailoverLogs     = "multi_region_failover.failover_logs"
 	configMRFServiceAllowlist = "multi_region_failover.logs_service_allowlist"
 	// ExperimentalCharacterizationEnabled enables aggregate-only pipeline ingress observation.
-	ExperimentalCharacterizationEnabled = "logs_config.experimental_characterization.enabled"
+	ExperimentalCharacterizationEnabled = characterization.EnabledConfigKey
 )
 
 type failoverConfig struct {
