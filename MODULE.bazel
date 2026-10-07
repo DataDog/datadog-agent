@@ -435,6 +435,10 @@ register_toolchains(
     "@llvm_toolchain//:all",  # last to avoid taking precedence over GCC toolchains
 )
 
+# clang-cl for windows_x86_64_msvc from arm64 linux hosts (arm64 CI runners,
+# dda env dev on Apple Silicon).
+register_toolchains("@llvm//toolchain:linux_aarch64_to_windows_x86_64_msvc")
+
 # =========================================
 # Python dependencies
 # =========================================
