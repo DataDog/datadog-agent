@@ -55,7 +55,7 @@ func NewWorkflowTaskExecutor(
 	ha helmactions.Component,
 	ka kubeactions.Component,
 ) (*WorkflowTaskExecutor, error) {
-	credentialResolver, err := newCredentialResolver(coreConfig, configuration.ScriptCredentialFileAllowedRoots)
+	credentialResolver, err := resolver.NewPrivateCredentialResolver(coreConfig, configuration.ScriptCredentialFileAllowedRoots)
 	if err != nil {
 		return nil, err
 	}
@@ -71,16 +71,6 @@ func NewWorkflowTaskExecutor(
 		taskVerifier: taskVerifier,
 		resolver:     credentialResolver,
 	}, nil
-}
-
-func newCredentialResolver(coreConfig model.Reader, scriptCredentialFileAllowedRoots []string) (resolver.PrivateCredentialResolver, error) {
-	credentialResolver, err := resolver.NewPrivateCredentialResolver(coreConfig, scriptCredentialFileAllowedRoots)
-	if err == nil {
-		return credentialResolver, nil
-	}
-
-	log.Warn("Script credential file access is disabled because the allowed roots could not be opened")
-	return resolver.NewPrivateCredentialResolver(coreConfig, nil)
 }
 
 func (e *WorkflowTaskExecutor) PrepareTask(

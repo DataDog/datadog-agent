@@ -34,6 +34,7 @@ var (
 	errCouldNotParseCredentialFile       = errors.New("could not parse credentials file")
 	errCouldNotLoadScriptCredentialFile  = errors.New("could not load script credential file")
 	errCouldNotOpenScriptCredentialRoots = errors.New("could not open script credential file roots")
+	errScriptCredentialRootNotAbsolute   = errors.New("script credential file root must be absolute")
 )
 
 type PrivateCredentialResolver interface {
@@ -69,7 +70,8 @@ type Credential struct {
 
 // NewPrivateCredentialResolver validates configured credentials and retains the
 // live config so subsequent tasks pick up secret refreshes. A nil config supports
-// connections that do not reference runner credentials.
+// connections that do not reference runner credentials. Invalid Script credential
+// file roots are skipped with a warning.
 func NewPrivateCredentialResolver(config model.Reader, scriptCredentialFileAllowedRoots []string) (PrivateCredentialResolver, error) {
 	if config != nil {
 		if _, err := readCredentialValues(config); err != nil {
@@ -78,13 +80,10 @@ func NewPrivateCredentialResolver(config model.Reader, scriptCredentialFileAllow
 	}
 	roots := make([]scriptCredentialFileRoot, 0, len(scriptCredentialFileAllowedRoots))
 	for _, path := range scriptCredentialFileAllowedRoots {
-		path = filepath.Clean(path)
-		root, err := openScriptCredentialRoot(path)
+		root, err := openScriptCredentialRoot(filepath.Clean(path))
 		if err != nil {
-			for _, openedRoot := range roots {
-				_ = openedRoot.root.Close()
-			}
-			return nil, errCouldNotOpenScriptCredentialRoots
+			log.Warn("Skipping Script credential file root", log.String("root", path), log.ErrorField(err))
+			continue
 		}
 		roots = append(roots, root)
 	}
@@ -101,6 +100,9 @@ func readCredentialValues(config model.Reader) (map[string]par.CredentialConfig,
 }
 
 func openScriptCredentialRoot(path string) (scriptCredentialFileRoot, error) {
+	if !filepath.IsAbs(path) {
+		return scriptCredentialFileRoot{}, errScriptCredentialRootNotAbsolute
+	}
 	resolvedPath, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return scriptCredentialFileRoot{}, err

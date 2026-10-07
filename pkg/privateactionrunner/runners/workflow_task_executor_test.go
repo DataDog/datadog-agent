@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	testopms "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms/testing"
@@ -70,10 +71,9 @@ func (f *fakeCredentialResolver) ResolveConnectionInfoToCredential(_ context.Con
 	return f.credential, f.err
 }
 
-func TestNewCredentialResolverFallsBackWhenScriptRootsCannotOpen(t *testing.T) {
+func TestCredentialResolverSkipsScriptRootsThatCannotOpen(t *testing.T) {
 	missingRoot := filepath.Join(t.TempDir(), "missing")
-	credentialResolver, err := newCredentialResolver([]string{missingRoot})
-	require.NoError(t, err)
+	credentialResolver := resolver.NewPrivateCredentialResolver([]string{missingRoot})
 
 	secretPath := filepath.Join(t.TempDir(), "credentials.json")
 	require.NoError(t, os.WriteFile(secretPath, []byte(`{"auth_type":"Token Auth","credentials":[{"tokenName":"apiKey","tokenValue":"secret"}]}`), 0o600))
