@@ -15,6 +15,10 @@ import (
 )
 
 const datadogJSONTemplatePath = "./load-flare-assets/datadog-json-template.yaml"
+const smallJSONTemplatePath = "./load-flare-assets/small-json-template.yaml"
+const largeJSONTemplatePath = "./load-flare-assets/large-json-template.yaml"
+const compactJSONStaticPath = "./load-flare-assets/compact-json.log"
+const logfmtStaticPath = "./load-flare-assets/logfmt.log"
 
 const datadogJSONTemplate = `definitions:
   status:
@@ -37,6 +41,42 @@ generator:
     ddsource: !reference source
     ddtags: !choose ["env:test,team:logs", "env:test,region:us1", "env:test"]
 `
+
+const smallJSONTemplate = `generator:
+  !object
+    level: !choose ["info", "warn", "error"]
+    message: !choose ["ok", "retry", "failed"]
+`
+
+const largeJSONTemplate = `generator:
+  !object
+    timestamp: !timestamp
+    level: !choose ["info", "warn", "error"]
+    service: !choose ["api", "worker", "scheduler"]
+    message: !choose ["large structured event", "large batch result"]
+    values:
+      !array
+        length: { min: 2048, max: 2048 }
+        element: !range { min: 0, max: 255 }
+`
+
+const compactJSONStatic = `{"level":"info","service":"api","message":"request ok","status":200,"region":"us-east-1"}
+{"level":"warn","service":"worker","message":"retry job","status":429,"region":"eu-west-1"}
+{"level":"error","service":"scheduler","message":"task failed","status":500,"region":"us-west-2"}
+`
+
+const logfmtStatic = `ts=2026-10-06T21:00:00Z level=info service=api method=GET path=/v1/items status=200 duration_ms=12
+ts=2026-10-06T21:00:01Z level=warn service=api method=POST path=/v1/orders status=429 duration_ms=83
+ts=2026-10-06T21:00:02Z level=error service=worker job=settlement error="upstream timeout" retry=2
+`
+
+var loadFlarePayloadAssets = map[string]string{
+	strings.TrimPrefix(datadogJSONTemplatePath, "./"): datadogJSONTemplate,
+	strings.TrimPrefix(smallJSONTemplatePath, "./"):   smallJSONTemplate,
+	strings.TrimPrefix(largeJSONTemplatePath, "./"):   largeJSONTemplate,
+	strings.TrimPrefix(compactJSONStaticPath, "./"):   compactJSONStatic,
+	strings.TrimPrefix(logfmtStaticPath, "./"):        logfmtStatic,
+}
 
 func inferLading(snapshot characterization.Snapshot) ([]byte, map[string]any) {
 	warnings := []string{}
@@ -155,6 +195,7 @@ func inferLading(snapshot characterization.Snapshot) ([]byte, map[string]any) {
 			"lading_generator": ladingGeneratorReport(stream.Variant),
 		})
 	}
+	payloadFamily := observedPayloadFamily(families)
 	report := map[string]any{
 		"schema_version":                        1,
 		"kind":                                  "logs-characterization-inference-report",
@@ -167,9 +208,13 @@ func inferLading(snapshot characterization.Snapshot) ([]byte, map[string]any) {
 		"predicted_per_source_bytes_per_second": perSourceRate,
 		"inferred_source_count":                 fileSources,
 		"observed_distinct_file_sources":        distinctFileSources,
-		"inferred_payload_variant":              variant,
+		"observed_payload_family":               payloadFamily,
+		"inferred_payload_variant":              payloadFamily,
 		"inferred_payload_streams":              streamReport,
 		"rate_inference":                        rateInference,
+	}
+	if len(streamReport) == 0 && variant != "" {
+		report["inferred_lading_generator"] = ladingGeneratorReport(variant)
 	}
 	if status == "unsupported" {
 		return nil, report
@@ -224,27 +269,24 @@ func dominantVariant(families map[string]characterization.Aggregate) (string, st
 		return "", "unsupported", "No payload-family events were observed."
 	}
 	status := "ready"
+	switch dominant {
+	case "apache_common", "syslog5424", "json", "plain", "empty", "datadog_json":
+	default:
+		return "", "unsupported", "The dominant payload family has no safe Lading generator mapping."
+	}
 	warning := ""
 	if float64(dominantEvents)/float64(total) < 0.95 {
 		status = "partial"
 		warning = "Multiple payload families were observed; the candidate represents only the dominant family."
 	}
-	switch dominant {
-	case "apache_common", "syslog5424", "json":
-		return dominant, status, warning
-	case "plain":
+	variant, approximate := payloadVariant(dominant, families[dominant])
+	if approximate {
+		status = "partial"
 		if warning == "" {
-			warning = "Arbitrary plain-text semantics cannot be recovered; the candidate uses Lading's ASCII generator."
+			warning = fmt.Sprintf("Payload family %q is represented approximately by Lading %s.", dominant, ladingGeneratorDescription(variant))
 		}
-		return "ascii", "partial", warning
-	case "datadog_json":
-		if warning == "" {
-			warning = "Datadog JSON field shape cannot be recovered from aggregate telemetry; the candidate uses an allowlisted representative template."
-		}
-		return "templated_json", "partial", warning
-	default:
-		return "", "unsupported", "The dominant payload family has no safe Lading generator mapping."
 	}
+	return variant, status, warning
 }
 
 func lifecycleRepresentation(lifecycle *characterization.Lifecycle) map[string]any {
@@ -328,13 +370,48 @@ func filePayloadFamilies(snapshot characterization.Snapshot) map[string]characte
 	return snapshot.PayloadFamilies
 }
 
-func payloadVariant(family string) (string, bool) {
+func observedPayloadFamily(families map[string]characterization.Aggregate) string {
+	if len(families) == 0 {
+		return "unknown"
+	}
+	if len(families) == 1 {
+		for family := range families {
+			return family
+		}
+	}
+	return "mixed"
+}
+
+func ladingGeneratorDescription(variant string) string {
+	generator := ladingGeneratorReport(variant)
+	return fmt.Sprintf("generator kind %q", generator["kind"])
+}
+
+func payloadVariant(family string, aggregate characterization.Aggregate) (string, bool) {
+	meanBytes := 0.0
+	if aggregate.Events > 0 {
+		meanBytes = float64(aggregate.ContentBytes) / float64(aggregate.Events)
+	}
 	switch family {
-	case "apache_common", "syslog5424", "json":
+	case "apache_common", "syslog5424":
 		return family, false
+	case "json":
+		switch {
+		case meanBytes > 0 && meanBytes <= 64:
+			return "small_json_template", true
+		case meanBytes > 0 && meanBytes <= 192:
+			return "compact_json_static", true
+		case meanBytes >= 2048:
+			return "large_json_template", true
+		default:
+			return "json", false
+		}
 	case "datadog_json":
 		return "templated_json", true
 	case "plain", "empty":
+		if meanBytes > 0 && meanBytes <= 256 {
+			return "logfmt_static", true
+		}
 		return "ascii", true
 	default:
 		return "ascii", true
@@ -342,8 +419,25 @@ func payloadVariant(family string) (string, bool) {
 }
 
 func renderedVariant(variant, indent string) string {
-	if variant == "templated_json" {
-		return fmt.Sprintf("%svariant:\n%s  templated_json:\n%s    template_path: \"%s\"\n", indent, indent, indent, datadogJSONTemplatePath)
+	templatePath := ""
+	staticPath := ""
+	switch variant {
+	case "templated_json":
+		templatePath = datadogJSONTemplatePath
+	case "small_json_template":
+		templatePath = smallJSONTemplatePath
+	case "large_json_template":
+		templatePath = largeJSONTemplatePath
+	case "compact_json_static":
+		staticPath = compactJSONStaticPath
+	case "logfmt_static":
+		staticPath = logfmtStaticPath
+	}
+	if templatePath != "" {
+		return fmt.Sprintf("%svariant:\n%s  templated_json:\n%s    template_path: \"%s\"\n", indent, indent, indent, templatePath)
+	}
+	if staticPath != "" {
+		return fmt.Sprintf("%svariant:\n%s  static_chunks:\n%s    static_path: \"%s\"\n", indent, indent, indent, staticPath)
 	}
 	return fmt.Sprintf("%svariant: \"%s\"\n", indent, variant)
 }
@@ -354,10 +448,26 @@ func ladingGeneratorReport(variant string) map[string]any {
 			"kind": "templated_json", "template_asset": strings.TrimPrefix(datadogJSONTemplatePath, "./"),
 		}
 	}
+	for preset, asset := range map[string]string{
+		"small_json_template": smallJSONTemplatePath,
+		"large_json_template": largeJSONTemplatePath,
+	} {
+		if variant == preset {
+			return map[string]any{"kind": "templated_json", "template_asset": strings.TrimPrefix(asset, "./")}
+		}
+	}
+	for preset, asset := range map[string]string{"compact_json_static": compactJSONStaticPath, "logfmt_static": logfmtStaticPath} {
+		if variant == preset {
+			return map[string]any{"kind": "static_chunks", "static_asset": strings.TrimPrefix(asset, "./")}
+		}
+	}
 	return map[string]any{"kind": "builtin", "variant": variant}
 }
 
 func inferPayloadStreams(families map[string]characterization.Aggregate, aggregateRate, sourceCount uint64) ([]inferredPayloadStream, []string) {
+	if streams := inferBimodalJSONStreams(families, aggregateRate, sourceCount); len(streams) > 0 {
+		return streams, []string{"A bimodal JSON size distribution is represented approximately by bounded small and large JSON templates."}
+	}
 	var total uint64
 	for _, aggregate := range families {
 		total += aggregate.RawBytes
@@ -415,15 +525,145 @@ func inferPayloadStreams(families map[string]characterization.Aggregate, aggrega
 	warnings := []string{}
 	streams := make([]inferredPayloadStream, 0, len(names))
 	for _, family := range names {
-		variant, approximate := payloadVariant(family)
+		if sized := inferFamilySizeStreams(family, families[family], aggregateRate, allocations[family], fractions[family]); len(sized) > 0 {
+			streams = append(streams, sized...)
+			warnings = append(warnings, fmt.Sprintf("Payload family %q is split into approximate size-profile generators.", family))
+			continue
+		}
+		variant, approximate := payloadVariant(family, families[family])
 		if approximate {
-			warnings = append(warnings, fmt.Sprintf("Payload family %q is represented approximately by Lading generator %q.", family, variant))
+			warnings = append(warnings, fmt.Sprintf("Payload family %q is represented approximately by Lading %s.", family, ladingGeneratorDescription(variant)))
 		}
 		sources := allocations[family]
 		rate := uint64(math.Round(float64(aggregateRate) * fractions[family] / float64(sources)))
 		streams = append(streams, inferredPayloadStream{Family: family, Variant: variant, Sources: sources, Rate: max(uint64(1), rate), Fraction: fractions[family], Approximate: approximate})
 	}
 	return streams, warnings
+}
+
+func inferFamilySizeStreams(family string, aggregate characterization.Aggregate, aggregateRate, sourceCount uint64, familyFraction float64) []inferredPayloadStream {
+	if (family != "json" && family != "plain") || sourceCount < 2 || aggregate.Events == 0 {
+		return nil
+	}
+	counts := map[string]uint64{}
+	for index, count := range aggregate.MessageSizes.Counts {
+		if count == 0 {
+			continue
+		}
+		upperBound := aggregate.MessageSizes.Max
+		if index < len(aggregate.MessageSizes.Bounds) {
+			upperBound = aggregate.MessageSizes.Bounds[index]
+		}
+		variant := ""
+		switch family {
+		case "json":
+			switch {
+			case upperBound <= 64:
+				variant = "small_json_template"
+			case upperBound <= 256:
+				variant = "compact_json_static"
+			case upperBound > 4096:
+				variant = "large_json_template"
+			default:
+				variant = "json"
+			}
+		case "plain":
+			if upperBound <= 256 {
+				variant = "logfmt_static"
+			} else {
+				variant = "ascii"
+			}
+		}
+		counts[variant] += count
+	}
+	means := map[string]float64{
+		"small_json_template": 35,
+		"compact_json_static": 100,
+		"json":                330,
+		"large_json_template": 7500,
+		"logfmt_static":       120,
+		"ascii":               max(512, float64(aggregate.ContentBytes)/float64(aggregate.Events)),
+	}
+	var totalWeight float64
+	weights := map[string]float64{}
+	for variant, count := range counts {
+		weight := float64(count) * means[variant]
+		weights[variant] = weight
+		totalWeight += weight
+	}
+	variants := make([]string, 0, len(weights))
+	for variant, weight := range weights {
+		if totalWeight > 0 && weight/totalWeight >= 0.02 {
+			variants = append(variants, variant)
+		}
+	}
+	if len(variants) <= 1 || uint64(len(variants)) > sourceCount {
+		return nil
+	}
+	sort.Strings(variants)
+	allocations := make(map[string]uint64, len(variants))
+	for _, variant := range variants {
+		allocations[variant] = 1
+	}
+	for remaining := sourceCount - uint64(len(variants)); remaining > 0; remaining-- {
+		best := variants[0]
+		bestDeficit := weights[best]/totalWeight*float64(sourceCount) - float64(allocations[best])
+		for _, variant := range variants[1:] {
+			deficit := weights[variant]/totalWeight*float64(sourceCount) - float64(allocations[variant])
+			if deficit > bestDeficit {
+				best, bestDeficit = variant, deficit
+			}
+		}
+		allocations[best]++
+	}
+	streams := make([]inferredPayloadStream, 0, len(variants))
+	for _, variant := range variants {
+		fraction := weights[variant] / totalWeight
+		sources := allocations[variant]
+		rate := uint64(math.Round(float64(aggregateRate) * familyFraction * fraction / float64(sources)))
+		streams = append(streams, inferredPayloadStream{Family: family, Variant: variant, Sources: sources, Rate: max(uint64(1), rate), Fraction: familyFraction * fraction, Approximate: true})
+	}
+	return streams
+}
+
+func inferBimodalJSONStreams(families map[string]characterization.Aggregate, aggregateRate, sourceCount uint64) []inferredPayloadStream {
+	aggregate, found := families["json"]
+	if !found || len(families) != 1 || sourceCount < 2 || aggregate.Events == 0 {
+		return nil
+	}
+	var largeEvents uint64
+	for index, count := range aggregate.MessageSizes.Counts {
+		if index >= len(aggregate.MessageSizes.Bounds) || aggregate.MessageSizes.Bounds[index] > 4096 {
+			largeEvents += count
+		}
+	}
+	largeEventFraction := float64(largeEvents) / float64(aggregate.Events)
+	if largeEventFraction < 0.003 {
+		return nil
+	}
+	observedMean := float64(aggregate.ContentBytes) / float64(aggregate.Events)
+	const smallMean = 35.0
+	const largeMean = 7500.0
+	modeledMean := (1-largeEventFraction)*smallMean + largeEventFraction*largeMean
+	if observedMean <= 0 || math.Abs(modeledMean-observedMean)/observedMean > 0.25 {
+		return nil
+	}
+	largeByteFraction := min(0.9, max(0.1, largeEventFraction*largeMean/observedMean))
+	largeSources := uint64(math.Round(float64(sourceCount) * largeByteFraction))
+	largeSources = min(sourceCount-1, max(uint64(1), largeSources))
+	smallSources := sourceCount - largeSources
+	return []inferredPayloadStream{
+		{
+			Family: "json", Variant: "small_json_template", Sources: smallSources,
+			Rate:     max(uint64(1), uint64(math.Round(float64(aggregateRate)*(1-largeByteFraction)/float64(smallSources)))),
+			Fraction: 1 - largeByteFraction, Approximate: true,
+		},
+		{
+			Family: "json", Variant: "large_json_template", Sources: largeSources,
+			Rate:     max(uint64(1), uint64(math.Round(float64(aggregateRate)*largeByteFraction/float64(largeSources)))),
+			Fraction: largeByteFraction, Approximate: true,
+		},
+	}
 }
 
 func inferFlushEvery(snapshot characterization.Snapshot, sourceCount uint64, duration float64) string {

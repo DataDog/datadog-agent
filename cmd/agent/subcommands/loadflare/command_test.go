@@ -127,6 +127,7 @@ func TestInferLadingEmitsMultipleFilePayloadStreams(t *testing.T) {
 	require.Contains(t, rendered, `variant: "apache_common"`)
 	require.Contains(t, rendered, `variant: "json"`)
 	require.Equal(t, "mixed", report["inferred_payload_variant"])
+	require.Equal(t, "mixed", report["observed_payload_family"])
 	require.Len(t, report["inferred_payload_streams"], 2)
 }
 
@@ -202,10 +203,106 @@ func TestWriteArchivePackagesDatadogJSONTemplate(t *testing.T) {
 }
 
 func TestDatadogJSONMappingUsesExplicitLadingGenerator(t *testing.T) {
-	variant, approximate := payloadVariant("datadog_json")
+	variant, approximate := payloadVariant("datadog_json", characterization.Aggregate{})
 	require.Equal(t, "templated_json", variant)
 	require.True(t, approximate)
 	require.Equal(t, map[string]any{
 		"kind": "templated_json", "template_asset": "load-flare-assets/datadog-json-template.yaml",
 	}, ladingGeneratorReport(variant))
+}
+
+func TestInferenceReportSeparatesObservedFamilyFromLadingGenerator(t *testing.T) {
+	start := time.Unix(100, 0).UTC()
+	snapshot := characterization.Snapshot{
+		SessionID: "datadog-json", StartedAt: start, EndedAt: start.Add(10 * time.Second), RequestedDurationSeconds: 10,
+		Groups: []characterization.Group{{
+			SourceType: "file", Pipeline: "0",
+			Aggregate: characterization.Aggregate{Events: 100, ContentBytes: 20000, RawBytes: 21000, SourceCount: 1},
+		}},
+		PayloadFamilies: map[string]characterization.Aggregate{
+			"datadog_json": {Events: 100, ContentBytes: 20000, RawBytes: 21000},
+		},
+	}
+	_, report := inferLading(snapshot)
+	require.Equal(t, "datadog_json", report["observed_payload_family"])
+	require.Equal(t, "datadog_json", report["inferred_payload_variant"])
+	require.Equal(t, map[string]any{
+		"kind": "templated_json", "template_asset": "load-flare-assets/datadog-json-template.yaml",
+	}, report["inferred_lading_generator"])
+	require.NotContains(t, report["representability"].(map[string]any)["warnings"], "small_json_template")
+}
+func TestDominantUnknownPayloadRemainsUnsupported(t *testing.T) {
+	variant, status, warning := dominantVariant(map[string]characterization.Aggregate{
+		"unknown": {Events: 10, RawBytes: 100},
+	})
+	require.Empty(t, variant)
+	require.Equal(t, "unsupported", status)
+	require.Contains(t, warning, "no safe Lading generator")
+}
+
+func TestPayloadVariantUsesFamilyMeanSizeProfiles(t *testing.T) {
+	tests := []struct {
+		family  string
+		content uint64
+		events  uint64
+		want    string
+	}{
+		{family: "json", content: 3200, events: 100, want: "small_json_template"},
+		{family: "json", content: 12000, events: 100, want: "compact_json_static"},
+		{family: "json", content: 300000, events: 100, want: "large_json_template"},
+		{family: "plain", content: 12000, events: 100, want: "logfmt_static"},
+	}
+	for _, test := range tests {
+		variant, approximate := payloadVariant(test.family, characterization.Aggregate{
+			ContentBytes: test.content, Events: test.events,
+		})
+		require.Equal(t, test.want, variant)
+		require.True(t, approximate)
+	}
+}
+
+func TestInferBimodalJSONStreams(t *testing.T) {
+	families := map[string]characterization.Aggregate{
+		"json": {
+			Events: 1000, ContentBytes: 109650, RawBytes: 110650,
+			MessageSizes: characterization.Histogram{
+				Bounds: []float64{64, 128, 256, 512, 1024, 4096, 16384},
+				Counts: []uint64{990, 0, 0, 0, 0, 0, 10, 0},
+				Count:  1000,
+			},
+		},
+	}
+	streams := inferBimodalJSONStreams(families, 262144, 4)
+	require.Len(t, streams, 2)
+	require.Equal(t, "small_json_template", streams[0].Variant)
+	require.Equal(t, "large_json_template", streams[1].Variant)
+	require.Equal(t, uint64(4), streams[0].Sources+streams[1].Sources)
+	require.Contains(t, renderedVariant(streams[0].Variant, "        "), smallJSONTemplatePath)
+	require.Contains(t, renderedVariant(streams[1].Variant, "        "), largeJSONTemplatePath)
+}
+
+func TestInferFamilySizeStreamsPreservesMixedJSONShapes(t *testing.T) {
+	aggregate := characterization.Aggregate{
+		Events: 1610, ContentBytes: 193000,
+		MessageSizes: characterization.Histogram{
+			Bounds: []float64{64, 128, 256, 512, 1024, 4096, 16384},
+			Counts: []uint64{1000, 500, 0, 100, 0, 0, 10, 0},
+			Count:  1610,
+		},
+	}
+	streams := inferFamilySizeStreams("json", aggregate, 320000, 4, 0.5)
+	require.Len(t, streams, 4)
+	variants := make([]string, 0, len(streams))
+	var sources uint64
+	var fraction float64
+	for _, stream := range streams {
+		variants = append(variants, stream.Variant)
+		sources += stream.Sources
+		fraction += stream.Fraction
+	}
+	require.ElementsMatch(t, []string{
+		"small_json_template", "compact_json_static", "json", "large_json_template",
+	}, variants)
+	require.Equal(t, uint64(4), sources)
+	require.InDelta(t, 0.5, fraction, 0.0001)
 }

@@ -204,8 +204,10 @@ func writeArchive(output string, snapshot characterization.Snapshot, config arch
 	if len(lading) > 0 {
 		files["lading.yaml"] = lading
 	}
-	if bytes.Contains(lading, []byte(datadogJSONTemplatePath)) {
-		files["load-flare-assets/datadog-json-template.yaml"] = []byte(datadogJSONTemplate)
+	for path, content := range loadFlarePayloadAssets {
+		if bytes.Contains(lading, []byte("./"+path)) {
+			files[path] = []byte(content)
+		}
 	}
 	files["README.txt"] = []byte("This local load flare contains bounded aggregate logs observations. It contains no raw log messages or source paths.\n")
 
