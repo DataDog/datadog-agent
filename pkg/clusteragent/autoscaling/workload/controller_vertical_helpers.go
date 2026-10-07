@@ -795,59 +795,46 @@ func isDisruptiveResize(pod *workloadmeta.KubernetesPod, recommendation *model.V
 	if recommendation == nil {
 		return false
 	}
-	recoByName := make(map[string]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(recommendation.ContainerResources))
-	for _, cr := range recommendation.ContainerResources {
-		recoByName[cr.Name] = cr
-	}
+	recoByName := resourcesByName(recommendation)
 	for _, c := range pod.Containers {
 		cr, ok := recoByName[c.Name]
 		if !ok {
 			continue
 		}
-		if c.ResizePolicy.CPURestartPolicy == string(corev1.RestartContainer) && cpuChanging(c.Resources, cr) {
-			return true
-		}
-		if c.ResizePolicy.MemoryRestartPolicy == string(corev1.RestartContainer) && memoryChanging(c.Resources, cr) {
+		if restartsOnChange(c, func(name corev1.ResourceName) bool { return resourceChanging(c.Resources, cr, name) }) {
 			return true
 		}
 	}
 	return false
 }
 
-// cpuChanging reports whether reco changes the container's CPU request or limit, compared in
-// millicores to avoid float equality across the two code paths.
-func cpuChanging(current workloadmeta.ContainerResources, reco datadoghqcommon.DatadogPodAutoscalerContainerResources) bool {
-	// CPURequest/CPULimit are stored as percentage of 1 CPU (0–100*numCPU); multiply by 10 to get millicores.
-	cpuMilliChanged := func(currentCPUPercent *float64, recoMillis int64) bool {
-		if currentCPUPercent == nil {
-			return true
-		}
-		return int64(*currentCPUPercent*10+0.5) != recoMillis
-	}
-	if q, ok := reco.Requests[corev1.ResourceCPU]; ok && cpuMilliChanged(current.CPURequest, q.MilliValue()) {
-		return true
-	}
-	if q, ok := reco.Limits[corev1.ResourceCPU]; ok && cpuMilliChanged(current.CPULimit, q.MilliValue()) {
-		return true
-	}
-	return false
+// restartsOnChange reports whether changing a resource of container c restarts it: its resize policy
+// for that resource is RestartContainer, and changes reports a change of it.
+func restartsOnChange(c workloadmeta.OrchestratorContainer, changes func(corev1.ResourceName) bool) bool {
+	return (c.ResizePolicy.CPURestartPolicy == string(corev1.RestartContainer) && changes(corev1.ResourceCPU)) ||
+		(c.ResizePolicy.MemoryRestartPolicy == string(corev1.RestartContainer) && changes(corev1.ResourceMemory))
 }
 
-// memoryChanging reports whether reco changes the container's memory request or limit.
-func memoryChanging(current workloadmeta.ContainerResources, reco datadoghqcommon.DatadogPodAutoscalerContainerResources) bool {
-	memBytesChanged := func(currentBytes *uint64, recoBytes int64) bool {
-		if currentBytes == nil {
-			return true
-		}
-		return int64(*currentBytes) != recoBytes
+// resourcesByName returns the container resources of a vertical target by container name; empty for a
+// nil target.
+func resourcesByName(target *model.VerticalScalingValues) map[string]datadoghqcommon.DatadogPodAutoscalerContainerResources {
+	if target == nil {
+		return nil
 	}
-	if q, ok := reco.Requests[corev1.ResourceMemory]; ok && memBytesChanged(current.MemoryRequest, q.Value()) {
+	byName := make(map[string]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(target.ContainerResources))
+	for _, cr := range target.ContainerResources {
+		byName[cr.Name] = cr
+	}
+	return byName
+}
+
+// resourceChanging reports whether reco changes the container's request or limit of a resource.
+func resourceChanging(current workloadmeta.ContainerResources, reco datadoghqcommon.DatadogPodAutoscalerContainerResources, name corev1.ResourceName) bool {
+	if q, ok := reco.Requests[name]; ok && !currentResourceEquals(current, false, name, q) {
 		return true
 	}
-	if q, ok := reco.Limits[corev1.ResourceMemory]; ok && memBytesChanged(current.MemoryLimit, q.Value()) {
-		return true
-	}
-	return false
+	q, ok := reco.Limits[name]
+	return ok && !currentResourceEquals(current, true, name, q)
 }
 
 // countDisruptedPods counts pods that are unavailable or mid-resize. In-flight resizes count even
@@ -877,47 +864,256 @@ func allowedDisruptions(configured int, alreadyDisrupted int) int {
 	return max(0, tolerance-alreadyDisrupted)
 }
 
-func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod) []workloadpatcher.ContainerResourcePatch {
-	containersResources := autoscalerInternal.ScalingValues().Vertical.ContainerResources
-
-	// Build a map from container name to container resources.
-	recoByName := make(map[string]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(containersResources))
-	for _, cr := range containersResources {
-		recoByName[cr.Name] = cr
-	}
+// fromAutoscalerToContainerResourcePatches builds the in-place resize patch of pod: the resources of
+// the vertical target, plus the resets returned by recordedResets, which may concern containers that
+// are not in the target.
+func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod, resets map[string]resourceReset) []workloadpatcher.ContainerResourcePatch {
+	target := autoscalerInternal.ScalingValues().Vertical
+	recoByName := resourcesByName(target)
 
 	burstable := autoscalerInternal.IsBurstable()
 
 	// Build the list of patches ordered to API server pod container order.
-	patches := make([]workloadpatcher.ContainerResourcePatch, 0, len(containersResources))
+	patches := make([]workloadpatcher.ContainerResourcePatch, 0, len(recoByName))
 	for _, c := range pod.Containers {
-		cr, ok := recoByName[c.Name]
-		if !ok {
+		cr, inTarget := recoByName[c.Name]
+		reset, hasReset := resets[c.Name]
+		if !inTarget && !hasReset {
 			continue
 		}
 		patch := workloadpatcher.ContainerResourcePatch{
-			Name:     cr.Name,
+			Name:     c.Name,
 			Requests: resourceListToStringMap(cr.Requests),
 			Limits:   resourceListToStringMap(cr.Limits),
 		}
-		if burstable {
+		if burstable && inTarget {
 			delete(patch.Limits, string(corev1.ResourceCPU)) // don't re-set CPU limit
 			patch.LimitsToDelete = []string{string(corev1.ResourceCPU)}
+		}
+		patch.Requests = addResourcesToStringMap(patch.Requests, reset.requests)
+		patch.Limits = addResourcesToStringMap(patch.Limits, reset.limits)
+		for _, name := range reset.deleteLimits {
+			if !slices.Contains(patch.LimitsToDelete, string(name)) {
+				patch.LimitsToDelete = append(patch.LimitsToDelete, string(name))
+			}
 		}
 		patches = append(patches, patch)
 	}
 	return patches
 }
 
-// resourceListToStringMap converts a corev1.ResourceList to the string map expected by
-// ContainerResourcePatch, including only resources that are actually set.
-func resourceListToStringMap(rl corev1.ResourceList) map[string]string {
-	if len(rl) == 0 {
+// resourceReset holds the requests and limits of a container to set back to their original value,
+// and the limits to delete because they were absent originally.
+type resourceReset struct {
+	requests     corev1.ResourceList
+	limits       corev1.ResourceList
+	deleteLimits []corev1.ResourceName
+}
+
+// recordedResets returns, by container name, the cpu and memory requests and limits of pod to set back
+// to the original value recorded in model.OriginalResourcesAnnotation: the ones that the vertical
+// target does not control and that differ from it on the pod. They were changed by an earlier target,
+// e.g. a value forced by the force-resources annotation and since removed, or a resource that the
+// constraints no longer control. A recreated pod gets the original value for them, so a pod resized in
+// place must get it too. A limit that was absent originally is deleted; a request that was absent is
+// left as is, as a request cannot be removed in place. A limit is not set back below the request the
+// pod keeps: the resize would be rejected. Only regular containers are reset, as the resize patch
+// only covers spec.containers: the originals the webhook records for sidecar containers are not used
+// here.
+func recordedResets(pod *workloadmeta.KubernetesPod, target *model.VerticalScalingValues, original originalResources) map[string]resourceReset {
+	if len(original) == 0 {
 		return nil
 	}
-	m := make(map[string]string, len(rl))
+	targetByName := resourcesByName(target)
+
+	var resets map[string]resourceReset
+	for _, c := range pod.Containers {
+		recorded := original[c.Name]
+		if recorded == nil {
+			continue
+		}
+		cr := targetByName[c.Name]
+		var reset resourceReset
+		for name, value := range recorded.Requests {
+			if _, controlled := cr.Requests[name]; controlled || value == nil {
+				continue
+			}
+			if !currentResourceEquals(c.Resources, false, name, *value) {
+				reset.requests = setResource(reset.requests, name, *value)
+			}
+		}
+		for name, value := range recorded.Limits {
+			// A limit the target removes (removeLimitSentinel, e.g. the burstable cpu limit) is controlled.
+			if _, controlled := cr.Limits[name]; controlled {
+				continue
+			}
+			switch {
+			case value == nil:
+				if currentResource(c.Resources, true, name) != nil {
+					reset.deleteLimits = append(reset.deleteLimits, name)
+				}
+			case currentResourceEquals(c.Resources, true, name, *value):
+			case belowRequest(*value, keptRequest(c.Resources, cr, reset, name)):
+				log.Debugf("Not setting the %s limit of container %s of pod %s/%s back to %s: below its request", name, c.Name, pod.Namespace, pod.Name, value.String())
+			default:
+				reset.limits = setResource(reset.limits, name, *value)
+			}
+		}
+		if len(reset.requests) > 0 || len(reset.limits) > 0 || len(reset.deleteLimits) > 0 {
+			if resets == nil {
+				resets = map[string]resourceReset{}
+			}
+			slices.Sort(reset.deleteLimits)
+			resets[c.Name] = reset
+		}
+	}
+	return resets
+}
+
+// keptRequest returns the request of a resource that a container keeps after its resize: the target
+// value, else the reset value, else the current one. nil when there is none.
+func keptRequest(current workloadmeta.ContainerResources, target datadoghqcommon.DatadogPodAutoscalerContainerResources, reset resourceReset, name corev1.ResourceName) *resource.Quantity {
+	if q, found := target.Requests[name]; found {
+		return &q
+	}
+	if q, found := reset.requests[name]; found {
+		return &q
+	}
+	return currentResource(current, false, name)
+}
+
+func belowRequest(limit resource.Quantity, request *resource.Quantity) bool {
+	return request != nil && limit.Cmp(*request) < 0
+}
+
+// isDisruptiveReset reports whether resetting resources to their original value restarts a
+// container. resets only holds values that change, as returned by recordedResets.
+func isDisruptiveReset(pod *workloadmeta.KubernetesPod, resets map[string]resourceReset) bool {
+	for _, c := range pod.Containers {
+		reset, found := resets[c.Name]
+		if !found {
+			continue
+		}
+		if restartsOnChange(c, func(name corev1.ResourceName) bool {
+			_, request := reset.requests[name]
+			_, limit := reset.limits[name]
+			return request || limit || slices.Contains(reset.deleteLimits, name)
+		}) {
+			return true
+		}
+	}
+	return false
+}
+
+// recordInPlaceChanges records in original the current value of the cpu and memory requests and
+// limits that patches change on pod, before the resize changes them. It reports whether the record
+// changed.
+func recordInPlaceChanges(original originalResources, pod *workloadmeta.KubernetesPod, patches []workloadpatcher.ContainerResourcePatch) bool {
+	containers := make(map[string]workloadmeta.ContainerResources, len(pod.Containers))
+	for _, c := range pod.Containers {
+		containers[c.Name] = c.Resources
+	}
+
+	changed := false
+	// currentResourceEquals is true and currentResource nil for other resources than cpu and memory:
+	// they are never recorded.
+	recordIfChanging := func(container string, current workloadmeta.ContainerResources, limit bool, name corev1.ResourceName, value string) {
+		q, err := resource.ParseQuantity(value)
+		if err != nil || currentResourceEquals(current, limit, name, q) {
+			return
+		}
+		changed = original.record(container, limit, name, currentResource(current, limit, name)) || changed
+	}
+	for _, patch := range patches {
+		current, found := containers[patch.Name]
+		if !found {
+			continue
+		}
+		for name, value := range patch.Requests {
+			recordIfChanging(patch.Name, current, false, corev1.ResourceName(name), value)
+		}
+		for name, value := range patch.Limits {
+			recordIfChanging(patch.Name, current, true, corev1.ResourceName(name), value)
+		}
+		for _, name := range patch.LimitsToDelete {
+			if value := currentResource(current, true, corev1.ResourceName(name)); value != nil {
+				changed = original.record(patch.Name, true, corev1.ResourceName(name), value) || changed
+			}
+		}
+	}
+	return changed
+}
+
+// currentResource returns the current cpu or memory request (limit=false) or limit of a container, or
+// nil when it is not set.
+func currentResource(current workloadmeta.ContainerResources, limit bool, name corev1.ResourceName) *resource.Quantity {
+	switch name {
+	case corev1.ResourceCPU:
+		value := current.CPURequest
+		if limit {
+			value = current.CPULimit
+		}
+		if value == nil {
+			return nil
+		}
+		return resource.NewMilliQuantity(cpuPercentToMillis(*value), resource.DecimalSI)
+	case corev1.ResourceMemory:
+		value := current.MemoryRequest
+		if limit {
+			value = current.MemoryLimit
+		}
+		if value == nil {
+			return nil
+		}
+		return resource.NewQuantity(int64(*value), resource.BinarySI)
+	}
+	return nil
+}
+
+// currentResourceEquals reports whether the current cpu or memory request (limit=false) or limit of a
+// container equals q: CPU in millicores, memory in bytes, the precision of the workloadmeta values.
+// Other resources are not tracked and always compare equal.
+func currentResourceEquals(current workloadmeta.ContainerResources, limit bool, name corev1.ResourceName, q resource.Quantity) bool {
+	value := currentResource(current, limit, name)
+	if value == nil {
+		return !slices.Contains(recordedResourceNames, name)
+	}
+	if name == corev1.ResourceCPU {
+		return value.MilliValue() == q.MilliValue()
+	}
+	return value.Value() == q.Value()
+}
+
+// cpuPercentToMillis converts a workloadmeta CPURequest/CPULimit, stored as percentage of 1 CPU
+// (0–100*numCPU), to millicores, rounded to avoid float equality across code paths.
+func cpuPercentToMillis(percent float64) int64 {
+	return int64(percent*10 + 0.5)
+}
+
+func setResource(rl corev1.ResourceList, name corev1.ResourceName, q resource.Quantity) corev1.ResourceList {
+	if rl == nil {
+		rl = corev1.ResourceList{}
+	}
+	rl[name] = q
+	return rl
+}
+
+// addResourcesToStringMap adds rl to m, in the string format of resourceListToStringMap.
+func addResourcesToStringMap(m map[string]string, rl corev1.ResourceList) map[string]string {
+	if len(rl) == 0 {
+		return m
+	}
+	if m == nil {
+		m = make(map[string]string, len(rl))
+	}
 	for name, qty := range rl {
 		m[string(name)] = qty.String()
 	}
 	return m
+}
+
+// resourceListToStringMap converts a corev1.ResourceList to the string map expected by
+// ContainerResourcePatch, including only resources that are actually set.
+func resourceListToStringMap(rl corev1.ResourceList) map[string]string {
+	return addResourcesToStringMap(nil, rl)
 }

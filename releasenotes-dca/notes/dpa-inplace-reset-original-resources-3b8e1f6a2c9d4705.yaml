@@ -1,0 +1,25 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    With in-place vertical scaling, the Cluster Agent now sets the CPU and memory
+    requests and limits that a ``DatadogPodAutoscaler`` no longer controls back to
+    their original value when it resizes a pod, so that resized pods match the pods
+    created from the same recommendation where an in-place resize allows it: a
+    request that was absent is kept, a limit is not set below the request, and
+    sidecar containers are not reset in place. Before this fix, such values stayed on
+    running pods while new pods got the original value: for example a value forced
+    by the ``autoscaling.datadoghq.com/force-resources`` annotation once the
+    annotation was removed, or the values of a resource or container that the
+    constraints stopped controlling (``controlledResources``, ``controlledValues``,
+    ``enabled: false``). The original values are recorded on the pod, in the
+    ``internal.autoscaling.datadoghq.com/original-resources`` annotation, the first
+    time the Cluster Agent changes them; every pod attributed to an autoscaler gets
+    the annotation, empty until a value changes. Pods already managed by an autoscaler before
+    the upgrade have no record: their values are not reset until they are recreated.

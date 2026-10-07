@@ -77,6 +77,18 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		patched = true
 	}
 
+	// Every pod attributed to an autoscaler carries a record of its original resources, even empty:
+	// the in-place resize treats a managed pod without one as unknown (admitted by an older Cluster
+	// Agent, its values may already be changed). Admission sees the pod as built from its template,
+	// so a missing record is an empty one here.
+	original, recordable := parseOriginalResources(pod.Annotations, false)
+	if !recordable {
+		log.Debugf("Autoscaler %s: invalid %s annotation on POD %s/%s, original resources are not recorded", autoscaler.ID(), model.OriginalResourcesAnnotation, pod.Namespace, pod.Name)
+	} else if _, found := pod.Annotations[model.OriginalResourcesAnnotation]; !found {
+		pod.Annotations[model.OriginalResourcesAnnotation] = "{}"
+		patched = true
+	}
+
 	// Check if the autoscaler has recommendations
 	if autoscaler.ScalingValues().Vertical == nil || autoscaler.ScalingValues().Vertical.ResourcesHash == "" || len(autoscaler.ScalingValues().Vertical.ContainerResources) == 0 {
 		log.Debugf("Autoscaler %s has no vertical recommendations for POD %s/%s, not patching", autoscaler.ID(), pod.Namespace, pod.Name)
@@ -110,8 +122,28 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	patched = patchAnnotation(pod, model.RecommendationIDAnnotation, effectiveRecommendationID) || patched
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
+	// The values changed here are recorded as original ones: an in-place resize sets them back once the
+	// target no longer controls them.
+	recorded := false
 	for _, reco := range constrainedVertical.ContainerResources {
-		patched = patchPod(reco, pod) || patched
+		cont := findPatchableContainer(pod, reco.Name)
+		if cont == nil {
+			continue
+		}
+		before := *cont.Resources.DeepCopy()
+		if patchContainerResources(reco, cont) {
+			patched = true
+			if recordable {
+				recorded = original.recordChanges(cont.Name, before, cont.Resources) || recorded
+			}
+		}
+	}
+	if recorded {
+		if value, err := original.encode(); err == nil {
+			patched = patchAnnotation(pod, model.OriginalResourcesAnnotation, value) || patched
+		} else {
+			log.Debugf("Autoscaler %s: unable to encode the original resources of POD %s/%s: %v", autoscaler.ID(), pod.Namespace, pod.Name, err)
+		}
 	}
 
 	runtimeRecID, _ := computeRuntimeRecommendationID(constrainedVertical.ContainerResources)
@@ -215,13 +247,14 @@ func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.
 	log.Debugf("Event sent and POD %s/%s patched with event annotation", pod.Namespace, pod.Name)
 }
 
-// K8s guarantees that the name for an init container or normal container are unique among all containers.
-// It means that dispatching recommendations just by container names is sufficient
-func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *corev1.Pod) (patched bool) {
+// findPatchableContainer returns the container of pod named name that recommendations apply to: a
+// regular container, or a sidecar container. It returns nil when there is none. K8s guarantees that
+// the name for an init container or normal container are unique among all containers: dispatching
+// recommendations just by container names is sufficient.
+func findPatchableContainer(pod *corev1.Pod, name string) *corev1.Container {
 	for i := range pod.Spec.Containers {
-		cont := &pod.Spec.Containers[i]
-		if cont.Name == reco.Name {
-			return patchContainerResources(reco, cont)
+		if pod.Spec.Containers[i].Name == name {
+			return &pod.Spec.Containers[i]
 		}
 	}
 
@@ -231,12 +264,12 @@ func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *
 		cont := &pod.Spec.InitContainers[i]
 		// sidecar container by definition is an init container with `restartPolicy: Always`
 		isInitSidecarContainer := cont.RestartPolicy != nil && *cont.RestartPolicy == corev1.ContainerRestartPolicyAlways
-		if cont.Name == reco.Name && isInitSidecarContainer {
-			return patchContainerResources(reco, cont)
+		if cont.Name == name && isInitSidecarContainer {
+			return cont
 		}
 	}
 
-	return false
+	return nil
 }
 
 // patchAnnotation sets, updates, or deletes the given annotation on the pod.

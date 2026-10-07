@@ -48,6 +48,11 @@ const (
 	RecommendationAppliedEventGeneratedAnnotation = "autoscaling.datadoghq.com/event"
 	// RolloutTimestampAnnotation is the annotation key used to store the rollout timestamp
 	RolloutTimestampAnnotation = "autoscaling.datadoghq.com/rolloutAt"
+	// OriginalResourcesAnnotation is written by the Cluster Agent only, on pods: by container, the value
+	// of each cpu and memory request and limit before the autoscaler first changed it, e.g.
+	// {"app":{"requests":{"cpu":"100m"},"limits":{"memory":null}}} (null: the field was absent). The
+	// in-place resize uses it to set back the resources that the target no longer controls.
+	OriginalResourcesAnnotation = "internal.autoscaling.datadoghq.com/original-resources"
 
 	// RecommendationAppliedEventReason is the event reason when a recommendation is applied
 	RecommendationAppliedEventReason = "RecommendationApplied"

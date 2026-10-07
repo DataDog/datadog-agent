@@ -9,11 +9,13 @@ package workload
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	v2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
@@ -689,10 +691,11 @@ func TestPatchInPlace_NeedsPatch_PatchesResources(t *testing.T) {
 	p.Containers = []workloadmeta.OrchestratorContainer{{Name: "c1"}}
 	ai := buildInPlacePAI("default", "ai", scalingValWithRequests("r1", "500m"), "")
 
-	err := f.controller.patchInPlace(context.Background(), &ai, p, "r1")
-	assert.NoError(t, err)
-	// Expect two sequential patches: resize subresource, then metadata annotation.
-	assert.Equal(t, 2, patchCallCount, "expected resize patch + annotation patch for pod needing update")
+	err := f.controller.patchInPlace(context.Background(), &ai, p, "r1", originalResources{}, nil)
+	require.NoError(t, err)
+	// Expect three sequential patches: the original resources of the fields the resize changes, the
+	// resize subresource, then the recommendation ID annotation.
+	assert.Equal(t, 3, patchCallCount, "expected original resources + resize patch + annotation patch for pod needing update")
 }
 
 // runSyncInPlaceMode runs syncInternal against a deployment target using the in-place path.
@@ -1352,4 +1355,222 @@ func TestDeploymentSyncForcedResourcesBypassOngoingRollout(t *testing.T) {
 			newVerticalControllerFixture(t, now).runSync(args)
 		})
 	}
+}
+
+// podPatchCall is a patch sent to a pod, as seen by the fake dynamic client.
+type podPatchCall struct{ subresource, body string }
+
+// podPatchRecorder records the pod patches of a test.
+type podPatchRecorder struct{ calls []podPatchCall }
+
+// recordPodPatches records the patches sent to pods. When failRecord is not nil, the patch that records
+// the original resources of a pod fails with it.
+func (f *verticalControllerFixture) recordPodPatches(failRecord error) *podPatchRecorder {
+	r := &podPatchRecorder{}
+	f.dynamicClient.PrependReactor("patch", "pods", func(a k8stesting.Action) (bool, runtime.Object, error) {
+		pa := a.(k8stesting.PatchAction)
+		call := podPatchCall{pa.GetSubresource(), string(pa.GetPatch())}
+		r.calls = append(r.calls, call)
+		if failRecord != nil && call.isRecord() {
+			return true, nil, failRecord
+		}
+		return true, &unstructured.Unstructured{}, nil
+	})
+	return r
+}
+
+// isRecord reports whether the patch records the original resources of a pod.
+func (c podPatchCall) isRecord() bool {
+	return c.subresource == "" && strings.Contains(c.body, model.OriginalResourcesAnnotation)
+}
+
+// subresources returns the subresource of each patch, in order: "resize" for a resize, "" for a pod
+// annotation.
+func (r *podPatchRecorder) subresources() []string {
+	subresources := make([]string, 0, len(r.calls))
+	for _, c := range r.calls {
+		subresources = append(subresources, c.subresource)
+	}
+	return subresources
+}
+
+func (r *podPatchRecorder) resizes() int {
+	n := 0
+	for _, c := range r.calls {
+		if c.subresource == "resize" {
+			n++
+		}
+	}
+	return n
+}
+
+// record returns the body of the last patch that records the original resources, "" when there is none.
+func (r *podPatchRecorder) record() string {
+	for i := len(r.calls) - 1; i >= 0; i-- {
+		if r.calls[i].isRecord() {
+			return r.calls[i].body
+		}
+	}
+	return ""
+}
+
+// TestSyncInternal_InPlace_ResetsRemovedForcedValue checks the in-place resize after a forced value is
+// removed from the target: the memory limit it set is put back to the recorded original value in the
+// resize patch, as a recreated pod would get it. The original value of the fields the resize changes
+// is recorded before the resize, and the recommendation ID after it.
+func TestSyncInternal_InPlace_ResetsRemovedForcedValue(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	patches := f.recordPodPatches(nil)
+
+	// The pod still has the forced 128Mi memory limit, recorded as 64Mi originally; the new target only
+	// controls the cpu, which the pod does not set yet.
+	forcedMemoryLimit := uint64(128 * 1024 * 1024)
+	p := pod("p1", "forced", kubernetes.ReplicaSetKind, "rs1")
+	p.Annotations[model.OriginalResourcesAnnotation] = `{"c1":{"limits":{"memory":"64Mi"}}}`
+	p.Containers = []workloadmeta.OrchestratorContainer{{Name: "c1", Resources: workloadmeta.ContainerResources{MemoryLimit: &forcedMemoryLimit}}}
+
+	_, err := f.runSyncInPlaceMode(t, nil, scalingValWithRequests("r1", "500m"), "r1", []*workloadmeta.KubernetesPod{p})
+	require.NoError(t, err)
+	calls := patches.calls
+	require.Len(t, calls, 3, "original resources, resize, recommendation ID")
+
+	assert.True(t, calls[0].isRecord())
+	// The new record keeps the memory limit and adds the cpu values the resize sets, absent before.
+	assert.Contains(t, calls[0].body, `{\"c1\":{\"requests\":{\"cpu\":null},\"limits\":{\"cpu\":null,\"memory\":\"64Mi\"}}}`)
+
+	assert.Equal(t, "resize", calls[1].subresource)
+	assert.Contains(t, calls[1].body, `"limits":{"cpu":"500m","memory":"64Mi"}`, "the forced memory limit is set back to the original value, next to the target")
+	assert.Contains(t, calls[1].body, `"requests":{"cpu":"500m"}`, "the target is applied")
+
+	assert.Equal(t, "", calls[2].subresource)
+	assert.Contains(t, calls[2].body, model.RecommendationIDAnnotation)
+}
+
+// TestSyncInternal_InPlace_DisruptiveResetUsesBudget checks that a reset restarting a container counts
+// as a disruptive resize: with the budget used by an in-flight resize, the pod is not patched, even
+// though the target alone does not change anything that restarts it.
+func TestSyncInternal_InPlace_DisruptiveResetUsesBudget(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	patches := f.recordPodPatches(nil)
+
+	// The cpu target matches the pod (500m), so only the memory limit is reset, and memory restarts
+	// the container.
+	cpu500m := float64(50)
+	forcedMemoryLimit := uint64(128 * 1024 * 1024)
+	resetPod := pod("p1", "forced", kubernetes.ReplicaSetKind, "rs1")
+	resetPod.EntityID = workloadmeta.EntityID{ID: "p1"}
+	resetPod.Ready = true
+	resetPod.Annotations[model.OriginalResourcesAnnotation] = `{"c1":{"limits":{"memory":"64Mi"}}}`
+	resetPod.Containers = []workloadmeta.OrchestratorContainer{{
+		Name:         "c1",
+		Resources:    workloadmeta.ContainerResources{CPURequest: &cpu500m, CPULimit: &cpu500m, MemoryLimit: &forcedMemoryLimit},
+		ResizePolicy: workloadmeta.ContainerResizePolicy{MemoryRestartPolicy: string(corev1.RestartContainer)},
+	}}
+	inFlight := disruptivePod("p2", "r1", "rs1", true, 50, kubePodConditionResizeInProgress, "")
+	inFlight.EntityID = workloadmeta.EntityID{ID: "p2"}
+
+	_, err := f.runSyncInPlaceMode(t, nil, scalingValWithRequests("r1", "500m"), "r1", []*workloadmeta.KubernetesPod{resetPod, inFlight})
+	require.NoError(t, err)
+	assert.Zero(t, patches.resizes(), "the disruptive reset waits for the in-flight resize")
+}
+
+// TestPatchInPlace_InvalidOriginalResources checks that an invalid record is left as is: nothing is
+// recorded nor reset, and the resize still applies the target.
+func TestPatchInPlace_InvalidOriginalResources(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	patches := f.recordPodPatches(nil)
+
+	p := pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")
+	p.Annotations[model.OriginalResourcesAnnotation] = `not json`
+	p.Containers = []workloadmeta.OrchestratorContainer{{Name: "c1"}}
+
+	_, err := f.runSyncInPlaceMode(t, nil, scalingValWithRequests("r1", "500m"), "r1", []*workloadmeta.KubernetesPod{p})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"resize", ""}, patches.subresources(), "no record written: resize, then recommendation ID")
+}
+
+// TestPatchInPlace_RecordFailureSkipsResize checks that the resize is not sent when the original
+// resources cannot be recorded, and that the error keeps its type for the eviction / rollout fallback.
+func TestPatchInPlace_RecordFailureSkipsResize(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	patches := f.recordPodPatches(k8serrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "p1", errors.New("denied")))
+
+	p := pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")
+	p.Containers = []workloadmeta.OrchestratorContainer{{Name: "c1"}}
+	ai := buildInPlacePAI("default", "ai", scalingValWithRequests("r1", "500m"), "")
+
+	err := f.controller.patchInPlace(context.Background(), &ai, p, "r1", originalResources{}, nil)
+	require.Error(t, err)
+	assert.True(t, k8serrors.IsForbidden(err), "the error type is kept: %v", err)
+	assert.Equal(t, []string{""}, patches.subresources(), "no resize after the failed record")
+}
+
+// TestSyncInternal_InPlace_ManagedPodWithoutRecord checks that a pod managed before the record existed
+// (it has a rec-id but no record) is resized without recording nor resetting anything: its values may
+// already be the autoscaler's.
+func TestSyncInternal_InPlace_ManagedPodWithoutRecord(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	patches := f.recordPodPatches(nil)
+
+	memoryLimit := uint64(128 * 1024 * 1024)
+	p := pod("p1", "old", kubernetes.ReplicaSetKind, "rs1") // rec-id set, no record
+	p.Containers = []workloadmeta.OrchestratorContainer{{Name: "c1", Resources: workloadmeta.ContainerResources{MemoryLimit: &memoryLimit}}}
+
+	_, err := f.runSyncInPlaceMode(t, nil, scalingValWithRequests("r1", "500m"), "r1", []*workloadmeta.KubernetesPod{p})
+	require.NoError(t, err)
+	require.Equal(t, []string{"resize", ""}, patches.subresources(), "resize and recommendation ID only")
+	assert.NotContains(t, patches.calls[0].body, "memory", "nothing is reset")
+	assert.Empty(t, patches.record(), "nothing is recorded")
+}
+
+// TestSyncInternal_InPlace_RecordsUnmanagedPod checks that a pod the autoscaler never managed gets a
+// record before its first resize, even when the resize changes nothing, so that it is never taken for
+// a managed pod without a record afterwards.
+func TestSyncInternal_InPlace_RecordsUnmanagedPod(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	patches := f.recordPodPatches(nil)
+
+	cpu500m := float64(50)
+	p := pod("p1", "", kubernetes.ReplicaSetKind, "rs1")
+	p.Annotations = map[string]string{} // never managed: no rec-id, no autoscaler ID
+	p.Containers = []workloadmeta.OrchestratorContainer{{Name: "c1", Resources: workloadmeta.ContainerResources{CPURequest: &cpu500m, CPULimit: &cpu500m}}}
+
+	_, err := f.runSyncInPlaceMode(t, nil, scalingValWithRequests("r1", "500m"), "r1", []*workloadmeta.KubernetesPod{p})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"", "resize", ""}, patches.subresources(), "record, resize, recommendation ID")
+	assert.True(t, patches.calls[0].isRecord())
+}
+
+// TestPatchInPlace_MergesLiveRecord checks that a record computed from a stale pod is merged into the
+// record of the live pod, whose entries win.
+func TestPatchInPlace_MergesLiveRecord(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	k8sClient := f.attachK8sClient()
+	_, err := k8sClient.CoreV1().Pods("default").Create(context.Background(), &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name: "p1", Namespace: "default",
+		Annotations: map[string]string{model.OriginalResourcesAnnotation: `{"c1":{"limits":{"memory":"64Mi"}}}`},
+	}}, metav1.CreateOptions{})
+	require.NoError(t, err)
+	patches := f.recordPodPatches(nil)
+
+	// The cached pod does not show the record yet, and already has the resized 128Mi memory limit.
+	memoryLimit := uint64(128 * 1024 * 1024)
+	p := pod("p1", "", kubernetes.ReplicaSetKind, "rs1")
+	p.Annotations = map[string]string{}
+	p.Containers = []workloadmeta.OrchestratorContainer{{Name: "c1", Resources: workloadmeta.ContainerResources{MemoryLimit: &memoryLimit}}}
+	ai := buildInPlacePAI("default", "ai", &model.VerticalScalingValues{ResourcesHash: "r1", ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{{
+		Name:     "c1",
+		Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("500m")},
+		Limits:   corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+	}}}, "")
+
+	require.NoError(t, f.controller.patchInPlace(context.Background(), &ai, p, "r1", originalResources{}, nil))
+	// The cpu request, absent before the resize, is new and merged; the memory limit keeps the live value.
+	assert.Contains(t, patches.record(), `{\"c1\":{\"requests\":{\"cpu\":null},\"limits\":{\"memory\":\"64Mi\"}}}`)
+	assert.NotContains(t, patches.record(), `128Mi`, "the stale value is not recorded")
+
+	// Nothing new to record: no write.
+	patches.calls = nil
+	require.NoError(t, f.controller.recordOriginalResources(context.Background(), p, originalResources{}))
+	assert.Empty(t, patches.record(), "the live pod already has every value")
 }

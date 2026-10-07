@@ -324,8 +324,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						APIVersion: "apps/v1",
 					}},
 					Annotations: map[string]string{
-						model.RecommendationIDAnnotation: "version1",
-						model.AutoscalerIDAnnotation:     "ns1/autoscaler1",
+						model.OriginalResourcesAnnotation: `{"container1":{"requests":{"memory":"128Mi"},"limits":{"cpu":"200m"}}}`,
+						model.RecommendationIDAnnotation:  "version1",
+						model.AutoscalerIDAnnotation:      "ns1/autoscaler1",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -370,8 +371,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						APIVersion: "apps/v1",
 					}},
 					Annotations: map[string]string{
-						model.RecommendationIDAnnotation: "version1",
-						model.AutoscalerIDAnnotation:     "ns1/autoscaler1",
+						model.OriginalResourcesAnnotation: `{"container1":{"requests":{"memory":null},"limits":{"cpu":null}}}`,
+						model.RecommendationIDAnnotation:  "version1",
+						model.AutoscalerIDAnnotation:      "ns1/autoscaler1",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -411,7 +413,7 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 					}},
 				},
 			},
-			wantInjected: false,
+			wantInjected: true,
 			wantPod: corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1",
@@ -422,8 +424,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						APIVersion: "apps/v1",
 					}},
 					Annotations: map[string]string{
-						model.RecommendationIDAnnotation: "version1",
-						model.AutoscalerIDAnnotation:     "ns1/autoscaler1",
+						model.OriginalResourcesAnnotation: "{}",
+						model.RecommendationIDAnnotation:  "version1",
+						model.AutoscalerIDAnnotation:      "ns1/autoscaler1",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -471,7 +474,8 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						Name:       "test",
 					}},
 					Annotations: map[string]string{
-						model.AutoscalerIDAnnotation: "ns1/autoscaler1",
+						model.OriginalResourcesAnnotation: "{}",
+						model.AutoscalerIDAnnotation:      "ns1/autoscaler1",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -530,8 +534,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						APIVersion: "apps/v1",
 					}},
 					Annotations: map[string]string{
-						model.RecommendationIDAnnotation: "sidecar-version1",
-						model.AutoscalerIDAnnotation:     "ns1/autoscaler3",
+						model.OriginalResourcesAnnotation: `{"init-sidecar-container":{"requests":{"memory":"64Mi"},"limits":{"cpu":"100m"}}}`,
+						model.RecommendationIDAnnotation:  "sidecar-version1",
+						model.AutoscalerIDAnnotation:      "ns1/autoscaler3",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -592,8 +597,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						APIVersion: "apps/v1",
 					}},
 					Annotations: map[string]string{
-						model.RecommendationIDAnnotation: "sidecar-version1",
-						model.AutoscalerIDAnnotation:     "ns1/autoscaler3",
+						model.OriginalResourcesAnnotation: `{"init-sidecar-container":{"requests":{"memory":null},"limits":{"cpu":null}}}`,
+						model.RecommendationIDAnnotation:  "sidecar-version1",
+						model.AutoscalerIDAnnotation:      "ns1/autoscaler3",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -649,7 +655,7 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 					}},
 				},
 			},
-			wantInjected: false,
+			wantInjected: true,
 			wantPod: corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1",
@@ -660,8 +666,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						APIVersion: "apps/v1",
 					}},
 					Annotations: map[string]string{
-						model.RecommendationIDAnnotation: "sidecar-version1",
-						model.AutoscalerIDAnnotation:     "ns1/autoscaler3",
+						model.OriginalResourcesAnnotation: "{}",
+						model.RecommendationIDAnnotation:  "sidecar-version1",
+						model.AutoscalerIDAnnotation:      "ns1/autoscaler3",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -723,8 +730,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						APIVersion: "apps/v1",
 					}},
 					Annotations: map[string]string{
-						model.RecommendationIDAnnotation: "sidecar-version1",
-						model.AutoscalerIDAnnotation:     "ns1/autoscaler3",
+						model.OriginalResourcesAnnotation: "{}",
+						model.RecommendationIDAnnotation:  "sidecar-version1",
+						model.AutoscalerIDAnnotation:      "ns1/autoscaler3",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -790,8 +798,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						APIVersion: "apps/v1",
 					}},
 					Annotations: map[string]string{
-						model.RecommendationIDAnnotation: "mixed-version1",
-						model.AutoscalerIDAnnotation:     "ns1/autoscaler4",
+						model.OriginalResourcesAnnotation: `{"init-sidecar-container":{"requests":{"memory":"128Mi"},"limits":{"cpu":"200m"}},"main-container":{"requests":{"memory":"256Mi"},"limits":{"cpu":"500m"}}}`,
+						model.RecommendationIDAnnotation:  "mixed-version1",
+						model.AutoscalerIDAnnotation:      "ns1/autoscaler4",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -847,6 +856,7 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						APIVersion: "apps/v1",
 					}},
 					Annotations: map[string]string{
+						model.OriginalResourcesAnnotation: `{"app":{"requests":{"cpu":"100m"},"limits":{"cpu":"1","memory":"1Gi"}}}`,
 						// rec-id is just the ResourcesHash (no -burstable suffix)
 						model.RecommendationIDAnnotation: "version1-burstable-sentinel",
 						model.AutoscalerIDAnnotation:     "ns1/autoscaler-burstable",
@@ -905,8 +915,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 					}},
 					// rec-id updated to the current autoscaler1 recommendation hash
 					Annotations: map[string]string{
-						model.RecommendationIDAnnotation: "version1",
-						model.AutoscalerIDAnnotation:     "ns1/autoscaler1",
+						model.OriginalResourcesAnnotation: `{"container1":{"limits":{"cpu":null}}}`,
+						model.RecommendationIDAnnotation:  "version1",
+						model.AutoscalerIDAnnotation:      "ns1/autoscaler1",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -955,8 +966,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						APIVersion: "apps/v1",
 					}},
 					Annotations: map[string]string{
-						model.RecommendationIDAnnotation: "version1-burstable-follower",
-						model.AutoscalerIDAnnotation:     "ns1/autoscaler-burstable-follower",
+						model.OriginalResourcesAnnotation: `{"app":{"requests":{"cpu":"100m"},"limits":{"cpu":"1","memory":"1Gi"}}}`,
+						model.RecommendationIDAnnotation:  "version1-burstable-follower",
+						model.AutoscalerIDAnnotation:      "ns1/autoscaler-burstable-follower",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -997,7 +1009,7 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 					}},
 				},
 			},
-			wantInjected: false,
+			wantInjected: true,
 			wantPod: corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1",
@@ -1008,8 +1020,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						APIVersion: "apps/v1",
 					}},
 					Annotations: map[string]string{
-						model.RecommendationIDAnnotation: "version1-burstable-follower",
-						model.AutoscalerIDAnnotation:     "ns1/autoscaler-burstable-follower",
+						model.OriginalResourcesAnnotation: "{}",
+						model.RecommendationIDAnnotation:  "version1-burstable-follower",
+						model.AutoscalerIDAnnotation:      "ns1/autoscaler-burstable-follower",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -1534,9 +1547,12 @@ func TestPatchPod(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			podCopy := tt.pod.DeepCopy()
 
-			patched := patchPod(tt.recommendation, podCopy)
+			patched := false
+			if cont := findPatchableContainer(podCopy, tt.recommendation.Name); cont != nil {
+				patched = patchContainerResources(tt.recommendation, cont)
+			}
 
-			assert.Equal(t, tt.expectedPatched, patched, "patchPod should return expected patch status")
+			assert.Equal(t, tt.expectedPatched, patched, "the container should be patched as expected")
 
 			if tt.expectedPatched {
 				var foundContainer *corev1.Container
@@ -1703,4 +1719,38 @@ func TestPatchContainerResourcesGOMEMLIMIT(t *testing.T) {
 		patched = patchContainerResources(reco("256MiB"), cont)
 		assert.False(t, patched)
 	})
+}
+
+// TestPatcherApplyRecommendationsKeepsRecordedOriginals checks that admission keeps the original values
+// already recorded on the pod (first write wins) and only records the new ones.
+func TestPatcherApplyRecommendationsKeepsRecordedOriginals(t *testing.T) {
+	pod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "ns1",
+			Name:      "pod1",
+			OwnerReferences: []metav1.OwnerReference{{
+				Kind:       "ReplicaSet",
+				Name:       "test-deployment-968f49d86",
+				APIVersion: "apps/v1",
+			}},
+			Annotations: map[string]string{
+				model.OriginalResourcesAnnotation: `{"container1":{"limits":{"cpu":"100m"}}}`,
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{
+				Name: "container1",
+				Resources: corev1.ResourceRequirements{
+					Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+					Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+				},
+			}},
+		},
+	}
+
+	injected, err := NewPodPatcher(patcherTestStoreWithData(), nil, nil).ApplyRecommendations(&pod)
+	require.NoError(t, err)
+	assert.True(t, injected)
+	assert.JSONEq(t, `{"container1":{"requests":{"memory":"128Mi"},"limits":{"cpu":"100m"}}}`, pod.Annotations[model.OriginalResourcesAnnotation],
+		"the recorded cpu limit is kept, the memory request is recorded")
 }

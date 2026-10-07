@@ -231,13 +231,29 @@ func (u *verticalController) syncInternal(
 		// Disruptive resizes restart a container and bypass PDB enforcement, so throttle them to the
 		// disruption tolerance; non-disruptive resizes always patch.
 		recommendation := autoscalerInternal.ScalingValues().Vertical
-		toPatch := make([]classifiedPod, 0, len(needsPatch))
-		var disruptive []classifiedPod
+		// Each pod keeps its original resources and the resets computed from them, applied in its
+		// resize patch.
+		type pendingResize struct {
+			classifiedPod
+			original originalResources
+			resets   map[string]resourceReset
+		}
+		toPatch := make([]pendingResize, 0, len(needsPatch))
+		var disruptive []pendingResize
 		for _, cp := range needsPatch {
-			if isDisruptiveResize(cp.pod, recommendation) {
-				disruptive = append(disruptive, cp)
+			original, ok := parseOriginalResources(cp.pod.Annotations, true)
+			if !ok {
+				log.Debugf("Unknown original resources of pod %s/%s (%s missing on a managed pod, or invalid): they are not recorded nor reset", cp.pod.Namespace, cp.pod.Name, model.OriginalResourcesAnnotation)
+			}
+			pr := pendingResize{
+				classifiedPod: cp,
+				original:      original,
+				resets:        recordedResets(cp.pod, recommendation, original),
+			}
+			if isDisruptiveResize(cp.pod, recommendation) || isDisruptiveReset(cp.pod, pr.resets) {
+				disruptive = append(disruptive, pr)
 			} else {
-				toPatch = append(toPatch, cp)
+				toPatch = append(toPatch, pr)
 			}
 		}
 
@@ -254,19 +270,19 @@ func (u *verticalController) syncInternal(
 		}
 		toPatch = append(toPatch, disruptive...)
 
-		for _, cp := range toPatch {
-			if err := u.patchInPlace(ctx, autoscalerInternal, cp.pod, recommendationID); err != nil {
+		for _, pr := range toPatch {
+			if err := u.patchInPlace(ctx, autoscalerInternal, pr.pod, recommendationID, pr.original, pr.resets); err != nil {
 				if k8serrors.IsNotFound(err) {
 					// Pod is already gone; the pod watcher hasn't caught up yet. Skip eviction.
-					log.Debugf("pod %s/%s not found during resize patch, likely already evicted: %v", cp.pod.Namespace, cp.pod.Name, err)
+					log.Debugf("pod %s/%s not found during resize patch, likely already evicted: %v", pr.pod.Namespace, pr.pod.Name, err)
 					continue
 				}
 				if k8serrors.IsForbidden(err) {
 					patchForbidden = true
 				}
-				log.Warnf("failed to patch pod %s/%s in place: %v", cp.pod.Namespace, cp.pod.Name, err)
+				log.Warnf("failed to patch pod %s/%s in place: %v", pr.pod.Namespace, pr.pod.Name, err)
 				autoscalerInternal.InPlacePatchErrorInc()
-				toEvictOnPatchFailure = append(toEvictOnPatchFailure, cp)
+				toEvictOnPatchFailure = append(toEvictOnPatchFailure, pr.classifiedPod)
 			} else {
 				autoscalerInternal.InPlacePatchSuccessInc()
 			}
@@ -409,12 +425,25 @@ func (u *verticalController) syncInternal(
 }
 
 // patchInPlace applies the resource recommendation to a single pod via the resize subresource,
-// then updates the pod's RecommendationIDAnnotation to record the applied recommendation.
-func (u *verticalController) patchInPlace(ctx context.Context, autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod, recommendationID string) error {
+// then updates the pod's RecommendationIDAnnotation to record the applied recommendation. resets,
+// from recordedResets, are applied in the same patch. The original value of the resources the
+// patch changes is recorded in the OriginalResourcesAnnotation first, unless original is nil (the
+// record is unknown), so that a failed resize does not lose it. The record is also written when the
+// pod has none yet, so that the pod, once managed, is never mistaken for one without a record.
+func (u *verticalController) patchInPlace(ctx context.Context, autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod, recommendationID string, original originalResources, resets map[string]resourceReset) error {
 	patchTarget := workloadpatcher.PodTarget(pod.Namespace, pod.Name)
+	containersResourcePatches := fromAutoscalerToContainerResourcePatches(autoscalerInternal, pod, resets)
+
+	if original != nil {
+		recorded := recordInPlaceChanges(original, pod, containersResourcePatches)
+		if _, found := pod.Annotations[model.OriginalResourcesAnnotation]; recorded || !found {
+			if err := u.recordOriginalResources(ctx, pod, original); err != nil {
+				return err
+			}
+		}
+	}
 
 	// Patch spec.containers[*].resources via the pods/resize subresource.
-	containersResourcePatches := fromAutoscalerToContainerResourcePatches(autoscalerInternal, pod)
 	intent := workloadpatcher.NewPatchIntent(patchTarget).With(workloadpatcher.SetContainerResources(containersResourcePatches))
 	_, err := u.patchClient.Apply(ctx, intent, workloadpatcher.PatchOptions{Caller: "vpa", Subresource: "resize", PatchType: types.StrategicMergePatchType})
 	if err != nil {
@@ -430,6 +459,42 @@ func (u *verticalController) patchInPlace(ctx context.Context, autoscalerInterna
 		return fmt.Errorf("failed to patch pod %s/%s annotations in place, will evict: %w", pod.Namespace, pod.Name, err)
 	}
 
+	return nil
+}
+
+// recordOriginalResources writes original in the OriginalResourcesAnnotation of pod. The pod
+// annotations in workloadmeta may be stale (a previous write not observed yet): the record is merged
+// into the one of the live pod, whose entries win, so that no recorded value is lost. When the live
+// pod cannot be read, the snapshot is used: the resize that follows reports a pod that is gone.
+func (u *verticalController) recordOriginalResources(ctx context.Context, pod *workloadmeta.KubernetesPod, original originalResources) error {
+	if u.client != nil {
+		live, err := u.client.CoreV1().Pods(pod.Namespace).Get(ctx, pod.Name, metav1.GetOptions{})
+		if err == nil {
+			liveOriginal, ok := parseOriginalResources(live.Annotations, true)
+			if !ok {
+				log.Debugf("Unknown original resources on the live pod %s/%s, not recording them", pod.Namespace, pod.Name)
+				return nil
+			}
+			_, found := live.Annotations[model.OriginalResourcesAnnotation]
+			if !liveOriginal.merge(original) && found {
+				return nil // The live pod already has every value.
+			}
+			original = liveOriginal
+		} else {
+			log.Debugf("Unable to read pod %s/%s, recording its original resources from the cached pod: %v", pod.Namespace, pod.Name, err)
+		}
+	}
+
+	value, err := original.encode()
+	if err != nil {
+		return fmt.Errorf("failed to encode the original resources of pod %s/%s, will evict: %w", pod.Namespace, pod.Name, err)
+	}
+	intent := workloadpatcher.NewPatchIntent(workloadpatcher.PodTarget(pod.Namespace, pod.Name)).With(workloadpatcher.SetMetadataAnnotations(map[string]interface{}{
+		model.OriginalResourcesAnnotation: value,
+	}))
+	if _, err := u.patchClient.Apply(ctx, intent, workloadpatcher.PatchOptions{Caller: "vpa"}); err != nil {
+		return fmt.Errorf("failed to record the original resources of pod %s/%s, will evict: %w", pod.Namespace, pod.Name, err)
+	}
 	return nil
 }
 

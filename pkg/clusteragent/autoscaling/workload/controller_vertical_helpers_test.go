@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -23,6 +24,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
@@ -889,7 +891,7 @@ func TestFromAutoscalerToContainerResourcePatches_PreservesPodOrder(t *testing.T
 		},
 	}
 
-	patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
+	patches := fromAutoscalerToContainerResourcePatches(&ai, pod, nil)
 
 	require.Len(t, patches, 3)
 	assert.Equal(t, "c1", patches[0].Name, "patch order must follow pod container order")
@@ -922,7 +924,7 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 			PreviewAnnotationKey: `{"burstable":true}`,
 		}).Build()
 
-		patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
+		patches := fromAutoscalerToContainerResourcePatches(&ai, pod, nil)
 
 		require.Len(t, patches, 1)
 		p := patches[0]
@@ -939,7 +941,7 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 			ScalingValues: model.ScalingValues{Vertical: sv},
 		}).Build()
 
-		patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
+		patches := fromAutoscalerToContainerResourcePatches(&ai, pod, nil)
 
 		require.Len(t, patches, 1)
 		p := patches[0]
@@ -1331,4 +1333,180 @@ func TestShouldTriggerRollout_ForcedResources(t *testing.T) {
 			assert.Equal(t, tt.expected, decision)
 		})
 	}
+}
+
+// TestRecordedResets covers the resources set back to their recorded original value by an in-place
+// resize: those the target does not control and that differ from the record, as when a value forced
+// by the force-resources annotation is removed or the constraints stop controlling a resource.
+func TestRecordedResets(t *testing.T) {
+	cpu50m := float64(5)
+	mem32Mi := uint64(32 * 1024 * 1024)
+	mem64Mi := uint64(64 * 1024 * 1024)
+	mem128Mi := uint64(128 * 1024 * 1024)
+	q := func(s string) *resource.Quantity { return pointer.Ptr(resource.MustParse(s)) }
+
+	// The memory limit was 64Mi before the autoscaler changed it.
+	recordedMemoryLimit := originalResources{"sidecar": {Limits: map[corev1.ResourceName]*resource.Quantity{corev1.ResourceMemory: q("64Mi")}}}
+	// The target only controls cpu, as a cpu-only recommendation.
+	cpuTarget := &model.VerticalScalingValues{ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{{
+		Name:     "sidecar",
+		Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("50m")},
+		Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("50m")},
+	}}}
+	sidecar := func(memoryLimit *uint64) *workloadmeta.KubernetesPod {
+		return &workloadmeta.KubernetesPod{Containers: []workloadmeta.OrchestratorContainer{{
+			Name:      "sidecar",
+			Resources: workloadmeta.ContainerResources{CPURequest: &cpu50m, CPULimit: &cpu50m, MemoryRequest: &mem32Mi, MemoryLimit: memoryLimit},
+		}}}
+	}
+
+	for _, tc := range []struct {
+		name     string
+		pod      *workloadmeta.KubernetesPod
+		target   *model.VerticalScalingValues
+		original originalResources
+		want     map[string]resourceReset
+	}{
+		{
+			name:     "a value the target no longer controls goes back to the recorded one",
+			pod:      sidecar(&mem128Mi),
+			target:   cpuTarget,
+			original: recordedMemoryLimit,
+			want:     map[string]resourceReset{"sidecar": {limits: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("64Mi")}}},
+		},
+		{
+			name:     "a pod at the recorded value is not reset",
+			pod:      sidecar(&mem64Mi),
+			target:   cpuTarget,
+			original: recordedMemoryLimit,
+		},
+		{
+			name:     "a resource controlled by the target is not reset",
+			pod:      sidecar(&mem128Mi),
+			target:   &model.VerticalScalingValues{ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{{Name: "sidecar", Limits: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("128Mi")}}}},
+			original: recordedMemoryLimit,
+		},
+		{
+			name:     "a limit that was absent is deleted",
+			pod:      sidecar(&mem128Mi),
+			target:   cpuTarget,
+			original: originalResources{"sidecar": {Limits: map[corev1.ResourceName]*resource.Quantity{corev1.ResourceMemory: nil}}},
+			want:     map[string]resourceReset{"sidecar": {deleteLimits: []corev1.ResourceName{corev1.ResourceMemory}}},
+		},
+		{
+			name:     "a request that was absent is left as is",
+			pod:      sidecar(&mem128Mi),
+			target:   cpuTarget,
+			original: originalResources{"sidecar": {Requests: map[corev1.ResourceName]*resource.Quantity{corev1.ResourceMemory: nil}}},
+		},
+		{
+			name:     "a container that is not in the target is reset too",
+			pod:      sidecar(&mem128Mi),
+			target:   &model.VerticalScalingValues{ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{{Name: "main", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")}}}},
+			original: originalResources{"sidecar": {Limits: map[corev1.ResourceName]*resource.Quantity{corev1.ResourceCPU: q("100m"), corev1.ResourceMemory: q("64Mi")}}},
+			want:     map[string]resourceReset{"sidecar": {limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m"), corev1.ResourceMemory: resource.MustParse("64Mi")}}},
+		},
+		{
+			// applyVerticalConstraints stamps removeLimitSentinel on the cpu limit in burstable mode.
+			name: "a limit the target removes is controlled by the target",
+			pod:  sidecar(&mem64Mi),
+			target: &model.VerticalScalingValues{ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{{
+				Name:     "sidecar",
+				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("50m")},
+				Limits:   corev1.ResourceList{corev1.ResourceCPU: removeLimitSentinel},
+			}}},
+			original: originalResources{"sidecar": {Limits: map[corev1.ResourceName]*resource.Quantity{corev1.ResourceCPU: q("100m")}}},
+		},
+		{
+			name:     "a limit is not set back below the request the pod keeps",
+			pod:      sidecar(&mem128Mi), // request 32Mi
+			target:   cpuTarget,
+			original: originalResources{"sidecar": {Limits: map[corev1.ResourceName]*resource.Quantity{corev1.ResourceMemory: q("16Mi")}}},
+		},
+		{
+			name:   "nothing recorded, no reset",
+			pod:    sidecar(&mem128Mi),
+			target: cpuTarget,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := recordedResets(tc.pod, tc.target, tc.original)
+			assert.Empty(t, cmp.Diff(tc.want, got, cmp.AllowUnexported(resourceReset{})))
+		})
+	}
+}
+
+func TestFromAutoscalerToContainerResourcePatches_Resets(t *testing.T) {
+	ai := (&model.FakePodAutoscalerInternal{
+		Namespace: "default",
+		Name:      "ai",
+		ScalingValues: model.ScalingValues{Vertical: &model.VerticalScalingValues{
+			ResourcesHash: "r1",
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{Name: "main", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")}},
+			},
+		}},
+	}).Build()
+	pod := &workloadmeta.KubernetesPod{
+		Containers: []workloadmeta.OrchestratorContainer{{Name: "main"}, {Name: "sidecar"}, {Name: "other"}},
+	}
+	resets := map[string]resourceReset{
+		"main":    {limits: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")}},
+		"sidecar": {limits: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("64Mi")}, deleteLimits: []corev1.ResourceName{corev1.ResourceCPU}},
+	}
+
+	patches := fromAutoscalerToContainerResourcePatches(&ai, pod, resets)
+
+	require.Len(t, patches, 2, "other has neither a target nor a reset")
+	assert.Equal(t, "main", patches[0].Name)
+	assert.Equal(t, map[string]string{"cpu": "100m"}, patches[0].Requests, "the target is kept")
+	assert.Equal(t, map[string]string{"memory": "256Mi"}, patches[0].Limits, "the reset is merged")
+	assert.Equal(t, "sidecar", patches[1].Name, "a container without target is patched for its reset")
+	assert.Nil(t, patches[1].Requests)
+	assert.Equal(t, map[string]string{"memory": "64Mi"}, patches[1].Limits)
+	assert.Equal(t, []string{"cpu"}, patches[1].LimitsToDelete, "a limit that was absent is deleted")
+}
+
+func TestIsDisruptiveReset(t *testing.T) {
+	memoryReset := map[string]resourceReset{"app": {limits: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("64Mi")}}}
+	memoryDelete := map[string]resourceReset{"app": {deleteLimits: []corev1.ResourceName{corev1.ResourceMemory}}}
+	podWith := func(policy workloadmeta.ContainerResizePolicy) *workloadmeta.KubernetesPod {
+		return &workloadmeta.KubernetesPod{Containers: []workloadmeta.OrchestratorContainer{{Name: "app", ResizePolicy: policy}}}
+	}
+
+	assert.False(t, isDisruptiveReset(podWith(workloadmeta.ContainerResizePolicy{}), memoryReset), "no resize policy")
+	assert.True(t, isDisruptiveReset(podWith(workloadmeta.ContainerResizePolicy{MemoryRestartPolicy: restartContainer}), memoryReset), "memory RestartContainer")
+	assert.True(t, isDisruptiveReset(podWith(workloadmeta.ContainerResizePolicy{MemoryRestartPolicy: restartContainer}), memoryDelete), "memory RestartContainer, limit deleted")
+	assert.False(t, isDisruptiveReset(podWith(workloadmeta.ContainerResizePolicy{CPURestartPolicy: restartContainer}), memoryReset), "cpu RestartContainer, memory reset")
+	assert.False(t, isDisruptiveReset(podWith(workloadmeta.ContainerResizePolicy{MemoryRestartPolicy: restartContainer}), nil), "no reset")
+}
+
+// TestRecordInPlaceChanges checks that an in-place resize records the current value of the fields it
+// changes, only the first time, and not the fields it leaves unchanged.
+func TestRecordInPlaceChanges(t *testing.T) {
+	cpu100m := float64(10)
+	mem64Mi := uint64(64 * 1024 * 1024)
+	pod := &workloadmeta.KubernetesPod{Containers: []workloadmeta.OrchestratorContainer{{
+		Name:      "app",
+		Resources: workloadmeta.ContainerResources{CPURequest: &cpu100m, CPULimit: &cpu100m, MemoryRequest: &mem64Mi},
+	}}}
+	patches := []workloadpatcher.ContainerResourcePatch{{
+		Name:           "app",
+		Requests:       map[string]string{"cpu": "100m", "memory": "128Mi"}, // cpu unchanged
+		Limits:         map[string]string{"memory": "256Mi"},                // memory limit absent on the pod
+		LimitsToDelete: []string{"cpu"},
+	}}
+
+	original := originalResources{}
+	require.True(t, recordInPlaceChanges(original, pod, patches))
+	encoded, err := original.encode()
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"app":{"requests":{"memory":"64Mi"},"limits":{"cpu":"100m","memory":null}}}`, encoded)
+
+	// Later resizes keep the first recorded values.
+	resized := &workloadmeta.KubernetesPod{Containers: []workloadmeta.OrchestratorContainer{{Name: "app", Resources: workloadmeta.ContainerResources{MemoryRequest: pointer.Ptr(uint64(128 * 1024 * 1024))}}}}
+	assert.False(t, recordInPlaceChanges(original, resized, []workloadpatcher.ContainerResourcePatch{{Name: "app", Requests: map[string]string{"memory": "200Mi"}}}))
+	again, err := original.encode()
+	require.NoError(t, err)
+	assert.JSONEq(t, encoded, again, "first write wins")
 }
