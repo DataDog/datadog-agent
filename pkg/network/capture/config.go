@@ -6,44 +6,37 @@
 //go:build linux && pcap && cgo
 
 // Package capture provides a remote packet capture (PCAP) module for the Datadog Agent.
-// It attaches a TC eBPF hook to a network interface, compiles a BPF filter to eBPF
-// bytecode at runtime using cbpfc, and writes captured packets in PCAP file format.
+// It opens a libpcap live capture, trims every packet to its protocol headers,
+// and writes the result in PCAP file format.
 package capture
 
 import (
 	"context"
 	"io"
-	"net"
 	"time"
 )
 
 const (
-	// defaultSnapLen is the default number of bytes captured per packet.
-	defaultSnapLen = 65535
-	// defaultRingBufferSize is the default eBPF ring buffer size (8 MiB).
-	defaultRingBufferSize = 8 * 1024 * 1024
-	// progPrefix is the eBPF program name prefix used for identification and cleanup.
-	progPrefix = "dd_pcap_"
-)
-
-// CaptureDirection controls whether ingress, egress, or both directions are captured.
-type CaptureDirection int
-
-const (
-	// DirectionBoth captures packets in both directions.
-	DirectionBoth CaptureDirection = iota
-	// DirectionIngress captures only incoming packets.
-	DirectionIngress
-	// DirectionEgress captures only outgoing packets.
-	DirectionEgress
+	// anyInterface is libpcap's pseudo-device that captures on every interface.
+	anyInterface = "any"
+	// maxSnapLen is both the default and the ceiling for the number of bytes
+	// libpcap copies per packet. It covers the headers of common packet shapes,
+	// including IPv6 SYNs on VLAN networks and IPv4 in VXLAN overlays.
+	maxSnapLen = 128
+	// defaultBufferSize is the libpcap kernel buffer size (8 MiB).
+	defaultBufferSize = 8 * 1024 * 1024
+	// readTimeout bounds how long a read blocks, so the drain loop can observe
+	// stop conditions on an idle interface.
+	readTimeout = 200 * time.Millisecond
 )
 
 // CaptureConfig holds all configuration needed to create a Capturer.
 type CaptureConfig struct {
 	// Filter is a tcpdump-style BPF filter expression (empty string = capture all).
 	Filter string
-	// Iface is the network interface to capture on.
-	Iface *net.Interface
+	// Interface is the network interface to capture on. Empty means every
+	// interface (libpcap's "any" device).
+	Interface string
 	// Output receives the PCAP-formatted capture stream.
 	Output io.Writer
 	// Duration is the maximum capture duration. 0 means no limit.
@@ -66,31 +59,21 @@ type CaptureConfig struct {
 	// empty capture. Real budgets are orders of magnitude larger; the property
 	// worth relying on is that the output is always a readable pcap.
 	MaxBytes uint64
-	// SnapLen is the maximum number of bytes to capture per packet. 0 defaults to 65535.
-	// When HeaderOnly is set, SnapLen instead acts as the safety cap on top of the
-	// dynamically computed per-packet header boundary (see HeaderOnly).
+	// SnapLen is the maximum number of bytes libpcap copies per packet. 0 and
+	// any value above maxSnapLen mean maxSnapLen. Every packet is additionally
+	// trimmed to its protocol headers before it is written (see headerLen), so
+	// SnapLen bounds memory, not output.
 	SnapLen uint32
-	// HeaderOnly enables dynamic header snap length: instead of truncating every
-	// packet to a fixed SnapLen, each packet is truncated at its own L3/L4 header
-	// boundary (computed in-kernel from the packet's own length fields — see
-	// Confluence NET "Dynamic Header Snap Length — Implementation", page
-	// 7027392746), capped by SnapLen as a safety ceiling. No application payload
-	// is ever captured. When false (default), every packet is truncated to a
-	// fixed SnapLen regardless of its own header boundary.
-	HeaderOnly bool
-	// RingBufferSize is the eBPF ring buffer size in bytes. 0 defaults to 8 MiB.
-	RingBufferSize int
-	// Direction controls which traffic direction is captured.
-	Direction CaptureDirection
 }
 
-// applyDefaults fills in zero-value fields with their defaults.
+// applyDefaults fills in zero-value fields with their defaults and enforces
+// the snap length ceiling.
 func (c *CaptureConfig) applyDefaults() {
-	if c.SnapLen == 0 {
-		c.SnapLen = defaultSnapLen
+	if c.Interface == "" {
+		c.Interface = anyInterface
 	}
-	if c.RingBufferSize == 0 {
-		c.RingBufferSize = defaultRingBufferSize
+	if c.SnapLen == 0 || c.SnapLen > maxSnapLen {
+		c.SnapLen = maxSnapLen
 	}
 }
 
@@ -98,24 +81,24 @@ func (c *CaptureConfig) applyDefaults() {
 type RawPacket struct {
 	// Timestamp is when the packet was captured.
 	Timestamp time.Time
-	// Data is the captured packet bytes (up to SnapLen bytes of the original).
+	// Data is the captured packet bytes (the protocol headers of the original).
 	Data []byte
 	// OrigLen is the original on-wire length of the packet before any truncation.
 	OrigLen uint32
-	// IfIndex is the interface index on which the packet was captured.
-	IfIndex uint32
-	// Ingress is true if the packet was received (ingress), false if transmitted (egress).
-	Ingress bool
 }
 
 // CaptureStats is a thread-safe snapshot of capture statistics.
 type CaptureStats struct {
 	// PacketsCaptured is the total number of packets written to Output.
 	PacketsCaptured uint64
-	// PacketsDropped is the number of packets dropped due to ring buffer overflow.
+	// PacketsDropped is the number of packets the kernel dropped because the
+	// capture buffer was full, as reported by libpcap.
 	PacketsDropped uint64
-	// BytesCaptured is the total number of packet payload bytes captured.
+	// BytesCaptured is the total number of packet bytes written to Output.
 	BytesCaptured uint64
+	// HeadersTruncated is the number of packets whose headers did not fit in
+	// SnapLen, so the written packet stops at the last complete header.
+	HeadersTruncated uint64
 	// StartTime is when Start was called.
 	StartTime time.Time
 	// EndTime is when Stop was called (zero if still running).
@@ -126,14 +109,14 @@ type CaptureStats struct {
 
 // Capturer is the primary interface for packet capture.
 type Capturer interface {
-	// Start begins capture: writes the PCAP global header to Output, attaches the TC
-	// eBPF hook to the target interface, and starts draining the ring buffer in the
-	// background. It returns immediately; capture runs until Stop is called or the
-	// context is cancelled.
+	// Start begins capture: opens the libpcap handle, writes the PCAP global
+	// header to Output, and starts reading packets in the background. It
+	// returns immediately; capture runs until Stop is called or the context is
+	// cancelled.
 	Start(ctx context.Context) error
 
-	// Stop detaches the TC hook, drains any remaining packets from the ring buffer,
-	// finalises statistics, and returns. It is safe to call Stop multiple times.
+	// Stop ends the capture, closes the libpcap handle, finalises statistics,
+	// and returns. It is safe to call Stop multiple times.
 	Stop() error
 
 	// Stats returns a point-in-time snapshot of capture statistics. It is safe
@@ -142,8 +125,8 @@ type Capturer interface {
 }
 
 // NewCapturer creates a new Capturer from the provided configuration.
-// It validates the configuration and compiles the BPF filter to eBPF bytecode,
-// but does not attach any hooks until Start is called.
+// It validates the configuration and the BPF filter syntax, but does not open
+// a capture until Start is called.
 func NewCapturer(cfg CaptureConfig) (Capturer, error) {
 	return newCapturer(cfg)
 }

@@ -10,6 +10,8 @@ package capture
 import (
 	"encoding/binary"
 	"io"
+
+	"github.com/google/gopacket/layers"
 )
 
 // PCAP file format constants.
@@ -18,7 +20,6 @@ const (
 	pcapMagicNumber  uint32 = 0xa1b2c3d4 // native byte-order magic (microsecond timestamps)
 	pcapVersionMajor uint16 = 2
 	pcapVersionMinor uint16 = 4
-	pcapLinkTypeEth  uint32 = 1 // LINKTYPE_ETHERNET
 
 	// pcapFileHeaderSize is the size of the global file header written once by
 	// writePCAPHeader. pcapPacketHeaderSize is the per-record header written by
@@ -33,14 +34,14 @@ const (
 //
 // Layout (all little-endian):
 //
-//	  0  magic_number   (4 bytes) = 0xa1b2c3d4
-//	  4  version_major  (2 bytes) = 2
-//	  6  version_minor  (2 bytes) = 4
-//	  8  thiszone       (4 bytes) = 0  (UTC)
-//	 12  sigfigs        (4 bytes) = 0
-//	 16  snaplen        (4 bytes)
-//	 20  link_type      (4 bytes) = 1 (Ethernet)
-func writePCAPHeader(w io.Writer, snapLen uint32) error {
+//	 0  magic_number   (4 bytes) = 0xa1b2c3d4
+//	 4  version_major  (2 bytes) = 2
+//	 6  version_minor  (2 bytes) = 4
+//	 8  thiszone       (4 bytes) = 0  (UTC)
+//	12  sigfigs        (4 bytes) = 0
+//	16  snaplen        (4 bytes)
+//	20  link_type      (4 bytes) — e.g. 1 (Ethernet), 113 (Linux cooked capture)
+func writePCAPHeader(w io.Writer, snapLen uint32, linkType layers.LinkType) error {
 	hdr := [24]byte{}
 	le := binary.LittleEndian
 	le.PutUint32(hdr[0:], pcapMagicNumber)
@@ -49,7 +50,7 @@ func writePCAPHeader(w io.Writer, snapLen uint32) error {
 	le.PutUint32(hdr[8:], 0)  // thiszone (GMT offset) = 0
 	le.PutUint32(hdr[12:], 0) // sigfigs = 0
 	le.PutUint32(hdr[16:], snapLen)
-	le.PutUint32(hdr[20:], pcapLinkTypeEth)
+	le.PutUint32(hdr[20:], uint32(linkType))
 	_, err := w.Write(hdr[:])
 	return err
 }
@@ -58,10 +59,10 @@ func writePCAPHeader(w io.Writer, snapLen uint32) error {
 //
 // Per-packet header layout (all little-endian):
 //
-//	  0  ts_sec   (4 bytes) — seconds since epoch
-//	  4  ts_usec  (4 bytes) — microseconds
-//	  8  incl_len (4 bytes) — number of bytes in the following Data field
-//	 12  orig_len (4 bytes) — original on-wire packet length
+//	 0  ts_sec   (4 bytes) — seconds since epoch
+//	 4  ts_usec  (4 bytes) — microseconds
+//	 8  incl_len (4 bytes) — number of bytes in the following Data field
+//	12  orig_len (4 bytes) — original on-wire packet length
 func writePCAPPacket(w io.Writer, pkt RawPacket) error {
 	sec := uint32(pkt.Timestamp.Unix())
 	usec := uint32(pkt.Timestamp.Nanosecond() / 1000)

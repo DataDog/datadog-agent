@@ -9,9 +9,11 @@ package capture
 
 import (
 	"bytes"
+	"encoding/binary"
 	"testing"
 	"time"
 
+	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,9 +30,11 @@ import (
 func TestPCAPSizeConstantsMatchWriters(t *testing.T) {
 	t.Run("file header", func(t *testing.T) {
 		var buf bytes.Buffer
-		require.NoError(t, writePCAPHeader(&buf, 256))
+		require.NoError(t, writePCAPHeader(&buf, maxSnapLen, layers.LinkTypeLinuxSLL))
 		assert.Equal(t, pcapFileHeaderSize, uint64(buf.Len()),
 			"pcapFileHeaderSize must equal the bytes writePCAPHeader emits")
+		assert.Equal(t, uint32(layers.LinkTypeLinuxSLL), binary.LittleEndian.Uint32(buf.Bytes()[20:24]),
+			"link type must be the one passed in")
 	})
 
 	t.Run("record header", func(t *testing.T) {
@@ -82,7 +86,7 @@ func TestMaxBytesAccounting(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			require.NoError(t, writePCAPHeader(&buf, 256))
+			require.NoError(t, writePCAPHeader(&buf, maxSnapLen, layers.LinkTypeLinuxSLL))
 			fileBytes := pcapFileHeaderSize
 
 			written := 0
@@ -117,7 +121,7 @@ func TestMaxBytesAccounting(t *testing.T) {
 // pcap, never a truncated one.
 func TestMaxBytesBelowFileHeader(t *testing.T) {
 	var buf bytes.Buffer
-	require.NoError(t, writePCAPHeader(&buf, 256))
+	require.NoError(t, writePCAPHeader(&buf, maxSnapLen, layers.LinkTypeLinuxSLL))
 
 	assert.Equal(t, pcapFileHeaderSize, uint64(buf.Len()))
 	assert.Greater(t, uint64(buf.Len()), pcapFileHeaderSize-1,
