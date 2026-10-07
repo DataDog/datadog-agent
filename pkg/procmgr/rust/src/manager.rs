@@ -269,8 +269,9 @@ impl ProcessManager {
         exit_tx: &mpsc::Sender<ExitEvent>,
     ) -> Result<StartResult, Status> {
         {
+            let procs = self.processes.read().await;
             let invalid = self.invalid.read().await;
-            if let Some(inv) = find_invalid(&invalid, name_or_uuid)? {
+            if let Some(inv) = find_invalid(&invalid, &procs, name_or_uuid)? {
                 return Err(Status::failed_precondition(format!(
                     "process '{}' has invalid config, cannot start: {}",
                     inv.name, inv.error
@@ -278,7 +279,9 @@ impl ProcessManager {
             }
         }
         let mut procs = self.processes.write().await;
-        let idx = resolve_index(&procs, name_or_uuid)?;
+        let invalid = self.invalid.read().await;
+        let idx = resolve_index(&procs, &invalid, name_or_uuid)?;
+        drop(invalid);
         let proc = &mut procs[idx];
 
         if proc.is_running() {
@@ -304,16 +307,15 @@ impl ProcessManager {
     pub(crate) async fn handle_stop(&self, name_or_uuid: &str) -> Result<StopResult, Status> {
         let (uuid, wait) = {
             let mut procs = self.processes.write().await;
-            {
-                let invalid = self.invalid.read().await;
-                if let Some(inv) = find_invalid(&invalid, name_or_uuid)? {
-                    return Err(Status::failed_precondition(format!(
-                        "process '{}' has invalid config, cannot stop",
-                        inv.name
-                    )));
-                }
+            let invalid = self.invalid.read().await;
+            if let Some(inv) = find_invalid(&invalid, &procs, name_or_uuid)? {
+                return Err(Status::failed_precondition(format!(
+                    "process '{}' has invalid config, cannot stop",
+                    inv.name
+                )));
             }
-            let idx = resolve_index(&procs, name_or_uuid)?;
+            let idx = resolve_index(&procs, &invalid, name_or_uuid)?;
+            drop(invalid);
             let proc = &mut procs[idx];
 
             if !proc.is_running() {
@@ -334,7 +336,9 @@ impl ProcessManager {
         // the list while the event loop is parked on this command, but only
         // the uuid says so at the point of use.
         let mut procs = self.processes.write().await;
-        let idx = resolve_index(&procs, &uuid)?;
+        let invalid = self.invalid.read().await;
+        let idx = resolve_index(&procs, &invalid, &uuid)?;
+        drop(invalid);
         let proc = &mut procs[idx];
         proc.finish_stop();
         let state = proc.state();
@@ -686,60 +690,83 @@ pub fn looks_like_uuid_prefix(s: &str) -> bool {
     s.len() >= 8 && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
 }
 
-fn resolve_by_uuid_prefix(procs: &[ManagedProcess], prefix: &str) -> Option<Result<usize, Status>> {
-    let mut matches: Vec<usize> = procs
+fn ambiguous_uuid_prefix(prefix: &str, matches: usize) -> Status {
+    Status::invalid_argument(format!(
+        "UUID prefix '{prefix}' is ambiguous ({matches} matches)"
+    ))
+}
+
+/// Count UUID-prefix hits across the whole catalog (valid and invalid rows).
+///
+/// Returns `None` when the prefix matches nothing, so callers can fall through
+/// to name lookup. A single hit yields that side's index; two or more hits
+/// (including one on each side) are ambiguous.
+fn resolve_uuid_prefix_across_catalog(
+    procs: &[ManagedProcess],
+    invalid: &[InvalidProcess],
+    prefix: &str,
+) -> Option<Result<(Option<usize>, Option<usize>), Status>> {
+    let proc_matches: Vec<usize> = procs
         .iter()
         .enumerate()
         .filter(|(_, p)| p.uuid().starts_with(prefix))
         .map(|(i, _)| i)
         .collect();
-    match matches.len() {
-        0 => None,
-        1 => Some(Ok(matches.remove(0))),
-        _ => Some(Err(Status::invalid_argument(format!(
-            "UUID prefix '{prefix}' is ambiguous ({} matches)",
-            matches.len()
-        )))),
-    }
-}
-
-fn resolve_invalid_by_uuid_prefix(
-    invalid: &[InvalidProcess],
-    prefix: &str,
-) -> Option<Result<usize, Status>> {
-    let mut matches: Vec<usize> = invalid
+    let inv_matches: Vec<usize> = invalid
         .iter()
         .enumerate()
         .filter(|(_, p)| p.uuid.starts_with(prefix))
         .map(|(i, _)| i)
         .collect();
-    match matches.len() {
+    let total = proc_matches.len() + inv_matches.len();
+    match total {
         0 => None,
-        1 => Some(Ok(matches.remove(0))),
-        _ => Some(Err(Status::invalid_argument(format!(
-            "UUID prefix '{prefix}' is ambiguous ({} matches)",
-            matches.len()
-        )))),
+        1 => Some(Ok((proc_matches.first().copied(), inv_matches.first().copied()))),
+        _ => Some(Err(ambiguous_uuid_prefix(prefix, total))),
     }
 }
 
 pub(crate) fn find_invalid<'a>(
     invalid: &'a [InvalidProcess],
+    procs: &[ManagedProcess],
     name_or_uuid: &str,
 ) -> Result<Option<&'a InvalidProcess>, Status> {
-    if looks_like_uuid_prefix(name_or_uuid)
-        && let Some(result) = resolve_invalid_by_uuid_prefix(invalid, name_or_uuid)
-    {
-        return Ok(Some(&invalid[result?]));
+    if looks_like_uuid_prefix(name_or_uuid) {
+        match resolve_uuid_prefix_across_catalog(procs, invalid, name_or_uuid) {
+            Some(Ok((_, Some(i)))) => return Ok(Some(&invalid[i])),
+            Some(Ok((_, None))) => {
+                // Exactly one valid process matched; this is not an invalid hit.
+                return Ok(None);
+            }
+            Some(Err(status)) => return Err(status),
+            None => {}
+        }
     }
     Ok(invalid.iter().find(|p| p.name == name_or_uuid))
 }
 
-fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, Status> {
-    if looks_like_uuid_prefix(name_or_uuid)
-        && let Some(result) = resolve_by_uuid_prefix(procs, name_or_uuid)
-    {
-        return result;
+fn resolve_index(
+    procs: &[ManagedProcess],
+    invalid: &[InvalidProcess],
+    name_or_uuid: &str,
+) -> Result<usize, Status> {
+    if looks_like_uuid_prefix(name_or_uuid) {
+        match resolve_uuid_prefix_across_catalog(procs, invalid, name_or_uuid) {
+            Some(Ok((Some(i), None))) => return Ok(i),
+            Some(Ok((None, Some(_)))) => {
+                // Caller should have short-circuited via find_invalid; treat as missing
+                // among managed processes so start/stop do not invent a row.
+                return Err(Status::not_found(format!(
+                    "process '{name_or_uuid}' not found"
+                )));
+            }
+            Some(Err(status)) => return Err(status),
+            None => {}
+            Some(Ok(_)) => {
+                // (None, None) and (Some, Some) are unreachable for total == 1 / Err.
+                return Err(ambiguous_uuid_prefix(name_or_uuid, 2));
+            }
+        }
     }
     procs
         .iter()
@@ -829,15 +856,56 @@ mod tests {
             mk("svc-b", "aabbccdd-2222-0000-0000-000000000000"),
         ];
 
-        let err = resolve_index(&procs, "aabbccdd").unwrap_err();
+        let err = resolve_index(&procs, &[], "aabbccdd").unwrap_err();
         assert_eq!(err.code(), tonic::Code::InvalidArgument);
         assert!(
             err.message().contains("ambiguous"),
             "error should mention ambiguity: {}",
             err.message()
         );
-        assert_eq!(resolve_index(&procs, "aabbccdd-1").unwrap(), 0);
-        assert_eq!(resolve_index(&procs, "aabbccdd-2").unwrap(), 1);
+        assert_eq!(resolve_index(&procs, &[], "aabbccdd-1").unwrap(), 0);
+        assert_eq!(resolve_index(&procs, &[], "aabbccdd-2").unwrap(), 1);
+    }
+
+    #[test]
+    fn test_uuid_prefix_ambiguous_across_valid_and_invalid() {
+        let proc = ManagedProcess::new_config(
+            "svc-a".to_string(),
+            "aabbccdd-1111-0000-0000-000000000000".to_string(),
+            test_helpers::make_config("true", vec![]),
+        );
+        let inv = InvalidProcess {
+            uuid: "aabbccdd-2222-0000-0000-000000000000".to_string(),
+            name: "svc-b".to_string(),
+            path: PathBuf::from("/tmp/svc-b.yaml"),
+            error: "parse failed".to_string(),
+        };
+        let procs = vec![proc];
+        let invalid = vec![inv];
+
+        let err = find_invalid(&invalid, &procs, "aabbccdd").unwrap_err();
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+        assert!(
+            err.message().contains("ambiguous"),
+            "shared prefix across catalog sides must be ambiguous: {}",
+            err.message()
+        );
+        assert!(
+            err.message().contains("2 matches"),
+            "error should count both sides: {}",
+            err.message()
+        );
+
+        let err = resolve_index(&procs, &invalid, "aabbccdd").unwrap_err();
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+
+        assert_eq!(
+            find_invalid(&invalid, &procs, "aabbccdd-2")
+                .unwrap()
+                .map(|e| e.name.as_str()),
+            Some("svc-b")
+        );
+        assert_eq!(resolve_index(&procs, &invalid, "aabbccdd-1").unwrap(), 0);
     }
 
     /// A child that ignores the graceful stop, so the stop runs for the whole

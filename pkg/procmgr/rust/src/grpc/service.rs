@@ -58,12 +58,12 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         let (mut detail, pid) = {
             let procs = self.mgr.processes().await;
             let invalid = self.mgr.invalid_configs().await;
-            if let Some(inv) = crate::manager::find_invalid(&invalid, &name_or_uuid)? {
+            if let Some(inv) = crate::manager::find_invalid(&invalid, &procs, &name_or_uuid)? {
                 return Ok(Response::new(proto::DescribeResponse {
                     detail: Some(invalid_detail_fields(inv)),
                 }));
             }
-            let proc = resolve_process(&procs, &name_or_uuid)?;
+            let proc = resolve_process(&procs, &invalid, &name_or_uuid)?;
             (process_detail_fields(proc), proc.pid())
         };
         detail.runtime_user = if let Some(pid) = pid.filter(|&p| p > 0) {
@@ -373,21 +373,29 @@ fn create_request_to_config(req: &proto::CreateRequest) -> Result<ProcessConfig,
 
 fn resolve_process<'a>(
     procs: &'a [ManagedProcess],
+    invalid: &[InvalidProcess],
     name_or_uuid: &str,
 ) -> Result<&'a ManagedProcess, Status> {
+    // UUID prefixes are resolved catalog-wide via find_invalid first; by the
+    // time we are here either the prefix is unique among managed processes or
+    // it matched nothing and we fall through to a name lookup.
     if crate::manager::looks_like_uuid_prefix(name_or_uuid) {
         let matches: Vec<&ManagedProcess> = procs
             .iter()
             .filter(|p| p.uuid().starts_with(name_or_uuid))
             .collect();
+        let invalid_hits = invalid
+            .iter()
+            .filter(|p| p.uuid.starts_with(name_or_uuid))
+            .count();
+        let total = matches.len() + invalid_hits;
+        if total > 1 {
+            return Err(Status::invalid_argument(format!(
+                "UUID prefix '{name_or_uuid}' is ambiguous ({total} matches)"
+            )));
+        }
         if matches.len() == 1 {
             return Ok(matches[0]);
-        }
-        if matches.len() > 1 {
-            return Err(Status::invalid_argument(format!(
-                "UUID prefix '{name_or_uuid}' is ambiguous ({} matches)",
-                matches.len()
-            )));
         }
     }
     procs
