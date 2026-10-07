@@ -9,11 +9,13 @@
 package tests
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -479,4 +481,66 @@ func profileHasSocket(p *profile.Profile, port uint16, bind bool) bool {
 		}
 		return false
 	})) > 0
+}
+
+// workloadProfileEventTypeByName returns the event type of workloadProfileEventTypes with the provided name
+func workloadProfileEventTypeByName(t *testing.T, name string) workloadProfileEventType {
+	t.Helper()
+	for _, et := range workloadProfileEventTypes() {
+		if et.name == name {
+			return et
+		}
+	}
+	t.Fatalf("unknown workload profile event type %s", name)
+	return workloadProfileEventType{}
+}
+
+// tagValues returns all the values of the tags with the provided name
+func tagValues(tags []string, name string) []string {
+	var values []string
+	for _, tag := range tags {
+		if value, found := strings.CutPrefix(tag, name+":"); found {
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
+// anomalySecurityProfileTags returns the tags of the security profile context of an anomaly detection event
+func anomalySecurityProfileTags(t *testing.T, anomaly workloadProfileAnomaly) []string {
+	t.Helper()
+	var payload struct {
+		SecurityProfile *struct {
+			Tags []string `json:"tags"`
+		} `json:"security_profile"`
+	}
+	if err := json.Unmarshal([]byte(anomaly.json), &payload); err != nil {
+		t.Fatalf("couldn't unmarshal the anomaly detection event: %v", err)
+	}
+	if payload.SecurityProfile == nil {
+		t.Fatalf("the anomaly detection event has no security profile context: %s", anomaly.json)
+	}
+	return payload.SecurityProfile.Tags
+}
+
+// startTwoImageTagsWorkload starts a v1 then a v2 container of the same image, runs the same exec in both, and
+// returns once the profile holds both versions
+func startTwoImageTagsWorkload(t *testing.T, test *testModule, tagger *FakeManualTagger, syscallTester string) (*dockerCmdWrapper, *dockerCmdWrapper, *profile.Profile) {
+	t.Helper()
+	execType := workloadProfileEventTypeByName(t, "exec")
+
+	image := newWorkloadProfileImage()
+	v1Instance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, image, "v1")
+	execType.trigger(t, v1Instance, "known")
+	v2Instance, _ := startWorkloadProfileContainer(t, test, tagger, syscallTester, image, "v2")
+	execType.trigger(t, v2Instance, "known")
+
+	p, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		versions := p.GetVersions()
+		return slices.Contains(versions, "v1") && slices.Contains(versions, "v2")
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v1Instance, v2Instance, p
 }

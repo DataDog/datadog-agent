@@ -494,6 +494,133 @@ func TestWorkloadProfileImageTags(t *testing.T) {
 	}
 }
 
+var _ = declareInlineConfig(TestWorkloadProfileVersionContextTags)
+
+func TestWorkloadProfileVersionContextTags(t *testing.T) {
+	skipIfNoWorkloadProfileEnv(t)
+
+	tagger := NewFakeManualTagger()
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(workloadProfileTestOpts(t.TempDir(), tagger)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	v1Instance, v2Instance, p := startTwoImageTagsWorkload(t, test, tagger, syscallTester)
+
+	for _, tc := range []struct {
+		tag      string
+		instance *dockerCmdWrapper
+		other    *dockerCmdWrapper
+	}{
+		{tag: "v1", instance: v1Instance, other: v2Instance},
+		{tag: "v2", instance: v2Instance, other: v1Instance},
+	} {
+		versionContext, ok := p.GetVersionContext(tc.tag)
+		if !assert.True(t, ok, "missing version context for tag %s", tc.tag) {
+			continue
+		}
+		assert.Equal(t, []string{tc.tag}, tagValues(versionContext.Tags, "image_tag"), "the version context of tag %s should hold its own image tag", tc.tag)
+		assert.NotContains(t, versionContext.Tags, "container_id:"+tc.other.containerID, "the version context of tag %s shouldn't hold the container id of a container of another tag", tc.tag)
+	}
+}
+
+var _ = declareInlineConfig(TestWorkloadProfileAnomalyTags)
+
+func TestWorkloadProfileAnomalyTags(t *testing.T) {
+	skipIfNoWorkloadProfileEnv(t)
+
+	tagger := NewFakeManualTagger()
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(workloadProfileTestOpts(t.TempDir(), tagger)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, et := range workloadProfileEventTypes() {
+		t.Run(et.name, func(t *testing.T) {
+			et.skipIfUnsupported(t)
+
+			image := newWorkloadProfileImage()
+			v1Instance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, image, "v1")
+			et.trigger(t, v1Instance, "known")
+			if _, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+				return et.hasNode(p, "known")
+			}); err != nil {
+				t.Fatal(err)
+			}
+
+			v2Instance, _ := startWorkloadProfileContainer(t, test, tagger, syscallTester, image, "v2")
+			anomalies := collectAnomalies(t, test, func() error {
+				et.trigger(t, v2Instance, "new")
+				return nil
+			}, v2Instance)
+
+			var found bool
+			for _, anomaly := range anomalies {
+				if anomaly.eventType != et.eventType || !et.matchAnomaly(anomaly, "new") {
+					continue
+				}
+				found = true
+				tags := anomalySecurityProfileTags(t, anomaly)
+				assert.Equal(t, []string{"v2"}, tagValues(tags, "image_tag"), "the %s anomaly of a v2 container should hold the v2 image tag", et.name)
+				assert.NotContains(t, tags, "container_id:"+v1Instance.containerID, "the %s anomaly of a v2 container shouldn't hold the container id of the v1 container", et.name)
+			}
+			assert.True(t, found, "the new %s activity of the v2 container should trigger an anomaly", et.name)
+		})
+	}
+}
+
+var _ = declareInlineConfig(TestWorkloadProfileTags)
+
+func TestWorkloadProfileTags(t *testing.T) {
+	skipIfNoWorkloadProfileEnv(t)
+
+	tagger := NewFakeManualTagger()
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(workloadProfileTestOpts(t.TempDir(), tagger)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	v1Instance, v2Instance, p := startTwoImageTagsWorkload(t, test, tagger, syscallTester)
+
+	m, err := getManagerV2(test)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// the profile format doesn't hold the tags of the profile, the live profile does and they are sent with it to the backend
+	live := m.GetProfile(*p.GetWorkloadSelector())
+	if live == nil {
+		t.Fatal("no live profile")
+	}
+	tags := live.GetTags()
+	if !assert.NotEmpty(t, tags, "the live profile should hold tags") {
+		return
+	}
+	if imageTags := tagValues(tags, "image_tag"); len(imageTags) > 0 {
+		assert.ElementsMatch(t, []string{"v1", "v2"}, imageTags, "the tags of a profile shared by several image tags shouldn't only hold the image tag of its first container")
+	}
+	if containerIDs := tagValues(tags, "container_id"); len(containerIDs) > 0 {
+		assert.ElementsMatch(t, []string{v1Instance.containerID, v2Instance.containerID}, containerIDs, "the tags of a profile shared by several containers shouldn't only hold the container id of its first container")
+	}
+}
+
 var _ = declareInlineConfig(TestWorkloadProfileSyscalls)
 
 func TestWorkloadProfileSyscalls(t *testing.T) {
