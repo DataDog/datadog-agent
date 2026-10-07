@@ -1,6 +1,7 @@
 load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
+load("@//bazel/toolchains/hermetic_llvm:windows_gnu.bzl", "windows_gnu_cc_library")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
@@ -262,6 +263,15 @@ configure_make(
 foreign_cc_shared_wrapper(
     name = "openssl_shared",
     input = ":openssl",
+)
+
+# Headers and import libraries for windows_x86_64_msvc consumers: OpenSSL only
+# builds with a GNU toolchain. The DLLs are :libcrypto_shared_file and
+# :libssl_shared_file built for //bazel/toolchains/hermetic_llvm:windows_x86_64_gnu.
+windows_gnu_cc_library(
+    name = "openssl_msvc",
+    tags = ["manual"],
+    deps = [":openssl"],
 )
 
 foreign_cc_shared_wrapper(
