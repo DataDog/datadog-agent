@@ -9,9 +9,6 @@
 # Evaluation only: Jev is NOT used to select the tests that run in this
 # pipeline, it only measures what it would have skipped.
 jev-dyntest-evaluate:
-  id_tokens:
-    CI_IDENTITIES_GITLAB_ID_TOKEN:
-      aud: ci-identities
   extends: .dd_octo_sts
   stage: dynamic_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
