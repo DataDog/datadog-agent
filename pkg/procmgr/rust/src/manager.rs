@@ -753,7 +753,10 @@ fn resolve_uuid_prefix_across_catalog(
     let total = proc_matches.len() + inv_matches.len();
     match total {
         0 => None,
-        1 => Some(Ok((proc_matches.first().copied(), inv_matches.first().copied()))),
+        1 => Some(Ok((
+            proc_matches.first().copied(),
+            inv_matches.first().copied(),
+        ))),
         _ => Some(Err(ambiguous_uuid_prefix(prefix, total))),
     }
 }
