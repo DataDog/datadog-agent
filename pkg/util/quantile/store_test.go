@@ -7,6 +7,7 @@ package quantile
 
 import (
 	"math"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -221,17 +222,185 @@ func TestCols(t *testing.T) {
 	}
 }
 
-// TestInsertCountsAboveMaxCount records what a count above Config.MaxCount()
-// costs: the count survives, but the sketch silently outgrows its bin budget.
+// binBudget is the most bins a store may hold: binLimit of them, plus the full
+// ones trimLeft cannot fold, which unitCapacity keeps to binLimit+1.
+func binBudget(c *Config) int {
+	return 2*c.binLimit + 1
+}
+
+// keyUnits returns the units the bins of a store hold for each key, in key order.
+func keyUnits(bins []bin) (keys []Key, units []uint64) {
+	for _, b := range bins {
+		if len(keys) == 0 || keys[len(keys)-1] != b.k {
+			keys = append(keys, b.k)
+			units = append(units, 0)
+		}
+		units[len(units)-1] += uint64(b.n)
+	}
+	return keys, units
+}
+
+// TestInsertCountsAboveMaxCount checks that the bins count up to Config.MaxCount()
+// observations exactly, and scale down past it rather than outgrow the binLimit
+// budget.
 func TestInsertCountsAboveMaxCount(t *testing.T) {
 	c := Default()
 	require.Equal(t, defaultBinLimit*math.MaxUint16, c.MaxCount())
 
-	n := c.MaxCount() + 1
-	s := &sparseStore{}
-	s.insertCounts(c, []KeyCount{{k: 42, n: uint(n)}})
+	t.Run("at MaxCount", func(t *testing.T) {
+		n := c.MaxCount()
+		s := &sparseStore{}
+		s.insertCounts(c, []KeyCount{{k: 42, n: uint(n)}})
 
-	assert.Equal(t, n, s.count)
-	assert.Equal(t, n, s.bins.nSum(), "trimLeft preserves the inserted count")
-	assert.Greater(t, len(s.bins), c.binLimit, "the sketch outgrows its binLimit budget")
+		assert.Zero(t, s.shift)
+		assert.Equal(t, n, s.count)
+		assert.Equal(t, n, s.bins.nSum())
+		assert.Len(t, s.bins, c.binLimit)
+	})
+
+	t.Run("past MaxCount", func(t *testing.T) {
+		n := c.MaxCount() + 1
+		s := &sparseStore{}
+		s.insertCounts(c, []KeyCount{{k: 42, n: uint(n)}})
+
+		// Halved, rounding to the nearest unit.
+		assert.Equal(t, uint(1), s.shift)
+		assert.Equal(t, (n+1)/2, s.count)
+		assert.Equal(t, s.count, s.bins.nSum())
+		assert.LessOrEqual(t, len(s.bins), c.binLimit)
+	})
+}
+
+// TestInsertCountsScaledRanks checks that scaling keeps the share of the
+// observations up to each key, which quantiles are made of, within a unit.
+func TestInsertCountsScaledRanks(t *testing.T) {
+	c := Default()
+
+	var (
+		kcs   []KeyCount
+		total uint64
+	)
+	for i := 1; i <= 1000; i++ {
+		// Uneven counts, so that units hold different remainders. They stay
+		// within a 32-bit uint, but add up to ~2.4e12: a shift of 14.
+		n := 2_200_000_000 + uint64(i*i%9973)*40_000
+		kcs = append(kcs, KeyCount{k: Key(i), n: uint(n)})
+		total += n
+	}
+
+	s := &sparseStore{}
+	s.insertCounts(c, slices.Clone(kcs))
+
+	require.Equal(t, uint(14), s.shift)
+	require.Equal(t, s.count, s.bins.nSum())
+	// Otherwise trimLeft moves observations to higher keys, scaled or not.
+	require.LessOrEqual(t, len(s.bins), c.binLimit, "the bins must not be trimmed")
+
+	keys, units := keyUnits(s.bins)
+	require.Len(t, keys, len(kcs))
+
+	var exact, scaled uint64
+	for i, kc := range kcs {
+		require.Equal(t, kc.k, keys[i])
+		exact += uint64(kc.n)
+		scaled += units[i]
+		require.InDelta(t, float64(exact)/float64(total), float64(scaled)/float64(s.count),
+			1/float64(s.count), "share of the observations up to key %d", kc.k)
+	}
+}
+
+// TestInsertCountsExtremeCounts checks that counts adding up past a uint64 do
+// not overflow.
+func TestInsertCountsExtremeCounts(t *testing.T) {
+	c := Default()
+	s := &sparseStore{}
+	s.insertCounts(c, []KeyCount{{k: 1, n: math.MaxUint}, {k: 2, n: math.MaxUint}, {k: 3, n: math.MaxUint}})
+
+	require.Equal(t, s.count, s.bins.nSum())
+	require.LessOrEqual(t, uint64(s.count), uint64(c.MaxCount()))
+	require.LessOrEqual(t, len(s.bins), binBudget(c))
+
+	keys, units := keyUnits(s.bins)
+	require.Equal(t, []Key{1, 2, 3}, keys)
+	for _, u := range units {
+		require.InDelta(t, 1.0/3, float64(u)/float64(s.count), 1e-6)
+	}
+}
+
+// TestInsertPastMaxCount checks that the keys pushing a store past
+// Config.MaxCount(), and the ones inserted once it is scaled, are scaled too.
+func TestInsertPastMaxCount(t *testing.T) {
+	c := Default()
+	s := &sparseStore{}
+	s.insertCounts(c, []KeyCount{{k: 1, n: uint(c.MaxCount())}})
+	require.Zero(t, s.shift)
+
+	keys := make([]Key, 512)
+	for i := range keys {
+		keys[i] = 2
+	}
+	s.insert(c, slices.Clone(keys))
+
+	require.Equal(t, uint(1), s.shift)
+	require.Equal(t, s.count, s.bins.nSum())
+	require.LessOrEqual(t, len(s.bins), binBudget(c))
+	_, units := keyUnits(s.bins)
+	require.Equal(t, []uint64{uint64(c.MaxCount()) / 2, 256}, units)
+
+	s.insert(c, keys)
+
+	require.Equal(t, uint(1), s.shift)
+	require.Equal(t, s.count, s.bins.nSum())
+	_, units = keyUnits(s.bins)
+	require.Equal(t, []uint64{uint64(c.MaxCount()) / 2, 512}, units)
+}
+
+// TestMergeScaled checks that merge brings both stores to a common shift, enough
+// for the observations of both, without mutating the merged one.
+func TestMergeScaled(t *testing.T) {
+	c := Default()
+
+	for _, tt := range []struct {
+		name      string
+		s, o      uint
+		wantShift uint
+	}{
+		// 3e9/2^4 and 1e9/2^2 units: o is rescaled to s.
+		{name: "o to s", s: 3e9, o: 1e9, wantShift: 4},
+		// Same as above, the other way around.
+		{name: "s to o", s: 1e9, o: 3e9, wantShift: 4},
+		// 2e9/2^3 units each: both need rescaling.
+		{name: "both", s: 2e9, o: 2e9, wantShift: 4},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s, o := &sparseStore{}, &sparseStore{}
+			s.insertCounts(c, []KeyCount{{k: 1, n: tt.s}})
+			o.insertCounts(c, []KeyCount{{k: 2, n: tt.o}})
+			oBefore := sparseStore{bins: slices.Clone(o.bins), count: o.count, shift: o.shift}
+
+			s.merge(c, o)
+
+			require.Equal(t, oBefore, *o, "o must not be mutated")
+			require.Equal(t, tt.wantShift, s.shift)
+			require.Equal(t, s.count, s.bins.nSum())
+			require.LessOrEqual(t, len(s.bins), binBudget(c))
+
+			keys, units := keyUnits(s.bins)
+			require.Equal(t, []Key{1, 2}, keys)
+			require.InDelta(t, float64(tt.s)/float64(tt.s+tt.o), float64(units[0])/float64(s.count), 1e-6)
+		})
+	}
+}
+
+func TestColsScaled(t *testing.T) {
+	s := buildStore(t, "0:1 1:max")
+
+	s.shift = 3
+	_, n := s.Cols()
+	assert.Equal(t, []uint32{8, math.MaxUint16 * 8}, n)
+
+	// Past maxColsShift, the counts still fit a uint32.
+	s.shift = 40
+	_, n = s.Cols()
+	assert.Equal(t, []uint32{1 << 16, math.MaxUint16 << 16}, n)
 }

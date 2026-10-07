@@ -7,6 +7,8 @@ package quantile
 
 import (
 	"math"
+	"math/bits"
+	"runtime"
 	"testing"
 	"time"
 	"unsafe"
@@ -276,10 +278,11 @@ func TestAgentInterpolationBoundedKeys(t *testing.T) {
 	}
 }
 
-// TestAgentInsertSampleRateExpandsBins covers the dogstatsd side: a @rate becomes
-// a count of 1/sampleRate, which appendSafe expands into bins. Rates below
-// ~1.1e-19 would prove nothing, as the float-to-uint conversion saturates.
-func TestAgentInsertSampleRateExpandsBins(t *testing.T) {
+// TestAgentInsertSampleRateBoundsBins covers the dogstatsd side: a @rate becomes
+// a count of 1/sampleRate, which the sketch scales down past Config.MaxCount()
+// rather than give a bin per 65535 of it. Rates below ~1.1e-19 would prove
+// nothing, as the float-to-uint conversion saturates.
+func TestAgentInsertSampleRateBoundsBins(t *testing.T) {
 	// A variable, not a constant: Insert truncates 1/sampleRate in float64, giving
 	// 999999999 here, which exact constant arithmetic would hide.
 	sampleRate := 1e-9
@@ -288,6 +291,92 @@ func TestAgentInsertSampleRateExpandsBins(t *testing.T) {
 	a.Insert(1, sampleRate)
 
 	require.Equal(t, int64(1/sampleRate), a.Sketch.Basic.Cnt)
-	require.Greater(t, len(a.Sketch.bins), Default().binLimit,
-		"a single sample expanded past the binLimit budget")
+	require.LessOrEqual(t, len(a.Sketch.bins), Default().binLimit,
+		"a single sample stays within the binLimit budget")
+}
+
+// TestAgentInsertInterpolateHugeCountBoundedMemory inserts a single bucket holding
+// far more than Config.MaxCount() observations, like the delta of the GPU NVLink
+// FEC histogram from the NVML mock. Neither what the insert allocates nor what the
+// sketch keeps may grow with the count, and the count and quantiles must survive.
+func TestAgentInsertInterpolateHugeCountBoundedMemory(t *testing.T) {
+	if bits.UintSize < 64 {
+		t.Skip("the count does not fit in a 32-bit uint")
+	}
+
+	const (
+		// One bin list at the default binLimit takes 16 KiB. Holding the count at
+		// one bin per 65535 observations would take ~83 MiB instead.
+		budget = 1 << 20
+	)
+	// A variable, so that the uint conversion below compiles on 32-bit targets.
+	var count uint64 = 1_420_000_000_000
+
+	a := &Agent{}
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	err := a.InsertInterpolate(0, 0, uint(count))
+	runtime.ReadMemStats(&after)
+	require.NoError(t, err)
+
+	require.LessOrEqual(t, after.TotalAlloc-before.TotalAlloc, uint64(budget),
+		"bytes allocated by the insert")
+	_, retained := a.Sketch.MemSize()
+	require.LessOrEqual(t, retained, budget, "bytes retained by the sketch")
+
+	require.Equal(t, int64(count), a.Sketch.Basic.Cnt)
+	_, n := a.Sketch.Cols()
+	var binTotal uint64
+	for _, v := range n {
+		binTotal += uint64(v)
+	}
+	require.InEpsilon(t, count, binTotal, 1e-6, "observations reported in the bins")
+
+	for _, q := range []float64{0.01, 0.5, 0.99} {
+		require.Zero(t, a.Sketch.Quantile(Default(), q), "quantile %v", q)
+	}
+}
+
+// TestAgentInsertInterpolateHugeCountsKeepShares inserts the buckets of a
+// histogram one at a time, as the check sampler does. Once the sketch is scaled,
+// later buckets must be scaled alike rather than outweigh the earlier ones.
+func TestAgentInsertInterpolateHugeCountsKeepShares(t *testing.T) {
+	if bits.UintSize < 64 {
+		t.Skip("the counts do not fit in a 32-bit uint")
+	}
+
+	// A quarter of the observations at 1000, the rest at 1.
+	var low, high uint64 = 3e12, 1e12
+	c := Default()
+
+	a := &Agent{}
+	require.NoError(t, a.InsertInterpolate(1, 1, uint(low)))
+	require.NoError(t, a.InsertInterpolate(1000, 1000, uint(high)))
+
+	require.Equal(t, int64(low+high), a.Sketch.Basic.Cnt)
+	require.Equal(t, a.Sketch.count, a.Sketch.bins.nSum())
+	require.LessOrEqual(t, len(a.Sketch.bins), binBudget(c))
+
+	// Quantile interpolates within a bin, which is ~1.6% wide and starts up to
+	// half of that away from the value.
+	const binErr = 0.03
+	require.InEpsilon(t, 1, a.Sketch.Quantile(c, 0.74), binErr)
+	require.InEpsilon(t, 1000, a.Sketch.Quantile(c, 0.76), binErr)
+
+	// Copies keep the scale of the bins along with them.
+	cp := a.Finish()
+	require.True(t, a.Sketch.Equals(cp))
+	require.Equal(t, a.Sketch, *cp)
+
+	// So does the regular insert path, which goes through insertCounts once the
+	// sketch is scaled.
+	shift := a.Sketch.shift
+	for i := 0; i < 4*agentBufCap; i++ {
+		a.Insert(1000, 1)
+	}
+	require.Empty(t, a.Buf, "the inserts must have been flushed")
+	require.Equal(t, int64(low+high+4*agentBufCap), a.Sketch.Basic.Cnt)
+	require.Equal(t, shift, a.Sketch.shift)
+	require.Equal(t, a.Sketch.count, a.Sketch.bins.nSum())
+	require.InEpsilon(t, 1, a.Sketch.Quantile(c, 0.74), binErr)
 }
