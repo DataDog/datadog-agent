@@ -54,6 +54,21 @@ func (h *harness) restart() *harness {
 	h.t.Helper()
 	h.stop()
 	h.commitOffsets()
+	return h.relaunch()
+}
+
+// crash is restart after an Agent crash: nothing the scanner sent since the
+// last commitOffsets was delivered, so none of it is committed.
+func (h *harness) crash() *harness {
+	h.t.Helper()
+	h.stop()
+	return h.relaunch()
+}
+
+// relaunch returns a new launcher's scanner of h's source configuration on
+// the same share and registry, whose messages go to the same collector.
+func (h *harness) relaunch() *harness {
+	h.t.Helper()
 	l := newTestLauncher(h.share, h.clock)
 	l.pipelineProvider = h.launcher.pipelineProvider
 	l.registry = h.registry
@@ -76,15 +91,44 @@ func (h *harness) restart() *harness {
 	return next
 }
 
+// refresh replaces the scanner with a scanner of the same source
+// configuration that continues its work, as Launcher.replace does when a
+// secret refresh configures the source again, and returns it. Its messages go
+// to the same collector.
+func (h *harness) refresh() *harness {
+	h.t.Helper()
+	source := sources.NewLogSource(h.source.Name, h.source.Config)
+	key, c := h.launcher.acquireClient(source.Config.SMB)
+	s, err := newScanner(h.launcher, source, c, key)
+	require.NoError(h.t, err)
+	h.stop()
+	s.resumeFrom(h.scanner)
+	next := &harness{
+		t:        h.t,
+		share:    h.share,
+		clock:    h.clock,
+		launcher: h.launcher,
+		registry: h.registry,
+		source:   source,
+		scanner:  s,
+		out:      h.out,
+		ctx:      h.ctx,
+	}
+	h.t.Cleanup(next.stop)
+	return next
+}
+
 // rotateWithLockedDrain rotates app/app.log right after "line 3" was appended
 // to it, while the rotated file is locked: the scan that sees the rotation
 // knows line 3 is there but cannot read it, so the drain still holds it.
-// It returns the FileIds of the old and new files.
+// Lines 1 and 2 were delivered and committed before the rotation. It returns
+// the FileIds of the old and new files.
 func rotateWithLockedDrain(t *testing.T, h *harness) (oldID, newID uint64) {
 	t.Helper()
 	oldID = h.share.Write("app/app.log", []byte(lines(1, 2)))
 	h.scan()
 	h.out.waitLines(t, 2)
+	h.commitOffsets()
 	h.share.Append("app/app.log", []byte(lines(3, 3)))
 	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
 	newID = h.share.Write("app/app.log", []byte(lines(4, 4)))
@@ -113,6 +157,135 @@ func TestRestartMidDrainResumesThePathsNewFile(t *testing.T) {
 	restarted.scan()
 	assert.Equal(t, []string{"line 1", "line 2", "line 4", "line 5"}, restarted.finish(),
 		"the new file resumes where it stopped, and the rotated file, which the pattern does not match, is not read again")
+}
+
+// TestRestartMidDrainResumesARotatedFileMatchedByThePattern covers a pattern
+// that matches the rotated name too. The rotated file's path gets its own
+// tailer only when the drain ends and hands it over; until then, the drain
+// commits its offsets under that path's identifier, starting with where the
+// file stood when it rotated, so a restart before the handoff resumes the
+// file there, whatever start_position says.
+func TestRestartMidDrainResumesARotatedFileMatchedByThePattern(t *testing.T) {
+	for _, mode := range []string{"beginning", "end"} {
+		t.Run("start_position "+mode, func(t *testing.T) {
+			h := newHarness(t, withPath("app/*"), withStartPosition(mode))
+			h.scan() // before app.log is created: it is read from the beginning
+			rotateWithLockedDrain(t, h)
+			require.Nil(t, h.scanner.active["app/app.log.1"], "app.log.1 waits for the drain")
+			assert.Equal(t, identifier("app/app.log.1"), h.scanner.draining[0].t.CommitIdentifier())
+			rotated := h.fileOf("app/app.log.1")
+
+			restarted := h.restart()
+			assert.Equal(t, tailer.EncodeOffset(rotated, int64(len(lines(1, 2)))), h.registry.GetOffset(identifier("app/app.log.1")),
+				"the drain recorded where the rotated file stood under its new name")
+			restarted.scan()
+			assert.ElementsMatch(t, want(1, 4), restarted.finish(), "each line once")
+		})
+	}
+}
+
+// TestDrainCommitsUnderTheMatchedPathItSitsAt follows the offsets a drain
+// commits: under the identifier of the matched path its file is renamed to,
+// none once the file is renamed to a name the pattern does not match, and
+// again under the next matched name.
+func TestDrainCommitsUnderTheMatchedPathItSitsAt(t *testing.T) {
+	h := newHarness(t, withPath("app/app.log*"), withExcludes("app/*.tmp"))
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	h.out.waitLines(t, 1)
+	h.commitOffsets()
+
+	// The rotated file keeps growing, so the drain goes on.
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", nil)
+	h.share.Append("app/app.log.1", []byte(lines(2, 2)))
+	h.scan()
+	h.out.waitLines(t, 2)
+	require.Len(t, h.scanner.draining, 1)
+	drain := h.scanner.draining[0].t
+	assert.Equal(t, identifier("app/app.log.1"), drain.CommitIdentifier())
+	assert.True(t, h.registry.TailedSources[identifier("app/app.log.1")])
+
+	require.NoError(t, h.share.Rename("app/app.log.1", "app/app.log.1.tmp"))
+	h.share.Append("app/app.log.1.tmp", []byte(lines(3, 3)))
+	h.scan()
+	h.out.waitLines(t, 3)
+	assert.Empty(t, drain.CommitIdentifier(), "the excluded name is not tailed: nothing commits there")
+	assert.False(t, h.registry.TailedSources[identifier("app/app.log.1")])
+
+	require.NoError(t, h.share.Rename("app/app.log.1.tmp", "app/app.log.2"))
+	h.share.Append("app/app.log.2", []byte(lines(4, 4)))
+	h.scan()
+	assert.Equal(t, identifier("app/app.log.2"), drain.CommitIdentifier())
+
+	h.out.waitLines(t, 4)
+	h.out.flush()
+	file := h.fileOf("app/app.log.2")
+	var commits []string
+	for _, msg := range h.out.messages() {
+		commits = append(commits, string(msg.GetContent())+" @ "+msg.Origin.Identifier+" "+msg.Origin.Offset)
+	}
+	assert.Equal(t, []string{
+		"line 1 @ " + identifier("app/app.log") + " " + tailer.EncodeOffset(file, int64(len(lines(1, 1)))),
+		"line 2 @ " + identifier("app/app.log.1") + " " + tailer.EncodeOffset(file, int64(len(lines(1, 2)))),
+		"line 3 @  ",
+		"line 4 @ " + identifier("app/app.log.2") + " " + tailer.EncodeOffset(file, int64(len(lines(1, 4)))),
+	}, commits)
+	assert.Equal(t, tailer.EncodeOffset(file, int64(len(lines(1, 1)))), h.registry.GetOffset(identifier("app/app.log.2")),
+		"the drain records under a new name what was committed for its file, never what was only read")
+	assert.Equal(t, want(1, 4), h.finish())
+}
+
+// TestDrainAfterAResumeRecordsOnlyWhatWasDelivered chains a drain, the tailer
+// that resumes its file where the drain ended, and that tailer's own drain
+// after the file is renamed again. The second drain records under its new
+// path the offset delivered for the file, not the one the first drain read up
+// to: when the Agent crashes before the first drain's line is delivered, the
+// restarted Agent sends that line again instead of losing it.
+func TestDrainAfterAResumeRecordsOnlyWhatWasDelivered(t *testing.T) {
+	for _, delivered := range []bool{false, true} {
+		t.Run(fmt.Sprintf("line 2 delivered %t", delivered), func(t *testing.T) {
+			h := newHarness(t, withPath("app/app.log*"))
+			h.share.Write("app/app.log", []byte(lines(1, 1)))
+			h.scan()
+			h.out.waitLines(t, 1)
+			h.commitOffsets()
+
+			h.share.Append("app/app.log", []byte(lines(2, 2)))
+			require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+			h.share.Write("app/app.log", nil)
+			for range 4 {
+				h.scan() // the drain reads line 2 and ends; app.log.1's tailer resumes the file after it
+			}
+			require.Empty(t, h.scanner.draining)
+			require.EqualValues(t, len(lines(1, 2)), h.activeTailer("app/app.log.1").Offset())
+			h.out.waitLines(t, 2)
+			if delivered {
+				h.commitOffsets()
+			}
+
+			require.NoError(t, h.share.Rename("app/app.log.1", "app/app.log.2"))
+			h.scan()
+			require.Len(t, h.scanner.draining, 1)
+			require.Equal(t, identifier("app/app.log.2"), h.scanner.draining[0].t.CommitIdentifier())
+			committed := lines(1, 1)
+			if delivered {
+				committed = lines(1, 2)
+			}
+			assert.Equal(t, tailer.EncodeOffset(h.fileOf("app/app.log.2"), int64(len(committed))), h.registry.GetOffset(identifier("app/app.log.2")),
+				"the drain records what was delivered of its file, not what was read")
+
+			restarted := h.crash()
+			sent := len(h.out.lines())
+			restarted.scan()
+			again := restarted.finish()[sent:]
+			if delivered {
+				assert.Empty(t, again)
+			} else {
+				assert.Equal(t, []string{"line 2"}, again, "the line that was not delivered is sent again")
+			}
+		})
+	}
 }
 
 // TestRestartSpanningARotation rotates a file while the Agent is down: the
@@ -248,6 +421,85 @@ func TestRestartSpanningARotationToAMatchedNameAtTheEndOfTheFile(t *testing.T) {
 			assert.ElementsMatch(t, want(1, 4), again.finish(), "each line once")
 		})
 	}
+}
+
+// TestSecretRefreshKeepsThePathsADrainCommittedUnder is
+// TestPathADrainCommittedUnderIsNotResumedFromItsRegistryOffset with a secret
+// refresh after the drain ended: the new scanner does not take the offset the
+// replaced scanner's drain recorded under app.log.1 for a position from before
+// it started either. The first file, which the drain read to its end, is not
+// read again when app.log.1 receives the next rotated file.
+func TestSecretRefreshKeepsThePathsADrainCommittedUnder(t *testing.T) {
+	h := newHarness(t, withPath("app/app.log*"), withExcludes("app/app.log.2"))
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	h.out.waitLines(t, 1)
+	h.commitOffsets()
+
+	logs := captureLogs(t, func() {
+		h.share.Append("app/app.log", []byte(lines(2, 2)))
+		require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+		h.share.Write("app/app.log", []byte(lines(3, 3)))
+		h.scan()
+		require.Len(t, h.scanner.draining, 1)
+		require.Equal(t, identifier("app/app.log.1"), h.scanner.draining[0].t.CommitIdentifier())
+
+		require.NoError(t, h.share.Rename("app/app.log.1", "app/app.log.2"))
+		h.scan()
+		for i := 0; len(h.scanner.draining) > 0 && i < 5; i++ {
+			h.clock.Add(closeTimeout)
+			h.scan() // the drain ends at app.log.2, which the source excludes
+		}
+		require.Empty(t, h.scanner.draining)
+		require.NotEmpty(t, h.registry.GetOffset(identifier("app/app.log.1")), "the drain committed under app.log.1")
+
+		h = h.refresh()
+		h.scan()
+		require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+		h.share.Write("app/app.log", []byte(lines(4, 4)))
+		for range 4 {
+			h.scan()
+		}
+	})
+	assert.ElementsMatch(t, want(1, 4), h.out.waitLines(t, 4))
+	assert.ElementsMatch(t, want(1, 4), h.finish(), "each line is sent once")
+	assert.NotContains(t, logs, "while it was not tailed")
+}
+
+// TestSecretRefreshMidDrainUnderAMatchedName replaces the scanner, as after a
+// secret refresh, while a drain commits its offsets under the matched name its
+// file sits at, then rotates the files again before the new scanner's first
+// scan: the drained file leaves that name for one the source excludes. The new
+// scanner still reads the rest of the drained file, and each line is sent
+// once.
+func TestSecretRefreshMidDrainUnderAMatchedName(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t, withPath("app/app.log*"), withExcludes("app/app.log.2"))
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	h.out.waitLines(t, 1)
+	h.commitOffsets()
+	// The rotated file is locked: its drain still has line 2 to read.
+	h.share.Append("app/app.log", []byte(lines(2, 2)))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", []byte(lines(3, 3)))
+	h.share.FailNextPath(fake.OpReadAt, "app/app.log.1", fake.ErrSharing)
+	h.scan()
+	h.out.waitLines(t, 2)
+	require.Len(t, h.scanner.draining, 1)
+	require.Equal(t, identifier("app/app.log.1"), h.scanner.draining[0].t.CommitIdentifier())
+	h.commitOffsets()
+
+	refreshed := h.refresh()
+	require.NoError(t, refreshed.share.Rename("app/app.log.1", "app/app.log.2"))
+	require.NoError(t, refreshed.share.Rename("app/app.log", "app/app.log.1"))
+	refreshed.share.Write("app/app.log", []byte(lines(4, 4)))
+	refreshed.scan()
+	refreshed.scan()
+	assert.ElementsMatch(t, want(1, 4), refreshed.out.waitLines(t, 4))
+	assert.ElementsMatch(t, want(1, 4), refreshed.finish(), "each line is sent once")
+	assert.Empty(t, metrics.MissedBytesSnapshot())
 }
 
 // TestSecretRefreshSpanningARotation replaces a source, as after a secret

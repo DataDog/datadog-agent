@@ -165,7 +165,7 @@ type TailerOptions struct {
 // identifier and offset, and sends them to the pipeline.
 //
 // Poll and the methods that change the read state (Start, StartDraining,
-// SetReadPath) must be called from a single goroutine.
+// SetReadPath, CommitTo) must be called from a single goroutine.
 type Tailer struct {
 	source     *sources.ReplaceableSource
 	client     client.Client
@@ -186,10 +186,12 @@ type Tailer struct {
 	// or a read. Bytes between offset and lastSeenSize exist but were not
 	// read; they are lost if the tailer stops before reading them.
 	lastSeenSize *atomic.Int64
-	// draining is set once the tailer only finishes a rotated file: its
-	// messages no longer commit offsets, since the identifier belongs to the
-	// path's new file.
+	// draining is set once the tailer only finishes a rotated file.
 	draining *atomic.Bool
+	// commitTo is the identifier the tailer's messages commit their offsets
+	// under: its own, or, while draining, none ("") since its identifier
+	// belongs to the path's new file, or the one CommitTo set.
+	commitTo *atomic.String
 
 	// Read state, owned by the goroutine calling Poll.
 	lastListedSize int64 // size from the previous listing, -1 before the first one
@@ -264,6 +266,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	if path.Dir(opts.Path) == "." { // a file at the share root
 		dir = strings.TrimSuffix(Identifier(opts.Host, opts.Share, ""), "/")
 	}
+	t.commitTo = atomic.NewString(t.identifier)
 	t.tags = []string{
 		"filename:" + path.Base(opts.Path),
 		"dirname:" + dir,
@@ -308,12 +311,13 @@ func (t *Tailer) Stop() {
 // StartDraining turns the tailer into the drain of a rotated file: Poll then
 // reads on every call, ignoring listing sizes, and its messages stop committing
 // offsets under the path's identifier, which now belongs to the path's new
-// file. GetID changes too, so a tailer container holding the tailer must
-// remove it before this call.
+// file (see CommitTo). GetID changes too, so a tailer container holding the
+// tailer must remove it before this call.
 func (t *Tailer) StartDraining() {
 	if t.draining.Swap(true) {
 		return
 	}
+	t.commitTo.Store("")
 	draining := status.NewMappedInfo("Draining Since")
 	draining.SetMessage("Draining Since", time.Now().UTC().Format("2006-01-02 15:04:05 UTC"))
 	t.info.Register(draining)
@@ -322,6 +326,20 @@ func (t *Tailer) StartDraining() {
 // IsDraining reports whether StartDraining was called.
 func (t *Tailer) IsDraining() bool {
 	return t.draining.Load()
+}
+
+// CommitTo makes the messages of a draining tailer commit their offsets under
+// identifier, or under none when it is "". The launcher points it at the
+// identifier of the path the drained file sits at, when no other tailer
+// commits there, so that an Agent restart resumes the file there.
+func (t *Tailer) CommitTo(identifier string) {
+	t.commitTo.Store(identifier)
+}
+
+// CommitIdentifier returns the identifier the tailer's messages commit their
+// offsets under, "" for none.
+func (t *Tailer) CommitIdentifier() string {
+	return t.commitTo.Load()
 }
 
 // SetReadPath points a draining tailer at the name its file was renamed to.
@@ -477,11 +495,12 @@ func (t *Tailer) forwardMessages() {
 		metrics.TlmLogLineSizes.Observe(float64(output.RawDataLen))
 
 		origin := message.NewOrigin(t.source.UnderlyingSource())
-		// A draining tailer reads a file that no longer owns the identifier:
-		// committing its offsets would move the new file's offset backwards
-		// or forwards, so its messages carry none (as for rotated file tailers).
-		if !t.draining.Load() {
-			origin.Identifier = t.identifier
+		// A draining tailer reads a file that no longer owns the tailer's
+		// identifier: committing its offsets there would move the new file's
+		// offset backwards or forwards, so its messages carry none (as for
+		// rotated file tailers), unless CommitTo gave it another identifier.
+		if id := t.commitTo.Load(); id != "" {
+			origin.Identifier = id
 			origin.Offset = EncodeOffset(t.Identity(), offset)
 		}
 		tags := make([]string, 0, len(t.tags)+len(output.ParsingExtra.Tags))

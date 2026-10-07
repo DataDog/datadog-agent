@@ -47,8 +47,10 @@ import (
 // closeTimeout elapses, or when its file is no longer listed; bytes known to
 // exist but not read are then reported as missed, unless the file sits at a
 // path the pattern matches: the file's next tailer then resumes where the
-// drain ended, whatever name the file has by the time it starts. While a
-// drain lasts, agent status lists it next to the path's new tailer.
+// drain ended, whatever name the file has by the time it starts. Until then,
+// the drain commits its offsets under the identifier of that path, so that an
+// Agent restart resumes the file there too (see commitDrainAt). While a drain
+// lasts, agent status lists it next to the path's new tailer.
 //
 // A path tailed for the first time can hold another file than its stored
 // position names (where the scanner this one replaces stopped reading it, or
@@ -79,9 +81,11 @@ type scanner struct {
 	done   chan struct{}
 
 	active    map[string]*tailer.Tailer // by path
+	committed map[string]int64          // by path: the committed offset of each active tailer's file when it started (see handoff.committed)
 	draining  []*drain
 	stopping  sync.WaitGroup            // drains being stopped
-	fromStart map[string]bool           // paths whose next tailer reads from offset 0
+	fromStart map[string]bool           // paths this scanner read from with a tailer, with no active tailer now: their next tailer reads from offset 0, unless it resumes a file (see startPosition)
+	drainedAt map[string]bool           // paths a drain committed its offsets under, with no tailer since: their registry offset is no position from before this scanner started (see commitDrainAt)
 	resume    map[uint64]handoff        // files a drain finished reading, by FileId: the file's next tailer resumes there, whatever its path
 	inherited map[string]handoff        // where the tailers of the scanner this one replaces stopped, by path (see resumeFrom)
 	patterns  map[string]*regexp.Regexp // multiline patterns of the paths' previous tailers
@@ -101,7 +105,13 @@ type scanner struct {
 type drain struct {
 	t        *tailer.Tailer
 	deadline time.Time
-	caughtUp int // consecutive polls that found no new data
+	caughtUp int    // consecutive polls that found no new data
+	commitAt string // path whose identifier the drain commits its offsets under, "" for none (see commitDrainAt)
+	// committed is an offset of the file the registry can hold for it without
+	// skipping a byte that was not delivered: the offset last committed for
+	// the file before it rotated, or the committed offset its tailer started
+	// with.
+	committed int64
 }
 
 // handoff is where the scanner stopped reading a file: the file's next tailer
@@ -110,6 +120,12 @@ type handoff struct {
 	file   client.Identity
 	offset int64
 	size   int64 // the largest size seen for the file, 0 when unknown: the bytes past offset were not read
+	// committed is an offset of the file, at most offset, up to which every
+	// byte was delivered as far as the scanner knew when it stored the
+	// handoff: the bytes up to offset were read, but some may still be on
+	// their way through the pipeline. A drain of the file's next tailer
+	// records no more than that under a new path (see commitDrainAt).
+	committed int64
 }
 
 // newScanner returns a scanner of source, which passed validation.
@@ -126,7 +142,9 @@ func newScanner(l *Launcher, source *sources.LogSource, c client.Client, key cli
 		password:  cfg.Password,
 		interval:  defaultPollInterval,
 		active:    make(map[string]*tailer.Tailer),
+		committed: make(map[string]int64),
 		fromStart: make(map[string]bool),
+		drainedAt: make(map[string]bool),
 		resume:    make(map[uint64]handoff),
 		inherited: make(map[string]handoff),
 		patterns:  make(map[string]*regexp.Regexp),
@@ -163,11 +181,18 @@ func newScanner(l *Launcher, source *sources.LogSource, c client.Client, key cli
 
 // resumeFrom makes s, not started yet, continue the work of prev, a stopped
 // scanner of the same configuration: s's tailers resume prev's files where
-// prev's tailers stopped reading them, so nothing is read twice, and
-// start_position does not apply again to files prev found after it started.
+// prev's tailers stopped reading them, so nothing is read twice, the registry
+// offsets prev's drains recorded are not taken for positions stored before s
+// started (see drainedAt), and start_position does not apply again to files
+// prev found after it started.
 func (s *scanner) resumeFrom(prev *scanner) {
 	for p, h := range prev.stoppedAt {
 		s.inherited[p] = h
+	}
+	for p := range prev.drainedAt {
+		if _, ok := s.inherited[p]; !ok {
+			s.drainedAt[p] = true
+		}
 	}
 	for p, pattern := range prev.patterns {
 		s.patterns[p] = pattern
@@ -216,11 +241,25 @@ func (s *scanner) stopTailers() {
 	for p, t := range s.active {
 		// Nothing polls t anymore: its offset is final, and stopping t
 		// forwards everything it read.
-		s.stoppedAt[p] = handoff{file: t.Identity(), offset: t.Offset(), size: t.Offset() + t.UnreadBytes()}
+		s.stoppedAt[p] = handoff{
+			file:      t.Identity(),
+			offset:    t.Offset(),
+			size:      t.Offset() + t.UnreadBytes(),
+			committed: s.committedOffset(t.Identifier(), t, s.committed[p]),
+		}
 		s.deactivate(p, t)
 		stopper.Add(t)
 	}
 	for _, d := range s.draining {
+		s.releaseCommitPath(d) // its last messages still commit there
+		// Nothing goes on with d: a scanner that replaces this one resumes
+		// d's file from the registry entries that hold an offset of it (see
+		// resumeRotatedAway), so their paths leave drainedAt.
+		for p := range s.drainedAt {
+			if file, _, ok := tailer.DecodeOffset(s.l.registry.GetOffset(tailer.Identifier(s.host, s.share, p))); ok && sameFile(file, d.t.Identity()) {
+				delete(s.drainedAt, p)
+			}
+		}
 		s.l.tailers.Remove(d.t)
 		stopper.Add(d.t)
 	}
@@ -254,13 +293,15 @@ func (s *scanner) scan(ctx context.Context) {
 			// Its directory could not be listed: nothing to conclude.
 		case !listed:
 			log.Infof("SMB file %s is no longer listed; reading the rest of %s wherever it was moved", t.Identifier(), t.Identity())
+			committed := s.committed[p]
 			s.deactivate(p, t)
-			s.startDrain(t)
+			s.startDrain(t, committed)
 			s.fromStart[p] = true
 		case entry.FileID != 0 && t.FileID() != 0 && !t.Identity().Matches(entry.Identity()):
 			log.Infof("SMB file %s rotated (%s, now %s); reading the new file from the beginning", t.Identifier(), t.Identity(), entry.Identity())
+			committed := s.committed[p]
 			s.deactivate(p, t)
-			s.startDrain(t)
+			s.startDrain(t, committed)
 			s.fromStart[p] = true // started below, in this scan
 		default:
 			s.poll(ctx, p, t, &entry, &errs)
@@ -382,7 +423,7 @@ func (s *scanner) resumeRotatedAway(v *view) {
 	for _, p := range sortedKeys(v.matches) {
 		entry := v.matches[p]
 		identifier := tailer.Identifier(s.host, s.share, p)
-		if s.active[p] != nil || s.fromStart[p] || entry.FileID == 0 || s.l.claims.ownedByAnother(identifier, s) {
+		if s.active[p] != nil || s.fromStart[p] || s.drainedAt[p] || entry.FileID == 0 || s.l.claims.ownedByAnother(identifier, s) {
 			continue
 		}
 		stored, found := s.storedPosition(p, identifier)
@@ -418,7 +459,7 @@ func (s *scanner) storedPosition(p, identifier string) (handoff, bool) {
 		return h, true
 	}
 	file, offset, ok := tailer.DecodeOffset(s.l.registry.GetOffset(identifier))
-	return handoff{file: file, offset: offset}, ok
+	return handoff{file: file, offset: offset, committed: offset}, ok
 }
 
 // resumeElsewhere reads the rest of the file stored names, read at p up to
@@ -459,7 +500,7 @@ func (s *scanner) resumeElsewhere(p string, stored handoff, v *view) {
 		t.SetReadPath(at)
 	}
 	t.Start(stored.offset)
-	s.startDrain(t)
+	s.startDrain(t, stored.committed)
 }
 
 // tailingFile reports whether an active tailer reads the file file.
@@ -489,13 +530,14 @@ func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry,
 	}
 	delete(s.conflicts, p)
 
-	offset, file, ok := s.startPosition(ctx, p, identifier, entry, errs)
+	offset, committed, file, ok := s.startPosition(ctx, p, identifier, entry, errs)
 	if !ok {
 		s.l.claims.release(identifier, s)
 		return
 	}
-	rotated := s.fromStart[p]
+	rotated := s.fromStart[p] || s.drainedAt[p]
 	delete(s.fromStart, p)
+	delete(s.drainedAt, p)
 	delete(s.initial, p)
 	pattern := s.patterns[p]
 	delete(s.patterns, p)
@@ -503,6 +545,7 @@ func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry,
 	t := s.newTailer(p, file, pattern, rotated)
 	t.Start(offset)
 	s.active[p] = t
+	s.committed[p] = committed
 	s.l.tailers.Add(t)
 	s.source.AddInput(identifier)
 	s.l.registry.SetTailed(identifier, true)
@@ -550,6 +593,10 @@ func (s *scanner) newTailer(p string, file client.Identity, pattern *regexp.Rege
 //     (start_position: beginning) or the end of the file (end);
 //   - otherwise 0: the file appeared since, so all of it is new.
 //
+// The registry offset of a path a drain committed its offsets under (see
+// drainedAt) is used the same way: it resumes the drained file, back at the
+// path without a resume point, and any other file there is new.
+//
 // The drain's offset comes first: a path whose previous file rotated away can
 // receive a file that was already drained, the previous file of another
 // matched path (app.log.1 renamed to app.log.2 and app.log to app.log.1). The
@@ -557,32 +604,36 @@ func (s *scanner) newTailer(p string, file client.Identity, pattern *regexp.Rege
 // any tailer of its previous path started: drains are found by file identity,
 // not by path.
 //
+// It also returns committed, the offset up to which the file is known to be
+// delivered: offset itself, except for a file resumed where a drain or the
+// replaced scanner read it up to (see handoff.committed).
+//
 // The size and identity come from opening the file, since listing sizes can
 // be stale.
-func (s *scanner) startPosition(ctx context.Context, p, identifier string, entry client.Entry, errs *scanErrors) (offset int64, file client.Identity, ok bool) {
+func (s *scanner) startPosition(ctx context.Context, p, identifier string, entry client.Entry, errs *scanErrors) (offset, committed int64, file client.Identity, ok bool) {
 	file = entry.Identity()
 	if h, found := s.resumePoint(file); found {
 		// The tailer may forward nothing, its file read to its end, while
 		// the registry entry of the path the file left gets another file's
 		// offsets: record where the file resumes under p, so that a restart
 		// resumes it there too.
-		s.seedOffset(identifier, h.file, h.offset)
+		s.seedOffset(identifier, h.file, h.committed)
 		delete(s.resume, file.FileID)
-		return h.offset, h.file, true
+		return h.offset, h.committed, h.file, true
 	}
 	if h, found := s.inherited[p]; found {
 		delete(s.inherited, p)
 		if sameFile(h.file, file) {
-			return h.offset, h.file, true
+			return h.offset, h.committed, h.file, true
 		}
 	}
 	if s.fromStart[p] {
-		return 0, file, true
+		return 0, 0, file, true
 	}
 	res, err := s.client.ReadAt(ctx, p, 0, 0)
 	if err != nil {
 		s.fileErr(p, identifier, err, errs)
-		return 0, client.Identity{}, false
+		return 0, 0, client.Identity{}, false
 	}
 	delete(s.blocked, p)
 	file = merge(res.Identity(), file)
@@ -596,24 +647,26 @@ func (s *scanner) startPosition(ctx context.Context, p, identifier string, entry
 		if s.mismatch[p] == 3 {
 			log.Warnf("SMB file %s: the directory listing keeps reporting %s but opening the file reports another file; the server's FileIds or creation times may be inconsistent", identifier, entry.Identity())
 		}
-		return 0, client.Identity{}, false
+		return 0, 0, client.Identity{}, false
 	}
 	if stored, offset, found := tailer.DecodeOffset(s.l.registry.GetOffset(identifier)); found {
 		switch {
 		case !stored.Matches(file):
-			log.Infof("SMB file %s was replaced while it was not tailed (%s, now %s); reading it from the beginning", identifier, stored, file)
-			return 0, file, true
+			if !s.drainedAt[p] {
+				log.Infof("SMB file %s was replaced while it was not tailed (%s, now %s); reading it from the beginning", identifier, stored, file)
+			}
+			return 0, 0, file, true
 		case offset <= res.Size:
-			return offset, file, true
+			return offset, offset, file, true
 		default:
 			log.Infof("Stored offset %d for SMB file %s is past its end (%d bytes): it was truncated while it was not tailed; reading it from the beginning", offset, identifier, res.Size)
-			return 0, file, true
+			return 0, 0, file, true
 		}
 	}
 	if s.mode == config.Beginning || !s.initial[p] {
-		return 0, file, true
+		return 0, 0, file, true
 	}
-	return res.Size, file, true
+	return res.Size, res.Size, file, true
 }
 
 // resumePoint returns where a drain of file ended, if one did.
@@ -660,12 +713,27 @@ func merge(read, listed client.Identity) client.Identity {
 }
 
 // startDrain turns t, already removed from the active tailers, into a drain.
-// The drain is tracked under its own ID (see tailer.GetID), so agent status
-// shows it until it ends.
-func (s *scanner) startDrain(t *tailer.Tailer) {
+// committed is the committed offset t's file had when t started (see
+// startPosition). The drain is tracked under its own ID (see tailer.GetID),
+// so agent status shows it until it ends.
+func (s *scanner) startDrain(t *tailer.Tailer, committed int64) {
+	// The registry still holds the offset last committed for the file under
+	// t's identifier: the path's new file has not committed anything yet.
+	committed = s.committedOffset(t.Identifier(), t, committed)
 	t.StartDraining()
 	s.l.tailers.Add(t)
-	s.draining = append(s.draining, &drain{t: t, deadline: s.l.clock.Now().Add(s.l.closeTimeout)})
+	s.draining = append(s.draining, &drain{t: t, deadline: s.l.clock.Now().Add(s.l.closeTimeout), committed: committed})
+}
+
+// committedOffset returns the registry offset of identifier when it was
+// committed for the file of t, is past floor and not past what t read, else
+// floor.
+func (s *scanner) committedOffset(identifier string, t *tailer.Tailer, floor int64) int64 {
+	file, offset, ok := tailer.DecodeOffset(s.l.registry.GetOffset(identifier))
+	if ok && sameFile(file, t.Identity()) && offset > floor && offset <= t.Offset() {
+		return offset
+	}
+	return floor
 }
 
 // pollDrains reads the rest of each rotated file and ends the drains that are
@@ -686,21 +754,33 @@ func (s *scanner) pollDrains(ctx context.Context, v *view, errs *scanErrors) {
 }
 
 // pollDrain polls one drain and reports whether it goes on.
+//
+// When a directory could not be listed and the listing does not show the
+// drain's file, the drain goes on: the file may be in that directory. Past its
+// deadline, it goes on only while the directory its file was found in last
+// cannot be listed, so that it ends with a listing that shows where the file
+// is: endDrain then leaves a resume point instead of reporting the file's
+// unread bytes missed, and the file's next tailer resumes it instead of
+// reading it again.
 func (s *scanner) pollDrain(ctx context.Context, d *drain, v *view, errs *scanErrors) bool {
 	t := d.t
-	if !s.l.clock.Now().Before(d.deadline) {
-		s.endDrain(t, v, t.Offset(), fmt.Sprintf("SMB rotation drain timed out after %s (logs_config.close_timeout)", s.l.closeTimeout))
+	expired := !s.l.clock.Now().Before(d.deadline)
+	at, entry, found := v.findFile(t.Identity())
+	if !found && v.failed {
+		if _, _, known := v.lookup(t.ReadPath()); !expired || !known {
+			return true
+		}
+	}
+	if expired {
+		s.endDrain(d, v, t.Offset(), fmt.Sprintf("SMB rotation drain timed out after %s (logs_config.close_timeout)", s.l.closeTimeout))
 		return false
 	}
-	at, entry, found := v.findFile(t.Identity())
 	if !found {
-		if v.failed {
-			return true // a directory could not be listed: it may be there
-		}
-		s.endDrain(t, v, t.Offset(), "Rotated SMB file is no longer listed")
+		s.endDrain(d, v, t.Offset(), "Rotated SMB file is no longer listed")
 		return false
 	}
 	t.SetReadPath(at)
+	s.commitDrainAt(d, at, v)
 	offset := t.Offset()
 	outcome, err := t.Poll(ctx, &entry)
 	switch {
@@ -713,13 +793,15 @@ func (s *scanner) pollDrain(ctx context.Context, d *drain, v *view, errs *scanEr
 		// The bytes not read before the truncation are gone; whatever the
 		// file holds now is new.
 		t.RecordMissedBytes("Rotated SMB file was truncated")
-		s.endDrain(t, v, 0, "")
+		// Its last messages must not commit offsets past the new content.
+		s.stopCommitting(d)
+		s.endDrain(d, v, 0, "")
 		return false
 	case t.CaughtUp() && t.Offset() == offset:
 		// Nothing new since the previous poll: the writer may be done.
 		d.caughtUp++
 		if d.caughtUp >= drainCaughtUpPolls {
-			s.endDrain(t, v, t.Offset(), "")
+			s.endDrain(d, v, t.Offset(), "")
 			return false
 		}
 		return true
@@ -729,17 +811,20 @@ func (s *scanner) pollDrain(ctx context.Context, d *drain, v *view, errs *scanEr
 	}
 }
 
-// endDrain stops the drained tailer t. While its file is listed, the file's
-// next tailer resumes it at offset, whatever name the file has by the time
-// that tailer starts, so nothing is read twice: the tailer of the path the
-// file sits at when the pattern matches it (another one, or its own path again
-// after a rename back), or of a matched path the file is renamed to later.
+// endDrain stops the drain d. While its file is listed, the file's next tailer
+// resumes it at offset, whatever name the file has by the time that tailer
+// starts, so nothing is read twice: the tailer of the path the file sits at
+// when the pattern matches it (another one, or its own path again after a
+// rename back), or of a matched path the file is renamed to later.
 //
 // Unless the pattern matches the path the file sits at, whose tailer reads
-// them, the bytes t did not read are reported as missed, with reason. The
-// file's next tailer, if it gets one, then starts after them, so that no byte
-// is both reported missed and sent.
-func (s *scanner) endDrain(t *tailer.Tailer, v *view, offset int64, reason string) {
+// them, the bytes the drain did not read are reported as missed, with reason.
+// The file's next tailer, if it gets one, then starts after them, so that no
+// byte is both reported missed and sent.
+func (s *scanner) endDrain(d *drain, v *view, offset int64, reason string) {
+	t := d.t
+	committed := min(s.drainCommitted(d), offset)
+	s.releaseCommitPath(d) // its last messages still commit there
 	at, _, found := v.findFile(t.Identity())
 	if _, matched := v.matches[at]; !matched && reason != "" {
 		if missed := t.RecordMissedBytes(reason); missed > 0 {
@@ -747,10 +832,100 @@ func (s *scanner) endDrain(t *tailer.Tailer, v *view, offset int64, reason strin
 		}
 	}
 	if found {
-		s.resume[t.FileID()] = handoff{file: t.Identity(), offset: offset}
+		s.resume[t.FileID()] = handoff{file: t.Identity(), offset: offset, committed: committed}
 	}
 	s.l.tailers.Remove(t)
 	s.stopAsync(t)
+}
+
+// commitDrainAt makes the drain d commit its offsets under the identifier of
+// at, the path its file sits at now, when the pattern matches at and no other
+// tailer of the scanner commits there: an Agent restart then resumes the file
+// at that path (see startPosition) instead of reading it again from the
+// beginning or skipping its rest, as start_position would. Otherwise d commits
+// no offset.
+//
+// When d starts committing under a path whose registry offset is not already
+// as far in the same file, it first records there d.committed, so that a
+// restart resumes the file there even if d has not forwarded anything yet.
+// From then on, until a tailer starts at the path, its registry offset is no
+// position stored before this scanner started (see drainedAt):
+// resumeRotatedAway does not resume the drained file from there once another
+// file sits at the path. The path's next tailer still resumes from there the
+// drained file itself, should the file come back without a resume point (see
+// startPosition). A scanner that replaces this one keeps those paths (see
+// resumeFrom), but for those it resumes the file of a drain this scanner
+// stopped from (see stopTailers).
+//
+// An Agent restart does not. What d reads once its file has left the path for
+// a name the pattern does not match is committed nowhere, so the path's
+// registry offset stays where d left it: a restart that finds another file at
+// the path resumes d's file from that offset (see resumeRotatedAway) and sends
+// those lines again. They are delivered at least once, not lost.
+func (s *scanner) commitDrainAt(d *drain, at string, v *view) {
+	target := ""
+	if _, matched := v.matches[at]; matched && s.active[at] == nil && !s.drainCommitsAt(at, d) {
+		if at == d.commitAt || s.l.claims.claim(tailer.Identifier(s.host, s.share, at), s) {
+			target = at
+		}
+	}
+	if target == d.commitAt {
+		return
+	}
+	d.committed = s.drainCommitted(d)
+	s.stopCommitting(d)
+	if target == "" {
+		return
+	}
+	identifier := tailer.Identifier(s.host, s.share, target)
+	file := d.t.Identity()
+	s.seedOffset(identifier, file, d.committed)
+	s.l.registry.SetTailed(identifier, true)
+	d.commitAt = target
+	s.drainedAt[target] = true
+	d.t.CommitTo(identifier)
+	log.Debugf("SMB rotation drain of %s commits its offsets under %s", file, identifier)
+}
+
+// drainCommitted returns d.committed, or the offset committed since under the
+// path d commits its offsets under, when that one is further.
+func (s *scanner) drainCommitted(d *drain) int64 {
+	if d.commitAt == "" {
+		return d.committed
+	}
+	return s.committedOffset(tailer.Identifier(s.host, s.share, d.commitAt), d.t, d.committed)
+}
+
+// drainCommitsAt reports whether a drain other than d commits its offsets
+// under the identifier of p.
+func (s *scanner) drainCommitsAt(p string, d *drain) bool {
+	for _, other := range s.draining {
+		if other != d && other.commitAt == p {
+			return true
+		}
+	}
+	return false
+}
+
+// stopCommitting makes the drain d commit no offset anymore.
+func (s *scanner) stopCommitting(d *drain) {
+	d.t.CommitTo("")
+	s.releaseCommitPath(d)
+}
+
+// releaseCommitPath releases the path the drain d commits its offsets under,
+// unless a tailer started there since. The messages d already decoded may
+// still commit there.
+func (s *scanner) releaseCommitPath(d *drain) {
+	if d.commitAt == "" {
+		return
+	}
+	if s.active[d.commitAt] == nil {
+		identifier := tailer.Identifier(s.host, s.share, d.commitAt)
+		s.l.registry.SetTailed(identifier, false)
+		s.l.claims.release(identifier, s)
+	}
+	d.commitAt = ""
 }
 
 // drainingFile reports whether a drain reads the file file.
@@ -770,6 +945,7 @@ func (s *scanner) drainingFile(file client.Identity) bool {
 // releases its identifier. It does not stop t.
 func (s *scanner) deactivate(p string, t *tailer.Tailer) {
 	delete(s.active, p)
+	delete(s.committed, p)
 	delete(s.mismatch, p)
 	if pattern := t.GetDetectedPattern(); pattern != nil {
 		s.patterns[p] = pattern

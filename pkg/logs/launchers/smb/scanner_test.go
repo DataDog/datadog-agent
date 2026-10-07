@@ -667,6 +667,111 @@ func TestDrainedFileRenamedAgainBeforeItsPathIsTailed(t *testing.T) {
 	assert.ElementsMatch(t, want(1, 6), h.finish(), "each line is sent once")
 }
 
+// TestPathADrainCommittedUnderIsNotResumedFromItsRegistryOffset rolls files
+// over twice with a pattern that matches app.log.1 but not app.log.2: the
+// drain of the first file commits its offsets under app.log.1, then ends at
+// app.log.2. When app.log.1 receives the next rotated file, the offset that
+// drain recorded there is no position from before the scanner started: the
+// first file, which the drain read to its end, is not read again, and nothing
+// is logged as rotated while it was not tailed.
+func TestPathADrainCommittedUnderIsNotResumedFromItsRegistryOffset(t *testing.T) {
+	h := newHarness(t, withPath("app/app.log*"), withExcludes("app/app.log.2"))
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	h.out.waitLines(t, 1)
+	h.commitOffsets()
+
+	logs := captureLogs(t, func() {
+		h.share.Append("app/app.log", []byte(lines(2, 2)))
+		require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+		h.share.Write("app/app.log", []byte(lines(3, 3)))
+		h.scan()
+		require.Len(t, h.scanner.draining, 1)
+		require.Equal(t, identifier("app/app.log.1"), h.scanner.draining[0].t.CommitIdentifier())
+
+		require.NoError(t, h.share.Rename("app/app.log.1", "app/app.log.2"))
+		for range 3 {
+			h.scan() // the drain ends at app.log.2, which the source excludes
+		}
+		require.Empty(t, h.scanner.draining)
+		require.NotEmpty(t, h.registry.GetOffset(identifier("app/app.log.1")), "the drain committed under app.log.1")
+
+		require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+		h.share.Write("app/app.log", []byte(lines(4, 4)))
+		for range 4 {
+			h.scan()
+		}
+	})
+	assert.ElementsMatch(t, want(1, 4), h.out.waitLines(t, 4))
+	assert.ElementsMatch(t, want(1, 4), h.finish(), "each line is sent once")
+	assert.NotContains(t, logs, "while it was not tailed")
+}
+
+// TestDrainPastItsDeadlineWaitsForAListingOfItsDirectory reaches the deadline
+// of a drain in a scan whose listing of its file's directory fails. The drain
+// waits for a listing that shows where its file is instead of ending blind:
+// its file, at a matched name, then resumes where the drain stopped instead of
+// being read again from the beginning, and nothing is reported missed.
+func TestDrainPastItsDeadlineWaitsForAListingOfItsDirectory(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t, withPath("app/app.log*"))
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	h.out.waitLines(t, 1)
+	h.commitOffsets()
+	h.share.Append("app/app.log", []byte(lines(2, 2)))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", nil)
+	h.share.FailNextPath(fake.OpReadAt, "app/app.log.1", fake.ErrSharing)
+	h.scan()
+	require.Len(t, h.scanner.draining, 1)
+	d := h.scanner.draining[0]
+	require.Equal(t, int64(len(lines(2, 2))), d.t.UnreadBytes())
+
+	h.clock.Add(d.deadline.Sub(h.clock.Now()))
+	h.share.FailNextPath(fake.OpListDir, "app", fake.ErrAccessDenied)
+	h.scan()
+	require.Len(t, h.scanner.draining, 1, "the drain waits for a listing of its file's directory")
+	h.scan() // the drain ends at app.log.1, whose tailer resumes it at the next scan
+	require.Empty(t, h.scanner.draining)
+	h.scan()
+	assert.Equal(t, want(1, 2), h.out.waitLines(t, 2))
+	assert.Equal(t, want(1, 2), h.finish(), "each line is sent once")
+	assert.Empty(t, metrics.MissedBytesSnapshot())
+}
+
+// TestDrainedFileBackAtAPathItsDrainCommittedUnderResumesThere moves a rotated
+// file out of the listed directories while it is drained, then back to the
+// matched path its drain committed its offsets under. The drain ended without
+// a resume point, since its file was not listed: the path's tailer resumes the
+// file from the offset the drain committed there instead of reading it again
+// from the beginning.
+func TestDrainedFileBackAtAPathItsDrainCommittedUnderResumesThere(t *testing.T) {
+	h := newHarness(t, withPath("app/app.log*"))
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	h.out.waitLines(t, 1)
+	h.commitOffsets()
+	h.share.Append("app/app.log", []byte(lines(2, 2)))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", nil)
+	h.scan()
+	require.Len(t, h.scanner.draining, 1)
+	require.Equal(t, identifier("app/app.log.1"), h.scanner.draining[0].t.CommitIdentifier())
+	h.out.waitLines(t, 2)
+	h.commitOffsets()
+
+	require.NoError(t, h.share.Rename("app/app.log.1", "archive/app.log.1"))
+	h.scan()
+	require.Empty(t, h.scanner.draining, "the drain ends: its file is no longer listed")
+	require.NoError(t, h.share.Rename("archive/app.log.1", "app/app.log.1"))
+	h.share.Append("app/app.log.1", []byte(lines(3, 3)))
+	h.scan()
+	assert.Equal(t, want(1, 3), h.out.waitLines(t, 3))
+	assert.Equal(t, want(1, 3), h.finish(), "each line is sent once")
+}
+
 // TestResumePointOfADeletedFileIsForgotten checks that the scanner does not
 // keep where a drain ended once the file is gone.
 func TestResumePointOfADeletedFileIsForgotten(t *testing.T) {
@@ -737,6 +842,7 @@ func TestFileRenamedAwayAndBackIsNotReadTwice(t *testing.T) {
 	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.tmp"))
 	h.share.Append("app/app.log.tmp", []byte(lines(2, 2)))
 	h.scan() // app.log is gone: its file is drained at app.log.tmp
+	h.out.waitLines(t, 2)
 	require.NoError(t, h.share.Rename("app/app.log.tmp", "app/app.log"))
 	h.share.Append("app/app.log", []byte(lines(3, 3)))
 	for range 3 {
@@ -750,8 +856,8 @@ func TestFileRenamedAwayAndBackIsNotReadTwice(t *testing.T) {
 	assert.ElementsMatch(t, want(1, 4), h.out.waitLines(t, 4))
 	assert.ElementsMatch(t, want(1, 4), h.finish(), "each line is sent once")
 	committed, uncommitted := h.messagesFor("app/app.log")
-	assert.Equal(t, []string{"line 1", "line 4"}, committed)
-	assert.Equal(t, want(2, 3), uncommitted, "the drain commits no offset")
+	assert.Equal(t, []string{"line 1", "line 3", "line 4"}, committed, "back at app.log, which no tailer reads, the drain commits there")
+	assert.Equal(t, []string{"line 2"}, uncommitted, "the drain commits no offset while its file has a name the pattern does not match")
 }
 
 func TestTruncatedDrainHandsItsMatchedPathOverFromTheBeginning(t *testing.T) {

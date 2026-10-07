@@ -397,6 +397,31 @@ func TestDrainingMessagesCommitNoOffset(t *testing.T) {
 	assert.Equal(t, testPath, tt.Path())
 }
 
+func TestDrainCommitsUnderTheIdentifierItIsGiven(t *testing.T) {
+	share := fake.New()
+	id := share.Write(testPath, []byte("one\ntwo\n"))
+	file := fileOf(t, share, testPath)
+	tt := newTestTailer(t, share, id, 4)
+	assert.Equal(t, tt.Identifier(), tt.CommitIdentifier())
+	tt.StartDraining()
+	assert.Empty(t, tt.CommitIdentifier())
+
+	require.NoError(t, share.Rename(testPath, "app/app.log.1"))
+	tt.SetReadPath("app/app.log.1")
+	rotated := "smb://files.example.com/logs/app/app.log.1"
+	tt.CommitTo(rotated)
+	_, err := tt.Poll(context.Background(), entryOf(t, share, "app/app.log.1"))
+	require.NoError(t, err)
+
+	msg := tt.next(t)
+	assert.Equal(t, "two", string(msg.GetContent()))
+	assert.Equal(t, rotated, msg.Origin.Identifier)
+	assert.Equal(t, EncodeOffset(file, 8), msg.Origin.Offset, "an offset in the drained file, which sits at that path")
+	assert.Contains(t, msg.Origin.Tags(), "filename:app.log", "tags keep the original file name")
+	assert.Equal(t, "smb://files.example.com/logs/app/app.log (rotated, FileId "+strconv.FormatUint(id, 10)+")", tt.GetID())
+	assert.EqualValues(t, 8, tt.Offset())
+}
+
 // stuckDecoder never accepts input, like a decoder whose pipeline is blocked.
 type stuckDecoder struct {
 	in  chan *message.Message
