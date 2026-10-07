@@ -34,6 +34,7 @@ dd_agent_go_test(
     srcs = [
         "accounting_test.go",
         "config_test.go",
+        "scenarios_test.go",
         "smb_test.go",
         "suite_test.go",
         "workload_test.go",
@@ -49,5 +50,6 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
     ],
 )

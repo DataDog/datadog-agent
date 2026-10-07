@@ -245,7 +245,8 @@ func (suite *azureFilesSuite) accountKey(c cell) (string, error) {
 }
 
 // agentAccountKey reads the key of the cell's Secret copy in the Agent
-// namespace, which the SMB source authenticates with.
+// namespace, which the SMB source authenticates with. It is the writer's key
+// except in the key-rotation scenario.
 func (suite *azureFilesSuite) agentAccountKey(c cell) (string, error) {
 	return suite.secretKey(agentNamespace, c)
 }

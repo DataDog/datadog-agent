@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
@@ -84,6 +85,9 @@ const (
 	// workloadChecksumAnnotation changes the writer pod template whenever the
 	// ConfigMap scripts change, so a reused stack restarts the writers.
 	workloadChecksumAnnotation = "e2e.datadoghq.com/workload-sha256"
+	// storageAccountsConfigMapName maps each cell to its storage account's
+	// ARM ID; it holds no key.
+	storageAccountsConfigMapName = "azure-files-storage-accounts"
 )
 
 var (
@@ -489,7 +493,7 @@ func defaultWriterOptions() writerOptions {
 }
 
 // writerOptionsSet says which writer options a run sets itself. The ones it
-// leaves unset take a cell's defaults when it has some.
+// leaves unset take a scenario's or a cell's defaults when they have some.
 type writerOptionsSet struct {
 	mode, period, rate, streams bool
 }
@@ -541,8 +545,8 @@ func (w writerOptions) validate() error {
 	return nil
 }
 
-// writerDefaults are a cell's own writer options, which apply when the run
-// leaves the option unset. Zero leaves the run's value.
+// writerDefaults are a cell's or a scenario's own writer options, which apply
+// when the run leaves the option unset. Zero leaves the run's value.
 type writerDefaults struct {
 	periodMs        int
 	rateBytesPerSec int
@@ -752,6 +756,10 @@ type cell struct {
 	writerDefaults writerDefaults
 	// probe is the early marker of an smb-late-<age> cell.
 	probe *lateMarkerProbe
+	// agentKeyIndex is the storage account key the Agent's copy of the
+	// cell's Secret holds: 0 for key1, which the writer mounts with, and 1
+	// for key2 in the key-rotation scenario.
+	agentKeyIndex int
 }
 
 // lossAccounted reports whether the cell's records may only go missing when
@@ -814,6 +822,189 @@ func parseProfile(name string) (agentProfile, error) {
 	return agentProfile{}, fmt.Errorf("unknown profile %q; known profiles are %s", name, strings.Join(names, ","))
 }
 
+// SMB client timings the scenarios are sized against, from
+// pkg/logs/internal/smb/client: each ListDir or ReadAt call is bounded by
+// defaultOpTimeout, and a dial by defaultDialTimeout. After a lost session,
+// failed dials back off up to maxBackoff, and a dial that fails
+// authentication waits maxBackoff before the next one.
+const (
+	smbOpTimeoutSeconds   = 30
+	smbDialTimeoutSeconds = 10
+	smbMaxBackoffSeconds  = 30
+)
+
+// Log pipeline timings the agent-restart duplicate bound is derived from: the
+// auditor writes the registry every defaultFlushPeriod
+// (comp/logs/auditor/impl/auditor.go) and once more when it stops, and the
+// sender sends a batch when it is full or logs_config.batch_wait after its
+// first message.
+const (
+	auditorFlushPeriodSeconds = 1
+	logsBatchWaitSeconds      = 5
+)
+
+// scenarioKind names a disruption of the Agent, which runs as its own test
+// method on the smb cell (see scenarios_test.go).
+type scenarioKind string
+
+const (
+	noScenario           scenarioKind = ""
+	agentRestartScenario scenarioKind = "agent-restart"
+	keyRotationScenario  scenarioKind = "key-rotation"
+	networkDropScenario  scenarioKind = "network-drop"
+)
+
+var knownScenarios = []scenarioKind{agentRestartScenario, keyRotationScenario, networkDropScenario}
+
+// scenarioCellName is the cell every scenario disrupts.
+const scenarioCellName = "smb"
+
+// Scenario timings. Each scenario disrupts the second period of the smb
+// cell's writer, the first full one, and the disruption has to be over before
+// that period ends: a file that rotates in and out while the source cannot
+// read the share is never read (see the product notes in README.md). So each
+// scenario has a minimum period, and a default period that leaves a margin.
+// The writer is paced, so the active file keeps growing through the
+// disruption and the source has to catch up on it.
+const (
+	// agent-restart: the Agent pod is deleted this far into the period,
+	// once the source has read part of the active file. The replacement must
+	// be running the source again before the period ends.
+	agentRestartPeriodMs        = 120000
+	agentRestartMinPeriodMs     = 120000
+	agentRestartRateBytesPerSec = 20000
+	agentRestartDeleteAfterMs   = 30000
+
+	// key-rotation: key2 is renewed this far into the period. The Agent then
+	// has to fail authentication (on its own if Azure drops its session,
+	// else after keyRotationForcedDropSeconds without SMB traffic), the
+	// Secret update has to reach the Agent pod (up to about a minute on
+	// AKS), and the secret refresh has to pick it up.
+	keyRotationPeriodMs          = 300000
+	keyRotationMinPeriodMs       = 240000
+	keyRotationRateBytesPerSec   = 10000
+	keyRotationStartAfterMs      = 15000
+	secretRefreshIntervalSeconds = 15
+	keyRotationNaturalAuthWait   = 45 * time.Second
+	keyRotationForcedDropSeconds = smbOpTimeoutSeconds + 5
+
+	// network-drop: the Agent pod's SMB traffic is dropped for
+	// AZURE_FILES_E2E_NETWORK_DROP_SECONDS around the end of the period, so
+	// the file rotates while the source cannot reach the share. The drop must
+	// outlast an operation timeout, so the client loses its session.
+	defaultNetworkDropSeconds  = 90
+	minNetworkDropSeconds      = smbOpTimeoutSeconds + 1
+	maxNetworkDropSeconds      = 600
+	networkDropPeriodMs        = 180000
+	networkDropRateBytesPerSec = 10000
+	// The period must hold the drop, the client's longest backoff after it,
+	// and a margin, so that only one rotation happens during the outage.
+	networkDropMarginSeconds = smbMaxBackoffSeconds + 60
+)
+
+// scenarioOptions are the scenario of a run.
+type scenarioOptions struct {
+	kind scenarioKind
+	// dropSeconds is how long network-drop blocks the Agent's SMB traffic.
+	dropSeconds int
+}
+
+func parseScenario(name, dropSeconds string) (scenarioOptions, error) {
+	s := scenarioOptions{kind: scenarioKind(strings.TrimSpace(name))}
+	if s.kind != noScenario && !slices.Contains(knownScenarios, s.kind) {
+		names := make([]string, 0, len(knownScenarios))
+		for _, known := range knownScenarios {
+			names = append(names, string(known))
+		}
+		return scenarioOptions{}, fmt.Errorf("unknown scenario %q; known scenarios are %s", s.kind, strings.Join(names, ","))
+	}
+	if s.kind != networkDropScenario {
+		if strings.TrimSpace(dropSeconds) != "" {
+			return scenarioOptions{}, fmt.Errorf("a network drop duration only applies to the %s scenario", networkDropScenario)
+		}
+		return s, nil
+	}
+	var err error
+	s.dropSeconds, err = parseBoundedInt("network drop", dropSeconds, defaultNetworkDropSeconds, minNetworkDropSeconds, maxNetworkDropSeconds)
+	return s, err
+}
+
+// minPeriodMs is the shortest writer period that holds the disruption.
+func (s scenarioOptions) minPeriodMs() int {
+	switch s.kind {
+	case agentRestartScenario:
+		return agentRestartMinPeriodMs
+	case keyRotationScenario:
+		return keyRotationMinPeriodMs
+	case networkDropScenario:
+		return (s.dropSeconds + networkDropMarginSeconds) * 1000
+	}
+	return 0
+}
+
+// writerDefaults are the scenario's writer period and rate.
+func (s scenarioOptions) writerDefaults() writerDefaults {
+	switch s.kind {
+	case agentRestartScenario:
+		return writerDefaults{periodMs: agentRestartPeriodMs, rateBytesPerSec: agentRestartRateBytesPerSec}
+	case keyRotationScenario:
+		return writerDefaults{periodMs: keyRotationPeriodMs, rateBytesPerSec: keyRotationRateBytesPerSec}
+	case networkDropScenario:
+		return writerDefaults{periodMs: max(networkDropPeriodMs, s.minPeriodMs()), rateBytesPerSec: networkDropRateBytesPerSec}
+	}
+	return writerDefaults{}
+}
+
+// validateWriter refuses writer options the scenario cannot judge: it reads
+// one app.log rotated by rename, written at a rate, with a period that holds
+// the disruption.
+func (s scenarioOptions) validateWriter(w writerOptions) error {
+	if s.kind == noScenario {
+		return nil
+	}
+	switch {
+	case w.mode != renameRotation:
+		return fmt.Errorf("the %s scenario rotates by rename; unset the rotation mode", s.kind)
+	case w.streams != 0:
+		return fmt.Errorf("the %s scenario reads one app.log; unset the writer streams", s.kind)
+	case !w.paced():
+		return fmt.Errorf("the %s scenario needs a paced writer, so the active file grows through the disruption; set a writer rate above 0", s.kind)
+	case w.periodMs < s.minPeriodMs():
+		return fmt.Errorf("the %s scenario needs a writer period of at least %dms to finish its disruption within one period, not %dms", s.kind, s.minPeriodMs(), w.periodMs)
+	}
+	return nil
+}
+
+// checkCells refuses cells the scenario would disturb or could not judge.
+// agent-restart and key-rotation disturb every source of the Agent: a
+// restart restarts them all, and a secret refresh schedules the whole
+// azure_files configuration again. network-drop only blocks the smb cell's
+// storage endpoint inside the Agent pod's network namespace, so the file
+// cells, whose CIFS mounts the kernel runs in the node's namespace, are not
+// affected and keep their usual assertions. Other SMB cells are refused:
+// several storage accounts can share the blocked endpoint's IP address.
+func (s scenarioOptions) checkCells(cells []cell) error {
+	if s.kind == noScenario {
+		return nil
+	}
+	found := false
+	for _, c := range cells {
+		switch {
+		case c.name == scenarioCellName:
+			found = true
+		case s.kind == networkDropScenario && c.reader == fileReader:
+		case s.kind == networkDropScenario:
+			return fmt.Errorf("the %s scenario cannot run with cell %s: SMB cells may share the blocked storage endpoint's IP address", s.kind, c.name)
+		default:
+			return fmt.Errorf("the %s scenario disturbs every source of the Agent, so it runs with the %s cell alone, not with %s", s.kind, scenarioCellName, c.name)
+		}
+	}
+	if !found {
+		return fmt.Errorf("the %s scenario runs on the %s cell; add it to the selected cells", s.kind, scenarioCellName)
+	}
+	return nil
+}
+
 // stackNamePattern keeps a reused stack name valid as a Pulumi stack name once
 // the framework prefixes it with the user name.
 var stackNamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$`)
@@ -838,6 +1029,10 @@ type runOptions struct {
 	streams         string
 	// calibrate records the marker outcomes instead of asserting them.
 	calibrate bool
+	// scenario names a disruption to run on the smb cell, and
+	// networkDropSeconds how long network-drop lasts; empty keeps 90s.
+	scenario           string
+	networkDropSeconds string
 }
 
 type runSpec struct {
@@ -848,6 +1043,7 @@ type runSpec struct {
 	// writer is the run's writer options. Each cell's are in cell.writer.
 	writer    writerOptions
 	calibrate bool
+	scenario  scenarioOptions
 	// cells are provisioned and asserted on.
 	cells []cell
 	// gatedCells were selected but are left out of the stack because their
@@ -868,19 +1064,36 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 	if err != nil {
 		return runSpec{}, err
 	}
+	scenario, err := parseScenario(opts.scenario, opts.networkDropSeconds)
+	if err != nil {
+		return runSpec{}, err
+	}
 	writer, set, err := parseWriterOptions(opts)
 	if err != nil {
 		return runSpec{}, err
 	}
+	// A scenario sets the run's period and rate unless the run does; no cell
+	// it runs with has defaults of its own.
+	writer = writer.withDefaults(set, scenario.writerDefaults())
 	if err := writer.validate(); err != nil {
+		return runSpec{}, err
+	}
+	if err := scenario.validateWriter(writer); err != nil {
 		return runSpec{}, err
 	}
 	if opts.writerImage != "" && !writer.isDefault() {
 		return runSpec{}, errJavaWriterOptions
 	}
 
-	selected, err := filterCells(allCells(stackName, opts.runID), opts.cells)
+	cellFilter := opts.cells
+	if scenario.kind != noScenario && strings.TrimSpace(cellFilter) == "" {
+		cellFilter = scenarioCellName
+	}
+	selected, err := filterCells(allCells(stackName, opts.runID), cellFilter)
 	if err != nil {
+		return runSpec{}, err
+	}
+	if err := scenario.checkCells(selected); err != nil {
 		return runSpec{}, err
 	}
 	spec := runSpec{
@@ -890,6 +1103,7 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 		profile:     profile,
 		writer:      writer,
 		calibrate:   opts.calibrate,
+		scenario:    scenario,
 	}
 	for _, c := range selected {
 		if c.writer, err = c.writerOptions(writer, set); err != nil {
@@ -899,6 +1113,13 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 			return runSpec{}, fmt.Errorf("cell %s: %w", c.name, errJavaWriterOptions)
 		}
 		switch {
+		case scenario.kind != noScenario && c.name == scenarioCellName:
+			// A disruption delays the drains past every marker age, so the
+			// markers would say nothing about the drain window.
+			c.markers = markerDelays{}
+			if scenario.kind == keyRotationScenario {
+				c.agentKeyIndex = 1
+			}
 		case c.probe != nil:
 			c.markers = markerDelays{earlyMs: c.probe.ageMs, earlyExpect: c.probe.expect, lateMs: postRotationMarkerLostDelayMs}
 		default:
@@ -1107,6 +1328,16 @@ func (spec runSpec) hasReader(reader readerKind) bool {
 	return false
 }
 
+// cellNamed returns the provisioned cell of that name.
+func (spec runSpec) cellNamed(name string) (cell, bool) {
+	for _, c := range spec.cells {
+		if c.name == name {
+			return c, true
+		}
+	}
+	return cell{}, false
+}
+
 // fakeintakeOptions must be identical in both passes: the passes update one
 // stack, and any difference would replace the Fakeintake VM between them.
 func fakeintakeOptions() azurekubernetes.ProvisionerOption {
@@ -1213,6 +1444,11 @@ func (spec runSpec) storageWorkload(env config.Env, kubeProvider *kubernetes.Pro
 	}
 	agentSecretOpts = append(agentSecretOpts, utils.PulumiDependsOn(agentNS))
 
+	// The ARM ID of every storage account, so the test process can address
+	// one with the Azure CLI (the key-rotation scenario renews a key). It
+	// names the subscription and resource group the accounts were created in.
+	accountIDs := pulumi.StringMap{}
+	var accounts []pulumi.Resource
 	for _, c := range spec.cells {
 		account := &azureStorageAccount{}
 		err := ctx.RegisterResource("azure-native:storage:StorageAccount", c.accountName, pulumi.Map{
@@ -1225,6 +1461,8 @@ func (spec runSpec) storageWorkload(env config.Env, kubeProvider *kubernetes.Pro
 		if err != nil {
 			return nil, err
 		}
+		accountIDs[c.name] = account.ID().ToStringOutput()
+		accounts = append(accounts, account)
 
 		share := &azureFileShare{}
 		err = ctx.RegisterResource("azure-native:storage:FileShare", c.shareName, pulumi.Map{
@@ -1249,8 +1487,19 @@ func (spec runSpec) storageWorkload(env config.Env, kubeProvider *kubernetes.Pro
 				pulumi.DependsOn([]pulumi.Resource{account}),
 			}},
 		).(pulumi.MapOutput)
-		rawAccountKey := keys.MapIndex(pulumi.String("keys")).ApplyT(firstStorageAccountKey).(pulumi.StringOutput)
+		listedKeys := keys.MapIndex(pulumi.String("keys"))
+		rawAccountKey := listedKeys.ApplyT(firstStorageAccountKey).(pulumi.StringOutput)
 		accountKey := pulumi.ToSecret(rawAccountKey).(pulumi.StringOutput)
+		// The Agent's copy holds key1 like the writer's, except in the
+		// key-rotation scenario, whose Agent reads with key2.
+		agentAccountKey := accountKey
+		if c.agentKeyIndex != 0 {
+			index := c.agentKeyIndex
+			rawAgentKey := listedKeys.ApplyT(func(value any) (string, error) {
+				return storageAccountKeyAt(value, index)
+			}).(pulumi.StringOutput)
+			agentAccountKey = pulumi.ToSecret(rawAgentKey).(pulumi.StringOutput)
+		}
 		storageSecretOpts := append([]pulumi.ResourceOption{}, kubeOpts...)
 		storageSecretOpts = append(storageSecretOpts, utils.PulumiDependsOn(share))
 		_, err = corev1.NewSecret(ctx, c.secretName(), &corev1.SecretArgs{
@@ -1282,12 +1531,28 @@ func (spec runSpec) storageWorkload(env config.Env, kubeProvider *kubernetes.Pro
 			},
 			StringData: pulumi.StringMap{
 				accountNameSecretKey: account.Name,
-				accountKeySecretKey:  accountKey,
+				accountKeySecretKey:  agentAccountKey,
 			},
 		}, agentSecretOpts...)
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	accountOpts := append([]pulumi.ResourceOption{}, kubeOpts...)
+	accountOpts = append(accountOpts, pulumi.DependsOn(accounts))
+	if _, err := corev1.NewConfigMap(ctx, storageAccountsConfigMapName, &corev1.ConfigMapArgs{
+		Metadata: metav1.ObjectMetaArgs{
+			Name:      pulumi.String(storageAccountsConfigMapName),
+			Namespace: pulumi.String(e2eNamespace),
+			Labels: pulumi.StringMap{
+				partOfLabel: pulumi.String(partOfLabelValue),
+				runIDLabel:  pulumi.String(spec.runID),
+			},
+		},
+		Data: accountIDs,
+	}, accountOpts...); err != nil {
+		return nil, err
 	}
 
 	if err := ctx.RegisterResourceOutputs(workload, pulumi.Map{
@@ -1300,13 +1565,22 @@ func (spec runSpec) storageWorkload(env config.Env, kubeProvider *kubernetes.Pro
 }
 
 func firstStorageAccountKey(value any) (string, error) {
+	return storageAccountKeyAt(value, 0)
+}
+
+// storageAccountKeyAt returns key1 (index 0) or key2 (index 1) of a
+// listStorageAccountKeys result. Errors never contain a key.
+func storageAccountKeyAt(value any, index int) (string, error) {
 	keys, ok := value.([]any)
 	if !ok || len(keys) == 0 {
 		return "", errors.New("Azure returned no storage account keys")
 	}
-	key, ok := keys[0].(map[string]any)
+	if index < 0 || index >= len(keys) {
+		return "", fmt.Errorf("Azure returned %d storage account keys, not key%d", len(keys), index+1)
+	}
+	key, ok := keys[index].(map[string]any)
 	if !ok {
-		return "", fmt.Errorf("Azure returned an unexpected storage account key type %T", keys[0])
+		return "", fmt.Errorf("Azure returned an unexpected storage account key type %T", keys[index])
 	}
 	keyValue, ok := key["value"].(string)
 	if !ok || keyValue == "" {
@@ -1696,6 +1970,19 @@ func (spec runSpec) agentHelmValues() string {
         DD_LOGS_CONFIG_CLOSE_TIMEOUT: "%d"
         DD_LOGS_CONFIG_UNRELIABLE_MOUNT_ENABLED: "%t"
 `, fileScanPeriodSeconds, closeTimeoutSeconds, spec.profile.unreliableMount)
+	if spec.scenario.kind == keyRotationScenario {
+		// secret_refresh_interval and secret_refresh_scatter, read in
+		// pkg/config/setup/config.go: the core Agent runs the secret backend
+		// again every interval and, when the smb password changed, schedules
+		// the azure_files configuration again with it. Without scatter the
+		// first refresh comes one interval after start-up rather than at a
+		// random time within it. The chart's
+		// datadog.secretBackend.refreshInterval would set the interval in
+		// every container; only the core Agent resolves the smb handle.
+		fmt.Fprintf(&values, `        DD_SECRET_REFRESH_INTERVAL: "%d"
+        DD_SECRET_REFRESH_SCATTER: "false"
+`, secretRefreshIntervalSeconds)
+	}
 	if volumes.Len() > 0 {
 		fmt.Fprintf(&values, `  volumes:
 %s  volumeMounts:

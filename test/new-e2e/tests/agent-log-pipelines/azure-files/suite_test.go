@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -43,6 +44,10 @@ const (
 	// runCalibrate records every marker's outcome instead of asserting it.
 	runCalibrate      = "AZURE_FILES_E2E_CALIBRATE"
 	runCalibrateValue = "1"
+	// runScenario selects a disruption of the Agent (see scenarios_test.go),
+	// and runNetworkDropSeconds how long network-drop lasts.
+	runScenario           = "AZURE_FILES_E2E_SCENARIO"
+	runNetworkDropSeconds = "AZURE_FILES_E2E_NETWORK_DROP_SECONDS"
 	// The smb cells need an Agent built with the native SMB log source,
 	// which a stock build does not have, so they only run on request.
 	smbOptIn       = "E2E_SMB_AZURE"
@@ -146,6 +151,14 @@ type azureFilesSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 	spec     runSpec
 	evidence *evidenceDir
+
+	// secretsMu guards knownKeys, which a status watcher reads from its
+	// own goroutine to redact what it records.
+	secretsMu sync.Mutex
+	// knownKeys are storage account keys that are no longer, or not yet, in
+	// a Secret the test reads: a key it renewed, and the one it replaced.
+	// It redacts and leak-checks them like the others.
+	knownKeys []string
 }
 
 func TestAzureFiles(t *testing.T) {
@@ -160,20 +173,23 @@ func TestAzureFiles(t *testing.T) {
 
 	runID := fmt.Sprintf("%s-%06d", time.Now().UTC().Format("20060102t150405z"), time.Now().UTC().Nanosecond()/1000)
 	spec, err := newRunSpec(runOptions{
-		runID:           runID,
-		writerImage:     writerImage,
-		profile:         os.Getenv(runProfile),
-		cells:           os.Getenv(runCells),
-		stackName:       os.Getenv(runStackName),
-		smbEnabled:      os.Getenv(smbOptIn) == smbOptInValue,
-		rotationMode:    os.Getenv(runRotationMode),
-		periodMs:        os.Getenv(runPeriodMs),
-		rateBytesPerSec: os.Getenv(runRate),
-		streams:         os.Getenv(runStreams),
-		calibrate:       os.Getenv(runCalibrate) == runCalibrateValue,
+		runID:              runID,
+		writerImage:        writerImage,
+		profile:            os.Getenv(runProfile),
+		cells:              os.Getenv(runCells),
+		stackName:          os.Getenv(runStackName),
+		smbEnabled:         os.Getenv(smbOptIn) == smbOptInValue,
+		rotationMode:       os.Getenv(runRotationMode),
+		periodMs:           os.Getenv(runPeriodMs),
+		rateBytesPerSec:    os.Getenv(runRate),
+		streams:            os.Getenv(runStreams),
+		calibrate:          os.Getenv(runCalibrate) == runCalibrateValue,
+		scenario:           os.Getenv(runScenario),
+		networkDropSeconds: os.Getenv(runNetworkDropSeconds),
 	})
 	require.NoError(t, err, "one of %s is invalid", strings.Join([]string{
 		runProfile, runCells, runStackName, runWriterImage, runRotationMode, runPeriodMs, runRate, runStreams,
+		runScenario, runNetworkDropSeconds,
 	}, ", "))
 	if len(spec.cells) == 0 {
 		names := make([]string, 0, len(spec.gatedCells))
@@ -197,6 +213,9 @@ func gateReason() string {
 }
 
 func (suite *azureFilesSuite) TestRotatedFilesAreCollectedExactlyOnce() {
+	if suite.spec.scenario.kind != noScenario {
+		suite.T().Skipf("%s=%s runs that scenario's test method instead", runScenario, suite.spec.scenario.kind)
+	}
 	suite.skipGatedCells()
 	suite.installAgent()
 	defer suite.captureEvidence()
@@ -204,7 +223,7 @@ func (suite *azureFilesSuite) TestRotatedFilesAreCollectedExactlyOnce() {
 
 	for _, c := range suite.spec.cells {
 		suite.Run(c.name, func() {
-			suite.checkCell(c)
+			suite.checkCell(c, recordRules{})
 		})
 	}
 }
@@ -229,11 +248,18 @@ func (suite *azureFilesSuite) installAgent() {
 	require.NoError(suite.T(), suite.writeRunMetadata())
 }
 
+// recordRules are what a scenario changes in how a cell's records are judged.
+type recordRules struct {
+	// restart, after an Agent restart, lets the records the Agent could
+	// resend be collected twice.
+	restart *restartRule
+}
+
 // checkCell waits for the cell's writer to complete its files and checks that
 // the Agent collected them: every record exactly once, except what the cell's
-// rotation mode allows, and each marker as calibrated. It returns the asserted
-// ledger entries.
-func (suite *azureFilesSuite) checkCell(c cell) []ledgerEntry {
+// rotation mode and rules allow, and each marker as calibrated. It returns the
+// asserted ledger entries.
+func (suite *azureFilesSuite) checkCell(c cell, rules recordRules) []ledgerEntry {
 	suite.T().Helper()
 	if c.reader == smbReader {
 		// Fail with a clear message when the Agent cannot run the source at
@@ -265,6 +291,8 @@ func (suite *azureFilesSuite) checkCell(c cell) []ledgerEntry {
 		case c.lossAccounted():
 			suite.assertLossesReported(t, c, ledger, asserted, check, recordLineBytes(messages, expected))
 			assertNoDuplicates(t, c, check)
+		case rules.restart != nil:
+			assertRestartRecords(t, c, check, counts, *rules.restart)
 		default:
 			assertRecordsCollected(t, c, check)
 		}
@@ -954,6 +982,7 @@ func (suite *azureFilesSuite) writeRunMetadata() error {
 			"close_timeout":    closeTimeoutSeconds,
 		},
 		"calibrate": suite.spec.calibrate,
+		"scenario":  suite.spec.scenarioMetadata(),
 		// The marker ages depend on the reader and are listed per cell.
 		"post_rotation_markers": map[string]any{
 			"expected_surviving": postRotationMarkerSurvivingCount,
@@ -1100,12 +1129,14 @@ func (suite *azureFilesSuite) evidenceDir() (*evidenceDir, error) {
 		}
 		evidence.secrets = append(evidence.secrets, keys...)
 	}
+	evidence.secrets = append(evidence.secrets, suite.knownSecrets()...)
 	suite.evidence = evidence
 	return evidence, nil
 }
 
 // cellKeys are the storage account keys of an SMB cell that the test knows:
-// the writer's, and the Agent's copy when it holds another key.
+// the writer's, the Agent's copy when it holds another key, and any key the
+// test renewed or replaced.
 func (suite *azureFilesSuite) cellKeys(c cell) ([]string, error) {
 	writerKey, err := suite.accountKey(c)
 	if err != nil {
@@ -1119,7 +1150,25 @@ func (suite *azureFilesSuite) cellKeys(c cell) ([]string, error) {
 	if agentKey != writerKey {
 		keys = append(keys, agentKey)
 	}
-	return keys, nil
+	return append(keys, suite.knownSecrets()...), nil
+}
+
+// addKnownKey records a key the test renewed or replaced, so that every
+// later redaction removes it too, including from an evidence directory
+// already created, and the leak checks look for it.
+func (suite *azureFilesSuite) addKnownKey(key string) {
+	suite.secretsMu.Lock()
+	suite.knownKeys = append(suite.knownKeys, key)
+	suite.secretsMu.Unlock()
+	if suite.evidence != nil {
+		suite.evidence.secrets = append(suite.evidence.secrets, key)
+	}
+}
+
+func (suite *azureFilesSuite) knownSecrets() []string {
+	suite.secretsMu.Lock()
+	defer suite.secretsMu.Unlock()
+	return slices.Clone(suite.knownKeys)
 }
 
 func (suite *azureFilesSuite) storageAccountNames() string {

@@ -380,6 +380,91 @@ func (suite *azureFilesSuite) checkMissedBytesTotals(c cell, ledger, asserted []
 	}
 }
 
+// Agent restart.
+
+// restartRule is what an Agent restart may resend.
+type restartRule struct {
+	// bound is how many records of a stream may be collected twice.
+	bound int
+	// graceful says the stopped Agent logged that its logs agent stopped
+	// within its grace period.
+	graceful bool
+}
+
+// restartDuplicateBound is how many records an Agent restart can collect
+// twice. The registry holds the offset of the last record the destination
+// acknowledged, so a restart resends what was acknowledged after the
+// registry was last written:
+//   - a graceful stop writes the registry once the pipeline has flushed
+//     (registryAuditor.Stop), so nothing is resent;
+//   - otherwise the registry is at most one auditor flush period old, and
+//     the payloads acknowledged in that time, or in flight when the Agent
+//     was killed, were each filled within batch_wait. That is the records
+//     written in a flush period, a batch wait and a second of send latency,
+//     plus one write of the writer, whose records arrive together.
+//
+// Records are counted with the paced payload size, which is less than their
+// line, so the bound is generous.
+func restartDuplicateBound(w writerOptions, graceful bool) int {
+	if graceful || !w.paced() {
+		return 0
+	}
+	seconds := auditorFlushPeriodSeconds + logsBatchWaitSeconds + 1
+	perSecond := float64(w.rateBytesPerSec) / pacedWriterPayloadBytes
+	return int(math.Ceil(perSecond*float64(seconds))) + pacedWriterBufferBytes/pacedWriterPayloadBytes
+}
+
+// restartDuplicateProblems lists how the duplicates of a restart break the
+// rule: more of them than the bound, a record collected more than twice, or
+// duplicates of a stream that are not one run of sequences, while a restart
+// resumes each file at one offset.
+func restartDuplicateProblems(check recordCheck, counts map[recordKey]int, rule restartRule) []string {
+	var problems []string
+	if len(check.duplicated) > rule.bound {
+		problems = append(problems, fmt.Sprintf("%d records were collected twice, more than the %d the Agent can resend after a %s restart: %s",
+			len(check.duplicated), rule.bound, map[bool]string{true: "graceful", false: "forced"}[rule.graceful], formatRecordRanges(check.duplicated)))
+	}
+	var thrice []recordKey
+	byStream := make(map[string][]int64)
+	for _, key := range check.duplicated {
+		if counts[key] > 2 {
+			thrice = append(thrice, key)
+		}
+		byStream[key.runID] = append(byStream[key.runID], key.sequence)
+	}
+	if len(thrice) > 0 {
+		problems = append(problems, fmt.Sprintf("%d records were collected more than twice, while one restart resends a record once: %s", len(thrice), formatRecordRanges(thrice)))
+	}
+	streams := make([]string, 0, len(byStream))
+	for stream := range byStream {
+		streams = append(streams, stream)
+	}
+	sort.Strings(streams)
+	for _, stream := range streams {
+		sequences := byStream[stream]
+		sort.Slice(sequences, func(i, j int) bool { return sequences[i] < sequences[j] })
+		if span := sequences[len(sequences)-1] - sequences[0] + 1; span != int64(len(sequences)) {
+			keys := make([]recordKey, 0, len(sequences))
+			for _, sequence := range sequences {
+				keys = append(keys, recordKey{runID: stream, sequence: sequence})
+			}
+			problems = append(problems, fmt.Sprintf("the duplicates of %s are not one run of sequences, while a restart resumes each file at one offset: %s", stream, formatRecordRanges(keys)))
+		}
+	}
+	return problems
+}
+
+// assertRestartRecords requires every record at least once, and at most what
+// the restart can resend twice.
+func assertRestartRecords(t assert.TestingT, c cell, check recordCheck, counts map[recordKey]int, rule restartRule) {
+	assert.Zero(t, len(check.missing),
+		"%s: %d of %d expected records were never collected across the Agent restart: %s",
+		c.name, len(check.missing), check.expected, formatRecordRanges(check.missing))
+	for _, problem := range restartDuplicateProblems(check, counts, rule) {
+		assert.Fail(t, "duplicates beyond what a restart resends", "%s: %s", c.name, problem)
+	}
+}
+
 // Load.
 
 // The SMB client's read sizes, from pkg/logs/internal/smb/client: each chunk

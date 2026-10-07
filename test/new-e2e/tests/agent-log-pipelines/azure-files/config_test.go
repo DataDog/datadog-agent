@@ -9,6 +9,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	k8scorev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -1150,6 +1152,128 @@ func TestGlobLoadCellWritesManyServicesUnderOneSource(t *testing.T) {
 	assert.InDelta(t, 0.2, idle.ReadOpensPerScan, 0.001)
 }
 
+func TestScenariosAreValidated(t *testing.T) {
+	for name, opts := range map[string]runOptions{
+		`unknown scenario "reboot"`:                   {scenario: "reboot"},
+		"only applies to the network-drop scenario":   {scenario: "agent-restart", networkDropSeconds: "60"},
+		"network drop 30 must be between 31 and 600":  {scenario: "network-drop", networkDropSeconds: "30"},
+		"rotates by rename":                           {scenario: "agent-restart", rotationMode: "gzip"},
+		"reads one app.log":                           {scenario: "key-rotation", streams: "2"},
+		"needs a paced writer":                        {scenario: "network-drop", rateBytesPerSec: "0"},
+		"period of at least 120000ms":                 {scenario: "agent-restart", periodMs: "60000"},
+		"period of at least 240000ms":                 {scenario: "key-rotation", periodMs: "120000"},
+		"period of at least 210000ms":                 {scenario: "network-drop", networkDropSeconds: "120", periodMs: "180000"},
+		"runs with the smb cell alone, not with file": {scenario: "agent-restart", cells: "smb,file-line"},
+		"runs with the smb cell alone, not with smb-": {scenario: "key-rotation", cells: "smb,smb-gzip"},
+		"SMB cells may share the blocked":             {scenario: "network-drop", cells: "smb,smb-gzip"},
+		"runs on the smb cell":                        {scenario: "network-drop", cells: "file-line"},
+		"the Java writer image":                       {scenario: "agent-restart", writerImage: testWriterImage},
+	} {
+		opts.runID, opts.smbEnabled = testRunID, true
+		_, err := newRunSpec(opts)
+		assert.ErrorContains(t, err, name)
+	}
+}
+
+func TestScenariosRunOnTheSMBCell(t *testing.T) {
+	for _, kind := range knownScenarios {
+		spec := testRunSpec(t, runOptions{scenario: " " + string(kind) + " ", smbEnabled: true})
+		assert.Equal(t, kind, spec.scenario.kind)
+		require.Len(t, spec.cells, 1, kind)
+		c := spec.cells[0]
+		assert.Equal(t, scenarioCellName, c.name)
+		// A disruption delays the drains past every marker.
+		assert.Zero(t, c.markers.count(), kind)
+		assert.Contains(t, spec.appenderEnv(c), envVar{"LOGWRITER_APPEND_DELAYS_MS", "none"}, kind)
+		// A paced writer with a period that holds the disruption.
+		assert.Equal(t, renameRotation, c.writer.mode, kind)
+		assert.Zero(t, c.writer.streams, kind)
+		assert.True(t, c.writer.paced(), kind)
+		assert.GreaterOrEqual(t, c.writer.periodMs, spec.scenario.minPeriodMs(), kind)
+		assert.Equal(t, spec.writer, c.writer, kind)
+		assert.Equal(t, kind == keyRotationScenario, c.agentKeyIndex == 1, kind)
+		assert.Equal(t, kind, spec.scenarioMetadata()["name"])
+
+		// The gate still applies: without it, nothing is provisioned.
+		gated := testRunSpec(t, runOptions{scenario: string(kind)})
+		assert.Empty(t, gated.cells, kind)
+	}
+	assert.Nil(t, testRunSpec(t, runOptions{}).scenarioMetadata())
+
+	assert.Equal(t, writerOptions{mode: renameRotation, periodMs: 120000, rateBytesPerSec: 20000},
+		testRunSpec(t, runOptions{scenario: "agent-restart", smbEnabled: true}).writer)
+	assert.Equal(t, writerOptions{mode: renameRotation, periodMs: 300000, rateBytesPerSec: 10000},
+		testRunSpec(t, runOptions{scenario: "key-rotation", smbEnabled: true}).writer)
+	drop := testRunSpec(t, runOptions{scenario: "network-drop", smbEnabled: true})
+	assert.Equal(t, defaultNetworkDropSeconds, drop.scenario.dropSeconds)
+	assert.Equal(t, writerOptions{mode: renameRotation, periodMs: 180000, rateBytesPerSec: 10000}, drop.writer)
+	// A longer drop gets a longer default period.
+	long := testRunSpec(t, runOptions{scenario: "network-drop", networkDropSeconds: "200", smbEnabled: true})
+	assert.Equal(t, (200+networkDropMarginSeconds)*1000, long.writer.periodMs)
+	// Explicit options are kept when they hold the disruption.
+	explicit := testRunSpec(t, runOptions{scenario: "agent-restart", periodMs: "180000", rateBytesPerSec: "5000", smbEnabled: true})
+	assert.Equal(t, writerOptions{mode: renameRotation, periodMs: 180000, rateBytesPerSec: 5000}, explicit.writer)
+
+	// network-drop only blocks the Agent pod's namespace, so the file cells
+	// can run next to it with their usual markers.
+	withFiles := testRunSpec(t, runOptions{scenario: "network-drop", cells: "smb,file-line", smbEnabled: true})
+	require.Len(t, withFiles.cells, 2)
+	assert.Equal(t, markerDelaysFor(fileReader, renameRotation), withFiles.cells[1].markers)
+
+	// The drop outlasts an operation timeout, and the period holds the drop,
+	// the longest backoff after it and a margin.
+	assert.Greater(t, minNetworkDropSeconds, smbOpTimeoutSeconds)
+	assert.Greater(t, keyRotationForcedDropSeconds, smbOpTimeoutSeconds)
+	assert.GreaterOrEqual(t, networkDropPeriodMs, (defaultNetworkDropSeconds+networkDropMarginSeconds)*1000)
+	assert.Greater(t, agentRestartMinPeriodMs, agentRestartDeleteAfterMs)
+	assert.Less(t, keyRotationStartAfterMs+int(keyRotationNaturalAuthWait/time.Millisecond)+keyRotationForcedDropSeconds*1000+(smbMaxBackoffSeconds+60+3*secretRefreshIntervalSeconds)*1000,
+		keyRotationPeriodMs)
+}
+
+func TestKeyRotationEnablesTheSecretRefresh(t *testing.T) {
+	values := testRunSpec(t, runOptions{scenario: "key-rotation", smbEnabled: true}).agentHelmValues()
+	assert.Contains(t, values, "        DD_LOGS_CONFIG_UNRELIABLE_MOUNT_ENABLED: \"false\"\n"+
+		"        DD_SECRET_REFRESH_INTERVAL: \"15\"\n"+
+		"        DD_SECRET_REFRESH_SCATTER: \"false\"\n")
+	// The Agent still reads the key from its mounted Secret.
+	assert.Contains(t, values, `password: "ENC[file@/etc/azure-files-secrets/smb/azurestorageaccountkey]"`)
+
+	for _, opts := range []runOptions{
+		{smbEnabled: true},
+		{scenario: "agent-restart", smbEnabled: true},
+		{scenario: "network-drop", smbEnabled: true},
+	} {
+		assert.NotContains(t, testRunSpec(t, opts).agentHelmValues(), "DD_SECRET_REFRESH", opts.scenario)
+	}
+}
+
+func TestStorageAccountKeyAtPicksKey1OrKey2(t *testing.T) {
+	keys := []any{map[string]any{"keyName": "key1", "value": "first"}, map[string]any{"keyName": "key2", "value": "second"}}
+	key, err := storageAccountKeyAt(keys, 1)
+	require.NoError(t, err)
+	assert.Equal(t, "second", key)
+	key, err = firstStorageAccountKey(keys)
+	require.NoError(t, err)
+	assert.Equal(t, "first", key)
+	_, err = storageAccountKeyAt(keys[:1], 1)
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "first")
+}
+
+func TestStorageAccountIDAddressesTheAzureCLI(t *testing.T) {
+	account, err := parseStorageAccountID("/subscriptions/sub-id/resourceGroups/dd-agent-sandbox/providers/Microsoft.Storage/storageAccounts/ddafsmbabc")
+	require.NoError(t, err)
+	assert.Equal(t, storageAccountRef{subscription: "sub-id", resourceGroup: "dd-agent-sandbox", name: "ddafsmbabc"}, account)
+	_, err = parseStorageAccountID("ddafsmbabc")
+	assert.Error(t, err)
+
+	// The renewal prints nothing; the key is read on its own.
+	renew := strings.Join(account.renewKeyArgs(), " ")
+	assert.Equal(t, "storage account keys renew --subscription sub-id --resource-group dd-agent-sandbox --account-name ddafsmbabc --key secondary --output none", renew)
+	list := account.secondaryKeyArgs()
+	assert.Equal(t, []string{"--query", "[?keyName=='key2'].value | [0]", "--output", "tsv"}, list[len(list)-4:])
+}
+
 func TestMissedBytesReportsAreReadFromTheAgentLog(t *testing.T) {
 	log := strings.Join([]string{
 		"2026-10-06T18:29:07.123456789Z 2026-10-06 18:29:07 UTC | CORE | WARN | (pkg/logs/tailers/smb/tailer.go:427 in RecordMissedBytes) | " +
@@ -1284,6 +1408,160 @@ func TestLossesMustBeTheEndOfAFileAndReported(t *testing.T) {
 	// Lines are counted with their newline.
 	lines := recordLineBytes([]string{"x run_id=r period=p sequence=1 record=1", "noise"}, map[recordKey]struct{}{{"r", 1}: {}})
 	assert.Equal(t, map[recordKey]int64{{"r", 1}: 40}, lines)
+}
+
+func TestRestartDuplicatesAreBounded(t *testing.T) {
+	paced := writerOptions{mode: renameRotation, periodMs: 120000, rateBytesPerSec: 20000}
+	assert.Zero(t, restartDuplicateBound(paced, true))
+	// 20000 B/s of 1 KiB payloads over a flush period, a batch wait and a
+	// second, plus one 64 KiB write.
+	assert.Equal(t, int(math.Ceil(20000.0/1024*7))+64, restartDuplicateBound(paced, false))
+	assert.Zero(t, restartDuplicateBound(defaultWriterOptions(), false))
+
+	expected := map[recordKey]struct{}{}
+	for sequence := int64(1); sequence <= 10; sequence++ {
+		expected[recordKey{"r", sequence}] = struct{}{}
+	}
+	all := func(extra map[int64]int) map[recordKey]int {
+		counts := map[recordKey]int{}
+		for key := range expected {
+			counts[key] = 1 + extra[key.sequence]
+		}
+		return counts
+	}
+	c := cell{name: "smb"}
+	resent := all(map[int64]int{5: 1, 6: 1, 7: 1})
+	ok := new(recordingT)
+	assertRestartRecords(ok, c, checkRecords(expected, nil, resent), resent, restartRule{bound: 3})
+	assert.Empty(t, ok.failures)
+
+	tooMany := new(recordingT)
+	assertRestartRecords(tooMany, c, checkRecords(expected, nil, resent), resent, restartRule{bound: 2, graceful: true})
+	require.Len(t, tooMany.failures, 1)
+	assert.Contains(t, tooMany.failures[0], "more than the 2 the Agent can resend after a graceful restart")
+
+	scattered := all(map[int64]int{2: 1, 7: 2})
+	problems := restartDuplicateProblems(checkRecords(expected, nil, scattered), scattered, restartRule{bound: 10})
+	require.Len(t, problems, 2)
+	assert.Contains(t, problems[0], "more than twice")
+	assert.Contains(t, problems[1], "not one run of sequences")
+
+	lost := all(nil)
+	delete(lost, recordKey{"r", 10})
+	missing := new(recordingT)
+	assertRestartRecords(missing, c, checkRecords(expected, nil, lost), lost, restartRule{bound: 3})
+	require.Len(t, missing.failures, 1)
+	assert.Contains(t, missing.failures[0], "never collected across the Agent restart: r:10")
+
+	assert.True(t, gracefulLogsStop("... | INFO | Stopping logs-agent\n... | INFO | logs-agent stopped\n"))
+	assert.False(t, gracefulLogsStop("Timed out when stopping logs-agent, forcing it to stop now\nlogs-agent stopped"))
+	assert.False(t, gracefulLogsStop(""))
+}
+
+func TestRegistryMustOutliveTheAgentPod(t *testing.T) {
+	pod := func(volume k8scorev1.VolumeSource) k8scorev1.Pod {
+		return k8scorev1.Pod{Spec: k8scorev1.PodSpec{
+			Containers: []k8scorev1.Container{{Name: agentContainer, VolumeMounts: []k8scorev1.VolumeMount{{Name: "pointerdir", MountPath: logsRunPath}}}},
+			Volumes:    []k8scorev1.Volume{{Name: "pointerdir", VolumeSource: volume}},
+		}}
+	}
+	// What chart 3.245.0 renders with datadog.logs.enabled.
+	assert.NoError(t, checkRegistryPersists(pod(k8scorev1.VolumeSource{HostPath: &k8scorev1.HostPathVolumeSource{Path: "/var/lib/datadog-agent/logs"}})))
+	assert.ErrorContains(t, checkRegistryPersists(pod(k8scorev1.VolumeSource{EmptyDir: &k8scorev1.EmptyDirVolumeSource{}})), "not a hostPath")
+	assert.ErrorContains(t, checkRegistryPersists(k8scorev1.Pod{}), "mounts nothing at /opt/datadog-agent/run")
+}
+
+func TestDisruptionsAreTimedInsideOnePeriod(t *testing.T) {
+	at := func(clock string) time.Time {
+		parsed, err := time.Parse(time.RFC3339, "2026-10-06T"+clock+"Z")
+		require.NoError(t, err)
+		return parsed
+	}
+	// Periods start at multiples of the period since the epoch.
+	assert.Equal(t, at("12:02:00"), periodStart(at("12:03:59"), 120000))
+	assert.Equal(t, at("12:00:00"), periodStart(at("12:04:59"), 300000))
+
+	start, end := disruptionTiming(at("12:02:05"), 120000, 30*time.Second)
+	assert.Equal(t, at("12:02:30"), start)
+	assert.Equal(t, at("12:04:00"), end)
+	// Too late in the period: the next one.
+	start, end = disruptionTiming(at("12:02:31"), 120000, 30*time.Second)
+	assert.Equal(t, at("12:04:30"), start)
+	assert.Equal(t, at("12:06:00"), end)
+
+	// The drop is centred on the end of the period.
+	block, rotation := networkDropTiming(at("12:03:05"), 180000, 90)
+	assert.Equal(t, at("12:05:15"), block)
+	assert.Equal(t, at("12:06:00"), rotation)
+	block, rotation = networkDropTiming(at("12:05:20"), 180000, 90)
+	assert.Equal(t, at("12:08:15"), block)
+	assert.Equal(t, at("12:09:00"), rotation)
+}
+
+func TestNetworkHelperOnlyTouchesTheAgentNamespace(t *testing.T) {
+	pod := networkHelperPod("network-helper-1", "aks-node-0", "registry-1.docker.io/"+stockWorkloadImage,
+		[]k8scorev1.LocalObjectReference{{Name: "pull"}}, testRunID)
+	assert.Equal(t, e2eNamespace, pod.Namespace)
+	assert.Equal(t, "aks-node-0", pod.Spec.NodeName)
+	assert.True(t, pod.Spec.HostPID)
+	assert.False(t, pod.Spec.HostNetwork, "the helper enters the Agent's network namespace, it does not need the node's")
+	assert.Equal(t, k8scorev1.RestartPolicyNever, pod.Spec.RestartPolicy)
+	require.Len(t, pod.Spec.Containers, 1)
+	container := pod.Spec.Containers[0]
+	assert.True(t, *container.SecurityContext.Privileged)
+	assert.Zero(t, *container.SecurityContext.RunAsUser)
+	// Pinned by digest: the writers' stock image.
+	assert.Regexp(t, `@sha256:[0-9a-f]{64}$`, container.Image)
+	// It is no writer pod: findWriterPod selects on the cell label.
+	assert.NotContains(t, pod.Labels, cellLabel)
+	assert.Equal(t, networkHelperApp, pod.Labels[helperRoleLabel])
+
+	assert.Equal(t, []string{"nsenter", "--mount=/proc/1/ns/mnt", "--net=/proc/4242/ns/net", "--", "iptables", "-w", "5",
+		"-I", "OUTPUT", "1", "-p", "tcp", "-d", "20.60.1.2", "--dport", "445", "-m", "comment", "--comment", "tag", "-j", "DROP"},
+		nsenterIptables("4242", dropRuleArgs("-I", "20.60.1.2", "tag")...))
+	assert.Equal(t, []string{"-D", "OUTPUT", "-p", "tcp", "-d", "20.60.1.2", "--dport", "445", "-m", "comment", "--comment", "tag", "-j", "DROP"},
+		dropRuleArgs("-D", "20.60.1.2", "tag"))
+
+	assert.Equal(t, []string{"20.60.1.2", "20.60.1.3"}, parseAddresses("20.60.1.2      STREAM file.core.windows.net\n20.60.1.2      DGRAM\n20.60.1.3      STREAM\n"))
+	tcp := `  sl  local_address rem_address   st tx_queue rx_queue
+   0: 0A00000A:A1B2 0201033C:01BD 01 00000000:00000000 00:00000000 00000000     0
+   1: 0A00000A:A1B3 0201033C:01BD 06 00000000:00000000 00:00000000 00000000     0
+   2: 0A00000A:A1B4 0201033C:1F90 01 00000000:00000000 00:00000000 00000000     0`
+	assert.Equal(t, 1, countSMBConnections(tcp))
+	listing := `Chain OUTPUT (policy ACCEPT 10 packets, 600 bytes)
+    pkts      bytes target     prot opt in     out     source               destination
+      37     2220 DROP       tcp  --  *      *       0.0.0.0/0            20.60.1.2            tcp dpt:445 /* tag */
+       5      300 DROP       tcp  --  *      *       0.0.0.0/0            20.60.1.3            tcp dpt:445 /* tag */
+       9      540 DROP       tcp  --  *      *       0.0.0.0/0            20.60.1.4            tcp dpt:445 /* other */`
+	assert.Equal(t, int64(42), droppedPacketCount(listing, "tag"))
+
+	id, err := agentContainerID(k8scorev1.Pod{Status: k8scorev1.PodStatus{ContainerStatuses: []k8scorev1.ContainerStatus{
+		{Name: "trace-agent", ContainerID: "containerd://other"}, {Name: agentContainer, ContainerID: "containerd://abc123"},
+	}}})
+	require.NoError(t, err)
+	assert.Equal(t, "abc123", id)
+	_, err = agentContainerID(k8scorev1.Pod{})
+	assert.Error(t, err)
+}
+
+func TestSourceStatusesAreClassified(t *testing.T) {
+	assert.Equal(t, sourceOK, classifySourceStatus("OK"))
+	assert.Equal(t, sourcePending, classifySourceStatus("Pending"))
+	assert.Equal(t, sourceAuthError, classifySourceStatus("Error: cannot read smb://h/s: the server rejected the credentials or denied access. Check the username"))
+	assert.Equal(t, sourceUnreachable, classifySourceStatus("Error: cannot reach smb://h/s, retrying: i/o timeout"))
+	assert.Equal(t, sourceOtherError, classifySourceStatus("Error: not found on smb://h/s"))
+
+	start := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+	obs := []statusObservation{
+		{At: start, State: sourceOK},
+		{At: start.Add(5 * time.Second), State: sourceUnreachable},
+		{At: start.Add(10 * time.Second), State: sourceAuthError},
+		{At: start.Add(15 * time.Second), State: sourceOK},
+	}
+	assert.Equal(t, 2, firstObservation(obs, 0, start, sourceAuthError))
+	assert.Equal(t, 3, firstObservation(obs, 3, time.Time{}, sourceOK))
+	assert.Equal(t, 3, firstObservation(obs, 0, start.Add(time.Second), sourceOK))
+	assert.Equal(t, -1, firstObservation(obs, 0, start.Add(20*time.Second), sourceOK))
 }
 
 func TestLoadReportMeasuresThroughputAndLag(t *testing.T) {
