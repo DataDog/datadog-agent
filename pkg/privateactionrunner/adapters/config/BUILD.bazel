@@ -32,10 +32,7 @@ go_library(
 
 dd_agent_go_test(
     name = "config_test",
-    srcs = [
-        "transform_test.go",
-        "transform_windows_test.go",
-    ],
+    srcs = ["transform_test.go"],
     embed = [":config"],
     deps = [
         "//comp/dogstatsd/statsd/def",

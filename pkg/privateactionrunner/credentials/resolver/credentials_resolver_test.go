@@ -82,27 +82,42 @@ func TestScriptCredentialFileResolution(t *testing.T) {
 	}
 }
 
-func TestNewPrivateCredentialResolverRejectsFilesystemRoots(t *testing.T) {
+func TestNewPrivateCredentialResolverSkipsInvalidRoots(t *testing.T) {
+	validRoot := t.TempDir()
+	validPath := filepath.Join(validRoot, "credentials.yaml")
+	require.NoError(t, os.WriteFile(validPath, []byte("credentials"), 0o600))
+
+	regularFile := filepath.Join(t.TempDir(), "credentials.yaml")
+	require.NoError(t, os.WriteFile(regularFile, []byte("credentials"), 0o600))
 	filesystemRoot := filepath.VolumeName(t.TempDir()) + string(filepath.Separator)
+
 	tests := []struct {
 		name string
-		path string
+		root string
 	}{
-		{name: "filesystem root", path: filesystemRoot},
+		{name: "relative", root: "private-action-runner"},
+		{name: "filesystem root", root: filesystemRoot},
+		{name: "nonexistent", root: filepath.Join(t.TempDir(), "missing")},
+		{name: "regular file", root: regularFile},
 	}
 	symlinkToFilesystemRoot := filepath.Join(t.TempDir(), "filesystem-root")
 	if err := os.Symlink(filesystemRoot, symlinkToFilesystemRoot); err == nil {
 		tests = append(tests, struct {
 			name string
-			path string
-		}{name: "symlink to filesystem root", path: symlinkToFilesystemRoot})
+			root string
+		}{name: "symlink to filesystem root", root: symlinkToFilesystemRoot})
+	} else {
+		t.Logf("skipping symlink case: %v", err)
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewPrivateCredentialResolver([]string{tt.path})
+			resolver := newTestResolver(t, []string{tt.root, validRoot})
 
-			require.ErrorIs(t, err, errCouldNotOpenScriptCredentialRoots)
+			assert.Len(t, resolver.(*privateCredentialResolver).scriptCredentialFileRoots, 1)
+			credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(validPath), nil)
+			require.NoError(t, err)
+			assert.Equal(t, "credentials", credentials.AsTokenMap()["configFileLocation"])
 		})
 	}
 }
@@ -194,8 +209,7 @@ func scriptConnectionInfo(path string) *privateactionspb.ConnectionInfo {
 
 func newTestResolver(t *testing.T, roots []string) PrivateCredentialResolver {
 	t.Helper()
-	resolver, err := NewPrivateCredentialResolver(roots)
-	require.NoError(t, err)
+	resolver := NewPrivateCredentialResolver(roots)
 	t.Cleanup(func() {
 		for _, root := range resolver.(*privateCredentialResolver).scriptCredentialFileRoots {
 			assert.NoError(t, root.root.Close())

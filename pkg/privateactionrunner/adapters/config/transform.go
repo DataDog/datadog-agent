@@ -77,10 +77,6 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	agentHTTPClient := &http.Client{
 		Transport: httputils.CreateHTTPTransport(config),
 	}
-	scriptCredentialFileAllowedRoots, err := scriptCredentialFileAllowedRoots(config)
-	if err != nil {
-		return nil, err
-	}
 
 	return &Config{
 		MaxBackoff:                         maxBackoff,
@@ -108,7 +104,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		Allowlist:                          config.GetStringSlice(par.HTTPAllowlist),
 		AllowIMDSEndpoint:                  config.GetBool(par.HTTPAllowIMDSEndpoint),
 		KubernetesAllowedCustomResources:   kubernetesAllowedCustomResources(config),
-		ScriptCredentialFileAllowedRoots:   scriptCredentialFileAllowedRoots,
+		ScriptCredentialFileAllowedRoots:   scriptCredentialFileAllowedRoots(config),
 		RShellAllowedPaths:                 rshellAllowedPaths(config),
 		RShellAllowedCommands:              rshellAllowedCommands(config),
 		RShellAllowedSystemServices:        rshellAllowedSystemServices(config),
@@ -130,41 +126,15 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	}, nil
 }
 
-func scriptCredentialFileAllowedRoots(config config.Component) ([]string, error) {
+func scriptCredentialFileAllowedRoots(config config.Component) []string {
 	if !config.IsConfigured(par.ScriptCredentialFileAllowedRoots) {
-		return []string{DefaultScriptCredentialFileRoot()}, nil
+		return []string{DefaultScriptCredentialFileRoot()}
 	}
 
 	configuredRoots := config.GetStringSlice(par.ScriptCredentialFileAllowedRoots)
-	if len(configuredRoots) == 0 {
-		return []string{}, nil
-	}
-
 	uniqueRoots := make(map[string]struct{}, len(configuredRoots))
 	for _, configuredRoot := range configuredRoots {
-		root := filepath.Clean(configuredRoot)
-		if !filepath.IsAbs(root) {
-			return nil, fmt.Errorf("%s entries must be absolute directories", par.ScriptCredentialFileAllowedRoots)
-		}
-		resolvedRoot, err := filepath.EvalSymlinks(root)
-		if err != nil {
-			return nil, fmt.Errorf("%s contains an inaccessible directory", par.ScriptCredentialFileAllowedRoots)
-		}
-		info, err := os.Stat(resolvedRoot)
-		if err != nil {
-			return nil, fmt.Errorf("%s contains an inaccessible directory", par.ScriptCredentialFileAllowedRoots)
-		}
-		filesystemRootInfo, err := os.Stat(filesystemRootPath(resolvedRoot))
-		if err != nil {
-			return nil, fmt.Errorf("%s contains an inaccessible directory", par.ScriptCredentialFileAllowedRoots)
-		}
-		if os.SameFile(info, filesystemRootInfo) {
-			return nil, fmt.Errorf("%s entries must not be filesystem roots", par.ScriptCredentialFileAllowedRoots)
-		}
-		if !info.IsDir() {
-			return nil, fmt.Errorf("%s entries must be directories", par.ScriptCredentialFileAllowedRoots)
-		}
-		uniqueRoots[root] = struct{}{}
+		uniqueRoots[filepath.Clean(configuredRoot)] = struct{}{}
 	}
 
 	roots := make([]string, 0, len(uniqueRoots))
@@ -172,11 +142,7 @@ func scriptCredentialFileAllowedRoots(config config.Component) ([]string, error)
 		roots = append(roots, root)
 	}
 	sort.Strings(roots)
-	return roots, nil
-}
-
-func filesystemRootPath(path string) string {
-	return filepath.VolumeName(path) + string(filepath.Separator)
+	return roots
 }
 
 // kubernetesAllowedCustomResources preserves nil for an unset allowlist so custom

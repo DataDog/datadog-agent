@@ -326,40 +326,16 @@ private_action_runner:
 	})
 }
 
-func TestFromDDConfigRejectsInvalidScriptCredentialFileAllowedRoots(t *testing.T) {
-	regularFile := filepath.Join(t.TempDir(), "credentials.yaml")
-	require.NoError(t, os.WriteFile(regularFile, []byte("credentials"), 0o600))
+// Root validation is owned by the credential resolver, which skips invalid roots.
+func TestFromDDConfigDoesNotFailOnInvalidScriptCredentialFileAllowedRoots(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing")
-	filesystemRoot := filepath.VolumeName(t.TempDir()) + string(filepath.Separator)
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.ScriptCredentialFileAllowedRoots, []string{"private-action-runner", missing})
 
-	tests := []struct {
-		name string
-		root string
-	}{
-		{name: "relative", root: "private-action-runner"},
-		{name: "filesystem root", root: filesystemRoot},
-		{name: "nonexistent", root: missing},
-		{name: "regular file", root: regularFile},
-	}
-	symlinkToFilesystemRoot := filepath.Join(t.TempDir(), "filesystem-root")
-	if err := os.Symlink(filesystemRoot, symlinkToFilesystemRoot); err == nil {
-		tests = append(tests, struct {
-			name string
-			root string
-		}{name: "symlink to filesystem root", root: symlinkToFilesystemRoot})
-	}
+	cfg, err := FromDDConfig(mockConfig, nil)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := configmock.New(t)
-			mockConfig.SetInTest(par.ScriptCredentialFileAllowedRoots, []string{tt.root})
-
-			_, err := FromDDConfig(mockConfig, nil)
-
-			require.Error(t, err)
-			assert.ErrorContains(t, err, par.ScriptCredentialFileAllowedRoots)
-		})
-	}
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"private-action-runner", missing}, cfg.ScriptCredentialFileAllowedRoots)
 }
 
 func TestFromDDConfigMetricsClient(t *testing.T) {

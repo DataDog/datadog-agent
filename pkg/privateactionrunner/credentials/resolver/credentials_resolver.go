@@ -31,6 +31,7 @@ var (
 	errCouldNotParseCredentialFile       = errors.New("could not parse credentials file")
 	errCouldNotLoadScriptCredentialFile  = errors.New("could not load script credential file")
 	errCouldNotOpenScriptCredentialRoots = errors.New("could not open script credential file roots")
+	errScriptCredentialRootNotAbsolute   = errors.New("script credential file root must be absolute")
 )
 
 type PrivateCredentialResolver interface {
@@ -63,23 +64,23 @@ type Credential struct {
 	Password   string `json:"password,omitempty"`
 }
 
-func NewPrivateCredentialResolver(scriptCredentialFileAllowedRoots []string) (PrivateCredentialResolver, error) {
+func NewPrivateCredentialResolver(scriptCredentialFileAllowedRoots []string) PrivateCredentialResolver {
 	roots := make([]scriptCredentialFileRoot, 0, len(scriptCredentialFileAllowedRoots))
 	for _, path := range scriptCredentialFileAllowedRoots {
-		path = filepath.Clean(path)
-		root, err := openScriptCredentialRoot(path)
+		root, err := openScriptCredentialRoot(filepath.Clean(path))
 		if err != nil {
-			for _, openedRoot := range roots {
-				_ = openedRoot.root.Close()
-			}
-			return nil, errCouldNotOpenScriptCredentialRoots
+			log.Warn("Skipping Script credential file root", log.String("root", path), log.ErrorField(err))
+			continue
 		}
 		roots = append(roots, root)
 	}
-	return &privateCredentialResolver{scriptCredentialFileRoots: roots}, nil
+	return &privateCredentialResolver{scriptCredentialFileRoots: roots}
 }
 
 func openScriptCredentialRoot(path string) (scriptCredentialFileRoot, error) {
+	if !filepath.IsAbs(path) {
+		return scriptCredentialFileRoot{}, errScriptCredentialRootNotAbsolute
+	}
 	resolvedPath, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return scriptCredentialFileRoot{}, err

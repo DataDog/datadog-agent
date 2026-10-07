@@ -57,27 +57,13 @@ func NewWorkflowTaskExecutor(
 	if err != nil {
 		return nil, fmt.Errorf("could not create private action bundle registry: %w", err)
 	}
-	credentialResolver, err := newCredentialResolver(configuration.ScriptCredentialFileAllowedRoots)
-	if err != nil {
-		return nil, fmt.Errorf("could not create private credential resolver: %w", err)
-	}
 
 	return &WorkflowTaskExecutor{
 		registry:     registry,
 		config:       configuration,
 		taskVerifier: taskVerifier,
-		resolver:     credentialResolver,
+		resolver:     resolver.NewPrivateCredentialResolver(configuration.ScriptCredentialFileAllowedRoots),
 	}, nil
-}
-
-func newCredentialResolver(scriptCredentialFileAllowedRoots []string) (resolver.PrivateCredentialResolver, error) {
-	credentialResolver, err := resolver.NewPrivateCredentialResolver(scriptCredentialFileAllowedRoots)
-	if err == nil {
-		return credentialResolver, nil
-	}
-
-	log.Warn("Script credential file access is disabled because the allowed roots could not be opened")
-	return resolver.NewPrivateCredentialResolver(nil)
 }
 
 func (e *WorkflowTaskExecutor) PrepareTask(

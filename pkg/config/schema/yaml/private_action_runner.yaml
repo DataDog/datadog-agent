@@ -125,7 +125,8 @@ properties:
           Directories from which Script connection credential files may be read.
           When unset, only the packaged Private Action Runner configuration directory
           is allowed. Configured values replace that default; an explicit empty list
-          disables Script credential-file access. Paths must be absolute directories.
+          disables Script credential-file access. Paths must be absolute directories;
+          invalid entries are skipped with a warning.
   api_key_only_enrollment:
     node_type: setting
     type: boolean
