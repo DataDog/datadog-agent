@@ -162,7 +162,7 @@ func GetProxyTransportFunc(p *pkgconfigmodel.Proxy, cfg pkgconfigmodel.Reader) f
 			if confProxy != "" {
 				proxyURL, err := url.Parse(confProxy)
 				if err != nil {
-					err := fmt.Errorf("Could not parse the proxy URL for scheme %s from configuration: %s", r.URL.Scheme, err)
+					err := fmt.Errorf("Could not parse the proxy URL for scheme %s from configuration: %w", r.URL.Scheme, err)
 					log.Error(err.Error())
 					return nil, err
 				}

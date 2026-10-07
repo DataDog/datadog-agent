@@ -47,7 +47,7 @@ func getCachedTags(err error) ([]string, error) {
 		log.Infof("unable to get tags from gce, returning cached tags: %s", err)
 		return gceTags.([]string), nil
 	}
-	return nil, fmt.Errorf("unable to get tags from gce and cache is empty: %s", err)
+	return nil, fmt.Errorf("unable to get tags from gce and cache is empty: %w", err)
 }
 
 // GetTags gets the tags from the GCE api

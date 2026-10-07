@@ -23,7 +23,7 @@ func certTemplate(additionalIPs []net.IP, additionalDNSNames []string) (*x509.Ce
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate serial number: %s", err)
+		return nil, fmt.Errorf("failed to generate serial number: %w", err)
 	}
 
 	notBefore := time.Now()
@@ -63,7 +63,7 @@ func generateCertKeyPair(signerCert *x509.Certificate, signerKey any, additional
 
 	certKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return Certificate{}, fmt.Errorf("Unable to generate IPC private key: %v", err)
+		return Certificate{}, fmt.Errorf("Unable to generate IPC private key: %w", err)
 	}
 
 	// If signer is not provided, use the root certificate template as the parent
@@ -80,7 +80,7 @@ func generateCertKeyPair(signerCert *x509.Certificate, signerKey any, additional
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	rawKey, err := x509.MarshalECPrivateKey(certKey)
 	if err != nil {
-		return Certificate{}, fmt.Errorf("Unable to marshall private key: %v", err)
+		return Certificate{}, fmt.Errorf("Unable to marshall private key: %w", err)
 	}
 
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: rawKey})

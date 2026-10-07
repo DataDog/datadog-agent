@@ -61,7 +61,7 @@ func TryFetchArtifact[T any](location string, factory ArtifactBuilder[T]) (T, er
 	// Read the artifact
 	content, err := os.ReadFile(location)
 	if err != nil {
-		return zero, fmt.Errorf("unable to read artifact: %s", err)
+		return zero, fmt.Errorf("unable to read artifact: %w", err)
 	}
 
 	// Try to load artifact
@@ -181,12 +181,12 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 	// We must set the permissions to `dd-agent` or an equivalent user to allow other Agent processes to acquire the lock.
 	err = perms.RestrictAccessToUser(location + lockSuffix)
 	if err != nil {
-		return zero, fmt.Errorf("unable to restrict access to user: %v", err)
+		return zero, fmt.Errorf("unable to restrict access to user: %w", err)
 	}
 
 	createdArtifact, tmpLocation, err := generateTmpArtifact(location, factory, perms)
 	if err != nil {
-		return zero, fmt.Errorf("unable to generate temporary artifact: %v", err)
+		return zero, fmt.Errorf("unable to generate temporary artifact: %w", err)
 	}
 
 	// Move the temporary artifact to its final location, this is an atomic operation
@@ -198,7 +198,7 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 			log.Warnf("unable to remove temporary artifact: %v", removeErr.Error())
 		}
 
-		return zero, fmt.Errorf("unable to move temporary artifact to its final location: %v", err)
+		return zero, fmt.Errorf("unable to move temporary artifact to its final location: %w", err)
 	}
 
 	log.Debugf("successfully created artifact %v", location)
@@ -215,12 +215,12 @@ func generateTmpArtifact[T any](location string, factory ArtifactBuilder[T], per
 
 	tmpArtifact, newArtifactContent, err := factory.Generate()
 	if err != nil {
-		return zero, "", fmt.Errorf("unable to generate new artifact: %v", err)
+		return zero, "", fmt.Errorf("unable to generate new artifact: %w", err)
 	}
 
 	tmpFile, err := os.CreateTemp(filepath.Dir(location), "tmp-artifact-")
 	if err != nil {
-		return zero, "", fmt.Errorf("unable to create temporary artifact: %v", err)
+		return zero, "", fmt.Errorf("unable to create temporary artifact: %w", err)
 	}
 	defer tmpFile.Close()
 
@@ -228,16 +228,16 @@ func generateTmpArtifact[T any](location string, factory ArtifactBuilder[T], per
 
 	_, err = tmpFile.Write(newArtifactContent)
 	if err != nil {
-		return zero, tmpLocation, fmt.Errorf("unable to store temporary artifact: %v", err)
+		return zero, tmpLocation, fmt.Errorf("unable to store temporary artifact: %w", err)
 	}
 
 	//Make sure that data has been written to disk
 	if err := tmpFile.Sync(); err != nil {
-		return zero, tmpLocation, fmt.Errorf("unable to sync file on disk: %v", err)
+		return zero, tmpLocation, fmt.Errorf("unable to sync file on disk: %w", err)
 	}
 
 	if err := perms.RestrictAccessToUser(tmpLocation); err != nil {
-		return zero, tmpLocation, fmt.Errorf("unable to set permission to temporary artifact: %v", err)
+		return zero, tmpLocation, fmt.Errorf("unable to set permission to temporary artifact: %w", err)
 	}
 
 	return tmpArtifact, tmpLocation, nil

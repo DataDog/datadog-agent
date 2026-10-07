@@ -60,7 +60,7 @@ var vmIDFetcher = cachedfetch.Fetcher{
 			fmt.Sprintf("%s/metadata/instance/compute/vmId?%s&format=text", metadataURL, GetMetadataAPIVersion()),
 			pkgconfigsetup.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
-			return nil, fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
+			return nil, fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %w", err)
 		}
 		return []string{res}, nil
 	},
@@ -77,7 +77,7 @@ var resourceGroupNameFetcher = cachedfetch.Fetcher{
 		rg, err := getResponse(ctx,
 			fmt.Sprintf("%s/metadata/instance/compute/resourceGroupName?%s&format=text", metadataURL, GetMetadataAPIVersion()))
 		if err != nil {
-			return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
+			return "", fmt.Errorf("unable to query metadata endpoint: %w", err)
 		}
 		return rg, nil
 	},
@@ -120,7 +120,7 @@ var instanceTypeFetcher = cachedfetch.Fetcher{
 		instanceType, err := getResponse(ctx,
 			fmt.Sprintf("%s/metadata/instance/compute/vmSize?%s&format=text", metadataURL, GetMetadataAPIVersion()))
 		if err != nil {
-			return "", fmt.Errorf("failed to get Azure instance type: %s", err)
+			return "", fmt.Errorf("failed to get Azure instance type: %w", err)
 		}
 		return instanceType, nil
 	},
@@ -162,7 +162,7 @@ var instanceMetaFetcher = cachedfetch.Fetcher{
 		metadataJSON, err := getResponse(ctx,
 			fmt.Sprintf("%s/metadata/instance/compute?%s", metadataURL, GetMetadataAPIVersion()))
 		if err != nil {
-			return "", fmt.Errorf("failed to get Azure instance metadata: %s", err)
+			return "", fmt.Errorf("failed to get Azure instance metadata: %w", err)
 		}
 		return metadataJSON, nil
 	},
@@ -200,7 +200,7 @@ func getHostnameWithConfig(ctx context.Context, config model.Config) (string, er
 		SubscriptionID    string
 	}
 	if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
-		return "", fmt.Errorf("failed to parse Azure instance metadata: %s", err)
+		return "", fmt.Errorf("failed to parse Azure instance metadata: %w", err)
 	}
 
 	var name string
@@ -230,7 +230,7 @@ var hostCCRIDFetcher = cachedfetch.Fetcher{
 		rg, err := getResponse(ctx,
 			fmt.Sprintf("%s/metadata/instance/compute/resourceId?%s&format=text", metadataURL, GetMetadataAPIVersion()))
 		if err != nil {
-			return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
+			return "", fmt.Errorf("unable to query metadata endpoint: %w", err)
 		}
 		return rg, nil
 	},
@@ -254,7 +254,7 @@ var publicIPv4Fetcher = cachedfetch.Fetcher{
 		publicIPv4, err := getResponse(ctx,
 			fmt.Sprintf("%s/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?%s&format=text", metadataURL, GetMetadataAPIVersion()))
 		if err != nil {
-			return "", fmt.Errorf("failed to get Azure public ip: %s", err)
+			return "", fmt.Errorf("failed to get Azure public ip: %w", err)
 		}
 
 		return publicIPv4, nil

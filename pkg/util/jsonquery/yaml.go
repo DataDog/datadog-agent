@@ -59,7 +59,7 @@ func YAMLCheckExist(yamlData []byte, query string) (bool, error) {
 	output, _, err := RunSingleOutput(query, yamlContent)
 	var exist bool
 	if err := yaml.Unmarshal([]byte(output), &exist); err != nil {
-		return false, fmt.Errorf("filter query must return a boolean: %s", err)
+		return false, fmt.Errorf("filter query must return a boolean: %w", err)
 	}
 	return exist, err
 }

@@ -52,7 +52,7 @@ func Retry(retryDuration time.Duration, retries int, callback func() error, frie
 
 		if attempts == retries {
 			// give up
-			return fmt.Errorf("bail out from %s, max retries reached, last error: %v", friendlyName, err)
+			return fmt.Errorf("bail out from %s, max retries reached, last error: %w", friendlyName, err)
 		}
 
 		log.Warnf("retrying %s, got the error: %v", friendlyName, err)

@@ -40,7 +40,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 		endpoint := metadataURL + "/opc/v2/instance/id"
 		res, err := getResponse(ctx, endpoint)
 		if err != nil {
-			return nil, fmt.Errorf("Oracle HostAliases: unable to query metadata endpoint: %s", err)
+			return nil, fmt.Errorf("Oracle HostAliases: unable to query metadata endpoint: %w", err)
 		}
 
 		if res == "" {
@@ -88,7 +88,7 @@ var ccridFetcher = cachedfetch.Fetcher{
 		endpoint := metadataURL + "/opc/v2/instance/id"
 		res, err := getResponse(ctx, endpoint)
 		if err != nil {
-			return "", fmt.Errorf("Oracle CCRID: unable to query metadata endpoint: %s", err)
+			return "", fmt.Errorf("Oracle CCRID: unable to query metadata endpoint: %w", err)
 		}
 		return res, nil
 	},
@@ -105,7 +105,7 @@ var instanceTypeFetcher = cachedfetch.Fetcher{
 		endpoint := metadataURL + "/opc/v2/instance/shape"
 		res, err := getResponse(ctx, endpoint)
 		if err != nil {
-			return "", fmt.Errorf("unable to retrieve instance shape from Oracle: %s", err)
+			return "", fmt.Errorf("unable to retrieve instance shape from Oracle: %w", err)
 		}
 
 		if res == "" {

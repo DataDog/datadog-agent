@@ -64,7 +64,7 @@ func printHostname(_ log.Component, params *cliParams, client ipc.HTTPClient) er
 	hname, err := getHostname(params, client)
 
 	if err != nil {
-		return fmt.Errorf("Error getting the hostname: %v", err)
+		return fmt.Errorf("Error getting the hostname: %w", err)
 	}
 
 	fmt.Println(hname)

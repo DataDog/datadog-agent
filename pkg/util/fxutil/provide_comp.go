@@ -83,7 +83,7 @@ func ProvideComponentConstructor(compCtorFunc interface{}) fx.Option {
 	ctorTypes, err := getConstructorTypes(ctorFuncType)
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
-		return fx.Error(fmt.Errorf("%s:%d: %s", file, line, err))
+		return fx.Error(fmt.Errorf("%s:%d: %w", file, line, err))
 	}
 
 	// build reflect.Type of the constructor function that will be provided to `fx.Provide`

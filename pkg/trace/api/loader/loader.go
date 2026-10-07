@@ -16,7 +16,7 @@ import (
 func getFileFromFD(fdStr string, name string) (*os.File, error) {
 	fd, err := strconv.Atoi(fdStr)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse file descriptor %v: %v", fdStr, err)
+		return nil, fmt.Errorf("could not parse file descriptor %v: %w", fdStr, err)
 	}
 
 	f := os.NewFile(uintptr(fd), name)
@@ -40,7 +40,7 @@ func GetListenerFromFD(fdStr string, name string) (net.Listener, error) {
 
 	listener, flerr := net.FileListener(f)
 	if flerr != nil {
-		return nil, fmt.Errorf("could not create file listener for %v: %v", fdStr, flerr)
+		return nil, fmt.Errorf("could not create file listener for %v: %w", fdStr, flerr)
 	}
 	return listener, nil
 }
@@ -58,7 +58,7 @@ func GetConnFromFD(fdStr string, name string) (net.Conn, error) {
 
 	conn, err := net.FileConn(f)
 	if err != nil {
-		return nil, fmt.Errorf("could not create file connection for %v: %v", fdStr, err)
+		return nil, fmt.Errorf("could not create file connection for %v: %w", fdStr, err)
 	}
 	return conn, nil
 }

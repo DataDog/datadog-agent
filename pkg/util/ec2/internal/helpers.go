@@ -126,12 +126,12 @@ func GetInstanceIdentity(ctx context.Context) (*EC2Identity, error) {
 	instanceIdentity := &EC2Identity{}
 	res, err := DoHTTPRequest(ctx, InstanceIdentityURL, UseIMDSv2(), true)
 	if err != nil {
-		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API to get identity: %s", err)
+		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API to get identity: %w", err)
 	}
 
 	err = json.Unmarshal([]byte(res), &instanceIdentity)
 	if err != nil {
-		return instanceIdentity, fmt.Errorf("unable to unmarshall json, %s", err)
+		return instanceIdentity, fmt.Errorf("unable to unmarshall json, %w", err)
 	}
 
 	return instanceIdentity, nil
@@ -141,13 +141,13 @@ func GetInstanceIdentity(ctx context.Context) (*EC2Identity, error) {
 func GetInstanceDocument(ctx context.Context) (map[string]string, error) {
 	res, err := DoHTTPRequest(ctx, InstanceIdentityURL, UseIMDSv2(), false)
 	if err != nil {
-		return nil, fmt.Errorf("unable to fetch EC2 API to get instance information: %s", err)
+		return nil, fmt.Errorf("unable to fetch EC2 API to get instance information: %w", err)
 	}
 
 	info := map[string]string{}
 	err = json.Unmarshal([]byte(res), &info)
 	if err != nil {
-		return nil, fmt.Errorf("unable to unmarshall json, %s", err)
+		return nil, fmt.Errorf("unable to unmarshall json, %w", err)
 	}
 
 	return info, nil

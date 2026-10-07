@@ -52,7 +52,7 @@ func (s *DsdStatsRuntimeSetting) Set(config config.Component, v interface{}, sou
 	var err error
 
 	if newValue, err = settings.GetBool(v); err != nil {
-		return fmt.Errorf("DsdStatsRuntimeSetting: %v", err)
+		return fmt.Errorf("DsdStatsRuntimeSetting: %w", err)
 	}
 
 	s.ServerDebug.SetMetricStatsEnabled(newValue)

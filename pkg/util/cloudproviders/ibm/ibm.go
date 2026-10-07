@@ -60,7 +60,7 @@ func getToken(ctx context.Context) (string, time.Time, error) {
 	data := tokenAnswer{}
 	err = json.Unmarshal([]byte(res), &data)
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("could not Unmarshal IBM token answer: %s", err)
+		return "", time.Time{}, fmt.Errorf("could not Unmarshal IBM token answer: %w", err)
 	} else if data.Value == "" {
 		return "", time.Time{}, errors.New("empty token returned by token API")
 	}
@@ -90,7 +90,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 
 		t, err := token.Get(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("IBM HostAliases: unable to get a token: %s", err)
+			return nil, fmt.Errorf("IBM HostAliases: unable to get a token: %w", err)
 		}
 
 		res, err := httputils.Get(ctx,
@@ -100,7 +100,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 			},
 			pkgconfigsetup.Datadog().GetDuration("ibm_metadata_timeout")*time.Second, pkgconfigsetup.Datadog())
 		if err != nil {
-			return nil, fmt.Errorf("IBM HostAliases: unable to query metadata endpoint: %s", err)
+			return nil, fmt.Errorf("IBM HostAliases: unable to query metadata endpoint: %w", err)
 		}
 
 		if res == "" {
@@ -113,7 +113,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 		data := instanceAnswer{}
 		err = json.Unmarshal([]byte(res), &data)
 		if err != nil {
-			return "", fmt.Errorf("could not Unmarshal IBM metadata answer: %s", err)
+			return "", fmt.Errorf("could not Unmarshal IBM metadata answer: %w", err)
 		}
 
 		if data.ID == "" {

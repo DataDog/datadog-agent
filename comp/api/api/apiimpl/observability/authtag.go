@@ -27,7 +27,7 @@ func AuthTagGetter(serverTLSConfig *tls.Config) (func(r *http.Request) string, e
 
 	cert, err := x509.ParseCertificate(serverTLSConfig.Certificates[0].Certificate[0])
 	if err != nil {
-		return nil, fmt.Errorf("error parsing IPC certificate: %v", err)
+		return nil, fmt.Errorf("error parsing IPC certificate: %w", err)
 	}
 
 	return func(r *http.Request) string {

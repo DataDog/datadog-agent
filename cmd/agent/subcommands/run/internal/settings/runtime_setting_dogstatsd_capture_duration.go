@@ -58,7 +58,7 @@ func (l *DsdCaptureDurationRuntimeSetting) Set(config config.Component, v interf
 
 	_, err = time.ParseDuration(s)
 	if err != nil {
-		return fmt.Errorf("Unsupported type for %s: %v", l.value, err)
+		return fmt.Errorf("Unsupported type for %s: %w", l.value, err)
 	}
 
 	// TODO

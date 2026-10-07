@@ -252,7 +252,7 @@ func fetchTagsFromCache(ctx context.Context) ([]string, error) {
 			log.Infof("unable to get tags from aws, returning cached tags: %s", err)
 			return ec2Tags.([]string), nil
 		}
-		return nil, fmt.Errorf("unable to get tags from aws and cache is empty: %s", err)
+		return nil, fmt.Errorf("unable to get tags from aws and cache is empty: %w", err)
 	}
 
 	// save tags to the cache in case we exceed quotas later
@@ -286,12 +286,12 @@ func getSecurityCreds(ctx context.Context) (*ec2SecurityCred, error) {
 
 	res, err := ec2internal.DoHTTPRequest(ctx, ec2internal.MetadataURL+"/iam/security-credentials/"+iamRole, ec2internal.UseIMDSv2(), true)
 	if err != nil {
-		return iamParams, fmt.Errorf("unable to fetch EC2 API to get iam role: %s", err)
+		return iamParams, fmt.Errorf("unable to fetch EC2 API to get iam role: %w", err)
 	}
 
 	err = json.Unmarshal([]byte(res), &iamParams)
 	if err != nil {
-		return iamParams, fmt.Errorf("unable to unmarshall json, %s", err)
+		return iamParams, fmt.Errorf("unable to unmarshall json, %w", err)
 	}
 	return iamParams, nil
 }
@@ -299,7 +299,7 @@ func getSecurityCreds(ctx context.Context) (*ec2SecurityCred, error) {
 func getIAMRole(ctx context.Context) (string, error) {
 	res, err := ec2internal.DoHTTPRequest(ctx, ec2internal.MetadataURL+"/iam/security-credentials/", ec2internal.UseIMDSv2(), true)
 	if err != nil {
-		return "", fmt.Errorf("unable to fetch EC2 API to get security credentials: %s", err)
+		return "", fmt.Errorf("unable to fetch EC2 API to get security credentials: %w", err)
 	}
 
 	return res, nil

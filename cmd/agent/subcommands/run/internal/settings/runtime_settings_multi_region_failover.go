@@ -66,7 +66,7 @@ func (h *MultiRegionFailoverRuntimeSetting) Set(config config.Component, v inter
 		return fmt.Errorf("%v: bad parameter value provided: %v", h.value, v)
 	}
 	if err != nil {
-		return fmt.Errorf("%v: %v", h.value, err)
+		return fmt.Errorf("%v: %w", h.value, err)
 	}
 
 	config.Set(h.value, newValue, source)

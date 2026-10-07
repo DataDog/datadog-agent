@@ -226,7 +226,7 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 	}
 
 	if err := c.scheduler.Enter(ch); err != nil {
-		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
+		return emptyID, fmt.Errorf("unable to schedule the check: %w", err)
 	}
 
 	if check.IsShadow(ch) {
@@ -276,7 +276,7 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 
 	// unschedule the instance
 	if err := collectorScheduler.Cancel(id); err != nil {
-		return fmt.Errorf("an error occurred while canceling the check schedule: %s", err)
+		return fmt.Errorf("an error occurred while canceling the check schedule: %w", err)
 	}
 
 	// delete check from checks map even if we encounter an error
@@ -293,11 +293,11 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 	if err := collectorRunner.StopCheck(id); err != nil {
 		// still attempt to cancel the check before returning the error
 		_ = c.cancelCheck(ch, c.cancelCheckTimeout)
-		return fmt.Errorf("an error occurred while stopping the check: %s", err)
+		return fmt.Errorf("an error occurred while stopping the check: %w", err)
 	}
 
 	if err := c.cancelCheck(ch, c.cancelCheckTimeout); err != nil {
-		return fmt.Errorf("an error occurred while calling check.Cancel(): %s", err)
+		return fmt.Errorf("an error occurred while calling check.Cancel(): %w", err)
 	}
 
 	return nil
@@ -378,7 +378,7 @@ func (c *collectorImpl) ReloadAllCheckInstances(name string, newInstances []chec
 	for _, id := range killed {
 		e := c.StopCheck(id)
 		if e != nil {
-			return nil, fmt.Errorf("Error stopping check %s: %s", id, e)
+			return nil, fmt.Errorf("Error stopping check %s: %w", id, e)
 		}
 	}
 
@@ -386,7 +386,7 @@ func (c *collectorImpl) ReloadAllCheckInstances(name string, newInstances []chec
 	for _, check := range newInstances {
 		id, e := c.RunCheck(check)
 		if e != nil {
-			return nil, fmt.Errorf("Error adding check %s: %s", id, e)
+			return nil, fmt.Errorf("Error adding check %s: %w", id, e)
 		}
 	}
 	return killed, nil

@@ -144,7 +144,7 @@ func EnsureParentDirsExist(p string) error {
 func OpenFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
 	f, err := os.OpenFile(filePath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error opening file %s: %v", filePath, err)
+		return nil, nil, fmt.Errorf("error opening file %s: %w", filePath, err)
 	}
 	bufWriter := bufio.NewWriter(f)
 	return f, bufWriter, nil

@@ -45,7 +45,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 		endpoint := metadataURL + "/latest/meta-data/instance-id"
 		res, err := httputils.Get(ctx, endpoint, nil, timeout, pkgconfigsetup.Datadog())
 		if err != nil {
-			return nil, fmt.Errorf("Alibaba HostAliases: unable to query metadata endpoint: %s", err)
+			return nil, fmt.Errorf("Alibaba HostAliases: unable to query metadata endpoint: %w", err)
 		}
 		maxLength := pkgconfigsetup.Datadog().GetInt("metadata_endpoints_max_hostname_size")
 		if len(res) > maxLength {

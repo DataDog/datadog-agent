@@ -59,7 +59,7 @@ func fromHostnameFile(ctx context.Context, _ string) (string, error) {
 
 	fileContent, err := os.ReadFile(hostnameFilepath)
 	if err != nil {
-		return "", fmt.Errorf("Could not read hostname from %s: %v", hostnameFilepath, err)
+		return "", fmt.Errorf("Could not read hostname from %s: %w", hostnameFilepath, err)
 	}
 
 	hostname := strings.TrimSpace(string(fileContent))
@@ -99,7 +99,7 @@ func fromFQDN(ctx context.Context, _ string) (string, error) {
 		if err == nil {
 			return fqdn, nil
 		}
-		return "", fmt.Errorf("Unable to get FQDN from system: %s", err)
+		return "", fmt.Errorf("Unable to get FQDN from system: %w", err)
 	}
 	return "", errors.New("'hostname_fqdn' configuration is not enabled")
 }
@@ -127,9 +127,9 @@ func getValidEC2Hostname(ctx context.Context, legacyHostnameResolution bool) (st
 		if err == nil {
 			return instanceID, nil
 		}
-		return "", fmt.Errorf("EC2 instance ID is not a valid hostname: %s", err)
+		return "", fmt.Errorf("EC2 instance ID is not a valid hostname: %w", err)
 	}
-	return "", fmt.Errorf("Unable to determine hostname from EC2: %s", err)
+	return "", fmt.Errorf("Unable to determine hostname from EC2: %w", err)
 }
 
 func resolveEC2Hostname(ctx context.Context, currentHostname string, legacyHostnameResolution bool) (string, error) {

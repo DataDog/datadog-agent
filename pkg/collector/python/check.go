@@ -122,7 +122,7 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 	if commitMetrics {
 		s, err := c.senderManager.GetSender(c.ID())
 		if err != nil {
-			return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+			return fmt.Errorf("Failed to retrieve a Sender instance: %w", err)
 		}
 		s.Commit()
 	}
@@ -388,7 +388,7 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 func (c *PythonCheck) GetSenderStats() (stats.SenderStats, error) {
 	sender, err := c.senderManager.GetSender(c.ID())
 	if err != nil {
-		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %w", err)
 	}
 	return sender.GetSenderStats(), nil
 }
@@ -429,7 +429,7 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	var diagnoses []diagnose.Diagnosis
 	err = json.Unmarshal([]byte(strDiagnoses), &diagnoses)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse diagnoses JSON for %s: %s. JSON: %q", c.id, err, strDiagnoses)
+		return nil, fmt.Errorf("failed to parse diagnoses JSON for %s: %w. JSON: %q", c.id, err, strDiagnoses)
 	}
 
 	return diagnoses, nil

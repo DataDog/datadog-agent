@@ -28,7 +28,7 @@ func (server *apiServer) startCMDServer(
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
 		// no way we can recover from this error
-		return fmt.Errorf("unable to listen to address %s: %v", cmdAddr, err)
+		return fmt.Errorf("unable to listen to address %s: %w", cmdAddr, err)
 	}
 	server.cmdAddr = cmdListener.Addr()
 

@@ -83,13 +83,13 @@ func Unzip(source, destination string) error {
 	if !fileExists(destinationDir) {
 		err := os.MkdirAll(destinationDir, 0755)
 		if err != nil {
-			return fmt.Errorf("preparing destination: %v", err)
+			return fmt.Errorf("preparing destination: %w", err)
 		}
 	}
 
 	zipReader, err := zip.OpenReader(source)
 	if err != nil {
-		return fmt.Errorf("opening source file: %v", err)
+		return fmt.Errorf("opening source file: %w", err)
 	}
 	defer zipReader.Close()
 
@@ -111,7 +111,7 @@ func extractAndWriteFile(f *zip.File, targetRootFolder string) error {
 
 	archiveFile, err := f.Open()
 	if err != nil {
-		return fmt.Errorf("failed to open file: %v", err)
+		return fmt.Errorf("failed to open file: %w", err)
 	}
 	defer archiveFile.Close()
 
@@ -124,22 +124,22 @@ func extractAndWriteFile(f *zip.File, targetRootFolder string) error {
 	if f.FileInfo().IsDir() {
 		err := os.MkdirAll(targetFilepath, 0755)
 		if err != nil {
-			return fmt.Errorf("failed to create dir %s: %v", targetFilepath, err)
+			return fmt.Errorf("failed to create dir %s: %w", targetFilepath, err)
 		}
 	} else {
 		err := os.MkdirAll(filepath.Dir(targetFilepath), 0755)
 		if err != nil {
-			return fmt.Errorf("failed to file dir %s: %v", targetFilepath, err)
+			return fmt.Errorf("failed to file dir %s: %w", targetFilepath, err)
 		}
 		targetFileDescriptor, err := os.OpenFile(targetFilepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 		if err != nil {
-			return fmt.Errorf("failed to open file %s: %v", targetFilepath, err)
+			return fmt.Errorf("failed to open file %s: %w", targetFilepath, err)
 		}
 		_, err = io.Copy(targetFileDescriptor, archiveFile)
 		defer targetFileDescriptor.Close()
 
 		if err != nil {
-			return fmt.Errorf("failed to copy file %s: %v", targetFilepath, err)
+			return fmt.Errorf("failed to copy file %s: %w", targetFilepath, err)
 		}
 	}
 

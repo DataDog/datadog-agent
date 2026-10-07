@@ -42,7 +42,7 @@ var hostnameFetcher = cachedfetch.Fetcher{
 		hostname, err := getResponseWithMaxLength(ctx, metadataURL+"/instance/hostname",
 			pkgconfigsetup.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
-			return "", fmt.Errorf("unable to retrieve hostname from GCE: %s", err)
+			return "", fmt.Errorf("unable to retrieve hostname from GCE: %w", err)
 		}
 		return hostname, nil
 	},
@@ -89,7 +89,7 @@ var projectIDFetcher = cachedfetch.Fetcher{
 			metadataURL+"/project/project-id",
 			pkgconfigsetup.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
-			return "", fmt.Errorf("unable to retrieve project ID from GCE: %s", err)
+			return "", fmt.Errorf("unable to retrieve project ID from GCE: %w", err)
 		}
 		return projectID, nil
 	},
@@ -108,7 +108,7 @@ func getInstanceAlias(ctx context.Context, hostname string) (string, error) {
 		// of the Compute Engine metadata server.
 		// See https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#gke_mds
 		if hostname == "" {
-			return "", fmt.Errorf("unable to retrieve instance name and hostname from GCE: %s", err)
+			return "", fmt.Errorf("unable to retrieve instance name and hostname from GCE: %w", err)
 		}
 		instanceName = strings.SplitN(hostname, ".", 2)[0]
 	}
@@ -127,7 +127,7 @@ var clusterNameFetcher = cachedfetch.Fetcher{
 		clusterName, err := getResponseWithMaxLength(ctx, metadataURL+"/instance/attributes/cluster-name",
 			pkgconfigsetup.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
-			return "", fmt.Errorf("unable to retrieve clustername from GCE: %s", err)
+			return "", fmt.Errorf("unable to retrieve clustername from GCE: %w", err)
 		}
 		return clusterName, nil
 	},
@@ -144,7 +144,7 @@ var publicIPv4Fetcher = cachedfetch.Fetcher{
 		publicIPv4, err := getResponseWithMaxLength(ctx, metadataURL+"/instance/network-interfaces/0/access-configs/0/external-ip",
 			pkgconfigsetup.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
-			return "", fmt.Errorf("unable to retrieve public IPv4 from GCE: %s", err)
+			return "", fmt.Errorf("unable to retrieve public IPv4 from GCE: %w", err)
 		}
 		return publicIPv4, nil
 	},
@@ -160,7 +160,7 @@ var networkIDFetcher = cachedfetch.Fetcher{
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		resp, err := getResponse(ctx, metadataURL+"/instance/network-interfaces/")
 		if err != nil {
-			return "", fmt.Errorf("unable to retrieve network-interfaces from GCE: %s", err)
+			return "", fmt.Errorf("unable to retrieve network-interfaces from GCE: %w", err)
 		}
 
 		interfaceIDs := strings.Split(strings.TrimSpace(resp), "\n")
@@ -216,12 +216,12 @@ var ccridFetcher = cachedfetch.Fetcher{
 
 		instanceName, err := nameFetcher.FetchString(ctx)
 		if err != nil {
-			return "", fmt.Errorf("could not query GCP instance name: %s", err)
+			return "", fmt.Errorf("could not query GCP instance name: %w", err)
 		}
 
 		zone, err := getResponse(ctx, metadataURL+"/instance/zone")
 		if err != nil {
-			return "", fmt.Errorf("could not query instance/zone GCP API: %s", err)
+			return "", fmt.Errorf("could not query instance/zone GCP API: %w", err)
 		}
 		// zone will be in the format of 'projects/PROJECT_NUM/zones/ZONE'
 		zoneSplit := strings.Split(zone, "/")
@@ -244,7 +244,7 @@ var instanceTypeFetcher = cachedfetch.Fetcher{
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		machineType, err := getResponse(ctx, metadataURL+"/instance/machine-type")
 		if err != nil {
-			return "", fmt.Errorf("unable to retrieve machine type from GCE: %s", err)
+			return "", fmt.Errorf("unable to retrieve machine type from GCE: %w", err)
 		}
 		// machine-type is returned as "projects/PROJECT_NUM/zones/ZONE/machineTypes/MACHINE_TYPE"
 		parts := strings.Split(machineType, "/")
@@ -278,7 +278,7 @@ func getResponse(ctx context.Context, url string) (string, error) {
 
 	res, err := httputils.Get(ctx, url, map[string]string{"Metadata-Flavor": "Google"}, pkgconfigsetup.Datadog().GetDuration("gce_metadata_timeout")*time.Millisecond, pkgconfigsetup.Datadog())
 	if err != nil {
-		return "", fmt.Errorf("GCE metadata API error: %s", err)
+		return "", fmt.Errorf("GCE metadata API error: %w", err)
 	}
 
 	// Some cloud platforms will respond with an empty body, causing the agent to assume a faulty hostname

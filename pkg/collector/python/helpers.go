@@ -116,14 +116,14 @@ func GetPythonIntegrationList() ([]string, error) {
 
 	integrationsList := C.get_integration_list(rtloader)
 	if integrationsList == nil {
-		return nil, fmt.Errorf("Could not query integration list: %s", getRtLoaderError())
+		return nil, fmt.Errorf("Could not query integration list: %w", getRtLoaderError())
 	}
 	defer C.rtloader_free(rtloader, unsafe.Pointer(integrationsList))
 	payload := C.GoString(integrationsList)
 
 	ddIntegrations := []string{}
 	if err := json.Unmarshal([]byte(payload), &ddIntegrations); err != nil {
-		return nil, fmt.Errorf("Could not Unmarshal integration list payload: %s", err)
+		return nil, fmt.Errorf("Could not Unmarshal integration list payload: %w", err)
 	}
 
 	ddPythonPackages := []string{}

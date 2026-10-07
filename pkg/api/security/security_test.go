@@ -26,7 +26,7 @@ func initMockConf(t *testing.T) (model.Config, string) {
 	testDir := t.TempDir()
 
 	f, err := os.CreateTemp(testDir, "fake-datadog-yaml-")
-	require.NoError(t, err, fmt.Errorf("%v", err))
+	require.NoError(t, err, fmt.Errorf("%w", err))
 	t.Cleanup(func() {
 		f.Close()
 	})

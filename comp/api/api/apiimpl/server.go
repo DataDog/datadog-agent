@@ -50,12 +50,12 @@ func stopServer(srv *http.Server, name string) {
 func (server *apiServer) startServers() error {
 	apiAddr, err := listener.GetIPCAddressPort()
 	if err != nil {
-		return fmt.Errorf("unable to get IPC address and port: %v", err)
+		return fmt.Errorf("unable to get IPC address and port: %w", err)
 	}
 
 	authTagGetter, err := observability.AuthTagGetter(server.ipc.GetTLSServerConfig())
 	if err != nil {
-		return fmt.Errorf("unable to load the IPC certificate: %v", err)
+		return fmt.Errorf("unable to load the IPC certificate: %w", err)
 	}
 
 	// create the telemetry middleware
@@ -66,7 +66,7 @@ func (server *apiServer) startServers() error {
 		apiAddr,
 		tmf,
 	); err != nil {
-		return fmt.Errorf("unable to start CMD API server: %v", err)
+		return fmt.Errorf("unable to start CMD API server: %w", err)
 	}
 
 	// start the IPC server
@@ -74,7 +74,7 @@ func (server *apiServer) startServers() error {
 		if err := server.startIPCServer(ipcServerPath, tmf); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
 			server.stopServers()
-			return fmt.Errorf("unable to start IPC API server: %v", err)
+			return fmt.Errorf("unable to start IPC API server: %w", err)
 		}
 	}
 

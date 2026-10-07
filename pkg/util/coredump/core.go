@@ -27,7 +27,7 @@ func Setup(cfg model.Reader) error {
 		})
 
 		if err != nil {
-			return fmt.Errorf("Failed to set ulimit for core dumps: %s", err)
+			return fmt.Errorf("Failed to set ulimit for core dumps: %w", err)
 		}
 	}
 

@@ -208,7 +208,7 @@ func getClusterAgentAuthToken(ctx context.Context, config configModel.Reader, to
 	}
 	authToken, err := filesystem.TryFetchArtifact(location, &authtokenFactory{})
 	if err != nil {
-		return "", fmt.Errorf("failed to load cluster agent auth token: %v", err)
+		return "", fmt.Errorf("failed to load cluster agent auth token: %w", err)
 	}
 	return authToken, validateAuthToken(authToken)
 }

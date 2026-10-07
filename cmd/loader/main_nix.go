@@ -309,13 +309,13 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 		addr := net.JoinHostPort(traceCfgReceiverHost, strconv.Itoa(traceCfgReceiverPort))
 		ln, err := loader.GetTCPListener(addr)
 		if err != nil {
-			return 0, listeners, fmt.Errorf("error listening to tcp receiver: %v", err)
+			return 0, listeners, fmt.Errorf("error listening to tcp receiver: %w", err)
 		}
 		defer ln.Close()
 
 		fd, err := loader.GetFDFromListener(ln)
 		if err != nil {
-			return 0, listeners, fmt.Errorf("error getting file descriptor from tcp listener: %v", err)
+			return 0, listeners, fmt.Errorf("error getting file descriptor from tcp listener: %w", err)
 		}
 
 		tcpFD = int(fd)
@@ -331,13 +331,13 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 
 			ln, err := loader.GetUnixListener(path)
 			if err != nil {
-				return tcpFD, listeners, fmt.Errorf("error listening to unix receiver: %v", err)
+				return tcpFD, listeners, fmt.Errorf("error listening to unix receiver: %w", err)
 			}
 			defer ln.Close()
 
 			fd, err := loader.GetFDFromListener(ln)
 			if err != nil {
-				return tcpFD, listeners, fmt.Errorf("error getting file descriptor from unix listener: %v", err)
+				return tcpFD, listeners, fmt.Errorf("error getting file descriptor from unix listener: %w", err)
 			}
 
 			listeners["DD_APM_UNIX_RECEIVER_FD"] = fd
@@ -354,13 +354,13 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 		log.Infof("Listening to otlp port %d", grpcPort)
 		ln, err := loader.GetTCPListener(net.JoinHostPort(traceCfgReceiverHost, strconv.Itoa(grpcPort)))
 		if err != nil {
-			return tcpFD, listeners, fmt.Errorf("error listening to otlp receiver: %v", err)
+			return tcpFD, listeners, fmt.Errorf("error listening to otlp receiver: %w", err)
 		}
 		defer ln.Close()
 
 		fd, err := loader.GetFDFromListener(ln)
 		if err != nil {
-			return tcpFD, listeners, fmt.Errorf("error getting file descriptor from otlp listener: %v", err)
+			return tcpFD, listeners, fmt.Errorf("error getting file descriptor from otlp listener: %w", err)
 		}
 
 		listeners["DD_OTLP_CONFIG_GRPC_FD"] = fd

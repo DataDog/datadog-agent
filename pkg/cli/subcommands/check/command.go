@@ -354,11 +354,11 @@ func run(
 			selectedChecks := []string{cliParams.checkName}
 			if cliParams.checkRate {
 				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, agentAPI, jmxLogger, ipc); err != nil {
-					return fmt.Errorf("while running the jmx check: %v", err)
+					return fmt.Errorf("while running the jmx check: %w", err)
 				}
 			} else {
 				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, agentAPI, jmxLogger, ipc); err != nil {
-					return fmt.Errorf("while running the jmx check: %v", err)
+					return fmt.Errorf("while running the jmx check: %w", err)
 				}
 			}
 
@@ -827,7 +827,7 @@ func getAllCheckConfigs(ac autodiscovery.Component, cliParams cliParams) ([]inte
 	// get config from custom config file
 	customConf, _, err := providers.GetIntegrationConfigFromFile(cliParams.checkName, cliParams.checkConfig)
 	if err != nil {
-		return nil, fmt.Errorf("fail to load custom config: %v", err)
+		return nil, fmt.Errorf("fail to load custom config: %w", err)
 	}
 
 	return []integration.Config{customConf}, nil

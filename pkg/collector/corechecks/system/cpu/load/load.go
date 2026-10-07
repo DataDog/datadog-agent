@@ -77,7 +77,7 @@ func (c *LoadCheck) Configure(senderManager sender.SenderManager, _ uint64, data
 	//       This will cause Info() to fail.
 	info, err := cpuInfo()
 	if err != nil {
-		return fmt.Errorf("system.LoadCheck: could not query CPU info - %v", err)
+		return fmt.Errorf("system.LoadCheck: could not query CPU info - %w", err)
 	}
 	for _, i := range info {
 		c.nbCPU += i.Cores

@@ -152,7 +152,7 @@ func (s *Scheduler) Cancel(id checkid.ID) error {
 	// remove it from the queue
 	err := s.checkToQueue[id].removeJob(id)
 	if err != nil {
-		return fmt.Errorf("unable to remove the Job from the queue: %s", err)
+		return fmt.Errorf("unable to remove the Job from the queue: %w", err)
 	}
 	delete(s.checkToQueue, id)
 

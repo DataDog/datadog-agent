@@ -52,12 +52,12 @@ func NewReadOnlyComponent(reqs Requires) (Provides, error) {
 	var err error
 	token, err := pkgtoken.FetchAuthToken(reqs.Conf)
 	if err != nil {
-		return Provides{}, fmt.Errorf("unable to fetch auth token (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %s", err)
+		return Provides{}, fmt.Errorf("unable to fetch auth token (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %w", err)
 	}
 
 	clientConfig, serverConfig, clusterClientConfig, err := cert.FetchIPCCert(reqs.Conf)
 	if err != nil {
-		return Provides{}, fmt.Errorf("unable to fetch IPC certificate (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %s", err)
+		return Provides{}, fmt.Errorf("unable to fetch IPC certificate (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %w", err)
 	}
 
 	pkgtoken.PersistAuthTokenFilepath(reqs.Conf)

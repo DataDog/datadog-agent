@@ -250,7 +250,7 @@ func (s *ipcClient) NewIPCEndpoint(endpointPath string) (ipc.Endpoint, error) {
 	// only IPC over localhost is currently supported
 	ipcHost, err := system.IsLocalAddress(s.config.GetString(cmdHostKey))
 	if err != nil {
-		return nil, fmt.Errorf("%s: %s", cmdHostKey, err)
+		return nil, fmt.Errorf("%s: %w", cmdHostKey, err)
 	}
 
 	ipcPort := s.config.GetInt("cmd_port")
@@ -284,7 +284,7 @@ func (end *IPCEndpoint) DoGet(options ...ipc.RequestOption) ([]byte, error) {
 		}
 		netErr := new(net.OpError)
 		if errors.As(err, &netErr) {
-			return nil, fmt.Errorf("could not reach agent: %v\nMake sure the agent is running before requesting the runtime configuration and contact support if you continue having issues", err)
+			return nil, fmt.Errorf("could not reach agent: %w\nMake sure the agent is running before requesting the runtime configuration and contact support if you continue having issues", err)
 		}
 		return nil, err
 	}

@@ -100,7 +100,7 @@ func (im *macOSImpl) appendListeningPortsNetstat(base []Port) ([]Port, error) {
 		var err error
 		im.netstatPath, err = exec.LookPath("netstat")
 		if err != nil {
-			return nil, fmt.Errorf("netstat: lookup: %v", err)
+			return nil, fmt.Errorf("netstat: lookup: %w", err)
 		}
 	}
 
@@ -137,7 +137,7 @@ func (im *macOSImpl) addProcesses() error {
 	}
 	exe, err := exec.LookPath("lsof")
 	if err != nil {
-		return fmt.Errorf("lsof: lookup: %v", err)
+		return fmt.Errorf("lsof: lookup: %w", err)
 	}
 	lsofCmd := exec.Command(exe, "-F", "-n", "-P", "-O", "-S2", "-T", "-i4", "-i6")
 	outPipe, err := lsofCmd.StdoutPipe()

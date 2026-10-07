@@ -47,7 +47,7 @@ func GetFDFromListener(ln net.Listener) (uintptr, error) {
 
 	f, err := lnf.File()
 	if err != nil {
-		return 0, fmt.Errorf("failed to get file from listener: %v", err)
+		return 0, fmt.Errorf("failed to get file from listener: %w", err)
 	}
 	defer f.Close()
 
@@ -56,7 +56,7 @@ func GetFDFromListener(ln net.Listener) (uintptr, error) {
 	// closed or garbage collected
 	duppedFD, err := unix.Dup(int(origFD))
 	if err != nil {
-		return 0, fmt.Errorf("failed to duplicate file descriptor: %v", err)
+		return 0, fmt.Errorf("failed to duplicate file descriptor: %w", err)
 	}
 
 	err = MakeExecutable(uintptr(duppedFD))
@@ -73,13 +73,13 @@ func MakeExecutable(fd uintptr) error {
 	// If CLOEXEC is set, we remove it so that the file descriptor is not closed when using the exec syscall.
 	flag, err := unix.FcntlInt(fd, unix.F_GETFD, 0)
 	if err != nil {
-		return fmt.Errorf("fcntl GETFD: %v", err)
+		return fmt.Errorf("fcntl GETFD: %w", err)
 	}
 
 	if flag&unix.FD_CLOEXEC != 0 {
 		_, err := unix.FcntlInt(fd, unix.F_SETFD, flag & ^unix.FD_CLOEXEC)
 		if err != nil {
-			return fmt.Errorf("fcntl SETFD: %v", err)
+			return fmt.Errorf("fcntl SETFD: %w", err)
 		}
 	}
 
