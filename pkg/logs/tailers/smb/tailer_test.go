@@ -626,6 +626,7 @@ func TestRecordMissedBytes(t *testing.T) {
 	_, err := tt.Poll(context.Background(), entryOf(t, share, testPath))
 	require.NoError(t, err)
 	assert.Zero(t, tt.RecordMissedBytes("test"), "nothing unread")
+	assert.NotContains(t, tt.Source().GetInfoStatus(), "Bytes Missed", "agent status shows no loss")
 
 	// The listing saw 6 more bytes, which were never read.
 	share.Append(testPath, []byte("lost!\n"))
@@ -643,6 +644,12 @@ func TestRecordMissedBytes(t *testing.T) {
 	assert.Equal(t, "demo", snapshot[0].Source)
 	assert.Equal(t, "demo-app", snapshot[0].Service)
 	assert.EqualValues(t, 6, snapshot[0].Bytes)
+	assert.Equal(t, []string{"6"}, tt.Source().GetInfoStatus()["Bytes Missed"], "agent status shows the loss on the source")
+
+	// A loss no tailer reads anymore counts for the source too.
+	RecordMissedBytesOf(tt.Source(), tt.Identifier(), 4, "test")
+	assert.EqualValues(t, 10, tt.Source().BytesMissed.Get())
+	assert.EqualValues(t, 10, metrics.MissedBytesSnapshot()[0].Bytes)
 }
 
 // TestAssumeSize checks that a tailer counts as unread the bytes another

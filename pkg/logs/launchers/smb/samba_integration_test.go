@@ -323,7 +323,8 @@ func testCopyTruncate(t *testing.T, env *sambaEnv, report *itReport) {
 func testDeleteAndRecreate(t *testing.T, env *sambaEnv, report *itReport) {
 	s := newITScenario(t, env, report, "recreate")
 	file := s.dir + "/app.log"
-	s.startSource(s.newSource(env.currentPassword(), file))
+	source := s.newSource(env.currentPassword(), file)
+	s.startSource(source)
 	s.startFile(file)
 	require.NoError(t, s.writeLines(file, 200, itWriteEvery, nil))
 	s.waitDelivered(s.lastSeq())
@@ -344,6 +345,7 @@ func testDeleteAndRecreate(t *testing.T, env *sambaEnv, report *itReport) {
 	assert.Len(t, lost, doomed, "the lines of the deleted file were lost")
 	lostBytes := int64(len(lost) * itLineLen)
 	assert.Equal(t, lostBytes, s.missedBytes(), "the bytes reported missed are the bytes lost")
+	assert.Equal(t, []string{strconv.FormatInt(lostBytes, 10)}, source.GetInfoStatus()["Bytes Missed"], "agent status shows the loss on the source")
 	s.reportf("FileId %d, recreated as FileId %d (reused: %t): %d lines (%d bytes) lost, %d bytes reported missed",
 		oldID, newID, oldID == newID, len(lost), lostBytes, s.missedBytes())
 }
@@ -954,14 +956,20 @@ func (s *itScenario) verify(mayLose, mayDuplicate func(*itLine) bool) (lost, dup
 }
 
 // missedBytes returns the bytes the launcher reported missed for the
-// scenario's source.
+// scenario's sources, and checks that their Bytes Missed status, which agent
+// status shows per source, counts the same bytes.
 func (s *itScenario) missedBytes() int64 {
-	var total int64
+	s.t.Helper()
+	var total, perSource int64
 	for _, m := range metrics.MissedBytesSnapshot() {
 		if m.Source == itSource && m.Service == s.service() {
 			total += m.Bytes
 		}
 	}
+	for _, source := range s.sources.GetSources() {
+		perSource += source.BytesMissed.Get()
+	}
+	assert.Equal(s.t, total, perSource, "the sources' Bytes Missed status counts the bytes reported missed")
 	return total
 }
 

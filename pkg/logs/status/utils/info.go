@@ -34,8 +34,9 @@ type InfoProvider interface {
 
 // CountInfo records a simple count
 type CountInfo struct {
-	count *atomic.Int64
-	key   string
+	count    *atomic.Int64
+	key      string
+	omitZero bool
 }
 
 // NewCountInfo creates a new CountInfo instance
@@ -44,6 +45,15 @@ func NewCountInfo(key string) *CountInfo {
 		count: atomic.NewInt64(0),
 		key:   key,
 	}
+}
+
+// NewNonZeroCountInfo creates a CountInfo that the status page shows only once
+// its count is not zero, for a count of events that should not happen, such
+// as lost bytes.
+func NewNonZeroCountInfo(key string) *CountInfo {
+	c := NewCountInfo(key)
+	c.omitZero = true
+	return c
 }
 
 // Add a new value to the count
@@ -61,9 +71,13 @@ func (c *CountInfo) InfoKey() string {
 	return c.key
 }
 
-// Info returns the info
+// Info returns the info, none for a zero count created by NewNonZeroCountInfo
 func (c *CountInfo) Info() []string {
-	return []string{strconv.FormatInt(c.count.Load(), 10)}
+	count := c.count.Load()
+	if count == 0 && c.omitZero {
+		return nil
+	}
+	return []string{strconv.FormatInt(count, 10)}
 }
 
 // MappedInfo collects multiple info messages with a unique key

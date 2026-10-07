@@ -549,15 +549,16 @@ func (t *Tailer) UnreadBytes() int64 {
 	return max(0, t.lastSeenSize.Load()-t.offset.Load())
 }
 
-// RecordMissedBytes reports UnreadBytes as lost, in the missed-bytes metrics
-// and the logs, and returns it. Call it when the tailer stops for good with
-// its file still holding unread data: the file is gone, or its drain timed out.
+// RecordMissedBytes reports UnreadBytes as lost, in the missed-bytes metrics,
+// the source's Bytes Missed status and the logs, and returns it. Call it when
+// the tailer stops for good with its file still holding unread data: the file
+// is gone, or its drain timed out.
 func (t *Tailer) RecordMissedBytes(reason string) int64 {
 	missed := t.UnreadBytes()
 	if missed <= 0 {
 		return 0
 	}
-	recordMissed(t.source.Config(), missed)
+	recordMissed(t.source.UnderlyingSource(), missed)
 	log.Warnf("%s: %d bytes of SMB file %s (last read as %s) were not read and are lost", reason, missed, t.identifier, t.readPath)
 	return missed
 }
@@ -568,15 +569,16 @@ func RecordMissedBytesOf(source *sources.LogSource, identifier string, missed in
 	if missed <= 0 {
 		return
 	}
-	recordMissed(source.Config, missed)
+	recordMissed(source, missed)
 	log.Warnf("%s: %d bytes of SMB file %s were not read and are lost", reason, missed, identifier)
 }
 
-func recordMissed(cfg *config.LogsConfig, missed int64) {
+func recordMissed(source *sources.LogSource, missed int64) {
 	metrics.BytesMissed.Add(missed)
 	metrics.TlmBytesMissed.Add(float64(missed))
-	missedSource, missedService := missedBytesIdentity(cfg)
+	missedSource, missedService := missedBytesIdentity(source.Config)
 	metrics.RecordMissedBytes(missedSource, missedService, missed)
+	source.RecordMissedBytes(missed)
 }
 
 // forwardMessages forwards decoded messages to the output channel until the

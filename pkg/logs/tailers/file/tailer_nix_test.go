@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -114,6 +115,8 @@ func TestStopAfterFileRotationNoMissedBytes(t *testing.T) {
 			}
 
 			require.Empty(t, metrics.MissedBytesSnapshot())
+			require.Zero(t, tailer.Source().BytesMissed.Get())
+			require.NotContains(t, tailer.Source().GetInfoStatus(), "Bytes Missed")
 		})
 	}
 }
@@ -164,6 +167,7 @@ func TestStopAfterFileRotationRealFileMissedBytes(t *testing.T) {
 	require.Equal(t, "real-file-service", summaries[0].Service)
 	require.Equal(t, int64(fileSize-readOffset), summaries[0].Bytes)
 	require.Equal(t, int64(1), summaries[0].Rotations)
+	require.Equal(t, []string{strconv.Itoa(fileSize - readOffset)}, source.UnderlyingSource().GetInfoStatus()["Bytes Missed"], "agent status shows the loss on the source")
 }
 
 // A handoff drain ends once the file goes idle; a plain rotation drain waits out
@@ -212,4 +216,5 @@ func TestStopAfterFileRotationForHandoffReportsStalledLoss(t *testing.T) {
 	summaries := metrics.MissedBytesSnapshot()
 	require.Len(t, summaries, 1)
 	require.Equal(t, int64(fileSize-readOffset), summaries[0].Bytes)
+	require.Equal(t, int64(fileSize-readOffset), tailer.Source().BytesMissed.Get())
 }

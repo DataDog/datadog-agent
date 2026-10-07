@@ -14,6 +14,7 @@ package smb
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -340,6 +341,7 @@ func TestStopMidDrainReportsUnreadBytes(t *testing.T) {
 			snapshot := metrics.MissedBytesSnapshot()
 			require.Len(t, snapshot, 1)
 			assert.Equal(t, int64(len(lines(3, 3))), snapshot[0].Bytes, "the drain's unread line")
+			assert.Equal(t, []string{strconv.Itoa(len(lines(3, 3)))}, source.GetInfoStatus()["Bytes Missed"], "agent status shows the loss on the source")
 			st.out.flush()
 			assert.Equal(t, []string{"line 1", "line 2", "line 4"}, st.out.lines())
 		})
@@ -916,11 +918,13 @@ func TestSecretRefreshSpanningARotation(t *testing.T) {
 			assert.ElementsMatch(t, wantLines, st.out.lines())
 			if !deleted {
 				assert.Empty(t, metrics.MissedBytesSnapshot())
+				assert.NotContains(t, refreshed.GetInfoStatus(), "Bytes Missed")
 				return
 			}
 			snapshot := metrics.MissedBytesSnapshot()
 			require.Len(t, snapshot, 1)
 			assert.Equal(t, int64(len(lines(3, 3))), snapshot[0].Bytes, "the line the replaced scanner listed but did not read")
+			assert.EqualValues(t, len(lines(3, 3)), refreshed.BytesMissed.Get(), "counted for the source that found the loss")
 		})
 	}
 }
@@ -1048,6 +1052,7 @@ func TestSecretRefreshMidDrainHandsTheDrainOver(t *testing.T) {
 			snapshot := metrics.MissedBytesSnapshot()
 			require.Len(t, snapshot, 1)
 			assert.Equal(t, int64(len(lines(3, 3))), snapshot[0].Bytes, "the line neither scanner could read")
+			assert.EqualValues(t, len(lines(3, 3)), refreshed.BytesMissed.Get(), "counted for the source whose drain ended")
 
 			st.launcher.Stop()
 			st.out.flush()

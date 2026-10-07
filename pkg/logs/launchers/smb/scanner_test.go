@@ -1007,6 +1007,7 @@ func TestDrainTimeoutRecordsMissedBytes(t *testing.T) {
 	snapshot := metrics.MissedBytesSnapshot()
 	require.Len(t, snapshot, 1)
 	assert.Equal(t, int64(len(lines(2, 2))), snapshot[0].Bytes)
+	assert.EqualValues(t, len(lines(2, 2)), h.source.BytesMissed.Get(), "agent status shows the loss on the source")
 	assert.Equal(t, want(1, 1), h.finish())
 }
 
