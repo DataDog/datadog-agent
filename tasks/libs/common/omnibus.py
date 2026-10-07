@@ -111,6 +111,12 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
     },
 }
 
+# Forwarded when set, without the missing-variable warning: these opt a build
+# into an optional feature, so most builds leave them unset.
+OPTIONAL_ENV_PASSTHROUGH = {
+    'DD_FOLDSPACE_BUILD': "Links the native foldspace log sender (omnibus/config/software/datadog-agent.rb); set by the Linux package jobs",
+}
+
 
 def _get_environment_for_cache(env: dict[str, str]) -> dict:
     """
