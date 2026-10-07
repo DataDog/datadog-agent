@@ -1,5 +1,8 @@
 """Package delimiter."""
 
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("//bazel/toolchains/hermetic_llvm:windows_msvc.bzl", "windows_msvc_filegroup")
+
 exports_files([
     "gen_sysconfigdata.py",
     "native_python_test.sh",
@@ -8,3 +11,29 @@ exports_files([
     "pyconfig-macos-arm64.h",
     "pyconfig-macos-x86_64.h",
 ])
+
+windows_msvc_filegroup(
+    name = "python_win_install_windows",
+    srcs = ["@cpython//:python_win_install"],
+    tags = ["manual"],
+)
+
+sh_test(
+    name = "native_win_python_wine_test",
+    srcs = ["native_win_python_wine_test.sh"],
+    data = [
+        ":python_win_install_windows",
+        "//bazel/tools/wine:wine_run",
+    ],
+    env = {
+        "PYTHON_INSTALL": "$(rlocationpath :python_win_install_windows)",
+        "WINE_RUN": "$(rlocationpath //bazel/tools/wine:wine_run)",
+    },
+    tags = ["manual"],
+    target_compatible_with = select({
+        "//:linux_arm64": [],
+        "//:linux_x86_64": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = ["@rules_shell//shell/runfiles"],
+)
