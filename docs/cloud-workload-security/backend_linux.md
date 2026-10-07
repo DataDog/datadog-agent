@@ -1206,6 +1206,45 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "MountEventSerializer serializes a mount event to JSON"
         },
+        "NamespaceIDs": {
+            "properties": {
+                "mntns": {
+                    "type": "integer",
+                    "description": "Mount namespace ID"
+                },
+                "netns": {
+                    "type": "integer",
+                    "description": "Network namespace ID"
+                },
+                "pidns": {
+                    "type": "integer",
+                    "description": "ID of the PID namespace future children are created in (pid_for_children)"
+                },
+                "userns": {
+                    "type": "integer",
+                    "description": "User namespace ID"
+                },
+                "utsns": {
+                    "type": "integer",
+                    "description": "UTS namespace ID"
+                },
+                "ipcns": {
+                    "type": "integer",
+                    "description": "IPC namespace ID"
+                },
+                "cgroupns": {
+                    "type": "integer",
+                    "description": "Cgroup namespace ID"
+                },
+                "timens": {
+                    "type": "integer",
+                    "description": "Time namespace ID"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "NamespaceIDsSerializer serializes the namespace IDs of a thread, an ID is omitted if it couldn't be resolved"
+        },
         "NetworkContext": {
             "properties": {
                 "device": {
@@ -2030,11 +2069,39 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "mntns": {
                     "type": "integer",
-                    "description": "Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
+                    "description": "Mount namespace ID"
                 },
                 "netns": {
                     "type": "integer",
-                    "description": "Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
+                    "description": "Network namespace ID"
+                },
+                "pidns": {
+                    "type": "integer",
+                    "description": "ID of the PID namespace future children are created in (pid_for_children)"
+                },
+                "userns": {
+                    "type": "integer",
+                    "description": "User namespace ID"
+                },
+                "utsns": {
+                    "type": "integer",
+                    "description": "UTS namespace ID"
+                },
+                "ipcns": {
+                    "type": "integer",
+                    "description": "IPC namespace ID"
+                },
+                "cgroupns": {
+                    "type": "integer",
+                    "description": "Cgroup namespace ID"
+                },
+                "timens": {
+                    "type": "integer",
+                    "description": "Time namespace ID"
+                },
+                "previous": {
+                    "$ref": "#/$defs/NamespaceIDs",
+                    "description": "Namespace IDs of the thread before the syscall"
                 }
             },
             "additionalProperties": false,
@@ -4488,6 +4555,64 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ---------- |
 | [File](#file) |
 
+## `NamespaceIDs`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "mntns": {
+            "type": "integer",
+            "description": "Mount namespace ID"
+        },
+        "netns": {
+            "type": "integer",
+            "description": "Network namespace ID"
+        },
+        "pidns": {
+            "type": "integer",
+            "description": "ID of the PID namespace future children are created in (pid_for_children)"
+        },
+        "userns": {
+            "type": "integer",
+            "description": "User namespace ID"
+        },
+        "utsns": {
+            "type": "integer",
+            "description": "UTS namespace ID"
+        },
+        "ipcns": {
+            "type": "integer",
+            "description": "IPC namespace ID"
+        },
+        "cgroupns": {
+            "type": "integer",
+            "description": "Cgroup namespace ID"
+        },
+        "timens": {
+            "type": "integer",
+            "description": "Time namespace ID"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "NamespaceIDsSerializer serializes the namespace IDs of a thread, an ID is omitted if it couldn't be resolved"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `mntns` | Mount namespace ID |
+| `netns` | Network namespace ID |
+| `pidns` | ID of the PID namespace future children are created in (pid_for_children) |
+| `userns` | User namespace ID |
+| `utsns` | UTS namespace ID |
+| `ipcns` | IPC namespace ID |
+| `cgroupns` | Cgroup namespace ID |
+| `timens` | Time namespace ID |
+
+
 ## `NetworkContext`
 
 
@@ -5684,11 +5809,39 @@ ancestor lineage to find the same value. |
         },
         "mntns": {
             "type": "integer",
-            "description": "Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
+            "description": "Mount namespace ID"
         },
         "netns": {
             "type": "integer",
-            "description": "Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
+            "description": "Network namespace ID"
+        },
+        "pidns": {
+            "type": "integer",
+            "description": "ID of the PID namespace future children are created in (pid_for_children)"
+        },
+        "userns": {
+            "type": "integer",
+            "description": "User namespace ID"
+        },
+        "utsns": {
+            "type": "integer",
+            "description": "UTS namespace ID"
+        },
+        "ipcns": {
+            "type": "integer",
+            "description": "IPC namespace ID"
+        },
+        "cgroupns": {
+            "type": "integer",
+            "description": "Cgroup namespace ID"
+        },
+        "timens": {
+            "type": "integer",
+            "description": "Time namespace ID"
+        },
+        "previous": {
+            "$ref": "#/$defs/NamespaceIDs",
+            "description": "Namespace IDs of the thread before the syscall"
         }
     },
     "additionalProperties": false,
@@ -5704,9 +5857,19 @@ ancestor lineage to find the same value. |
 | Field | Description |
 | ----- | ----------- |
 | `nstype` | Namespace types the thread joined, ANY if the type couldn't be determined |
-| `mntns` | Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved |
-| `netns` | Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved |
+| `mntns` | Mount namespace ID |
+| `netns` | Network namespace ID |
+| `pidns` | ID of the PID namespace future children are created in (pid_for_children) |
+| `userns` | User namespace ID |
+| `utsns` | UTS namespace ID |
+| `ipcns` | IPC namespace ID |
+| `cgroupns` | Cgroup namespace ID |
+| `timens` | Time namespace ID |
+| `previous` | Namespace IDs of the thread before the syscall |
 
+| References |
+| ---------- |
+| [NamespaceIDs](#namespaceids) |
 
 ## `SetSockOptEvent`
 

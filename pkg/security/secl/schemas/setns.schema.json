@@ -33,6 +33,54 @@
                         },
                         "netns": {
                             "type": "integer"
+                        },
+                        "pidns": {
+                            "type": "integer"
+                        },
+                        "userns": {
+                            "type": "integer"
+                        },
+                        "utsns": {
+                            "type": "integer"
+                        },
+                        "ipcns": {
+                            "type": "integer"
+                        },
+                        "cgroupns": {
+                            "type": "integer"
+                        },
+                        "timens": {
+                            "type": "integer"
+                        },
+                        "previous": {
+                            "type": "object",
+                            "properties": {
+                                "mntns": {
+                                    "type": "integer"
+                                },
+                                "netns": {
+                                    "type": "integer"
+                                },
+                                "pidns": {
+                                    "type": "integer"
+                                },
+                                "userns": {
+                                    "type": "integer"
+                                },
+                                "utsns": {
+                                    "type": "integer"
+                                },
+                                "ipcns": {
+                                    "type": "integer"
+                                },
+                                "cgroupns": {
+                                    "type": "integer"
+                                },
+                                "timens": {
+                                    "type": "integer"
+                                }
+                            },
+                            "additionalProperties": false
                         }
                     }
                 }
