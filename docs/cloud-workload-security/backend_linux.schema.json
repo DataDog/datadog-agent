@@ -1182,7 +1182,14 @@
         },
         "visible": {
           "type": "boolean",
-          "description": "Mount is not visible in the VFS tree"
+          "description": "Mount is visible in the VFS tree"
+        },
+        "flags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Per-mount attribute flags expressed as MOUNT_ATTR_* names"
         }
       },
       "additionalProperties": false,

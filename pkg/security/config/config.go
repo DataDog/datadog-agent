@@ -1143,6 +1143,14 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	}
 	rsConfig.ActivityDumpRateLimiter = uint16(activityDumpRateLimiter)
 
+	if slices.Contains(rsConfig.SecurityProfileV2EventTypes, model.FileMountEventType) {
+		for _, et := range []model.EventType{model.FileMoveMountEventType, model.PivotRootEventType} {
+			if !slices.Contains(rsConfig.SecurityProfileV2EventTypes, et) {
+				rsConfig.SecurityProfileV2EventTypes = append(rsConfig.SecurityProfileV2EventTypes, et)
+			}
+		}
+	}
+
 	if err := rsConfig.sanitize(); err != nil {
 		return nil, err
 	}

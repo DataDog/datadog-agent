@@ -51,6 +51,14 @@ func (m *Manager) GetProfile(selector cgroupModel.WorkloadSelector) *profile.Pro
 	return m.profiles[selector]
 }
 
+// GetProfile returns a profile by its selector
+func (m *ManagerV2) GetProfile(selector cgroupModel.WorkloadSelector) *profile.Profile {
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	return m.profiles[selector]
+}
+
 // EvictAllTracedCgroups blacklists all currently traced cgroups by adding them to the discarded map
 func (m *Manager) EvictAllTracedCgroups() {
 	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
