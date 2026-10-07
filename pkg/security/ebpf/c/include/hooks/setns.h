@@ -104,13 +104,13 @@ static void __attribute__((always_inline)) fill_namespace_ids(struct namespace_i
 }
 
 static int __attribute__((always_inline)) sys_setns_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_SETNS);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_SETNS);
     if (!syscall) {
         return 0;
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
+        goto pop_and_exit;
     }
 
     // a non-zero nstype is reported as requested: through a pidfd the kernel stops at the first
@@ -122,17 +122,23 @@ static int __attribute__((always_inline)) sys_setns_ret(void *ctx, int retval, e
 
     struct setns_event_t *event = SPAN_FILL_EVENT(struct setns_event_t, EVENT_SETNS);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->nstype = nstype;
     event->before = syscall->setns.before;
+
+    pop_syscall(EVENT_SETNS);
+
     fill_namespace_ids(&event->after);
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_SETNS);
     return 0;
 }
 
