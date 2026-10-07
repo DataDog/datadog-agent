@@ -130,6 +130,9 @@ var (
 	// TlmCharacterizationInterarrivalSeconds records bounded aggregate gaps between ingress messages.
 	TlmCharacterizationInterarrivalSeconds = telemetryimpl.GetCompatComponent().NewHistogram("logs_characterization", "interarrival_seconds",
 		[]string{"source_type", "pipeline"}, "Distribution of elapsed seconds between Logs pipeline ingress messages", []float64{0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10})
+	// TlmCharacterizationRotationIntervalSeconds records elapsed time between rotations of the same file source.
+	TlmCharacterizationRotationIntervalSeconds = telemetryimpl.GetCompatComponent().NewHistogram("logs_characterization", "rotation_interval_seconds",
+		nil, "Distribution of elapsed seconds between rotations of the same file source", []float64{1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800, 3600})
 	// TlmCharacterizationTagCounts records aggregate tag counts without retaining tag values.
 	TlmCharacterizationTagCounts = telemetryimpl.GetCompatComponent().NewHistogram("logs_characterization", "tag_counts",
 		[]string{"source_type", "pipeline"}, "Distribution of tag counts at Logs pipeline ingress", []float64{0, 1, 2, 4, 8, 16, 32, 64, 128})
