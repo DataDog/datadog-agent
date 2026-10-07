@@ -31,8 +31,7 @@ type traceProcmgrWindowsSuite struct {
 	e2e.BaseSuite[environments.Host]
 
 	cli string
-	// autoSpawnPID is the trace-agent PID dd-procmgr reported after a default install, before
-	// any test could start it. The cutover test requires this same PID still be Running.
+	// autoSpawnPID is the default-install PID; the cutover test requires it still Running.
 	autoSpawnPID string
 }
 
@@ -60,11 +59,7 @@ func (s *traceProcmgrWindowsSuite) SetupSuite() {
 	s.autoSpawnPID = waitProcmgrRunning(s.T(), host, s.cli, traceProcessName, 2*time.Minute)
 }
 
-// TestTraceAgentCutoverSupervisedByProcmgrAndLegacySCMStopped is the end-to-end proof of the
-// Windows cutover: on a default install dd-procmgr brings trace-agent up on its own, and the
-// core Agent leaves the legacy SCM service alone. Both halves have to hold at once. Either
-// one alone is a bug: only the first means two trace-agents, only the second means none at all
-// (silent APM loss on every default Windows install).
+// Both halves must hold: procmgr Running alone means two trace-agents; legacy Stopped alone means none.
 func (s *traceProcmgrWindowsSuite) TestTraceAgentCutoverSupervisedByProcmgrAndLegacySCMStopped() {
 	host := s.Env().RemoteHost
 	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
@@ -79,11 +74,7 @@ func (s *traceProcmgrWindowsSuite) TestTraceAgentCutoverSupervisedByProcmgrAndLe
 		traceLegacySCMServiceName, 2*time.Minute)
 }
 
-// TestTraceAgentSpawnRunsAsAgentUser checks the half of the cutover the state machine cannot
-// show. The legacy SCM service ran trace-agent as the install user (ddagentuser), not as
-// LocalSystem. SpawnProfile::profile_for already returns Agent for datadog-agent-trace.
-// A supervised trace-agent running as SYSTEM would still be Running here, and would still
-// pass the cutover test above.
+// Trace-agent must keep the Agent spawn profile (install user), not LocalSystem.
 func (s *traceProcmgrWindowsSuite) TestTraceAgentSpawnRunsAsAgentUser() {
 	host := s.Env().RemoteHost
 

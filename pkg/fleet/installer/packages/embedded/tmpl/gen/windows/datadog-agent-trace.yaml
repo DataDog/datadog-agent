@@ -3,16 +3,10 @@ command: '__TRACE_INSTALL_ROOT__/bin/agent/trace-agent.exe'
 args:
   - --config
   - '__TRACE_ETC_ROOT__/datadog.yaml'
-# dd-procmgr supervises trace-agent on Windows when this file exists, process_manager.enabled
-# is set, and dd-procmgr-service starts successfully. The core Agent then skips the legacy
-# datadog-trace-agent service. If dd-procmgr does not start, IsEnabled falls back to that
-# SCM service. Setting auto_start back to false would leave trace-agent unsupervised when
-# suppression succeeds.
+# Keep true with SCM suppression: false leaves no trace-agent when the legacy service is skipped.
 auto_start: true
 condition_path_exists: '__TRACE_INSTALL_ROOT__/bin/agent/trace-agent.exe'
-# Transcribes the apm Servicedef in dependent_services_windows.go: any-of over
-# apm_config.enabled and apm_config.error_tracking_standalone.enabled, matching
-# utils.IsAPMEnabled. The same keys drive the SCM fallback when dd-procmgr is down.
+# Any-of matching utils.IsAPMEnabled (apm_config.enabled | error_tracking_standalone).
 condition_config_any:
   - path: '__TRACE_ETC_ROOT__/datadog.yaml'
     keys:

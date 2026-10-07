@@ -124,8 +124,7 @@ fn fleet_trace_template_gate_closed_when_apm_disabled() {
     assert!(!condition_config_any_met(&gate));
 }
 
-/// Error Tracking standalone is the other half of `utils.IsAPMEnabled`. The template and
-/// the SCM fallback both honor it.
+/// Gate opens on Error Tracking standalone, matching `utils.IsAPMEnabled`.
 #[test]
 fn fleet_trace_template_gate_opens_on_error_tracking_standalone() {
     let _env = test_env_guard();

@@ -418,11 +418,7 @@ type agentServiceDisabledTraceAgentSuite struct {
 	agentServiceDisabledSuite
 }
 
-// TestTraceAgentNotRunningUnderProcmgrWhenDisabled is the procmgr half of what this suite
-// asserts. The legacy datadog-trace-agent service staying Stopped is no longer evidence of
-// anything, because dd-procmgr supervises trace-agent now and the core Agent suppresses that
-// service unconditionally. What still has to hold is that the config gate keeps trace-agent
-// from running at all when APM and Error Tracking standalone are off.
+// Legacy SCM Stopped is expected under procmgr; assert the config gate also leaves trace-agent unspawned.
 func (s *agentServiceDisabledTraceAgentSuite) TestTraceAgentNotRunningUnderProcmgrWhenDisabled() {
 	host := s.Env().RemoteHost
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(host)
