@@ -32,8 +32,22 @@ var newRetryBackOff = func() backoff.BackOff {
 	b := backoff.NewExponentialBackOff()
 	b.InitialInterval = baseRetryBackoff
 	b.Multiplier = 2
-	b.MaxInterval = maxRetryBackoff
-	return b
+	// MaxInterval caps the interval before jitter is applied: leave room for the
+	// randomization so jittered waits stay spread out below maxRetryBackoff
+	b.MaxInterval = time.Duration(float64(maxRetryBackoff) / (1 + b.RandomizationFactor))
+	return &cappedBackOff{BackOff: b, max: maxRetryBackoff}
+}
+
+// cappedBackOff clamps the waits returned by a backoff policy to max
+type cappedBackOff struct {
+	backoff.BackOff
+	max time.Duration
+}
+
+// NextBackOff returns the wrapped policy's next wait, at most max. backoff.Stop is negative
+// so it is preserved.
+func (b *cappedBackOff) NextBackOff() time.Duration {
+	return min(b.BackOff.NextBackOff(), b.max)
 }
 
 // newRequest creates a new request for this client.

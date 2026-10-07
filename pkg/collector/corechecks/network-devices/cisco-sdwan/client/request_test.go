@@ -11,6 +11,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -713,6 +714,36 @@ func TestIsRetryable(t *testing.T) {
 			require.Equal(t, tt.retryable, isRetryable(tt.statusCode, tt.err))
 		})
 	}
+}
+
+func TestRetryBackOffCapped(t *testing.T) {
+	policy := newRetryBackOff()
+	policy.Reset()
+
+	// Enough attempts to saturate the interval: 1s doubling reaches the cap after a few
+	var saturated []time.Duration
+	for i := 0; i < 1000; i++ {
+		wait := policy.NextBackOff()
+		require.Positive(t, wait)
+		require.LessOrEqual(t, wait, maxRetryBackoff)
+		if i >= 10 {
+			saturated = append(saturated, wait)
+		}
+	}
+	// Jitter is preserved once saturated instead of collapsing onto the cap
+	require.Less(t, slices.Min(saturated), maxRetryBackoff/2)
+	require.NotEqual(t, slices.Min(saturated), slices.Max(saturated))
+}
+
+func TestCappedBackOff(t *testing.T) {
+	capped := &cappedBackOff{BackOff: backoff.NewConstantBackOff(45 * time.Second), max: maxRetryBackoff}
+	require.Equal(t, maxRetryBackoff, capped.NextBackOff())
+
+	capped = &cappedBackOff{BackOff: backoff.NewConstantBackOff(time.Second), max: maxRetryBackoff}
+	require.Equal(t, time.Second, capped.NextBackOff())
+
+	capped = &cappedBackOff{BackOff: &backoff.StopBackOff{}, max: maxRetryBackoff}
+	require.Equal(t, backoff.Stop, capped.NextBackOff())
 }
 
 func TestRetryError(t *testing.T) {
