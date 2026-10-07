@@ -33,15 +33,14 @@ var agentInfraModeValues string
 // them from the payloads of a fully monitored host.
 const infrastructureModeTag = "infra_mode:cloud_cost_only"
 
-// k8sInfraModeSuite covers the mark on the payloads the orchestrator check
-// emits. The host-side coverage of the same feature (host tags and metrics)
-// lives in test/new-e2e/tests/agent-runtimes/infra-mode, and the containers the
-// Agent reports are covered by TestInfraModeSuite in
-// test/new-e2e/tests/process.
+// k8sInfraModeSuite covers the mark on the payloads the Cluster Agent emits:
+// orchestrator resources, their manifests, and Kubernetes events. Host tags,
+// metrics, and containers are covered by tests/agent-runtimes/infra-mode and
+// tests/process.
 //
-// It is a separate entry point rather than a set of methods on k8sSuite because
-// infrastructure_mode is Agent-wide: setting it on the shared suite would run
-// every existing assertion there under a non-default configuration.
+// It is a separate entry point because infrastructure_mode is Agent-wide:
+// setting it on k8sSuite would run every assertion there under a non-default
+// configuration.
 type k8sInfraModeSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
@@ -88,5 +87,28 @@ func (suite *k8sInfraModeSuite) TestManifestEnvelopeCarriesInfraMode() {
 				slices.Contains(payload.ManifestParentCollector.Tags, infrastructureModeTag)
 		})
 		assert.Truef(c, marked, "no manifest envelope tagged %s among %d payloads", infrastructureModeTag, len(payloads))
+	}, defaultTimeout, 15*time.Second)
+}
+
+// kubernetesEventSource is the source the kubernetes_apiserver check reports
+// events under while kubernetes_events_source_detection stays disabled.
+const kubernetesEventSource = "kubernetes"
+
+// TestKubernetesEventCarriesInfraMode covers the bundled Kubernetes events
+// path, the one the kubernetes_apiserver check serves by default. Event
+// collection is enabled for this suite alone, through
+// DD_COLLECT_KUBERNETES_EVENTS in agent_infra_mode_values.yaml.
+//
+// The events come from the cluster's own activity, so no workload is deployed
+// to produce them.
+func (suite *k8sInfraModeSuite) TestKubernetesEventCarriesInfraMode() {
+	suite.EventuallyWithT(func(c *assert.CollectT) {
+		events, err := suite.Env().FakeIntake.Client().FilterEvents(kubernetesEventSource)
+		require.NoError(c, err)
+
+		marked := slices.ContainsFunc(events, func(e *aggregator.Event) bool {
+			return slices.Contains(e.GetTags(), infrastructureModeTag)
+		})
+		assert.Truef(c, marked, "no Kubernetes event tagged %s among %d events", infrastructureModeTag, len(events))
 	}, defaultTimeout, 15*time.Second)
 }
