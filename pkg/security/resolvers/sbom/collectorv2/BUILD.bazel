@@ -36,6 +36,7 @@ dd_agent_go_test(
     srcs = [
         "apk_test.go",
         "collector_test.go",
+        "dpkg_test.go",
         "rpmdb_test.go",
     ],
     embed = [":collectorv2"],
