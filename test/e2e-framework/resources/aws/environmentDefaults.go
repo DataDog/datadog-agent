@@ -52,6 +52,7 @@ type ddInfra struct {
 	defaultDatadogPublicRegistry   string
 	useMacosCompatibleSubnets      bool // Some subnets are not compatible with macOS hosts. macOS hosts are supported only in us-east-1a and us-east-1b
 	leaseBucket                    string
+	trackSSHActivity               bool // Enabled by create-vm. Requires the instance profile to be allowed to call ec2:CreateTags on the instance itself
 
 	ecs ddInfraECS
 	eks ddInfraEKS

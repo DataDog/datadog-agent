@@ -87,6 +87,9 @@ def create_vm(
     deploy_job = None if no_verify or not pipeline_id else get_deploy_job(os_family, os_arch, agent_version)
     extra_flags["ddinfra:osDescriptor"] = f"{os_family}:{os_version if os_version else ''}:{os_arch}"
     extra_flags["ddinfra:deployFakeintakeWithLoadBalancer"] = use_loadBalancer
+    # Keep the "last-activity" tag up to date while the VM is used over SSH, so that
+    # test-infra-cleaner does not delete it while it is still in use
+    extra_flags["ddinfra:aws/trackSSHActivity"] = True
 
     if ami_id is not None:
         extra_flags["ddinfra:osImageID"] = ami_id
