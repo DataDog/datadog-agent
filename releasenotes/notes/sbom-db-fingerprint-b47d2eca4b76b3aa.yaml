@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe shares the package index of an image
+    between the containers whose package databases match, and refreshes the
+    index of a container whose packages changed, in SBOM-only mode as well.
