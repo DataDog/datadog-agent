@@ -95,7 +95,7 @@ func TestDeleteReleasesPendingFileEventsWithoutSBOM(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
 	r.sboms = sboms
 
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true)
 	r.Delete("container-id")
 
 	if r.pendingFileEvents.Len() != 0 {
@@ -115,10 +115,10 @@ func TestEvictedSBOMReleasesPendingFileEvents(t *testing.T) {
 	r.sboms = sboms
 
 	sboms.Add("evicted-container-id", NewSBOM("evicted-container-id", nil, "image:tag"))
-	r.queuePendingFileEvent("evicted-container-id", "/usr/bin/su", 04755, 0)
+	r.queuePendingFileEvent("evicted-container-id", "/usr/bin/su", 04755, true)
 
 	sboms.Add("container-id", NewSBOM("container-id", nil, "image:tag"))
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true)
 
 	if _, ok := r.pendingFileEvents.Get("evicted-container-id"); ok {
 		t.Errorf("queued file accesses of the evicted SBOM were not released")
@@ -157,7 +157,7 @@ func TestAnalyzeWorkloadReusesCachedDataAsComputed(t *testing.T) {
 
 	sbom := NewSBOM("container-id", nil, "image:tag")
 	t.Cleanup(sbom.stop)
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true)
 
 	if err := r.analyzeWorkload(sbom); err != nil {
 		t.Fatalf("analyzeWorkload: %v", err)
@@ -256,7 +256,7 @@ func TestQueueWorkloadAppliesQueuedAccessesOnCacheHit(t *testing.T) {
 		sbom := NewSBOM("container-id", nil, "image:tag")
 		sbom.status = workloadmeta.Success
 		t.Cleanup(sbom.stop)
-		r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
+		r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true)
 
 		r.queueWorkload(sbom)
 
@@ -288,10 +288,10 @@ func TestPendingFileEventsAreDeduplicatedPerPath(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
 
 	for range 3 {
-		r.queuePendingFileEvent("container-id", "/usr/lib/libc.so.6", 0644, 1000)
+		r.queuePendingFileEvent("container-id", "/usr/lib/libc.so.6", 0644, false)
 	}
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 1000)
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 0755, 0)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, false)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 0755, true)
 
 	events, _ := r.pendingFileEvents.Get("container-id")
 	if len(events) != 2 {
@@ -312,10 +312,10 @@ func TestPendingFileEventsBoundDistinctPathsPerContainer(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
 
 	for i := range maxPendingFileEvents {
-		r.queuePendingFileEvent("container-id", fmt.Sprintf("/usr/lib/lib%d.so", i), 0644, 1000)
+		r.queuePendingFileEvent("container-id", fmt.Sprintf("/usr/lib/lib%d.so", i), 0644, false)
 	}
-	r.queuePendingFileEvent("container-id", "/usr/lib/overflow.so", 0644, 1000)
-	r.queuePendingFileEvent("container-id", "/usr/lib/lib0.so", 0644, 0)
+	r.queuePendingFileEvent("container-id", "/usr/lib/overflow.so", 0644, false)
+	r.queuePendingFileEvent("container-id", "/usr/lib/lib0.so", 0644, true)
 
 	events, _ := r.pendingFileEvents.Get("container-id")
 	if len(events) != maxPendingFileEvents {
@@ -335,7 +335,7 @@ func TestPendingFileEventsHoldAReplayedProcess(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
 
 	for i := range 1024 {
-		r.queuePendingFileEvent("container-id", fmt.Sprintf("/usr/lib/python3/dist-packages/ext%d.so", i), 0755, 1000)
+		r.queuePendingFileEvent("container-id", fmt.Sprintf("/usr/lib/python3/dist-packages/ext%d.so", i), 0755, false)
 	}
 
 	if events, _ := r.pendingFileEvents.Get("container-id"); len(events) != 1024 {
@@ -356,7 +356,7 @@ func TestProcessPendingFileEventsUsrMergeAlias(t *testing.T) {
 		InstalledFiles: []string{"/usr/bin/bash"},
 	}}, true)
 
-	r.queuePendingFileEvent("container-id", "/bin/bash", 0755, 1000)
+	r.queuePendingFileEvent("container-id", "/bin/bash", 0755, false)
 	sbom.Lock()
 	r.processPendingFileEvents(sbom)
 	sbom.Unlock()
@@ -379,8 +379,8 @@ func TestProcessPendingFileEventsEnrichesPackages(t *testing.T) {
 		InstalledFiles: []string{"/usr/bin/su"},
 	}}, false)
 
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
-	r.queuePendingFileEvent("container-id", "/usr/bin/not-in-any-package", 0644, 1000)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true)
+	r.queuePendingFileEvent("container-id", "/usr/bin/not-in-any-package", 0644, false)
 
 	sbom.Lock()
 	r.processPendingFileEvents(sbom)
@@ -428,7 +428,7 @@ func TestSharedDataConcurrentForwardingAndResolve(t *testing.T) {
 	// LastAccess/SuidBit/AccessedByRoot on the shared Data).
 	wg.Go(func() {
 		for range 2000 {
-			r.queuePendingFileEvent("container-a", "/usr/bin/su", 04755, 0)
+			r.queuePendingFileEvent("container-a", "/usr/bin/su", 04755, true)
 			sbomA.Lock()
 			r.processPendingFileEvents(sbomA)
 			sbomA.Unlock()
@@ -621,6 +621,33 @@ func TestResolvePackageRecordsHostUsage(t *testing.T) {
 	}
 	if pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
 		t.Errorf("package = %+v, want last access and both sticky properties set", pkg)
+	}
+}
+
+// TestResolvePackageRecordsEffectiveRoot checks that a setuid-root binary run by
+// another user, with an effective UID of 0, records its package as run by root.
+func TestResolvePackageRecordsEffectiveRoot(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		uid, euid uint32
+		want      bool
+	}{
+		{"setuid root", 1000, 0, true},
+		{"user", 1000, 1000, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			pc, file := hostAccess()
+			pc.UID, pc.EUID = tc.uid, tc.euid
+
+			pkg := r.ResolvePackage(pc, file)
+			if pkg == nil {
+				t.Fatalf("no package resolved for %s", file.PathnameStr)
+			}
+			if pkg.AccessedByRoot != tc.want {
+				t.Errorf("AccessedByRoot = %v, want %v", pkg.AccessedByRoot, tc.want)
+			}
+		})
 	}
 }
 
@@ -831,7 +858,7 @@ func TestResolvePackageRecordsNoUsageOnDirectory(t *testing.T) {
 func TestPendingFileEventsSkipDirectories(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
 
-	r.queuePendingFileEvent("container-id", "/usr/share/doc", syscall.S_IFDIR|0755, 0)
+	r.queuePendingFileEvent("container-id", "/usr/share/doc", syscall.S_IFDIR|0755, true)
 	if r.pendingFileEvents.Len() != 0 {
 		t.Errorf("the directory open was queued")
 	}
@@ -1159,7 +1186,7 @@ func TestProcessPendingFileEventsKeepsAccessTime(t *testing.T) {
 			InstalledFiles: []string{"/usr/bin/bash"},
 		}}, false)
 
-		r.queuePendingFileEvent("container-id", "/usr/bin/bash", 0755, 1000)
+		r.queuePendingFileEvent("container-id", "/usr/bin/bash", 0755, false)
 		queued := time.Now()
 		time.Sleep(2 * time.Millisecond)
 		sbom.Lock()
@@ -1186,7 +1213,7 @@ func TestProcessPendingFileEventsKeepsNewerAccess(t *testing.T) {
 			InstalledFiles: []string{"/usr/bin/bash"},
 		}}, false)
 
-		r.queuePendingFileEvent("container-id", "/usr/bin/bash", 0755, 1000)
+		r.queuePendingFileEvent("container-id", "/usr/bin/bash", 0755, false)
 		time.Sleep(2 * time.Millisecond)
 		later := time.Now()
 		sbom.data.packages[0].LastAccess = later
