@@ -22,7 +22,6 @@ ENV_PASSHTROUGH = {
     'GITLAB_CI': "dda relies on this to be able to tell whether it's running on GitLab CI specifically and adapt behavior",
     'DD_CC': 'Points at c compiler',
     'DD_CXX': 'Points at c++ compiler',
-    'DD_FOLDSPACE_BUILD': 'Links the native foldspace log sender into the linux agent build (omnibus/config/software/datadog-agent.rb)',
     'GONOSUMDB': 'Go module checksum bypass, set by .adms/go/gitlab.yaml and forwarded to Bazel via --repo_env',
     'GOPRIVATE': 'Go private module patterns, set by .adms/go/gitlab.yaml and forwarded to Bazel via --repo_env',
     'GOPROXY': 'Go module proxy, set by .adms/go/gitlab.yaml and forwarded to Bazel via --repo_env',
@@ -110,6 +109,12 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'KEYCHAIN_NAME': 'Name of the ephemeral keychain holding signing certificates',
         'KEYCHAIN_PWD': 'Password for the ephemeral signing keychain',
     },
+}
+
+# Forwarded when set, without the missing-variable warning: these opt a build
+# into an optional feature, so most builds leave them unset.
+OPTIONAL_ENV_PASSTHROUGH = {
+    'DD_FOLDSPACE_BUILD': "Links the native foldspace log sender (omnibus/config/software/datadog-agent.rb); set by the Linux package jobs",
 }
 
 
