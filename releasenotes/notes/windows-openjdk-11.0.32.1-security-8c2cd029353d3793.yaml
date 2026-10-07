@@ -1,0 +1,4 @@
+---
+security:
+  - |
+    Windows containers with JMX support were updated to use OpenJDK 11.0.32.1+1.
