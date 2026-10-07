@@ -17,6 +17,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// remediationSource is the event source_type_name; "datadog" renders as the datadog source in the UI.
+const remediationSource = "datadog"
+
+// outcomeAlertType colors lifecycle events: detected=warning, remediated=success, escalate=error.
+func outcomeAlertType(outcome string) event.AlertType {
+	switch outcome {
+	case "remediated":
+		return event.AlertTypeSuccess
+	case "escalate":
+		return event.AlertTypeError
+	default:
+		return event.AlertTypeWarning
+	}
+}
+
 // EventDispatcher emits dry-run events without executing remediation commands.
 type EventDispatcher struct {
 	out      chan<- event.Event
@@ -44,8 +59,8 @@ func (d *EventDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName st
 		Ts:             time.Now().Unix(),
 		Host:           d.hostname,
 		Priority:       event.PriorityNormal,
-		AlertType:      event.AlertTypeInfo,
-		SourceTypeName: "datadog-agent",
+		AlertType:      event.AlertTypeWarning,
+		SourceTypeName: remediationSource,
 		AggregationKey: "health_check_remediation:" + string(id),
 		Tags:           []string{"check_id:" + string(id), "service_check:" + scName, "remediation:dry-run"},
 	}

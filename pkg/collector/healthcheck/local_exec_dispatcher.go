@@ -88,14 +88,11 @@ func (d *LocalExecDispatcher) emit(ctx context.Context, id checkid.ID, scName, o
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
-	alertType := event.AlertTypeInfo
-	if outcome == "escalate" {
-		alertType = event.AlertTypeError
-	}
+	alertType := outcomeAlertType(outcome)
 	e := event.Event{
 		Title: "health-check remediation (" + outcome + ")", Text: text,
 		Ts: time.Now().Unix(), Host: d.hostname,
-		Priority: event.PriorityNormal, AlertType: alertType, SourceTypeName: "datadog-agent",
+		Priority: event.PriorityNormal, AlertType: alertType, SourceTypeName: remediationSource,
 		AggregationKey: "health_check_remediation:" + string(id),
 		Tags:           []string{"check_id:" + string(id), "service_check:" + scName, "remediation:" + outcome},
 	}
