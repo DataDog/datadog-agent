@@ -82,10 +82,23 @@ func (suite *azureFilesSuite) prepareWindowsServer() {
 		_, err := server.WriteFile(path, []byte(content))
 		require.NoError(t, err, "copy %s to the Windows file server", path)
 	}
+	// The secrets directory inherits C:\'s access, which lets every user
+	// read it, until protect limits it to SYSTEM, the Administrators and the
+	// SSH user.
+	output, err := suite.windowsExecute(windowsProtectCommand())
+	require.NoError(t, err, "protect the secrets directory of the Windows file server")
+	t.Logf("%s: %s", c.name, lastLine(output))
+	// prepare deletes the file first thing; this covers a prepare that never
+	// ran, or failed before it read the file.
+	defer func() {
+		if _, err := suite.windowsExecute(windowsForgetPasswordCommand()); err != nil {
+			t.Logf("cannot delete the reader's password file on the Windows file server: %v", err)
+		}
+	}()
 	_, err = server.WriteFile(windowsPasswordFile(), []byte(password))
 	require.NoError(t, err, "write the reader's password file on the Windows file server")
 
-	output, err := suite.windowsExecute(windowsPrepareCommand(c))
+	output, err = suite.windowsExecute(windowsPrepareCommand(c))
 	require.NoError(t, err, "prepare the Windows file server")
 	require.False(t, containsAny(output, suite.knownSecrets()), "preparing the Windows file server printed the reader's password")
 	t.Logf("%s: %s on %s", c.name, lastLine(output), server.Address)
@@ -186,6 +199,7 @@ func windowsServerMetadata(c cell) map[string]any {
 		"username":        windowsReaderUser,
 		"signing":         "required",
 		"python_url":      windowsPythonURL(),
+		"python_hash":     windowsPythonHashAlgorithm + ":" + windowsPythonHash,
 		"scheduled_tasks": windowsTasks,
 	}
 }

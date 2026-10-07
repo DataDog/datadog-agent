@@ -22,6 +22,8 @@ import (
 // Once the source elects one reader, the rule becomes exactly once in all.
 func (suite *azureFilesSuite) TestMultiNodeScenario() {
 	c := suite.scenarioCell(multiNodeScenario)
+	// Registered first, so it is the last line the test prints.
+	defer suite.remindOfMultiNodeStack()
 	suite.installAgent()
 	defer suite.captureEvidence()
 	suite.requireAgentReady()
@@ -34,6 +36,17 @@ func (suite *azureFilesSuite) TestMultiNodeScenario() {
 	suite.writeScenarioEvidence("agents", agents)
 	suite.T().Logf("%s: %d Agents run the source, one per node (hostname: pod): %v", c.name, len(agents), agents)
 	suite.checkCell(c, recordRules{hosts: hosts})
+}
+
+// remindOfMultiNodeStack says, last, that the run used a stack of its own. A
+// failed run keeps it (WithSkipDeleteOnFailure), and so does E2E_DEV_MODE:
+// an AKS cluster of N nodes, its Fakeintake VM and its storage accounts, which
+// bill until that stack is destroyed, next to the one-node stack the other
+// runs reuse.
+func (suite *azureFilesSuite) remindOfMultiNodeStack() {
+	suite.T().Logf("REMINDER: this multi-node run used its own stack %s (%d AKS nodes, a Fakeintake VM and storage accounts), separate from any one-node stack. "+
+		"If it was kept (failed run or E2E_DEV_MODE), destroy it once done: run `dda inv new-e2e-tests.clean -s` and select %s",
+		suite.spec.stackName, suite.spec.nodes, suite.spec.stackName)
 }
 
 // agentHostnames requires one ready Agent pod on each node, and returns the

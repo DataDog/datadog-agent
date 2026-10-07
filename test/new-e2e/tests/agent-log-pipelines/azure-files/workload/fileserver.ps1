@@ -7,12 +7,16 @@ The test copies this script, logwriter.py, sidecars.py and the scheduled task
 wrappers (<Root>\run\<task>.cmd) to the VM over SFTP, then runs one action of
 this script over SSH (see windows.go and windows_test.go):
 
-- prepare: stops the previous run's writer and removes its share, requires SMB
-  signing on the server, opens TCP 445, creates or resets the local user that
-  the Agent reads the share as, with the password in PasswordFile (the file is
-  deleted at once and the password is never printed), creates the share with
-  read access for that user alone, installs the embeddable Python once, and
-  registers the writer, the ledger and the appender as scheduled tasks;
+- protect: limits <Root>\secrets to SYSTEM, the Administrators and the SSH
+  user, and empties it, before the test writes the reader's password there;
+- prepare: reads the reader's password from PasswordFile and deletes the file
+  before anything else (the password is never printed), stops the previous
+  run's writer and removes its share, requires SMB signing on the server,
+  opens TCP 445 to the local subnet, creates or resets the local user that the
+  Agent reads the share as, creates the share with read access for that user
+  alone, installs the embeddable Python once, from a zip whose digest matches
+  PythonHash, and registers the writer, the ledger and the appender as
+  scheduled tasks;
 - start: starts those tasks;
 - read: prints every file of Paths that exists, one after the other, sharing
   them with the processes still writing them, and fails when none exists;
@@ -22,13 +26,17 @@ this script over SSH (see windows.go and windows_test.go):
 #>
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet('prepare', 'start', 'read', 'sessions', 'describe')]
+    [ValidateSet('protect', 'prepare', 'start', 'read', 'sessions', 'describe')]
     [string] $Action,
     [string] $Root = 'C:\azure-files-e2e',
     [string] $ShareName,
     [string] $UserName,
     [string] $PasswordFile,
     [string] $PythonUrl,
+    [ValidateSet('MD5', 'SHA256')]
+    [string] $PythonHashAlgorithm = 'SHA256',
+    [string] $PythonHash,
+    [string] $PythonDll,
     [string] $PythonDir,
     [string[]] $Paths,
     [string] $TaskPrefix = 'azure-files-e2e'
@@ -68,14 +76,32 @@ function Remove-PreviousShares {
     }
 }
 
-function Set-ReaderAccount {
+function Protect-SecretsDir {
+    $dir = Join-Path $Root 'secrets'
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    # No inherited access: C:\ lets every user read what it holds.
+    $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    & icacls.exe $dir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "*${me}:(OI)(CI)F" | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "icacls $dir failed with exit code $LASTEXITCODE"
+    }
+    # A file an earlier run left keeps the access it was created with.
+    Get-ChildItem -LiteralPath $dir -Force | Remove-Item -Recurse -Force
+    Write-Output "secrets_protected dir=$dir"
+}
+
+function Read-ReaderPassword {
     try {
         $plain = [System.IO.File]::ReadAllText($PasswordFile).TrimEnd([char[]]"`r`n")
         $password = ConvertTo-SecureString -String $plain -AsPlainText -Force
         $plain = $null
+        return $password
     } finally {
         Remove-Item -LiteralPath $PasswordFile -Force -ErrorAction SilentlyContinue
     }
+}
+
+function Set-ReaderAccount([System.Security.SecureString] $password) {
     if (Get-LocalUser -Name $UserName -ErrorAction SilentlyContinue) {
         Set-LocalUser -Name $UserName -Password $password -PasswordNeverExpires $true
         Enable-LocalUser -Name $UserName
@@ -101,22 +127,46 @@ function New-ReaderShare {
 
 function Install-Python {
     $python = Join-Path $PythonDir 'python.exe'
-    if (-not (Test-Path -LiteralPath $python)) {
+    if (-not $PythonHash) {
+        throw 'no PythonHash: the embeddable Python is only installed from a zip of known digest'
+    }
+    # Written once the zip matched: a directory without it, from an earlier
+    # version of this script or an interrupted install, is installed again.
+    $verified = Join-Path $PythonDir (".zip-$PythonHashAlgorithm-$PythonHash").ToLowerInvariant()
+    if (-not (Test-Path -LiteralPath $verified)) {
+        if (Test-Path -LiteralPath $PythonDir) {
+            Remove-Item -LiteralPath $PythonDir -Recurse -Force
+        }
         $zip = Join-Path $Root 'python-embed.zip'
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -UseBasicParsing -Uri $PythonUrl -OutFile $zip
+        # The zip holds the whole standard library, as unsigned .pyc files:
+        # its digest is what vouches for them, so nothing is expanded first.
+        $digest = (Get-FileHash -LiteralPath $zip -Algorithm $PythonHashAlgorithm).Hash
+        if ($digest -ne $PythonHash) {
+            Remove-Item -LiteralPath $zip -Force
+            throw "$PythonUrl has $PythonHashAlgorithm $digest, not the pinned $PythonHash; it is not installed"
+        }
         Expand-Archive -LiteralPath $zip -DestinationPath $PythonDir -Force
         Remove-Item -LiteralPath $zip -Force
+        New-Item -ItemType File -Path $verified -Force | Out-Null
     }
-    # python.org signs its Windows binaries; anything else is not run.
-    $signature = Get-AuthenticodeSignature -FilePath $python
-    $subject = ''
-    if ($null -ne $signature.SignerCertificate) {
-        $subject = $signature.SignerCertificate.Subject
-    }
-    if ($signature.Status -ne 'Valid' -or $subject -notmatch 'O=Python Software Foundation') {
-        Remove-Item -LiteralPath $PythonDir -Recurse -Force -ErrorAction SilentlyContinue
-        throw "python.exe from $PythonUrl is not signed by the Python Software Foundation: status $($signature.Status), signer '$subject'"
+    # python.org also signs its Windows binaries: a second check, on the
+    # interpreter and the DLLs it loads first.
+    foreach ($name in @('python.exe', 'python3.dll', $PythonDll)) {
+        if (-not $name) {
+            throw 'no PythonDll: the interpreter DLL to check is unknown'
+        }
+        $path = Join-Path $PythonDir $name
+        $signature = Get-AuthenticodeSignature -FilePath $path
+        $subject = ''
+        if ($null -ne $signature.SignerCertificate) {
+            $subject = $signature.SignerCertificate.Subject
+        }
+        if ($signature.Status -ne 'Valid' -or $subject -notmatch 'O=Python Software Foundation') {
+            Remove-Item -LiteralPath $PythonDir -Recurse -Force -ErrorAction SilentlyContinue
+            throw "$name from $PythonUrl is not signed by the Python Software Foundation: status $($signature.Status), signer '$subject'"
+        }
     }
     $version = & $python -c 'import sys; print(sys.version.split()[0])'
     if ($LASTEXITCODE -ne 0) {
@@ -151,23 +201,37 @@ function Read-SharedFile([string] $path) {
 }
 
 switch ($Action) {
+    'protect' {
+        Protect-SecretsDir
+    }
     'prepare' {
-        Stop-Workload
-        Remove-PreviousShares
-        # Every session the server accepts must be signed. The Agent signs or
-        # encrypts every session it opens.
-        Set-SmbServerConfiguration -RequireSecuritySignature $true -EnableSecuritySignature $true -Force
-        $rule = "$TaskPrefix-smb-in"
-        if (-not (Get-NetFirewallRule -Name $rule -ErrorAction SilentlyContinue)) {
-            New-NetFirewallRule -Name $rule -DisplayName $rule -Direction Inbound -Protocol TCP -LocalPort 445 `
-                -Action Allow -Profile Any | Out-Null
+        try {
+            # First, so that no failure below leaves the password on disk.
+            $password = Read-ReaderPassword
+            Stop-Workload
+            Remove-PreviousShares
+            # Every session the server accepts must be signed. The Agent
+            # signs or encrypts every session it opens.
+            Set-SmbServerConfiguration -RequireSecuritySignature $true -EnableSecuritySignature $true -Force
+            # The AKS nodes share the VM's subnet, and the Agent's traffic
+            # leaves them from their address; nothing else needs the share.
+            $rule = "$TaskPrefix-smb-in"
+            if (Get-NetFirewallRule -Name $rule -ErrorAction SilentlyContinue) {
+                Set-NetFirewallRule -Name $rule -Direction Inbound -Protocol TCP -LocalPort 445 -RemoteAddress LocalSubnet `
+                    -Action Allow -Profile Any
+            } else {
+                New-NetFirewallRule -Name $rule -DisplayName $rule -Direction Inbound -Protocol TCP -LocalPort 445 `
+                    -RemoteAddress LocalSubnet -Action Allow -Profile Any | Out-Null
+            }
+            Set-ReaderAccount $password
+            New-ReaderShare
+            New-Item -ItemType Directory -Path (Join-Path $Root 'logs') -Force | Out-Null
+            Install-Python
+            Register-Workload
+            Write-Output "fileserver_prepared share=$ShareName user=$UserName"
+        } finally {
+            Remove-Item -LiteralPath $PasswordFile -Force -ErrorAction SilentlyContinue
         }
-        Set-ReaderAccount
-        New-ReaderShare
-        New-Item -ItemType Directory -Path (Join-Path $Root 'logs') -Force | Out-Null
-        Install-Python
-        Register-Workload
-        Write-Output "fileserver_prepared share=$ShareName user=$UserName"
     }
     'start' {
         foreach ($task in $tasks) {

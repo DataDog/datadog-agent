@@ -535,6 +535,83 @@ func parseDiskRecords(t *testing.T, name string, content []byte) []diskRecord {
 	return records
 }
 
+func TestPythonCopyTruncateWriterAppendsThroughTheCopy(t *testing.T) {
+	python := requirePython(t)
+	scripts := writeWorkloadScripts(t)
+	// An SMB source polls app.log every second, so only the last
+	// copyTruncateSMBAtRiskMs before each truncation are at risk.
+	spec := testRunSpec(t, runOptions{cells: "smb-copytruncate", smbEnabled: true, periodMs: "10000", rateBytesPerSec: "40000"})
+	c := spec.cells[0]
+	share := t.TempDir()
+	runPythonWriterSelfTest(t, python, scripts, spec, c, share)
+
+	raw, err := os.ReadFile(filepath.Join(share, periodsJournalName))
+	require.NoError(t, err)
+	journal, err := decodeJSONLines[ledgerEntry](string(raw), "journal")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(journal), selfTestRotations)
+	files := streamFiles(t, share)
+	headPause := time.Duration(spec.writer.headPauseMs()) * time.Millisecond
+	for _, entry := range journal {
+		require.Len(t, entry.AtRiskSequences, 1, entry.Period)
+		// The next period's head record lands at the boundary, while the
+		// copy is running: the copy holds it, and it stays in app.log for
+		// the whole hold, so it is not at risk.
+		head := entry.LastSequence + 1
+		var copied []int64
+		for _, record := range parseDiskRecords(t, entry.File, files[entry.File]) {
+			if record.period != entry.Period {
+				copied = append(copied, record.sequence)
+			}
+		}
+		assert.Equal(t, []int64{head}, copied, "%s holds what was appended during the copy", entry.File)
+		// The fill starts after the head pause, which ends less than
+		// copyTruncateSMBAtRiskMs before the truncation: every fill record
+		// of the hold is at risk, and only those.
+		require.Greater(t, headPause, time.Duration(copyTruncateHoldMs-copyTruncateSMBAtRiskMs)*time.Millisecond)
+		assert.Equal(t, head+1, entry.AtRiskSequences[0][0], entry.Period)
+	}
+}
+
+func TestPythonWriterIdlesAfterItsPeriods(t *testing.T) {
+	python := requirePython(t)
+	scripts := writeWorkloadScripts(t)
+	for _, mode := range knownRotationModes {
+		t.Run(string(mode), func(t *testing.T) {
+			spec := testRunSpec(t, runOptions{cells: "file-line", rotationMode: string(mode), periodMs: "10000", rateBytesPerSec: "40000"})
+			c := spec.cells[0]
+			share := t.TempDir()
+			var vars []string
+			for _, v := range spec.writerEnv(c) {
+				if v.name == "LOGWRITER_LOG_DIR" {
+					v.value = share
+				}
+				vars = append(vars, v.name+"="+v.value)
+			}
+			// Far more rotations than the writer's periods allow: the
+			// self-test ends once the writer idles.
+			cmd := exec.Command(python, scripts[pythonWriterScript], "selftest", "--start", selfTestStart, "--rotations", "100")
+			cmd.Env = scriptEnv(append(vars, "HOSTNAME="+c.writerName)...)
+			output, err := cmd.CombinedOutput()
+			require.NoError(t, err, "logwriter.py selftest: %s", output)
+			assert.Contains(t, string(output), fmt.Sprintf("writer_idle run_id=%s periods=%d reason=LOGWRITER_MAX_PERIODS", spec.writerRunID(c), pacedWriterMaxPeriods))
+
+			raw, err := os.ReadFile(filepath.Join(share, periodsJournalName))
+			require.NoError(t, err)
+			journal, err := decodeJSONLines[ledgerEntry](string(raw), "journal")
+			require.NoError(t, err)
+			// Every period but the last is rotated; copytruncate's rotator
+			// also copies the last one at the next boundary.
+			want := pacedWriterMaxPeriods - 1
+			if mode == copyTruncateRotation {
+				want = pacedWriterMaxPeriods
+			}
+			assert.Len(t, journal, want)
+			assert.GreaterOrEqual(t, len(journal), completedFiles+1, "a cell still gets its files")
+		})
+	}
+}
+
 func TestPythonWriterPacesItsRecords(t *testing.T) {
 	python := requirePython(t)
 	scripts := writeWorkloadScripts(t)

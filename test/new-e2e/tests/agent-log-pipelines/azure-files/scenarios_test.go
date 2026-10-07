@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -43,6 +44,16 @@ const (
 	statusPollInterval = 5 * time.Second
 	// smbPort is the port the SMB source connects to (smb.port's default).
 	smbPort = 445
+	// networkHelperDeadlineSeconds bounds the network helper's life, in case
+	// the test process dies before it deletes the helper: longer than the
+	// longest drop, a period to wait for it, and the helper's start.
+	networkHelperDeadlineSeconds = 1800
+	// The deleted Agent's log lines that say how its logs agent stopped
+	// (comp/logs/agent/impl/agent.go), and the exit code of a container the
+	// kubelet killed after its grace period.
+	logsAgentStoppedLine  = "logs-agent stopped"
+	logsAgentTimedOutLine = "Timed out when stopping logs-agent"
+	sigkillExitCode       = 137
 )
 
 // scenarioMetadata describes the run's scenario for the run metadata.
@@ -67,7 +78,8 @@ func (spec runSpec) scenarioMetadata() map[string]any {
 }
 
 // scenarioCell skips unless the run selected the scenario, and returns the
-// cell it runs on.
+// cell it runs on. It first deletes any network helper an earlier run left
+// behind, if its test process died before it could.
 func (suite *azureFilesSuite) scenarioCell(kind scenarioKind) cell {
 	suite.T().Helper()
 	if suite.spec.scenario.kind != kind {
@@ -75,7 +87,21 @@ func (suite *azureFilesSuite) scenarioCell(kind scenarioKind) cell {
 	}
 	c, ok := suite.spec.cellNamed(scenarioCellName)
 	require.True(suite.T(), ok, "the %s scenario needs the %s cell", kind, scenarioCellName)
+	suite.deleteLeftoverNetworkHelpers()
 	return c
+}
+
+// deleteLeftoverNetworkHelpers deletes every network helper pod of the e2e
+// namespace. Each one is privileged and in the node's PID namespace, so none
+// may outlive the test that started it.
+func (suite *azureFilesSuite) deleteLeftoverNetworkHelpers() {
+	grace := int64(0)
+	err := suite.Env().KubernetesCluster.Client().CoreV1().Pods(e2eNamespace).DeleteCollection(context.Background(),
+		metav1.DeleteOptions{GracePeriodSeconds: &grace},
+		metav1.ListOptions{LabelSelector: helperRoleLabel + "=" + networkHelperApp})
+	if err != nil {
+		suite.T().Logf("cannot delete leftover network helpers in %s: %v", e2eNamespace, err)
+	}
 }
 
 // sleepUntil sleeps until at, if it is still ahead.
@@ -168,34 +194,45 @@ func (suite *azureFilesSuite) restartAgentMidPeriod(c cell) restartRule {
 	require.Contains(t, registry, smbIdentifier(c, ""), "the registry of %s has no offset for the active file yet", old.Name)
 
 	// The old pod's log ends with its shutdown, which says whether the logs
-	// agent stopped within its grace period.
+	// agent stopped within its grace period, and its container's last state
+	// whether the kubelet killed it.
 	shutdownLog := suite.followAgentLog(old)
 	deletedAt := time.Now()
 	require.NoError(t, suite.Env().KubernetesCluster.Client().CoreV1().Pods(agentNamespace).
 		Delete(context.Background(), old.Name, metav1.DeleteOptions{}))
-	log, logErr := shutdownLog(3 * time.Minute)
+	terminated := suite.watchAgentTermination(old, 3*time.Minute)
+	log, logErr := shutdownLog(time.Minute)
 	replacement := suite.waitForReplacementAgent(old.UID)
 	suite.requireSMBSourceRunning(c)
 	resumedAt := time.Now()
 
-	graceful := logErr == nil && gracefulLogsStop(log)
+	stop := classifyLogsStop(log, terminated)
+	graceful := stop == gracefulLogsStop
 	rule := restartRule{bound: restartDuplicateBound(c.writer, graceful), graceful: graceful}
 	record := map[string]any{
 		"old_pod": old.Name, "new_pod": replacement.Name,
 		"deleted_at": deletedAt, "source_running_again_at": resumedAt, "period_end": periodEnd,
 		"bytes_read_by_active_tailer_before_delete": bytesRead,
-		"graceful_logs_stop":                        graceful, "duplicate_bound_records": rule.bound,
+		"logs_stop": stop, "graceful_logs_stop": graceful, "duplicate_bound_records": rule.bound,
 	}
 	if logErr != nil {
 		record["shutdown_log_error"] = logErr.Error()
+	}
+	if terminated != nil {
+		record["agent_container_terminated"] = map[string]any{"exit_code": terminated.ExitCode, "signal": terminated.Signal, "reason": terminated.Reason}
 	}
 	suite.writeScenarioEvidence("restart", record)
 	if evidence, err := suite.evidenceDir(); err == nil && evidence.redactsEverySecret() {
 		evidence.write(old.Name+"-agent-shutdown.log", []byte(log))
 	}
-	t.Logf("%s: deleted %s %s into its period after the source read %d bytes of the active file; %s ran the source again %s later; graceful logs-agent stop: %t, so up to %d records may be collected twice",
+	// Without evidence of how the Agent stopped, neither bound is known to
+	// hold: the forced one would only hide a graceful stop's duplicates.
+	require.NotEqual(t, unknownLogsStop, stop,
+		"%s: inconclusive: the log of the deleted Agent %s (read error: %v) shows neither %q nor %q, and its agent container was not seen killed (exit code %d), so the restart's duplicate bound is unknown",
+		c.name, old.Name, logErr, logsAgentStoppedLine, logsAgentTimedOutLine, sigkillExitCode)
+	t.Logf("%s: deleted %s %s into its period after the source read %d bytes of the active file; %s ran the source again %s later; logs-agent stop: %s, so up to %d records may be collected twice",
 		c.name, old.Name, deletedAt.Sub(periodStart(deletedAt, c.writer.periodMs)).Round(time.Second), bytesRead,
-		replacement.Name, resumedAt.Sub(deletedAt).Round(time.Second), graceful, rule.bound)
+		replacement.Name, resumedAt.Sub(deletedAt).Round(time.Second), stop, rule.bound)
 	// A file that rotates while no Agent runs is never read past its
 	// registry offset (see README.md), which says nothing about the restart.
 	require.True(t, resumedAt.Before(periodEnd),
@@ -235,10 +272,58 @@ func checkRegistryPersists(pod corev1.Pod) error {
 	return fmt.Errorf("the agent container of %s mounts volume %s, which its pod does not define", pod.Name, volumeName)
 }
 
-// gracefulLogsStop reports whether an Agent's log shows its logs agent stopped
-// without hitting logs_config.stop_grace_period (comp/logs/agent/impl/agent.go).
-func gracefulLogsStop(log string) bool {
-	return strings.Contains(log, "logs-agent stopped") && !strings.Contains(log, "Timed out when stopping logs-agent")
+// logsStop is how a deleted Agent's logs agent stopped.
+type logsStop string
+
+const (
+	// gracefulLogsStop: the logs agent stopped within
+	// logs_config.stop_grace_period, so the auditor wrote the registry once
+	// the pipeline had flushed.
+	gracefulLogsStop logsStop = "graceful"
+	// forcedLogsStop: it timed out, or the kubelet killed the container.
+	forcedLogsStop logsStop = "forced"
+	// unknownLogsStop: nothing shows either.
+	unknownLogsStop logsStop = "unknown"
+)
+
+// classifyLogsStop reads how the logs agent stopped from the deleted Agent's
+// log and its agent container's termination, if the test saw it. Only
+// positive evidence counts: a log that could not be read, or that ends before
+// the logs agent stopped, shows neither, unless the container was killed.
+func classifyLogsStop(log string, terminated *corev1.ContainerStateTerminated) logsStop {
+	switch {
+	case strings.Contains(log, logsAgentTimedOutLine):
+		return forcedLogsStop
+	case strings.Contains(log, logsAgentStoppedLine):
+		return gracefulLogsStop
+	case terminated != nil && (terminated.ExitCode == sigkillExitCode || terminated.Signal == 9):
+		return forcedLogsStop
+	}
+	return unknownLogsStop
+}
+
+// watchAgentTermination polls the deleted Agent pod until it is gone, and
+// returns the last termination state of its agent container the test saw.
+func (suite *azureFilesSuite) watchAgentTermination(pod corev1.Pod, timeout time.Duration) *corev1.ContainerStateTerminated {
+	var terminated *corev1.ContainerStateTerminated
+	pods := suite.Env().KubernetesCluster.Client().CoreV1().Pods(agentNamespace)
+	for deadline := time.Now().Add(timeout); time.Now().Before(deadline); time.Sleep(time.Second) {
+		current, err := pods.Get(context.Background(), pod.Name, metav1.GetOptions{})
+		if err != nil || current.UID != pod.UID {
+			return terminated // gone, or replaced under the same name
+		}
+		for _, status := range current.Status.ContainerStatuses {
+			if status.Name != agentContainer {
+				continue
+			}
+			if status.State.Terminated != nil {
+				terminated = status.State.Terminated.DeepCopy()
+			} else if status.LastTerminationState.Terminated != nil {
+				terminated = status.LastTerminationState.Terminated.DeepCopy()
+			}
+		}
+	}
+	return terminated
 }
 
 // activeTailerBytesRead returns what the tailer of the cell's active app.log
@@ -619,12 +704,18 @@ func (suite *azureFilesSuite) requireWriterRotatedDuring(c cell, window dropWind
 type networkHelper struct {
 	suite *azureFilesSuite
 	pod   string
+	// logf logs on the test that started the helper, which its cleanup may
+	// outlive.
+	logf func(format string, args ...any)
 	// agentPID is a process of the agent container, in the node's PID
 	// namespace.
-	agentPID          string
-	addresses         []string
-	comment           string
-	blocked           bool
+	agentPID  string
+	addresses []string
+	comment   string
+	// blocked says a DROP rule may be in place, so cleanup removes it.
+	blocked bool
+	// deleted says the helper pod is deleted, so cleanup is done.
+	deleted           bool
 	connectionsBefore int
 }
 
@@ -634,6 +725,7 @@ func networkHelperPod(name, node, image string, pullSecrets []corev1.LocalObject
 	privileged := true
 	root := int64(0)
 	grace := int64(0)
+	deadline := int64(networkHelperDeadlineSeconds)
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -649,12 +741,14 @@ func networkHelperPod(name, node, image string, pullSecrets []corev1.LocalObject
 			HostPID:                       true,
 			RestartPolicy:                 corev1.RestartPolicyNever,
 			TerminationGracePeriodSeconds: &grace,
-			ImagePullSecrets:              pullSecrets,
+			// A helper whose test process died is stopped anyway.
+			ActiveDeadlineSeconds: &deadline,
+			ImagePullSecrets:      pullSecrets,
 			Containers: []corev1.Container{{
 				Name:            networkHelperApp,
 				Image:           image,
 				ImagePullPolicy: corev1.PullIfNotPresent,
-				Command:         []string{"sleep", "3600"},
+				Command:         []string{"sleep", strconv.Itoa(networkHelperDeadlineSeconds)},
 				SecurityContext: &corev1.SecurityContext{Privileged: &privileged, RunAsUser: &root},
 			}},
 		},
@@ -744,7 +838,9 @@ func agentContainerID(pod corev1.Pod) (string, error) {
 }
 
 // startNetworkHelper starts the helper on the Agent's node and finds the
-// Agent's network namespace and the smb cell's storage endpoint.
+// Agent's network namespace and the smb cell's storage endpoint. The helper
+// is deleted when the test ends, whatever happens once it is created; a
+// caller may delete it earlier with cleanup.
 func (suite *azureFilesSuite) startNetworkHelper(c cell) *networkHelper {
 	t := suite.T()
 	pods, err := suite.agentPods()
@@ -759,6 +855,7 @@ func (suite *azureFilesSuite) startNetworkHelper(c cell) *networkHelper {
 	helper := &networkHelper{
 		suite:   suite,
 		pod:     "network-helper-" + hexDigest(suite.spec.runID + time.Now().String())[:10],
+		logf:    t.Logf,
 		comment: "azure-files-e2e-" + hexDigest(suite.spec.runID)[:12],
 	}
 	helperPods := suite.Env().KubernetesCluster.Client().CoreV1().Pods(e2eNamespace)
@@ -766,6 +863,8 @@ func (suite *azureFilesSuite) startNetworkHelper(c cell) *networkHelper {
 		networkHelperPod(helper.pod, agent.Spec.NodeName, writer.Spec.Containers[0].Image, writer.Spec.ImagePullSecrets, suite.spec.runID),
 		metav1.CreateOptions{})
 	require.NoError(t, err, "create the network helper")
+	// Every require below may end the test before the caller gets the helper.
+	t.Cleanup(helper.cleanup)
 	suite.EventuallyWithT(func(collect *assert.CollectT) {
 		pod, err := helperPods.Get(context.Background(), helper.pod, metav1.GetOptions{})
 		require.NoError(collect, err)
@@ -798,11 +897,14 @@ func (h *networkHelper) block() {
 	require.NoError(t, err)
 	h.connectionsBefore = countSMBConnections(tcp)
 	assert.Positive(t, h.connectionsBefore, "the Agent's network namespace has no connection to port %d before the drop", smbPort)
+	// Before any insert: an insert that fails after an earlier one worked, or
+	// whose exec fails after the kernel applied it, must still be removed.
+	// Removing an absent rule only logs.
+	h.blocked = true
 	for _, address := range h.addresses {
 		_, err := h.exec(nsenterIptables(h.agentPID, dropRuleArgs("-I", address, h.comment)...)...)
 		require.NoError(t, err, "add the DROP rule for %s", address)
 	}
-	h.blocked = true
 	agentRules, err := h.exec(nsenterIptables(h.agentPID, "-S", "OUTPUT")...)
 	require.NoError(t, err)
 	require.Contains(t, agentRules, h.comment, "the DROP rule is not in the Agent's network namespace")
@@ -837,22 +939,30 @@ func (h *networkHelper) unblock() {
 	require.NoError(h.suite.T(), errors.Join(failed...), "remove the DROP rule")
 }
 
-// cleanup removes the rule if it is still there and deletes the helper. It
-// runs deferred, so a failed assertion does not leave the Agent cut off.
+// cleanup removes the rule if it may still be there and deletes the helper.
+// It runs deferred by its callers and when the test ends, so a failed
+// assertion leaves neither the Agent cut off nor a privileged pod behind; the
+// second call does nothing.
 func (h *networkHelper) cleanup() {
-	if h.blocked {
+	if h.deleted {
+		return
+	}
+	if h.blocked && h.agentPID != "" {
 		for _, address := range h.addresses {
 			if _, err := h.exec(nsenterIptables(h.agentPID, dropRuleArgs("-D", address, h.comment)...)...); err != nil {
-				h.suite.T().Logf("cannot remove the DROP rule for %s: %v", address, err)
+				h.logf("cannot remove the DROP rule for %s: %v", address, err)
 			}
 		}
-		h.blocked = false
 	}
+	h.blocked = false
 	grace := int64(0)
-	if err := h.suite.Env().KubernetesCluster.Client().CoreV1().Pods(e2eNamespace).
-		Delete(context.Background(), h.pod, metav1.DeleteOptions{GracePeriodSeconds: &grace}); err != nil {
-		h.suite.T().Logf("cannot delete the network helper %s: %v", h.pod, err)
+	err := h.suite.Env().KubernetesCluster.Client().CoreV1().Pods(e2eNamespace).
+		Delete(context.Background(), h.pod, metav1.DeleteOptions{GracePeriodSeconds: &grace})
+	if err != nil && !apierrors.IsNotFound(err) {
+		h.logf("cannot delete the network helper %s: %v; it stops by itself %ds after it started", h.pod, err, networkHelperDeadlineSeconds)
+		return
 	}
+	h.deleted = true
 }
 
 // Status watch.

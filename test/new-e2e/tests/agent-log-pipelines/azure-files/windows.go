@@ -56,9 +56,22 @@ const (
 	fileServerScript     = "fileserver.ps1"
 	sidecarsScript       = "sidecars.py"
 	// windowsPythonVersion is the last 3.12 release that python.org ships
-	// Windows binaries for; the stock writer image runs 3.12 too. The script
-	// only runs a python.exe that python.org signed.
+	// Windows binaries for; the stock writer image runs 3.12 too.
 	windowsPythonVersion = "3.12.10"
+	// windowsPythonDLL is the interpreter DLL of that version.
+	windowsPythonDLL = "python312.dll"
+	// windowsPythonHash pins the embeddable zip, which fileserver.ps1 refuses
+	// before it expands anything unless the zip has this digest: the zip
+	// holds the standard library as unsigned .pyc files, which no signature
+	// covers. It is the MD5 sum python.org publishes for
+	// python-3.12.10-embed-amd64.zip on the release page, the only digest it
+	// publishes there. MD5 has collisions, but replacing a published file
+	// takes a second preimage, which no one can compute for MD5. The script
+	// also requires python.org's signature on python.exe, python3.dll and
+	// windowsPythonDLL. Pinning SHA-256 instead takes downloading the zip
+	// once to hash it.
+	windowsPythonHashAlgorithm = "MD5"
+	windowsPythonHash          = "fe8ef205f2e9c3ba44d0cf9954e1abd3"
 )
 
 // windowsTasks are the scheduled tasks of the VM: the writer and its two
@@ -185,6 +198,12 @@ func fileServerCommand(action string, args ...string) string {
 	return b.String()
 }
 
+// windowsProtectCommand limits the secrets directory to SYSTEM, the
+// Administrators and the SSH user, before the reader's password goes there.
+func windowsProtectCommand() string {
+	return fileServerCommand("protect", "Root", windowsRoot)
+}
+
 // windowsPrepareCommand prepares the share of the cell for this run.
 func windowsPrepareCommand(c cell) string {
 	return fileServerCommand("prepare",
@@ -193,9 +212,19 @@ func windowsPrepareCommand(c cell) string {
 		"UserName", windowsReaderUser,
 		"PasswordFile", windowsPasswordFile(),
 		"PythonUrl", windowsPythonURL(),
+		"PythonHashAlgorithm", windowsPythonHashAlgorithm,
+		"PythonHash", windowsPythonHash,
+		"PythonDll", windowsPythonDLL,
 		"PythonDir", windowsPythonDir(),
 		"TaskPrefix", windowsTaskPrefix,
 	)
+}
+
+// windowsForgetPasswordCommand deletes the reader's password file, which
+// prepare deletes itself once read: the test runs it anyway, in case prepare
+// never ran or never reached it.
+func windowsForgetPasswordCommand() string {
+	return "Remove-Item -LiteralPath '" + windowsPasswordFile() + "' -Force -ErrorAction SilentlyContinue"
 }
 
 // windowsReadCommand prints the files of the cell's share that exist.

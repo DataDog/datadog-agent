@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -40,9 +41,14 @@ const (
 	runPeriodMs     = "AZURE_FILES_E2E_PERIOD_MS"
 	runRate         = "AZURE_FILES_E2E_RATE_BYTES_PER_SEC"
 	runStreams      = "AZURE_FILES_E2E_STREAMS"
-	// runCalibrate records every marker's outcome instead of asserting it.
+	// runCalibrate records the outcome of the smb-late-<age> cells' probe
+	// markers instead of asserting it; every other marker is still asserted.
 	runCalibrate      = "AZURE_FILES_E2E_CALIBRATE"
 	runCalibrateValue = "1"
+	// runForceLoss makes the loss-accounted cells' rotations remove the
+	// rotated file at once, so their loss accounting has losses to check.
+	runForceLoss      = "AZURE_FILES_E2E_FORCE_LOSS"
+	runForceLossValue = "1"
 	// runScenario selects a disruption of the Agent (see scenarios_test.go),
 	// and runNetworkDropSeconds how long network-drop lasts.
 	runScenario           = "AZURE_FILES_E2E_SCENARIO"
@@ -191,6 +197,7 @@ func TestAzureFiles(t *testing.T) {
 		rateBytesPerSec:    os.Getenv(runRate),
 		streams:            os.Getenv(runStreams),
 		calibrate:          os.Getenv(runCalibrate) == runCalibrateValue,
+		forceLoss:          os.Getenv(runForceLoss) == runForceLossValue,
 		scenario:           os.Getenv(runScenario),
 		networkDropSeconds: os.Getenv(runNetworkDropSeconds),
 		nodes:              os.Getenv(runNodes),
@@ -198,7 +205,7 @@ func TestAzureFiles(t *testing.T) {
 	})
 	require.NoError(t, err, "one of %s is invalid", strings.Join([]string{
 		runProfile, runCells, runStackName, runWriterImage, runRotationMode, runPeriodMs, runRate, runStreams,
-		runScenario, runNetworkDropSeconds, runNodes,
+		runCalibrate, runForceLoss, runScenario, runNetworkDropSeconds, runNodes,
 	}, ", "))
 	if len(spec.cells) == 0 {
 		reasons := make([]string, 0, len(spec.gatedCells))
@@ -244,7 +251,13 @@ func (suite *azureFilesSuite) TestRotatedFilesAreCollectedExactlyOnce() {
 	for _, c := range suite.spec.cells {
 		suite.Run(c.name, func() {
 			suite.checkCell(c, recordRules{})
+			if suite.spec.calibrate && c.probe != nil {
+				suite.T().Skipf("%s=%s: calibration run, not a pass; the probe marker's outcome is in %s-marker-outcomes.json", runCalibrate, runCalibrateValue, c.name)
+			}
 		})
+	}
+	if suite.spec.calibrate {
+		suite.T().Skipf("%s=%s: calibration run, not a pass; unset it once lateMarkerProbes in provisioner.go has the recorded outcomes", runCalibrate, runCalibrateValue)
 	}
 }
 
@@ -298,12 +311,17 @@ func (suite *azureFilesSuite) checkCell(c cell, rules recordRules) []ledgerEntry
 	streams := suite.spec.streamRunIDs(c)
 	ledger := suite.waitForLedger(c, site, completedFiles)
 	asserted, atRisk := assertedLedger(ledger, streams)
+	// The expected records are the asserted files' sequences, so a file the
+	// ledger lacks, or records the writer failed to write, would drop out of
+	// them without a trace: both are harness failures, not passes.
+	gaps := ledgerGaps(asserted)
+	require.Empty(suite.T(), gaps, "%s: the ledger's asserted files do not hold every sequence the writer used:\n%s", c.name, strings.Join(gaps, "\n"))
+	unwrittenFailures := unwrittenProblems(c, asserted, suite.spec.deleteRecreateDelaySeconds(c))
+	require.Empty(suite.T(), unwrittenFailures, "%s: the writer failed to write records (see the ledger and the writer log):\n%s", c.name, strings.Join(unwrittenFailures, "\n"))
 	expected := expectedRecords(asserted)
-	// A ledger whose records all failed to be written leaves nothing to
-	// check, which must not pass as a success.
 	require.NotEmpty(suite.T(), expected, "%s: the writer wrote none of the records of its asserted files", c.name)
 	if unwritten := unwrittenRecords(asserted); unwritten > 0 {
-		suite.T().Logf("%s: the writer failed to write %d records of its asserted files; they are in no file and not expected (see the ledger and the writer log)", c.name, unwritten)
+		suite.T().Logf("%s: the writer failed to write %d records right after recreating app.log, which delete-recreate allows; they are in no file and not expected (see the ledger and the writer log)", c.name, unwritten)
 	}
 	var markers []markerEntry
 	if c.markers.count() > 0 {
@@ -311,9 +329,12 @@ func (suite *azureFilesSuite) checkCell(c cell, rules recordRules) []ledgerEntry
 	}
 
 	// judge asserts the collected logs and describes what it found.
+	// Calibration records the probe marker's outcome instead of asserting
+	// it; every other marker is still asserted.
+	assertedMarkers := markersToAssert(c, markers, suite.spec.calibrate)
 	judge := func(t assert.TestingT, logs []collectedLog) (recordCheck, string) {
 		if len(rules.hosts) > 0 {
-			return recordCheck{}, assertCollectedOncePerHost(t, c, expected, atRisk, markers, logs, rules.hosts, suite.spec.calibrate)
+			return recordCheck{}, assertCollectedOncePerHost(t, c, expected, atRisk, assertedMarkers, logs, rules.hosts)
 		}
 		messages := logMessages(logs)
 		counts := countRecords(messages, expected)
@@ -327,9 +348,7 @@ func (suite *azureFilesSuite) checkCell(c cell, rules recordRules) []ledgerEntry
 		default:
 			assertRecordsCollected(t, c, check)
 		}
-		if !suite.spec.calibrate {
-			assertMarkerOutcome(t, c, markers, countMarkerIDs(messages))
-		}
+		assertMarkerOutcome(t, c, assertedMarkers, countMarkerIDs(messages))
 		return check, describeRecordCheck(check)
 	}
 	suite.EventuallyWithT(func(collect *assert.CollectT) {
@@ -412,7 +431,7 @@ func messagesByHost(logs []collectedLog, hosts []string) map[string][]string {
 //
 // Once the SMB source elects a single reader, every record must arrive once
 // from any one of the hosts instead.
-func assertCollectedOncePerHost(t assert.TestingT, c cell, expected, atRisk map[recordKey]struct{}, markers []markerEntry, logs []collectedLog, hosts []string, calibrate bool) string {
+func assertCollectedOncePerHost(t assert.TestingT, c cell, expected, atRisk map[recordKey]struct{}, markers []markerEntry, logs []collectedLog, hosts []string) string {
 	byHost := messagesByHost(logs, hosts)
 	strangers := make(map[string]int)
 	for _, log := range logs {
@@ -433,9 +452,7 @@ func assertCollectedOncePerHost(t assert.TestingT, c cell, expected, atRisk map[
 		hostCell := cellOnHost(c, host)
 		check := checkRecords(expected, atRisk, countRecords(byHost[host], expected))
 		assertRecordsCollected(t, hostCell, check)
-		if !calibrate {
-			assertMarkerOutcome(t, hostCell, markers, countMarkerIDs(byHost[host]))
-		}
+		assertMarkerOutcome(t, hostCell, markers, countMarkerIDs(byHost[host]))
 		parts = append(parts, host+": "+describeRecordCheck(check))
 	}
 	return fmt.Sprintf("each of the %d Agents collected every record once, %d copies of each in all; %s",
@@ -533,6 +550,108 @@ func assertedLedger(ledger []ledgerEntry, streams []string) ([]ledgerEntry, map[
 		}
 	}
 	return asserted, atRisk
+}
+
+// ledgerGaps lists where the asserted files of a stream do not follow each
+// other: the first must start at the writer's first sequence, 1, and each one
+// right after the previous one. A period whose journal line was lost, or a
+// writer that restarted, would otherwise drop records from the expected ones
+// without a trace.
+func ledgerGaps(asserted []ledgerEntry) []string {
+	byStream := ledgerByStream(asserted)
+	streams := make([]string, 0, len(byStream))
+	for stream := range byStream {
+		streams = append(streams, stream)
+	}
+	sort.Strings(streams)
+	var gaps []string
+	for _, stream := range streams {
+		entries := slices.Clone(byStream[stream])
+		sort.Slice(entries, func(i, j int) bool { return entries[i].Period < entries[j].Period })
+		next := int64(1)
+		for i, entry := range entries {
+			switch {
+			case entry.FirstSequence == next:
+			case i == 0:
+				gaps = append(gaps, fmt.Sprintf("%s: its first file, %s of period %s, starts at sequence %d, not at the writer's first sequence 1: sequences 1-%d are in no asserted file",
+					stream, entry.File, entry.Period, entry.FirstSequence, entry.FirstSequence-1))
+			case entry.FirstSequence > next:
+				gaps = append(gaps, fmt.Sprintf("%s: %s of period %s starts at sequence %d, but the previous file ended at %d: sequences %d-%d are in no asserted file",
+					stream, entry.File, entry.Period, entry.FirstSequence, next-1, next, entry.FirstSequence-1))
+			default:
+				gaps = append(gaps, fmt.Sprintf("%s: %s of period %s starts at sequence %d, inside the previous file, which ended at %d: the writer restarted or the ledger is wrong",
+					stream, entry.File, entry.Period, entry.FirstSequence, next-1))
+			}
+			next = entry.LastSequence + 1
+		}
+	}
+	return gaps
+}
+
+// deleteRecreateDelaySeconds is how long a delete-recreate writer may fail to
+// create app.log again: SMB keeps a deleted file pending deletion while a
+// client still has it open. The SMB source's stateless reads only hold it
+// for one read. A file source holds it until its rotated tailer closes, a
+// file scan after the rotation: after close_timeout, or with unreliable_mount
+// once the file went fileHandoffQuietSeconds without new reads.
+func (spec runSpec) deleteRecreateDelaySeconds(c cell) int {
+	switch {
+	case c.reader == smbReader:
+		return 1
+	case spec.profile.unreliableMount:
+		return fileScanPeriodSeconds + fileHandoffQuietSeconds + 1
+	default:
+		return fileScanPeriodSeconds + closeTimeoutSeconds + 1
+	}
+}
+
+// deleteRecreateUnwrittenBound is how many records a delete-recreate writer may
+// fail to write at the start of a file, while it cannot create app.log again
+// for delaySeconds: the head record, then one record per tick of the Java
+// schedule, or what a paced stream writes in that time, with one buffered
+// write.
+func deleteRecreateUnwrittenBound(w writerOptions, delaySeconds int) int64 {
+	if !w.paced() {
+		return 1 + int64(delaySeconds*1000/writerTickMs)
+	}
+	perSecond := float64(w.rateBytesPerSec) / float64(max(1, w.streams)) / pacedWriterPayloadBytes
+	return 1 + int64(math.Ceil(perSecond*float64(delaySeconds))) + pacedWriterBufferBytes/pacedWriterPayloadBytes
+}
+
+// unwrittenProblems lists the records the writer failed to write in the
+// asserted files that the cell cannot accept. Such a record is in no file and
+// says nothing about the reader, but only delete-recreate has a reason to
+// fail: the new app.log cannot be created while the deleted one is pending
+// deletion, which delays the first records of the next file. Anywhere else, or
+// beyond that, the harness is broken. Every asserted file must also hold a
+// record the writer did write. delaySeconds is how long the cell's reader may
+// keep a deleted app.log pending deletion (runSpec.deleteRecreateDelaySeconds).
+func unwrittenProblems(c cell, asserted []ledgerEntry, delaySeconds int) []string {
+	bound := deleteRecreateUnwrittenBound(c.writer, delaySeconds)
+	var problems []string
+	for _, entry := range asserted {
+		file := fmt.Sprintf("%s of %s (period %s, sequences %d-%d)", entry.File, entry.RunID, entry.Period, entry.FirstSequence, entry.LastSequence)
+		unwritten := unwrittenRecords([]ledgerEntry{entry})
+		ranges := make([]string, 0, len(entry.UnwrittenSequences))
+		for _, r := range entry.UnwrittenSequences {
+			ranges = append(ranges, fmt.Sprintf("%d-%d", r[0], r[1]))
+		}
+		switch {
+		case unwritten == 0:
+		case unwritten >= entry.LastSequence-entry.FirstSequence+1:
+			problems = append(problems, fmt.Sprintf("the writer wrote none of the %d records of %s", unwritten, file))
+		case c.writer.mode != deleteRecreateRotation:
+			problems = append(problems, fmt.Sprintf("the writer failed to write %d records of %s (%s); only a delete-recreate rotation may delay the first records of a file",
+				unwritten, file, strings.Join(ranges, ", ")))
+		case len(entry.UnwrittenSequences) != 1 || entry.UnwrittenSequences[0][0] != entry.FirstSequence:
+			problems = append(problems, fmt.Sprintf("the writer failed to write records of %s (%s) that are not one run at its start, right after app.log was recreated",
+				file, strings.Join(ranges, ", ")))
+		case unwritten > bound:
+			problems = append(problems, fmt.Sprintf("the writer failed to write the first %d records of %s, more than the %d it can lose in the %ds its %s reader may keep the deleted file open",
+				unwritten, file, bound, delaySeconds, c.reader))
+		}
+	}
+	return problems
 }
 
 // recordCheck sorts the expected records by how often they were collected.
@@ -649,6 +768,23 @@ func assertMarkerOutcome(t assert.TestingT, c cell, markers []markerEntry, count
 	}
 }
 
+// markersToAssert leaves out the probe markers of an smb-late-<age> cell when
+// the run calibrates: their outcome is what the run records. The 45s marker
+// is still asserted, since it is what proves the suite can see a loss, and so
+// is every marker of the other cells.
+func markersToAssert(c cell, markers []markerEntry, calibrate bool) []markerEntry {
+	if !calibrate || c.probe == nil {
+		return markers
+	}
+	kept := make([]markerEntry, 0, len(markers))
+	for _, marker := range markers {
+		if marker.MarkerAgeMs != c.probe.ageMs {
+			kept = append(kept, marker)
+		}
+	}
+	return kept
+}
+
 // markerOutcome is what became of one marker, as calibration records it.
 type markerOutcome struct {
 	MarkerID    string            `json:"marker_id"`
@@ -738,7 +874,7 @@ func summarizeMarkerOutcomes(outcomes []markerOutcome) string {
 
 // recordMarkerOutcomes prints and keeps the calibration of a cell's markers.
 func (suite *azureFilesSuite) recordMarkerOutcomes(c cell, outcomes []markerOutcome) {
-	suite.T().Logf("%s calibration (%s=%s, not asserted): %s", c.name, runCalibrate, runCalibrateValue, summarizeMarkerOutcomes(outcomes))
+	suite.T().Logf("%s calibration (%s=%s, the probe marker is not asserted): %s", c.name, runCalibrate, runCalibrateValue, summarizeMarkerOutcomes(outcomes))
 	if evidence, err := suite.evidenceDir(); err == nil {
 		evidence.writeJSON(c.name+"-marker-outcomes.json", outcomes)
 	}
@@ -1088,6 +1224,9 @@ func (suite *azureFilesSuite) writeRunMetadata() error {
 			"writer":         c.writer.metadata(),
 			"loss_accounted": c.lossAccounted(),
 		}
+		if c.writer.mode == copyTruncateRotation {
+			entry["copytruncate_at_risk_ms"] = c.copyTruncateAtRiskMs()
+		}
 		switch c.reader {
 		case fileReader:
 			entry["fingerprint"] = map[string]any{
@@ -1120,9 +1259,10 @@ func (suite *azureFilesSuite) writeRunMetadata() error {
 			"file_scan_period": fileScanPeriodSeconds,
 			"close_timeout":    closeTimeoutSeconds,
 		},
-		"calibrate": suite.spec.calibrate,
-		"scenario":  suite.spec.scenarioMetadata(),
-		"nodes":     suite.spec.nodes,
+		"calibrate":  suite.spec.calibrate,
+		"force_loss": suite.spec.forceLoss(),
+		"scenario":   suite.spec.scenarioMetadata(),
+		"nodes":      suite.spec.nodes,
 		// The marker ages depend on the reader and are listed per cell.
 		"post_rotation_markers": map[string]any{
 			"expected_surviving": postRotationMarkerSurvivingCount,

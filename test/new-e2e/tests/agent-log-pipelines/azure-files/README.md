@@ -229,10 +229,13 @@ unless `AZURE_FILES_E2E_STACK` names a stack to reuse (see
 [Keep the stack up and iterate](#keep-the-stack-up-and-iterate)).
 
 Evidence is written under the framework session output directory, not `/tmp`.
-Every evidence file has the `smb` account key replaced by
-`[redacted storage account key]`. If the test cannot read the Secret, it logs
-that it cannot redact the key and writes no Agent output or Fakeintake logs to
-the evidence. The evidence contains:
+Every evidence file has every secret the test knows replaced by
+`[redacted storage account key]`: the storage account keys of every SMB cell,
+the Agent's copy when it holds the other key (key-rotation), any key the test
+renewed or replaced, and the `smb-windows` reader's password. If the test
+cannot read a cell's Secret, it logs that it cannot redact that cell's key and
+writes no Agent output or Fakeintake logs to the evidence. The evidence
+contains:
 
 - writer ledgers, writer journals (`<cell>-periods.jsonl`), marker journals
   and pod manifests, each with the files of every stream one after the
@@ -350,13 +353,17 @@ wrote, and these:
 | Field | Meaning |
 |---|---|
 | `first_sequence`, `last_sequence`, `bytes`, `line_count` | The records and bytes the writer wrote while the file was active; for copytruncate, while its period was current |
-| `unwritten_sequences` | `[first, last]` ranges the writer failed to write, for example while an open handle elsewhere keeps a deleted `app.log` from being created again. They are in no file, so the test does not expect them, and it logs how many there were |
-| `at_risk_sequences` | copytruncate only: what the writer appended between the start of the copy and the truncation. A reader of `app.log` can lose these without being at fault |
+| `unwritten_sequences` | `[first, last]` ranges the writer failed to write, for example while an open handle elsewhere keeps a deleted `app.log` from being created again. They are in no file, so the test does not expect them. Only delete-recreate may have any, as one run at the start of a file, right after the recreate, and at most what the writer writes while the reader may keep the deleted file open (`deleteRecreateUnwrittenBound`): 1s for an SMB source, 7s for a file source, 32s with `unreliable-mount`. Anywhere else they fail the cell, since the harness then lost records |
+| `at_risk_sequences` | copytruncate only: what the writer appended so close to the truncation that a reader of `app.log` can lose it without being at fault. For a file source, everything appended after the copy started; for an SMB source, only what was appended in the last 1.5s (`copyTruncateSMBAtRiskMs`, `LOGWRITER_COPYTRUNCATE_AT_RISK_MS`), since it polls `app.log` every second |
 | `disposition`, `archive` | What the writer did with the file: `renamed`, `copied`, `compressed` (into `archive`) or `deleted`; `missing`, `empty` or `copy-failed` when no rotation happened |
 | `stream`, `rotation_mode`, `rotated_at` | The stream directory (empty for the share root), the mode and the time of the rotation |
 
 From the first three entries of each stream, the test expects every sequence
-except the unwritten ones. A record in an at-risk range of its stream may be
+except the unwritten ones. Those entries must hold every sequence from 1 on,
+each starting right after the previous one: a period the ledger lacks, because
+its journal line was lost or the writer restarted, fails the cell instead of
+dropping its records from the expected ones. Every one of them must also hold
+a record the writer wrote. A record in an at-risk range of its stream may be
 missing, but never duplicated; every other record must arrive exactly once.
 The number of at-risk records that were lost is logged, not failed.
 
@@ -384,9 +391,10 @@ Other run options:
 
 | Variable | Values |
 |---|---|
-| `AZURE_FILES_E2E_CALIBRATE` | `1` records each marker's outcome instead of asserting it |
+| `AZURE_FILES_E2E_CALIBRATE` | `1` records the outcome of each `smb-late-<age>` cell's probe marker instead of asserting it; refused unless one of those cells is selected (see [Late appends](#late-appends-smb-late-1000-smb-late-2000-smb-late-3000)) |
+| `AZURE_FILES_E2E_FORCE_LOSS` | `1` removes the pause of the `smb-gzip` and `smb-delete-recreate` rotations, so the loss accounting has losses to check; needs a paced writer and one of those cells (see [Rotation modes](#rotation-modes-smb-copytruncate-smb-delete-recreate-smb-gzip)) |
 | `AZURE_FILES_E2E_SCENARIO` | `agent-restart`, `key-rotation`, `network-drop`, `multi-node` |
-| `AZURE_FILES_E2E_NETWORK_DROP_SECONDS` | 31 to 600, `network-drop` only; 90 by default |
+| `AZURE_FILES_E2E_NETWORK_DROP_SECONDS` | 31 to 510, `network-drop` only; 90 by default. 510 is the longest drop whose period, with the 90s margin, is still the longest writer period, 600s |
 | `AZURE_FILES_E2E_NODES` | 1 to 5 AKS nodes; above 1 only with `multi-node`, which defaults to 2 |
 | `AZURE_FILES_E2E_WINDOWS` | `1` lets the `smb-windows` cell run, with `E2E_SMB_AZURE=1`, when `AZURE_FILES_E2E_CELLS` names it |
 
@@ -395,13 +403,16 @@ The rotation modes (the timings are constants in `provisioner.go`):
 | Mode | At each period boundary | What a reader may lose without failing the cell |
 |---|---|---|
 | `rename` | The first record of the new period closes `app.log`, renames it to `app.log.<suffix>` and creates a new `app.log` (Log4j2's `RollingFile`) | Nothing |
-| `copytruncate` | A rotator copies `app.log` to `app.log.<suffix>` while the writer keeps appending through its one `O_APPEND` descriptor, waits 3s (`copyTruncateHoldMs`), then truncates `app.log` in place. The writer's next append lands at offset 0 | The at-risk records, written between the start of the copy and the truncation. A record written before the copy stayed in `app.log` for at least 3s, which is more than two file scans or SMB polls |
+| `copytruncate` | A rotator copies `app.log` to `app.log.<suffix>`, waits 3s (`copyTruncateHoldMs`), then truncates `app.log` in place. A paced writer starts its next period at the boundary and keeps appending through its one `O_APPEND` descriptor between the steps of the copy, once its head pause is over, and through the hold; the Java schedule writes its period after the copy. The writer's next append after the truncation lands at offset 0 | The at-risk records: for a file source, all those written after the copy started; for an SMB source, those written in the last 1.5s before the truncation. A record written earlier stayed in `app.log` for more than a file scan or an SMB poll |
 | `delete-recreate` | The first record of the new period closes `app.log`, waits 1s (`deleteRecreatePauseMs`), deletes it and creates a new `app.log` | Nothing. A record the reader had not read when the file was deleted counts as lost |
 | `gzip` | Like `rename`; 5s later (`gzipDelayMs`) the rotated file is compressed to `app.log.<suffix>.gz` and deleted | Nothing |
 
 The copy and the compression run in 1 MiB steps between the writer's own
-writes, so a paced writer keeps its rate during them. A copy therefore never
-holds a torn line, which logrotate's copytruncate can produce.
+writes, so a paced writer keeps its rate during them, and starts its next
+period on time when the boundary passes during one. A copy therefore never
+holds a torn line, which logrotate's copytruncate can produce, but it can hold
+the next period's first records, appended during the copy: the head record,
+which lands at the boundary.
 
 The period: periods start at multiples of it since the epoch. A period that is
 not a whole number of minutes names its records and files to the second
@@ -750,24 +761,48 @@ rotation, so the drain has something left to read when the file goes away.
 stream is collected exactly once, except:
 
 - `smb-copytruncate`: the records the writer journalled as at risk, appended
-  between the start of the copy and the truncation, may be missing (never
-  duplicated). The source reports what it knew of and lost to the
+  in the last 1.5s before the truncation (one poll interval and half of one
+  for the scan), may be missing (never duplicated). Anything appended
+  earlier, during the copy or the hold, was in `app.log` for a whole poll and
+  must be collected once. The source reports what it knew of and lost to the
   truncation, but a record appended after its last look is lost without a
   trace; that is copytruncate's own flaw.
-- `smb-delete-recreate`, `smb-gzip`: a file may lose its last records when
-  the Agent reported them missed. The test reads the Agent's missed-bytes
+- `smb-delete-recreate`, `smb-gzip`: a file may lose its last records, only
+  as many as a correct source can lose, and only when the Agent reported them
+  missed. The source reads each file every second, so when a file goes away
+  it can only have missed what was written since its last read: at most one
+  poll interval and a scan, 2s of the stream's rate, plus one 64 KiB write
+  (`maxLostRecords`). The Java schedule writes each file right after its head
+  pause, so with the default options nothing may be lost. A gzip rotation
+  also keeps the rotated file for 5s, longer than a drain needs, so a gzip
+  loss is only accepted when the file was compressed away while the drain
+  was still reading it, or the drain timed out: a report from before the
+  compression fails the cell. The test reads the Agent's missed-bytes
   warnings (below) and requires, per file: only its last records are
-  missing; the Agent reported missed bytes for that file; and the bytes it
-  reported are the bytes of the file that no collected record holds, within
-  4 KiB (the padding, a record whose start was read, a marker). A missing
-  record with no report is a silent loss and fails the cell, as does a gap
-  before collected records.
+  missing, never all of them, and no more than that bound; the Agent
+  reported missed bytes for that file; and those bytes are not more than the
+  bytes no collected record holds, plus 4 KiB (the padding, a record whose
+  start was read, a marker). The report may fall short of them by what was
+  written after the source's last listing of the file, since the Agent
+  reports what it last saw listed: 4 KiB, plus, for a paced writer, the same
+  2s of its rate and one write (`maxReportShortfallBytes`); the shortfall is
+  in `<cell>-losses.json`. A missing record with no report is a silent loss
+  and fails the cell, as does a gap before collected records.
 
 With the default options, the writer fills each period within seconds of its
 start, so the drain is long done when the file goes away and nothing is
-expected to be missing; add a rate, for example
-`AZURE_FILES_E2E_RATE_BYTES_PER_SEC=200000` with `AZURE_FILES_E2E_PERIOD_MS=10000`,
-to make the loss accounting do work.
+lost. Even a paced writer rarely loses anything: the delete-recreate pause
+and the gzip delay give the source a poll after the last write. To make the
+loss accounting check real losses, set `AZURE_FILES_E2E_FORCE_LOSS=1` with a
+rate: the delete-recreate rotation then deletes `app.log` at once, and the
+gzip one compresses the rotated file at once (and appends no marker), so
+each rotation loses what was written since the source's last read. For
+example `AZURE_FILES_E2E_RATE_BYTES_PER_SEC=200000` with
+`AZURE_FILES_E2E_PERIOD_MS=10000` and
+`AZURE_FILES_E2E_CELLS=smb-delete-recreate,smb-gzip`. The test logs how many
+files lost records, and says so when nothing was lost and the loss
+accounting was not exercised; `<cell>-losses.json` records it as
+`loss_exercised`.
 
 **How the test reads missed bytes.** `RecordMissedBytes` in
 `pkg/logs/tailers/smb/tailer.go` adds a lost file's unread bytes to:
@@ -830,13 +865,18 @@ must have the outcome `lateMarkerProbes` in `provisioner.go` gives its age:
 | `smb-late-3000` | lost | Same |
 
 These are predictions from the code, marked TODO in `provisioner.go`, until
-calibration runs confirm them. `AZURE_FILES_E2E_CALIBRATE=1` records every
-marker's outcome instead of asserting it (records are still asserted),
-prints one line per cell, for example
+calibration runs confirm them. `AZURE_FILES_E2E_CALIBRATE=1` records the
+probe marker's outcome instead of asserting it, prints one line per cell,
+for example
 `smb-late-1000 calibration ...: 1000ms: collected 3/3, lost 0/3 (expected either); 45000ms: collected 0/3, lost 3/3 (expected lost)`,
-and writes `<cell>-marker-outcomes.json`. It applies to every cell of the
-run that has markers. Run the three cells a few times with it, then update
-the table.
+and writes `<cell>-marker-outcomes.json`. Only the probe markers of the
+`smb-late-<age>` cells are relaxed: their records, their 45s markers, which
+prove the suite can see a loss, and every other cell's markers are still
+asserted. A run with it set but no `smb-late-<age>` cell is refused, so a
+variable left exported cannot relax a later run. A calibration run never
+passes: each `smb-late-<age>` subtest, and the test, end skipped with
+"calibration run, not a pass", or failed. Run the three cells a few times
+with it, then update the table.
 
 ```sh
 AZURE_FILES_E2E_RUN=1 E2E_SMB_AZURE=1 AZURE_FILES_E2E_CALIBRATE=1 \
@@ -891,8 +931,9 @@ About 6 to 10 minutes, most of it Fakeintake returning the cell's logs on
 each 10s check: about 40,000 asserted records, and everything written since
 the Agent started. The costliest cell: about 45 SMB opens a second from the
 Agent, plus the appender's and the ledger's listings of 8 directories (5 and 1
-a second each), and 2 MB/s of writes. The writer keeps writing after the test
-on a kept stack, until the next run's first pass removes it.
+a second each), and 2 MB/s of writes. On a kept stack the writer stops after
+7 periods, about 70s past the test; the listings go on until the next run's
+first pass removes the pods (see [Costs](#costs)).
 
 ### A Windows file server: smb-windows
 
@@ -918,16 +959,22 @@ renames and appends on the server itself.
   in.
 - Before the Agent pass, the test copies `workload/fileserver.ps1`,
   `workload/logwriter.py`, `workload/sidecars.py` and one cmd.exe wrapper per
-  scheduled task to `C:\azure-files-e2e` over SFTP, and the password to a
-  file there. It then runs `fileserver.ps1 prepare` over SSH, which stops the
+  scheduled task to `C:\azure-files-e2e` over SFTP. It runs
+  `fileserver.ps1 protect`, which empties `C:\azure-files-e2e\secrets` and
+  limits it to SYSTEM, the Administrators and the SSH user (it would
+  otherwise inherit `C:\`, which every user can read), and copies the
+  password to a file there. It then runs `fileserver.ps1 prepare` over SSH,
+  which first reads the password and deletes the file, then stops the
   previous run's writer and removes its share; requires signing on the SMB
   server (`Set-SmbServerConfiguration -RequireSecuritySignature $true`); opens
-  TCP 445 in Windows Firewall; creates or resets the local user `ddlogreader`
-  with the password, and deletes the file at once; creates the share
-  `smbwin-<run>` on `C:\azure-files-e2e\shares\smbwin-<run>`, which only
-  `ddlogreader` may read; installs Python once per VM; and registers the
-  writer, the ledger and the appender as scheduled tasks that run as SYSTEM.
-  No command line, log or output carries the password.
+  TCP 445 in Windows Firewall to the local subnet only, where the AKS nodes
+  are; creates or resets the local user `ddlogreader` with the password;
+  creates the share `smbwin-<run>` on
+  `C:\azure-files-e2e\shares\smbwin-<run>`, which only `ddlogreader` may
+  read; installs Python once per VM; and registers the writer, the ledger and
+  the appender as scheduled tasks that run as SYSTEM. `prepare` deletes the
+  password file again whatever fails, and the test deletes it once more when
+  it is done preparing. No command line, log or output carries the password.
 - The Agent pass gives the cell's `type: smb` source the VM's private address
   as `host`, `ddlogreader` as `username`, and the password through a mounted
   Secret and an `ENC[file@...]` handle, as for the Azure cells.
@@ -939,8 +986,15 @@ renames and appends on the server itself.
 **Why the stock Python writer rather than a PowerShell port.** The VM runs
 `logwriter.py`, the pods' writer, on python.org's embeddable Python 3.12.10,
 the last 3.12 release with Windows binaries, downloaded once per VM from
-www.python.org; `fileserver.ps1` refuses a `python.exe` that python.org did
-not sign (Authenticode, signer "Python Software Foundation"). The cell's
+www.python.org. The zip is pinned like the Linux image: `fileserver.ps1`
+refuses it before expanding anything unless it has the digest in
+`windowsPythonHash`, since it holds the standard library as unsigned `.pyc`
+files. That digest is the MD5 sum python.org publishes for the file, the only
+one it publishes; MD5 has collisions, but replacing a published file takes a
+second preimage. Pinning SHA-256 instead takes hashing the zip once. The
+script then also requires python.org's Authenticode signature (signer
+"Python Software Foundation") on `python.exe`, `python3.dll` and
+`python312.dll`. The cell's
 records, rotation and journal are therefore those of every other cell, which
 `workload_test.go` checks. A PowerShell port would be a second writer to keep
 in step with the first, and nothing could test it before an Azure run:
@@ -1053,9 +1107,15 @@ after the pipeline has flushed. So:
 - when the stopped Agent's log shows `logs-agent stopped` without
   `Timed out when stopping logs-agent`, the stop was graceful and no record
   may be collected twice;
-- otherwise, at most the records written in one flush period, one
+- when it shows `Timed out when stopping logs-agent`, or the test saw the
+  agent container killed (exit code 137) before it logged either, the stop
+  was forced: at most the records written in one flush period, one
   `logs_config.batch_wait` (5s) and a second of send latency, plus one
-  64 KiB write: about 200 records at 20 KB/s.
+  64 KiB write: about 200 records at 20 KB/s;
+- when neither shows, because the log could not be read or ends before the
+  logs agent stopped, the scenario fails as inconclusive rather than take the
+  looser bound. The test follows the container's state until the pod is gone
+  to catch the kill; `<scenario>-restart.json` records what it saw.
 
 Duplicates must also be one run of sequences per file (one resume point),
 each collected twice at most. The stopped pod's log goes to
@@ -1112,11 +1172,12 @@ longest backoff (30s), across a rotation: it reports the error, reconnects,
 drains the file that rotated while it could not read, and loses nothing.
 
 `AZURE_FILES_E2E_NETWORK_DROP_SECONDS` sets the drop, 90 by default, 31 to
-600. The period must hold the drop, the longest backoff after it and a 60s
-margin; the default period grows with the drop. The drop is centred on the
-end of the second period.
+510. The period must hold the drop, the longest backoff after it and a 60s
+margin; the default period grows with the drop, up to the longest writer
+period, 600s, which a 510s drop reaches. The drop is centred on the end of
+the second period.
 
-The drop is made by a short-lived helper pod on the Agent's node: privileged,
+The drop is made by a helper pod on the Agent's node: privileged,
 in the node's PID namespace, running the writers' stock image, which is
 pinned by digest and already on the node. It finds a process of the agent
 container through the container ID the pod status gives (the lowest PID
@@ -1134,8 +1195,12 @@ netfilter backend the node uses. The test also checks that:
   mount's connection there, where the rule is not. The writer must have
   rotated during the drop with every record written.
 
-The rule is removed after the drop and the helper deleted in a deferred
-cleanup, also when the test fails.
+The rule is removed after the drop. The helper is deleted right after the
+drop, and, from the moment it is created, again when the test ends, so a
+failure while it starts (finding the agent container's process, resolving the
+endpoint) does not leave it behind. A helper whose test process was killed
+stops by itself after 30 minutes (`activeDeadlineSeconds`), and every
+scenario starts by deleting any helper pod an earlier run left.
 
 **Pass rule.** An error status during the drop, `OK` again before the next
 period ends, no record missing and none collected twice, and a rotation of
@@ -1182,9 +1247,12 @@ reused one-node stack: it gets a stack of its own, named after
 **Run alone.** Add `AZURE_FILES_E2E_SCENARIO=multi-node` to the `smb`
 command. The first run creates the `-n2` stack: estimated at 15 to 20 minutes
 for the cluster, the Fakeintake VM and the storage accounts, then about 9 for
-the cell; none of this was measured. Cost: a second `Standard_D4s_v5` node,
-and a second cluster, Fakeintake VM and storage account for as long as the
-`-n2` stack is kept.
+the cell; none of this was measured. Cost: the `-n<N>` stack is a whole
+second environment, an AKS cluster of N `Standard_D4s_v5` nodes (2 by
+default), its own Fakeintake VM and its own storage account, billed until that
+stack is destroyed. A failed run keeps it, and so does `E2E_DEV_MODE`; the
+scenario ends with a `REMINDER` line that names the stack to destroy with
+`dda inv new-e2e-tests.clean -s`.
 
 ## Costs
 
@@ -1199,8 +1267,17 @@ Azure Files bills every SMB operation as a transaction. Per cell:
 - the writer's writes, and its CIFS client's metadata requests (`actimeo=1`).
 
 A storage account and its empty shares cost next to nothing at rest, so the
-kept stack's accounts can stay. The paced cells' and scenarios' writers keep
-writing on a kept stack until the next run's first pass removes them.
+kept stack's accounts can stay. A paced writer (the paced cells, and every
+scenario) stops writing after 7 periods (`pacedWriterMaxPeriods`,
+`LOGWRITER_MAX_PERIODS`): the four files a cell waits for, the period that
+rotates the last of them, and two to spare. It then idles without exiting,
+so its pod and its files stay for investigation, and a kept stack no longer
+pays for its writes, nor the Agent ships them to Fakeintake. Its ledger and
+appender, and the Agent's source, still list the share every second until
+the next run's storage pass removes the pods; follow a paced run on a kept
+stack with another run, or destroy the stack, rather than leave it idle for
+days. The Java schedule writes about 83 KB a minute per cell and does not
+stop.
 
 Two options add compute, billed by the hour while a stack keeps it:
 
@@ -1288,7 +1365,11 @@ which need `python3` (3.8 or later) and skip without it:
   must be on the share once, unless its file was deleted by design or its
   copytruncate rotation put it at risk, in which case at most once;
 - a paced writer must write its share of the rate from the end of the head
-  pause to the end of each period, with the paced payload;
+  pause to the end of each period, with the paced payload, and idle after
+  `LOGWRITER_MAX_PERIODS` periods in every mode;
+- a paced copytruncate writer must append the next period's head record
+  during the copy, and, for an SMB cell, journal as at risk only the records
+  of the last 1.5s before the truncation;
 - the real writer, with three streams on one-second gzip periods, must rotate,
   compress and journal each stream on its own thread and exit with 143 on
   SIGTERM;
@@ -1321,13 +1402,21 @@ the scenarios without Azure:
   delete-recreate account for losses; the late cells probe one age each,
   with predictions consistent with the drain's poll logic; the glob-load
   cell's defaults, its one `*/app.log` source and its opens estimate;
-- the marker expectations (collected, lost, either) and what calibration
+- the marker expectations (collected, lost, either), that calibration only
+  relaxes the probe markers and is refused without a probe cell, and what it
   records instead;
+- the ledger's asserted files hold every sequence from 1 on, and unwritten
+  records fail a cell except at the start of a delete-recreate file, within
+  their bound;
 - the missed-bytes warnings are parsed from the Agent log, attributed to the
-  right file, and a loss is only accepted at the end of a file and when
-  reported in about its size; the Agent-wide total brackets the warnings;
+  right file, and a loss is only accepted at the end of a file, within what
+  a source that keeps up can lose, never a whole file, for gzip only after
+  the compression or a drain timeout, and when reported in about its size;
+  forced losses need a paced, loss-accounted cell; the Agent-wide total
+  brackets the warnings;
 - the restart's duplicate bound and its checks, the registry hostPath check,
-  and the shutdown log reading;
+  and how the shutdown log and the container's termination are read, an
+  inconclusive stop included;
 - the scenarios' validation (cells, writer options, drop duration), their
   timings within one period, the secret refresh Helm values of key-rotation
   only, the key index of the Agent's Secret, the Azure CLI arguments, the

@@ -271,9 +271,9 @@ const (
 //
 // The markers need a renamed file that stays where it was renamed to, so they
 // depend on the rotation mode (markerDelaysFor): gzip deletes the rotated file
-// after gzipDelayMs and keeps only the surviving marker, and copytruncate and
-// delete-recreate leave no renamed file to append to, so their cells have no
-// marker at all.
+// after gzipDelayMs and keeps only the surviving marker, or none when a run
+// forces losses and compresses at once, and copytruncate and delete-recreate
+// leave no renamed file to append to, so their cells have no marker at all.
 const (
 	fileSurvivingMarkerDelayMs       = 1500
 	smbSurvivingMarkerDelayMs        = smbPollIntervalSeconds * 1000 / 2
@@ -307,16 +307,20 @@ type markerDelays struct {
 }
 
 // markerDelaysFor returns the marker ages calibrated for a reader's drain
-// window, for the markers the rotation mode leaves a file for.
-func markerDelaysFor(reader readerKind, mode rotationMode) markerDelays {
+// window, for the markers the writer's rotation leaves a file for.
+func markerDelaysFor(reader readerKind, w writerOptions) markerDelays {
 	earlyMs := fileSurvivingMarkerDelayMs
 	if reader == smbReader {
 		earlyMs = smbSurvivingMarkerDelayMs
 	}
-	switch mode {
+	switch w.mode {
 	case copyTruncateRotation, deleteRecreateRotation:
 		return markerDelays{}
 	case gzipRotation:
+		if w.gzipDelayMs() <= earlyMs {
+			// Compressed away before even the early marker's age.
+			return markerDelays{}
+		}
 		// The rotated file is gone long before the lost marker's age.
 		return markerDelays{earlyMs: earlyMs, earlyExpect: markerCollected}
 	}
@@ -459,6 +463,16 @@ const (
 	// quota while every drain and marker is long over.
 	minRetainedRotations = 6
 	retainedRotationsMs  = 120000
+	// pacedWriterMaxPeriods is how many periods a paced writer writes before
+	// it idles (LOGWRITER_MAX_PERIODS): the completedFiles a cell waits for,
+	// the period that rotates the last of them, and two to spare for a late
+	// start. A kept stack then stops writing, shipping and billing writes
+	// once the test is over, and keeps the files for investigation.
+	pacedWriterMaxPeriods = 7
+
+	// writerTickMs is the writers' fixed delay between two ticks
+	// (LOGWRITER_INTERVAL_MS, logwriter.interval-ms of the Java writer).
+	writerTickMs = 250
 
 	// deleteRecreatePauseMs is how long the closed app.log stays before the
 	// writer deletes it and creates the next one.
@@ -470,6 +484,14 @@ const (
 	// it is truncated: a record written before the copy started stayed in
 	// app.log for at least this long, longer than a file scan or an SMB poll.
 	copyTruncateHoldMs = 3000
+	// copyTruncateSMBAtRiskMs is how long before a truncation a record must
+	// have been written to be at risk for an SMB source
+	// (LOGWRITER_COPYTRUNCATE_AT_RISK_MS): one poll interval, and half of one
+	// for the scan to reach the file. Anything written earlier in the hold
+	// was in app.log for a whole poll, so the source must collect it. A file
+	// source reads through the mount's attribute cache, so every record of
+	// the hold stays at risk for it.
+	copyTruncateSMBAtRiskMs = smbPollIntervalSeconds*1000 + smbPollIntervalSeconds*1000/2
 
 	// shareQuotaGiB is the size of every cell's share. A paced writer's
 	// retained files, its active files and one file being rotated must fit
@@ -488,6 +510,28 @@ type writerOptions struct {
 	// streams is the number of app.log files, under svc-1 to svc-<N>. Zero
 	// writes one app.log at the root of the share.
 	streams int
+	// forceLoss removes the pause of a gzip or delete-recreate rotation, so
+	// the rotated file goes away before the source has read its end and the
+	// loss accounting has losses to check (AZURE_FILES_E2E_FORCE_LOSS).
+	forceLoss bool
+}
+
+// gzipDelayMs is how long a gzip rotation keeps the rotated file before it
+// compresses it away: none when the run forces losses.
+func (w writerOptions) gzipDelayMs() int {
+	if w.forceLoss {
+		return 0
+	}
+	return gzipDelayMs
+}
+
+// deletePauseMs is how long a delete-recreate rotation keeps the closed
+// app.log before it deletes it: none when the run forces losses.
+func (w writerOptions) deletePauseMs() int {
+	if w.forceLoss {
+		return 0
+	}
+	return deleteRecreatePauseMs
 }
 
 func defaultWriterOptions() writerOptions {
@@ -534,8 +578,13 @@ func parseWriterOptions(opts runOptions) (writerOptions, writerOptionsSet, error
 	return w, set, nil
 }
 
-// validate refuses a paced writer whose files would not fit in its share.
+// validate refuses a period out of range, which a scenario's or a cell's
+// default could give too, and a paced writer whose files would not fit in its
+// share.
 func (w writerOptions) validate() error {
+	if w.periodMs < minWriterPeriodMs || w.periodMs > maxWriterPeriodMs {
+		return fmt.Errorf("writer period %dms must be between %d and %d", w.periodMs, minWriterPeriodMs, maxWriterPeriodMs)
+	}
 	if !w.paced() {
 		return nil
 	}
@@ -663,10 +712,10 @@ func (w writerOptions) writerEnv() []envVar {
 			envVar{"LOGWRITER_COPYTRUNCATE_HOLD_MS", strconv.Itoa(copyTruncateHoldMs)})
 	case deleteRecreateRotation:
 		vars = append(vars, envVar{"LOGWRITER_ROTATION_MODE", string(w.mode)},
-			envVar{"LOGWRITER_DELETE_PAUSE_MS", strconv.Itoa(deleteRecreatePauseMs)})
+			envVar{"LOGWRITER_DELETE_PAUSE_MS", strconv.Itoa(w.deletePauseMs())})
 	case gzipRotation:
 		vars = append(vars, envVar{"LOGWRITER_ROTATION_MODE", string(w.mode)},
-			envVar{"LOGWRITER_GZIP_DELAY_MS", strconv.Itoa(gzipDelayMs)})
+			envVar{"LOGWRITER_GZIP_DELAY_MS", strconv.Itoa(w.gzipDelayMs())})
 	}
 	if w.periodMs != defaultWriterPeriodMs {
 		vars = append(vars, envVar{"LOGWRITER_PERIOD_MS", strconv.Itoa(w.periodMs)},
@@ -680,6 +729,7 @@ func (w writerOptions) writerEnv() []envVar {
 			// At these rates the records would flood the container log.
 			envVar{"LOGWRITER_CONSOLE_RECORDS", "false"},
 			envVar{"LOGWRITER_MAX_ROTATED_FILES", strconv.Itoa(w.retainedRotations())},
+			envVar{"LOGWRITER_MAX_PERIODS", strconv.Itoa(pacedWriterMaxPeriods)},
 		)
 	}
 	return append(vars, w.streamEnv()...)
@@ -699,14 +749,18 @@ func (w writerOptions) metadata() map[string]any {
 	case copyTruncateRotation:
 		metadata["copytruncate_hold_ms"] = copyTruncateHoldMs
 	case deleteRecreateRotation:
-		metadata["delete_pause_ms"] = deleteRecreatePauseMs
+		metadata["delete_pause_ms"] = w.deletePauseMs()
 	case gzipRotation:
-		metadata["gzip_delay_ms"] = gzipDelayMs
+		metadata["gzip_delay_ms"] = w.gzipDelayMs()
+	}
+	if w.forceLoss {
+		metadata["force_loss"] = true
 	}
 	if w.paced() {
 		metadata["buffer_bytes"] = pacedWriterBufferBytes
 		metadata["payload_bytes"] = pacedWriterPayloadBytes
 		metadata["max_rotated_files"] = w.retainedRotations()
+		metadata["max_periods"] = pacedWriterMaxPeriods
 	}
 	return metadata
 }
@@ -953,12 +1007,14 @@ const (
 	// outlast an operation timeout, so the client loses its session.
 	defaultNetworkDropSeconds  = 90
 	minNetworkDropSeconds      = smbOpTimeoutSeconds + 1
-	maxNetworkDropSeconds      = 600
 	networkDropPeriodMs        = 180000
 	networkDropRateBytesPerSec = 10000
 	// The period must hold the drop, the client's longest backoff after it,
 	// and a margin, so that only one rotation happens during the outage.
 	networkDropMarginSeconds = smbMaxBackoffSeconds + 60
+	// maxNetworkDropSeconds is the longest drop whose period, with that
+	// margin, is still a writer period the suite accepts: 510s.
+	maxNetworkDropSeconds = maxWriterPeriodMs/1000 - networkDropMarginSeconds
 )
 
 // scenarioOptions are the scenario of a run.
@@ -1096,8 +1152,12 @@ type runOptions struct {
 	periodMs        string
 	rateBytesPerSec string
 	streams         string
-	// calibrate records the marker outcomes instead of asserting them.
+	// calibrate records the outcome of each smb-late-<age> cell's probe
+	// marker instead of asserting it.
 	calibrate bool
+	// forceLoss makes the gzip and delete-recreate rotations of the
+	// loss-accounted cells remove the rotated file at once.
+	forceLoss bool
 	// scenario names a scenario to run on the smb cell, and
 	// networkDropSeconds how long network-drop lasts; empty keeps 90s.
 	scenario           string
@@ -1186,10 +1246,22 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 		calibrate:   opts.calibrate,
 		scenario:    scenario,
 	}
+	probed, forced := false, false
 	for _, c := range selected {
 		if c.writer, err = c.writerOptions(writer, set); err != nil {
 			return runSpec{}, err
 		}
+		if opts.forceLoss && c.lossAccounted() {
+			// The Java schedule fills each file right after its head
+			// pause, so nothing is left to lose when the file goes away.
+			if !c.writer.paced() {
+				return runSpec{}, fmt.Errorf("cell %s: forced losses need a paced writer, whose file still grows when it rotates; "+
+					"set AZURE_FILES_E2E_RATE_BYTES_PER_SEC, for example to 200000 with AZURE_FILES_E2E_PERIOD_MS=10000", c.name)
+			}
+			c.writer.forceLoss = true
+			forced = true
+		}
+		probed = probed || c.probe != nil
 		if c.onWindows() && !c.writer.isDefault() {
 			return runSpec{}, fmt.Errorf("cell %s: %w", c.name, errWindowsWriterOptions)
 		}
@@ -1207,7 +1279,7 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 		case c.probe != nil:
 			c.markers = markerDelays{earlyMs: c.probe.ageMs, earlyExpect: c.probe.expect, lateMs: postRotationMarkerLostDelayMs}
 		default:
-			c.markers = markerDelaysFor(c.reader, c.writer.mode)
+			c.markers = markerDelaysFor(c.reader, c.writer)
 		}
 		// An SMB cell needs an Agent built with the SMB source, and the
 		// smb-windows cell a Windows VM, which costs more than a share.
@@ -1216,6 +1288,16 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 			continue
 		}
 		spec.cells = append(spec.cells, c)
+	}
+	// Calibration only relaxes the probe marker of the smb-late-<age> cells.
+	// Left set for any other run, it would make that run look calibrated.
+	if opts.calibrate && !probed {
+		return runSpec{}, errors.New("AZURE_FILES_E2E_CALIBRATE=1 only records the probe marker of the smb-late-<age> cells; " +
+			"select one of them in AZURE_FILES_E2E_CELLS, or unset it")
+	}
+	if opts.forceLoss && !forced {
+		return runSpec{}, errors.New("AZURE_FILES_E2E_FORCE_LOSS=1 only applies to the loss-accounted cells, smb-gzip and smb-delete-recreate; " +
+			"select one of them in AZURE_FILES_E2E_CELLS, or unset it")
 	}
 	return spec, nil
 }
@@ -1467,6 +1549,17 @@ func filterCells(all []cell, cellFilter string) ([]cell, error) {
 		}
 	}
 	return selected, nil
+}
+
+// forceLoss reports whether the run forces the losses of its loss-accounted
+// cells (AZURE_FILES_E2E_FORCE_LOSS).
+func (spec runSpec) forceLoss() bool {
+	for _, c := range spec.cells {
+		if c.writer.forceLoss {
+			return true
+		}
+	}
+	return false
 }
 
 func (spec runSpec) hasReader(reader readerKind) bool {
@@ -1881,7 +1974,22 @@ func (spec runSpec) writerEnv(c cell) []envVar {
 		{"LOGWRITER_MAX_RECORDS_PER_PERIOD", "5000"},
 		{"TZ", "UTC"},
 	}
-	return append(vars, c.writer.writerEnv()...)
+	vars = append(vars, c.writer.writerEnv()...)
+	if atRisk := c.copyTruncateAtRiskMs(); c.writer.mode == copyTruncateRotation && atRisk < copyTruncateHoldMs {
+		vars = append(vars, envVar{"LOGWRITER_COPYTRUNCATE_AT_RISK_MS", strconv.Itoa(atRisk)})
+	}
+	return vars
+}
+
+// copyTruncateAtRiskMs is how long before a copytruncate's truncation a record
+// must have been written for the cell's reader to be allowed to lose it: the
+// whole hold for a file source, which reads through the mount's attribute
+// cache, and copyTruncateSMBAtRiskMs for an SMB source, which polls app.log.
+func (c cell) copyTruncateAtRiskMs() int {
+	if c.reader == smbReader {
+		return copyTruncateSMBAtRiskMs
+	}
+	return copyTruncateHoldMs
 }
 
 func toEnvVarArray(vars []envVar) corev1.EnvVarArray {
