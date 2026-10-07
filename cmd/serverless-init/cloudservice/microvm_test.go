@@ -9,10 +9,8 @@ package cloudservice
 
 import (
 	"context"
-	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,16 +34,12 @@ import (
 var _ lifecycle.Flusher = (*serverlessMetrics.ServerlessMetricAgent)(nil)
 var _ lifecycle.MetricEmitter = (*serverlessMetrics.ServerlessMetricAgent)(nil)
 
-// freeLifecyclePort returns an OS-assigned free TCP port as a string, for tests
-// that exercise MicroVM.Init through the real DD_AWS_MICROVM_LIFECYCLE_PORT env
-// var (which rejects "0" as out of range) without colliding with the real
-// port 9000 or other tests in this package.
-func freeLifecyclePort(t *testing.T) string {
-	l, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	port := l.Addr().(*net.TCPAddr).Port
-	require.NoError(t, l.Close())
-	return strconv.Itoa(port)
+func testLifecycleServerStarter(started *bool) *lifecycleServerStarter {
+	starter := lifecycleServerStarter(func(_ *lifecycle.Server, _ func(error)) error {
+		*started = true
+		return nil
+	})
+	return &starter
 }
 
 // noopTraceAgent is a local stub that satisfies the TraceAgent interface
@@ -341,7 +335,6 @@ func TestMicroVMInit_NilLifecycleCtx_DoesNotStartServer(t *testing.T) {
 }
 
 func TestMicroVMInit_WithLifecycleCtx_ServerIsConstructed(t *testing.T) {
-	t.Setenv(lifecycle.LifecyclePortEnvVar, freeLifecyclePort(t)) // avoid colliding with the real port 9000
 	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}
 	m := &MicroVM{}
 	ctx := &TracingContext{
@@ -353,9 +346,12 @@ func TestMicroVMInit_WithLifecycleCtx_ServerIsConstructed(t *testing.T) {
 			FlushTimeout:  time.Second,
 		},
 	}
+	started := false
+	m.startLifecycleServer = testLifecycleServerStarter(&started)
 	err := m.Init(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() { m.Shutdown(metricAgent, false, nil) })
+	assert.True(t, started, "Init must start the lifecycle server")
+	assert.NotNil(t, m.server, "Init must construct the lifecycle server")
 }
 
 func TestMicroVMShutdown_NilServer_NoPanic(t *testing.T) {
@@ -401,12 +397,9 @@ func TestMicroVMInit_NonMicroVMServicesIgnoreLifecycleCtx(t *testing.T) {
 	}
 }
 
-// TestMicroVMInit_SidecarMode_ServerStartedChildNil verifies that sidecar mode
-// starts the lifecycle server (for /ready 503s) but returns a nil Child — the
-// noop ChildHandle reports not-alive, surfacing 503 rather than papering over a
-// sidecar+MicroVM misconfiguration.
-func TestMicroVMInit_SidecarMode_ServerStartedChildNil(t *testing.T) {
-	t.Setenv(lifecycle.LifecyclePortEnvVar, freeLifecyclePort(t)) // avoid colliding with the real port 9000
+// TestMicroVMInit_SidecarMode_ChildNil verifies that sidecar mode initializes
+// the lifecycle server without exposing a Child for a user process.
+func TestMicroVMInit_SidecarMode_ChildNil(t *testing.T) {
 	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}
 	m := &MicroVM{}
 	ctx := &TracingContext{
@@ -419,16 +412,17 @@ func TestMicroVMInit_SidecarMode_ServerStartedChildNil(t *testing.T) {
 			SidecarMode:   true,
 		},
 	}
+	started := false
+	m.startLifecycleServer = testLifecycleServerStarter(&started)
 	err := m.Init(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() { m.Shutdown(metricAgent, false, nil) })
+	assert.True(t, started, "Init must start the lifecycle server")
 	assert.Nil(t, m.Child(), "sidecar mode must not expose a Child — no user process to track")
 }
 
 // TestMicroVMInit_InitMode_ExposesChild verifies that init-container mode (non-sidecar)
 // exposes a non-nil Child after Init so that RunInit can MarkAlive/MarkDead it.
 func TestMicroVMInit_InitMode_ExposesChild(t *testing.T) {
-	t.Setenv(lifecycle.LifecyclePortEnvVar, freeLifecyclePort(t)) // avoid colliding with the real port 9000
 	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}
 	m := &MicroVM{}
 	ctx := &TracingContext{
@@ -441,9 +435,11 @@ func TestMicroVMInit_InitMode_ExposesChild(t *testing.T) {
 			SidecarMode:   false,
 		},
 	}
+	started := false
+	m.startLifecycleServer = testLifecycleServerStarter(&started)
 	err := m.Init(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() { m.Shutdown(metricAgent, false, nil) })
+	assert.True(t, started, "Init must start the lifecycle server")
 	assert.NotNil(t, m.Child(), "init-container mode must expose a Child for RunInit to alive-check")
 }
 

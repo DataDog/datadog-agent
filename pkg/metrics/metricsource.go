@@ -69,6 +69,7 @@ const (
 	MetricSourceWlan
 	MetricSourceWindowsCertificateStore
 	MetricSourceThermal
+	MetricSourcePowerShell
 
 	// Python Checks
 	MetricSourceZenohRouter
@@ -349,6 +350,9 @@ const (
 	MetricSourceKueue
 	MetricSourceExternalSecrets
 	MetricSourceCiscoCatalystCenter
+	MetricSourceAmazonVpcCni
+	MetricSourceRavendb
+	MetricSourceSglang
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -1154,6 +1158,8 @@ func (ms MetricSource) String() string {
 		return "windows_certificate"
 	case MetricSourceThermal:
 		return "thermal"
+	case MetricSourcePowerShell:
+		return "powershell"
 	case MetricSourceBattery:
 		return "battery"
 	case MetricSourcePinot:
@@ -1170,6 +1176,12 @@ func (ms MetricSource) String() string {
 		return "external_secrets"
 	case MetricSourceCiscoCatalystCenter:
 		return "cisco_catalyst_center"
+	case MetricSourceAmazonVpcCni:
+		return "amazon_vpc_cni"
+	case MetricSourceRavendb:
+		return "ravendb"
+	case MetricSourceSglang:
+		return "sglang"
 	default:
 		return "<unknown>"
 	}
@@ -1858,6 +1870,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceWindowsCertificateStore
 	case "thermal":
 		return MetricSourceThermal
+	case "powershell":
+		return MetricSourcePowerShell
 	case "battery":
 		return MetricSourceBattery
 	case "pinot":
@@ -1878,6 +1892,12 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceExternalSecrets
 	case "cisco_catalyst_center":
 		return MetricSourceCiscoCatalystCenter
+	case "amazon_vpc_cni":
+		return MetricSourceAmazonVpcCni
+	case "ravendb":
+		return MetricSourceRavendb
+	case "sglang":
+		return MetricSourceSglang
 	default:
 		return MetricSourceUnknown
 	}

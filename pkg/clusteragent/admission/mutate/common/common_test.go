@@ -11,10 +11,101 @@ import (
 	"reflect"
 	"testing"
 
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/dynamic"
 )
+
+func TestMutate(t *testing.T) {
+	tests := []struct {
+		name    string
+		rawPod  string
+		wantPod string
+		mutate  bool
+	}{
+		{
+			name:    "unknown Pod spec field",
+			rawPod:  `{"metadata":{"name":"test"},"spec":{"customField":{"enabled":true,"values":[1,null,"custom"]},"containers":[{"name":"app"}]}}`,
+			wantPod: `{"metadata":{"name":"test","annotations":{"injected":"true"}},"spec":{"customField":{"enabled":true,"values":[1,null,"custom"]},"containers":[{"name":"app","env":[{"name":"INJECTED_ENV","value":"true"}]}]}}`,
+			mutate:  true,
+		},
+		{
+			name:    "unknown fields on multiple named containers",
+			rawPod:  `{"metadata":{"name":"test"},"spec":{"containers":[{"name":"app","customField":42},{"name":"worker","customField":"worker-value"}]}}`,
+			wantPod: `{"metadata":{"name":"test","annotations":{"injected":"true"}},"spec":{"containers":[{"name":"app","customField":42,"env":[{"name":"INJECTED_ENV","value":"true"}]},{"name":"worker","customField":"worker-value","env":[{"name":"INJECTED_ENV","value":"true"}]}]}}`,
+			mutate:  true,
+		},
+		{
+			name: "unknown nested field alongside known fields",
+			rawPod: `{"metadata":{"name":"test"},"spec":{"containers":[{"name":"app",
+				"securityContext":{"runAsNonRoot":true,"capabilities":{"add":["NET_ADMIN"],"drop":["ALL"],"customField":["custom-value"]}}}]}}`,
+			wantPod: `{"metadata":{"name":"test","annotations":{"injected":"true"}},"spec":{"containers":[{"name":"app",
+				"securityContext":{"runAsNonRoot":true,"capabilities":{"add":["NET_ADMIN"],"drop":["ALL"],"customField":["custom-value"]}},
+				"env":[{"name":"INJECTED_ENV","value":"true"}]}]}}`,
+			mutate: true,
+		},
+		{
+			name: "unknown field only in nested object",
+			rawPod: `{"metadata":{"name":"test"},"spec":{"containers":[{"name":"app",
+				"securityContext":{"capabilities":{"customField":{"enabled":true,"values":[1,null,"custom"]}}}}]}}`,
+			wantPod: `{"metadata":{"name":"test","annotations":{"injected":"true"}},"spec":{"containers":[{"name":"app",
+				"securityContext":{"capabilities":{"customField":{"enabled":true,"values":[1,null,"custom"]}}},
+				"env":[{"name":"INJECTED_ENV","value":"true"}]}]}}`,
+			mutate: true,
+		},
+		{
+			name:    "optional parent objects absent",
+			rawPod:  `{"metadata":{"name":"test"},"spec":{"containers":[{"name":"app"}]}}`,
+			wantPod: `{"metadata":{"name":"test","annotations":{"injected":"true"}},"spec":{"containers":[{"name":"app","env":[{"name":"INJECTED_ENV","value":"true"}]}]}}`,
+			mutate:  true,
+		},
+		{
+			name:    "no mutation preserves unknown fields",
+			rawPod:  `{"metadata":{"name":"test"},"spec":{"customField":null,"containers":[{"name":"app","customField":false}]}}`,
+			wantPod: `{"metadata":{"name":"test"},"spec":{"customField":null,"containers":[{"name":"app","customField":false}]}}`,
+		},
+		{
+			name: "normalization without mutation",
+			rawPod: `{"metadata":{"name":"test"},"spec":{"containers":[{"name":"app","customField":"preserved"}],
+				"volumes":[{"name":"data","emptyDir":{}},{"name":"data","emptyDir":{}}]}}`,
+			wantPod: `{"metadata":{"name":"test"},"spec":{"containers":[{"name":"app","customField":"preserved"}],
+				"volumes":[{"name":"data","emptyDir":{}}]}}`,
+		},
+		{
+			name: "normalization error does not prevent mutation",
+			rawPod: `{"metadata":{"name":"test"},"spec":{"containers":[{"name":"app","customField":"preserved"}],
+				"volumes":[{"name":"data","emptyDir":{}},{"name":"data","hostPath":{"path":"/data"}}]}}`,
+			wantPod: `{"metadata":{"name":"test","annotations":{"injected":"true"}},"spec":{"containers":[{"name":"app","customField":"preserved","env":[{"name":"INJECTED_ENV","value":"true"}]}],
+				"volumes":[{"name":"data","emptyDir":{}},{"name":"data","hostPath":{"path":"/data"}}]}}`,
+			mutate: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mutator := func(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
+				require.Equal(t, "application", ns)
+				if !tt.mutate {
+					return false, nil
+				}
+				AddAnnotation(pod, "injected", "true")
+				return InjectEnv(pod, corev1.EnvVar{Name: "INJECTED_ENV", Value: "true"}), nil
+			}
+
+			// Keep the request raw so unknown fields survive until the patch is applied.
+			rawPod := []byte(tt.rawPod)
+			patchJSON, err := Mutate(rawPod, "application", "test", mutator, nil)
+			require.NoError(t, err)
+			patch, err := jsonpatch.DecodePatch(patchJSON)
+			require.NoError(t, err)
+			patchedJSON, err := patch.Apply(rawPod)
+			require.NoError(t, err, "patch must apply to the original raw request")
+			require.JSONEq(t, tt.wantPod, string(patchedJSON))
+		})
+	}
+}
 
 func Test_contains(t *testing.T) {
 	type args struct {

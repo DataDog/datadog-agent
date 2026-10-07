@@ -23,7 +23,7 @@ import (
 
 	patch "github.com/evanphx/json-patch/v5"
 	"github.com/itchyny/gojq"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v2" // not v3 due to lenient duplicate mapping-key handling
 )
 
 // FileOperationType is the type of operation to perform on the config.
@@ -400,6 +400,7 @@ var (
 		{pattern: "/application_monitoring.yaml", owner: "root", group: "root", mode: 0644},
 		{pattern: "/conf.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
 		{pattern: "/conf.d/*.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
+		{pattern: "/conf.d/snmp.d/credentials/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
 	}
 
 	legacyPathPrefix = filepath.Join("managed", "datadog-agent", "stable")

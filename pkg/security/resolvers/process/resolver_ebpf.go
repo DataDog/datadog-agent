@@ -66,6 +66,9 @@ const (
 	otelProcCtxQueueSize     = 10000
 	tryReparentMaxForkDepth  = 3  // max ancestor fork levels to check in TryReparentFromProcfs (execs not counted)
 	tryReparentMaxIterations = 64 // hard cap on total loop iterations in tryReparentFromProcfs to prevent hangs on ancestor cycles or long exec chains
+
+	// eksPodIdentityAgentBinary is the well-known binary name of the EKS Pod Identity Agent
+	eksPodIdentityAgentBinary = "eks-pod-identity-agent"
 )
 
 // EBPFResolver resolved process context
@@ -718,9 +721,9 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 				bestFS     string
 			)
 			p.mountResolver.Iterate(func(mount *model.Mount) {
-				if strings.HasPrefix(pathnameStr, mount.MountPointStr) {
-					if len(mount.MountPointStr) > len(bestPrefix) {
-						bestPrefix = mount.MountPointStr
+				if strings.HasPrefix(pathnameStr, mount.Path) {
+					if len(mount.Path) > len(bestPrefix) {
+						bestPrefix = mount.Path
 						bestFS = mount.FSType
 					}
 				}
@@ -1600,9 +1603,27 @@ func (p *EBPFResolver) ResolveOTelProcessContext(pid uint32) {
 	}
 }
 
-// SnapshotOTelProcessContext resolves the OTel process context of a process
-// that published before the agent was watching.
-func (p *EBPFResolver) SnapshotOTelProcessContext(pid uint32) {
+// OTelProcessContextSnapshot resolves the OTel process contexts of processes
+// that published before the agent was watching. It holds the scratch state one
+// Resolve hands to the next, so a walk wants one of these for its whole length
+// rather than one per process -- and, being scoped to the walk, releases that
+// state when the walk is done.
+//
+// Not safe for concurrent use.
+type OTelProcessContextSnapshot struct {
+	resolver *EBPFResolver
+	target   otelTargetProcess
+}
+
+// NewOTelProcessContextSnapshot returns a snapshot to resolve a walk's
+// processes through.
+func (p *EBPFResolver) NewOTelProcessContextSnapshot() *OTelProcessContextSnapshot {
+	return &OTelProcessContextSnapshot{resolver: p}
+}
+
+// Resolve resolves the OTel process context of pid.
+func (s *OTelProcessContextSnapshot) Resolve(pid uint32) {
+	p := s.resolver
 	if !p.config.SpanTrackingEnabled || p.otelTLSMap == nil {
 		return
 	}
@@ -1610,12 +1631,18 @@ func (p *EBPFResolver) SnapshotOTelProcessContext(pid uint32) {
 		return
 	}
 
-	p.resolveAndUpdateOTelTLS(pid)
+	p.resolveAndUpdateOTelTLS(pid, &s.target)
 }
 
 // resolveOTelProcessContextLoop drains otelProcCtxQueue and resolves each pid's
 // OTel process context
 func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
+	// Reused across resolutions: parsing /proc/<pid>/maps is the bulk of a
+	// resolution's allocations, and this loop runs one for every process that
+	// publishes or updates an OTel process context. Owned by this goroutine,
+	// which is why it needs no synchronization.
+	target := new(otelTargetProcess)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -1631,13 +1658,16 @@ func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
 				p.countSpanCtx(spanCtxStepProcessCtx, spanCtxNoProcessEntry)
 				continue
 			}
-			p.resolveAndUpdateOTelTLS(pid)
+			p.resolveAndUpdateOTelTLS(pid, target)
 		}
 	}
 }
 
-func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32) {
-	target := newOTelTargetProcess(pid)
+// resolveAndUpdateOTelTLS resolves pid's OTel process context through target,
+// which it rebinds to pid: callers pass a target they own and reuse across
+// calls rather than one per resolution.
+func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetProcess) {
+	target.reset(pid)
 
 	procCtx, err := target.processContext()
 	if err != nil {
@@ -1664,7 +1694,7 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32) {
 	}
 	if value == nil {
 		// Not registered yet: do the expensive ELF parse and register offsets for eBPF to read.
-		res, resolveErr := target.resolveTLSOffsets()
+		res, resolveErr := target.resolveTLSOffsets(procCtx)
 		if resolveErr == nil {
 			resolveErr = p.updateOTelTLS(pid, res)
 		}
@@ -1703,15 +1733,22 @@ func (p *EBPFResolver) UpdateAWSSecurityCredentials(pid uint32, e *model.Event) 
 	defer p.Unlock()
 
 	entry := p.entryCache[pid]
-	if entry != nil {
-		// check if this key is already in cache
-		for _, key := range entry.AWSSecurityCredentials {
-			if key.AccessKeyID == e.IMDS.AWS.SecurityCredentials.AccessKeyID {
-				return
-			}
-		}
-		entry.AWSSecurityCredentials = append(entry.AWSSecurityCredentials, e.IMDS.AWS.SecurityCredentials)
+	if entry == nil {
+		return
 	}
+
+	// skip the agent itself: attribute the key to the requester, not the broker
+	if e.IMDS.CredentialSource == uint32(model.CredentialSourceEKSPodIdentity) && path.Base(entry.FileEvent.PathnameStr) == eksPodIdentityAgentBinary {
+		return
+	}
+
+	// check if this key is already in cache
+	for _, key := range entry.AWSSecurityCredentials {
+		if key.AccessKeyID == e.IMDS.AWS.SecurityCredentials.AccessKeyID {
+			return
+		}
+	}
+	entry.AWSSecurityCredentials = append(entry.AWSSecurityCredentials, e.IMDS.AWS.SecurityCredentials)
 }
 
 // FetchAWSSecurityCredentials returns the list of AWS Security Credentials valid at the time of the event for the
@@ -2066,7 +2103,7 @@ func (p *EBPFResolver) UpdateProcessContexts(pce *model.ProcessCacheEntry, cgrou
 	if !cgroupContext.IsNull() {
 		pce.Process.CGroup = cgroupContext
 	}
-	if !containerContext.IsNull() {
+	if containerContext.ContainerID != "" || containerContext.PodUID != "" {
 		pce.Process.ContainerContext = containerContext
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -33,6 +34,36 @@ type nvlinkFieldValueMetric struct {
 	priority                         MetricPriority
 	addTotalMetric                   bool
 	forceScopeIDValue                *uint32
+	// decodeValue, if set, converts the raw NVML field value into the value to
+	// emit. When nil, the raw value is emitted as-is (see fieldValueToNumber).
+	decodeValue func(valueType nvml.ValueType, value [8]byte) (float64, error)
+}
+
+// value returns the metric value for the given raw NVML field value, applying
+// the metric-specific decoder if there is one.
+func (m *nvlinkFieldValueMetric) value(valueType nvml.ValueType, value [8]byte) (float64, error) {
+	if m.decodeValue != nil {
+		return m.decodeValue(valueType, value)
+	}
+
+	return fieldValueToNumber[float64](valueType, value)
+}
+
+// decodeNvlinkBER decodes the packed NVLink BER representation used by
+// FI_DEV_NVLINK_COUNT_EFFECTIVE_BER and FI_DEV_NVLINK_COUNT_SYMBOL_BER into the
+// actual bit error rate. As documented in nvml.h, bits [0:7] hold the exponent
+// and bits [8:11] hold the mantissa, and the BER is mantissa * 10^-exponent.
+// For example, a healthy link typically reports 0xFFF, which is 15e-255 (not 4095).
+func decodeNvlinkBER(valueType nvml.ValueType, value [8]byte) (float64, error) {
+	raw, err := fieldValueToNumber[uint64](valueType, value)
+	if err != nil {
+		return 0, err
+	}
+
+	mantissa := (raw >> nvml.NVLINK_BER_MANTISSA_SHIFT) & nvml.NVLINK_BER_MANTISSA_WIDTH
+	exponent := (raw >> nvml.NVLINK_BER_EXP_SHIFT) & nvml.NVLINK_BER_EXP_WIDTH
+
+	return float64(mantissa) * math.Pow10(-int(exponent)), nil
 }
 
 func (m *nvlinkFieldValueMetric) scopeForPort(port int) uint32 {
@@ -66,11 +97,16 @@ var nvlinkFieldsMetrics = map[uint32]nvlinkFieldValueMetric{
 	nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON: {name: "nvlink.speed", fieldValueID: nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON, metricType: metrics.GaugeType, forceScopeIDValue: intToPointer(0)},
 
 	// -- NVLink error counters --
-	nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL:            {name: "nvlink.errors.crc.data", fieldValueID: nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
-	nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL:            {name: "nvlink.errors.crc.flit", fieldValueID: nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
-	nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL:            {name: "nvlink.errors.ecc", fieldValueID: nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
-	nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL:            {name: "nvlink.errors.recovery", fieldValueID: nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
-	nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL:              {name: "nvlink.errors.replay", fieldValueID: nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
+	// Legacy lane/total counters (Ampere and earlier). Hopper removed these in favor of per-link ERROR_DL_* fields.
+	nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL: {name: "nvlink.errors.crc.data", fieldValueID: nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
+	nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL: {name: "nvlink.errors.crc.flit", fieldValueID: nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
+	nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL: {name: "nvlink.errors.ecc", fieldValueID: nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
+	nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL: {name: "nvlink.errors.recovery", fieldValueID: nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
+	nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL:   {name: "nvlink.errors.replay", fieldValueID: nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
+	// Hopper+ per-link error counters (driver 525+). MediumLow priority selects these over legacy totals.
+	nvml.FI_DEV_NVLINK_ERROR_DL_REPLAY:                       {name: "nvlink.errors.replay", fieldValueID: nvml.FI_DEV_NVLINK_ERROR_DL_REPLAY, priority: MediumLow, metricType: metrics.GaugeType},
+	nvml.FI_DEV_NVLINK_ERROR_DL_RECOVERY:                     {name: "nvlink.errors.recovery", fieldValueID: nvml.FI_DEV_NVLINK_ERROR_DL_RECOVERY, priority: MediumLow, metricType: metrics.GaugeType},
+	nvml.FI_DEV_NVLINK_ERROR_DL_CRC:                          {name: "nvlink.errors.crc.flit", fieldValueID: nvml.FI_DEV_NVLINK_ERROR_DL_CRC, priority: MediumLow, metricType: metrics.GaugeType},
 	nvml.FI_DEV_NVLINK_COUNT_RCV_PACKETS:                     {name: "nvlink.rx.packets", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_RCV_PACKETS, metricType: metrics.GaugeType},
 	nvml.FI_DEV_NVLINK_COUNT_XMIT_PACKETS:                    {name: "nvlink.tx.packets", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_PACKETS, metricType: metrics.GaugeType},
 	nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS:                   {name: "nvlink.tx.discards", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS, metricType: metrics.GaugeType},
@@ -83,9 +119,9 @@ var nvlinkFieldsMetrics = map[uint32]nvlinkFieldValueMetric{
 	nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_SUCCESSFUL_EVENTS: {name: "nvlink.recovery.events.successful", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_SUCCESSFUL_EVENTS, metricType: metrics.GaugeType},
 	nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_FAILED_EVENTS:     {name: "nvlink.recovery.events.failed", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_FAILED_EVENTS, metricType: metrics.GaugeType},
 	nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS:                {name: "nvlink.errors.effective", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS, markUnsupportedOnInvalidArgument: true, metricType: metrics.GaugeType},
-	nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER:                   {name: "nvlink.ber.effective", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER, metricType: metrics.GaugeType},
+	nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER:                   {name: "nvlink.ber.effective", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER, metricType: metrics.GaugeType, decodeValue: decodeNvlinkBER},
 	nvml.FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS:                   {name: "nvlink.errors.symbol", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS, metricType: metrics.GaugeType},
-	nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER:                      {name: "nvlink.ber.symbol", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER, metricType: metrics.GaugeType},
+	nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER:                      {name: "nvlink.ber.symbol", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER, metricType: metrics.GaugeType, decodeValue: decodeNvlinkBER},
 }
 
 type nvlinkFieldsCollector struct {
@@ -172,7 +208,7 @@ func (c *nvlinkFieldsCollector) Collect() ([]Sample, error) {
 			continue
 		}
 
-		value, convErr := fieldValueToNumber[float64](nvml.ValueType(val.ValueType), val.Value)
+		value, convErr := fieldValueMetric.value(nvml.ValueType(val.ValueType), val.Value)
 		if convErr != nil {
 			errs = append(errs, fmt.Errorf("failed to convert field value %s: %w", fieldValueMetric.name, convErr))
 			continue

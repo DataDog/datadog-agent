@@ -1,7 +1,16 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# gazelle:resolve go github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx //comp/anomalydetection/recorder/fx:fx
+
 # gazelle:dd_agent_go_test on
+
+# The procmgr e2e suite reads the legacy SCM service definitions to check that the shipped
+# processes.d gate for process-agent has not drifted from them.
+exports_files(
+    ["dependent_services_windows.go"],
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)
 
 go_library(
     name = "run",
@@ -33,10 +42,11 @@ go_library(
         "//comp/aggregator/demultiplexer/def",
         "//comp/aggregator/demultiplexer/impl",
         "//comp/aggregator/demultiplexerendpoint/fx",
+        "//comp/aggregator/dogstatsdclientdropdetector/fx",
         "//comp/aggregator/dogstatsdclienttelemetry/fx",
         "//comp/anomalydetection/logssource/fx",
         "//comp/anomalydetection/observer/fx",
-        "//comp/anomalydetection/recorder/fx-noop",
+        "//comp/anomalydetection/recorder/fx",
         "//comp/anomalydetection/reporter/fx",
         "//comp/api/api/apiimpl",
         "//comp/api/api/def",
@@ -50,7 +60,6 @@ go_library(
         "//comp/core/agenttelemetry/fx",
         "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/fx",
-        "//comp/core/autodiscovery/providers",
         "//comp/core/autodiscovery/providers/datasecurity",
         "//comp/core/autodiscovery/providers/datastreams",
         "//comp/core/config",
@@ -152,6 +161,7 @@ go_library(
         "//comp/process",
         "//comp/process/agent/def",
         "//comp/process/status/fx",
+        "//comp/procmgr/flare/fx",
         "//comp/rdnsquerier/fx",
         "//comp/remote-config",
         "//comp/remote-config/rcclient/def",
@@ -179,7 +189,6 @@ go_library(
         "//pkg/collector/corechecks/snmp/status",
         "//pkg/collector/python",
         "//pkg/commonchecks",
-        "//pkg/config/remote/data",
         "//pkg/config/settings",
         "//pkg/config/utils",
         "//pkg/diagnose/connectivity",
@@ -292,6 +301,7 @@ go_library(
             "//comp/trace/etwtracer/fx",
             "//pkg/config/model",
             "//pkg/util/winutil",
+            "@org_golang_x_sys//windows/svc",
         ],
         "//conditions:default": [],
     }),
@@ -302,6 +312,7 @@ dd_agent_go_test(
     srcs = [
         "command_test.go",
         "command_windows_test.go",
+        "dependent_services_windows_test.go",
     ],
     embed = [":run"],
     deps = [
@@ -310,5 +321,13 @@ dd_agent_go_test(
         "//comp/core/pid/impl",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@org_golang_x_sys//windows/svc",
+        ],
+        "//conditions:default": [],
+    }),
 )

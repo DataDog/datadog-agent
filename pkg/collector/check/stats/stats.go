@@ -14,7 +14,6 @@ import (
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/mohae/deepcopy"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -63,12 +62,11 @@ var (
 		"delay",
 		[]string{"check_name"},
 		"Check start time delay relative to the previous check run")
-	tlmHaAgentIntegrationRuns = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
-		"ha_agent",
-		"integration_runs",
+	tlmHaAgentIntegrationRuns = telemetryimpl.GetCompatComponent().NewCounter(
+		"checks",
+		"ha_agent_integration_runs",
 		[]string{"integration", "config_id"},
 		"Tracks number of HA integrations runs.",
-		telemetry.Options{DefaultMetric: true},
 	)
 )
 

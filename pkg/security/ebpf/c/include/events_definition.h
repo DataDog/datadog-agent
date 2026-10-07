@@ -39,8 +39,7 @@ struct bind_event_t {
     u16 port;
     u16 protocol;
     u16 padding;
-    u32 sample_cookie;
-    u32 sample_padding;
+    u64 sample_cookie;
 };
 
 struct socket_event_t {
@@ -70,8 +69,7 @@ struct connect_event_t {
     u16 port;
     u16 protocol;
     u16 padding;
-    u32 sample_cookie;
-    u32 sample_padding;
+    u64 sample_cookie;
 };
 
 struct bpf_event_t {
@@ -282,6 +280,7 @@ struct imds_event_t {
     struct cgroup_context_t cgroup;
     struct network_context_t network;
 
+    u32 credential_source;
     u8 body[IMDS_MAX_LENGTH];
 };
 
@@ -413,8 +412,7 @@ struct open_event_t {
     struct file_t file;
     u32 flags;
     u32 mode;
-    u32 sample_cookie;
-    u32 sample_padding;
+    u64 sample_cookie;
 };
 
 struct ptrace_event_t {
@@ -431,6 +429,9 @@ struct ptrace_event_t {
     u32 ns_pid;
 };
 
+// EVENT_SYSCALLS. Two payload shapes discriminated by event_reason:
+//   - drain (PERIOD/EXIT/EXECVE): syscalls[] bitmap populated
+//   - sample first-hit (SAMPLE):  single syscall_id + sample_cookie
 struct syscall_monitor_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -440,6 +441,10 @@ struct syscall_monitor_event_t {
 
     u64 event_reason;
     char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
+
+    u32 syscall_id;
+    u32 padding;
+    u64 sample_cookie;
 };
 
 struct rename_event_t {
@@ -639,6 +644,10 @@ struct capabilities_event_t {
     struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct capabilities_usage_t caps_usage;
+    // Usage is aggregated per proc_cache entry, while userspace resolves the process by pid: if it
+    // missed an fork or exec event that introduced this proc_cache entry, then the userspace cache has nothing for the pid
+    // and it might resolve to the wrong program/binary. The cookie is what lets it notice that this happens.
+    u64 cookie;
 };
 
 struct prctl_event_t {
@@ -675,8 +684,7 @@ struct otel_process_ctx_event_t {
 
 struct sample_refresh_event_t {
     struct kevent_t event;
-    u32 cookie;
-    u32 padding;
+    u64 cookie;
 };
 
 struct nop_event_t {

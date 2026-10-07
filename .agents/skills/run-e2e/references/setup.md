@@ -1,6 +1,6 @@
 # One-time E2E setup
 
-`/docs/public/how-to/test/e2e/running.md` is the authoritative guide to `dda inv -- e2e.setup`. This file adds
+`/doc/how-to/test/e2e/running.md` is the authoritative guide to `dda inv -- e2e.setup`. This file adds
 only which machine to run it on, and how to run it as an agent. It is idempotent, so suggesting it is
 cheap even when you are unsure.
 

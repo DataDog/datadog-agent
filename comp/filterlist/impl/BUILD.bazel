@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "filterlist.go",
         "noop_filterlist.go",
+        "prefixlist.go",
         "rc.go",
         "tagfilterlist.go",
     ],

@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 )
 
 // FingerprinterMock is a mock implementation of the Fingerprinter interface
@@ -90,7 +91,7 @@ func (f *FingerprinterMock) ComputeFingerprint(file *File) (*types.Fingerprint, 
 }
 
 // ComputeFingerprintFromConfig returns previously set fingerprint for the given file path, or an error if no fingerprint was set
-func (f *FingerprinterMock) ComputeFingerprintFromConfig(filepath string, _ *types.FingerprintConfig) (*types.Fingerprint, error) {
+func (f *FingerprinterMock) ComputeFingerprintFromConfig(filepath string, _ *types.FingerprintConfig, _ opener.FileOpener) (*types.Fingerprint, error) {
 	if store, ok := f.fingerprints[filepath]; ok {
 		return store.Next(), nil
 	}

@@ -30,7 +30,8 @@ import (
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	registryfx "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/fx"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"        // registers templates via init()
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions"     // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/docker"                // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/gpupodresources"       // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"         // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig" // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/missedbytes"           // registers templates via init()
@@ -39,6 +40,7 @@ import (
 	runnerfx "github.com/DataDog/datadog-agent/comp/healthplatform/runner/fx"
 	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
 	schedulerfx "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/fx"
+	statusfx "github.com/DataDog/datadog-agent/comp/healthplatform/status/fx"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	corefx "github.com/DataDog/datadog-agent/comp/healthplatform/store/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -55,6 +57,7 @@ func Bundle() fxutil.BundleOptions {
 		forwarderfx.Module(),
 		egressfx.Module(),
 		corefx.Module(),
+		statusfx.Module(),
 		fx.Invoke(bootstrapBuiltInHealthChecks),
 	)
 }

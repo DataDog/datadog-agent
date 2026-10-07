@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <sys/fsuid.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
@@ -20,9 +21,16 @@
 #include <signal.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netinet/ip6.h>
+#include <netinet/ip_icmp.h>
+#include <netinet/icmp6.h>
 #include <net/if.h>
 #include <netdb.h>
 #include <linux/un.h>
+#include <linux/audit.h>
+#include <linux/netlink.h>
 #include <linux/prctl.h>
 #include <linux/sched.h>
 #include <err.h>
@@ -357,6 +365,18 @@ int self_exec(int argc, char **argv) {
     execv("/proc/self/exe", argv + 1);
 
     return EXIT_SUCCESS;
+}
+
+int test_exec(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please pass an executable path\n");
+        return EXIT_FAILURE;
+    }
+
+    execv(argv[1], argv + 1);
+    fprintf(stderr, "execv failed: %s\n", argv[1]);
+
+    return EXIT_FAILURE;
 }
 
 void* connect_thread_ipv4(void *arg) {
@@ -1802,6 +1822,51 @@ int test_acct(int argc, char **argv) {
     return err;
 }
 
+// vfs_mknod gates character devices on capable(CAP_MKNOD), which targets the initial user namespace
+int test_mknod_chardev(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a path for the character device\n");
+        return EXIT_FAILURE;
+    }
+
+    unlink(argv[1]);
+    if (mknod(argv[1], S_IFCHR | 0600, makedev(1, 3))) {
+        perror("mknod");
+    }
+    unlink(argv[1]);
+
+    return EXIT_SUCCESS;
+}
+
+// an AUDIT_USER message reaches netlink_capable(CAP_AUDIT_WRITE), which also targets the initial user namespace
+int test_netlink_audit_user(int argc, char **argv) {
+    int sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_AUDIT);
+    if (sock < 0) {
+        perror("socket(NETLINK_AUDIT)");
+        return EXIT_FAILURE;
+    }
+
+    struct {
+        struct nlmsghdr hdr;
+        char payload[8];
+    } request = {0};
+    request.hdr.nlmsg_len = NLMSG_LENGTH(sizeof(request.payload));
+    request.hdr.nlmsg_type = AUDIT_USER;
+    request.hdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+    request.hdr.nlmsg_seq = 1;
+
+    struct sockaddr_nl dest = {0};
+    dest.nl_family = AF_NETLINK;
+
+    if (sendto(sock, &request, request.hdr.nlmsg_len, 0, (struct sockaddr *)&dest, sizeof(dest)) < 0) {
+        perror("sendto(AUDIT_USER)");
+    }
+
+    close(sock);
+
+    return EXIT_SUCCESS;
+}
+
 int test_pause(int argc, char **argv) {
     if (argc != 1) {
         fprintf(stderr, "Usage: %s\n", argv[0]);
@@ -1911,6 +1976,171 @@ void *udp_client_thread(void *arg) {
 
     close(sockfd);
     return NULL;
+}
+
+#define NETWORK_PROBE_ECHO_ID 0x4242
+
+static u_int16_t icmp_checksum(void *data, int len) {
+    u_int32_t sum = 0;
+    u_int16_t *p = data;
+
+    for (; len > 1; len -= 2) {
+        sum += *p++;
+    }
+    if (len == 1) {
+        sum += *(u_int8_t *)p;
+    }
+    sum = (sum >> 16) + (sum & 0xffff);
+    sum += (sum >> 16);
+
+    return ~sum;
+}
+
+static int set_recv_timeout(int fd) {
+    struct timeval tv = { .tv_sec = 1 };
+    return setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+}
+
+// network_probe_icmp_echo sends an ICMP echo request to the loopback address and returns 1 if the reply is received
+static int network_probe_icmp_echo(int family) {
+    int fd = socket(family, SOCK_RAW, family == AF_INET ? IPPROTO_ICMP : IPPROTO_ICMPV6);
+    if (fd < 0) {
+        return -1;
+    }
+
+    if (set_recv_timeout(fd) < 0) {
+	close(fd);
+	return -1;
+    }
+
+    struct sockaddr_storage addr = {};
+    socklen_t addr_len;
+    char req[64] = {};
+    if (family == AF_INET) {
+        struct sockaddr_in *sin = (struct sockaddr_in *)&addr;
+        sin->sin_family = AF_INET;
+        sin->sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        addr_len = sizeof(*sin);
+
+        struct icmphdr *icmp = (struct icmphdr *)req;
+        icmp->type = ICMP_ECHO;
+        icmp->un.echo.id = htons(NETWORK_PROBE_ECHO_ID);
+        icmp->un.echo.sequence = htons(1);
+        icmp->checksum = icmp_checksum(req, sizeof(req));
+    } else {
+        struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)&addr;
+        sin6->sin6_family = AF_INET6;
+        sin6->sin6_addr = in6addr_loopback;
+        addr_len = sizeof(*sin6);
+
+        // the checksum of ICMPv6 raw sockets is computed by the kernel
+        struct icmp6_hdr *icmp6 = (struct icmp6_hdr *)req;
+        icmp6->icmp6_type = ICMP6_ECHO_REQUEST;
+        icmp6->icmp6_id = htons(NETWORK_PROBE_ECHO_ID);
+        icmp6->icmp6_seq = htons(1);
+    }
+
+    if (sendto(fd, req, sizeof(req), 0, (struct sockaddr *)&addr, addr_len) < 0) {
+        int ret = errno == ENOBUFS || errno == EPERM ? 0 : -1;
+        close(fd);
+        return ret;
+    }
+
+    // raw sockets also receive the echo requests looped back, skip them
+    char buf[1500];
+    for (int i = 0; i < 16; i++) {
+        ssize_t n = recv(fd, buf, sizeof(buf), 0);
+        if (n < 0) {
+            break;
+        }
+
+        if (family == AF_INET) {
+            struct iphdr *ip = (struct iphdr *)buf;
+            size_t ip_len = ip->ihl * 4;
+            struct icmphdr *icmp = (struct icmphdr *)(buf + ip_len);
+            if ((size_t)n >= ip_len + sizeof(*icmp) && icmp->type == ICMP_ECHOREPLY && icmp->un.echo.id == htons(NETWORK_PROBE_ECHO_ID)) {
+                close(fd);
+                return 1;
+            }
+        } else {
+            struct icmp6_hdr *icmp6 = (struct icmp6_hdr *)buf;
+            if ((size_t)n >= sizeof(*icmp6) && icmp6->icmp6_type == ICMP6_ECHO_REPLY && icmp6->icmp6_id == htons(NETWORK_PROBE_ECHO_ID)) {
+                close(fd);
+                return 1;
+            }
+        }
+    }
+
+    close(fd);
+    return 0;
+}
+
+// network_probe_udp6_dstopts sends an UDP datagram with an IPv6 Destination Options extension header
+// to the loopback address and returns 1 if it is received
+static int network_probe_udp6_dstopts() {
+    int ret = -1;
+    struct sockaddr_in6 addr = { .sin6_family = AF_INET6, .sin6_addr = in6addr_loopback };
+    socklen_t addr_len = sizeof(addr);
+
+    int rfd = socket(AF_INET6, SOCK_DGRAM, 0);
+    int sfd = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (rfd < 0 || sfd < 0 || set_recv_timeout(rfd) < 0) {
+        goto out;
+    }
+
+    if (bind(rfd, (struct sockaddr *)&addr, addr_len) < 0 || getsockname(rfd, (struct sockaddr *)&addr, &addr_len) < 0) {
+        goto out;
+    }
+
+    // a single PadN option filling the 8 bytes of the header
+    unsigned char dstopts[8] = { 0, 0, IP6OPT_PADN, 4, 0, 0, 0, 0 };
+    if (setsockopt(sfd, IPPROTO_IPV6, IPV6_DSTOPTS, dstopts, sizeof(dstopts)) < 0) {
+        goto out;
+    }
+
+    if (sendto(sfd, "DATA", 4, 0, (struct sockaddr *)&addr, addr_len) < 0) {
+        ret = errno == ENOBUFS || errno == EPERM ? 0 : -1;
+        goto out;
+    }
+
+    char buf[16];
+    ret = recv(rfd, buf, sizeof(buf), 0) > 0 ? 1 : 0;
+
+out:
+    if (rfd >= 0) {
+        close(rfd);
+    }
+    if (sfd >= 0) {
+        close(sfd);
+    }
+    return ret;
+}
+
+int test_network_probe(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: network-probe <icmp4|icmp6|udp6-dstopts>\n");
+        return EXIT_FAILURE;
+    }
+
+    int ret;
+    if (strcmp(argv[1], "icmp4") == 0) {
+        ret = network_probe_icmp_echo(AF_INET);
+    } else if (strcmp(argv[1], "icmp6") == 0) {
+        ret = network_probe_icmp_echo(AF_INET6);
+    } else if (strcmp(argv[1], "udp6-dstopts") == 0) {
+        ret = network_probe_udp6_dstopts();
+    } else {
+        fprintf(stderr, "Unknown network probe: %s\n", argv[1]);
+        return EXIT_FAILURE;
+    }
+
+    if (ret < 0) {
+        printf("%s: error: %s\n", argv[1], strerror(errno));
+    } else {
+        printf("%s: %s\n", argv[1], ret ? "delivered" : "blocked");
+    }
+
+    return EXIT_SUCCESS;
 }
 
 int test_udploop(int argc, char **argv) {
@@ -2285,6 +2515,8 @@ int main(int argc, char **argv) {
             exit_code = test_open(sub_argc, sub_argv);
         } else if (strcmp(cmd, "unlink") == 0) {
             exit_code = test_unlink(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "exec") == 0) {
+            exit_code = test_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "exec-in-pthread") == 0) {
             exit_code = test_exec_in_pthread(sub_argc, sub_argv);
         } else if (strcmp(cmd, "sleep") == 0) {
@@ -2305,6 +2537,8 @@ int main(int argc, char **argv) {
             exit_code = test_slow_write(sub_argc, sub_argv);
         } else if (strcmp(cmd, "network_flow_send_udp4") == 0) {
             exit_code = test_network_flow_send_udp4(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "network-probe") == 0) {
+            exit_code = test_network_probe(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chmod-error") == 0) {
             exit_code = test_chmod_error(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chmod") == 0) {
@@ -2323,6 +2557,10 @@ int main(int argc, char **argv) {
             exit_code = test_connect_and_send(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chroot") == 0) {
             exit_code = test_chroot(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "mknod-chardev") == 0) {
+            exit_code = test_mknod_chardev(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "netlink-audit-user") == 0) {
+            exit_code = test_netlink_audit_user(sub_argc, sub_argv);
         } else if (strcmp(cmd, "acct") == 0) {
             exit_code = test_acct(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pause") == 0) {

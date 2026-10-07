@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -166,10 +167,8 @@ func TestTaggedPatternClusterer_ResetDropsSubClusterers(t *testing.T) {
 	tc.Reset()
 	assert.Equal(t, 0, tc.NumSubClusterers())
 
-	// Registry must still resolve the hash after reset.
-	group, found := reg.Lookup(groupHash)
-	require.True(t, found)
-	assert.Equal(t, "api", group.Service)
+	_, found := reg.Lookup(groupHash)
+	assert.False(t, found, "reset must release registered tag groups")
 }
 
 func TestTaggedPatternClusterer_GlobalClusterHashIsStable(t *testing.T) {
@@ -218,7 +217,8 @@ func TestTaggedPatternClusterer_MaxClustersPerGroupPropagated(t *testing.T) {
 }
 
 func TestTaggedPatternClusterer_MaxTagGroupsEvictsLRUGroup(t *testing.T) {
-	tc := NewTaggedPatternClusterer(NewTagGroupByKeyRegistry())
+	registry := NewTagGroupByKeyRegistry()
+	tc := NewTaggedPatternClusterer(registry)
 	tc.MaxTagGroups = 2
 
 	tagsA := []string{"service:a"}
@@ -249,6 +249,12 @@ func TestTaggedPatternClusterer_MaxTagGroupsEvictsLRUGroup(t *testing.T) {
 	for _, ev := range evicted {
 		require.Equal(t, hashB, ev.GroupHash, "all evictions tagged with the evicted group's hash")
 	}
+	_, found := registry.Lookup(hashB)
+	assert.False(t, found, "LRU eviction must release the tag-group registry entry")
+	_, found = registry.Lookup(hashA)
+	assert.True(t, found)
+	_, found = registry.Lookup(hashC)
+	assert.True(t, found)
 }
 
 // TestTaggedPatternClusterer_EmptyMessageFromNewGroupDoesNotEvict regresses
@@ -265,7 +271,8 @@ func TestTaggedPatternClusterer_MaxTagGroupsEvictsLRUGroup(t *testing.T) {
 // ok. This test confirms an empty message from a new group at-cap is a
 // no-op for both the existing groups and the eviction queue.
 func TestTaggedPatternClusterer_EmptyMessageFromNewGroupDoesNotEvict(t *testing.T) {
-	tc := NewTaggedPatternClusterer(NewTagGroupByKeyRegistry())
+	registry := NewTagGroupByKeyRegistry()
+	tc := NewTaggedPatternClusterer(registry)
 	tc.MaxTagGroups = 2
 
 	tagsA := []string{"service:a"}
@@ -288,12 +295,63 @@ func TestTaggedPatternClusterer_EmptyMessageFromNewGroupDoesNotEvict(t *testing.
 		require.Empty(t, tc.DrainLRUEvictions(),
 			"empty msg from new group at-cap must NOT evict an existing group")
 	}
+	_, found := registry.Lookup(tagGroupByKeyHash(TagGroupByKey{Service: "c"}))
+	assert.False(t, found, "rejected logs must not leave registry entries behind")
 
 	// Both original groups must still be reachable after the empty stream.
 	gotA, _, _ := tc.Process(tagsA, "alpha", 1300)
 	require.Equal(t, hashA, gotA, "group A must survive a stream of empty new-group messages")
 	gotB, _, _ := tc.Process(tagsB, "beta", 1301)
 	require.Equal(t, hashB, gotB, "group B must survive a stream of empty new-group messages")
+}
+
+func TestTaggedPatternClusterer_GarbageCollectionReleasesRegistryEntries(t *testing.T) {
+	tc, registry := newTestTaggedClusterer()
+	tc.MaxTagGroups = 2
+
+	hashA, _, ok := tc.Process([]string{"service:a"}, "alpha", 1000)
+	require.True(t, ok)
+	hashB, _, ok := tc.Process([]string{"service:b"}, "beta", 1100)
+	require.True(t, ok)
+
+	evicted := tc.GarbageCollectBefore(1050)
+	require.Len(t, evicted, 1)
+	assert.Equal(t, hashA, evicted[0].GroupHash)
+	_, found := registry.Lookup(hashA)
+	assert.False(t, found, "GC must release a tag group after its final cluster expires")
+	_, found = registry.Lookup(hashB)
+	assert.True(t, found)
+
+	evicted = tc.GarbageCollectBefore(1200)
+	require.Len(t, evicted, 1)
+	assert.Equal(t, hashB, evicted[0].GroupHash)
+	assert.Empty(t, registry.byHash)
+
+	// Empty clusterers retain only bounded hash/counter bookkeeping so a
+	// reappearing pattern does not reuse an evicted metric name.
+	assert.Equal(t, 2, tc.NumSubClusterers())
+	reappearedHash, cluster, ok := tc.Process([]string{"service:a"}, "alpha", 1300)
+	require.True(t, ok)
+	assert.Equal(t, hashA, reappearedHash)
+	assert.Equal(t, int64(1), cluster.ID)
+	group, found := registry.Lookup(hashA)
+	require.True(t, found)
+	assert.Equal(t, "a", group.Service)
+}
+
+func TestTaggedPatternClusterer_RegistryRemainsBoundedByTagGroupCap(t *testing.T) {
+	registry := NewTagGroupByKeyRegistry()
+	tc := NewTaggedPatternClusterer(registry)
+	tc.MaxTagGroups = 2
+
+	for i := 0; i < 100; i++ {
+		_, _, ok := tc.Process([]string{fmt.Sprintf("service:%d", i)}, "message", int64(1000+i))
+		require.True(t, ok)
+		tc.DrainLRUEvictions()
+	}
+
+	assert.Equal(t, 2, tc.NumSubClusterers())
+	assert.Len(t, registry.byHash, 2)
 }
 
 func TestTaggedPatternClusterer_DrainLRUEvictionsIsOneShot(t *testing.T) {

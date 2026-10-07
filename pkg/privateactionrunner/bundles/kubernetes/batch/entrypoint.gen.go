@@ -15,6 +15,7 @@ func NewKubernetesBatch() *KubernetesBatch {
 	return &KubernetesBatch{
 		actions: map[string]types.Action{
 			// Manual actions
+			"updateCronJobSchedule": NewUpdateCronJobScheduleHandler(),
 			// Auto-generated actions
 			"createCronJob":          NewCreateCronJobHandler(),
 			"updateCronJob":          NewUpdateCronJobHandler(),

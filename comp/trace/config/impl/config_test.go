@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -865,6 +865,9 @@ func TestFullYamlConfig(t *testing.T) {
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: true},
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: true},
 	}, cfg.Endpoints)
+	// apm_config.traces_send_to_main_endpoint defaults to true: the writers use every endpoint.
+	assert.False(t, cfg.SkipMainEndpoint)
+	assert.Equal(t, cfg.Endpoints, cfg.WriterEndpoints())
 
 	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, cfg.RequireTags)
 	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "outcome", V: "success"}, {K: "bad-key", V: "bad-value"}}, cfg.RejectTags)
@@ -2082,6 +2085,26 @@ func TestLoadEnv(t *testing.T) {
 		assert.False(t, coreConfig.GetBool("apm_config.profiling_send_to_main_endpoint"))
 	})
 
+	env = "DD_APM_TRACES_SEND_TO_MAIN_ENDPOINT"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "false")
+
+		// full.yaml configures additional_endpoints, so skipping the main endpoint is valid.
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.False(t, coreConfig.GetBool("apm_config.traces_send_to_main_endpoint"))
+		assert.True(t, cfg.SkipMainEndpoint)
+		// The main endpoint stays in Endpoints so APIKey() is unchanged for the proxies,
+		// but the trace/stats writers no longer see it.
+		assert.Equal(t, "api_key_test", cfg.APIKey())
+		assert.Len(t, cfg.WriterEndpoints(), len(cfg.Endpoints)-1)
+		for _, e := range cfg.WriterEndpoints() {
+			assert.NotEqual(t, "https://datadog.unittests", e.Host)
+		}
+	})
+
 	env = "DD_APM_MODE"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "edge")
@@ -2939,4 +2962,52 @@ func TestDebuggerLogsEnabled(t *testing.T) {
 			assert.Equal(t, tt.expected, cfg.DebuggerLogsEnabled)
 		})
 	}
+}
+
+func TestTracesSendToMainEndpoint(t *testing.T) {
+	t.Run("default-true", func(t *testing.T) {
+		cfg := buildConfigComponentFromOverrides(t, true, map[string]interface{}{}).Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.SkipMainEndpoint)
+		assert.Equal(t, cfg.Endpoints, cfg.WriterEndpoints())
+	})
+
+	t.Run("false-with-additional-endpoints", func(t *testing.T) {
+		cfg := buildConfigComponentFromOverrides(t, true, map[string]interface{}{
+			"apm_config.traces_send_to_main_endpoint": false,
+			"apm_config.additional_endpoints":         map[string][]string{"https://additional.example.com": {"additional-key"}},
+		}).Object()
+		require.NotNil(t, cfg)
+		assert.True(t, cfg.SkipMainEndpoint)
+		require.Len(t, cfg.WriterEndpoints(), 1)
+		assert.Equal(t, "https://additional.example.com", cfg.WriterEndpoints()[0].Host)
+		assert.Equal(t, "additional-key", cfg.WriterEndpoints()[0].APIKey)
+		// The main endpoint (and its API key) is kept for APIKey() consumers.
+		assert.Len(t, cfg.Endpoints, 2)
+		assert.NotEqual(t, "additional-key", cfg.APIKey())
+	})
+
+	t.Run("false-without-additional-endpoints-fails-validation", func(t *testing.T) {
+		// Fail closed: the configuration is rejected instead of leaving the
+		// trace and stats writers with no destination.
+		coreConfig := configcomp.NewMock(t)
+		cfg := traceconfig.New()
+		cfg.DDAgentBin = "/bin/true"
+		cfg.Hostname = "testhostname"
+		cfg.SkipMainEndpoint = true
+		cfg.Endpoints = []*traceconfig.Endpoint{{Host: "https://main.example.com", APIKey: "main-key"}}
+		assert.ErrorIs(t, validate(cfg, coreConfig), traceconfig.ErrNoWriterEndpoint)
+
+		// A Multi-Region Failover endpoint alone is not a destination either.
+		cfg.Endpoints = append(cfg.Endpoints, &traceconfig.Endpoint{Host: "https://mrf.example.com", APIKey: "mrf-key", IsMRF: true})
+		assert.ErrorIs(t, validate(cfg, coreConfig), traceconfig.ErrNoWriterEndpoint)
+
+		cfg.Endpoints = append(cfg.Endpoints, &traceconfig.Endpoint{Host: "https://additional.example.com", APIKey: "additional-key"})
+		assert.NoError(t, validate(cfg, coreConfig))
+
+		// With the main endpoint enabled the same single-endpoint config is valid.
+		cfg.SkipMainEndpoint = false
+		cfg.Endpoints = cfg.Endpoints[:1]
+		assert.NoError(t, validate(cfg, coreConfig))
+	})
 }

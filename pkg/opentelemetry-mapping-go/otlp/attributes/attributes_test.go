@@ -64,6 +64,56 @@ func TestTagsFromAttributes(t *testing.T) {
 	}, TagsFromAttributes(attrs))
 }
 
+func TestTagsFromAzureAppServiceAttributes(t *testing.T) {
+	t.Run("complete identity", func(t *testing.T) {
+		attrs := pcommon.NewMap()
+		require.NoError(t, attrs.FromRaw(map[string]any{
+			string(semconv127.CloudPlatformKey):    cloudPlatformAzureAppService,
+			string(semconv127.ServiceNameKey):      testAzureAppServiceName,
+			string(semconv127.CloudAccountIDKey):   testAzureSubscriptionID,
+			attributeAzureResourceGroupName:        testAzureResourceGroup,
+			testAttributeAzureAppServiceInstanceID: testAzureAppServiceInstanceID,
+		}))
+
+		assert.ElementsMatch(t, []string{
+			"service:" + testAzureAppServiceName,
+			"name:" + testAzureAppServiceName,
+			"subscription_id:" + testAzureSubscriptionID,
+			"resource_group:" + testAzureResourceGroup,
+		}, TagsFromAttributes(attrs))
+	})
+
+	t.Run("service instance is not the billing instance", func(t *testing.T) {
+		attrs := pcommon.NewMap()
+		require.NoError(t, attrs.FromRaw(map[string]any{
+			string(semconv127.CloudPlatformKey):     cloudPlatformAzureAppService,
+			string(semconv127.ServiceNameKey):       testAzureAppServiceName,
+			string(semconv127.CloudAccountIDKey):    testAzureSubscriptionID,
+			attributeAzureResourceGroupName:         testAzureResourceGroup,
+			string(semconv127.ServiceInstanceIDKey): testServiceInstanceID,
+		}))
+
+		assert.ElementsMatch(t, []string{
+			"service:" + testAzureAppServiceName,
+			"service.instance.id:" + testServiceInstanceID,
+			"name:" + testAzureAppServiceName,
+			"subscription_id:" + testAzureSubscriptionID,
+			"resource_group:" + testAzureResourceGroup,
+		}, TagsFromAttributes(attrs))
+	})
+
+	t.Run("incomplete identity", func(t *testing.T) {
+		attrs := pcommon.NewMap()
+		require.NoError(t, attrs.FromRaw(map[string]any{
+			string(semconv127.CloudPlatformKey):  cloudPlatformAzureAppService,
+			string(semconv127.ServiceNameKey):    testAzureAppServiceName,
+			string(semconv127.CloudAccountIDKey): testAzureSubscriptionID,
+		}))
+
+		assert.Equal(t, []string{"service:" + testAzureAppServiceName}, TagsFromAttributes(attrs))
+	})
+}
+
 func TestNewDeploymentEnvironmentNameConvention(t *testing.T) {
 	attrs := pcommon.NewMap()
 	attrs.PutStr("deployment.environment.name", "staging")
@@ -872,6 +922,49 @@ func TestGetHost(t *testing.T) {
 				attrs.PutStr(k, v)
 			}
 			actual := GetHost(attrs, tt.fallbackHost)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestParseAzureResourceID(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		resourceID string
+		expected   azureResourceID
+		expectErr  bool
+	}{
+		{
+			name:       "valid Azure Container Apps resource ID",
+			resourceID: "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.App/containerApps/my-app",
+			expected: azureResourceID{
+				SubscriptionID: "sub-123",
+				ResourceGroup:  "my-rg",
+				ResourceName:   "my-app",
+			},
+		},
+		{
+			name:      "empty resource ID",
+			expectErr: true,
+		},
+		{
+			name:       "too few segments",
+			resourceID: "/subscriptions/sub-123/resourceGroups/my-rg",
+			expectErr:  true,
+		},
+		{
+			name:       "not an Azure resource ID",
+			resourceID: "arn:aws:ecs:us-east-1:123456789012:task/my-task",
+			expectErr:  true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			actual, err := parseAzureResourceID(tt.resourceID)
+			if tt.expectErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}

@@ -164,6 +164,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 new Property("KEEP_INSTALLED_PACKAGES")
                 {
                     AttributesDefinition = "Secure=yes"
@@ -694,8 +698,8 @@ namespace WixSetup.Datadog_Agent
                 Constants.ProcmgrServiceName,
                 "Datadog Process Manager",
                 "Manage Datadog agent processes",
-                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
-                "[DDAGENTUSER_PROCESSED_PASSWORD]");
+                "LocalSystem",
+                null);
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcmgrService, procmgrService));
             agentBinDir.Add(new EventSource
             {

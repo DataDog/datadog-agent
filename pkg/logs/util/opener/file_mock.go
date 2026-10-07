@@ -8,6 +8,7 @@
 package opener
 
 import (
+	"bytes"
 	"io"
 	"os"
 
@@ -32,6 +33,12 @@ type MockFile struct {
 	fileContents fileContents // Data to return for each read
 	currentPos   int64        // Track position for Seek
 	name         string       // Name of the file
+	readErrors   []error      // Optional errors returned before normal reads
+}
+
+// SetReadErrors configures errors to return before the mock resumes normal reads.
+func (m *MockFile) SetReadErrors(readErrors ...error) {
+	m.readErrors = append(m.readErrors[:0], readErrors...)
 }
 
 type fileContents struct {
@@ -112,6 +119,13 @@ func (m *MockFile) CurrentPos() int {
 
 // Read reads data from the file
 func (m *MockFile) Read(p []byte) (int, error) {
+	if len(m.readErrors) > 0 {
+		err := m.readErrors[0]
+		m.readErrors = m.readErrors[1:]
+		if err != nil {
+			return 0, err
+		}
+	}
 	data := m.fileContents.getBytesAt(m.readIdx)
 	if data == nil {
 		return 0, io.EOF
@@ -128,6 +142,12 @@ func (m *MockFile) Read(p []byte) (int, error) {
 	}
 
 	return n, nil
+}
+
+// ReadAt reads data from the current file contents without changing the current position.
+func (m *MockFile) ReadAt(p []byte, off int64) (int, error) {
+	contents := bytes.Join(m.fileContents.outputs[m.fileContents.fileIdx], nil)
+	return bytes.NewReader(contents).ReadAt(p, off)
 }
 
 // Stat returns the file info

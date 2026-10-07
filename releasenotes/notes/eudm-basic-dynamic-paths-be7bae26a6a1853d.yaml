@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    Enable basic Network Path Dynamic Tests by default in end-user-device mode.
+    The Agent selects up to 20 eligible paths per device after an initial
+    five-minute window and in each subsequent hour. Set
+    ``network_path.connections_monitoring.eudm_basic_tests_enabled`` to
+    ``false`` to disable this behavior. The number of paths considered for
+    selection can be adjusted with
+    ``network_path.connections_monitoring.eudm_basic_candidate_limit``.

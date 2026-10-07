@@ -34,8 +34,8 @@ func NewCommand(ctx context.Context, pkg *Package, session *Session, parameters 
 	if parameters == nil {
 		parameters = map[string]interface{}{}
 	}
-	if pkg.Manifest.Config.ParameterSchema != nil {
-		if err := workflowjsonschema.ValidateParameters(pkg.Manifest.Config.ParameterSchema, parameters); err != nil {
+	if pkg.Manifest.ParameterSchema != nil {
+		if err := workflowjsonschema.ValidateParameters(pkg.Manifest.ParameterSchema, parameters); err != nil {
 			return nil, err
 		}
 	}

@@ -5,7 +5,9 @@
 
 mod spawn_identity;
 
-pub use spawn_identity::{expected_agent_spawn_user, expected_runtime_user_for_pid};
+pub use spawn_identity::{
+    expected_agent_spawn_user, expected_runtime_user_for_pid, expected_spawn_user_for_process,
+};
 
 #[cfg(unix)]
 use nix::sys::signal::{self, Signal};
@@ -36,6 +38,7 @@ pub struct DaemonStatus {
     pub running_processes: u32,
     pub created_processes: u32,
     pub stopped_processes: u32,
+    pub crashed_processes: u32,
     pub failed_processes: u32,
     pub exited_processes: u32,
     pub starting_processes: u32,
@@ -197,6 +200,7 @@ pub struct DescribeExpect {
     pub working_dir: Option<String>,
     pub restart_policy: Option<String>,
     pub auto_start: Option<bool>,
+    pub condition_path_exists: Option<String>,
     pub restart_count: Option<u64>,
     pub restart_count_at_least: Option<u64>,
     pub last_exit_code: Option<Option<i32>>,
@@ -238,6 +242,12 @@ impl DescribeSnapshot {
             self,
         );
         assert_describe_field("auto_start", &self.auto_start, &expected.auto_start, self);
+        assert_describe_field(
+            "condition_path_exists",
+            &self.condition_path_exists,
+            &expected.condition_path_exists,
+            self,
+        );
         assert_describe_field(
             "restart_count",
             &self.restart_count,
@@ -344,6 +354,7 @@ pub enum ProcessExpect {
     Created,
     Running,
     Stopped,
+    Crashed,
     Failed,
     Exited,
 }
@@ -354,6 +365,7 @@ impl ProcessExpect {
             Self::Created => "Created",
             Self::Running => "Running",
             Self::Stopped => "Stopped",
+            Self::Crashed => "Crashed",
             Self::Failed => "Failed",
             Self::Exited => "Exited",
         }
@@ -427,6 +439,7 @@ pub struct StatusProcessesCount {
     pub running: Option<u32>,
     pub created: Option<u32>,
     pub stopped: Option<u32>,
+    pub crashed: Option<u32>,
     pub failed: Option<u32>,
     pub exited: Option<u32>,
     pub starting: Option<u32>,
@@ -440,6 +453,7 @@ impl StatusProcessesCount {
             running: Some(0),
             created: Some(0),
             stopped: Some(0),
+            crashed: Some(0),
             failed: Some(0),
             exited: Some(0),
             starting: Some(0),
@@ -477,6 +491,11 @@ impl DaemonStatus {
                 "stopped_processes",
                 self.stopped_processes,
                 expected.stopped,
+            ),
+            (
+                "crashed_processes",
+                self.crashed_processes,
+                expected.crashed,
             ),
             ("failed_processes", self.failed_processes, expected.failed),
             ("exited_processes", self.exited_processes, expected.exited),
@@ -621,6 +640,12 @@ impl DaemonHandle {
 
     /// Like [`start`](Self::start), but also sets the given extra environment variables on the
     /// daemon process.
+    ///
+    /// The daemon is a real child process, so config gates read `DD_*` from the inherited
+    /// environment rather than through the process-global hook the in-process tests use.
+    /// Environment variables outrank the gated YAML file, so every gate input is removed
+    /// before `extra_env` is applied: otherwise a runner with, say,
+    /// `DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED` exported opens a gate no test wrote.
     pub fn start_with_env(
         config_dir: &Path,
         socket_path: &Path,
@@ -633,6 +658,9 @@ impl DaemonHandle {
             .env("DD_PM_SOCKET_PATH", socket_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        for name in dd_procmgrd::config_gate::gate_env_var_names() {
+            cmd.env_remove(name);
+        }
         for (k, v) in extra_env {
             cmd.env(k, v);
         }
@@ -1517,6 +1545,12 @@ impl TestEnv {
         self.assert_daemon_log_line_contains(&[&prefix, path]);
     }
 
+    /// `path` is matched against the rendered condition summary, which lists `path:key`.
+    pub fn assert_config_gate_not_met_logged(&self, name: &str, path: &str) {
+        let prefix = format!("[{name}] condition_config_any not met");
+        self.assert_daemon_log_line_contains(&[&prefix, path]);
+    }
+
     pub fn assert_pid_gone(&self, pid: u64) {
         assert!(
             wait_for_pid_gone(pid as u32, DEFAULT_TIMEOUT),
@@ -1653,6 +1687,7 @@ fn process_matches_expect(process: &ProcessSnapshot, expected: ProcessExpect) ->
     match expected {
         ProcessExpect::Created
         | ProcessExpect::Stopped
+        | ProcessExpect::Crashed
         | ProcessExpect::Failed
         | ProcessExpect::Exited => process.pid == 0,
         ProcessExpect::Running => {

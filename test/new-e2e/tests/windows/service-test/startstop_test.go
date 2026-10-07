@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
@@ -32,6 +31,7 @@ import (
 
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -104,10 +104,10 @@ func (s *installerWithRemoteConfigSuite) SetupSuite() {
 
 	// With remote_configuration enabled, the installer should run even in FIPS mode
 	s.runningUserServices = func() []string {
-		return s.getInstalledUserServices()
+		return s.filterLegacySCMServices(s.getInstalledUserServices())
 	}
 	s.runningServices = func() []string {
-		return s.getInstalledServices()
+		return append(slices.Clone(s.runningUserServices()), s.getInstalledKernelServices()...)
 	}
 }
 
@@ -208,9 +208,11 @@ func (s *powerShellServiceCommandSuite) TestStopTimeout() {
 	services := []string{
 		// stop dependent services first since stopping them won't affect other services
 		"datadog-trace-agent",
-		"datadog-process-agent",
+		// dd-procmgr supervises process-agent and system-probe, so both legacy services are
+		// already Stopped. Stopping dd-procmgr-service is what stops those two workloads,
+		// including the system-probe shutdown that unloads the kernel drivers.
+		"dd-procmgr-service",
 		"datadog-security-agent",
-		"datadog-system-probe",
 		// stop core agent last since it will trigger stop of other services
 		"datadogagent",
 	}
@@ -341,6 +343,70 @@ type agentServiceDisabledProcessAgentSuite struct {
 	agentServiceDisabledSuite
 }
 
+// TestProcessAgentNotRunningUnderProcmgrWhenDisabled is the procmgr half of what this suite
+// asserts. The legacy datadog-process-agent service staying Stopped is no longer evidence of
+// anything, because dd-procmgr supervises process-agent now and the core Agent suppresses that
+// service unconditionally. What still has to hold is that the config gate keeps process-agent
+// from running at all when every trigger is off.
+func (s *agentServiceDisabledProcessAgentSuite) TestProcessAgentNotRunningUnderProcmgrWhenDisabled() {
+	host := s.Env().RemoteHost
+	installPath, err := windowsAgent.GetInstallPathFromRegistry(host)
+	s.Require().NoError(err)
+	procmgrCLI := filepath.Join(installPath, "bin", "agent", "dd-procmgr.exe")
+
+	logsFolder, err := host.GetLogsFolder()
+	s.Require().NoError(err)
+	waitForLogLine := func(logFile, line, msg string) {
+		s.Require().EventuallyWithT(func(ct *assert.CollectT) {
+			content, err := host.ReadFile(filepath.Join(logsFolder, logFile))
+			if !assert.NoError(ct, err) {
+				return
+			}
+			assert.Contains(ct, string(content), line, msg)
+		}, time.Duration(2*s.timeoutScale)*time.Minute, 3*time.Second)
+	}
+
+	s.startAgent()
+	s.assertServiceState("Running", "dd-procmgr-service", nil)
+
+	// Two launchers could start process-agent, and each decides after dd-procmgr-service is
+	// already Running, so the checks below are only meaningful once both have written their
+	// decision. BeforeTest cleared the logs folder, so neither line can come from an earlier
+	// start.
+	//
+	// dd-procmgr writes this during its start pass while holding the process table's write
+	// lock. describe takes the read lock, so a describe issued after the line appears reports
+	// the state the pass left behind.
+	waitForLogLine("dd-procmgr.log", "[datadog-agent-process] condition_config_any not met",
+		"dd-procmgr should evaluate the process-agent config gate and find it closed")
+	// The core Agent writes this once it has decided not to start the legacy
+	// datadog-process-agent service, whether suppressed by install policy or disabled by config.
+	waitForLogLine("agent.log", "Service process is disabled, not starting",
+		"the core Agent should decide not to start the legacy process-agent service")
+
+	out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, procmgrCLI, "datadog-agent-process"))
+	s.Require().NoError(err)
+	s.Require().Equal("Created", procmgrDescribeField(out, "State"),
+		"dd-procmgr should leave a disabled process-agent unspawned: %s", out)
+
+	out, err = host.Execute(
+		`$p = Get-Process -Name 'process-agent' -ErrorAction SilentlyContinue; if ($null -eq $p) { 'Absent' } else { 'Present' }`)
+	s.Require().NoError(err)
+	s.Require().Equal("Absent", strings.TrimSpace(out),
+		"process-agent must not run when every process-agent config trigger is off")
+}
+
+// procmgrDescribeField pulls a single "Label: value" field out of dd-procmgr describe output.
+func procmgrDescribeField(output, label string) string {
+	prefix := label + ":"
+	for _, line := range strings.Split(output, "\n") {
+		if idx := strings.Index(line, prefix); idx >= 0 {
+			return strings.TrimSpace(line[idx+len(prefix):])
+		}
+	}
+	return ""
+}
+
 func TestServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 	s := &agentServiceDisabledTraceAgentSuite{}
 	s.disabledServices = []string{
@@ -378,7 +444,7 @@ func (s *agentServiceDisabledSuite) SetupSuite() {
 	// set up the expected services before calling the base setup
 	s.runningUserServices = func() []string {
 		runningServices := []string{}
-		for _, service := range s.getInstalledUserServices() {
+		for _, service := range s.filterLegacySCMServices(s.getInstalledUserServices()) {
 			if !slices.Contains(s.disabledServices, service) {
 				runningServices = append(runningServices, service)
 			}
@@ -386,13 +452,10 @@ func (s *agentServiceDisabledSuite) SetupSuite() {
 		return runningServices
 	}
 	s.runningServices = func() []string {
-		runningServices := []string{}
-		for _, service := range s.getInstalledServices() {
-			if !slices.Contains(s.disabledServices, service) {
-				runningServices = append(runningServices, service)
-			}
-		}
-		return runningServices
+		runningServices := append(slices.Clone(s.runningUserServices()), s.getInstalledKernelServices()...)
+		return slices.DeleteFunc(runningServices, func(service string) bool {
+			return slices.Contains(s.disabledServices, service)
+		})
 	}
 
 	s.startAgentCommand = func(host *components.RemoteHost) error {
@@ -531,8 +594,8 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 	// check event log for N sets of start and stop messages from each service
 	for _, serviceName := range s.runningUserServices() {
 		providerName := serviceName
-		// skip the installer since it doesn't have a registered provider
-		if providerName == "Datadog Installer" {
+		// skip services that don't register an Application event log provider
+		if providerName == "Datadog Installer" || providerName == "dd-procmgr-service" {
 			continue
 		}
 		entries, err := windowsCommon.GetEventLogEntriesFromProvider(host, "Application", providerName)
@@ -603,9 +666,6 @@ func (s *baseStartStopSuite) SetupSuite() {
 		windowsCommon.RebootAndWait(host, backoff.NewConstantBackOff(10*time.Second))
 	}
 
-	// TODO(WINA-1320): mark this crash as flaky while we investigate it
-	flake.MarkOnLog(s.T(), "Exception code: 0x40000015")
-
 	// Enable crash dumps
 	s.dumpFolder = werCrashDumpFolder
 	err := windowsCommon.EnableWERGlobalDumps(host, s.dumpFolder)
@@ -633,7 +693,7 @@ func (s *baseStartStopSuite) SetupSuite() {
 
 	// Setup default expected services
 	s.runningUserServices = func() []string {
-		services := s.getInstalledUserServices()
+		services := s.filterLegacySCMServices(s.getInstalledUserServices())
 		if s.Env().Agent.FIPSEnabled {
 			// TODO: This service is not supported in FIPS mode yet
 			services = slices.DeleteFunc(services, func(svc string) bool {
@@ -643,14 +703,7 @@ func (s *baseStartStopSuite) SetupSuite() {
 		return services
 	}
 	s.runningServices = func() []string {
-		services := s.getInstalledServices()
-		if s.Env().Agent.FIPSEnabled {
-			// TODO: This service is not supported in FIPS mode yet
-			services = slices.DeleteFunc(services, func(svc string) bool {
-				return svc == "Datadog Installer"
-			})
-		}
-		return services
+		return append(slices.Clone(s.runningUserServices()), s.getInstalledKernelServices()...)
 	}
 }
 
@@ -708,21 +761,27 @@ const xperfSCMSessionName = "scm-trace"
 // FileMode so that for tests with multiple start/stop iterations the trace captures
 // the tail of activity around whichever iteration fails.
 func (s *baseStartStopSuite) startXperf(host *components.RemoteHost) {
-	err := host.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
-	if !s.Assert().NoError(err, "should fetch xperf artifact") {
+	xperfPath := "C:/xperf/xperf.exe"
+	xperfExists, err := host.FileExists(xperfPath)
+	if !s.Assert().NoError(err, "should check whether xperf is already installed") {
 		return
 	}
 
-	// Extract if C:/xperf dir does not exist.
-	_, err = host.Execute("if (-Not (Test-Path -Path C:/xperf)) { Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf }")
-	if !s.Assert().NoError(err, "should expand xperf archive") {
-		return
+	if !xperfExists {
+		err = host.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
+		if !s.Assert().NoError(err, "should fetch xperf artifact") {
+			return
+		}
+
+		_, err = host.Execute("Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf -Force")
+		if !s.Assert().NoError(err, "should expand xperf archive") {
+			return
+		}
 	}
 
 	// Single xperf invocation starts both the NT Kernel Logger (-on <KernelGroups> -f kernel.etl ...)
 	// and a named user-mode session (-start scm-trace -on Microsoft-Windows-Services) per the
 	// MS TSS xperf SCM-tracing recipe. -d on stop will merge both into a single .etl.
-	xperfPath := "C:/xperf/xperf.exe"
 	cmd := fmt.Sprintf(
 		`& "%s" -on Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f C:/kernel.etl -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular -start %s -on Microsoft-Windows-Services`,
 		xperfPath, xperfSCMSessionName,
@@ -963,11 +1022,27 @@ func (s *baseStartStopSuite) stopAllServices() {
 	}
 }
 
+// legacySCMServices are SCM shells superseded by dd-procmgr; they stay Stopped while
+// dd-procmgr-service supervises the workload.
+func (s *baseStartStopSuite) legacySCMServices() []string {
+	return []string{
+		"datadog-process-agent",
+		"datadog-system-probe",
+	}
+}
+
+func (s *baseStartStopSuite) filterLegacySCMServices(services []string) []string {
+	return slices.DeleteFunc(slices.Clone(services), func(svc string) bool {
+		return slices.Contains(s.legacySCMServices(), svc)
+	})
+}
+
 func (s *baseStartStopSuite) getInstalledUserServices() []string {
 	return []string{
 		"datadogagent",
 		"datadog-trace-agent",
 		"datadog-process-agent",
+		"dd-procmgr-service",
 		"datadog-security-agent",
 		"datadog-system-probe",
 		"Datadog Installer",
@@ -984,6 +1059,7 @@ func (s *baseStartStopSuite) getInstalledKernelServices() []string {
 // expectedInstalledServices returns the list of services that should be installed by the agent
 func (s *baseStartStopSuite) getInstalledServices() []string {
 	user := s.getInstalledUserServices()
+	user = append(user, "dd-procmgr-service")
 	kernel := s.getInstalledKernelServices()
 	return append(user, kernel...)
 }
@@ -992,10 +1068,9 @@ func (s *baseStartStopSuite) getInstalledServices() []string {
 func (s *baseStartStopSuite) getAgentEventLogErrorsAndWarnings() ([]windowsCommon.EventLogEntry, error) {
 	host := s.Env().RemoteHost
 	providerNames := s.getInstalledUserServices()
-	// remove the Datadog Installer service from the list of provider names
-	// we do not have an event log for it
+	// remove services that do not register an Application event log provider
 	providerNames = slices.DeleteFunc(providerNames, func(s string) bool {
-		return s == "Datadog Installer"
+		return s == "Datadog Installer" || s == "dd-procmgr-service"
 	})
 	providerNamesFilter := fmt.Sprintf(`"%s"`, strings.Join(providerNames, `","`))
 	filter := fmt.Sprintf(`@{ LogName='Application'; ProviderName=%s; Level=1,2,3 }`, providerNamesFilter)

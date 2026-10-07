@@ -145,4 +145,9 @@ struct network_context_t {
     u32 network_direction;
 };
 
+// key of the `credential_endpoints` map, laid out like flow_t
+struct credential_endpoint_t {
+    u64 addr[2];
+};
+
 #endif

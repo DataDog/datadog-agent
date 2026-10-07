@@ -105,7 +105,7 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 			sample: metricSample,
 			host:   context.Host,
 			tags:   context.Tags(),
-		})
+		}, uint64(contextKey))
 	}
 	bucketStart := s.calculateBucketStart(timestamp)
 

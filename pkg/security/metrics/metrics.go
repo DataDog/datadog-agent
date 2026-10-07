@@ -370,6 +370,12 @@ var (
 	// MetricSBOMResolverSBOMCacheMiss is the name of the metric used to report the number of SBOMs that weren't in cache
 	// Tags: -
 	MetricSBOMResolverSBOMCacheMiss = newRuntimeMetric(".sbom_resolver.sbom_cache.miss")
+	// MetricSBOMResolverEnrichedSBOMForwarded is the name of the metric used to report the number of enriched SBOMs forwarded to the core agent
+	// Tags: -
+	MetricSBOMResolverEnrichedSBOMForwarded = newRuntimeMetric(".sbom_resolver.enriched_sbom_forwarded")
+	// MetricSBOMResolverEnrichedSBOMForwardDropped is the name of the metric used to report the number of enriched SBOMs dropped instead of being forwarded to the core agent
+	// Tags: -
+	MetricSBOMResolverEnrichedSBOMForwardDropped = newRuntimeMetric(".sbom_resolver.enriched_sbom_forward_dropped")
 
 	// CGroup resolver metrics
 
@@ -561,6 +567,13 @@ var (
 	// MetricNameTruncated is the name of the metric used to report truncated name used in prctl
 	// Tags: -
 	MetricNameTruncated = newRuntimeMetric(".prctl.name_truncated")
+
+	// Capabilities monitoring metrics
+
+	// MetricCapabilitiesExecutableMismatch is the name of the metric used to report capabilities usage
+	// events dropped because they couldn't be attributed to the program/executable that used the capabilities
+	// Tags: -
+	MetricCapabilitiesExecutableMismatch = newRuntimeMetric(".capabilities.executable_mismatch")
 
 	// Security Profile V2 metrics
 

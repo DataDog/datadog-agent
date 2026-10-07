@@ -74,7 +74,7 @@ func TestActionKill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -231,7 +231,7 @@ func TestActionKillExcludeBinary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	sleepCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -292,7 +292,7 @@ func TestActionKillRuleSpecific(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -590,7 +590,7 @@ func TestActionKillDisarm(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -632,7 +632,7 @@ func TestActionHash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("test-hash-action")
 	if err != nil {
@@ -891,7 +891,7 @@ func TestActionKillWithSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var capturedSignature string
 	var tailCmd *exec.Cmd
@@ -1082,7 +1082,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var capturedSignature string
 	var tailCmd *exec.Cmd
@@ -1287,7 +1287,7 @@ func TestActionKillContainerWithSignatureBroadRule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var capturedSignature string
 	var catCmd *exec.Cmd
@@ -1478,7 +1478,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -1824,7 +1824,7 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("not-triggered-sent-at-startup", func(t *testing.T) {
 		newRuleDefs := []*rules.RuleDefinition{remediationNotTriggeredRule}
@@ -1966,7 +1966,7 @@ func TestCustomEventContainer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var cGroupID string
 	var catCmd *exec.Cmd

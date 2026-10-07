@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    gpu: fix missing per-link NVLink error counters on NVIDIA Hopper and newer GPUs.
+    The Agent now reports ``gpu.nvlink.errors.replay``, ``gpu.nvlink.errors.recovery``,
+    ``gpu.nvlink.errors.crc.flit``, and ``gpu.nvlink.errors.ecc`` using the Hopper
+    per-link error counter APIs, restoring coverage that legacy NVML field IDs no longer
+    provide on these architectures.

@@ -19,6 +19,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/aggregator/demultiplexer/def",
+        "//comp/aggregator/dogstatsdclientdropdetector/def",
         "//comp/anomalydetection/observer/def",
         "//comp/core/config",
         "//comp/core/hostname",
@@ -63,6 +64,7 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/aggregator/demultiplexer/def",
+        "//comp/aggregator/dogstatsdclientdropdetector/def",
         "//comp/anomalydetection/observer/def",
         "//comp/core",
         "//comp/core/config",

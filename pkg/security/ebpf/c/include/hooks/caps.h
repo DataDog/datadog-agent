@@ -6,8 +6,7 @@
 // always ship BTF) we detect it directly: override_creds only swaps current->cred and leaves
 // current->real_cred untouched, so cred != real_cred exactly while an override is in effect
 // (commit_creds sets both, so they are otherwise equal). This requires the task_struct cred/real_cred
-// offsets, which are only resolved through BTF; when they are unavailable the offsets are 0 and this
-// returns false, in which case the override_creds/revert_creds depth counter below is relied upon.
+// offsets, without which capabilities monitoring is disabled from userspace.
 static __attribute__((always_inline)) int is_in_creds_override() {
     u64 cred_offset = get_task_struct_cred_offset();
     u64 real_cred_offset = get_task_struct_real_cred_offset();
@@ -26,9 +25,22 @@ static __attribute__((always_inline)) int is_in_creds_override() {
     return cred != real_cred;
 }
 
+static __attribute__((always_inline)) int is_current_task_cred(void *cred) {
+    u64 cred_offset = get_task_struct_cred_offset();
+    if (cred_offset == 0) {
+        return 1;
+    }
+
+    void *task = (void *)bpf_get_current_task();
+
+    void *current_cred = NULL;
+    bpf_probe_read(&current_cred, sizeof(current_cred), (char *)task + cred_offset);
+
+    return cred == current_cred;
+}
+
 // On kernels < 6.13, override_creds/revert_creds are still out-of-line and hookable. They maintain a
-// per-thread depth counter so that capability checks made under overridden credentials are skipped,
-// which also covers kernels without BTF where is_in_creds_override() cannot resolve the cred offsets.
+// per-thread depth counter so that capability checks made under overridden credentials are skipped.
 HOOK_ENTRY("override_creds")
 int hook_override_creds(ctx_t *ctx) {
     u64 tgid_tid = bpf_get_current_pid_tgid();
@@ -70,18 +82,76 @@ int hook_revert_creds(ctx_t *ctx) {
     return 0;
 }
 
+// capable() is ns_capable(&init_user_ns, cap) and netlink_capable() reaches the same check through
+// a netlink wrapper: both check for the capability in the initial user namespace (init_user_ns).
+// Nothing in the arguments of security_capable() tells apart a check against init_user_ns from a check aimed at the
+// user namespace of the task, so we have to rely on these two hooks to make that distinction.
+static __attribute__((always_inline)) int collect_host_userns_cap(u64 cap) {
+    if (cap >= 64) { // a shift past the mask width would collect a meaningless capability
+        return 0;
+    }
+
+    u64 tgid_tid = bpf_get_current_pid_tgid();
+    u32 tid = (u32)tgid_tid;
+
+    struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
+    if (cap_context) {
+        cap_context->host_userns_cap_as_mask = 1ULL << cap;
+    } else {
+        struct capabilities_context_t new_context = {
+            .host_userns_cap_as_mask = 1ULL << cap,
+        };
+        bpf_map_update_elem(&capabilities_contexts, &tid, &new_context, BPF_ANY);
+    }
+
+    return 0;
+}
+
+HOOK_ENTRY("capable")
+int hook_capable(ctx_t *ctx) {
+    return collect_host_userns_cap(CTX_PARM1(ctx));
+}
+
+HOOK_ENTRY("netlink_capable")
+int hook_netlink_capable(ctx_t *ctx) {
+    return collect_host_userns_cap(CTX_PARM2(ctx));
+}
+
 HOOK_ENTRY("security_capable")
 int hook_security_capable(ctx_t *ctx) {
     u64 tgid_tid = bpf_get_current_pid_tgid();
     u32 tid = (u32)tgid_tid;
     struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
 
+    // clear before any early return: this program can be skipped while the return still runs, and a
+    // collected capability left behind would be attributed to the next check of that capability
+    u64 collected_host_userns_cap = 0;
+    if (cap_context) {
+        cap_context->cap_as_mask = 0;
+        collected_host_userns_cap = cap_context->host_userns_cap_as_mask;
+        cap_context->host_userns_cap_as_mask = 0;
+    }
+
     if (is_in_creds_override() || (cap_context && cap_context->override_creds_depth != 0)) {
         // do not track capabilities checked under temporarily overridden credentials
         return 0;
     }
 
+    // security_capable() can be called for credentials that are not the current task's: another
+    // task's real_cred, a file's f_cred, a tracer
+    if (!is_current_task_cred((void *)CTX_PARM1(ctx))) {
+        // netlink_capable() checks the socket opener's f_cred before the current task's credentials:
+        // keep what was collected for that second check
+        if (cap_context) {
+            cap_context->host_userns_cap_as_mask = collected_host_userns_cap;
+        }
+        return 0;
+    }
+
     u64 cap = CTX_PARM3(ctx); // The capability being checked
+    if (cap >= 64) { // a shift past the mask width would collect a meaningless capability
+        return 0;
+    }
 
     // capabilities are a per-thread attribute, but as our process model is process-based we use
     // the tgid to aggregate capabilities usage per process.
@@ -105,25 +175,37 @@ int hook_security_capable(ctx_t *ctx) {
     // we can use a bitmask here because CAP_LAST_CAP is less than 64
     u64 cap_as_mask = 1ULL << cap;
 
+    // merge what collect_host_userns_cap collected for this call: anything collected for a different
+    // capability belongs to a call we never saw the entry, so better drop it
+    u64 host_userns_cap_as_mask = 0;
+    if (collected_host_userns_cap == cap_as_mask) {
+        host_userns_cap_as_mask = cap_as_mask;
+    }
+
     // Look up the capabilities usage entry for this process
     struct capabilities_usage_entry_t *entry = bpf_map_lookup_elem(&capabilities_usage, &key);
     if (!entry) {
         struct capabilities_usage_entry_t new_entry = {0};
         new_entry.usage.attempted = cap_as_mask;
         new_entry.usage.used = 0;
+        new_entry.usage.attempted_host_userns = host_userns_cap_as_mask;
         update_dirty(&new_entry, 1); // Mark as dirty since we are creating a new entry
         bpf_map_update_elem(&capabilities_usage, &key, &new_entry, BPF_ANY);
     } else {
-        update_dirty(entry, (entry->usage.attempted & cap_as_mask) == 0); // Mark as dirty if this capability was not previously attempted
+        int is_new = (entry->usage.attempted & cap_as_mask) == 0 || (host_userns_cap_as_mask && (entry->usage.attempted_host_userns & cap_as_mask) == 0);
+        update_dirty(entry, is_new);
         entry->usage.attempted |= cap_as_mask; // Mark the capability as checked
+        entry->usage.attempted_host_userns |= host_userns_cap_as_mask;
     }
 
     if (cap_context) {
         cap_context->cap_as_mask = cap_as_mask;
+        cap_context->host_userns_check = host_userns_cap_as_mask;
     } else {
         // If no context exists, we create a new one
         struct capabilities_context_t new_context = {
             .cap_as_mask = cap_as_mask,
+            .host_userns_check = host_userns_cap_as_mask,
         };
         bpf_map_update_elem(&capabilities_contexts, &tid, &new_context, BPF_ANY);
     }
@@ -136,20 +218,38 @@ int rethook_security_capable(ctx_t *ctx) {
     u64 tgid_tid = bpf_get_current_pid_tgid();
     u32 tid = (u32)tgid_tid;
     struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
-    if (!cap_context || !cap_context->cap_as_mask) {
+    if (!cap_context) {
         // unexpected, we should have a context at this point since we created one in hook_security_capable
         return 0;
     }
 
-    if (is_in_creds_override() || cap_context->override_creds_depth != 0) {
-        // do not track capabilities checked under temporarily overridden credentials
+    u64 cap_as_mask = cap_context->cap_as_mask; // The capability being checked as a bitmask
+    u64 override_creds_depth = cap_context->override_creds_depth;
+    u64 host_userns_check = cap_context->host_userns_check;
+    int retval = CTX_PARMRET(ctx); // The return value of the capability check, (0 for success, !0 for failure)
+
+    // the entry only keeps a collected capability pending for the socket opener check of netlink_capable():
+    // if that check failed, __netlink_ns_capable() short-circuits and never checks the current task's credentials
+    // so we need to clear host_userns_cap_as_mask here.
+    if (retval != 0) {
+        cap_context->host_userns_cap_as_mask = 0;
+    }
+
+    // a pending capability has to outlive this call, for the check against the current task's credentials
+    if (override_creds_depth == 0 && cap_context->host_userns_cap_as_mask == 0) {
+        // delete the context now to prevent a previous cap from being picked up by an another call to security_capable
+        bpf_map_delete_elem(&capabilities_contexts, &tid);
+    } else {
+        // reset the caps in case of override_creds or a pending host_userns cap
+        cap_context->cap_as_mask = 0;
+        cap_context->host_userns_check = 0;
+        // the depth counter has to outlive the call
+    }
+
+    if (!cap_as_mask || override_creds_depth != 0 || is_in_creds_override()) {
         return 0;
     }
 
-    u64 cap_as_mask = cap_context->cap_as_mask; // The capability being checked as a bitmask
-    bpf_map_delete_elem(&capabilities_contexts, &tid); // Free the context because we are done with it at this point
-
-    int retval = CTX_PARMRET(ctx); // The return value of the capability check, (0 for success, !0 for failure)
     if (retval != 0) { // If the capability check was not successful, we do not need to update the used capabilities set
         return 0;
     }
@@ -178,8 +278,12 @@ int rethook_security_capable(ctx_t *ctx) {
         return 0;
     }
 
-    update_dirty(entry, (entry->usage.used & cap_as_mask) == 0); // Mark as dirty if this capability was not previously used
+    int is_new = (entry->usage.used & cap_as_mask) == 0 || (host_userns_check && (entry->usage.used_host_userns & cap_as_mask) == 0);
+    update_dirty(entry, is_new);
     entry->usage.used |= cap_as_mask;
+    if (host_userns_check) {
+        entry->usage.used_host_userns |= cap_as_mask;
+    }
 
     return 0;
 }
@@ -192,6 +296,10 @@ static long for_each_capabilities_usage_cb(struct bpf_map *map, const void *k, v
     struct capabilities_usage_key_t *key = (struct capabilities_usage_key_t *)k;
     struct capabilities_usage_entry_t *entry = (struct capabilities_usage_entry_t *)value;
     struct bpf_perf_event_data *ctx = ((struct callback_context_t *)callback_ctx)->ctx;
+
+    if (!period_reached_or_new_entry(entry, bpf_ktime_get_ns())) {
+        return 0;
+    }
 
     send_capabilities_usage_event(ctx, key, entry);
 

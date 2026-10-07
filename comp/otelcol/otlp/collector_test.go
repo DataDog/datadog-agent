@@ -77,6 +77,20 @@ func TestStartPipeline(t *testing.T) {
 	AssertSuccessfulRun(t, pcfg)
 }
 
+// withEphemeralEndpoints binds every receiver protocol to an OS-assigned port,
+// since fixed ports (including the 4317/4318 defaults) collide with concurrent tests.
+func withEphemeralEndpoints(receiverCfg map[string]interface{}) {
+	protocols := receiverCfg["protocols"].(map[string]interface{})
+	for name, proto := range protocols {
+		settings, _ := proto.(map[string]interface{})
+		if settings == nil {
+			settings = map[string]interface{}{}
+		}
+		settings["endpoint"] = "localhost:0"
+		protocols[name] = settings
+	}
+}
+
 func TestStartPipelineFromConfig(t *testing.T) {
 	cfg := pkgconfigmock.New(t)
 	cfg.SetInTest("hostname", "otlp-testhostname")
@@ -104,6 +118,7 @@ func TestStartPipelineFromConfig(t *testing.T) {
 			pcfg, err := FromAgentConfig(cfg)
 			require.NoError(t, err)
 			if testInstance.err == "" {
+				withEphemeralEndpoints(pcfg.OTLPReceiverConfig)
 				AssertSuccessfulRun(t, pcfg)
 			} else {
 				AssertFailedRun(t, pcfg, testInstance.err)

@@ -8,6 +8,7 @@ package client
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"os"
 	"path"
@@ -121,8 +122,8 @@ func copyFileFromIoReader(sftpClient *sftp.Client, srcFile io.Reader, dst string
 	return nil
 }
 
-func copyFile(sftpClient *sftp.Client, src string, dst string) error {
-	srcFile, err := os.Open(src)
+func copyFile(sftpClient *sftp.Client, fs fs.FS, src string, dst string) error {
+	srcFile, err := fs.Open(src)
 	if err != nil {
 		return err
 	}
@@ -130,8 +131,8 @@ func copyFile(sftpClient *sftp.Client, src string, dst string) error {
 	return copyFileFromIoReader(sftpClient, srcFile, dst)
 }
 
-func copyFolder(sftpClient *sftp.Client, srcFolder string, dstFolder string) error {
-	folderContent, err := os.ReadDir(srcFolder)
+func copyFolder(sftpClient *sftp.Client, fsys fs.FS, srcFolder string, dstFolder string) error {
+	folderContent, err := fs.ReadDir(fsys, srcFolder)
 	if err != nil {
 		return err
 	}
@@ -142,12 +143,12 @@ func copyFolder(sftpClient *sftp.Client, srcFolder string, dstFolder string) err
 
 	for _, d := range folderContent {
 		if !d.IsDir() {
-			err := copyFile(sftpClient, path.Join(srcFolder, d.Name()), path.Join(dstFolder, d.Name()))
+			err := copyFile(sftpClient, fsys, path.Join(srcFolder, d.Name()), path.Join(dstFolder, d.Name()))
 			if err != nil {
 				return err
 			}
 		} else {
-			err = copyFolder(sftpClient, path.Join(srcFolder, d.Name()), path.Join(dstFolder, d.Name()))
+			err = copyFolder(sftpClient, fsys, path.Join(srcFolder, d.Name()), path.Join(dstFolder, d.Name()))
 			if err != nil {
 				return err
 			}
