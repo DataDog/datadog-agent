@@ -71,8 +71,9 @@ build do
   # foldspace to it instead of overriding it.
   foldspace_build_args = ""
   if linux_target? && !ENV['DD_FOLDSPACE_BUILD'].to_s.empty?
-    default_tags = `dda inv -- -e print-default-build-tags --build=agent --flavor=#{flavor_arg}`.strip
-    raise "failed to compute default build tags for the foldspace build" unless $?.success?
+    # The tag list is the last line; dda may print notices before it.
+    default_tags = `dda inv -- -e print-default-build-tags --build=agent --flavor=#{flavor_arg}`.lines.last.to_s.strip
+    raise "failed to compute default build tags for the foldspace build" unless $?.success? && default_tags.match?(/\A[\w.,-]+\z/)
     foldspace_build_args = "--build-include=#{default_tags},foldspace"
   end
   # include embedded path (mostly for `pkg-config` binary)
@@ -126,7 +127,11 @@ build do
     # expects to find it at runtime.
     foldspace_arch = (ENV['PACKAGE_ARCH'] == 'arm64') ? 'linux_arm64' : 'linux_amd64'
     foldspace_lib = "#{project_dir}/comp/logs-library/sender/foldspace/nativelib/#{foldspace_arch}/libfoldspace_go.so"
-    raise "no vendored libfoldspace_go.so for #{foldspace_arch}" unless File.exist?(foldspace_lib)
+    # The check runs as a build step: omnibus evaluates this file before the
+    # sources are in project_dir, so a load-time File.exist? always fails.
+    block "Check the vendored libfoldspace_go.so" do
+      raise "no vendored libfoldspace_go.so for #{foldspace_arch}" unless File.exist?(foldspace_lib)
+    end
     copy foldspace_lib, "#{install_dir}/embedded/lib/"
   end
 
