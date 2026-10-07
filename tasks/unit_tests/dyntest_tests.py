@@ -12,10 +12,11 @@ from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler
 
 class TestEvaluateIndex(unittest.TestCase):
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
+    @patch("tasks.dyntest.is_enabled", return_value=True)
     @patch("tasks.dyntest.S3Backend")
     @patch("tasks.dyntest.JevDynTestExecutor")
     @patch("tasks.dyntest.DatadogDynTestEvaluator")
-    def test_jev_uses_shared_evaluator_without_s3_or_publishing(self, evaluator, executor, s3, _):
+    def test_jev_uses_shared_evaluator_without_s3_or_publishing(self, evaluator, executor, s3, _, enabled):
         executor.return_value.kind = IndexKind.JEV
         result = MagicMock()
         result.actual_count.return_value = 1
@@ -66,14 +67,16 @@ class TestEvaluateIndex(unittest.TestCase):
                 evaluate_index.body(Context(), **args)
 
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
-    def test_jev_requires_matching_checkout(self, _):
+    @patch("tasks.dyntest.is_enabled", return_value=True)
+    def test_jev_requires_matching_checkout(self, _, enabled):
         with self.assertRaisesRegex(Exit, "check out"):
             evaluate_index.body(Context(), commit_sha="other", pipeline_id="42", selector="jev")
 
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
+    @patch("tasks.dyntest.is_enabled", return_value=True)
     @patch("tasks.dyntest.JevDynTestExecutor")
     @patch("tasks.dyntest.DatadogDynTestEvaluator")
-    def test_empty_evaluation_fails_without_sending_stats(self, evaluator, executor, _):
+    def test_empty_evaluation_fails_without_sending_stats(self, evaluator, executor, _, enabled):
         executor.return_value.kind = IndexKind.JEV
         for results in ([], [MagicMock(actual_count=lambda: 0)]):
             evaluator.return_value.evaluate.return_value = results
@@ -82,9 +85,10 @@ class TestEvaluateIndex(unittest.TestCase):
             evaluator.return_value.send_stats_to_datadog.assert_not_called()
 
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
+    @patch("tasks.dyntest.is_enabled", return_value=True)
     @patch("tasks.dyntest.JevDynTestExecutor")
     @patch("tasks.dyntest.DatadogDynTestEvaluator")
-    def test_nothing_to_evaluate_is_benign(self, evaluator, executor, _):
+    def test_nothing_to_evaluate_is_benign(self, evaluator, executor, _, enabled):
         """A pipeline with no completed E2E test jobs exits cleanly, not red."""
         executor.return_value.kind = IndexKind.JEV
         evaluator.return_value.initialize.return_value = False
@@ -94,9 +98,20 @@ class TestEvaluateIndex(unittest.TestCase):
         evaluator.return_value.evaluate.assert_not_called()
 
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
+    @patch("tasks.dyntest.is_enabled", return_value=False)
+    @patch("tasks.dyntest.JevDynTestExecutor")
+    def test_jev_disabled_by_feature_flag_exits_0(self, executor, enabled, _):
+        """The jev-evaluation feature flag disabled: the task exits 0 and
+        builds no executor at all (the CI job stays green)."""
+        evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False)
+        enabled.assert_called_once()
+        executor.assert_not_called()
+
+    @patch("tasks.dyntest.get_commit_sha", return_value="abc")
+    @patch("tasks.dyntest.is_enabled", return_value=True)
     @patch("tasks.dyntest.JevDynTestExecutor")
     @patch("tasks.dyntest.DatadogDynTestEvaluator")
-    def test_initialization_failure_is_visible(self, evaluator, executor, _):
+    def test_initialization_failure_is_visible(self, evaluator, executor, _, enabled):
         executor.return_value.kind = IndexKind.JEV
         evaluator.return_value.initialize.return_value = False
         with self.assertRaisesRegex(Exit, "incomplete"):

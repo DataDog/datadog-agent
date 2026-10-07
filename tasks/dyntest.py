@@ -11,6 +11,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.auth import get_aws_vault_env
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.feature_flags import is_enabled
 from tasks.libs.common.git import get_commit_sha, get_modified_files
 from tasks.libs.common.utils import environ
 from tasks.libs.dynamic_test.backend import S3Backend
@@ -117,6 +118,10 @@ def evaluate_index(
     authentication and preinstalled authanywhere for AI Gateway access.
     AI_GATEWAY_TOKEN or JEV_TOKEN_CMD/JEV_DC can override Gateway authentication.
     GITHUB_TOKEN optionally supplies the PR title/description.
+
+    The Jev evaluation is an experiment gated by the dda feature flag
+    'jev-evaluation' (dda self feature jev-evaluation): when disabled, the
+    task exits 0 without evaluating - the evaluation job stays green.
     """
     if selector not in {"coverage", "jev"}:
         raise Exit("--selector must be coverage or jev", code=1)
@@ -126,6 +131,13 @@ def evaluate_index(
     commit_sha = commit_sha or head
     executors: list[DynTestExecutor] = []
     if selector == "jev":
+        # The Jev evaluation is an experiment: it runs on every dev-branch
+        # pipeline, and is disabled remotely through the dda feature flags
+        # (dda self feature jev-evaluation) - disabled just exits 0, the
+        # evaluation job stays green
+        if not is_enabled(ctx, "jev-evaluation"):
+            print(color_message("Jev evaluation disabled (feature flag jev-evaluation)", Color.ORANGE))
+            return
         if commit_sha != head:
             raise Exit("For Jev, check out the pipeline commit and pass its full SHA (or omit --commit-sha)", code=1)
         # A plain DynTestExecutor with a static index (committed in Git, where
