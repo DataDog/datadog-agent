@@ -7,6 +7,7 @@ package setup
 
 import (
 	"fmt"
+	"reflect"
 	"runtime"
 	"sort"
 	"strconv"
@@ -234,6 +235,139 @@ func keyExplicitlySet(config pkgconfigmodel.Reader, key string) bool {
 		}
 	}
 	return false
+}
+
+// LogsPerformanceProfileChange is a key whose effective value would change.
+type LogsPerformanceProfileChange struct {
+	Key  string
+	From interface{}
+	To   interface{}
+}
+
+// LogsPerformanceProfileBlockedKey is a profile key that an explicit setting overrides.
+type LogsPerformanceProfileBlockedKey struct {
+	Key    string
+	Source string
+}
+
+// LogsPerformanceProfileCurrentSetting is a profile key's effective value and source today.
+type LogsPerformanceProfileCurrentSetting struct {
+	Key    string
+	Value  interface{}
+	Source string
+}
+
+// LogsPerformanceProfilePlan describes what switching to a profile would change.
+type LogsPerformanceProfilePlan struct {
+	Name             string
+	Version          int
+	Description      string
+	Current          []LogsPerformanceProfileCurrentSetting
+	Changes          []LogsPerformanceProfileChange
+	Blocked          []LogsPerformanceProfileBlockedKey
+	ProfileKeySource string
+}
+
+// LatestLogsPerformanceProfileVersion returns the version new deployments should pin for name.
+func LatestLogsPerformanceProfileVersion(name string) (int, bool) {
+	versions, ok := logsPerformanceProfiles[name]
+	if !ok || len(versions) == 0 {
+		return 0, false
+	}
+	latest := 0
+	for v := range versions {
+		latest = max(latest, v)
+	}
+	return latest, true
+}
+
+// PlanLogsPerformanceProfile describes what switching to candidate (latest version) would change on this config. ok is false if candidate is not in the catalog.
+func PlanLogsPerformanceProfile(config pkgconfigmodel.Reader, candidate string) (LogsPerformanceProfilePlan, bool) {
+	version, ok := LatestLogsPerformanceProfileVersion(candidate)
+	if !ok {
+		return LogsPerformanceProfilePlan{}, false
+	}
+	profile := logsPerformanceProfiles[candidate][version]
+	plan := LogsPerformanceProfilePlan{
+		Name:             candidate,
+		Version:          version,
+		Description:      profile.description,
+		ProfileKeySource: string(config.GetSource("logs_config.profile")),
+	}
+	for _, key := range sortedSettingKeys(profile.settings) {
+		current := config.Get(key)
+		plan.Current = append(plan.Current, LogsPerformanceProfileCurrentSetting{
+			Key:    key,
+			Value:  current,
+			Source: string(config.GetSource(key)),
+		})
+		if keyExplicitlySet(config, key) {
+			plan.Blocked = append(plan.Blocked, LogsPerformanceProfileBlockedKey{Key: key, Source: string(explicitSource(config, key))})
+			continue
+		}
+		target := resolveProfileSettingValue(profile.settings[key])
+		if !profileValuesEqual(current, target) {
+			plan.Changes = append(plan.Changes, LogsPerformanceProfileChange{Key: key, From: current, To: target})
+		}
+	}
+	return plan, true
+}
+
+// explicitSource returns the source that makes key explicitly set.
+func explicitSource(config pkgconfigmodel.Reader, key string) pkgconfigmodel.Source {
+	if src := config.GetSource(key); isYieldSource(src) {
+		return src
+	}
+	for _, vs := range config.GetAllSources(key) {
+		if vs.Value != nil && isYieldSource(vs.Source) {
+			return vs.Source
+		}
+	}
+	return config.GetSource(key)
+}
+
+func isYieldSource(src pkgconfigmodel.Source) bool {
+	_, ok := profileYieldSources[src]
+	return ok
+}
+
+// profileValuesEqual compares config values, treating numeric types as equal when numerically equal.
+func profileValuesEqual(a, b interface{}) bool {
+	if fa, ok := toFloat64(a); ok {
+		fb, ok := toFloat64(b)
+		return ok && fa == fb
+	}
+	return reflect.DeepEqual(a, b)
+}
+
+func toFloat64(v interface{}) (float64, bool) {
+	switch n := v.(type) {
+	case int:
+		return float64(n), true
+	case int8:
+		return float64(n), true
+	case int16:
+		return float64(n), true
+	case int32:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case uint:
+		return float64(n), true
+	case uint8:
+		return float64(n), true
+	case uint16:
+		return float64(n), true
+	case uint32:
+		return float64(n), true
+	case uint64:
+		return float64(n), true
+	case float32:
+		return float64(n), true
+	case float64:
+		return n, true
+	}
+	return 0, false
 }
 
 // allProfileSettingKeys returns the union of every config key any catalog profile

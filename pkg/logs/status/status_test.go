@@ -476,62 +476,6 @@ func TestProfileRecommendation_BothLossSignalsRecentDoesNotMaskBackpressure(t *t
 	assert.Equal(t, "high-throughput", rec.Profile)
 }
 
-func TestLossWindowRecency(t *testing.T) {
-	var w lossWindow
-	base := time.Unix(1000, 0)
-
-	// First observation only seeds the baseline.
-	dr, mr, _ := w.observe(5, 0, 0, 0, base)
-	assert.False(t, dr)
-	assert.False(t, mr)
-
-	// A subsequent increase counts as recent loss (recorded at base+1s).
-	dr, mr, _ = w.observe(7, 0, 0, 0, base.Add(time.Second))
-	assert.True(t, dr)
-	assert.False(t, mr)
-
-	// No further increase: still recent within the window.
-	dr, _, _ = w.observe(7, 0, 0, 0, base.Add(2*time.Minute))
-	assert.True(t, dr)
-
-	// Past the window with no new loss: ages out.
-	dr, _, _ = w.observe(7, 0, 0, 0, base.Add(time.Second+lossRecencyWindow+time.Second))
-	assert.False(t, dr, "stale loss must age out of the recency window")
-
-	// A fresh increase makes it recent again.
-	dr, _, _ = w.observe(8, 0, 0, 0, base.Add(time.Second+lossRecencyWindow+2*time.Second))
-	assert.True(t, dr)
-}
-
-func TestLossWindowDelivering(t *testing.T) {
-	var w lossWindow
-	base := time.Unix(1000, 0)
-
-	// First observation only seeds the baseline; assume delivery (no history).
-	_, _, delivering := w.observe(0, 0, 0, 0, base)
-	assert.True(t, delivering)
-
-	// Logs advanced through processing but none were sent this interval: the
-	// intake is rejecting or unreachable.
-	_, _, delivering = w.observe(0, 0, 100, 0, base.Add(time.Second))
-	assert.False(t, delivering)
-
-	// Lifetime sends are nonzero from earlier success, but processing keeps
-	// advancing while sent stays flat — a warm outage must still be detected.
-	_, _, delivering = w.observe(0, 0, 100, 50, base.Add(2*time.Second))
-	assert.True(t, delivering, "a fresh send marks the intake as delivering")
-	_, _, delivering = w.observe(0, 0, 200, 50, base.Add(3*time.Second))
-	assert.False(t, delivering, "processing advancing while sent stays flat is a current outage")
-
-	// Sends resume: delivering again.
-	_, _, delivering = w.observe(0, 0, 300, 150, base.Add(4*time.Second))
-	assert.True(t, delivering)
-
-	// Idle pipeline (nothing processed or sent this interval): not flagged.
-	_, _, delivering = w.observe(0, 0, 300, 150, base.Add(5*time.Second))
-	assert.True(t, delivering)
-}
-
 func TestStatusMetricsIncludesLoss(t *testing.T) {
 	defer Clear()
 	initStatus(t)

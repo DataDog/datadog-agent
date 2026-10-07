@@ -387,3 +387,131 @@ logs_config:
 	assert.Equal(t, 20, cfg.GetInt("logs_config.batch_max_concurrent_send"),
 		"the profile must still fill in keys fleet policy did not override")
 }
+
+func TestPlanLogsPerformanceProfile(t *testing.T) {
+	tests := []struct {
+		name        string
+		yaml        string
+		candidate   string
+		wantOK      bool
+		wantChanges []string
+		wantBlocked map[string]pkgconfigmodel.Source
+	}{
+		{
+			name:      "default config changes every key",
+			candidate: "high-concurrency",
+			wantOK:    true,
+			wantChanges: []string{
+				"logs_config.batch_max_concurrent_send",
+				"logs_config.payload_channel_size",
+			},
+		},
+		{
+			name: "key set via file is blocked",
+			yaml: `
+logs_config:
+  pipelines: 1
+`,
+			candidate: "high-throughput",
+			wantOK:    true,
+			wantChanges: []string{
+				"logs_config.batch_max_concurrent_send",
+				"logs_config.message_channel_size",
+				"logs_config.payload_channel_size",
+			},
+			wantBlocked: map[string]pkgconfigmodel.Source{"logs_config.pipelines": pkgconfigmodel.SourceFile},
+		},
+		{
+			name: "key already at target is blocked and not a change",
+			yaml: `
+logs_config:
+  batch_max_concurrent_send: 20
+`,
+			candidate:   "high-concurrency",
+			wantOK:      true,
+			wantChanges: []string{"logs_config.payload_channel_size"},
+			wantBlocked: map[string]pkgconfigmodel.Source{"logs_config.batch_max_concurrent_send": pkgconfigmodel.SourceFile},
+		},
+		{
+			name:      "unknown profile",
+			candidate: "does-not-exist",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := confFromYAML(t, tt.yaml)
+
+			plan, ok := PlanLogsPerformanceProfile(cfg, tt.candidate)
+
+			require.Equal(t, tt.wantOK, ok)
+			if !ok {
+				return
+			}
+			assert.Equal(t, tt.candidate, plan.Name)
+			assert.Equal(t, 1, plan.Version)
+			assert.NotEmpty(t, plan.Description)
+			assert.Len(t, plan.Current, len(logsPerformanceProfiles[tt.candidate][1].settings))
+			for i := 1; i < len(plan.Current); i++ {
+				assert.Less(t, plan.Current[i-1].Key, plan.Current[i].Key)
+			}
+
+			var changeKeys []string
+			for _, c := range plan.Changes {
+				changeKeys = append(changeKeys, c.Key)
+				want := resolveProfileSettingValue(logsPerformanceProfiles[tt.candidate][1].settings[c.Key])
+				assert.Equal(t, want, c.To, c.Key)
+				assert.False(t, profileValuesEqual(c.From, c.To), c.Key)
+			}
+			assert.Equal(t, tt.wantChanges, changeKeys)
+
+			blocked := map[string]pkgconfigmodel.Source{}
+			for _, b := range plan.Blocked {
+				blocked[b.Key] = pkgconfigmodel.Source(b.Source)
+			}
+			assert.Equal(t, len(tt.wantBlocked), len(blocked))
+			for key, src := range tt.wantBlocked {
+				assert.Equal(t, src, blocked[key], key)
+			}
+		})
+	}
+}
+
+func TestPlanLogsPerformanceProfileResolvesPipelineSentinel(t *testing.T) {
+	cfg := confFromYAML(t, `
+logs_config:
+  pipelines: 8
+`)
+	plan, ok := PlanLogsPerformanceProfile(cfg, "low-resource")
+	require.True(t, ok)
+	for _, c := range plan.Changes {
+		assert.NotEqual(t, "logs_config.pipelines", c.Key)
+	}
+	require.Len(t, plan.Blocked, 1)
+	assert.Equal(t, "logs_config.pipelines", plan.Blocked[0].Key)
+
+	plan, ok = PlanLogsPerformanceProfile(confFromYAML(t, ``), "low-resource")
+	require.True(t, ok)
+	for _, c := range plan.Changes {
+		if c.Key == "logs_config.pipelines" {
+			assert.Equal(t, min(2, runtime.GOMAXPROCS(0)), c.To)
+		}
+	}
+}
+
+func TestLatestLogsPerformanceProfileVersion(t *testing.T) {
+	v, ok := LatestLogsPerformanceProfileVersion("high-throughput")
+	assert.True(t, ok)
+	assert.Equal(t, 1, v)
+
+	_, ok = LatestLogsPerformanceProfileVersion("does-not-exist")
+	assert.False(t, ok)
+}
+
+func TestProfileValuesEqual(t *testing.T) {
+	assert.True(t, profileValuesEqual(20, 20.0))
+	assert.True(t, profileValuesEqual(int64(20), 20))
+	assert.False(t, profileValuesEqual(20, 21))
+	assert.True(t, profileValuesEqual(false, false))
+	assert.False(t, profileValuesEqual(false, 0))
+	assert.False(t, profileValuesEqual(nil, 0))
+}

@@ -15,6 +15,7 @@ go_library(
         "//comp/logs/agent/config",
         "//pkg/config/model",
         "//pkg/config/setup",
+        "//pkg/logs/profilerec",
         "//pkg/logs/sources",
         "//pkg/logs/status/utils",
         "//pkg/logs/tailers",

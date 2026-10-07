@@ -107,8 +107,10 @@ type BackpressureStatus struct {
 
 // ProfileRecommendation suggests a logs_config.profile when the agent is losing logs.
 type ProfileRecommendation struct {
-	Profile string `json:"profile"`
-	Reason  string `json:"reason"`
+	Profile    string `json:"profile"`
+	Reason     string `json:"reason"`
+	ReasonCode string `json:"reason_code,omitempty"`
+	Bottleneck string `json:"bottleneck,omitempty"`
 }
 
 // PerformanceProfileSetting is one config key set by the active profile, with its effective value and source.
