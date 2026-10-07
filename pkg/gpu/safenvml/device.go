@@ -16,6 +16,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -175,6 +176,9 @@ type SafeDevice interface {
 	IsMigDeviceHandle() (bool, error)
 	// GetVirtualizationMode returns the virtualization mode of the device
 	GetVirtualizationMode() (nvml.GpuVirtualizationMode, error)
+	// GetGridLicensableFeatures returns the vGPU software licensable features
+	// of the device and their license state
+	GetGridLicensableFeatures() (nvml.GridLicensableFeatures, error)
 	// GetSupportedEventTypes returns a bitmask of all supported device events
 	GetSupportedEventTypes() (uint64, error)
 	// RegisterEvents registers the device for events to be waited in the given set
@@ -206,6 +210,8 @@ type DeviceInfo struct {
 	CoreCount          int
 	Architecture       nvml.DeviceArchitecture
 	VirtualizationMode nvml.GpuVirtualizationMode
+	// PCIBusID is the normalized PCI BDF from the last successful enumeration.
+	PCIBusID string
 
 	// NVLinkLinkCount is the number of NVLink links available on the device.
 	NVLinkLinkCount int
@@ -361,9 +367,12 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 
 		memInfo, err := device.SafeDevice.GetMemoryInfo()
 		if err != nil {
-			return nil, err
+			log.Warnf("error getting physical device memory info for device %s: %v", device.Name, err)
+			// Zero denotes unavailable device-local memory. Some devices have no on-chip
+			// memory and use shared host memory, so callers must omit capacity-derived metrics.
+		} else {
+			device.Memory = memInfo.Total
 		}
-		device.Memory = memInfo.Total
 	}
 
 	return device, nil
@@ -397,6 +406,8 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		migChildDevice.SMVersion = d.SMVersion
 		migChildDevice.Parent = d
 		migChildDevice.Architecture = d.Architecture
+		// MIG instances share their parent's PCI function.
+		migChildDevice.PCIBusID = d.PCIBusID
 		// MIG slices do not have NVLink ports; keep the parent's protocol version for tags.
 		migChildDevice.NVLinkVersion = d.NVLinkVersion
 		migChildDevice.CoreCount *= coresPerMultiprocessor(d.Architecture)
@@ -518,6 +529,15 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 		d.VirtualizationMode = virtualizationMode
 	} else {
 		singleton.logDeviceWarning(d.UUID, "cannot get virtualization mode: %v", err)
+	}
+
+	pciInfo, err := dev.GetPciInfo()
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("cannot get PCI info: %v", err)
+		}
+	} else {
+		d.PCIBusID = gpuutil.PCIInfoToBusID(pciInfo)
 	}
 
 	d.fillNVLinkDataFromNVML(dev)

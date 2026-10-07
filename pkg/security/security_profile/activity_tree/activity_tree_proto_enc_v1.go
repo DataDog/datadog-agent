@@ -480,7 +480,7 @@ func nodeBaseToProto(nb *NodeBase, tagIDToImageTag func(id uint64) string) *adpr
 		Seen: make(map[string]*adproto.ImageTagTimes, nb.SeenLen()),
 	}
 
-	nb.EachSeen(func(id uint64, times ImageTagTimes) {
+	nb.EachSeen(func(id uint64, firstSeen, lastSeen int64) {
 		tag := tagIDToImageTag(id)
 		if tag == "" {
 			// ID is stale (slot was freed before this node was evicted); skip to avoid
@@ -488,8 +488,8 @@ func nodeBaseToProto(nb *NodeBase, tagIDToImageTag func(id uint64) string) *adpr
 			return
 		}
 		pnb.Seen[tag] = &adproto.ImageTagTimes{
-			FirstSeen: TimestampToProto(&times.FirstSeen),
-			LastSeen:  TimestampToProto(&times.LastSeen),
+			FirstSeen: uint64(firstSeen),
+			LastSeen:  uint64(lastSeen),
 		}
 	})
 
