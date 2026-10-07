@@ -257,7 +257,7 @@ func (tkn *SQLTokenizer) setErr(format string, args ...interface{}) {
 	if tkn.err != nil {
 		return
 	}
-	tkn.err = fmt.Errorf("at position %d: %v", tkn.pos, fmt.Errorf(format, args...))
+	tkn.err = fmt.Errorf("at position %d: %w", tkn.pos, fmt.Errorf(format, args...))
 }
 
 // SeenEscape returns whether or not this tokenizer has seen an escape character within a scanned string

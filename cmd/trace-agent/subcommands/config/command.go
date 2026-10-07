@@ -49,7 +49,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 func printConfig(config config.Component, client ipc.HTTPClient) error {
 	fullConfig, err := fetcher.TraceAgentConfig(config, client)
 	if err != nil {
-		return fmt.Errorf("error fetching trace-agent configuration: %s", err)
+		return fmt.Errorf("error fetching trace-agent configuration: %w", err)
 	}
 	fmt.Print(fullConfig)
 	return nil

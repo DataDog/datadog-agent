@@ -31,11 +31,11 @@ import (
 func FindTCPPort() (int, error) {
 	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
 	if err != nil {
-		return 0, fmt.Errorf("resolve: %v", err)
+		return 0, fmt.Errorf("resolve: %w", err)
 	}
 	l, err := net.ListenTCP("tcp", addr)
 	if err != nil {
-		return 0, fmt.Errorf("listen: %v", err)
+		return 0, fmt.Errorf("listen: %w", err)
 	}
 	defer l.Close()
 	return l.Addr().(*net.TCPAddr).Port, nil

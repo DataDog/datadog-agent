@@ -240,7 +240,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		prefix := apiEndpointPrefix + mrfPrefix
 		mrfURL, err := utils.GetMRFEndpoint(core, prefix, "multi_region_failover.dd_url")
 		if err != nil {
-			return fmt.Errorf("cannot construct MRF endpoint: %s", err)
+			return fmt.Errorf("cannot construct MRF endpoint: %w", err)
 		}
 		c.MRFFailoverAPMDefault = core.GetBool("multi_region_failover.failover_apm")
 
@@ -428,7 +428,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		} else {
 			err := compileReplaceRules(rt)
 			if err != nil {
-				return fmt.Errorf("replace_tags: %s", err)
+				return fmt.Errorf("replace_tags: %w", err)
 			}
 			c.ReplaceTags = rt
 		}
@@ -786,7 +786,7 @@ func loadDeprecatedValues(c *config.AgentConfig) error {
 func addReplaceRule(c *config.AgentConfig, tag, pattern, repl string) error {
 	re, err := regexp.Compile(pattern)
 	if err != nil {
-		return fmt.Errorf("error adding replace rule: %s", err)
+		return fmt.Errorf("error adding replace rule: %w", err)
 	}
 	c.ReplaceTags = append(c.ReplaceTags, &config.ReplaceRule{
 		Name:    tag,
@@ -813,7 +813,7 @@ func compileReplaceRules(rules []*config.ReplaceRule) error {
 		}
 		re, err := regexp.Compile(r.Pattern)
 		if err != nil {
-			return fmt.Errorf("key %q: %s", r.Name, err)
+			return fmt.Errorf("key %q: %w", r.Name, err)
 		}
 		r.Re = re
 	}

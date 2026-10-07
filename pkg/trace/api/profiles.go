@@ -45,7 +45,7 @@ func profilingEndpoints(conf *config.AgentConfig) (urls []*url.URL, apiKeys []st
 		u, err := url.Parse(main)
 		if err != nil {
 			// if the main intake URL is invalid we don't use additional endpoints
-			return nil, nil, fmt.Errorf("error parsing main profiling intake URL %s: %v", main, err)
+			return nil, nil, fmt.Errorf("error parsing main profiling intake URL %s: %w", main, err)
 		}
 		urls = append(urls, u)
 		apiKeys = append(apiKeys, conf.APIKey())

@@ -74,7 +74,7 @@ func newMeasuredCache(opts cacheOptions) *measuredCache {
 	}
 	cache, err := ristretto.NewCache(cfg)
 	if err != nil {
-		panic(fmt.Errorf("Error starting obfuscator query cache: %v", err))
+		panic(fmt.Errorf("Error starting obfuscator query cache: %w", err))
 	}
 	c := measuredCache{
 		close:  make(chan struct{}),

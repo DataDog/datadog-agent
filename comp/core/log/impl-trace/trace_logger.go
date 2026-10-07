@@ -47,7 +47,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		deps.Params.LogFormatJSONFn(deps.Config),
 		deps.Config)
 	if err != nil {
-		return Provides{}, fmt.Errorf("Cannot create logger: %v", err)
+		return Provides{}, fmt.Errorf("Cannot create logger: %w", err)
 	}
 
 	l := pkglog.NewWrapper(3)

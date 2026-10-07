@@ -33,7 +33,7 @@ func GetUnixListener(path string) (net.Listener, error) {
 		unixLn.SetUnlinkOnClose(false)
 	}
 	if err := os.Chmod(path, 0o722); err != nil {
-		return nil, fmt.Errorf("error setting socket permissions: %v", err)
+		return nil, fmt.Errorf("error setting socket permissions: %w", err)
 	}
 	return ln, nil
 }

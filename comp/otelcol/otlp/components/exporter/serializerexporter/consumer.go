@@ -329,7 +329,7 @@ func (c *serializerConsumer) sendAPMStats() error {
 		if err := func() error {
 			resp, err := http.Post(c.apmReceiverAddr, "application/msgpack", body)
 			if err != nil {
-				return fmt.Errorf("could not flush StatsPayload: %v", err)
+				return fmt.Errorf("could not flush StatsPayload: %w", err)
 			}
 			defer resp.Body.Close()
 			if resp.StatusCode != http.StatusOK {

@@ -36,7 +36,7 @@ func (r *HTTPReceiver) symDBProxyHandler() http.Handler {
 	target, err := url.Parse(intake)
 	if err != nil {
 		log.Criticalf("Error parsing symbol database intake URL %q: %v", intake, err)
-		return symDBErrorHandler(fmt.Errorf("error parsing symbol database intake URL %q: %v", intake, err))
+		return symDBErrorHandler(fmt.Errorf("error parsing symbol database intake URL %q: %w", intake, err))
 	}
 	apiKey := r.conf.APIKey()
 	if k := r.conf.SymDBProxy.APIKey; k != "" {

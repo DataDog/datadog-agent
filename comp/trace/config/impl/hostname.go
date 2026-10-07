@@ -102,13 +102,13 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 			// node hostname. Fail so the orchestrator can restart and retry once the
 			// core agent is healthy.
 			if err != nil {
-				return fmt.Errorf("couldn't get hostname from core agent at %q: %v. Set DD_HOSTNAME or hostname in the agent config", c.DDAgentBin, err)
+				return fmt.Errorf("couldn't get hostname from core agent at %q: %w. Set DD_HOSTNAME or hostname in the agent config", c.DDAgentBin, err)
 			}
 			return errors.New("core agent returned empty hostname and os.Hostname() is not usable in this environment (container UTS namespace). Set DD_HOSTNAME or hostname in the agent config")
 		}
 		host, err2 := fallbackHostnameFunc()
 		if err2 != nil {
-			return fmt.Errorf("couldn't get hostname from agent (%q), nor from OS (%q). Try specifying it by means of config or the DD_HOSTNAME env var", err, err2)
+			return fmt.Errorf("couldn't get hostname from agent (%w), nor from OS (%w). Try specifying it by means of config or the DD_HOSTNAME env var", err, err2)
 		}
 		if emptyDisallowed && host == "" {
 			return errors.New("empty hostname disallowed")

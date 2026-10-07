@@ -24,7 +24,7 @@ func parseMultiRegionFailoverConfig(data []byte) (*multiRegionFailoverConfig, er
 
 	err := json.Unmarshal(data, &d)
 	if err != nil {
-		return nil, fmt.Errorf("unexpected Multi-Region Failover configs received through remote-config: %s", err)
+		return nil, fmt.Errorf("unexpected Multi-Region Failover configs received through remote-config: %w", err)
 	}
 
 	return &d, nil

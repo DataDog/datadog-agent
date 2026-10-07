@@ -89,7 +89,7 @@ func (r *HTTPReceiver) debuggerProxyHandler(urlTemplate string, proxyConfig conf
 	target, err := url.Parse(intake)
 	if err != nil {
 		log.Criticalf("Error parsing debugger intake URL %q: %v", intake, err)
-		return debuggerErrorHandler(fmt.Errorf("error parsing debugger intake URL %q: %v", intake, err))
+		return debuggerErrorHandler(fmt.Errorf("error parsing debugger intake URL %q: %w", intake, err))
 	}
 	apiKey := r.conf.APIKey()
 	if k := proxyConfig.APIKey; k != "" {

@@ -244,7 +244,7 @@ func (s *Runner) doRequest(req *http.Request) error {
 	if resp.StatusCode != http.StatusOK {
 		slurp, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return fmt.Errorf("%s (error reading response body: %v)", resp.Status, err)
+			return fmt.Errorf("%s (error reading response body: %w)", resp.Status, err)
 		}
 		return fmt.Errorf("%s: %s", resp.Status, slurp)
 	}

@@ -413,7 +413,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 			break
 		}
 		if token == LexError {
-			return nil, fmt.Errorf("%v", tokenizer.Err())
+			return nil, fmt.Errorf("%w", tokenizer.Err())
 		}
 
 		if token, buff, err = metadata.Filter(token, lastToken, buff); err != nil {

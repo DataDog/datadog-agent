@@ -215,14 +215,14 @@ func newAgentRunner(ddAddr string, verbose bool, buildSecretBackend bool) (*agen
 
 	tlsKeyPair, ipcCertPEM, err := buildSelfSignedTLSCertificate("127.0.0.1")
 	if err != nil {
-		return nil, fmt.Errorf("unable to generate TLS certificate: %v", err)
+		return nil, fmt.Errorf("unable to generate TLS certificate: %w", err)
 	}
 
 	// Generate an authentication token and set up our gRPC server to both serve over TLS and authenticate each RPC
 	// using the authentication token.
 	authToken, err := generateAuthenticationToken()
 	if err != nil {
-		return nil, fmt.Errorf("unable to generate authentication token: %v", err)
+		return nil, fmt.Errorf("unable to generate authentication token: %w", err)
 	}
 
 	serverOpts := []grpc.ServerOption{
@@ -234,7 +234,7 @@ func newAgentRunner(ddAddr string, verbose bool, buildSecretBackend bool) (*agen
 	// agent through cmd_port and a fixed one collides with the previous test's runner.
 	serverListener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return nil, fmt.Errorf("unable to listen for the mock core agent: %v", err)
+		return nil, fmt.Errorf("unable to listen for the mock core agent: %w", err)
 	}
 	s := grpc.NewServer(serverOpts...)
 	coreAgent := &grpcServer{}
@@ -273,14 +273,14 @@ func (s *agentRunner) cleanup() error {
 func (s *agentRunner) Run(conf []byte) error {
 	cfgPath, err := s.createConfigFile(conf)
 	if err != nil {
-		return fmt.Errorf("agent: error creating config: %v", err)
+		return fmt.Errorf("agent: error creating config: %w", err)
 	}
 	timeout := time.After(10 * time.Second)
 	exit := s.runAgentConfig(cfgPath)
 	for {
 		select {
 		case err := <-exit:
-			return fmt.Errorf("agent: %v, log output:\n%s", err, s.Log())
+			return fmt.Errorf("agent: %w, log output:\n%s", err, s.Log())
 		case <-timeout:
 			return fmt.Errorf("agent: timed out waiting for start, log:\n%s", s.Log())
 		default:
@@ -495,7 +495,7 @@ func envConfigSettings() map[string]interface{} {
 func buildSelfSignedTLSCertificate(host string) (*tls.Certificate, []byte, error) {
 	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to generate private key: %v", err)
+		return nil, nil, fmt.Errorf("unable to generate private key: %w", err)
 	}
 	template := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
@@ -509,11 +509,11 @@ func buildSelfSignedTLSCertificate(host string) (*tls.Certificate, []byte, error
 	}
 	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &privKey.PublicKey, privKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to generate certificate: %v", err)
+		return nil, nil, fmt.Errorf("unable to generate certificate: %w", err)
 	}
 	keyDER, err := x509.MarshalECPrivateKey(privKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to marshal private key: %v", err)
+		return nil, nil, fmt.Errorf("unable to marshal private key: %w", err)
 	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
@@ -521,7 +521,7 @@ func buildSelfSignedTLSCertificate(host string) (*tls.Certificate, []byte, error
 
 	pair, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to generate TLS key pair: %v", err)
+		return nil, nil, fmt.Errorf("unable to generate TLS key pair: %w", err)
 	}
 	return &pair, append(certPEM, keyPEM...), nil
 }
@@ -530,7 +530,7 @@ func generateAuthenticationToken() (string, error) {
 	rawToken := make([]byte, 32)
 	_, err := rand.Read(rawToken)
 	if err != nil {
-		return "", fmt.Errorf("can't create authentication token value: %s", err)
+		return "", fmt.Errorf("can't create authentication token value: %w", err)
 	}
 
 	return hex.EncodeToString(rawToken), nil

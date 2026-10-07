@@ -79,7 +79,7 @@ func runAgentSidekicks(ag component) error {
 		cf, err := newConfigFetcher(ag.ipc)
 		if err != nil {
 			ag.telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
-			return fmt.Errorf("could not instantiate the tracer remote config client: %v", err)
+			return fmt.Errorf("could not instantiate the tracer remote config client: %w", err)
 		}
 
 		api.AttachEndpoint(api.Endpoint{

@@ -51,7 +51,7 @@ func openLineageEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []s
 	u, err := url.Parse(host)
 	if err != nil {
 		// if the main intake URL is invalid we don't use additional endpoints
-		return nil, nil, fmt.Errorf("[openlineage] error parsing intake URL %s: %v", host, err)
+		return nil, nil, fmt.Errorf("[openlineage] error parsing intake URL %s: %w", host, err)
 	}
 
 	if cfg.OpenLineageProxy.APIVersion >= 2 {

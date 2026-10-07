@@ -264,7 +264,7 @@ func setupMetrics(statsd statsd.Component, cfg traceconfigdef.Component, telemet
 	client, err := statsd.CreateForAddr(addr, ddgostatsd.WithTags([]string{"version:" + version.AgentVersion}))
 	if err != nil {
 		telemetryCollector.SendStartupError(telemetry.CantConfigureDogstatsd, err)
-		return nil, fmt.Errorf("cannot configure dogstatsd: %v", err)
+		return nil, fmt.Errorf("cannot configure dogstatsd: %w", err)
 	}
 
 	err = client.Count("datadog.trace_agent.started", 1, nil, 1)
