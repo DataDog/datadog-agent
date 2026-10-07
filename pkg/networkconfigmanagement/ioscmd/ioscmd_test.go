@@ -43,6 +43,7 @@ func TestGenerateExample(t *testing.T) {
 		" no switchport",
 		" ip address 192.0.2.1 255.255.255.252",
 		" no shutdown",
+		"exit",
 		"end",
 	}, lines)
 }
@@ -66,6 +67,7 @@ func TestModeSwitching(t *testing.T) {
 		"configure terminal",
 		"hostname b",
 		"interface Loopback0",
+		"exit",
 		"end",
 	}, lines)
 }
@@ -150,7 +152,7 @@ func TestInterfaceSubCommands(t *testing.T) {
 			doc := `[{"type":"interface","name":"Gi1/0/1","commands":[` + tc.json + `]}]`
 			lines, err := Generate([]byte(doc))
 			require.NoError(t, err)
-			assert.Equal(t, []string{"configure terminal", "interface Gi1/0/1", " " + tc.expected, "end"}, lines)
+			assert.Equal(t, []string{"configure terminal", "interface Gi1/0/1", " " + tc.expected, "exit", "end"}, lines)
 		})
 	}
 }
@@ -262,6 +264,9 @@ func TestRenderConstructed(t *testing.T) {
 				&ToggleCommand{Type: "shutdown", Value: &enabled},
 			},
 		},
+		&HostnameCommand{
+			Hostname: "device1",
+		},
 	}
 	lines, err := block.Render()
 	require.NoError(t, err)
@@ -271,6 +276,8 @@ func TestRenderConstructed(t *testing.T) {
 		" description users",
 		" no switchport access vlan",
 		" shutdown",
+		"exit",
+		"hostname device1",
 		"end",
 	}, lines)
 }

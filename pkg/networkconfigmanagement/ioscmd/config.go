@@ -61,6 +61,7 @@ func (c InterfaceCommand) render() ([]string, error) {
 		}
 		out = append(out, " "+line)
 	}
+	out = append(out, "exit")
 	return out, nil
 }
 
