@@ -104,6 +104,15 @@ const ENV_BINDINGS: &[EnvBinding] = &[
         key: "infrastructure_mode",
         env_vars: &["DD_INFRASTRUCTURE_MODE"],
     },
+    // apm_config.yaml. Not DD_APM_CONFIG_ENABLED, which is what the key name would suggest.
+    EnvBinding {
+        key: "apm_config.enabled",
+        env_vars: &["DD_APM_ENABLED"],
+    },
+    EnvBinding {
+        key: "apm_config.error_tracking_standalone.enabled",
+        env_vars: &["DD_APM_ERROR_TRACKING_STANDALONE_ENABLED"],
+    },
 ];
 
 /// First non-empty value among the variables bound to `key`.
