@@ -47,7 +47,6 @@ namespace CustomActions.Tests
                         .GetSecurityDescriptorSddlForm(AccessControlSections.Owner | AccessControlSections.Group | AccessControlSections.Access)));
                 Assert.Equal(protectedDacl, File.GetAccessControl(live).AreAccessRulesProtected);
                 Assert.Equal(readOnly, (File.GetAttributes(live) & FileAttributes.ReadOnly) != 0);
-                // Retain the snapshot until successful commit, allowing restoration retry.
                 snapshot.Restore();
                 snapshot.Cleanup();
                 Assert.False(snapshot.Pending);

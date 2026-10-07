@@ -407,6 +407,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 		if err := migration.restore(); err != nil {
 			return fmt.Errorf("failed to restore PAR config; Agent will not be started: %w", err)
 		}
+		if err := migration.commit(); err != nil {
+			return fmt.Errorf("failed to finish PAR config migration: %w", err)
+		}
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Errorf("failed to restore custom integrations: %s", err)
@@ -435,11 +438,6 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	}
 	if err := agentService.RestartStable(ctx); err != nil {
 		return fmt.Errorf("failed to restart stable unit: %s", err)
-	}
-	if migration != nil {
-		if err := migration.commit(); err != nil {
-			return fmt.Errorf("failed to finish PAR config migration: %w", err)
-		}
 	}
 	return nil
 }

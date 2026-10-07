@@ -142,7 +142,7 @@ namespace Datadog.CustomActions
                 var temporary = _live + ".migration-" + Guid.NewGuid().ToString("N");
                 try
                 {
-                    // Apply the original DACL at creation, not after publishing customer bytes.
+                    // Secure the temporary file before writing customer bytes.
                     using (var input = new FileStream(Data, FileMode.Open, FileAccess.Read, FileShare.Read))
                     using (var output = new FileStream(temporary, FileMode.CreateNew, FileSystemRights.FullControl,
                         FileShare.None, 4096, FileOptions.None, security))
@@ -243,7 +243,6 @@ namespace Datadog.CustomActions
 
         internal static bool IsPending(ISession session)
         {
-            // Normal fresh installs and repairs do not participate in first-upgrade migration.
             if (string.IsNullOrEmpty(session.Property("WIX_UPGRADE_DETECTED"))) { return false; }
             return ForSession(session).Pending;
         }

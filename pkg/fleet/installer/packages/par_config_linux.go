@@ -6,7 +6,6 @@
 package packages
 
 import (
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"os"
@@ -19,8 +18,7 @@ import (
 const parMigrationDirectory = "/etc/datadog-agent-par-config-migration"
 const parConfigRelativePath = "private-action-runner/script-config.yaml"
 
-// The native pre-install scripts retain the original inode in a root-only directory.
-// Keeping it on the config filesystem preserves ownership, ACLs and SELinux labels.
+// parConfigMigration restores the inode retained by native pre-install.
 type parConfigMigration struct {
 	state      *os.Root
 	configPath string
@@ -63,7 +61,7 @@ func (m *parConfigMigration) close() {
 	}
 }
 
-// Detach a restored live entry before filesystem setup can change the retained inode.
+// prepare detaches a restored entry before filesystem setup can change its metadata.
 func (m *parConfigMigration) prepare() error {
 	root, err := os.OpenRoot(m.configPath)
 	if errors.Is(err, os.ErrNotExist) {
@@ -106,14 +104,9 @@ func (m *parConfigMigration) restore() error {
 		return err
 	}
 	defer source.Close()
-	name := ".script-config-migration-" + rand.Text()
-	// Directory descriptors prevent destination symlinks from redirecting privileged writes.
-	if err := unix.Linkat(int(source.Fd()), "script-config.yaml", int(dest.Fd()), name, 0); err != nil {
+	// Link without replacing an entry created after prepare.
+	if err := unix.Linkat(int(source.Fd()), "script-config.yaml", int(dest.Fd()), "script-config.yaml", 0); err != nil {
 		return fmt.Errorf("failed to link retained PAR config: %w", err)
-	}
-	defer unix.Unlinkat(int(dest.Fd()), name, 0)
-	if err := unix.Renameat(int(dest.Fd()), name, int(dest.Fd()), "script-config.yaml"); err != nil {
-		return err
 	}
 	return dest.Sync()
 }
