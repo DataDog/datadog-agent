@@ -86,6 +86,34 @@ sh_test(
     deps = ["@rules_shell//shell/runfiles"],
 )
 
+windows_gnu_filegroup(
+    name = "openssl_fips_windows",
+    srcs = ["@openssl_fips//:fips_provider"],
+    tags = ["manual"],
+)
+
+sh_test(
+    name = "openssl_fips_wine_test",
+    srcs = ["openssl_fips_wine_test.sh"],
+    data = [
+        ":openssl_fips_windows",
+        ":openssl_windows",
+        "//bazel/tools/wine:wine_run",
+    ],
+    env = {
+        "FIPS_PROVIDER": "$(rlocationpath :openssl_fips_windows)",
+        "OPENSSL_FILES": "$(rlocationpaths :openssl_windows)",
+        "WINE_RUN": "$(rlocationpath //bazel/tools/wine:wine_run)",
+    },
+    tags = ["manual"],
+    target_compatible_with = select({
+        "//:linux_arm64": [],
+        "//:linux_x86_64": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = ["@rules_shell//shell/runfiles"],
+)
+
 cc_binary(
     name = "openssl_msvc_consumer",
     srcs = ["openssl_msvc_consumer.c"],
