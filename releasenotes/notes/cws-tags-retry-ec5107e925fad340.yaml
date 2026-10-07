@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    system-probe retries the tags of a container for as long as the container
+    runs. A container whose tags arrived more than 30 seconds after its start,
+    as after a system-probe start, was left out of runtime usage enrichment and
+    of security profiles for its life.
