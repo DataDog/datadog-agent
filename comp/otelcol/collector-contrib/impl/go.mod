@@ -107,6 +107,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/schema v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.82.0 // indirect
@@ -407,6 +408,7 @@ require (
 	github.com/prometheus/prometheus v0.313.2 // indirect
 	github.com/prometheus/sigv4 v0.4.1 // indirect
 	github.com/puzpuzpuz/xsync/v4 v4.5.0 // indirect
+	github.com/qri-io/jsonpointer v0.1.1 // indirect
 	github.com/relvacode/iso8601 v1.8.0 // indirect
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
 	github.com/rs/cors v1.11.1 // indirect
