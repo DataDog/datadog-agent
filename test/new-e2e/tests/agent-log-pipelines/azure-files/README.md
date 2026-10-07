@@ -15,8 +15,10 @@ writer pod --------> its own CIFS mount -> Azure Files share
               +-----------------------> Fakeintake <-----------------------+
 ```
 
-The stock Azure provisioner creates one AKS node and a VM-hosted Fakeintake. The
-suite provisions in two passes. The first pass creates the Azure Files shares
+The stock Azure provisioner creates one AKS node and a VM-hosted Fakeintake;
+the [multi-node](#multi-node) scenario asks it for more nodes, and the
+[smb-windows](#a-windows-file-server-smb-windows) cell adds a Windows Server VM
+on the same subnet. The suite provisions in two passes. The first pass creates the Azure Files shares
 and their Kubernetes secrets without an Agent. The second pass updates that
 same stack to install the selected Agent and then starts the writers.
 This keeps setup time from looking like lost rotations. The Agent and the
@@ -73,6 +75,7 @@ like the `smb` cell; see [The opt-in SMB cells](#the-opt-in-smb-cells). The
 | `smb-copytruncate`, `smb-delete-recreate`, `smb-gzip` | Always rotates by that mode, whatever the run's rotation mode |
 | `smb-late-1000`, `smb-late-2000`, `smb-late-3000` | Probes the drain window with one early marker at that age |
 | `smb-glob-load` | 8 services under one `*/app.log` source, 10s periods, 2 MB/s in all |
+| `smb-windows` | The share is on a Windows Server VM that requires SMB signing, not on Azure Files; also needs `AZURE_FILES_E2E_WINDOWS=1` |
 
 Because every cell has its own share, the SMB source's opens never touch the
 files the CIFS cells read, and the reverse.
@@ -194,6 +197,14 @@ conf.d value.
   checks any cell, and when it isn't ready, the failure gives the pod's
   waiting containers and Warning events.
 
+The `smb-windows` cell has no storage account. Its Secrets, under the same
+names and keys, hold the name and password of the Windows file server's local
+reader account: the storage pass generates the password as a Pulumi secret
+(the `random` provider's `RandomPassword`, through its generic resource token)
+and never exports it. See
+[A Windows file server](#a-windows-file-server-smb-windows) for how it
+reaches the VM.
+
 The Agent pod mounts that copy at `/etc/azure-files-secrets/smb/` (mode 0400),
 and the SMB source names the file through the secret backend:
 
@@ -250,7 +261,14 @@ the evidence. The evidence contains:
   estimated SMB opens per second;
 - for a scenario, `<scenario>-status-timeline.json` and its timings
   (`agent-restart-restart.json`, `key-rotation-rotation.json`,
-  `network-drop-drop.json`), and for `agent-restart` the stopped pod's log.
+  `network-drop-drop.json`), and for `agent-restart` the stopped pod's log;
+  for `multi-node`, `multi-node-agents.json`, each Agent's hostname and pod;
+- for `smb-windows`, what the VM holds instead of a writer pod: the ledger,
+  marker journal and writer journal, the console log of each scheduled task
+  (`smb-windows-writer.log`, `-ledger.log`, `-appender.log`), the server's
+  state (`smb-windows-windows-server.txt`: the OS, the SMB server's signing
+  and encryption settings, the share and its access, the sessions and open
+  files, the tasks and the share's files) and `smb-windows-sessions.json`.
 
 The test prints the evidence directory and the run's resource names at the end.
 
@@ -367,8 +385,10 @@ Other run options:
 | Variable | Values |
 |---|---|
 | `AZURE_FILES_E2E_CALIBRATE` | `1` records each marker's outcome instead of asserting it |
-| `AZURE_FILES_E2E_SCENARIO` | `agent-restart`, `key-rotation`, `network-drop` |
+| `AZURE_FILES_E2E_SCENARIO` | `agent-restart`, `key-rotation`, `network-drop`, `multi-node` |
 | `AZURE_FILES_E2E_NETWORK_DROP_SECONDS` | 31 to 600, `network-drop` only; 90 by default |
+| `AZURE_FILES_E2E_NODES` | 1 to 5 AKS nodes; above 1 only with `multi-node`, which defaults to 2 |
+| `AZURE_FILES_E2E_WINDOWS` | `1` lets the `smb-windows` cell run, with `E2E_SMB_AZURE=1`, when `AZURE_FILES_E2E_CELLS` names it |
 
 The rotation modes (the timings are constants in `provisioner.go`):
 
@@ -558,6 +578,9 @@ the source, which stays `Pending`. The cell is therefore gated twice:
   only SMB cells were selected, the whole test skips before creating
   anything.
 
+The [smb-windows](#a-windows-file-server-smb-windows) cell has a third gate,
+`AZURE_FILES_E2E_WINDOWS=1`, for its Windows VM.
+
 Once the Agent is installed, the cell:
 
 1. requires `agent status --json` to list a `type: smb` source for
@@ -668,6 +691,21 @@ the Fakeintake VM and the storage accounts:
 `AZURE_FILES_E2E_STACK` takes 1 to 40 lowercase letters, digits or inner
 hyphens. The framework prefixes it with your user name.
 
+A stack keeps its node count. A run with more than one node
+([multi-node](#multi-node)) therefore never reuses the named stack: it runs on
+a stack of its own, the name followed by `-n<nodes>`
+(`AZURE_FILES_E2E_STACK=azure-files-smb-dev` with two nodes runs on
+`azure-files-smb-dev-n2`), with its own cluster, Fakeintake and storage
+accounts. A one-node run on the same name is unaffected, and a name that
+already ends in `-n<digits>` is refused. Destroy the multi-node stack on its
+own when done.
+
+The Windows VM of [smb-windows](#a-windows-file-server-smb-windows) is part of
+the stack while runs select that cell: the first such run creates it (about 10
+more minutes), later ones reuse it, Python included, and a run without the
+cell removes it. Creating it is estimated at about 10 more minutes; that was
+not measured.
+
 ### Destroy the stack
 
 ```sh
@@ -683,7 +721,8 @@ destroys the stack too, once it passes.
 ## The opt-in SMB cells
 
 Each of these cells is an SMB source on a share, writer and storage account of
-its own, like `smb`. They need `E2E_SMB_AZURE=1` and run only when
+its own, like `smb`; `smb-windows` has a Windows VM's share instead of a
+storage account. They need `E2E_SMB_AZURE=1` and run only when
 `AZURE_FILES_E2E_CELLS` names them; several can share one run, next to the
 default cells or not. Every one of them gets `smb`'s checks: the source must
 be `OK` before the writer is waited for, the key must not leak, and the
@@ -855,34 +894,139 @@ Agent, plus the appender's and the ledger's listings of 8 directories (5 and 1
 a second each), and 2 MB/s of writes. The writer keeps writing after the test
 on a kept stack, until the next run's first pass removes it.
 
+### A Windows file server: smb-windows
+
+**What it proves.** That the SMB source reads a Windows Server share, not
+only Azure Files: NTLMv2 with a local account of the server, a server that
+refuses any session that is not signed, NTFS file IDs across the rename, and
+Windows' share-mode checks between the source's opens and a writer that
+renames and appends on the server itself.
+
+**How it is set up.** The cell has no storage account; `windows.go` and
+`windows_test.go` hold what follows.
+
+- The storage pass creates a Windows Server VM (the framework's default
+  Windows Server image, Windows Server 2025 Datacenter Azure Edition Core, and
+  VM size, `Standard_D4s_v5`) in the same Azure environment as the AKS
+  cluster, so it lands on the subnet of the AKS nodes and the Fakeintake VM,
+  with a private address only. Windows Defender is disabled, as the
+  framework's Windows provisioners do by default. The pass also generates the
+  password of the reader account into the cell's Secrets (see
+  [Credentials](#credentials)). The suite's environment is the AKS one plus a
+  remote host for the VM: the framework's `azurekubernetes.AKSRunWithEnv` runs
+  the AKS provisioner in an Azure environment the suite also creates the VM
+  in.
+- Before the Agent pass, the test copies `workload/fileserver.ps1`,
+  `workload/logwriter.py`, `workload/sidecars.py` and one cmd.exe wrapper per
+  scheduled task to `C:\azure-files-e2e` over SFTP, and the password to a
+  file there. It then runs `fileserver.ps1 prepare` over SSH, which stops the
+  previous run's writer and removes its share; requires signing on the SMB
+  server (`Set-SmbServerConfiguration -RequireSecuritySignature $true`); opens
+  TCP 445 in Windows Firewall; creates or resets the local user `ddlogreader`
+  with the password, and deletes the file at once; creates the share
+  `smbwin-<run>` on `C:\azure-files-e2e\shares\smbwin-<run>`, which only
+  `ddlogreader` may read; installs Python once per VM; and registers the
+  writer, the ledger and the appender as scheduled tasks that run as SYSTEM.
+  No command line, log or output carries the password.
+- The Agent pass gives the cell's `type: smb` source the VM's private address
+  as `host`, `ddlogreader` as `username`, and the password through a mounted
+  Secret and an `ENC[file@...]` handle, as for the Azure cells.
+- Once the Agent is ready, the test starts the tasks. They do what a writer
+  pod's containers do, on the share's directory, and the test reads their
+  files with `fileserver.ps1 read`, which shares them with the processes that
+  are still writing them.
+
+**Why the stock Python writer rather than a PowerShell port.** The VM runs
+`logwriter.py`, the pods' writer, on python.org's embeddable Python 3.12.10,
+the last 3.12 release with Windows binaries, downloaded once per VM from
+www.python.org; `fileserver.ps1` refuses a `python.exe` that python.org did
+not sign (Authenticode, signer "Python Software Foundation"). The cell's
+records, rotation and journal are therefore those of every other cell, which
+`workload_test.go` checks. A PowerShell port would be a second writer to keep
+in step with the first, and nothing could test it before an Azure run:
+PowerShell is not installed where the unit tests run. ledger.sh and
+appender.sh need a POSIX shell, which Windows does not have, so
+`workload/sidecars.py` ports both, and `workload_test.go` holds the shell
+scripts and the port to the same tests. What it costs: the VM needs outbound
+HTTPS to www.python.org once, and Python 3.12.10 gets no more fixes. The
+writer opens its files in binary mode, so it writes the same bytes on Windows.
+
+**Pass rule.** As for `smb`: the source must be `OK` before the writer is
+waited for; every record of the first three completed files is collected
+exactly once, the 0.5s marker once and the 45s marker is lost; and the
+password appears nowhere the Agent prints, logs, packs into a flare or ships.
+And the server must require signing and hold an SMB session of
+`ddlogreader`: the Agent read the share as that user, over sessions the
+server only accepts signed. Each session's dialect is logged.
+
+The cell runs the writer's default options only, rename every minute and one
+`app.log`; a run that sets a rotation mode, period, rate or streams is refused.
+No scenario runs with it.
+
+**Run alone.**
+
+```sh
+AZURE_FILES_E2E_RUN=1 E2E_SMB_AZURE=1 AZURE_FILES_E2E_WINDOWS=1 \
+AZURE_FILES_E2E_CELLS=smb-windows \
+AZURE_FILES_E2E_STACK=<kept-stack> E2E_OUTPUT_DIR=$HOME/azure-files-e2e-runs \
+dda inv new-e2e-tests.run --targets=./tests/agent-log-pipelines/azure-files \
+  --run='^TestAzureFiles$' --keep-stack --pipeline-id=<smb-tailer-pipeline-id>
+```
+
+Add `smb` to `AZURE_FILES_E2E_CELLS` to compare it with Azure Files in the same
+run. `AZURE_FILES_E2E_WINDOWS=1` alone selects nothing: the cell, like every
+opt-in cell, runs only when named.
+
+**Duration and cost.** Estimates, none measured: about 9 minutes on a stack
+that already has the VM (four one-minute rotations, the 30s settle and the
+leak checks), and about 10 more to create the VM and install Python the first
+time. The VM, `Standard_D4s_v5` with its Windows Server licence and a 200 GB
+StandardSSD OS disk, is billed for as long as the stack keeps it, which costs
+more than any share; a run without the cell removes it, and so does destroying
+the stack. Its SMB traffic stays inside the virtual network, and no Azure Files
+transaction is billed for it.
+
+**Not verified on Azure yet.** The first run will tell:
+
+- that the subnet's network security group lets the AKS nodes reach the VM on
+  port 445, as it lets them reach the Fakeintake VM on port 80;
+- that the VM reaches www.python.org, as the Fakeintake VM reaches the Docker
+  download site, and that `python.exe` passes the signature check there;
+- that Windows accepts the source's NTLMv2 login for a local account with no
+  `domain` set in the source;
+- that `Get-SmbSession` reports each session's dialect.
+
 ## Scenarios
 
 A scenario disrupts the Agent while the `smb` cell's writer runs, then checks
-the cell as usual, with what the disruption allows.
-`AZURE_FILES_E2E_SCENARIO` selects one; its test method runs and the others
-skip, and so does `TestRotatedFilesAreCollectedExactlyOnce`. It needs
-`E2E_SMB_AZURE=1`, runs on `smb` when `AZURE_FILES_E2E_CELLS` is unset, and
-refuses the cells it would disturb: `agent-restart` and `key-rotation` touch
-every source of the Agent, so they run with `smb` alone; `network-drop` can
-run with the file cells (they keep their usual checks) but no other SMB cell.
+the cell as usual, with what the disruption allows; [multi-node](#multi-node)
+runs several Agents instead. `AZURE_FILES_E2E_SCENARIO` selects one; its test
+method runs and the others skip, and so does
+`TestRotatedFilesAreCollectedExactlyOnce`. It needs `E2E_SMB_AZURE=1`, runs
+on `smb` when `AZURE_FILES_E2E_CELLS` is unset, and refuses the cells it would
+disturb: `agent-restart` and `key-rotation` touch every source of the Agent,
+and `multi-node` reads every cell once per Agent, so they run with `smb`
+alone; `network-drop` can run with the file cells (they keep their usual
+checks) but no other SMB cell.
 
-Each scenario disrupts the second period of the writer, the first full one,
-and the disruption has to be over before that period ends: a file that
-rotates out while no source can read the share is not read again (see
-[Product notes](#product-notes)). So each scenario has its own default period
-and a paced writer, so the active file keeps growing through the disruption;
-the run's options override them as long as they hold the disruption, and it
-fails, naming the option to raise, when the disruption outlasted the period.
-The `smb` cell has no markers in a scenario: the disruption delays the drains
-past every marker age. Each scenario writes `<scenario>-*.json` to the
-evidence, with its timings and a status timeline of the source, polled every
-5s.
+Each disruption hits the second period of the writer, the first full one,
+and has to be over before that period ends: a file that rotates out while no
+source can read the share is not read again (see
+[Product notes](#product-notes)). So each disruption has its own default
+period and a paced writer, so the active file keeps growing through the
+disruption; the run's options override them as long as they hold the
+disruption, and it fails, naming the option to raise, when the disruption
+outlasted the period. The `smb` cell has no markers in a disruption: it
+delays the drains past every marker age. Each disruption writes
+`<scenario>-*.json` to the evidence, with its timings and a status timeline
+of the source, polled every 5s.
 
 | Scenario | Default writer | Disruption | Pass rule |
 |---|---|---|---|
 | `agent-restart` | 120s periods, 20 KB/s | The Agent pod is deleted 30s into the period | No loss; duplicates within what a restart can resend |
 | `key-rotation` | 300s periods, 10 KB/s | key2, which the Agent reads with, is renewed 15s into the period | The source reports an authentication error, then `OK` again; no loss, no duplicate |
 | `network-drop` | 180s periods, 10 KB/s | The Agent's SMB traffic is dropped for 90s around the end of the period | The source reports an error, then `OK` again; no loss, no duplicate |
+| `multi-node` | The run's (default: rename every minute) | None: 2 AKS nodes, so 2 Agent pods with the `smb` source | Every record collected once by each Agent, by its hostname |
 
 ### agent-restart
 
@@ -1001,6 +1145,47 @@ the writer during the drop.
 command, and `AZURE_FILES_E2E_CELLS=smb,file-line` to watch a file cell next
 to it. About 17 minutes (four 3-minute rotations). One `smb` cell's cost.
 
+### multi-node
+
+**What it proves.** What several Agents with the same `smb` source do today:
+the SMB source has no single-reader election, so each Agent reads the whole
+share, and every record is collected once per Agent. That is the limitation
+this scenario documents and holds the source to, so that a change to it shows
+up. Once the source elects a single reader, the pass rule becomes exactly once
+in all, from any one Agent.
+
+`AZURE_FILES_E2E_NODES` sets the node count, 2 by default and up to 5; the
+AKS provisioner's `aks.WithNodeCount` option sizes the system node pool, so
+the Agent DaemonSet runs one pod per node. No other run may have more than one
+node: its cells would each be collected once per Agent. Writer options apply
+as usual, but for a rotation mode other than rename; the markers stay, since
+nothing disrupts the Agents.
+
+The test requires one ready Agent pod per node, on distinct nodes, reads each
+Agent's hostname with `agent hostname`, and records them in
+`multi-node-agents.json`. Fakeintake keeps the hostname of the Agent that sent
+each log, which attributes every record to its Agent.
+
+**Pass rule.** For each Agent, every record of the first three completed
+files is collected exactly once, its 0.5s markers once and its 45s markers
+lost, and an expected record sent by a host that runs none of the Agents
+fails the cell. So every record arrives once per Agent: twice with two nodes.
+A failure names the cell and the Agent's hostname, as `smb@<hostname>`. The
+source must be `OK` on every Agent, and the leak checks run on every Agent
+pod.
+
+**The stack.** A stack keeps its node count, so the scenario never runs on a
+reused one-node stack: it gets a stack of its own, named after
+`AZURE_FILES_E2E_STACK` with `-n<nodes>` (see
+[Keep the stack up and iterate](#keep-the-stack-up-and-iterate)).
+
+**Run alone.** Add `AZURE_FILES_E2E_SCENARIO=multi-node` to the `smb`
+command. The first run creates the `-n2` stack: estimated at 15 to 20 minutes
+for the cluster, the Fakeintake VM and the storage accounts, then about 9 for
+the cell; none of this was measured. Cost: a second `Standard_D4s_v5` node,
+and a second cluster, Fakeintake VM and storage account for as long as the
+`-n2` stack is kept.
+
 ## Costs
 
 Azure Files bills every SMB operation as a transaction. Per cell:
@@ -1017,10 +1202,23 @@ A storage account and its empty shares cost next to nothing at rest, so the
 kept stack's accounts can stay. The paced cells' and scenarios' writers keep
 writing on a kept stack until the next run's first pass removes them.
 
+Two options add compute, billed by the hour while a stack keeps it:
+
+- `smb-windows` adds a `Standard_D4s_v5` Windows Server VM with a 200 GB
+  StandardSSD OS disk, which a run without the cell removes; its writer keeps
+  writing until then;
+- `multi-node` runs on a stack of its own, `<stack>-n<nodes>`, with a cluster
+  of that many `Standard_D4s_v5` nodes, a Fakeintake VM and storage accounts
+  of its own, until that stack is destroyed.
+
 ## Product notes
 
 Gaps the suite works around rather than tests:
 
+- **No single reader for a share.** Every Agent with an `smb` source reads the
+  whole share and ships every line, so a DaemonSet with the source on N nodes
+  collects every line N times. The [multi-node](#multi-node) scenario asserts
+  exactly that; the release note of the SMB source does not say it.
 - **Missed bytes per source.** The Agent counts missed bytes Agent-wide and
   per (source, service), but publishes the latter only through a 15-minute
   health platform issue. A `Bytes Missed` counter in each source's status,
@@ -1050,8 +1248,19 @@ dda inv linter.go \
   --targets=./tests/agent-log-pipelines/azure-files
 
 shellcheck -s sh workload/appender.sh workload/ledger.sh
-ruff check workload/logwriter.py && ruff format --check workload/logwriter.py
+ruff check workload/logwriter.py workload/sidecars.py
+ruff format --check workload/logwriter.py workload/sidecars.py
 ```
+
+The framework packages the suite changed have tests of their own:
+
+```sh
+bazel test //test/e2e-framework/scenarios/azure/aks:aks_test
+```
+
+Nothing checks `workload/fileserver.ps1` before an Azure run: PowerShell is
+not installed where the unit tests run. `config_test.go` only checks the
+commands that call it and a few of its lines.
 
 The unit tests include the stock workload's self-tests in `workload_test.go`,
 which need `python3` (3.8 or later) and skip without it:
@@ -1089,7 +1298,14 @@ which need `python3` (3.8 or later) and skip without it:
 - `appender.sh` must mark each stream's rotations in that stream's journal
   with the stream's run ID, never append to a `.gz` file or to a rotated file
   that is gone (it journals those markers as `skipped`), and idle with
-  `LOGWRITER_APPEND_DELAYS_MS=none`.
+  `LOGWRITER_APPEND_DELAYS_MS=none`;
+- `sidecars.py`, the Windows file server's port of `ledger.sh` and
+  `appender.sh`, must pass each of the ledger and appender tests above with
+  the journal source, as a `python` subtest next to the `shell` one;
+- the Windows file server's writer, ledger and appender, with the
+  environment the test gives their scheduled tasks and the share moved to a
+  local directory, must produce a ledger and a marker journal that the
+  record and marker checks pass on.
 
 `config_test.go` checks the writer options against the pod spec and the Agent
 sources they produce: the validation, the Java writer refusing them, the env
@@ -1117,7 +1333,19 @@ the scenarios without Azure:
   only, the key index of the Agent's Secret, the Azure CLI arguments, the
   network helper's pod and iptables commands, and the status
   classification;
-- the load report's throughput and lags.
+- the load report's throughput and lags;
+- the multi-node scenario: its node count (2 by default, refused above 1 for
+  any other run), its stack of its own (`-n<nodes>`, and a reused name that
+  already ends so refused), its one `smb` cell with its markers, and the
+  rule that each Agent's hostname collects every record and marker once, with
+  what fails it: a record short or twice on one Agent, a host that runs no
+  Agent, exactly once in all;
+- the smb-windows cell: its two gates, its Helm source (the VM's address,
+  `ddlogreader`, the mounted password), the writer options and scenarios it
+  refuses, the cmd.exe wrapper of each scheduled task (the pod's environment
+  on the VM's paths, and values cmd.exe would expand refused), the
+  `fileserver.ps1` commands, which carry no secret, and the decoding of the
+  server's signing setting and sessions.
 
 You can also run the writer on its own:
 
@@ -1137,4 +1365,5 @@ LOGWRITER_LOG_DIR=$(mktemp -d) LOGWRITER_RUN_ID=local LOGWRITER_ROTATION_MODE=co
 ```
 
 The E2E test skips before provisioning unless `AZURE_FILES_E2E_RUN=1` is set.
-The `smb` cell also needs `E2E_SMB_AZURE=1`.
+The `smb` cell also needs `E2E_SMB_AZURE=1`, and `smb-windows` also
+`AZURE_FILES_E2E_WINDOWS=1`.
