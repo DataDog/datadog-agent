@@ -353,7 +353,7 @@ func TestWorkloadmetaEventFromSBOMEventSet_PendingSBOMSkipped(t *testing.T) {
 	store.images[imageID] = seedImageSBOM(t, imageID, workloadmeta.Pending, component("bash", "5.1"))
 
 	event, err := workloadmetaEventFromSBOMEventSet(store, systemProbeMessage(t, containerID))
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, errNotReady)
 	assert.Nil(t, event.Entity)
 }
 
@@ -372,7 +372,7 @@ func TestWorkloadmetaEventFromSBOMEventSet_MissingExistingSBOM(t *testing.T) {
 	}
 
 	event, err := workloadmetaEventFromSBOMEventSet(store, systemProbeMessage(t, containerID))
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, errNotReady)
 	assert.Nil(t, event.Entity)
 }
 
@@ -386,8 +386,7 @@ func TestWorkloadmetaEventFromSBOMEventSet_UnknownImage(t *testing.T) {
 	}
 
 	event, err := workloadmetaEventFromSBOMEventSet(store, systemProbeMessage(t, containerID))
-	// No error - just an empty event so the handler drops it (see HandleResponse loop).
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, errNotReady)
 	assert.Nil(t, event.Entity)
 }
 
@@ -395,7 +394,7 @@ func TestWorkloadmetaEventFromSBOMEventSet_MissingContainer(t *testing.T) {
 	store := newFakeStore()
 
 	event, err := workloadmetaEventFromSBOMEventSet(store, systemProbeMessage(t, "unknown-container"))
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, errNotReady)
 	assert.Nil(t, event.Entity)
 }
 
@@ -409,7 +408,7 @@ func TestWorkloadmetaEventFromSBOMEventSet_ContainerWithoutImageID(t *testing.T)
 	}
 
 	event, err := workloadmetaEventFromSBOMEventSet(store, systemProbeMessage(t, containerID))
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, errNotReady)
 	assert.Nil(t, event.Entity)
 }
 
@@ -529,4 +528,168 @@ func TestForgetRemovedImages(t *testing.T) {
 	}
 	_, err := store.GetImage(image.ID)
 	assert.Error(t, err)
+}
+
+// readyStore returns a store holding a container of an image whose SBOM is in
+// status, with bash 5.1 in it.
+func readyStore(t *testing.T, containerID, imageID string, status workloadmeta.SBOMStatus) *fakeStore {
+	store := newFakeStore()
+	store.containers[containerID] = &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+		Image:    workloadmeta.ContainerImage{ID: imageID},
+	}
+	store.images[imageID] = seedImageSBOM(t, imageID, status, component("bash", "5.1"))
+	return store
+}
+
+func usedBash(t *testing.T, containerID string) *sbompb.SBOMMessage {
+	return systemProbeMessage(t, containerID, component("bash", "5.1", prop(LastAccessProperty, "1700000000")))
+}
+
+// lastSeen returns the LastSeenRunning of bash in the image SBOM of event.
+func lastSeen(t *testing.T, event workloadmeta.CollectorEvent) string {
+	t.Helper()
+	image, ok := event.Entity.(*workloadmeta.ContainerImageMetadata)
+	require.True(t, ok)
+	sbom, err := sbomutil.UncompressSBOM(image.SBOM)
+	require.NoError(t, err)
+	require.Len(t, sbom.CycloneDXBOM.Components, 1)
+	value, _ := findProp(sbom.CycloneDXBOM.Components[0], LastAccessProperty)
+	return value
+}
+
+// TestHandleResponseKeepsReportsNotReady checks that a report arriving before
+// the SBOM of its image waits, and that a merged report replaces it.
+func TestHandleResponseKeepsReportsNotReady(t *testing.T) {
+	store := readyStore(t, "container", "image", workloadmeta.Pending)
+	handler := &streamHandler{pending: newPendingReports()}
+
+	events, err := handler.HandleResponse(store, usedBash(t, "container"))
+	require.NoError(t, err)
+	assert.Empty(t, events)
+	assert.Len(t, handler.pending.list(), 1)
+
+	store.images["image"] = seedImageSBOM(t, "image", workloadmeta.Success, component("bash", "5.1"))
+	events, err = handler.HandleResponse(store, usedBash(t, "container"))
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	assert.Empty(t, handler.pending.list())
+}
+
+// TestPendingReportsMerge checks that a pending report merges once the SBOM of
+// its image succeeds, and leaves the pending reports.
+func TestPendingReportsMerge(t *testing.T) {
+	store := readyStore(t, "container", "image", workloadmeta.Pending)
+	pending := newPendingReports()
+	pending.add(usedBash(t, "container"))
+
+	assert.Empty(t, pending.merge(store))
+	assert.Len(t, pending.list(), 1)
+
+	store.images["image"] = seedImageSBOM(t, "image", workloadmeta.Success, component("bash", "5.1"))
+	merged := pending.merge(store)
+	require.Len(t, merged, 1)
+	assert.Equal(t, workloadmeta.SourceRemoteSBOMCollector, merged[0].Source)
+	assert.Equal(t, "1700000000", lastSeen(t, merged[0]))
+	assert.Empty(t, pending.list())
+}
+
+// TestPendingReportsForgetRemovedContainers checks that the report of a
+// removed container leaves the pending reports.
+func TestPendingReportsForgetRemovedContainers(t *testing.T) {
+	pending := newPendingReports()
+	pending.add(usedBash(t, "container"))
+
+	pending.forget([]workloadmeta.Event{{
+		Type:   workloadmeta.EventTypeUnset,
+		Entity: &workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container"}},
+	}})
+	assert.Empty(t, pending.list())
+}
+
+// TestPendingReportsKeepTheLatest checks that a container keeps its latest
+// report alone, since each report is a full snapshot of its usage.
+func TestPendingReportsKeepTheLatest(t *testing.T) {
+	pending := newPendingReports()
+	first, latest := usedBash(t, "container"), usedBash(t, "container")
+	pending.add(first)
+	pending.add(latest)
+
+	reports := pending.list()
+	require.Len(t, reports, 1)
+	assert.Same(t, latest, reports[0])
+
+	assert.False(t, pending.remove("container", first), "a report a newer one replaced was removed")
+	assert.Len(t, pending.list(), 1, "a merge of an older report dropped the latest one")
+}
+
+// TestPendingReportsDecodeOnceReady checks that a pending report stays undecoded
+// while its image is pending, and that a merge decodes it once the image is ready.
+func TestPendingReportsDecodeOnceReady(t *testing.T) {
+	store := readyStore(t, "container", "image", workloadmeta.Pending)
+	pending := newPendingReports()
+	pending.add(&sbompb.SBOMMessage{Kind: string(workloadmeta.KindContainer), ID: "container", Data: []byte{0xff}})
+
+	assert.Empty(t, pending.merge(store))
+	assert.Len(t, pending.list(), 1, "the report was decoded before its image was ready")
+
+	store.images["image"] = seedImageSBOM(t, "image", workloadmeta.Success, component("bash", "5.1"))
+	assert.Empty(t, pending.merge(store))
+	assert.Empty(t, pending.list(), "the undecodable report stayed pending once its image was ready")
+}
+
+// TestMergePendingReports checks that a pending report reaches the store once
+// the SBOM of its image succeeds there.
+func TestMergePendingReports(t *testing.T) {
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Notify([]workloadmeta.CollectorEvent{
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceRuntime, Entity: &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container"},
+			Image:    workloadmeta.ContainerImage{ID: "image"},
+		}},
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceTrivy, Entity: seedImageSBOM(t, "image", workloadmeta.Pending, component("bash", "5.1"))},
+	})
+
+	pending := newPendingReports()
+	pending.add(usedBash(t, "container"))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	mergePendingReports(ctx, store, pending)
+
+	merged := store.Subscribe("test", workloadmeta.NormalPriority, workloadmeta.NewFilterBuilder().
+		AddKind(workloadmeta.KindContainerImageMetadata).
+		SetSource(workloadmeta.SourceRemoteSBOMCollector).
+		SetEventType(workloadmeta.EventTypeSet).
+		Build())
+	defer store.Unsubscribe(merged)
+	done := make(chan workloadmeta.Event, 1)
+	go func() {
+		for bundle := range merged {
+			bundle.Acknowledge()
+			for _, ev := range bundle.Events {
+				select {
+				case done <- ev:
+				default:
+				}
+			}
+		}
+	}()
+
+	store.Notify([]workloadmeta.CollectorEvent{{
+		Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceTrivy,
+		Entity: seedImageSBOM(t, "image", workloadmeta.Success, component("bash", "5.1")),
+	}})
+
+	select {
+	case ev := <-done:
+		assert.Equal(t, "1700000000", lastSeen(t, workloadmeta.CollectorEvent{Entity: ev.Entity}))
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the pending report never reached the store")
+	}
+	assert.Empty(t, pending.list())
 }
