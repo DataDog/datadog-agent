@@ -34,7 +34,7 @@ Before deploying, update the provided manifests for your environment:
    - Adapt the `DD_API_KEY` secret reference if you do not use the example `datadog-secret` Kubernetes Secret.
    - To use another Datadog container registry, replace the `registry.datadoghq.com` prefix in the Host Profiler image with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
    - Review the resource requests and limits under `spec.resources`. For expected overhead, default limits, and tuning guidance, see [Overhead and resource usage](../faq.md#what-overhead-should-i-expect).
-   - Review the OpenTelemetry Collector configuration under `spec.config`. Standalone Host Profiler health metrics are not sent to Datadog by default; see [how to enable them and understand their billing impact](../README.md#standalone-collector-health-metrics). Adapt the configuration like any other [OpenTelemetry Collector configuration](https://opentelemetry.io/docs/collector/configuration/).
+   - Review the OpenTelemetry Collector configuration under `spec.config`. Adapt it like any other [OpenTelemetry Collector configuration](https://opentelemetry.io/docs/collector/configuration/).
 
 3. Choose a network policy manifest:
    - If your cluster enforces Kubernetes NetworkPolicy, use [`operator/network-policy.yaml`](operator/network-policy.yaml) by default.
@@ -42,6 +42,19 @@ Before deploying, update the provided manifests for your environment:
    - If you change the namespace or `OpenTelemetryCollector` name, update the policy metadata and pod selectors.
 
 If your cluster does not enforce NetworkPolicy resources, these manifests do not restrict egress; use your cluster's supported network controls instead.
+
+## Collector health metrics
+
+Standalone health metrics are not sent to Datadog by default. Enable them by setting the Collector metrics level to `normal`:
+
+```yaml
+service:
+  telemetry:
+    metrics:
+      level: normal
+```
+
+If the level is `none`, change it to `normal`. These metrics are emitted by each host and may affect Infrastructure Monitoring billing, depending on your plan and whether the host is already billed by Datadog. See [host billing](https://docs.datadoghq.com/account_management/billing/#hosts) and [usage details](https://docs.datadoghq.com/account_management/plan_and_usage/usage_details/).
 
 ## Deploy
 
