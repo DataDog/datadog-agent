@@ -31,6 +31,9 @@ type bucketBounds struct {
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
 	id                     checkid.ID
+	batchSize              int
+	nextBatchCommit        time.Time
+	batchDrained           chan time.Time
 	series                 []*metrics.Serie
 	sketches               metrics.SketchSeriesList
 	contextResolver        *countBasedContextResolver
@@ -38,6 +41,8 @@ type CheckSampler struct {
 	sketchMap              sketchMap
 	lastBucketValue        map[ckey.ContextKey]int64
 	lastBucketValueByBound map[ckey.ContextKey]map[bucketBounds]int64
+	bucketLastSeen         map[ckey.ContextKey]int64 // Check-run indices, independent of batch context expiry.
+	bucketRun              int64
 	deregistered           bool
 	contextResolverMetrics bool
 	logThrottling          util.SimpleThrottler
@@ -142,6 +147,12 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 
 	// if the bucket is monotonic and we have already seen the bucket we only send the delta
 	if bucket.Monotonic {
+		if cs.batchSize > 0 {
+			if cs.bucketLastSeen == nil {
+				cs.bucketLastSeen = make(map[ckey.ContextKey]int64)
+			}
+			cs.bucketLastSeen[contextKey] = cs.bucketRun
+		}
 		lastBucketValue := int64(0)
 		bucketFound := false
 		rawValue := bucket.Value
@@ -207,9 +218,13 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 	cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
 }
 
-func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.Matcher) {
+func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.Matcher, intermediate bool) {
 
-	series, errors := cs.metrics.Flush(timestamp)
+	flush := cs.metrics.Flush
+	if intermediate {
+		flush = cs.metrics.FlushBatch
+	}
+	series, errors := flush(timestamp)
 	for ckey, err := range errors {
 		context, ok := cs.contextResolver.get(ckey)
 		if !ok {
@@ -267,17 +282,40 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname
 }
 
 func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher) {
-	cs.commitSeries(timestamp, filterList)
+	cs.commitMetrics(timestamp, filterList, false)
+}
+
+func (cs *CheckSampler) commitBatch(timestamp float64, filterList *metricname.Matcher) {
+	cs.commitMetrics(timestamp, filterList, true)
+}
+
+func (cs *CheckSampler) commitMetrics(timestamp float64, filterList *metricname.Matcher, intermediate bool) {
+	cs.commitSeries(timestamp, filterList, intermediate)
 	cs.commitSketches(timestamp, filterList)
 
 	cs.metrics.RemoveExpired(timestamp)
 
 	expiredContextKeys := cs.contextResolver.expireContexts()
+	expiredBucketKeys := expiredContextKeys
+	if cs.batchSize > 0 {
+		// Reclaim contexts every batch, but age bucket baselines only at the
+		// check's final commit. Retaining a baseline does not retain its tags.
+		expiredBucketKeys = nil
+		if !intermediate {
+			for key, lastSeen := range cs.bucketLastSeen {
+				if lastSeen <= cs.bucketRun-cs.contextResolver.expireCountInterval {
+					expiredBucketKeys = append(expiredBucketKeys, key)
+				}
+			}
+			cs.bucketRun++
+		}
+	}
 
 	// garbage collect unused buckets
-	for _, ctxKey := range expiredContextKeys {
+	for _, ctxKey := range expiredBucketKeys {
 		delete(cs.lastBucketValue, ctxKey)
 		delete(cs.lastBucketValueByBound, ctxKey)
+		delete(cs.bucketLastSeen, ctxKey)
 	}
 
 	cs.metrics.Expire(expiredContextKeys, timestamp)

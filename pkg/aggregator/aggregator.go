@@ -10,9 +10,13 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"maps"
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/benbjohnson/clock"
+	"github.com/spf13/cast"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -60,8 +64,9 @@ type Stats struct {
 }
 
 var (
-	stateOk    = "ok"
-	stateError = "error"
+	stateOk           = "ok"
+	stateError        = "error"
+	checkBatchCommits = expvar.NewInt("check_batch_commits")
 )
 
 func (s *Stats) add(stat int64) {
@@ -273,7 +278,12 @@ type BufferedAggregator struct {
 	eventIn        chan event.Event
 	serviceCheckIn chan servicecheck.ServiceCheck
 
-	checkItems             chan senderItem
+	checkItems chan senderItem
+	// Batching is opt-in; unconfigured checks keep their normal commit boundary.
+	batchFlushRequested    chan struct{}
+	batchSizes             map[string]int
+	batchClock             clock.Clock
+	batchStopped           chan struct{}
 	orchestratorMetadataIn chan senderOrchestratorMetadata
 	orchestratorManifestIn chan senderOrchestratorManifest
 	eventPlatformIn        chan senderEventPlatformEvent
@@ -362,7 +372,11 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		serviceCheckIn: make(chan servicecheck.ServiceCheck, bufferSize),
 		eventIn:        make(chan event.Event, bufferSize),
 
-		checkItems: make(chan senderItem, bufferSize),
+		checkItems:          make(chan senderItem, bufferSize),
+		batchFlushRequested: make(chan struct{}, 1),
+		batchSizes:          maps.Clone(cast.ToStringMapInt(pkgconfigsetup.Datadog().Get("check_sampler_batch_sizes"))),
+		batchClock:          clock.New(),
+		batchStopped:        make(chan struct{}),
 
 		orchestratorMetadataIn: make(chan senderOrchestratorMetadata, bufferSize),
 		orchestratorManifestIn: make(chan senderOrchestratorManifest, bufferSize),
@@ -586,6 +600,10 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 
 		for _, sk := range sketches {
 			sketchesSink.Append(sk)
+		}
+		if checkSampler.batchDrained != nil {
+			checkSampler.batchDrained <- time.Time{}
+			checkSampler.batchDrained = nil
 		}
 
 		if checkSampler.deregistered {
@@ -826,6 +844,7 @@ func (agg *BufferedAggregator) run() {
 	for {
 		select {
 		case stop := <-agg.stopChan:
+			close(agg.batchStopped)
 			log.Info("Stopping aggregator")
 			agg.health.Deregister() //nolint:errcheck
 			close(stop)
@@ -1055,5 +1074,6 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 	if agg.observerHandle != nil {
 		cs.SetObserverHandle(agg.observerHandle)
 	}
+	cs.batchSize = agg.batchSize(id)
 	agg.checkSamplers[id] = cs
 }
