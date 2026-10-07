@@ -377,6 +377,7 @@
 /cmd/system-probe/                                  @DataDog/ebpf-platform
 /cmd/system-probe/modules/usm*                      @DataDog/universal-service-monitoring
 /cmd/system-probe/modules/network_tracer*           @DataDog/cloud-network-monitoring
+/cmd/system-probe/modules/packet_capture*           @DataDog/cloud-network-monitoring
 /cmd/system-probe/modules/oom_kill_probe*           @DataDog/container-integrations
 /cmd/system-probe/modules/process*                  @DataDog/container-experiences
 /cmd/system-probe/modules/eventmonitor*             @DataDog/agent-security
@@ -784,6 +785,7 @@
 /pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement @DataDog/action-platform @DataDog/ndm-integrations
 /pkg/privateactionrunner/bundles/remoteaction/networkdevices          @DataDog/action-platform @DataDog/network-device-monitoring-core
 /pkg/privateactionrunner/bundles/remoteaction/networks                @DataDog/action-platform @Datadog/network-path
+/pkg/privateactionrunner/bundles/remoteaction/pcap                    @DataDog/action-platform @DataDog/cloud-network-monitoring
 /pkg/proto/                                                           @DataDog/agent-runtimes
 /pkg/proto/datadog/dogstatsdhttp                                      @DataDog/agent-metric-pipelines
 /pkg/proto/datadog/kubemetadata                                       @DataDog/container-platform
@@ -1098,6 +1100,7 @@
 /test/new-e2e/tests/orchestrator                                @DataDog/kubernetes-experiences
 /test/new-e2e/tests/orchestrator/ecs_test.go                    @DataDog/ecs-experiences
 /test/new-e2e/tests/otel                                        @DataDog/opentelemetry-agent
+/test/new-e2e/tests/pcap                                        @DataDog/cloud-network-monitoring
 /test/new-e2e/tests/privateactionrunner                         @DataDog/action-platform
 /test/new-e2e/tests/process                                     @DataDog/container-experiences
 /test/new-e2e/tests/process/ecs_test.go                         @DataDog/ecs-experiences @DataDog/container-experiences

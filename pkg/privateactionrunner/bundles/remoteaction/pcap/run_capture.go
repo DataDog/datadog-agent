@@ -20,7 +20,9 @@ import (
 )
 
 const (
-	defaultSnapLen = 256
+	// defaultSnapLen matches system-probe's ceiling; system-probe trims every
+	// packet to its headers regardless.
+	defaultSnapLen = 128
 	// defaultMaxPackets and defaultMaxBytes bound an otherwise unbounded capture.
 	// The constraint they serve is not the pipeline — which ships 100 MB happily —
 	// but the usability of the artefact: Wireshark's limit is packet count, not
@@ -113,7 +115,7 @@ func (h *RunCaptureHandler) Run(
 
 	// An empty bpfFilter is valid and means "capture everything" — the UI does not
 	// require the user to supply one, so the Capture API may dispatch without it.
-	// compileBPFFilter treats "" as match-all rather than as an error.
+	// system-probe treats "" as match-all rather than as an error.
 
 	if inputs.DurationSecs < minDurationSecs || inputs.DurationSecs > maxDurationSecs {
 		return nil, fmt.Errorf("durationSecs must be between %d and %d, got %d", minDurationSecs, maxDurationSecs, inputs.DurationSecs)

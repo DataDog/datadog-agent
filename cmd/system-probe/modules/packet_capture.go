@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -33,7 +32,6 @@ type captureRequest struct {
 	MaxPackets   uint64 `json:"maxPackets,omitempty"`
 	MaxBytes     uint64 `json:"maxBytes,omitempty"`
 	SnapLen      uint32 `json:"snapLen,omitempty"`
-	HeaderOnly   bool   `json:"headerOnly,omitempty"`
 }
 
 // pollInterval is how often the handler polls Stats() while waiting for the
@@ -50,14 +48,15 @@ type packetCapture struct{}
 
 // PacketCapture is a factory for the packet capture module, which lets
 // trusted local callers (e.g. the Private Action Runner) trigger a
-// short-lived eBPF TC packet capture over the system-probe unix socket.
+// short-lived, header-only libpcap packet capture over the system-probe unix
+// socket.
 var PacketCapture = &module.Factory{
 	Name: config.PacketCaptureModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		return &packetCapture{}, nil
 	},
 	NeedsEBPF: func() bool {
-		return true
+		return false
 	},
 }
 
@@ -87,24 +86,16 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	iface, err := resolveInterface(reqBody.Interface)
-	if err != nil {
-		log.Errorf("packet_capture: %s", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
 	duration := time.Duration(reqBody.DurationSecs) * time.Second
 
 	cfg := capture.CaptureConfig{
 		Filter:     reqBody.BPFFilter,
-		Iface:      iface,
+		Interface:  reqBody.Interface,
 		Output:     w,
 		Duration:   duration,
 		MaxPackets: reqBody.MaxPackets,
 		MaxBytes:   reqBody.MaxBytes,
 		SnapLen:    reqBody.SnapLen,
-		HeaderOnly: reqBody.HeaderOnly,
 	}
 
 	capturer, err := capture.NewCapturer(cfg)
@@ -115,14 +106,14 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/vnd.tcpdump.pcap")
-	w.Header().Set("Trailer", "X-Packet-Count, X-Bytes-Captured, X-Packets-Dropped, X-Capture-Errors")
+	w.Header().Set("Trailer", "X-Packet-Count, X-Bytes-Captured, X-Packets-Dropped, X-Headers-Truncated, X-Capture-Errors")
 	w.WriteHeader(http.StatusOK)
 
 	ctx, cancel := context.WithTimeout(req.Context(), duration+stopGracePeriod)
 	defer cancel()
 
 	if err := capturer.Start(ctx); err != nil {
-		log.Errorf("packet_capture: starting capture on %s: %s", iface.Name, err)
+		log.Errorf("packet_capture: starting capture: %s", err)
 		w.Header().Set("X-Capture-Errors", "1")
 		return
 	}
@@ -130,13 +121,14 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 	waitForCapture(ctx, capturer, reqBody.MaxPackets)
 
 	if err := capturer.Stop(); err != nil {
-		log.Errorf("packet_capture: stopping capture on %s: %s", iface.Name, err)
+		log.Errorf("packet_capture: stopping capture: %s", err)
 	}
 
 	stats := capturer.Stats()
 	w.Header().Set("X-Packet-Count", strconv.FormatUint(stats.PacketsCaptured, 10))
 	w.Header().Set("X-Bytes-Captured", strconv.FormatUint(stats.BytesCaptured, 10))
 	w.Header().Set("X-Packets-Dropped", strconv.FormatUint(stats.PacketsDropped, 10))
+	w.Header().Set("X-Headers-Truncated", strconv.FormatUint(stats.HeadersTruncated, 10))
 	w.Header().Set("X-Capture-Errors", strconv.FormatUint(stats.Errors, 10))
 }
 
@@ -157,34 +149,4 @@ func waitForCapture(ctx context.Context, capturer capture.Capturer, maxPackets u
 			}
 		}
 	}
-}
-
-// resolveInterface returns the named interface, or the first non-loopback
-// interface that is up if name is empty.
-func resolveInterface(name string) (*net.Interface, error) {
-	if name != "" {
-		iface, err := net.InterfaceByName(name)
-		if err != nil {
-			return nil, fmt.Errorf("interface %q not found: %w", name, err)
-		}
-		return iface, nil
-	}
-
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return nil, fmt.Errorf("listing network interfaces: %w", err)
-	}
-
-	for i := range ifaces {
-		iface := ifaces[i]
-		if iface.Flags&net.FlagLoopback != 0 {
-			continue
-		}
-		if iface.Flags&net.FlagUp == 0 {
-			continue
-		}
-		return &iface, nil
-	}
-
-	return nil, fmt.Errorf("no suitable network interface found")
 }
