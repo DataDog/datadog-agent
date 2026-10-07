@@ -37,7 +37,7 @@ func buildGoBinary(srcDir, outPath, buildFlags string) (string, error) {
 	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-tags=test,netgo,bpf", buildFlags, "-o", cachedServerBinaryPath, serverSrcDir)
 	out, err := c.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("could not build unix transparent proxy server test binary: %s\noutput: %s", err, string(out))
+		return "", fmt.Errorf("could not build unix transparent proxy server test binary: %w\noutput: %s", err, string(out))
 	}
 
 	return cachedServerBinaryPath, nil

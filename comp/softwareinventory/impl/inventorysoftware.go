@@ -288,7 +288,7 @@ func (is *softwareInventory) sendPayload() error {
 
 	// Send the message through the event platform
 	if err = forwarder.SendEventPlatformEvent(msg, eventplatform.EventTypeSoftwareInventory); err != nil {
-		return fmt.Errorf("error sending payload to event platform: %v", err)
+		return fmt.Errorf("error sending payload to event platform: %w", err)
 	}
 	return nil
 }

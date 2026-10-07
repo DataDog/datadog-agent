@@ -107,7 +107,7 @@ func (s *secureDarwinBookmarkStore) Load() (*darwinBookmarkState, error) {
 
 	var state darwinBookmarkState
 	if err := json.Unmarshal(data, &state); err != nil {
-		return nil, fmt.Errorf("%w: %v", errDarwinBookmarkCorrupt, err)
+		return nil, fmt.Errorf("%w: %w", errDarwinBookmarkCorrupt, err)
 	}
 	if state.Version != darwinBookmarkSchemaVersion {
 		return nil, fmt.Errorf(

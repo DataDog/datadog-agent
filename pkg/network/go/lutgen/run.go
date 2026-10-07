@@ -343,7 +343,7 @@ func setupGoModule(ctx context.Context, cmd *exec.Cmd, programPath string, versi
 	modCmd.Path = cmd.Path
 	output, err := modCmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("error executing 'go mod tidy': %s\n%s", err, output)
+		return fmt.Errorf("error executing 'go mod tidy': %w\n%s", err, output)
 	}
 
 	return nil

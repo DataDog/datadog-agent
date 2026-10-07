@@ -282,7 +282,7 @@ func parseReplaceRules(cfg model.Config, key string) ([]*ReplaceRule, error) {
 		}
 		re, err := regexp.Compile(r.Pattern)
 		if err != nil {
-			return nil, fmt.Errorf("failed to compile %q: %s", r.Pattern, err)
+			return nil, fmt.Errorf("failed to compile %q: %w", r.Pattern, err)
 		}
 		r.Re = re
 	}
