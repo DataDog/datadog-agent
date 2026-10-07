@@ -8,6 +8,7 @@
 package sbomcollector
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -15,11 +16,18 @@ import (
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	sbompb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -466,4 +474,59 @@ func TestHandleResyncNotifiesEvents(t *testing.T) {
 	(&streamHandler{}).HandleResync(store, events)
 
 	assert.Equal(t, events, store.notified)
+}
+
+// TestForgetRemovedImages checks that the collector unsets its image entity once
+// the runtime removes the image, so that a new pull starts from a new scan.
+func TestForgetRemovedImages(t *testing.T) {
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	forgetRemovedImages(ctx, store)
+
+	// The unset of the collector's entity marks the end of the cleanup.
+	image := seedImageSBOM(t, "sha256:abc", workloadmeta.Success, component("bash", "5.1"))
+	removed := store.Subscribe("test", workloadmeta.NormalPriority, workloadmeta.NewFilterBuilder().
+		AddKind(workloadmeta.KindContainerImageMetadata).
+		SetSource(workloadmeta.SourceRemoteSBOMCollector).
+		SetEventType(workloadmeta.EventTypeUnset).
+		Build())
+	defer store.Unsubscribe(removed)
+	unset := make(chan struct{})
+	go func() {
+		done := unset
+		for bundle := range removed {
+			bundle.Acknowledge()
+			for _, ev := range bundle.Events {
+				if done != nil && ev.Entity.GetID() == image.EntityID {
+					close(done)
+					done = nil
+				}
+			}
+		}
+	}()
+
+	store.Notify([]workloadmeta.CollectorEvent{
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceRuntime, Entity: image},
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceRemoteSBOMCollector, Entity: image},
+	})
+	store.Notify([]workloadmeta.CollectorEvent{{
+		Type:   workloadmeta.EventTypeUnset,
+		Source: workloadmeta.SourceRuntime,
+		Entity: &workloadmeta.ContainerImageMetadata{EntityID: image.EntityID},
+	}})
+
+	select {
+	case <-unset:
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the image entity of the collector outlived the image")
+	}
+	_, err := store.GetImage(image.ID)
+	assert.Error(t, err)
 }

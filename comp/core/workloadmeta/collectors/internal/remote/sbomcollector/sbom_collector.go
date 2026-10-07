@@ -187,16 +187,71 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 	}, nil
 }
 
+// collector merges the reports of system-probe into image SBOMs, and forgets
+// them once the runtime removes their image.
+type collector struct {
+	*remote.GenericCollector
+}
+
+// Start starts the stream of reports and the watch of removed images
+func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
+	if err := c.GenericCollector.Start(ctx, store); err != nil {
+		return err
+	}
+	forgetRemovedImages(ctx, store)
+	return nil
+}
+
+// forgetRemovedImages unsets the image entities of this collector once the
+// runtime removes their image.
+func forgetRemovedImages(ctx context.Context, store workloadmeta.Component) {
+	filter := workloadmeta.NewFilterBuilder().
+		AddKind(workloadmeta.KindContainerImageMetadata).
+		SetSource(workloadmeta.SourceRuntime).
+		SetEventType(workloadmeta.EventTypeUnset).
+		Build()
+	ch := store.Subscribe(collectorID, workloadmeta.NormalPriority, filter)
+
+	go func() {
+		defer store.Unsubscribe(ch)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case bundle, ok := <-ch:
+				if !ok {
+					return
+				}
+				bundle.Acknowledge()
+				if len(bundle.Events) == 0 {
+					continue
+				}
+				events := make([]workloadmeta.CollectorEvent, 0, len(bundle.Events))
+				for _, ev := range bundle.Events {
+					events = append(events, workloadmeta.CollectorEvent{
+						Type:   workloadmeta.EventTypeUnset,
+						Source: workloadmeta.SourceRemoteSBOMCollector,
+						Entity: &workloadmeta.ContainerImageMetadata{EntityID: ev.Entity.GetID()},
+					})
+				}
+				store.Notify(events)
+			}
+		}
+	}()
+}
+
 // NewCollector returns a remote process collector for workloadmeta if any
 func NewCollector(ipc ipc.Component) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
-		Collector: &remote.GenericCollector{
-			CollectorID: collectorID,
-			// TODO(components): make sure StreamHandler uses the config component not pkg/config
-			StreamHandler: &streamHandler{agentConfig: pkgconfigsetup.Datadog(), systemProbeConfig: pkgconfigsetup.SystemProbe()},
-			Config:        pkgconfigsetup.Datadog(), //nolint:depguard
-			Catalog:       workloadmeta.NodeAgent,
-			IPC:           ipc,
+		Collector: &collector{
+			GenericCollector: &remote.GenericCollector{
+				CollectorID: collectorID,
+				// TODO(components): make sure StreamHandler uses the config component not pkg/config
+				StreamHandler: &streamHandler{agentConfig: pkgconfigsetup.Datadog(), systemProbeConfig: pkgconfigsetup.SystemProbe()},
+				Config:        pkgconfigsetup.Datadog(), //nolint:depguard
+				Catalog:       workloadmeta.NodeAgent,
+				IPC:           ipc,
+			},
 		},
 	}, nil
 }
