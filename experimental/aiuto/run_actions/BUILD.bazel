@@ -1,0 +1,44 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+load("@rules_python//python/zipapp:py_zipapp_binary.bzl", "py_zipapp_binary")
+
+py_library(
+    name = "run_actions_lib",
+    srcs = [
+        "action.py",
+        "main.py",
+        "render.py",
+        "runner.py",
+        "templates.py",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+py_binary(
+    name = "run_actions_bin",
+    srcs = ["main.py"],
+    main = "main.py",
+    visibility = ["//visibility:public"],
+    deps = [":run_actions_lib"],
+)
+
+py_zipapp_binary(
+    name = "run_actions",
+    binary = ":run_actions_bin",
+)
+
+[
+    py_test(
+        name = name,
+        size = "small",
+        srcs = [name + ".py"],
+        deps = [":run_actions_lib"],
+    )
+    for name in [
+        "action_test",
+        "main_test",
+        "render_test",
+        "runner_test",
+    ]
+]
