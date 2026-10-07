@@ -48,6 +48,8 @@ common --repo_env=PACKAGE_VERSION # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=REPIN=1 # Reduce MODULE.bazel.lock churn when --lockfile_mode=[update|refresh] trigger
 common --repo_env=SIGN_MAC # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=BAZEL_TOOLCHAINS_MSVC_ACCEPT_MICROSOFT_VISUAL_STUDIO_BUILDTOOLS_EULA=1 # common so bazel mod tidy resolves the MSVC extension on every host
+common --repo_env=BAZEL_MSVC_RUNTIME_VISUAL_STUDIO_EULA=1
+common --repo_env=BAZEL_WINDOWS_SDK_EULA=1
 common --repo_env=XDG_CACHE_HOME # https://wiki.archlinux.org/title/XDG_Base_Directory
 # Variables to override release.json values
 common --repo_env=INTEGRATIONS_CORE_VERSION
