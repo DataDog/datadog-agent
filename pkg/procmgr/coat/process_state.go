@@ -22,6 +22,7 @@ const (
 	ProcessStateExited        = "exited"
 	ProcessStateFailed        = "failed"
 	ProcessStateInvalidConfig = "invalid_config"
+	ProcessStateSkipped       = "skipped"
 )
 
 // procmgrProcessStates are the states reported as a tag on the procmgr_process_state gauge.
@@ -39,6 +40,7 @@ var procmgrProcessStates = []string{
 	ProcessStateExited,
 	ProcessStateFailed,
 	ProcessStateInvalidConfig,
+	ProcessStateSkipped,
 }
 
 // procmgrStateIsActive reports whether the procmgr_process_state gauge for state should be set
@@ -101,6 +103,8 @@ func parseProcmgrState(name string) string {
 		return ProcessStateFailed
 	case "INVALID_CONFIG", "INVALIDCONFIG":
 		return ProcessStateInvalidConfig
+	case "SKIPPED":
+		return ProcessStateSkipped
 	default:
 		return ProcessStateUnknown
 	}

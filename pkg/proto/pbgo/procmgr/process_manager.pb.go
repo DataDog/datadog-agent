@@ -39,21 +39,23 @@ const (
 	ProcessState_EXITED         ProcessState = 7
 	ProcessState_FAILED         ProcessState = 8
 	ProcessState_INVALID_CONFIG ProcessState = 9
+	ProcessState_SKIPPED        ProcessState = 10
 )
 
 // Enum value maps for ProcessState.
 var (
 	ProcessState_name = map[int32]string{
-		0: "UNKNOWN",
-		1: "CREATED",
-		2: "STARTING",
-		3: "RUNNING",
-		4: "STOPPING",
-		5: "STOPPED",
-		6: "CRASHED",
-		7: "EXITED",
-		8: "FAILED",
-		9: "INVALID_CONFIG",
+		0:  "UNKNOWN",
+		1:  "CREATED",
+		2:  "STARTING",
+		3:  "RUNNING",
+		4:  "STOPPING",
+		5:  "STOPPED",
+		6:  "CRASHED",
+		7:  "EXITED",
+		8:  "FAILED",
+		9:  "INVALID_CONFIG",
+		10: "SKIPPED",
 	}
 	ProcessState_value = map[string]int32{
 		"UNKNOWN":        0,
@@ -66,6 +68,7 @@ var (
 		"EXITED":         7,
 		"FAILED":         8,
 		"INVALID_CONFIG": 9,
+		"SKIPPED":        10,
 	}
 )
 
@@ -146,6 +149,7 @@ type Process struct {
 	Profile       string                 `protobuf:"bytes,10,opt,name=profile,proto3" json:"profile,omitempty"`
 	User          string                 `protobuf:"bytes,11,opt,name=user,proto3" json:"user,omitempty"`
 	ConfigError   string                 `protobuf:"bytes,12,opt,name=config_error,json=configError,proto3" json:"config_error,omitempty"` // empty unless state is INVALID_CONFIG
+	SkipReasons   []string               `protobuf:"bytes,13,rep,name=skip_reasons,json=skipReasons,proto3" json:"skip_reasons,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -264,6 +268,13 @@ func (x *Process) GetConfigError() string {
 	return ""
 }
 
+func (x *Process) GetSkipReasons() []string {
+	if x != nil {
+		return x.SkipReasons
+	}
+	return nil
+}
+
 type ListResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Processes     []*Process             `protobuf:"bytes,1,rep,name=processes,proto3" json:"processes,omitempty"`
@@ -377,6 +388,7 @@ type ProcessDetail struct {
 	User                string                 `protobuf:"bytes,21,opt,name=user,proto3" json:"user,omitempty"`
 	RuntimeUser         string                 `protobuf:"bytes,22,opt,name=runtime_user,json=runtimeUser,proto3" json:"runtime_user,omitempty"`
 	ConfigError         string                 `protobuf:"bytes,23,opt,name=config_error,json=configError,proto3" json:"config_error,omitempty"`
+	SkipReasons         []string               `protobuf:"bytes,24,rep,name=skip_reasons,json=skipReasons,proto3" json:"skip_reasons,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -570,6 +582,13 @@ func (x *ProcessDetail) GetConfigError() string {
 		return x.ConfigError
 	}
 	return ""
+}
+
+func (x *ProcessDetail) GetSkipReasons() []string {
+	if x != nil {
+		return x.SkipReasons
+	}
+	return nil
 }
 
 type DescribeResponse struct {
@@ -1163,6 +1182,7 @@ type GetStatusResponse struct {
 	StoppingProcesses      uint32                 `protobuf:"varint,11,opt,name=stopping_processes,json=stoppingProcesses,proto3" json:"stopping_processes,omitempty"`
 	CrashedProcesses       uint32                 `protobuf:"varint,12,opt,name=crashed_processes,json=crashedProcesses,proto3" json:"crashed_processes,omitempty"`
 	InvalidConfigProcesses uint32                 `protobuf:"varint,13,opt,name=invalid_config_processes,json=invalidConfigProcesses,proto3" json:"invalid_config_processes,omitempty"`
+	SkippedProcesses       uint32                 `protobuf:"varint,14,opt,name=skipped_processes,json=skippedProcesses,proto3" json:"skipped_processes,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -1288,6 +1308,13 @@ func (x *GetStatusResponse) GetInvalidConfigProcesses() uint32 {
 	return 0
 }
 
+func (x *GetStatusResponse) GetSkippedProcesses() uint32 {
+	if x != nil {
+		return x.SkippedProcesses
+	}
+	return 0
+}
+
 type GetConfigRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1397,7 +1424,7 @@ var File_datadog_procmgr_process_manager_proto protoreflect.FileDescriptor
 const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\n" +
 	"%datadog/procmgr/process_manager.proto\x12\x0fdatadog.procmgr\"\r\n" +
-	"\vListRequest\"\x90\x03\n" +
+	"\vListRequest\"\xb3\x03\n" +
 	"\aProcess\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
@@ -1412,14 +1439,15 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\aprofile\x18\n" +
 	" \x01(\tR\aprofile\x12\x12\n" +
 	"\x04user\x18\v \x01(\tR\x04user\x12!\n" +
-	"\fconfig_error\x18\f \x01(\tR\vconfigErrorB\x11\n" +
+	"\fconfig_error\x18\f \x01(\tR\vconfigError\x12!\n" +
+	"\fskip_reasons\x18\r \x03(\tR\vskipReasonsB\x11\n" +
 	"\x0f_last_exit_codeB\x0e\n" +
 	"\f_last_signal\"F\n" +
 	"\fListResponse\x126\n" +
 	"\tprocesses\x18\x01 \x03(\v2\x18.datadog.procmgr.ProcessR\tprocesses\"3\n" +
 	"\x0fDescribeRequest\x12 \n" +
 	"\fname_or_uuid\x18\x01 \x01(\tR\n" +
-	"nameOrUuid\"\xc7\x06\n" +
+	"nameOrUuid\"\xea\x06\n" +
 	"\rProcessDetail\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -1447,7 +1475,8 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\aprofile\x18\x14 \x01(\tR\aprofile\x12\x12\n" +
 	"\x04user\x18\x15 \x01(\tR\x04user\x12!\n" +
 	"\fruntime_user\x18\x16 \x01(\tR\vruntimeUser\x12!\n" +
-	"\fconfig_error\x18\x17 \x01(\tR\vconfigError\x1a6\n" +
+	"\fconfig_error\x18\x17 \x01(\tR\vconfigError\x12!\n" +
+	"\fskip_reasons\x18\x18 \x03(\tR\vskipReasons\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x11\n" +
@@ -1498,7 +1527,7 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\aremoved\x18\x02 \x03(\tR\aremoved\x12\x1a\n" +
 	"\bmodified\x18\x03 \x03(\tR\bmodified\x12\x1c\n" +
 	"\tunchanged\x18\x04 \x03(\tR\tunchanged\"\x12\n" +
-	"\x10GetStatusRequest\"\xb5\x04\n" +
+	"\x10GetStatusRequest\"\xe2\x04\n" +
 	"\x11GetStatusResponse\x12\x14\n" +
 	"\x05ready\x18\x01 \x01(\bR\x05ready\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12%\n" +
@@ -1513,13 +1542,14 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	" \x01(\rR\x11startingProcesses\x12-\n" +
 	"\x12stopping_processes\x18\v \x01(\rR\x11stoppingProcesses\x12+\n" +
 	"\x11crashed_processes\x18\f \x01(\rR\x10crashedProcesses\x128\n" +
-	"\x18invalid_config_processes\x18\r \x01(\rR\x16invalidConfigProcesses\"\x12\n" +
+	"\x18invalid_config_processes\x18\r \x01(\rR\x16invalidConfigProcesses\x12+\n" +
+	"\x11skipped_processes\x18\x0e \x01(\rR\x10skippedProcesses\"\x12\n" +
 	"\x10GetConfigRequest\"\x9f\x01\n" +
 	"\x11GetConfigResponse\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1a\n" +
 	"\blocation\x18\x02 \x01(\tR\blocation\x12)\n" +
 	"\x10loaded_processes\x18\x03 \x01(\rR\x0floadedProcesses\x12+\n" +
-	"\x11runtime_processes\x18\x04 \x01(\rR\x10runtimeProcesses*\x97\x01\n" +
+	"\x11runtime_processes\x18\x04 \x01(\rR\x10runtimeProcesses*\xa4\x01\n" +
 	"\fProcessState\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\v\n" +
 	"\aCREATED\x10\x01\x12\f\n" +
@@ -1532,7 +1562,9 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\x06EXITED\x10\a\x12\n" +
 	"\n" +
 	"\x06FAILED\x10\b\x12\x12\n" +
-	"\x0eINVALID_CONFIG\x10\t2\x83\x05\n" +
+	"\x0eINVALID_CONFIG\x10\t\x12\v\n" +
+	"\aSKIPPED\x10\n" +
+	"2\x83\x05\n" +
 	"\x0eProcessManager\x12C\n" +
 	"\x04List\x12\x1c.datadog.procmgr.ListRequest\x1a\x1d.datadog.procmgr.ListResponse\x12O\n" +
 	"\bDescribe\x12 .datadog.procmgr.DescribeRequest\x1a!.datadog.procmgr.DescribeResponse\x12R\n" +

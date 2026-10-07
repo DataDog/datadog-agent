@@ -9,9 +9,12 @@ process_config:
   process_collection:
     enabled: true
 
-# trace-agent is running by default
+# trace-agent is off: both IsAPMEnabled keys must be false, because apm_config.enabled
+# defaults to true and would reopen the procmgr gate if left unset.
 apm_config:
   enabled: false
+  error_tracking_standalone:
+    enabled: false
 
 # enable the datadog-installer, needs an API KEY
 remote_updates: true

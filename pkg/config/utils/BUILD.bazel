@@ -7,6 +7,7 @@ go_library(
         "api_key.go",
         "clusteragent.go",
         "endpoints.go",
+        "inframode.go",
         "metadata_as_tags.go",
         "metadata_providers.go",
         "miscellaneous.go",
@@ -33,6 +34,7 @@ dd_agent_go_test(
     srcs = [
         "clusteragent_test.go",
         "endpoints_test.go",
+        "inframode_test.go",
         "metadata_as_tags_test.go",
         "miscellaneous_test.go",
         "tags_test.go",
@@ -43,6 +45,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/config/mock",
         "//pkg/config/model",
+        "//pkg/config/setup/constants",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

@@ -86,14 +86,14 @@ bazel_dep(name = "libarchive", version = "3.8.1.bcr.3")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "35.1")
 bazel_dep(name = "re.bzl", version = "0.4.1")
-bazel_dep(name = "rules_cc", version = "0.2.25")
+bazel_dep(name = "rules_cc", version = "0.2.26")
 bazel_dep(name = "rules_flex", version = "0.4.1")
 bazel_dep(name = "rules_foreign_cc", version = "0.16.0")
 bazel_dep(name = "rules_go", version = "0.64.1")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
-bazel_dep(name = "rules_python", version = "2.4.0")
+bazel_dep(name = "rules_python", version = "2.4.1")
 bazel_dep(name = "rules_rs", version = "0.0.27")
 bazel_dep(name = "rules_rust", version = "0.74.0")
 bazel_dep(name = "rules_rust_prost", version = "0.74.0")
@@ -112,13 +112,6 @@ single_version_override(
         "//bazel/patches:protobuf-crate-universe-extensions.patch",  # protocolbuffers/protobuf#28230
     ],
     version = "35.1",
-)
-
-# Temporary until https://github.com/bazelbuild/rules_cc/pull/888 is addressed in some way or another
-single_version_override(
-    module_name = "rules_cc",
-    patch_strip = 1,
-    patches = ["//bazel/patches:rules_cc-restore-grep-includes.patch"],
 )
 
 single_version_override(

@@ -33,13 +33,15 @@ fn sleeper_fixture_no_auto_start() {
     status.assert_ready();
     status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
-        created: Some(1),
+        created: Some(0),
+        skipped: Some(1),
         running: Some(0),
         ..Default::default()
     });
     let list = procmgr.require_list();
     list.assert_len(1);
-    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Skipped);
+    list.assert_skip_reasons("sleeper_idle", &["auto_start_false"]);
 }
 
 #[test]
@@ -197,20 +199,22 @@ fn exit_fail_fixture_exits_with_failure() {
 }
 
 #[test]
-fn condition_blocked_fixture_stays_created() {
+fn condition_blocked_fixture_is_skipped() {
     let env = TestEnv::new().with_process("condition_blocked");
     let procmgr = env.start();
     let status = procmgr.require_status();
     status.assert_ready();
     status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
-        created: Some(1),
+        created: Some(0),
+        skipped: Some(1),
         running: Some(0),
         ..Default::default()
     });
     let list = procmgr.require_list();
     list.assert_len(1);
-    list.assert_process_state("condition_blocked", ProcessExpect::Created);
+    list.assert_process_state("condition_blocked", ProcessExpect::Skipped);
+    list.assert_skip_reasons("condition_blocked", &["path_missing"]);
     procmgr.assert_condition_path_not_met_logged(
         "condition_blocked",
         "/nonexistent/path/procmgr-condition-test",
@@ -231,6 +235,7 @@ fn test_cli_condition_path_exists_not_met() {
 
     let json = env.cli_list_json().stdout_json();
     assert_eq!(json[0]["name"], "missing-bin");
-    assert_eq!(json[0]["state"], "Created");
+    assert_eq!(json[0]["state"], "Skipped");
+    assert_eq!(json[0]["skip_reasons"], serde_json::json!(["path_missing"]));
     assert_eq!(json[0]["pid"], 0);
 }

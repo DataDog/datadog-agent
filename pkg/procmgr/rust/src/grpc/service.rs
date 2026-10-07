@@ -103,6 +103,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             stopping_processes: counts.stopping,
             crashed_processes: counts.crashed,
             invalid_config_processes: invalid.len() as u32,
+            skipped_processes: counts.skipped,
         }))
     }
 
@@ -239,6 +240,7 @@ struct StateCounts {
     crashed: u32,
     failed: u32,
     exited: u32,
+    skipped: u32,
 }
 
 impl StateCounts {
@@ -257,6 +259,7 @@ impl StateCounts {
                 ProcessState::Crashed => &mut counts.crashed,
                 ProcessState::Failed => &mut counts.failed,
                 ProcessState::Exited => &mut counts.exited,
+                ProcessState::Skipped => &mut counts.skipped,
             };
             *slot += 1;
         }
@@ -275,6 +278,7 @@ impl From<ProcessState> for proto::ProcessState {
             ProcessState::Crashed => Self::Crashed,
             ProcessState::Failed => Self::Failed,
             ProcessState::Stopped => Self::Stopped,
+            ProcessState::Skipped => Self::Skipped,
         }
     }
 }
@@ -294,6 +298,7 @@ fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
         profile: proc.profile().to_string(),
         user: proc.user().to_owned(),
         config_error: String::new(),
+        skip_reasons: proc.skip_reasons().to_vec(),
     }
 }
 
@@ -314,6 +319,7 @@ fn invalid_to_proto(inv: &InvalidProcess) -> proto::Process {
             &inv.error,
             crate::config::LIST_CONFIG_ERROR_MAX_CHARS,
         ),
+        skip_reasons: Vec::new(),
     }
 }
 
@@ -426,6 +432,7 @@ fn process_detail_fields(proc: &ManagedProcess) -> proto::ProcessDetail {
         user: proc.user().to_owned(),
         runtime_user: String::new(),
         config_error: String::new(),
+        skip_reasons: proc.skip_reasons().to_vec(),
     }
 }
 
@@ -454,6 +461,7 @@ fn invalid_detail_fields(inv: &InvalidProcess) -> proto::ProcessDetail {
         user: String::new(),
         runtime_user: String::new(),
         config_error: inv.error.clone(),
+        skip_reasons: Vec::new(),
     }
 }
 
@@ -497,6 +505,10 @@ mod tests {
         assert_eq!(
             proto::ProcessState::from(ProcessState::Stopped),
             proto::ProcessState::Stopped,
+        );
+        assert_eq!(
+            proto::ProcessState::from(ProcessState::Skipped),
+            proto::ProcessState::Skipped,
         );
     }
 

@@ -72,6 +72,25 @@ func TestReportIncludesEveryProcessNotJustCatalogServices(t *testing.T) {
 	assert.NotEmpty(t, report.Notes, "the report must explain how to read a process that is down")
 }
 
+// The dd-procmgrd unit/SCM state does not come back from Status(), so a report that only copied the
+// RPC answer left service_state empty on every host. It is collected here the way Collect does,
+// because a stopped or failed unit is what explains a daemon that cannot be reached.
+func TestReportSetsDaemonServiceStateWhenConnectFails(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
+		t.Skip("daemon service state is only collected on linux/windows")
+	}
+
+	collector := NewCollectorWithClient(t.TempDir(), &mockClient{connectErr: os.ErrNotExist})
+
+	report := collector.Report(context.Background(), ScrubOptions{})
+
+	assert.False(t, report.Daemon.Reachable)
+	assert.NotEmpty(t, report.DaemonError)
+	require.NotEmpty(t, report.Daemon.ServiceState,
+		"an unreachable daemon is exactly when its unit state has to be reported")
+	assert.Contains(t, daemonServiceStates, report.Daemon.ServiceState)
+}
+
 // The notes are the only thing in the report that tells a reader where to look when a process will
 // not start, so they must not name an artifact this platform never produces. Only the Windows
 // service writes a log file the flare collects: the Unix daemon starts with no log file and its
@@ -114,6 +133,15 @@ func TestReportNotesSeparateSpawnFailureFromWorkloadFailure(t *testing.T) {
 		"restart_count=0 is the default-policy reading for any failure, so it cannot diagnose one")
 	assert.NotContains(t, notes, "restart_count>0",
 		"a restart count above zero is not by itself a crash loop")
+}
+
+func TestReportNotesPointAtSkipReasonsForSkippedHolds(t *testing.T) {
+	notes := strings.Join(reportNotes(), "\n")
+
+	assert.Contains(t, notes, "state=skipped",
+		"a start-hold is Skipped, not an unnamed Created or Blocked state")
+	assert.Contains(t, notes, "skip_reasons",
+		"skip_reasons is what separates a config gate from ordering or auto_start_false")
 }
 
 func TestReportUnreachableDaemonIsRecordedNotDropped(t *testing.T) {
@@ -172,25 +200,27 @@ func TestReportDescribeFailureFallsBackToListData(t *testing.T) {
 	assert.Contains(t, report.Warnings[0], "describe datadog-agent-process")
 }
 
-// A gate-blocked process and an inert catalog entry are both Created, and auto_start is the only
-// field that separates them. It comes from Describe, so losing that call loses the distinction.
+// A gate-blocked process and an inert catalog entry are both Skipped. skip_reasons
+// is what separates them, and it comes from Describe (and List).
 func TestReportDistinguishesGatedProcessFromInertCatalogEntry(t *testing.T) {
 	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
 		daemon: DaemonSnapshot{Reachable: true, Ready: true},
 		processes: map[string]ProcessSnapshot{
-			"datadog-agent-process":  {Name: "datadog-agent-process", State: ProcessStateCreated},
-			"datadog-agent-sysprobe": {Name: "datadog-agent-sysprobe", State: ProcessStateCreated},
+			"datadog-agent-process":  {Name: "datadog-agent-process", State: ProcessStateSkipped},
+			"datadog-agent-sysprobe": {Name: "datadog-agent-sysprobe", State: ProcessStateSkipped},
 		},
 		details: map[string]ProcessSnapshot{
 			"datadog-agent-process": {
-				Name:      "datadog-agent-process",
-				State:     ProcessStateCreated,
-				AutoStart: true,
+				Name:        "datadog-agent-process",
+				State:       ProcessStateSkipped,
+				AutoStart:   true,
+				SkipReasons: []string{"config_gate"},
 			},
 			"datadog-agent-sysprobe": {
-				Name:      "datadog-agent-sysprobe",
-				State:     ProcessStateCreated,
-				AutoStart: false,
+				Name:        "datadog-agent-sysprobe",
+				State:       ProcessStateSkipped,
+				AutoStart:   false,
+				SkipReasons: []string{"auto_start_false"},
 			},
 		},
 	})
@@ -198,12 +228,12 @@ func TestReportDistinguishesGatedProcessFromInertCatalogEntry(t *testing.T) {
 	report := collector.Report(context.Background(), ScrubOptions{})
 
 	gated := reportProcessByName(t, report, "datadog-agent-process")
-	assert.Equal(t, ProcessStateCreated, gated.State)
-	assert.True(t, gated.AutoStart, "auto_start is what marks this as blocked rather than inert")
+	assert.Equal(t, ProcessStateSkipped, gated.State)
+	assert.Equal(t, []string{"config_gate"}, gated.SkipReasons)
 
 	inert := reportProcessByName(t, report, "datadog-agent-sysprobe")
-	assert.Equal(t, ProcessStateCreated, inert.State)
-	assert.False(t, inert.AutoStart)
+	assert.Equal(t, ProcessStateSkipped, inert.State)
+	assert.Equal(t, []string{"auto_start_false"}, inert.SkipReasons)
 }
 
 func TestReportSeparatesCrashLoopFromFailedSpawn(t *testing.T) {
@@ -782,6 +812,34 @@ func TestDaemonCallsLeaveTimeForTheServiceSweep(t *testing.T) {
 		"the daemon calls must give up while the collection context still has time on it")
 	// Tolerance well under the reserve: at a tolerance of the reserve itself this would hold whether
 	// or not any time was actually held back.
+	assert.WithinDuration(t, collectionDeadline.Add(-serviceSweepReserve), daemonDeadline,
+		serviceSweepReserve/4)
+}
+
+// Agent status calls Report on a budget of its own, far shorter than the flare's, so that a status
+// request stays quick. The reserve is what keeps that from being bought at the cost of the service
+// mapping: subtract the write margin from a status-sized budget and there still has to be enough
+// left that the sweep is carved out, or a hung daemon would report no supervisor for every service.
+func TestAShortCallerBudgetStillLeavesTheServiceSweepReserve(t *testing.T) {
+	// The smallest budget that has to keep working, stated here rather than imported so that
+	// lowering the status budget past it fails this test instead of silently changing behaviour.
+	const shortestSupportedCallerBudget = 4 * time.Second
+
+	parent, cancelParent := context.WithTimeout(context.Background(), shortestSupportedCallerBudget)
+	defer cancelParent()
+
+	collection, cancelCollection := flareContext(parent)
+	defer cancelCollection()
+	collectionDeadline, ok := collection.Deadline()
+	require.True(t, ok)
+
+	daemon, cancelDaemon := daemonPhaseContext(collection)
+	defer cancelDaemon()
+
+	daemonDeadline, ok := daemon.Deadline()
+	require.True(t, ok)
+	assert.True(t, daemonDeadline.Before(collectionDeadline),
+		"on a status-sized budget the daemon calls must still give up with time left for the sweep")
 	assert.WithinDuration(t, collectionDeadline.Add(-serviceSweepReserve), daemonDeadline,
 		serviceSweepReserve/4)
 }

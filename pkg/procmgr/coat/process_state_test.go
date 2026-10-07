@@ -25,6 +25,7 @@ func TestServiceProcessStateProcmgrManaged(t *testing.T) {
 		ProcessStateExited,
 		ProcessStateFailed,
 		ProcessStateInvalidConfig,
+		ProcessStateSkipped,
 	}
 
 	for _, expected := range states {
@@ -53,6 +54,8 @@ func TestParseProcmgrState(t *testing.T) {
 		{"Running", ProcessStateRunning},
 		{"FAILED", ProcessStateFailed},
 		{"Failed", ProcessStateFailed},
+		{"SKIPPED", ProcessStateSkipped},
+		{"Skipped", ProcessStateSkipped},
 		{"CREATED", ProcessStateCreated},
 		{"STARTING", ProcessStateStarting},
 		{"STOPPING", ProcessStateStopping},
@@ -179,6 +182,7 @@ func TestProcmgrProcessStatesCoverReportedStates(t *testing.T) {
 		ProcessStateExited,
 		ProcessStateFailed,
 		ProcessStateInvalidConfig,
+		ProcessStateSkipped,
 	}, procmgrProcessStates)
 	assert.NotContains(t, procmgrProcessStates, ProcessStateNotInstalled)
 }

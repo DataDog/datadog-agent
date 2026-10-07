@@ -103,7 +103,8 @@ fn test_cli_status_counts() {
         .assert_success()
         .assert_field("Total Processes", "3")
         .assert_field("Running", "2")
-        .assert_field("Created", "1")
+        .assert_field("Created", "0")
+        .assert_field("Skipped", "1")
         .assert_field("Stopped", "0")
         .assert_field("Failed", "0")
         .assert_field("Exited", "0");
@@ -130,7 +131,8 @@ fn test_cli_status_json() {
     assert!(json["uptime_seconds"].as_u64().is_some());
     assert_eq!(json["total_processes"], 2);
     assert_eq!(json["running_processes"], 1);
-    assert_eq!(json["created_processes"], 1);
+    assert_eq!(json["created_processes"], 0);
+    assert_eq!(json["skipped_processes"], 1);
     assert_eq!(json["stopped_processes"], 0);
     assert_eq!(json["failed_processes"], 0);
     assert_eq!(json["crashed_processes"], 0);
@@ -188,7 +190,8 @@ fn test_cli_status_mixed_states() {
     out.assert_success()
         .assert_field("Total Processes", "4")
         .assert_field("Running", "1")
-        .assert_field("Created", "1")
+        .assert_field("Created", "0")
+        .assert_field("Skipped", "1")
         .assert_field("Failed", "1")
         .assert_field("Exited", "1")
         .assert_field("Stopped", "0");
@@ -198,7 +201,8 @@ fn test_cli_status_mixed_states() {
     let json = json_out.stdout_json();
     assert_eq!(json["total_processes"], 4);
     assert_eq!(json["running_processes"], 1);
-    assert_eq!(json["created_processes"], 1);
+    assert_eq!(json["created_processes"], 0);
+    assert_eq!(json["skipped_processes"], 1);
     assert_eq!(json["failed_processes"], 1);
     assert_eq!(json["exited_processes"], 1);
     assert_eq!(json["stopped_processes"], 0);

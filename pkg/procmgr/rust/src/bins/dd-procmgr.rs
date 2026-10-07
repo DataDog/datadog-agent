@@ -201,6 +201,7 @@ fn state_name(val: i32) -> &'static str {
         Ok(proto::ProcessState::Exited) => "Exited",
         Ok(proto::ProcessState::Failed) => "Failed",
         Ok(proto::ProcessState::InvalidConfig) => "InvalidConfig",
+        Ok(proto::ProcessState::Skipped) => "Skipped",
         Err(_) => "Unknown",
     }
 }
@@ -291,6 +292,7 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                     "last_exit_code": p.last_exit_code,
                     "last_signal": p.last_signal,
                     "config_error": p.config_error,
+                    "skip_reasons": p.skip_reasons,
                 })
             })
             .collect();
@@ -313,6 +315,7 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
         "RESTARTS",
         "LAST EXIT",
         "COMMAND",
+        "SKIP REASONS",
     ];
 
     let rows: Vec<Vec<String>> = resp
@@ -333,6 +336,11 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                 p.restart_count.to_string(),
                 format_last_exit(p.last_exit_code, p.last_signal),
                 p.command.clone(),
+                if p.skip_reasons.is_empty() {
+                    "-".to_string()
+                } else {
+                    p.skip_reasons.join(",")
+                },
             ]
         })
         .collect();
@@ -379,6 +387,7 @@ async fn cmd_describe(
             "condition_path_exists": detail.condition_path_exists,
             "after": detail.after,
             "before": detail.before,
+            "skip_reasons": detail.skip_reasons,
             "runtime_user": detail.runtime_user,
             "config_error": detail.config_error,
         });
@@ -432,6 +441,9 @@ async fn cmd_describe(
     if !detail.before.is_empty() {
         println!("Before:              [{}]", detail.before.join(", "));
     }
+    if !detail.skip_reasons.is_empty() {
+        println!("Skip Reasons:        {}", detail.skip_reasons.join(", "));
+    }
     if !detail.env.is_empty() {
         let mut keys: Vec<&String> = detail.env.keys().collect();
         keys.sort();
@@ -468,6 +480,7 @@ async fn cmd_status(client: &mut ProcessManagerClient<Channel>, json: bool) -> R
             "starting_processes": resp.starting_processes,
             "stopping_processes": resp.stopping_processes,
             "invalid_config_processes": resp.invalid_config_processes,
+            "skipped_processes": resp.skipped_processes,
         });
         println!("{}", serde_json::to_string_pretty(&val).unwrap());
         return Ok(());
@@ -481,6 +494,7 @@ async fn cmd_status(client: &mut ProcessManagerClient<Channel>, json: bool) -> R
     println!("  Running:           {}", resp.running_processes);
     println!("  Stopped:           {}", resp.stopped_processes);
     println!("  Created:           {}", resp.created_processes);
+    println!("  Skipped:           {}", resp.skipped_processes);
     println!("  Failed:            {}", resp.failed_processes);
     println!("  Crashed:           {}", resp.crashed_processes);
     println!("  Exited:            {}", resp.exited_processes);
@@ -707,6 +721,7 @@ mod tests {
             state_name(proto::ProcessState::InvalidConfig as i32),
             "InvalidConfig"
         );
+        assert_eq!(state_name(proto::ProcessState::Skipped as i32), "Skipped");
     }
 
     #[test]
