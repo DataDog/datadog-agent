@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/logs-library/characterization"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
@@ -306,6 +307,7 @@ func (t *Tailer) RecordCharacterizationRotation(now time.Time) {
 	}
 	if seconds, ok := t.characterizationRotationInterval(now); ok {
 		metrics.TlmCharacterizationRotationIntervalSeconds.Observe(seconds)
+		characterization.Default.RecordRotation(now, seconds)
 	}
 }
 

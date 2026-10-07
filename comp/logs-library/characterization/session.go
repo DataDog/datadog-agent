@@ -86,6 +86,21 @@ type Group struct {
 	Aggregate  Aggregate `json:"aggregate"`
 }
 
+// RateWindow is a fixed ten-second ingress bucket used to preserve burst shape.
+type RateWindow struct {
+	StartedAt    time.Time `json:"started_at"`
+	EndsAt       time.Time `json:"ends_at"`
+	Events       uint64    `json:"events"`
+	ContentBytes uint64    `json:"content_bytes"`
+	RawBytes     uint64    `json:"raw_bytes"`
+}
+
+// Lifecycle contains file lifecycle signals observed inside the same session window.
+type Lifecycle struct {
+	Rotations         uint64    `json:"rotations"`
+	RotationIntervals Histogram `json:"rotation_interval_seconds"`
+}
+
 // Snapshot is the stable, versioned result of one bounded observation window.
 type Snapshot struct {
 	SchemaVersion            int                  `json:"schema_version"`
@@ -99,6 +114,8 @@ type Snapshot struct {
 	Totals                   Aggregate            `json:"totals"`
 	PayloadFamilies          map[string]Aggregate `json:"payload_families"`
 	Groups                   []Group              `json:"groups"`
+	RateWindows              []RateWindow         `json:"rate_windows"`
+	Lifecycle                *Lifecycle           `json:"lifecycle,omitempty"`
 	SourceCardinalityCapped  bool                 `json:"source_cardinality_capped"`
 	GroupLimitReached        bool                 `json:"group_limit_reached"`
 }
@@ -120,6 +137,7 @@ type session struct {
 	groups      map[groupKey]*Aggregate
 	sources     map[sourceIdentity]struct{}
 	lastIngress map[groupKey]time.Time
+	rateWindows map[int]*RateWindow
 	closed      bool
 }
 
@@ -161,6 +179,7 @@ func (m *Manager) Start(duration time.Duration) (Snapshot, error) {
 		groups:      make(map[groupKey]*Aggregate),
 		sources:     make(map[sourceIdentity]struct{}),
 		lastIngress: make(map[groupKey]time.Time),
+		rateWindows: make(map[int]*RateWindow),
 	}
 	m.active.Store(s)
 	return s.copySnapshot(), nil
@@ -200,6 +219,7 @@ func (m *Manager) Record(observation MessageObservation) {
 	updateAggregate(&familyAggregate, observation)
 	s.snapshot.PayloadFamilies[family] = familyAggregate
 	updateAggregate(group, observation)
+	s.recordRateWindow(observation)
 	if previous, found := s.lastIngress[key]; found && observation.ObservedAt.After(previous) {
 		seconds := observation.ObservedAt.Sub(previous).Seconds()
 		observeHistogram(&group.Interarrivals, seconds)
@@ -222,6 +242,42 @@ func (m *Manager) Record(observation MessageObservation) {
 	s.sources[identity] = struct{}{}
 	group.SourceCount++
 	s.snapshot.Totals.SourceCount++
+}
+
+// RecordRotation adds one aggregate-only file lifecycle observation.
+func (m *Manager) RecordRotation(observedAt time.Time, intervalSeconds float64) {
+	s := m.active.Load()
+	if s == nil || observedAt.Before(s.snapshot.StartedAt) || !observedAt.Before(s.snapshot.EndsAt) || intervalSeconds <= 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	if s.snapshot.Lifecycle == nil {
+		s.snapshot.Lifecycle = &Lifecycle{RotationIntervals: newHistogram(interarrivalBounds[:])}
+	}
+	s.snapshot.Lifecycle.Rotations++
+	observeHistogram(&s.snapshot.Lifecycle.RotationIntervals, intervalSeconds)
+}
+
+func (s *session) recordRateWindow(observation MessageObservation) {
+	const width = 10 * time.Second
+	index := int(observation.ObservedAt.Sub(s.snapshot.StartedAt) / width)
+	window := s.rateWindows[index]
+	if window == nil {
+		startedAt := s.snapshot.StartedAt.Add(time.Duration(index) * width)
+		endsAt := startedAt.Add(width)
+		if endsAt.After(s.snapshot.EndsAt) {
+			endsAt = s.snapshot.EndsAt
+		}
+		window = &RateWindow{StartedAt: startedAt, EndsAt: endsAt}
+		s.rateWindows[index] = window
+	}
+	window.Events++
+	window.ContentBytes += nonnegative(observation.ContentBytes)
+	window.RawBytes += nonnegative(observation.RawBytes)
 }
 
 // Status returns the active session or the latest completed result.
@@ -293,6 +349,13 @@ func (s *session) materializeGroups() {
 		}
 		return s.snapshot.Groups[i].SourceType < s.snapshot.Groups[j].SourceType
 	})
+	s.snapshot.RateWindows = s.snapshot.RateWindows[:0]
+	for _, window := range s.rateWindows {
+		s.snapshot.RateWindows = append(s.snapshot.RateWindows, *window)
+	}
+	sort.Slice(s.snapshot.RateWindows, func(i, j int) bool {
+		return s.snapshot.RateWindows[i].StartedAt.Before(s.snapshot.RateWindows[j].StartedAt)
+	})
 }
 
 func cloneSnapshot(snapshot Snapshot) Snapshot {
@@ -308,6 +371,12 @@ func cloneSnapshot(snapshot Snapshot) Snapshot {
 		groups[i].Aggregate = cloneAggregate(group.Aggregate)
 	}
 	snapshot.Groups = groups
+	snapshot.RateWindows = append([]RateWindow(nil), snapshot.RateWindows...)
+	if snapshot.Lifecycle != nil {
+		lifecycle := *snapshot.Lifecycle
+		lifecycle.RotationIntervals = cloneHistogram(lifecycle.RotationIntervals)
+		snapshot.Lifecycle = &lifecycle
+	}
 	return snapshot
 }
 

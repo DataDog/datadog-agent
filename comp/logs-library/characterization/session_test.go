@@ -41,6 +41,23 @@ func TestSessionBoundsAndAggregation(t *testing.T) {
 	require.Equal(t, uint64(1), result.Totals.Interarrivals.Count)
 	require.Equal(t, uint64(2), result.PayloadFamilies["json"].Events)
 	require.Len(t, result.Groups, 1)
+	require.Len(t, result.RateWindows, 1)
+	require.Equal(t, uint64(2), result.RateWindows[0].Events)
+}
+
+func TestSessionRecordsLifecycleInsideWindow(t *testing.T) {
+	now := time.Unix(100, 0).UTC()
+	manager := NewManager()
+	manager.now = func() time.Time { return now }
+	started, err := manager.Start(10 * time.Second)
+	require.NoError(t, err)
+	manager.RecordRotation(now.Add(time.Second), 5)
+	manager.RecordRotation(now.Add(11*time.Second), 6)
+	result, err := manager.Stop(started.SessionID)
+	require.NoError(t, err)
+	require.NotNil(t, result.Lifecycle)
+	require.Equal(t, uint64(1), result.Lifecycle.Rotations)
+	require.Equal(t, uint64(1), result.Lifecycle.RotationIntervals.Count)
 }
 
 func TestSessionAutomaticallyCompletesAndAllowsNext(t *testing.T) {
