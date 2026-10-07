@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/smb/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/smb/client/fake"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -229,6 +230,14 @@ func (h *harness) finish() []string {
 	return h.out.lines()
 }
 
+// fileOf returns the identity of the file now at p.
+func (h *harness) fileOf(p string) client.Identity {
+	h.t.Helper()
+	e, ok := h.share.Stat(p)
+	require.True(h.t, ok, "%s does not exist", p)
+	return e.Identity()
+}
+
 func (h *harness) activeTailer(p string) *tailer.Tailer {
 	h.t.Helper()
 	tl := h.scanner.active[p]
@@ -277,7 +286,7 @@ func want(from, to int) []string {
 
 func TestAppend(t *testing.T) {
 	h := newHarness(t)
-	id := h.share.Write("app/app.log", []byte(lines(1, 2)))
+	h.share.Write("app/app.log", []byte(lines(1, 2)))
 
 	h.scan()
 	assert.Equal(t, want(1, 2), h.out.waitLines(t, 2))
@@ -291,7 +300,7 @@ func TestAppend(t *testing.T) {
 	assert.Equal(t, want(1, 3), got)
 	last := h.out.messages()[2]
 	assert.Equal(t, identifier("app/app.log"), last.Origin.Identifier)
-	assert.Equal(t, tailer.EncodeOffset(id, int64(len(lines(1, 3)))), last.Origin.Offset)
+	assert.Equal(t, tailer.EncodeOffset(h.fileOf("app/app.log"), int64(len(lines(1, 3)))), last.Origin.Offset)
 
 	assert.Equal(t, want(1, 3), h.finish())
 	assert.Empty(t, h.source.GetInputs())
@@ -420,25 +429,94 @@ func TestCopyTruncate(t *testing.T) {
 	got := h.out.waitLines(t, 4)
 	assert.Equal(t, want(1, 4), got)
 	last := h.out.messages()[3]
-	assert.Equal(t, tailer.EncodeOffset(id, int64(len(lines(4, 4)))), last.Origin.Offset, "the new content is read from offset 0")
+	assert.Equal(t, tailer.EncodeOffset(h.fileOf("app/app.log"), int64(len(lines(4, 4)))), last.Origin.Offset, "the new content is read from offset 0")
 	assert.Equal(t, id, h.activeTailer("app/app.log").FileID())
 	assert.Equal(t, want(1, 4), h.finish())
 }
 
 func TestFileIDReuseWithShrink(t *testing.T) {
+	for _, creationTimes := range []bool{true, false} {
+		t.Run(fmt.Sprintf("creation times %t", creationTimes), func(t *testing.T) {
+			h := newHarness(t)
+			h.share.SetCreationTimes(creationTimes)
+			id := h.share.Write("app/app.log", []byte(lines(1, 3)))
+			h.scan()
+			h.out.waitLines(t, 3)
+
+			// Deleted and recreated under the same FileId (as Samba does
+			// with inode numbers), with less data than was read. Without
+			// creation times, the shrink still shows the new file.
+			h.share.Recreate("app/app.log", id)
+			h.share.Append("app/app.log", []byte(lines(4, 4)))
+
+			h.scan()
+			assert.Equal(t, want(1, 4), h.out.waitLines(t, 4))
+			assert.Equal(t, want(1, 4), h.finish())
+		})
+	}
+}
+
+// TestFileIDReuseWithALargerFile covers a file deleted and recreated under the
+// same FileId, as Samba does with inode numbers, that already holds more than
+// was read from the old one: only its creation time tells it apart, and it is
+// read from the beginning.
+func TestFileIDReuseWithALargerFile(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
 	h := newHarness(t)
 	id := h.share.Write("app/app.log", []byte(lines(1, 3)))
 	h.scan()
 	h.out.waitLines(t, 3)
+	old := h.fileOf("app/app.log")
 
-	// Deleted and recreated under the same FileId (as Samba does with inode
-	// numbers), with less data than was read.
 	h.share.Recreate("app/app.log", id)
-	h.share.Append("app/app.log", []byte(lines(4, 4)))
+	h.share.Append("app/app.log", []byte(lines(4, 8)))
+	require.Equal(t, id, h.fileOf("app/app.log").FileID)
+	require.NotEqual(t, old, h.fileOf("app/app.log"))
 
 	h.scan()
-	assert.Equal(t, want(1, 4), h.out.waitLines(t, 4))
-	assert.Equal(t, want(1, 4), h.finish())
+	assert.Equal(t, want(1, 8), h.out.waitLines(t, 8))
+	assert.Equal(t, h.fileOf("app/app.log"), h.activeTailer("app/app.log").Identity())
+	assert.Equal(t, want(1, 8), h.finish(), "no line of the new file is skipped")
+	assert.Empty(t, metrics.MissedBytesSnapshot(), "the old file was read to its end")
+}
+
+// TestDrainDoesNotFollowAReusedFileID drains a rotated file that is deleted
+// before the drain could read it, while a new file takes its FileId (Samba
+// gives a new file the inode number of the file it just deleted): the drain
+// must not read the new file in its place.
+func TestDrainDoesNotFollowAReusedFileID(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t, withPath("app/app.log"))
+	oldID := h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	h.out.waitLines(t, 1)
+
+	h.share.Append("app/app.log", []byte(lines(2, 2)))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", []byte(lines(3, 3)))
+	h.share.FailNextPath(fake.OpReadAt, "app/app.log.1", fake.ErrSharing)
+	h.scan() // the drain of the rotated file cannot read line 2 yet
+	h.out.waitLines(t, 2)
+	require.Len(t, h.scanner.draining, 1)
+
+	// The rotated file is deleted, the current one rotates, and the new
+	// app.log gets the FileId of the deleted file.
+	require.NoError(t, h.share.Delete("app/app.log.1"))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Recreate("app/app.log", oldID)
+	h.share.Append("app/app.log", []byte(lines(4, 6)))
+
+	for range 3 {
+		h.scan()
+	}
+	assert.Empty(t, h.scanner.draining)
+	assert.ElementsMatch(t, []string{"line 1", "line 3", "line 4", "line 5", "line 6"}, h.finish(),
+		"the new file is read once, from its beginning")
+	snapshot := metrics.MissedBytesSnapshot()
+	require.Len(t, snapshot, 1)
+	assert.Equal(t, int64(len(lines(2, 2))), snapshot[0].Bytes, "the deleted file's unread line is reported missed")
 }
 
 func TestDeleteAndRecreateRecordsMissedBytes(t *testing.T) {
@@ -633,6 +711,47 @@ func TestIdentityChangeWithoutListingFileIDs(t *testing.T) {
 	h.scan()
 	assert.Equal(t, want(1, 3), h.out.waitLines(t, 3))
 	assert.Equal(t, want(1, 3), h.finish())
+}
+
+// TestReplacedBeforeTheFirstReadWithoutReadFileIDs: on a server whose listings
+// show FileIds but whose opens do not, the file at a path is replaced between
+// the listing and the read that starts its tailer. The tailer starts from the
+// next listing, which shows the new file's FileId, so that it detects the
+// path's next rotation and its drain finds the rotated file.
+func TestReplacedBeforeTheFirstReadWithoutReadFileIDs(t *testing.T) {
+	h := newHarness(t)
+	h.share.SetReadFileIDs(false)
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	var once sync.Once
+	h.share.SetHook(func(op fake.Op, p string) {
+		if op == fake.OpReadAt && p == "app/app.log" {
+			once.Do(func() {
+				h.share.Recreate("app/app.log", 0)
+				h.share.Append("app/app.log", []byte(lines(2, 2)))
+			})
+		}
+	})
+
+	h.scan() // lists the first file, opens the new one
+	assert.Empty(t, h.scanner.active, "the tailer starts from a listing that shows its file")
+	h.scan() // lists the new one
+	assert.Equal(t, []string{"line 2"}, h.out.waitLines(t, 1))
+	assert.Equal(t, h.fileOf("app/app.log").FileID, h.activeTailer("app/app.log").FileID(),
+		"the tailer knows the FileId the listing shows")
+
+	// A rotation by rename: the rest of the rotated file is drained, and the
+	// path's new file read from the beginning.
+	h.share.Append("app/app.log", []byte(lines(3, 3)))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", []byte(lines(4, 4)))
+	h.scan()
+	require.Len(t, h.scanner.draining, 1)
+	for range 2 {
+		h.clock.Add(closeTimeout) // the drain ends
+		h.scan()
+	}
+	assert.Empty(t, h.scanner.draining)
+	assert.ElementsMatch(t, want(2, 4), h.finish())
 }
 
 func TestStaleListingSizeForcesAPeriodicRead(t *testing.T) {
@@ -958,51 +1077,70 @@ func TestRegistryOffsetRecovery(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		mode   string
-		stored func(id uint64) string
+		stored func(file client.Identity) string
 		want   []string
 	}{
 		{
 			name:   "same file",
 			mode:   "end",
-			stored: func(id uint64) string { return tailer.EncodeOffset(id, afterLine1) },
+			stored: func(file client.Identity) string { return tailer.EncodeOffset(file, afterLine1) },
+			want:   want(2, 3),
+		},
+		{
+			// Written before the offsets held the creation time.
+			name:   "same FileId, without a creation time",
+			mode:   "end",
+			stored: func(file client.Identity) string { return fmt.Sprintf("v1:%d:%d", file.FileID, afterLine1) },
 			want:   want(2, 3),
 		},
 		{
 			name:   "bare offset",
 			mode:   "end",
-			stored: func(uint64) string { return strconv.FormatInt(afterLine1, 10) },
+			stored: func(client.Identity) string { return strconv.FormatInt(afterLine1, 10) },
 			want:   want(2, 3),
 		},
 		{
-			name:   "file replaced while the agent was down",
-			mode:   "end",
-			stored: func(id uint64) string { return tailer.EncodeOffset(id+1, afterLine1) },
-			want:   want(1, 3),
+			name: "file replaced while the agent was down",
+			mode: "end",
+			stored: func(file client.Identity) string {
+				return tailer.EncodeOffset(client.Identity{FileID: file.FileID + 1, Created: file.Created}, afterLine1)
+			},
+			want: want(1, 3),
+		},
+		{
+			// Deleted and recreated with the same FileId (a reused inode
+			// number), but a new creation time.
+			name: "file replaced under the same FileId while the agent was down",
+			mode: "end",
+			stored: func(file client.Identity) string {
+				return tailer.EncodeOffset(client.Identity{FileID: file.FileID, Created: file.Created - int64(time.Hour)}, afterLine1)
+			},
+			want: want(1, 3),
 		},
 		{
 			// Truncated while the agent was down: everything in the file is
 			// new, whatever start_position says.
 			name:   "offset past the end, start_position beginning",
 			mode:   "beginning",
-			stored: func(id uint64) string { return tailer.EncodeOffset(id, 1000) },
+			stored: func(file client.Identity) string { return tailer.EncodeOffset(file, 1000) },
 			want:   want(1, 3),
 		},
 		{
 			name:   "offset past the end, start_position end",
 			mode:   "end",
-			stored: func(id uint64) string { return tailer.EncodeOffset(id, 1000) },
+			stored: func(file client.Identity) string { return tailer.EncodeOffset(file, 1000) },
 			want:   want(1, 3),
 		},
 		{
 			name:   "unreadable offset, start_position end",
 			mode:   "end",
-			stored: func(uint64) string { return "not an offset" },
+			stored: func(client.Identity) string { return "not an offset" },
 			want:   nil,
 		},
 		{
 			name:   "unreadable offset",
 			mode:   "beginning",
-			stored: func(uint64) string { return "not an offset" },
+			stored: func(client.Identity) string { return "not an offset" },
 			want:   want(1, 3),
 		},
 	} {
@@ -1010,10 +1148,10 @@ func TestRegistryOffsetRecovery(t *testing.T) {
 			h := newHarness(t, withStartPosition(tc.mode))
 			// The listing reports a stale size (0): the start position
 			// relies on the size reported when the file is opened.
-			id := h.share.Write("app/app.log", nil)
+			h.share.Write("app/app.log", nil)
 			h.share.SetStaleListing(true)
 			h.share.Write("app/app.log", []byte(content))
-			h.registry.SetOffset(identifier("app/app.log"), tc.stored(id))
+			h.registry.SetOffset(identifier("app/app.log"), tc.stored(h.fileOf("app/app.log")))
 
 			h.scan()
 			assert.Equal(t, tc.want, h.finish())

@@ -102,9 +102,9 @@ func TestRestartMidDrainResumesThePathsNewFile(t *testing.T) {
 	restarted := h.restart()
 	// The drain's messages committed no offset: the path's identifier holds
 	// the position of its new file, whatever the drain read.
-	fileID, offset, ok := tailer.DecodeOffset(h.registry.GetOffset(identifier("app/app.log")))
+	file, offset, ok := tailer.DecodeOffset(h.registry.GetOffset(identifier("app/app.log")))
 	require.True(t, ok)
-	assert.Equal(t, newID, fileID)
+	assert.Equal(t, newID, file.FileID)
 	assert.Equal(t, int64(len(lines(4, 4))), offset)
 	assert.Len(t, h.registry.StoredOffsets, 1, "nothing is committed under another identifier")
 

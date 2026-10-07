@@ -56,7 +56,7 @@ func newTestTailer(t *testing.T, share *fake.Share, fileID uint64, offset int64,
 		Host:            "Files.Example.COM",
 		Share:           "Logs",
 		Path:            testPath,
-		FileID:          fileID,
+		File:            client.Identity{FileID: fileID},
 		OutputChan:      out,
 		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
 		Decoder:         decoder.NewDecoderFromSource(source, info),
@@ -112,33 +112,50 @@ func entryOf(t *testing.T, share *fake.Share, p string) *client.Entry {
 	return &e
 }
 
+// fileOf returns the identity of the file now at p.
+func fileOf(t *testing.T, share *fake.Share, p string) client.Identity {
+	t.Helper()
+	return entryOf(t, share, p).Identity()
+}
+
 func TestIdentifier(t *testing.T) {
 	assert.Equal(t, "smb://files.example.com/logs/app/app.log", Identifier("Files.Example.COM", "Logs", "app/app.log"))
 	assert.Equal(t, "smb://h/s/a.log", Identifier("h", "s", "a.log"))
 }
 
 func TestOffsetEncoding(t *testing.T) {
-	assert.Equal(t, "v1:100:42", EncodeOffset(100, 42))
+	created := time.Date(2026, 10, 6, 12, 0, 0, 123456700, time.UTC).UnixNano()
+	assert.Equal(t, "v2:100:"+strconv.FormatInt(created, 10)+":42", EncodeOffset(client.Identity{FileID: 100, Created: created}, 42))
+	assert.Equal(t, "v2:100:0:42", EncodeOffset(client.Identity{FileID: 100}, 42))
 	for _, tc := range []struct {
 		in     string
-		fileID uint64
+		file   client.Identity
 		offset int64
 		ok     bool
 	}{
-		{in: "v1:100:42", fileID: 100, offset: 42, ok: true},
-		{in: "v1:0:7", fileID: 0, offset: 7, ok: true},
-		{in: "1234", fileID: 0, offset: 1234, ok: true}, // bare offsets carry no FileId
+		{in: EncodeOffset(client.Identity{FileID: 100, Created: created}, 42), file: client.Identity{FileID: 100, Created: created}, offset: 42, ok: true},
+		{in: "v2:100:0:42", file: client.Identity{FileID: 100}, offset: 42, ok: true},
+		// Earlier versions: v1 offsets carry no creation time, bare offsets
+		// no FileId either.
+		{in: "v1:100:42", file: client.Identity{FileID: 100}, offset: 42, ok: true},
+		{in: "v1:0:7", file: client.Identity{}, offset: 7, ok: true},
+		{in: "1234", file: client.Identity{}, offset: 1234, ok: true},
 		{in: ""},
 		{in: "v1:100"},
 		{in: "v1:x:1"},
 		{in: "v1:1:-3"},
+		{in: "v1:1:2:3"},
+		{in: "v2:100:42"},
+		{in: "v2:100:x:42"},
+		{in: "v2:100:1:-3"},
+		{in: "v3:1:2:3"},
 		{in: "-3"},
 		{in: "garbage"},
 	} {
-		fileID, offset, ok := DecodeOffset(tc.in)
+		file, offset, ok := DecodeOffset(tc.in)
 		assert.Equal(t, tc.ok, ok, tc.in)
 		if tc.ok {
-			assert.Equal(t, tc.fileID, fileID, tc.in)
+			assert.Equal(t, tc.file, file, tc.in)
 			assert.Equal(t, tc.offset, offset, tc.in)
 		}
 	}
@@ -147,18 +164,20 @@ func TestOffsetEncoding(t *testing.T) {
 func TestPollForwardsLinesWithOffsetsAndTags(t *testing.T) {
 	share := fake.New()
 	id := share.Write(testPath, []byte("one\ntwo\n"))
+	file := fileOf(t, share, testPath)
 	tt := newTestTailer(t, share, id, 0)
 
 	outcome, err := tt.Poll(context.Background(), entryOf(t, share, testPath))
 	require.NoError(t, err)
 	assert.Equal(t, OutcomeRead, outcome)
+	assert.Equal(t, file, tt.Identity(), "the creation time is adopted from the first read")
 
 	first, second := tt.next(t), tt.next(t)
 	assert.Equal(t, "one", string(first.GetContent()))
 	assert.Equal(t, "two", string(second.GetContent()))
 	assert.Equal(t, "smb://files.example.com/logs/app/app.log", second.Origin.Identifier)
-	assert.Equal(t, EncodeOffset(id, 4), first.Origin.Offset)
-	assert.Equal(t, EncodeOffset(id, 8), second.Origin.Offset)
+	assert.Equal(t, EncodeOffset(file, 4), first.Origin.Offset)
+	assert.Equal(t, EncodeOffset(file, 8), second.Origin.Offset)
 	assert.Contains(t, second.Origin.Tags(), "filename:app.log")
 	assert.Contains(t, second.Origin.Tags(), "dirname:smb://files.example.com/logs/app")
 	assert.True(t, tt.CaughtUp())
@@ -168,7 +187,7 @@ func TestPollForwardsLinesWithOffsetsAndTags(t *testing.T) {
 	require.NoError(t, err)
 	third := tt.next(t)
 	assert.Equal(t, "three", string(third.GetContent()))
-	assert.Equal(t, EncodeOffset(id, 14), third.Origin.Offset)
+	assert.Equal(t, EncodeOffset(file, 14), third.Origin.Offset)
 	assert.EqualValues(t, 14, tt.Offset())
 	assert.EqualValues(t, 14, tt.Source().BytesRead.Get())
 	assert.Zero(t, share.OpenHandles())
@@ -291,7 +310,42 @@ func TestPollAdoptsTheFileIDOfTheFirstRead(t *testing.T) {
 	_, err = tt.Poll(context.Background(), &entries[0])
 	require.NoError(t, err)
 	assert.Equal(t, id, tt.FileID())
-	assert.Equal(t, EncodeOffset(id, 4), tt.next(t).Origin.Offset)
+	assert.Equal(t, fileOf(t, share, testPath), tt.Identity())
+	assert.Equal(t, EncodeOffset(fileOf(t, share, testPath), 4), tt.next(t).Origin.Offset)
+}
+
+// TestPollReportsAFileIDReusedByANewFile covers a file deleted and recreated
+// under the same FileId, as Samba does with inode numbers, holding more than
+// the tailer read: the creation time shows it is another file, whether the
+// listing or only the read shows it.
+func TestPollReportsAFileIDReusedByANewFile(t *testing.T) {
+	share := fake.New()
+	id := share.Write(testPath, []byte("one\n"))
+	tt := newTestTailer(t, share, id, 0)
+	ctx := context.Background()
+	_, err := tt.Poll(ctx, entryOf(t, share, testPath))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"one"}, tt.lines(t, 1))
+
+	// Listed with a line the tailer did not read yet, then replaced before
+	// the read.
+	share.Append(testPath, []byte("two\n"))
+	listed := entryOf(t, share, testPath)
+	share.Recreate(testPath, id)
+	share.Append(testPath, []byte("other file\n"))
+	require.Equal(t, id, entryOf(t, share, testPath).FileID)
+
+	reads := share.Calls(fake.OpReadAt)
+	outcome, err := tt.Poll(ctx, entryOf(t, share, testPath))
+	require.NoError(t, err)
+	assert.Equal(t, OutcomeIdentityChanged, outcome, "the listing shows the new creation time")
+	assert.Equal(t, reads, share.Calls(fake.OpReadAt), "without a read")
+
+	outcome, err = tt.Poll(ctx, listed)
+	require.NoError(t, err)
+	assert.Equal(t, OutcomeIdentityChanged, outcome, "the read shows the new creation time")
+	assert.EqualValues(t, 4, tt.Offset())
+	tt.assertNoMessage(t)
 }
 
 func TestPollResumesAfterAnErrorWithoutResending(t *testing.T) {

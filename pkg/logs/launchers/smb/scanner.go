@@ -32,17 +32,18 @@ import (
 // polls the tailers and handles rotations; every field below cancel is only
 // used on that goroutine.
 //
-// A tailer follows one file identity (FileId). On each scan, for every path
-// with an active tailer:
-//   - same FileId in the listing: poll it;
-//   - another FileId (rotation): the tailer becomes a drain of its file, which
-//     it looks up by FileId under any listed name, and a new tailer reads the
-//     path from offset 0 right away;
+// A tailer follows one file identity (client.Identity: FileId and creation
+// time). On each scan, for every path with an active tailer:
+//   - same identity in the listing: poll it;
+//   - another identity (rotation, or a new file that reuses the FileId of the
+//     one it replaced): the tailer becomes a drain of its file, which it looks
+//     up by identity under any listed name, and a new tailer reads the path
+//     from offset 0 right away;
 //   - path no longer listed: the tailer becomes a drain the same way;
 //   - shorter than the offset (truncation): a new tailer reads from offset 0.
 //
 // A drain ends when two consecutive polls find no new data in the file, when
-// closeTimeout elapses, or when its FileId is no longer listed; bytes known to
+// closeTimeout elapses, or when its file is no longer listed; bytes known to
 // exist but not read are then reported as missed. While it lasts, agent status
 // lists the drain next to the path's new tailer.
 //
@@ -95,7 +96,7 @@ type drain struct {
 // handoff is where a drained file was left, when it sits at a path matched by
 // the pattern: the path's next tailer resumes there instead of re-reading it.
 type handoff struct {
-	fileID uint64
+	file   client.Identity
 	offset int64
 }
 
@@ -202,7 +203,7 @@ func (s *scanner) stopTailers() {
 	for p, t := range s.active {
 		// Nothing polls t anymore: its offset is final, and stopping t
 		// forwards everything it read.
-		s.stoppedAt[p] = handoff{fileID: t.FileID(), offset: t.Offset()}
+		s.stoppedAt[p] = handoff{file: t.Identity(), offset: t.Offset()}
 		s.deactivate(p, t)
 		stopper.Add(t)
 	}
@@ -239,12 +240,12 @@ func (s *scanner) scan(ctx context.Context) {
 		case !known:
 			// Its directory could not be listed: nothing to conclude.
 		case !listed:
-			log.Infof("SMB file %s is no longer listed; reading the rest of FileId %d wherever it was moved", t.Identifier(), t.FileID())
+			log.Infof("SMB file %s is no longer listed; reading the rest of %s wherever it was moved", t.Identifier(), t.Identity())
 			s.deactivate(p, t)
 			s.startDrain(t)
 			s.fromStart[p] = true
-		case entry.FileID != 0 && t.FileID() != 0 && entry.FileID != t.FileID():
-			log.Infof("SMB file %s rotated (FileId %d, now %d); reading the new file from the beginning", t.Identifier(), t.FileID(), entry.FileID)
+		case entry.FileID != 0 && t.FileID() != 0 && !t.Identity().Matches(entry.Identity()):
+			log.Infof("SMB file %s rotated (%s, now %s); reading the new file from the beginning", t.Identifier(), t.Identity(), entry.Identity())
 			s.deactivate(p, t)
 			s.startDrain(t)
 			s.fromStart[p] = true // started below, in this scan
@@ -283,6 +284,11 @@ func (s *scanner) forgetUnlisted(v *view) {
 			delete(s.initial, p)
 		}
 	}
+	for p := range s.mismatch {
+		if gone(p) {
+			delete(s.mismatch, p)
+		}
+	}
 }
 
 // poll polls the active tailer t of path p and handles what it found.
@@ -299,11 +305,11 @@ func (s *scanner) poll(ctx context.Context, p string, t *tailer.Tailer, entry *c
 	case tailer.OutcomeIdentityChanged:
 		if entry.FileID != 0 {
 			// The file was replaced between the listing and the read. The
-			// next listing shows the new FileId and the rotation is handled
+			// next listing shows the new file and the rotation is handled
 			// then, with a drain of the old file.
 			s.mismatch[p]++
 			if s.mismatch[p] == 3 {
-				log.Warnf("SMB file %s: the directory listing keeps reporting FileId %d but opening the file reports another one; the server's FileIds may be inconsistent", t.Identifier(), entry.FileID)
+				log.Warnf("SMB file %s: the directory listing keeps reporting %s but opening the file reports another file; the server's FileIds or creation times may be inconsistent", t.Identifier(), entry.Identity())
 			}
 			return
 		}
@@ -329,7 +335,7 @@ func (s *scanner) poll(ctx context.Context, p string, t *tailer.Tailer, entry *c
 
 // startTailer starts a tailer for the matched path p and polls it.
 func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry, errs *scanErrors) {
-	if entry.FileID != 0 && s.drainingFileID(entry.FileID) {
+	if s.drainingFile(entry.Identity()) {
 		// A rotated file being drained, renamed to another matched path.
 		// The path's tailer starts where the drain ends (see endDrain).
 		return
@@ -344,7 +350,7 @@ func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry,
 	}
 	delete(s.conflicts, p)
 
-	offset, fileID, ok := s.startPosition(ctx, p, identifier, entry, errs)
+	offset, file, ok := s.startPosition(ctx, p, identifier, entry, errs)
 	if !ok {
 		s.l.claims.release(identifier, s)
 		return
@@ -364,7 +370,7 @@ func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry,
 		Host:            s.host,
 		Share:           s.share,
 		Path:            p,
-		FileID:          fileID,
+		File:            file,
 		OutputChan:      outputChan,
 		CapacityMonitor: monitor,
 		Decoder:         decoder.NewDecoderFromSourceWithPattern(replaceable, pattern, info),
@@ -386,11 +392,11 @@ func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry,
 //   - where a drain of the same file ended, for a drained file now at p, or
 //     where the scanner this one replaces stopped reading it;
 //   - 0 for a path whose previous file was replaced while being tailed;
-//   - the registry offset, when it was recorded for the same FileId and is
-//     not past the end of the file;
-//   - 0 when the registry offset was recorded for another FileId or is past
-//     the end of the file: the file was replaced or truncated while it was not
-//     tailed, so all of it is new (as for file sources,
+//   - the registry offset, when it was recorded for the same file identity
+//     and is not past the end of the file;
+//   - 0 when the registry offset was recorded for another file identity or is
+//     past the end of the file: the file was replaced or truncated while it
+//     was not tailed, so all of it is new (as for file sources,
 //     pkg/logs/launchers/file/position.go);
 //   - for a file that was there when the source started (see scanner), 0
 //     (start_position: beginning) or the end of the file (end);
@@ -400,44 +406,75 @@ func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry,
 // receive a file that was already drained, the previous file of another
 // matched path (app.log.1 renamed to app.log.2 and app.log to app.log.1).
 //
-// The size and FileId come from opening the file, since listing sizes can be
-// stale.
-func (s *scanner) startPosition(ctx context.Context, p, identifier string, entry client.Entry, errs *scanErrors) (offset int64, fileID uint64, ok bool) {
+// The size and identity come from opening the file, since listing sizes can
+// be stale.
+func (s *scanner) startPosition(ctx context.Context, p, identifier string, entry client.Entry, errs *scanErrors) (offset int64, file client.Identity, ok bool) {
+	file = entry.Identity()
 	if h, found := s.handoffs[p]; found {
 		delete(s.handoffs, p)
-		if h.fileID == entry.FileID {
-			return h.offset, h.fileID, true
+		if sameFile(h.file, file) {
+			return h.offset, h.file, true
 		}
 	}
 	if s.fromStart[p] {
-		return 0, entry.FileID, true
+		return 0, file, true
 	}
 	res, err := s.client.ReadAt(ctx, p, 0, 0)
 	if err != nil {
 		s.fileErr(p, identifier, err, errs)
-		return 0, 0, false
+		return 0, client.Identity{}, false
 	}
 	delete(s.blocked, p)
-	fileID = res.FileID
-	if fileID == 0 {
-		fileID = entry.FileID
+	file = merge(res.Identity(), file)
+	if file.FileID == 0 && entry.FileID != 0 {
+		// The file was replaced between the listing and the read, which
+		// tells no FileId. The tailer starts from the next listing, which
+		// shows the new file's FileId: without it, the tailer could not
+		// tell the path's next rotation (see scan), nor its drain find the
+		// rotated file (see view.findFile).
+		s.mismatch[p]++
+		if s.mismatch[p] == 3 {
+			log.Warnf("SMB file %s: the directory listing keeps reporting %s but opening the file reports another file; the server's FileIds or creation times may be inconsistent", identifier, entry.Identity())
+		}
+		return 0, client.Identity{}, false
 	}
-	if storedID, stored, found := tailer.DecodeOffset(s.l.registry.GetOffset(identifier)); found {
+	if stored, offset, found := tailer.DecodeOffset(s.l.registry.GetOffset(identifier)); found {
 		switch {
-		case storedID != 0 && fileID != 0 && storedID != fileID:
-			log.Infof("SMB file %s was replaced while it was not tailed (FileId %d, now %d); reading it from the beginning", identifier, storedID, fileID)
-			return 0, fileID, true
-		case stored <= res.Size:
-			return stored, fileID, true
+		case !stored.Matches(file):
+			log.Infof("SMB file %s was replaced while it was not tailed (%s, now %s); reading it from the beginning", identifier, stored, file)
+			return 0, file, true
+		case offset <= res.Size:
+			return offset, file, true
 		default:
-			log.Infof("Stored offset %d for SMB file %s is past its end (%d bytes): it was truncated while it was not tailed; reading it from the beginning", stored, identifier, res.Size)
-			return 0, fileID, true
+			log.Infof("Stored offset %d for SMB file %s is past its end (%d bytes): it was truncated while it was not tailed; reading it from the beginning", offset, identifier, res.Size)
+			return 0, file, true
 		}
 	}
 	if s.mode == config.Beginning || !s.initial[p] {
-		return 0, fileID, true
+		return 0, file, true
 	}
-	return res.Size, fileID, true
+	return res.Size, file, true
+}
+
+// sameFile reports whether a and b identify the same file, as far as they
+// tell: the same FileId, known or not in both, and creation times that match.
+func sameFile(a, b client.Identity) bool {
+	return a.FileID == b.FileID && a.Matches(b)
+}
+
+// merge returns the identity read, with the parts it does not know taken from
+// the listing when the listing can describe the same file.
+func merge(read, listed client.Identity) client.Identity {
+	if !read.Matches(listed) {
+		return read
+	}
+	if read.FileID == 0 {
+		read.FileID = listed.FileID
+	}
+	if read.Created == 0 {
+		read.Created = listed.Created
+	}
+	return read
 }
 
 // startDrain turns t, already removed from the active tailers, into a drain.
@@ -473,7 +510,7 @@ func (s *scanner) pollDrain(ctx context.Context, d *drain, v *view, errs *scanEr
 		s.endDrain(t, v, t.Offset(), fmt.Sprintf("SMB rotation drain timed out after %s (logs_config.close_timeout)", s.l.closeTimeout))
 		return false
 	}
-	at, entry, found := v.findFileID(t.FileID())
+	at, entry, found := v.findFile(t.Identity())
 	if !found {
 		if v.failed {
 			return true // a directory could not be listed: it may be there
@@ -516,8 +553,8 @@ func (s *scanner) pollDrain(ctx context.Context, d *drain, v *view, errs *scanEr
 // Otherwise the bytes t did not read are reported as missed, with reason.
 func (s *scanner) endDrain(t *tailer.Tailer, v *view, offset int64, reason string) {
 	at := t.ReadPath()
-	if e, ok := v.matches[at]; ok && e.FileID == t.FileID() && s.active[at] == nil {
-		s.handoffs[at] = handoff{fileID: t.FileID(), offset: offset}
+	if e, ok := v.matches[at]; ok && sameFile(e.Identity(), t.Identity()) && s.active[at] == nil {
+		s.handoffs[at] = handoff{file: t.Identity(), offset: offset}
 	} else if reason != "" {
 		t.RecordMissedBytes(reason)
 	}
@@ -525,10 +562,13 @@ func (s *scanner) endDrain(t *tailer.Tailer, v *view, offset int64, reason strin
 	s.stopAsync(t)
 }
 
-// drainingFileID reports whether a drain reads the file fileID.
-func (s *scanner) drainingFileID(fileID uint64) bool {
+// drainingFile reports whether a drain reads the file file.
+func (s *scanner) drainingFile(file client.Identity) bool {
+	if file.FileID == 0 {
+		return false
+	}
 	for _, d := range s.draining {
-		if d.t.FileID() == fileID {
+		if d.t.FileID() == file.FileID && d.t.Identity().Matches(file) {
 			return true
 		}
 	}
@@ -620,15 +660,16 @@ func (v *view) lookup(p string) (entry client.Entry, listed, known bool) {
 	return client.Entry{}, false, !v.failed
 }
 
-// findFileID looks for the file fileID under any name in the listed
-// directories.
-func (v *view) findFileID(fileID uint64) (string, client.Entry, bool) {
-	if fileID == 0 {
+// findFile looks for the file file under any name in the listed directories.
+// It needs the FileId: a file the creation time alone identifies is not
+// looked for.
+func (v *view) findFile(file client.Identity) (string, client.Entry, bool) {
+	if file.FileID == 0 {
 		return "", client.Entry{}, false
 	}
 	for _, dir := range sortedKeys(v.dirs) {
 		for _, e := range v.dirs[dir] {
-			if !e.IsDir && e.FileID == fileID {
+			if !e.IsDir && e.FileID == file.FileID && file.Matches(e.Identity()) {
 				return join(dir, e.Name), e, true
 			}
 		}

@@ -48,10 +48,11 @@ func TestWriteAppendAndRead(t *testing.T) {
 	sess := s.NewSession()
 	id := s.Write("app/a.log", []byte("hello "))
 	assert.Equal(t, id, s.Append("app/a.log", []byte("world\n")), "appending keeps the FileID")
+	created := stat(t, s, "app/a.log").CreationTime
 
 	res, err := sess.ReadAt(ctx, "app/a.log", 0, 100)
 	require.NoError(t, err)
-	assert.Equal(t, client.ReadResult{FileID: id, Size: 12, Data: []byte("hello world\n")}, res)
+	assert.Equal(t, client.ReadResult{FileID: id, CreationTime: created, Size: 12, Data: []byte("hello world\n")}, res)
 
 	res, err = sess.ReadAt(ctx, "/app/a.log", 6, 3)
 	require.NoError(t, err)
@@ -60,11 +61,11 @@ func TestWriteAppendAndRead(t *testing.T) {
 	for _, off := range []int64{12, 50} {
 		res, err = sess.ReadAt(ctx, "app/a.log", off, 100)
 		require.NoError(t, err)
-		assert.Equal(t, client.ReadResult{FileID: id, Size: 12}, res, "reading at or past the end is empty, not an error")
+		assert.Equal(t, client.ReadResult{FileID: id, CreationTime: created, Size: 12}, res, "reading at or past the end is empty, not an error")
 	}
 	res, err = sess.ReadAt(ctx, "app/a.log", 0, 0)
 	require.NoError(t, err)
-	assert.Equal(t, client.ReadResult{FileID: id, Size: 12}, res)
+	assert.Equal(t, client.ReadResult{FileID: id, CreationTime: created, Size: 12}, res)
 
 	res, err = sess.ReadAt(ctx, "app/a.log", 0, 5)
 	require.NoError(t, err)
@@ -74,10 +75,17 @@ func TestWriteAppendAndRead(t *testing.T) {
 	assert.Equal(t, "hello", string(again.Data), "returned data is a copy")
 
 	s.Write("app/a.log", []byte("new"))
-	got, ok := s.Stat("app/a.log")
-	require.True(t, ok)
+	got := stat(t, s, "app/a.log")
 	assert.Equal(t, id, got.FileID, "Write replaces the content in place")
+	assert.Equal(t, created, got.CreationTime)
 	assert.Equal(t, int64(3), got.Size)
+}
+
+func stat(t *testing.T, s *Share, p string) client.Entry {
+	t.Helper()
+	e, ok := s.Stat(p)
+	require.True(t, ok, "%s does not exist", p)
+	return e
 }
 
 func TestListDir(t *testing.T) {
@@ -122,10 +130,13 @@ func TestRotations(t *testing.T) {
 	id := s.Write("app.log", []byte("first generation\n"))
 
 	// rename + create
+	created := stat(t, s, "app.log").CreationTime
 	require.NoError(t, s.Rename("app.log", "app.log.1"))
 	newID := s.Recreate("app.log", 0)
 	assert.NotEqual(t, id, newID)
 	assert.Equal(t, id, entry(t, sess, "", "app.log.1").FileID, "a rename keeps the FileID")
+	assert.Equal(t, created, entry(t, sess, "", "app.log.1").CreationTime, "and the creation time")
+	assert.True(t, entry(t, sess, "", "app.log").CreationTime.After(created), "a new file has a later creation time")
 	assert.Equal(t, newID, entry(t, sess, "", "app.log").FileID)
 	res, err := sess.ReadAt(ctx, "app.log.1", 0, 100)
 	require.NoError(t, err)
@@ -136,20 +147,22 @@ func TestRotations(t *testing.T) {
 	require.NoError(t, s.Rename("app.log", "app.log.1"))
 	assert.Equal(t, newID, entry(t, sess, "", "app.log.1").FileID)
 
-	// copytruncate keeps the FileID and shrinks the file
+	// copytruncate keeps the identity and shrinks the file
 	s.Write("ct.log", []byte("0123456789"))
-	ctID, _ := s.Stat("ct.log")
+	ct := stat(t, s, "ct.log")
 	require.NoError(t, s.Truncate("ct.log", 0))
 	res, err = sess.ReadAt(ctx, "ct.log", 0, 100)
 	require.NoError(t, err)
-	assert.Equal(t, client.ReadResult{FileID: ctID.FileID, Size: 0}, res)
+	assert.Equal(t, client.ReadResult{FileID: ct.FileID, CreationTime: ct.CreationTime, Size: 0}, res)
 	require.NoError(t, s.Truncate("ct.log", 3))
 	res, err = sess.ReadAt(ctx, "ct.log", 0, 100)
 	require.NoError(t, err)
 	assert.Equal(t, []byte{0, 0, 0}, res.Data)
 
-	// delete + recreate, with a reused FileID (Samba inodes)
+	// delete + recreate, with a reused FileID (Samba inodes) but a new
+	// creation time
 	reused := s.Write("reuse.log", []byte("a long first file\n"))
+	first := stat(t, s, "reuse.log").Identity()
 	require.NoError(t, s.Delete("reuse.log"))
 	_, err = sess.ReadAt(ctx, "reuse.log", 0, 1)
 	assert.Equal(t, client.ErrNotFound, client.Classify(err))
@@ -157,7 +170,8 @@ func TestRotations(t *testing.T) {
 	s.Append("reuse.log", []byte("short\n"))
 	res, err = sess.ReadAt(ctx, "reuse.log", 0, 100)
 	require.NoError(t, err)
-	assert.Equal(t, client.ReadResult{FileID: reused, Size: 6, Data: []byte("short\n")}, res)
+	assert.Equal(t, client.ReadResult{FileID: reused, CreationTime: stat(t, s, "reuse.log").CreationTime, Size: 6, Data: []byte("short\n")}, res)
+	assert.False(t, first.Matches(res.Identity()), "the reused FileID is another file")
 
 	// writer-side errors
 	assert.Equal(t, client.ErrNotFound, client.Classify(s.Rename("nope", "x")))
@@ -201,6 +215,14 @@ func TestFileIDReporting(t *testing.T) {
 	res, err = sess.ReadAt(ctx, "a.log", 0, 1)
 	require.NoError(t, err)
 	assert.Zero(t, res.FileID)
+	assert.False(t, res.CreationTime.IsZero(), "the open still reports the creation time")
+
+	s.SetCreationTimes(false)
+	assert.True(t, entry(t, sess, "", "a.log").CreationTime.IsZero())
+	res, err = sess.ReadAt(ctx, "a.log", 0, 1)
+	require.NoError(t, err)
+	assert.True(t, res.CreationTime.IsZero())
+	assert.False(t, stat(t, s, "a.log").CreationTime.IsZero(), "Stat always reports it")
 }
 
 func TestInjectedErrors(t *testing.T) {
