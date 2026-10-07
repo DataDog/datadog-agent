@@ -209,7 +209,6 @@ func inferLading(snapshot characterization.Snapshot) ([]byte, map[string]any) {
 		"inferred_source_count":                 fileSources,
 		"observed_distinct_file_sources":        distinctFileSources,
 		"observed_payload_family":               payloadFamily,
-		"inferred_payload_variant":              payloadFamily,
 		"inferred_payload_streams":              streamReport,
 		"rate_inference":                        rateInference,
 	}

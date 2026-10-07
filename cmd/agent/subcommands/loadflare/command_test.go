@@ -126,7 +126,7 @@ func TestInferLadingEmitsMultipleFilePayloadStreams(t *testing.T) {
 	require.Contains(t, rendered, `duplicates: 2`)
 	require.Contains(t, rendered, `variant: "apache_common"`)
 	require.Contains(t, rendered, `variant: "json"`)
-	require.Equal(t, "mixed", report["inferred_payload_variant"])
+	require.NotContains(t, report, "inferred_payload_variant")
 	require.Equal(t, "mixed", report["observed_payload_family"])
 	require.Len(t, report["inferred_payload_streams"], 2)
 }
@@ -225,7 +225,7 @@ func TestInferenceReportSeparatesObservedFamilyFromLadingGenerator(t *testing.T)
 	}
 	_, report := inferLading(snapshot)
 	require.Equal(t, "datadog_json", report["observed_payload_family"])
-	require.Equal(t, "datadog_json", report["inferred_payload_variant"])
+	require.NotContains(t, report, "inferred_payload_variant")
 	require.Equal(t, map[string]any{
 		"kind": "templated_json", "template_asset": "load-flare-assets/datadog-json-template.yaml",
 	}, report["inferred_lading_generator"])
