@@ -161,7 +161,7 @@ bazel:rc-x509-ffi:windows-amd64-noasm-debug:
   variables:
     POWERSHELL_SCRIPT: |-
       bazel version
-      Get-Command cmake, go, ninja, nasm, clang, libclang -ErrorAction SilentlyContinue
+      Get-Command cmake, go, ninja -ErrorAction Stop
       $cmake = (Get-Command cmake -ErrorAction Stop).Source
       bazel build -c dbg --jobs=8 --verbose_failures --remote_download_outputs=all "--action_env=CMAKE=$cmake" --platforms=//bazel/platforms:windows_x86_64_msvc_fips --extra_toolchains=@rust_toolchains//:rw-395021384 --extra_toolchains=@msvc_toolchains//:default_msvc-cl_hostx64_targetx64 @libdd_rc_source//:rc_x509_ffi
 
