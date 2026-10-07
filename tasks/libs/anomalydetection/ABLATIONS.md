@@ -47,6 +47,18 @@ projects; worker-wide admission control is separate.
 
 ## Resume
 
+An interrupted job with a checkpoint prints:
+
+```text
+Job interrupted. To continue this ablation study, rerun this job with:
+OBSERVER_ABLATION_RESUME_JOB_ID=<job ID>
+```
+
+Use the printed ID when rerunning the manual job; checkpoints are downloaded
+automatically. Wait for the interrupted job to finish uploading artifacts first.
+The hook has a separate two-minute budget after the script timeout, but cannot run
+if the runner is lost or the overall job deadline is reached.
+
 Set `RESUME_JOB_ID` to the interrupted job's numeric GitLab ID, keeping the same
 source revision, binary, seed, dataset selection, and study settings. The job
 downloads its artifacts using `CI_JOB_TOKEN` and reuses the binary in `testbench.json`
@@ -61,7 +73,8 @@ it never blindly submits again. If the request never reached Atlas, polling will
 eventually stop and report the ID to investigate. A workflow that definitively
 fails stops the study to avoid selecting a winner from incomplete evaluations.
 
-The six-hour job reserves time for artifact upload. Resume requires its artifacts
+The seven-hour job reserves ten minutes for the resume hook and artifact upload.
+Resume requires its artifacts
 (retained two weeks); runner loss before artifact upload cannot be recovered by
 this mechanism. CI automatic retries are disabled to avoid starting a new study
 while an earlier workflow is still running. After a polling timeout, resume the
