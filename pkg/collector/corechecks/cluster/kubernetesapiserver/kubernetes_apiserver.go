@@ -81,6 +81,14 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 
+	truncatedEvents = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		CheckName,
+		"truncated_events",
+		[]string{"kind", "source"},
+		"Number of Kubernetes events whose message was truncated to fit the events API limit.",
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
+
 	componentStatusMaxVersion = semver.MustParse(componentStatusMaxVersionString)
 )
 
