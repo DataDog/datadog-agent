@@ -10,6 +10,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/characterization"
 )
@@ -176,8 +177,19 @@ func inferLading(snapshot characterization.Snapshot) ([]byte, map[string]any) {
 			warnings = append(warnings, payloadWarning)
 		}
 	}
-	if isBursty(snapshot.RateWindows) && status == "ready" {
-		status = "partial"
+	hasLifecycle := snapshot.Lifecycle != nil && snapshot.Lifecycle.Rotations > 0 && snapshot.Lifecycle.RotationIntervals.Count > 0
+	linearProfile, linearProfileDetected := inferLinearRateProfile(snapshot.RateWindows, snapshot.StartedAt, duration)
+	hasLinearProfile := linearProfileDetected && !hasLifecycle
+	if linearProfileDetected && hasLifecycle {
+		if status == "ready" {
+			status = "partial"
+		}
+		warnings = append(warnings, "A positive linear rate trend was observed, but the current rotated-file candidate uses a constant load profile.")
+	}
+	if isBursty(snapshot.RateWindows) && !hasLinearProfile {
+		if status == "ready" {
+			status = "partial"
+		}
 		warnings = append(warnings, "Material rate-window variation was observed; the candidate preserves mean rate but uses a constant load profile.")
 	}
 
@@ -215,6 +227,18 @@ func inferLading(snapshot characterization.Snapshot) ([]byte, map[string]any) {
 	if len(streamReport) == 0 && variant != "" {
 		report["inferred_lading_generator"] = ladingGeneratorReport(variant)
 	}
+	if hasLinearProfile {
+		rateInference = "linear_ingress_rate_windows"
+		report["rate_inference"] = rateInference
+		report["inferred_rate_profile"] = map[string]any{
+			"kind": "linear", "byte_basis": "raw_with_content_fallback",
+			"initial_aggregate_bytes_per_second": linearProfile.Initial,
+			"maximum_aggregate_bytes_per_second": linearProfile.Maximum,
+			"rate_of_change_bytes_per_second":    linearProfile.RateOfChange, "r_squared": linearProfile.RSquared,
+		}
+		limitations = append(limitations, "The linear maximum is bounded to the projected rate at the end of the observation window.")
+		report["limitations"] = limitations
+	}
 	if status == "unsupported" {
 		return nil, report
 	}
@@ -226,7 +250,6 @@ func inferLading(snapshot characterization.Snapshot) ([]byte, map[string]any) {
 	if len(streams) == 0 {
 		streams = []inferredPayloadStream{{Variant: variant, Sources: fileSources, Rate: perSourceRate, Fraction: 1}}
 	}
-	hasLifecycle := snapshot.Lifecycle != nil && snapshot.Lifecycle.Rotations > 0 && snapshot.Lifecycle.RotationIntervals.Count > 0
 	for index, stream := range streams {
 		builder.WriteString("  - file_gen:\n")
 		if hasLifecycle {
@@ -246,7 +269,15 @@ func inferLading(snapshot characterization.Snapshot) ([]byte, map[string]any) {
 			if len(streams) > 1 {
 				pathTemplate = fmt.Sprintf("./load-flare-source/stream.%03d.part.%%NNN%%.log", index)
 			}
-			fmt.Fprintf(&builder, "      traditional:\n        seed: %s\n        path_template: \"%s\"\n        rotate: false\n        duplicates: %d\n        flush_every: \"%s\"\n        bytes_per_second: \"%dB\"\n", seed, pathTemplate, stream.Sources, flushEvery, stream.Rate)
+			fmt.Fprintf(&builder, "      traditional:\n        seed: %s\n        path_template: \"%s\"\n        rotate: false\n        duplicates: %d\n        flush_every: \"%s\"\n", seed, pathTemplate, stream.Sources, flushEvery)
+			if hasLinearProfile {
+				initial := scaledRate(linearProfile.Initial, stream.Fraction, stream.Sources)
+				maximum := scaledRate(linearProfile.Maximum, stream.Fraction, stream.Sources)
+				rateOfChange := scaledRate(linearProfile.RateOfChange, stream.Fraction, stream.Sources)
+				fmt.Fprintf(&builder, "        throttle:\n          linear:\n            initial: \"%dB\"\n            maximum: \"%dB\"\n            rate_of_change: \"%dB\"\n", initial, maximum, rateOfChange)
+			} else {
+				fmt.Fprintf(&builder, "        bytes_per_second: \"%dB\"\n", stream.Rate)
+			}
 			builder.WriteString(renderedVariant(stream.Variant, "        "))
 			fmt.Fprintf(&builder, "        maximum_bytes_per_file: \"2GiB\"\n        maximum_block_size: \"%s\"\n        maximum_prebuild_cache_size_bytes: \"32MiB\"\n", maximumBlockSize(snapshot))
 		}
@@ -351,6 +382,82 @@ func isBursty(windows []characterization.RateWindow) bool {
 		squares += delta * delta
 	}
 	return math.Sqrt(squares/float64(len(windows)))/mean > 0.25
+}
+
+type linearRateProfile struct {
+	Initial      uint64
+	Maximum      uint64
+	RateOfChange uint64
+	RSquared     float64
+}
+
+func inferLinearRateProfile(windows []characterization.RateWindow, startedAt time.Time, duration float64) (linearRateProfile, bool) {
+	type point struct{ x, y float64 }
+	points := make([]point, 0, len(windows))
+	for _, window := range windows {
+		windowDuration := window.EndsAt.Sub(window.StartedAt).Seconds()
+		if windowDuration < 5 {
+			continue
+		}
+		bytes := window.RawBytes
+		if bytes == 0 {
+			bytes = window.ContentBytes
+		}
+		midpoint := window.StartedAt.Sub(startedAt).Seconds() + windowDuration/2
+		points = append(points, point{x: midpoint, y: float64(bytes) / windowDuration})
+	}
+	if len(points) < 6 || duration <= 0 {
+		return linearRateProfile{}, false
+	}
+	var meanX, meanY float64
+	for _, point := range points {
+		meanX += point.x
+		meanY += point.y
+	}
+	meanX /= float64(len(points))
+	meanY /= float64(len(points))
+	var denominator, numerator float64
+	for _, point := range points {
+		deltaX := point.x - meanX
+		denominator += deltaX * deltaX
+		numerator += deltaX * (point.y - meanY)
+	}
+	if denominator == 0 || meanY <= 0 {
+		return linearRateProfile{}, false
+	}
+	slope := numerator / denominator
+	intercept := meanY - slope*meanX
+	if slope <= 0 || intercept <= 0 || slope*duration/meanY < 0.2 {
+		return linearRateProfile{}, false
+	}
+	var totalSquares, residualSquares float64
+	for _, point := range points {
+		totalDelta := point.y - meanY
+		residual := point.y - (intercept + slope*point.x)
+		totalSquares += totalDelta * totalDelta
+		residualSquares += residual * residual
+	}
+	if totalSquares == 0 {
+		return linearRateProfile{}, false
+	}
+	rSquared := 1 - residualSquares/totalSquares
+	if rSquared < 0.8 {
+		return linearRateProfile{}, false
+	}
+	initial := uint64(math.Round(intercept))
+	maximum := uint64(math.Round(intercept + slope*duration))
+	rateOfChange := uint64(math.Round(slope))
+	if initial == 0 || maximum <= initial || rateOfChange == 0 {
+		return linearRateProfile{}, false
+	}
+	return linearRateProfile{Initial: initial, Maximum: maximum, RateOfChange: rateOfChange, RSquared: rSquared}, true
+}
+
+func scaledRate(aggregate uint64, fraction float64, sources uint64) uint64 {
+	if sources == 0 {
+		return 1
+	}
+	return max(uint64(1), uint64(math.Round(float64(aggregate)*fraction/float64(sources))))
 }
 
 type inferredPayloadStream struct {

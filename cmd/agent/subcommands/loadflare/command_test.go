@@ -8,6 +8,7 @@ package loadflare
 import (
 	"archive/zip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -163,6 +164,58 @@ func TestBurstDetectionPrefersRawIngressBytes(t *testing.T) {
 		{RawBytes: 100, ContentBytes: 1000},
 	}
 	require.False(t, isBursty(windows))
+}
+
+func TestInferLadingUsesLinearRateWindows(t *testing.T) {
+	start := time.Unix(100, 0).UTC()
+	windows := make([]characterization.RateWindow, 0, 6)
+	var rawBytes uint64
+	for index := 0; index < 6; index++ {
+		windowStart := start.Add(time.Duration(index*10) * time.Second)
+		rate := uint64(100000 + 10000*(index*10+5))
+		bytes := rate * 10
+		rawBytes += bytes
+		windows = append(windows, characterization.RateWindow{
+			StartedAt: windowStart, EndsAt: windowStart.Add(10 * time.Second), RawBytes: bytes, FileSourceCount: 1,
+		})
+	}
+	snapshot := characterization.Snapshot{
+		SessionID: "linear", StartedAt: start, EndedAt: start.Add(60 * time.Second), RequestedDurationSeconds: 60,
+		Groups:              []characterization.Group{{SourceType: "file", Aggregate: characterization.Aggregate{Events: 100, RawBytes: rawBytes, SourceCount: 1}}},
+		FilePayloadFamilies: map[string]characterization.Aggregate{"apache_common": {Events: 100, RawBytes: rawBytes}},
+		RateWindows:         windows,
+	}
+	lading, report := inferLading(snapshot)
+	rendered := string(lading)
+	require.Contains(t, rendered, "throttle:\n          linear:")
+	require.Contains(t, rendered, `initial: "100000B"`)
+	require.Contains(t, rendered, `maximum: "700000B"`)
+	require.Contains(t, rendered, `rate_of_change: "10000B"`)
+	require.Equal(t, "linear_ingress_rate_windows", report["rate_inference"])
+	profile := report["inferred_rate_profile"].(map[string]any)
+	require.InDelta(t, 1, profile["r_squared"], 0.0001)
+	require.Equal(t, "raw_with_content_fallback", profile["byte_basis"])
+	require.Contains(t, fmt.Sprint(report["limitations"]), "bounded to the projected rate")
+}
+
+func TestRateVariationWarningIsNotSuppressedByExistingPartialStatus(t *testing.T) {
+	start := time.Unix(100, 0).UTC()
+	windows := make([]characterization.RateWindow, 0, 6)
+	for index, rate := range []uint64{100000, 900000, 100000, 900000, 100000, 900000} {
+		windowStart := start.Add(time.Duration(index*10) * time.Second)
+		windows = append(windows, characterization.RateWindow{
+			StartedAt: windowStart, EndsAt: windowStart.Add(10 * time.Second), RawBytes: rate * 10, FileSourceCount: 1,
+		})
+	}
+	snapshot := characterization.Snapshot{
+		SessionID: "variable", StartedAt: start, EndedAt: start.Add(60 * time.Second), RequestedDurationSeconds: 60,
+		Groups:              []characterization.Group{{SourceType: "file", Aggregate: characterization.Aggregate{Events: 100, RawBytes: 30000000, SourceCount: 1}}},
+		FilePayloadFamilies: map[string]characterization.Aggregate{"plain": {Events: 100, RawBytes: 30000000}},
+		RateWindows:         windows,
+	}
+	_, report := inferLading(snapshot)
+	warnings := fmt.Sprint(report["representability"].(map[string]any)["warnings"])
+	require.Contains(t, warnings, "Material rate-window variation")
 }
 
 func TestWriteArchivePackagesDatadogJSONTemplate(t *testing.T) {
