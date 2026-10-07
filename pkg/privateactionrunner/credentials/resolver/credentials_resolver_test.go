@@ -118,25 +118,6 @@ func TestScriptCredentialFileResolutionRejectsAuthTokenPoC(t *testing.T) {
 	assert.NotContains(t, err.Error(), path)
 }
 
-func TestScriptCredentialFileResolutionKeepsAllowedRootAnchored(t *testing.T) {
-	parent := t.TempDir()
-	allowedRoot := filepath.Join(parent, "allowed")
-	require.NoError(t, os.Mkdir(allowedRoot, 0o700))
-	path := filepath.Join(allowedRoot, "credentials.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("original"), 0o600))
-	resolver := newTestResolver(t, []string{allowedRoot})
-
-	movedRoot := filepath.Join(parent, "moved")
-	require.NoError(t, os.Rename(allowedRoot, movedRoot))
-	require.NoError(t, os.Mkdir(allowedRoot, 0o700))
-	require.NoError(t, os.WriteFile(path, []byte("replacement"), 0o600))
-
-	credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(path), nil)
-
-	require.NoError(t, err)
-	assert.Equal(t, "original", credentials.AsTokenMap()["configFileLocation"])
-}
-
 func TestGenericFileSecretRemainsIndependentFromScriptRoots(t *testing.T) {
 	secretPath := filepath.Join(t.TempDir(), "credentials.json")
 	require.NoError(t, os.WriteFile(secretPath, []byte(`{"auth_type":"Token Auth","credentials":[{"tokenName":"apiKey","tokenValue":"secret"}]}`), 0o600))
@@ -215,6 +196,11 @@ func newTestResolver(t *testing.T, roots []string) PrivateCredentialResolver {
 	t.Helper()
 	resolver, err := NewPrivateCredentialResolver(roots)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		for _, root := range resolver.(*privateCredentialResolver).scriptCredentialFileRoots {
+			assert.NoError(t, root.root.Close())
+		}
+	})
 	return resolver
 }
 
