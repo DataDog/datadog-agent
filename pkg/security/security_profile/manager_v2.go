@@ -671,6 +671,10 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
+	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
+		return
+	}
+
 	// Filter out events that are not in the configured V2 event types
 	if !slices.Contains(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.EventType(event.Type)) {
 		return
