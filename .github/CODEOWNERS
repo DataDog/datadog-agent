@@ -240,7 +240,15 @@
 /chocolatey/ @DataDog/windows-products
 
 /cmd/                                               @DataDog/fleet-remediation
+/cmd/config-stream-client/                          @DataDog/fleet-automation
+/cmd/internal/runcmd/                               @DataDog/agent-runtimes
+/cmd/iot-agent/                                     @DataDog/agent-runtimes
+/cmd/secrethelper/                                  @DataDog/fleet-automation
+/cmd/testdata/                                      @DataDog/agent-integrations @DataDog/agent-runtimes
 /cmd/trace-agent/                                   @DataDog/agent-apm
+/cmd/agent/                                         @DataDog/agent-runtimes
+/cmd/agent/common/import*.go                        @DataDog/fleet-automation
+/cmd/agent/common/testdata/                         @DataDog/fleet-automation
 /cmd/agent/subcommands/controlsvc                   @DataDog/windows-products
 /cmd/agent/subcommands/otel                         @DataDog/opentelemetry-agent
 /cmd/agent/subcommands/check                        @DataDog/agent-runtimes @DataDog/agent-integrations
@@ -262,10 +270,22 @@
 /cmd/agent/subcommands/run/                         @DataDog/agent-runtimes
 /cmd/agent/subcommands/run/internal/clcrunnerapi/   @DataDog/container-platform
 /cmd/agent/subcommands/coverage                     @DataDog/agent-devx
+/cmd/agent/subcommands/configcheck                  @DataDog/container-platform
+/cmd/agent/subcommands/secret                       @DataDog/fleet-automation
+/cmd/agent/subcommands/diagnose                     @DataDog/fleet-remediation
+/cmd/agent/subcommands/flare                        @DataDog/fleet-remediation
+/cmd/agent/subcommands/health                       @DataDog/container-platform
+/cmd/agent/subcommands/status                       @DataDog/fleet-remediation
+/cmd/agent/subcommands/launchgui                    @DataDog/fleet-remediation
+/cmd/agent/subcommands/config                       @DataDog/fleet-automation
+/cmd/agent/subcommands/experimental                 @DataDog/fleet-automation
+/cmd/agent/subcommands/import                       @DataDog/fleet-automation
+/cmd/agent/subcommands/secrethelper                 @DataDog/fleet-automation
 /cmd/agent/windows                                  @DataDog/windows-products
 /cmd/agent/windows_resources                        @DataDog/windows-products
 /cmd/agent/dist/conf.d/agentcrashdetect.d/             @DataDog/windows-products
 /cmd/agent/dist/conf.d/agentprofiling.d/               @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/apm.yaml.default               @DataDog/agent-apm
 /cmd/agent/dist/conf.d/battery.d/                      @DataDog/windows-products
 /cmd/agent/dist/conf.d/cisco_sdwan.d/                  @DataDog/ndm-integrations
 /cmd/agent/dist/conf.d/cloud_hostinfo.d/               @DataDog/agent-runtimes @DataDog/container-autoscaling
@@ -305,6 +325,7 @@
 /cmd/agent/dist/conf.d/orchestrator_pod.d/             @DataDog/kubernetes-experiences
 /cmd/agent/dist/conf.d/postgres.d/                     @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/powershell.d/                   @DataDog/windows-products
+/cmd/agent/dist/conf.d/process_agent.yaml.default     @DataDog/container-experiences
 /cmd/agent/dist/conf.d/sbom.d/                         @DataDog/agent-security @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/                         @DataDog/network-device-monitoring-core
 /cmd/agent/dist/conf.d/systemd.d/                      @DataDog/agent-integrations
@@ -332,8 +353,12 @@
 /cmd/agent/dist/assets/wincrashdetect/                 @DataDog/windows-products
 /cmd/agent/dist/assets/windows_certificate/            @DataDog/windows-products
 /cmd/agent/dist/protected/                             @DataDog/windows-products
-/cmd/agent/install*.sh                              @DataDog/agent-build
+/cmd/agent/dist/checks/                               @DataDog/agent-integrations @DataDog/agent-runtimes
+/cmd/agent/dist/config.py                             @DataDog/agent-integrations @DataDog/agent-runtimes
+/cmd/agent/dist/utils/                                @DataDog/agent-integrations @DataDog/agent-runtimes
+/cmd/agent/install*.sh                              @DataDog/fleet-automation
 /cmd/agent/macos/                                   @DataDog/windows-products
+/cmd/agent/selinux/                                 @DataDog/ebpf-platform @DataDog/agent-build
 /cmd/ai_prompt_logger/                              @DataDog/windows-products
 /cmd/cluster-agent/                                 @DataDog/container-platform
 /cmd/cluster-agent/subcommands/autoscalerlist       @DataDog/container-autoscaling @DataDog/container-integrations
@@ -575,7 +600,15 @@
 /pkg/collector/                                                       @DataDog/agent-runtimes
 /pkg/collector/metriclookback                                         @DataDog/q-branch
 /pkg/commonchecks/                                                    @DataDog/agent-runtimes
-/pkg/cli/                                                             @DataDog/fleet-remediation
+/pkg/cli/                                                             @DataDog/agent-runtimes
+/pkg/cli/standalone/                                                  @DataDog/agent-metric-pipelines
+/pkg/cli/subcommands/config                                           @DataDog/fleet-automation
+/pkg/cli/subcommands/dcaconfigcheck                                   @DataDog/container-platform
+/pkg/cli/subcommands/dcaflare                                         @DataDog/container-platform
+/pkg/cli/subcommands/experimental                                     @DataDog/fleet-automation
+/pkg/cli/subcommands/health                                           @DataDog/container-platform
+/pkg/cli/subcommands/taggerlist                                       @DataDog/container-platform
+/pkg/cli/subcommands/workloadlist                                     @DataDog/container-platform
 /pkg/cli/subcommands/check                                            @DataDog/agent-runtimes @DataDog/agent-integrations
 /pkg/cli/subcommands/version                                          @DataDog/agent-runtimes
 /pkg/cli/subcommands/clusterchecks                                    @DataDog/container-platform
