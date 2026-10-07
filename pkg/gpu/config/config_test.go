@@ -106,3 +106,24 @@ gpu:
 
 	assert.Equal(t, map[string]string{"python": "3"}, NewTracingConfig(cfg).TracerVersions)
 }
+
+func TestJobsConfigHasEnvIdentifier(t *testing.T) {
+	env := IdentifierConfig{Key: "_RAY_SUBMISSION_ID", Type: IdentifierTypeEnv}
+	label := IdentifierConfig{Key: "a/b", Type: IdentifierTypeLabel}
+
+	assert.False(t, JobsConfig{}.HasEnvIdentifier())
+	assert.False(t, JobsConfig{Run: label, Group: label}.HasEnvIdentifier())
+	assert.False(t, JobsConfig{Run: IdentifierConfig{Type: IdentifierTypeEnv}}.HasEnvIdentifier())
+	assert.True(t, JobsConfig{Run: env, Group: label}.HasEnvIdentifier())
+	assert.True(t, JobsConfig{Run: label, Group: env}.HasEnvIdentifier())
+}
+
+func TestTrainingInfoAllowedEnvVars(t *testing.T) {
+	configmock.New(t)
+	spCfg := configmock.NewSystemProbe(t)
+
+	assert.Empty(t, New().TrainingInfoAllowedEnvVars)
+
+	spCfg.SetInTest("gpu_monitoring.training_info.allowed_env_vars", []string{"JOB_ID", "EXPERIMENT"})
+	assert.Equal(t, []string{"JOB_ID", "EXPERIMENT"}, New().TrainingInfoAllowedEnvVars)
+}

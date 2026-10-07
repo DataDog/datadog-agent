@@ -34,6 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -60,6 +62,7 @@ type Check struct {
 	deviceCache         ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
 	spCache             *nvidia.SystemProbeCache         // spCache holds system-probe GPU process metrics
 	prmCache            *nvidia.PRMCache                 // prmCache holds system-probe privileged NVLink metrics
+	trainingInfoCache   *nvidia.TrainingInfoCache        // trainingInfoCache holds the system-probe training job tags of each device
 	gpuConfig           *gpuconfig.Config                // gpuConfig is shared with the system-probe GPU module
 	deviceEvtGatherer   *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
 	workloadTagCache    *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
@@ -191,9 +194,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 
 	c.spCache = nil
 	c.prmCache = nil
+	c.trainingInfoCache = nil
 	var driverEventsSource nvidia.DriverEventsSource
 	if c.gpuConfig.Enabled {
-		if c.gpuConfig.EnableEBPFProbes || c.gpuConfig.PRMEndpointEnabled || c.gpuConfig.DriverEventsEnabled {
+		trainingInfoEnabled := c.gpuConfig.JobsConfig.HasEnvIdentifier()
+		if c.gpuConfig.EnableEBPFProbes || c.gpuConfig.PRMEndpointEnabled || c.gpuConfig.DriverEventsEnabled || trainingInfoEnabled {
 			client := nvidia.NewSystemProbeClient()
 			if c.gpuConfig.EnableEBPFProbes {
 				log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
@@ -204,6 +209,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 			}
 			if c.gpuConfig.DriverEventsEnabled {
 				driverEventsSource = nvidia.NewDriverEventsCache(client)
+			}
+			if trainingInfoEnabled {
+				c.trainingInfoCache = nvidia.NewTrainingInfoCache(client)
 			}
 		}
 	}
@@ -405,6 +413,13 @@ func (c *Check) Run() error {
 		}
 	}
 
+	if c.trainingInfoCache != nil {
+		if err := c.trainingInfoCache.Refresh(); err != nil && logLimitCheck.ShouldLog() {
+			log.Warnf("error refreshing training info cache: %v", err)
+			// Continue without training job tags
+		}
+	}
+
 	// start device event gatherer if we have not already
 	if !c.deviceEvtGatherer.Started() {
 		if err := c.deviceEvtGatherer.Start(); err != nil {
@@ -571,13 +586,41 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		deduplicatedSamples = c.rateCalculator.ProcessSamples(deduplicatedSamples, currentExecutionTime, deviceUUID)
 
 		for _, sample := range deduplicatedSamples {
-			if err := c.emitSample(sample, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
+			sampleDeviceTags := slices.Concat(deviceTags, c.getTrainingTags(sample, deviceUUID))
+			if err := c.emitSample(sample, snd, currentExecutionTime, deviceContainers, sampleDeviceTags); err != nil {
 				multiErr = append(multiErr, fmt.Errorf("error emitting sample %s: %w", sample.Key(), err))
 			}
 		}
 	}
 
 	return errors.Join(multiErr...)
+}
+
+// getTrainingTags returns the training job tags for a sample. Samples associated with processes only get the tags of
+// those processes, so that a process metric is not attributed to other training runs sharing the device. Device-wide
+// samples get the tags of all the processes using the device.
+func (c *Check) getTrainingTags(sample nvidia.Sample, deviceUUID string) []string {
+	if c.trainingInfoCache == nil {
+		return nil
+	}
+
+	workloads := sample.AssociatedWorkloads()
+	if len(workloads) == 0 {
+		return c.trainingInfoCache.DeviceTags(deviceUUID)
+	}
+
+	var pids []uint32
+	for _, workload := range workloads {
+		if workload.Kind != workloadmeta.KindProcess {
+			continue
+		}
+		pid, err := strconv.ParseUint(workload.ID, 10, 32)
+		if err != nil {
+			continue
+		}
+		pids = append(pids, uint32(pid))
+	}
+	return c.trainingInfoCache.ProcessTags(pids...)
 }
 
 func collectSamplesSerial(collectors []nvidia.Collector) []collectorSamplesCollection {
