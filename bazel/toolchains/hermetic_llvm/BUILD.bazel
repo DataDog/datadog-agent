@@ -4,8 +4,15 @@ load("@rules_foreign_cc//toolchains/native_tools:native_tools_toolchain.bzl", "n
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(":windows_gnu.bzl", "windows_gnu_filegroup")
 load(":windows_msvc.bzl", "windows_msvc_filegroup")
+load(":windres.bzl", "llvm_windres")
 
 exports_files(["llvm_windres.sh"])
+
+llvm_windres(
+    name = "windres",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//bazel/rules:__pkg__"],
+)
 
 # Empty stand-ins for libssp, which the clang MinGW driver links whenever a
 # -fstack-protector flag is on the link line, even if -fno-stack-protector

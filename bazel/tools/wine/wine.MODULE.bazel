@@ -35,3 +35,11 @@ deb_archive(
     sha256 = "3c71917b490d1a17aed43196a2787a256ecf060526cdb20216a74bedc061b150",
     urls = ["https://snapshot.debian.org/file/bdc0b54ff7f971ecd56ae54aea604d2ab0e47aaf/libgcc-s1_14.2.0-19_amd64.deb"],
 )
+
+http_archive(
+    name = "wine_src",
+    build_file = "//bazel/tools/wine:overlay/wine_src.BUILD.bazel",
+    sha256 = "c07a6857933c1fc60dff5448d79f39c92481c1e9db5aa628db9d0358446e0701",
+    strip_prefix = "wine-11.0",
+    urls = ["https://dl.winehq.org/wine/source/11.0/wine-11.0.tar.xz"],
+)

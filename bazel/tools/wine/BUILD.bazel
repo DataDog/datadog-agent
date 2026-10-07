@@ -1,5 +1,6 @@
 load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load(":windmc.bzl", "wine_windmc")
 
 # Runs a Windows x86_64 executable under a pinned Wine: `wine_run <path/to/exe> [args...]`.
 # As the `tool` of a run_binary it resolves for the exec platform.
@@ -23,6 +24,12 @@ sh_binary(
     }),
     visibility = ["//visibility:public"],
     deps = ["@rules_shell//shell/runfiles"],
+)
+
+wine_windmc(
+    name = "windmc",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//bazel/rules:__pkg__"],
 )
 
 # TODO(ABLD-420): cmd.exe exits non-zero under wine_run in CI, while
