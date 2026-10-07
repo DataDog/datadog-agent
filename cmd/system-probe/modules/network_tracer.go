@@ -70,7 +70,7 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 		if err != nil {
 			t.Stop()
 			cancel()
-			return nil, fmt.Errorf("create direct sender: %s", err)
+			return nil, fmt.Errorf("create direct sender: %w", err)
 		}
 	}
 

@@ -78,7 +78,7 @@ func makeInstance(db types.DBInstance, cluster *types.DBCluster, config Config) 
 		if db.Engine != nil {
 			defaultDBName, err := dbNameFromEngine(*db.Engine)
 			if err != nil {
-				return nil, fmt.Errorf("error getting default db name from engine: %v", err)
+				return nil, fmt.Errorf("error getting default db name from engine: %w", err)
 			}
 
 			instance.DbName = defaultDBName

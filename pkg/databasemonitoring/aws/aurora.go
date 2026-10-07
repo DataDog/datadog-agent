@@ -47,7 +47,7 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, clusters []types
 				},
 			})
 		if err != nil {
-			return nil, fmt.Errorf("aurora: error running GetAuroraClusterEndpoints %v", err)
+			return nil, fmt.Errorf("aurora: error running GetAuroraClusterEndpoints %w", err)
 		}
 		log.Debugf("aurora: found %d instances in cluster %s", len(clusterInstances.DBInstances), *cluster.DBClusterIdentifier)
 		for _, db := range clusterInstances.DBInstances {
@@ -91,7 +91,7 @@ func (c *Client) GetAuroraClustersFromTags(ctx context.Context, tags []string) (
 			},
 		})
 		if err != nil {
-			return nil, fmt.Errorf("aurora: error running GetAuroraClustersFromTags: %v", err)
+			return nil, fmt.Errorf("aurora: error running GetAuroraClustersFromTags: %w", err)
 		}
 		log.Debugf("aurora: found %d clusters", len(clusterDescriptions.DBClusters))
 		for _, cluster := range clusterDescriptions.DBClusters {

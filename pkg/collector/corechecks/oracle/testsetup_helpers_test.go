@@ -48,7 +48,7 @@ func waitForTestDatabase(ctx context.Context, db *sql.DB, retry <-chan time.Time
 		fmt.Printf("Waiting for Oracle (%s elapsed): %s\n", time.Since(start).Round(time.Second), err)
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("%w; last readiness error: %v", ctx.Err(), err)
+			return fmt.Errorf("%w; last readiness error: %w", ctx.Err(), err)
 		case <-retry:
 		}
 	}

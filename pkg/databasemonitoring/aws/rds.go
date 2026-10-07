@@ -42,7 +42,7 @@ func (c *Client) GetRdsInstancesFromTags(ctx context.Context, config Config) ([]
 			},
 		})
 		if err != nil {
-			return nil, fmt.Errorf("error running GetRdsInstancesFromTags: %v", err)
+			return nil, fmt.Errorf("error running GetRdsInstancesFromTags: %w", err)
 		}
 		for _, db := range dbInstances.DBInstances {
 			if containsTags(db.TagList, config.Tags) {

@@ -147,7 +147,7 @@ func parsePortFilter(pf string) (uint64, uint64, ConnTypeFilter, error) {
 
 	// More validation (ports can't be 0, or out of order: e.g. 321-100)
 	if err != nil {
-		return 0, 0, connTypeFilter, fmt.Errorf("failed to parse ports: %s", err)
+		return 0, 0, connTypeFilter, fmt.Errorf("failed to parse ports: %w", err)
 	} else if lowerPort == 0 || upperPort == 0 {
 		return 0, 0, connTypeFilter, errors.New("invalid port 0")
 	} else if lowerPort > upperPort {
@@ -160,7 +160,7 @@ func parsePortFilter(pf string) (uint64, uint64, ConnTypeFilter, error) {
 func parsePortString(port string) (uint64, error) {
 	p, err := strconv.ParseUint(port, 10, 16)
 	if err != nil {
-		return 0, fmt.Errorf("error parsing port: %s", err)
+		return 0, fmt.Errorf("error parsing port: %w", err)
 	}
 	return p, nil
 }

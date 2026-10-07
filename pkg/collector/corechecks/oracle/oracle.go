@@ -385,7 +385,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
 	if err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source, provider); err != nil {
-		return fmt.Errorf("common configure failed: %s", err)
+		return fmt.Errorf("common configure failed: %w", err)
 	}
 
 	c.dbmEnabled = false
