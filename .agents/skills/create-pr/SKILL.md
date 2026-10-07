@@ -74,7 +74,7 @@ Only **customer-facing changes** need a reno release note — something a Datado
 **Needs a release note:**
 - New customer-facing functionality (e.g. "Add support for collecting X on Y")
 - Bug fixes customers can hit (e.g. "Fix panic in the log agent when a tailed file is deleted")
-- Visible behavior changes: new/renamed/removed metrics or tags, changed default values, log format changes
+- Visible behavior changes: new/renamed/removed metrics or tags, changed default values
 - Deprecations, breaking changes requiring user action, security fixes
 
 **No release note** (use `changelog/no-changelog`):
