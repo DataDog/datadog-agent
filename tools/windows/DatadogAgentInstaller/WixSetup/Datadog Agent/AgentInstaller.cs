@@ -308,7 +308,7 @@ namespace WixSetup.Datadog_Agent
             project.MajorUpgrade = MajorUpgrade.Default;
             // Set to true otherwise RC versions can't upgrade each other.
             project.MajorUpgrade.AllowSameVersionUpgrades = true;
-            project.MajorUpgrade.Schedule = UpgradeSchedule.afterInstallInitialize;
+            project.MajorUpgrade.Schedule = UpgradeSchedule.afterInstallExecute;
             project.MajorUpgrade.DowngradeErrorMessage =
                 "Automatic downgrades are not supported.  Uninstall the current version, and then reinstall the desired version.";
             project.ReinstallMode = "amus";
@@ -420,6 +420,9 @@ namespace WixSetup.Datadog_Agent
                         value => value.StartsWith("APPLICATIONDATADIRECTORY") ||
                                  value.StartsWith("EXAMPLECONFSLOCATION")))
                     .ForEach(c => c.SetAttributeValue("KeyPath", "yes"));
+                // Flush deferred actions, including PAR capture, before old-product removal.
+                var executeSequence = document.Select("Wix/Package/InstallExecuteSequence");
+                executeSequence.AddElement("InstallExecute", "After=CapturePARConfig; Condition=WIX_UPGRADE_DETECTED");
                 // WiX 5 migration: WixFailWhenDeferred was replaced with util:FailWhenDeferred element
                 document
                     .Select("Wix/Package")

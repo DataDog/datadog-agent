@@ -234,8 +234,15 @@ func installFilesystem(ctx HookContext) (err error) {
 	if err = ensurePrivilegedRshellPermissions(ctx); err != nil {
 		return fmt.Errorf("failed to protect privileged rshell helper: %w", err)
 	}
-	if err := file.EnsureConfigFromExample("/etc/datadog-agent", "private-action-runner/script-config.yaml"); err != nil {
-		log.Warnf("failed to initialize PAR script config: %v", err)
+	migration, err := nativePARConfigMigration(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to inspect PAR config migration: %w", err)
+	}
+	defer migration.close()
+	if migration == nil {
+		if err := file.EnsureConfigFromExample("/etc/datadog-agent", parConfigRelativePath); err != nil {
+			log.Warnf("failed to initialize PAR script config: %v", err)
+		}
 	}
 	if err = agentConfigPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set config ownerships: %v", err)
@@ -379,8 +386,30 @@ func preInstallDatadogAgent(ctx HookContext) error {
 
 // postInstallDatadogAgent performs post-installation steps for the agent
 func postInstallDatadogAgent(ctx HookContext) (err error) {
+	migration, err := nativePARConfigMigration(ctx)
+	if err != nil {
+		stopErr := agentService.StopStable(ctx)
+		return fmt.Errorf("failed to inspect PAR config migration; Agent will not be started: %w", errors.Join(err, stopErr))
+	}
+	defer migration.close()
+	if migration != nil {
+		if err := agentService.StopStable(ctx); err != nil {
+			return fmt.Errorf("failed to stop Agent before PAR config restoration: %w", err)
+		}
+		if err := migration.prepare(); err != nil {
+			return fmt.Errorf("failed to prepare PAR config restoration: %w", err)
+		}
+	}
 	if err := installFilesystem(ctx); err != nil {
 		return err
+	}
+	if migration != nil {
+		if err := migration.restore(); err != nil {
+			return fmt.Errorf("failed to restore PAR config; Agent will not be started: %w", err)
+		}
+		if err := migration.commit(); err != nil {
+			return fmt.Errorf("failed to finish PAR config migration: %w", err)
+		}
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Errorf("failed to restore custom integrations: %s", err)

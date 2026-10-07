@@ -28,6 +28,11 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction WriteConfig { get; }
 
+        public ManagedAction CapturePARConfig { get; }
+        public ManagedAction RestorePARConfig { get; }
+        public ManagedAction RollbackPARConfig { get; }
+        public ManagedAction CleanupPARConfig { get; }
+
         public ManagedAction ReadInstallState { get; }
 
         public ManagedAction WriteInstallState { get; }
@@ -197,6 +202,29 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
+            const string parMigrationProperties = "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], ProductCode=[ProductCode], RollbackDisabled=[RollbackDisabled]";
+            CapturePARConfig = new CustomAction<CustomActions>(
+                new Id(nameof(CapturePARConfig)), CustomActions.CapturePARConfig,
+                Return.check, When.After, Step.InstallInitialize, Conditions.Upgrading)
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }.SetProperties(parMigrationProperties);
+            RollbackPARConfig = new CustomAction<CustomActions>(
+                new Id(nameof(RollbackPARConfig)), CustomActions.RollbackPARConfig,
+                Return.ignore, When.Before, new Step(CapturePARConfig.Id), Conditions.Upgrading)
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }.SetProperties(parMigrationProperties);
+            CleanupPARConfig = new CustomAction<CustomActions>(
+                new Id(nameof(CleanupPARConfig)), CustomActions.CleanupPARConfig,
+                Return.ignore, When.Before, Step.InstallFinalize, Conditions.Upgrading)
+            {
+                Execute = Execute.commit,
+                Impersonate = false
+            }.SetProperties(parMigrationProperties);
+
             PatchInstaller = new CustomAction<CustomActions>(
                 new Id(nameof(PatchInstaller)),
                 CustomActions.Patch,
@@ -266,6 +294,8 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                    "ProductCode=[ProductCode], " +
+                    "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED], " +
                     "PROJECTLOCATION=[PROJECTLOCATION], " +
                     "SYSPROBE_PRESENT=[SYSPROBE_PRESENT], " +
                     "APIKEY=[APIKEY], " +
@@ -468,6 +498,14 @@ namespace WixSetup.Datadog_Agent
                                "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED], " +
                                "DDAGENTUSER_IS_SERVICE_ACCOUNT=[DDAGENTUSER_IS_SERVICE_ACCOUNT]")
                 .HideTarget(true);
+
+            RestorePARConfig = new CustomAction<CustomActions>(
+                new Id(nameof(RestorePARConfig)), CustomActions.RestorePARConfig,
+                Return.check, When.After, new Step(ConfigureUser.Id), Conditions.Upgrading)
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }.SetProperties(parMigrationProperties);
 
             ConfigureUserRollback = new CustomAction<CustomActions>(
                     new Id(nameof(ConfigureUserRollback)),
@@ -788,15 +826,13 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }.SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
-            // Scheduled right after InstallInitialize, the earliest a deferred action can run:
-            // the config root must already be secure before any other install/uninstall action
-            // that may rely on its contents.
+            // Keep config-root setup after old-product removal, even with the early PAR snapshot barrier.
             DDCreateFolders = new CustomAction<CustomActions>(
                     new Id(nameof(DDCreateFolders)),
                     CustomActions.DDCreateFolders,
                     Return.check,
                     When.After,
-                    Step.InstallInitialize,
+                    Step.RemoveExistingProducts,
                     Condition.Always
                     )
             {

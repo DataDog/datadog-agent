@@ -19,6 +19,7 @@ go_library(
         "packages_default.go",
         "packages_linux.go",
         "packages_windows.go",
+        "par_config_linux.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages",
     visibility = ["//visibility:public"],
@@ -95,6 +96,7 @@ dd_agent_go_test(
         "datadog_agent_linux_test.go",
         "datadog_agent_windows_test.go",
         "otel_config_common_test.go",
+        "par_config_linux_test.go",
     ],
     embed = [":packages"],
     deps = [
@@ -105,9 +107,11 @@ dd_agent_go_test(
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/fleet/installer/packages/file",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/fleet/installer/packages/file",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",

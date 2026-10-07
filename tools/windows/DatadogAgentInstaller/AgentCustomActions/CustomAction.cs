@@ -36,6 +36,18 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult CapturePARConfig(Session session) => ParConfigMigrationCustomActions.Capture(session);
+
+        [CustomAction]
+        public static ActionResult RestorePARConfig(Session session) => ParConfigMigrationCustomActions.Restore(session);
+
+        [CustomAction]
+        public static ActionResult RollbackPARConfig(Session session) => ParConfigMigrationCustomActions.Rollback(session);
+
+        [CustomAction]
+        public static ActionResult CleanupPARConfig(Session session) => ParConfigMigrationCustomActions.Cleanup(session);
+
+        [CustomAction]
         public static ActionResult ReadInstallState(Session session)
         {
             return new ReadInstallStateCA(new SessionWrapper(session)).ReadInstallState();

@@ -59,6 +59,7 @@
     <Compile Include="AutoLoggerCustomAction.cs" />
     <Compile Include="CleanUpFilesCustomAction.cs" />
     <Compile Include="ConfigCustomActions.cs" />
+    <Compile Include="ParConfigMigrationCustomActions.cs" />
     <Compile Include="ConfigureUserCustomActions.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Flare.cs" />
