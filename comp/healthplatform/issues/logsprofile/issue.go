@@ -6,6 +6,7 @@
 package logsprofile
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -30,7 +31,7 @@ const (
 
 	recommendationKind          = "logs_performance_profile"
 	recommendationSchemaVersion = 1
-	verifyWindowSeconds         = 30 * 60
+	defaultVerifyWindowSeconds  = 30 * 60
 )
 
 type kind struct {
@@ -79,6 +80,7 @@ type recommendation struct {
 	MissedRecently      bool          `json:"bytes_missed_recent"`
 	Saturated30mSeconds int64         `json:"saturated_30m_s"`
 	ActiveProfile       string        `json:"active_profile,omitempty"`
+	VerifyWindowSeconds int64         `json:"verify_window_s,omitempty"`
 	Current             []settingWire `json:"current,omitempty"`
 	Changes             []changeWire  `json:"changes,omitempty"`
 	Blocked             []blockedWire `json:"blocked,omitempty"`
@@ -211,7 +213,7 @@ func recommendationExtra(w recommendation) map[string]any {
 			"bytes_missed_recent": w.MissedRecently,
 			"saturated_30m_s":     w.Saturated30mSeconds,
 		},
-		"verify_window_s": verifyWindowSeconds,
+		"verify_window_s": cmp.Or(w.VerifyWindowSeconds, defaultVerifyWindowSeconds),
 	}
 	if len(w.Changes) > 0 {
 		changes := make([]any, 0, len(w.Changes))

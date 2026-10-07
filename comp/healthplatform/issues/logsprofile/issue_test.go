@@ -31,6 +31,7 @@ func sampleWire() recommendation {
 		SenderLatencyMs:     420,
 		DroppedRecently:     true,
 		Saturated30mSeconds: 27 * 60,
+		VerifyWindowSeconds: 26 * 60,
 		Current: []settingWire{
 			{Key: "logs_config.batch_max_concurrent_send", Value: 0.0, Source: "default"},
 		},
@@ -140,7 +141,7 @@ func TestBuildIssue_ExtraContract(t *testing.T) {
 	assert.Equal(t, float64(1), rec["schema_version"])
 	assert.Equal(t, "send_stage_saturated_high_latency", rec["reason_code"])
 	assert.Equal(t, "default", rec["profile_key_source"])
-	assert.Equal(t, float64(1800), rec["verify_window_s"])
+	assert.Equal(t, float64(26*60), rec["verify_window_s"])
 
 	changes, ok := rec["changes"].([]any)
 	require.True(t, ok)

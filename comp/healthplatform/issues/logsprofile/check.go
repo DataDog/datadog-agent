@@ -22,10 +22,11 @@ import (
 )
 
 const (
-	cfgEnabled          = "health_platform.logs_profile_recommendation.enabled"
-	cfgInterval         = "health_platform.logs_profile_recommendation.interval"
-	cfgMinHealthyPeriod = "health_platform.logs_profile_recommendation.min_healthy_period"
-	cfgMinSaturated30m  = "health_platform.logs_profile_recommendation.efficiency_min_saturated_30m"
+	cfgEnabled           = "health_platform.logs_profile_recommendation.enabled"
+	cfgInterval          = "health_platform.logs_profile_recommendation.interval"
+	cfgMinHealthyPeriod  = "health_platform.logs_profile_recommendation.min_healthy_period"
+	cfgMinSaturated30m   = "health_platform.logs_profile_recommendation.efficiency_min_saturated_30m"
+	cfgForwarderInterval = "health_platform.forwarder.interval"
 )
 
 // maxListed caps each settings list on the wire.
@@ -40,6 +41,7 @@ type checker struct {
 	cfg      config.Component
 	hostname hostnameinterface.Component
 	window   profilerec.LossWindow
+	started  time.Time
 
 	logsRunning   func() bool
 	backpressure  func() logsmetrics.BackpressureSummary
@@ -54,7 +56,7 @@ type checker struct {
 }
 
 func newChecker(cfg config.Component, hostname hostnameinterface.Component) *checker {
-	return &checker{
+	c := &checker{
 		cfg:           cfg,
 		hostname:      hostname,
 		logsRunning:   logsmetrics.LogsAgentRunning,
@@ -64,6 +66,8 @@ func newChecker(cfg config.Component, hostname hostnameinterface.Component) *che
 		plan:          func(candidate string) (profilerec.Plan, bool) { return profilerec.PlanProfile(cfg, candidate) },
 		now:           time.Now,
 	}
+	c.started = c.now()
+	return c
 }
 
 // logsEnabled mirrors the logs agent's own gate, which still honours the deprecated log_enabled.
@@ -133,10 +137,11 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 	settled := !c.healthySince.IsZero() && now.Sub(c.healthySince) >= c.cfg.GetDuration(cfgMinHealthyPeriod)
 
 	if c.held == nil {
-		if settled {
+		// A persisted issue from before a restart stays open until the pipeline settles, or until the verify
+		// window passes with nothing left to recommend (e.g. the profile is applied but loss continues).
+		if settled || now.Sub(c.started) >= c.verifyWindow() {
 			return nil, nil
 		}
-		// A persisted issue from before a restart stays open until the pipeline settles.
 		return nil, fmt.Errorf("logsprofile: settling: %w", runnerdef.ErrStateUnknown)
 	}
 	if settled {
@@ -190,7 +195,7 @@ func saturated30mSeconds(stages []profilerec.Stage, name string) int64 {
 // build returns nil when the profile would change nothing on this host.
 func (c *checker) build(k kind, profile, code, reason, bottleneck string, obs observation) *held {
 	plan, ok := c.plan(profile)
-	if !ok || (len(plan.Changes) == 0 && len(plan.Blocked) == 0) {
+	if !ok || len(plan.Changes) == 0 {
 		return nil
 	}
 
@@ -208,6 +213,7 @@ func (c *checker) build(k kind, profile, code, reason, bottleneck string, obs ob
 		MissedRecently:      obs.missed,
 		Saturated30mSeconds: saturated30mSeconds(obs.stages, bottleneck),
 		ActiveProfile:       obs.activeProfile,
+		VerifyWindowSeconds: int64(c.verifyWindow().Seconds()),
 	}
 	for _, s := range plan.Current[:min(len(plan.Current), maxListed)] {
 		w.Current = append(w.Current, settingWire{Key: s.Key, Value: scalar(s.Value), Source: s.Source})
@@ -224,6 +230,11 @@ func (c *checker) build(k kind, profile, code, reason, bottleneck string, obs ob
 		return nil
 	}
 	return &held{kind: k, context: map[string]string{contextKeyRecommendation: string(encoded)}}
+}
+
+// verifyWindow is how long after a deploy the issue should take to clear: settle, then reach the backend.
+func (c *checker) verifyWindow() time.Duration {
+	return c.cfg.GetDuration(cfgMinHealthyPeriod) + c.cfg.GetDuration(cfgInterval) + c.cfg.GetDuration(cfgForwarderInterval)
 }
 
 func (c *checker) report(h *held) []runnerdef.IssueReport {

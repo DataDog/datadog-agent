@@ -58,6 +58,7 @@ func newEnv(t *testing.T, yaml string) *env {
 		plan:    changePlan,
 	}
 	e.c.now = func() time.Time { return e.now }
+	e.c.started = e.now
 	e.c.logsRunning = func() bool { return e.running }
 	e.c.backpressure = func() logsmetrics.BackpressureSummary { return e.summary }
 	e.c.counters = func() profilerec.Counters { return e.counters }
@@ -298,6 +299,22 @@ func TestRun_RestartStaysUnknownUntilHealthy(t *testing.T) {
 	assert.Empty(t, reports)
 }
 
+func TestRun_AppliedProfileStillLossyResolvesAfterVerifyWindow(t *testing.T) {
+	e := newEnv(t, "logs_enabled: true")
+	e.active = profilerec.ProfileHighConcurrency
+	e.summary = saturated(sendStage, 27*time.Minute, true)
+
+	_, err := e.tick(time.Minute)
+	assert.ErrorIs(t, err, runnerdef.ErrStateUnknown)
+	e.counters = profilerec.Counters{Dropped: 5}
+	_, err = e.tick(time.Minute)
+	assert.ErrorIs(t, err, runnerdef.ErrStateUnknown, "a persisted issue is held while the deploy verifies")
+
+	reports, err := e.tick(e.c.verifyWindow())
+	assert.NoError(t, err, "nothing left to recommend once the verify window passes")
+	assert.Empty(t, reports)
+}
+
 func TestRun_ConditionDuringWarmUpReports(t *testing.T) {
 	e := newEnv(t, "logs_enabled: true")
 	e.summary = saturated(sendStage, 27*time.Minute, true)
@@ -332,10 +349,9 @@ func TestRun_PlanGate(t *testing.T) {
 		{name: "unknown profile", ok: false},
 		{name: "nothing to change or block", ok: true},
 		{
-			name:    "only blocked keys",
-			ok:      true,
-			plan:    profilerec.Plan{Name: "high-concurrency", Version: 1, Blocked: []profilerec.PlanBlockedKey{{Key: "logs_config.batch_max_concurrent_send", Source: "file"}}},
-			reports: 1,
+			name: "only blocked keys",
+			ok:   true,
+			plan: profilerec.Plan{Name: "high-concurrency", Version: 1, Blocked: []profilerec.PlanBlockedKey{{Key: "logs_config.batch_max_concurrent_send", Source: "file"}}},
 		},
 	}
 	for _, tt := range tests {
