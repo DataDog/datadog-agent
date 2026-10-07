@@ -22,13 +22,9 @@
                 "setns": {
                     "type": "object",
                     "required": [
-                        "fd",
                         "nstype"
                     ],
                     "properties": {
-                        "fd": {
-                            "type": "integer"
-                        },
                         "nstype": {
                             "type": "string"
                         },
