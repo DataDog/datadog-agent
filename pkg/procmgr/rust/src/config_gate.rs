@@ -229,10 +229,6 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
         default: false,
         fleet_policy_file: AGENT_POLICY,
     },
-    // Customer installs decide whether ADP runs via `data_plane.enabled`. ADP takes that
-    // from the Agent's config stream, so fleet policy applies like any other Agent setting.
-    // Standalone mode is not gated here: it is not a customer deployment path and is
-    // managed outside procmgr.
     GatedKeySpec {
         kind: GatedKey::DataPlaneEnabled,
         key: DATA_PLANE_ENABLED_KEY,

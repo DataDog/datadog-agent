@@ -83,7 +83,6 @@ fn fleet_data_plane_template_gate_opens_when_enabled() {
     assert!(condition_config_any_met(&gate));
 }
 
-/// Standalone mode is not a customer path under procmgr, so it must not open the gate.
 #[test]
 fn fleet_data_plane_template_gate_ignores_standalone_mode() {
     let _env = test_env_guard();
