@@ -16,6 +16,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -222,38 +223,59 @@ func TestAnalyzeWorkloadSkipsStoppedWorkload(t *testing.T) {
 // that admits it, so a workload going idle right after would otherwise never have
 // them applied.
 func TestQueueWorkloadAppliesQueuedAccessesOnCacheHit(t *testing.T) {
-	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
-	if err != nil {
-		t.Fatalf("NewLRU: %v", err)
-	}
-	r := &Resolver{
-		dataCache:         dataCache,
-		scanChan:          make(chan *SBOM, 1),
-		pendingFileEvents: newPendingFileEvents(t),
-		sbomsCacheHit:     atomic.NewUint64(0),
-		sbomsCacheMiss:    atomic.NewUint64(0),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
+		if err != nil {
+			t.Fatalf("NewLRU: %v", err)
+		}
+		r := &Resolver{
+			Notifier:          utils.NewNotifier[Event, *sbompkg.ScanResult](),
+			cfg:               &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: 10 * time.Millisecond},
+			dataCache:         dataCache,
+			scanChan:          make(chan *SBOM, 1),
+			pendingFileEvents: newPendingFileEvents(t),
+			sbomsCacheHit:     atomic.NewUint64(0),
+			sbomsCacheMiss:    atomic.NewUint64(0),
+		}
+		reports := make(chan *sbompkg.ScanResult, 1)
+		if err := r.RegisterListener(SBOMComputed, func(result *sbompkg.ScanResult) {
+			select {
+			case reports <- result:
+			default:
+			}
+		}); err != nil {
+			t.Fatalf("RegisterListener: %v", err)
+		}
 
-	dataCache.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
-		Package:        sbomtypes.Package{Name: "shadow-utils"},
-		InstalledFiles: []string{"/usr/bin/su"},
-	}}, false))
+		dataCache.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
+			Package:        sbomtypes.Package{Name: "shadow-utils"},
+			InstalledFiles: []string{"/usr/bin/su"},
+		}}, false))
 
-	sbom := NewSBOM("container-id", nil, "image:tag")
-	t.Cleanup(sbom.stop)
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
+		sbom := NewSBOM("container-id", nil, "image:tag")
+		sbom.status = workloadmeta.Success
+		t.Cleanup(sbom.stop)
+		r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
 
-	r.queueWorkload(sbom)
+		r.queueWorkload(sbom)
 
-	if !sbom.IsComputed() {
-		t.Errorf("state = %d, want computedState (%d)", sbom.state.Load(), computedState)
-	}
-	if r.pendingFileEvents.Len() != 0 {
-		t.Errorf("queued file accesses were not applied")
-	}
-	if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
-		t.Errorf("package = %+v, want last access and both sticky properties set", pkg)
-	}
+		if !sbom.IsComputed() {
+			t.Errorf("state = %d, want computedState (%d)", sbom.state.Load(), computedState)
+		}
+		if r.pendingFileEvents.Len() != 0 {
+			t.Errorf("queued file accesses were not applied")
+		}
+		if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
+			t.Errorf("package = %+v, want last access and both sticky properties set", pkg)
+		}
+
+		// The replica forwards the usage it drained, with no later event.
+		select {
+		case <-reports:
+		case <-time.After(10 * time.Second):
+			t.Errorf("the drained usage was not forwarded")
+		}
+	})
 }
 
 // TestPendingFileEventsAreDeduplicatedPerPath checks that repeated accesses to the
@@ -307,12 +329,13 @@ func TestPendingFileEventsBoundDistinctPathsPerContainer(t *testing.T) {
 }
 
 // TestProcessPendingFileEventsEnrichesPackages checks that draining the queue applies
-// the queued accesses to the packages owning the files and marks the SBOM for
-// forwarding.
+// the queued accesses to the packages owning the files and latches a forward.
 func TestProcessPendingFileEventsEnrichesPackages(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
+	r.cfg = &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour}
 
 	sbom := NewSBOM("container-id", nil, "image:tag")
+	t.Cleanup(sbom.stop)
 	sbom.data = newData([]sbomtypes.PackageWithInstalledFiles{{
 		Package:        sbomtypes.Package{Name: "shadow-utils"},
 		InstalledFiles: []string{"/usr/bin/su"},
@@ -321,7 +344,9 @@ func TestProcessPendingFileEventsEnrichesPackages(t *testing.T) {
 	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
 	r.queuePendingFileEvent("container-id", "/usr/bin/not-in-any-package", 0644, 1000)
 
+	sbom.Lock()
 	r.processPendingFileEvents(sbom)
+	sbom.Unlock()
 
 	if r.pendingFileEvents.Len() != 0 {
 		t.Errorf("pending events were not drained")
@@ -329,8 +354,8 @@ func TestProcessPendingFileEventsEnrichesPackages(t *testing.T) {
 	if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
 		t.Errorf("package = %+v, want last access and both sticky properties set", pkg)
 	}
-	if !sbom.invalidated {
-		t.Errorf("sbom was not marked for forwarding")
+	if sbom.forwarder == nil {
+		t.Errorf("no forward was latched")
 	}
 }
 
@@ -356,6 +381,8 @@ func TestSharedDataConcurrentForwardingAndResolve(t *testing.T) {
 
 	r := newPendingFileEventsResolver(t)
 	r.Notifier = utils.NewNotifier[Event, *sbompkg.ScanResult]()
+	r.cfg = &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour}
+	t.Cleanup(sbomA.stop)
 
 	var wg sync.WaitGroup
 
@@ -1078,4 +1105,138 @@ func TestScanHostForwardsChangesAlone(t *testing.T) {
 	if r.hostSBOM.forwarder != nil {
 		t.Errorf("the rescan of unchanged packages triggered forwarding")
 	}
+}
+
+// TestProcessPendingFileEventsKeepsAccessTime checks that a queued access keeps
+// the time it happened once the scan of its container ends.
+func TestProcessPendingFileEventsKeepsAccessTime(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newPendingFileEventsResolver(t)
+		r.cfg = &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour}
+
+		sbom := NewSBOM("container-id", nil, "image:tag")
+		t.Cleanup(sbom.stop)
+		sbom.data = newData([]sbomtypes.PackageWithInstalledFiles{{
+			Package:        sbomtypes.Package{Name: "bash"},
+			InstalledFiles: []string{"/usr/bin/bash"},
+		}}, false)
+
+		r.queuePendingFileEvent("container-id", "/usr/bin/bash", 0755, 1000)
+		queued := time.Now()
+		time.Sleep(2 * time.Millisecond)
+		sbom.Lock()
+		r.processPendingFileEvents(sbom)
+		sbom.Unlock()
+
+		if last := sbom.data.packages[0].LastAccess; !last.Equal(queued) {
+			t.Errorf("last access = %v, want the time of the access, %v", last, queued)
+		}
+	})
+}
+
+// TestProcessPendingFileEventsKeepsNewerAccess checks that a queued access
+// leaves a later access another container of the image recorded as it is.
+func TestProcessPendingFileEventsKeepsNewerAccess(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newPendingFileEventsResolver(t)
+		r.cfg = &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour}
+
+		sbom := NewSBOM("container-id", nil, "image:tag")
+		t.Cleanup(sbom.stop)
+		sbom.data = newData([]sbomtypes.PackageWithInstalledFiles{{
+			Package:        sbomtypes.Package{Name: "bash"},
+			InstalledFiles: []string{"/usr/bin/bash"},
+		}}, false)
+
+		r.queuePendingFileEvent("container-id", "/usr/bin/bash", 0755, 1000)
+		time.Sleep(2 * time.Millisecond)
+		later := time.Now()
+		sbom.data.packages[0].LastAccess = later
+
+		sbom.Lock()
+		r.processPendingFileEvents(sbom)
+		sbom.Unlock()
+
+		if last := sbom.data.packages[0].LastAccess; !last.Equal(later) {
+			t.Errorf("last access = %v, want the later access, at %v", last, later)
+		}
+	})
+}
+
+// TestLatches checks which accesses latch a forward: the first, one after a gap,
+// and one in steady use once the forwarded usage is maxForwardedAge old.
+func TestLatches(t *testing.T) {
+	r := &Resolver{cfg: &config.RuntimeSecurityConfig{SBOMResolverEnrichmentInterval: time.Minute}}
+	now := time.Now()
+
+	for _, tc := range []struct {
+		name                string
+		previous, forwarded time.Time
+		want                bool
+	}{
+		{"first access", time.Time{}, time.Time{}, true},
+		{"after a gap", now.Add(-2 * time.Minute), now.Add(-2 * time.Minute), true},
+		{"steady use", now.Add(-time.Second), now.Add(-time.Minute), false},
+		{"steady use with old forwarded usage", now.Add(-time.Second), now.Add(-maxForwardedAge - time.Second), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := r.latches(tc.previous, now, tc.forwarded); got != tc.want {
+				t.Errorf("latches = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestResolvePackageRefreshesSteadyUsage checks that a package in steady use goes
+// out again once its forwarded usage is maxForwardedAge old.
+func TestResolvePackageRefreshesSteadyUsage(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newPendingFileEventsResolver(t)
+		r.Notifier = utils.NewNotifier[Event, *sbompkg.ScanResult]()
+		r.cfg = &config.RuntimeSecurityConfig{
+			SBOMResolverEnrichmentInterval: time.Minute,
+			SBOMResolverForwardInterval:    10 * time.Millisecond,
+		}
+		reports := make(chan *sbompkg.ScanResult, 1)
+		if err := r.RegisterListener(SBOMComputed, func(result *sbompkg.ScanResult) {
+			select {
+			case reports <- result:
+			default:
+			}
+		}); err != nil {
+			t.Fatalf("RegisterListener: %v", err)
+		}
+
+		sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](1, nil)
+		if err != nil {
+			t.Fatalf("NewLRU: %v", err)
+		}
+		r.sboms = sboms
+		sbom := NewSBOM("container-id", nil, "image:tag")
+		sbom.setReport([]sbomtypes.PackageWithInstalledFiles{{
+			Package:        sbomtypes.Package{Name: "bash"},
+			InstalledFiles: []string{"/usr/bin/bash"},
+		}})
+		sbom.status = workloadmeta.Success
+		sbom.state.Store(computedState)
+		t.Cleanup(sbom.stop)
+		sboms.Add(sbom.ContainerID, sbom)
+
+		now := time.Now()
+		sbom.data.packages[0].LastAccess = now.Add(-time.Second)
+		sbom.data.forwardedAt = now.Add(-maxForwardedAge - time.Minute)
+
+		pc := &model.ProcessContext{}
+		pc.ContainerContext.ContainerID = sbom.ContainerID
+		pc.UID = 1000
+		file := &model.FileEvent{}
+		file.SetPathnameStr("/usr/bin/bash")
+		r.ResolvePackage(pc, file)
+
+		select {
+		case <-reports:
+		case <-time.After(10 * time.Second):
+			t.Errorf("the steady usage was not forwarded")
+		}
+	})
 }
