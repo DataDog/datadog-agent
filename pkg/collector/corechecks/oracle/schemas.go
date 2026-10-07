@@ -223,17 +223,11 @@ FROM cdb_col_comments WHERE comments IS NOT NULL AND /*RELATIONS*/`
 const columnDefaultsQuery = `SELECT c.con_id, c.owner, c.table_name, c.column_name, /*DEFAULT_COL*/ AS data_default
 FROM cdb_tab_cols c WHERE /*RELATIONS*/`
 
-// Oracle represents function-based index expressions as hidden SYS_NC%$ virtual columns.
-// CDB_IND_COLUMNS exposes only the generated name, while CDB_TAB_COLS exposes the expression.
-// CDB_IND_EXPRESSIONS cannot be used because its CDB_ variant omits COLUMN_EXPRESSION.
 const indexesQuery = `SELECT i.con_id, i.table_owner, i.table_name, i.owner, i.index_name, i.uniqueness, i.index_type,
-	ic.column_name, /*EXPRESSION_COL*/ AS column_expression
+	ic.column_name
 FROM cdb_indexes i
 JOIN cdb_ind_columns ic
 	ON ic.con_id = i.con_id AND ic.index_owner = i.owner AND ic.index_name = i.index_name
-LEFT JOIN cdb_tab_cols tc
-	ON tc.con_id = ic.con_id AND tc.owner = ic.table_owner AND tc.table_name = ic.table_name
-	AND tc.column_name = ic.column_name AND ic.column_name LIKE 'SYS\_NC%' ESCAPE '\'
 WHERE /*RELATIONS*/
 ORDER BY i.con_id, i.table_owner, i.table_name, i.owner, i.index_name, ic.column_position`
 
@@ -954,9 +948,6 @@ func tableProperties(r schemaRowDB) []string {
 	return props
 }
 
-// DATA_DEFAULT_VC exists from 23ai. Earlier versions require the LONG DATA_DEFAULT column,
-// which cannot be passed to a SQL function and is therefore truncated in Go.
-
 type ownerKey struct {
 	conID int64
 	owner string
@@ -1198,15 +1189,6 @@ func (c *Check) conditionColumn() string {
 	return "c.search_condition"
 }
 
-// Function-based index expressions use the same 23ai _VC cutover under the tc alias.
-func (c *Check) indexExpressionColumn() string {
-	major, _, _ := strings.Cut(c.dbVersion, ".")
-	if n, err := strconv.Atoi(major); err == nil && n >= 23 {
-		return "tc.data_default_vc"
-	}
-	return "tc.data_default"
-}
-
 // Cap fallback LONG values at 4000 characters without splitting multi-byte characters.
 func truncateLongValue(s string) string {
 	r := []rune(s)
@@ -1403,29 +1385,29 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 	defaultsQueryResolved := strings.Replace(columnDefaultsQuery, "/*DEFAULT_COL*/", c.defaultValueColumn(), 1)
 	defaultFilters := columnFilterChunks(allowedColumns,
 		relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}, "c.column_name")
-	c.queryDetailFilters(ctx, "column defaults", defaultsQueryResolved, defaultFilters, func(rows *sqlx.Rows) error {
-		var conID int64
-		var owner, table, column string
-		var value sql.NullString
-		if err := rows.Scan(&conID, &owner, &table, &column, &value); err != nil {
-			return err
-		}
-		if value.Valid {
-			d := at(conID, owner, table)
-			if d.ColumnDefaults == nil {
-				d.ColumnDefaults = make(map[string]string)
+	if c.defaultValueColumn() == "c.data_default_vc" {
+		c.queryDetailFilters(ctx, "column defaults", defaultsQueryResolved, defaultFilters, func(rows *sqlx.Rows) error {
+			var conID int64
+			var owner, table, column string
+			var value sql.NullString
+			if err := rows.Scan(&conID, &owner, &table, &column, &value); err != nil {
+				return err
 			}
-			d.ColumnDefaults[column] = truncateLongValue(value.String)
-		}
-		return nil
-	})
+			if value.Valid {
+				d := at(conID, owner, table)
+				if d.ColumnDefaults == nil {
+					d.ColumnDefaults = make(map[string]string)
+				}
+				d.ColumnDefaults[column] = truncateLongValue(value.String)
+			}
+			return nil
+		})
+	}
 
-	indexesQueryResolved := strings.Replace(indexesQuery, "/*EXPRESSION_COL*/", c.indexExpressionColumn(), 1)
-	c.queryDetails(ctx, "indexes", indexesQueryResolved, allowed, relationColumnNames{conID: "i.con_id", owner: "i.table_owner", relation: "i.table_name"}, func(rows *sqlx.Rows) error {
+	c.queryDetails(ctx, "indexes", indexesQuery, allowed, relationColumnNames{conID: "i.con_id", owner: "i.table_owner", relation: "i.table_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, table, indexOwner, name, uniqueness, indexType, column string
-		var expression sql.NullString
-		if err := rows.Scan(&conID, &owner, &table, &indexOwner, &name, &uniqueness, &indexType, &column, &expression); err != nil {
+		if err := rows.Scan(&conID, &owner, &table, &indexOwner, &name, &uniqueness, &indexType, &column); err != nil {
 			return err
 		}
 		d := at(conID, owner, table)
@@ -1436,13 +1418,10 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 			idx = &indexInfo{owner: indexOwner, Name: name, Unique: uniqueness == "UNIQUE", Type: indexType}
 			d.Indexes = append(d.Indexes, idx)
 		}
-		if expression.Valid {
-			idx.Columns = append(idx.Columns, indexKeyPart{Expression: truncateLongValue(expression.String)})
-		} else {
-			idx.Columns = append(idx.Columns, indexKeyPart{Column: column})
-		}
+		idx.Columns = append(idx.Columns, indexKeyPart{Column: column})
 		return nil
 	})
+	c.enrichSchemaColumnValues(ctx, details, allowedColumns)
 
 	// Foreign keys identify referenced constraints, so resolve their tables after scanning all rows.
 	primaryKeys := make(map[constraintKey]*constraintInfo)
