@@ -185,7 +185,14 @@ func TestStatusMetrics(t *testing.T) {
 	initStatus(t)
 
 	status := Get(false)
-	assert.Empty(t, status.StatusMetrics)
+	assert.Len(t, status.StatusMetrics, 4)
+	assert.Equal(t, "0", status.StatusMetrics["LogsProcessed"])
+	assert.Equal(t, "0", status.StatusMetrics["LogsSent"])
+	assert.Equal(t, "0", status.StatusMetrics["BytesSent"])
+	assert.Equal(t, "0", status.StatusMetrics["RetryCount"])
+	assert.NotContains(t, status.StatusMetrics, "EncodedBytesSent")
+	assert.NotContains(t, status.StatusMetrics, "RetryTimeSpent")
+	assert.NotContains(t, status.StatusMetrics, "LogsTruncated")
 	assert.Empty(t, status.ProcessFileStats)
 
 	status = Get(true)
@@ -204,6 +211,13 @@ func TestStatusMetrics(t *testing.T) {
 	metrics.RetryCount.Set(42)
 	metrics.RetryTimeSpent.Set(int64(time.Hour * 2))
 	metrics.LogsTruncated.Set(64)
+	status = Get(false)
+	assert.Len(t, status.StatusMetrics, 4)
+	assert.Equal(t, "5", status.StatusMetrics["LogsProcessed"])
+	assert.Equal(t, "3", status.StatusMetrics["LogsSent"])
+	assert.Equal(t, "42", status.StatusMetrics["BytesSent"])
+	assert.Equal(t, "42", status.StatusMetrics["RetryCount"])
+
 	status = Get(true)
 
 	assert.Equal(t, "5", status.StatusMetrics["LogsProcessed"])

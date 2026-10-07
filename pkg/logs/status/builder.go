@@ -55,12 +55,10 @@ func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *
 // BuildStatus returns the status of the logs-agent.
 func (b *Builder) BuildStatus(verbose bool) Status {
 	tailers := []Tailer{}
-	statusMetrics := make(map[string]string)
 	processFileStats := make(map[string]uint64)
 	componentUtilization := []ComponentUtilization{}
 	if verbose {
 		tailers = b.getTailers()
-		statusMetrics = b.getMetricsStatus()
 		processFileStats = b.getProcessFileStats()
 	}
 
@@ -75,7 +73,7 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 		Endpoints:            b.getEndpoints(),
 		Integrations:         b.getIntegrations(verbose),
 		Tailers:              tailers,
-		StatusMetrics:        statusMetrics,
+		StatusMetrics:        b.getMetricsStatus(verbose),
 		ProcessFileStats:     processFileStats,
 		Warnings:             b.getWarnings(),
 		Errors:               b.getErrors(),
@@ -458,16 +456,19 @@ func (b *Builder) configToDictionary(source *sourcesPkg.LogSource, verbose bool)
 	return dictionary
 }
 
-// getMetricsStatus exposes some aggregated metrics of the log agent on the agent status
-func (b *Builder) getMetricsStatus() map[string]string {
+// getMetricsStatus exposes some aggregated metrics of the log agent on the agent status.
+// In non-verbose mode, only the most important metrics are exposed.
+func (b *Builder) getMetricsStatus(verbose bool) map[string]string {
 	var metrics = make(map[string]string)
 	metrics["LogsProcessed"] = strconv.FormatInt(b.logsExpVars.Get("LogsProcessed").(*expvar.Int).Value(), 10)
 	metrics["LogsSent"] = strconv.FormatInt(b.logsExpVars.Get("LogsSent").(*expvar.Int).Value(), 10)
 	metrics["BytesSent"] = strconv.FormatInt(b.logsExpVars.Get("BytesSent").(*expvar.Int).Value(), 10)
 	metrics["RetryCount"] = strconv.FormatInt(b.logsExpVars.Get("RetryCount").(*expvar.Int).Value(), 10)
-	metrics["RetryTimeSpent"] = time.Duration(b.logsExpVars.Get("RetryTimeSpent").(*expvar.Int).Value()).String()
-	metrics["EncodedBytesSent"] = strconv.FormatInt(b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value(), 10)
-	metrics["LogsTruncated"] = strconv.FormatInt(b.logsExpVars.Get("LogsTruncated").(*expvar.Int).Value(), 10)
+	if verbose {
+		metrics["RetryTimeSpent"] = time.Duration(b.logsExpVars.Get("RetryTimeSpent").(*expvar.Int).Value()).String()
+		metrics["EncodedBytesSent"] = strconv.FormatInt(b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value(), 10)
+		metrics["LogsTruncated"] = strconv.FormatInt(b.logsExpVars.Get("LogsTruncated").(*expvar.Int).Value(), 10)
+	}
 	return metrics
 }
 
