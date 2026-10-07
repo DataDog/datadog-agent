@@ -34,6 +34,7 @@ from tasks.libs.dynamic_test.jev.jev_client import (
     QUESTIONS,
     SYSTEMONE_PATH,
     ask_jev,
+    build_context_state,
     build_state,
     decide,
     fail_open,
@@ -41,6 +42,12 @@ from tasks.libs.dynamic_test.jev.jev_client import (
 )
 from tasks.libs.dynamic_test.jev.pr_context import changed_files, fetch_ddci_metadata, fetch_pr_info
 from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suites, suite_definition
+
+# The context (what every Jev call for a suite sees: the PR, the diff, the
+# suite definition) is printed once per unique (base, merge base): all the
+# suites of a selection share the same context, so printing it per suite
+# would repeat the same diff over and over
+_printed_contexts: set[tuple[str, str]] = set()
 
 
 def select_suite(
@@ -61,10 +68,14 @@ def select_suite(
 ) -> dict | None:
     """Run the Jev selection for one suite and return its summary dict.
 
-    Returns None on a dry run (states printed, nothing decided). The summary is
-    {"suite", "team", "base", "pr", "changed_files", "run", "skip", "decisions"}.
-    Fail-open is per test: a failed Jev call yields a RUN decision, never a
-    skip. Raises ValueError on invalid arguments.
+    Returns None on a dry run (full per-test states printed, nothing decided).
+    The summary is {"suite", "team", "base", "pr", "changed_files", "run", "skip",
+    "decisions"}. The shared context (PR, diff, suite definition - everything
+    but the per-test code) is printed once per run (per unique base/merge
+    base) so the passed diff is inspectable; the per-test states are not
+    printed (use --dry-run for those). Fail-open is per test: a failed Jev
+    call yields a RUN decision, never a skip. Raises ValueError on invalid
+    arguments.
     """
     if workers < 1 or not 0 <= run_threshold <= 1:
         raise ValueError("workers must be positive and run_threshold must be between 0 and 1")
@@ -107,6 +118,22 @@ def select_suite(
     if suite_def_code:
         print(f"[info] suite definition included: {suite_def_path} ({len(suite_def_code)} chars)")
 
+    # The context shared by every Jev call of this suite (everything but the
+    # per-test code) is printed once - to see what diff will be passed. The
+    # per-test states (with the test code) are not printed: use --dry-run to
+    # inspect them without calling Jev.
+    if not dry_run and (base, str(merge_base)) not in _printed_contexts:
+        _printed_contexts.add((base, str(merge_base)))
+        context = build_context_state(
+            suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code
+        )
+        with gitlab_section(f"Jev input context (suite {suite})", collapsed=True, echo=True):
+            print(
+                f"endpoint: https://ai-gateway.{dc}{SYSTEMONE_PATH}  model: {model}  source: {source}\n"
+                f"questions: {json.dumps(QUESTIONS)}\n"
+                f"state without the per-test code ({len(context)} chars):\n{context}"
+            )
+
     def select_test(entry):
         name, path, code = entry
         state = build_state(
@@ -115,16 +142,6 @@ def select_suite(
         if dry_run:
             print(f"--- state for {name} (dry run, not sent) ---\n{state}\n")
             return {"test": name, "dry_run": True}
-
-        # Print exactly what is sent to Jev for every call, in a collapsed
-        # section when running in GitLab CI (echo: the bold title locally)
-        section_body = (
-            f"endpoint: https://ai-gateway.{dc}{SYSTEMONE_PATH}  model: {model}  source: {source}\n"
-            f"state ({len(state)} chars):\n{state}\n"
-            f"questions: {json.dumps(QUESTIONS)}"
-        )
-        with gitlab_section(f"Jev call input: {name}", collapsed=True, echo=True):
-            print(section_body)
 
         try:
             answer = ask_jev(token, state, model=model, dc=dc, source=source)

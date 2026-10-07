@@ -99,10 +99,7 @@ def ask_jev(token: str, state: str, *, model: str, dc: str, source: str) -> dict
         raise RuntimeError(f"AI Gateway HTTP {e.code}: {body}") from e
 
 
-def build_state(
-    name: str,
-    path: str,
-    code: str,
+def build_context_state(
     suite: str,
     team: str,
     pr: dict,
@@ -112,7 +109,10 @@ def build_state(
     ddci: dict | None = None,
     suite_def_code: str = "",
 ) -> str:
-    """Assemble the System One state sent to Jev for one test entry point."""
+    """The shared part of the System One state: the PR context (title,
+    description, changed files, full diff) and the suite provisioning
+    definition - everything every Jev call for the suite sees, without the
+    per-test code."""
     files_section = "\n".join(f"- {f} ({kind})" if kind else f"- {f}" for f, kind in files)
     author = f", author: @{pr['author']}" if pr.get("author") else ""
     impacted = ""
@@ -135,11 +135,30 @@ def build_state(
         f"Description:\n{truncate(pr.get('description') or '(none)', MAX_DESCRIPTION_BYTES, 'description')}\n"
         f"Owning team of the E2E suite: {team}\n\n"
         f"## Files changed in this PR (merge base {str(merge_base)[:12]}, {len(files)} files)\n"
-        f"{files_section}{diff_section}{impacted}\n\n"
-        "## E2E test under evaluation\n"
+        f"{files_section}{diff_section}{impacted}{suite_def_section}"
+    )
+
+
+def build_state(
+    name: str,
+    path: str,
+    code: str,
+    suite: str,
+    team: str,
+    pr: dict,
+    files: list,
+    merge_base: str,
+    diff: str,
+    ddci: dict | None = None,
+    suite_def_code: str = "",
+) -> str:
+    """Assemble the System One state sent to Jev for one test entry point: the shared context (see build_context_state) plus the test under evaluation."""
+    return (
+        build_context_state(suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code)
+        + "\n\n## E2E test under evaluation\n"
         f"Test: {name}\n"
         f"Suite: {suite} ({path})\n"
-        f"Code:\n```go\n{truncate(code, MAX_TEST_CODE_BYTES, 'test code')}\n```{suite_def_section}\n\n"
+        f"Code:\n```go\n{truncate(code, MAX_TEST_CODE_BYTES, 'test code')}\n```\n\n"
         "Context: this is a test in the datadog-agent repository, a large Go monorepo. "
         "E2E tests provision real VMs and are expensive to run. Decide whether this PR "
         "plausibly affects what this test verifies."

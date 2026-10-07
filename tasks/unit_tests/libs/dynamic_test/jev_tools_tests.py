@@ -131,7 +131,8 @@ class TestJevTools(unittest.TestCase):
                 patch(f"{module}.pr_diff", return_value=""),
                 patch(f"{module}.suite_definition", return_value=("", "")),
                 patch(f"{module}.get_ai_gateway_token", return_value="fake"),
-                patch(f"{module}.gitlab_section"),
+                patch(f"{module}.gitlab_section") as section,
+                patch(f"{module}._printed_contexts", set()),
                 patch(
                     f"{module}.list_suites",
                     return_value=[
@@ -150,3 +151,6 @@ class TestJevTools(unittest.TestCase):
             self.assertEqual(summary["run"], ["TestDuplicate", "TestUnavailable"])
             self.assertEqual(summary["skip"], [])
             self.assertIn("error", summary["decisions"][1])
+            # The context (state without the test code) is printed ONCE for the
+            # whole suite - not once per Jev call
+            section.assert_called_once()
