@@ -439,6 +439,11 @@ register_toolchains(
 # dda env dev on Apple Silicon).
 register_toolchains("@llvm//toolchain:linux_aarch64_to_windows_x86_64_msvc")
 
+# mingw-w64 headers for llvm-windres in the hermetic-llvm MinGW builds
+# (see //bazel/toolchains/hermetic_llvm).
+mingw = use_extension("@llvm//runtimes/mingw/extension:mingw.bzl", "mingw")
+use_repo(mingw, "mingw")
+
 # =========================================
 # Python dependencies
 # =========================================
