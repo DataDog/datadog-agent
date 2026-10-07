@@ -15,6 +15,13 @@
   {{- end }}
   Log Level: {{.config.log_level}}
 
+  {{- if .conf_file_error }}
+
+  Config File Error
+  =================
+    {{.conf_file_error}}
+  {{- end }}
+
   Paths
   =====
     Config File: {{if .conf_file}}{{.conf_file}}{{else}}There is no config file{{end}}

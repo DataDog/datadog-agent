@@ -13,6 +13,10 @@
     {{- end}}
     Log Level: {{.config.log_level}}<br>
     Config File: {{if .conf_file}}{{.conf_file}}{{else}}There is no config file{{end}}<br>
+    {{- if .conf_file_error }}
+    <span class="stat_subtitle" style="color:#d93f3f">Config File Error</span>
+    <span class="stat_subdata" style="color:#d93f3f">{{.conf_file_error}}</span>
+    {{- end }}
     {{- if gt (len .extra_conf_file) 0 }}
     Extra Config Files:
     <span class="stat_subdata">
