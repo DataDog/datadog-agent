@@ -26,7 +26,8 @@ const (
 
 // procmgrProcessStates are the states reported as a tag on the procmgr_process_state gauge.
 // ProcessStateNotInstalled is excluded: it is derived from install state rather than reported
-// by dd-procmgrd, and the gauge is only emitted for procmgr-supervised processes.
+// by dd-procmgrd. Ordinary series are only active under ManagementModeProcmgr; InvalidConfig is
+// also emitted from ProcmgrState alone (unloadable yaml is catalogued without that mode).
 var procmgrProcessStates = []string{
 	ProcessStateUnknown,
 	ProcessStateCreated,
@@ -41,8 +42,9 @@ var procmgrProcessStates = []string{
 }
 
 // procmgrStateIsActive reports whether the procmgr_process_state gauge for state should be set
-// for service. It is only ever active while procmgr supervises the service, so a service that
-// moves off procmgr clears every state series instead of leaving the last one latched at 1.
+// for service. Ordinary states require ManagementModeProcmgr so a service that moves off procmgr
+// clears every series instead of leaving the last one latched at 1. InvalidConfig is active from
+// ProcmgrState alone, matching ServiceProcessState when management_mode is not procmgr.
 func procmgrStateIsActive(service ServiceSnapshot, state string) bool {
 	if state == ProcessStateInvalidConfig && service.ProcmgrState == ProcessStateInvalidConfig {
 		return true
