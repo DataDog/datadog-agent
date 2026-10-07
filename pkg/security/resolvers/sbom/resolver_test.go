@@ -18,6 +18,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -137,6 +138,57 @@ func TestEvictedSBOMReleasesPendingFileEvents(t *testing.T) {
 	if r.pendingFileEvents.Len() != 0 {
 		t.Errorf("queued file accesses of the removed SBOM were not released")
 	}
+}
+
+// TestRefreshSBOMSkipsStoppedSBOM checks that a refresh racing the deletion of
+// its container starts no refresher, which nothing would stop.
+func TestRefreshSBOMSkipsStoppedSBOM(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	r.cfg = &config.RuntimeSecurityConfig{SBOMResolverRefreshInterval: time.Hour}
+	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](maxSBOMEntries, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r.sboms = sboms
+
+	sbom := r.newSBOM("container-id", nil, "image")
+	sbom.stop()
+	if err := r.RefreshSBOM("container-id"); err != nil {
+		t.Fatalf("RefreshSBOM: %v", err)
+	}
+	if sbom.refresher != nil {
+		t.Errorf("a stopped SBOM got a refresher")
+	}
+}
+
+// TestEvictedSBOMStopsUnderItsLock checks that an SBOM evicted while a lookup
+// holds its lock stops once the lock is free, with the forwarder it latched.
+func TestEvictedSBOMStopsUnderItsLock(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newPendingFileEventsResolver(t)
+		r.cfg = &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour}
+		sboms, err := simplelru.NewLRU(1, r.onSBOMEvicted)
+		if err != nil {
+			t.Fatalf("NewLRU: %v", err)
+		}
+		r.sboms = sboms
+
+		evicted := NewSBOM("evicted-container-id", nil, "image:tag")
+		evicted.state.Store(computedState)
+		sboms.Add(evicted.ContainerID, evicted)
+
+		evicted.Lock()
+		sboms.Add("container-id", NewSBOM("container-id", nil, "image:tag"))
+		r.triggerForwarding(evicted)
+		evicted.Unlock()
+		synctest.Wait()
+
+		evicted.Lock()
+		defer evicted.Unlock()
+		if evicted.state.Load() != stoppedState || evicted.forwarder != nil {
+			t.Fatal("the evicted SBOM kept its forwarder")
+		}
+	})
 }
 
 // TestTriggerScanQueuesEveryWorkload checks that every SBOM entry the resolver
