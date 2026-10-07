@@ -110,7 +110,7 @@ type smbSourceRecord struct {
 // only show up as every sequence missing.
 func (suite *azureFilesSuite) requireSMBSourceRunning(c cell) {
 	suite.T().Helper()
-	key, err := suite.accountKey(c)
+	keys, err := suite.cellKeys(c)
 	require.NoError(suite.T(), err)
 	pods, err := suite.agentPods()
 	require.NoError(suite.T(), err)
@@ -118,7 +118,7 @@ func (suite *azureFilesSuite) requireSMBSourceRunning(c cell) {
 
 	for _, pod := range pods {
 		suite.EventuallyWithT(func(collect *assert.CollectT) {
-			statusJSON, err := suite.agentStatusJSON(pod, key)
+			statusJSON, err := suite.agentStatusJSON(pod, keys...)
 			require.NoError(collect, err)
 			source, found, err := findLogSource(statusJSON, string(smbReader), c.service)
 			require.NoError(collect, err)
@@ -126,7 +126,7 @@ func (suite *azureFilesSuite) requireSMBSourceRunning(c cell) {
 				"the Agent on %s lists no %s source for service %s", pod.Name, smbReader, c.service)
 			// testify prints both values on a mismatch, so the status is
 			// compared redacted: an error status may quote the password.
-			assert.Equal(collect, sourceStatusOK, redactSecrets(source.Status, key),
+			assert.Equal(collect, sourceStatusOK, redactSecrets(source.Status, keys...),
 				"the %s source on %s is not running; Pending means no launcher handles type: %s, which is what an Agent built without the native SMB source does",
 				c.name, pod.Name, smbReader)
 		}, 2*time.Minute, 10*time.Second)
@@ -139,7 +139,7 @@ func (suite *azureFilesSuite) requireSMBSourceRunning(c cell) {
 // where the key was found and never include it.
 func (suite *azureFilesSuite) checkSMBSource(c cell) {
 	suite.T().Helper()
-	key, err := suite.accountKey(c)
+	keys, err := suite.cellKeys(c)
 	require.NoError(suite.T(), err)
 
 	pods, err := suite.agentPods()
@@ -154,17 +154,19 @@ func (suite *azureFilesSuite) checkSMBSource(c cell) {
 			name := strings.Join(command, " ")
 			stdout, stderr, execErr := cluster.KubernetesClient.PodExec(agentNamespace, pod.Name, "agent", command)
 			require.NoError(suite.T(), execErr, "%s on %s (stderr: %s)",
-				name, pod.Name, redactSecrets(strings.TrimSpace(stderr), key))
-			assert.False(suite.T(), strings.Contains(stdout+stderr, key),
-				"%s on %s prints the %s storage account key", name, pod.Name, c.name)
+				name, pod.Name, redactSecrets(strings.TrimSpace(stderr), keys...))
+			assert.False(suite.T(), containsAny(stdout+stderr, keys),
+				"%s on %s prints a %s storage account key", name, pod.Name, c.name)
 			outputs[name] = stdout
 		}
 
-		flare, err := suite.agentFlare(pod, key)
+		flare, err := suite.agentFlare(pod, keys...)
 		require.NoError(suite.T(), err)
-		for _, entry := range flare.entriesContaining(key) {
-			assert.Fail(suite.T(), "flare exposes a storage account key",
-				"the flare of %s contains the %s storage account key in %s", pod.Name, c.name, entry)
+		for _, key := range keys {
+			for _, entry := range flare.entriesContaining(key) {
+				assert.Fail(suite.T(), "flare exposes a storage account key",
+					"the flare of %s contains a %s storage account key in %s", pod.Name, c.name, entry)
+			}
 		}
 
 		// Every container mounts the key file, so every container log is
@@ -173,11 +175,11 @@ func (suite *azureFilesSuite) checkSMBSource(c cell) {
 			logs, logErr := cluster.Client().CoreV1().Pods(agentNamespace).
 				GetLogs(pod.Name, &corev1.PodLogOptions{Container: container.Name}).DoRaw(context.Background())
 			require.NoError(suite.T(), logErr, "read the %s container log of %s", container.Name, pod.Name)
-			assert.False(suite.T(), bytes.Contains(logs, []byte(key)),
-				"the %s container log of %s contains the %s storage account key", container.Name, pod.Name, c.name)
+			assert.False(suite.T(), containsAny(string(logs), keys),
+				"the %s container log of %s contains a %s storage account key", container.Name, pod.Name, c.name)
 		}
 
-		suite.recordSMBSource(c, pod, outputs[verboseStatusJSONCommand], outputs[secretInfoCommand], flare, key)
+		suite.recordSMBSource(c, pod, outputs[verboseStatusJSONCommand], outputs[secretInfoCommand], flare, keys)
 	}
 
 	services, err := suite.Env().FakeIntake.Client().GetLogServiceNames()
@@ -186,9 +188,9 @@ func (suite *azureFilesSuite) checkSMBSource(c cell) {
 		messages, err := suite.collectedMessages(service)
 		require.NoError(suite.T(), err)
 		for _, message := range messages {
-			if strings.Contains(message, key) {
+			if containsAny(message, keys) {
 				assert.Fail(suite.T(), "shipped log exposes a storage account key",
-					"a log of service %s collected by Fakeintake contains the %s storage account key", service, c.name)
+					"a log of service %s collected by Fakeintake contains a %s storage account key", service, c.name)
 				break
 			}
 		}
@@ -199,7 +201,7 @@ func (suite *azureFilesSuite) checkSMBSource(c cell) {
 // missed-bytes total to the evidence, and logs a one-line summary with key
 // redacted. It records rather than asserts: the exactly-once checks already
 // decide the cell, and the leak checks already cover the status.
-func (suite *azureFilesSuite) recordSMBSource(c cell, pod corev1.Pod, statusJSON, secretInfo string, flare flareArchive, key string) {
+func (suite *azureFilesSuite) recordSMBSource(c cell, pod corev1.Pod, statusJSON, secretInfo string, flare flareArchive, keys []string) {
 	suite.T().Helper()
 	record := smbSourceRecord{Pod: pod.Name, Service: c.service}
 	status, err := decodeAgentStatus(statusJSON)
@@ -223,7 +225,7 @@ func (suite *azureFilesSuite) recordSMBSource(c cell, pod corev1.Pod, statusJSON
 	}
 
 	suite.T().Logf("%s on %s: status=%s inputs=%d tailers=%d bytes_read=%s bytes_missed_agent_total=%s secret_handle_resolved=%t",
-		c.name, pod.Name, redactSecrets(record.Status, key), len(record.Inputs), len(record.Tailers),
+		c.name, pod.Name, redactSecrets(record.Status, keys...), len(record.Inputs), len(record.Tailers),
 		record.BytesRead, bytesMissed, record.SecretHandleResolved)
 	evidence, err := suite.evidenceDir()
 	if err != nil {
@@ -236,18 +238,39 @@ func (suite *azureFilesSuite) recordSMBSource(c cell, pod corev1.Pod, statusJSON
 	evidence.writeJSON(c.name+"-"+pod.Name+"-source.json", record)
 }
 
-// accountKey reads a cell's storage account key from its Kubernetes Secret.
+// accountKey reads the storage account key a cell's writer mounts the share
+// with, from its Kubernetes Secret.
 func (suite *azureFilesSuite) accountKey(c cell) (string, error) {
-	secret, err := suite.Env().KubernetesCluster.Client().CoreV1().Secrets(e2eNamespace).
+	return suite.secretKey(e2eNamespace, c)
+}
+
+// agentAccountKey reads the key of the cell's Secret copy in the Agent
+// namespace, which the SMB source authenticates with.
+func (suite *azureFilesSuite) agentAccountKey(c cell) (string, error) {
+	return suite.secretKey(agentNamespace, c)
+}
+
+func (suite *azureFilesSuite) secretKey(namespace string, c cell) (string, error) {
+	secret, err := suite.Env().KubernetesCluster.Client().CoreV1().Secrets(namespace).
 		Get(context.Background(), c.secretName(), metav1.GetOptions{})
 	if err != nil {
-		return "", fmt.Errorf("read Secret %s/%s: %w", e2eNamespace, c.secretName(), err)
+		return "", fmt.Errorf("read Secret %s/%s: %w", namespace, c.secretName(), err)
 	}
 	key := string(secret.Data[accountKeySecretKey])
 	if key == "" {
-		return "", fmt.Errorf("Secret %s/%s has no %s", e2eNamespace, c.secretName(), accountKeySecretKey)
+		return "", fmt.Errorf("Secret %s/%s has no %s", namespace, c.secretName(), accountKeySecretKey)
 	}
 	return key, nil
+}
+
+// containsAny reports whether text contains any of the non-empty secrets.
+func containsAny(text string, secrets []string) bool {
+	for _, secret := range secrets {
+		if secret != "" && strings.Contains(text, secret) {
+			return true
+		}
+	}
+	return false
 }
 
 func (suite *azureFilesSuite) agentStatusJSON(pod corev1.Pod, secrets ...string) (string, error) {

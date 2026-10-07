@@ -278,34 +278,49 @@ const (
 	postRotationMarkerJournalName    = "markers.jsonl"
 )
 
+// markerExpectation is what a cell expects of one of its markers.
+type markerExpectation string
+
+const (
+	// markerCollected markers must arrive exactly once.
+	markerCollected markerExpectation = "collected"
+	// markerLost markers must not arrive.
+	markerLost markerExpectation = "lost"
+	// markerEither markers land within the jitter of the drain's end, so they
+	// may arrive on one rotation and not on the next, but never twice.
+	markerEither markerExpectation = "either"
+)
+
 // markerDelays are the ages, after the rename, at which a cell's appender
-// appends its markers to the rotated file. Zero means no such marker.
+// appends its markers to the rotated file, and what is expected of the early
+// one; the late one is always expected to be lost. Zero means no such marker.
 type markerDelays struct {
-	survivingMs int
-	lostMs      int
+	earlyMs     int
+	earlyExpect markerExpectation
+	lateMs      int
 }
 
 // markerDelaysFor returns the marker ages calibrated for a reader's drain
 // window, for the markers the rotation mode leaves a file for.
 func markerDelaysFor(reader readerKind, mode rotationMode) markerDelays {
-	survivingMs := fileSurvivingMarkerDelayMs
+	earlyMs := fileSurvivingMarkerDelayMs
 	if reader == smbReader {
-		survivingMs = smbSurvivingMarkerDelayMs
+		earlyMs = smbSurvivingMarkerDelayMs
 	}
 	switch mode {
 	case copyTruncateRotation, deleteRecreateRotation:
 		return markerDelays{}
 	case gzipRotation:
 		// The rotated file is gone long before the lost marker's age.
-		return markerDelays{survivingMs: survivingMs}
+		return markerDelays{earlyMs: earlyMs, earlyExpect: markerCollected}
 	}
-	return markerDelays{survivingMs: survivingMs, lostMs: postRotationMarkerLostDelayMs}
+	return markerDelays{earlyMs: earlyMs, earlyExpect: markerCollected, lateMs: postRotationMarkerLostDelayMs}
 }
 
 // count is the number of markers appended to each rotated file.
 func (m markerDelays) count() int {
 	count := 0
-	for _, delay := range []int{m.survivingMs, m.lostMs} {
+	for _, delay := range []int{m.earlyMs, m.lateMs} {
 		if delay > 0 {
 			count++
 		}
@@ -313,10 +328,30 @@ func (m markerDelays) count() int {
 	return count
 }
 
+// expectationFor returns what is expected of the marker of that age, if the
+// cell has one.
+func (m markerDelays) expectationFor(ageMs int) (markerExpectation, bool) {
+	switch {
+	case ageMs <= 0:
+		return "", false
+	case ageMs == m.earlyMs:
+		return m.earlyExpect, true
+	case ageMs == m.lateMs:
+		return markerLost, true
+	}
+	return "", false
+}
+
+// needsSettle reports whether a marker may be expected not to arrive, which
+// can only be confirmed once every drain has ended.
+func (m markerDelays) needsSettle() bool {
+	return m.lateMs > 0 || (m.earlyMs > 0 && m.earlyExpect != markerCollected)
+}
+
 // appenderValue is the LOGWRITER_APPEND_DELAYS_MS value of the appender.
 func (m markerDelays) appenderValue() string {
 	var delays []string
-	for _, delay := range []int{m.survivingMs, m.lostMs} {
+	for _, delay := range []int{m.earlyMs, m.lateMs} {
 		if delay > 0 {
 			delays = append(delays, strconv.Itoa(delay))
 		}
@@ -325,6 +360,50 @@ func (m markerDelays) appenderValue() string {
 		return "none"
 	}
 	return strings.Join(delays, ",")
+}
+
+// lateMarkerProbe is the early marker of an smb-late-<age> cell: one age
+// probed per cell, since a collected marker restarts the SMB source's idle
+// polls and keeps the drain open for a later one.
+type lateMarkerProbe struct {
+	ageMs  int
+	expect markerExpectation
+}
+
+// lateMarkerProbes are the smb-late-<age> cells' early marker ages and the
+// outcome each one asserts unless AZURE_FILES_E2E_CALIBRATE=1 is set.
+//
+// TODO(calibrate): these outcomes are predictions read from the SMB source's
+// code, not measurements. Run the three cells with AZURE_FILES_E2E_CALIBRATE=1
+// (see README.md) and replace them with what the runs record.
+//
+// The prediction. The scanner lists the share and polls once per
+// poll_interval (smbPollIntervalSeconds), on a ticker. The scan that first
+// lists the renamed file, at D, starts the drain and polls it at once; the
+// rotated file stopped growing at the rename R, so that poll finds nothing new
+// and counts as the first idle poll (drainCaughtUpPolls in
+// pkg/logs/launchers/smb/scanner.go). The next scan, at D+1s, is the second
+// idle poll and ends the drain, unless a marker was appended before its read:
+// new data resets the idle count. D-R is spread evenly over one poll
+// interval, so the drain ends between 1s and 2s after the rename, plus the
+// few milliseconds the scan takes to reach the drain. The appender appends a
+// marker of age a at R+a+d, where d is how late it noticed the rename: up to
+// one of its 200ms polls (postRotationMarkerPollMs) plus an exec and a CIFS
+// append. So:
+//   - 1000ms: collected when D-R is more than d, about 9 rotations in 10, and
+//     lost otherwise. The cell can only assert that it never arrives twice;
+//   - 2000ms: lost, since the drain has ended by R+2s plus the scan's few
+//     milliseconds, before any append at R+2s+d;
+//   - 3000ms: lost.
+var lateMarkerProbes = []lateMarkerProbe{
+	{ageMs: 1000, expect: markerEither},
+	{ageMs: 2000, expect: markerLost},
+	{ageMs: 3000, expect: markerLost},
+}
+
+// lateMarkerCellName names the smb-late-<age> cell of a probe.
+func lateMarkerCellName(probe lateMarkerProbe) string {
+	return "smb-late-" + strconv.Itoa(probe.ageMs)
 }
 
 // Writer options. A run applies one writer configuration to every cell, like
@@ -409,8 +488,20 @@ func defaultWriterOptions() writerOptions {
 	return writerOptions{mode: renameRotation, periodMs: defaultWriterPeriodMs}
 }
 
-func parseWriterOptions(opts runOptions) (writerOptions, error) {
+// writerOptionsSet says which writer options a run sets itself. The ones it
+// leaves unset take a cell's defaults when it has some.
+type writerOptionsSet struct {
+	mode, period, rate, streams bool
+}
+
+func parseWriterOptions(opts runOptions) (writerOptions, writerOptionsSet, error) {
 	w := defaultWriterOptions()
+	set := writerOptionsSet{
+		mode:    strings.TrimSpace(opts.rotationMode) != "",
+		period:  strings.TrimSpace(opts.periodMs) != "",
+		rate:    strings.TrimSpace(opts.rateBytesPerSec) != "",
+		streams: strings.TrimSpace(opts.streams) != "",
+	}
 	if mode := strings.TrimSpace(opts.rotationMode); mode != "" {
 		w.mode = rotationMode(mode)
 		if !slices.Contains(knownRotationModes, w.mode) {
@@ -418,30 +509,58 @@ func parseWriterOptions(opts runOptions) (writerOptions, error) {
 			for _, known := range knownRotationModes {
 				names = append(names, string(known))
 			}
-			return writerOptions{}, fmt.Errorf("unknown rotation mode %q; known modes are %s", mode, strings.Join(names, ","))
+			return writerOptions{}, set, fmt.Errorf("unknown rotation mode %q; known modes are %s", mode, strings.Join(names, ","))
 		}
 	}
 	var err error
 	if w.periodMs, err = parseBoundedInt("writer period", opts.periodMs, defaultWriterPeriodMs, minWriterPeriodMs, maxWriterPeriodMs); err != nil {
-		return writerOptions{}, err
+		return writerOptions{}, set, err
 	}
 	if w.periodMs%1000 != 0 {
-		return writerOptions{}, fmt.Errorf("writer period %dms must be whole seconds", w.periodMs)
+		return writerOptions{}, set, fmt.Errorf("writer period %dms must be whole seconds", w.periodMs)
 	}
 	if w.rateBytesPerSec, err = parseBoundedInt("writer rate", opts.rateBytesPerSec, 0, 0, maxWriterRateBytesPerSec); err != nil {
-		return writerOptions{}, err
+		return writerOptions{}, set, err
 	}
 	if w.streams, err = parseBoundedInt("writer streams", opts.streams, 0, 0, maxWriterStreams); err != nil {
-		return writerOptions{}, err
+		return writerOptions{}, set, err
 	}
-	if w.paced() {
-		periodBytes := int64(w.rateBytesPerSec) * int64(w.periodMs) / 1000
-		if needed := int64(w.retainedRotations()+2) * periodBytes; needed > (shareQuotaGiB<<30)*8/10 {
-			return writerOptions{}, fmt.Errorf("writer rate %d with a %dms period keeps %d MB on the share, more than its %d GiB quota allows; shorten the period or lower the rate",
-				w.rateBytesPerSec, w.periodMs, needed/1000/1000, shareQuotaGiB)
-		}
+	return w, set, nil
+}
+
+// validate refuses a paced writer whose files would not fit in its share.
+func (w writerOptions) validate() error {
+	if !w.paced() {
+		return nil
 	}
-	return w, nil
+	periodBytes := int64(w.rateBytesPerSec) * int64(w.periodMs) / 1000
+	if needed := int64(w.retainedRotations()+2) * periodBytes; needed > (shareQuotaGiB<<30)*8/10 {
+		return fmt.Errorf("writer rate %d with a %dms period keeps %d MB on the share, more than its %d GiB quota allows; shorten the period or lower the rate",
+			w.rateBytesPerSec, w.periodMs, needed/1000/1000, shareQuotaGiB)
+	}
+	return nil
+}
+
+// writerDefaults are a cell's own writer options, which apply when the run
+// leaves the option unset. Zero leaves the run's value.
+type writerDefaults struct {
+	periodMs        int
+	rateBytesPerSec int
+	streams         int
+}
+
+// withDefaults applies the defaults to the options the run left unset.
+func (w writerOptions) withDefaults(set writerOptionsSet, d writerDefaults) writerOptions {
+	if !set.period && d.periodMs != 0 {
+		w.periodMs = d.periodMs
+	}
+	if !set.rate && d.rateBytesPerSec != 0 {
+		w.rateBytesPerSec = d.rateBytesPerSec
+	}
+	if !set.streams && d.streams != 0 {
+		w.streams = d.streams
+	}
+	return w
 }
 
 func parseBoundedInt(what, value string, fallback, minimum, maximum int) (int, error) {
@@ -618,6 +737,29 @@ type cell struct {
 	accountName  string
 	volumeName   string
 	writerName   string
+	// writer is what this cell's writer writes: the run's writer options,
+	// with the cell's fixed mode and its defaults for the unset options.
+	writer writerOptions
+
+	// inDefaultMatrix cells run when AZURE_FILES_E2E_CELLS is unset; the
+	// others only run when named.
+	inDefaultMatrix bool
+	// fixedMode is the rotation mode the cell always uses, whatever the run
+	// sets; empty takes the run's.
+	fixedMode rotationMode
+	// writerDefaults are the cell's own writer options for those the run
+	// leaves unset.
+	writerDefaults writerDefaults
+	// probe is the early marker of an smb-late-<age> cell.
+	probe *lateMarkerProbe
+}
+
+// lossAccounted reports whether the cell's records may only go missing when
+// the Agent reported the bytes as missed: an SMB source whose rotation mode
+// deletes rotated files (gzip, delete-recreate) can only miss what it did not
+// read before the file went away, and must say so.
+func (c cell) lossAccounted() bool {
+	return c.reader == smbReader && (c.writer.mode == gzipRotation || c.writer.mode == deleteRecreateRotation)
 }
 
 // secretName is the Kubernetes Secret holding the cell's storage account
@@ -694,6 +836,8 @@ type runOptions struct {
 	periodMs        string
 	rateBytesPerSec string
 	streams         string
+	// calibrate records the marker outcomes instead of asserting them.
+	calibrate bool
 }
 
 type runSpec struct {
@@ -701,13 +845,19 @@ type runSpec struct {
 	stackName   string
 	writerImage string
 	profile     agentProfile
-	writer      writerOptions
+	// writer is the run's writer options. Each cell's are in cell.writer.
+	writer    writerOptions
+	calibrate bool
 	// cells are provisioned and asserted on.
 	cells []cell
 	// gatedCells were selected but are left out of the stack because their
 	// opt-in is not set. The test reports them as skipped.
 	gatedCells []cell
 }
+
+// errJavaWriterOptions explains why the Java writer image refuses options.
+var errJavaWriterOptions = errors.New("the Java writer image only rotates by rename every minute at the root of the share; " +
+	"other rotation modes, periods, rates and streams need the stock Python writer")
 
 func newRunSpec(opts runOptions) (runSpec, error) {
 	profile, err := parseProfile(opts.profile)
@@ -718,63 +868,18 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 	if err != nil {
 		return runSpec{}, err
 	}
-	writer, err := parseWriterOptions(opts)
+	writer, set, err := parseWriterOptions(opts)
 	if err != nil {
 		return runSpec{}, err
 	}
+	if err := writer.validate(); err != nil {
+		return runSpec{}, err
+	}
 	if opts.writerImage != "" && !writer.isDefault() {
-		return runSpec{}, errors.New("the Java writer image only rotates by rename every minute at the root of the share; " +
-			"other rotation modes, periods, rates and streams need the stock Python writer")
+		return runSpec{}, errJavaWriterOptions
 	}
 
-	// Storage accounts follow the stack, so a reused stack keeps them. Shares
-	// follow the run, so every run starts from empty shares: no ledger is left
-	// over, and the SMB source's registry entries, which name the share, cannot
-	// match an earlier run.
-	stackDigest := hexDigest(stackName)
-	runDigest := hexDigest(opts.runID)
-	lineFingerprint := fingerprintConfig{strategy: "line_checksum", count: 1, maxBytes: 4096}
-	all := []cell{
-		{
-			name:         "file-line",
-			reader:       fileReader,
-			fingerprint:  lineFingerprint,
-			mountOptions: mountOptionsActimeo1,
-			accountName:  "ddafline" + stackDigest[:14],
-			shareName:    "fline-" + runDigest[:12],
-		},
-		{
-			name:         "file-byte",
-			reader:       fileReader,
-			fingerprint:  fingerprintConfig{strategy: "byte_checksum", count: 2048, maxBytes: 2048},
-			mountOptions: mountOptionsActimeo1,
-			accountName:  "ddafbyte" + stackDigest[:14],
-			shareName:    "fbyte-" + runDigest[:12],
-		},
-		{
-			name:         "file-line-actimeo30",
-			reader:       fileReader,
-			fingerprint:  lineFingerprint,
-			mountOptions: mountOptionsActimeo30,
-			accountName:  "ddafln30" + stackDigest[:14],
-			shareName:    "fline30-" + runDigest[:12],
-		},
-		{
-			name:         "smb",
-			reader:       smbReader,
-			mountOptions: mountOptionsActimeo1,
-			accountName:  "ddafsmb" + stackDigest[:14],
-			shareName:    "smb-" + runDigest[:12],
-		},
-	}
-	for i := range all {
-		all[i].markers = markerDelaysFor(all[i].reader, writer.mode)
-		all[i].service = "azure-files-" + all[i].name
-		all[i].volumeName = "azure-files-" + all[i].name
-		all[i].writerName = "writer-" + all[i].name
-	}
-
-	selected, err := filterCells(all, opts.cells)
+	selected, err := filterCells(allCells(stackName, opts.runID), opts.cells)
 	if err != nil {
 		return runSpec{}, err
 	}
@@ -784,8 +889,21 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 		writerImage: opts.writerImage,
 		profile:     profile,
 		writer:      writer,
+		calibrate:   opts.calibrate,
 	}
 	for _, c := range selected {
+		if c.writer, err = c.writerOptions(writer, set); err != nil {
+			return runSpec{}, err
+		}
+		if opts.writerImage != "" && !c.writer.isDefault() {
+			return runSpec{}, fmt.Errorf("cell %s: %w", c.name, errJavaWriterOptions)
+		}
+		switch {
+		case c.probe != nil:
+			c.markers = markerDelays{earlyMs: c.probe.ageMs, earlyExpect: c.probe.expect, lateMs: postRotationMarkerLostDelayMs}
+		default:
+			c.markers = markerDelaysFor(c.reader, c.writer.mode)
+		}
 		if c.reader == smbReader && !opts.smbEnabled {
 			spec.gatedCells = append(spec.gatedCells, c)
 			continue
@@ -793,6 +911,133 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 		spec.cells = append(spec.cells, c)
 	}
 	return spec, nil
+}
+
+// writerOptions applies the cell's fixed rotation mode and its defaults to the
+// run's writer options. A run that sets another rotation mode than a cell's
+// fixed one is refused rather than ignored.
+func (c cell) writerOptions(run writerOptions, set writerOptionsSet) (writerOptions, error) {
+	w := run
+	if c.fixedMode != "" {
+		if set.mode && run.mode != c.fixedMode {
+			return writerOptions{}, fmt.Errorf("cell %s always rotates by %s; unset the rotation mode or select another cell", c.name, c.fixedMode)
+		}
+		w.mode = c.fixedMode
+	}
+	w = w.withDefaults(set, c.writerDefaults)
+	if err := w.validate(); err != nil {
+		return writerOptions{}, fmt.Errorf("cell %s: %w", c.name, err)
+	}
+	return w, nil
+}
+
+// Every SMB cell but smb itself is opt-in: it runs only when
+// AZURE_FILES_E2E_CELLS names it, so the default matrix stays the four cells
+// it always was.
+const (
+	// smbModeCellPrefix names the cells that fix the SMB source's rotation
+	// mode, smb-<mode>.
+	smbModeCellPrefix = "smb-"
+	globLoadCellName  = "smb-glob-load"
+	// The glob-load cell writes this many services, svc-1 to svc-<N>, under
+	// one smb source, with this period and total rate, unless the run sets
+	// them.
+	globLoadStreams         = 8
+	globLoadPeriodMs        = 10000
+	globLoadRateBytesPerSec = 2 * 1000 * 1000
+)
+
+// allCells lists every cell. Storage accounts follow the stack, so a reused
+// stack keeps them. Shares follow the run, so every run starts from empty
+// shares: no ledger is left over, and the SMB source's registry entries, which
+// name the share, cannot match an earlier run.
+func allCells(stackName, runID string) []cell {
+	stackDigest := hexDigest(stackName)
+	runDigest := hexDigest(runID)
+	lineFingerprint := fingerprintConfig{strategy: "line_checksum", count: 1, maxBytes: 4096}
+	// accountPrefix must leave 14 characters of the 24 an account name has.
+	smbCell := func(name, accountPrefix, sharePrefix string) cell {
+		return cell{
+			name:         name,
+			reader:       smbReader,
+			mountOptions: mountOptionsActimeo1,
+			accountName:  accountPrefix + stackDigest[:14],
+			shareName:    sharePrefix + "-" + runDigest[:12],
+		}
+	}
+
+	all := []cell{
+		{
+			name:            "file-line",
+			reader:          fileReader,
+			fingerprint:     lineFingerprint,
+			mountOptions:    mountOptionsActimeo1,
+			accountName:     "ddafline" + stackDigest[:14],
+			shareName:       "fline-" + runDigest[:12],
+			inDefaultMatrix: true,
+		},
+		{
+			name:            "file-byte",
+			reader:          fileReader,
+			fingerprint:     fingerprintConfig{strategy: "byte_checksum", count: 2048, maxBytes: 2048},
+			mountOptions:    mountOptionsActimeo1,
+			accountName:     "ddafbyte" + stackDigest[:14],
+			shareName:       "fbyte-" + runDigest[:12],
+			inDefaultMatrix: true,
+		},
+		{
+			name:            "file-line-actimeo30",
+			reader:          fileReader,
+			fingerprint:     lineFingerprint,
+			mountOptions:    mountOptionsActimeo30,
+			accountName:     "ddafln30" + stackDigest[:14],
+			shareName:       "fline30-" + runDigest[:12],
+			inDefaultMatrix: true,
+		},
+	}
+	smb := smbCell("smb", "ddafsmb", "smb")
+	smb.inDefaultMatrix = true
+	all = append(all, smb)
+
+	// The SMB source under each rotation mode but rename, which the smb cell
+	// covers. Each has its own share and writer, so one run covers them all.
+	for _, mode := range []struct {
+		mode                       rotationMode
+		accountPrefix, sharePrefix string
+	}{
+		{copyTruncateRotation, "ddafsmbct", "smbct"},
+		{deleteRecreateRotation, "ddafsmbdr", "smbdr"},
+		{gzipRotation, "ddafsmbgz", "smbgz"},
+	} {
+		c := smbCell(smbModeCellPrefix+string(mode.mode), mode.accountPrefix, mode.sharePrefix)
+		c.fixedMode = mode.mode
+		all = append(all, c)
+	}
+
+	// One cell per late-append age: a collected early marker keeps the
+	// drain open, so a cell can only probe one age.
+	for i := range lateMarkerProbes {
+		probe := lateMarkerProbes[i]
+		c := smbCell(lateMarkerCellName(probe), "ddafsl"+strconv.Itoa(probe.ageMs), "smbl"+strconv.Itoa(probe.ageMs))
+		c.fixedMode = renameRotation
+		c.probe = &probe
+		all = append(all, c)
+	}
+
+	globLoad := smbCell(globLoadCellName, "ddafsmbgl", "smbgl")
+	globLoad.writerDefaults = writerDefaults{
+		periodMs:        globLoadPeriodMs,
+		rateBytesPerSec: globLoadRateBytesPerSec,
+		streams:         globLoadStreams,
+	}
+	all = append(all, globLoad)
+
+	for i := range all {
+		all[i].service = "azure-files-" + all[i].name
+		all[i].volumeName = "azure-files-" + all[i].name
+		all[i].writerName = "writer-" + all[i].name
+	}
+	return all
 }
 
 // resolveStackName returns the reused stack name when one is given, and a
@@ -814,7 +1059,7 @@ func hexDigest(value string) string {
 }
 
 // filterCells keeps only the named cells, so a run can provision one cell
-// instead of the whole matrix. An empty filter keeps every cell.
+// instead of the whole matrix. An empty filter keeps the default matrix.
 func filterCells(all []cell, cellFilter string) ([]cell, error) {
 	wanted := make([]string, 0, len(all))
 	for _, name := range strings.Split(cellFilter, ",") {
@@ -823,7 +1068,13 @@ func filterCells(all []cell, cellFilter string) ([]cell, error) {
 		}
 	}
 	if len(wanted) == 0 {
-		return all, nil
+		var matrix []cell
+		for _, c := range all {
+			if c.inDefaultMatrix {
+				matrix = append(matrix, c)
+			}
+		}
+		return matrix, nil
 	}
 
 	selected := make([]cell, 0, len(wanted))
@@ -1125,11 +1376,11 @@ func (spec runSpec) writerRunID(c cell) string {
 // for each stream of a multi-stream writer, as logwriter.py and appender.sh
 // derive them.
 func (spec runSpec) streamRunIDs(c cell) []string {
-	if spec.writer.streams == 0 {
+	if c.writer.streams == 0 {
 		return []string{spec.writerRunID(c)}
 	}
-	ids := make([]string, 0, spec.writer.streams)
-	for _, dir := range spec.writer.streamDirs() {
+	ids := make([]string, 0, c.writer.streams)
+	for _, dir := range c.writer.streamDirs() {
 		ids = append(ids, spec.writerRunID(c)+"-"+dir)
 	}
 	return ids
@@ -1142,11 +1393,11 @@ func (spec runSpec) writerEnv(c cell) []envVar {
 		{"LOGWRITER_LOG_DIR", logMountPath},
 		{"LOGWRITER_RUN_ID", spec.writerRunID(c)},
 		{"LOGWRITER_TARGET_BYTES_SEQUENCE", writerTargetSequence},
-		{"LOGWRITER_HEAD_PAUSE_MS", strconv.Itoa(spec.writer.headPauseMs())},
+		{"LOGWRITER_HEAD_PAUSE_MS", strconv.Itoa(c.writer.headPauseMs())},
 		{"LOGWRITER_MAX_RECORDS_PER_PERIOD", "5000"},
 		{"TZ", "UTC"},
 	}
-	return append(vars, spec.writer.writerEnv()...)
+	return append(vars, c.writer.writerEnv()...)
 }
 
 func toEnvVarArray(vars []envVar) corev1.EnvVarArray {
@@ -1195,9 +1446,9 @@ func (spec runSpec) newWriterDeployment(
 	}, opts...)
 }
 
-func (spec runSpec) ledgerEnv(runtime workloadRuntime) []envVar {
+func (spec runSpec) ledgerEnv(c cell, runtime workloadRuntime) []envVar {
 	vars := append([]envVar{{"LOGWRITER_LOG_DIR", logMountPath}}, runtime.ledgerEnv...)
-	return append(vars, spec.writer.streamEnv()...)
+	return append(vars, c.writer.streamEnv()...)
 }
 
 // appenderEnv configures the appender. Its journal path only applies to a
@@ -1211,7 +1462,7 @@ func (spec runSpec) appenderEnv(c cell) []envVar {
 		{"LOGWRITER_APPEND_POLL_MS", strconv.Itoa(postRotationMarkerPollMs)},
 		{"TZ", "UTC"},
 	}
-	return append(vars, spec.writer.streamEnv()...)
+	return append(vars, c.writer.streamEnv()...)
 }
 
 // writerPodSpec runs a cell's writer, ledger and appender on its share.
@@ -1260,7 +1511,7 @@ func (spec runSpec) writerPodSpec(c cell, runtime workloadRuntime, imagePullSecr
 		VolumeMounts:    volumeMounts,
 		ReadinessProbe: corev1.ProbeArgs{
 			Exec: corev1.ExecActionArgs{Command: pulumi.ToStringArray([]string{
-				"/bin/sh", "-c", fmt.Sprintf("test $(wc -c < %s) -ge 4096", spec.writer.sharePaths(activeLogName)[0]),
+				"/bin/sh", "-c", fmt.Sprintf("test $(wc -c < %s) -ge 4096", c.writer.sharePaths(activeLogName)[0]),
 			})},
 			PeriodSeconds:    pulumi.Int(2),
 			FailureThreshold: pulumi.Int(45),
@@ -1281,7 +1532,7 @@ func (spec runSpec) writerPodSpec(c cell, runtime workloadRuntime, imagePullSecr
 				Image:           pulumi.String(runtime.image),
 				ImagePullPolicy: pulumi.String("IfNotPresent"),
 				Command:         pulumi.ToStringArray(runtime.ledgerCommand),
-				Env:             toEnvVarArray(spec.ledgerEnv(runtime)),
+				Env:             toEnvVarArray(spec.ledgerEnv(c, runtime)),
 				VolumeMounts:    volumeMounts,
 			},
 			// The appender shares the writer pod, so it appends through the
@@ -1340,8 +1591,8 @@ func (spec runSpec) agentHelmValues() string {
 	var mounts strings.Builder
 	// One source per cell reads every stream of its share. The rotated names
 	// never match the active file's pattern.
-	pattern := spec.writer.activeLogPattern()
 	for _, c := range spec.cells {
+		pattern := c.writer.activeLogPattern()
 		switch c.reader {
 		case fileReader:
 			fmt.Fprintf(&sources, `      - type: file

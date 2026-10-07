@@ -252,7 +252,7 @@ func TestAppenderScriptMarksThePythonWriterRotations(t *testing.T) {
 
 	// The suite's marker ages, scaled down so the appender is done in a
 	// fraction of a second.
-	delays := markerDelays{survivingMs: 50, lostMs: 100}
+	delays := markerDelays{earlyMs: 50, earlyExpect: markerCollected, lateMs: 100}
 	journalPath := filepath.Join(share, postRotationMarkerJournalName)
 	appenderLog := filepath.Join(t.TempDir(), "appender.log")
 	startScript(t, scripts[appenderScript], appenderLog,
@@ -301,9 +301,9 @@ func TestAppenderScriptMarksThePythonWriterRotations(t *testing.T) {
 	for i, file := range files {
 		rotation := i + 1
 		early := fmt.Sprintf("post_rotation_marker run_id=%s rotation=%d marker_age_ms=%d marker_id=%s-r%d-m%d rotated_file=%s",
-			runID, rotation, delays.survivingMs, runID, rotation, delays.survivingMs, file.name)
+			runID, rotation, delays.earlyMs, runID, rotation, delays.earlyMs, file.name)
 		late := fmt.Sprintf("post_rotation_marker run_id=%s rotation=%d marker_age_ms=%d marker_id=%s-r%d-m%d rotated_file=%s",
-			runID, rotation, delays.lostMs, runID, rotation, delays.lostMs, file.name)
+			runID, rotation, delays.lateMs, runID, rotation, delays.lateMs, file.name)
 		// The rotated file ends in padding without a newline, so the first
 		// marker extends the padding line, as it does with the Java writer.
 		require.GreaterOrEqual(t, len(file.lines), 2, file.name)
@@ -687,7 +687,7 @@ func TestLedgerScriptRecordsTheWriterJournalOfEveryMode(t *testing.T) {
 func startLedgerScript(t *testing.T, python string, scripts map[string]string, spec runSpec, share string) {
 	t.Helper()
 	var vars []string
-	for _, v := range spec.ledgerEnv(spec.workloadRuntime("registry.example")) {
+	for _, v := range spec.ledgerEnv(spec.cells[0], spec.workloadRuntime("registry.example")) {
 		switch v.name {
 		case "LOGWRITER_LOG_DIR":
 			v.value = share
@@ -722,7 +722,7 @@ func TestAppenderScriptMarksEveryStream(t *testing.T) {
 	scripts := writeWorkloadScripts(t)
 	share := t.TempDir()
 
-	delays := markerDelays{survivingMs: 50, lostMs: 100}
+	delays := markerDelays{earlyMs: 50, earlyExpect: markerCollected, lateMs: 100}
 	var vars []string
 	for _, v := range spec.appenderEnv(c) {
 		switch v.name {

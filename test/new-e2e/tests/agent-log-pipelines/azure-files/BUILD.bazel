@@ -32,6 +32,7 @@ go_library(
 dd_agent_go_test(
     name = "azure-files_test",
     srcs = [
+        "accounting_test.go",
         "config_test.go",
         "smb_test.go",
         "suite_test.go",

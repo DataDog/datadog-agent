@@ -40,8 +40,11 @@ const (
 	runPeriodMs     = "AZURE_FILES_E2E_PERIOD_MS"
 	runRate         = "AZURE_FILES_E2E_RATE_BYTES_PER_SEC"
 	runStreams      = "AZURE_FILES_E2E_STREAMS"
-	// The smb cell needs an Agent built with the native SMB log source, which
-	// a stock build does not have, so it only runs on request.
+	// runCalibrate records every marker's outcome instead of asserting it.
+	runCalibrate      = "AZURE_FILES_E2E_CALIBRATE"
+	runCalibrateValue = "1"
+	// The smb cells need an Agent built with the native SMB log source,
+	// which a stock build does not have, so they only run on request.
 	smbOptIn       = "E2E_SMB_AZURE"
 	smbOptInValue  = "1"
 	completedFiles = 4
@@ -109,6 +112,12 @@ type ledgerEntry struct {
 	ObservedBytes int64  `json:"observed_bytes,omitempty"`
 }
 
+// rotatedAt parses RotatedAt, the time the writer journalled the file.
+func (e ledgerEntry) rotatedAt() (time.Time, bool) {
+	at, err := time.Parse(time.RFC3339Nano, e.RotatedAt)
+	return at, err == nil
+}
+
 // recordKey identifies one writer record: sequences start over in each
 // stream.
 type recordKey struct {
@@ -161,6 +170,7 @@ func TestAzureFiles(t *testing.T) {
 		periodMs:        os.Getenv(runPeriodMs),
 		rateBytesPerSec: os.Getenv(runRate),
 		streams:         os.Getenv(runStreams),
+		calibrate:       os.Getenv(runCalibrate) == runCalibrateValue,
 	})
 	require.NoError(t, err, "one of %s is invalid", strings.Join([]string{
 		runProfile, runCells, runStackName, runWriterImage, runRotationMode, runPeriodMs, runRate, runStreams,
@@ -181,93 +191,141 @@ func TestAzureFiles(t *testing.T) {
 	)
 }
 
-// gateReason says how to enable the gated smb cell.
+// gateReason says how to enable the gated smb cells.
 func gateReason() string {
-	return fmt.Sprintf("set %s=%s to run the smb cell; it needs an Agent built with the native SMB log source (see README.md)", smbOptIn, smbOptInValue)
+	return fmt.Sprintf("set %s=%s to run the smb cells; they need an Agent built with the native SMB log source (see README.md)", smbOptIn, smbOptInValue)
 }
 
 func (suite *azureFilesSuite) TestRotatedFilesAreCollectedExactlyOnce() {
-	for _, c := range suite.spec.gatedCells {
-		suite.Run(c.name, func() {
-			suite.T().Skip(gateReason())
-		})
-	}
-
-	// A reused stack keeps its Fakeintake and the logs of earlier runs, which
-	// carry the same services and sequence numbers. The storage pass has just
-	// removed the Agent, so nothing new arrives before the Agent pass below.
-	require.NoError(suite.T(), suite.Env().FakeIntake.Client().FlushServerAndResetAggregators())
-	suite.UpdateEnv(suite.spec.agentProvisioner())
-	require.NoError(suite.T(), suite.writeRunMetadata())
+	suite.skipGatedCells()
+	suite.installAgent()
 	defer suite.captureEvidence()
 	suite.requireAgentReady()
 
 	for _, c := range suite.spec.cells {
 		suite.Run(c.name, func() {
-			if c.reader == smbReader {
-				// Fail with a clear message when the Agent cannot run the
-				// source at all, rather than with every sequence missing, and
-				// before waiting minutes for the writer's rotations.
-				suite.requireSMBSourceRunning(c)
-			}
-
-			pod := suite.writerPod(c)
-			streams := suite.spec.streamRunIDs(c)
-			var ledger []ledgerEntry
-			suite.EventuallyWithT(func(collect *assert.CollectT) {
-				var err error
-				ledger, err = suite.readLedger(pod)
-				require.NoError(collect, err)
-				byStream := ledgerByStream(ledger)
-				for _, stream := range streams {
-					assert.GreaterOrEqual(collect, len(byStream[stream]), completedFiles,
-						"writer %s has not completed %d rotations yet; its ledger has %d", stream, completedFiles, len(byStream[stream]))
-				}
-			}, ledgerTimeout(suite.spec.writer), 5*time.Second)
-
-			asserted, atRisk := assertedLedger(ledger, streams)
-			expected := expectedRecords(asserted)
-			// A ledger whose records all failed to be written leaves nothing
-			// to check, which must not pass as a success.
-			require.NotEmpty(suite.T(), expected, "%s: the writer wrote none of the records of its asserted files", c.name)
-			if unwritten := unwrittenRecords(asserted); unwritten > 0 {
-				suite.T().Logf("%s: the writer failed to write %d records of its asserted files; they are in no file and not expected (see the ledger and the writer log)", c.name, unwritten)
-			}
-			var markers []markerEntry
-			if c.markers.count() > 0 {
-				markers = suite.postRotationMarkers(pod, c, asserted)
-			}
-
-			suite.EventuallyWithT(func(collect *assert.CollectT) {
-				logs, err := suite.collectedLogs(c.service)
-				require.NoError(collect, err)
-				// Lines carrying the right service but not this source's
-				// metadata come from a reader that builds a wrong origin.
-				assertLogOrigin(collect, suite.spec.runID, c, logs)
-
-				messages := logMessages(logs)
-				assertRecordsCollected(collect, c, checkRecords(expected, atRisk, countRecords(messages, expected)))
-				assertMarkerOutcome(collect, c, markers, countMarkerIDs(messages))
-			}, collectTimeout(suite.spec.writer), 10*time.Second)
-
-			// The lost marker is asserted absent, which cannot fail on a first
-			// look, so confirm the outcome once every drain has certainly ended.
-			if c.markers.lostMs > 0 {
-				time.Sleep(markerSettleDelay)
-			}
-			messages, err := suite.collectedMessages(c.service)
-			require.NoError(suite.T(), err)
-			assertMarkerOutcome(suite.T(), c, markers, countMarkerIDs(messages))
-			check := checkRecords(expected, atRisk, countRecords(messages, expected))
-			assertRecordsCollected(suite.T(), c, check)
-			suite.T().Logf("%s: %d records expected, %d of them at risk; %d at-risk records were lost, which the rotation mode allows: %s",
-				c.name, check.expected, check.atRisk, len(check.atRiskLost), formatRecordRanges(check.atRiskLost))
-
-			if c.reader == smbReader {
-				suite.checkSMBSource(c)
-			}
+			suite.checkCell(c)
 		})
 	}
+}
+
+// skipGatedCells reports the gated cells as skipped subtests.
+func (suite *azureFilesSuite) skipGatedCells() {
+	for _, c := range suite.spec.gatedCells {
+		suite.Run(c.name, func() {
+			suite.T().Skip(gateReason())
+		})
+	}
+}
+
+// installAgent runs the Agent pass. A reused stack keeps its Fakeintake and
+// the logs of earlier runs, which carry the same services and sequence
+// numbers. The storage pass has just removed the Agent, so nothing new
+// arrives before the Agent pass.
+func (suite *azureFilesSuite) installAgent() {
+	suite.T().Helper()
+	require.NoError(suite.T(), suite.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	suite.UpdateEnv(suite.spec.agentProvisioner())
+	require.NoError(suite.T(), suite.writeRunMetadata())
+}
+
+// checkCell waits for the cell's writer to complete its files and checks that
+// the Agent collected them: every record exactly once, except what the cell's
+// rotation mode allows, and each marker as calibrated. It returns the asserted
+// ledger entries.
+func (suite *azureFilesSuite) checkCell(c cell) []ledgerEntry {
+	suite.T().Helper()
+	if c.reader == smbReader {
+		// Fail with a clear message when the Agent cannot run the source at
+		// all, rather than with every sequence missing, and before waiting
+		// minutes for the writer's rotations.
+		suite.requireSMBSourceRunning(c)
+	}
+
+	pod := suite.writerPod(c)
+	streams := suite.spec.streamRunIDs(c)
+	ledger := suite.waitForLedger(c, pod, completedFiles)
+	asserted, atRisk := assertedLedger(ledger, streams)
+	expected := expectedRecords(asserted)
+	// A ledger whose records all failed to be written leaves nothing to
+	// check, which must not pass as a success.
+	require.NotEmpty(suite.T(), expected, "%s: the writer wrote none of the records of its asserted files", c.name)
+	if unwritten := unwrittenRecords(asserted); unwritten > 0 {
+		suite.T().Logf("%s: the writer failed to write %d records of its asserted files; they are in no file and not expected (see the ledger and the writer log)", c.name, unwritten)
+	}
+	var markers []markerEntry
+	if c.markers.count() > 0 {
+		markers = suite.postRotationMarkers(pod, c, asserted)
+	}
+
+	judge := func(t assert.TestingT, messages []string) recordCheck {
+		counts := countRecords(messages, expected)
+		check := checkRecords(expected, atRisk, counts)
+		switch {
+		case c.lossAccounted():
+			suite.assertLossesReported(t, c, ledger, asserted, check, recordLineBytes(messages, expected))
+			assertNoDuplicates(t, c, check)
+		default:
+			assertRecordsCollected(t, c, check)
+		}
+		if !suite.spec.calibrate {
+			assertMarkerOutcome(t, c, markers, countMarkerIDs(messages))
+		}
+		return check
+	}
+	suite.EventuallyWithT(func(collect *assert.CollectT) {
+		logs, err := suite.collectedLogs(c.service)
+		require.NoError(collect, err)
+		// Lines carrying the right service but not this source's metadata
+		// come from a reader that builds a wrong origin.
+		assertLogOrigin(collect, suite.spec.runID, c, logs)
+		judge(collect, logMessages(logs))
+	}, collectTimeout(c.writer), 10*time.Second)
+
+	// A marker expected to be lost is asserted absent, which cannot fail on a
+	// first look, so confirm the outcome once every drain has certainly ended.
+	if c.markers.needsSettle() {
+		time.Sleep(markerSettleDelay)
+	}
+	logs, err := suite.collectedLogs(c.service)
+	require.NoError(suite.T(), err)
+	messages := logMessages(logs)
+	check := judge(suite.T(), messages)
+	suite.T().Logf("%s: %d records expected, %d of them at risk; %d at-risk records were lost, which the rotation mode allows: %s",
+		c.name, check.expected, check.atRisk, len(check.atRiskLost), formatRecordRanges(check.atRiskLost))
+	if suite.spec.calibrate && len(markers) > 0 {
+		suite.recordMarkerOutcomes(c, markerOutcomes(c, markers, countMarkerIDs(messages)))
+	}
+
+	if c.lossAccounted() {
+		suite.checkMissedBytesTotals(c, ledger, asserted, check, recordLineBytes(messages, expected))
+	}
+	if c.reader == smbReader {
+		suite.checkSMBSource(c)
+	}
+	if c.writer.paced() {
+		suite.recordLoad(c, asserted, expected, logs)
+	}
+	return asserted
+}
+
+// waitForLedger waits until every stream of the cell's writer has completed
+// files files, and returns its ledger.
+func (suite *azureFilesSuite) waitForLedger(c cell, pod corev1.Pod, files int) []ledgerEntry {
+	suite.T().Helper()
+	streams := suite.spec.streamRunIDs(c)
+	var ledger []ledgerEntry
+	suite.EventuallyWithT(func(collect *assert.CollectT) {
+		var err error
+		ledger, err = suite.readLedger(c, pod)
+		require.NoError(collect, err)
+		byStream := ledgerByStream(ledger)
+		for _, stream := range streams {
+			assert.GreaterOrEqual(collect, len(byStream[stream]), files,
+				"writer %s has not completed %d rotations yet; its ledger has %d", stream, files, len(byStream[stream]))
+		}
+	}, ledgerTimeout(c.writer), 5*time.Second)
+	return ledger
 }
 
 // postRotationMarkers waits until the appender has written both markers for
@@ -288,7 +346,7 @@ func (suite *azureFilesSuite) postRotationMarkers(
 
 	var markers []markerEntry
 	suite.EventuallyWithT(func(collect *assert.CollectT) {
-		journal, err := suite.readMarkerJournal(pod)
+		journal, err := suite.readMarkerJournal(c, pod)
 		require.NoError(collect, err)
 		markers = markersForFiles(journal, files)
 		assert.Len(collect, markers, wanted,
@@ -428,20 +486,128 @@ func formatRecordRanges(keys []recordKey) string {
 // in provisioner.go: the early marker must survive, and the late one must not.
 func assertMarkerOutcome(t assert.TestingT, c cell, markers []markerEntry, counts map[string]int) {
 	for _, marker := range markers {
-		switch marker.MarkerAgeMs {
-		case c.markers.survivingMs:
-			assert.Equal(t, postRotationMarkerSurvivingCount, counts[marker.MarkerID],
+		expect, ok := c.markers.expectationFor(marker.MarkerAgeMs)
+		if !ok {
+			continue
+		}
+		count := counts[marker.MarkerID]
+		switch {
+		case expect == markerCollected:
+			assert.Equal(t, postRotationMarkerSurvivingCount, count,
 				"%s: marker %s was appended to %s %dms after its rename, inside the drain window of its %s reader, so it must be collected exactly once; losing it means appends to the rotated file are dropped",
 				c.name, marker.MarkerID, marker.RotatedFile, marker.MarkerAgeMs, c.reader)
-		case c.markers.lostMs:
+		case marker.MarkerAgeMs == c.markers.lateMs:
 			// An unexpected survival is a harness signal, not a product win: it
 			// means this suite is no longer proving that it can see the loss.
 			// Check the drain window constants and the rotation-detection lag
 			// before reading anything into the result.
-			assert.Equal(t, postRotationMarkerLostCount, counts[marker.MarkerID],
+			assert.Equal(t, postRotationMarkerLostCount, count,
 				"%s: marker %s was appended to %s %dms after its rename, past every drain window, so it is expected to be lost; its survival means the harness is no longer calibrated and must be investigated before this run counts as a pass",
 				c.name, marker.MarkerID, marker.RotatedFile, marker.MarkerAgeMs)
+		case expect == markerLost:
+			assert.Equal(t, postRotationMarkerLostCount, count,
+				"%s: marker %s was appended to %s %dms after its rename, which lateMarkerProbes in provisioner.go predicts is past the %s reader's drain window; it was collected %d times. Run the cell with %s=%s and update the table",
+				c.name, marker.MarkerID, marker.RotatedFile, marker.MarkerAgeMs, c.reader, count, runCalibrate, runCalibrateValue)
+		case expect == markerEither:
+			assert.LessOrEqual(t, count, 1,
+				"%s: marker %s was appended to %s %dms after its rename, at the edge of the %s reader's drain window, so it may be lost, but it was collected %d times",
+				c.name, marker.MarkerID, marker.RotatedFile, marker.MarkerAgeMs, c.reader, count)
 		}
+	}
+}
+
+// markerOutcome is what became of one marker, as calibration records it.
+type markerOutcome struct {
+	MarkerID    string            `json:"marker_id"`
+	RotatedFile string            `json:"rotated_file"`
+	AgeMs       int               `json:"marker_age_ms"`
+	Expected    markerExpectation `json:"expected"`
+	Collected   int               `json:"collected"`
+	Outcome     markerExpectation `json:"outcome"`
+	// Matches says whether the outcome is what the cell would assert
+	// without calibration.
+	Matches bool `json:"matches"`
+}
+
+// markerOutcomes records what became of each marker against its expectation.
+func markerOutcomes(c cell, markers []markerEntry, counts map[string]int) []markerOutcome {
+	outcomes := make([]markerOutcome, 0, len(markers))
+	for _, marker := range markers {
+		expect, ok := c.markers.expectationFor(marker.MarkerAgeMs)
+		if !ok {
+			continue
+		}
+		count := counts[marker.MarkerID]
+		outcome := markerOutcome{
+			MarkerID: marker.MarkerID, RotatedFile: marker.RotatedFile, AgeMs: marker.MarkerAgeMs,
+			Expected: expect, Collected: count, Outcome: markerLost,
+		}
+		if count > 0 {
+			outcome.Outcome = markerCollected
+		}
+		switch expect {
+		case markerCollected:
+			outcome.Matches = count == 1
+		case markerLost:
+			outcome.Matches = count == 0
+		case markerEither:
+			outcome.Matches = count <= 1
+		}
+		outcomes = append(outcomes, outcome)
+	}
+	sort.Slice(outcomes, func(i, j int) bool {
+		if outcomes[i].AgeMs != outcomes[j].AgeMs {
+			return outcomes[i].AgeMs < outcomes[j].AgeMs
+		}
+		return outcomes[i].MarkerID < outcomes[j].MarkerID
+	})
+	return outcomes
+}
+
+// summarizeMarkerOutcomes prints one line per marker age: how many of its
+// markers were collected and lost, against what the cell expects.
+func summarizeMarkerOutcomes(outcomes []markerOutcome) string {
+	type tally struct {
+		expected                   markerExpectation
+		collected, lost, duplicate int
+	}
+	var ages []int
+	tallies := make(map[int]*tally)
+	for _, outcome := range outcomes {
+		t, ok := tallies[outcome.AgeMs]
+		if !ok {
+			t = &tally{expected: outcome.Expected}
+			tallies[outcome.AgeMs] = t
+			ages = append(ages, outcome.AgeMs)
+		}
+		switch {
+		case outcome.Collected > 1:
+			t.duplicate++
+		case outcome.Collected == 1:
+			t.collected++
+		default:
+			t.lost++
+		}
+	}
+	sort.Ints(ages)
+	parts := make([]string, 0, len(ages))
+	for _, age := range ages {
+		t := tallies[age]
+		total := t.collected + t.lost + t.duplicate
+		part := fmt.Sprintf("%dms: collected %d/%d, lost %d/%d", age, t.collected, total, t.lost, total)
+		if t.duplicate > 0 {
+			part += fmt.Sprintf(", collected more than once %d/%d", t.duplicate, total)
+		}
+		parts = append(parts, part+fmt.Sprintf(" (expected %s)", t.expected))
+	}
+	return strings.Join(parts, "; ")
+}
+
+// recordMarkerOutcomes prints and keeps the calibration of a cell's markers.
+func (suite *azureFilesSuite) recordMarkerOutcomes(c cell, outcomes []markerOutcome) {
+	suite.T().Logf("%s calibration (%s=%s, not asserted): %s", c.name, runCalibrate, runCalibrateValue, summarizeMarkerOutcomes(outcomes))
+	if evidence, err := suite.evidenceDir(); err == nil {
+		evidence.writeJSON(c.name+"-marker-outcomes.json", outcomes)
 	}
 }
 
@@ -503,6 +669,11 @@ type collectedLog struct {
 	message string
 	source  string
 	tags    []string
+	// timestamp is the log's timestamp, set by the Agent when it read the
+	// line, in milliseconds since the epoch.
+	timestamp int64
+	// arrived is when Fakeintake received the payload.
+	arrived time.Time
 }
 
 func (suite *azureFilesSuite) collectedLogs(service string) ([]collectedLog, error) {
@@ -512,7 +683,10 @@ func (suite *azureFilesSuite) collectedLogs(service string) ([]collectedLog, err
 	}
 	collected := make([]collectedLog, 0, len(logs))
 	for _, log := range logs {
-		collected = append(collected, collectedLog{message: log.Message, source: log.Source, tags: log.GetTags()})
+		collected = append(collected, collectedLog{
+			message: log.Message, source: log.Source, tags: log.GetTags(),
+			timestamp: int64(log.Timestamp), arrived: log.GetCollectedTime(),
+		})
 	}
 	return collected, nil
 }
@@ -668,8 +842,8 @@ func (suite *azureFilesSuite) findWriterPod(c cell) (corev1.Pod, error) {
 	return pods.Items[0], nil
 }
 
-func (suite *azureFilesSuite) readLedger(pod corev1.Pod) ([]ledgerEntry, error) {
-	stdout, err := suite.readLedgerRaw(pod)
+func (suite *azureFilesSuite) readLedger(c cell, pod corev1.Pod) ([]ledgerEntry, error) {
+	stdout, err := suite.readLedgerRaw(c, pod)
 	if err != nil {
 		return nil, err
 	}
@@ -695,24 +869,24 @@ func decodeJSONLines[T any](raw, what string) ([]T, error) {
 
 // readLedgerRaw reads the ledgers of every stream of a writer pod, one after
 // the other.
-func (suite *azureFilesSuite) readLedgerRaw(pod corev1.Pod) (string, error) {
-	stdout, err := suite.readShareFiles(pod, ledgerContainerName, suite.spec.writer.sharePaths(ledgerName))
+func (suite *azureFilesSuite) readLedgerRaw(c cell, pod corev1.Pod) (string, error) {
+	stdout, err := suite.readShareFiles(pod, ledgerContainerName, c.writer.sharePaths(ledgerName))
 	if err != nil {
 		return "", fmt.Errorf("read ledger: %w", err)
 	}
 	return stdout, nil
 }
 
-func (suite *azureFilesSuite) readMarkerJournal(pod corev1.Pod) ([]markerEntry, error) {
-	stdout, err := suite.readMarkerJournalRaw(pod)
+func (suite *azureFilesSuite) readMarkerJournal(c cell, pod corev1.Pod) ([]markerEntry, error) {
+	stdout, err := suite.readMarkerJournalRaw(c, pod)
 	if err != nil {
 		return nil, err
 	}
 	return decodeJSONLines[markerEntry](stdout, "marker journal")
 }
 
-func (suite *azureFilesSuite) readMarkerJournalRaw(pod corev1.Pod) (string, error) {
-	stdout, err := suite.readShareFiles(pod, appenderContainerName, suite.spec.writer.sharePaths(postRotationMarkerJournalName))
+func (suite *azureFilesSuite) readMarkerJournalRaw(c cell, pod corev1.Pod) (string, error) {
+	stdout, err := suite.readShareFiles(pod, appenderContainerName, c.writer.sharePaths(postRotationMarkerJournalName))
 	if err != nil {
 		return "", fmt.Errorf("read marker journal: %w", err)
 	}
@@ -744,8 +918,11 @@ func (suite *azureFilesSuite) writeRunMetadata() error {
 			"storage_account": c.accountName, "share": c.shareName,
 			"mount_options": strings.Split(c.mountOptions, ","),
 			"post_rotation_markers": map[string]any{
-				"surviving_delay_ms": c.markers.survivingMs, "lost_delay_ms": c.markers.lostMs,
+				"early_delay_ms": c.markers.earlyMs, "early_expectation": c.markers.earlyExpect,
+				"late_delay_ms": c.markers.lateMs,
 			},
+			"writer":         c.writer.metadata(),
+			"loss_accounted": c.lossAccounted(),
 		}
 		switch c.reader {
 		case fileReader:
@@ -755,7 +932,7 @@ func (suite *azureFilesSuite) writeRunMetadata() error {
 		case smbReader:
 			// The mount options apply to the writer only.
 			entry["smb"] = map[string]any{
-				"host": c.host(), "share": c.shareName, "username": c.accountName, "path": suite.spec.writer.activeLogPattern(),
+				"host": c.host(), "share": c.shareName, "username": c.accountName, "path": c.writer.activeLogPattern(),
 				"password_handle": smbPasswordHandle(c), "poll_interval": smbPollIntervalSeconds,
 			}
 		}
@@ -776,6 +953,7 @@ func (suite *azureFilesSuite) writeRunMetadata() error {
 			"file_scan_period": fileScanPeriodSeconds,
 			"close_timeout":    closeTimeoutSeconds,
 		},
+		"calibrate": suite.spec.calibrate,
 		// The marker ages depend on the reader and are listed per cell.
 		"post_rotation_markers": map[string]any{
 			"expected_surviving": postRotationMarkerSurvivingCount,
@@ -818,16 +996,16 @@ func (suite *azureFilesSuite) captureEvidence() {
 			continue
 		}
 		evidence.writeJSON(c.name+"-writer-pod.json", pod)
-		if rawLedger, err := suite.readLedgerRaw(pod); err == nil {
+		if rawLedger, err := suite.readLedgerRaw(c, pod); err == nil {
 			evidence.write(c.name+"-ledger.jsonl", []byte(rawLedger))
 		}
-		if ledger, err := suite.readLedger(pod); err == nil {
+		if ledger, err := suite.readLedger(c, pod); err == nil {
 			evidence.writeJSON(c.name+"-ledger.json", ledger)
 		}
-		if rawMarkers, err := suite.readMarkerJournalRaw(pod); err == nil {
+		if rawMarkers, err := suite.readMarkerJournalRaw(c, pod); err == nil {
 			evidence.write(c.name+"-markers.jsonl", []byte(rawMarkers))
 		}
-		if rawPeriods, err := suite.readShareFiles(pod, writerContainerName, suite.spec.writer.sharePaths(periodsJournalName)); err == nil {
+		if rawPeriods, err := suite.readShareFiles(pod, writerContainerName, c.writer.sharePaths(periodsJournalName)); err == nil {
 			evidence.write(c.name+"-periods.jsonl", []byte(rawPeriods))
 		}
 		for _, container := range []string{writerContainerName, ledgerContainerName, appenderContainerName} {
@@ -840,7 +1018,7 @@ func (suite *azureFilesSuite) captureEvidence() {
 			e2eNamespace, pod.Name, writerContainerName,
 			[]string{"/bin/sh", "-c", fmt.Sprintf(
 				"uname -a; cat /proc/mounts | grep %[1]s || true; ls -la %[1]s %[1]s/*/ 2>&1 || true; stat -c '%%D %%i %%s %%y %%n' %[1]s/%[2]s %[1]s/%[2]s.* 2>&1 || true; grep -H -a post_rotation_marker %[1]s/%[2]s.* 2>&1 || true",
-				logMountPath, suite.spec.writer.activeLogPattern(),
+				logMountPath, c.writer.activeLogPattern(),
 			)},
 		)
 		evidence.writeCommandResult(c.name+"-writer-filesystem.txt", stdout, stderr, err)
@@ -869,8 +1047,8 @@ func (suite *azureFilesSuite) captureEvidence() {
 			stdout, stderr, execErr := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
 				agentNamespace, pod.Name, "agent",
 				[]string{"/bin/sh", "-c", fmt.Sprintf(
-					"uname -a; cat /proc/mounts | grep %[1]s || true; stat -c '%%D %%i %%s %%y %%n' %[1]s/*/%[2]s 2>&1 || true; ls -l /proc/1/fd 2>&1 || true",
-					logMountPath, suite.spec.writer.activeLogPattern(),
+					"uname -a; cat /proc/mounts | grep %[1]s || true; stat -c '%%D %%i %%s %%y %%n' %[1]s/*/%[2]s %[1]s/*/*/%[2]s 2>&1 || true; ls -l /proc/1/fd 2>&1 || true",
+					logMountPath, activeLogName,
 				)},
 			)
 			evidence.writeCommandResult(pod.Name+"-filesystem.txt", stdout, stderr, execErr)
@@ -914,16 +1092,34 @@ func (suite *azureFilesSuite) evidenceDir() (*evidenceDir, error) {
 		if c.reader != smbReader {
 			continue
 		}
-		key, err := suite.accountKey(c)
+		keys, err := suite.cellKeys(c)
 		if err != nil {
-			suite.T().Logf("cannot read the %s account key to redact it from evidence: %v", c.name, err)
+			suite.T().Logf("cannot read the %s account keys to redact them from evidence: %v", c.name, err)
 			evidence.unredacted = append(evidence.unredacted, c.name)
 			continue
 		}
-		evidence.secrets = append(evidence.secrets, key)
+		evidence.secrets = append(evidence.secrets, keys...)
 	}
 	suite.evidence = evidence
 	return evidence, nil
+}
+
+// cellKeys are the storage account keys of an SMB cell that the test knows:
+// the writer's, and the Agent's copy when it holds another key.
+func (suite *azureFilesSuite) cellKeys(c cell) ([]string, error) {
+	writerKey, err := suite.accountKey(c)
+	if err != nil {
+		return nil, err
+	}
+	agentKey, err := suite.agentAccountKey(c)
+	if err != nil {
+		return nil, err
+	}
+	keys := []string{writerKey}
+	if agentKey != writerKey {
+		keys = append(keys, agentKey)
+	}
+	return keys, nil
 }
 
 func (suite *azureFilesSuite) storageAccountNames() string {
