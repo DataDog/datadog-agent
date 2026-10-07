@@ -431,7 +431,6 @@ func TestQueueWorkloadAppliesQueuedAccessesOnCacheHit(t *testing.T) {
 		}}, false))
 
 		sbom := NewSBOM("container-id", nil, "image:tag")
-		sbom.status = workloadmeta.Success
 		t.Cleanup(sbom.stop)
 		r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true, 0)
 
@@ -668,7 +667,6 @@ func TestSharedDataConcurrentForwardingAndResolve(t *testing.T) {
 
 	sbomB := NewSBOM("container-b", nil, "image:tag")
 	sbomB.data = data
-	sbomB.status = workloadmeta.Success
 	sbomB.state.Store(computedState)
 
 	r := newPendingFileEventsResolver(t)
@@ -746,12 +744,9 @@ func TestForwardSkipsStoppedSBOM(t *testing.T) {
 		Package:        sbomtypes.Package{Name: "bash"},
 		InstalledFiles: []string{"/usr/bin/bash"},
 	}})
-	sbom.status = workloadmeta.Success
 	sbom.stop()
 
-	if r.forward(sbom) {
-		t.Errorf("the forward of a stopped SBOM asks for a retry")
-	}
+	r.forward(sbom)
 	if forwarded {
 		t.Errorf("a stopped SBOM was forwarded")
 	}
@@ -794,12 +789,30 @@ func (failingWorkloadmeta) GetContainer(id string) (*workloadmeta.Container, err
 	return nil, fmt.Errorf("container %q not found", id)
 }
 
-// TestGetContainerSBOMWithoutWorkloadmeta checks that a resolver without
-// workloadmeta, as in the functional tests, reports an error for a container.
-func TestGetContainerSBOMWithoutWorkloadmeta(t *testing.T) {
-	r := &Resolver{}
-	if sbom, err := r.getContainerSBOM("container-id"); err == nil || sbom != nil {
-		t.Errorf("getContainerSBOM() = %v, %v, want an error", sbom, err)
+// TestForwardBeforeImageSBOM checks that a container report goes out before
+// workloadmeta knows the SBOM of its image, which the core agent waits for.
+func TestForwardBeforeImageSBOM(t *testing.T) {
+	r := &Resolver{
+		Notifier: utils.NewNotifier[Event, *sbompkg.ScanResult](),
+		wmeta:    failingWorkloadmeta{},
+	}
+	var reports []*sbompkg.ScanResult
+	if err := r.RegisterListener(SBOMComputed, func(result *sbompkg.ScanResult) {
+		reports = append(reports, result)
+	}); err != nil {
+		t.Fatalf("RegisterListener: %v", err)
+	}
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	sbom.setReport([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "bash"},
+		InstalledFiles: []string{"/usr/bin/bash"},
+	}})
+	sbom.state.Store(computedState)
+
+	r.forward(sbom)
+	if len(reports) != 1 || reports[0].RequestID != "container-id" {
+		t.Errorf("reports = %v, want the report of container-id", reports)
 	}
 }
 
@@ -884,7 +897,6 @@ func newHostSBOMResolver(t *testing.T) *Resolver {
 		},
 		pendingFileEvents: newPendingFileEvents(t),
 		hostMisses:        newHostMisses(t),
-		wmeta:             failingWorkloadmeta{},
 	}
 
 	r.hostRootDevice, r.hostRootInode = ownRoot(t)
@@ -1126,12 +1138,9 @@ func TestPendingFileEventsRecordDeletedFile(t *testing.T) {
 	}
 }
 
-// TestHostForwardingSkipsImageSBOM checks that the report of the host goes out
-// at once. A container report waits for the Trivy SBOM of its image, while the
-// core agent keeps the report of the host for its next host scan. Here every
-// workloadmeta lookup fails, so a host report that waited on an image SBOM
-// would wait forever.
-func TestHostForwardingSkipsImageSBOM(t *testing.T) {
+// TestForwardHostReport checks that the report of the host goes out at once,
+// with the empty request ID, its usage and the start of its usage.
+func TestForwardHostReport(t *testing.T) {
 	r := newHostSBOMResolver(t)
 
 	var reports []*sbompkg.ScanResult
@@ -1144,9 +1153,7 @@ func TestHostForwardingSkipsImageSBOM(t *testing.T) {
 	pc, file := hostAccess()
 	r.ResolvePackage(pc, file)
 
-	if r.forward(r.hostSBOM) {
-		t.Errorf("the host report waits to be forwarded again")
-	}
+	r.forward(r.hostSBOM)
 	if len(reports) != 1 {
 		t.Fatalf("%d host reports forwarded, want 1", len(reports))
 	}
@@ -2499,7 +2506,6 @@ func TestResolvePackageRefreshesSteadyUsage(t *testing.T) {
 			Package:        sbomtypes.Package{Name: "bash"},
 			InstalledFiles: []string{"/usr/bin/bash"},
 		}})
-		sbom.status = workloadmeta.Success
 		sbom.state.Store(computedState)
 		t.Cleanup(sbom.stop)
 		sboms.Add(sbom.ContainerID, sbom)
@@ -2757,7 +2763,6 @@ func TestRescanAfterPackageChange(t *testing.T) {
 
 			sbom := r.newSBOM("container-id", nil, "image:tag")
 			t.Cleanup(sbom.stop)
-			sbom.status = workloadmeta.Success
 			r.setScan(sbom, []sbomtypes.PackageWithInstalledFiles{coreutils, gzip("1ubuntu3")}, "")
 			sbom.state.Store(computedState)
 

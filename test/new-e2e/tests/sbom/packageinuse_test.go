@@ -346,9 +346,8 @@ func (s *packageInUseSuite) TestPackageInUse() {
 func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 	repo := d.repo
 
-	// Keep the idle workload forwarding its runtime SBOM steadily (without
-	// touching the in-use package) so the enrichment merge reliably runs once its
-	// image SBOM lands.
+	// Keep the idle workload forwarding its runtime SBOM steadily, without
+	// touching the in-use package, so that its payloads carry fresh usage.
 	s.keepActive(d)
 
 	// Phase 1: baseline. The enrichment merge must have run (the in-use package
@@ -1554,10 +1553,8 @@ func (s *packageInUseSuite) repoPayloads(c require.TestingT, repo string) (enric
 // repeatedly executes the in-use binary so the package is continuously seen
 // running. The loop's pid is recorded so stopInUseService can stop it.
 func (s *packageInUseSuite) startInUseService(d pkgInUseDistro) {
-	// Run the binary every 15s (> the 10s enrichment interval) so each execution
-	// re-arms the resolver's forwarding debouncer: a tighter loop only forwards
-	// once (the resolver suppresses re-forwards within the enrichment interval),
-	// which is fragile if that single forward races the image SBOM becoming ready.
+	// Run the binary every 15s, past the 10s enrichment interval, so each run
+	// re-arms the forwarding debouncer and refreshes LastSeenRunning.
 	script := fmt.Sprintf(`nohup sh -c 'echo $$ > /tmp/inuse.pid; while true; do %s --version >/dev/null 2>&1; sleep 15; done' </dev/null >/dev/null 2>&1 &`, d.inUseBin)
 	stdout, stderr := s.podExec(d, "sh", "-c", script)
 	s.T().Logf("PKG-IN-USE[%s] start service: stdout=%q stderr=%q", d.name, stdout, stderr)
@@ -1767,11 +1764,11 @@ func (s *packageInUseSuite) TestZZDumpAgentDiagnostics() {
 
 // keepActive starts, inside the workload pod, a detached loop that continuously
 // accesses a non-in-use file. An idle container (its entrypoint is
-// `tail -f /dev/null`) forwards its runtime SBOM only a handful of times and can
-// miss the window once its image SBOM is available; keeping it active makes the
-// resolver re-forward steadily, the way the always-busy Agent containers do. The
-// in-use binary is never touched here, so it stays not-in-use until the in-use
-// phase. `cat` is owned by the distro's controlPkg (the positive control).
+// `tail -f /dev/null`) forwards its runtime SBOM only a handful of times.
+// Keeping it active makes the resolver forward steadily, the way the
+// always-busy Agent containers do. The in-use binary is never touched here, so
+// it stays not-in-use until the in-use phase. `cat` is owned by the distro's
+// controlPkg (the positive control).
 func (s *packageInUseSuite) keepActive(d pkgInUseDistro) {
 	script := `nohup sh -c 'while true; do cat /etc/os-release >/dev/null 2>&1; sleep 12; done' </dev/null >/dev/null 2>&1 &`
 	stdout, stderr := s.podExec(d, "sh", "-c", script)
