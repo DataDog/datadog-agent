@@ -10,6 +10,7 @@ import posixpath
 import re
 import shutil
 import sys
+import tempfile
 import textwrap
 import traceback
 from collections import defaultdict
@@ -136,18 +137,30 @@ def deps_vendored(ctx, verbose=False):
 
     print("vendoring dependencies")
     with timed("go mod vendor"):
-        verbosity = ' -v' if verbose else ''
+        verbosity = ('-v',) if verbose else ()
 
         # We need to set GOWORK=off to avoid the go command to use the go.work directory
         # It is needed because it does not work very well with vendoring, we should no longer need it when we get rid of vendoring. ADXR-766
-        ctx.run(f"go mod vendor{verbosity}", env={"GOWORK": "off"})
-        ctx.run(f"go mod tidy{verbosity}", env={"GOWORK": "off"})
+        bazel("run", "--run_env=GOWORK=off", "//:go", "--", "mod", "vendor", *verbosity)
+        bazel("run", "--run_env=GOWORK=off", "//:go", "--", "mod", "tidy", *verbosity)
 
         # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
         # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
         # For this reason, we need to use a 3rd party tool to copy these files.
         # We won't need this if/when we change to non-vendored modules
-        ctx.run(f'modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{verbosity}')
+        gomodcache = bazel("run", "//:go", "--", "env", "GOMODCACHE", capture_output=True).strip()
+        with tempfile.TemporaryDirectory() as gopath:
+            os.mkdir(os.path.join(gopath, "pkg"))
+            os.symlink(gomodcache, os.path.join(gopath, "pkg", "mod"))
+            bazel(
+                "run",
+                f"--run_env=GOPATH={gopath}",  # modvendor ignores GOMODCACHE and instead hardcodes $GOPATH/pkg/mod
+                "//internal/tools:modvendor",
+                "--",
+                "-copy",
+                "**/*.c **/*.h **/*.proto **/*.java",
+                *verbosity,
+            )
 
         # If github.com/DataDog/datadog-agent gets vendored too - nuke it
         # This may happen because of the introduction of nested modules
