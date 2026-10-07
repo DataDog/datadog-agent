@@ -15,6 +15,7 @@ import (
 	"fmt"
 
 	manager "github.com/DataDog/ebpf-manager"
+	ebpffeatures "github.com/cilium/ebpf/features"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/features"
 	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/modifiers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -98,6 +100,19 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 			"tcp_sendmsg_entry",
 			"tcp_sendmsg_exit",
 		)
+	}
+
+	if modifiers.NoPreallocOverrideSupported() {
+		if managerOptions.MapSpecEditors == nil {
+			managerOptions.MapSpecEditors = make(map[string]manager.MapSpecEditor)
+		}
+
+		for _, bpfMap := range m.Maps {
+			managerOptions.MapSpecEditors[bpfMap.Name] = manager.MapSpecEditor{
+				Flags:      ebpffeatures.BPF_F_NO_PREALLOC,
+				EditorFlag: manager.EditFlags,
+			}
+		}
 	}
 
 	if err := m.InitWithOptions(buf, managerOptions); err != nil {
