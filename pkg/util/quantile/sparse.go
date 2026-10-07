@@ -62,6 +62,7 @@ func (s *Sketch) InsertMany(c *Config, values []float64) {
 func (s *Sketch) Reset() {
 	s.Basic.Reset()
 	s.count = 0
+	s.shift = 0
 	s.bins = s.bins[:0] // TODO: just release to a size tiered pool.
 }
 
@@ -144,6 +145,7 @@ func (s *Sketch) CopyTo(dst *Sketch) {
 	dst.bins = dst.bins.ensureLen(s.bins.Len())
 	copy(dst.bins, s.bins)
 	dst.count = s.count
+	dst.shift = s.shift
 	dst.Basic = s.Basic
 }
 
@@ -160,7 +162,7 @@ func (s *Sketch) Equals(o *Sketch) bool {
 		return false
 	}
 
-	if s.count != o.count {
+	if s.count != o.count || s.shift != o.shift {
 		return false
 	}
 
@@ -205,7 +207,7 @@ func (s *Sketch) ApproxEquals(o *Sketch, e float64) bool {
 		return false
 	}
 
-	if s.count != o.count {
+	if s.count != o.count || s.shift != o.shift {
 		return false
 	}
 

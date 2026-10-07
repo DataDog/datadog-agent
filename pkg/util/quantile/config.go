@@ -44,8 +44,10 @@ type Config struct {
 	}
 }
 
-// MaxCount returns the max number of values you can insert.
-// This is limited by using a uint16 for bin.n
+// MaxCount returns the number of values the bins of a sketch count exactly,
+// which is limited by using a uint16 for bin.n. Past it, the sketch scales its
+// bins down by powers of two to stay within its bin budget, rounding ranks to
+// that scale. Its summary stays exact.
 func (c *Config) MaxCount() int {
 	return c.binLimit * math.MaxUint16
 }
