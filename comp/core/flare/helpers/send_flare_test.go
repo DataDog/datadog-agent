@@ -163,11 +163,10 @@ func TestAnalyzeResponse(t *testing.T) {
 			Body:       io.NopCloser(bytes.NewBuffer([]byte("thats-not-json"))),
 		}
 		resstr, reserr := analyzeResponse(r, "abcdef")
-		require.Equal(t,
-			errors.New("invalid character 'h' in literal true (expecting 'r')\n"+
+		require.EqualError(t, reserr,
+			"invalid character 'h' in literal true (expecting 'r')\n"+
 				"Server returned:\n"+
-				"thats-not-json"),
-			reserr)
+				"thats-not-json")
 		require.Equal(t,
 			"Error: could not deserialize response body -- Please contact support by email.",
 			resstr)
@@ -186,11 +185,10 @@ func TestAnalyzeResponse(t *testing.T) {
 			Body:       io.NopCloser(bytes.NewBuffer([]byte(resp))),
 		}
 		resstr, reserr := analyzeResponse(r, "abcdef")
-		require.Equal(t,
-			errors.New("invalid character 'u' looking for beginning of value\n"+
+		require.EqualError(t, reserr,
+			"invalid character 'u' looking for beginning of value\n"+
 				"Server returned:\n"+
-				resp[:150]),
-			reserr)
+				resp[:150])
 		require.Equal(t,
 			"Error: could not deserialize response body -- Please contact support by email.",
 			resstr)
@@ -202,11 +200,10 @@ func TestAnalyzeResponse(t *testing.T) {
 			Body:       io.NopCloser(bytes.NewBuffer([]byte("{\"json\": true}"))),
 		}
 		resstr, reserr := analyzeResponse(r, "abcdef")
-		require.Equal(t,
-			errors.New("Server returned a 200 but with no content-type header\n"+
+		require.EqualError(t, reserr,
+			"Server returned a 200 but with no content-type header\n"+
 				"Server returned:\n"+
-				"{\"json\": true}"),
-			reserr)
+				"{\"json\": true}")
 		require.Equal(t,
 			"Error: could not deserialize response body -- Please contact support by email.",
 			resstr)
@@ -219,11 +216,10 @@ func TestAnalyzeResponse(t *testing.T) {
 			Body:       io.NopCloser(bytes.NewBuffer([]byte("{\"json\": true}"))),
 		}
 		resstr, reserr := analyzeResponse(r, "abcdef")
-		require.Equal(t,
-			errors.New("Server returned a 200 but with an unknown content-type text/plain\n"+
+		require.EqualError(t, reserr,
+			"Server returned a 200 but with an unknown content-type text/plain\n"+
 				"Server returned:\n"+
-				"{\"json\": true}"),
-			reserr)
+				"{\"json\": true}")
 		require.Equal(t,
 			"Error: could not deserialize response body -- Please contact support by email.",
 			resstr)
@@ -236,11 +232,10 @@ func TestAnalyzeResponse(t *testing.T) {
 			Body:       io.NopCloser(bytes.NewBuffer([]byte("<html>.."))),
 		}
 		resstr, reserr := analyzeResponse(r, "abcdef")
-		require.Equal(t,
-			errors.New("HTTP 502 Bad Gateway\n"+
+		require.EqualError(t, reserr,
+			"HTTP 502 Bad Gateway\n"+
 				"Server returned:\n"+
-				"<html>.."),
-			reserr)
+				"<html>..")
 		require.Equal(t,
 			"Error: could not deserialize response body -- Please contact support by email.",
 			resstr)
