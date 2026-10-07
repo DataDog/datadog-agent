@@ -17,7 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -420,6 +423,147 @@ func TestDrainCommitsUnderTheIdentifierItIsGiven(t *testing.T) {
 	assert.Contains(t, msg.Origin.Tags(), "filename:app.log", "tags keep the original file name")
 	assert.Equal(t, "smb://files.example.com/logs/app/app.log (rotated, FileId "+strconv.FormatUint(id, 10)+")", tt.GetID())
 	assert.EqualValues(t, 8, tt.Offset())
+}
+
+// TestCommitted checks that Committed tells whether a message forwarded
+// commits under the tailer's own identifier, which the launcher relies on to
+// know what the registry entry of the tailer's path will hold.
+func TestCommitted(t *testing.T) {
+	share := fake.New()
+	id := share.Write(testPath, []byte("one\n"))
+	active := newTestTailer(t, share, id, 0)
+	assert.False(t, active.Committed())
+	_, err := active.Poll(context.Background(), entryOf(t, share, testPath))
+	require.NoError(t, err)
+	active.next(t)
+	assert.True(t, active.Committed())
+
+	drained := newTestTailer(t, share, id, 0)
+	drained.StartDraining()
+	drained.CommitTo("smb://files.example.com/logs/app/app.log.1")
+	_, err = drained.Poll(context.Background(), nil)
+	require.NoError(t, err)
+	assert.NotEqual(t, drained.Identifier(), drained.next(t).Origin.Identifier)
+	assert.False(t, drained.Committed(), "its message commits under another identifier")
+
+	drained.CommitTo(drained.Identifier()) // its file is back at its path
+	share.Append(testPath, []byte("two\n"))
+	_, err = drained.Poll(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Equal(t, drained.Identifier(), drained.next(t).Origin.Identifier)
+	assert.True(t, drained.Committed())
+}
+
+// keepContent is a processor encoder that leaves messages as they are.
+type keepContent struct{}
+
+func (keepContent) Encode(*message.Message, string) error { return nil }
+
+// processorKeeps reports whether a logs processor with the global processing
+// rules globalRules sends msg on, rather than dropping it before the auditor
+// commits its offset. It changes msg as the processor does.
+func processorKeeps(globalRules []*config.ProcessingRule, msg *message.Message) bool {
+	in := make(chan *message.Message, 1)
+	out := make(chan *message.Message, 1)
+	host, _ := hostnamemock.NewMock("test-host")
+	p := processor.New(nil, in, out, globalRules, keepContent{}, &diagnostic.NoopMessageReceiver{}, host, metrics.NewNoopPipelineMonitor(""), "")
+	in <- msg
+	p.Flush(context.Background())
+	return len(out) == 1
+}
+
+func compiledRules(t *testing.T, rules ...*config.ProcessingRule) []*config.ProcessingRule {
+	t.Helper()
+	require.NoError(t, config.CompileProcessingRules(rules))
+	return rules
+}
+
+// TestCommittedCountsOnlyMessagesTheProcessorKeeps checks that a message the
+// processing rules drop does not count for Committed: the processor drops it
+// before the auditor commits its offset, so the registry entry of the
+// tailer's path does not change. Each case's lines are checked against a real
+// logs processor.
+func TestCommittedCountsOnlyMessagesTheProcessorKeeps(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		globalRules []*config.ProcessingRule
+		sourceRules []*config.ProcessingRule
+		maxSize     int
+		writes      []string // each decoded into one message
+		committed   []bool   // Committed after each write
+	}{
+		{
+			name:        "exclude_at_match",
+			sourceRules: []*config.ProcessingRule{{Type: config.ExcludeAtMatch, Name: "x", Pattern: "^skip"}},
+			writes:      []string{"skip one\n", "keep two\n", "skip three\n"},
+			committed:   []bool{false, true, true},
+		},
+		{
+			name:        "global exclude_at_match",
+			globalRules: []*config.ProcessingRule{{Type: config.ExcludeAtMatch, Name: "x", Pattern: "^skip"}},
+			writes:      []string{"skip one\n", "keep two\n"},
+			committed:   []bool{false, true},
+		},
+		{
+			name:        "global mask_sequences before the source's exclude_at_match",
+			globalRules: []*config.ProcessingRule{{Type: config.MaskSequences, Name: "m", Pattern: "token=\\w+", ReplacePlaceholder: "token=[masked]"}},
+			sourceRules: []*config.ProcessingRule{{Type: config.ExcludeAtMatch, Name: "x", Pattern: "token=abc"}},
+			writes:      []string{"token=abc\n"},
+			committed:   []bool{true},
+		},
+		{
+			name:        "include_at_match",
+			sourceRules: []*config.ProcessingRule{{Type: config.IncludeAtMatch, Name: "i", Pattern: "^keep"}},
+			writes:      []string{"skip one\n", "keep two\n"},
+			committed:   []bool{false, true},
+		},
+		{
+			name: "mask_sequences before exclude_at_match",
+			sourceRules: []*config.ProcessingRule{
+				{Type: config.MaskSequences, Name: "m", Pattern: "token=\\w+", ReplacePlaceholder: "token=[masked]"},
+				{Type: config.ExcludeAtMatch, Name: "x", Pattern: "token=abc"},
+			},
+			writes:    []string{"token=abc\n"},
+			committed: []bool{true},
+		},
+		{
+			name:        "exclude_truncated",
+			sourceRules: []*config.ProcessingRule{{Type: config.ExcludeTruncated, Name: "t"}},
+			maxSize:     16,
+			// The decoder sends the first 16 bytes of the line as a
+			// truncated message, then the rest as a message of its own.
+			writes:    []string{"a 16-byte chunk!", "short\n"},
+			committed: []bool{false, true},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			share := fake.New()
+			id := share.Write(testPath, nil)
+			globalRules := compiledRules(t, tc.globalRules...)
+			tt := newTestTailer(t, share, id, 0, func(o *TailerOptions) {
+				o.ProcessingRules = globalRules
+				cfg := o.Source.UnderlyingSource().Config
+				cfg.ProcessingRules = compiledRules(t, tc.sourceRules...)
+				if tc.maxSize > 0 {
+					cfg.MaxMessageSizeBytes = &tc.maxSize
+					o.Decoder = decoder.NewDecoderFromSource(o.Source, o.Info)
+				}
+			})
+			kept := false
+			for i, write := range tc.writes {
+				share.Append(testPath, []byte(write))
+				_, err := tt.Poll(context.Background(), nil)
+				require.NoError(t, err)
+				msg := tt.next(t)
+				keeps := keptByRules(msg, globalRules, tc.sourceRules)
+				require.Equal(t, processorKeeps(globalRules, msg), keeps, "the processor and keptByRules agree on %q", msg.GetContent())
+				kept = kept || keeps
+				assert.Equal(t, tc.committed[i], kept, "the processor sent a message of the writes up to %q", write)
+				assert.Equal(t, tc.committed[i], tt.Committed(), "after %q", write)
+			}
+			tt.assertNoMessage(t)
+		})
+	}
 }
 
 // stuckDecoder never accepts input, like a decoder whose pipeline is blocked.

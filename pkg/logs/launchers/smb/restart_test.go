@@ -72,6 +72,7 @@ func (h *harness) relaunch() *harness {
 	l := newTestLauncher(h.share, h.clock)
 	l.pipelineProvider = h.launcher.pipelineProvider
 	l.registry = h.registry
+	l.processingRules = h.launcher.processingRules
 	source := sources.NewLogSource(h.source.Name, h.source.Config)
 	key, c := l.acquireClient(source.Config.SMB)
 	s, err := newScanner(l, source, c, key)
@@ -101,6 +102,7 @@ func (h *harness) refresh() *harness {
 	key, c := h.launcher.acquireClient(source.Config.SMB)
 	s, err := newScanner(h.launcher, source, c, key)
 	require.NoError(h.t, err)
+	h.scanner.replaced.Store(true)
 	h.stop()
 	s.resumeFrom(h.scanner)
 	next := &harness{
@@ -141,6 +143,8 @@ func rotateWithLockedDrain(t *testing.T, h *harness) (oldID, newID uint64) {
 }
 
 func TestRestartMidDrainResumesThePathsNewFile(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
 	h := newHarness(t)
 	_, newID := rotateWithLockedDrain(t, h)
 
@@ -157,6 +161,324 @@ func TestRestartMidDrainResumesThePathsNewFile(t *testing.T) {
 	restarted.scan()
 	assert.Equal(t, []string{"line 1", "line 2", "line 4", "line 5"}, restarted.finish(),
 		"the new file resumes where it stopped, and the rotated file, which the pattern does not match, is not read again")
+
+	// Line 3 is lost with the drain: nothing resumes the rotated file after the
+	// restart, since the path's registry entry names its new file. The stop
+	// reports it missed.
+	snapshot := metrics.MissedBytesSnapshot()
+	require.Len(t, snapshot, 1)
+	assert.Equal(t, int64(len(lines(3, 3))), snapshot[0].Bytes, "the drain's unread line")
+}
+
+// TestRestartMidDrainBeforeThePathsNewFileCommits restarts while a rotated
+// file is drained and the path's new file has not committed an offset yet:
+// the path's registry entry still names the rotated file, so the restarted
+// launcher reads the rest of it from there, and the stop reports nothing
+// missed.
+func TestRestartMidDrainBeforeThePathsNewFileCommits(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t)
+	oldID := h.share.Write("app/app.log", []byte(lines(1, 2)))
+	h.scan()
+	h.out.waitLines(t, 2)
+	h.commitOffsets()
+	h.share.Append("app/app.log", []byte(lines(3, 3)))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", nil)
+	h.share.FailNextPath(fake.OpReadAt, "app/app.log.1", fake.ErrSharing)
+	h.scan()
+	require.Len(t, h.scanner.draining, 1)
+	require.Equal(t, int64(len(lines(3, 3))), h.scanner.draining[0].t.UnreadBytes())
+
+	restarted := h.restart()
+	assert.Empty(t, metrics.MissedBytesSnapshot(), "the restart resumes the rotated file")
+	restarted.scan()
+	require.Len(t, restarted.scanner.draining, 1)
+	assert.Equal(t, oldID, restarted.scanner.draining[0].t.FileID(), "the rotated file is drained from its committed offset")
+	restarted.share.Append("app/app.log", []byte(lines(4, 4)))
+	restarted.scan()
+	restarted.scan()
+	assert.ElementsMatch(t, want(1, 4), restarted.finish(), "each line once")
+	assert.Empty(t, metrics.MissedBytesSnapshot())
+}
+
+// TestRestartMidDrainWhileThePathsNewFileIsFilteredOut restarts while a
+// rotated file is drained and the processing rules drop every line the
+// path's new file sent: those lines commit nothing, so the path's registry
+// entry still names the rotated file and the restart reads the rest of it
+// from there. Once a line of the new file passes the rules, it commits under
+// the path, and the drain's unread line is reported missed instead.
+func TestRestartMidDrainWhileThePathsNewFileIsFilteredOut(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		rule    harnessOption
+		newFile string
+		kept    bool // a line of the new file passes the rules
+	}{
+		{name: "every line dropped", rule: withExcludeAtMatch("^skip"), newFile: "skip 1\nskip 2\n"},
+		{name: "every line dropped by a global rule", rule: withGlobalExcludeAtMatch("^skip"), newFile: "skip 1\nskip 2\n"},
+		{name: "a line kept", rule: withExcludeAtMatch("^skip"), newFile: "skip 1\nline 4\n", kept: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			metrics.ResetMissedBytesForTest()
+			t.Cleanup(metrics.ResetMissedBytesForTest)
+			h := newHarness(t, tc.rule)
+			oldID := h.share.Write("app/app.log", []byte(lines(1, 2)))
+			h.scan()
+			h.out.waitLines(t, 2)
+			h.commitOffsets()
+			h.share.Append("app/app.log", []byte(lines(3, 3)))
+			require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+			newID := h.share.Write("app/app.log", []byte(tc.newFile))
+			h.share.FailNextPath(fake.OpReadAt, "app/app.log.1", fake.ErrSharing)
+			h.scan()
+			require.Len(t, h.scanner.draining, 1)
+			require.Equal(t, int64(len(lines(3, 3))), h.scanner.draining[0].t.UnreadBytes())
+
+			restarted := h.restart()
+			file, _, ok := tailer.DecodeOffset(h.registry.GetOffset(identifier("app/app.log")))
+			require.True(t, ok)
+			if !tc.kept {
+				assert.Equal(t, oldID, file.FileID, "the dropped lines committed nothing")
+				assert.Empty(t, metrics.MissedBytesSnapshot(), "the restart resumes the rotated file")
+				restarted.scan()
+				require.Len(t, restarted.scanner.draining, 1)
+				assert.Equal(t, oldID, restarted.scanner.draining[0].t.FileID(), "the rotated file is drained from its committed offset")
+				restarted.scan()
+				assert.ElementsMatch(t, want(1, 3), restarted.finish(), "each line once")
+				assert.Empty(t, metrics.MissedBytesSnapshot())
+				return
+			}
+			assert.Equal(t, newID, file.FileID, "the kept line committed under the path")
+			snapshot := metrics.MissedBytesSnapshot()
+			require.Len(t, snapshot, 1)
+			assert.Equal(t, int64(len(lines(3, 3))), snapshot[0].Bytes, "the drain's unread line")
+			restarted.scan()
+			assert.Empty(t, restarted.scanner.draining, "the rotated file is not read again")
+			assert.ElementsMatch(t, []string{"line 1", "line 2", "line 4"}, restarted.finish())
+		})
+	}
+}
+
+// TestRestartMidDrainCountsWhatTheStopFlushes stops the source while the
+// path's new file has a line in its decoder only, held by a multi_line rule:
+// stopping flushes it, and its offset commits under the path. The rotated
+// file can then no longer be resumed from the path's registry entry, so its
+// unread line is reported missed.
+func TestRestartMidDrainCountsWhatTheStopFlushes(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t, withMultiLine("line"))
+	configmock.New(t).SetInTest("logs_config.aggregation_timeout", 60000) // ms: nothing is flushed by time
+	h.share.Write("app/app.log", []byte(lines(1, 2)))
+	h.scan()
+	h.out.waitLines(t, 1) // line 2 waits for the next line
+	h.commitOffsets()
+	h.share.Append("app/app.log", []byte(lines(3, 3)))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	newID := h.share.Write("app/app.log", []byte(lines(4, 4)))
+	h.share.FailNextPath(fake.OpReadAt, "app/app.log.1", fake.ErrSharing)
+	h.scan()
+	require.Len(t, h.scanner.draining, 1)
+	require.False(t, h.activeTailer("app/app.log").Committed(), "line 4 waits in the decoder")
+
+	restarted := h.restart()
+	file, _, ok := tailer.DecodeOffset(h.registry.GetOffset(identifier("app/app.log")))
+	require.True(t, ok)
+	assert.Equal(t, newID, file.FileID, "line 4, flushed by the stop, committed under the path")
+	snapshot := metrics.MissedBytesSnapshot()
+	require.Len(t, snapshot, 1)
+	assert.Equal(t, int64(len(lines(3, 3))), snapshot[0].Bytes, "the drain's unread line")
+	restarted.scan()
+	assert.Empty(t, restarted.scanner.draining, "the rotated file is not read again")
+	assert.ElementsMatch(t, []string{"line 1", "line 2", "line 4"}, restarted.finish())
+}
+
+// TestStopMidDrainReportsUnreadBytes stops a source for good, as the Agent
+// stops or the source is removed, while one of its rotated files is drained
+// with a line it could not read yet. The pattern does not match the rotated
+// name and the path's new file committed an offset, so nothing resumes the
+// rotated file: the line is reported missed.
+func TestStopMidDrainReportsUnreadBytes(t *testing.T) {
+	for _, removed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("source removed %t", removed), func(t *testing.T) {
+			metrics.ResetMissedBytesForTest()
+			t.Cleanup(metrics.ResetMissedBytesForTest)
+			st := startLauncher(t)
+			source := newSMBSource("smb-test")
+			st.share.Write("app/app.log", []byte(lines(1, 2)))
+			st.sources.AddSource(source)
+			st.out.waitLines(t, 2)
+
+			st.share.Append("app/app.log", []byte(lines(3, 3)))
+			require.NoError(t, st.share.Rename("app/app.log", "app/app.log.1"))
+			st.share.Write("app/app.log", []byte(lines(4, 4)))
+			drainRead := make(chan struct{})
+			var once sync.Once
+			st.share.SetHook(func(op fake.Op, p string) {
+				if op == fake.OpReadAt && p == "app/app.log.1" {
+					once.Do(func() { close(drainRead) })
+				}
+			})
+			st.share.FailNextPath(fake.OpReadAt, "app/app.log.1", fake.ErrSharing)
+			st.clock.Add(time.Second)
+			st.out.waitLines(t, 3)
+			select {
+			case <-drainRead:
+			case <-time.After(testTimeout):
+				require.FailNow(t, "the drain never tried to read the rotated file")
+			}
+
+			if removed {
+				st.sources.RemoveSource(source)
+				st.waitFor(t, func() bool { return st.share.LiveSessions() == 0 }, "the source stops")
+			} else {
+				st.launcher.Stop()
+			}
+			snapshot := metrics.MissedBytesSnapshot()
+			require.Len(t, snapshot, 1)
+			assert.Equal(t, int64(len(lines(3, 3))), snapshot[0].Bytes, "the drain's unread line")
+			st.out.flush()
+			assert.Equal(t, []string{"line 1", "line 2", "line 4"}, st.out.lines())
+		})
+	}
+}
+
+// drainUnderAMatchedName writes "line 1" to app/app.log, then rotates it to
+// app/app.log.1, which the pattern matches, appends "line 2" to it and writes
+// "line 10" to the path's new file: the drain reads line 2 and commits its
+// offsets under app.log.1. Every offset sent is committed. It returns the
+// FileId of the rotated file.
+func drainUnderAMatchedName(t *testing.T, h *harness) uint64 {
+	t.Helper()
+	rotated := h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	h.out.waitLines(t, 1)
+	h.commitOffsets()
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", []byte(lines(10, 10)))
+	h.share.Append("app/app.log.1", []byte(lines(2, 2)))
+	h.scan()
+	h.out.waitLines(t, 3)
+	h.commitOffsets()
+	require.Len(t, h.scanner.draining, 1)
+	require.Equal(t, identifier("app/app.log.1"), h.scanner.draining[0].t.CommitIdentifier())
+	return rotated
+}
+
+// moveDrainToAnExcludedName renames the file drainUnderAMatchedName drains to
+// a name the pattern excludes and appends "line 3" to it while it is locked:
+// the drain commits no offset anymore, and still has line 3 to read.
+func moveDrainToAnExcludedName(t *testing.T, h *harness) {
+	t.Helper()
+	require.NoError(t, h.share.Rename("app/app.log.1", "app/app.log.1.tmp"))
+	h.share.Append("app/app.log.1.tmp", []byte(lines(3, 3)))
+	h.share.FailNextPath(fake.OpReadAt, "app/app.log.1.tmp", fake.ErrSharing)
+	h.scan()
+	require.Len(t, h.scanner.draining, 1)
+	require.Empty(t, h.scanner.draining[0].t.CommitIdentifier())
+	require.Equal(t, int64(len(lines(3, 3))), h.scanner.draining[0].t.UnreadBytes())
+}
+
+// restartAfterARotationToTheNameTheDrainLeft restarts h, whose drain
+// moveDrainToAnExcludedName moved: the stop reports nothing missed, since the
+// registry entry of app.log.1 still holds the rotated file. While the Agent
+// is down, app.log rotates to app.log.1 in turn: the restarted launcher finds
+// another file there, so it reads the rest of the rotated file from that
+// entry.
+func restartAfterARotationToTheNameTheDrainLeft(t *testing.T, h *harness, rotated uint64) {
+	t.Helper()
+	restarted := h.restart()
+	assert.Empty(t, metrics.MissedBytesSnapshot(), "the registry entry of app.log.1 resumes the rotated file")
+	file, _, ok := tailer.DecodeOffset(h.registry.GetOffset(identifier("app/app.log.1")))
+	require.True(t, ok)
+	require.Equal(t, rotated, file.FileID)
+
+	require.NoError(t, restarted.share.Rename("app/app.log", "app/app.log.1"))
+	restarted.share.Write("app/app.log", []byte(lines(20, 20)))
+	for range 3 {
+		restarted.scan()
+	}
+	assert.ElementsMatch(t, []string{"line 1", "line 10", "line 2", "line 20", "line 3"}, restarted.finish(), "each line once")
+	assert.Empty(t, metrics.MissedBytesSnapshot())
+}
+
+// TestRestartMidDrainResumesFromAMatchedNameItLeft stops the source while a
+// rotated file is drained under a name the pattern excludes, after the drain
+// committed offsets under a matched name the file had before. That name's
+// registry entry still holds the file, so a restart can resume it there: the
+// stop reports nothing missed.
+func TestRestartMidDrainResumesFromAMatchedNameItLeft(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t, withPath("app/app.log*"), withExcludes("app/*.tmp"))
+	rotated := drainUnderAMatchedName(t, h)
+	moveDrainToAnExcludedName(t, h)
+	restartAfterARotationToTheNameTheDrainLeft(t, h, rotated)
+}
+
+// TestSecretRefreshBeforeDeliveryThenStopMidDrain replaces a source before
+// the pipeline delivered the offsets its tailer sent, then the file rotates
+// with a line the drain cannot read yet, and the Agent stops. The new
+// scanner knows from the handoff that the path's registry entry holds the
+// rotated file once those offsets are delivered, so the stop reports nothing
+// missed and the restart reads the line from there. When the path's new file
+// commits a line there before the stop, nothing resumes the rotated file
+// anymore and its line is reported missed.
+func TestSecretRefreshBeforeDeliveryThenStopMidDrain(t *testing.T) {
+	for _, tc := range []struct {
+		tailed         bool // the new scanner tailed the file before it rotated
+		newFileCommits bool // the path's new file has a line
+	}{
+		{tailed: false},
+		{tailed: true},
+		{tailed: true, newFileCommits: true},
+	} {
+		t.Run(fmt.Sprintf("new scanner tailed the file %t, new file commits %t", tc.tailed, tc.newFileCommits), func(t *testing.T) {
+			metrics.ResetMissedBytesForTest()
+			t.Cleanup(metrics.ResetMissedBytesForTest)
+			h := newHarness(t)
+			h.share.Write("app/app.log", []byte(lines(1, 2)))
+			h.scan()
+			h.out.waitLines(t, 2)
+			refreshed := h.refresh() // the registry holds no offset yet
+			if tc.tailed {
+				refreshed.scan()
+				require.NotNil(t, refreshed.scanner.active["app/app.log"])
+			}
+			refreshed.share.Append("app/app.log", []byte(lines(3, 3)))
+			require.NoError(t, refreshed.share.Rename("app/app.log", "app/app.log.1"))
+			var newFile []byte
+			if tc.newFileCommits {
+				newFile = []byte(lines(4, 4))
+			}
+			refreshed.share.Write("app/app.log", newFile)
+			refreshed.share.FailNextPath(fake.OpReadAt, "app/app.log.1", fake.ErrSharing)
+			refreshed.scan()
+			require.Len(t, refreshed.scanner.draining, 1)
+
+			if tc.newFileCommits {
+				refreshed.out.waitLines(t, 3)
+				restarted := refreshed.restart()
+				snapshot := metrics.MissedBytesSnapshot()
+				require.Len(t, snapshot, 1, "line 4 committed under the path: nothing resumes the rotated file")
+				assert.Equal(t, int64(len(lines(3, 3))), snapshot[0].Bytes)
+				restarted.scan()
+				assert.Empty(t, restarted.scanner.draining, "the rotated file is not read again")
+				assert.ElementsMatch(t, []string{"line 1", "line 2", "line 4"}, restarted.finish())
+				return
+			}
+			assert.True(t, refreshed.scanner.draining[0].resumePaths["app/app.log"], "the path's registry entry will hold the rotated file")
+			restarted := refreshed.restart()
+			assert.Empty(t, metrics.MissedBytesSnapshot(), "the restart resumes the rotated file from the path's registry entry")
+			for range 3 {
+				restarted.scan()
+			}
+			assert.ElementsMatch(t, want(1, 3), restarted.finish(), "each line once")
+			assert.Empty(t, metrics.MissedBytesSnapshot())
+		})
+	}
 }
 
 // TestRestartMidDrainResumesARotatedFileMatchedByThePattern covers a pattern
@@ -168,6 +490,8 @@ func TestRestartMidDrainResumesThePathsNewFile(t *testing.T) {
 func TestRestartMidDrainResumesARotatedFileMatchedByThePattern(t *testing.T) {
 	for _, mode := range []string{"beginning", "end"} {
 		t.Run("start_position "+mode, func(t *testing.T) {
+			metrics.ResetMissedBytesForTest()
+			t.Cleanup(metrics.ResetMissedBytesForTest)
 			h := newHarness(t, withPath("app/*"), withStartPosition(mode))
 			h.scan() // before app.log is created: it is read from the beginning
 			rotateWithLockedDrain(t, h)
@@ -178,6 +502,7 @@ func TestRestartMidDrainResumesARotatedFileMatchedByThePattern(t *testing.T) {
 			restarted := h.restart()
 			assert.Equal(t, tailer.EncodeOffset(rotated, int64(len(lines(1, 2)))), h.registry.GetOffset(identifier("app/app.log.1")),
 				"the drain recorded where the rotated file stood under its new name")
+			assert.Empty(t, metrics.MissedBytesSnapshot(), "the stop reports nothing missed: the restart resumes the drain")
 			restarted.scan()
 			assert.ElementsMatch(t, want(1, 4), restarted.finish(), "each line once")
 		})
@@ -387,6 +712,48 @@ func TestRestartResumesARotatedFileFromItsFurthestStoredOffset(t *testing.T) {
 			assert.ElementsMatch(t, want(4, 5), restarted.finish()[sent:], "lines 2 and 3, committed under the rotated name, are not sent again")
 		})
 	}
+}
+
+// TestStopAfterARestartThatShiftedTwoFilesDownReportsTheLockedDrain: X is
+// committed under app.log.1 and Y under app.log. While the Agent is down both
+// rotate one name down (X to the excluded app.log.2, Y to app.log.1) and a new
+// app.log appears. The restart drains X from the registry entry of app.log.1,
+// and the tailer of app.log.1 resumes Y there: Y is read to its end, so it
+// forwards nothing, and its seed is the only thing that replaces X's offset in
+// that entry. A stop while X is locked must report X's unread line, since the
+// next restart finds Y under app.log.1 and nothing for X.
+func TestStopAfterARestartThatShiftedTwoFilesDownReportsTheLockedDrain(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t, withPath("app/app.log*"), withExcludes("app/app.log.2"))
+	x := h.share.Write("app/app.log.1", []byte(lines(1, 2)))
+	y := h.share.Write("app/app.log", []byte(lines(11, 12)))
+	h.scan()
+	h.out.waitLines(t, 4)
+
+	restarted := h.restart()
+	require.Equal(t, tailer.EncodeOffset(h.fileOf("app/app.log.1"), int64(len(lines(1, 2)))), h.registry.GetOffset(identifier("app/app.log.1")))
+	// While the Agent is down, X is locked and has a line more.
+	require.NoError(t, h.share.Rename("app/app.log.1", "app/app.log.2"))
+	h.share.Append("app/app.log.2", []byte(lines(3, 3)))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", []byte(lines(21, 21)))
+	h.share.FailNextPath(fake.OpReadAt, "app/app.log.2", fake.ErrSharing)
+
+	restarted.scan()
+	require.Len(t, restarted.scanner.draining, 1, "X is drained from its stored offset")
+	require.Equal(t, x, restarted.scanner.draining[0].t.FileID())
+	require.Equal(t, y, restarted.activeTailer("app/app.log.1").FileID(), "app.log.1 resumes Y")
+	require.Equal(t, int64(len(lines(3, 3))), restarted.scanner.draining[0].t.UnreadBytes())
+	restarted.out.waitLines(t, 5)
+
+	restarted.stop()
+	snapshot := metrics.MissedBytesSnapshot()
+	require.Len(t, snapshot, 1, "nothing resumes X: app.log.1 holds Y")
+	assert.Equal(t, int64(len(lines(3, 3))), snapshot[0].Bytes, "X's unread line")
+	file, _, ok := tailer.DecodeOffset(h.registry.GetOffset(identifier("app/app.log.1")))
+	require.True(t, ok)
+	assert.Equal(t, y, file.FileID, "the registry entry of app.log.1 holds Y")
 }
 
 // TestRestartSpanningARotationToAMatchedNameAtTheEndOfTheFile is
@@ -608,7 +975,7 @@ func TestPasswordChangedOnTheServerWhileTailing(t *testing.T) {
 	l.dial = server.dial
 	provider := mock.NewMockProvider()
 	logSources := sources.NewLogSources()
-	out := newCollector(t, provider.NextPipelineChan())
+	out := newCollector(t, provider.NextPipelineChan(), nil)
 	l.Start(logSources, provider, auditorMock.NewMockRegistry(), tailers.NewTailerTracker())
 	t.Cleanup(l.Stop)
 	waitFor := func(cond func() bool, msg string) {

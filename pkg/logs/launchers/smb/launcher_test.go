@@ -51,7 +51,7 @@ func startLauncher(t *testing.T) *started {
 		sources:  sources.NewLogSources(),
 		tracker:  tailers.NewTailerTracker(),
 		registry: auditorMock.NewMockRegistry(),
-		out:      newCollector(t, provider.NextPipelineChan()),
+		out:      newCollector(t, provider.NextPipelineChan(), nil),
 	}
 	l.Start(st.sources, provider, st.registry, st.tracker)
 	t.Cleanup(l.Stop)
@@ -61,6 +61,33 @@ func startLauncher(t *testing.T) *started {
 func (st *started) waitFor(t *testing.T, cond func() bool, msg string) {
 	t.Helper()
 	require.Eventually(t, cond, testTimeout, time.Millisecond, msg)
+}
+
+// TestLauncherStartLoadsTheGlobalProcessingRules checks that the launcher
+// gives its tailers logs_config.processing_rules, which the processor applies
+// to every message, so that they know which messages commit an offset.
+func TestLauncherStartLoadsTheGlobalProcessingRules(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		rules []map[string]interface{}
+		want  []string
+	}{
+		{name: "valid", rules: []map[string]interface{}{{"type": "exclude_at_match", "name": "drop_health_checks", "pattern": "healthcheck"}}, want: []string{"drop_health_checks"}},
+		{name: "invalid", rules: []map[string]interface{}{{"type": "no_such_rule", "name": "bad", "pattern": "x"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			configmock.New(t).SetInTest("logs_config.processing_rules", tc.rules)
+			l := newTestLauncher(fake.New(), clock.NewMock())
+			l.Start(sources.NewLogSources(), mock.NewMockProvider(), auditorMock.NewMockRegistry(), nil)
+			t.Cleanup(l.Stop)
+			var names []string
+			for _, rule := range l.processingRules {
+				names = append(names, rule.Name)
+				assert.NotNil(t, rule.Regex, "the rule is compiled")
+			}
+			assert.Equal(t, tc.want, names)
+		})
+	}
 }
 
 func TestLauncherTailsAddedSourcesAndStopsRemovedOnes(t *testing.T) {

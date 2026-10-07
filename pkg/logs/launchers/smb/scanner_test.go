@@ -23,8 +23,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -48,7 +51,9 @@ func identifier(p string) string {
 	return tailer.Identifier(testHost, testShare, p)
 }
 
-// collector receives everything the launcher's tailers forward.
+// collector receives everything the launcher's tailers forward, and keeps
+// what a real logs processor sends on: the processing rules drop messages
+// before the auditor commits their offsets, as in the Agent's pipeline.
 type collector struct {
 	ch    chan *message.Message
 	mu    sync.Mutex
@@ -57,12 +62,17 @@ type collector struct {
 	syncs chan chan struct{}
 }
 
-func newCollector(t *testing.T, ch chan *message.Message) *collector {
+func newCollector(t *testing.T, ch chan *message.Message, globalRules []*config.ProcessingRule) *collector {
 	c := &collector{ch: ch, done: make(chan struct{}), syncs: make(chan chan struct{})}
+	process := newProcessing(globalRules)
 	go func() {
 		for {
 			select {
 			case msg := <-ch:
+				msg = process(msg)
+				if msg == nil {
+					continue
+				}
 				c.mu.Lock()
 				c.msgs = append(c.msgs, msg)
 				c.mu.Unlock()
@@ -75,6 +85,34 @@ func newCollector(t *testing.T, ch chan *message.Message) *collector {
 	}()
 	t.Cleanup(func() { close(c.done) })
 	return c
+}
+
+// keepContent is a processor encoder that leaves messages as they are, so
+// that tests compare the lines read.
+type keepContent struct{}
+
+func (keepContent) Encode(*message.Message, string) error { return nil }
+
+// newProcessing returns a function that runs a message through a logs
+// processor, with the global processing rules globalRules and the processing
+// rules of the message's source, and returns
+// the message it sends on, nil when it drops it. It processes synchronously,
+// so the collector records a message, or drops it, before flush returns.
+func newProcessing(globalRules []*config.ProcessingRule) func(*message.Message) *message.Message {
+	in := make(chan *message.Message, 1)
+	out := make(chan *message.Message, 1)
+	host, _ := hostnamemock.NewMock("test-host")
+	p := processor.New(nil, in, out, globalRules, keepContent{}, &diagnostic.NoopMessageReceiver{}, host, metrics.NewNoopPipelineMonitor(""), "")
+	return func(msg *message.Message) *message.Message {
+		in <- msg
+		p.Flush(context.Background())
+		select {
+		case processed := <-out:
+			return processed
+		default:
+			return nil
+		}
+	}
 }
 
 // flush returns once every message whose send completed has been recorded.
@@ -136,6 +174,43 @@ func withExcludes(patterns ...string) harnessOption {
 	return func(c *config.LogsConfig, _ *Launcher) { c.ExcludePaths = patterns }
 }
 
+// withMultiLine adds a multi_line processing rule: a line that does not match
+// pattern continues the previous one, so the decoder holds each line until
+// the next one starts.
+func withMultiLine(pattern string) harnessOption {
+	return func(c *config.LogsConfig, _ *Launcher) {
+		c.ProcessingRules = []*config.ProcessingRule{{Type: config.MultiLine, Name: "lines", Pattern: pattern}}
+		if err := config.CompileProcessingRules(c.ProcessingRules); err != nil {
+			panic(err)
+		}
+	}
+}
+
+// withExcludeAtMatch adds an exclude_at_match processing rule: the processor
+// drops the lines that match pattern.
+func withExcludeAtMatch(pattern string) harnessOption {
+	return func(c *config.LogsConfig, _ *Launcher) {
+		rule := &config.ProcessingRule{Type: config.ExcludeAtMatch, Name: "exclude", Pattern: pattern}
+		if err := config.CompileProcessingRules([]*config.ProcessingRule{rule}); err != nil {
+			panic(err)
+		}
+		c.ProcessingRules = append(c.ProcessingRules, rule)
+	}
+}
+
+// withGlobalExcludeAtMatch adds a global exclude_at_match processing rule, as
+// logs_config.processing_rules does: the processor drops the lines of every
+// source that match pattern.
+func withGlobalExcludeAtMatch(pattern string) harnessOption {
+	return func(_ *config.LogsConfig, l *Launcher) {
+		rule := &config.ProcessingRule{Type: config.ExcludeAtMatch, Name: "global_exclude", Pattern: pattern}
+		if err := config.CompileProcessingRules([]*config.ProcessingRule{rule}); err != nil {
+			panic(err)
+		}
+		l.processingRules = append(l.processingRules, rule)
+	}
+}
+
 func withLauncher(fn func(*Launcher)) harnessOption {
 	return func(_ *config.LogsConfig, l *Launcher) { fn(l) }
 }
@@ -188,7 +263,7 @@ func newHarness(t *testing.T, opts ...harnessOption) *harness {
 		launcher: l,
 		registry: registry,
 		source:   source,
-		out:      newCollector(t, provider.NextPipelineChan()),
+		out:      newCollector(t, provider.NextPipelineChan(), l.processingRules),
 		ctx:      context.Background(),
 	}
 	key, c := l.acquireClient(source.Config.SMB)
@@ -788,6 +863,40 @@ func TestResumePointOfADeletedFileIsForgotten(t *testing.T) {
 	h.scan()
 	assert.Empty(t, h.scanner.resume)
 	assert.Equal(t, want(1, 2), h.finish())
+}
+
+// TestResumePointOfADeletedFileReportsTheBytesItsDrainLeft ends the drain of
+// a locked file at its deadline while the file sits at a matched name, whose
+// next tailer is to read the line the drain could not. The file is deleted
+// before that tailer starts: the line is reported missed, once.
+func TestResumePointOfADeletedFileReportsTheBytesItsDrainLeft(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t, withPath("app/app.log*"))
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	h.out.waitLines(t, 1)
+	h.share.Append("app/app.log", []byte(lines(2, 2)))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", nil)
+	h.share.FailNextPath(fake.OpReadAt, "app/app.log.1", fake.ErrSharing)
+	h.scan()
+	require.Len(t, h.scanner.draining, 1)
+	d := h.scanner.draining[0]
+	h.clock.Add(d.deadline.Sub(h.clock.Now()))
+	h.scan() // the drain ends at app.log.1, whose tailer starts at the next scan
+	require.Empty(t, h.scanner.draining)
+	require.Len(t, h.scanner.resume, 1)
+	assert.Empty(t, metrics.MissedBytesSnapshot(), "app.log.1's tailer is to read line 2")
+
+	require.NoError(t, h.share.Delete("app/app.log.1"))
+	h.scan()
+	h.scan()
+	assert.Empty(t, h.scanner.resume)
+	snapshot := metrics.MissedBytesSnapshot()
+	require.Len(t, snapshot, 1)
+	assert.Equal(t, int64(len(lines(2, 2))), snapshot[0].Bytes)
+	assert.Equal(t, want(1, 1), h.finish())
 }
 
 // TestDrainEndedAtAnUnmatchedNameResumesAtAMatchedNameLater ends a drain while

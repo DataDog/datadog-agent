@@ -27,7 +27,10 @@ dd_agent_go_test(
     srcs = ["tailer_test.go"],
     embed = [":smb"],
     deps = [
+        "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/logs-library/diagnostic",
         "//comp/logs-library/metrics",
+        "//comp/logs-library/processor",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
         "//pkg/logs/internal/decoder",
