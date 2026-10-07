@@ -56,7 +56,7 @@ func (h *RollbackDeploymentHandler) Run(
 
 	deployment, err := client.AppsV1().Deployments(inputs.Namespace).Get(ctx, inputs.Name, support.MetaGet(inputs.GetFields))
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve Deployment %s: %v", inputs.Name, err)
+		return nil, fmt.Errorf("failed to retrieve Deployment %s: %w", inputs.Name, err)
 	}
 
 	if inputs.DryRunStrategy == "client" {
@@ -77,7 +77,7 @@ func (h *RollbackDeploymentHandler) Run(
 
 	_, err = client.AppsV1().Deployments(inputs.Namespace).Update(ctx, deployment, updateOpts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to rollback Deployment %s: %v", inputs.Name, err)
+		return nil, fmt.Errorf("failed to rollback Deployment %s: %w", inputs.Name, err)
 	}
 
 	return &RollbackDeploymentOutputs{}, nil
@@ -91,14 +91,14 @@ func (h *RollbackDeploymentHandler) getTargetReplicaSet(
 ) (*appsv1.ReplicaSet, error) {
 	selector, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse deployment selector: %v", err)
+		return nil, fmt.Errorf("failed to parse deployment selector: %w", err)
 	}
 
 	allRS, err := client.AppsV1().ReplicaSets(deployment.Namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: selector.String(),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list ReplicaSets: %v", err)
+		return nil, fmt.Errorf("failed to list ReplicaSets: %w", err)
 	}
 
 	// Filter to ReplicaSets owned by this deployment with valid revision annotations

@@ -216,7 +216,7 @@ func loadConnectionCredentials(ctx context.Context, path string) (config *Privat
 	}
 	err = json.Unmarshal(data, &config)
 	if err != nil {
-		return config, fmt.Errorf("could not unmarshal credentials file: %v", err)
+		return config, fmt.Errorf("could not unmarshal credentials file: %w", err)
 	}
 	return config, nil
 }
@@ -227,7 +227,7 @@ func validateAndReadFile(ctx context.Context, path string) ([]byte, error) {
 	}
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("could not open credentials file: %v ", err)
+		return nil, fmt.Errorf("could not open credentials file: %w ", err)
 	}
 	defer closeSafely(ctx, file)
 
@@ -244,7 +244,7 @@ func validateAndReadFile(ctx context.Context, path string) ([]byte, error) {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("could not load credentials file: %v", err)
+		return nil, fmt.Errorf("could not load credentials file: %w", err)
 	}
 
 	return data, nil

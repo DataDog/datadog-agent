@@ -389,7 +389,7 @@ func (c *client) Heartbeat(ctx context.Context, client actionsclientpb.Client, t
 	if _, err := c.makeHeartbeatRequest(ctx, http.MethodPost, c.endpointURL(heartbeat), request); err != nil {
 		var httpErr *HTTPError
 		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
-			return fmt.Errorf("%w: %v", ErrJobNotFound, err)
+			return fmt.Errorf("%w: %w", ErrJobNotFound, err)
 		}
 		return fmt.Errorf("error sending heartbeat: %w", err)
 	}

@@ -60,7 +60,7 @@ func NewConnFilter(config []Config, site string, monitorIPWithoutDomain bool) (*
 			}
 			domainRe, err := buildRegex(cfg.MatchDomain, matchDomainStrat)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("error building regex `%s`: %s", cfg.MatchDomain, err))
+				errs = append(errs, fmt.Errorf("error building regex `%s`: %w", cfg.MatchDomain, err))
 				continue
 			}
 			matchDomainRe = domainRe
@@ -75,7 +75,7 @@ func NewConnFilter(config []Config, site string, monitorIPWithoutDomain bool) (*
 			}
 			cidr, err := netip.ParsePrefix(cidrStr)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("failed to parsing match_ip `%s`: %s", cfg.MatchIP, err))
+				errs = append(errs, fmt.Errorf("failed to parsing match_ip `%s`: %w", cfg.MatchIP, err))
 				continue
 			}
 			matchIPCidr = cidr

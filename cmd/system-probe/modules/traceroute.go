@@ -170,15 +170,15 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 
 	port, err := parseUint(query, "port", 16)
 	if err != nil {
-		return tracerouteutil.Config{}, fmt.Errorf("invalid port: %s", err)
+		return tracerouteutil.Config{}, fmt.Errorf("invalid port: %w", err)
 	}
 	maxTTL, err := parseUint(query, "max_ttl", 8)
 	if err != nil {
-		return tracerouteutil.Config{}, fmt.Errorf("invalid max_ttl: %s", err)
+		return tracerouteutil.Config{}, fmt.Errorf("invalid max_ttl: %w", err)
 	}
 	timeout, err := parseUint(query, "timeout", 64)
 	if err != nil {
-		return tracerouteutil.Config{}, fmt.Errorf("invalid timeout: %s", err)
+		return tracerouteutil.Config{}, fmt.Errorf("invalid timeout: %w", err)
 	}
 	protocol := query.Get("protocol")
 	tcpMethod := query.Get("tcp_method")
@@ -188,11 +188,11 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	disableSourcePublicIPCollection := query.Get("disable_source_public_ip_collection")
 	tracerouteQueries, err := parseUint(query, "traceroute_queries", 32)
 	if err != nil {
-		return tracerouteutil.Config{}, fmt.Errorf("invalid traceroute_queries: %s", err)
+		return tracerouteutil.Config{}, fmt.Errorf("invalid traceroute_queries: %w", err)
 	}
 	e2eQueries, err := parseUint(query, "e2e_queries", 32)
 	if err != nil {
-		return tracerouteutil.Config{}, fmt.Errorf("invalid e2e_queries: %s", err)
+		return tracerouteutil.Config{}, fmt.Errorf("invalid e2e_queries: %w", err)
 	}
 
 	return tracerouteutil.Config{

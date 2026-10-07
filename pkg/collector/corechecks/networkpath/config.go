@@ -107,12 +107,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
-		return nil, fmt.Errorf("invalid init_config: %s", err)
+		return nil, fmt.Errorf("invalid init_config: %w", err)
 	}
 
 	err = yaml.Unmarshal(rawInstance, &instance)
 	if err != nil {
-		return nil, fmt.Errorf("invalid instance config: %s", err)
+		return nil, fmt.Errorf("invalid instance config: %w", err)
 	}
 
 	// hostname validation is done by the datadog-traceroute library but an empty hostname results in querying system-probe with an invalid URL

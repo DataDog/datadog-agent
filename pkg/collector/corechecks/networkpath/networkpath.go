@@ -112,7 +112,7 @@ func (c *Check) Run() error {
 func (c *Check) SendNetPathMDToEP(sender sender.Sender, path payload.NetworkPath) error {
 	payloadBytes, err := json.Marshal(path)
 	if err != nil {
-		return fmt.Errorf("error marshalling device metadata: %s", err)
+		return fmt.Errorf("error marshalling device metadata: %w", err)
 	}
 	log.Debugf("traceroute path metadata payload: %s", string(payloadBytes))
 	sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkPath)
@@ -142,7 +142,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 
 	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source, provider)
 	if err != nil {
-		return fmt.Errorf("common configure failed: %s", err)
+		return fmt.Errorf("common configure failed: %w", err)
 	}
 
 	config, err := NewCheckConfig(rawInstance, rawInitConfig)

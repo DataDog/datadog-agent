@@ -84,7 +84,7 @@ func (h *GetJobStatusHandler) Run(
 	}
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, util.DefaultActionError(fmt.Errorf("failed to read response body: %+v", err))
+		return nil, util.DefaultActionError(fmt.Errorf("failed to read response body: %w", err))
 	}
 	parsedRespBody := map[string]interface{}{}
 	if err := json.Unmarshal(respBody, &parsedRespBody); err != nil {

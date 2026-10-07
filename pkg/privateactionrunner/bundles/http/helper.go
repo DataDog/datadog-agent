@@ -289,11 +289,11 @@ func buildFormDataWithCredentialFormData(
 	for _, formData := range connectionContent {
 		evalKey, err := EvaluateVariable(credentials, formData.Key)
 		if err != nil {
-			return nil, "", fmt.Errorf("error evaluate variable. %+v", err)
+			return nil, "", fmt.Errorf("error evaluate variable. %w", err)
 		}
 		evalValue, err := EvaluateVariable(credentials, formData.Value)
 		if err != nil {
-			return nil, "", fmt.Errorf("error evaluate variable. %+v", err)
+			return nil, "", fmt.Errorf("error evaluate variable. %w", err)
 		}
 		fromCreds[evalKey] = FormDataEntry{Data: evalValue}
 	}

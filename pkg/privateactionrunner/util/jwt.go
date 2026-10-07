@@ -46,10 +46,10 @@ func GenerateKeys() (*jose.JSONWebKey, *jose.JSONWebKey, error) {
 func Base64ToJWK(privateKey string) (jwk jose.JSONWebKey, err error) {
 	decodedKeyBytes, err := base64.RawURLEncoding.DecodeString(privateKey)
 	if err != nil {
-		return jose.JSONWebKey{}, fmt.Errorf("error decoding private key: %+v", err)
+		return jose.JSONWebKey{}, fmt.Errorf("error decoding private key: %w", err)
 	}
 	if err = json.Unmarshal(decodedKeyBytes, &jwk); err != nil {
-		return jose.JSONWebKey{}, fmt.Errorf("error converting private key to JWK: %+v", err)
+		return jose.JSONWebKey{}, fmt.Errorf("error converting private key to JWK: %w", err)
 	}
 	return jwk, nil
 }
