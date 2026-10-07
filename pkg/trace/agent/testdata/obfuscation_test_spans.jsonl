@@ -1,4 +1,4 @@
-{"name":"cassandra_select","input":{"type":"cassandra","resource":"SELECT * FROM table1 WHERE id = 42"},"expected":{"type":"cassandra","resource":"SELECT * FROM table1 WHERE id = ?","meta":{"sql.query":"SELECT * FROM table1 WHERE id = ?"}},"config":{}}
+{"name":"cassandra_select","input":{"type":"cassandra","resource":"SELECT * FROM table1 WHERE id = 42"},"expected":{"type":"cassandra","resource":"SELECT * FROM table1 WHERE id = ?"},"config":{}}
 {"name":"credit_card_disabled","input":{"type":"generic","meta":{"card.number":"5105-1051-0510-5100"}},"expected":{"type":"generic","meta":{"card.number":"5105-1051-0510-5100"}},"config":{"credit_cards":{"enabled":false}}}
 {"name":"credit_card_match","input":{"type":"generic","meta":{"card.number":"5105-1051-0510-5100"}},"expected":{"type":"generic","meta":{"card.number":"?"}},"config":{"credit_cards":{"enabled":true}}}
 {"name":"credit_card_no_match","input":{"type":"generic","meta":{"card.number":"not-a-cc"}},"expected":{"type":"generic","meta":{"card.number":"not-a-cc"}},"config":{"credit_cards":{"enabled":true}}}
@@ -34,7 +34,7 @@
 {"name":"span_event_cc_skipped_key","input":{"type":"generic","span_events":[{"name":"evt","attributes":{"_dd.test":{"type":0,"string_value":"5105-1051-0510-5100"}}}]},"expected":{"type":"generic","span_events":[{"name":"evt","attributes":{"_dd.test":{"type":0,"string_value":"5105-1051-0510-5100"}}}]},"config":{"credit_cards":{"enabled":true}}}
 {"name":"span_event_cc_string","input":{"type":"generic","span_events":[{"name":"evt","attributes":{"card.number":{"type":0,"string_value":"5105-1051-0510-5100"}}}]},"expected":{"type":"generic","span_events":[{"name":"evt","attributes":{"card.number":{"type":0,"string_value":"?"}}}]},"config":{"credit_cards":{"enabled":true}}}
 {"name":"sql_empty_resource","input":{"type":"sql","resource":""},"expected":{"type":"sql","resource":""},"config":{}}
-{"name":"sql_select","input":{"type":"sql","resource":"SELECT * FROM users WHERE id = 42"},"expected":{"type":"sql","resource":"SELECT * FROM users WHERE id = ?","meta":{"sql.query":"SELECT * FROM users WHERE id = ?"}},"config":{}}
+{"name":"sql_select","input":{"type":"sql","resource":"SELECT * FROM users WHERE id = 42"},"expected":{"type":"sql","resource":"SELECT * FROM users WHERE id = ?"},"config":{}}
 {"name":"valkey_enabled_no_raw_command","input":{"type":"valkey","resource":"SET k v","meta":{"other.tag":"value"}},"expected":{"type":"valkey","resource":"SET","meta":{"other.tag":"value"}},"config":{"valkey":{"enabled":true}}}
 {"name":"valkey_obfuscate_enabled","input":{"type":"valkey","resource":"SET k v","meta":{"valkey.raw_command":"SET key val"}},"expected":{"type":"valkey","resource":"SET","meta":{"valkey.raw_command":"SET key ?"}},"config":{"valkey":{"enabled":true}}}
 {"name":"valkey_obfuscate_no_command","input":{"type":"valkey","resource":"SET k v"},"expected":{"type":"valkey","resource":"SET"},"config":{"valkey":{"enabled":true}}}
