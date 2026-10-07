@@ -350,6 +350,9 @@ func (c *ntmConfig) selectorToKey(selector interface{}) (string, interface{}, bo
 func (c *ntmConfig) SetSecretAtPath(key string, selector, newValue interface{}) error {
 	origSelector := deepcopy.Copy(selector)
 
+	c.Lock()
+	defer c.Unlock()
+
 	if key == "" {
 		if trueKey, remainingSelector, ok := c.selectorToKey(selector); ok {
 			key = trueKey
