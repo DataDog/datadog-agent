@@ -25,6 +25,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -768,6 +769,15 @@ func TestOTelSpan(t *testing.T) {
 
 		assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
 		assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
+
+		// The values otel_process_ctx_common.h publishes, without a tracer memfd
+		assert.Equal(t, tracermetadata.TracerMetadata{
+			ServiceName:    "otel-tester",
+			RuntimeID:      "0b4a4d5e-7d3c-4f5e-9a2b-1c6d8e9f0a1b",
+			TracerLanguage: "php",
+			TracerVersion:  "1.2.3",
+			ProcessTags:    "entrypoint.name:otel-tester",
+		}, event.ProcessContext.Process.Tracer.Metadata)
 
 		assert.NotNil(t, event.SpanContext.Attributes, "attributes should be non-nil")
 		assert.Equal(t, "GET", event.SpanContext.Attributes["http.method"],
