@@ -30,7 +30,6 @@ enum ProcessState {
   CRASHED = 6;
   EXITED = 7;
   FAILED = 8;
-  // 9 reserved for INVALID_CONFIG (D2). Do not reuse.
   SKIPPED = 10;
 }
 
@@ -48,7 +47,6 @@ message Process {
   optional int32 last_signal = 9;
   string profile = 10;
   string user = 11;
-  // 12 reserved for config_error (D2).
   repeated string skip_reasons = 13;
 }
 
@@ -83,7 +81,6 @@ message ProcessDetail {
   string profile = 20;
   string user = 21;
   string runtime_user = 22;
-  // 23 reserved for config_error (D2).
   repeated string skip_reasons = 24;
 }
 
@@ -155,7 +152,6 @@ message GetStatusResponse {
   uint32 starting_processes = 10;
   uint32 stopping_processes = 11;
   uint32 crashed_processes = 12;
-  // 13 reserved for invalid_config_processes (D2).
   uint32 skipped_processes = 14;
 }
 

@@ -38,8 +38,7 @@ const (
 	ProcessState_CRASHED  ProcessState = 6
 	ProcessState_EXITED   ProcessState = 7
 	ProcessState_FAILED   ProcessState = 8
-	// 9 reserved for INVALID_CONFIG (D2). Do not reuse.
-	ProcessState_SKIPPED ProcessState = 10
+	ProcessState_SKIPPED  ProcessState = 10
 )
 
 // Enum value maps for ProcessState.
@@ -134,20 +133,19 @@ func (*ListRequest) Descriptor() ([]byte, []int) {
 }
 
 type Process struct {
-	state        protoimpl.MessageState `protogen:"open.v1"`
-	Uuid         string                 `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
-	Name         string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Pid          uint32                 `protobuf:"varint,3,opt,name=pid,proto3" json:"pid,omitempty"`
-	Command      string                 `protobuf:"bytes,4,opt,name=command,proto3" json:"command,omitempty"`
-	Args         []string               `protobuf:"bytes,5,rep,name=args,proto3" json:"args,omitempty"`
-	State        ProcessState           `protobuf:"varint,6,opt,name=state,proto3,enum=datadog.procmgr.ProcessState" json:"state,omitempty"`
-	RestartCount uint32                 `protobuf:"varint,7,opt,name=restart_count,json=restartCount,proto3" json:"restart_count,omitempty"`
-	LastExitCode *int32                 `protobuf:"varint,8,opt,name=last_exit_code,json=lastExitCode,proto3,oneof" json:"last_exit_code,omitempty"`
-	LastSignal   *int32                 `protobuf:"varint,9,opt,name=last_signal,json=lastSignal,proto3,oneof" json:"last_signal,omitempty"`
-	Profile      string                 `protobuf:"bytes,10,opt,name=profile,proto3" json:"profile,omitempty"`
-	User         string                 `protobuf:"bytes,11,opt,name=user,proto3" json:"user,omitempty"`
-	// 12 reserved for config_error (D2).
-	SkipReasons   []string `protobuf:"bytes,13,rep,name=skip_reasons,json=skipReasons,proto3" json:"skip_reasons,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Uuid          string                 `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Pid           uint32                 `protobuf:"varint,3,opt,name=pid,proto3" json:"pid,omitempty"`
+	Command       string                 `protobuf:"bytes,4,opt,name=command,proto3" json:"command,omitempty"`
+	Args          []string               `protobuf:"bytes,5,rep,name=args,proto3" json:"args,omitempty"`
+	State         ProcessState           `protobuf:"varint,6,opt,name=state,proto3,enum=datadog.procmgr.ProcessState" json:"state,omitempty"`
+	RestartCount  uint32                 `protobuf:"varint,7,opt,name=restart_count,json=restartCount,proto3" json:"restart_count,omitempty"`
+	LastExitCode  *int32                 `protobuf:"varint,8,opt,name=last_exit_code,json=lastExitCode,proto3,oneof" json:"last_exit_code,omitempty"`
+	LastSignal    *int32                 `protobuf:"varint,9,opt,name=last_signal,json=lastSignal,proto3,oneof" json:"last_signal,omitempty"`
+	Profile       string                 `protobuf:"bytes,10,opt,name=profile,proto3" json:"profile,omitempty"`
+	User          string                 `protobuf:"bytes,11,opt,name=user,proto3" json:"user,omitempty"`
+	SkipReasons   []string               `protobuf:"bytes,13,rep,name=skip_reasons,json=skipReasons,proto3" json:"skip_reasons,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -378,10 +376,9 @@ type ProcessDetail struct {
 	Profile             string                 `protobuf:"bytes,20,opt,name=profile,proto3" json:"profile,omitempty"`
 	User                string                 `protobuf:"bytes,21,opt,name=user,proto3" json:"user,omitempty"`
 	RuntimeUser         string                 `protobuf:"bytes,22,opt,name=runtime_user,json=runtimeUser,proto3" json:"runtime_user,omitempty"`
-	// 23 reserved for config_error (D2).
-	SkipReasons   []string `protobuf:"bytes,24,rep,name=skip_reasons,json=skipReasons,proto3" json:"skip_reasons,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	SkipReasons         []string               `protobuf:"bytes,24,rep,name=skip_reasons,json=skipReasons,proto3" json:"skip_reasons,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ProcessDetail) Reset() {
@@ -1165,10 +1162,9 @@ type GetStatusResponse struct {
 	StartingProcesses uint32                 `protobuf:"varint,10,opt,name=starting_processes,json=startingProcesses,proto3" json:"starting_processes,omitempty"`
 	StoppingProcesses uint32                 `protobuf:"varint,11,opt,name=stopping_processes,json=stoppingProcesses,proto3" json:"stopping_processes,omitempty"`
 	CrashedProcesses  uint32                 `protobuf:"varint,12,opt,name=crashed_processes,json=crashedProcesses,proto3" json:"crashed_processes,omitempty"`
-	// 13 reserved for invalid_config_processes (D2).
-	SkippedProcesses uint32 `protobuf:"varint,14,opt,name=skipped_processes,json=skippedProcesses,proto3" json:"skipped_processes,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	SkippedProcesses  uint32                 `protobuf:"varint,14,opt,name=skipped_processes,json=skippedProcesses,proto3" json:"skipped_processes,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *GetStatusResponse) Reset() {
