@@ -82,7 +82,7 @@ func autoscalerList(_ log.Component, config config.Component, client ipc.HTTPCli
 	if cliParams.localstore {
 		err := getLocalAutoscalingWorkloadCheck(color.Output, config, client)
 		if err != nil {
-			return fmt.Errorf("error getting localstore debug info: %v", err)
+			return fmt.Errorf("error getting localstore debug info: %w", err)
 		}
 		return nil
 	}
@@ -119,7 +119,7 @@ func getAutoscalerList(client ipc.HTTPClient, w io.Writer, url string) error {
 		if r != nil && string(r) != "" {
 			return fmt.Errorf("the agent ran into an error while getting autoscaler list: %s", string(r))
 		}
-		return fmt.Errorf("failed to query the agent (running?): %s", err)
+		return fmt.Errorf("failed to query the agent (running?): %w", err)
 	}
 
 	if len(r) == 0 {
@@ -128,7 +128,7 @@ func getAutoscalerList(client ipc.HTTPClient, w io.Writer, url string) error {
 
 	autoscalerDump := autoscalingWorkload.AutoscalersInfo{}
 	if err = json.Unmarshal(r, &autoscalerDump); err != nil {
-		return fmt.Errorf("error unmarshalling json: %s", err)
+		return fmt.Errorf("error unmarshalling json: %w", err)
 	}
 
 	autoscalerDump.Print(w)
@@ -149,14 +149,14 @@ func getLocalAutoscalingWorkloadCheck(w io.Writer, config config.Component, c ip
 			return fmt.Errorf("the agent ran into an error while getting local autoscaling workload entities: %s", string(r))
 		}
 
-		return fmt.Errorf("failed to query the agent (running?): %s", err)
+		return fmt.Errorf("failed to query the agent (running?): %w", err)
 	}
 
 	var response localautoscalingworkload.LocalWorkloadMetricStoreInfo
 
 	err = json.Unmarshal(r, &response)
 	if err != nil {
-		return fmt.Errorf("error unmarshalling json: %s", err)
+		return fmt.Errorf("error unmarshalling json: %w", err)
 	}
 	if w != color.Output {
 		color.NoColor = true

@@ -66,7 +66,7 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	}
 	targetGVK, targetErr := dpai.TargetGVK()
 	if targetErr != nil {
-		return nil, fmt.Errorf("Failed to get GVK for target: %s, %s", dpai.ID(), targetErr)
+		return nil, fmt.Errorf("Failed to get GVK for target: %s, %w", dpai.ID(), targetErr)
 	}
 
 	podOwnerName := targetRef.Name
@@ -88,7 +88,7 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	for _, objective := range objectives {
 		recSettings, err := newResourceRecommenderSettings(objective)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get recommender settings for objective: %s, %s", dpai.ID(), err)
+			return nil, fmt.Errorf("failed to get recommender settings for objective: %s, %w", dpai.ID(), err)
 		}
 		if recSettings == nil {
 			// ControllerObjective is ignored by the local recommender

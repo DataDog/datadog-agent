@@ -222,7 +222,7 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 	var err error
 	knp, err = c.checkValidNodeClass(ctx, knp)
 	if err != nil {
-		return fmt.Errorf("unable to update NodePool with node class: %s, err: %v", npi.Name(), err)
+		return fmt.Errorf("unable to update NodePool with node class: %s, err: %w", npi.Name(), err)
 	}
 	// Update the weight if replica NodePool
 	if knp.Spec.Weight == nil && targetNp != nil {
@@ -247,11 +247,11 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 
 	npUnstr, err := convertNodePoolToUnstructured(knp)
 	if err != nil {
-		return fmt.Errorf("unable to convert NodePool to unstructured: %s, err: %v", npi.Name(), err)
+		return fmt.Errorf("unable to convert NodePool to unstructured: %s, err: %w", npi.Name(), err)
 	}
 	createdUnstr, err := c.Client.Resource(nodePoolGVR).Create(ctx, npUnstr, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("unable to create NodePool: %s, err: %v", npi.Name(), err)
+		return fmt.Errorf("unable to create NodePool: %s, err: %w", npi.Name(), err)
 	}
 	c.eventRecorder.Eventf(createdUnstr, corev1.EventTypeNormal, model.SuccessfulNodepoolCreateEventReason, "Created NodePool %s", npi.Name())
 	return nil
@@ -275,7 +275,7 @@ func (c *Controller) updateNodePool(ctx context.Context, targetNp *karpenterv1.N
 	var err error
 	desired, err = c.checkValidNodeClass(ctx, desired)
 	if err != nil {
-		return fmt.Errorf("unable to update NodePool with node class: %s, err: %v", npi.Name(), err)
+		return fmt.Errorf("unable to update NodePool with node class: %s, err: %w", npi.Name(), err)
 	}
 
 	// Update the weight if replica NodePool
@@ -292,15 +292,15 @@ func (c *Controller) updateNodePool(ctx context.Context, targetNp *karpenterv1.N
 	// Use merge-patch for spec comparison so fields added to NodePool by default do not trigger unnecessary updates
 	liveSpecJSON, err := json.Marshal(datadogNp.Spec)
 	if err != nil {
-		return fmt.Errorf("unable to marshal live NodePool spec: %s, err: %v", npi.Name(), err)
+		return fmt.Errorf("unable to marshal live NodePool spec: %s, err: %w", npi.Name(), err)
 	}
 	desiredSpecJSON, err := json.Marshal(desired.Spec)
 	if err != nil {
-		return fmt.Errorf("unable to marshal desired NodePool spec: %s, err: %v", npi.Name(), err)
+		return fmt.Errorf("unable to marshal desired NodePool spec: %s, err: %w", npi.Name(), err)
 	}
 	mergedSpecJSON, err := jsonpatch.MergePatch(liveSpecJSON, desiredSpecJSON)
 	if err != nil {
-		return fmt.Errorf("unable to compute spec merge patch for NodePool: %s, err: %v", npi.Name(), err)
+		return fmt.Errorf("unable to compute spec merge patch for NodePool: %s, err: %w", npi.Name(), err)
 	}
 
 	// Ensure DatadogReplicaAnnotationKey is always present when a target exists
@@ -332,12 +332,12 @@ func (c *Controller) updateNodePool(ctx context.Context, targetNp *karpenterv1.N
 	updatedUnstr, err := convertNodePoolToUnstructured(desired)
 	if err != nil {
 		c.eventRecorder.Eventf(datadogNp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to convert NodePool: %v", err)
-		return fmt.Errorf("error converting NodePool to unstructured: %s, err: %v", npi.Name(), err)
+		return fmt.Errorf("error converting NodePool to unstructured: %s, err: %w", npi.Name(), err)
 	}
 	_, err = c.Client.Resource(nodePoolGVR).Update(ctx, updatedUnstr, metav1.UpdateOptions{})
 	if err != nil {
 		c.eventRecorder.Eventf(datadogNp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool: %v", err)
-		return fmt.Errorf("unable to update NodePool: %s, err: %v", npi.Name(), err)
+		return fmt.Errorf("unable to update NodePool: %s, err: %w", npi.Name(), err)
 	}
 	c.eventRecorder.Eventf(datadogNp, corev1.EventTypeNormal, model.SuccessfulNodepoolUpdateEventReason, "Updated NodePool %s", npi.Name())
 	return nil
@@ -349,7 +349,7 @@ func (c *Controller) deleteNodePool(ctx context.Context, name string, knp *karpe
 	err := c.Client.Resource(nodePoolGVR).Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil {
 		c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolDeleteEventReason, "Failed to delete NodePool: %v", err)
-		return fmt.Errorf("Unable to delete NodePool: %s, err: %v", name, err)
+		return fmt.Errorf("Unable to delete NodePool: %s, err: %w", name, err)
 	}
 
 	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolDeleteEventReason, "Deleted NodePool %s", name)

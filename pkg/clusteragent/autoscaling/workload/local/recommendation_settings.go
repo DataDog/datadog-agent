@@ -109,7 +109,7 @@ func validateTarget(targetType datadoghqcommon.DatadogPodAutoscalerObjectiveValu
 	}
 
 	if err := validateUtilizationValue(value); err != nil {
-		return fmt.Errorf("invalid utilization value: %s", err)
+		return fmt.Errorf("invalid utilization value: %w", err)
 	}
 
 	return nil

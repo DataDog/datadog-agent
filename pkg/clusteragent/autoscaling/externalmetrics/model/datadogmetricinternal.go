@@ -314,7 +314,7 @@ func (d *DatadogMetricInternal) resolveQuery(query string) {
 	if err != nil {
 		log.Errorf("Unable to resolve DatadogMetric query %q: %v", d.query, err)
 		d.Valid = false
-		d.Error = fmt.Errorf("Cannot resolve query: %v", err)
+		d.Error = fmt.Errorf("Cannot resolve query: %w", err)
 		d.UpdateTime = time.Now().UTC()
 		d.resolvedQuery = nil
 		return

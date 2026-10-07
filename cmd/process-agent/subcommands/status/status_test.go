@@ -169,7 +169,7 @@ func TestError(t *testing.T) {
 
 	tpl, err := template.New("").Parse(errorMessage)
 	require.NoError(t, err)
-	err = tpl.Execute(&expectedErrText, fmt.Errorf("config error: %s", ipcError))
+	err = tpl.Execute(&expectedErrText, fmt.Errorf("config error: %w", ipcError))
 	require.NoError(t, err)
 
 	assert.Equal(t, expectedErrText.String(), errText.String())

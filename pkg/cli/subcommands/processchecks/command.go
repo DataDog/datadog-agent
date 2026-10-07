@@ -191,7 +191,7 @@ func runCheck(log log.Component, cliParams *CliParams, ch checks.Check) error {
 	// We need to run the check twice in order to initialize the stats
 	// Rate calculations rely on having two datapoints
 	if _, err := ch.Run(nextGroupID, options); err != nil {
-		return fmt.Errorf("collection error: %s", err)
+		return fmt.Errorf("collection error: %w", err)
 	}
 
 	log.Infof("Waiting %s before running the check", cliParams.waitInterval.String())
@@ -203,7 +203,7 @@ func runCheck(log log.Component, cliParams *CliParams, ch checks.Check) error {
 
 	result, err := ch.Run(nextGroupID, options)
 	if err != nil {
-		return fmt.Errorf("collection error: %s", err)
+		return fmt.Errorf("collection error: %w", err)
 	}
 
 	var msgs []process.MessageBody
@@ -245,7 +245,7 @@ func printResultsJSON(msgs []process.MessageBody) error {
 	for _, m := range msgs {
 		b, err := json.MarshalIndent(m, "", "  ")
 		if err != nil {
-			return fmt.Errorf("marshal error: %s", err)
+			return fmt.Errorf("marshal error: %w", err)
 		}
 		fmt.Println(string(b))
 	}

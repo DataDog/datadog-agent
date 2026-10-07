@@ -68,7 +68,7 @@ func (p *autoscalingSettingsProcessor) processItem(receivedTimestamp time.Time, 
 	err := json.Unmarshal(rawConfig.Config, &settingsList)
 	if err != nil {
 		p.lastProcessingError = true
-		return fmt.Errorf("failed to unmarshal config id:%s, version: %d, config key: %s, err: %v", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey, err)
+		return fmt.Errorf("failed to unmarshal config id:%s, version: %d, config key: %s, err: %w", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey, err)
 	}
 
 	// Creating/Updating received PodAutoscalers

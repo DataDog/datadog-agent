@@ -58,7 +58,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 
 	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
-		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as LeaderElection failed with: %v", err)
+		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as LeaderElection failed with: %w", err)
 	}
 
 	aggregator := pkgconfigsetup.Datadog().GetString("external_metrics.aggregator")
@@ -83,7 +83,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 	// Start MetricsRetriever, only leader will do refresh metrics
 	metricsRetriever, err := NewMetricsRetriever(refreshPeriod, metricsMaxAge, autoscalers.NewProcessor(datadogClient), le.IsLeader, &provider.store, splitBatchBackoffOnErrors)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as MetricsRetriever failed with: %v", err)
+		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as MetricsRetriever failed with: %w", err)
 	}
 	go metricsRetriever.Run(ctx.Done())
 
@@ -91,7 +91,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 	var autoscalerAutogenLabelSelector labels.Selector
 	autoscalerAutogenLabelSelector, err = labels.Parse(selectorStr)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse external_metrics_provider.autoscaler_autogen_label_selector %q: %v", selectorStr, err)
+		return nil, fmt.Errorf("unable to parse external_metrics_provider.autoscaler_autogen_label_selector %q: %w", selectorStr, err)
 	}
 	if selectorStr != "" {
 		log.Infof("Autoscaler autogen label selector configured: %s", selectorStr)
@@ -117,13 +117,13 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 		&provider.store,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("Unabled to create DatadogMetricProvider as AutoscalerWatcher failed with: %v", err)
+		return nil, fmt.Errorf("Unabled to create DatadogMetricProvider as AutoscalerWatcher failed with: %w", err)
 	}
 
 	// We shift controller refresh period from retrieverRefreshPeriod to maximize the probability to have new data from DD
 	controller, err := NewDatadogMetricController(apiCl.DynamicCl, apiCl.DynamicInformerFactory, le.IsLeader, &provider.store)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as DatadogMetric Controller failed with: %v", err)
+		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as DatadogMetric Controller failed with: %w", err)
 	}
 
 	// Start informers & controllers (informers can be started multiple times)

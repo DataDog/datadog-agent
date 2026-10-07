@@ -129,7 +129,7 @@ func NewController(
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("cannot add event handler to informer: %v", err)
+		return nil, fmt.Errorf("cannot add event handler to informer: %w", err)
 	}
 
 	// Use handler.HasSynced rather than informer.HasSynced: it guarantees all

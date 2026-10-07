@@ -61,7 +61,7 @@ func (p *probe) ProcessFromPID(pid int32) (*Process, error) {
 	r := result[0]
 	ipid, err := strconv.Atoi(r[0])
 	if err != nil {
-		return nil, fmt.Errorf("pid: %s", err)
+		return nil, fmt.Errorf("pid: %w", err)
 	}
 	if ipid != int(pid) {
 		return nil, fmt.Errorf("pid %d != %d", pid, ipid)
@@ -84,15 +84,15 @@ func (p *probe) ProcessFromPID(pid int32) (*Process, error) {
 func processFromPID(pid int32, r []string, k *unix.KinfoProc) (*Process, error) {
 	ppid, err := strconv.Atoi(r[1])
 	if err != nil {
-		return nil, fmt.Errorf("ppid: %s", err)
+		return nil, fmt.Errorf("ppid: %w", err)
 	}
 	utime, stime, err := makeTimeStat(r[2], r[3])
 	if err != nil {
-		return nil, fmt.Errorf("times: %s", err)
+		return nil, fmt.Errorf("times: %w", err)
 	}
 	createTime, err := formatElapsedTime(r[4])
 	if err != nil {
-		return nil, fmt.Errorf("etime: %s", err)
+		return nil, fmt.Errorf("etime: %w", err)
 	}
 	rss, err := strconv.Atoi(r[6])
 	if err != nil {
@@ -155,7 +155,7 @@ func allProcesses() (map[int32]*Process, error) {
 	for _, r := range result {
 		ipid, err := strconv.Atoi(r[0])
 		if err != nil {
-			return nil, fmt.Errorf("pid: %s", err)
+			return nil, fmt.Errorf("pid: %w", err)
 		}
 		pid := int32(ipid)
 		kp, err := unix.SysctlKinfoProc("kern.proc.pid", int(pid))
@@ -176,7 +176,7 @@ func allProcesses() (map[int32]*Process, error) {
 	for _, r := range result {
 		ipid, err := strconv.Atoi(r[0])
 		if err != nil {
-			return nil, fmt.Errorf("pid: %s", err)
+			return nil, fmt.Errorf("pid: %w", err)
 		}
 		pid := int32(ipid)
 		k, ok := kprocByPid[pid]

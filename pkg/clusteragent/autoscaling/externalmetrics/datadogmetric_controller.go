@@ -91,7 +91,7 @@ func NewDatadogMetricController(client dynamic.Interface, informer dynamicinform
 			c.enqueue(new)
 		},
 	}); err != nil {
-		return nil, fmt.Errorf("cannot add event handler to datadogMetricsInformer informer: %v", err)
+		return nil, fmt.Errorf("cannot add event handler to datadogMetricsInformer informer: %w", err)
 	}
 
 	// We use an observer on the store to propagate events as soon as possible
@@ -192,7 +192,7 @@ func (c *DatadogMetricController) processDatadogMetric(workerID int, key interfa
 
 	ns, name, err := cache.SplitMetaNamespaceKey(datadogMetricKey)
 	if err != nil {
-		return noopControllerOperation, fmt.Errorf("Could not split the key: %v", err)
+		return noopControllerOperation, fmt.Errorf("Could not split the key: %w", err)
 	}
 
 	datadogMetricCached := &datadoghq.DatadogMetric{}
@@ -307,7 +307,7 @@ func (c *DatadogMetricController) createDatadogMetric(ns, name string, datadogMe
 	}
 	_, err := c.clientSet.Resource(gvrDDM).Namespace(ns).Create(context.TODO(), datadogMetricObj, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("Unable to create DatadogMetric: %s/%s, err: %v", ns, name, err)
+		return fmt.Errorf("Unable to create DatadogMetric: %s/%s, err: %w", ns, name, err)
 	}
 
 	setDatadogMetricTelemetry(datadogMetric)
@@ -334,7 +334,7 @@ func (c *DatadogMetricController) updateDatadogMetric(ns, name string, datadogMe
 		}
 		_, err := c.clientSet.Resource(gvrDDM).Namespace(ns).UpdateStatus(context.TODO(), datadogMetricObj, metav1.UpdateOptions{})
 		if err != nil {
-			return fmt.Errorf("Unable to update DatadogMetric: %s/%s, err: %v", ns, name, err)
+			return fmt.Errorf("Unable to update DatadogMetric: %s/%s, err: %w", ns, name, err)
 		}
 		setDatadogMetricTelemetry(datadogMetric)
 	} else {
@@ -348,7 +348,7 @@ func (c *DatadogMetricController) deleteDatadogMetric(ns, name string) error {
 	log.Infof("Deleting DatadogMetric: %s/%s", ns, name)
 	err := c.clientSet.Resource(gvrDDM).Namespace(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if err != nil {
-		return fmt.Errorf("Unable to delete DatadogMetric: %s/%s, err: %v", ns, name, err)
+		return fmt.Errorf("Unable to delete DatadogMetric: %s/%s, err: %w", ns, name, err)
 	}
 	return nil
 }

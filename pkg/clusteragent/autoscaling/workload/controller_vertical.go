@@ -456,7 +456,7 @@ func (u *verticalController) triggerRollout(
 	// Apply patch to trigger rollout
 	_, err := u.patchClient.Apply(ctx, intent, workloadpatcher.PatchOptions{Caller: "vpa"})
 	if err != nil {
-		err = autoscaling.NewConditionError(autoscaling.ConditionReasonRolloutFailed, fmt.Errorf("failed to trigger rollout for gvk: %s, name: %s, err: %v", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name, err))
+		err = autoscaling.NewConditionError(autoscaling.ConditionReasonRolloutFailed, fmt.Errorf("failed to trigger rollout for gvk: %s, name: %s, err: %w", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name, err))
 		autoscalerInternal.UpdateFromVerticalAction(nil, err)
 		autoscalerInternal.VerticalActionErrorInc()
 		u.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedTriggerRolloutEventReason, err.Error())

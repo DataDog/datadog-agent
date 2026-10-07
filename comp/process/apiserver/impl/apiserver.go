@@ -144,7 +144,7 @@ func getProcessAPIAddressPort(cfg config.Component, log logComp.Component) (stri
 	}
 	address, err := system.IsLocalAddress(cfg.GetString(key))
 	if err != nil {
-		return "", fmt.Errorf("%s: %s", key, err)
+		return "", fmt.Errorf("%s: %w", key, err)
 	}
 	port := cfg.GetInt("process_config.cmd_port")
 	if port <= 0 {

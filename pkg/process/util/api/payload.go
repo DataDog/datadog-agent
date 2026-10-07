@@ -26,7 +26,7 @@ var (
 func EncodePayload(m model.MessageBody) ([]byte, error) {
 	msgType, err := model.DetectMessageType(m)
 	if err != nil {
-		return nil, fmt.Errorf("unable to detect message type: %s", err)
+		return nil, fmt.Errorf("unable to detect message type: %w", err)
 	}
 
 	typeTag := "type:" + msgType.String()

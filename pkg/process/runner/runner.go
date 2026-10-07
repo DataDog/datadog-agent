@@ -275,7 +275,7 @@ func (l *CheckRunner) Run() error {
 		}
 		runner, err := l.runnerForCheck(c)
 		if err != nil {
-			return fmt.Errorf("error starting check %s: %s", c.Name(), err)
+			return fmt.Errorf("error starting check %s: %w", c.Name(), err)
 		}
 
 		l.wg.Add(1)

@@ -95,7 +95,7 @@ func NewAutoscalerWatcher(
 	if informer != nil {
 		genericInformerFactory, err := informer.ForResource(hpaGVR)
 		if err != nil {
-			return nil, fmt.Errorf("error creating generic informer: %s", err)
+			return nil, fmt.Errorf("error creating generic informer: %w", err)
 		}
 
 		autoscalerLister = genericInformerFactory.Lister()
@@ -262,7 +262,7 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 	if w.autoscalerLister != nil {
 		hpaList, err := w.autoscalerLister.List(labels.Everything())
 		if err != nil {
-			return nil, fmt.Errorf("Could not list HPAs (to update DatadogMetric active status): %v", err)
+			return nil, fmt.Errorf("Could not list HPAs (to update DatadogMetric active status): %w", err)
 		}
 
 		for _, obj := range hpaList {
@@ -273,7 +273,7 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 	if w.wpaLister != nil {
 		wpaList, err := w.wpaLister.ByNamespace(metav1.NamespaceAll).List(labels.Everything())
 		if err != nil {
-			return nil, fmt.Errorf("Could not list WPAs (to update DatadogMetric active status): %v", err)
+			return nil, fmt.Errorf("Could not list WPAs (to update DatadogMetric active status): %w", err)
 		}
 
 		for _, wpaObj := range wpaList {

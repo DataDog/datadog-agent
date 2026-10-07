@@ -322,12 +322,12 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 
 			localHash, err := autoscaling.ObjectHash(podAutoscalerInternal.Spec())
 			if err != nil {
-				return autoscaling.Requeue, fmt.Errorf("Failed to compute Spec hash for PodAutoscaler: %s/%s, err: %v", ns, name, err)
+				return autoscaling.Requeue, fmt.Errorf("Failed to compute Spec hash for PodAutoscaler: %s/%s, err: %w", ns, name, err)
 			}
 
 			remoteHash, err := autoscaling.ObjectHash(&podAutoscaler.Spec)
 			if err != nil {
-				return autoscaling.Requeue, fmt.Errorf("Failed to compute Spec hash for PodAutoscaler: %s/%s, err: %v", ns, name, err)
+				return autoscaling.Requeue, fmt.Errorf("Failed to compute Spec hash for PodAutoscaler: %s/%s, err: %w", ns, name, err)
 			}
 
 			if localHash != remoteHash {
@@ -520,7 +520,7 @@ func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInter
 
 	createdObj, err := c.Client.Resource(podAutoscalerGVR).Namespace(podAutoscalerInternal.Namespace()).Create(ctx, obj, metav1.CreateOptions{})
 	if err != nil {
-		return 0, time.Time{}, fmt.Errorf("Unable to create PodAutoscaler: %s/%s, err: %v", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), err)
+		return 0, time.Time{}, fmt.Errorf("Unable to create PodAutoscaler: %s/%s, err: %w", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), err)
 	}
 
 	return createdObj.GetGeneration(), createdObj.GetCreationTimestamp().Time, nil
@@ -601,7 +601,7 @@ func (c *Controller) deletePodAutoscaler(ns, name string) error {
 	log.Infof("Deleting PodAutoscaler: %s/%s", ns, name)
 	err := c.Client.Resource(podAutoscalerGVR).Namespace(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if err != nil {
-		return fmt.Errorf("Unable to delete PodAutoscaler: %s/%s, err: %v", ns, name, err)
+		return fmt.Errorf("Unable to delete PodAutoscaler: %s/%s, err: %w", ns, name, err)
 	}
 	return nil
 }

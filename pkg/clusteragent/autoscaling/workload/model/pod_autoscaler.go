@@ -1491,7 +1491,7 @@ func parseCustomConfigurationAnnotation(annotations map[string]string) (*Recomme
 	customConfiguration := RecommenderConfiguration{}
 
 	if err := json.Unmarshal([]byte(annotation), &customConfiguration); err != nil {
-		return nil, fmt.Errorf("Failed to parse annotations for custom recommender configuration: %v", err)
+		return nil, fmt.Errorf("Failed to parse annotations for custom recommender configuration: %w", err)
 	}
 
 	return &customConfiguration, nil

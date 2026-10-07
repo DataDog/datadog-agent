@@ -64,7 +64,7 @@ func (p *autoscalingValuesProcessor) processItem(receivedTimestamp time.Time, co
 	err := json.Unmarshal(rawConfig.Config, &valuesList)
 	if err != nil {
 		p.lastProcessingError = true
-		return fmt.Errorf("failed to unmarshal config id:%s, version: %d, config key: %s, err: %v", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey, err)
+		return fmt.Errorf("failed to unmarshal config id:%s, version: %d, config key: %s, err: %w", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey, err)
 	}
 
 	log.Debugf("Processing %d values from config id:%s, version: %d, config key: %s", len(valuesList.Values), rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey)
