@@ -2,7 +2,7 @@ load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper"
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@@//bazel/rules/foreign_cc_runnable:foreign_cc_runnable.bzl", "foreign_cc_runnable")
-load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MODULE_SRCS", "NATIVE_PLATFORMS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS", "SHARED_MODULES", "WINDOWS_BUILTIN_MODULE_SRCS", "WINDOWS_CORE_SRCS", "WINDOWS_SHARED_MODULES", "sysconfig_vars")
+load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MACOS_SHARED_MODULES", "MACOS_SHARED_MODULE_EXTRAS", "MODULE_SRCS", "NATIVE_PLATFORMS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS", "SHARED_MODULES", "WINDOWS_BUILTIN_MODULE_SRCS", "WINDOWS_CORE_SRCS", "WINDOWS_SHARED_MODULES", "sysconfig_vars")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
@@ -555,6 +555,8 @@ pkg_install(
 
 NATIVE_WINDOWS = "@@//:windows_x86_64"
 
+NATIVE_MACOS = "@platforms//os:macos"
+
 NATIVE_UNIX = select({
     NATIVE_WINDOWS: ["@platforms//:incompatible"],
     "//conditions:default": [],
@@ -733,6 +735,7 @@ cc_library(
     name = "native_core",
     srcs = PARSER_SRCS + OBJECT_SRCS + MODULE_SRCS + select({
         NATIVE_WINDOWS: [src for src in PYTHON_SRCS if src != "Python/frozenmain.c"] + WINDOWS_CORE_SRCS,
+        NATIVE_MACOS: PYTHON_SRCS + [":native_config_c"],
         "//conditions:default": PYTHON_SRCS + [
             "Python/asm_trampoline.S",
             ":native_config_c",
@@ -745,6 +748,11 @@ cc_library(
             "pathcch.lib",
             "version.lib",
             "ws2_32.lib",
+        ],
+        NATIVE_MACOS: [
+            "-ldl",
+            "-framework",
+            "CoreFoundation",
         ],
         "//conditions:default": [
             "-ldl",
@@ -781,7 +789,7 @@ cc_library(
     ] + select({
         condition: [
             "ABIFLAGS=\\\"\\\"",
-            "PLATFORM=\\\"linux\\\"",
+            "PLATFORM=\\\"{}\\\"".format(platform["machdep"]),
             "MULTIARCH=\\\"{}\\\"".format(platform["multiarch"]),
             "SOABI=\\\"cpython-{}-{}\\\"".format(
                 PYTHON_MAJOR_MINOR_FLAT,
@@ -868,11 +876,14 @@ cc_library(
 cc_shared_library(
     name = "native_libpython",
     shared_lib_name = select({
+        condition: platform["libpython"]
+        for condition, platform in NATIVE_PLATFORMS.items()
+    } | {
         NATIVE_WINDOWS: "python{}.dll".format(PYTHON_MAJOR_MINOR_FLAT),
-        "//conditions:default": LINUX_SO,
     }),
     user_link_flags = select({
         NATIVE_WINDOWS: [],
+        NATIVE_MACOS: ["-Wl,-install_name,@rpath/libpython{}.dylib".format(PYTHON_MAJOR_MINOR)],
         "//conditions:default": ["-Wl,-soname," + LINUX_SO],
     }),
     deps = [
@@ -891,6 +902,12 @@ cc_binary(
         NATIVE_WINDOWS: [
             "/STACK:2000000",
             "/NODEFAULTLIB:python{}.lib".format(PYTHON_MAJOR_MINOR_FLAT),
+        ],
+        NATIVE_MACOS: [
+            "-Wl,-rpath,@loader_path/../lib",
+            "-Wl,-stack_size,1000000",
+            "-framework",
+            "CoreFoundation",
         ],
         "//conditions:default": [
             "-Wl,--export-dynamic",
@@ -925,11 +942,14 @@ cc_library(
     name = "native_libmpdec",
     srcs = LIBMPDEC_SRCS,
     copts = NATIVE_COPTS,
-    defines = [
-        "CONFIG_64=1",
-        "ANSI=1",
-        "HAVE_UINT128_T=1",
-    ],
+    defines = select({
+        NATIVE_MACOS: ["UNIVERSAL=1"],
+        "//conditions:default": [
+            "CONFIG_64=1",
+            "ANSI=1",
+            "HAVE_UINT128_T=1",
+        ],
+    }),
     includes = ["Modules/_decimal/libmpdec"],
     local_defines = ["NDEBUG"],
     deps = [":native_internal_headers"],
@@ -981,17 +1001,28 @@ cc_library(
     deps = [":native_internal_headers"],
 )
 
+NATIVE_UNIX_SHARED_MODULES = SHARED_MODULES | MACOS_SHARED_MODULES
+
 [
     cc_library(
         name = "native_module_{}_lib".format(name),
-        srcs = ["Modules/" + src for src in module["srcs"]],
+        srcs = ["Modules/" + src for src in module["srcs"]] + select({
+            NATIVE_MACOS: ["Modules/" + src for src in MACOS_SHARED_MODULE_EXTRAS.get(name, {}).get("srcs", [])],
+            "//conditions:default": [],
+        }),
         copts = NATIVE_COPTS,
-        linkopts = module.get("linkopts", []),
-        local_defines = ["NDEBUG"] + module.get("defines", []),
-        target_compatible_with = NATIVE_UNIX,
+        linkopts = module.get("linkopts", []) + select({
+            NATIVE_MACOS: [],
+            "//conditions:default": module.get("linux_linkopts", []),
+        }),
+        local_defines = ["NDEBUG"] + module.get("defines", []) + select({
+            NATIVE_MACOS: MACOS_SHARED_MODULE_EXTRAS.get(name, {}).get("defines", []),
+            "//conditions:default": [],
+        }),
+        target_compatible_with = [NATIVE_MACOS] if name in MACOS_SHARED_MODULES else NATIVE_UNIX,
         deps = [":native_internal_headers"] + module.get("deps", []),
     )
-    for name, module in SHARED_MODULES.items()
+    for name, module in NATIVE_UNIX_SHARED_MODULES.items()
 ]
 
 [
@@ -1002,25 +1033,32 @@ cc_library(
             condition: name + NATIVE_EXT_SUFFIXES[condition]
             for condition, platform in NATIVE_PLATFORMS.items()
         }),
-        target_compatible_with = NATIVE_UNIX,
+        target_compatible_with = [NATIVE_MACOS] if name in MACOS_SHARED_MODULES else NATIVE_UNIX,
+        user_link_flags = select({
+            NATIVE_MACOS: [
+                "-undefined",
+                "dynamic_lookup",
+            ],
+            "//conditions:default": [],
+        }),
         deps = [":native_module_{}_lib".format(name)],
     )
-    for name, module in SHARED_MODULES.items()
+    for name, module in NATIVE_UNIX_SHARED_MODULES.items()
 ]
 
 filegroup(
     name = "native_shared_modules",
-    srcs = [":native_module_" + name for name in SHARED_MODULES],
+    srcs = [":native_module_" + name for name in SHARED_MODULES] + select({
+        NATIVE_MACOS: [":native_module_" + name for name in MACOS_SHARED_MODULES],
+        "//conditions:default": [],
+    }),
 )
 
 write_file(
     name = "native_sysconfig_vars",
     out = "native_sysconfig_vars.json",
     content = select({
-        condition: [json.encode(sysconfig_vars(
-            platform["multiarch"],
-            platform["gnu_type"],
-        ))]
+        condition: [json.encode(sysconfig_vars(platform))]
         for condition, platform in NATIVE_PLATFORMS.items()
     }),
     target_compatible_with = NATIVE_UNIX,
@@ -1067,18 +1105,19 @@ copy_to_directory(
         condition: {
             "Lib/": "lib/python{}/".format(PYTHON_MAJOR_MINOR),
             "native_python": "bin/python{}".format(PYTHON_MAJOR_MINOR),
-            "native_sysconfigdata.py": "lib/python{}/_sysconfigdata__linux_{}.py".format(
+            "native_sysconfigdata.py": "lib/python{}/_sysconfigdata__{}_{}.py".format(
                 PYTHON_MAJOR_MINOR,
+                platform["machdep"],
                 platform["multiarch"],
             ),
-            LINUX_SO: "lib/" + LINUX_SO,
+            platform["libpython"]: "lib/" + platform["libpython"],
         } | {
             name + NATIVE_EXT_SUFFIXES[condition]: "lib/python{}/lib-dynload/{}{}".format(
                 PYTHON_MAJOR_MINOR,
                 name,
                 NATIVE_EXT_SUFFIXES[condition],
             )
-            for name in SHARED_MODULES
+            for name in NATIVE_UNIX_SHARED_MODULES
         }
         for condition, platform in NATIVE_PLATFORMS.items()
     }),
