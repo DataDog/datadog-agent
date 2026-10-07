@@ -3,6 +3,7 @@ load("@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@//bazel/toolchains/hermetic_llvm:windows_gnu.bzl", "windows_gnu_cc_library")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
+load("@//deps/openssl:windows_gnu.bzl", "WINDOWS_GNU", "WINDOWS_GNU_BUILD_DATA", "WINDOWS_GNU_CONFIGURE_OPTIONS", "WINDOWS_GNU_ENV")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
@@ -82,15 +83,7 @@ configure_make(
         "//conditions:default": ["DESTDIR=$$BUILD_TMPDIR$$/dest"],
     }),
     build_data = select({
-        "@llvm//platforms/config:windows_x86_64_gnu": [
-            "@@//bazel/toolchains/hermetic_llvm:libssp",
-            "@@//bazel/toolchains/hermetic_llvm:llvm_windres.sh",
-            "@llvm//tools:clang",
-            "@llvm//tools:llvm-windres",
-            "@mingw//:mingw-w64-headers/crt/_mingw.h",
-            "@mingw//:mingw_w64_headers_crt_directory",
-            "@mingw//:mingw_w64_headers_include_directory",
-        ],
+        WINDOWS_GNU: WINDOWS_GNU_BUILD_DATA,
         "@platforms//os:windows": [
             "@winlibs_mingw64//:windres",
         ],
@@ -133,9 +126,7 @@ configure_make(
         ] + DEFAULT_CONFIG[:-1],
         "//conditions:default": DEFAULT_CONFIG,
     }) + select({
-        "@llvm//platforms/config:windows_x86_64_gnu": [
-            "-L$(execpath @@//bazel/toolchains/hermetic_llvm:libssp)",
-        ],
+        WINDOWS_GNU: WINDOWS_GNU_CONFIGURE_OPTIONS,
         "//conditions:default": [],
     }) + select({
         ":fips_windows": [
@@ -161,14 +152,7 @@ configure_make(
         "//conditions:default": [],
     }),
     env = select({
-        "@llvm//platforms/config:windows_x86_64_gnu": {
-            "LLVM_WINDRES": "$(execpath @llvm//tools:llvm-windres)",
-            "MINGW_CRT_DIR": "$(execpath @mingw//:mingw_w64_headers_crt_directory)",
-            "MINGW_GENERATED_CRT_H": "$(execpath @mingw//:mingw-w64-headers/crt/_mingw.h)",
-            "MINGW_INCLUDE_DIR": "$(execpath @mingw//:mingw_w64_headers_include_directory)",
-            "RC": "$(execpath @@//bazel/toolchains/hermetic_llvm:llvm_windres.sh)",
-            "WINDRES": "$(execpath @@//bazel/toolchains/hermetic_llvm:llvm_windres.sh)",
-        },
+        WINDOWS_GNU: WINDOWS_GNU_ENV,
         "@platforms//os:windows": {
             # Configure resolves RC from RC or WINDRES, then emits it into Makefile.
             # Keep both for clarity and to avoid tool lookup through PATH.
