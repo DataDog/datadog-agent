@@ -61,7 +61,7 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []err
 
 		// Truncate events too large for any bundle so they are exported instead of dropped.
 		if truncatedEvent, truncated := truncateOversizedEvent(event); truncated {
-			log.Debugf("Truncated kubernetes event message from %d to %d characters (%s)", len(event.Message), len(truncatedEvent.Message), describeKubernetesEvent(event))
+			log.Tracef("Truncated kubernetes event message from %d to %d characters (%s)", len(event.Message), len(truncatedEvent.Message), describeKubernetesEvent(event))
 			event = truncatedEvent
 		}
 
