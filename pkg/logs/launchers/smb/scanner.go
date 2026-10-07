@@ -8,6 +8,7 @@
 package smb
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -48,6 +49,13 @@ import (
 // path the pattern matches: the file's next tailer then resumes where the
 // drain ended, whatever name the file has by the time it starts. While a
 // drain lasts, agent status lists it next to the path's new tailer.
+//
+// A path tailed for the first time can hold another file than its stored
+// position names (where the scanner this one replaces stopped reading it, or
+// else the registry offset): the file rotated away while the path was not
+// tailed, during an Agent restart or a source replacement. The rest of that
+// file is read from the stored offset wherever it is now, as for a rotation
+// (see resumeRotatedAway).
 //
 // start_position applies to the files that were there when the source
 // started, i.e. the files matched until the first scan that lists every
@@ -101,6 +109,7 @@ type drain struct {
 type handoff struct {
 	file   client.Identity
 	offset int64
+	size   int64 // the largest size seen for the file, 0 when unknown: the bytes past offset were not read
 }
 
 // newScanner returns a scanner of source, which passed validation.
@@ -207,7 +216,7 @@ func (s *scanner) stopTailers() {
 	for p, t := range s.active {
 		// Nothing polls t anymore: its offset is final, and stopping t
 		// forwards everything it read.
-		s.stoppedAt[p] = handoff{file: t.Identity(), offset: t.Offset()}
+		s.stoppedAt[p] = handoff{file: t.Identity(), offset: t.Offset(), size: t.Offset() + t.UnreadBytes()}
 		s.deactivate(p, t)
 		stopper.Add(t)
 	}
@@ -258,6 +267,7 @@ func (s *scanner) scan(ctx context.Context) {
 		}
 	}
 
+	s.resumeRotatedAway(v)
 	for _, p := range sortedKeys(v.matches) {
 		if _, ok := s.active[p]; !ok {
 			s.startTailer(ctx, p, v.matches[p], &errs)
@@ -347,6 +357,121 @@ func (s *scanner) poll(ctx context.Context, p string, t *tailer.Tailer, entry *c
 	}
 }
 
+// resumeRotatedAway finds the files that rotated away from a path while this
+// scanner did not tail it: the paths this scan starts tailing for the first
+// time whose stored position (see storedPosition) names another file than the
+// one now at the path, and the paths the scanner this one replaces tailed that
+// are no longer listed. Each such file is read from its stored offset (see
+// resumeElsewhere), and the path's new file from offset 0.
+//
+// It runs before any tailer of the scan starts, so that the tailer of the
+// path a file was renamed to resumes it whatever the order of the paths.
+//
+// The registry can hold offsets of one file under several of those paths:
+// the entry of the path the file rotated away from keeps its offset until the
+// path's new file commits, while the file's offsets are committed under the
+// matched name it rotated to. The file is read from the furthest of them, so
+// that nothing delivered is sent again: resumeElsewhere ignores a file it
+// already resumes from at least as far.
+func (s *scanner) resumeRotatedAway(v *view) {
+	type rotatedAway struct {
+		p      string
+		stored handoff
+	}
+	var away []rotatedAway
+	for _, p := range sortedKeys(v.matches) {
+		entry := v.matches[p]
+		identifier := tailer.Identifier(s.host, s.share, p)
+		if s.active[p] != nil || s.fromStart[p] || entry.FileID == 0 || s.l.claims.ownedByAnother(identifier, s) {
+			continue
+		}
+		stored, found := s.storedPosition(p, identifier)
+		if !found || stored.file.FileID == 0 || stored.file.Matches(entry.Identity()) {
+			continue
+		}
+		log.Infof("SMB file %s was replaced while it was not tailed (%s, now %s); reading the new file from the beginning", identifier, stored.file, entry.Identity())
+		delete(s.inherited, p)
+		s.fromStart[p] = true
+		away = append(away, rotatedAway{p, stored})
+	}
+	for _, p := range sortedKeys(s.inherited) {
+		if _, listed, known := v.lookup(p); known && !listed {
+			stored := s.inherited[p]
+			delete(s.inherited, p)
+			if stored.file.FileID != 0 {
+				log.Infof("SMB file %s is no longer listed; reading the rest of %s wherever it was moved", tailer.Identifier(s.host, s.share, p), stored.file)
+				away = append(away, rotatedAway{p, stored})
+			}
+		}
+	}
+	slices.SortStableFunc(away, func(a, b rotatedAway) int { return cmp.Compare(b.stored.offset, a.stored.offset) })
+	for _, a := range away {
+		s.resumeElsewhere(a.p, a.stored, v)
+	}
+}
+
+// storedPosition returns where the file at p was last read before this
+// scanner tailed p: where the scanner this one replaces stopped reading it,
+// or else the registry offset.
+func (s *scanner) storedPosition(p, identifier string) (handoff, bool) {
+	if h, ok := s.inherited[p]; ok {
+		return h, true
+	}
+	file, offset, ok := tailer.DecodeOffset(s.l.registry.GetOffset(identifier))
+	return handoff{file: file, offset: offset}, ok
+}
+
+// resumeElsewhere reads the rest of the file stored names, read at p up to
+// stored.offset before it rotated away from p, wherever the file is now:
+//   - at a path the pattern matches: the tailer of that path resumes it there
+//     (see startPosition), unless that path's own stored position is further;
+//   - at another path: a drain reads it, as after a rotation;
+//   - nowhere: the bytes known to remain in it are reported as missed.
+func (s *scanner) resumeElsewhere(p string, stored handoff, v *view) {
+	identifier := tailer.Identifier(s.host, s.share, p)
+	if s.tailingFile(stored.file) || s.drainingFile(stored.file) {
+		return // this scanner reads it already
+	}
+	if h, found := s.resumePoint(stored.file); found && h.offset >= stored.offset {
+		return
+	}
+	at, _, found := v.findFile(stored.file)
+	if !found && !v.failed {
+		if missed := stored.size - stored.offset; missed > 0 {
+			tailer.RecordMissedBytesOf(s.source, identifier, missed, "Rotated SMB file is no longer listed")
+		} else {
+			log.Infof("SMB file %s: %s, read up to offset %d, rotated away while it was not tailed and is no longer listed", identifier, stored.file, stored.offset)
+		}
+		return
+	}
+	if _, matched := v.matches[at]; found && matched {
+		atIdentifier := tailer.Identifier(s.host, s.share, at)
+		if own, ok := s.storedPosition(at, atIdentifier); ok && !s.fromStart[at] && own.file.FileID == stored.file.FileID && own.file.Matches(stored.file) && own.offset >= stored.offset {
+			return
+		}
+		log.Infof("SMB file %s rotated to %s while it was not tailed; reading %s from offset %d there", identifier, atIdentifier, stored.file, stored.offset)
+		s.resume[stored.file.FileID] = stored
+		return
+	}
+	log.Infof("SMB file %s rotated while it was not tailed; reading the rest of %s from offset %d wherever it was moved", identifier, stored.file, stored.offset)
+	t := s.newTailer(p, stored.file, s.patterns[p], false)
+	if found {
+		t.SetReadPath(at)
+	}
+	t.Start(stored.offset)
+	s.startDrain(t)
+}
+
+// tailingFile reports whether an active tailer reads the file file.
+func (s *scanner) tailingFile(file client.Identity) bool {
+	for _, t := range s.active {
+		if t.FileID() == file.FileID && t.Identity().Matches(file) {
+			return true
+		}
+	}
+	return false
+}
+
 // startTailer starts a tailer for the matched path p and polls it.
 func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry, errs *scanErrors) {
 	if s.drainingFile(entry.Identity()) {
@@ -375,10 +500,23 @@ func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry,
 	pattern := s.patterns[p]
 	delete(s.patterns, p)
 
+	t := s.newTailer(p, file, pattern, rotated)
+	t.Start(offset)
+	s.active[p] = t
+	s.l.tailers.Add(t)
+	s.source.AddInput(identifier)
+	s.l.registry.SetTailed(identifier, true)
+	s.poll(ctx, p, t, &entry, errs)
+}
+
+// newTailer returns a tailer, not started, of file at p, whose decoder starts
+// with the multiline pattern pattern. rotated tells that it replaces a tailer
+// whose file rotated.
+func (s *scanner) newTailer(p string, file client.Identity, pattern *regexp.Regexp, rotated bool) *tailer.Tailer {
 	replaceable := sources.NewReplaceableSource(s.source)
 	info := status.NewInfoRegistry()
 	outputChan, monitor := s.l.pipelineProvider.NextPipelineChanWithMonitor()
-	t := tailer.NewTailer(&tailer.TailerOptions{
+	return tailer.NewTailer(&tailer.TailerOptions{
 		Source:          replaceable,
 		Client:          s.client,
 		Host:            s.host,
@@ -394,19 +532,14 @@ func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry,
 		PollBudget:      s.l.pollBudget,
 		ForceReadEvery:  s.l.forceReadEvery,
 	})
-	t.Start(offset)
-	s.active[p] = t
-	s.l.tailers.Add(t)
-	s.source.AddInput(identifier)
-	s.l.registry.SetTailed(identifier, true)
-	s.poll(ctx, p, t, &entry, errs)
 }
 
 // startPosition returns the offset a new tailer of p starts at:
 //   - where a drain of the same file ended, whatever the file's name was then;
 //   - where the scanner this one replaces stopped reading p, when p still
 //     holds the same file;
-//   - 0 for a path whose previous file was replaced while being tailed;
+//   - 0 for a path whose previous file was replaced while being tailed, or
+//     rotated away while the path was not tailed (see resumeRotatedAway);
 //   - the registry offset, when it was recorded for the same file identity
 //     and is not past the end of the file;
 //   - 0 when the registry offset was recorded for another file identity or is
@@ -429,6 +562,11 @@ func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry,
 func (s *scanner) startPosition(ctx context.Context, p, identifier string, entry client.Entry, errs *scanErrors) (offset int64, file client.Identity, ok bool) {
 	file = entry.Identity()
 	if h, found := s.resumePoint(file); found {
+		// The tailer may forward nothing, its file read to its end, while
+		// the registry entry of the path the file left gets another file's
+		// offsets: record where the file resumes under p, so that a restart
+		// resumes it there too.
+		s.seedOffset(identifier, h.file, h.offset)
 		delete(s.resume, file.FileID)
 		return h.offset, h.file, true
 	}
@@ -489,6 +627,15 @@ func (s *scanner) resumePoint(file client.Identity) (handoff, bool) {
 		return handoff{}, false
 	}
 	return h, true
+}
+
+// seedOffset records offset of file under identifier, unless the registry
+// already holds that file there at least as far.
+func (s *scanner) seedOffset(identifier string, file client.Identity, offset int64) {
+	if stored, at, ok := tailer.DecodeOffset(s.l.registry.GetOffset(identifier)); ok && sameFile(stored, file) && at >= offset {
+		return
+	}
+	s.l.registry.SetOffset(identifier, tailer.EncodeOffset(file, offset))
 }
 
 // sameFile reports whether a and b identify the same file, as far as they

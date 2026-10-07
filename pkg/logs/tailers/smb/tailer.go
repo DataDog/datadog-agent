@@ -445,12 +445,26 @@ func (t *Tailer) RecordMissedBytes(reason string) int64 {
 	if missed <= 0 {
 		return 0
 	}
-	metrics.BytesMissed.Add(missed)
-	metrics.TlmBytesMissed.Add(float64(missed))
-	missedSource, missedService := missedBytesIdentity(t.source.Config())
-	metrics.RecordMissedBytes(missedSource, missedService, missed)
+	recordMissed(t.source.Config(), missed)
 	log.Warnf("%s: %d bytes of SMB file %s (last read as %s) were not read and are lost", reason, missed, t.identifier, t.readPath)
 	return missed
+}
+
+// RecordMissedBytesOf reports missed bytes of the file read at identifier as
+// lost, as RecordMissedBytes does, for a file no tailer reads anymore.
+func RecordMissedBytesOf(source *sources.LogSource, identifier string, missed int64, reason string) {
+	if missed <= 0 {
+		return
+	}
+	recordMissed(source.Config, missed)
+	log.Warnf("%s: %d bytes of SMB file %s were not read and are lost", reason, missed, identifier)
+}
+
+func recordMissed(cfg *config.LogsConfig, missed int64) {
+	metrics.BytesMissed.Add(missed)
+	metrics.TlmBytesMissed.Add(float64(missed))
+	missedSource, missedService := missedBytesIdentity(cfg)
+	metrics.RecordMissedBytes(missedSource, missedService, missed)
 }
 
 // forwardMessages forwards decoded messages to the output channel until the

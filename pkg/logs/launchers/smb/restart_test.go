@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
@@ -112,6 +113,196 @@ func TestRestartMidDrainResumesThePathsNewFile(t *testing.T) {
 	restarted.scan()
 	assert.Equal(t, []string{"line 1", "line 2", "line 4", "line 5"}, restarted.finish(),
 		"the new file resumes where it stopped, and the rotated file, which the pattern does not match, is not read again")
+}
+
+// TestRestartSpanningARotation rotates a file while the Agent is down: the
+// registry holds the offset of the file renamed to a name the pattern does not
+// match. The restarted launcher drains the rest of the rotated file from that
+// offset, and reads the path's new file from the beginning.
+func TestRestartSpanningARotation(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t)
+	h.share.Write("app/app.log", []byte(lines(1, 2)))
+	h.scan()
+	h.out.waitLines(t, 2)
+
+	restarted := h.restart()
+	h.share.Append("app/app.log", []byte(lines(3, 3)))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", []byte(lines(4, 4)))
+
+	restarted.scan()
+	require.Len(t, restarted.scanner.draining, 1, "the rotated file is drained from its stored offset")
+	assert.Equal(t, "app/app.log.1", restarted.scanner.draining[0].t.ReadPath())
+	restarted.scan()
+	restarted.scan()
+	assert.Empty(t, restarted.scanner.draining)
+	assert.ElementsMatch(t, want(1, 4), restarted.finish(), "each line once")
+	assert.Empty(t, metrics.MissedBytesSnapshot())
+}
+
+// TestRestartSpanningARotationToAMatchedName is TestRestartSpanningARotation
+// with a pattern that matches the rotated name, which sorts before the path:
+// the tailer of the rotated name resumes the file at its stored offset,
+// although the scan starts it before it looks at the path.
+func TestRestartSpanningARotationToAMatchedName(t *testing.T) {
+	h := newHarness(t, withPath("app/*"))
+	first := h.share.Write("app/b.log", []byte(lines(1, 2)))
+	h.scan()
+	h.out.waitLines(t, 2)
+
+	restarted := h.restart()
+	h.share.Append("app/b.log", []byte(lines(3, 3)))
+	require.NoError(t, h.share.Rename("app/b.log", "app/a.log"))
+	h.share.Write("app/b.log", []byte(lines(4, 4)))
+
+	restarted.scan()
+	assert.Empty(t, restarted.scanner.draining)
+	assert.Equal(t, first, restarted.activeTailer("app/a.log").FileID())
+	assert.ElementsMatch(t, want(1, 4), restarted.finish(), "each line once")
+}
+
+// TestRestartResumesARotatedFileFromItsFurthestStoredOffset: the registry
+// holds offsets of one file under two paths, the one it rotated away from,
+// whose new file sent nothing, and the matched name it rotated to. A restart
+// finds other files at both, and the file at a name the pattern excludes: its
+// drain starts from the furthest of the two offsets, whatever the order of the
+// paths.
+func TestRestartResumesARotatedFileFromItsFurthestStoredOffset(t *testing.T) {
+	for _, rotatedTo := range []string{"app/app.log.1", "app/0.app.log"} {
+		t.Run("rotated to "+rotatedTo, func(t *testing.T) {
+			h := newHarness(t, withPath("app/*app.log*"), withExcludes("app/app.log.2"))
+			h.share.Write("app/app.log", []byte(lines(1, 1)))
+			h.scan()
+			h.out.waitLines(t, 1)
+			h.commitOffsets()
+			// app.log rotates to a matched name; its new file stays empty.
+			h.share.Append("app/app.log", []byte(lines(2, 2)))
+			require.NoError(t, h.share.Rename("app/app.log", rotatedTo))
+			h.share.Write("app/app.log", nil)
+			h.scan()
+			h.out.waitLines(t, 2)
+			for range 2 {
+				h.clock.Add(closeTimeout) // the drain ends
+				h.scan()
+			}
+			require.Empty(t, h.scanner.draining)
+			h.share.Append(rotatedTo, []byte(lines(3, 3)))
+			h.scan() // the tailer of the rotated name resumes the file
+			h.out.waitLines(t, 3)
+			file := h.fileOf(rotatedTo)
+
+			restarted := h.restart()
+			require.Equal(t, tailer.EncodeOffset(file, int64(len(lines(1, 1)))), h.registry.GetOffset(identifier("app/app.log")))
+			require.Equal(t, tailer.EncodeOffset(file, int64(len(lines(1, 3)))), h.registry.GetOffset(identifier(rotatedTo)))
+			// While the Agent is down, the file moves to the excluded app.log.2
+			// and both matched paths get other files.
+			h.share.Append(rotatedTo, []byte(lines(4, 4)))
+			require.NoError(t, h.share.Rename(rotatedTo, "app/app.log.2"))
+			require.NoError(t, h.share.Rename("app/app.log", rotatedTo))
+			h.share.Write("app/app.log", []byte(lines(5, 5)))
+			sent := len(h.out.lines())
+
+			restarted.scan()
+			require.Len(t, restarted.scanner.draining, 1)
+			for range 2 {
+				restarted.clock.Add(closeTimeout) // the drain ends
+				restarted.scan()
+			}
+			assert.Empty(t, restarted.scanner.draining)
+			assert.ElementsMatch(t, want(4, 5), restarted.finish()[sent:], "lines 2 and 3, committed under the rotated name, are not sent again")
+		})
+	}
+}
+
+// TestRestartSpanningARotationToAMatchedNameAtTheEndOfTheFile is
+// TestRestartSpanningARotationToAMatchedName with a file read to its end: the
+// tailer that resumes it at its new name forwards nothing, and the path's new
+// file overwrites the registry entry of the old name. Where the rotated file
+// was read up to is recorded under its new name, so that a second restart
+// neither reads it again (beginning) nor skips what was appended to it (end).
+func TestRestartSpanningARotationToAMatchedNameAtTheEndOfTheFile(t *testing.T) {
+	for _, mode := range []string{"beginning", "end"} {
+		t.Run("start_position "+mode, func(t *testing.T) {
+			h := newHarness(t, withPath("app/app.log*"), withStartPosition(mode))
+			h.scan() // before app.log exists: it is read from the beginning
+			h.share.Write("app/app.log", []byte(lines(1, 2)))
+			h.scan()
+			h.out.waitLines(t, 2)
+
+			restarted := h.restart()
+			require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+			h.share.Write("app/app.log", []byte(lines(3, 3)))
+			restarted.scan()
+			restarted.out.waitLines(t, 3)
+			require.EqualValues(t, len(lines(1, 2)), restarted.activeTailer("app/app.log.1").Offset())
+			assert.Equal(t, tailer.EncodeOffset(restarted.fileOf("app/app.log.1"), int64(len(lines(1, 2)))),
+				h.registry.GetOffset(identifier("app/app.log.1")),
+				"the resumed position is recorded under the rotated file's new name")
+
+			again := restarted.restart() // commits line 3 under app.log
+			again.share.Append("app/app.log.1", []byte(lines(4, 4)))
+			again.scan()
+			again.out.waitLines(t, 4)
+			assert.ElementsMatch(t, want(1, 4), again.finish(), "each line once")
+		})
+	}
+}
+
+// TestSecretRefreshSpanningARotation replaces a source, as after a secret
+// refresh, right after its file rotated, before the scanner of the replaced
+// source saw the rotation: the new scanner reads the rest of the rotated file
+// from where the replaced one stopped. When the rotated file is gone already,
+// the bytes the replaced scanner knew it held are reported missed.
+func TestSecretRefreshSpanningARotation(t *testing.T) {
+	for _, deleted := range []bool{false, true} {
+		t.Run(fmt.Sprintf("rotated file deleted %t", deleted), func(t *testing.T) {
+			metrics.ResetMissedBytesForTest()
+			t.Cleanup(metrics.ResetMissedBytesForTest)
+			st := startLauncher(t)
+			entry := func(password string) *sources.LogSource {
+				return newSMBSource("demo", func(c *config.LogsConfig) {
+					c.IntegrationSource = "file:/etc/datadog-agent/conf.d/demo.d/conf.yaml"
+					c.SMB.Password = password
+				})
+			}
+			st.share.Write("app/app.log", []byte(lines(1, 2)))
+			st.sources.AddSource(entry("old-key"))
+			st.out.waitLines(t, 2)
+
+			// The replaced scanner lists line 3 but cannot read it yet.
+			st.share.Append("app/app.log", []byte(lines(3, 3)))
+			reads := st.share.Calls(fake.OpReadAt)
+			st.share.FailNextPath(fake.OpReadAt, "app/app.log", fake.ErrSharing)
+			st.clock.Add(time.Second)
+			st.waitFor(t, func() bool { return st.share.Calls(fake.OpReadAt) > reads }, "the scan tries to read line 3")
+
+			require.NoError(t, st.share.Rename("app/app.log", "app/app.log.1"))
+			if deleted {
+				require.NoError(t, st.share.Delete("app/app.log.1"))
+			}
+			st.share.Write("app/app.log", []byte(lines(4, 4)))
+			refreshed := entry("new-key")
+			st.sources.AddSource(refreshed)
+			wantLines := want(1, 4)
+			if deleted {
+				wantLines = []string{"line 1", "line 2", "line 4"}
+			}
+			st.out.waitLines(t, len(wantLines))
+
+			st.launcher.Stop()
+			st.out.flush()
+			assert.ElementsMatch(t, wantLines, st.out.lines())
+			if !deleted {
+				assert.Empty(t, metrics.MissedBytesSnapshot())
+				return
+			}
+			snapshot := metrics.MissedBytesSnapshot()
+			require.Len(t, snapshot, 1)
+			assert.Equal(t, int64(len(lines(3, 3))), snapshot[0].Bytes, "the line the replaced scanner listed but did not read")
+		})
+	}
 }
 
 // passwordServer is a dial function in front of a fake share that only
