@@ -1,0 +1,24 @@
+datadog:
+  kubelet:
+    tlsVerify: false
+  # envDict rather than env: Helm replaces a list-valued `env` wholesale across
+  # values files, which would drop the fakeintake endpoints the framework
+  # injects into datadog.env.
+  envDict:
+    DD_INFRASTRUCTURE_MODE: cloud_cost_only
+
+agents:
+  useHostNetwork: true
+
+clusterAgent:
+  enabled: true
+  confd:
+    orchestrator.yaml: |-
+      init_config:
+      instances:
+        - collectors:
+          - pods
+          - nodes
+          - deployments
+  envDict:
+    DD_INFRASTRUCTURE_MODE: cloud_cost_only

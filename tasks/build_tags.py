@@ -43,6 +43,7 @@ GAZELLE_BUILD_TAGS = _data.GAZELLE_BUILD_TAGS
 
 # Per-binary inclusion lists
 AGENT_TAGS = _data.AGENT_TAGS
+AGENT_RECORDER_TAGS = _data.AGENT_RECORDER_TAGS
 AGENT_HEROKU_TAGS = _data.AGENT_HEROKU_TAGS
 FIPS_TAGS = _data.FIPS_TAGS
 CLUSTER_AGENT_TAGS = _data.CLUSTER_AGENT_TAGS
@@ -152,6 +153,14 @@ build_tags = {
         "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
         "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
     },
+    AgentFlavor.recorder: {
+        "agent": AGENT_RECORDER_TAGS,
+        "trace-agent": TRACE_AGENT_TAGS,
+        "process-agent": PROCESS_AGENT_TAGS,
+        "privateactionrunner": PRIVATEACTIONRUNNER_TAGS,
+        "lint": AGENT_RECORDER_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
+        "unit-tests": AGENT_RECORDER_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
+    },
 }
 
 
@@ -190,7 +199,7 @@ def compute_build_tags_for_flavor(
     the flavor or arch. Otherwise, use the list of build tags to include, minus incompatible tags
     for the given architecture.
 
-    Then, remove from these the provided list of tags to exclude.
+    Then, remove the provided exclusions.
     """
     target_platform = _resolve_target_platform(platform)
 

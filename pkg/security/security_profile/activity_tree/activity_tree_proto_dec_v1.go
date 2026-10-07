@@ -43,7 +43,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 		DNSNames:       make(map[string]*DNSNode, len(pan.DnsNames)),
 		IMDSEvents:     make(map[IMDSInfo]*IMDSNode, len(pan.ImdsEvents)),
 		Sockets:        make([]*SocketNode, 0, len(pan.Sockets)),
-		Syscalls:       make([]*SyscallNode, 0, len(pan.SyscallNodes)),
+		Syscalls:       make(map[int]*SyscallNode, len(pan.SyscallNodes)),
 		NodeBase:       NewNodeBase(),
 		NetworkDevices: make(map[model.NetworkDeviceContext]*NetworkDeviceNode, len(pan.NetworkDevices)),
 		Capabilities:   make([]*CapabilityNode, 0, len(pan.CapabilityNodes)),
@@ -88,7 +88,8 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 	}
 
 	for _, sysc := range pan.SyscallNodes {
-		ppan.Syscalls = append(ppan.Syscalls, protoDecodeSyscallNode(sysc, getIDFromImageTag))
+		syscallNode := protoDecodeSyscallNode(sysc, getIDFromImageTag)
+		ppan.Syscalls[syscallNode.Syscall] = syscallNode
 	}
 
 	for _, networkDevice := range pan.NetworkDevices {
@@ -243,7 +244,6 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode, getIDFromImageTa
 		File:           newFileInfo(protoDecodeFileEvent(fan.File)),
 		GenerationType: NodeGenerationType(fan.GenerationType),
 		Open:           protoDecodeOpenNode(fan.Open),
-		Children:       make(map[string]*FileNode, len(fan.Children)),
 		NodeBase:       NewNodeBase(),
 	}
 
@@ -259,9 +259,12 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode, getIDFromImageTa
 		pfan.MatchedRules = append(pfan.MatchedRules, protoDecodeProtoMatchedRule(rule))
 	}
 
-	for _, child := range fan.Children {
-		node := protoDecodeFileActivityNode(child, getIDFromImageTag)
-		pfan.Children[node.Name] = node
+	if len(fan.Children) > 0 {
+		pfan.Children = make(map[string]*FileNode, len(fan.Children))
+		for _, child := range fan.Children {
+			node := protoDecodeFileActivityNode(child, getIDFromImageTag)
+			pfan.Children[node.Name] = node
+		}
 	}
 
 	return pfan
@@ -550,10 +553,12 @@ func decodeProtoCapabilityNode(pan *adproto.CapabilityNode, getIDFromImageTag fu
 	}
 
 	capNode := &CapabilityNode{
-		NodeBase:       NewNodeBase(),
-		GenerationType: Runtime,
-		Capability:     pan.Capability,
-		Capable:        pan.IsCapable,
+		NodeBase:            NewNodeBase(),
+		GenerationType:      Runtime,
+		Capability:          pan.Capability,
+		Capable:             pan.IsCapable,
+		AttemptedHostUserNS: pan.IsAttemptedHostUserns,
+		CapableHostUserNS:   pan.IsCapableHostUserns,
 	}
 
 	if pan.NodeBase != nil {

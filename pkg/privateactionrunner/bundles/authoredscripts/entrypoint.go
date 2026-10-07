@@ -6,6 +6,8 @@
 package com_datadoghq_authoredscripts
 
 import (
+	"net/http"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	authoredscriptssupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -17,13 +19,13 @@ type AuthoredScripts struct {
 }
 
 // NewAuthoredScripts creates the bundle and subscribes its catalog to Remote Config.
-func NewAuthoredScripts(client rcclient.Client) (*AuthoredScripts, error) {
+func NewAuthoredScripts(client rcclient.Client, agentHTTPClient *http.Client) (*AuthoredScripts, error) {
 	catalog, err := authoredscriptssupport.NewRemoteCatalog(client, state.ProductUpdaterCatalogDD)
 	if err != nil {
 		return nil, err
 	}
 	return &AuthoredScripts{
-		runAuthoredScript: NewRunAuthoredScriptHandler(catalog),
+		runAuthoredScript: NewRunAuthoredScriptHandler(catalog, agentHTTPClient),
 	}, nil
 }
 
