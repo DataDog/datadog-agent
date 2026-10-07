@@ -303,6 +303,123 @@ func TestGetRequestBackoffDisabledByDefault(t *testing.T) {
 	require.Equal(t, 0, policy.calls)            // no exponential backoff was used
 }
 
+// loginFailingMux serves the API with a login endpoint that answers with failure for its first calls
+func loginFailingMux(failures int32, failure func(w http.ResponseWriter)) (*http.ServeMux, handler, handler) {
+	login := newHandler(func(w http.ResponseWriter, _ *http.Request, calls int32) {
+		if calls <= failures {
+			failure(w)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	endpoint := newHandler(func(w http.ResponseWriter, _ *http.Request, _ int32) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/j_security_check", login.Func)
+	mux.HandleFunc("/dataservice/client/token", tokenHandler)
+	mux.HandleFunc("/test", endpoint.Func)
+	return mux, login, endpoint
+}
+
+func TestGetRequestAuthFailureBackoff(t *testing.T) {
+	status := func(code int) func(w http.ResponseWriter) {
+		return func(w http.ResponseWriter) { w.WriteHeader(code) }
+	}
+	invalidCredentials := func(w http.ResponseWriter) {
+		// Cisco answers invalid credentials with the HTML login page
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("<html>login</html>"))
+	}
+
+	tests := []struct {
+		name               string
+		backoffEnabled     bool
+		failure            func(w http.ResponseWriter)
+		expectedError      string
+		expectedLoginCalls int
+		expectedBackoffs   int
+	}{
+		{name: "rate limited login backs off", backoffEnabled: true, failure: status(http.StatusTooManyRequests), expectedLoginCalls: 3, expectedBackoffs: 2},
+		{name: "server error on login backs off", backoffEnabled: true, failure: status(http.StatusServiceUnavailable), expectedLoginCalls: 3, expectedBackoffs: 2},
+		{name: "invalid credentials stop retrying", backoffEnabled: true, failure: invalidCredentials, expectedError: "invalid credentials", expectedLoginCalls: 1},
+		{name: "forbidden login stops retrying", backoffEnabled: true, failure: status(http.StatusForbidden), expectedError: "authentication failed, status code: 403", expectedLoginCalls: 1},
+		{name: "backoff disabled stops retrying", backoffEnabled: false, failure: status(http.StatusServiceUnavailable), expectedError: "authentication failed, status code: 503", expectedLoginCalls: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			policy := &countingBackOff{}
+			originalBackOff := newRetryBackOff
+			newRetryBackOff = func() backoff.BackOff { return policy }
+			defer func() { newRetryBackOff = originalBackOff }()
+
+			mux, login, endpoint := loginFailingMux(2, tt.failure)
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			client, err := testClient(server, WithMaxAttempts(5), WithBackoff(tt.backoffEnabled))
+			require.NoError(t, err)
+
+			resp, err := client.get("/test", nil)
+			if tt.expectedError == "" {
+				require.NoError(t, err)
+				require.Equal(t, []byte("ok"), resp)
+				require.Equal(t, 1, endpoint.numberOfCalls())
+			} else {
+				require.ErrorContains(t, err, tt.expectedError)
+				require.Equal(t, 0, endpoint.numberOfCalls())
+			}
+			require.Equal(t, tt.expectedLoginCalls, login.numberOfCalls())
+			require.Equal(t, tt.expectedBackoffs, policy.calls)
+		})
+	}
+}
+
+func TestGetRequestAuthFailureExhaustsAttempts(t *testing.T) {
+	policy := &countingBackOff{}
+	originalBackOff := newRetryBackOff
+	newRetryBackOff = func() backoff.BackOff { return policy }
+	defer func() { newRetryBackOff = originalBackOff }()
+
+	mux, login, _ := loginFailingMux(10, func(w http.ResponseWriter) { w.WriteHeader(http.StatusServiceUnavailable) })
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := testClient(server, WithMaxAttempts(3), WithBackoff(true))
+	require.NoError(t, err)
+
+	_, err = client.get("/test", nil)
+	// The authentication failure is reported, not a misleading API status code
+	require.EqualError(t, err, "authentication failed, status code: 503")
+	require.Equal(t, 3, login.numberOfCalls())
+	require.Equal(t, 2, policy.calls)
+}
+
+func TestGetRequestAuthFailureHonorsRetryAfter(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mux, login, _ := loginFailingMux(1, func(w http.ResponseWriter) {
+			w.Header().Set("Retry-After", "5")
+			w.WriteHeader(http.StatusTooManyRequests)
+		})
+
+		client, err := NewClient("sdwan.test", "testuser", "testpass", true, WithBackoff(true))
+		require.NoError(t, err)
+		transport := &recordingTransport{mux: mux, start: time.Now()}
+		client.httpClient.Transport = transport
+
+		_, err = client.get("/test", nil)
+		require.NoError(t, err)
+		require.Equal(t, 2, login.numberOfCalls())
+		// Login retried after the server-provided 5s, then token and API requests followed
+		require.Equal(t, []time.Duration{0, 5 * time.Second, 5 * time.Second, 5 * time.Second}, transport.sent)
+	})
+}
+
 // recordingTransport serves requests from a mux without opening sockets, so it can be used
 // inside a synctest bubble, and records the virtual time at which each request is sent
 type recordingTransport struct {

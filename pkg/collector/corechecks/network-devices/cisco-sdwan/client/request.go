@@ -101,7 +101,7 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 	operation := func() ([]byte, error) {
 		err := client.authenticate()
 		if err != nil {
-			return nil, backoff.Permanent(err)
+			return nil, client.authRetryError(err)
 		}
 
 		err = client.waitForRateLimit()
@@ -139,7 +139,8 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 	if client.ctx.Err() != nil {
 		return nil, client.ctx.Err()
 	}
-	if errors.Is(err, backoff.ErrPermanent) {
+	var authErr *authError
+	if errors.Is(err, backoff.ErrPermanent) || errors.As(err, &authErr) {
 		// Authentication or rate limiter wait failed, surface the underlying error
 		return nil, backoff.AsRetryError(err).LastErr
 	}
@@ -152,6 +153,18 @@ func (client *Client) retryBackOff() backoff.BackOff {
 		return &backoff.ZeroBackOff{}
 	}
 	return newRetryBackOff()
+}
+
+// authRetryError builds the error returned when authentication fails. When backoff is enabled,
+// transient failures of the authentication requests are retried like API requests, honoring
+// Retry-After. Everything else, including invalid credentials, rate limiter and cancellation
+// errors, stops retrying.
+func (client *Client) authRetryError(err error) error {
+	var authErr *authError
+	if client.ctx.Err() == nil && client.backoffEnabled && errors.As(err, &authErr) && authErr.transient() {
+		return client.retryError(authErr.statusCode, authErr.header, err)
+	}
+	return backoff.Permanent(err)
 }
 
 // retryError builds the error returned for a failed attempt. When backoff is enabled,
