@@ -100,6 +100,19 @@ func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessIn
 	}
 	sprocess.GetProcessArgv0(&pc)
 
+	pc.FileEvent.Filesystem = stringInterner.Deduplicate(pc.FileEvent.Filesystem)
+	pc.FileEvent.PkgName = stringInterner.Deduplicate(pc.FileEvent.PkgName)
+	pc.FileEvent.PkgVersion = stringInterner.Deduplicate(pc.FileEvent.PkgVersion)
+	pc.Comm = stringInterner.Deduplicate(pc.Comm)
+	pc.TTYName = stringInterner.Deduplicate(pc.TTYName)
+	pc.Argv0 = stringInterner.Deduplicate(pc.Argv0)
+	pc.Credentials.User = stringInterner.Deduplicate(pc.Credentials.User)
+	pc.Credentials.Group = stringInterner.Deduplicate(pc.Credentials.Group)
+	pc.Credentials.EUser = stringInterner.Deduplicate(pc.Credentials.EUser)
+	pc.Credentials.EGroup = stringInterner.Deduplicate(pc.Credentials.EGroup)
+	pc.Credentials.FSUser = stringInterner.Deduplicate(pc.Credentials.FSUser)
+	pc.Credentials.FSGroup = stringInterner.Deduplicate(pc.Credentials.FSGroup)
+
 	return ProcessInfo{
 		Pid:           pc.Pid,
 		Tid:           pc.Tid,
@@ -840,7 +853,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 
 	if filepathsInProcessCache[key] && profileImageTagID != 0 {
 		// check if the node was supposed to be removed, then update the last seen to now
-		if elem, ok := pn.GetSeenTimes(profileImageTagID); ok && elem.LastSeen.Before(before) {
+		if _, lastSeen, ok := pn.GetSeenTimes(profileImageTagID); ok && lastSeen < timeToNanos(before) {
 			pn.NodeBase.AppendImageTagID(profileImageTagID, time.Now())
 		}
 	}
