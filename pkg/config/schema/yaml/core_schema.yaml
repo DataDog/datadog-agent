@@ -6179,6 +6179,62 @@ properties:
         default: true
         comment: Core agent (disabled for Error Tracking Standalone, Logs Collection
           Only)
+  core_dump:
+    node_type: section
+    type: object
+    comment: Bounded core dumps. Used with go_core_dump and c_core_dump (Unix only).
+      See pkg/util/coredump/bounded.go.
+    properties:
+      dir:
+        node_type: setting
+        type: string
+        default: ''
+        description: |
+          Directory where the kernel core pattern writes core dumps. When set, and
+          `go_core_dump` or `c_core_dump` is true, the core dump size limit
+          (RLIMIT_CORE) is bounded by the other `core_dump` settings instead of
+          unlimited. When empty, the bounds are off.
+      max_size:
+        node_type: setting
+        type: string
+        default: 2GB
+        description: |
+          Maximum size of one core dump in bytes, for example `3GB`, `3Gi` or
+          `3221225472`. The suffixes K, M, G and T (with or without `i` and `B`)
+          are powers of 1024. The kernel truncates a larger core. An invalid value
+          disables core dumps and logs a warning.
+      min_free_disk:
+        node_type: setting
+        type: string
+        default: 10GB
+        description: |
+          Free space that must stay in `core_dump.dir` after a core of
+          `core_dump.max_size`. When the free space is less than
+          `min_free_disk + max_size`, core dumps are disabled (RLIMIT_CORE=0).
+          The free space comes from statfs, which does not see the sizeLimit of
+          a Kubernetes emptyDir: use `core_dump.max_total_size` for that.
+      max_total_size:
+        node_type: setting
+        type: string
+        default: ''
+        description: |
+          Maximum total size of the regular files in `core_dump.dir`, for example
+          `4Gi`. When the files in the directory plus `core_dump.max_size` are
+          larger, core dumps are disabled. Set it to the sizeLimit of the volume.
+          The directory is read once a minute: when N containers share the
+          volume, set `core_dump.max_size` to `max_total_size / N` or less.
+          Empty means no total limit.
+      max_age:
+        node_type: setting
+        type: string
+        default: 72h
+        description: |
+          Core dumps of this binary in `core_dump.dir` that are older than this
+          duration (for example `72h`) are deleted at start and every minute. While
+          a younger core of this binary is in the directory, core dumps are
+          disabled (at most one core per binary). A value of 0 never deletes
+          cores: one core then disables core dumps until you delete it. A value
+          without a unit, or less than 1m, is invalid and disables core dumps.
   csi:
     node_type: section
     type: object
