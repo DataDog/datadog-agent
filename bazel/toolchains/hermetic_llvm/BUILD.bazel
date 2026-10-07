@@ -3,6 +3,7 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_foreign_cc//toolchains/native_tools:native_tools_toolchain.bzl", "native_tool_toolchain")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(":windows_gnu.bzl", "windows_gnu_filegroup")
+load(":windows_msvc.bzl", "windows_msvc_filegroup")
 
 exports_files(["llvm_windres.sh"])
 
@@ -36,6 +37,7 @@ platform(
         "@platforms//cpu:x86_64",
         "@platforms//os:windows",
     ],
+    visibility = ["//visibility:public"],
 )
 
 # rules_foreign_cc's preinstalled make resolves to make.exe whenever the target
@@ -72,6 +74,42 @@ sh_test(
         "//bazel/tools/wine:wine_run",
     ],
     env = {
+        "OPENSSL_FILES": "$(rlocationpaths :openssl_windows)",
+        "WINE_RUN": "$(rlocationpath //bazel/tools/wine:wine_run)",
+    },
+    tags = ["manual"],
+    target_compatible_with = select({
+        "//:linux_arm64": [],
+        "//:linux_x86_64": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = ["@rules_shell//shell/runfiles"],
+)
+
+cc_binary(
+    name = "openssl_msvc_consumer",
+    srcs = ["openssl_msvc_consumer.c"],
+    tags = ["manual"],
+    target_compatible_with = ["@llvm//constraints/windows/abi:msvc"],
+    deps = ["@openssl//:openssl_msvc"],
+)
+
+windows_msvc_filegroup(
+    name = "openssl_msvc_consumer_windows",
+    srcs = [":openssl_msvc_consumer"],
+    tags = ["manual"],
+)
+
+sh_test(
+    name = "openssl_msvc_wine_test",
+    srcs = ["openssl_msvc_wine_test.sh"],
+    data = [
+        ":openssl_msvc_consumer_windows",
+        ":openssl_windows",
+        "//bazel/tools/wine:wine_run",
+    ],
+    env = {
+        "CONSUMER": "$(rlocationpath :openssl_msvc_consumer_windows)",
         "OPENSSL_FILES": "$(rlocationpaths :openssl_windows)",
         "WINE_RUN": "$(rlocationpath //bazel/tools/wine:wine_run)",
     },
