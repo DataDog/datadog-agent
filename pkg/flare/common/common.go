@@ -139,7 +139,7 @@ func GetExpVar(_ context.Context, fb flaretypes.FlareBuilder) error {
 	}
 	var all map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&all); err != nil {
-		return fmt.Errorf("error decoding trace-agent /debug/vars response: %v", err)
+		return fmt.Errorf("error decoding trace-agent /debug/vars response: %w", err)
 	}
 	v, err := yaml.Marshal(all)
 	if err != nil {

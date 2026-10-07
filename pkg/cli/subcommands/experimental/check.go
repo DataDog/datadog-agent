@@ -137,7 +137,7 @@ func runSchema(configPath string) ([]string, error) {
 	var config interface{}
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
-		return nil, fmt.Errorf("invalid YAML for '%s': %s", configPath, err)
+		return nil, fmt.Errorf("invalid YAML for '%s': %w", configPath, err)
 	}
 	return configschema.ValidateCoreConfig(config)
 }

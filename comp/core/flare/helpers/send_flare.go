@@ -213,7 +213,7 @@ func analyzeResponse(r *http.Response, apiKey string) (string, error) {
 		if len(sample) > 150 {
 			sample = sample[:150]
 		}
-		return response, fmt.Errorf("%v\nServer returned:\n%s", err, sample)
+		return response, fmt.Errorf("%w\nServer returned:\n%s", err, sample)
 	}
 
 	if res.Error != "" {

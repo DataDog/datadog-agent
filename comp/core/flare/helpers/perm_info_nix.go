@@ -36,14 +36,14 @@ func (p permissionsInfos) add(filePath string) {
 
 	fi, err := os.Stat(filePath)
 	if err != nil {
-		info.err = fmt.Errorf("could not stat file %s: %s", filePath, err)
+		info.err = fmt.Errorf("could not stat file %s: %w", filePath, err)
 		return
 	}
 	info.mode = fi.Mode().String()
 
 	var sys syscall.Stat_t
 	if err := syscall.Stat(filePath, &sys); err != nil {
-		info.err = fmt.Errorf("can't retrieve file %s uid/gid infos: %s", filePath, err)
+		info.err = fmt.Errorf("can't retrieve file %s uid/gid infos: %w", filePath, err)
 		return
 	}
 

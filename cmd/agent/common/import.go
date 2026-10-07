@@ -40,7 +40,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	// read the old configuration in memory
 	agentConfig, err := legacy.GetAgentConfig(datadogConfPath)
 	if err != nil {
-		return fmt.Errorf("unable to read data from %s: %v", datadogConfPath, err)
+		return fmt.Errorf("unable to read data from %s: %w", datadogConfPath, err)
 	}
 
 	// the new config file might not exist, create it
@@ -48,7 +48,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	if _, err := os.Stat(datadogYamlPath); os.IsNotExist(err) {
 		f, err := os.Create(datadogYamlPath)
 		if err != nil {
-			return fmt.Errorf("error creating %s: %v", datadogYamlPath, err)
+			return fmt.Errorf("error creating %s: %w", datadogYamlPath, err)
 		}
 		f.Close()
 		created = true
@@ -60,7 +60,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	cfg.AddConfigPath(newConfigDir)
 	err = pkgconfigsetup.LoadDatadog(cfg, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, nil)
 	if err != nil {
-		return fmt.Errorf("unable to load Datadog config file: %s", err)
+		return fmt.Errorf("unable to load Datadog config file: %w", err)
 	}
 
 	// we won't overwrite the conf file if it contains a valid api_key
@@ -72,7 +72,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	// merge current agent configuration with the converted data
 	err = legacy.FromAgentConfig(agentConfig, configConverter)
 	if err != nil {
-		return fmt.Errorf("unable to convert configuration data from %s: %v", datadogConfPath, err)
+		return fmt.Errorf("unable to convert configuration data from %s: %w", datadogConfPath, err)
 	}
 
 	// move existing config files to the new configuration directory
@@ -84,7 +84,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 				color.BlueString(filepath.Join(oldConfigDir, "conf.d")),
 			)
 		} else {
-			return fmt.Errorf("unable to list config files from %s: %v", oldConfigDir, err)
+			return fmt.Errorf("unable to list config files from %s: %w", oldConfigDir, err)
 		}
 	}
 
@@ -121,7 +121,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		}
 
 		if err := copyFile(src, dst, force, tr); err != nil {
-			return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
+			return fmt.Errorf("unable to copy %s to %s: %w", src, dst, err)
 		}
 
 		fmt.Fprintf(
@@ -143,14 +143,14 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	// marshal the config object to YAML
 	b, err := yaml.Marshal(cfg.AllSettings())
 	if err != nil {
-		return fmt.Errorf("unable to marshal config to YAML: %v", err)
+		return fmt.Errorf("unable to marshal config to YAML: %w", err)
 	}
 
 	// dump the current configuration to datadog.yaml
 	// file permissions will be used only to create the file if doesn't exist,
 	// please note on Windows such permissions have no effect.
 	if err = os.WriteFile(datadogYamlPath, b, 0640); err != nil {
-		return fmt.Errorf("unable to write config to %s: %v", datadogYamlPath, err)
+		return fmt.Errorf("unable to write config to %s: %w", datadogYamlPath, err)
 	}
 
 	fmt.Fprintf(
@@ -170,7 +170,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 				color.BlueString(filepath.Join(oldConfigDir, "conf.d", "auto_conf")),
 			)
 		} else {
-			return fmt.Errorf("unable to list auto_conf files from %s: %v", oldConfigDir, err)
+			return fmt.Errorf("unable to list auto_conf files from %s: %w", oldConfigDir, err)
 		}
 	}
 
@@ -212,7 +212,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	// Extract trace-agent specific info and dump it to its own config file.
 	imported, err := configTraceAgent(datadogConfPath, traceAgentConfPath, force)
 	if err != nil {
-		return fmt.Errorf("failed to import Trace Agent specific settings: %v", err)
+		return fmt.Errorf("failed to import Trace Agent specific settings: %w", err)
 	}
 	if imported {
 		fmt.Printf("Wrote Trace Agent specific settings to %s\n", traceAgentConfPath)
@@ -229,7 +229,7 @@ func copyFile(src, dst string, overwrite bool, transformations []TransformationF
 			// we'll overwrite, backup the original file first
 			err = os.Rename(dst, dst+".bak")
 			if err != nil {
-				return fmt.Errorf("unable to create a backup copy of the destination file: %v", err)
+				return fmt.Errorf("unable to create a backup copy of the destination file: %w", err)
 			}
 		} else {
 			return errors.New("destination file already exists, run the command again with --force or -f to overwrite it")
@@ -244,13 +244,13 @@ func copyFile(src, dst string, overwrite bool, transformations []TransformationF
 
 	data, err := os.ReadFile(src)
 	if err != nil {
-		return fmt.Errorf("unable to read file %s : %s", src, err)
+		return fmt.Errorf("unable to read file %s : %w", src, err)
 	}
 
 	for _, transformation := range transformations {
 		data, err = transformation(data)
 		if err != nil {
-			return fmt.Errorf("unable to convert file %s : %s", src, err)
+			return fmt.Errorf("unable to convert file %s : %w", src, err)
 		}
 	}
 
@@ -264,17 +264,17 @@ func copyFile(src, dst string, overwrite bool, transformations []TransformationF
 	if errGroup == nil && errUser == nil {
 		ddGID, err := strconv.Atoi(ddGroup.Gid)
 		if err != nil {
-			return fmt.Errorf("Couldn't convert dd-agent group ID: %s into an int: %s", ddGroup.Gid, err)
+			return fmt.Errorf("Couldn't convert dd-agent group ID: %s into an int: %w", ddGroup.Gid, err)
 		}
 
 		ddUID, err := strconv.Atoi(ddUser.Uid)
 		if err != nil {
-			return fmt.Errorf("Couldn't convert dd-agent user ID: %s into an int: %s", ddUser.Uid, err)
+			return fmt.Errorf("Couldn't convert dd-agent user ID: %s into an int: %w", ddUser.Uid, err)
 		}
 
 		err = os.Chown(dst, ddUID, ddGID)
 		if err != nil {
-			return fmt.Errorf("Couldn't change the file permissions for this check. Error: %s", err)
+			return fmt.Errorf("Couldn't change the file permissions for this check. Error: %w", err)
 		}
 	}
 
@@ -307,7 +307,7 @@ func configTraceAgent(datadogConfPath, traceAgentConfPath string, overwrite bool
 func relocateMinCollectionInterval(rawData []byte) ([]byte, error) {
 	data := make(map[interface{}]interface{})
 	if err := yaml.Unmarshal(rawData, &data); err != nil {
-		return nil, fmt.Errorf("error while unmarshalling Yaml : %v", err)
+		return nil, fmt.Errorf("error while unmarshalling Yaml : %w", err)
 	}
 
 	if _, ok := data["init_config"]; ok {

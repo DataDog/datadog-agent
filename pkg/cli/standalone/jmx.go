@@ -71,11 +71,11 @@ func execJmxCommand(command string,
 
 	_, ipcPortStr, err := net.SplitHostPort(agentAPI.CMDServerAddress().String())
 	if err != nil {
-		return fmt.Errorf("invalid CMD server address: %v", err)
+		return fmt.Errorf("invalid CMD server address: %w", err)
 	}
 	ipcPort, err := strconv.ParseUint(ipcPortStr, 10, 16)
 	if err != nil {
-		return fmt.Errorf("invalid port for IPC listener: %v", err)
+		return fmt.Errorf("invalid port for IPC listener: %w", err)
 	}
 	runner.IPCPort = int(ipcPort)
 

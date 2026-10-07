@@ -58,7 +58,7 @@ func (i *InstallerExec) getStatesWithTimeout(ctx context.Context, timeout, waitD
 	err = cmd.Run()
 	if err != nil {
 		if ctxErr := stateCtx.Err(); ctxErr != nil {
-			return nil, fmt.Errorf("error getting state from disk: %w: %v\n%s", ctxErr, err, stderr.String())
+			return nil, fmt.Errorf("error getting state from disk: %w: %w\n%s", ctxErr, err, stderr.String())
 		}
 		return nil, fmt.Errorf("error getting state from disk: %w\n%s", err, stderr.String())
 	}

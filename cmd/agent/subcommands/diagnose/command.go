@@ -473,7 +473,7 @@ func printPayload(name payloadName, _ log.Component, config config.Component, cl
 
 	r, err := client.Get(apiConfigURL, ipchttp.WithCloseConnection)
 	if err != nil {
-		return fmt.Errorf("Could not fetch metadata payload: %s", err)
+		return fmt.Errorf("Could not fetch metadata payload: %w", err)
 	}
 
 	fmt.Println(string(r))
@@ -490,7 +490,7 @@ func printHealthPlatformIssues(_ log.Component, config config.Component, client 
 
 	r, err := client.Get(apiConfigURL, ipchttp.WithCloseConnection)
 	if err != nil {
-		return fmt.Errorf("Could not fetch health platform issues: %s", err)
+		return fmt.Errorf("Could not fetch health platform issues: %w", err)
 	}
 
 	fmt.Println(string(r))
@@ -512,7 +512,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config, client ipc.HTTPCl
 	// Serialized diag config to pass it to Agent execution context
 	var cfgSer []byte
 	if cfgSer, err = json.Marshal(diagCfg); err != nil {
-		return nil, fmt.Errorf("error while encoding diagnose configuration: %s", err)
+		return nil, fmt.Errorf("error while encoding diagnose configuration: %w", err)
 	}
 
 	// Run diagnose code inside Agent process

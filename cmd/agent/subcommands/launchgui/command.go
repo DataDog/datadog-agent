@@ -63,7 +63,7 @@ func launchGui(config config.Component, _ *cliParams, _ log.Component, client ip
 	// By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
 	guiHost, err := system.IsLocalAddress(config.GetString("GUI_host"))
 	if err != nil {
-		return fmt.Errorf("GUI server host is not a local address: %s", err)
+		return fmt.Errorf("GUI server host is not a local address: %w", err)
 	}
 
 	endpoint, err := client.NewIPCEndpoint("/agent/gui/intent")

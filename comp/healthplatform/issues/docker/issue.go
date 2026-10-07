@@ -50,7 +50,7 @@ func (t *DockerPermissionIssue) BuildIssue(context map[string]string) (*healthpl
 		"impact":       "The agent cannot query the Docker daemon, so container metadata, logs, and checks that rely on the Docker API will be missing or incomplete.",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create issue extra: %v", err)
+		return nil, fmt.Errorf("failed to create issue extra: %w", err)
 	}
 
 	return &healthplatform.Issue{
@@ -151,7 +151,7 @@ func (t *DockerSocketUnavailableIssue) BuildIssue(context map[string]string) (*h
 		"impact":       "The agent cannot query the Docker daemon, so container metadata, logs, and checks that rely on the Docker API will be missing or incomplete.",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create issue extra: %v", err)
+		return nil, fmt.Errorf("failed to create issue extra: %w", err)
 	}
 
 	return &healthplatform.Issue{

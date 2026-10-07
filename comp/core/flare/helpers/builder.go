@@ -45,7 +45,7 @@ func newBuilder(root string, hostname string, localFlare bool, flareArgs types.F
 
 	fb.flareDir = filepath.Join(fb.tmpDir, hostname)
 	if err := os.MkdirAll(fb.flareDir, os.ModePerm); err != nil {
-		return nil, fmt.Errorf("Could not create root dir '%s' for flare: %v", fb.flareDir, err)
+		return nil, fmt.Errorf("Could not create root dir '%s' for flare: %w", fb.flareDir, err)
 	}
 
 	fb.scrubber = scrubber.New()
@@ -84,7 +84,7 @@ func newBuilder(root string, hostname string, localFlare bool, flareArgs types.F
 
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY, filePerm)
 	if err != nil {
-		return nil, fmt.Errorf("Could not create flare_creation.log file: %s", err)
+		return nil, fmt.Errorf("Could not create flare_creation.log file: %w", err)
 	}
 	fb.logFile = f
 
@@ -97,7 +97,7 @@ func newBuilder(root string, hostname string, localFlare bool, flareArgs types.F
 func NewFlareBuilder(localFlare bool, flareArgs types.FlareArgs) (types.FlareBuilder, error) {
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
-		return nil, fmt.Errorf("Could not create temp dir for flare: %s", err)
+		return nil, fmt.Errorf("Could not create temp dir for flare: %w", err)
 	}
 
 	// Get hostname, if there's an error in getting the hostname,

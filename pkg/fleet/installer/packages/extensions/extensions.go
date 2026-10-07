@@ -253,7 +253,7 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 				log.Warnf("Installation failed for %s, cleaning up files at %s", extension, extensionPath)
 				if cleanupErr := os.RemoveAll(extensionPath); cleanupErr != nil {
 					log.Errorf("Failed to cleanup extension files at %s: %v", extensionPath, cleanupErr)
-					err = fmt.Errorf("%w; cleanup failed: %v", err, cleanupErr)
+					err = fmt.Errorf("%w; cleanup failed: %w", err, cleanupErr)
 				}
 			}
 			if backupDir != "" {

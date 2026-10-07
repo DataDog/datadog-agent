@@ -225,7 +225,7 @@ func newSenderImpl(
 	//  When ported to EP Forwarder we will need to send each telemetry type on a separate pipeline.
 	endpoints, err := getEndpoints(cfgComp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get agent telemetry endpoints: %v", err)
+		return nil, fmt.Errorf("failed to get agent telemetry endpoints: %w", err)
 	}
 
 	// Get host information (only hostid is used for now)

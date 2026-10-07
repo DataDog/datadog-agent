@@ -57,7 +57,7 @@ func (ft *fileMutator) mutate(ctx context.Context) (rollback func() error, err e
 	// create backup and temporary file if the original file exists
 	if _, err := os.Stat(ft.path); err != nil {
 		if !os.IsNotExist(err) {
-			return nil, fmt.Errorf("could not stat file %s: %s", ft.path, err)
+			return nil, fmt.Errorf("could not stat file %s: %w", ft.path, err)
 		}
 		originalFileExists = false
 	}
@@ -65,20 +65,20 @@ func (ft *fileMutator) mutate(ctx context.Context) (rollback func() error, err e
 	var data []byte
 	if originalFileExists {
 		if err := copyFile(ft.path, ft.pathBackup); err != nil {
-			return nil, fmt.Errorf("could not create backup file %s: %s", ft.pathBackup, err)
+			return nil, fmt.Errorf("could not create backup file %s: %w", ft.pathBackup, err)
 		}
 		if err := copyFile(ft.pathBackup, ft.pathTmp); err != nil {
-			return nil, fmt.Errorf("could not create temporary file %s: %s", ft.pathTmp, err)
+			return nil, fmt.Errorf("could not create temporary file %s: %w", ft.pathTmp, err)
 		}
 		data, err = os.ReadFile(ft.pathTmp)
 		if err != nil {
-			return nil, fmt.Errorf("could not read file %s: %s", ft.pathTmp, err)
+			return nil, fmt.Errorf("could not read file %s: %w", ft.pathTmp, err)
 		}
 	}
 
 	res, err := ft.transformContent(ctx, data)
 	if err != nil {
-		return nil, fmt.Errorf("could not transform file %s: %s", ft.pathTmp, err)
+		return nil, fmt.Errorf("could not transform file %s: %w", ft.pathTmp, err)
 	}
 
 	// no changes needed
@@ -87,18 +87,18 @@ func (ft *fileMutator) mutate(ctx context.Context) (rollback func() error, err e
 	}
 
 	if err = writeFile(ft.pathTmp, res); err != nil {
-		return nil, fmt.Errorf("could not write file %s: %s", ft.pathTmp, err)
+		return nil, fmt.Errorf("could not write file %s: %w", ft.pathTmp, err)
 	}
 
 	// validate temporary file if validation function provided
 	if ft.validateTemp != nil {
 		if err = ft.validateTemp(); err != nil {
-			return nil, fmt.Errorf("could not validate temporary file %s: %s", ft.pathTmp, err)
+			return nil, fmt.Errorf("could not validate temporary file %s: %w", ft.pathTmp, err)
 		}
 	}
 
 	if err = os.Rename(ft.pathTmp, ft.path); err != nil {
-		return nil, fmt.Errorf("could not rename temporary file %s to %s: %s", ft.pathTmp, ft.path, err)
+		return nil, fmt.Errorf("could not rename temporary file %s to %s: %w", ft.pathTmp, ft.path, err)
 	}
 
 	// prepare rollback function

@@ -37,7 +37,7 @@ func fsContainsAll(a fs.FS, b fs.FS) error {
 		defer func() {
 			cerr := entryA.Close()
 			if cerr != nil {
-				err = fmt.Errorf("close entryA %v: %w", cerr, err)
+				err = fmt.Errorf("close entryA %w: %w", cerr, err)
 			}
 		}()
 		entryB, err := b.Open(path)
@@ -47,7 +47,7 @@ func fsContainsAll(a fs.FS, b fs.FS) error {
 		defer func() {
 			cerr := entryB.Close()
 			if cerr != nil {
-				err = fmt.Errorf("close entryB %v: %w", cerr, err)
+				err = fmt.Errorf("close entryB %w: %w", cerr, err)
 			}
 		}()
 		entryAStat, err := entryA.Stat()

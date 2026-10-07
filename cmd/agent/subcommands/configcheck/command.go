@@ -135,12 +135,12 @@ func getConfigCheckResponse(client ipc.HTTPClient) (*integration.ConfigCheckResp
 
 	res, err := endpoint.DoGet()
 	if err != nil {
-		return nil, fmt.Errorf("the agent ran into an error while checking config: %v", err)
+		return nil, fmt.Errorf("the agent ran into an error while checking config: %w", err)
 	}
 
 	err = json.Unmarshal(res, cr)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse configcheck: %v", err)
+		return nil, fmt.Errorf("unable to parse configcheck: %w", err)
 	}
 
 	return cr, nil

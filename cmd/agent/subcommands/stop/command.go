@@ -65,7 +65,7 @@ func stop(config config.Component, _ *cliParams, _ log.Component, client ipc.HTT
 
 	_, e := client.Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if e != nil {
-		return fmt.Errorf("Error stopping the agent: %v", e)
+		return fmt.Errorf("Error stopping the agent: %w", e)
 	}
 
 	fmt.Println("Agent successfully stopped")

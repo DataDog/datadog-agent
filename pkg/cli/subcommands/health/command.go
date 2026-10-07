@@ -104,12 +104,12 @@ func requestHealth(_ log.Component, config config.Component, cliParams *cliParam
 			err = errors.New(e)
 		}
 
-		return fmt.Errorf("could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues", err)
+		return fmt.Errorf("could not reach agent: %w \nMake sure the agent is running before requesting the status and contact support if you continue having issues", err)
 	}
 
 	s := new(health.Status)
 	if err = json.Unmarshal(r, s); err != nil {
-		return fmt.Errorf("error unmarshalling json: %s", err)
+		return fmt.Errorf("error unmarshalling json: %w", err)
 	}
 
 	// Handle JSON output

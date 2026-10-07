@@ -51,7 +51,7 @@ func SetAgentPermissions(ctx context.Context, configPath, installPath string) (e
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Couldn't load system-probe policy (%v).\n", err)
 		printManualInstructions(configPath, installPath)
-		return fmt.Errorf("couldn't load system-probe policy: %v", err)
+		return fmt.Errorf("couldn't load system-probe policy: %w", err)
 	}
 
 	// Check if semanage / restorecon are available
@@ -67,25 +67,25 @@ func SetAgentPermissions(ctx context.Context, configPath, installPath string) (e
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Couldn't install system-probe policy (%v).\n", err)
 		printManualInstructions(configPath, installPath)
-		return fmt.Errorf("couldn't install system-probe policy: %v", err)
+		return fmt.Errorf("couldn't install system-probe policy: %w", err)
 	}
 	cmd = telemetry.CommandContext(ctx, "semanage", "fcontext", "-a", "-t", "system_probe_t", filepath.Join(installPath, "bin/agent/agent"))
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Couldn't install system-probe policy (%v).\n", err)
 		printManualInstructions(configPath, installPath)
-		return fmt.Errorf("couldn't install system-probe policy: %v", err)
+		return fmt.Errorf("couldn't install system-probe policy: %w", err)
 	}
 	cmd = telemetry.CommandContext(ctx, "restorecon", "-v", filepath.Join(installPath, "embedded/bin/system-probe"))
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Couldn't install system-probe policy (%v).\n", err)
 		printManualInstructions(configPath, installPath)
-		return fmt.Errorf("couldn't install system-probe policy: %v", err)
+		return fmt.Errorf("couldn't install system-probe policy: %w", err)
 	}
 	cmd = telemetry.CommandContext(ctx, "restorecon", "-v", filepath.Join(installPath, "bin/agent/agent"))
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Couldn't install system-probe policy (%v).\n", err)
 		printManualInstructions(configPath, installPath)
-		return fmt.Errorf("couldn't install system-probe policy: %v", err)
+		return fmt.Errorf("couldn't install system-probe policy: %w", err)
 	}
 
 	return nil

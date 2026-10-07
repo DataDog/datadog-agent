@@ -34,7 +34,7 @@ func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
 		return nil, err
 	}
 	if err := os.Chmod(socketPath, 0700); err != nil {
-		return nil, fmt.Errorf("error setting socket permissions: %v", err)
+		return nil, fmt.Errorf("error setting socket permissions: %w", err)
 	}
 	return &localAPIImpl{
 		server:   &http.Server{},

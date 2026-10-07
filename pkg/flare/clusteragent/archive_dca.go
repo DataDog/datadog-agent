@@ -229,7 +229,7 @@ func GetClusterAgentConfigCheck(w io.Writer, withDebug bool, client ipc.HTTPClie
 		if r != nil && string(r) != "" {
 			return fmt.Errorf("the agent ran into an error while checking config: %s", string(r))
 		}
-		return fmt.Errorf("failed to query the agent (running?): %s", err)
+		return fmt.Errorf("failed to query the agent (running?): %w", err)
 	}
 
 	cr := integration.ConfigCheckResponse{}
@@ -349,7 +349,7 @@ func getClusterAgentMetadataPayload(client ipc.HTTPClient) ([]byte, error) {
 		if r != nil && string(r) != "" {
 			return nil, fmt.Errorf("the agent ran into an error while checking dca metadata: %s", string(r))
 		}
-		return nil, fmt.Errorf("failed to query the agent (running?): %s", err)
+		return nil, fmt.Errorf("failed to query the agent (running?): %w", err)
 	}
 
 	return r, nil

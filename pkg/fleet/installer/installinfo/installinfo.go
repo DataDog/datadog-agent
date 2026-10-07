@@ -77,10 +77,10 @@ func writeInstallInfo(ctx context.Context, installInfoFile string, installSigFil
 	}
 	yamlData, err := yaml.Marshal(info)
 	if err != nil {
-		return fmt.Errorf("failed to marshal install info: %v", err)
+		return fmt.Errorf("failed to marshal install info: %w", err)
 	}
 	if err := os.WriteFile(installInfoFile, yamlData, 0644); err != nil {
-		return fmt.Errorf("failed to write install info file: %v", err)
+		return fmt.Errorf("failed to write install info file: %w", err)
 	}
 
 	sig := map[string]string{
@@ -90,10 +90,10 @@ func writeInstallInfo(ctx context.Context, installInfoFile string, installSigFil
 	}
 	jsonData, err := json.Marshal(sig)
 	if err != nil {
-		return fmt.Errorf("failed to marshal install signature: %v", err)
+		return fmt.Errorf("failed to marshal install signature: %w", err)
 	}
 	if err := os.WriteFile(installSigFile, jsonData, 0644); err != nil {
-		return fmt.Errorf("failed to write install signature file: %v", err)
+		return fmt.Errorf("failed to write install signature file: %w", err)
 	}
 	return nil
 }

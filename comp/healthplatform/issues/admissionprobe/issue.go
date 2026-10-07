@@ -51,7 +51,7 @@ func (t *AdmissionProbeIssue) BuildIssue(context map[string]string) (*healthplat
 		"impact": "Pod mutations (config injection, library injection, standard tags) may not be applied to new pods",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create extra: %v", err)
+		return nil, fmt.Errorf("failed to create extra: %w", err)
 	}
 
 	return &healthplatform.Issue{

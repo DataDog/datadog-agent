@@ -139,7 +139,7 @@ func commonSubAgentSecretRefresh(conf config.Component, agentName, portConfigNam
 	url := fmt.Sprintf("https://127.0.0.1:%d/secret/refresh", port)
 	res, err := client.Get(url, ipchttp.WithCloseConnection, ipchttp.WithTimeout(timeout))
 	if err != nil {
-		return nil, fmt.Errorf("could not contact %s: %s", agentName, err)
+		return nil, fmt.Errorf("could not contact %s: %w", agentName, err)
 	}
 
 	return res, nil
