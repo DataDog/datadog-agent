@@ -18,7 +18,7 @@ require (
 	go.opentelemetry.io/collector/component/componentstatus v0.159.0
 	go.opentelemetry.io/collector/component/componenttest v0.159.0
 	go.opentelemetry.io/collector/extension v1.65.0
-	go.opentelemetry.io/collector/pdata v1.65.0
+	go.opentelemetry.io/collector/pdata v1.66.0
 )
 
 require (
@@ -65,7 +65,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.77.0 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
-	github.com/DataDog/go-sqllexer v0.2.4 // indirect
+	github.com/DataDog/go-sqllexer v0.2.5 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -79,12 +79,12 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.1 // indirect
-	github.com/google/pprof v0.0.0-20260906184651-6331bc6350fe // indirect
+	github.com/google/pprof v0.0.0-20260926063103-aaccee046517 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.20.0 // indirect
+	github.com/klauspost/compress v1.20.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 // indirect
 	github.com/mdlayher/socket v0.7.0 // indirect
@@ -102,7 +102,7 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/prometheus/client_golang v1.24.1 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
-	github.com/prometheus/common v0.71.0 // indirect
+	github.com/prometheus/common v0.72.0 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
@@ -117,14 +117,14 @@ require (
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/featuregate v1.65.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.66.0 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.159.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.159.0 // indirect
 	go.opentelemetry.io/collector/pipeline v1.65.0 // indirect
 	go.opentelemetry.io/otel v1.46.0 // indirect
 	go.opentelemetry.io/otel/metric v1.46.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.45.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.45.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.46.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.46.0 // indirect
 	go.opentelemetry.io/otel/trace v1.46.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
@@ -141,7 +141,7 @@ require (
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260831171406-18b4a7587f8a // indirect
 	google.golang.org/grpc v1.84.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )

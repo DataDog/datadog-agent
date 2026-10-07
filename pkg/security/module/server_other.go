@@ -18,6 +18,7 @@ type sshSessionPatcher interface {
 	IsResolved() error
 	PatchEvent(_ interface{})
 	MaxRetry() int
+	MarkUnresolved()
 }
 
 // createSSHSessionPatcher creates a no-op patcher for other platforms

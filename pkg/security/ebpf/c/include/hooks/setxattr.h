@@ -7,7 +7,7 @@
 #include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_setxattr(void *ctx, const char *xattr_name, u8 async, u64 pid_tgid) {
+static __always_inline int trace__sys_setxattr(void *ctx, const char *xattr_name, u8 async, u64 pid_tgid) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -42,7 +42,7 @@ HOOK_SYSCALL_ENTRY2(fsetxattr, int, fd, const char *, name) {
     return trace__sys_setxattr(ctx, name, 0, 0);
 }
 
-int __attribute__((always_inline)) trace__sys_removexattr(void *ctx, const char *xattr_name) {
+static __always_inline int trace__sys_removexattr(void *ctx, const char *xattr_name) {
     struct policy_t policy = fetch_policy(EVENT_REMOVEXATTR);
     struct syscall_cache_t syscall = {
         .type = EVENT_REMOVEXATTR,
@@ -68,7 +68,7 @@ HOOK_SYSCALL_ENTRY2(fremovexattr, int, fd, const char *, name) {
     return trace__sys_removexattr(ctx, name);
 }
 
-int __attribute__((always_inline)) trace__vfs_setxattr(ctx_t *ctx, u64 event_type) {
+static __always_inline int trace__vfs_setxattr(ctx_t *ctx, u64 event_type) {
     struct syscall_cache_t *syscall = peek_syscall(event_type);
     if (!syscall) {
         return 0;
@@ -139,13 +139,13 @@ int hook_vfs_removexattr(ctx_t *ctx) {
     return trace__vfs_setxattr(ctx, EVENT_REMOVEXATTR);
 }
 
-int __attribute__((always_inline)) trace_io_fsetxattr(ctx_t *ctx) {
+static __always_inline int trace_io_fsetxattr(ctx_t *ctx) {
     void *raw_req = (void *)CTX_PARM1(ctx);
     u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
     return trace__sys_setxattr(ctx, NULL, 1, pid_tgid);
 }
 
-int __attribute__((always_inline)) sys_xattr_ret_impl(void *ctx, int retval, u64 event_type, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_xattr_ret_impl(void *ctx, int retval, u64 event_type, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(event_type);
     if (!syscall) {
         return 0;
@@ -186,7 +186,7 @@ pop_and_exit:
     return 0;
 }
 
-int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 event_type) {
+static __always_inline int sys_xattr_ret(void *ctx, int retval, u64 event_type) {
     return sys_xattr_ret_impl(ctx, retval, event_type, KPROBE_OR_FENTRY_TYPE);
 }
 

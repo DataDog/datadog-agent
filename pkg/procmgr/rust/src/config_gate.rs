@@ -107,6 +107,8 @@ enum GatedKey {
     RuntimeSecurity,
     SoftwareInventory,
     SystemProbeExternal,
+    ApmEnabled,
+    ApmErrorTrackingStandalone,
 }
 
 struct GatedKeySpec {
@@ -130,6 +132,8 @@ const WINDOWS_CRASH_DETECTION_KEY: &str = "windows_crash_detection.enabled";
 const RUNTIME_SECURITY_KEY: &str = "runtime_security_config.enabled";
 const SOFTWARE_INVENTORY_KEY: &str = "software_inventory.enabled";
 const SYSTEM_PROBE_EXTERNAL_KEY: &str = "system_probe_config.external";
+const APM_ENABLED_KEY: &str = "apm_config.enabled";
+const APM_ERROR_TRACKING_STANDALONE_KEY: &str = "apm_config.error_tracking_standalone.enabled";
 
 /// Single source of truth for gated keys.
 const GATED_KEY_SPECS: &[GatedKeySpec] = &[
@@ -203,6 +207,22 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
         key: SYSTEM_PROBE_EXTERNAL_KEY,
         default: false,
         fleet_policy_file: SYSPROBE_POLICY,
+    },
+    // Named by the trace-agent processes.d entry. `apm_config.enabled` defaults true, so
+    // an empty datadog.yaml opens the gate the way a default Windows install starts the
+    // SCM service. The standalone key is the other half of Go `utils.IsAPMEnabled`;
+    // unknown keys resolve false, so omitting it would drop Error Tracking standalone.
+    GatedKeySpec {
+        kind: GatedKey::ApmEnabled,
+        key: APM_ENABLED_KEY,
+        default: true,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    GatedKeySpec {
+        kind: GatedKey::ApmErrorTrackingStandalone,
+        key: APM_ERROR_TRACKING_STANDALONE_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
     },
 ];
 
@@ -1930,5 +1950,53 @@ process_config:
         );
         let sysprobe = fx.sysprobe("runtime_security_config:\n  enabled: false\n");
         fx.assert_key(&sysprobe, RUNTIME_SECURITY_KEY, true);
+    }
+
+    // -------------------------------------------------------- APM / trace-agent keys
+
+    #[test]
+    fn apm_enabled_defaults_on() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.assert_key(&agent, APM_ENABLED_KEY, true);
+        fx.assert_key(&agent, APM_ERROR_TRACKING_STANDALONE_KEY, false);
+    }
+
+    #[test]
+    fn apm_enabled_resolves_from_yaml() {
+        let fx = Gate::new();
+        let agent = fx.agent("apm_config:\n  enabled: false\n");
+        fx.assert_key(&agent, APM_ENABLED_KEY, false);
+    }
+
+    #[test]
+    fn apm_enabled_resolves_from_env() {
+        let fx = Gate::new();
+        let agent = fx.agent("apm_config:\n  enabled: true\n");
+        fx.env("DD_APM_ENABLED", "false");
+        fx.assert_key(&agent, APM_ENABLED_KEY, false);
+    }
+
+    #[test]
+    fn apm_error_tracking_standalone_resolves_from_yaml() {
+        let fx = Gate::new();
+        let agent = fx.agent("apm_config:\n  error_tracking_standalone:\n    enabled: true\n");
+        fx.assert_key(&agent, APM_ERROR_TRACKING_STANDALONE_KEY, true);
+    }
+
+    #[test]
+    fn apm_error_tracking_standalone_resolves_from_env() {
+        let fx = Gate::new();
+        let agent = fx.agent("apm_config:\n  error_tracking_standalone:\n    enabled: false\n");
+        fx.env("DD_APM_ERROR_TRACKING_STANDALONE_ENABLED", "true");
+        fx.assert_key(&agent, APM_ERROR_TRACKING_STANDALONE_KEY, true);
+    }
+
+    #[test]
+    fn fleet_policy_drives_apm_enabled() {
+        let fx = Gate::new();
+        fx.fleet(AGENT_POLICY, "apm_config:\n  enabled: false\n");
+        let agent = fx.agent("apm_config:\n  enabled: true\n");
+        fx.assert_key(&agent, APM_ENABLED_KEY, false);
     }
 }
