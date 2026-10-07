@@ -156,7 +156,7 @@ func TestGetTagsErrorEmptyCache(t *testing.T) {
 
 	tags, err := GetTags(ctx)
 	assert.Nil(t, tags)
-	assert.Equal(t, errors.New("unable to get tags from aws and cache is empty: could not fetch tags"), err)
+	assert.EqualError(t, err, "unable to get tags from aws and cache is empty: could not fetch tags")
 }
 
 func TestGetTagsErrorFullCache(t *testing.T) {
