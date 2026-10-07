@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "profilerec",
+    srcs = [
+        "plan.go",
+        "profilerec.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/profilerec",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs-library/metrics",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+    ],
+)
+
+dd_agent_go_test(
+    name = "profilerec_test",
+    srcs = ["profilerec_test.go"],
+    embed = [":profilerec"],
+    deps = [
+        "//comp/logs-library/metrics",
+        "//pkg/config/setup",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

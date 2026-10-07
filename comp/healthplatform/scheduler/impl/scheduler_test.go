@@ -10,6 +10,7 @@ package schedulerimpl
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -177,6 +178,39 @@ func TestTickErrorDoesNotResolveActiveIssues(t *testing.T) {
 	assert.Empty(t, store.ResolvedIDs(), "a transient error must not resolve active issues")
 
 	// Confirm lastIssueIDs is still {A, B} (not cleared by the error tick).
+	s.checkMux.RLock()
+	assert.Equal(t, map[string]struct{}{"A": {}, "B": {}}, check.lastIssueIDs)
+	s.checkMux.RUnlock()
+}
+
+func TestTickStateUnknownDoesNotResolveActiveIssues(t *testing.T) {
+	store := storemock.New(t)
+	runner := runnermock.New(t, store, runnermock.WithRunFunc(
+		func(_ string, _ runnerdef.HealthCheckFunc) ([]string, error) {
+			return []string{"A", "B"}, nil
+		},
+	))
+	s := newTestScheduler(t, runner, store)
+
+	check := &registeredHealthCheck{
+		source:       "mycomp",
+		fn:           func() ([]runnerdef.IssueReport, error) { return nil, nil },
+		lastIssueIDs: make(map[string]struct{}),
+		stopCh:       make(chan struct{}),
+	}
+	s.checks["mycomp"] = check
+
+	s.tick(check)
+
+	s.runner = runnermock.New(t, store, runnermock.WithRunFunc(
+		func(_ string, _ runnerdef.HealthCheckFunc) ([]string, error) {
+			return nil, fmt.Errorf("not ready: %w", runnerdef.ErrStateUnknown)
+		},
+	))
+
+	s.tick(check)
+	assert.Empty(t, store.ResolvedIDs(), "an unknown state must not resolve active issues")
+
 	s.checkMux.RLock()
 	assert.Equal(t, map[string]struct{}{"A": {}, "B": {}}, check.lastIssueIDs)
 	s.checkMux.RUnlock()

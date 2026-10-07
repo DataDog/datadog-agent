@@ -19,6 +19,9 @@ import (
 
 	logsMetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/profilerec"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
@@ -35,11 +38,13 @@ type Builder struct {
 	errors          *config.Messages
 	logsExpVars     *expvar.Map
 	pipelineMonitor logsMetrics.PipelineMonitor
+	config          model.Reader
+	loss            profilerec.LossWindow
 }
 
-// NewBuilder returns a new builder. pipelineMonitor owns the per-component backpressure snapshots
-// (may be nil, e.g. in tests, in which case the backpressure section is empty).
-func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, tracker *tailers.TailerTracker, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map, pipelineMonitor logsMetrics.PipelineMonitor) *Builder {
+// NewBuilder returns a new builder. pipelineMonitor and cfg may be nil (e.g. in
+// tests), in which case the backpressure and performance-profile sections are empty.
+func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, tracker *tailers.TailerTracker, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map, pipelineMonitor logsMetrics.PipelineMonitor, cfg model.Reader) *Builder {
 	return &Builder{
 		isRunning:       isRunning,
 		endpoints:       endpoints,
@@ -49,7 +54,29 @@ func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *
 		errors:          errors,
 		logsExpVars:     logExpVars,
 		pipelineMonitor: pipelineMonitor,
+		config:          cfg,
 	}
+}
+
+// getPerformanceProfile returns the active profile with each setting's effective
+// value and source, or nil when no profile is active or no config is available.
+func (b *Builder) getPerformanceProfile() *PerformanceProfile {
+	if b.config == nil {
+		return nil
+	}
+	name, version, settings, ok := pkgconfigsetup.ResolvedLogsPerformanceProfile(b.config)
+	if !ok {
+		return nil
+	}
+	pp := &PerformanceProfile{Name: name, Version: version}
+	for _, s := range settings {
+		pp.Settings = append(pp.Settings, PerformanceProfileSetting{
+			Key:    s.Key,
+			Value:  fmt.Sprintf("%v", b.config.Get(s.Key)),
+			Source: string(b.config.GetSource(s.Key)),
+		})
+	}
+	return pp
 }
 
 // BuildStatus returns the status of the logs-agent.
@@ -58,50 +85,47 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 	if verbose {
 		tailers = b.getTailers()
 	}
-	utils := b.getComponentUtilization()
-	bp := b.getBackpressureStatus(utils)
+	var snaps []logsMetrics.ComponentSnapshot
+	if b.pipelineMonitor != nil {
+		snaps = b.pipelineMonitor.Snapshots()
+	}
+	utils := b.getComponentUtilization(snaps)
+	bp := b.getBackpressureStatus(snaps)
+	profile := b.getPerformanceProfile()
+	activeProfile := ""
+	if profile != nil {
+		activeProfile = profile.Name
+	}
+	counters := profilerec.ReadCounters(b.logsExpVars)
+	droppedRecently, missedRecently, delivering := b.loss.Observe(counters, time.Now())
 	return Status{
-		IsRunning:            b.getIsRunning(),
-		Endpoints:            b.getEndpoints(),
-		Integrations:         b.getIntegrations(),
-		Tailers:              tailers,
-		StatusMetrics:        b.getMetricsStatus(),
-		ProcessFileStats:     b.getProcessFileStats(),
-		Warnings:             b.getWarnings(),
-		Errors:               b.getErrors(),
-		UseHTTP:              b.getUseHTTP(),
-		ComponentUtilization: utils,
-		Backpressure:         bp,
-		BackpressureTable:    b.formatBackpressureSection(utils, bp),
+		IsRunning:             b.getIsRunning(),
+		Endpoints:             b.getEndpoints(),
+		Integrations:          b.getIntegrations(),
+		Tailers:               tailers,
+		StatusMetrics:         b.getMetricsStatus(),
+		ProcessFileStats:      b.getProcessFileStats(),
+		Warnings:              b.getWarnings(),
+		Errors:                b.getErrors(),
+		UseHTTP:               b.getUseHTTP(),
+		ComponentUtilization:  utils,
+		Backpressure:          bp,
+		PerformanceProfile:    profile,
+		ProfileRecommendation: b.getProfileRecommendation(utils, activeProfile, counters.SenderLatencyMs, droppedRecently, missedRecently, delivering),
+		BackpressureTable:     b.formatBackpressureSection(utils, bp),
 	}
-}
-
-// componentSortOrder defines the canonical display order for pipeline components.
-var componentSortOrder = map[string]int{
-	"processor": 0,
-	"strategy":  1,
-	"worker":    2,
-}
-
-func componentRank(name string) int {
-	if r, ok := componentSortOrder[name]; ok {
-		return r
-	}
-	return 10 // destination_* and anything else comes last
 }
 
 // getComponentUtilization returns per-component snapshots sorted in pipeline order.
-func (b *Builder) getComponentUtilization() []ComponentUtilization {
-	if b.pipelineMonitor == nil {
+func (b *Builder) getComponentUtilization(snaps []logsMetrics.ComponentSnapshot) []ComponentUtilization {
+	if snaps == nil {
 		return nil
 	}
-	snaps := b.pipelineMonitor.Snapshots()
 	result := make([]ComponentUtilization, 0, len(snaps))
 	for _, s := range snaps {
-		// "sender" is a capacity-only aggregation point (items/bytes between the strategy and the
-		// workers) with no utilization monitor, so its ratio/saturation is always 0. It carries no
-		// signal for the backpressure table, so omit it.
-		if s.Name == logsMetrics.SenderTlmName {
+		// A capacity-only aggregation point ("sender", between the strategy and the workers)
+		// has no utilization monitor, so it carries no signal for this table.
+		if !s.Measured {
 			continue
 		}
 		lastSat := ""
@@ -132,7 +156,7 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 		})
 	}
 	sort.Slice(result, func(i, j int) bool {
-		ri, rj := componentRank(result[i].Name), componentRank(result[j].Name)
+		ri, rj := profilerec.ComponentRank(result[i].Name), profilerec.ComponentRank(result[j].Name)
 		if ri != rj {
 			return ri < rj
 		}
@@ -145,64 +169,51 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 }
 
 // getBackpressureStatus returns SATURATED (saturated in last 1m), WARNING (last 30m only), or HEALTHY.
-func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) BackpressureStatus {
-	// SATURATED signal: among currently-saturated components, surface the one with the highest EWMA.
-	var hasCurrSat bool
-	var maxCurrRatio float64
-	var currSatName, currSatInst string
-	var currSat30m int64
+func (b *Builder) getBackpressureStatus(snaps []logsMetrics.ComponentSnapshot) BackpressureStatus {
+	// Unlike loss attribution, this ranks non-blocking destinations too: they drop payloads when saturated.
+	state, bottleneck := logsMetrics.SelectBottleneck(logsMetrics.BackpressureComponents(snaps))
+	if bottleneck == nil {
+		return BackpressureStatus{State: state}
+	}
 
-	// WARNING signal: the component with the most recent 1m/30m saturation.
-	var maxSat1m, maxSat30m int64
-	var sat30mForMaxSat1m int64
-	var satName1m, satInst1m string
-	var satName30m, satInst30m string
+	dur30m := fmtDuration(time.Duration(bottleneck.Saturated30mSeconds) * time.Second)
+	// SATURATED means at or above threshold right now; it clears within seconds of recovery.
+	if state == logsMetrics.BackpressureSaturated {
+		return BackpressureStatus{
+			State:     state,
+			Reason:    fmt.Sprintf("%s pipeline %s is currently saturated (saturated for %s in the last 30m)", bottleneck.Component, bottleneck.Instance, dur30m),
+			Component: bottleneck.Component,
+		}
+	}
+	// WARNING: saturation occurred in the last 1m or 30m but nothing is currently at threshold.
+	return BackpressureStatus{
+		State:     state,
+		Reason:    fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", bottleneck.Component, bottleneck.Instance, dur30m),
+		Component: bottleneck.Component,
+	}
+}
 
+// getProfileRecommendation delegates to profilerec so agent status and Agent Health agree.
+func (b *Builder) getProfileRecommendation(utils []ComponentUtilization, activeProfile string, latencyMs int64, droppedRecently, missedRecently, delivering bool) *ProfileRecommendation {
+	stages := make([]profilerec.Stage, 0, len(utils))
 	for _, u := range utils {
-		if u.CurrentlySaturated && u.AvgRatio > maxCurrRatio {
-			hasCurrSat = true
-			maxCurrRatio = u.AvgRatio
-			currSatName = u.Name
-			currSatInst = u.Instance
-			currSat30m = u.Saturated30mSeconds
-		}
-		if u.Saturated1mSeconds > maxSat1m {
-			maxSat1m = u.Saturated1mSeconds
-			sat30mForMaxSat1m = u.Saturated30mSeconds
-			satName1m = u.Name
-			satInst1m = u.Instance
-		}
-		if u.Saturated30mSeconds > maxSat30m {
-			maxSat30m = u.Saturated30mSeconds
-			satName30m = u.Name
-			satInst30m = u.Instance
-		}
+		stages = append(stages, profilerec.Stage{
+			Name:                u.Name,
+			CurrentlySaturated:  u.CurrentlySaturated,
+			Saturated1mSeconds:  u.Saturated1mSeconds,
+			Saturated30mSeconds: u.Saturated30mSeconds,
+		})
 	}
-
-	// SATURATED: a component is at or above threshold right now. Clears within seconds of recovery.
-	if hasCurrSat {
-		dur30m := time.Duration(currSat30m) * time.Second
-		return BackpressureStatus{
-			State:  "SATURATED",
-			Reason: fmt.Sprintf("%s pipeline %s is currently saturated (saturated for %s in the last 30m)", currSatName, currSatInst, fmtDuration(dur30m)),
-		}
+	rec := profilerec.Recommend(stages, activeProfile, profilerec.Signals{
+		DroppedRecently: droppedRecently,
+		MissedRecently:  missedRecently,
+		Delivering:      delivering,
+		SenderLatencyMs: latencyMs,
+	})
+	if rec == nil {
+		return nil
 	}
-	// WARNING: saturation occurred in the last 1m or 30m but no component is currently at threshold.
-	if maxSat1m > 0 {
-		dur30m := time.Duration(sat30mForMaxSat1m) * time.Second
-		return BackpressureStatus{
-			State:  "WARNING",
-			Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName1m, satInst1m, fmtDuration(dur30m)),
-		}
-	}
-	if maxSat30m > 0 {
-		dur30m := time.Duration(maxSat30m) * time.Second
-		return BackpressureStatus{
-			State:  "WARNING",
-			Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName30m, satInst30m, fmtDuration(dur30m)),
-		}
-	}
-	return BackpressureStatus{State: "HEALTHY"}
+	return &ProfileRecommendation{Profile: rec.Profile, Reason: rec.Reason, ReasonCode: rec.ReasonCode, Bottleneck: rec.Bottleneck}
 }
 
 // formatBackpressureSection renders the backpressure section as preformatted text (omitted from JSON).
@@ -443,13 +454,17 @@ func (b *Builder) configToDictionary(source *sourcesPkg.LogSource) map[string]in
 // getMetricsStatus exposes some aggregated metrics of the log agent on the agent status
 func (b *Builder) getMetricsStatus() map[string]string {
 	var metrics = make(map[string]string)
+	counters := profilerec.ReadCounters(b.logsExpVars)
 	metrics["LogsProcessed"] = strconv.FormatInt(b.logsExpVars.Get("LogsProcessed").(*expvar.Int).Value(), 10)
 	metrics["LogsSent"] = strconv.FormatInt(b.logsExpVars.Get("LogsSent").(*expvar.Int).Value(), 10)
+	metrics["LogsDropped"] = strconv.FormatInt(counters.Dropped, 10)
+	metrics["BytesMissed"] = strconv.FormatInt(counters.Missed, 10)
 	metrics["BytesSent"] = strconv.FormatInt(b.logsExpVars.Get("BytesSent").(*expvar.Int).Value(), 10)
 	metrics["RetryCount"] = strconv.FormatInt(b.logsExpVars.Get("RetryCount").(*expvar.Int).Value(), 10)
 	metrics["RetryTimeSpent"] = time.Duration(b.logsExpVars.Get("RetryTimeSpent").(*expvar.Int).Value()).String()
 	metrics["EncodedBytesSent"] = strconv.FormatInt(b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value(), 10)
 	metrics["LogsTruncated"] = strconv.FormatInt(b.logsExpVars.Get("LogsTruncated").(*expvar.Int).Value(), 10)
+	metrics["SenderLatency"] = time.Duration(counters.SenderLatencyMs * int64(time.Millisecond)).String()
 	return metrics
 }
 

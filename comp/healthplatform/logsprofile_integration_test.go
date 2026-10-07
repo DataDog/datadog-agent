@@ -24,7 +24,7 @@ import (
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/missedbytes"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/logsprofile"
 	logsmetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -34,34 +34,47 @@ import (
 // team: fleet-remediation
 
 // The map key is IssueID scoped with a hostname digest, so match by prefix.
-func findMissedBytesIssue(issues map[string]*healthplatformpayload.Issue) *healthplatformpayload.Issue {
+func findLogsProfileIssue(issues map[string]*healthplatformpayload.Issue) *healthplatformpayload.Issue {
 	for id, iss := range issues {
-		if strings.HasPrefix(id, missedbytes.IssueID+":") {
+		if strings.HasPrefix(id, logsprofile.IssueID+":") {
 			return iss
 		}
 	}
 	return nil
 }
 
-// Covers what the unit tests cannot: module registration, the scheduler, BuildIssue,
-// the store, the forwarder, and the payload as the intake receives it. The loss is
-// seeded before the bundle starts so the assertion lands on the first tick.
-func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
+// Covers what the unit tests cannot: module registration, the scheduler, the real config plan,
+// the store, the forwarder, and Extra.recommendation as the intake receives it.
+func TestLogsProfileRecommendationSurvivesFullPipeline(t *testing.T) {
 	logsmetrics.ResetMissedBytesForTest()
 	logsmetrics.ResetPipelineMonitorForTest()
 	t.Cleanup(logsmetrics.ResetMissedBytesForTest)
 	t.Cleanup(logsmetrics.ResetPipelineMonitorForTest)
 
-	// Stands in for a running logs agent with a saturated destination, and two lossy
-	// rotations attributed to it.
 	logsmetrics.MarkLogsAgentRunning()
 	logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
 		logsmetrics.SaturatedSnapshotForTest("processor", "0", 0.1, 0, false),
 		logsmetrics.SaturatedSnapshotForTest("destination_reliable_0", "0", 0.98, 29*time.Minute, true),
-		logsmetrics.SaturatedSnapshotForTest("destination_unreliable_0", "0", 0.99, 30*time.Minute, true),
 	})
-	logsmetrics.RecordMissedBytes("nginx", "web", 4096, time.Now())
-	logsmetrics.RecordMissedBytes("redis", "cache", 1024, time.Now())
+
+	// The first tick only seeds the loss baseline, so loss must keep arriving after it.
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			case <-time.After(10 * time.Millisecond):
+				logsmetrics.DestinationLogsDropped.Add("destination_reliable_0", 1)
+			}
+		}
+	}()
+	t.Cleanup(func() {
+		close(stop)
+		<-done
+	})
 
 	ready := make(chan bool, 1)
 	fi := fakeintakeserver.NewServer(
@@ -87,6 +100,8 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 			cfg.SetInTest("health_platform.enabled", true)
 			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
 			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
+			cfg.SetInTest("health_platform.logs_profile_recommendation.interval", tickInterval)
+			cfg.SetInTest("health_platform.logs_profile_recommendation.efficiency_min_saturated_30m", time.Hour)
 			cfg.SetInTest("run_path", t.TempDir())
 			return cfg
 		}),
@@ -102,33 +117,27 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 			return false
 		}
 		for _, p := range payloads {
-			if iss := findMissedBytesIssue(p.Issues); iss != nil {
+			if iss := findLogsProfileIssue(p.Issues); iss != nil {
 				received = iss
 				return true
 			}
 		}
 		return false
-	}, 5*time.Second, tickInterval, "log-data-lost-after-rotation issue never reached fakeintake")
+	}, 10*time.Second, tickInterval, "logs-performance-profile-recommended issue never reached fakeintake")
 
-	// Field-level content is issue_test.go's job. Assert only what the trip changes:
-	// both tuples folded into one issue, breakdown arriving as objects not a string.
-	assert.Equal(t, missedbytes.IssueType, received.GetIssueType())
-	assert.Contains(t, received.GetTitle(), "from 2 sources")
+	assert.Equal(t, logsprofile.IssueType, received.GetIssueType())
+	assert.Equal(t, healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH, received.GetSeverity())
 
-	sources := received.GetExtra().GetFields()["sources"].GetListValue().GetValues()
-	require.Len(t, sources, 2)
-	largest := sources[0].GetStructValue().GetFields()
-	assert.Equal(t, "nginx", largest["source"].GetStringValue())
-	assert.Equal(t, float64(4096), largest["bytes"].GetNumberValue())
-	assert.Equal(t, "destination_reliable_0", largest["bottleneck"].GetStringValue(),
-		"the stage saturated at loss time must survive the trip")
-	assert.Equal(t, "destination_reliable_0", received.GetExtra().GetFields()["loss_time_bottleneck"].GetStringValue())
-	assert.Equal(t, float64(2), received.GetExtra().GetFields()["loss_time_bottleneck_rotations"].GetNumberValue())
+	rec := received.GetExtra().GetFields()["recommendation"].GetStructValue().GetFields()
+	require.NotEmpty(t, rec, "recommendation must arrive as an object, not a string")
+	assert.Equal(t, "logs_performance_profile", rec["kind"].GetStringValue())
+	assert.Equal(t, "high-concurrency", rec["profile"].GetStringValue())
+	assert.Equal(t, float64(1), rec["profile_version"].GetNumberValue())
+	assert.NotEmpty(t, rec["changes"].GetListValue().GetValues())
 
-	// Same test as sources: structpb can carry this as an encoded string, and did once.
-	bp := received.GetExtra().GetFields()["backpressure"].GetStructValue().GetFields()
-	require.NotEmpty(t, bp, "backpressure must arrive as an object, not a string")
-	assert.Equal(t, "SATURATED", bp["state"].GetStringValue())
-	assert.Equal(t, "destination_reliable_0", bp["bottleneck"].GetStructValue().GetFields()["component"].GetStringValue())
-	assert.Len(t, bp["components"].GetListValue().GetValues(), 3, "nonblocking destination measurements remain visible")
+	evidence := rec["evidence"].GetListValue().GetValues()
+	require.NotEmpty(t, evidence, "evidence must arrive as a list")
+	for _, v := range evidence {
+		assert.NotEmpty(t, v.GetStringValue(), "evidence elements must be strings")
+	}
 }

@@ -11,6 +11,12 @@ package runner
 
 // team: fleet-remediation
 
+import "errors"
+
+// ErrStateUnknown, wrapped or returned by a HealthCheckFunc, keeps its active
+// issues unchanged for this run without logging a warning.
+var ErrStateUnknown = errors.New("health check state unknown")
+
 // IssueReport is the lightweight value that HealthCheckFunc implementations
 // return. The runner translates each IssueReport into a proto Issue using the
 // issue registry before forwarding to the store.
