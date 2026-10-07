@@ -3258,6 +3258,21 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 var _ = declareInlineConfig(TestSecurityProfileV2DNSResponse)
 
 func TestSecurityProfileV2DNSResponse(t *testing.T) {
+	testSecurityProfileV2DNSResponse(t, []*rules.RuleDefinition{})
+}
+
+var _ = declareInlineConfig(TestSecurityProfileV2DNSFullResponse)
+
+// A rule on the response code makes the kernel send NOERROR responses on the full response path
+// instead of the short one.
+func TestSecurityProfileV2DNSFullResponse(t *testing.T) {
+	testSecurityProfileV2DNSResponse(t, []*rules.RuleDefinition{{
+		ID:         "test_dns_full_response",
+		Expression: `dns.response.code == NOERROR && dns.question.name == "one.one.one.one"`,
+	}})
+}
+
+func testSecurityProfileV2DNSResponse(t *testing.T, ruleDefs []*rules.RuleDefinition) {
 	SkipIfNotAvailable(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
@@ -3273,7 +3288,7 @@ func TestSecurityProfileV2DNSResponse(t *testing.T) {
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 	})
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
 		enableSecurityProfile: true,
 		networkIngressEnabled: true,
 	}))
