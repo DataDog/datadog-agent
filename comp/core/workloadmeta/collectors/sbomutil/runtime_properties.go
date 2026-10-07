@@ -91,18 +91,7 @@ func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 		return existingBom
 	}
 
-	// Build a lookup map from newBom (system-probe) components by name+normalised version.
-	// We normalise versions to handle epoch differences (e.g. "1:4.4.36" vs "4.4.36").
-	newComponentsMap := make(map[string]*cyclonedx_v1_4.Component)
-	for _, comp := range newBom.Components {
-		if comp != nil {
-			key := usageKey(comp)
-			if prev, ok := newComponentsMap[key]; ok {
-				comp = foldUsage(prev, comp)
-			}
-			newComponentsMap[key] = comp
-		}
-	}
+	entries := newReportEntries(newBom)
 
 	// Shallow-copy the BOM envelope; Components is rebuilt below.
 	mergedBom := &cyclonedx_v1_4.Bom{
@@ -133,8 +122,6 @@ func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 			}
 			seen[ref] = struct{}{}
 		}
-
-		key := usageKey(existingComp)
 
 		// Copy all fields so we do not mutate the original BOM. The property
 		// slice is cloned because updateProperty replaces entries in place.
@@ -168,7 +155,7 @@ func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 		// Add or update runtime properties from newBom. The report describes the
 		// dpkg, rpm and apk databases, so a component whose purl sits elsewhere
 		// shares a name and a version with it and nothing more.
-		newComp, reported := newComponentsMap[key]
+		newComp, reported := entries.lookup(existingComp)
 		if reported && hasForeignPurl(mergedComp) {
 			reported = false
 		}
@@ -216,6 +203,66 @@ func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 	}
 
 	return mergedBom
+}
+
+// reportEntries finds the entry of a report of system-probe for a component of an
+// image SBOM, by name and version with the epoch dropped (usageKey).
+type reportEntries struct {
+	byKey  map[string]*cyclonedx_v1_4.Component // folded across architectures
+	byArch map[string]*cyclonedx_v1_4.Component // by key and arch qualifier
+	arched map[string]bool                      // keys the report names with architectures
+}
+
+// newReportEntries indexes the components of report. Trivy reports an rpm
+// package once per architecture, as the report does.
+func newReportEntries(report *cyclonedx_v1_4.Bom) reportEntries {
+	e := reportEntries{
+		byKey:  make(map[string]*cyclonedx_v1_4.Component),
+		byArch: make(map[string]*cyclonedx_v1_4.Component),
+		arched: make(map[string]bool),
+	}
+	for _, comp := range report.GetComponents() {
+		if comp == nil {
+			continue
+		}
+		key := usageKey(comp)
+		if arch := purlArch(comp.GetPurl()); arch != "" {
+			e.byArch[key+"?arch="+arch] = comp
+			e.arched[key] = true
+		}
+		if prev, ok := e.byKey[key]; ok {
+			comp = foldUsage(prev, comp)
+		}
+		e.byKey[key] = comp
+	}
+	return e
+}
+
+// lookup returns the report entry of comp. Once the report names architectures,
+// an rpm build takes the entry of its own alone.
+func (e reportEntries) lookup(comp *cyclonedx_v1_4.Component) (*cyclonedx_v1_4.Component, bool) {
+	key := usageKey(comp)
+	if e.arched[key] && strings.HasPrefix(comp.GetPurl(), "pkg:rpm/") {
+		entry, ok := e.byArch[key+"?arch="+purlArch(comp.GetPurl())]
+		return entry, ok
+	}
+	entry, ok := e.byKey[key]
+	return entry, ok
+}
+
+// purlArch returns the arch qualifier of purl.
+func purlArch(purl string) string {
+	_, qualifiers, ok := strings.Cut(purl, "?")
+	if !ok {
+		return ""
+	}
+	qualifiers, _, _ = strings.Cut(qualifiers, "#")
+	for qualifier := range strings.SplitSeq(qualifiers, "&") {
+		if arch, ok := strings.CutPrefix(qualifier, "arch="); ok {
+			return arch
+		}
+	}
+	return ""
 }
 
 // foldUsage combines the usage of two report entries of one name and version,
@@ -352,13 +399,9 @@ func HideUnreported(bom, report *cyclonedx_v1_4.Bom) {
 		return
 	}
 
-	reported := make(map[string]struct{}, len(report.GetComponents()))
-	for _, comp := range report.GetComponents() {
-		reported[usageKey(comp)] = struct{}{}
-	}
-
+	entries := newReportEntries(report)
 	for _, comp := range bom.GetComponents() {
-		if _, ok := reported[usageKey(comp)]; !ok && isOSPackage(comp) {
+		if _, ok := entries.lookup(comp); !ok && isOSPackage(comp) {
 			comp.Properties = slices.DeleteFunc(slices.Clone(comp.Properties), isRuntimeProperty)
 		}
 	}

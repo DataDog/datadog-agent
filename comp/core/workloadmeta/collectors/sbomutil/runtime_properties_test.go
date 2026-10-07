@@ -617,6 +617,61 @@ func TestMergeRuntimeProperties_FoldsEntriesSharingNameAndVersion(t *testing.T) 
 	}
 }
 
+// TestMergeRuntimeProperties_MatchesRPMArchitectures checks that each rpm build
+// gets the usage of its architecture, or of both from a report naming none.
+func TestMergeRuntimeProperties_MatchesRPMArchitectures(t *testing.T) {
+	existing := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{
+		{BomRef: pointer.Ptr("glibc-x86_64"), Name: "glibc", Version: "2.34-100.el9", Purl: pointer.Ptr("pkg:rpm/redhat/glibc@2.34-100.el9?arch=x86_64&distro=redhat-9.4")},
+		{BomRef: pointer.Ptr("glibc-i686"), Name: "glibc", Version: "2.34-100.el9", Purl: pointer.Ptr("pkg:rpm/redhat/glibc@2.34-100.el9?arch=i686&distro=redhat-9.4")},
+	}}
+	entry := func(purl, lastAccess string) *cyclonedx_v1_4.Component {
+		return &cyclonedx_v1_4.Component{Name: "glibc", Version: "2.34-100.el9", Purl: pointer.Ptr(purl), Properties: []*cyclonedx_v1_4.Property{prop(LastAccessProperty, lastAccess)}}
+	}
+
+	for _, tt := range []struct {
+		name   string
+		report []*cyclonedx_v1_4.Component
+		want   []string // LastSeenRunning of the x86_64 and i686 builds
+	}{
+		{
+			name:   "each build reported",
+			report: []*cyclonedx_v1_4.Component{entry("pkg:glibc@2.34-100.el9?arch=x86_64", "1700000000"), entry("pkg:glibc@2.34-100.el9?arch=i686", "0")},
+			want:   []string{"1700000000", "0"},
+		},
+		{
+			name:   "build outside the report",
+			report: []*cyclonedx_v1_4.Component{entry("pkg:glibc@2.34-100.el9?arch=x86_64", "1700000000")},
+			want:   []string{"1700000000", "0"},
+		},
+		{
+			name:   "report without architectures",
+			report: []*cyclonedx_v1_4.Component{entry("pkg:glibc@2.34-100.el9", "1700000000")},
+			want:   []string{"1700000000", "1700000000"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			merged := MergeRuntimeProperties(existing, &cyclonedx_v1_4.Bom{Components: tt.report})
+			require.Len(t, merged.Components, 2)
+			for i, want := range tt.want {
+				got, _ := findProp(merged.Components[i], LastAccessProperty)
+				assert.Equal(t, want, got, merged.Components[i].GetBomRef())
+			}
+		})
+	}
+}
+
+func TestPurlArch(t *testing.T) {
+	for purl, want := range map[string]string{
+		"pkg:rpm/redhat/glibc@2.34?arch=x86_64&distro=redhat-9.4": "x86_64",
+		"pkg:rpm/redhat/glibc@2.34?distro=redhat-9.4&arch=i686":   "i686",
+		"pkg:glibc@2.34?arch=noarch#sub":                          "noarch",
+		"pkg:deb/debian/libc6@2.36":                               "",
+		"":                                                        "",
+	} {
+		assert.Equal(t, want, purlArch(purl), purl)
+	}
+}
+
 func TestMergeRuntimeProperties_KeepsComponentsWithoutBomRef(t *testing.T) {
 	// The bom-ref is what identifies a component, so deduplication applies to the
 	// components that carry one and the others are emitted in turn.
@@ -845,6 +900,9 @@ func TestHideUnreported(t *testing.T) {
 		component("openssl", "1:3.2.2-6.el10"),
 		component("gzip", "1.12-1.el10"),
 	}}
+	archReport := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{
+		{Name: "glibc", Version: "2.34-100.el9", Purl: pointer.Ptr("pkg:rpm/glibc@2.34-100.el9?arch=x86_64")},
+	}}
 
 	tests := []struct {
 		name   string
@@ -858,6 +916,8 @@ func TestHideUnreported(t *testing.T) {
 		{name: "upgraded after the report", comp: merged("gzip", "1.13-1.el10", "pkg:rpm/redhat/gzip@1.13-1.el10"), report: report, want: 1},
 		{name: "out of scope", comp: merged("lodash", "4.17.21", "pkg:npm/lodash@4.17.21"), report: report, want: 4},
 		{name: "empty report", comp: merged("fish", "3.7.1-2.el10", "pkg:rpm/redhat/fish@3.7.1-2.el10"), report: &cyclonedx_v1_4.Bom{}, want: 4},
+		{name: "reported architecture", comp: merged("glibc", "2.34-100.el9", "pkg:rpm/redhat/glibc@2.34-100.el9?arch=x86_64"), report: archReport, want: 4},
+		{name: "build of another architecture", comp: merged("glibc", "2.34-100.el9", "pkg:rpm/redhat/glibc@2.34-100.el9?arch=i686"), report: archReport, want: 1},
 	}
 
 	for _, tt := range tests {
