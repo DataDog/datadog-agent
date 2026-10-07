@@ -8,8 +8,9 @@
 -- Includes: the bin budget (bin limit, bin width, max count), the Agent-side
 --   inserts (unsampled values, sampled values, interpolated histogram
 --   buckets) and the batches they hand to the bin store, overflow bins,
---   trimming, merge, reset, the summary, quantiles, equality and the payload
---   columns handed to the serializer.
+--   trimming, scaling past max count and the remainders it keeps, merge,
+--   reset, the summary, quantiles, equality and the payload columns handed
+--   to the serializer.
 -- Excludes:
 --   - The value-to-key mapping (gamma, bias, saturation to the infinite
 --     keys). Keys are ordered integers; key_of, finite_key and key_value are
@@ -107,6 +108,34 @@
 --                               summary.min and summary.max, or be NaN, see
 --                               the open questions. A NaN rank gives NaN;
 --                               summary.max if no bin passes the rank.
+--   fitting_shift(store, batch) the smallest shift, no lower than the
+--                               store's and at most max_shift, at which the
+--                               store's units and the batch's fit max_count.
+--                               It counts every count divided by the unit,
+--                               plus a unit for every remainder and batch
+--                               entry and one more, for what remainders can
+--                               make up. An unscaled store stays at 0 while
+--                               count plus total(batch) fits.
+--   fitting_merge_shift(store, other)
+--                               the same, for the units of both stores, no
+--                               lower than either shift.
+--   rescale(store, shift)       the store's holdings at shift: each key's
+--                               units divided by 2^(shift - store.shift),
+--                               rounded down, its bins merged. What a key's
+--                               units lose goes to its remainder.
+--   carry(remainders, incoming, shift, limit)
+--                               for each key, its remainder and incoming
+--                               observations make up the floor of their sum
+--                               over 2^shift in units, and the rest is its new
+--                               remainder. So the units a key gains do not
+--                               depend on how its observations were batched.
+--                               Past limit keys, the lowest remainders fold
+--                               into the next key holding one.
+--   as_counts(remainders)       the remainders, as KeyCounts.
+--   total_remainders(remainders)
+--                               the sum of the remainders' observations.
+--   scale_columns(bins, unit)   the bins, with their counts times unit.
+--   power_of_two(n), min(a, b)
 --   round_half_even(x), truncate(x), append(list, item)
 --   empty()                     an empty list.
 --   empty_summary()             the summary of no observations, all zeros.
@@ -130,8 +159,9 @@ value Summary {
     avg: Decimal
 }
 
--- A bin counts observations of one key. A key with more than max_bin_width
--- observations spans several bins, which stay next to each other.
+-- A bin counts units of one key: observations, until the store scales. A key
+-- with more than max_bin_width units spans several bins, which stay next to
+-- each other.
 value Bin {
     key: Integer
     count: Integer
@@ -143,14 +173,41 @@ value KeyCount {
     count: Integer
 }
 
+-- Observations of one key that fall short of a unit of a scaled store.
+value Remainder {
+    key: Integer
+    observations: Integer
+}
+
+-- A store's bins and remainders, at some shift.
+value Holdings {
+    bins: List<Bin>
+    count: Integer
+    remainders: List<Remainder>
+}
+
+-- What carry makes of remainders and incoming observations.
+value Carry {
+    units: List<KeyCount>
+    remainders: List<Remainder>
+}
+
 ------------------------------------------------------------
 -- Entities
 ------------------------------------------------------------
 
 entity BinStore {
     bins: List<Bin>
-    -- The observations held in the bins.
+    -- The units held in the bins.
     count: Integer
+    -- Each unit stands for 2^shift observations. 0 until the store is given
+    -- more than max_count.
+    shift: Integer
+    -- Sorted by key, at most one per key. Empty while shift is 0.
+    remainders: List<Remainder>
+
+    unit: power_of_two(shift)
+    observations: count * unit + total_remainders(remainders)
 
     invariant CountMatchesBins {
         count = total_bins(bins)
@@ -164,10 +221,30 @@ entity BinStore {
         bins.all(b => b.count <= config.max_bin_width)
     }
 
-    -- Each bin holds at most max_bin_width observations, so the bins grow at
-    -- least as fast as the count: 1.42e12 observations take 21.7M bins.
+    -- Each bin holds at most max_bin_width units, so the bins grow at least
+    -- as fast as the count. Scaling keeps the count within max_count.
     invariant BinsGrowWithCount {
         bins.count * config.max_bin_width >= count
+    }
+
+    -- Unless the shift tops out at max_shift, past 2^63 times max_count
+    -- observations.
+    invariant UnitsWithinMaxCount {
+        shift < config.max_shift implies count <= config.max_count
+    }
+
+    -- bin_limit bins, plus at most bin_limit + 1 overflow bins that trim_left
+    -- cannot fold within max_count units.
+    invariant BinsWithinBudget {
+        shift < config.max_shift implies bins.count <= 2 * config.bin_limit + 1
+    }
+
+    invariant RemaindersBelowUnit {
+        remainders.all(r => r.observations > 0 and r.observations < unit)
+    }
+
+    invariant RemaindersWithinBinLimit {
+        remainders.count <= config.bin_limit
     }
 }
 
@@ -176,6 +253,8 @@ entity Sketch {
     -- Updated by every insert, whatever happens to the bins.
     summary: Summary
 
+    -- Ranks are counted in units; the remainders, under a unit per key, are
+    -- left out.
     quantile(q):
         if store.count = 0: 0
         else if q <= 0: summary.min
@@ -188,9 +267,12 @@ entity Sketch {
         summary = other.summary
         and store.count = other.store.count
         and store.bins = other.store.bins
+        and store.shift = other.store.shift
+        and store.remainders = other.store.remainders
 
-    -- What the serializer reads, one column per bin.
-    columns: store.bins
+    -- What the serializer reads, one column per bin, scaled back to
+    -- observations as far as the payload's 32-bit counts allow.
+    columns: scale_columns(store.bins, power_of_two(min(store.shift, config.max_column_shift)))
 }
 
 -- The insert-optimised sketch the aggregator keeps per context and bucket
@@ -211,12 +293,17 @@ config {
     -- Bins trim_left keeps besides the overflow bins it cannot fold.
     -- NewConfig turns 0 into this default.
     bin_limit: Integer = 4096
-    -- Observations one bin can count.
+    -- Units one bin can count.
     max_bin_width: Integer = 65_535
-    -- Documented as the most values a sketch can take. Nothing enforces it.
+    -- The most units the bins of a store count. Past it, the store scales.
     max_count: Integer = bin_limit * max_bin_width
     -- Unsampled values buffered before they reach the bins.
     agent_buffer_capacity: Integer = 512
+    -- The largest shift, so that a unit fits 64 bits.
+    max_shift: Integer = 63
+    -- The largest shift at which a full bin, scaled back to observations,
+    -- still fits a 32-bit payload count.
+    max_column_shift: Integer = 16
 }
 
 ------------------------------------------------------------
@@ -249,7 +336,7 @@ rule AgentRecordsSampledValue {
 
     @guidance
         -- The buffered keys reach the bins before this batch. The order
-        -- matters once trim_left folds bins.
+        -- matters once trim_left folds bins, or the store scales.
 }
 
 -- A histogram bucket's count, spread over the keys between its bounds. Finite
@@ -285,25 +372,41 @@ rule AgentFlushes {
     ensures: agent.buffered_keys = empty()
 }
 
+-- Past max_count units, the store halves its unit as many times as it takes
+-- for the batch to fit, rather than let the bins grow with the count.
 rule StoreInsertsBatch {
     when: InsertBatch(store, batch)
 
-    ensures: store.bins = trim_left(add_counts(store.bins, batch), config.bin_limit)
-    ensures: store.count = store.count + total(batch)
+    let shift = fitting_shift(store, batch)
+    let rescaled = rescale(store, shift)
+    let carried = carry(rescaled.remainders, batch, shift, config.bin_limit)
+
+    ensures: store.shift = shift
+    ensures: store.bins = trim_left(add_counts(rescaled.bins, carried.units), config.bin_limit)
+    ensures: store.count = rescaled.count + total(carried.units)
+    ensures: store.remainders = carried.remainders
 
     @guidance
-        -- add_counts allocates all the bins of the batch before trim_left
-        -- runs, and trim_left keeps full bins: bin_limit bounds neither
-        -- what an insert allocates nor what the store keeps.
+        -- Scale before add_counts allocates: past max_count, add_counts would
+        -- take a bin per max_bin_width of the batch, and trim_left keeps full
+        -- bins. At shift 0 the batch goes to add_counts as it is.
 }
 
--- The other sketch is left as it was.
+-- The other sketch is left as it was: it is rescaled as a copy.
 rule SketchMerges {
     when: MergeSketch(sketch, other)
 
+    let shift = fitting_merge_shift(sketch.store, other.store)
+    let mine = rescale(sketch.store, shift)
+    let theirs = rescale(other.store, shift)
+    let carried = carry(mine.remainders, as_counts(theirs.remainders), shift, config.bin_limit)
+    let merged_bins = trim_left(add_bins(mine.bins, theirs.bins), config.bin_limit)
+
     ensures: sketch.summary = merged(sketch.summary, other.summary)
-    ensures: sketch.store.bins = trim_left(add_bins(sketch.store.bins, other.store.bins), config.bin_limit)
-    ensures: sketch.store.count = sketch.store.count + other.store.count
+    ensures: sketch.store.shift = shift
+    ensures: sketch.store.bins = trim_left(add_counts(merged_bins, carried.units), config.bin_limit)
+    ensures: sketch.store.count = mine.count + theirs.count + total(carried.units)
+    ensures: sketch.store.remainders = carried.remainders
 }
 
 rule AgentResets {
@@ -312,6 +415,8 @@ rule AgentResets {
     ensures: agent.sketch.summary = empty_summary()
     ensures: agent.sketch.store.bins = empty()
     ensures: agent.sketch.store.count = 0
+    ensures: agent.sketch.store.shift = 0
+    ensures: agent.sketch.store.remainders = empty()
     ensures: agent.buffered_keys = empty()
 }
 
@@ -323,7 +428,7 @@ rule AgentResets {
 -- counts stay below 2^63: see the open questions.
 invariant SummaryCountsEveryObservation {
     for a in AgentSketches:
-        a.sketch.summary.count = a.sketch.store.count + a.buffered_keys.count
+        a.sketch.summary.count = a.sketch.store.observations + a.buffered_keys.count
 }
 
 ------------------------------------------------------------
@@ -349,20 +454,20 @@ surface SketchPayload {
             c.count
 
     @guarantee ColumnsCountEveryObservation
-        -- For sketches as this package builds them, the column counts add up
-        -- to the store's count, which equals the summary's once the buffer is
-        -- flushed.
+        -- For sketches as this package builds them, up to max_column_shift,
+        -- the column counts add up to the observations in the bins: the
+        -- summary's count once the buffer is flushed, short of the
+        -- remainders, under a unit per key. Past it, the columns keep the
+        -- bins' proportions only.
 
     @guarantee FinishedSketchIsACopy
-        -- The finished sketch holds the AgentSketch's summary, count and bins
-        -- once flushed, and shares no bins with it.
+        -- The finished sketch holds the AgentSketch's summary, count, bins,
+        -- shift and remainders once flushed, and shares no bins with it.
 }
 
 ------------------------------------------------------------
 -- Open Questions
 ------------------------------------------------------------
-
-open question "max_count is documented as the most values a sketch can take, but nothing enforces it: past it, the bins outgrow bin_limit, one per max_bin_width observations. Should the store bound its bins whatever the count?"
 
 open question "Counts past 2^63: a DogStatsD sample rate at or below 2^-63 (about 1.08e-19) is accepted, and 1 / sample_rate no longer fits the signed 64-bit counts. Go leaves those conversions to the platform: on amd64 the summary count turns negative (two @1e-20 samples wrap it to 0, so Finish drops the sketch), while the store's count differs from it or a bin of 0 appears; arm64 saturates instead. InsertInterpolate with a count past 2^63 - 1 records nothing and reports no error. Should the Agent clamp such weights and counts, reject them, or leave them to callers?"
 
@@ -370,4 +475,4 @@ open question "Non-finite inputs: key_of(+Inf) is 1, the key next to 0, and NaN'
 
 open question "Quantiles outside the observations: value_at_rank interpolates toward key_value * gamma, which is the previous key for negative keys. So a quantile can fall below summary.min (from -100 x 4 and -10 x 4, the 10th percentile is -100.38), quantiles can decrease within a bin as q increases, and values above about 4.2e211 give NaN. Is this intended, given that outside tests only printing reads Quantile, or should value_at_rank stay within the bin and within summary.min and summary.max?"
 
-open question "trim_left is not idempotent: a store that overflow bins leave above bin_limit folds more of its lowest bins on every later insert, and the bins depend on how inserts were batched and ordered. Should trim_left fold until the store is back within bin_limit bins, or is re-folding on later inserts acceptable?"
+open question "trim_left is not idempotent: a store that overflow bins leave above bin_limit folds more of its lowest bins on every later insert, and the bins depend on how inserts were batched and ordered, even without scaling. Should trim_left fold until the store is back within bin_limit bins, or is re-folding on later inserts acceptable?"
