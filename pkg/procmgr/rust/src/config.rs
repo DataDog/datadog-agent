@@ -26,6 +26,37 @@ pub struct InvalidConfigEntry {
     pub error: String,
 }
 
+/// Marker appended when a parse error is cut short for storage or list.
+const CONFIG_ERROR_TRUNCATED_SUFFIX: &str = "… (truncated)";
+
+/// Bound on the diagnostic kept with an InvalidConfig catalog row.
+///
+/// Serde can echo an entire rejected scalar. Without a cap, a mistyped multi-MiB
+/// value would live in the daemon for as long as the broken file does, and would
+/// ride every Describe of that row.
+pub const STORED_CONFIG_ERROR_MAX_CHARS: usize = 4096;
+
+/// Bound on `config_error` in List responses.
+///
+/// Describe keeps the stored (already capped) text. List is the catalog overview
+/// and must stay small even when many rows are invalid, or a single oversized
+/// diagnostic can push the gRPC payload past client decode limits.
+pub const LIST_CONFIG_ERROR_MAX_CHARS: usize = 256;
+
+/// Cut `error` to at most `max_chars` Unicode scalar values, appending a marker
+/// when anything is dropped. The result never exceeds `max_chars`.
+pub fn truncate_config_error(error: &str, max_chars: usize) -> String {
+    let mut iter = error.chars();
+    let head: String = iter.by_ref().take(max_chars).collect();
+    if iter.next().is_none() {
+        return head;
+    }
+    let suffix_len = CONFIG_ERROR_TRUNCATED_SUFFIX.chars().count();
+    let keep = max_chars.saturating_sub(suffix_len);
+    let trimmed: String = head.chars().take(keep).collect();
+    format!("{trimmed}{CONFIG_ERROR_TRUNCATED_SUFFIX}")
+}
+
 /// Result of one catalog load: valid process configs plus named parse failures.
 #[derive(Default)]
 pub struct LoadedCatalog {
@@ -371,7 +402,8 @@ pub fn load_configs(dir: &Path) -> Result<LoadedCatalog> {
         match parse_config(&path) {
             Ok(config) => processes.push(ProcessDefinition { name, config }),
             Err(e) => {
-                let error = format!("{e:#}");
+                let error =
+                    truncate_config_error(&format!("{e:#}"), STORED_CONFIG_ERROR_MAX_CHARS);
                 warn!("[{name}] skipping config: {error}");
                 invalid.push(InvalidConfigEntry { name, path, error });
             }
@@ -507,6 +539,45 @@ condition_path_exists: /usr/bin/sleep
         assert!(
             catalog.invalid.is_empty(),
             "a spawnable config must win over a broken file sharing its name"
+        );
+    }
+
+    #[test]
+    fn test_truncate_config_error_keeps_short_text() {
+        let err = "missing field `command`";
+        assert_eq!(truncate_config_error(err, LIST_CONFIG_ERROR_MAX_CHARS), err);
+    }
+
+    #[test]
+    fn test_truncate_config_error_respects_budget() {
+        let err = "a".repeat(LIST_CONFIG_ERROR_MAX_CHARS + 50);
+        let out = truncate_config_error(&err, LIST_CONFIG_ERROR_MAX_CHARS);
+        assert_eq!(out.chars().count(), LIST_CONFIG_ERROR_MAX_CHARS);
+        assert!(out.ends_with(CONFIG_ERROR_TRUNCATED_SUFFIX));
+    }
+
+    /// A mistyped scalar that serde echoes in full must not become an unbounded catalog row.
+    #[test]
+    fn test_load_configs_caps_stored_parse_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let huge = "z".repeat(STORED_CONFIG_ERROR_MAX_CHARS + 8_000);
+        fs::write(
+            dir.path().join("huge.yaml"),
+            format!("command: /a\nargs: \"{huge}\"\n"),
+        )
+        .unwrap();
+
+        let catalog = load_configs(dir.path()).unwrap();
+        assert_eq!(catalog.invalid.len(), 1);
+        let error = &catalog.invalid[0].error;
+        assert!(
+            error.chars().count() <= STORED_CONFIG_ERROR_MAX_CHARS,
+            "stored parse error must be capped, got {} chars",
+            error.chars().count()
+        );
+        assert!(
+            error.contains("truncated"),
+            "capped diagnostics must mark the cut: {error}"
         );
     }
 

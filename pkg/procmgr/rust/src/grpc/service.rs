@@ -310,7 +310,11 @@ fn invalid_to_proto(inv: &InvalidProcess) -> proto::Process {
         last_signal: None,
         profile: String::new(),
         user: String::new(),
-        config_error: inv.error.clone(),
+        // List carries a short diagnostic; Describe keeps the stored text.
+        config_error: crate::config::truncate_config_error(
+            &inv.error,
+            crate::config::LIST_CONFIG_ERROR_MAX_CHARS,
+        ),
     }
 }
 
@@ -556,6 +560,32 @@ mod tests {
         let detail = invalid_detail_fields(&inv);
         assert_eq!(detail.config_error, inv.error);
         assert_eq!(detail.state, proto::ProcessState::InvalidConfig as i32);
+    }
+
+    #[test]
+    fn test_invalid_to_proto_shortens_list_config_error() {
+        let long = "x".repeat(crate::config::LIST_CONFIG_ERROR_MAX_CHARS + 200);
+        let inv = InvalidProcess {
+            uuid: test_helpers::test_uuid(),
+            name: "broken".to_string(),
+            path: std::path::PathBuf::from("/tmp/broken.yaml"),
+            error: long.clone(),
+        };
+        let proto = invalid_to_proto(&inv);
+        assert!(
+            proto.config_error.chars().count() <= crate::config::LIST_CONFIG_ERROR_MAX_CHARS,
+            "list config_error must stay within the list budget"
+        );
+        assert!(
+            proto.config_error.contains("truncated"),
+            "oversized list diagnostics must mark the cut: {}",
+            proto.config_error
+        );
+        let detail = invalid_detail_fields(&inv);
+        assert_eq!(
+            detail.config_error, long,
+            "describe keeps the stored error; list is the only shortened view"
+        );
     }
 
     #[test]
