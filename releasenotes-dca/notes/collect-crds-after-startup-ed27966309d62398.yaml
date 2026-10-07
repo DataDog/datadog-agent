@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Orchestrator Explorer now collects configured and built-in custom resources
+    when their CRDs are installed after the Cluster Agent starts. The Cluster
+    Agent checks for new resource APIs every five minutes.

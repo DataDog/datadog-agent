@@ -34,6 +34,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+const defaultCRDDiscoveryInterval = 5 * time.Minute
+
 const (
 	defaultExtraSyncTimeout = 60 * time.Second
 	defaultMaximumCRDs      = 100
@@ -92,6 +94,8 @@ type CollectorBundle struct {
 	activatedCollectors      map[string]struct{}
 	terminatedResourceBundle *TerminatedResourceBundle
 	initializeOnce           sync.Once
+	lastCRDDiscovery         time.Time
+	startedInformers         map[cache.SharedInformer]struct{}
 }
 
 // NewCollectorBundle creates a new bundle from the check configuration.
@@ -198,6 +202,9 @@ func (cb *CollectorBundle) skipImportingDefaultCollectors() bool {
 // The following configuration keys are accepted:
 //   - <apigroup_and_version>/<collector_name> (e.g. "batch/v1/cronjobs")
 func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bool) {
+	if _, ok := cb.activatedCollectors[collectorName]; ok {
+		return
+	}
 	var (
 		collector collectors.K8sCollector
 		err       error
@@ -329,16 +336,50 @@ func (cb *CollectorBundle) prepareExtraSyncTimeout() {
 // During initialization informers are created, started and their cache is
 // synced.
 func (cb *CollectorBundle) Initialize() {
-	cb.initializeOnce.Do(cb.initialize)
+	cb.initializeOnce.Do(func() {
+		cb.initializeCollectors(cb.collectors)
+		cb.lastCRDDiscovery = time.Now()
+	})
+	cb.refreshCRDCollectors()
+	for _, collector := range cb.collectors {
+		if collector.Metadata().IsSkipped && collector.Metadata().NodeType == orchestrator.K8sCR && collector.Informer().HasSynced() {
+			collector.Metadata().IsSkipped = false
+			collector.Metadata().SkippedReason = ""
+			skippedResources[collector.Metadata().FullName()].Set("")
+		}
+	}
 }
 
-func (cb *CollectorBundle) initialize() {
-	informersToSync := make(map[apiserver.InformerName]cache.SharedInformer)
-	// informerSynced is a helper map which makes sure that we don't initialize the same informer twice.
-	// i.e. the cluster and nodes resources share the same informer and using both can lead to a race condition activating both concurrently.
-	informerSynced := map[cache.SharedInformer]struct{}{}
+// refreshCRDCollectors adds CR collectors for APIs installed after startup.
+func (cb *CollectorBundle) refreshCRDCollectors() {
+	if time.Since(cb.lastCRDDiscovery) < defaultCRDDiscoveryInterval {
+		return
+	}
+	if len(cb.check.instance.CRDCollectors) == 0 && !cb.hasCRDCollector() {
+		return
+	}
+	cb.lastCRDDiscovery = time.Now()
+	if err := cb.collectorDiscovery.Refresh(cb.runCfg.APIClient.Cl.Discovery()); err != nil {
+		_ = cb.check.Warnf("Custom resource discovery failed: %s", err)
+		return
+	}
+	previousCount := len(cb.collectors)
+	cb.importCRDCollectorsFromCheckConfig()
+	if !cb.skipImportingDefaultCollectors() {
+		cb.importBuiltinCollectors()
+	}
+	cb.initializeCollectors(cb.collectors[previousCount:])
+}
 
-	for _, collector := range cb.collectors {
+func (cb *CollectorBundle) initializeCollectors(newCollectors []collectors.K8sCollector) {
+	informersToSync := make(map[apiserver.InformerName]cache.SharedInformer)
+	// Track started informers to prevent the same informer from starting twice.
+	// i.e. the cluster and nodes resources share the same informer and using both can lead to a race condition activating both concurrently.
+	if cb.startedInformers == nil {
+		cb.startedInformers = make(map[cache.SharedInformer]struct{})
+	}
+
+	for _, collector := range newCollectors {
 		collectorFullName := collector.Metadata().FullName()
 
 		// init metrics
@@ -354,9 +395,9 @@ func (cb *CollectorBundle) initialize() {
 			continue
 		}
 
-		if _, found := informerSynced[informer]; !found {
+		if _, found := cb.startedInformers[informer]; !found {
 			informersToSync[apiserver.InformerName(collectorFullName)] = informer
-			informerSynced[informer] = struct{}{}
+			cb.startedInformers[informer] = struct{}{}
 
 			// add event handlers for terminated resources
 			if collector.Metadata().SupportsTerminatedResourceCollection {
@@ -640,7 +681,20 @@ func (cb *CollectorBundle) getBuiltinCustomResourceCollectors() []collectors.K8s
 		crCollectors = append(crCollectors, cb.collectorsForBuiltinCRD(builtinCustomResource)...)
 	}
 
-	crCollectors = filterCRCollectorsByPermission(crCollectors, cb.isForbidden)
+	pending := crCollectors[:0]
+	for _, candidate := range crCollectors {
+		active := false
+		for _, existing := range cb.collectors {
+			if existing.Metadata().NodeType == orchestrator.K8sCR && existing.Metadata().Name == candidate.Metadata().Name && existing.Metadata().Group == candidate.Metadata().Group {
+				active = true
+				break
+			}
+		}
+		if !active {
+			pending = append(pending, candidate)
+		}
+	}
+	crCollectors = filterCRCollectorsByPermission(pending, cb.isForbidden)
 
 	return crCollectors
 }
