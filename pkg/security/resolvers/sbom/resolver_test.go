@@ -9,6 +9,7 @@ package sbom
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -849,6 +850,25 @@ func TestResolvePackageRecordsNoUsageOnDirectory(t *testing.T) {
 	}
 	if r.hostSBOM.forwarder != nil {
 		t.Errorf("the directory open triggered forwarding")
+	}
+}
+
+// TestResolvePackageSkipsPartialPath checks that a path left partial by a resolution
+// error, which may name another file of the root, resolves to no package.
+func TestResolvePackageSkipsPartialPath(t *testing.T) {
+	r := newHostSBOMResolver(t)
+
+	pc, file := hostAccess()
+	file.PathResolutionError = errors.New("dentry not found")
+
+	if pkg := r.ResolvePackage(pc, file); pkg != nil {
+		t.Errorf("ResolvePackage = %+v, want no package", pkg)
+	}
+	if pkg := r.LookupPackage(pc, file); pkg != nil {
+		t.Errorf("LookupPackage = %+v, want no package", pkg)
+	}
+	if pkg := r.hostSBOM.data.packages[0]; !pkg.LastAccess.IsZero() || pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want the usage left as it was", pkg)
 	}
 }
 

@@ -971,7 +971,7 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 // runs or opens, and records the access as usage of the package. The path of
 // file must be resolved.
 func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
-	if !file.IsPathnameStrResolved {
+	if !file.IsPathnameStrResolved || file.PathResolutionError != nil {
 		return nil
 	}
 
@@ -1048,7 +1048,7 @@ func runsAsRoot(pc *model.ProcessContext) bool {
 // events read it, for the files a process runs or opens as well as for the
 // target of a chmod or an unlink.
 func (r *Resolver) LookupPackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
-	if !file.IsPathnameStrResolved {
+	if !file.IsPathnameStrResolved || file.PathResolutionError != nil {
 		return nil
 	}
 
