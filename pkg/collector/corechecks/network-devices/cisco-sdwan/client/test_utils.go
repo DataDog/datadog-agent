@@ -47,8 +47,8 @@ func serverURL(server *httptest.Server) string {
 	return strings.TrimPrefix(server.URL, "http://")
 }
 
-func testClient(server *httptest.Server) (*Client, error) {
-	return NewClient(serverURL(server), "testuser", "testpass", true)
+func testClient(server *httptest.Server, options ...ClientOptions) (*Client, error) {
+	return NewClient(serverURL(server), "testuser", "testpass", true, options...)
 }
 
 type handler struct {

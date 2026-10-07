@@ -28,6 +28,10 @@ func (client *Client) login() error {
 	}
 
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	err = client.waitForRateLimit()
+	if err != nil {
+		return err
+	}
 	sessionRes, err := client.httpClient.Do(req)
 	if err != nil {
 		return err
@@ -50,6 +54,10 @@ func (client *Client) login() error {
 
 	// Request to /dataservice/client/token to obtain csrf prevention token
 	req, err = client.newRequest("GET", "/dataservice/client/token", nil)
+	if err != nil {
+		return err
+	}
+	err = client.waitForRateLimit()
 	if err != nil {
 		return err
 	}
