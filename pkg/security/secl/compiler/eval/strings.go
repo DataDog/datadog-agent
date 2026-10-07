@@ -332,25 +332,25 @@ func NewStringMatcher(kind FieldValueType, pattern string, opts StringCmpOpts) (
 	case PatternValueType:
 		var matcher PatternStringMatcher
 		if err := matcher.Compile(pattern, opts.CaseInsensitive); err != nil {
-			return nil, fmt.Errorf("invalid pattern `%s`: %s", pattern, err)
+			return nil, fmt.Errorf("invalid pattern `%s`: %w", pattern, err)
 		}
 		return &matcher, nil
 	case GlobValueType:
 		var matcher GlobStringMatcher
 		if err := matcher.Compile(pattern, opts.CaseInsensitive, opts.PathSeparatorNormalize); err != nil {
-			return nil, fmt.Errorf("invalid glob `%s`: %s", pattern, err)
+			return nil, fmt.Errorf("invalid glob `%s`: %w", pattern, err)
 		}
 		return &matcher, nil
 	case RegexpValueType:
 		var matcher RegexpStringMatcher
 		if err := matcher.Compile(pattern, opts.CaseInsensitive); err != nil {
-			return nil, fmt.Errorf("invalid regexp `%s`: %s", pattern, err)
+			return nil, fmt.Errorf("invalid regexp `%s`: %w", pattern, err)
 		}
 		return &matcher, nil
 	case ScalarValueType:
 		var matcher ScalarStringMatcher
 		if err := matcher.Compile(pattern, opts.CaseInsensitive); err != nil {
-			return nil, fmt.Errorf("invalid regexp `%s`: %s", pattern, err)
+			return nil, fmt.Errorf("invalid regexp `%s`: %w", pattern, err)
 		}
 		return &matcher, nil
 	}

@@ -68,7 +68,7 @@ func RunLoad(_ log.Component, _ config.Component, loadArgs *LoadParams) error {
 	}
 	resourceData, err := json.MarshalIndent(resource, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal %s config: %v", resourceType, err)
+		return fmt.Errorf("failed to marshal %s config: %w", resourceType, err)
 	}
 	fmt.Fprintf(os.Stderr, "Loaded config with resource type %q\n", resourceType)
 	fmt.Println(string(resourceData))
@@ -78,14 +78,14 @@ func RunLoad(_ log.Component, _ config.Component, loadArgs *LoadParams) error {
 func getProcMeta(hostroot string, pid int32) (*process.Process, complianceutils.ContainerID, string, error) {
 	proc, err := process.NewProcess(pid)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("failed to get process with pid %d: %v", pid, err)
+		return nil, "", "", fmt.Errorf("failed to get process with pid %d: %w", pid, err)
 	}
 	containerID, _ := complianceutils.GetProcessContainerID(proc.Pid)
 	var rootPath string
 	if containerID != "" {
 		rootPath, err = complianceutils.GetContainerOverlayPath(proc.Pid)
 		if err != nil {
-			return nil, "", "", fmt.Errorf("failed to get container overlay path for process %d: %v", pid, err)
+			return nil, "", "", fmt.Errorf("failed to get container overlay path for process %d: %w", pid, err)
 		}
 	} else {
 		rootPath = "/"

@@ -33,23 +33,23 @@ func CreateDummyInterface(name string, cidr string) (*netlink.Dummy, error) {
 
 	// Add the dummy interface
 	if err := netlink.LinkAdd(dummy); err != nil {
-		return nil, fmt.Errorf("failed to create dummy interface %s: %v", name, err)
+		return nil, fmt.Errorf("failed to create dummy interface %s: %w", name, err)
 	}
 
 	_, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse CIDR %s: %v", cidr, err)
+		return nil, fmt.Errorf("failed to parse CIDR %s: %w", cidr, err)
 	}
 
 	// attach the IMDS IP to the dummy interface
 	addr := &netlink.Addr{IPNet: ipNet}
 	if err := netlink.AddrAdd(dummy, addr); err != nil {
-		return nil, fmt.Errorf("failed to attach IMDS IP to %s: %v", name, err)
+		return nil, fmt.Errorf("failed to attach IMDS IP to %s: %w", name, err)
 	}
 
 	// set dummy interface up
 	if err := netlink.LinkSetUp(dummy); err != nil {
-		return nil, fmt.Errorf("failed to set %s up: %v", name, err)
+		return nil, fmt.Errorf("failed to set %s up: %w", name, err)
 	}
 
 	return dummy, nil
@@ -58,7 +58,7 @@ func CreateDummyInterface(name string, cidr string) (*netlink.Dummy, error) {
 // RemoveDummyInterface removes the provided dummy interface
 func RemoveDummyInterface(link *netlink.Dummy) error {
 	if err := netlink.LinkDel(link); err != nil {
-		return fmt.Errorf("failed to delete %s: %v", link.Name, err)
+		return fmt.Errorf("failed to delete %s: %w", link.Name, err)
 	}
 	return nil
 }

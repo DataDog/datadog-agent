@@ -51,7 +51,7 @@ func ReadDocument(r io.Reader) (*Document, error) {
 	for {
 		token, err := d.Token()
 		if err != nil || token == nil {
-			return nil, fmt.Errorf("Could not decode XML: %v", err)
+			return nil, fmt.Errorf("Could not decode XML: %w", err)
 		}
 		switch startElement := token.(type) {
 		case xml.StartElement:

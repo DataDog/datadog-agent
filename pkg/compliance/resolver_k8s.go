@@ -127,7 +127,7 @@ func (r *k8sapiserverResolver) resolveKubeApiserver(ctx context.Context, spec In
 		}
 		resource, err := resourceAPI.Get(ctx, spec.APIRequest.ResourceName, kubemetav1.GetOptions{})
 		if err != nil {
-			return nil, fmt.Errorf("unable to get Kube resource:'%v', ns:'%s' name:'%s', err: %v",
+			return nil, fmt.Errorf("unable to get Kube resource:'%v', ns:'%s' name:'%s', err: %w",
 				resourceSchema, spec.Namespace, api.ResourceName, err)
 		}
 		items = []kubeunstructured.Unstructured{*resource}
@@ -137,7 +137,7 @@ func (r *k8sapiserverResolver) resolveKubeApiserver(ctx context.Context, spec In
 			FieldSelector: spec.FieldSelector,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("unable to list Kube resources:'%v', ns:'%s' name:'%s', err: %v",
+			return nil, fmt.Errorf("unable to list Kube resources:'%v', ns:'%s' name:'%s', err: %w",
 				resourceSchema, spec.Namespace, api.ResourceName, err)
 		}
 		items = list.Items

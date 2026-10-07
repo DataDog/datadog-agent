@@ -363,7 +363,7 @@ func NewCWSInstrumentation(wmeta workloadmeta.Component, datadogConfig config.Co
 	// parse mode
 	ci.mode, err = ParseInstrumentationMode(pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.mode"))
 	if err != nil {
-		return nil, fmt.Errorf("can't initiatilize CWS Instrumentation: %v", err)
+		return nil, fmt.Errorf("can't initiatilize CWS Instrumentation: %w", err)
 	}
 	ci.mountVolumeForRemoteCopy = pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.remote_copy.mount_volume")
 	ci.directoryForRemoteCopy = pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.remote_copy.directory")
@@ -426,7 +426,7 @@ func (ci *CWSInstrumentation) resolveNodeArch(nodeName string, apiClient kuberne
 		defer cancel()
 		node, err := apiClient.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 		if err != nil {
-			return "", fmt.Errorf("couldn't describe node %s from the API server: %v", nodeName, err)
+			return "", fmt.Errorf("couldn't describe node %s from the API server: %w", nodeName, err)
 		}
 		if node.GetLabels() != nil {
 			arch = node.GetLabels()["kubernetes.io/arch"]
@@ -704,7 +704,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *cor
 	defer cancel()
 	apiclient, err := apiserverUtils.WaitForAPIClient(ctx)
 	if err != nil {
-		return fmt.Errorf("couldn't initialize API client: %v", err)
+		return fmt.Errorf("couldn't initialize API client: %w", err)
 	}
 
 	cp := k8scp.NewCopy(apiclient)
@@ -910,7 +910,7 @@ func labelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelecto
 func mutatePodExecOptions(rawPodExecOptions []byte, name string, ns string, mutationType string, userInfo *authenticationv1.UserInfo, m mutatePodExecFunc, dc dynamic.Interface, apiClient kubernetes.Interface) ([]byte, error) {
 	var exec corev1.PodExecOptions
 	if err := json.Unmarshal(rawPodExecOptions, &exec); err != nil {
-		return nil, fmt.Errorf("failed to decode raw object: %v", err)
+		return nil, fmt.Errorf("failed to decode raw object: %w", err)
 	}
 
 	if injected, err := m(&exec, name, ns, userInfo, dc, apiClient); err != nil {
@@ -921,12 +921,12 @@ func mutatePodExecOptions(rawPodExecOptions []byte, name string, ns string, muta
 
 	bytes, err := json.Marshal(exec)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode the mutated Pod object: %v", err)
+		return nil, fmt.Errorf("failed to encode the mutated Pod object: %w", err)
 	}
 
 	patch, err := jsondiff.CompareJSON(rawPodExecOptions, bytes) // TODO: Try to generate the patch at the MutationFunc
 	if err != nil {
-		return nil, fmt.Errorf("failed to prepare the JSON patch: %v", err)
+		return nil, fmt.Errorf("failed to prepare the JSON patch: %w", err)
 	}
 
 	return json.Marshal(patch)

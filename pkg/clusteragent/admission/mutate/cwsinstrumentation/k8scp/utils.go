@@ -20,7 +20,7 @@ func makeTar(src, dest string, writer io.Writer) error {
 	stat, err := os.Stat(src)
 	if err != nil {
 		_ = tarWriter.Close()
-		return fmt.Errorf("could not stat %s: %s", src, err)
+		return fmt.Errorf("could not stat %s: %w", src, err)
 	}
 
 	// case regular file or other file type like pipe
@@ -50,11 +50,11 @@ func makeTar(src, dest string, writer io.Writer) error {
 
 	if err = f.Close(); err != nil {
 		_ = tarWriter.Close()
-		return fmt.Errorf("could not close file %s: %s", src, err)
+		return fmt.Errorf("could not close file %s: %w", src, err)
 	}
 
 	if err = tarWriter.Close(); err != nil {
-		return fmt.Errorf("could not close tar writer: %s", err)
+		return fmt.Errorf("could not close tar writer: %w", err)
 	}
 
 	return nil

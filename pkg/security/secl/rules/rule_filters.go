@@ -80,7 +80,7 @@ func NewAgentVersionFilter(version *semver.Version) (*AgentVersionFilter, error)
 func (r *AgentVersionFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
 	constraint, err := validators.ValidateAgentVersionConstraint(rule.AgentVersionConstraint)
 	if err != nil {
-		return false, fmt.Errorf("failed to parse agent version constraint: %v", err)
+		return false, fmt.Errorf("failed to parse agent version constraint: %w", err)
 	}
 
 	return constraint.Check(r.version), nil
@@ -95,7 +95,7 @@ func (r *AgentVersionFilter) GetType() FilterType {
 func (r *AgentVersionFilter) IsMacroAccepted(macro *MacroDefinition) (bool, error) {
 	constraint, err := validators.ValidateAgentVersionConstraint(macro.AgentVersionConstraint)
 	if err != nil {
-		return false, fmt.Errorf("failed to parse agent version constraint: %v", err)
+		return false, fmt.Errorf("failed to parse agent version constraint: %w", err)
 	}
 
 	return constraint.Check(r.version), nil

@@ -162,7 +162,7 @@ func (p *oscapIO) Run(ctx context.Context) error {
 			}
 			result, err := strconv.Atoi(line[1])
 			if err != nil {
-				p.ErrorCh <- fmt.Errorf("strconv.Atoi '%s': %v", line[1], err)
+				p.ErrorCh <- fmt.Errorf("strconv.Atoi '%s': %w", line[1], err)
 				continue
 			}
 
@@ -171,13 +171,13 @@ func (p *oscapIO) Run(ctx context.Context) error {
 			if enableSysChar {
 				doc, err := scap.ReadDocument(r)
 				if err != nil {
-					p.ErrorCh <- fmt.Errorf("scap.ReadDocument: %v", err)
+					p.ErrorCh <- fmt.Errorf("scap.ReadDocument: %w", err)
 					continue
 				}
 
 				syschar, err := scap.SysChar(doc)
 				if err != nil {
-					p.ErrorCh <- fmt.Errorf("scap.SysChar: %v", err)
+					p.ErrorCh <- fmt.Errorf("scap.SysChar: %w", err)
 					continue
 				}
 

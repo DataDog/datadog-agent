@@ -86,11 +86,11 @@ func (o *Copy) copyToPod(localFile string, remoteFile string, pod *corev1.Pod, c
 		}()
 		if err := makeTar(src, dest, writer); err != nil {
 			_ = writer.Close()
-			tarErrChan <- fmt.Errorf("failed to tar local file: %v", err)
+			tarErrChan <- fmt.Errorf("failed to tar local file: %w", err)
 			return
 		}
 		if err := writer.Close(); err != nil {
-			tarErrChan <- fmt.Errorf("failed to close the pipe writer: %v", err)
+			tarErrChan <- fmt.Errorf("failed to close the pipe writer: %w", err)
 			return
 		}
 		tarErrChan <- nil
@@ -108,7 +108,7 @@ func (o *Copy) copyToPod(localFile string, remoteFile string, pod *corev1.Pod, c
 	start := time.Now()
 	if err := o.Execute(pod, o.prepareCommand(remoteFile), streamOptions, mode, webhookName, timeout); err != nil {
 		metrics.CWSResponseDuration.Observe(time.Since(start).Seconds(), mode, webhookName, "copy_to_pod_cmd_execute", "false", "")
-		return fmt.Errorf("command execute error (in %s): %v", time.Since(start), err)
+		return fmt.Errorf("command execute error (in %s): %w", time.Since(start), err)
 	}
 	metrics.CWSResponseDuration.Observe(time.Since(start).Seconds(), mode, webhookName, "copy_to_pod_cmd_execute", "true", "")
 

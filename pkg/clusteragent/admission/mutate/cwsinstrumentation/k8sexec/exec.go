@@ -61,7 +61,7 @@ func (e Exec) Execute(pod *corev1.Pod, command []string, streamOptions StreamOpt
 		serializer.WithoutConversionCodecFactory{CodecFactory: scheme.Codecs},
 	)
 	if err != nil {
-		return fmt.Errorf("new REST client error: %v", err)
+		return fmt.Errorf("new REST client error: %w", err)
 	}
 
 	req := restClient.Post().
@@ -86,7 +86,7 @@ func (e Exec) Execute(pod *corev1.Pod, command []string, streamOptions StreamOpt
 		req.URL(),
 	)
 	if err != nil {
-		return fmt.Errorf("new SPDY executor error: %v", err)
+		return fmt.Errorf("new SPDY executor error: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -99,7 +99,7 @@ func (e Exec) Execute(pod *corev1.Pod, command []string, streamOptions StreamOpt
 	})
 	metrics.CWSResponseDuration.Observe(time.Since(streamStart).Seconds(), mode, webhookName, "copy_to_pod_execute", strconv.FormatBool(err == nil), "")
 	if err != nil {
-		return fmt.Errorf("SPDY stream error (in %s): %v", time.Since(streamStart), err)
+		return fmt.Errorf("SPDY stream error (in %s): %w", time.Since(streamStart), err)
 	}
 	return nil
 }

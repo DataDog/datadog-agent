@@ -140,7 +140,7 @@ func StopIMDSserver(server *http.Server) error {
 	defer shutdownRelease()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("failed to shutdown server: %v", err)
+		return fmt.Errorf("failed to shutdown server: %w", err)
 	}
 	return nil
 }
