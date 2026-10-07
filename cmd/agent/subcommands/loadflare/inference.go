@@ -16,13 +16,13 @@ import (
 func inferLading(snapshot characterization.Snapshot) ([]byte, map[string]any) {
 	warnings := []string{}
 	limitations := []string{}
-	var fileEvents, fileBytes, fileSources uint64
+	var fileEvents, fileBytes, distinctFileSources uint64
 	var otherEvents uint64
 	for _, group := range snapshot.Groups {
 		if group.SourceType == "file" {
 			fileEvents += group.Aggregate.Events
 			fileBytes += group.Aggregate.ContentBytes
-			fileSources += group.Aggregate.SourceCount
+			distinctFileSources += group.Aggregate.SourceCount
 		} else {
 			otherEvents += group.Aggregate.Events
 		}
@@ -35,6 +35,11 @@ func inferLading(snapshot characterization.Snapshot) ([]byte, map[string]any) {
 	if otherEvents > 0 && fileEvents > 0 {
 		status = "partial"
 		warnings = append(warnings, "Non-file ingress was observed and is not represented by the emitted file generator.")
+	}
+	fileSources := distinctFileSources
+	if snapshot.Lifecycle != nil && snapshot.Lifecycle.Rotations > 0 && fileSources > snapshot.Lifecycle.Rotations {
+		fileSources -= snapshot.Lifecycle.Rotations
+		limitations = append(limitations, "Concurrent file sources are inferred as distinct bounded-window identities minus observed rotations.")
 	}
 	if fileSources == 0 {
 		fileSources = 1
@@ -97,6 +102,7 @@ func inferLading(snapshot characterization.Snapshot) ([]byte, map[string]any) {
 		"predicted_aggregate_bytes_per_second":  aggregateRate,
 		"predicted_per_source_bytes_per_second": perSourceRate,
 		"inferred_source_count":                 fileSources,
+		"observed_distinct_file_sources":        distinctFileSources,
 		"inferred_payload_variant":              variant,
 		"rate_inference":                        "bounded_raw_ingress_bytes",
 	}
@@ -133,7 +139,7 @@ func dominantVariant(families map[string]characterization.Aggregate) (string, st
 	}
 	status := "ready"
 	warning := ""
-	if dominantEvents < total {
+	if float64(dominantEvents)/float64(total) < 0.95 {
 		status = "partial"
 		warning = "Multiple payload families were observed; the candidate represents only the dominant family."
 	}

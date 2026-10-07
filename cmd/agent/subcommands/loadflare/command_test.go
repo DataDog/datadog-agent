@@ -68,3 +68,19 @@ func TestInferLadingForSupportedFileLoad(t *testing.T) {
 	require.Contains(t, string(lading), `variant: "apache_common"`)
 	require.Equal(t, "partial", report["candidate"].(map[string]any)["status"])
 }
+
+func TestInferLadingAccountsForRotatedSourceIdentities(t *testing.T) {
+	start := time.Unix(100, 0).UTC()
+	snapshot := characterization.Snapshot{
+		SessionID: "rotation", StartedAt: start, EndedAt: start.Add(20 * time.Second), RequestedDurationSeconds: 20,
+		Groups:          []characterization.Group{{SourceType: "file", Pipeline: "0", Aggregate: characterization.Aggregate{Events: 100, ContentBytes: 10485760, SourceCount: 8}}},
+		PayloadFamilies: map[string]characterization.Aggregate{"apache_common": {Events: 99996}, "plain": {Events: 4}},
+		Lifecycle:       &characterization.Lifecycle{Rotations: 4, RotationIntervals: characterization.Histogram{Count: 4, Sum: 60}},
+	}
+	lading, report := inferLading(snapshot)
+	require.Contains(t, string(lading), "concurrent_logs: 4")
+	require.Contains(t, string(lading), `constant: "131072B"`)
+	require.Equal(t, uint64(8), report["observed_distinct_file_sources"])
+	require.Equal(t, uint64(4), report["inferred_source_count"])
+	require.Equal(t, "ready", report["candidate"].(map[string]any)["status"])
+}
