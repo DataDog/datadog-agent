@@ -9,6 +9,8 @@ exports_files([
     "native_python_test.sh",
     "pyconfig-linux-arm64.h",
     "pyconfig-linux-x86_64.h",
+    "pyconfig-macos-arm64.h",
+    "pyconfig-macos-x86_64.h",
 ])
 
 py_library(
