@@ -283,7 +283,7 @@ func TestCacheRefreshOnMiss(t *testing.T) {
 			<-start // wait until all goroutines are ready
 			val, err := resourceCache.getResourceType("Pod", "")
 			if err != nil {
-				errCh <- fmt.Errorf("got unexpected error: %v", err)
+				errCh <- fmt.Errorf("got unexpected error: %w", err)
 				return
 			}
 			if val != "pods" {

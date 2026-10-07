@@ -75,7 +75,7 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 	if err := unmarshaler.Unmarshal(rawConfig.Config, actionsList); err != nil {
 		log.Errorf("[KubeActions] Failed to unmarshal config %s (id=%s, version=%d): %v",
 			configKey, rawConfig.Metadata.ID, rawConfig.Metadata.Version, err)
-		return fmt.Errorf("failed to unmarshal config id:%s, version: %d, config key: %s, err: %v",
+		return fmt.Errorf("failed to unmarshal config id:%s, version: %d, config key: %s, err: %w",
 			rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey, err)
 	}
 

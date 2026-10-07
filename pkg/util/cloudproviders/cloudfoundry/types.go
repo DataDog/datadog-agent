@@ -582,7 +582,7 @@ func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSide
 		r := c.NewRequest("GET", requestURL+"?"+query.Encode())
 		resp, err := c.DoRequest(r)
 		if err != nil {
-			return nil, fmt.Errorf("Error requesting sidecars for app %s: %s", appGUID, err)
+			return nil, fmt.Errorf("Error requesting sidecars for app %s: %w", appGUID, err)
 		}
 
 		if resp.StatusCode != http.StatusOK {
@@ -592,13 +592,13 @@ func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSide
 		defer resp.Body.Close()
 		resBody, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("Error reading sidecars response for app %s for page %d: %s", appGUID, page, err)
+			return nil, fmt.Errorf("Error reading sidecars response for app %s for page %d: %w", appGUID, page, err)
 		}
 
 		var data listSidecarsResponse
 		err = json.Unmarshal(resBody, &data)
 		if err != nil {
-			return nil, fmt.Errorf("Error unmarshalling sidecars response for app %s for page %d: %s", appGUID, page, err)
+			return nil, fmt.Errorf("Error unmarshalling sidecars response for app %s for page %d: %w", appGUID, page, err)
 		}
 
 		sidecars = append(sidecars, data.Resources...)
@@ -616,7 +616,7 @@ func (c *CFClient) getIsolationSegmentRelationship(resource, guid string) (strin
 
 	resp, err := c.DoRequest(r)
 	if err != nil {
-		return "", fmt.Errorf("Error requesting isolation segment %s: %s", resource, err)
+		return "", fmt.Errorf("Error requesting isolation segment %s: %w", resource, err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -626,13 +626,13 @@ func (c *CFClient) getIsolationSegmentRelationship(resource, guid string) (strin
 	defer resp.Body.Close()
 	resBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("Error reading isolation segment %s response: %s", resource, err)
+		return "", fmt.Errorf("Error reading isolation segment %s response: %w", resource, err)
 	}
 
 	var data isolationSegmentRelationshipResponse
 	err = json.Unmarshal(resBody, &data)
 	if err != nil {
-		return "", fmt.Errorf("Error unmarshalling isolation segment %s response: %s", resource, err)
+		return "", fmt.Errorf("Error unmarshalling isolation segment %s response: %w", resource, err)
 	}
 
 	if len(data.Data) == 0 {
@@ -662,7 +662,7 @@ func (c *CFClient) ListProcessByAppGUID(query url.Values, appGUID string) ([]cfc
 		r := c.NewRequest("GET", requestURL+"?"+query.Encode())
 		resp, err := c.DoRequest(r)
 		if err != nil {
-			return nil, fmt.Errorf("Error requesting processes for app: %s", err)
+			return nil, fmt.Errorf("Error requesting processes for app: %w", err)
 		}
 
 		if resp.StatusCode != http.StatusOK {
@@ -672,13 +672,13 @@ func (c *CFClient) ListProcessByAppGUID(query url.Values, appGUID string) ([]cfc
 		defer resp.Body.Close()
 		resBody, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("Error reading processes response for app %s for page %d: %s", appGUID, page, err)
+			return nil, fmt.Errorf("Error reading processes response for app %s for page %d: %w", appGUID, page, err)
 		}
 
 		var data listProcessesByAppGUIDResponse
 		err = json.Unmarshal(resBody, &data)
 		if err != nil {
-			return nil, fmt.Errorf("Error unmarshalling processes response for app %s for page %d: %s", appGUID, page, err)
+			return nil, fmt.Errorf("Error unmarshalling processes response for app %s for page %d: %w", appGUID, page, err)
 		}
 
 		processes = append(processes, data.Resources...)

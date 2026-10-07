@@ -631,7 +631,7 @@ func discoverResources(client discovery.DiscoveryInterface) ([]*v1.APIResourceLi
 	_, resources, err := client.ServerGroupsAndResources()
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
-			return nil, fmt.Errorf("unable to perform resource discovery: %s", err)
+			return nil, fmt.Errorf("unable to perform resource discovery: %w", err)
 		}
 
 		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {

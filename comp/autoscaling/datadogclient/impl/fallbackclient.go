@@ -139,7 +139,7 @@ func (cl *datadogFallbackClient) QueryMetrics(from, to int64, query string) ([]d
 			return series, nil
 		}
 
-		errs = fmt.Errorf("%w, Failed to query metrics on %s: %v", errs, c.client.GetBaseUrl(), err)
+		errs = fmt.Errorf("%w, Failed to query metrics on %s: %w", errs, c.client.GetBaseUrl(), err)
 	}
 
 	return nil, errs

@@ -23,7 +23,7 @@ const (
 func GetBearerToken(authTokenPath string) (string, error) {
 	token, err := os.ReadFile(authTokenPath)
 	if err != nil {
-		return "", fmt.Errorf("could not read token from %s: %s", authTokenPath, err)
+		return "", fmt.Errorf("could not read token from %s: %w", authTokenPath, err)
 	}
 	return string(token), nil
 }

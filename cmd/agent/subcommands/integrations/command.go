@@ -301,7 +301,7 @@ func validateArgs(args []string, local bool) error {
 		} else if os.IsNotExist(err) {
 			return fmt.Errorf("local wheel %s does not exist", args[0])
 		}
-		return fmt.Errorf("cannot read local wheel %s: %v", args[0], err)
+		return fmt.Errorf("cannot read local wheel %s: %w", args[0], err)
 	}
 
 	return nil
@@ -353,7 +353,7 @@ func pip(cliParams *cliParams, args []string, stdout io.Writer, stderr io.Writer
 
 	err = pipCmd.Run()
 	if err != nil {
-		return fmt.Errorf("error running command: %v", err)
+		return fmt.Errorf("error running command: %w", err)
 	}
 
 	return nil
@@ -392,7 +392,7 @@ func install(cliParams *cliParams, _ log.Component) error {
 
 		fmt.Println(disclaimer)
 		if ok, err := validateBaseDependency(wheelPath, nil); err != nil {
-			return fmt.Errorf("error while reading the wheel %s: %v", wheelPath, err)
+			return fmt.Errorf("error while reading the wheel %s: %w", wheelPath, err)
 		} else if !ok {
 			return fmt.Errorf("the wheel %s is not an agent check, it will not be installed", wheelPath)
 		}
@@ -406,13 +406,13 @@ func install(cliParams *cliParams, _ log.Component) error {
 
 		// Install the wheel
 		if err := pip(cliParams, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
-			return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
+			return fmt.Errorf("error installing wheel %s: %w", wheelPath, err)
 		}
 
 		// Move configuration files
 		if err := moveConfigurationFilesOf(cliParams, integration); err != nil {
 			fmt.Printf("Installed %s from %s\n", integration, wheelPath)
-			return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
+			return fmt.Errorf("Some errors prevented moving %s configuration files: %w", integration, err)
 		}
 
 		fmt.Println(color.GreenString("Successfully completed the installation of " + integration))
@@ -432,11 +432,11 @@ func install(cliParams *cliParams, _ log.Component) error {
 	}
 	versionToInstall, err := semver.NewVersion(strings.TrimSpace(intVer[1]))
 	if err != nil || versionToInstall == nil {
-		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
+		return fmt.Errorf("unable to get version of %s to install: %w", integration, err)
 	}
 	currentVersion, found, err := installedVersion(cliParams, integration)
 	if err != nil {
-		return fmt.Errorf("could not get current version of %s: %v", integration, err)
+		return fmt.Errorf("could not get current version of %s: %w", integration, err)
 	}
 	if found && versionToInstall.Equal(*currentVersion) {
 		fmt.Printf("%s %s is already installed. Nothing to do.\n", integration, versionToInstall)
@@ -445,7 +445,7 @@ func install(cliParams *cliParams, _ log.Component) error {
 
 	minVersion, found, err := minAllowedVersion(integration)
 	if err != nil {
-		return fmt.Errorf("unable to get minimal version of %s: %v", integration, err)
+		return fmt.Errorf("unable to get minimal version of %s: %w", integration, err)
 	}
 	if found && versionToInstall.LessThan(*minVersion) {
 		return fmt.Errorf(
@@ -462,16 +462,16 @@ func install(cliParams *cliParams, _ log.Component) error {
 	// Download the wheel
 	wheelPath, err := downloadWheel(cliParams, integration, semverToPEP440(versionToInstall), rootLayoutType)
 	if err != nil {
-		return fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err)
+		return fmt.Errorf("error when downloading the wheel for %s %s: %w", integration, versionToInstall, err)
 	}
 
 	// Verify datadog-checks-base is compatible with the requirements
 	shippedBaseVersion, found, err := installedVersion(cliParams, "datadog-checks-base")
 	if err != nil {
-		return fmt.Errorf("unable to get the version of datadog-checks-base: %v", err)
+		return fmt.Errorf("unable to get the version of datadog-checks-base: %w", err)
 	}
 	if ok, err := validateBaseDependency(wheelPath, shippedBaseVersion); found && err != nil {
-		return fmt.Errorf("unable to validate compatibility of %s with the agent: %v", wheelPath, err)
+		return fmt.Errorf("unable to validate compatibility of %s with the agent: %w", wheelPath, err)
 	} else if !ok {
 		return fmt.Errorf(
 			"%s %s is not compatible with datadog-checks-base %s shipped in the agent",
@@ -481,13 +481,13 @@ func install(cliParams *cliParams, _ log.Component) error {
 
 	// Install the wheel
 	if err := pip(cliParams, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
-		return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
+		return fmt.Errorf("error installing wheel %s: %w", wheelPath, err)
 	}
 
 	// Move configuration files
 	if err := moveConfigurationFilesOf(cliParams, integration); err != nil {
 		fmt.Printf("Installed %s %s", integration, versionToInstall)
-		return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
+		return fmt.Errorf("Some errors prevented moving %s configuration files: %w", integration, err)
 	}
 
 	fmt.Println(color.GreenString(fmt.Sprintf(
@@ -570,7 +570,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 		return "", err
 	}
 	if err := downloaderCmd.Start(); err != nil {
-		return "", fmt.Errorf("error running command: %v", err)
+		return "", fmt.Errorf("error running command: %w", err)
 	}
 	// Buffered so the goroutine can send even if we return early on error.
 	lastLineCh := make(chan string, 1)
@@ -585,7 +585,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	}()
 
 	if err := downloaderCmd.Wait(); err != nil {
-		return "", fmt.Errorf("error running command: %v", err)
+		return "", fmt.Errorf("error running command: %w", err)
 	}
 
 	// The path to the wheel will be at the last line of the output
@@ -603,7 +603,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 func parseWheelPackageName(wheelPath string) (string, error) {
 	reader, err := zip.OpenReader(wheelPath)
 	if err != nil {
-		return "", fmt.Errorf("error operning archive file: %v", err)
+		return "", fmt.Errorf("error operning archive file: %w", err)
 	}
 	defer reader.Close()
 
@@ -673,7 +673,7 @@ func validateBaseDependency(wheelPath string, baseVersion *semver.Version) (bool
 						comp := groups[1]
 						version, err := semver.NewVersion(groups[2])
 						if err != nil {
-							return false, fmt.Errorf("unable to parse version specifier %s in %s: %v", groups[0], line, err)
+							return false, fmt.Errorf("unable to parse version specifier %s in %s: %w", groups[0], line, err)
 						}
 						compatible = compatible && validateRequirement(baseVersion, comp, version)
 					}
@@ -730,7 +730,7 @@ func installedVersion(cliParams *cliParams, integration string) (*semver.Version
 
 	validName, err := regexp.MatchString("^[0-9a-z_-]+$", integration)
 	if err != nil {
-		return nil, false, fmt.Errorf("Error validating integration name: %s", err)
+		return nil, false, fmt.Errorf("Error validating integration name: %w", err)
 	}
 	if !validName {
 		return nil, false, fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
@@ -757,7 +757,7 @@ func installedVersion(cliParams *cliParams, integration string) (*semver.Version
 
 	version, err := PEP440ToSemver(outputStr)
 	if err != nil {
-		return nil, true, fmt.Errorf("error parsing version %s: %s", version, err)
+		return nil, true, fmt.Errorf("error parsing version %s: %w", version, err)
 	}
 
 	return version, true, nil
@@ -768,7 +768,7 @@ func installedVersion(cliParams *cliParams, integration string) (*semver.Version
 func getVersionFromReqLine(integration string, lines string) (*semver.Version, bool, error) {
 	exp, err := regexp.Compile(fmt.Sprintf(reqLinePattern, integration))
 	if err != nil {
-		return nil, false, fmt.Errorf("internal error: %v", err)
+		return nil, false, fmt.Errorf("internal error: %w", err)
 	}
 
 	groups := exp.FindAllStringSubmatch(lines, 2)
@@ -917,7 +917,7 @@ func show(cliParams *cliParams, _ log.Component) error {
 
 	version, found, err := installedVersion(cliParams, packageName)
 	if err != nil {
-		return fmt.Errorf("could not get current version of %s: %v", packageName, err)
+		return fmt.Errorf("could not get current version of %s: %w", packageName, err)
 	} else if !found {
 		return fmt.Errorf("could not get current version of %s: not installed", packageName)
 	}

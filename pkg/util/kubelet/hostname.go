@@ -33,7 +33,7 @@ func GetHostname(ctx context.Context) (string, error) {
 	}
 	nodeName, err := ku.GetNodename(ctx)
 	if err != nil {
-		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)
+		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %w", err)
 	}
 
 	clusterName, initialClusterName := getRFC1123CompliantClusterName(ctx, nodeName)

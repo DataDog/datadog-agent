@@ -100,7 +100,7 @@ func NewRollbackDeploymentExecutor(clientset kubernetes.Interface) *RollbackDepl
 func validateTargetDeployment(ctx context.Context, client kubernetes.Interface, name string, namespace string, uid string) (*appsv1.Deployment, error) {
 	deployment, err := client.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get deployment %s/%s: %v", namespace, name, err)
+		return nil, fmt.Errorf("failed to get deployment %s/%s: %w", namespace, name, err)
 	}
 
 	if string(deployment.UID) != uid {

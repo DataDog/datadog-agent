@@ -128,7 +128,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 
 		container, err := c.gardenUtil.GetContainer(containerID)
 		if err != nil {
-			return fmt.Errorf("error retrieving container %s from the garden API: %v", containerID, err)
+			return fmt.Errorf("error retrieving container %s from the garden API: %w", containerID, err)
 		}
 
 		go func() {

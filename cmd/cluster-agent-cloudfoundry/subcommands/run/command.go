@@ -287,7 +287,7 @@ func initializeCCCache(ctx context.Context, config config.Component) (cloudfound
 		SkipSslValidation: config.GetBool("cloud_foundry_cc.skip_ssl_validation"),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create CC client: %v", err)
+		return nil, fmt.Errorf("failed to create CC client: %w", err)
 	}
 
 	ccCache, err := cloudfoundry.ConfigureGlobalCCCache(ctx, cloudfoundry.CCCacheConfig{
@@ -300,7 +300,7 @@ func initializeCCCache(ctx context.Context, config config.Component) (cloudfound
 		SegmentsTags:       config.GetBool("cluster_agent.isolation_segments_tags"),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize CC Cache: %v", err)
+		return nil, fmt.Errorf("failed to initialize CC Cache: %w", err)
 	}
 	return ccCache, nil
 }

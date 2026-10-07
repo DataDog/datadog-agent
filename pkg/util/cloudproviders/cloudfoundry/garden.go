@@ -108,7 +108,7 @@ func (gu *GardenUtil) ListContainers() ([]garden.Container, error) {
 func (gu *GardenUtil) GetContainersInfo(handles []string) (map[string]garden.ContainerInfoEntry, error) {
 	gardenContainerInfo, err := gu.cli.BulkInfo(handles)
 	if err != nil {
-		return nil, fmt.Errorf("error getting info for garden containers: %v", err)
+		return nil, fmt.Errorf("error getting info for garden containers: %w", err)
 	}
 
 	return gardenContainerInfo, nil
@@ -118,7 +118,7 @@ func (gu *GardenUtil) GetContainersInfo(handles []string) (map[string]garden.Con
 func (gu *GardenUtil) GetContainersMetrics(handles []string) (map[string]garden.ContainerMetricsEntry, error) {
 	gardenContainerMetrics, err := gu.cli.BulkMetrics(handles)
 	if err != nil {
-		return nil, fmt.Errorf("error getting metrics for garden containers: %v", err)
+		return nil, fmt.Errorf("error getting metrics for garden containers: %w", err)
 	}
 
 	return gardenContainerMetrics, nil

@@ -562,7 +562,7 @@ func (ku *KubeUtil) GetRawConnectionInfo() map[string]string {
 func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 	data, code, err := ku.QueryKubelet(ctx, kubeletMetricsPath)
 	if err != nil {
-		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.getKubeletClient().kubeletURL, kubeletMetricsPath, err)
+		return nil, fmt.Errorf("error performing kubelet query %s%s: %w", ku.getKubeletClient().kubeletURL, kubeletMetricsPath, err)
 	}
 	if code != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.getKubeletClient().kubeletURL, kubeletMetricsPath, string(data))

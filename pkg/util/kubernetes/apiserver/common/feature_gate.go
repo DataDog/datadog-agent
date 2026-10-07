@@ -78,7 +78,7 @@ func ClusterFeatureGates(ctx context.Context, discoveryClient discovery.Discover
 		AttemptMethod: func() error {
 			metricsData, err := discoveryClient.RESTClient().Get().AbsPath(apiServerMetricsPath).DoRaw(timeoutCtx)
 			if err != nil {
-				return fmt.Errorf("failed to query /metrics endpoint: %v", err)
+				return fmt.Errorf("failed to query /metrics endpoint: %w", err)
 			}
 
 			featureGates, err = parseFeatureGatesFromMetrics(metricsData)

@@ -21,7 +21,7 @@ import (
 func HostNodeName(ctx context.Context) (string, error) {
 	c, err := GetAPIClient()
 	if err != nil {
-		return "", fmt.Errorf("could not connect to the apiserver: %s", err)
+		return "", fmt.Errorf("could not connect to the apiserver: %w", err)
 	}
 	podName, err := common.GetSelfPodName()
 	if err != nil {
@@ -30,7 +30,7 @@ func HostNodeName(ctx context.Context) (string, error) {
 
 	nodeName, err := c.GetNodeForPod(ctx, namespace.GetMyNamespace(), podName)
 	if err != nil {
-		return "", fmt.Errorf("could not fetch the host nodename from the apiserver: %s", err)
+		return "", fmt.Errorf("could not fetch the host nodename from the apiserver: %w", err)
 	}
 	return nodeName, nil
 }
