@@ -4,6 +4,7 @@ from tasks.schema.add_setting import add_setting
 from tasks.schema.generate import codegen, compress, produce_embedded, produce_jsonschema
 from tasks.schema.lint import lint as lint_task
 from tasks.schema.locate import locate as locate_task
+from tasks.schema.show_product import list_product, show_product
 from tasks.schema.template import template, template_all
 
 collection = Collection()
@@ -16,3 +17,5 @@ collection.add_task(template_all)
 collection.add_task(locate_task)
 collection.add_task(produce_embedded)
 collection.add_task(produce_jsonschema)
+collection.add_task(show_product)
+collection.add_task(list_product)

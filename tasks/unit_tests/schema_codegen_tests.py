@@ -42,6 +42,17 @@ class TestCodegenInitSettings(unittest.TestCase):
         codegen.run_codegen(schema, self.tmpdir)
         self.validate_generated_code(fixture('basic_full_agent_settings.gen'))
 
+    def test_product_enablement_keywords_are_ignored(self):
+        """Product enablement data is resolved at runtime from the embedded schema, not codegen'd."""
+        with open(fixture('basic_schema.yaml')) as f:
+            schema = yaml.safe_load(f)
+        schema['sku_definitions'] = {'sku_a': ['product_a']}
+        schema['product_dependencies'] = {'product_a': []}
+        for _, node, _ in codegen.walk_settings(schema):
+            node['product_defaults'] = {'product_a': 'value'}
+        codegen.run_codegen(schema, self.tmpdir)
+        self.validate_generated_code(fixture('basic_settings.gen'))
+
     def test_codegen_renamed_from(self):
         # Settings with 'renamed_from' bind their former names as deprecated ones, whether they sit
         # at the root or inside a section, and whichever init function they land in.

@@ -13,6 +13,12 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    product_platform_defaults:
+      cloud_security_vulnerabilities:
+        linux: true
+        windows: true
+        container: true
+        fargate: false
     visibility: public
     description: set to true to enable Cloud Security Management Vulnerability Management
   host:
@@ -27,6 +33,12 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_platform_defaults:
+          cloud_security_vulnerabilities:
+            linux: true
+            windows: true
+            container: true
+            fargate: false
         visibility: public
         description: set to true to enable Infrastructure Vulnerabiltilies
       additional_directories:
@@ -55,6 +67,11 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_platform_defaults:
+          cloud_security_vulnerabilities:
+            linux: true
+            container: true
+            fargate: false
         visibility: public
         description: Set to true to enable container image vulnerability scanning.
       additional_directories:
@@ -120,6 +137,10 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_platform_defaults:
+          cloud_security_vulnerabilities:
+            container: true
+            fargate: false
       use_spread_refresher:
         node_type: setting
         type: boolean
@@ -215,6 +236,11 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            product_platform_defaults:
+              cloud_security_runtime_package_prioritization:
+                linux: true
+                container: true
+                fargate: false
   input_chan_size:
     node_type: setting
     type: integer

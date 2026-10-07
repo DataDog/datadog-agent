@@ -64,3 +64,54 @@ class TestJsonSchemaOutput(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestProductEnablementKeywords(unittest.TestCase):
+    def _doc(self):
+        return {
+            "sku_definitions": {"sku_a": ["product_a"]},
+            "product_dependencies": {"product_a": ["product_b"], "product_b": []},
+            "properties": {
+                "logs_enabled": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "dropped by embedded",
+                    "product_defaults": {"product_a": True},
+                },
+                "logs_config": {
+                    "type": "object",
+                    "properties": {
+                        "tags": {
+                            "type": "object",
+                            "default": {},
+                            # Values are instance data: keys like 'title' must never be stripped.
+                            "product_platform_defaults": {
+                                "product_a": {"container": {"title": "x", "description": "y"}, "other": {}},
+                            },
+                        },
+                    },
+                },
+            },
+        }
+
+    def test_embedded_keeps_product_keywords_verbatim(self):
+        from tasks.schema.produce_byproduct import embedded
+
+        out = embedded(self._doc())
+        self.assertEqual(out["sku_definitions"], {"sku_a": ["product_a"]})
+        self.assertEqual(out["product_dependencies"], {"product_a": ["product_b"], "product_b": []})
+        self.assertEqual(out["properties"]["logs_enabled"]["product_defaults"], {"product_a": True})
+        self.assertNotIn("description", out["properties"]["logs_enabled"])
+        self.assertEqual(
+            out["properties"]["logs_config"]["properties"]["tags"]["product_platform_defaults"],
+            {"product_a": {"container": {"title": "x", "description": "y"}, "other": {}}},
+        )
+
+    def test_json_schema_drops_product_keywords(self):
+        from tasks.schema.produce_byproduct import json_schema
+
+        out = json_schema(self._doc())
+        self.assertNotIn("sku_definitions", out)
+        self.assertNotIn("product_dependencies", out)
+        self.assertNotIn("product_defaults", out["properties"]["logs_enabled"])
+        self.assertNotIn("product_platform_defaults", out["properties"]["logs_config"]["properties"]["tags"])

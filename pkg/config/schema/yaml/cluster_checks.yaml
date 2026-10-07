@@ -18,6 +18,9 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    product_platform_defaults:
+      container_monitoring:
+        kubernetes: true
     visibility: public
     description: Set to true to enable the dispatching logic on the leader cluster-agent.
   node_expiration_timeout:

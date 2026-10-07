@@ -206,7 +206,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 		},
 			// no config file path specification in this situation
 			fx.Supply(core.BundleParams{
-				ConfigParams:         config.NewAgentParams(""),
+				ConfigParams:         config.NewAgentParams("", config.WithStrictProductEnablement()),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultLogFile()),
 			}),

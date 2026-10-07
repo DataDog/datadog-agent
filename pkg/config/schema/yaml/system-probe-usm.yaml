@@ -11,6 +11,12 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    product_platform_defaults:
+      universal_service_monitoring:
+        linux: true
+        windows: true
+        container: true
+        fargate: false
     env_vars:
     - DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED
     visibility: public
@@ -133,6 +139,11 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_platform_defaults:
+          usm_all_protocols:
+            linux: true
+            container: true
+            fargate: false
   http2_dynamic_table_map_cleaner_interval_seconds:
     node_type: setting
     type: integer
@@ -170,6 +181,11 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_platform_defaults:
+          usm_all_protocols:
+            linux: true
+            container: true
+            fargate: false
       max_stats_buffered:
         node_type: setting
         type: integer
@@ -202,6 +218,11 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_platform_defaults:
+          usm_all_protocols:
+            linux: true
+            container: true
+            fargate: false
       max_stats_buffered:
         node_type: setting
         type: integer
@@ -234,6 +255,11 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_platform_defaults:
+          usm_all_protocols:
+            linux: true
+            container: true
+            fargate: false
       max_stats_buffered:
         node_type: setting
         type: integer
@@ -286,3 +312,8 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            product_platform_defaults:
+              usm_all_protocols:
+                linux: true
+                container: true
+                fargate: false

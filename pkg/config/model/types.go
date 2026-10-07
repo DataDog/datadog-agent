@@ -32,6 +32,10 @@ const (
 	// SourceUnknown are the values from unknown source. This should only be used in tests when calling
 	// SetInTest.
 	SourceUnknown Source = "unknown"
+	// SourceProductEnablement are the values set by the products enabled through the 'sku' and 'products'
+	// settings. The values come from the 'product_defaults' and 'product_platform_defaults' keywords of the
+	// schema. They have higher priority than defaults but lower priority than any other source.
+	SourceProductEnablement Source = "product-enablement"
 	// SourceInfraMode are the values set by infrastructure mode configurations. These values have higher
 	// priority than defaults but lower priority than user configuration (file, env vars, etc.).
 	SourceInfraMode Source = "infra-mode"
@@ -63,6 +67,7 @@ const (
 var Sources = []Source{
 	SourceDefault,
 	SourceUnknown,
+	SourceProductEnablement,
 	SourceInfraMode,
 	SourceFile,
 	SourceEnvVar,
@@ -81,16 +86,17 @@ var sourcesPriority = map[Source]int{
 	SourceSchema:             -1,
 	SourceDefault:            0,
 	SourceUnknown:            1,
-	SourceInfraMode:          2,
-	SourceFile:               3,
-	SourceEnvVar:             4,
-	SourceFleetPolicies:      5,
-	SourceConfigPostInit:     6,
-	SourceSecret:             7,
-	SourceLocalConfigProcess: 8,
-	SourceAgentRuntime:       9,
-	SourceRC:                 10,
-	SourceCLI:                11,
+	SourceProductEnablement:  2,
+	SourceInfraMode:          3,
+	SourceFile:               4,
+	SourceEnvVar:             5,
+	SourceFleetPolicies:      6,
+	SourceConfigPostInit:     7,
+	SourceSecret:             8,
+	SourceLocalConfigProcess: 9,
+	SourceAgentRuntime:       10,
+	SourceRC:                 11,
+	SourceCLI:                12,
 }
 
 // DirectSetting is one key/value/source assignment for nodetreemodel's DirectBulkSet.
@@ -302,6 +308,8 @@ type Setup interface {
 // some misc functions, that should likely be split into another interface
 type Compound interface {
 	ReadInConfig() error
+	// IsLoaded returns true once the configuration sources have been read (see ReadInConfig and ReadConfig)
+	IsLoaded() bool
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
 	MergeFleetPolicy(configPath string) error

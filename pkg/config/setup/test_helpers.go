@@ -40,3 +40,12 @@ func newTestConfWithoutOverrides(t *testing.T) pkgconfigmodel.BuildableConfig {
 	conf.SetConfigFile("")
 	return conf
 }
+
+// SetProductEnablementSchemasForTest replaces the core and system-probe schemas used by product enablement for the
+// duration of the test.
+func SetProductEnablementSchemasForTest(t testing.TB, core, systemProbe string) {
+	previousCore, previousSystemProbe := coreSchemaGetter, systemProbeSchemaGetter
+	coreSchemaGetter = func() ([]byte, error) { return []byte(core), nil }
+	systemProbeSchemaGetter = func() ([]byte, error) { return []byte(systemProbe), nil }
+	t.Cleanup(func() { coreSchemaGetter, systemProbeSchemaGetter = previousCore, previousSystemProbe })
+}

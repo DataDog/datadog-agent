@@ -686,12 +686,24 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_defaults:
+          netflow_monitoring: true
         visibility: public
         description: Set to true to enable collection of NetFlow traffic.
       listeners:
         node_type: setting
         type: array
         default: []
+        product_defaults:
+          netflow_monitoring:
+          - flow_type: netflow9
+            port: 2055
+          - flow_type: netflow5
+            port: 2056
+          - flow_type: ipfix
+            port: 4739
+          - flow_type: sflow5
+            port: 6343
         items:
           type: object
         visibility: public

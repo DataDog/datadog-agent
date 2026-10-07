@@ -426,3 +426,395 @@ class TestCheckRenamedFrom(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def product_schema(sku_definitions=None, product_dependencies=None, properties=None):
+    """Helper: build an in-memory schema with product enablement definitions."""
+    schema = {"properties": properties or {}}
+    if sku_definitions is not None:
+        schema["sku_definitions"] = sku_definitions
+    if product_dependencies is not None:
+        schema["product_dependencies"] = product_dependencies
+    return schema
+
+
+class TestCheckProductDefinitions(unittest.TestCase):
+    def check(self, schema, is_core=True):
+        return lint.check_product_definitions("schema.yaml", schema, is_core)
+
+    def assertErrorContains(self, errors, *fragments):
+        self.assertTrue(
+            any(all(fragment in e for fragment in fragments) for e in errors),
+            f"Expected an error containing {fragments}, got: {errors}",
+        )
+
+    def test_valid_definitions_pass(self):
+        schema = product_schema(
+            sku_definitions={"sku_a": ["product_a", "product_c"]},
+            product_dependencies={"product_a": ["product_b", "product_c"], "product_b": ["product_c"], "product_c": []},
+        )
+        self.assertEqual(self.check(schema), [])
+
+    def test_missing_definitions_pass(self):
+        self.assertEqual(self.check(product_schema()), [])
+
+    def test_map_must_be_a_mapping(self):
+        errors = self.check(product_schema(sku_definitions=["sku_a"], product_dependencies={}))
+        self.assertErrorContains(errors, "sku_definitions", "must be a mapping")
+
+    def test_entry_must_be_a_list_of_strings(self):
+        errors = self.check(product_schema(product_dependencies={"product_a": "product_b", "product_b": [1]}))
+        self.assertErrorContains(errors, "product_dependencies.product_a", "list of product names")
+        self.assertErrorContains(errors, "product_dependencies.product_b", "list of product names")
+
+    def test_name_in_both_maps(self):
+        errors = self.check(product_schema(sku_definitions={"shared": []}, product_dependencies={"shared": []}))
+        self.assertErrorContains(errors, "'shared'", "both a SKU and a product")
+
+    def test_sku_references_undeclared_product(self):
+        errors = self.check(product_schema(sku_definitions={"sku_a": ["missing"]}, product_dependencies={}))
+        self.assertErrorContains(errors, "sku_definitions.sku_a", "'missing'", "not declared")
+
+    def test_dependency_references_undeclared_product(self):
+        errors = self.check(product_schema(product_dependencies={"product_a": ["missing"]}))
+        self.assertErrorContains(errors, "product_dependencies.product_a", "'missing'", "not declared")
+
+    def test_product_depending_on_a_sku(self):
+        errors = self.check(
+            product_schema(sku_definitions={"sku_a": []}, product_dependencies={"product_a": ["sku_a"]})
+        )
+        self.assertErrorContains(errors, "product_dependencies.product_a", "'sku_a'", "is a SKU")
+
+    def test_sku_bundling_a_sku(self):
+        errors = self.check(product_schema(sku_definitions={"sku_a": ["sku_b"], "sku_b": []}, product_dependencies={}))
+        self.assertErrorContains(errors, "sku_definitions.sku_a", "'sku_b'", "is a SKU")
+
+    def test_dependency_cycle(self):
+        errors = self.check(
+            product_schema(
+                product_dependencies={
+                    "product_a": ["product_b"],
+                    "product_b": ["product_c"],
+                    "product_c": ["product_a"],
+                }
+            )
+        )
+        cycles = [e for e in errors if "cycle" in e]
+        self.assertEqual(len(cycles), 1, errors)
+        self.assertIn("product_a -> product_b -> product_c -> product_a", cycles[0])
+
+    def test_self_dependency_is_a_cycle(self):
+        errors = self.check(product_schema(product_dependencies={"product_a": ["product_a"]}))
+        self.assertErrorContains(errors, "cycle", "product_a -> product_a")
+
+    def test_definitions_outside_core_schema(self):
+        errors = self.check(product_schema(sku_definitions={}, product_dependencies={}), is_core=False)
+        self.assertErrorContains(errors, "'sku_definitions'", "core schema")
+        self.assertErrorContains(errors, "'product_dependencies'", "core schema")
+
+
+class TestCheckProductDefaults(unittest.TestCase):
+    DECLARED = {"product_a", "product_b"}
+
+    def check(self, properties, declared=None):
+        schema = product_schema(properties=properties)
+        return lint.check_product_defaults("schema.yaml", schema, self.DECLARED if declared is None else declared)
+
+    def assertErrorContains(self, errors, *fragments):
+        self.assertTrue(
+            any(all(fragment in e for fragment in fragments) for e in errors),
+            f"Expected an error containing {fragments}, got: {errors}",
+        )
+
+    def test_valid_product_defaults_pass(self):
+        properties = {
+            "logs_enabled": {
+                "node_type": "setting",
+                "type": "boolean",
+                "default": False,
+                "product_defaults": {"product_a": True, "product_b": False},
+            },
+            "logs_config": {
+                "node_type": "section",
+                "properties": {
+                    "container_collect_all": {
+                        "node_type": "setting",
+                        "type": "boolean",
+                        "default": False,
+                        # 'other' is not required: a missing platform means no product default
+                        "product_platform_defaults": {"product_a": {"container": True, "fargate": True}},
+                    },
+                    "tags": {
+                        "node_type": "setting",
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "default": [],
+                        "product_defaults": {"product_a": ["a:b"]},
+                    },
+                },
+            },
+        }
+        self.assertEqual(self.check(properties), [])
+
+    def test_both_keywords_on_one_setting(self):
+        errors = self.check(
+            {
+                "x": {
+                    "node_type": "setting",
+                    "type": "boolean",
+                    "default": False,
+                    "product_defaults": {"product_a": True},
+                    "product_platform_defaults": {"product_b": {"linux": True}},
+                }
+            }
+        )
+        self.assertErrorContains(errors, "[x]", "mutually exclusive")
+
+    def test_keyword_on_section(self):
+        errors = self.check(
+            {
+                "section": {
+                    "node_type": "section",
+                    "product_defaults": {"product_a": {}},
+                    "properties": {"x": {"node_type": "setting", "type": "boolean", "default": False}},
+                }
+            }
+        )
+        self.assertErrorContains(errors, "[section]", "only be used on settings")
+
+    def test_undeclared_product(self):
+        errors = self.check(
+            {
+                "x": {
+                    "node_type": "setting",
+                    "type": "boolean",
+                    "default": False,
+                    "product_defaults": {"missing": True},
+                },
+                "y": {
+                    "node_type": "setting",
+                    "type": "boolean",
+                    "default": False,
+                    "product_platform_defaults": {"missing_too": {"linux": True}},
+                },
+            }
+        )
+        self.assertErrorContains(errors, "[x]", "'missing'", "not declared")
+        self.assertErrorContains(errors, "[y]", "'missing_too'", "not declared")
+
+    def test_keyword_must_be_a_mapping(self):
+        errors = self.check(
+            {
+                "x": {"node_type": "setting", "type": "boolean", "default": False, "product_defaults": [True]},
+                "y": {
+                    "node_type": "setting",
+                    "type": "boolean",
+                    "default": False,
+                    "product_platform_defaults": {"product_a": True},
+                },
+            }
+        )
+        self.assertErrorContains(errors, "[x]", "'product_defaults' must be a mapping")
+        self.assertErrorContains(errors, "[y]", "product_a", "mapping of platforms")
+
+    def test_invalid_platform_key(self):
+        errors = self.check(
+            {
+                "x": {
+                    "node_type": "setting",
+                    "type": "boolean",
+                    "default": False,
+                    "product_platform_defaults": {"product_a": {"linux": True, "solaris": True}},
+                }
+            }
+        )
+        self.assertErrorContains(errors, "[x]", "'solaris'")
+
+    def test_value_type_mismatch(self):
+        errors = self.check(
+            {
+                "flag": {
+                    "node_type": "setting",
+                    "type": "boolean",
+                    "default": False,
+                    "product_defaults": {"product_a": "yes"},
+                },
+                "count": {
+                    "node_type": "setting",
+                    "type": "integer",
+                    "default": 0,
+                    "product_defaults": {"product_a": True},
+                },
+                "ratio": {
+                    "node_type": "setting",
+                    "type": "number",
+                    "default": 0,
+                    "product_platform_defaults": {"product_a": {"linux": "high"}},
+                },
+            }
+        )
+        self.assertErrorContains(errors, "[flag]", "product_a", "'boolean'")
+        self.assertErrorContains(errors, "[count]", "product_a", "'integer'")
+        self.assertErrorContains(errors, "[ratio]", "product_a", "linux", "'number'")
+
+    def test_number_accepts_integers(self):
+        properties = {
+            "ratio": {"node_type": "setting", "type": "number", "default": 0.5, "product_defaults": {"product_a": 1}}
+        }
+        self.assertEqual(self.check(properties), [])
+
+
+class TestCheckProductConflicts(unittest.TestCase):
+    def check(self, sku_definitions, product_dependencies, properties):
+        schema = product_schema(properties=properties)
+        return lint.check_product_conflicts("schema.yaml", schema, sku_definitions, product_dependencies)
+
+    @staticmethod
+    def setting(**keywords):
+        return {"node_type": "setting", "type": "boolean", "default": False, **keywords}
+
+    def test_sku_closure_conflict(self):
+        errors = self.check(
+            {"sku_a": ["product_a", "product_b"]},
+            {"product_a": [], "product_b": []},
+            {"x": self.setting(product_defaults={"product_a": True, "product_b": False})},
+        )
+        self.assertEqual(len(errors), 1, errors)
+        for fragment in ("[x]", "SKU 'sku_a'", "product_a=True", "product_b=False", "linux"):
+            self.assertIn(fragment, errors[0])
+
+    def test_product_dependency_closure_conflict(self):
+        errors = self.check(
+            {},
+            {"product_a": ["product_b"], "product_b": ["product_c"], "product_c": []},
+            {"x": self.setting(product_defaults={"product_a": True, "product_c": False})},
+        )
+        self.assertEqual(len(errors), 1, errors)
+        for fragment in ("[x]", "product 'product_a'", "product_a=True", "product_c=False"):
+            self.assertIn(fragment, errors[0])
+
+    def test_conflicting_products_not_bundled_together(self):
+        errors = self.check(
+            {"sku_a": ["product_a"], "sku_b": ["product_b"]},
+            {"product_a": [], "product_b": []},
+            {"x": self.setting(product_defaults={"product_a": True, "product_b": False})},
+        )
+        self.assertEqual(errors, [])
+
+    def test_same_value_from_two_products(self):
+        errors = self.check(
+            {"sku_a": ["product_a", "product_b"]},
+            {"product_a": [], "product_b": []},
+            {"x": self.setting(product_defaults={"product_a": True, "product_b": True})},
+        )
+        self.assertEqual(errors, [])
+
+    def test_values_compared_with_their_type(self):
+        # 1 and True are equal in Python but not for the Agent: they are different values
+        errors = self.check(
+            {"sku_a": ["product_a", "product_b"]},
+            {"product_a": [], "product_b": []},
+            {"x": {"node_type": "setting", "default": 0, "product_defaults": {"product_a": 1, "product_b": True}}},
+        )
+        self.assertEqual(len(errors), 1, errors)
+
+    def test_platform_specific_conflict(self):
+        errors = self.check(
+            {"sku_a": ["product_a", "product_b"]},
+            {"product_a": [], "product_b": []},
+            {
+                "x": self.setting(
+                    product_platform_defaults={"product_a": {"windows": True}, "product_b": {"windows": False}}
+                )
+            },
+        )
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("windows", errors[0])
+        self.assertNotIn("linux", errors[0])
+
+    def test_runtime_fallback_conflict(self):
+        # On a Linux container the runtime falls back container -> linux: product_a gives True (container)
+        # and product_b gives False (linux). Checking each platform key on its own would miss it.
+        errors = self.check(
+            {"sku_a": ["product_a", "product_b"]},
+            {"product_a": [], "product_b": []},
+            {
+                "x": self.setting(
+                    product_platform_defaults={"product_a": {"container": True}, "product_b": {"linux": False}}
+                )
+            },
+        )
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("linux/container", errors[0])
+        self.assertNotIn("windows", errors[0])
+
+    def test_product_defaults_apply_to_every_platform(self):
+        # product_a sets the value everywhere, product_b only through the 'other' fallback: they disagree on
+        # every environment
+        errors = self.check(
+            {"sku_a": ["product_a", "product_b"]},
+            {"product_a": [], "product_b": []},
+            {
+                "x": {
+                    "node_type": "setting",
+                    "type": "boolean",
+                    "default": False,
+                    "product_defaults": {"product_a": True},
+                },
+                "y": self.setting(
+                    product_platform_defaults={"product_a": {"linux": True}, "product_b": {"other": False}}
+                ),
+            },
+        )
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("[y]", errors[0])
+        self.assertIn("linux", errors[0])
+
+    def test_nested_settings_are_checked(self):
+        errors = self.check(
+            {"sku_a": ["product_a", "product_b"]},
+            {"product_a": [], "product_b": []},
+            {
+                "section": {
+                    "node_type": "section",
+                    "properties": {"x": self.setting(product_defaults={"product_a": True, "product_b": False})},
+                }
+            },
+        )
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("[section.x]", errors[0])
+
+
+class TestProductPlatformKubernetes(unittest.TestCase):
+    def test_kubernetes_is_a_valid_platform_key(self):
+        schema = product_schema(
+            properties={
+                "x": {
+                    "node_type": "setting",
+                    "type": "boolean",
+                    "default": False,
+                    "product_platform_defaults": {"product_a": {"kubernetes": True}},
+                }
+            }
+        )
+        self.assertEqual(lint.check_product_defaults("schema.yaml", schema, {"product_a"}), [])
+
+    def test_kubernetes_falls_back_to_container(self):
+        # On Kubernetes, product_a resolves through 'container' and product_b through 'kubernetes': they conflict
+        properties = {
+            "x": {
+                "node_type": "setting",
+                "type": "boolean",
+                "default": False,
+                "product_platform_defaults": {"product_a": {"container": True}, "product_b": {"kubernetes": False}},
+            }
+        }
+        errors = lint.check_product_conflicts(
+            "schema.yaml",
+            product_schema(properties=properties),
+            {"sku_a": ["product_a", "product_b"]},
+            {"product_a": [], "product_b": []},
+        )
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("linux/kubernetes", errors[0])
+        self.assertNotIn("linux/container,", errors[0])

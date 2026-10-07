@@ -42,6 +42,8 @@ func (c *ntmConfig) ReadInConfig() error {
 
 	c.Lock()
 	defer c.Unlock()
+	// Environment variables are loaded even when reading the file fails
+	defer c.loaded.Store(true)
 
 	// Reset the file tree like Viper does, so previous config is cleared
 	c.file = newInnerNode(nil)
@@ -69,6 +71,12 @@ func (c *ntmConfig) ReadInConfig() error {
 	return c.mergeAllLayers()
 }
 
+// IsLoaded returns true once the configuration has been read through ReadInConfig or ReadConfig, even if reading the
+// configuration file failed (environment variables are loaded either way).
+func (c *ntmConfig) IsLoaded() bool {
+	return c.loaded.Load()
+}
+
 // ReadConfig resets the file tree and reads the configuration from the provided reader.
 func (c *ntmConfig) ReadConfig(in io.Reader) error {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
@@ -79,6 +87,7 @@ func (c *ntmConfig) ReadConfig(in io.Reader) error {
 
 	c.Lock()
 	defer c.Unlock()
+	defer c.loaded.Store(true)
 
 	// Reset the file tree like Viper does, so previous config is cleared
 	c.file = newInnerNode(nil)

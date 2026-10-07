@@ -14,6 +14,12 @@
   Log File: {{.config.log_file}}
   {{- end }}
   Log Level: {{.config.log_level}}
+  {{- if .config.sku }}
+  SKU: {{.config.sku}}
+  {{- end }}
+  {{- if .config.enabled_products }}
+  Enabled Products: {{.config.enabled_products}}
+  {{- end }}
 
   Paths
   =====

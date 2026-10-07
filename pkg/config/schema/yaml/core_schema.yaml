@@ -3,6 +3,73 @@ $id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/sch
 title: DataDog Agent configuration schema
 description: The schema to validate the datadog.yaml configuration for the DataDog
   Agent
+# Product enablement (see the 'sku' and 'products' settings).
+# 'sku_definitions' maps a SKU name to the list of products it bundles.
+# 'product_dependencies' maps every product to the list of products it depends on (resolved recursively).
+# Settings declare the value to use when a product is enabled with 'product_defaults' or
+# 'product_platform_defaults'.
+sku_definitions: {}
+product_dependencies:
+  # Infrastructure. The infrastructure modes (full, basic, end_user_device, cloud_cost_only) are mutually exclusive.
+  infrastructure_monitoring: []
+  infrastructure_monitoring_basic: []
+  end_user_device_monitoring: []
+  container_monitoring: [infrastructure_monitoring]
+  container_live_processes: [container_monitoring]
+  custom_metrics: []
+  kubernetes_autoscaling: [container_monitoring]
+  kubernetes_cluster_autoscaling: [kubernetes_autoscaling]
+  gpu_monitoring: []
+  # Alternative to gpu_monitoring (privileged system-probe in containers): both can't be enabled together
+  gpu_monitoring_advanced: []
+  cloud_cost_management: []
+  cloud_cost_management_containers: [cloud_cost_management]
+  disaster_recovery: []
+  # Network
+  network_monitoring: [cloud_network_monitoring, network_device_monitoring, netflow_monitoring, network_path]
+  cloud_network_monitoring: []
+  network_device_monitoring: []
+  netflow_monitoring: []
+  network_path: []
+  network_path_dynamic_tests: [network_path, cloud_network_monitoring]
+  # Applications. 'apm' and 'error_tracking_standalone' are mutually exclusive.
+  apm: []
+  apm_single_step_instrumentation: [apm]
+  otlp_apm_ingest: [apm]
+  continuous_profiler: [apm]
+  dynamic_instrumentation: [apm]
+  dynamic_instrumentation_go: [dynamic_instrumentation]
+  data_streams_monitoring: [apm]
+  universal_service_monitoring: []
+  usm_all_protocols: [universal_service_monitoring]
+  database_monitoring: []
+  agent_observability: [apm]
+  error_tracking_standalone: []
+  # Data Observability
+  jobs_monitoring: [apm]
+  jobs_monitoring_databricks: [jobs_monitoring]
+  # Logs
+  log_management: []
+  log_management_collect_all: [log_management]
+  observability_pipelines: [observability_pipelines_logs, observability_pipelines_metrics]
+  observability_pipelines_logs: [log_management]
+  observability_pipelines_metrics: []
+  cloud_siem: [log_management]
+  # Security
+  workload_protection: []
+  cloud_security: [cloud_security_misconfigurations, cloud_security_vulnerabilities]
+  cloud_security_misconfigurations: []
+  cloud_security_vulnerabilities: []
+  cloud_security_runtime_package_prioritization: [cloud_security_vulnerabilities]
+  app_and_api_protection: [apm]
+  app_and_api_protection_proxy_injection: [app_and_api_protection]
+  code_security: [apm]
+  # Software Delivery
+  test_optimization: [apm]
+  # Service Management
+  private_action_runner: []
+  workflow_automation: [private_action_runner]
+  app_builder: [private_action_runner]
 properties:
   api_key:
     node_type: setting
@@ -47,6 +114,16 @@ properties:
     node_type: setting
     type: string
     default: full
+    product_platform_defaults:
+      infrastructure_monitoring:
+        other: full
+      infrastructure_monitoring_basic:
+        other: basic
+      end_user_device_monitoring:
+        windows: end_user_device
+        darwin: end_user_device
+      cloud_cost_management:
+        other: cloud_cost_only
     visibility: public
     description: |-
       Controls which integrations and metadata the Agent collects.
@@ -62,6 +139,23 @@ properties:
       Infrastructure mode
       The infrastructure mode is used to determine the features that are available to the agent.
       The possible values are: full, basic, end_user_device, cloud_cost_only, none.
+  sku:
+    node_type: setting
+    type: string
+    default: ''
+    description: |-
+      The SKU to enable. A SKU is a bundle of products (see 'sku_definitions' in the schema).
+      The settings required by every product of the SKU, and their dependencies, are configured automatically.
+  products:
+    node_type: setting
+    type: array
+    items:
+      type: string
+    default: []
+    env_parser: comma_and_space_separated
+    description: |-
+      The list of products to enable (see 'product_dependencies' in the schema).
+      The settings required by every product, and their dependencies, are configured automatically.
   dd_url:
     node_type: setting
     type: string
@@ -1110,6 +1204,8 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            product_defaults:
+              observability_pipelines_metrics: true
             visibility: public
             description: Enables forwarding of metrics to an Observability Pipelines
               Worker
@@ -1141,6 +1237,8 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            product_defaults:
+              observability_pipelines_logs: true
             visibility: public
             description: Enables forwarding of logs to an Observability Pipelines
               Worker
@@ -1682,6 +1780,8 @@ properties:
     title: Log collection Configuration
     type: boolean
     default: false
+    product_defaults:
+      log_management: true
     visibility: public
     description: Enable Datadog Agent log collection by setting logs_enabled to true.
     tags:
@@ -1719,6 +1819,8 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            product_defaults:
+              network_path_dynamic_tests: true
             visibility: public
             description: Enables Network Path Dynamic Test for monitoring network
               connections via Network Path.
@@ -2315,6 +2417,10 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    product_platform_defaults:
+      custom_metrics:
+        container: true
+        fargate: false
     visibility: public
     description: Set to true to make DogStatsD listen to non local UDP traffic.
     tags:
@@ -3955,6 +4061,9 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    product_platform_defaults:
+      container_monitoring:
+        kubernetes: true
     visibility: public
     description: |-
       Set `collect_kubernetes_events` to true to enable collection of kubernetes
@@ -3978,6 +4087,9 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    product_platform_defaults:
+      container_monitoring:
+        kubernetes: true
     visibility: public
     description: |-
       Set the parameter to true to enable leader election on this node.
@@ -4477,6 +4589,10 @@ properties:
                     node_type: setting
                     type: string
                     default: localhost:4317
+                    product_platform_defaults:
+                      otlp_apm_ingest:
+                        container: 0.0.0.0:4317
+                        other: localhost:4317
                     visibility: public
                     description: The OTLP/gRPC listener endpoint.
                     comment: Receiver gRPC settings (defaults from OTel otlpreceiver
@@ -4539,6 +4655,10 @@ properties:
                     node_type: setting
                     type: string
                     default: localhost:4318
+                    product_platform_defaults:
+                      otlp_apm_ingest:
+                        container: 0.0.0.0:4318
+                        other: localhost:4318
                     visibility: public
                     description: The OTLP/HTTP listener endpoint.
                     comment: Receiver HTTP settings (defaults from OTel otlpreceiver
@@ -5001,6 +5121,9 @@ properties:
         node_type: setting
         type: integer
         default: 0
+        product_platform_defaults:
+          cloud_network_monitoring:
+            container: 60
       grpc_max_message_size:
         node_type: setting
         type: integer
@@ -5017,6 +5140,9 @@ properties:
         node_type: setting
         type: integer
         default: 0
+        product_platform_defaults:
+          cloud_network_monitoring:
+            container: 5009
       socket_path:
         node_type: setting
         type: string
@@ -5567,6 +5693,9 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            product_platform_defaults:
+              app_and_api_protection_proxy_injection:
+                kubernetes: true
             comment: Appsec Proxy Config Injection (Experimental)
           gke:
             node_type: section
@@ -5636,6 +5765,9 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            product_platform_defaults:
+              kubernetes_cluster_autoscaling:
+                kubernetes: true
           spot:
             node_type: section
             type: object
@@ -5676,6 +5808,9 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            product_platform_defaults:
+              kubernetes_autoscaling:
+                kubernetes: true
           metrics:
             node_type: setting
             type: array
@@ -5692,6 +5827,9 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            product_platform_defaults:
+              kubernetes_autoscaling:
+                kubernetes: true
           external_recommender:
             node_type: section
             type: object
@@ -6959,6 +7097,8 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_defaults:
+          jobs_monitoring: true
   dogstatsd_capture_depth:
     node_type: setting
     type: integer
@@ -7467,6 +7607,10 @@ properties:
     node_type: setting
     type: string
     default: 0s
+    product_platform_defaults:
+      jobs_monitoring:
+        linux: 10m
+        container: 0s
     format: duration
     tags:
     - golang_type:duration
@@ -8429,6 +8573,9 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_platform_defaults:
+          apm_single_step_instrumentation:
+            kubernetes: true
       reporting:
         node_type: section
         type: object

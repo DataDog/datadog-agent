@@ -33,6 +33,7 @@ import (
 var sources = []model.Source{
 	model.SourceDefault,
 	model.SourceUnknown,
+	model.SourceProductEnablement,
 	model.SourceInfraMode,
 	model.SourceFile,
 	model.SourceEnvVar,
@@ -62,6 +63,8 @@ type ntmConfig struct {
 
 	// ready is whether the schema has been built, which marks the config as ready for use
 	ready *atomic.Bool
+	// loaded is whether the configuration sources (file, environment variables) have been read
+	loaded *atomic.Bool
 
 	// Bellow are all the different configuration layers. Each layers represents a source for our configuration.
 	// They are merge into the 'root' tree following order of importance (see pkg/model/viper.go:sourcesPriority).
@@ -82,6 +85,8 @@ type ntmConfig struct {
 	defaults *nodeImpl
 	// unknown contains the settings set at runtime from unknown source. This should only evey be used by tests.
 	unknown *nodeImpl
+	// productEnablement contains the settings set by the enabled products (see 'product_defaults' in the schema)
+	productEnablement *nodeImpl
 	// infraMode contains the settings set by infrastructure mode configurations
 	infraMode *nodeImpl
 	// file contains the settings pulled from YAML files
@@ -185,6 +190,8 @@ func (c *ntmConfig) getTreeBySource(source model.Source) (*nodeImpl, error) {
 		return c.defaults, nil
 	case model.SourceUnknown:
 		return c.unknown, nil
+	case model.SourceProductEnablement:
+		return c.productEnablement, nil
 	case model.SourceInfraMode:
 		return c.infraMode, nil
 	case model.SourceFile:
@@ -650,6 +657,8 @@ func (c *ntmConfig) layerList() []*nodeImpl {
 	return []*nodeImpl{
 		c.defaults,
 		c.unknown,
+		c.productEnablement,
+		c.infraMode,
 		c.file,
 		c.envs,
 		c.fleetPolicies,
@@ -1156,6 +1165,7 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	return map[model.Source]interface{}{
 		model.SourceDefault:            c.defaults.dumpSettings(true),
 		model.SourceUnknown:            c.unknown.dumpSettings(true),
+		model.SourceProductEnablement:  c.productEnablement.dumpSettings(true),
 		model.SourceInfraMode:          c.infraMode.dumpSettings(true),
 		model.SourceFile:               c.file.dumpSettings(true),
 		model.SourceEnvVar:             c.envs.dumpSettings(true),
@@ -1333,6 +1343,7 @@ func (c *ntmConfig) Object() model.Reader {
 func NewNodeTreeConfig(name string, envPrefix string, _ *strings.Replacer) model.BuildableConfig {
 	config := ntmConfig{
 		ready:              atomic.NewBool(false),
+		loaded:             atomic.NewBool(false),
 		allowDynamicSchema: atomic.NewBool(false),
 		sequenceID:         0,
 		configEnvVars:      map[string][]string{},
@@ -1342,6 +1353,7 @@ func NewNodeTreeConfig(name string, envPrefix string, _ *strings.Replacer) model
 		defaults:           newInnerNode(nil),
 		file:               newInnerNode(nil),
 		unknown:            newInnerNode(nil),
+		productEnablement:  newInnerNode(nil),
 		infraMode:          newInnerNode(nil),
 		envs:               newInnerNode(nil),
 		configPostInit:     newInnerNode(nil),

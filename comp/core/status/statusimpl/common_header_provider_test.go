@@ -291,3 +291,63 @@ func TestCommonHeaderProviderHTMLWithFipsInformation(t *testing.T) {
 
 	assert.Equal(t, expectedResult, output)
 }
+
+// enableTestProducts enables products through product enablement, with a schema defining them
+func enableTestProducts(t *testing.T, cfg config.Component, sku string, products []string) {
+	t.Helper()
+	const schema = `
+sku_definitions:
+  sku_a: [product_a]
+product_dependencies:
+  product_a: [product_b]
+  product_b: []
+properties: {}
+`
+	pkgconfigsetup.SetProductEnablementSchemasForTest(t, schema, "properties: {}")
+	cfg.SetInTest("sku", sku)
+	cfg.SetInTest("products", products)
+	require.NoError(t, pkgconfigsetup.ApplyProductEnablement(cfg))
+	t.Cleanup(func() {
+		// reset the enabled products
+		cfg.SetInTest("sku", "")
+		cfg.SetInTest("products", []string{})
+		require.NoError(t, pkgconfigsetup.ApplyProductEnablement(cfg))
+	})
+}
+
+func TestCommonHeaderProviderProductEnablement(t *testing.T) {
+	cfg := config.NewMock(t)
+	enableTestProducts(t, cfg, "sku_a", nil)
+	provider := newCommonHeaderProvider(agentParams, cfg)
+
+	data := map[string]interface{}{}
+	require.NoError(t, provider.JSON(false, data))
+	conf := data["config"].(map[string]string)
+	assert.Equal(t, "sku_a", conf["sku"])
+	assert.Equal(t, "product_a, product_b", conf["enabled_products"])
+
+	text := new(bytes.Buffer)
+	require.NoError(t, provider.Text(false, text))
+	assert.Contains(t, text.String(), "  SKU: sku_a\n")
+	assert.Contains(t, text.String(), "  Enabled Products: product_a, product_b\n")
+
+	html := new(bytes.Buffer)
+	require.NoError(t, provider.HTML(false, html))
+	assert.Contains(t, html.String(), "SKU: sku_a<br>")
+	assert.Contains(t, html.String(), "Enabled Products: product_a, product_b<br>")
+}
+
+func TestCommonHeaderProviderNoProductEnablement(t *testing.T) {
+	cfg := config.NewMock(t)
+	provider := newCommonHeaderProvider(agentParams, cfg)
+
+	text := new(bytes.Buffer)
+	require.NoError(t, provider.Text(false, text))
+	assert.NotContains(t, text.String(), "SKU:")
+	assert.NotContains(t, text.String(), "Enabled Products:")
+
+	html := new(bytes.Buffer)
+	require.NoError(t, provider.HTML(false, html))
+	assert.NotContains(t, html.String(), "SKU:")
+	assert.NotContains(t, html.String(), "Enabled Products:")
+}

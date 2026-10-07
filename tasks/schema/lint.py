@@ -8,6 +8,7 @@ a set of quality rules. Run with:
 """
 
 import glob
+import json
 import os
 import re
 
@@ -18,11 +19,12 @@ from invoke.exceptions import Exit
 from tasks.schema.merge_schema import resolve_schema
 
 SCHEMA_DIR = os.path.join("pkg", "config", "schema", "yaml")
+CORE_SCHEMA_FILE = "core_schema.yaml"
 EXCEPTIONS_FILE = os.path.join(os.path.dirname(__file__), "lint_exceptions.yaml")
 
 VALID_TYPES = {"string", "number", "integer", "boolean", "array", "object"}
 VALID_NODE_TYPES = {"section", "setting"}
-VALID_PLATFORM_KEYS = {"darwin", "windows", "linux", "aix", "container", "fargate", "other"}
+VALID_PLATFORM_KEYS = {"darwin", "windows", "linux", "aix", "container", "kubernetes", "fargate", "other"}
 REQUIRED_PLATFORM_KEYS_WITHOUT_OTHER = {"darwin", "windows", "linux", "aix"}
 VALID_ENV_PARSERS = {
     "comma_separated",
@@ -660,6 +662,354 @@ def check_renamed_from(path, schema):
 
 
 # ---------------------------------------------------------------------------
+# Check 16: Product enablement definitions ('sku_definitions' / 'product_dependencies')
+# ---------------------------------------------------------------------------
+
+PRODUCT_DEFINITION_KEYS = ("sku_definitions", "product_dependencies")
+
+
+def get_product_definitions(schema):
+    """
+    Return the (sku_definitions, product_dependencies) maps of a schema, keeping only well-formed
+    entries (string name -> list of strings) so later checks can rely on them.
+    """
+    maps = []
+    for key in PRODUCT_DEFINITION_KEYS:
+        value = schema.get(key)
+        if not isinstance(value, dict):
+            maps.append({})
+            continue
+        maps.append(
+            {
+                name: entries
+                for name, entries in value.items()
+                if isinstance(name, str) and isinstance(entries, list) and all(isinstance(e, str) for e in entries)
+            }
+        )
+    return maps[0], maps[1]
+
+
+def _find_dependency_cycles(product_dependencies):
+    """Return every dependency cycle as a list of product names, first name repeated at the end."""
+    cycles = []
+    seen_cycles = set()
+    state = {}  # product -> "visiting" | "done"
+
+    def visit(product, stack):
+        state[product] = "visiting"
+        stack.append(product)
+        for dependency in product_dependencies.get(product, []):
+            if state.get(dependency) == "visiting":
+                cycle = stack[stack.index(dependency) :] + [dependency]
+                # Report each cycle once, whatever product it was entered from
+                key = frozenset(cycle)
+                if key not in seen_cycles:
+                    seen_cycles.add(key)
+                    cycles.append(cycle)
+            elif dependency in product_dependencies and dependency not in state:
+                visit(dependency, stack)
+        stack.pop()
+        state[product] = "done"
+
+    for product in sorted(product_dependencies):
+        if product not in state:
+            visit(product, [])
+    return cycles
+
+
+def check_product_definitions(path, schema, is_core=True):
+    """
+    Check the product enablement definitions declared at the top level of the core schema:
+      - 'sku_definitions' maps a SKU to the products it bundles.
+      - 'product_dependencies' maps every product to the products it depends on.
+
+    Rules:
+      - Both must be mappings of name -> list of product names.
+      - Only the core schema can declare them.
+      - A name can't be both a SKU and a product.
+      - Every referenced product must be declared in 'product_dependencies', and can't be a SKU.
+      - Dependencies can't form a cycle.
+
+    Returns a list of error strings.
+    """
+    errors = []
+
+    if not is_core:
+        for key in PRODUCT_DEFINITION_KEYS:
+            if key in schema:
+                errors.append(
+                    f"{path}: '{key}' can only be declared in the core schema. "
+                    f"Fix: move it to core_schema.yaml, product defaults from this schema can reference it."
+                )
+        return errors
+
+    for key in PRODUCT_DEFINITION_KEYS:
+        if key not in schema:
+            continue
+        value = schema[key]
+        if not isinstance(value, dict):
+            errors.append(
+                f"{path}: '{key}' must be a mapping of names to lists of product names. "
+                f"Fix: use '{key}: {{name: [product, ...]}}'."
+            )
+            continue
+        for name, entries in value.items():
+            if not isinstance(entries, list) or not all(isinstance(e, str) for e in entries):
+                errors.append(
+                    f"{path}: [{key}.{name}] must be a list of product names. "
+                    f"Fix: use '{name}: [product, ...]' (or '{name}: []')."
+                )
+
+    sku_definitions, product_dependencies = get_product_definitions(schema)
+
+    for name in sorted(set(sku_definitions) & set(product_dependencies)):
+        errors.append(
+            f"{path}: '{name}' is declared as both a SKU and a product. "
+            f"Fix: rename the SKU in 'sku_definitions' or the product in 'product_dependencies'."
+        )
+
+    for key, definitions in (("sku_definitions", sku_definitions), ("product_dependencies", product_dependencies)):
+        for name, entries in definitions.items():
+            for entry in entries:
+                if entry in sku_definitions:
+                    errors.append(
+                        f"{path}: [{key}.{name}] '{entry}' is a SKU. "
+                        f"Fix: SKUs and products can only reference products, list the products of '{entry}' instead."
+                    )
+                elif entry not in product_dependencies:
+                    errors.append(
+                        f"{path}: [{key}.{name}] product '{entry}' is not declared. "
+                        f"Fix: add '{entry}: [...]' to 'product_dependencies'."
+                    )
+
+    for cycle in _find_dependency_cycles(product_dependencies):
+        errors.append(
+            f"{path}: 'product_dependencies' contains a cycle: {' -> '.join(cycle)}. "
+            f"Fix: remove one of the dependencies of the cycle."
+        )
+
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# Check 17: Product defaults ('product_defaults' / 'product_platform_defaults')
+# ---------------------------------------------------------------------------
+
+PRODUCT_DEFAULT_KEYS = ("product_defaults", "product_platform_defaults")
+
+# Python types accepted for each JSON Schema type (bool is a subclass of int, so it's excluded explicitly)
+_JSON_TYPE_CHECKS = {
+    "string": lambda v: isinstance(v, str),
+    "boolean": lambda v: isinstance(v, bool),
+    "integer": lambda v: isinstance(v, int) and not isinstance(v, bool),
+    "number": lambda v: isinstance(v, int | float) and not isinstance(v, bool),
+    "array": lambda v: isinstance(v, list),
+    "object": lambda v: isinstance(v, dict),
+}
+
+
+def iter_product_values(node):
+    """
+    Yield (product, platform, value) for every product default of a setting node. 'platform' is None for
+    'product_defaults' entries, which apply to every platform. Malformed entries are skipped.
+    """
+    product_defaults = node.get("product_defaults")
+    if isinstance(product_defaults, dict):
+        for product, value in product_defaults.items():
+            yield product, None, value
+    product_platform_defaults = node.get("product_platform_defaults")
+    if isinstance(product_platform_defaults, dict):
+        for product, platforms in product_platform_defaults.items():
+            if isinstance(platforms, dict):
+                for platform, value in platforms.items():
+                    yield product, platform, value
+
+
+def check_product_defaults(path, schema, declared_products):
+    """
+    Check the 'product_defaults' and 'product_platform_defaults' keywords:
+      - They can only be used on settings, and are mutually exclusive.
+      - 'product_defaults' maps a product to a value, 'product_platform_defaults' maps a product to a
+        mapping of platforms to values. Unlike 'platform_default', 'other' isn't required: a missing
+        platform means the product doesn't change the setting on that platform.
+      - Every product must be declared in the core schema's 'product_dependencies' (*declared_products*).
+      - Every value must match the setting's 'type'.
+
+    Returns a list of error strings.
+    """
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        used = [key for key in PRODUCT_DEFAULT_KEYS if key in node]
+        if not used:
+            continue
+
+        if node.get("node_type") != "setting":
+            errors.append(
+                f"{path}: [{node_path}] '{used[0]}' can only be used on settings. "
+                f"Fix: move it to the settings of this section."
+            )
+            continue
+
+        if len(used) > 1:
+            errors.append(
+                f"{path}: [{node_path}] 'product_defaults' and 'product_platform_defaults' are mutually exclusive. "
+                f"Fix: use 'product_platform_defaults' with the same value for every platform."
+            )
+
+        if "product_defaults" in node and not isinstance(node["product_defaults"], dict):
+            errors.append(
+                f"{path}: [{node_path}] 'product_defaults' must be a mapping of products to values. "
+                f"Fix: use 'product_defaults: {{product: value}}'."
+            )
+        if "product_platform_defaults" in node:
+            platform_defaults = node["product_platform_defaults"]
+            if not isinstance(platform_defaults, dict):
+                errors.append(
+                    f"{path}: [{node_path}] 'product_platform_defaults' must be a mapping of products to platforms. "
+                    f"Fix: use 'product_platform_defaults: {{product: {{platform: value}}}}'."
+                )
+            else:
+                for product, platforms in platform_defaults.items():
+                    if not isinstance(platforms, dict):
+                        errors.append(
+                            f"{path}: [{node_path}] 'product_platform_defaults.{product}' must be a mapping of "
+                            f"platforms to values. Fix: use '{product}: {{platform: value}}'."
+                        )
+                        continue
+                    unknown = sorted(set(platforms) - VALID_PLATFORM_KEYS)
+                    if unknown:
+                        errors.append(
+                            f"{path}: [{node_path}] 'product_platform_defaults.{product}' contains unknown platform "
+                            f"key(s): {', '.join(repr(k) for k in unknown)}. "
+                            f"Fix: use only {sorted(VALID_PLATFORM_KEYS)}."
+                        )
+
+        products = sorted({product for key in used if isinstance(node[key], dict) for product in node[key]})
+        for product in products:
+            if product not in declared_products:
+                errors.append(
+                    f"{path}: [{node_path}] product '{product}' is not declared. "
+                    f"Fix: add '{product}: [...]' to 'product_dependencies' in the core schema."
+                )
+
+        type_check = _JSON_TYPE_CHECKS.get(node.get("type"))
+        if type_check is None:
+            continue
+        for product, platform, value in iter_product_values(node):
+            if not type_check(value):
+                where = f"product '{product}'" + (f" on platform '{platform}'" if platform else "")
+                errors.append(
+                    f"{path}: [{node_path}] the value {value!r} for {where} doesn't match the setting type "
+                    f"'{node['type']}'. Fix: use a value of type '{node['type']}'."
+                )
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# Check 18: Product default conflicts within a SKU or a product's dependencies
+# ---------------------------------------------------------------------------
+
+PRODUCT_CONFLICT_OSES = ("linux", "windows", "darwin", "aix")
+
+
+def _runtime_environments():
+    """
+    Yield (label, platform keys by priority) for every runtime environment of the Agent.
+
+    The priority must stay in sync with getPlatformDefault in pkg/config/setup/config.go: the Agent uses the
+    'fargate' value when running on ECS Fargate, then the 'kubernetes' value on Kubernetes, then the 'container'
+    value when containerized, then the value of its OS, then 'other'. Fargate is independent from the others, and
+    the Agent is containerized on Kubernetes.
+    """
+    for os_name in PRODUCT_CONFLICT_OSES:
+        for runtime in ("host", "container", "kubernetes"):
+            for fargate in (False, True):
+                keys = ["fargate"] if fargate else []
+                if runtime == "kubernetes":
+                    keys.append("kubernetes")
+                if runtime != "host":
+                    keys.append("container")
+                keys += [os_name, "other"]
+                label = os_name + ("" if runtime == "host" else "/" + runtime) + ("/fargate" if fargate else "")
+                yield label, keys
+
+
+def _product_value(node, product, platform_keys):
+    """Return (found, value) for the default of *product* on a setting, for the given platform priority."""
+    product_defaults = node.get("product_defaults")
+    if isinstance(product_defaults, dict) and product in product_defaults:
+        return True, product_defaults[product]
+    platforms = (node.get("product_platform_defaults") or {}).get(product)
+    if isinstance(platforms, dict):
+        for key in platform_keys:
+            if key in platforms:
+                return True, platforms[key]
+    return False, None
+
+
+def _canonical_value(value):
+    """Typed representation of a value: the Agent treats 1, 1.0 and True as different values."""
+    return json.dumps(value, sort_keys=True)
+
+
+def resolve_product_closure(products, product_dependencies):
+    """Return the set of *products* and all their transitive dependencies."""
+    closure = set()
+    pending = list(products)
+    while pending:
+        product = pending.pop()
+        if product in closure:
+            continue
+        closure.add(product)
+        pending.extend(product_dependencies.get(product, []))
+    return closure
+
+
+def check_product_conflicts(path, schema, sku_definitions, product_dependencies):
+    """
+    Check that no SKU, and no product with its dependencies, enables products that set different values for
+    the same setting, in any runtime environment (OS, containerized, ECS Fargate).
+
+    Products that are never enabled together (not bundled by a SKU nor dependent on each other) can conflict:
+    the Agent refuses to start if a user enables them both.
+
+    Returns a list of error strings.
+    """
+    groups = [
+        (f"SKU '{sku}'", resolve_product_closure(products, product_dependencies))
+        for sku, products in sorted(sku_definitions.items())
+    ]
+    groups += [
+        (f"product '{product}'", resolve_product_closure([product], product_dependencies))
+        for product in sorted(product_dependencies)
+    ]
+
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        if node.get("node_type") != "setting" or not any(key in node for key in PRODUCT_DEFAULT_KEYS):
+            continue
+        for owner, closure in groups:
+            # Group the environments sharing the same conflicting assignment to keep the error short
+            conflicts = {}
+            for label, platform_keys in _runtime_environments():
+                values = {}
+                for product in sorted(closure):
+                    found, value = _product_value(node, product, platform_keys)
+                    if found:
+                        values[product] = value
+                if len({_canonical_value(v) for v in values.values()}) > 1:
+                    assignment = ", ".join(f"{product}={value!r}" for product, value in values.items())
+                    conflicts.setdefault(assignment, []).append(label)
+            for assignment, labels in conflicts.items():
+                errors.append(
+                    f"{path}: [{node_path}] {owner} enables products setting different values on "
+                    f"{', '.join(labels)}: {assignment}. "
+                    f"Fix: make those products agree on a single value, or stop enabling them together."
+                )
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Exception list loading
 # ---------------------------------------------------------------------------
 
@@ -701,6 +1051,12 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
 
     all_errors = []
 
+    # Products are declared in the core schema only, but other schemas (system-probe) can set product
+    # defaults: resolve the core schema first so every schema is checked against its product definitions.
+    core_schema_path = os.path.join(schema_dir, CORE_SCHEMA_FILE)
+    core_schema = resolve_schema(core_schema_path) if os.path.isfile(core_schema_path) else {}
+    sku_definitions, product_dependencies = get_product_definitions(core_schema)
+
     for schema_path in schema_files:
         print(f"Linting {schema_path}...")
 
@@ -730,6 +1086,11 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
         all_errors.extend(check_env_parser(schema_path, schema))
         all_errors.extend(check_generate_const_tag(schema_path, schema))
         all_errors.extend(check_renamed_from(schema_path, schema))
+        all_errors.extend(
+            check_product_definitions(schema_path, schema, os.path.basename(schema_path) == CORE_SCHEMA_FILE)
+        )
+        all_errors.extend(check_product_defaults(schema_path, schema, set(product_dependencies)))
+        all_errors.extend(check_product_conflicts(schema_path, schema, sku_definitions, product_dependencies))
 
     if all_errors:
         print(f"\nFound {len(all_errors)} schema linting error(s):\n")

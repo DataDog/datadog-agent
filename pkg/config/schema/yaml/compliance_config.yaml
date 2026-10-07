@@ -12,6 +12,11 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    product_platform_defaults:
+      cloud_security_misconfigurations:
+        linux: true
+        container: true
+        fargate: false
     visibility: public
     description: Set to true to enable Cloud Security Posture Management (CSPM).
     tags:

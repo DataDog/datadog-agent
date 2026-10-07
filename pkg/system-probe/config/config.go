@@ -74,6 +74,11 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 	// load the configuration
 	ddcfg := pkgconfigsetup.Datadog()
 	err := pkgconfigsetup.LoadSystemProbe(cfg, ddcfg.GetEnvVars())
+	// the products configured in the core configuration are applied by LoadSystemProbe
+	err, productErr := pkgconfigsetup.SplitProductEnablementError(err)
+	if productErr != nil {
+		return nil, productErr
+	}
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message

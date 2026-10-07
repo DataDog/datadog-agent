@@ -142,6 +142,7 @@ func commands(globalParams *command.GlobalParams, execFn spliteExecFunc, executa
 				fx.Supply(config.NewAgentParams(
 					globalParams.DatadogConfFilePath(),
 					config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
+					config.WithStrictProductEnablement(),
 				)),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),

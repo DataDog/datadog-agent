@@ -77,6 +77,16 @@ func TestCustomerConfig_SkipsAgentRuntime(t *testing.T) {
 	assert.Equal(t, "not-an-integer", spc["health_port"], "the customer's file value must survive, not Adjust's runtime repair")
 }
 
+// Product enablement values come from the schema, not from the customer: they must not be validated as customer config.
+func TestCustomerConfig_SkipsProductEnablement(t *testing.T) {
+	cfg := sysprobeconfigmock.NewMock(t)
+	cfg.Set("system_probe_config.health_port", 5558, model.SourceProductEnablement)
+
+	got := customerConfig(cfg)
+	spc, _ := got["system_probe_config"].(map[string]any)
+	assert.NotContains(t, spc, "health_port")
+}
+
 // Locks the dedup contract that distinguishes this issue from invalid-config.
 func TestBuildIssue_LocksContract(t *testing.T) {
 	issue, err := InvalidSysprobeConfigIssue{}.BuildIssue(map[string]string{

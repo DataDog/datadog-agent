@@ -66,7 +66,23 @@ _NAME_KEYED_KEYS = frozenset({"properties", "patternProperties", "$defs", "defin
 # (e.g. a ``default`` object whose keys are config field names) and must never be
 # interpreted as schema keywords, so the whole value is copied verbatim instead
 # of being recursed into.
-_INSTANCE_DATA_KEYS = frozenset({"default", "const", "enum", "examples", "example"})
+#
+# The product enablement keywords hold instance data too: per-product setting values
+# (``product_defaults``/``product_platform_defaults``) and the top-level product/SKU
+# maps (``sku_definitions``/``product_dependencies``) whose keys are product names.
+_INSTANCE_DATA_KEYS = frozenset(
+    {
+        "default",
+        "const",
+        "enum",
+        "examples",
+        "example",
+        "product_defaults",
+        "product_platform_defaults",
+        "sku_definitions",
+        "product_dependencies",
+    }
+)
 
 # Every keyword defined by JSON Schema draft 2020-12 (the dialect the Agent
 # schema declares via ``$schema``). The ``json_schema`` output keeps ONLY these

@@ -173,7 +173,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(start,
 				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
+					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithStrictProductEnablement()),
 					LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultDCALogFile()),
 				}),
 				core.Bundle(core.WithSecrets()),

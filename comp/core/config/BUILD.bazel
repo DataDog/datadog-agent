@@ -29,6 +29,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
+        "//pkg/util/log",
         "@in_yaml_go_yaml_v3//:yaml",
         "@org_uber_go_fx//:fx",
     ] + select({
@@ -44,12 +45,20 @@ dd_agent_go_test(
     srcs = [
         "config_test.go",
         "params_test.go",
+        "setup_test.go",
     ],
     embed = [":config"],
     deps = [
+        "//comp/core/delegatedauth/noop-impl/types",
+        "//comp/core/secrets/noop-impl/types",
+        "//pkg/config/mock",
         "//pkg/config/model",
+        "//pkg/config/schema",
+        "//pkg/config/setup",
         "//pkg/util/defaultpaths",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

@@ -24,6 +24,8 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_defaults:
+          container_live_processes: true
         env_vars:
         - DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED
         - DD_PROCESS_AGENT_PROCESS_COLLECTION_ENABLED
@@ -50,6 +52,9 @@ properties:
     node_type: setting
     type: integer
     default: 6062
+    product_platform_defaults:
+      jobs_monitoring_databricks:
+        linux: 6063
     env_vars:
     - DD_PROCESS_CONFIG_EXPVAR_PORT
     - DD_PROCESS_AGENT_EXPVAR_PORT

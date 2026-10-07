@@ -101,7 +101,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 			}()
 		}),
 		fx.Supply(core.BundleParams{
-			ConfigParams: config.NewAgentParams(confPath, config.WithExtraConfFiles(extraConfFiles)),
+			ConfigParams: config.NewAgentParams(confPath, config.WithExtraConfFiles(extraConfFiles), config.WithStrictProductEnablement()),
 			LogParams:    log.ForDaemon(command.LoggerName, pkgconfigsetup.PARLogFile, defaultpaths.GetDefaultPrivateActionRunnerLogFile()),
 		}),
 		core.Bundle(core.WithSecrets()),

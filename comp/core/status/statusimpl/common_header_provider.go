@@ -115,6 +115,9 @@ func populateConfig(config config.Component) map[string]string {
 	conf["fips_local_address"] = config.GetString("fips.local_address")
 	conf["fips_port_range_start"] = config.GetString("fips.port_range_start")
 
+	conf["sku"] = config.GetString("sku")
+	conf["enabled_products"] = strings.Join(pkgconfigsetup.ResolvedProducts(), ", ")
+
 	return conf
 }
 

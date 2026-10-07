@@ -117,6 +117,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 	configOptions := []func(*config.Params){
 		config.WithConfFilePath(cliParams.confPath),
 		config.WithConfigName("dogstatsd"),
+		config.WithStrictProductEnablement(),
 	}
 	if cliParams.socketPath != "" {
 		configOptions = append(configOptions, config.WithCLIOverride("dogstatsd_socket", cliParams.socketPath))

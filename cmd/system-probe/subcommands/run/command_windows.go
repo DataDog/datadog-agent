@@ -82,7 +82,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 
 			return nil
 		},
-		fx.Supply(config.NewAgentParams("")),
+		fx.Supply(config.NewAgentParams("", config.WithStrictProductEnablement())),
 		fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
 		fx.Supply(pidimpl.NewParams("")),
 		getSharedFxOption(),

@@ -13,6 +13,15 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    product_platform_defaults:
+      gpu_monitoring:
+        linux: true
+        container: true
+        fargate: false
+      gpu_monitoring_advanced:
+        linux: true
+        container: true
+        fargate: false
     visibility: public
     description: |-
       Set to true to enable the GPU check in the core Agent.

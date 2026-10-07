@@ -16,6 +16,8 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    product_defaults:
+      private_action_runner: true
     visibility: public
     description: Set to true to enable the Private Action Runner.
     example: 'true'

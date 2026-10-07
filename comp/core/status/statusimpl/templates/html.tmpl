@@ -12,6 +12,12 @@
     Log File: {{.config.log_file}}<br>
     {{- end}}
     Log Level: {{.config.log_level}}<br>
+    {{- if .config.sku }}
+    SKU: {{.config.sku}}<br>
+    {{- end }}
+    {{- if .config.enabled_products }}
+    Enabled Products: {{.config.enabled_products}}<br>
+    {{- end }}
     Config File: {{if .conf_file}}{{.conf_file}}{{else}}There is no config file{{end}}<br>
     {{- if gt (len .extra_conf_file) 0 }}
     Extra Config Files:

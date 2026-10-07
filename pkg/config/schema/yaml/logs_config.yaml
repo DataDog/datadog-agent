@@ -14,6 +14,9 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    product_platform_defaults:
+      log_management_collect_all:
+        container: true
     visibility: public
     description: Enable container log collection for all the containers (see ac_exclude
       to filter out containers)
@@ -713,6 +716,9 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    product_platform_defaults:
+      log_management:
+        kubernetes: true
     comment: enforce the agent to use files to collect container logs on kubernetes
       environment
   kubelet_api_client_read_timeout:

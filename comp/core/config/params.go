@@ -47,6 +47,11 @@ type Params struct {
 	// cliOverride is a list of setting overrides from the CLI given to the configuration. The map associate
 	// settings name like "logs_config.enabled" to its value.
 	cliOverride map[string]interface{}
+
+	// strictProductEnablement makes loading the configuration fail if the products configured through 'sku' and
+	// 'products' can't be enabled (unknown SKU or product, products setting conflicting values). Otherwise the
+	// error is logged and no product is enabled. Long-running processes set it so they refuse to start.
+	strictProductEnablement bool
 }
 
 // NewParams creates a new instance of Params
@@ -136,6 +141,14 @@ func WithExtraConfFiles(extraConfFilePath []string) func(*Params) {
 func WithFleetPoliciesDirPath(fleetPoliciesDirPath string) func(*Params) {
 	return func(b *Params) {
 		b.FleetPoliciesDirPath = fleetPoliciesDirPath
+	}
+}
+
+// WithStrictProductEnablement returns an option which makes loading the configuration fail if the configured
+// products can't be enabled. It should be used by long-running processes (agents), not by CLI commands.
+func WithStrictProductEnablement() func(*Params) {
+	return func(b *Params) {
+		b.strictProductEnablement = true
 	}
 }
 

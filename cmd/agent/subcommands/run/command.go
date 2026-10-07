@@ -235,6 +235,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		configOpts := []func(*config.Params){
 			config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
 			config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
+			config.WithStrictProductEnablement(),
 		}
 		return fxutil.OneShot(run,
 			fx.Invoke(func(_ log.Component) {

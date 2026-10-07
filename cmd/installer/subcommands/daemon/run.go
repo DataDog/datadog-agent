@@ -48,7 +48,7 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 	ctx := context.Background()
 	return fx.Options(fx.Provide(func() context.Context { return ctx }),
 		fx.Supply(core.BundleParams{
-			ConfigParams:         config.NewAgentParams(global.ConfFilePath),
+			ConfigParams:         config.NewAgentParams(global.ConfFilePath, config.WithStrictProductEnablement()),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 			LogParams:            log.ForDaemon("INSTALLER", "installer.log_file", defaultpaths.GetDefaultUpdaterLogFile()),
 		}),

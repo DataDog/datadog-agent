@@ -100,7 +100,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 			core.Bundle(),
 			remotehostnameimpl.Module(),
 			fx.Supply(core.BundleParams{
-				ConfigParams: config.NewAgentParams(cliParams.GlobalParams.CoreConfPath),
+				ConfigParams: config.NewAgentParams(cliParams.GlobalParams.CoreConfPath, config.WithStrictProductEnablement()),
 				LogParams:    log.ForDaemon(command.LoggerName, "hostprofiler.log_file", defaultpaths.GetDefaultHostProfilerLogFile()),
 			}),
 			fx.Provide(collectorimpl.NewExtraFactoriesWithAgentCore),

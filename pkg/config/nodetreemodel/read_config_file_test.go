@@ -311,6 +311,32 @@ func TestReadConfigBeforeReady(t *testing.T) {
 	assert.Equal(t, "attempt to ReadInConfig before config is constructed", err.Error())
 }
 
+func TestIsLoaded(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	assert.False(t, cfg.IsLoaded())
+
+	// a failed attempt before the config is constructed doesn't load anything
+	require.Error(t, cfg.ReadInConfig())
+	assert.False(t, cfg.IsLoaded())
+
+	cfg.BuildSchema()
+	assert.False(t, cfg.IsLoaded())
+
+	// environment variables are loaded even when the configuration file is missing
+	cfg.SetConfigFile("does not exists")
+	require.Error(t, cfg.ReadInConfig())
+	assert.True(t, cfg.IsLoaded())
+}
+
+func TestIsLoadedReadConfig(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.BuildSchema()
+	assert.False(t, cfg.IsLoaded())
+
+	require.NoError(t, cfg.ReadConfig(strings.NewReader("a: 1")))
+	assert.True(t, cfg.IsLoaded())
+}
+
 func TestReadConfigInvalidPath(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetConfigFile("does not exists")

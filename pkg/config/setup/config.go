@@ -397,17 +397,23 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 }
 
 // LoadDatadog reads config files and initializes config with decrypted secrets
-func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, additionalEnvVars []string) error {
+//
+// Products configured through 'sku' and 'products' are applied even if loading the configuration file fails (env vars
+// are loaded anyway). A product enablement error is returned once loading is complete, see
+// SplitProductEnablementError.
+func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, additionalEnvVars []string) (err error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
+		// Products are applied before the override funcs, which can depend on the values they set (ex: infrastructure_mode)
+		err = withProductEnablementError(err, ApplyProductEnablement(config))
 		// Environment feature detection needs to run before applying override funcs
 		// as it may provide such overrides
 		pkgconfigenv.DetectFeatures(config)
 		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
-	err := loadCustom(config, additionalEnvVars)
+	err = loadCustom(config, additionalEnvVars)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			return log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
@@ -519,9 +525,14 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 	return ctx.Err()
 }
 
-// LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
+// LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe.
+//
+// The products configured in the core configuration (which must be loaded first) are applied even if loading the
+// configuration file fails. A product enablement error is returned once loading is complete, see
+// SplitProductEnablementError.
 func LoadSystemProbe(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
-	return loadCustom(config, additionalKnownEnvVars)
+	err := loadCustom(config, additionalKnownEnvVars)
+	return withProductEnablementError(err, ApplySystemProbeProductEnablement(config, Datadog()))
 }
 
 // loadCustom reads config into the provided config object
@@ -1057,9 +1068,19 @@ func setNumWorkers(config pkgconfigmodel.Config) {
 	}
 }
 
+// getPlatformDefault returns the value for the current platform from a 'platform_default' (or
+// 'product_platform_defaults') mapping, or nil if there is none.
+//
+// The priority (fargate, kubernetes, container, OS, other) is mirrored by the product conflict check of 'dda inv schema.lint'
+// (_runtime_environments in tasks/schema/lint.py): keep both in sync.
 func getPlatformDefault(platformValues map[string]interface{}) interface{} {
 	if pkgconfigenv.IsECSFargate() {
 		if val, found := platformValues["fargate"]; found {
+			return val
+		}
+	}
+	if pkgconfigenv.IsKubernetes() {
+		if val, found := platformValues["kubernetes"]; found {
 			return val
 		}
 	}

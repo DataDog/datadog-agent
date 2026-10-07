@@ -546,6 +546,12 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_platform_defaults:
+          cloud_network_monitoring:
+            linux: true
+            windows: true
+            container: true
+            fargate: true
         env_vars:
         - DD_SYSTEM_PROBE_NETWORK_ENABLED
         visibility: public
@@ -658,6 +664,9 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_platform_defaults:
+          cloud_network_monitoring:
+            fargate: true
         env_vars:
         - DD_ENABLE_EBPFLESS
         - DD_NETWORK_CONFIG_ENABLE_EBPFLESS
@@ -780,6 +789,13 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_platform_defaults:
+          network_path:
+            linux: true
+            windows: true
+            container: true
+            darwin: true
+            fargate: false
         visibility: public
         description: |-
           Set to true to enable the Traceroute Module of the System Probe.
@@ -1339,6 +1355,15 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_platform_defaults:
+          gpu_monitoring:
+            linux: true
+            container: false
+            fargate: false
+          gpu_monitoring_advanced:
+            linux: true
+            container: true
+            fargate: false
         visibility: public
         description: |-
           Set to true to enable the GPU Monitoring module, enabling collection of privileged metrics.
@@ -1639,6 +1664,10 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        product_platform_defaults:
+          dynamic_instrumentation_go:
+            linux: true
+            fargate: false
         env_vars:
         - DD_DYNAMIC_INSTRUMENTATION_ENABLED
       offline_mode:

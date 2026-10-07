@@ -224,6 +224,71 @@ func TestGetSource(t *testing.T) {
 	assert.Equal(t, model.SourceAgentRuntime, cfg.GetSource("a"))
 }
 
+func TestProductEnablementLayer(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.SetDefault("c", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("a", 1, model.SourceProductEnablement)
+	cfg.Set("b", 1, model.SourceProductEnablement)
+	cfg.Set("c", 1, model.SourceProductEnablement)
+
+	// product enablement overrides defaults
+	assert.Equal(t, 1, cfg.GetInt("a"))
+	assert.Equal(t, model.SourceProductEnablement, cfg.GetSource("a"))
+
+	// infrastructure mode and the configuration file override product enablement
+	cfg.Set("b", 2, model.SourceInfraMode)
+	assert.Equal(t, 2, cfg.GetInt("b"))
+	assert.Equal(t, model.SourceInfraMode, cfg.GetSource("b"))
+
+	cfg.Set("c", 3, model.SourceFile)
+	assert.Equal(t, 3, cfg.GetInt("c"))
+	assert.Equal(t, model.SourceFile, cfg.GetSource("c"))
+
+	assert.Equal(t,
+		map[string]interface{}{"a": 1, "b": 1, "c": 1},
+		cfg.AllSettingsBySource()[model.SourceProductEnablement],
+	)
+}
+
+// The root tree is rebuilt from every layer when a configuration is read: product enablement values must survive it.
+func TestProductEnablementLayerSurvivesRebuild(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("a", 1, model.SourceProductEnablement)
+	require.NoError(t, cfg.ReadConfig(strings.NewReader("b: 2")))
+
+	assert.Equal(t, 1, cfg.GetInt("a"))
+	assert.Equal(t, model.SourceProductEnablement, cfg.GetSource("a"))
+	assert.Equal(t, map[string]interface{}{"a": 1, "b": 2}, cfg.AllSettingsWithoutDefault())
+}
+
+// The root tree is rebuilt from every layer when a configuration is read or streamed: infra-mode values must survive it.
+func TestInfraModeLayerSurvivesRebuild(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", false)
+	cfg.SetDefault("b", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("a", true, model.SourceInfraMode)
+	require.NoError(t, cfg.ReadConfig(strings.NewReader("b: 1")))
+	assert.True(t, cfg.GetBool("a"))
+	assert.Equal(t, model.SourceInfraMode, cfg.GetSource("a"))
+
+	client := NewNodeTreeConfig("client", "TEST", nil)
+	client.SetDefault("a", false)
+	client.BuildSchema()
+	client.(*ntmConfig).DirectBulkSet([]model.DirectSetting{{Key: "a", Value: true, Source: model.SourceInfraMode}}, false)
+	assert.True(t, client.GetBool("a"))
+	assert.Equal(t, model.SourceInfraMode, client.GetSource("a"))
+}
+
 func TestSetLowerSource(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 
@@ -341,8 +406,9 @@ func TestAllSettingsBySource(t *testing.T) {
 			},
 			"x": 123,
 		},
-		model.SourceUnknown:   map[string]interface{}{},
-		model.SourceInfraMode: map[string]interface{}{},
+		model.SourceUnknown:           map[string]interface{}{},
+		model.SourceProductEnablement: map[string]interface{}{},
+		model.SourceInfraMode:         map[string]interface{}{},
 		model.SourceFile: map[string]interface{}{
 			"a": 987,
 		},

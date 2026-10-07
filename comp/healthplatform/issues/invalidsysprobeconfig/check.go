@@ -79,14 +79,15 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 
 // customerConfig returns only the values the customer set in the system-probe config
 // (file, env, CLI, ...etc). It merges the source layers in priority order, skipping defaults,
-// secrets, and the agent-runtime layer that Adjust() writes to so the schema sees the
-// customer's actual configuration, not values rewritten by post-load processing.
+// product enablement values (which come from the schema), secrets, and the agent-runtime layer
+// that Adjust() writes to so the schema sees the customer's actual configuration, not values
+// rewritten by post-load processing.
 func customerConfig(cfg sysprobeconfig.Component) map[string]any {
 	bySource := cfg.AllSettingsBySource()
 	merged := map[string]any{}
 	for _, src := range model.Sources { // ascending priority: higher layers win
 		switch src {
-		case model.SourceDefault, model.SourceSecret, model.SourceAgentRuntime:
+		case model.SourceDefault, model.SourceProductEnablement, model.SourceSecret, model.SourceAgentRuntime:
 			continue
 		}
 		if layer, ok := bySource[src].(map[string]any); ok {

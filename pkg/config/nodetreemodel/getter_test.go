@@ -292,6 +292,7 @@ func TestGetAllSources(t *testing.T) {
 	cfg.BuildSchema()
 
 	cfg.Set("a", 1, model.SourceUnknown)
+	cfg.Set("a", 12, model.SourceProductEnablement)
 	cfg.Set("a", 2, model.SourceInfraMode)
 	cfg.Set("a", 3, model.SourceFile)
 	cfg.Set("a", 5, model.SourceFleetPolicies)
@@ -307,6 +308,7 @@ func TestGetAllSources(t *testing.T) {
 		[]model.ValueWithSource{
 			{Source: model.SourceDefault, Value: 0},
 			{Source: model.SourceUnknown, Value: 1},
+			{Source: model.SourceProductEnablement, Value: 12},
 			{Source: model.SourceInfraMode, Value: 2},
 			{Source: model.SourceFile, Value: 3},
 			{Source: model.SourceEnvVar, Value: 4},

@@ -18,6 +18,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // setupConfig loads additional configuration data from yaml files, fleet policies, and command-line options
@@ -51,6 +52,14 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 
 	// load the configuration
 	err := pkgconfigsetup.LoadDatadog(config, secretComp, delegatedAuthComp, pkgconfigsetup.SystemProbe().GetEnvVars())
+
+	// On product enablement errors, no product is enabled and the configuration keeps loading: only strict callers
+	// fail, once everything else is applied.
+	err, productErr := pkgconfigsetup.SplitProductEnablementError(err)
+	if productErr != nil && !p.strictProductEnablement {
+		log.Errorf("%s", productErr)
+		productErr = nil
+	}
 
 	if err != nil && (!errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) || confFilePath != "") {
 		// special-case permission-denied with a clearer error message
@@ -93,7 +102,7 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 		config.Set(k, v, pkgconfigmodel.SourceCLI)
 	}
 
-	return nil
+	return productErr
 }
 
 // GetInstallPath returns the install path for the agent

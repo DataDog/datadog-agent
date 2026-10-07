@@ -115,6 +115,12 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    product_platform_defaults:
+      workload_protection:
+        linux: true
+        windows: true
+        container: true
+        fargate: true
   endpoints:
     node_type: section
     type: object
