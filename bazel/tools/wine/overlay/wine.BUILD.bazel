@@ -15,3 +15,9 @@ filegroup(
     ),
     visibility = ["@//bazel/tools/wine:__pkg__"],
 )
+
+filegroup(
+    name = "wmc",
+    srcs = ["bin/wmc"] + glob(["share/wine/nls/*"]),
+    visibility = ["@//bazel/tools/wine:__pkg__"],
+)
