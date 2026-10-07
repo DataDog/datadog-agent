@@ -370,13 +370,47 @@ func TestAgentInsertInterpolateHugeCountsKeepShares(t *testing.T) {
 
 	// So does the regular insert path, which goes through insertCounts once the
 	// sketch is scaled.
-	shift := a.Sketch.shift
+	shift := a.Sketch.shift()
 	for i := 0; i < 4*agentBufCap; i++ {
 		a.Insert(1000, 1)
 	}
 	require.Empty(t, a.Buf, "the inserts must have been flushed")
 	require.Equal(t, int64(low+high+4*agentBufCap), a.Sketch.Basic.Cnt)
-	require.Equal(t, shift, a.Sketch.shift)
+	require.Equal(t, shift, a.Sketch.shift())
 	require.Equal(t, a.Sketch.count, a.Sketch.bins.nSum())
 	require.InEpsilon(t, 1, a.Sketch.Quantile(c, 0.74), binErr)
+}
+
+// TestAgentScaledInsertsMatchBatched checks that, once a sketch is scaled, small
+// inserts add up as if they came at once. At a shift of 14, a dogstatsd flush of
+// agentBufCap values falls short of a unit, and the bucket count just past half
+// of one.
+func TestAgentScaledInsertsMatchBatched(t *testing.T) {
+	if bits.UintSize < 64 {
+		t.Skip("the counts do not fit in a 32-bit uint")
+	}
+
+	const (
+		huge    = 3e12
+		flushes = 1000
+		bucket  = 1<<13 + 1
+	)
+
+	repeated, batched := &Agent{}, &Agent{}
+	require.NoError(t, repeated.InsertInterpolate(1, 1, huge))
+	require.NoError(t, batched.InsertInterpolate(1, 1, huge))
+	require.Equal(t, uint(14), repeated.Sketch.shift())
+
+	for i := 0; i < flushes*agentBufCap; i++ {
+		repeated.Insert(1000, 1)
+	}
+	require.Empty(t, repeated.Buf, "the inserts must have been flushed")
+	for i := 0; i < flushes; i++ {
+		require.NoError(t, repeated.InsertInterpolate(10, 10, bucket))
+	}
+
+	require.NoError(t, batched.InsertInterpolate(1000, 1000, flushes*agentBufCap))
+	require.NoError(t, batched.InsertInterpolate(10, 10, flushes*bucket))
+
+	requireSameStore(t, &batched.Sketch.sparseStore, &repeated.Sketch.sparseStore)
 }

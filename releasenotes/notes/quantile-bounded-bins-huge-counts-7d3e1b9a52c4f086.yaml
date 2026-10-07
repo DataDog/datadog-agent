@@ -14,5 +14,7 @@ fixes:
     count or a very low DogStatsD sample rate, used to take a bin for every
     65535 of them: a single bucket of 1.42e12 observations allocated over
     1 GiB. Past that count, the sketch now scales its bins down by powers of
-    two instead, keeping the share of the observations each bin holds. Its
-    count, sum, minimum, maximum and average stay exact.
+    two instead. The observations of each value that fall short of a scaled
+    bin unit are kept aside rather than rounded away, so that the sketch ends
+    up the same however its observations were batched. Its count, sum,
+    minimum, maximum and average stay exact.
