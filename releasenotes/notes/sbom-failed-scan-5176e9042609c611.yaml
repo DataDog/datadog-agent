@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe scans a container again a minute after a
+    failed scan, and scans the containers whose root sits on the device of the
+    host root, as with the vfs and native snapshotters. Such containers kept no
+    package index, and their runtime usage went unreported.

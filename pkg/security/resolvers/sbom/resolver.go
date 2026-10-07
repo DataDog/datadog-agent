@@ -62,6 +62,9 @@ const (
 	// re-arming when no image SBOM will ever be produced (for example when
 	// container image SBOM collection is disabled and the image stays pending).
 	maxForwardWait = 30 * time.Minute
+	// failedScanRetryDelay is the delay before a workload whose scan failed is
+	// queued for a scan again.
+	failedScanRetryDelay = time.Minute
 	// hostRescanInterval is the longest time between two scans of the host
 	// packages, the default period of the host scans of the core agent.
 	hostRescanInterval = time.Hour
@@ -107,7 +110,10 @@ type openedFile struct {
 	at   time.Time
 }
 
-var errNoProcessForContainerID = errors.New("found no running process matching the given container ID")
+var (
+	errNoProcessForContainerID = errors.New("found no running process matching the given container ID")
+	errNoContainerRoot         = errors.New("found no running process on the root of the container")
+)
 
 // Event defines the SBOM event type
 type Event int
@@ -472,17 +478,43 @@ func (r *Resolver) Start(ctx context.Context) error {
 				if _, err := backoff.Retry(ctx, func() (struct{}, error) {
 					return struct{}{}, r.analyzeWorkload(sbom)
 				}, backoff.WithMaxTries(maxSBOMGenerationRetries), backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond))); err != nil {
-					if errors.Is(err, errNoProcessForContainerID) {
-						seclog.Debugf("Couldn't generate SBOM for '%s': %v", sbom.ContainerID, err)
-					} else {
-						seclog.Warnf("Failed to generate SBOM for '%s': %v", sbom.ContainerID, err)
-					}
+					r.scanFailed(sbom, err)
 				}
 			}
 		}
 	}()
 
 	return nil
+}
+
+// scanFailed releases the scan slot of sbom and, when processes of it remain on
+// its own root, queues it again after failedScanRetryDelay.
+func (r *Resolver) scanFailed(sbom *SBOM, err error) {
+	r.removePendingScan(sbom.ContainerID)
+
+	if errors.Is(err, errNoProcessForContainerID) || errors.Is(err, errNoContainerRoot) {
+		seclog.Debugf("Couldn't generate SBOM for '%s': %v", sbom.ContainerID, err)
+		return
+	}
+	seclog.Warnf("Failed to generate SBOM for '%s': %v", sbom.ContainerID, err)
+	time.AfterFunc(failedScanRetryDelay, func() { r.retryScan(sbom) })
+}
+
+// retryScan queues sbom for a scan again, if it is still waiting for one.
+func (r *Resolver) retryScan(sbom *SBOM) {
+	r.sbomsLock.Lock()
+	defer r.sbomsLock.Unlock()
+
+	if current, ok := r.sboms.Peek(sbom.ContainerID); !ok || current != sbom {
+		return
+	}
+
+	sbom.Lock()
+	defer sbom.Unlock()
+
+	if sbom.state.Load() == pendingState {
+		r.triggerScan(sbom)
+	}
 }
 
 // RefreshSBOM regenerates the SBOM of a container, or the SBOM of the host for
@@ -1173,6 +1205,7 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 
 	cfs := utils.DefaultCGroupFS()
 
+	onHostRoot := false
 	for _, rootCandidatePID := range sbom.cgroup.GetPIDs() {
 		// check if this pid still exists and is in the expected container ID (if we loose an exit and need to wait for
 		// the flush to remove a pid, there might be a significant delay before a PID is removed from this list. Checking
@@ -1194,8 +1227,11 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 				}
 				return nil, fmt.Errorf("stat failed for `%s`: couldn't stat container proc root path: %w", containerProcRootPath, err)
 			}
-			if stat.Dev == r.hostRootDevice {
-				return nil, fmt.Errorf("couldn't generate sbom: filesystem of container '%s' matches the host root filesystem", sbom.ContainerID)
+			// a process of the container may have entered the mount namespace of
+			// the host, as nsenter does
+			if stat.Dev == r.hostRootDevice && stat.Ino == r.hostRootInode {
+				onHostRoot = true
+				continue
 			}
 		}
 
@@ -1216,6 +1252,9 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 		return nil, lastErr
 	}
 	if !scanned {
+		if onHostRoot {
+			return nil, errNoContainerRoot
+		}
 		return nil, errNoProcessForContainerID
 	}
 	return report, nil
