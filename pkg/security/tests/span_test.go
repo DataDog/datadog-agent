@@ -1537,6 +1537,15 @@ func TestNodeSpan(t *testing.T) {
 
 	assertNodeOpenSpan := func(t *testing.T, event *model.Event) {
 		t.Helper()
+		// TEMPORARY: what the agent held for this process when the event
+		// arrived without a span context.
+		if event.SpanContext.SpanID == 0 {
+			if ebpfProbe, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe); ok {
+				t.Logf("[span-ctx-debug] no span context for pid %d tid %d: %s",
+					event.PIDContext.Pid, event.PIDContext.Tid,
+					ebpfProbe.Resolvers.ProcessResolver.DebugOTelTLSEntry(event.PIDContext.Pid))
+			}
+		}
 		test.validateSpanSchema(t, event)
 
 		assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))

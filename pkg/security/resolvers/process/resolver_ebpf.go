@@ -1591,12 +1591,14 @@ func (p *EBPFResolver) ResolveOTelProcessContext(pid uint32) {
 	defer p.otelProcCtxLock.Unlock()
 
 	if _, pending := p.otelProcCtxPending[pid]; pending {
+		spanCtxDebugf("pid %d: OTel process context event received, already pending", pid)
 		return
 	}
 
 	select {
 	case p.otelProcCtxQueue <- pid:
 		p.otelProcCtxPending[pid] = struct{}{}
+		spanCtxDebugf("pid %d: OTel process context event received, queued", pid)
 	default:
 		p.countSpanCtx(spanCtxStepProcessCtx, spanCtxQueueFull)
 		seclog.Warnf("OTel process context queue full, dropping pid %d", pid)
@@ -1655,9 +1657,11 @@ func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
 			p.otelProcCtxLock.Unlock()
 
 			if !p.hasEntry(pid) {
+				spanCtxDebugf("pid %d: dequeued, but no process cache entry: dropped", pid)
 				p.countSpanCtx(spanCtxStepProcessCtx, spanCtxNoProcessEntry)
 				continue
 			}
+			spanCtxDebugf("pid %d: dequeued, resolving", pid)
 			p.resolveAndUpdateOTelTLS(pid, target)
 		}
 	}
@@ -1671,11 +1675,13 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetPro
 
 	procCtx, err := target.processContext()
 	if err != nil {
+		spanCtxDebugf("pid %d: reading the process context failed: %v [%s]", pid, err, classifySpanCtxError(err))
 		p.reportSpanCtxError(spanCtxStepProcessCtx, pid, err)
 		return
 	}
 	if procCtx == nil {
 		// The process publishes no OTel process context at all.
+		spanCtxDebugf("pid %d: no OTEL_CTX mapping in /proc/%d/maps (%d candidate objects)", pid, pid, len(target.mapsObjects))
 		return
 	}
 	p.countSpanCtx(spanCtxStepProcessCtx, spanCtxOK)
@@ -1683,6 +1689,7 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetPro
 
 	attributeKeys, err := otelAttributeKeys(procCtx)
 	if err != nil {
+		spanCtxDebugf("pid %d: no attribute keys: %v [%s]", pid, err, classifySpanCtxError(err))
 		p.reportSpanCtx(spanCtxStepOTelTLS, pid, err)
 		return
 	}
@@ -1698,10 +1705,16 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetPro
 		if resolveErr == nil {
 			resolveErr = p.updateOTelTLS(pid, res)
 		}
+		if resolveErr != nil {
+			spanCtxDebugf("pid %d: TLS resolution failed: %v [%s]", pid, resolveErr, classifySpanCtxError(resolveErr))
+		} else {
+			spanCtxDebugf("pid %d: registered %s", pid, describeOTelTLSValue(serializeOTelTLSValue(res)))
+		}
 		p.reportSpanCtx(spanCtxStepOTelTLS, pid, resolveErr)
 		return
 	}
 
+	spanCtxDebugf("pid %d: already registered, kept %s", pid, describeOTelTLSValue(value))
 	p.reportSpanCtx(spanCtxStepOTelTLS, pid, nil)
 }
 
