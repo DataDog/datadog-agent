@@ -109,3 +109,26 @@ func TestScanInstalledPackagesLeavesOutDocs(t *testing.T) {
 	require.Len(t, pkgs, 1)
 	assert.Equal(t, []string{"/usr/bin/bash", "/usr/share/bash-completion/completions/bash"}, pkgs[0].InstalledFiles)
 }
+
+// TestScanInstalledPackagesLeavesOutPythonMetadata checks that the metadata of
+// Python distributions, which pip reads for every distribution, stays out.
+func TestScanInstalledPackagesLeavesOutPythonMetadata(t *testing.T) {
+	dir := t.TempDir()
+	const site = "usr/lib/python3/dist-packages/"
+	status := filepath.Join(dir, "var/lib/dpkg/status")
+	require.NoError(t, os.MkdirAll(filepath.Dir(status), 0o755))
+	require.NoError(t, os.WriteFile(status, []byte("Package: python3-requests\nStatus: install ok installed\nVersion: 2.31.0+dfsg-1\n"), 0o644))
+	md5sums := filepath.Join(dir, "var/lib/dpkg/info/python3-requests.md5sums")
+	require.NoError(t, os.MkdirAll(filepath.Dir(md5sums), 0o755))
+	require.NoError(t, os.WriteFile(md5sums, []byte(strings.Join([]string{
+		"0  " + site + "requests/api.py",
+		"0  " + site + "requests-2.31.0.dist-info/METADATA",
+		"0  " + site + "requests-2.31.0.egg-info/PKG-INFO",
+		"0  " + site + "chardet.egg-info",
+	}, "\n")+"\n"), 0o644))
+
+	pkgs, err := NewOSScanner().ScanInstalledPackages(context.Background(), dir)
+	require.NoError(t, err)
+	require.Len(t, pkgs, 1)
+	assert.Equal(t, []string{"/" + site + "requests/api.py"}, pkgs[0].InstalledFiles)
+}
