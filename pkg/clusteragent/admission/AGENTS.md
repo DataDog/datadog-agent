@@ -1,5 +1,17 @@
 # Admission controller mutation guidance
 
+## Admission tracing
+
+The admission server creates `cluster_agent.admission.request` and `webhook`
+spans when Cluster Agent tracing is enabled. Pod webhooks should use
+`mutate/common.MutateWithContext` with `request.Context` so decoding,
+normalization, mutation, serialization, and patch generation stay in the same
+trace. Mutators with internal stages can implement `MutatePodWithContext`;
+composite mutators must forward that context. Use bounded stage names rather
+than pod names or request IDs, and record errors even when the webhook allows
+the request after a mutation failure. Span tags must not include raw objects,
+patches, environment values, or requesting-user data.
+
 ## Unknown Pod fields and list ordering
 
 `mutate/common.Mutate` generates a JSON Patch by comparing serialized typed

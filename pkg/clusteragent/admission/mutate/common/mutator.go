@@ -8,6 +8,7 @@
 package common
 
 import (
+	"context"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 )
@@ -49,9 +50,14 @@ func NewMutators(mutators ...Mutator) *Mutators {
 // MutatePod will call MutatePod on each Mutator, returning true if any Mutator mutates the pod and an error if there is
 // a problem.
 func (m *Mutators) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+	return m.MutatePodWithContext(context.Background(), pod, ns, dc)
+}
+
+// MutatePodWithContext propagates admission tracing to each component mutator.
+func (m *Mutators) MutatePodWithContext(ctx context.Context, pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
 	mutated := false
 	for _, mutator := range m.mutators {
-		mutatedPod, err := mutator.MutatePod(pod, ns, dc)
+		mutatedPod, err := MutatePodWithContext(ctx, mutator, pod, ns, dc)
 		if err != nil {
 			return mutated, err
 		}

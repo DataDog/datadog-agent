@@ -8,8 +8,14 @@
 package tagsfromlabels
 
 import (
+	"context"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+	"github.com/stretchr/testify/require"
 	"reflect"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -174,4 +180,26 @@ func newUnstructuredWithSpec(spec map[string]interface{}) *unstructured.Unstruct
 	u := newUnstructured(testAPIVersion, testKind, testNamespace, testName)
 	u.Object["spec"] = spec
 	return u
+}
+
+func TestOwnerLookupSpans(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+	info := dummyInfo()
+	cache.Cache.Delete(info.buildID(testNamespace))
+	defer cache.Cache.Delete(info.buildID(testNamespace))
+	object := newUnstructuredWithSpec(map[string]interface{}{"foo": "bar"})
+	dc := fake.NewSimpleDynamicClient(scheme, object)
+	root, ctx := tracer.StartSpanFromContext(context.Background(), "mutation")
+	for _, hit := range []bool{false, true} {
+		_, err := getAndCacheOwnerWithContext(ctx, info, testNamespace, dc, time.Minute)
+		require.NoError(t, err)
+		spans := mt.FinishedSpans()
+		span := spans[len(spans)-1]
+		assert.Equal(t, "cluster_agent.admission.get_owner", span.OperationName())
+		assert.Equal(t, strconv.FormatBool(hit), span.Tag("cache_hit"))
+		assert.Equal(t, root.Context().SpanID(), span.ParentID())
+	}
+	root.Finish()
+	assert.Len(t, dc.Actions(), 1, "cached lookup should not query Kubernetes")
 }

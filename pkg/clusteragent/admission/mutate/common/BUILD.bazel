@@ -9,6 +9,7 @@ go_library(
         "mutator.go",
         "pod_spec_normalizer.go",
         "test_utils.go",
+        "tracing.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common",
     visibility = ["//visibility:public"],
@@ -29,6 +30,7 @@ go_library(
         "//pkg/util/fxutil",
         "//pkg/util/kubernetes/apiserver/common/namespace",
         "//pkg/util/log",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
         "@com_github_stretchr_testify//require",
         "@com_github_wi2l_jsondiff//:jsondiff",
         "@io_k8s_api//apps/v1:apps",
@@ -47,6 +49,7 @@ dd_agent_go_test(
         "filter_test.go",
         "mutator_test.go",
         "pod_spec_normalizer_test.go",
+        "tracing_test.go",
     ],
     embed = [":common"],
     gotags_sets = [[
@@ -57,6 +60,8 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/mocktracer",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
         "@com_github_evanphx_json_patch_v5//:json-patch",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

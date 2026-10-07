@@ -718,7 +718,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *cor
 }
 
 func (ci *CWSInstrumentation) injectForPod(request *admission.Request) *admiv1.AdmissionResponse {
-	return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, ci.webhookForPods.Name(), ci.injectCWSPodInstrumentation, request.DynamicClient))
+	return common.MutationResponse(mutatecommon.MutateWithContext(request.Context, request.Object, request.Namespace, ci.webhookForPods.Name(), mutatecommon.AdaptMutator(ci.injectCWSPodInstrumentation), request.DynamicClient))
 }
 
 func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {

@@ -8,6 +8,7 @@
 package autoinstrumentation
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -145,7 +146,12 @@ func (m *TargetMutator) ClearRemotePolicies() {
 }
 
 // MutatePod mutates the pod if it matches the target based workload selection or has the appropriate annotations.
-func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
+func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+	return m.MutatePodWithContext(context.Background(), pod, ns, dc)
+}
+
+// MutatePodWithContext traces SSI selection and injection within the admission request.
+func (m *TargetMutator) MutatePodWithContext(ctx context.Context, pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
 	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
 	// Sanitize input.
@@ -184,7 +190,11 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		return false, nil
 	}
 
-	resolved := m.resolveTarget(pod)
+	var resolved *injectionResolution
+	_ = mutatecommon.TraceStage(ctx, "resolve_target", func(context.Context) error {
+		resolved = m.resolveTarget(pod)
+		return nil
+	})
 	if resolved == nil {
 		return false, nil
 	}
@@ -206,23 +216,30 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	}
 
 	// Add the configuration for the security client library.
-	if err := m.core.mutatePodContainers(pod, m.securityClientLibraryMutator, true); err != nil {
+	if err := mutatecommon.TraceStage(ctx, "inject_security_config", func(context.Context) error {
+		return m.core.mutatePodContainers(pod, m.securityClientLibraryMutator, true)
+	}); err != nil {
 		return false, fmt.Errorf("error mutating pod for security client: %w", err)
 	}
 
 	// Add the configuration for profiling.
-	if err := m.core.mutatePodContainers(pod, m.profilingClientLibraryMutator, true); err != nil {
+	if err := mutatecommon.TraceStage(ctx, "inject_profiling_config", func(context.Context) error {
+		return m.core.mutatePodContainers(pod, m.profilingClientLibraryMutator, true)
+	}); err != nil {
 		return false, fmt.Errorf("error mutating pod for profiling client: %w", err)
 	}
 
 	// Inject the tracer configs. We do this before lib injection to ensure DD_SERVICE is set if the user configures it
 	// in the target.
-	for _, envVar := range injection.tracerEnvVars {
-		_ = m.core.mutatePodContainers(pod, envVarMutator(envVar), true)
-	}
+	_ = mutatecommon.TraceStage(ctx, "inject_tracer_config", func(context.Context) error {
+		for _, envVar := range injection.tracerEnvVars {
+			_ = m.core.mutatePodContainers(pod, envVarMutator(envVar), true)
+		}
+		return nil
+	})
 
 	// Inject the libraries.
-	err := m.core.injectTracers(pod, extracted)
+	err := mutatecommon.TraceStage(ctx, "inject_libraries", func(ctx context.Context) error { return m.core.injectTracersWithContext(ctx, pod, extracted) })
 	if err != nil {
 		return false, fmt.Errorf("error injecting libraries: %w", err)
 	}

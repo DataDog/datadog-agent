@@ -20,6 +20,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+
 	admiv1 "k8s.io/api/admission/v1"
 	admiv1beta1 "k8s.io/api/admission/v1beta1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -189,6 +192,31 @@ func (s *Server) Run(mainCtx context.Context) error {
 // handle contains the main logic responsible for handling admission requests.
 // It supports both v1 and v1beta1 requests.
 func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName string, webhookType admicommon.WebhookType, webhookFunc WebhookFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
+	span, ctx := tracer.StartSpanFromContext(r.Context(), "cluster_agent.admission.request",
+		tracer.ResourceName(webhookName), tracer.SpanType("web"),
+		tracer.Tag(ext.SpanKind, ext.SpanKindServer),
+		tracer.Tag("webhook_name", webhookName), tracer.Tag("webhook_type", webhookType.String()),
+		tracer.Tag("http.method", r.Method), tracer.Tag("http.url", r.URL.Path))
+	r = r.WithContext(ctx)
+	writer := &admissionResponseWriter{ResponseWriter: w}
+	w = writer
+	var requestErr error
+	defer func() {
+		if p := recover(); p != nil {
+			span.SetTag("http.status_code", http.StatusInternalServerError)
+			span.Finish(tracer.WithError(fmt.Errorf("admission handler panic: %v", p)))
+			panic(p)
+		}
+		status := writer.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		span.SetTag("http.status_code", status)
+		if requestErr == nil && status >= 400 {
+			requestErr = fmt.Errorf("HTTP %d", status)
+		}
+		span.Finish(tracer.WithError(requestErr))
+	}()
 	// Increment the metrics for the received webhook.
 	// We send the webhook name twice to keep the backward compatibility with `mutation_type` tag.
 	metrics.WebhooksReceived.Inc(webhookName, webhookName, webhookType.String())
@@ -220,7 +248,11 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 
 	maxBytes := maxRequestBodyBytes()
 	defer r.Body.Close()
+	readSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.read_body")
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBytes))
+	readSpan.SetTag("request_bytes", len(body))
+	readSpan.Finish(tracer.WithError(err))
+	requestErr = err
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
@@ -234,7 +266,10 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 	}
 
 	// Deserialize admission request.
+	decodeSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.decode_review")
 	obj, gvk, err := s.decoder.Decode(body, nil, nil)
+	decodeSpan.Finish(tracer.WithError(err))
+	requestErr = err
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Warnf("Could not deserialize request: %v", err)
@@ -253,25 +288,28 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		admissionReview := &admiv1.AdmissionReview{}
 		admissionReview.SetGroupVersionKind(*gvk)
 
-		var admissionResponse *admiv1.AdmissionResponse
-		if probeResp := probeResponse(admissionReviewReq.Request.Object.Raw); probeResp != nil {
-			admissionResponse = probeResp
-		} else {
-			admissionRequest := Request{
-				Context:       r.Context(),
-				UID:           admissionReviewReq.Request.UID,
-				Kind:          admissionReviewReq.Request.Kind,
-				Name:          admissionReviewReq.Request.Name,
-				Namespace:     admissionReviewReq.Request.Namespace,
-				Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
-				UserInfo:      &admissionReviewReq.Request.UserInfo,
-				Object:        admissionReviewReq.Request.Object.Raw,
-				OldObject:     admissionReviewReq.Request.OldObject.Raw,
-				DryRun:        admissionReviewReq.Request.DryRun,
-				DynamicClient: dc,
-				APIClient:     apiClient,
-			}
-			admissionResponse = webhookFunc(&admissionRequest)
+		admissionRequest := Request{
+			Context:       r.Context(),
+			UID:           admissionReviewReq.Request.UID,
+			Kind:          admissionReviewReq.Request.Kind,
+			Name:          admissionReviewReq.Request.Name,
+			Namespace:     admissionReviewReq.Request.Namespace,
+			Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
+			UserInfo:      &admissionReviewReq.Request.UserInfo,
+			Object:        admissionReviewReq.Request.Object.Raw,
+			OldObject:     admissionReviewReq.Request.OldObject.Raw,
+			DryRun:        admissionReviewReq.Request.DryRun,
+			DynamicClient: dc,
+			APIClient:     apiClient,
+		}
+		admissionResponse := invokeWebhook(&admissionRequest, webhookFunc)
+		span.SetTag("namespace", admissionRequest.Namespace)
+		span.SetTag("resource_kind", admissionRequest.Kind.Kind)
+		span.SetTag("operation", string(admissionRequest.Operation))
+		span.SetTag("admission.allowed", admissionResponse.Allowed)
+		span.SetTag("patch_bytes", len(admissionResponse.Patch))
+		if admissionResponse.Result != nil && admissionResponse.Result.Message != "" {
+			requestErr = errors.New(admissionResponse.Result.Message)
 		}
 
 		admissionReview.Response = admissionResponse
@@ -286,25 +324,28 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		admissionReview := &admiv1beta1.AdmissionReview{}
 		admissionReview.SetGroupVersionKind(*gvk)
 
-		var admissionResponse *admiv1.AdmissionResponse
-		if probeResp := probeResponse(admissionReviewReq.Request.Object.Raw); probeResp != nil {
-			admissionResponse = probeResp
-		} else {
-			admissionRequest := Request{
-				Context:       r.Context(),
-				UID:           admissionReviewReq.Request.UID,
-				Kind:          admissionReviewReq.Request.Kind,
-				Name:          admissionReviewReq.Request.Name,
-				Namespace:     admissionReviewReq.Request.Namespace,
-				Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
-				UserInfo:      &admissionReviewReq.Request.UserInfo,
-				Object:        admissionReviewReq.Request.Object.Raw,
-				OldObject:     admissionReviewReq.Request.OldObject.Raw,
-				DryRun:        admissionReviewReq.Request.DryRun,
-				DynamicClient: dc,
-				APIClient:     apiClient,
-			}
-			admissionResponse = webhookFunc(&admissionRequest)
+		admissionRequest := Request{
+			Context:       r.Context(),
+			UID:           admissionReviewReq.Request.UID,
+			Kind:          admissionReviewReq.Request.Kind,
+			Name:          admissionReviewReq.Request.Name,
+			Namespace:     admissionReviewReq.Request.Namespace,
+			Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
+			UserInfo:      &admissionReviewReq.Request.UserInfo,
+			Object:        admissionReviewReq.Request.Object.Raw,
+			OldObject:     admissionReviewReq.Request.OldObject.Raw,
+			DryRun:        admissionReviewReq.Request.DryRun,
+			DynamicClient: dc,
+			APIClient:     apiClient,
+		}
+		admissionResponse := invokeWebhook(&admissionRequest, webhookFunc)
+		span.SetTag("namespace", admissionRequest.Namespace)
+		span.SetTag("resource_kind", admissionRequest.Kind.Kind)
+		span.SetTag("operation", string(admissionRequest.Operation))
+		span.SetTag("admission.allowed", admissionResponse.Allowed)
+		span.SetTag("patch_bytes", len(admissionResponse.Patch))
+		if admissionResponse.Result != nil && admissionResponse.Result.Message != "" {
+			requestErr = errors.New(admissionResponse.Result.Message)
 		}
 
 		admissionReview.Response = responseV1ToV1beta1(admissionResponse)
@@ -316,13 +357,74 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		return
 	}
 
+	encodeSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.encode_response")
 	encoder := json.NewEncoder(w)
 	err = encoder.Encode(&response)
+	encodeSpan.Finish(tracer.WithError(err))
+	if err != nil {
+		requestErr = err
+	}
 	if err != nil {
 		log.Warnf("Failed to encode the response: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+}
+
+// admissionResponseWriter captures the HTTP status without changing the response body.
+type admissionResponseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *admissionResponseWriter) WriteHeader(status int) {
+	if w.status != 0 {
+		return
+	}
+	w.status = status
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *admissionResponseWriter) Write(body []byte) (int, error) {
+	if w.status == 0 {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(body)
+}
+
+func (w *admissionResponseWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+func invokeWebhook(request *Request, webhookFunc WebhookFunc) (response *admiv1.AdmissionResponse) {
+	span, ctx := tracer.StartSpanFromContext(request.Context, "cluster_agent.admission.webhook",
+		tracer.Tag("namespace", request.Namespace), tracer.Tag("resource_kind", request.Kind.Kind),
+		tracer.Tag("operation", string(request.Operation)))
+	request.Context = ctx
+	if request.DryRun != nil {
+		span.SetTag("dry_run", *request.DryRun)
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			span.Finish(tracer.WithError(fmt.Errorf("webhook panic: %v", p)))
+			panic(p)
+		}
+		var err error
+		if response != nil {
+			span.SetTag("admission.allowed", response.Allowed)
+			if response.Result != nil && response.Result.Message != "" {
+				err = errors.New(response.Result.Message)
+			}
+		}
+		span.Finish(tracer.WithError(err))
+	}()
+	probeSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.check_probe")
+	response = probeResponse(request.Object)
+	probeSpan.SetTag("probe", response != nil)
+	probeSpan.Finish()
+	if response != nil {
+		span.SetTag("probe", true)
+		return response
+	}
+	return webhookFunc(request)
 }
 
 // probeMeta is used for lightweight partial unmarshalling of an object's metadata.

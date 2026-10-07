@@ -8,7 +8,10 @@
 package autoinstrumentation
 
 import (
+	"context"
 	"fmt"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -1392,4 +1395,34 @@ func defaultLibrariesFor(languages ...string) map[string]string {
 		out[l] = defaultLibraries[l]
 	}
 	return out
+}
+
+func TestTargetMutationSpans(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+	mockConfig := configmock.NewFromFile(t, "testdata/filter_simple_namespace.yaml")
+	cfg, err := NewConfig(mockConfig)
+	require.NoError(t, err)
+	m, err := NewTargetMutator(cfg, mutatecommon.FakeStore(t), imageresolver.NewNoOpResolver(), nil, nil, nil)
+	require.NoError(t, err)
+	root, ctx := tracer.StartSpanFromContext(context.Background(), "mutation")
+	mutated, err := m.MutatePodWithContext(ctx, mutatecommon.FakePodWithNamespace("test", "application"), "application", nil)
+	require.NoError(t, err)
+	require.True(t, mutated)
+	root.Finish()
+	spans := map[string]*mocktracer.Span{}
+	for _, span := range mt.FinishedSpans() {
+		spans[span.OperationName()] = span
+	}
+	for _, name := range []string{"resolve_target", "inject_security_config", "inject_profiling_config", "inject_tracer_config", "inject_libraries"} {
+		span := spans["cluster_agent.admission."+name]
+		require.NotNil(t, span, name)
+		require.Equal(t, root.Context().SpanID(), span.ParentID())
+	}
+	injection := spans["cluster_agent.admission.inject_libraries"]
+	for _, name := range []string{"inject_kpi_config", "inject_apm_libraries", "inject_service_tags", "inject_language_detection", "inject_annotation_config", "inject_default_config"} {
+		span := spans["cluster_agent.admission."+name]
+		require.NotNil(t, span, name)
+		require.Equal(t, injection.SpanID(), span.ParentID())
+	}
 }

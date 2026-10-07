@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -56,12 +58,18 @@ func getOwnerInfo(owner metav1.OwnerReference) (*ownerInfo, error) {
 // getOwner returns the object of the pod's owner
 // If the owner is a replicaset it returns the corresponding deployment
 func getOwner(owner metav1.OwnerReference, ns string, dc dynamic.Interface, ownerCacheTTL time.Duration) (*owner, error) {
-	ownerInfo, err := getOwnerInfo(owner)
+	return getOwnerWithContext(context.Background(), owner, ns, dc, ownerCacheTTL)
+}
+
+func getOwnerWithContext(ctx context.Context, ref metav1.OwnerReference, ns string, dc dynamic.Interface, ownerCacheTTL time.Duration) (result *owner, err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.resolve_owner")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	ownerInfo, err := getOwnerInfo(ref)
 	if err != nil {
 		return nil, err
 	}
 
-	obj, err := getAndCacheOwner(ownerInfo, ns, dc, ownerCacheTTL)
+	obj, err := getAndCacheOwnerWithContext(ctx, ownerInfo, ns, dc, ownerCacheTTL)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +81,7 @@ func getOwner(owner metav1.OwnerReference, ns string, dc dynamic.Interface, owne
 			return nil, err
 		}
 
-		return getAndCacheOwner(rsOwnerInfo, ns, dc, ownerCacheTTL)
+		return getAndCacheOwnerWithContext(ctx, rsOwnerInfo, ns, dc, ownerCacheTTL)
 	}
 
 	return obj, nil
@@ -81,6 +89,13 @@ func getOwner(owner metav1.OwnerReference, ns string, dc dynamic.Interface, owne
 
 // getAndCacheOwner tries to fetch the owner object from cache before querying the api server
 func getAndCacheOwner(info *ownerInfo, ns string, dc dynamic.Interface, ownerCacheTTL time.Duration) (*owner, error) {
+	return getAndCacheOwnerWithContext(context.Background(), info, ns, dc, ownerCacheTTL)
+}
+
+func getAndCacheOwnerWithContext(ctx context.Context, info *ownerInfo, ns string, dc dynamic.Interface, ownerCacheTTL time.Duration) (result *owner, err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.get_owner",
+		tracer.Tag("resource", info.gvr.Resource), tracer.Tag("namespace", ns))
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	infoID := info.buildID(ns)
 	if cachedObj, hit := cache.Cache.Get(infoID); hit {
 		metrics.GetOwnerCacheHit.Inc(info.gvr.Resource)
@@ -88,13 +103,15 @@ func getAndCacheOwner(info *ownerInfo, ns string, dc dynamic.Interface, ownerCac
 		if !valid {
 			log.Debugf("Invalid owner object for '%s', forcing a cache miss", infoID)
 		} else {
+			span.SetTag("cache_hit", true)
 			return owner, nil
 		}
 	}
 
 	log.Tracef("Cache miss while getting owner '%s'", infoID)
 	metrics.GetOwnerCacheMiss.Inc(info.gvr.Resource)
-	ownerObj, err := dc.Resource(info.gvr).Namespace(ns).Get(context.TODO(), info.name, metav1.GetOptions{})
+	span.SetTag("cache_hit", false)
+	ownerObj, err := dc.Resource(info.gvr).Namespace(ns).Get(ctx, info.name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}

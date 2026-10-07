@@ -231,15 +231,9 @@ func (w *Webhook) Timeout() int32 { return 0 }
 // WebhookFunc returns the function that mutates pods on admission.
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return common.MutationResponse(mutatecommon.Mutate(
-			request.Object,
-			request.Namespace,
-			w.Name(),
-			func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
-				log.Debugf("Injecting NCCL profiler plugin into pod %s", mutatecommon.PodString(pod))
-				return mutatePod(pod, w.injectorImage, w.hostSocketDir, w.clientSocketDir, w.socketFilename, w.initResources)
-			},
-			request.DynamicClient,
-		))
+		return common.MutationResponse(mutatecommon.MutateWithContext(request.Context, request.Object, request.Namespace, w.Name(), mutatecommon.AdaptMutator(func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+			log.Debugf("Injecting NCCL profiler plugin into pod %s", mutatecommon.PodString(pod))
+			return mutatePod(pod, w.injectorImage, w.hostSocketDir, w.clientSocketDir, w.socketFilename, w.initResources)
+		}), request.DynamicClient))
 	}
 }

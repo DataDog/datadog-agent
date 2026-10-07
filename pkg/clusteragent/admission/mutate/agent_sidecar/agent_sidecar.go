@@ -176,7 +176,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 		injectFunc := func(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
 			return w.injectAgentSidecar(requestContext, pod, ns, dc, request.APIClient, request.DryRun)
 		}
-		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), injectFunc, request.DynamicClient))
+		return common.MutationResponse(mutatecommon.MutateWithContext(request.Context, request.Object, request.Namespace, w.Name(), mutatecommon.AdaptMutator(injectFunc), request.DynamicClient))
 	}
 }
 

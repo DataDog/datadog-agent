@@ -9,6 +9,7 @@
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -31,45 +32,69 @@ const K8sAutoscalerSafeToEvictVolumesAnnotation = "cluster-autoscaler.kubernetes
 // Mutate handles mutating pods and encoding and decoding admission
 // requests and responses for the public mutate functions
 func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dynamic.Interface) ([]byte, error) {
+	return MutateWithContext(context.Background(), rawPod, ns, mutationType, AdaptMutator(m), dc)
+}
+
+// ContextMutatorFunc mutates a pod using the admission request's tracing context.
+type ContextMutatorFunc func(context.Context, *corev1.Pod, string, dynamic.Interface) (bool, error)
+
+// AdaptMutator adapts a mutator that does not require the request context.
+func AdaptMutator(m MutatorFunc) ContextMutatorFunc {
+	return func(_ context.Context, pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+		return m(pod, ns, dc)
+	}
+}
+
+// MutateWithContext traces each processing stage, preserving the typed-snapshot
+// patch semantics of Mutate. The context is also passed to the mutation logic.
+func MutateWithContext(ctx context.Context, rawPod []byte, ns string, mutationType string, m ContextMutatorFunc, dc dynamic.Interface) (patchBytes []byte, err error) {
 	var pod corev1.Pod
-	if err := json.Unmarshal(rawPod, &pod); err != nil {
+	if err = TraceStage(ctx, "decode_pod", func(context.Context) error { return json.Unmarshal(rawPod, &pod) }); err != nil {
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)
 	}
-
-	// Diff typed snapshots so fields unknown to the Kubernetes client are left untouched.
-	// Capture the baseline before normalization so its corrections are included in the patch.
-	beforeJSON, err := json.Marshal(pod)
-	if err != nil {
+	var beforeJSON, afterJSON []byte
+	// Capture the typed baseline before normalization so its corrections appear in the patch.
+	if err = TraceStage(ctx, "encode_original_pod", func(context.Context) error {
+		var encodeErr error
+		beforeJSON, encodeErr = json.Marshal(pod)
+		return encodeErr
+	}); err != nil {
 		return nil, fmt.Errorf("failed to encode the original Pod object: %v", err)
 	}
-
-	// In rare cases multiple mutation webhooks executed in sequence can cause the spec to be invalid. This was seen
-	// when the autoinstrumentation library injection webhook ran before and after GKE Autopilot webhooks.
-	// Normalize correctable issues before proceeding so downstream can assume the pod spec is valid.
-	if err := NormalizePodSpec(&pod); err != nil {
-		// TODO should we return early here?
-		log.Warnf("failed to normalize input spec for %s: %v - API Server is likely to reject due to invalid spec", PodString(&pod), err)
+	if normalizeErr := TraceStage(ctx, "normalize_pod", func(context.Context) error { return NormalizePodSpec(&pod) }); normalizeErr != nil {
+		log.Warnf("failed to normalize input spec for %s: %v - API Server is likely to reject due to invalid spec", PodString(&pod), normalizeErr)
 	}
-
-	injected, err := m(&pod, ns, dc)
-	if err != nil {
+	var injected bool
+	if err = TraceStage(ctx, "mutate_pod", func(ctx context.Context) error {
+		var mutationErr error
+		injected, mutationErr = m(ctx, &pod, ns, dc)
+		return mutationErr
+	}); err != nil {
 		metrics.MutationAttempts.Inc(mutationType, metrics.StatusError, strconv.FormatBool(false), err.Error())
 		return nil, fmt.Errorf("failed to mutate pod: %v", err)
 	}
-
 	metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
-
-	afterJSON, err := json.Marshal(pod)
-	if err != nil {
+	if err = TraceStage(ctx, "encode_mutated_pod", func(context.Context) error {
+		var encodeErr error
+		afterJSON, encodeErr = json.Marshal(pod)
+		return encodeErr
+	}); err != nil {
 		return nil, fmt.Errorf("failed to encode the mutated Pod object: %v", err)
 	}
-
-	patch, err := jsondiff.CompareJSON(beforeJSON, afterJSON) // TODO: Try to generate the patch at the MutationFunc
-	if err != nil {
+	var patch jsondiff.Patch
+	if err = TraceStage(ctx, "generate_patch", func(context.Context) error {
+		var diffErr error
+		patch, diffErr = jsondiff.CompareJSON(beforeJSON, afterJSON)
+		return diffErr
+	}); err != nil {
 		return nil, fmt.Errorf("failed to prepare the JSON patch: %v", err)
 	}
-
-	return json.Marshal(patch)
+	err = TraceStage(ctx, "encode_patch", func(context.Context) error {
+		var encodeErr error
+		patchBytes, encodeErr = json.Marshal(patch)
+		return encodeErr
+	})
+	return patchBytes, err
 }
 
 // contains returns whether EnvVar slice contains an env var with a given name

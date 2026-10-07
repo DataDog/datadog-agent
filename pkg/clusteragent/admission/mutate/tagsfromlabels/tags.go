@@ -10,6 +10,7 @@
 package tagsfromlabels
 
 import (
+	"context"
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -102,9 +103,8 @@ func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
 // WebhookFunc returns the function that mutates the resources
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), func(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
-			// Adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to the pod template from pod and higher-level resource labels.
-			return w.inject(pod, ns, dc)
+		return common.MutationResponse(mutatecommon.MutateWithContext(request.Context, request.Object, request.Namespace, w.Name(), func(ctx context.Context, pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+			return mutatecommon.MutatePodWithContext(ctx, w.mutator, pod, ns, dc)
 		}, request.DynamicClient))
 	}
 }

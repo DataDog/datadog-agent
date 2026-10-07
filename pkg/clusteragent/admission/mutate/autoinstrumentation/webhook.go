@@ -8,6 +8,7 @@
 package autoinstrumentation
 
 import (
+	"context"
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -126,7 +127,9 @@ func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
 // WebhookFunc returns the function that will optionally mutate a pod.
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), w.MutatePod, request.DynamicClient))
+		return common.MutationResponse(mutatecommon.MutateWithContext(request.Context, request.Object, request.Namespace, w.Name(), func(ctx context.Context, pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+			return mutatecommon.MutatePodWithContext(ctx, w.mutator, pod, ns, dc)
+		}, request.DynamicClient))
 	}
 }
 

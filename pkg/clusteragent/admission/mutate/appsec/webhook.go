@@ -149,27 +149,21 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
 		switch request.Operation {
 		case admissionregistrationv1.Create:
-			return common.MutationResponse(mutatecommon.Mutate(
-				request.Object,
-				request.Namespace,
-				w.Name(),
-				func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error) {
-					matched, proxyType, outcome, err := w.callPattern(pod, ns, cl, appsecconfig.SidecarInjectionPattern.MutatePod)
-					if !matched {
-						return false, nil
-					}
-					canonical, reason, _ := appsecconfig.NormalizeOutcome(outcome, err)
-					sidecarMutationsCounter.Inc(string(proxyType), outcomeString(canonical), reason)
-					log.Debugf("appsec sidecar mutate_pod for pod %s: outcome=%s reason=%s", mutatecommon.PodString(pod), outcomeString(canonical), reason)
-					mutated, admErr := appsecconfig.NormalizeOutcomeForAdmission(outcome, err)
-					if admErr == nil && mutated {
-						// Add APM config, label and tags so the pod is treated as a first-class citizen APM service.
-						return w.configMutator.MutatePod(pod, ns, cl)
-					}
-					return mutated, admErr
-				},
-				request.DynamicClient,
-			))
+			return common.MutationResponse(mutatecommon.MutateWithContext(request.Context, request.Object, request.Namespace, w.Name(), mutatecommon.AdaptMutator(func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error) {
+				matched, proxyType, outcome, err := w.callPattern(pod, ns, cl, appsecconfig.SidecarInjectionPattern.MutatePod)
+				if !matched {
+					return false, nil
+				}
+				canonical, reason, _ := appsecconfig.NormalizeOutcome(outcome, err)
+				sidecarMutationsCounter.Inc(string(proxyType), outcomeString(canonical), reason)
+				log.Debugf("appsec sidecar mutate_pod for pod %s: outcome=%s reason=%s", mutatecommon.PodString(pod), outcomeString(canonical), reason)
+				mutated, admErr := appsecconfig.NormalizeOutcomeForAdmission(outcome, err)
+				if admErr == nil && mutated {
+					// Add APM config, label and tags so the pod is treated as a first-class citizen APM service.
+					return w.configMutator.MutatePod(pod, ns, cl)
+				}
+				return mutated, admErr
+			}), request.DynamicClient))
 		case admissionregistrationv1.Delete:
 			var pod corev1.Pod
 			if err := json.Unmarshal(request.OldObject, &pod); err != nil {

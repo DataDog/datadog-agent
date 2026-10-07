@@ -116,6 +116,8 @@ dd_agent_go_test(
         "//pkg/util/kubernetes",
         "//pkg/util/pointer",
         "@com_github_datadog_dd_policy_engine_go//policies",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/mocktracer",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",

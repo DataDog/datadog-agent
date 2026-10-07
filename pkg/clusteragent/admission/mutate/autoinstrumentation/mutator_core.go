@@ -8,6 +8,7 @@
 package autoinstrumentation
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -50,6 +51,10 @@ func (m *mutatorCore) mutatePodContainers(pod *corev1.Pod, cm containerMutator, 
 }
 
 func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo) error {
+	return m.injectTracersWithContext(context.Background(), pod, config)
+}
+
+func (m *mutatorCore) injectTracersWithContext(ctx context.Context, pod *corev1.Pod, config extractedPodLibInfo) error {
 	if len(config.libs) == 0 {
 		return nil
 	}
@@ -59,21 +64,24 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 
 	// Apply all mutations in order
 	var lastError error
-	for _, mutator := range []podMutator{
+	for _, step := range []struct {
+		name    string
+		mutator podMutator
+	}{
 		// Injects DD_INSTRUMENTATION_INSTALL_TYPE, DD_INSTRUMENTATION_INSTALL_TIME, DD_INSTRUMENTATION_INSTALL_ID
-		m.kpiEnvVarsMutator(config),
+		{"inject_kpi_config", m.kpiEnvVarsMutator(config)},
 		// Injects APM injector + language-specific library init containers, volumes, and env vars
-		m.apmInjectionMutator(config, autoDetected, injectionType),
+		{"inject_apm_libraries", m.apmInjectionMutator(config, autoDetected, injectionType)},
 		// Injects DD_VERSION and DD_ENV from pod labels/annotations (SSI only)
-		m.ustEnvVarsPodMutator(config),
+		{"inject_service_tags", m.ustEnvVarsPodMutator(config)},
 		// Injects language detection annotations
-		m.languageDetectionMutator(config),
+		{"inject_language_detection", m.languageDetectionMutator(config)},
 		// Injects library config from annotations (admission.datadoghq.com/all-lib.config.v1)
-		m.libConfigFromAnnotationsMutator(config, autoDetected, injectionType),
+		{"inject_annotation_config", m.libConfigFromAnnotationsMutator(config, autoDetected, injectionType)},
 		// Injects default library config for SSI matches
-		m.defaultLibConfigMutator(config),
+		{"inject_default_config", m.defaultLibConfigMutator(config)},
 	} {
-		if err := mutator.mutatePod(pod); err != nil {
+		if err := mutatecommon.TraceStage(ctx, step.name, func(context.Context) error { return step.mutator.mutatePod(pod) }); err != nil {
 			lastError = err
 		}
 	}
