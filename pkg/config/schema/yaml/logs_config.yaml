@@ -753,6 +753,16 @@ properties:
     type: boolean
     default: false
     comment: If true, exclude agent processes from process log collection
+  profile:
+    node_type: setting
+    type: string
+    default: ''
+    comment: Logs Agent performance profile. Empty means off; see pkg/config/setup/logs_performance_profiles.go.
+  profile_version:
+    node_type: setting
+    type: integer
+    default: 0
+    comment: Version of logs_config.profile. 0 resolves to version 1.
   run_path:
     node_type: setting
     type: string

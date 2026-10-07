@@ -110,6 +110,7 @@ func fixupInitCommonConfigComponents(config pkgconfigmodel.Config) {
 	pkgconfigmodel.AddOverrideFunc(applyInfrastructureModeOverrides)
 	pkgconfigmodel.AddOverrideFunc(ApplyUseDogstatsdSuppression)
 	pkgconfigmodel.AddOverrideFunc(ComputeDataPlaneStopTimeout)
+	pkgconfigmodel.AddOverrideFunc(ApplyLogsPerformanceProfile)
 }
 
 // called only for full-agent, NOT serverless-init, after declaring settings
