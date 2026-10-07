@@ -432,7 +432,11 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			}
 			for _, symbol := range tt.symbols {
 				err := ms.sendBandwidthUsageMetric(symbol, tt.fullIndex, tt.values, tt.tags)
-				assert.Equal(t, tt.expectedError, err)
+				if tt.expectedError != nil {
+					assert.EqualError(t, err, tt.expectedError.Error())
+				} else {
+					assert.NoError(t, err)
+				}
 			}
 
 			for _, metric := range tt.expectedMetric {

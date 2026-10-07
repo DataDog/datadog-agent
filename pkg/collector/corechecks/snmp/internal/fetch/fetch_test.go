@@ -939,7 +939,7 @@ func Test_fetchValues_errors(t *testing.T) {
 
 			_, err := Fetch(sess, tt.ScalarOIDs, tt.ColumnOIDs, batchSizeOptimizers, tt.maxReps)
 
-			assert.Equal(t, tt.expectedError, err)
+			assert.EqualError(t, err, tt.expectedError.Error())
 		})
 	}
 }
@@ -1538,7 +1538,7 @@ func Test_batchSizeOptimizers(t *testing.T) {
 			sess := tt.sessionFactory()
 			values, err := Fetch(sess, tt.scalarOids, tt.columnOids, tt.batchSizeOptimizers, checkconfig.DefaultBulkMaxRepetitions)
 			if tt.expectedError != nil {
-				assert.Equal(t, tt.expectedError, err)
+				assert.EqualError(t, err, tt.expectedError.Error())
 			} else {
 				assert.Nil(t, err)
 				assert.Equal(t, tt.expectedValues, values)

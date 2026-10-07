@@ -65,7 +65,11 @@ func Test_getMostSpecificOid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			oid, err := getMostSpecificOid(tt.oids)
-			assert.Equal(t, tt.expectedErrror, err)
+			if tt.expectedErrror != nil {
+				assert.EqualError(t, err, tt.expectedErrror.Error())
+			} else {
+				assert.NoError(t, err)
+			}
 			assert.Equal(t, tt.expectedOid, oid)
 		})
 	}
