@@ -10,13 +10,17 @@ package oracle
 import (
 	"context"
 	"errors"
+	"regexp"
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/benbjohnson/clock"
+	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 )
 
@@ -287,4 +291,86 @@ func TestDataObservabilityWorkerConcurrentCancelAndLaunch(t *testing.T) {
 		assert.True(t, c.dataObservabilityWorkerStopped)
 		assert.False(t, c.dataObservabilityWorkerRunning)
 	}
+}
+
+func TestDataObservabilityRunWithDBMDisabled(t *testing.T) {
+	c := newCheck().(*Check)
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
+	require.NoError(t, c.Configure(senderManager, 1, []byte(`username: datadog
+only_custom_queries: true
+data_observability:
+  enabled: true
+  run_sync: true
+  queries:
+    - dbname: orcl.SALES
+      query: SELECT 1 FROM dual
+      query_timeout: 1000
+      interval_seconds: 60
+      entity: {}
+`), nil, "file", "file"))
+	sender := mocksender.NewMockSenderWithSenderManager(c.ID(), senderManager)
+	sender.SetupAcceptAll()
+	regularDB, regularMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer regularDB.Close()
+	c.db = sqlx.NewDb(regularDB, "sqlmock")
+	c.db.SetMaxOpenConns(1)
+	held, err := c.db.Connx(context.Background())
+	require.NoError(t, err)
+	defer held.Close()
+	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
+	require.NoError(t, err)
+	c.dataObservabilityDB = sqlx.NewDb(db, "sqlmock")
+	c.initialized = true
+	c.cdbName = "orcl"
+	c.multitenant = true
+	c.connectedToPdb = true
+	c.metricLastRun = time.Now()
+	c.dbInstanceLastRun = c.metricLastRun
+	expectDataObservabilityConnection(mock, "SALES")
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT 1 FROM dual")).WillReturnRows(sqlmock.NewRows([]string{"N"}).AddRow(1)).RowsWillBeClosed()
+	mock.ExpectClose()
+	var results []dataObservabilityQueryResult
+	c.dataObservabilityEmitter = func(_ dataObservabilityDueQuery, result dataObservabilityQueryResult) {
+		results = append(results, result)
+	}
+	defer c.Cancel()
+	require.NoError(t, c.Run())
+	assert.False(t, c.dbmEnabled)
+	require.Len(t, results, 1)
+	assert.Equal(t, "success", results[0].Status)
+	assert.Nil(t, c.dataObservabilityDB)
+	sender.AssertNumberOfCalls(t, "Commit", 1)
+	require.NoError(t, mock.ExpectationsWereMet())
+	require.NoError(t, regularMock.ExpectationsWereMet())
+}
+
+func TestDataObservabilityWorkerCancelDuringExecution(t *testing.T) {
+	query := dataObservabilityTestQuery("orcl.SALES", "SELECT 1 FROM dual")
+	c, _ := newDataObservabilityWorkerCheck(t)
+	c.cdbName = "orcl"
+	c.connectedToPdb = true
+	c.dataObservabilityQueries = newDataObservabilityScheduledQueries([]config.DataObservabilityQuery{query})
+	started := make(chan struct{})
+	matcher := sqlmock.QueryMatcherFunc(func(expected, actual string) error {
+		if actual == query.Query {
+			close(started)
+		}
+		return sqlmock.QueryMatcherRegexp.Match(expected, actual)
+	})
+	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true), sqlmock.QueryMatcherOption(matcher))
+	require.NoError(t, err)
+	c.dataObservabilityDB = sqlx.NewDb(db, "sqlmock")
+	expectDataObservabilityConnection(mock, "SALES")
+	mock.ExpectQuery(regexp.QuoteMeta(query.Query)).WillDelayFor(time.Hour).
+		WillReturnRows(sqlmock.NewRows([]string{"N"}).AddRow(1))
+	mock.ExpectClose()
+	require.NoError(t, c.runDataObservabilityJob(c.collectDataObservability))
+	waitForDataObservabilityWorker(t, started)
+	c.Cancel()
+	waitForDataObservabilityWorker(t, dataObservabilityWorkerDone(c))
+	assert.Nil(t, c.dataObservabilityConn)
+	assert.Nil(t, c.dataObservabilityDB)
+	assert.NotNil(t, c.dataObservabilityQueries[0].pendingRetry)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

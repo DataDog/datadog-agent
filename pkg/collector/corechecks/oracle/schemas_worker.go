@@ -128,7 +128,6 @@ func (c *Check) Cancel() {
 	c.stopSchemaWorker(true)
 }
 
-// Stop cancels background collection when the runner stops the check.
 func (c *Check) Stop() {
 	c.stopDataObservabilityWorker(true)
 	c.stopSchemaWorker(true)

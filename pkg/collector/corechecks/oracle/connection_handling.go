@@ -16,8 +16,8 @@ import (
 	go_ora "github.com/sijms/go-ora/v2"
 )
 
-func buildGoOraURL(c *Check) string {
-	connectionOptions := map[string]string{"TIMEOUT": c.config.QueryTimeoutString()}
+func buildGoOraURL(c *Check, queryTimeout string) string {
+	connectionOptions := map[string]string{"TIMEOUT": queryTimeout}
 	if c.config.Protocol == "TCPS" {
 		connectionOptions["SSL"] = "TRUE"
 		if c.config.Wallet != "" {
@@ -27,15 +27,13 @@ func buildGoOraURL(c *Check) string {
 	return go_ora.BuildUrl(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, connectionOptions)
 }
 
-// Connect establishes a connection to an Oracle instance and returns an open connection to the database.
-func (c *Check) Connect() (*sqlx.DB, error) {
+func (c *Check) connectionString(queryTimeout string) (string, string) {
 	var connStr string
 	var oracleDriver string
 	if c.config.TnsAlias != "" {
 		connStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, c.config.Username, c.config.Password, c.config.TnsAlias)
 		oracleDriver = common.Godror
 	} else {
-		// godror ezconnect string
 		if c.config.InstanceConfig.OracleClient {
 			oracleDriver = common.Godror
 			protocolString := ""
@@ -49,12 +47,17 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			connStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s%s:%d/%s%s"`, c.config.Username, c.config.Password, protocolString, c.config.Server, c.config.Port, c.config.ServiceName, walletString)
 		} else {
 			oracleDriver = "oracle"
-			connStr = buildGoOraURL(c)
+			connStr = buildGoOraURL(c, queryTimeout)
 
 			// Workaround for named binds, see https://github.com/jmoiron/sqlx/issues/854#issuecomment-1504070464
 			sqlx.BindDriver("oracle", sqlx.NAMED)
 		}
 	}
+	return oracleDriver, connStr
+}
+
+func (c *Check) Connect() (*sqlx.DB, error) {
+	oracleDriver, connStr := c.connectionString(c.config.QueryTimeoutString())
 	c.driver = oracleDriver
 
 	log.Infof("%s driver: %s", c.logPrompt, oracleDriver)
@@ -79,10 +82,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			log.Warnf("%s failed to set tracefile_identifier: %v", c.logPrompt, err)
 		}
 
-		/* We are concatenating values instead of passing parameters, because there seems to be a problem
-		 * in go-ora with passing bool parameters to PL/SQL. As a mitigation, we are asserting that the
-		 * parameters are bool
-		 */
+		// Work around go-ora's PL/SQL bool binding issue.
 		binds := assertBool(c.config.AgentSQLTrace.Binds)
 		waits := assertBool(c.config.AgentSQLTrace.Waits)
 		setEventsStatement := fmt.Sprintf("BEGIN dbms_monitor.session_trace_enable (binds => %t, waits => %t); END;", binds, waits)
@@ -107,9 +107,9 @@ func closeDatabase(c *Check, db *sqlx.DB) {
 	}
 }
 
-// Building a dedicated go-ora connection for dealing with LOBs, see https://github.com/sijms/go-ora/issues/439
+// Dedicated connection for LOBs: https://github.com/sijms/go-ora/issues/439
 func connectGoOra(c *Check) (*go_ora.Connection, error) {
-	conn, err := go_ora.NewConnection(buildGoOraURL(c), nil)
+	conn, err := go_ora.NewConnection(buildGoOraURL(c, c.config.QueryTimeoutString()), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect with the oracle driver %w", err)
 	}

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/jmoiron/sqlx"
 
 	utilcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,6 +31,10 @@ type dataObservabilityWorkerState struct {
 	dataObservabilityLastCheckRun  time.Time
 	dataObservabilityLastEvent     time.Time
 	dataObservabilityQueries       []*dataObservabilityScheduledQuery
+	dataObservabilityDB            *sqlx.DB
+	dataObservabilityConn          *sqlx.Conn
+	dataObservabilityContainer     string
+	dataObservabilityEmitter       func(dataObservabilityDueQuery, dataObservabilityQueryResult)
 }
 
 func (c *Check) runDataObservabilityJob(run func(context.Context) error) error {
@@ -86,6 +91,7 @@ func (c *Check) runDataObservabilityWorker(ctx context.Context, runClock clock.C
 			err = fmt.Errorf("data observability job panic: %v", recovered)
 			log.Warnf("%v\n%s", err, debug.Stack())
 		}
+		c.closeDataObservabilityConnection()
 		c.dataObservabilityWorkerMu.Lock()
 		c.dataObservabilityWorkerCancel()
 		c.dataObservabilityWorkerCancel = nil

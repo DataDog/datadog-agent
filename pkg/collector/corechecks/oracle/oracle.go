@@ -198,6 +198,9 @@ func (c *Check) Run() error {
 			return fmt.Errorf("%s failed to initialize: %w", c.logPrompt, err)
 		}
 	}
+	if err := c.runDataObservabilityJob(c.collectDataObservability); err != nil {
+		allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to execute data observability queries: %w", c.logPrompt, err))
+	}
 
 	if c.driver == "oracle" && c.connection == nil {
 		conn, err := connectGoOra(c)
