@@ -6,10 +6,10 @@
 package azure
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"time"
 
 	sdkazure "github.com/pulumi/pulumi-azure-native-sdk/v3"
@@ -170,18 +170,18 @@ func logIn(ctx *pulumi.Context, subscription string) {
 		shouldLogIn = true
 	} else {
 		// Check the token is not expired
-		cmd = exec.Command("az", "account", "get-access-token", "--query", "\"expiresOn\"", "--output", "tsv")
+		cmd = exec.Command("az", "account", "get-access-token", "--query", "{epoch: expires_on, local: expiresOn}", "--output", "json")
 		out, err := cmd.Output()
 
 		if err != nil {
 			ctx.Log.Error(fmt.Sprintf("Error running `az account get-access-token`: %v", err), nil)
 			shouldLogIn = true
 		} else {
-			tt, err := time.Parse(time.DateTime, strings.TrimSpace(string(out)))
+			expiry, err := tokenExpiry(out, time.Local)
 			if err != nil {
 				ctx.Log.Error(fmt.Sprintf("Error parsing the token expiration date`: %v", err), nil)
 			} else {
-				shouldLogIn = tt.Before(time.Now())
+				shouldLogIn = expiry.Before(time.Now())
 			}
 		}
 	}
@@ -191,4 +191,24 @@ func logIn(ctx *pulumi.Context, subscription string) {
 			ctx.Log.Error(fmt.Sprintf("Error running `az login`: %v", err), nil)
 		}
 	}
+}
+
+// tokenExpiry returns when the access token described by the output of
+// `az account get-access-token --query "{epoch: expires_on, local: expiresOn}"`
+// expires. expires_on is a POSIX timestamp (Azure CLI 2.54.0 and later).
+// expiresOn, the only field of older versions, is a local time without a
+// zone, so it is parsed in loc: parsing it as UTC made a valid token look
+// expired on any machine west of UTC.
+func tokenExpiry(out []byte, loc *time.Location) (time.Time, error) {
+	var token struct {
+		Epoch *int64 `json:"epoch"`
+		Local string `json:"local"`
+	}
+	if err := json.Unmarshal(out, &token); err != nil {
+		return time.Time{}, err
+	}
+	if token.Epoch != nil {
+		return time.Unix(*token.Epoch, 0), nil
+	}
+	return time.ParseInLocation(time.DateTime, token.Local, loc)
 }
