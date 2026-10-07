@@ -555,7 +555,7 @@ func TestSetScanLeavesEmptyScanUncached(t *testing.T) {
 	sbom := NewSBOM("container-id", nil, "image-k")
 	t.Cleanup(sbom.stop)
 	sbom.Lock()
-	data := r.setScan(sbom, nil)
+	data := r.setScan(sbom, nil, "")
 	sbom.Unlock()
 
 	if sbom.data != data || sbom.cached {
@@ -2442,6 +2442,130 @@ func TestResolvePackageRecordsEffectiveRoot(t *testing.T) {
 			}
 			if pkg.AccessedByRoot != tc.want {
 				t.Errorf("AccessedByRoot = %v, want %v", pkg.AccessedByRoot, tc.want)
+			}
+		})
+	}
+}
+
+// TestDataKeyedByPackageDatabases checks that containers of an image share a scan
+// when their package databases match, and scan their own root otherwise.
+func TestDataKeyedByPackageDatabases(t *testing.T) {
+	r := &Resolver{dataCache: newTestDataCache(t, 10)}
+	report := []sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "openssl", Version: "3.0.15"},
+		InstalledFiles: []string{"/usr/bin/openssl"},
+	}}
+
+	upgraded := NewSBOM("upgraded", nil, "image")
+	t.Cleanup(upgraded.stop)
+	r.setScan(upgraded, report, "upgraded-dbs")
+
+	pristine := NewSBOM("pristine", nil, "image")
+	t.Cleanup(pristine.stop)
+	if r.acquireData(pristine, "image-dbs") {
+		t.Errorf("a container got the data of a container of its image with other package databases")
+	}
+
+	twin := NewSBOM("twin", nil, "image")
+	t.Cleanup(twin.stop)
+	if !r.acquireData(twin, "upgraded-dbs") || twin.data != upgraded.data {
+		t.Errorf("a container missed the data of a container of its image with the same package databases")
+	}
+
+	upgraded.Lock()
+	r.stopSBOM(upgraded)
+	upgraded.Unlock()
+	twin.Lock()
+	r.stopSBOM(twin)
+	twin.Unlock()
+	key := dataKey("image", "upgraded-dbs")
+	if n := r.dataCache.users(key); n != 0 {
+		t.Errorf("%d users of the data after its containers stopped, want 0", n)
+	}
+	if _, ok := r.dataCache.peek(key); !ok {
+		t.Errorf("the data of the stopped containers left the cache instead of waiting unused")
+	}
+}
+
+// TestRefreshChangedPackageDatabases checks that a container whose package databases
+// changed since its scan gets refreshed, which SBOM-only mode relies on.
+func TestRefreshChangedPackageDatabases(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	// long enough that the refresh debouncer cannot fire during the test
+	r.cfg = &config.RuntimeSecurityConfig{SBOMResolverRefreshInterval: time.Hour}
+	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](maxSBOMEntries, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r.sboms = sboms
+	report := []sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "openssl", Version: "3.0.15"},
+		InstalledFiles: []string{"/usr/bin/openssl"},
+	}}
+
+	unknown := r.newSBOM("unknown-id", nil, "image")
+	t.Cleanup(unknown.stop)
+	r.setScan(unknown, report, "")
+	unknown.state.Store(computedState)
+	r.refreshChanged(unknown, func() string {
+		t.Errorf("the fingerprint of an SBOM scanned from unknown databases was read")
+		return "upgraded-dbs"
+	})
+
+	sbom := r.newSBOM("container-id", nil, "image")
+	t.Cleanup(sbom.stop)
+	r.setScan(sbom, report, "scanned-dbs")
+	sbom.state.Store(computedState)
+
+	for _, fingerprint := range []string{"scanned-dbs", ""} {
+		if r.refreshChanged(sbom, func() string { return fingerprint }); sbom.refresher != nil {
+			t.Errorf("fingerprint %q refreshed an SBOM scanned from the same package databases", fingerprint)
+		}
+	}
+	if r.refreshChanged(sbom, func() string { return "upgraded-dbs" }); sbom.refresher == nil {
+		t.Errorf("a change of the package databases left the SBOM unrefreshed")
+	}
+}
+
+// TestRescanKeepsScanOfOldDatabases checks that a container whose package
+// databases changed leaves the scan of the old ones cached for its siblings.
+func TestRescanKeepsScanOfOldDatabases(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		fingerprint string // of the databases the rescan finds
+		kept        bool   // whether a sibling on the old databases finds their scan
+	}{
+		{"databases changed", "upgraded-dbs", true},
+		{"databases unchanged", "image-dbs", false},
+		{"databases unknown", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newPendingFileEventsResolver(t)
+			r.scanChan = make(chan *SBOM, 1)
+			report := []sbomtypes.PackageWithInstalledFiles{{
+				Package:        sbomtypes.Package{Name: "gzip"},
+				InstalledFiles: []string{"/usr/bin/gzip"},
+			}}
+
+			changed := NewSBOM("changed", nil, "image")
+			t.Cleanup(changed.stop)
+			changed.Lock()
+			r.setScan(changed, report, "image-dbs")
+			changed.Unlock()
+			changed.state.Store(computedState)
+
+			r.rescan(changed, tc.fingerprint)
+			if got := changed.state.Load(); got != pendingState || len(r.scanChan) != 1 {
+				t.Errorf("state = %d with %d scans queued, want pendingState and one scan", got, len(r.scanChan))
+			}
+
+			sibling := NewSBOM("sibling", nil, "image")
+			t.Cleanup(sibling.stop)
+			sibling.Lock()
+			found := r.acquireData(sibling, "image-dbs")
+			sibling.Unlock()
+			if found != tc.kept {
+				t.Errorf("a sibling found the scan of the old databases = %v, want %v", found, tc.kept)
 			}
 		})
 	}
