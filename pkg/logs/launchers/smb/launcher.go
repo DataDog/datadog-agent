@@ -13,6 +13,17 @@
 // and polls one tailer per matched file. Sources that use the same share and
 // account share one reconnecting SMB client.
 //
+// Agents do not elect a single reader per share: every Agent with an smb
+// source lists the share and reads every file the source's path matches, so a
+// DaemonSet that configures the source on N nodes ships each line N times.
+// Configure the source on one Agent per share.
+//
+// The bytes reported missed are a lower bound: the scanner only counts bytes
+// a listing or a read showed. When a file is deleted, or compressed and
+// deleted, before a listing shows the lines it gained, those lines are lost
+// without a report, as are the lines a rotated file gains after its drain
+// ended.
+//
 // The SMB log source is built into the full Agent on Linux, Windows and macOS
 // only (the smb build tag) and never into FIPS builds, whose tags are negated
 // here as in pkg/fips.BuiltForFIPS. Other builds use launcher_nosmb.go, which
