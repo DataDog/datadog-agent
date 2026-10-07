@@ -6,7 +6,6 @@
 package utils
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -71,7 +70,7 @@ func TestExtractTemplatesFromContainerLabels(t *testing.T) {
 		name        string
 		annotations map[string]string
 		output      []integration.Config
-		errs        []error
+		errs        []string
 	}{
 		{
 			name: "Nominal case with two templates",
@@ -110,7 +109,7 @@ func TestExtractTemplatesFromContainerLabels(t *testing.T) {
 				"com.datadoghq.ad.instances":   "[{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}]",
 			},
 			output: nil,
-			errs:   []error{errors.New("could not extract checks config: missing init_configs key")},
+			errs:   []string{"could not extract checks config: missing init_configs key"},
 		},
 		{
 			name: "Invalid instances json",
@@ -120,7 +119,7 @@ func TestExtractTemplatesFromContainerLabels(t *testing.T) {
 				"com.datadoghq.ad.instances":    "[{\"apache_status_url\" \"http://%%host%%/server-status?auto\"}]",
 			},
 			output: nil,
-			errs:   []error{errors.New("could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key")},
+			errs:   []string{"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key"},
 		},
 		{
 			name: "Invalid checks",
@@ -128,7 +127,7 @@ func TestExtractTemplatesFromContainerLabels(t *testing.T) {
 				"com.datadoghq.ad.check_names": "[\"apache\"]",
 				"com.datadoghq.ad.instances":   "[{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}]",
 			},
-			errs:   []error{errors.New("could not extract checks config: missing init_configs key")},
+			errs:   []string{"could not extract checks config: missing init_configs key"},
 			output: nil,
 		},
 		{
@@ -195,8 +194,8 @@ func TestExtractTemplatesFromContainerLabels(t *testing.T) {
 					ADIdentifiers: []string{adID},
 				},
 			},
-			errs: []error{
-				errors.New("com.datadoghq.ad.checks takes precedence, ignoring com.datadoghq.ad.check_names: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
+			errs: []string{
+				"com.datadoghq.ad.checks takes precedence, ignoring com.datadoghq.ad.check_names: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)",
 			},
 		},
 		{
@@ -219,8 +218,8 @@ func TestExtractTemplatesFromContainerLabels(t *testing.T) {
 					ADIdentifiers: []string{adID},
 				},
 			},
-			errs: []error{
-				errors.New("com.datadoghq.ad.checks takes precedence, ignoring com.datadoghq.ad.ignore_autodiscovery_tags: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
+			errs: []string{
+				"com.datadoghq.ad.checks takes precedence, ignoring com.datadoghq.ad.ignore_autodiscovery_tags: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)",
 			},
 		},
 	}
@@ -229,7 +228,11 @@ func TestExtractTemplatesFromContainerLabels(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			configs, errs := ExtractTemplatesFromContainerLabels(adID, tt.annotations)
 			assert.ElementsMatch(t, tt.output, configs)
-			assert.ElementsMatch(t, tt.errs, errs)
+			errMessages := make([]string, len(errs))
+			for i, err := range errs {
+				errMessages[i] = err.Error()
+			}
+			assert.ElementsMatch(t, tt.errs, errMessages)
 		})
 	}
 }

@@ -6,7 +6,6 @@
 package legacy
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 	"testing"
@@ -447,48 +446,52 @@ func TestValidateFilter(t *testing.T) {
 		filter         string
 		prefix         string
 		expectedRegexp *regexp.Regexp
-		expectedErr    error
+		expectedErr    string
 	}{
 		{
 			desc:           "image filter",
 			filter:         "image:apache.*",
 			prefix:         imageFilterPrefix,
 			expectedRegexp: regexp.MustCompile("apache.*"),
-			expectedErr:    nil,
+			expectedErr:    "",
 		},
 		{
 			desc:           "name filter",
 			filter:         "name:dd-.*",
 			prefix:         nameFilterPrefix,
 			expectedRegexp: regexp.MustCompile("dd-.*"),
-			expectedErr:    nil,
+			expectedErr:    "",
 		},
 		{
 			desc:           "kube_namespace filter",
 			filter:         "kube_namespace:monitoring",
 			prefix:         KubeNamespaceFilterPrefix,
 			expectedRegexp: regexp.MustCompile("monitoring"),
-			expectedErr:    nil,
+			expectedErr:    "",
 		},
 		{
 			desc:           "empty filter regex",
 			filter:         "image:",
 			prefix:         imageFilterPrefix,
 			expectedRegexp: regexp.MustCompile(""),
-			expectedErr:    nil,
+			expectedErr:    "",
 		},
 		{
 			desc:           "invalid golang regex",
 			filter:         "image:?",
 			prefix:         imageFilterPrefix,
 			expectedRegexp: nil,
-			expectedErr:    errors.New("invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`"),
+			expectedErr:    "invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`",
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", filters, tc.desc), func(t *testing.T) {
 			r, err := filterToRegex(tc.filter, tc.prefix)
 			assert.Equal(t, tc.expectedRegexp, r)
-			assert.Equal(t, tc.expectedErr, err)
+			if tc.expectedErr != "" {
+				assert.EqualError(t, err, tc.expectedErr)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
