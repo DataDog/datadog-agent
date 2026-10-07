@@ -2423,8 +2423,8 @@ code.cloudfoundry.org/clock v1.75.0 h1:3j+bs2xW5d/MRbzICzzaXYnlWTSczbFXmczPYRrXr
 code.cloudfoundry.org/clock v1.75.0/go.mod h1:pM1eBumw5K6fXZCY2QhZz7B6qrPz33qus1OM4cd98X8=
 code.cloudfoundry.org/diego-db-helpers v0.3.0 h1:LPVZ47sOr4e3MLbTUbBX7pTDWhP2XWIvT7EUlYW729A=
 code.cloudfoundry.org/diego-db-helpers v0.3.0/go.mod h1:eFhaHV7SOqZWV+lV9ZSjPTXfq3AO3e55lsAnfKvUozg=
-code.cloudfoundry.org/garden v0.5.0 h1:7w5Va/ZTivT6CyYuihc4+PAGV7rfYXsASmIN/qLdLn8=
-code.cloudfoundry.org/garden v0.5.0/go.mod h1:R2f8CsPFcZ9P76dQvhtMTbdmH24bI3mLR4D/Zlp30mg=
+code.cloudfoundry.org/garden v0.6.0 h1:XSkFnBuUwaRTVFwxnFHfI9aPaZ7wU1V/59RDgsZ0vNQ=
+code.cloudfoundry.org/garden v0.6.0/go.mod h1:fcEXS8qlo606cziSmgf74SoMOJDLxUItjp0AOGcrjFo=
 code.cloudfoundry.org/lager/v3 v3.89.0 h1:+GM/ZV9u6t4wEZIEGy6B0e5S42/NE1QtiIQJU0zcAVo=
 code.cloudfoundry.org/lager/v3 v3.89.0/go.mod h1:yyaw4+f0h71DfSxWgFLtilsCN6EpydHs1j1YQfK8Tcs=
 code.cloudfoundry.org/locket v1.1.0 h1:UW1NmuPzDHNNOuYnZ0tyLanL7aQHXnto1Ej3BCp7uS4=
