@@ -65,6 +65,7 @@ ALL_TAGS = set([
     "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
     "trivy",
+    "yara",  # used by system-probe to link the libyara YARA engine (cgo, @libyara) into the exec scanner
     "zlib",
     "cel",
     "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
@@ -235,6 +236,16 @@ SYSTEM_PROBE_TAGS = set([
     "seclmax",
 ])
 
+# SYSTEM_PROBE_YARA_TAGS lists the tags that link the YARA exec scanner's libyara engine into
+# system-probe. They are NOT part of the static default tag set (SYSTEM_PROBE_TAGS / the Bazel
+# flavor configs): building the yara package with the `yara` tag needs the libyara archive and
+# headers present (go-yara is cgo). Instead, `dda inv system-probe.build` / `build-sysprobe-binary`
+# add these tags at build time on Linux (default on, `--no-yara` to opt out) after installing
+# libyara via Bazel (@libyara//:install) and setting the cgo flags. Paths that don't install
+# libyara (lint, unit/KMT test builds) keep the default tag set, so they compile the stand-in
+# engine (`//go:build linux && !yara`) and need no libyara.
+SYSTEM_PROBE_YARA_TAGS = set(["yara"])
+
 # TRACE_AGENT_TAGS lists the tags necessary to build the trace-agent
 TRACE_AGENT_TAGS = set([
     "docker",
@@ -277,7 +288,7 @@ AGENT_TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks"]))
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = set(["netcgo", "systemd", "jetson", "bpf", "nvml", "pcap", "podman", "trivy", "crio"])
+LINUX_ONLY_TAGS = set(["netcgo", "systemd", "jetson", "bpf", "nvml", "pcap", "podman", "trivy", "crio", "yara"])
 
 # List of tags to always remove when building on AIX
 AIX_EXCLUDED_TAGS = set([
@@ -302,6 +313,7 @@ AIX_EXCLUDED_TAGS = set([
     "systemd",
     "systemprobechecks",
     "trivy",
+    "yara",
 ])
 
 # List of tags to always remove when building on Windows
@@ -331,7 +343,7 @@ DEP_ONLY_TAGS = COMMON_TAGS | set([
 BASE_TEST_TAGS = sorted(UNIT_TEST_TAGS)
 
 # Feature tags covered by the existing unit-test configurations.
-TEST_FEATURE_TAGS = AGENT_TEST_TAGS | PROCESS_AGENT_TAGS | CLUSTER_AGENT_TAGS | SYSTEM_PROBE_TAGS | FIPS_TAGS | AGENT_HEROKU_TAGS | IOT_AGENT_TAGS | DOGSTATSD_TAGS
+TEST_FEATURE_TAGS = AGENT_TEST_TAGS | PROCESS_AGENT_TAGS | CLUSTER_AGENT_TAGS | SYSTEM_PROBE_TAGS | SYSTEM_PROBE_YARA_TAGS | FIPS_TAGS | AGENT_HEROKU_TAGS | IOT_AGENT_TAGS | DOGSTATSD_TAGS
 
 # Supported feature tags that a test source may opt into through //go:build.
 AUTO_TEST_TAGS = sorted(TEST_FEATURE_TAGS - DEP_ONLY_TAGS - UNIT_TEST_TAGS - UNIT_TEST_EXCLUDED_TAGS)

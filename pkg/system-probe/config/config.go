@@ -134,6 +134,8 @@ func load() (*types.Config, error) {
 	diEnabled := cfg.GetBool(diNS("enabled"))
 	swEnabled := coreCfg.GetBool(swNS("enabled"))
 	discoveryServiceMapEnabled := cfg.GetBool(discoveryNS("service_map", "enabled"))
+	// the YARA exec scanner is an event monitor consumer, only available on Linux
+	yaraEnabled := runtime.GOOS == "linux" && cfg.GetBool(evNS("yara", "enabled"))
 
 	if npmEnabled || usmEnabled || ccmEnabled || eudmEnabled || discoveryServiceMapEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
@@ -150,7 +152,8 @@ func load() (*types.Config, error) {
 		(usmEnabled && cfg.GetBool(smNS("enable_event_stream"))) ||
 		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled"))) ||
 		gpuEBPFProbesEnabled ||
-		diEnabled {
+		diEnabled ||
+		yaraEnabled {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
 	}
 	complianceEnabled := coreCfg.GetBool(compNS("enabled"))

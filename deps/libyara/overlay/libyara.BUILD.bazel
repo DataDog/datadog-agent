@@ -1,0 +1,218 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix")
+
+package(default_package_metadata = [":package_metadata"])
+
+VERSION = "4.5.8"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        package = "yara",
+        version = VERSION,
+        download_url = "https://github.com/VirusTotal/yara/archive/refs/tags/v{version}.tar.gz",
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:BSD-3-Clause"],
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
+# Installed headers (include_HEADERS and yarainclude_HEADERS in Makefile.am)
+PUBLIC_HEADERS = [
+    "libyara/include/yara.h",
+    "libyara/include/yara/ahocorasick.h",
+    "libyara/include/yara/arena.h",
+    "libyara/include/yara/atoms.h",
+    "libyara/include/yara/base64.h",
+    "libyara/include/yara/bitmask.h",
+    "libyara/include/yara/compiler.h",
+    "libyara/include/yara/error.h",
+    "libyara/include/yara/exec.h",
+    "libyara/include/yara/exefiles.h",
+    "libyara/include/yara/filemap.h",
+    "libyara/include/yara/hash.h",
+    "libyara/include/yara/integers.h",
+    "libyara/include/yara/libyara.h",
+    "libyara/include/yara/limits.h",
+    "libyara/include/yara/mem.h",
+    "libyara/include/yara/modules.h",
+    "libyara/include/yara/notebook.h",
+    "libyara/include/yara/object.h",
+    "libyara/include/yara/parser.h",
+    "libyara/include/yara/proc.h",
+    "libyara/include/yara/re.h",
+    "libyara/include/yara/rules.h",
+    "libyara/include/yara/scan.h",
+    "libyara/include/yara/scanner.h",
+    "libyara/include/yara/simple_str.h",
+    "libyara/include/yara/sizedstr.h",
+    "libyara/include/yara/stack.h",
+    "libyara/include/yara/stopwatch.h",
+    "libyara/include/yara/stream.h",
+    "libyara/include/yara/strutils.h",
+    "libyara/include/yara/threading.h",
+    "libyara/include/yara/types.h",
+    "libyara/include/yara/unaligned.h",
+    "libyara/include/yara/utils.h",
+]
+
+# libyara_la_SOURCES in Makefile.am, without the modules. The grammars and lexers are
+# pre-generated in the release archive.
+CORE_SRCS = [
+    "libyara/ahocorasick.c",
+    "libyara/arena.c",
+    "libyara/atoms.c",
+    "libyara/base64.c",
+    "libyara/bitmask.c",
+    "libyara/compiler.c",
+    "libyara/endian.c",
+    "libyara/exec.c",
+    "libyara/exefiles.c",
+    "libyara/filemap.c",
+    "libyara/grammar.c",
+    "libyara/hash.c",
+    "libyara/hex_grammar.c",
+    "libyara/hex_lexer.c",
+    "libyara/lexer.c",
+    "libyara/libyara.c",
+    "libyara/mem.c",
+    "libyara/modules.c",
+    "libyara/notebook.c",
+    "libyara/object.c",
+    "libyara/parser.c",
+    "libyara/proc.c",
+    "libyara/proc/linux.c",
+    "libyara/re.c",
+    "libyara/re_grammar.c",
+    "libyara/re_lexer.c",
+    "libyara/rules.c",
+    "libyara/scan.c",
+    "libyara/scanner.c",
+    "libyara/simple_str.c",
+    "libyara/sizedstr.c",
+    "libyara/stack.c",
+    "libyara/stopwatch.c",
+    "libyara/stream.c",
+    "libyara/strutils.c",
+    "libyara/threading.c",
+    "libyara/tlshc/tlsh.c",
+    "libyara/tlshc/tlsh_impl.c",
+    "libyara/tlshc/tlsh_util.c",
+]
+
+# Modules built in. The set is kept minimal: libyara parses untrusted executables inside a
+# root daemon, and each module is a parser. The exec scanner targets Linux executables.
+#   in:  elf, math, string, time (no crypto needed; elf's import_md5/telfhash-md5 helpers are
+#        compiled out without crypto)
+#   out: hash (needs OpenSSL), pe (PE parser, most of libyara's CVE history; PE files aren't
+#        executed natively on Linux), dotnet, macho, dex (other formats), console (logs through
+#        the scan callback), tests, cuckoo (jansson), magic (libmagic), pb_tests.
+# A rule importing a module left out fails to compile, so the choice is visible, never silent.
+# module_list.patch makes tests, pe and console optional; the others are optional upstream.
+MODULE_SRCS = [
+    "libyara/modules/elf/elf.c",
+    "libyara/modules/math/math.c",
+    "libyara/modules/string/string.c",
+    "libyara/modules/time/time.c",
+]
+
+# Private headers included with angle brackets relative to libyara/ (<hex_grammar.h>,
+# <tlshc/tlsh.h>, <modules/module_list>)
+cc_library(
+    name = "libyara_private_hdrs",
+    hdrs = glob([
+        "libyara/*.h",
+        "libyara/tlshc/*.h",
+    ]),
+    strip_include_prefix = "libyara",
+    textual_hdrs = ["libyara/modules/module_list"],
+    visibility = ["//visibility:private"],
+)
+
+# Named yara so that the archive is libyara.a, as the -lyara of go-yara's non-Bazel builds expects
+cc_library(
+    name = "yara",
+    srcs = CORE_SRCS + MODULE_SRCS + glob(
+        [
+            "libyara/include/tlshc/*.h",
+            "libyara/include/yara/*.h",
+        ],
+        exclude = PUBLIC_HEADERS,
+    ),
+    hdrs = PUBLIC_HEADERS,
+    copts = [
+        "-O3",
+        "-fvisibility=hidden",
+        "-Wno-unused-function",
+        "-Wno-unused-variable",
+    ],
+    includes = ["libyara/include"],
+    linkopts = [
+        "-lm",
+        "-lpthread",
+    ],
+    linkstatic = True,
+    local_defines = [
+        "_GNU_SOURCE",
+        "USE_LINUX_PROC",
+        # tlsh settings (configure.ac)
+        "BUCKETS_128=1",
+        "CHECKSUM_1B=1",
+        # AC_CHECK_FUNCS / AC_CHECK_HEADERS results on the glibc baseline. strlcpy and strlcat
+        # are left undefined: glibc only has them since 2.38, libyara then uses its own.
+        "HAVE_CLOCK_GETTIME=1",
+        "HAVE_MEMMEM=1",
+        "HAVE_STDBOOL_H=1",
+        "HAVE_TIMEGM=1",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [":libyara_private_hdrs"],
+)
+
+alias(
+    name = "libyara",
+    actual = ":yara",
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "lib_files",
+    srcs = [":yara"],
+    prefix = "lib",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = PUBLIC_HEADERS,
+    prefix = "include",
+    strip_prefix = strip_prefix.from_pkg("libyara/include"),
+)
+
+pkg_filegroup(
+    name = "build_files",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
+    prefix = "embedded",
+    visibility = ["//visibility:private"],
+)
+
+# Installs libyara.a and its headers for cgo builds outside Bazel (dda inv system-probe.build)
+pkg_install(
+    name = "install",
+    srcs = [
+        ":build_files",
+    ],
+)
