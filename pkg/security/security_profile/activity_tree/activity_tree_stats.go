@@ -39,8 +39,38 @@ type Stats struct {
 	// patternCfg is per-tree, set via SetPathPatternConfig. Unexported
 	// so it is not serialized.
 	patternCfg PathPatternConfig
+	// movedNodes maps the NodeBase of every node folded by a merge to the
+	// NodeBase that absorbed it, until drained by TakeMovedNodes.
+	movedNodes map[*NodeBase]*NodeBase
 
 	counts map[model.EventType]*statsPerEventType
+}
+
+func (stats *Stats) recordMovedNode(from, to *NodeBase) {
+	if stats == nil {
+		return
+	}
+	if stats.movedNodes == nil {
+		stats.movedNodes = make(map[*NodeBase]*NodeBase)
+	}
+	stats.movedNodes[from] = to
+}
+
+// TakeMovedNodes returns, for every node folded by a merge since the last
+// call, the node that now holds its observations, and clears the record.
+func (stats *Stats) TakeMovedNodes() map[*NodeBase]*NodeBase {
+	if stats == nil {
+		return nil
+	}
+	moved := stats.movedNodes
+	stats.movedNodes = nil
+	for from, to := range moved {
+		for next, ok := moved[to]; ok; next, ok = moved[to] {
+			to = next
+		}
+		moved[from] = to
+	}
+	return moved
 }
 
 // SetPathPatternConfig enables (or disables) path-pattern mining on the

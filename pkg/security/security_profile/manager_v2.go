@@ -579,15 +579,9 @@ func (m *ManagerV2) persistAllProfiles() {
 func (m *ManagerV2) persistProfile(p *profile.Profile) {
 	enabled := p.IsEnabled()
 
-	// Consolidate sibling FileNodes into path-pattern templates before
-	// encoding. This is the "learning → stable" finalize pass: merges run
-	// with MinGroupSize even on directories that never exceeded the
-	// MaxChildren fan-out threshold, so short-lived profiles persisted
-	// after only a handful of events still benefit from path pattern
-	// reduction.
-	if p.ActivityTree != nil {
-		p.ActivityTree.FinalizePatterns()
-	}
+	// Group sibling files into patterns before encoding, even in
+	// directories below the insert-time fan-out threshold.
+	m.retargetSampleCookies(p, p.FinalizePatterns())
 
 	encoded := make(map[config.StorageFormat]*bytes.Buffer)
 	for format, requests := range m.configuredStorageRequests {
@@ -895,12 +889,10 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
-	// Per-profile activity-tree stats (FileNodes, SizeBytes, path-pattern
-	// counters, etc.). Iterated after releasing profilesLock; Profile.SendStats
-	// takes the per-profile lock internally.
+	// Profile.SendStats takes the profile lock, so iterate outside profilesLock.
 	for _, prof := range profiles {
 		if err := prof.SendStats(m.statsdClient); err != nil {
-			return fmt.Errorf("couldn't send metrics for [%s]: %w", prof.GetSelectorStr(), err)
+			seclog.Debugf("couldn't send metrics for [%s]: %v", prof.GetSelectorStr(), err)
 		}
 	}
 
@@ -1119,6 +1111,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		}
 		return nil, false
 	}
+	m.retargetSampleCookies(secprof, secprof.TakeMovedNodes())
 
 	// Register the sample cookie → (process node, event node) mapping for sample refresh events
 	if processNode != nil {
@@ -1752,6 +1745,24 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 	entry.processNode.AppendImageTagID(imageTagID, now)
 	if entry.eventNodeBase != nil {
 		entry.eventNodeBase.AppendImageTagID(imageTagID, now)
+	}
+}
+
+// retargetSampleCookies points the cookies of prof whose event node was
+// folded by a path-pattern merge at the node that absorbed it.
+func (m *ManagerV2) retargetSampleCookies(prof *profile.Profile, moved map[*activity_tree.NodeBase]*activity_tree.NodeBase) {
+	if len(moved) == 0 {
+		return
+	}
+	for _, key := range m.sampleCookieMap.Keys() {
+		entry, ok := m.sampleCookieMap.Peek(key)
+		if !ok || entry.profile != prof || entry.eventNodeBase == nil {
+			continue
+		}
+		if to, ok := moved[entry.eventNodeBase]; ok {
+			entry.eventNodeBase = to
+			m.sampleCookieMap.Add(key, entry)
+		}
 	}
 }
 

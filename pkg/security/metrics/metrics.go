@@ -316,7 +316,7 @@ var (
 	// MetricActivityDumpFileNodesMerged counts FileNode siblings absorbed by path-pattern merging.
 	// Tags: tree_type
 	MetricActivityDumpFileNodesMerged = newRuntimeMetric(".activity_dump.file_nodes_merged")
-	// MetricActivityDumpFilePatternLookupHits counts insertions that matched an existing pattern node via wildcard fallback.
+	// MetricActivityDumpFilePatternLookupHits counts path components absorbed by an existing pattern node instead of a node of their own name.
 	// Tags: tree_type
 	MetricActivityDumpFilePatternLookupHits = newRuntimeMetric(".activity_dump.file_pattern_lookup_hits")
 	// MetricActivityDumpSizeInBytes is the name of the metric used to report the size of the generated activity dumps in

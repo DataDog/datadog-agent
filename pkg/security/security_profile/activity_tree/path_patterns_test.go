@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -744,6 +745,83 @@ func TestFinalizePatterns_MergesBelowMaxChildren(t *testing.T) {
 
 	assert.Greater(t, at.Stats.FileNodesMerged, int64(0))
 	assert.Contains(t, tmp.Children, "sess-<alpha>", "got: %v", childrenNames(tmp.Children))
+}
+
+func newPatternTestTree() (*ActivityTree, *ProcessNode) {
+	at := &ActivityTree{Stats: enablePatternsTestStats()}
+	pn := &ProcessNode{Files: make(map[string]*FileNode), NodeBase: NewNodeBase()}
+	at.ProcessNodes = []*ProcessNode{pn}
+	return at, pn
+}
+
+func insertTestPathNode(pn *ProcessNode, path string, stats *Stats) *NodeBase {
+	ev := newTestEvent(path)
+	_, nb := pn.InsertFileEvent(&ev.Open.File, ev, 1, Unknown, stats, false, nil, nil)
+	return nb
+}
+
+func TestFinalizePatterns_KeepsSizeBytesAccurate(t *testing.T) {
+	at, pn := newPatternTestTree()
+	for _, s := range []string{"aaa", "bbb", "ccc", "ddd"} {
+		insertTestPath(pn, "/tmp/sess-"+s+"/file", at.Stats, false)
+		insertTestPath(pn, "/tmp/sess-"+s+"/other-"+s, at.Stats, false)
+	}
+	drift := func() int64 {
+		tracked := at.Stats.SizeBytes
+		at.recomputeSizeBytes()
+		actual := at.Stats.SizeBytes
+		at.Stats.SizeBytes = tracked
+		return tracked - actual
+	}
+
+	before := drift()
+	at.FinalizePatterns()
+	require.Contains(t, pn.Files["tmp"].Children, "sess-<alpha>")
+	assert.Equal(t, before, drift())
+}
+
+func TestFinalizePatterns_RecordsMovedNodes(t *testing.T) {
+	at, pn := newPatternTestTree()
+	var leaves []*NodeBase
+	for _, s := range []string{"aaa", "bbb", "ccc"} {
+		leaves = append(leaves, insertTestPathNode(pn, "/tmp/sess-"+s+"/file", at.Stats))
+	}
+
+	at.FinalizePatterns()
+	moved := at.Stats.TakeMovedNodes()
+
+	pattern := pn.Files["tmp"].Children["sess-<alpha>"]
+	require.NotNil(t, pattern)
+	want := &pattern.Children["file"].NodeBase
+	for _, leaf := range leaves {
+		if to, ok := moved[leaf]; ok {
+			leaf = to
+		}
+		assert.Same(t, want, leaf)
+	}
+	assert.Empty(t, at.Stats.TakeMovedNodes())
+}
+
+func TestInsertFileEvent_NewFileUnderPatternGetsPatternPath(t *testing.T) {
+	at, pn := newPatternTestTree()
+	for _, s := range []string{"aaa", "bbb", "ccc"} {
+		insertTestPath(pn, "/tmp/sess-"+s+"/file", at.Stats, false)
+	}
+	at.FinalizePatterns()
+
+	insertTestPath(pn, "/tmp/sess-zzz/new.log", at.Stats, false)
+
+	leaf := pn.Files["tmp"].Children["sess-<alpha>"].Children["new.log"]
+	require.NotNil(t, leaf)
+	require.NotNil(t, leaf.File)
+	assert.Equal(t, "/tmp/sess-<alpha>/new.log", leaf.File.PathnameStr)
+}
+
+func TestWithPatternComponent(t *testing.T) {
+	assert.Equal(t, "/tmp/sess-<alpha>/f", withPatternComponent("/tmp/sess-zzz/f", "/sess-zzz/f", "sess-zzz", "sess-<alpha>"))
+	assert.Equal(t, "/<num>/f", withPatternComponent("/42/f", "/42/f", "42", "<num>"))
+	assert.Equal(t, "/tmp/a", withPatternComponent("/tmp/a", "/a", "a", "a"))
+	assert.Equal(t, "/tmp/a", withPatternComponent("/tmp/a", "/b", "b", "<alpha>"), "rest must be a suffix of path")
 }
 
 // /tmp/<num>/subfolder/<num> must collapse while the fixed top-level

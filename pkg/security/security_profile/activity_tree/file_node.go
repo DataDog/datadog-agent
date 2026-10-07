@@ -78,6 +78,8 @@ type FileNode struct {
 
 	// pattern is the lazily compiled matcher of a pattern node's Name.
 	pattern *compiledPattern
+	// signature caches structureSignature(Name).
+	signature string
 }
 
 // OpenNode contains the relevant fields of an Open event on which we might want to write a profiling rule
@@ -228,6 +230,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			if child.IsPattern && child.Name != parent && stats != nil {
 				stats.FilePatternLookupHits++
 			}
+			reducedPath = withPatternComponent(reducedPath, currentPath, parent, child.Name)
 			currentFn = child
 			currentPath = currentPath[nextParentIndex:]
 			currentFn.AppendImageTagID(imageTagID, event.ResolveEventTime())
@@ -248,6 +251,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, "", resolvers)
 		stats.SizeBytes += newChild.size()
 		currentFn = insertChildAndMerge(currentFn.Children, parent, newChild, stats)
+		reducedPath = withPatternComponent(reducedPath, currentPath, parent, currentFn.Name)
 		currentPath = currentPath[nextParentIndex:]
 	}
 	return newEntry, &currentFn.NodeBase

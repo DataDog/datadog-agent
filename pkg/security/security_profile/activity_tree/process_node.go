@@ -433,7 +433,9 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 		if child.IsPattern && child.Name != parent && stats != nil {
 			stats.FilePatternLookupHits++
 		}
-		return child.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], imageTagID, generationType, stats, dryRun, filePath, resolvers)
+		rest := filePath[nextParentIndex:]
+		filePath = withPatternComponent(filePath, filePath, parent, child.Name)
+		return child.InsertFileEvent(fileEvent, event, rest, imageTagID, generationType, stats, dryRun, filePath, resolvers)
 	}
 
 	if !dryRun {
@@ -453,7 +455,9 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 		stats.FileNodes++
 		stats.SizeBytes += newChild.size()
 		owner := insertChildAndMerge(pn.Files, parent, newChild, stats)
-		_, leafNodeBase := owner.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], imageTagID, generationType, stats, dryRun, filePath, resolvers)
+		rest := filePath[nextParentIndex:]
+		filePath = withPatternComponent(filePath, filePath, parent, owner.Name)
+		_, leafNodeBase := owner.InsertFileEvent(fileEvent, event, rest, imageTagID, generationType, stats, dryRun, filePath, resolvers)
 		return true, leafNodeBase
 	}
 	return true, nil

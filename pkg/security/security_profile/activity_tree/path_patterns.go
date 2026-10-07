@@ -651,6 +651,18 @@ func (fn *FileNode) matcher() *compiledPattern {
 	return fn.pattern
 }
 
+// signatureOf returns the structure signature of name, cached on fn when
+// name is fn's own name.
+func (fn *FileNode) signatureOf(name string) string {
+	if name != fn.Name {
+		return structureSignature(name)
+	}
+	if fn.signature == "" {
+		fn.signature = structureSignature(name)
+	}
+	return fn.signature
+}
+
 type signatureBucket struct {
 	signature string
 	members   []string
@@ -664,7 +676,7 @@ func groupChildrenBySignature(children map[string]*FileNode) []signatureBucket {
 		if child == nil || child.IsPattern {
 			continue
 		}
-		sig := structureSignature(name)
+		sig := child.signatureOf(name)
 		byKey[sig] = append(byKey[sig], name)
 	}
 	out := make([]signatureBucket, 0, len(byKey))
@@ -678,11 +690,13 @@ func groupChildrenBySignature(children map[string]*FileNode) []signatureBucket {
 
 // mergeInto folds src into fn in place: unions NodeBase observations,
 // Children, MatchedRules, Open flags/mode, and keeps the more
-// authoritative GenerationType. fn.Name is left to the caller.
-func (fn *FileNode) mergeInto(src *FileNode) {
+// authoritative GenerationType. fn.Name is left to the caller. Every node
+// dropped on the way is recorded in stats as moved to its new owner.
+func (fn *FileNode) mergeInto(src *FileNode, stats *Stats) {
 	if src == nil {
 		return
 	}
+	stats.recordMovedNode(&src.NodeBase, &fn.NodeBase)
 	src.EachSeen(func(id uint64, times ImageTagTimes) {
 		if existing, ok := fn.GetSeenTimes(id); ok {
 			firstSeen := existing.FirstSeen
@@ -721,7 +735,11 @@ func (fn *FileNode) mergeInto(src *FileNode) {
 
 	for name, child := range src.Children {
 		if existing, ok := fn.Children[name]; ok {
-			existing.mergeInto(child)
+			existing.mergeInto(child, stats)
+			if stats != nil {
+				stats.FileNodes--
+				stats.FileNodesMerged++
+			}
 		} else {
 			fn.Children[name] = child
 		}
@@ -752,15 +770,27 @@ func collapseBucket(children map[string]*FileNode, template string, members []st
 	if head == nil {
 		return false
 	}
+	var sizeBefore int64
+	for _, name := range members {
+		if c := children[name]; c != nil {
+			sizeBefore += fileSubtreeSizeBytes(c)
+		}
+	}
+	existing := children[template]
+	if existing != nil {
+		sizeBefore += fileSubtreeSizeBytes(existing)
+	}
+
 	head.Name = template
 	head.IsPattern = true
 	head.pattern = nil
+	head.signature = ""
 	for _, name := range members[1:] {
 		sibling := children[name]
 		if sibling == nil {
 			continue
 		}
-		head.mergeInto(sibling)
+		head.mergeInto(sibling, stats)
 		delete(children, name)
 		if stats != nil {
 			stats.FileNodes--
@@ -772,14 +802,18 @@ func collapseBucket(children map[string]*FileNode, template string, members []st
 	}
 	rewriteSubtreePaths(head, 0, template)
 	delete(children, members[0])
-	if existing, ok := children[template]; ok && existing != head {
-		existing.mergeInto(head)
+	owner := head
+	if existing != nil && existing != head {
+		existing.mergeInto(head, stats)
+		owner = existing
 		if stats != nil {
 			stats.FileNodes--
 			stats.FileNodesMerged++
 		}
-	} else {
-		children[template] = head
+	}
+	children[template] = owner
+	if stats != nil {
+		stats.SizeBytes += fileSubtreeSizeBytes(owner) - sizeBefore
 	}
 	return true
 }
@@ -808,13 +842,17 @@ func mergeChildren(children map[string]*FileNode, minGroupSize int, stats *Stats
 	if len(children) == 0 || minGroupSize < 2 {
 		return 0
 	}
+	return mergeBuckets(children, groupChildrenBySignature(children), minGroupSize, stats)
+}
+
+func mergeBuckets(children map[string]*FileNode, buckets []signatureBucket, minGroupSize int, stats *Stats) int {
 	dateGroupSize := minGroupSize
 	if n := pathPatternCfgFrom(stats).MinDateGroupSize; n >= 2 && n < minGroupSize {
 		dateGroupSize = n
 	}
 	datePlaceholder := classes[classDate].placeholder
 	collapsed := 0
-	for _, b := range groupChildrenBySignature(children) {
+	for _, b := range buckets {
 		threshold := minGroupSize
 		if strings.Contains(b.signature, classes[classDate].code) {
 			threshold = dateGroupSize
@@ -848,14 +886,30 @@ func mergeChildren(children map[string]*FileNode, minGroupSize int, stats *Stats
 	return collapsed
 }
 
-// maybeMergeChildren runs a merge pass when mining is enabled and the
-// child count exceeds the configured fan-out threshold.
-func maybeMergeChildren(children map[string]*FileNode, stats *Stats) int {
+// maybeMergeChildren runs a merge pass on the signature bucket of name
+// when mining is enabled and the child count exceeds the configured
+// fan-out threshold. Other buckets did not change since the last insert.
+func maybeMergeChildren(children map[string]*FileNode, name string, stats *Stats) int {
 	cfg := pathPatternCfgFrom(stats)
-	if !cfg.Enabled || cfg.MaxChildren <= 0 || len(children) <= cfg.MaxChildren {
+	if !cfg.Enabled || cfg.MaxChildren <= 0 || len(children) <= cfg.MaxChildren || cfg.MinGroupSizeOnInsert < 2 {
 		return 0
 	}
-	return mergeChildren(children, cfg.MinGroupSizeOnInsert, stats)
+	child := children[name]
+	if child == nil || child.IsPattern {
+		return 0
+	}
+	sig := child.signatureOf(name)
+	var members []string
+	for n, c := range children {
+		if c != nil && !c.IsPattern && c.signatureOf(n) == sig {
+			members = append(members, n)
+		}
+	}
+	if len(members) < 2 {
+		return 0
+	}
+	sort.Strings(members)
+	return mergeBuckets(children, []signatureBucket{{signature: sig, members: members}}, cfg.MinGroupSizeOnInsert, stats)
 }
 
 // insertChildAndMerge stores child under name, runs the fan-out merge pass,
@@ -863,7 +917,7 @@ func maybeMergeChildren(children map[string]*FileNode, stats *Stats) int {
 // it was folded into.
 func insertChildAndMerge(children map[string]*FileNode, name string, child *FileNode, stats *Stats) *FileNode {
 	children[name] = child
-	maybeMergeChildren(children, stats)
+	maybeMergeChildren(children, name, stats)
 	if owner, ok := findChildWithPatternFallback(children, name, false, stats); ok {
 		return owner
 	}
@@ -901,6 +955,22 @@ func findChildWithPatternFallback(children map[string]*FileNode, name string, la
 		}
 	}
 	return best, best != nil
+}
+
+// withPatternComponent replaces, in path, the component name that starts
+// its suffix rest with owner, the name of the node that took it.
+func withPatternComponent(path, rest, name, owner string) string {
+	if name == owner || !strings.HasSuffix(path, rest) {
+		return path
+	}
+	start := len(path) - len(rest)
+	if strings.HasPrefix(rest, "/") {
+		start++
+	}
+	if !strings.HasPrefix(path[start:], name) {
+		return path
+	}
+	return path[:start] + owner + path[start+len(name):]
 }
 
 // rulePathFromProfilePath converts a profile path to a SECL path value,
