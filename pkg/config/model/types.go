@@ -236,6 +236,7 @@ type EnvVarControl interface {
 // Writer is a subset of Config that only allows writing the configuration
 type Writer interface {
 	Set(key string, value interface{}, source Source)
+	SetSecretAtPath(key string, selector, value interface{}) error
 	SetInTest(key string, value interface{})
 	UnsetForSource(key string, source Source)
 	// DirectBulkSet writes settings already resolved by another config, keeping each one in the
