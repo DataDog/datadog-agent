@@ -61,6 +61,10 @@ type checkCfg struct {
 	CollectBGPNeighborStates        *bool   `yaml:"collect_bgp_neighbor_states"`
 }
 
+// newClient creates the Cisco SD-WAN API client.
+// Useful for mocking
+var newClient = client.NewClient
+
 // CiscoSdwanCheck contains the field for the CiscoSdwanCheck
 type CiscoSdwanCheck struct {
 	core.CheckBase
@@ -80,7 +84,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	}
 
 	// Create Cisco SD-WAN API client
-	client, err := client.NewClient(c.config.VManageEndpoint, c.config.Username, c.config.Password, c.config.UseHTTP, clientOptions...)
+	client, err := newClient(c.config.VManageEndpoint, c.config.Username, c.config.Password, c.config.UseHTTP, clientOptions...)
 	if err != nil {
 		return err
 	}

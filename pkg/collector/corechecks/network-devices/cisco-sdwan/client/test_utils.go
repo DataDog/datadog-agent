@@ -94,6 +94,37 @@ func setupCommonServerMuxWithFixture(path string, payload string) (*http.ServeMu
 
 // SetupMockAPIServer starts a mock API server
 func SetupMockAPIServer() *httptest.Server {
+	return httptest.NewServer(mockAPIMux())
+}
+
+// MockAPITransport serves the mock API in memory without opening sockets, so it can be used
+// inside a synctest bubble, and counts the requests it receives
+type MockAPITransport struct {
+	mux      *http.ServeMux
+	Requests *atomic.Int32
+}
+
+// NewMockAPITransport creates a transport serving the same API as SetupMockAPIServer
+func NewMockAPITransport() *MockAPITransport {
+	return &MockAPITransport{mux: mockAPIMux(), Requests: atomic.NewInt32(0)}
+}
+
+// RoundTrip serves the request from the mock API
+func (rt *MockAPITransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	rt.Requests.Inc()
+	recorder := httptest.NewRecorder()
+	rt.mux.ServeHTTP(recorder, req)
+	return recorder.Result(), nil
+}
+
+// WithTransport is a functional option to set the HTTP client transport
+func WithTransport(transport http.RoundTripper) ClientOptions {
+	return func(c *Client) {
+		c.httpClient.Transport = transport
+	}
+}
+
+func mockAPIMux() *http.ServeMux {
 	mux := setupCommonServerMux()
 
 	mux.HandleFunc("/dataservice/device", fixtureHandler(fixtures.GetDevices))
@@ -110,5 +141,5 @@ func SetupMockAPIServer() *httptest.Server {
 	mux.HandleFunc("/dataservice/data/device/statistics/cloudxstatistics", fixtureHandler(fixtures.GetCloudExpressMetrics))
 	mux.HandleFunc("/dataservice/data/device/state/BGPNeighbor", fixtureHandler(fixtures.GetBGPNeighbors))
 
-	return httptest.NewServer(mux)
+	return mux
 }

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -477,19 +478,13 @@ max_requests_per_second: ` + tt.rate + `
 }
 
 func TestCancelInterruptsRateLimitedRun(t *testing.T) {
-	apiMockServer := client.SetupMockAPIServer()
-	defer apiMockServer.Close()
-
 	deps := createDeps(t)
-	chk := newCheck()
 	senderManager := deps.Demultiplexer
-
-	url := strings.TrimPrefix(apiMockServer.URL, "http://")
 
 	// One request per 50s: the second login request waits for a token until the check is cancelled
 	// language=yaml
 	rawInstanceConfig := []byte(`
-vmanage_endpoint: ` + url + `
+vmanage_endpoint: sdwan.test
 username: admin
 password: 'test-password'
 use_http: true
@@ -500,21 +495,36 @@ max_requests_per_second: 0.02
 	sender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
 	sender.SetupAcceptAll()
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		transport := client.NewMockAPITransport()
+		originalNewClient := newClient
+		newClient = func(endpoint, username, password string, useHTTP bool, options ...client.ClientOptions) (*client.Client, error) {
+			return client.NewClient(endpoint, username, password, useHTTP, append(options, client.WithTransport(transport))...)
+		}
+		defer func() { newClient = originalNewClient }()
 
-	done := make(chan struct{})
-	go func() {
-		chk.Run()
-		close(done)
-	}()
+		chk := newCheck()
+		err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
+		require.NoError(t, err)
 
-	time.Sleep(100 * time.Millisecond)
-	chk.Cancel()
+		start := time.Now()
+		done := make(chan struct{})
+		go func() {
+			chk.Run()
+			close(done)
+		}()
 
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("check run was not interrupted by Cancel")
-	}
+		// Wait until the run is durably blocked: the first login request was sent and
+		// the second one is waiting for a rate limiter token
+		synctest.Wait()
+		require.Equal(t, int32(1), transport.Requests.Load())
+
+		chk.Cancel()
+		<-done
+
+		// The wait was interrupted by the cancellation, not by a token becoming available,
+		// and no further request was sent
+		require.Zero(t, time.Since(start))
+		require.Equal(t, int32(1), transport.Requests.Load())
+	})
 }
