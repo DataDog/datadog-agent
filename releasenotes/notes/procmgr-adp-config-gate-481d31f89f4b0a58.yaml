@@ -1,6 +1,6 @@
 ---
 enhancements:
   - |
-    On Windows, dd-procmgr now starts the Agent Data Plane only when
-    ``data_plane.enabled`` is true. Hosts that do not enable it no longer start the
-    Agent Data Plane process at all.
+    On Windows, dd-procmgr now starts the supervised Agent Data Plane process only when
+    ``data_plane.enabled`` is true. Hosts that do not enable it no longer get that
+    long-running ADP process from dd-procmgr.
