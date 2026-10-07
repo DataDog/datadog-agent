@@ -310,7 +310,10 @@ archive_override(
     patch_strip = 1,
     # Adds MSBuild + the VC project system, and whole-tree filegroups, so MSBuild-driven
     # builds (CPython) can run against the same hermetic toolchain as rules_cc.
-    patches = ["//bazel/patches:toolchains_msvc/0001-hermetic-msbuild-and-toolchain-trees.patch"],
+    patches = [
+        "//bazel/patches:toolchains_msvc/0001-hermetic-msbuild-and-toolchain-trees.patch",
+        "//bazel/patches:toolchains_msvc/0002-restrict-archiver-args-to-static-library-action.patch",
+    ],
     sha256 = "1ab52698bd8b1eac2e005a07e25e62538daed471e9657586213b88d7cd7cb14d",
     strip_prefix = "toolchains_msvc-8e2aa4624bbb5a53a94f135e90995f307875d1ad",
     urls = ["https://github.com/Dragnalith/toolchains_msvc/archive/8e2aa4624bbb5a53a94f135e90995f307875d1ad.tar.gz"],
@@ -444,6 +447,7 @@ use_repo(msvc_runtime, "msvc_runtime")
 msvc_toolchain = use_extension("@toolchains_msvc//:extensions.bzl", "toolchain")
 msvc_toolchain.toolchain_set(
     name = "default",
+    add_cl_copt = ["/sdl-"],
     # MSVC toolset version, not VS product version: VS 2022 17.14.x → 14.44
     # (see https://learn.microsoft.com/en-us/cpp/overview/compiler-versions).
     # toolchains_msvc only accepts 14.xx here, not 17.14.
