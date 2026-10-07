@@ -1205,3 +1205,117 @@ cc_shared_library(
     user_link_flags = ["/NOENTRY"],
     deps = [":native_python3dll_lib"],
 )
+
+[
+    cc_binary(
+        name = "native_" + name,
+        srcs = ["PC/venvlauncher.c"],
+        copts = NATIVE_WINDOWS_COPTS,
+        linkopts = [
+            "pathcch.lib",
+            "/SUBSYSTEM:" + subsystem,
+        ] + NATIVE_WINDOWS_DEFAULT_LIBS,
+        local_defines = [
+            "NDEBUG",
+            "WIN32",
+            "_WIN64",
+            "_MBCS",
+            "EXENAME=L\\\"{}\\\"".format(exe),
+            define,
+        ],
+        target_compatible_with = ["@platforms//os:windows"],
+        deps = [":native_headers"],
+    )
+    for name, exe, define, subsystem in [
+        ("venvlauncher", "python.exe", "_CONSOLE", "CONSOLE"),
+        ("venvwlauncher", "pythonw.exe", "_WINDOWS", "WINDOWS"),
+    ]
+]
+
+[
+    filegroup(
+        name = name + "_import_library",
+        srcs = [":" + name],
+        output_group = "interface_library",
+        target_compatible_with = ["@platforms//os:windows"],
+    )
+    for name in [
+        "native_libpython",
+        "native_python3dll",
+    ]
+]
+
+genrule(
+    name = "native_win_vcruntime",
+    srcs = ["@msvc_runtime//:vc_redist_x64"],
+    outs = [
+        "win_redist/vcruntime140.dll",
+        "win_redist/vcruntime140_1.dll",
+    ],
+    cmd = " ".join([
+        "for f in $(execpaths @msvc_runtime//:vc_redist_x64); do",
+        "case $$f in",
+        "*/Microsoft.VC*.CRT/vcruntime140.dll) cp $$f $(RULEDIR)/win_redist/vcruntime140.dll;;",
+        "*/Microsoft.VC*.CRT/vcruntime140_1.dll) cp $$f $(RULEDIR)/win_redist/vcruntime140_1.dll;;",
+        "esac; done",
+    ]),
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+genrule(
+    name = "native_win_license",
+    srcs = [
+        "LICENSE",
+        "PC/crtlicense.txt",
+    ],
+    outs = ["win_license/LICENSE.txt"],
+    cmd = "cat $(SRCS) > $@",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+copy_to_directory(
+    name = "native_win_install",
+    srcs = [
+        ":native_libpython",
+        ":native_libpython_import_library",
+        ":native_pyconfig_h",
+        ":native_python",
+        ":native_python3dll",
+        ":native_python3dll_import_library",
+        ":native_pythonw",
+        ":native_venvlauncher",
+        ":native_venvwlauncher",
+        ":native_win_license",
+        ":native_win_shared_modules",
+        ":native_win_vcruntime",
+    ] + glob(["Include/**/*.h"]) + glob(
+        ["Lib/**"],
+        exclude = [
+            "Lib/**/*.pickle",
+            "Lib/**/*.pyc",
+            "Lib/**/__pycache__/**",
+            "Lib/**/test/**",
+            "Lib/**/tests/**",
+            "Lib/idlelib/**",
+            "Lib/tkinter/**",
+            "Lib/turtle.py",
+            "Lib/turtledemo/**",
+        ],
+    ),
+    replace_prefixes = {
+        "Include/": "include/",
+        "win_license/": "",
+        "native_libpython.if.lib": "libs/python{}.lib".format(PYTHON_MAJOR_MINOR_FLAT),
+        "native_python.exe": "python.exe",
+        "native_python3dll.if.lib": "libs/python3.lib",
+        "native_pythonw.exe": "pythonw.exe",
+        "native_venvlauncher.exe": "Lib/venv/scripts/nt/venvlauncher.exe",
+        "native_venvwlauncher.exe": "Lib/venv/scripts/nt/venvwlauncher.exe",
+        "pyconfig.h": "include/pyconfig.h",
+        "win_redist/": "",
+    } | {
+        name + ".pyd": "DLLs/{}.pyd".format(name)
+        for name in WINDOWS_SHARED_MODULES
+    },
+    target_compatible_with = ["@platforms//os:windows"],
+)
