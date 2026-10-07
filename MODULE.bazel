@@ -441,9 +441,9 @@ winlibs_mingw_repository(
 msvc_runtime = use_extension("@windows_support//windows:extensions.bzl", "msvc_runtime")
 use_repo(msvc_runtime, "msvc_runtime")
 
-# Hermetic MSVC + Windows SDK + MSBuild for CPython and DatadogInterop
-# (see deps/cpython/build_python.bat, tools/windows/DatadogInterop). MinGW stays
-# the default Windows cc_toolchain.
+# Hermetic MSVC + Windows SDK + MSBuild. CPython builds with it on Windows hosts
+# (windows_x86_64_msvc), DatadogInterop through MSBuild. MinGW stays the default
+# Windows cc_toolchain.
 msvc_toolchain = use_extension("@toolchains_msvc//:extensions.bzl", "toolchain")
 msvc_toolchain.toolchain_set(
     name = "default",

@@ -938,8 +938,9 @@ happen to be present locally will succeed locally and fail in CI or RBE.
 **Hermetic MSVC / MSBuild.** MinGW is the default Windows `cc_toolchain`. Hermetic `cl.exe`,
 Windows SDK, and MSBuild come from `@msvc_toolchains` (staged by
 `bazel/patches/toolchains_msvc/`). Drive MSVC-only sources (C++/WinRT, etc.) with
-`run_binary` + hermetic MSBuild — see `tools/windows/DatadogInterop/BUILD.bazel` and
-`deps/cpython.BUILD.bazel` (`python_win`) — so the rest of the Windows tree stays on MinGW.
+`run_binary` + hermetic MSBuild — see `tools/windows/DatadogInterop/BUILD.bazel` — so the
+rest of the Windows tree stays on MinGW. CPython builds with `cl.exe` through the
+`windows_x86_64_msvc` platform (see `deps/cpython.BUILD.bazel`, `python_win_install`).
 Only do this for a library the Go side loads over a C ABI: MSVC and MinGW objects must not
 be linked into the same binary.
 
