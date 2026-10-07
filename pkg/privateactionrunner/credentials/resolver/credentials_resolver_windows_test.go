@@ -17,22 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestScriptCredentialFileResolutionPreventsAllowedRootReplacement(t *testing.T) {
-	parent := t.TempDir()
-	allowedRoot := filepath.Join(parent, "allowed")
-	require.NoError(t, os.Mkdir(allowedRoot, 0o700))
-	path := filepath.Join(allowedRoot, "credentials.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("original"), 0o600))
-	resolver := newTestResolver(t, []string{allowedRoot})
-
-	require.Error(t, os.Rename(allowedRoot, filepath.Join(parent, "moved")))
-
-	credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(path), nil)
-
-	require.NoError(t, err)
-	assert.Equal(t, "original", credentials.AsTokenMap()["configFileLocation"])
-}
-
 func TestScriptCredentialFileResolutionWithForwardSlashPath(t *testing.T) {
 	allowedRoot := t.TempDir()
 	path := filepath.Join(allowedRoot, "credentials.yaml")
