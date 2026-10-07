@@ -26,7 +26,11 @@ func (d *delegatedAuthComponent) GetWorkloadAuthorization(ctx context.Context, a
 	authConfig := *instance.authConfig
 	d.mu.RUnlock()
 
-	proof, err := provider.GenerateAuthProof(ctx, config, &authConfig)
+	workloadProvider, ok := provider.(common.WorkloadProofProvider)
+	if !ok {
+		return nil, common.ErrWorkloadAuthorizationUnavailable
+	}
+	proof, err := workloadProvider.GenerateWorkloadAuthProof(ctx, config, &authConfig, common.PAREnrollmentPurpose, jwkThumbprint)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()

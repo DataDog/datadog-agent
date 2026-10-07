@@ -267,3 +267,26 @@ func TestCredentialRemediationNamesOnlyTheAttemptedSource(t *testing.T) {
 	// An unrecognized source must not fall back to IMDS advice.
 	assert.Equal(t, "the credential mechanism could not be determined", credentialRemediation("", cfg))
 }
+
+func TestWorkloadProofSignsPurposeAndRunnerKey(t *testing.T) {
+	auth := &AWSAuth{region: "us-east-1"}
+	credentials := &creds.SecurityCredentials{AccessKeyID: "test-access-key", SecretAccessKey: "test-secret", Token: "test-session"}
+	const purpose = "private_action_runner_enrollment"
+	thumbprint := base64.RawURLEncoding.EncodeToString(make([]byte, 32))
+	proof, err := auth.generateAwsAuthDataForWorkload(context.Background(), "test-org", credentials, purpose, thumbprint)
+	require.NoError(t, err)
+	raw, err := base64.StdEncoding.DecodeString(proof.headersEncoded)
+	require.NoError(t, err)
+	var headers map[string][]string
+	require.NoError(t, json.Unmarshal(raw, &headers))
+	require.Equal(t, []string{purpose}, headers["X-Ddog-Workload-Purpose"])
+	require.Equal(t, []string{thumbprint}, headers["X-Ddog-Workload-Jwk-Thumbprint"])
+	require.Contains(t, headers["Authorization"][0], ";x-ddog-workload-jwk-thumbprint;x-ddog-workload-purpose")
+	// Existing intake exchange deliberately does not request a workload purpose.
+	intake, err := auth.generateAwsAuthData(context.Background(), "test-org", credentials)
+	require.NoError(t, err)
+	raw, err = base64.StdEncoding.DecodeString(intake.headersEncoded)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "x-ddog-workload")
+	require.NotContains(t, string(raw), "X-Ddog-Workload")
+}

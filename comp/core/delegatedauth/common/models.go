@@ -49,3 +49,9 @@ type CredentialSourceReporter interface {
 	// resolved; pair it with the instance's last error to tell the two apart.
 	LastCredentialSource() string
 }
+
+// WorkloadProofProvider explicitly opts a provider into bound workload proofs.
+// Implementing intake proof generation alone does not grant this eligibility.
+type WorkloadProofProvider interface {
+	GenerateWorkloadAuthProof(context.Context, pkgconfigmodel.Reader, *AuthConfig, string, string) (string, error)
+}

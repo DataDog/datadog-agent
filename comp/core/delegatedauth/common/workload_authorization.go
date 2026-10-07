@@ -20,15 +20,25 @@ var ErrWorkloadAuthorizationUnavailable = errors.New("workload authorization is 
 // WorkloadAuthorization is a short-lived ETS assertion. Keep Token in memory only;
 // the remaining fields are informational and must never authorize enrollment themselves.
 type WorkloadAuthorization struct {
-	Token           string    `json:"-"`
-	ExpiresAt       time.Time `json:"expires_at"`
-	OrgID           uint64    `json:"org_id"`
-	OrgUUID         string    `json:"org_uuid"`
-	Provider        string    `json:"provider"`
-	IntakeMappingID string    `json:"intake_mapping_id"`
-	StablePrincipal string    `json:"stable_principal"`
+	Token            string           `json:"-"`
+	ExpiresAt        time.Time        `json:"expires_at"`
+	OrgID            uint64           `json:"org_id"`
+	OrgUUID          string           `json:"org_uuid"`
+	Provider         string           `json:"provider"`
+	IntakeMappingID  string           `json:"intake_mapping_id"`
+	Purpose          string           `json:"purpose"`
+	ExternalIdentity ExternalIdentity `json:"external_identity"`
 }
 
 // String and GoString keep accidental formatted logging from exposing the assertion.
 func (a WorkloadAuthorization) String() string   { return "WorkloadAuthorization{token:[redacted]}" }
 func (a WorkloadAuthorization) GoString() string { return a.String() }
+
+// ExternalIdentity is diagnostic provider-verified identity, not a mapping pattern
+// and not the durable PAR runner ID. It is not persisted as runner authorization.
+type ExternalIdentity struct {
+	Provider  string `json:"provider"`
+	AccountID string `json:"account_id"`
+	ARN       string `json:"arn"`
+	Subject   string `json:"subject"`
+}

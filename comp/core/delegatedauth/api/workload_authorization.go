@@ -22,7 +22,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-const workloadAuthorizationPath = "/api/unstable/workload-authorization"
+const workloadAuthorizationPath = "/api/v2/delegated-token"
 
 // GetWorkloadAuthorization exchanges a fresh provider proof for a PAR enrollment
 // assertion bound to the runner key. It never writes API keys or configuration.
@@ -36,7 +36,7 @@ func GetWorkloadAuthorization(ctx context.Context, cfg pkgconfigmodel.Reader, pr
 	}
 	body, err := json.Marshal(map[string]any{
 		"data": map[string]any{
-			"type":       "workload_authorization_request",
+			"type":       "delegated_token_request",
 			"attributes": map[string]string{"purpose": common.PAREnrollmentPurpose, "jwk_thumbprint": jwkThumbprint},
 		},
 	})
@@ -94,7 +94,7 @@ func parseWorkloadAuthorization(raw []byte, orgUUID string, now time.Time) (*com
 	a.Token = response.Data.Attributes.AccessToken
 	if response.Data.Type != "workload_authorization" || a.Token == "" || a.OrgID == 0 ||
 		!strings.EqualFold(a.OrgUUID, orgUUID) || a.Provider != "aws" || a.IntakeMappingID == "" ||
-		a.StablePrincipal == "" || !a.ExpiresAt.After(now) || a.ExpiresAt.After(now.Add(5*time.Minute+30*time.Second)) {
+		a.Purpose != common.PAREnrollmentPurpose || a.ExternalIdentity.Provider != "aws" || a.ExternalIdentity.ARN == "" || a.ExternalIdentity.Subject == "" || a.ExternalIdentity.AccountID == "" || !a.ExpiresAt.After(now) || a.ExpiresAt.After(now.Add(5*time.Minute+30*time.Second)) {
 		return nil, errors.New("invalid or expired workload authorization response")
 	}
 	return &a, nil

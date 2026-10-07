@@ -31,7 +31,7 @@ func authorizationResponse(t *testing.T, now time.Time) map[string]any {
 		"attributes": map[string]any{
 			"access_token": "sensitive-assertion", "expires_at": now.Add(time.Minute).Format(time.RFC3339),
 			"org_id": 123, "org_uuid": testOrgUUID, "provider": "aws",
-			"intake_mapping_id": "c3f78a55-2238-44d7-902f-befb8e74d640", "stable_principal": "role/*",
+			"intake_mapping_id": "c3f78a55-2238-44d7-902f-befb8e74d640", "purpose": common.PAREnrollmentPurpose, "external_identity": map[string]string{"provider": "aws", "account_id": "123456789012", "arn": "arn:aws:sts::123456789012:assumed-role/agent/session", "subject": "AROATEST:session"},
 		},
 	}}
 }
@@ -50,7 +50,7 @@ func TestGetWorkloadAuthorization(t *testing.T) {
 			}
 		}
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-		require.Equal(t, "workload_authorization_request", request.Data.Type)
+		require.Equal(t, "delegated_token_request", request.Data.Type)
 		require.Equal(t, common.PAREnrollmentPurpose, request.Data.Attributes["purpose"])
 		require.Equal(t, thumbprint, request.Data.Attributes["jwk_thumbprint"])
 		require.NoError(t, json.NewEncoder(w).Encode(authorizationResponse(t, time.Now())))
@@ -71,7 +71,7 @@ func TestWorkloadAuthorizationResponseValidation(t *testing.T) {
 	now := time.Unix(1789660500, 0)
 	for name, replacement := range map[string]any{
 		"access_token": "", "org_uuid": "another-org", "org_id": 0,
-		"provider": "unknown", "intake_mapping_id": "", "stable_principal": "",
+		"provider": "unknown", "intake_mapping_id": "", "purpose": "",
 		"expires_at": now.Add(-time.Minute).Format(time.RFC3339),
 	} {
 		t.Run(name, func(t *testing.T) {

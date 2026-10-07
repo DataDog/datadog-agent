@@ -91,6 +91,19 @@ func (a *AWSAuth) LastCredentialSource() string {
 // This proof includes a signed AWS STS GetCallerIdentity request that proves access to AWS credentials.
 // The context parameter allows for cancellation of the proof generation.
 func (a *AWSAuth) GenerateAuthProof(ctx context.Context, cfg pkgconfigmodel.Reader, config *common.AuthConfig) (string, error) {
+	return a.generateAuthProof(ctx, cfg, config, "", "")
+}
+
+// GenerateWorkloadAuthProof signs the purpose and runner key alongside the org.
+func (a *AWSAuth) GenerateWorkloadAuthProof(ctx context.Context, cfg pkgconfigmodel.Reader, config *common.AuthConfig, purpose, thumbprint string) (string, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(thumbprint)
+	if purpose != common.PAREnrollmentPurpose || err != nil || len(decoded) != 32 || base64.RawURLEncoding.EncodeToString(decoded) != thumbprint {
+		return "", errors.New("invalid workload proof inputs")
+	}
+	return a.generateAuthProof(ctx, cfg, config, purpose, thumbprint)
+}
+
+func (a *AWSAuth) generateAuthProof(ctx context.Context, cfg pkgconfigmodel.Reader, config *common.AuthConfig, purpose, thumbprint string) (string, error) {
 	// Check for context cancellation early
 	if ctx.Err() != nil {
 		return "", ctx.Err()
@@ -111,7 +124,7 @@ func (a *AWSAuth) GenerateAuthProof(ctx context.Context, cfg pkgconfigmodel.Read
 	}
 
 	// Use the credentials to generate the signing data
-	data, err := a.generateAwsAuthData(ctx, config.OrgUUID, credentials)
+	data, err := a.generateAwsAuthDataForWorkload(ctx, config.OrgUUID, credentials, purpose, thumbprint)
 	if err != nil {
 		return "", err
 	}
@@ -198,6 +211,10 @@ func (a *AWSAuth) getUserAgent() string {
 }
 
 func (a *AWSAuth) generateAwsAuthData(ctx context.Context, orgUUID string, awsCredentials *creds.SecurityCredentials) (*signingData, error) {
+	return a.generateAwsAuthDataForWorkload(ctx, orgUUID, awsCredentials, "", "")
+}
+
+func (a *AWSAuth) generateAwsAuthDataForWorkload(ctx context.Context, orgUUID string, awsCredentials *creds.SecurityCredentials, purpose, thumbprint string) (*signingData, error) {
 	if orgUUID == "" {
 		return nil, errors.New("missing org UUID")
 	}
@@ -226,6 +243,10 @@ func (a *AWSAuth) generateAwsAuthData(ctx context.Context, orgUUID string, awsCr
 	// Set required headers before signing
 	req.Header.Set(contentTypeHeader, applicationForm)
 	req.Header.Set(orgIDHeader, orgUUID)
+	if purpose != "" {
+		req.Header.Set("x-ddog-workload-purpose", purpose)
+		req.Header.Set("x-ddog-workload-jwk-thumbprint", thumbprint)
+	}
 	req.Header.Set("User-Agent", a.getUserAgent())
 	req.ContentLength = int64(len(bodyBytes))
 	req.Host = host

@@ -41,7 +41,7 @@ func TestWorkloadAuthorizationSelectsInstance(t *testing.T) {
 					"type": "workload_authorization", "attributes": map[string]any{
 						"access_token": "assertion", "expires_at": time.Now().Add(time.Minute).Format(time.RFC3339),
 						"org_id": 123, "org_uuid": orgUUID, "provider": "aws",
-						"intake_mapping_id": "c3f78a55-2238-44d7-902f-befb8e74d640", "stable_principal": "role/*",
+						"intake_mapping_id": "c3f78a55-2238-44d7-902f-befb8e74d640", "purpose": common.PAREnrollmentPurpose, "external_identity": map[string]string{"provider": "aws", "account_id": "123456789012", "arn": "arn:aws:sts::123456789012:assumed-role/agent/session", "subject": "AROATEST:session"},
 					},
 				}}))
 			}))
@@ -96,4 +96,11 @@ func TestWorkloadAuthorizationUnavailableAndProofFailure(t *testing.T) {
 	_, err = comp.GetWorkloadAuthorization(context.Background(), "api_key", "thumbprint")
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), "secret-provider-credential")
+}
+
+func (f authorizationTestProvider) GenerateWorkloadAuthProof(ctx context.Context, cfg pkgconfigmodel.Reader, auth *common.AuthConfig, purpose, thumbprint string) (string, error) {
+	if purpose != common.PAREnrollmentPurpose || thumbprint == "" {
+		return "", errors.New("missing bound proof inputs")
+	}
+	return f(ctx, cfg, auth)
 }
