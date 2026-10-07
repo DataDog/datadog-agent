@@ -34,18 +34,21 @@ func nsInode(t *testing.T, path string) uint32 {
 func TestSetNS(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	// the three rules are mutually exclusive so each subtest matches exactly one of them.
+	// They all key on effective_nstype, which is the field rules are meant to use: nstype alone
+	// is the caller's request and is 0 whenever the caller lets the kernel resolve the type.
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "test_setns_netns",
-			Expression: `setns.nstype == CLONE_NEWNET && process.file.name == "syscall_tester"`,
+			ID:         "test_setns_explicit_netns",
+			Expression: `setns.nstype == CLONE_NEWNET && setns.effective_nstype == CLONE_NEWNET && process.file.name == "syscall_tester"`,
+		},
+		{
+			ID:         "test_setns_inferred_netns",
+			Expression: `setns.nstype == 0 && setns.effective_nstype == CLONE_NEWNET && process.file.name == "syscall_tester"`,
 		},
 		{
 			ID:         "test_setns_mntns",
-			Expression: `setns.nstype == CLONE_NEWNS && process.file.name == "syscall_tester"`,
-		},
-		{
-			ID:         "test_setns_any",
-			Expression: `setns.nstype == 0 && process.file.name == "syscall_tester"`,
+			Expression: `setns.effective_nstype == CLONE_NEWNS && process.file.name == "syscall_tester"`,
 		},
 	}
 
@@ -66,15 +69,16 @@ func TestSetNS(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "net")
 		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_setns_netns")
+			assertTriggeredRule(t, rule, "test_setns_explicit_netns")
 			assert.Equal(t, "setns", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(0), event.SetNS.Retval, "setns should have succeeded")
-			assert.Equal(t, unix.CLONE_NEWNET, event.SetNS.NSType, "wrong namespace type")
+			assert.Equal(t, unix.CLONE_NEWNET, event.SetNS.NSType, "wrong requested namespace type")
+			assert.Equal(t, unix.CLONE_NEWNET, event.SetNS.EffectiveNSType, "wrong effective namespace type")
 			assert.Greater(t, event.SetNS.FD, 0, "the target namespace fd should be valid")
 			assert.Equal(t, netns, event.SetNS.NetNS, "should have joined its own network namespace")
 
 			test.validateSetNSSchema(t, event)
-		}, "test_setns_netns")
+		}, "test_setns_explicit_netns")
 	})
 
 	t.Run("join-own-mntns", func(t *testing.T) {
@@ -86,29 +90,32 @@ func TestSetNS(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_setns_mntns")
 			assert.Equal(t, "setns", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(0), event.SetNS.Retval, "setns should have succeeded")
-			assert.Equal(t, unix.CLONE_NEWNS, event.SetNS.NSType, "wrong namespace type")
+			assert.Equal(t, unix.CLONE_NEWNS, event.SetNS.NSType, "wrong requested namespace type")
+			assert.Equal(t, unix.CLONE_NEWNS, event.SetNS.EffectiveNSType, "wrong effective namespace type")
 			assert.Equal(t, mntns, event.SetNS.MntNS, "should have joined its own mount namespace")
 
 			test.validateSetNSSchema(t, event)
 		}, "test_setns_mntns")
 	})
 
-	// a nstype of 0 lets the kernel infer the namespace type from the file descriptor: the
-	// requested type is reported as-is, while the resolved namespace ID is still filled in
-	t.Run("infer-nstype", func(t *testing.T) {
+	// A nstype of 0 means the kernel resolves the type from the file descriptor. Keying a rule on
+	// nstype would therefore miss this call entirely — passing 0 instead of the flag would be a
+	// one-character evasion — so effective_nstype has to carry the type the kernel installed.
+	t.Run("infer-nstype-from-fd", func(t *testing.T) {
 		netns := nsInode(t, "/proc/self/ns/net")
 
 		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "any")
 		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_setns_any")
+			assertTriggeredRule(t, rule, "test_setns_inferred_netns")
 			assert.Equal(t, "setns", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(0), event.SetNS.Retval, "setns should have succeeded")
 			assert.Equal(t, 0, event.SetNS.NSType, "the requested namespace type should be reported as-is")
+			assert.Equal(t, unix.CLONE_NEWNET, event.SetNS.EffectiveNSType, "the effective type should be resolved from the fd")
 			assert.Equal(t, netns, event.SetNS.NetNS, "should have joined its own network namespace")
 
 			test.validateSetNSSchema(t, event)
-		}, "test_setns_any")
+		}, "test_setns_inferred_netns")
 	})
 
 	// the tester leaves its network namespace before joining the original one back through a
@@ -120,13 +127,13 @@ func TestSetNS(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "netns-roundtrip")
 		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_setns_netns")
+			assertTriggeredRule(t, rule, "test_setns_explicit_netns")
 			assert.Equal(t, "setns", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(0), event.SetNS.Retval, "setns should have succeeded")
-			assert.Equal(t, unix.CLONE_NEWNET, event.SetNS.NSType, "wrong namespace type")
+			assert.Equal(t, unix.CLONE_NEWNET, event.SetNS.EffectiveNSType, "wrong effective namespace type")
 			assert.Equal(t, netns, event.SetNS.NetNS, "should have joined the original network namespace back")
 
 			test.validateSetNSSchema(t, event)
-		}, "test_setns_netns")
+		}, "test_setns_explicit_netns")
 	})
 }
