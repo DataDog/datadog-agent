@@ -111,6 +111,15 @@ enum RestartBlock {
     AlreadyAccounted,
 }
 
+/// Whether evaluating start holds logs the operator-facing detail (the path,
+/// the gated settings). Only the paths that decide a spawn log: the ones that
+/// merely refresh labels run on every reload and would repeat themselves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HoldLog {
+    Emit,
+    Silent,
+}
+
 /// What it takes to force-kill a child, held apart from [`ManagedProcess`] so a
 /// stop can escalate after the manager has released it.
 struct ProcessKiller {
@@ -373,51 +382,17 @@ impl ManagedProcess {
         self.transition_to(ProcessState::Running);
     }
 
-    #[must_use]
-    fn condition_path_exists_met(&self) -> bool {
-        let Some(raw) = &self.config.condition_path_exists else {
-            return true;
-        };
-        let path = expand_env_vars(raw);
-        if std::path::Path::new(&path).exists() {
-            return true;
-        }
-        info!("[{}] condition_path_exists not met: {path}", self.name);
-        false
-    }
-
-    #[must_use]
-    fn config_gate_met(&self) -> bool {
-        if !crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
-            info!(
-                "[{}] condition_config_any not met: {}",
-                self.name,
-                crate::config_gate::condition_config_summary(&self.config.condition_config_any)
-            );
-            return false;
-        }
-        if !crate::config_gate::condition_config_none_met(&self.config.condition_config_none) {
-            info!(
-                "[{}] condition_config_none vetoed: {}",
-                self.name,
-                crate::config_gate::condition_config_summary(&self.config.condition_config_none)
-            );
-            return false;
-        }
-        true
-    }
-
-    #[must_use]
-    fn start_conditions_met(&self) -> bool {
-        self.condition_path_exists_met() && self.config_gate_met()
-    }
-
     /// Conditions only, deliberately ignoring `auto_start`: a process that was
     /// started once should keep its restart policy even though `auto_start`
     /// only governs boot.
+    ///
+    /// For a path that declines a respawn, use `evaluate_respawn` instead and
+    /// record what it returns: the labels then describe the same evaluation
+    /// that refused the spawn.
     #[must_use]
     pub(crate) fn may_respawn(&self) -> bool {
-        self.start_conditions_met()
+        self.collect_condition_skip_reasons(HoldLog::Emit)
+            .is_empty()
     }
 
     /// Whether any start condition is declared. Reload re-evaluates conditions
@@ -494,35 +469,76 @@ impl ManagedProcess {
     /// `auto_start` is not included: it only governs the boot / reload start
     /// pass, and `may_respawn` ignores it.
     #[must_use]
-    fn collect_condition_skip_reasons(&self) -> Vec<String> {
+    fn collect_condition_skip_reasons(&self, log: HoldLog) -> Vec<String> {
         let mut reasons = Vec::new();
         if let Some(raw) = &self.config.condition_path_exists {
             let path = expand_env_vars(raw);
             if !std::path::Path::new(&path).exists() {
+                if log == HoldLog::Emit {
+                    info!("[{}] condition_path_exists not met: {path}", self.name);
+                }
                 reasons.push(Self::SKIP_REASON_PATH_MISSING.to_string());
             }
         }
         if !crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
+            if log == HoldLog::Emit {
+                info!(
+                    "[{}] condition_config_any not met: {}",
+                    self.name,
+                    crate::config_gate::condition_config_summary(&self.config.condition_config_any)
+                );
+            }
             reasons.push(Self::SKIP_REASON_CONFIG_GATE.to_string());
         }
         if !crate::config_gate::condition_config_none_met(&self.config.condition_config_none) {
+            if log == HoldLog::Emit {
+                let vetoed = crate::config_gate::condition_config_summary(
+                    &self.config.condition_config_none,
+                );
+                info!("[{}] condition_config_none vetoed: {vetoed}", self.name);
+            }
             reasons.push(Self::SKIP_REASON_CONFIG_VETO.to_string());
         }
         reasons
     }
 
-    /// Every currently applying start-hold label for a never-spawned row, not
-    /// first-wins. Does not log: callers that decline a spawn still go through
-    /// `should_start` / `start_conditions_met` / `may_respawn` for the existing
-    /// messages.
     #[must_use]
-    pub(crate) fn collect_skip_reasons(&self) -> Vec<String> {
+    fn collect_start_pass_skip_reasons(&self, log: HoldLog) -> Vec<String> {
         let mut reasons = Vec::new();
         if !self.config.auto_start {
+            if log == HoldLog::Emit {
+                info!("[{}] auto_start=false, skipping", self.name);
+            }
             reasons.push(Self::SKIP_REASON_AUTO_START_FALSE.to_string());
         }
-        reasons.extend(self.collect_condition_skip_reasons());
+        reasons.extend(self.collect_condition_skip_reasons(log));
         reasons
+    }
+
+    /// Every currently applying start-hold label for a never-spawned row, not
+    /// first-wins. Silent, for the paths that only refresh labels.
+    #[must_use]
+    pub(crate) fn collect_skip_reasons(&self) -> Vec<String> {
+        self.collect_start_pass_skip_reasons(HoldLog::Silent)
+    }
+
+    /// The boot / reload start-pass decision: empty means spawn, and otherwise
+    /// every hold that denied it, logged once here where the decision is made.
+    ///
+    /// Hand the result straight to `record_start_hold`. Deciding here and
+    /// deriving the labels from a second evaluation lets a hold that opens in
+    /// between leave a declined row resting with no reason for the skip.
+    #[must_use]
+    pub(crate) fn evaluate_start_pass(&self) -> Vec<String> {
+        self.collect_start_pass_skip_reasons(HoldLog::Emit)
+    }
+
+    /// The respawn decision, with the same single-evaluation contract as
+    /// `evaluate_start_pass`. Conditions only, since `auto_start` governs the
+    /// start pass alone.
+    #[must_use]
+    pub(crate) fn evaluate_respawn(&self) -> Vec<String> {
+        self.collect_condition_skip_reasons(HoldLog::Emit)
     }
 
     /// Whether the boot / reload start pass would spawn this row, ignoring
@@ -532,15 +548,14 @@ impl ManagedProcess {
         self.collect_skip_reasons().is_empty()
     }
 
-    /// Record why a spawn was declined. Never-spawned rows move `Created ->
-    /// Skipped` and may include `auto_start_false`. After a child has existed,
-    /// the process stays where it is and only condition labels are attached,
-    /// because `auto_start` did not decide the respawn.
-    pub(crate) fn apply_start_hold(&mut self, extra: &[&str]) {
-        let mut reasons = match self.state {
-            ProcessState::Created | ProcessState::Skipped => self.collect_skip_reasons(),
-            _ => self.collect_condition_skip_reasons(),
-        };
+    /// Record the holds that denied a spawn, plus any `extra` label the caller
+    /// owns (`ordering`). `reasons` must come from the evaluation that made the
+    /// decision, so the row cannot rest without the reason that stopped it.
+    ///
+    /// Never-spawned rows move `Created -> Skipped`. After a child has existed,
+    /// the process stays where it is and only carries the labels, because
+    /// `auto_start` did not decide the respawn.
+    pub(crate) fn record_start_hold(&mut self, mut reasons: Vec<String>, extra: &[&str]) {
         for reason in extra {
             if !reasons.iter().any(|existing| existing == reason) {
                 reasons.push((*reason).to_string());
@@ -552,13 +567,15 @@ impl ManagedProcess {
         }
     }
 
-    #[must_use]
-    pub fn should_start(&self) -> bool {
-        if !self.config.auto_start {
-            info!("[{}] auto_start=false, skipping", self.name);
-            return false;
-        }
-        self.start_conditions_met()
+    /// Rebuild the labels of a row that is already held, for the paths that
+    /// refresh rather than decide: a stale reason must not outlive the hold
+    /// that produced it.
+    pub(crate) fn apply_start_hold(&mut self, extra: &[&str]) {
+        let reasons = match self.state {
+            ProcessState::Created | ProcessState::Skipped => self.collect_skip_reasons(),
+            _ => self.collect_condition_skip_reasons(HoldLog::Silent),
+        };
+        self.record_start_hold(reasons, extra);
     }
 
     pub(crate) fn spawn(&mut self, exit_tx: mpsc::Sender<ExitEvent>) -> Result<()> {
@@ -807,10 +824,11 @@ impl ManagedProcess {
 
         // Checked before the burst limit so a closed gate neither consumes
         // burst budget nor advances the backoff.
-        if !self.may_respawn() {
+        let holds = self.evaluate_respawn();
+        if !holds.is_empty() {
             info!("[{}] start conditions not met, not restarting", self.name);
             self.restart_block = RestartBlock::AccountingOwed;
-            self.apply_start_hold(&[]);
+            self.record_start_hold(holds, &[]);
             return None;
         }
 
@@ -1038,25 +1056,24 @@ pub mod tests {
     }
 
     #[test]
-    fn test_should_start_auto_start_true_no_condition() {
+    fn test_start_pass_spawns_auto_start_true_no_condition() {
         let (cmd, args) = test_helpers::true_cmd();
         let proc = ManagedProcess::new_config(
             "test".into(),
             test_helpers::test_uuid(),
             test_helpers::make_config(cmd, args),
         );
-        assert!(proc.should_start());
+        assert!(proc.evaluate_start_pass().is_empty());
     }
 
     #[test]
-    fn test_should_start_auto_start_false() {
+    fn test_start_pass_declines_auto_start_false() {
         let (cmd, args) = test_helpers::true_cmd();
         let mut cfg = test_helpers::make_config(cmd, args);
         cfg.auto_start = false;
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
-        assert!(!proc.should_start());
         assert_eq!(
-            proc.collect_skip_reasons(),
+            proc.evaluate_start_pass(),
             vec![ManagedProcess::SKIP_REASON_AUTO_START_FALSE]
         );
     }
@@ -1078,19 +1095,19 @@ pub mod tests {
     }
 
     #[test]
-    fn test_should_start_condition_path_exists_met() {
+    fn test_start_pass_spawns_when_condition_path_exists_met() {
         let (cmd, args) = test_helpers::true_cmd();
         let mut cfg = test_helpers::make_config(cmd, args);
         let exe = std::env::current_exe().unwrap();
         cfg.condition_path_exists = Some(exe.to_str().unwrap().to_string());
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
-        assert!(proc.should_start());
+        assert!(proc.evaluate_start_pass().is_empty());
     }
 
     /// The veto has to be consulted by the start path, not merely parsed. The pair also
     /// pins the direction: only the true value blocks.
     #[test]
-    fn test_should_start_honours_condition_config_none() {
+    fn test_start_pass_honours_condition_config_none() {
         for (body, expected_start) in [
             ("system_probe_config:\n  external: true\n", false),
             ("system_probe_config:\n  external: false\n", true),
@@ -1108,17 +1125,48 @@ pub mod tests {
             }];
             let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
 
-            assert_eq!(proc.should_start(), expected_start, "for {body:?}");
+            assert_eq!(
+                proc.evaluate_start_pass().is_empty(),
+                expected_start,
+                "for {body:?}"
+            );
         }
     }
 
     #[test]
-    fn test_should_start_condition_path_exists_not_met() {
+    fn test_start_pass_declines_when_condition_path_exists_not_met() {
         let (cmd, args) = test_helpers::true_cmd();
         let mut cfg = test_helpers::make_config(cmd, args);
         cfg.condition_path_exists = Some("/nonexistent/path/binary".to_string());
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
-        assert!(!proc.should_start());
+        assert_eq!(
+            proc.evaluate_start_pass(),
+            vec![ManagedProcess::SKIP_REASON_PATH_MISSING]
+        );
+    }
+
+    /// A hold that opens after the start pass declined the spawn, but before
+    /// the decline is recorded, must not erase the reason: the row rests in
+    /// `Skipped` with the labels that denied it, not unlabelled in `Created`.
+    #[test]
+    fn test_record_start_hold_keeps_the_reasons_of_the_decision() {
+        let dir = tempfile::tempdir().unwrap();
+        let gate = dir.path().join("ready");
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.condition_path_exists = Some(gate.to_string_lossy().into_owned());
+        let mut proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
+
+        let holds = proc.evaluate_start_pass();
+        assert_eq!(holds, vec![ManagedProcess::SKIP_REASON_PATH_MISSING]);
+        std::fs::write(&gate, b"").unwrap();
+        proc.record_start_hold(holds, &[]);
+
+        assert_eq!(proc.state(), ProcessState::Skipped);
+        assert_eq!(
+            proc.skip_reasons(),
+            &[ManagedProcess::SKIP_REASON_PATH_MISSING.to_string()]
+        );
     }
 
     #[tokio::test]

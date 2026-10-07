@@ -52,10 +52,13 @@ impl ProcessManager {
         let mut procs = self.processes.write().await;
         for &idx in order.iter() {
             let proc = &mut procs[idx];
-            if proc.should_start()
-                && let Err(e) = proc.spawn(exit_tx.clone())
-            {
-                warn!("{e:#}");
+            let holds = proc.evaluate_start_pass();
+            if holds.is_empty() {
+                if let Err(e) = proc.spawn(exit_tx.clone()) {
+                    warn!("{e:#}");
+                }
+            } else {
+                proc.record_start_hold(holds, &[]);
             }
         }
         finalize_start_holds(&mut procs, &order);
@@ -176,10 +179,11 @@ impl ProcessManager {
         }
         // `handle_restart` decided at exit time; the gate can close during the
         // backoff delay, so re-check it here.
-        if !proc.may_respawn() {
+        let holds = proc.evaluate_respawn();
+        if !holds.is_empty() {
             info!("[{name}] restart skipped: start conditions not met");
             proc.mark_restart_blocked_already_accounted();
-            proc.apply_start_hold(&[]);
+            proc.record_start_hold(holds, &[]);
             return;
         }
         if let Err(e) = proc.spawn(exit_tx.clone()) {
@@ -220,10 +224,13 @@ impl ProcessManager {
             info!("[{name}] created via RPC (uuid={uuid})");
             procs.push(proc);
             let proc = procs.last_mut().unwrap();
-            if proc.should_start()
-                && let Err(e) = proc.spawn(exit_tx.clone())
-            {
-                warn!("[{name}] auto-start failed: {e:#}");
+            let holds = proc.evaluate_start_pass();
+            if holds.is_empty() {
+                if let Err(e) = proc.spawn(exit_tx.clone()) {
+                    warn!("[{name}] auto-start failed: {e:#}");
+                }
+            } else {
+                proc.record_start_hold(holds, &[]);
             }
         }
         let warnings = self.update_startup_order().await;
@@ -355,10 +362,13 @@ impl ProcessManager {
                         self.uuid_gen.generate(),
                         np.config,
                     );
-                    if proc.should_start()
-                        && let Err(e) = proc.spawn(exit_tx.clone())
-                    {
-                        warn!("[{}] failed to start: {e:#}", np.name);
+                    let holds = proc.evaluate_start_pass();
+                    if holds.is_empty() {
+                        if let Err(e) = proc.spawn(exit_tx.clone()) {
+                            warn!("[{}] failed to start: {e:#}", np.name);
+                        }
+                    } else {
+                        proc.record_start_hold(holds, &[]);
                     }
                     added.push(np.name);
                     procs.push(proc);
@@ -386,10 +396,11 @@ impl ProcessManager {
                 continue;
             };
             proc.finish_stop();
-            if !proc.may_respawn() {
+            let holds = proc.evaluate_respawn();
+            if !holds.is_empty() {
                 info!("[{name}] not restarting after reload: start conditions not met");
                 proc.mark_restart_blocked_already_accounted();
-                proc.apply_start_hold(&[]);
+                proc.record_start_hold(holds, &[]);
                 continue;
             }
             info!("[{name}] restarting with updated config");
@@ -440,7 +451,14 @@ impl ProcessManager {
                     continue;
                 }
                 let eligible = match proc.state() {
-                    ProcessState::Created => proc.has_start_conditions() && proc.should_start(),
+                    ProcessState::Created if proc.has_start_conditions() => {
+                        let holds = proc.evaluate_start_pass();
+                        let spawn = holds.is_empty();
+                        if !spawn {
+                            proc.record_start_hold(holds, &[]);
+                        }
+                        spawn
+                    }
                     ProcessState::Skipped => proc.start_pass_would_spawn(),
                     ProcessState::Exited
                     | ProcessState::Crashed
@@ -539,6 +557,9 @@ struct StartupOrderResult {
 
 /// After a start pass, never-spawned rows that were declined (or excluded for
 /// a dependency cycle) rest in `Skipped` with every applying reason label.
+/// A declined row already recorded the holds that denied it, so what is left
+/// here is the dependency-cycle exclusion, which the start pass never reached,
+/// and the refresh of rows that are already held.
 /// Existing `Skipped` rows always rebuild labels (including clearing them), so
 /// a runtime-only process whose hold later opens cannot keep a stale reason
 /// after reload excludes it from the candidate set. Terminal rows stranded by
@@ -554,9 +575,7 @@ fn finalize_start_holds(procs: &mut [ManagedProcess], order: &[usize]) {
         };
         match proc.state() {
             ProcessState::Created => {
-                if cycle || !proc.start_pass_would_spawn() {
-                    proc.apply_start_hold(extra);
-                }
+                proc.apply_start_hold(extra);
             }
             ProcessState::Skipped => {
                 proc.apply_start_hold(extra);
