@@ -23,6 +23,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/startup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
@@ -115,6 +116,13 @@ var doOnce sync.Once
 // It reads all configs and caches them in memory for 5 minutes.
 // InitConfigFilesReader should be called at agent startup.
 func InitConfigFilesReader(paths []string) {
+	InitConfigFilesReaderWithTracing(paths, nil)
+}
+
+// InitConfigFilesReaderWithTracing measures only the one-time startup scan under
+// the supplied phase. It does not retain the phase for later cache refreshes.
+func InitConfigFilesReaderWithTracing(paths []string, phase *startup.Phase) {
+	phase.SetMetric("config_files.initial_scan", 0)
 	fileCacheExpiration := 5 * time.Minute
 	if pkgconfigsetup.Datadog().GetBool("autoconf_config_files_poll") {
 		// Removing some time (1s) to avoid races with polling interval.
@@ -130,6 +138,7 @@ func InitConfigFilesReader(paths []string) {
 	}
 
 	doOnce.Do(func() {
+		phase.SetMetric("config_files.initial_scan", 1)
 		if reader == nil {
 			reader = &configFilesReader{
 				paths: paths,
@@ -137,7 +146,7 @@ func InitConfigFilesReader(paths []string) {
 			}
 		}
 
-		reader.readAndCacheAll()
+		reader.readAndCacheAllWithTracing(phase)
 	})
 }
 
@@ -231,34 +240,61 @@ func filterConfigs(configs []integration.Config, keep FilterFunc) []integration.
 }
 
 func (r *configFilesReader) readAndCacheAll() ([]integration.Config, map[string]string) {
-	configs, configFormats, errors := r.read(GetAll)
+	return r.readAndCacheAllWithTracing(nil)
+}
+
+func (r *configFilesReader) readAndCacheAllWithTracing(phase *startup.Phase) ([]integration.Config, map[string]string) {
+	configs, configFormats, errors := r.readWithTracing(GetAll, phase)
+	publication := phase.Start("autodiscovery.config_files.cache_publish", "file")
 	reader.cache.SetDefault("configs", configs)
 	reader.cache.SetDefault("errors", errors)
 	reader.cache.SetDefault("configFormats", configFormats)
+	publication.SetMetric("config_files.configs_loaded", float64(len(configs)))
+	publication.SetMetric("config_files.config_formats", float64(len(configFormats)))
+	publication.SetMetric("config_files.integration_errors", float64(len(errors)))
+	publication.Finish(nil)
 	return configs, errors
 }
 
 // read scans paths searching for configuration files. When found,
 // it parses the files and try to unmarshall Yaml contents into integration.Config instances.
 func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []ConfigFormatWrapper, map[string]string) {
+	return r.readWithTracing(keep, nil)
+}
+
+func (r *configFilesReader) readWithTracing(keep FilterFunc, phase *startup.Phase) ([]integration.Config, []ConfigFormatWrapper, map[string]string) {
+	var totalStats configReadStats
+	var entryCount int
+	phase.SetMetric("config_files.search_paths", float64(len(r.paths)))
 	integrationErrors := map[string]string{}
 	configs := []integration.Config{}
 	configNames := make(map[string]struct{}) // use this map as a python set
 	defaultConfigs := []integration.Config{}
 	configFormats := []ConfigFormatWrapper{}
 
-	for _, path := range r.paths {
+	for pathIndex, path := range r.paths {
 		log.Infof("Searching for configuration files at: %s", path)
 
+		enumeration := phase.Start("autodiscovery.config_files.enumerate", "file")
+		enumeration.SetMetric("config_files.path_index", float64(pathIndex))
 		entries, err := os.ReadDir(path)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
+				// Optional search paths can be absent; this is not a startup failure.
+				enumeration.SetMetric("config_files.path_missing", 1)
+				enumeration.Finish(nil)
 				log.Debugf("Skipping, %s", err)
 			} else {
+				enumeration.Finish(err)
 				log.Warnf("Skipping, %s", err)
 			}
 			continue
 		}
+		entryCount += len(entries)
+		enumeration.SetMetric("config_files.entries", float64(len(entries)))
+		enumeration.Finish(nil)
+		readParse := phase.Start("autodiscovery.config_files.read_parse", "file")
+		readParse.SetMetric("config_files.path_index", float64(pathIndex))
 
 		// Read and parse each top-level entry (a config file or an `<integration>.d`
 		// directory) using a fixed pool of goroutines (sized by
@@ -274,6 +310,7 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 		close(indices)
 
 		numWorkers := pkgconfigsetup.Datadog().GetInt("autoconf_config_files_num_workers")
+		readParse.SetMetric("config_files.workers_configured", float64(numWorkers))
 		if numWorkers < 1 {
 			log.Warnf("autoconf_config_files_num_workers is less than 1, setting to 1")
 			numWorkers = 1
@@ -281,23 +318,42 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 		if len(entries) < numWorkers {
 			numWorkers = len(entries)
 		}
+		readParse.SetMetric("config_files.workers_used", float64(numWorkers))
+		readParse.SetMetric("config_files.entries", float64(len(entries)))
+		var workerStats []configReadStats
+		if phase != nil {
+			workerStats = make([]configReadStats, numWorkers)
+		}
 		var wg sync.WaitGroup
 		for w := 0; w < numWorkers; w++ {
+			var stats *configReadStats
+			if workerStats != nil {
+				stats = &workerStats[w]
+			}
 			wg.Go(func() {
 				for i := range indices {
 					fileEntry := entries[i]
 					// We support only one level of nesting for check configs
 					if fileEntry.IsDir() {
-						dirConfigs, dirActions := collectDir(path, fileEntry)
+						dirConfigs, dirActions := collectDir(path, fileEntry, stats)
 						results[i] = entryResult{isDir: true, dirConfigs: dirConfigs, dirActions: dirActions}
 					} else {
-						entry, entryAction := collectEntry(fileEntry, path, "")
+						entry, entryAction := collectEntry(fileEntry, path, "", stats)
 						results[i] = entryResult{entry: entry, entryAction: entryAction}
 					}
 				}
 			})
 		}
 		wg.Wait()
+		var pathStats configReadStats
+		for _, stats := range workerStats {
+			pathStats.add(stats)
+		}
+		pathStats.record(readParse)
+		totalStats.add(pathStats)
+		readParse.Finish(nil)
+		merging := phase.Start("autodiscovery.config_files.merge", "file")
+		merging.SetMetric("config_files.path_index", float64(pathIndex))
 		for _, res := range results {
 			if res.isDir {
 				dirConfigs := res.dirConfigs
@@ -347,8 +403,11 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 
 			configFormats = append(configFormats, entry.cfgFormat)
 		}
+		merging.Finish(nil)
 	}
 
+	defaults := phase.Start("autodiscovery.config_files.merge_defaults", "file")
+	beforeDefaults := len(configs)
 	// add all the default enabled checks unless another regular
 	// configuration file was already provided for the same check
 	for _, conf := range defaultConfigs {
@@ -359,6 +418,14 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 		}
 	}
 
+	defaults.SetMetric("config_files.defaults_seen", float64(len(defaultConfigs)))
+	defaults.SetMetric("config_files.defaults_added", float64(len(configs)-beforeDefaults))
+	defaults.Finish(nil)
+	totalStats.record(phase)
+	phase.SetMetric("config_files.entries", float64(entryCount))
+	phase.SetMetric("config_files.configs_loaded", float64(len(configs)))
+	phase.SetMetric("config_files.config_formats", float64(len(configFormats)))
+	phase.SetMetric("config_files.integration_errors", float64(len(integrationErrors)))
 	return configs, configFormats, integrationErrors
 }
 
@@ -374,7 +441,7 @@ func applyErrorAction(integrationErrors map[string]string, action errorAction) {
 
 // collectEntry collects a file entry and return it's configuration if valid
 // the integrationName can be manually provided else it'll use the filename
-func collectEntry(file os.DirEntry, path string, integrationName string) (configEntry, *errorAction) {
+func collectEntry(file os.DirEntry, path string, integrationName string, stats *configReadStats) (configEntry, *errorAction) {
 	const defaultExt string = ".default"
 	fileName := file.Name()
 	ext := filepath.Ext(fileName)
@@ -417,7 +484,7 @@ func collectEntry(file os.DirEntry, path string, integrationName string) (config
 	}
 
 	var err error
-	entry.conf, entry.cfgFormat, err = GetIntegrationConfigFromFile(integrationName, absPath)
+	entry.conf, entry.cfgFormat, err = getIntegrationConfigFromFileWithStats(integrationName, absPath, stats)
 	if err != nil {
 		if err.Error() == emptyFileError {
 			log.Debugf("skipping empty file: %s", absPath)
@@ -439,7 +506,7 @@ func collectEntry(file os.DirEntry, path string, integrationName string) (config
 	return entry, &errorAction{name: integrationName, clear: true}
 }
 
-func collectDir(parentPath string, folder os.DirEntry) (configPkg, []errorAction) {
+func collectDir(parentPath string, folder os.DirEntry, stats *configReadStats) (configPkg, []errorAction) {
 	configs := []integration.Config{}
 	defaultConfigs := []integration.Config{}
 	otherConfigs := []integration.Config{}
@@ -455,7 +522,19 @@ func collectDir(parentPath string, folder os.DirEntry) (configPkg, []errorAction
 	}
 
 	// search for yaml files within this directory
+	var started time.Time
+	if stats != nil {
+		started = time.Now()
+	}
 	subEntries, err := os.ReadDir(dirPath)
+	if stats != nil {
+		stats.directoryReadNS += time.Since(started).Nanoseconds()
+		if err != nil {
+			stats.directoryErrors++
+		} else {
+			stats.directoriesRead++
+		}
+	}
 	if err != nil {
 		log.Warnf("Skipping config directory %s: %s", dirPath, err)
 		return configPkg{configs, defaultConfigs, otherConfigs, cfgFormats}, actions
@@ -467,7 +546,7 @@ func collectDir(parentPath string, folder os.DirEntry) (configPkg, []errorAction
 	// try to load any config file in it
 	for _, sEntry := range subEntries {
 		if !sEntry.IsDir() {
-			entry, action := collectEntry(sEntry, dirPath, integrationName)
+			entry, action := collectEntry(sEntry, dirPath, integrationName, stats)
 			if action != nil {
 				actions = append(actions, *action)
 			}
@@ -496,19 +575,52 @@ const emptyFileError = "empty file"
 
 // GetIntegrationConfigFromFile returns an instance of integration.Config if `fpath` points to a valid config file
 func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, ConfigFormatWrapper, error) {
+	return getIntegrationConfigFromFileWithStats(name, fpath, nil)
+}
+
+func getIntegrationConfigFromFileWithStats(name, fpath string, stats *configReadStats) (conf integration.Config, format ConfigFormatWrapper, returnErr error) {
 	cf := configFormat{}
-	conf := integration.Config{Name: name}
+	conf = integration.Config{Name: name}
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications
+	var started time.Time
+	if stats != nil {
+		stats.filesAttempted++
+		started = time.Now()
+	}
 	yamlFile, err := os.ReadFile(fpath)
+	if stats != nil {
+		stats.fileReadNS += time.Since(started).Nanoseconds()
+		if err != nil {
+			stats.readErrors++
+		} else {
+			stats.filesRead++
+			stats.bytesRead += int64(len(yamlFile))
+		}
+	}
 	if err != nil {
 		return conf, ConfigFormatWrapper{}, err
 	}
 
 	// Check for empty file and return special error if so
 	if len(yamlFile) == 0 {
+		if stats != nil {
+			stats.emptyFiles++
+		}
 		return conf, ConfigFormatWrapper{}, errors.New(emptyFileError)
+	}
+
+	if stats != nil {
+		started = time.Now()
+		defer func() {
+			stats.parseNS += time.Since(started).Nanoseconds()
+			if returnErr != nil {
+				stats.configErrors++
+			} else {
+				stats.configsParsed++
+			}
+		}()
 	}
 
 	// Parse configuration

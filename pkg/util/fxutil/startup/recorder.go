@@ -8,12 +8,16 @@
 package startup
 
 import (
+	"math"
 	"math/rand"
 	"sync"
 	"time"
 )
 
-const maxPhases = 128
+const (
+	maxPhases       = 128
+	maxPhaseMetrics = 32
+)
 
 // Event is a phase measurement. Names/resources must be bounded operation or
 // component types, never configuration contents, paths, URLs, or error messages.
@@ -27,6 +31,7 @@ type Event struct {
 	Duration   time.Duration
 	Failed     bool
 	Incomplete bool
+	Metrics    map[string]float64
 }
 
 // Recorder belongs to one Fx application, not to the process. The Fx logger
@@ -136,6 +141,33 @@ func (p *Phase) Start(name, resource string) *Phase {
 		return nil
 	}
 	return p.recorder.start(name, resource, p)
+}
+
+// SetMetric attaches a finite numeric measurement while the phase is active.
+// Keys must be fixed metric names, never derived from paths or configuration.
+// At most 32 distinct metrics are retained per phase. Updates after completion
+// or snapshotting are ignored so exported events remain immutable.
+func (p *Phase) SetMetric(key string, value float64) {
+	if p == nil || math.IsNaN(value) || math.IsInf(value, 0) {
+		return
+	}
+	r := p.recorder
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed || r.hookID != p.hookID {
+		return
+	}
+	event := &r.events[p.index]
+	if !event.Incomplete {
+		return
+	}
+	if _, exists := event.Metrics[key]; !exists && len(event.Metrics) >= maxPhaseMetrics {
+		return
+	}
+	if event.Metrics == nil {
+		event.Metrics = make(map[string]float64)
+	}
+	event.Metrics[key] = value
 }
 
 // Finish records only whether an error occurred; error text is never retained.

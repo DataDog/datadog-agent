@@ -51,7 +51,7 @@ func setupAutoDiscovery(confSearchPaths []string, ac autodiscovery.Component, cf
 	}
 
 	phase := recorder.Start("autodiscovery.config_files.initialize", "file")
-	providers.InitConfigFilesReader(confSearchPaths)
+	providers.InitConfigFilesReaderWithTracing(confSearchPaths, phase)
 	phase.Finish(nil)
 
 	phase = recorder.Start("autodiscovery.file_provider.register", "file")

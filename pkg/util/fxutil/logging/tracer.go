@@ -8,6 +8,7 @@ package logging
 import (
 	"fmt"
 	"io"
+	"maps"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -259,9 +260,12 @@ func (l *FxTracingLogger) handleStarted(e *fxevent.Started) {
 		if phase.Failed {
 			failed = 1
 		}
-		var metrics map[string]float64
+		metrics := maps.Clone(phase.Metrics)
 		if phase.Incomplete {
-			metrics = map[string]float64{"startup.incomplete": 1}
+			if metrics == nil {
+				metrics = make(map[string]float64)
+			}
+			metrics["startup.incomplete"] = 1
 		}
 		l.spans = append(l.spans, &Span{
 			Service: serviceName, Name: phase.Name, Resource: phase.Resource,

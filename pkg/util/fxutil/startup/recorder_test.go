@@ -7,6 +7,8 @@ package startup
 
 import (
 	"errors"
+	"fmt"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -19,6 +21,7 @@ func TestDisabledRecorder(t *testing.T) {
 		recorder.BeginHook(42)
 		require.Zero(t, testing.AllocsPerRun(100, func() {
 			phase := recorder.Start("operation", "resource")
+			phase.SetMetric("count", 1)
 			phase.Start("nested", "resource").Finish(nil)
 			phase.Finish(nil)
 		}))
@@ -126,6 +129,44 @@ func TestConcurrentPhasesAndDrain(t *testing.T) {
 	}
 	events, _ = r.Drain()
 	require.Empty(t, events)
+}
+
+func TestPhaseMetricsAreBoundedAndImmutable(t *testing.T) {
+	r := NewRecorder(true)
+	r.BeginHook(1)
+	phase := r.Start("phase", "resource")
+	phase.SetMetric("invalid_nan", math.NaN())
+	phase.SetMetric("invalid_inf", math.Inf(1))
+	for i := range maxPhaseMetrics + 1 {
+		phase.SetMetric(fmt.Sprintf("metric_%d", i), float64(i))
+	}
+	phase.SetMetric("metric_0", 42) // Existing keys can still be updated at the cap.
+	phase.Finish(nil)
+	phase.SetMetric("metric_0", 100)
+	partial := r.Start("partial", "resource")
+	partial.SetMetric("count", 7)
+	events, _ := r.Drain()
+	partial.SetMetric("count", 99)
+	require.Len(t, events[0].Metrics, maxPhaseMetrics)
+	require.Equal(t, float64(42), events[0].Metrics["metric_0"])
+	require.NotContains(t, events[0].Metrics, "invalid_nan")
+	require.NotContains(t, events[0].Metrics, "invalid_inf")
+	require.True(t, events[1].Incomplete)
+	require.Equal(t, float64(7), events[1].Metrics["count"])
+}
+
+func TestConcurrentPhaseMetricsAndDrain(t *testing.T) {
+	r := NewRecorder(true)
+	r.BeginHook(1)
+	phase := r.Start("phase", "resource")
+	var workers sync.WaitGroup
+	for range 32 {
+		workers.Go(func() { phase.SetMetric("count", 1) })
+	}
+	events, _ := r.Drain()
+	before := events[0].Metrics["count"]
+	workers.Wait()
+	require.Equal(t, before, events[0].Metrics["count"])
 }
 
 func TestRecordersAreIndependent(t *testing.T) {

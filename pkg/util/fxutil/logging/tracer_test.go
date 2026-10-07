@@ -30,6 +30,7 @@ func TestStartupPhasesInFxTrace(t *testing.T) {
 		tracer.sendSpans = func(_ io.Writer, spans []*Span, _ string) { packets <- spans }
 		lc.Append(fx.Hook{OnStart: func(context.Context) error {
 			phase := recorder.Start("autodiscovery.listeners.initialize", "listeners")
+			phase.SetMetric("config_files.files_read", 12)
 			phase.Start("autodiscovery.listener.initialize", "kubelet").Finish(errors.New("sensitive configuration"))
 			phase.Finish(nil)
 			return nil
@@ -64,6 +65,7 @@ func TestStartupPhasesInFxTrace(t *testing.T) {
 	require.NotNil(t, parent)
 	require.NotNil(t, child)
 	require.Equal(t, parent.SpanID, child.ParentID)
+	require.Equal(t, float64(12), parent.Metrics["config_files.files_read"])
 	hook := byID[parent.ParentID]
 	require.NotNil(t, hook)
 	require.Equal(t, onStartHookName, hook.Name)
@@ -144,6 +146,7 @@ func TestStartupTimeoutPreservesPhaseParents(t *testing.T) {
 	tracer.sendSpans = func(_ io.Writer, spans []*Span, _ string) { packets <- spans }
 	tracer.LogEvent(&fxevent.OnStartExecuting{FunctionName: "blockedHook"})
 	parent := recorder.Start("autodiscovery.listeners.initialize", "listeners")
+	parent.SetMetric("config_files.files_read", 7)
 	parent.Start("autodiscovery.listener.initialize", "kubelet").Finish(nil)
 	// Model Fx timing out before the synchronous hook returns, without sleeps.
 	tracer.LogEvent(&fxevent.Started{Err: context.DeadlineExceeded})
@@ -169,6 +172,9 @@ func TestStartupTimeoutPreservesPhaseParents(t *testing.T) {
 			require.Equal(t, float64(1), span.Metrics["startup.incomplete"])
 		case rootSpanName:
 			require.EqualValues(t, 1, span.Error)
+		}
+		if span.Name == "autodiscovery.listeners.initialize" {
+			require.Equal(t, float64(7), span.Metrics["config_files.files_read"])
 		}
 	}
 	before, err := json.Marshal(spans)
