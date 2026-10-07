@@ -129,6 +129,34 @@ func TestEvictedSBOMReleasesPendingFileEvents(t *testing.T) {
 	}
 }
 
+// TestTriggerScanQueuesEveryWorkload checks that every SBOM entry the resolver
+// holds can wait for its scan, as at a start on a host of many containers.
+func TestTriggerScanQueuesEveryWorkload(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	sboms, err := simplelru.NewLRU(maxSBOMEntries, r.onSBOMEvicted)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r.sboms = sboms
+	r.scanChan = make(chan *SBOM, scanQueueSize)
+
+	for i := range maxSBOMEntries {
+		id := containerutils.ContainerID(fmt.Sprintf("container-%d", i))
+		sbom := NewSBOM(id, nil, "image:tag")
+		sboms.Add(id, sbom)
+		sbom.Lock()
+		r.triggerScan(sbom)
+		sbom.Unlock()
+	}
+
+	if n := len(r.scanChan); n != maxSBOMEntries {
+		t.Errorf("%d workloads queued for a scan, want %d", n, maxSBOMEntries)
+	}
+	if n := sboms.Len(); n != maxSBOMEntries {
+		t.Errorf("%d SBOM entries left, want %d", n, maxSBOMEntries)
+	}
+}
+
 // TestAnalyzeWorkloadReusesCachedDataAsComputed checks that a workload whose data
 // landed in the cache while it was queued for a scan still ends up computed. Left
 // pending, every package lookup for that container queues instead of resolving and

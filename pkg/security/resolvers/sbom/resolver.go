@@ -50,8 +50,9 @@ const (
 
 	maxSBOMGenerationRetries = 3
 	maxSBOMEntries           = 1024
-	scanQueueSize            = 100
-	maxPendingFileEvents     = 256
+	// scanQueueSize lets every SBOM entry wait for its scan.
+	scanQueueSize        = maxSBOMEntries
+	maxPendingFileEvents = 256
 	// maxForwardWait bounds how long forwarding keeps retrying while the image's
 	// Trivy SBOM is still pending. It must outlast a slow overlayfs scan, yet stop
 	// re-arming when no image SBOM will ever be produced (for example when
@@ -329,7 +330,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		cfg:                   c,
 		statsdClient:          statsdClient,
 		dataCache:             dataCache,
-		scanChan:              make(chan *SBOM, 100),
+		scanChan:              make(chan *SBOM, scanQueueSize),
 		sbomCollector:         sbomCollector,
 		hostRootDevice:        stat.Dev,
 		hostRootInode:         stat.Ino,
