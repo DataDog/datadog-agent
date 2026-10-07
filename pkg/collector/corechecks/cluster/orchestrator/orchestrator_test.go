@@ -196,6 +196,42 @@ func TestOrchCheckExtraTags(t *testing.T) {
 		assert.ElementsMatch(t, []string{"init_tag1:value1", "init_tag2:value2", "instance_tag1:value1", "instance_tag2:value2"}, orchCheck.orchestratorConfig.ExtraTags)
 	})
 
+	t.Run("with a marked infrastructure mode", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTaggerWithOverrides(t, map[string]interface{}{
+			"infrastructure_mode": "cloud_cost_only",
+		})
+		fakeTagger.SetGlobalTags([]string{"tag1:value1"}, nil, nil, nil)
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
+		assert.ElementsMatch(t, []string{"tag1:value1", "infra_mode:cloud_cost_only"}, orchCheck.orchestratorConfig.ExtraTags)
+	})
+
+	// On a Cluster Check Runner the dispatched check configuration can already
+	// carry the mark, because the Cluster Agent writes its global tags into it.
+	t.Run("with a mark already present in the check configuration", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTaggerWithOverrides(t, map[string]interface{}{
+			"infrastructure_mode": "cloud_cost_only",
+		})
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		initConfigData := integration.Data(`{}`)
+		err := initConfigData.MergeAdditionalTags([]string{"infra_mode:cloud_cost_only"})
+		assert.NoError(t, err)
+
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), initConfigData, integration.Data{}, "test", "provider")
+		assert.Equal(t, []string{"infra_mode:cloud_cost_only"}, orchCheck.orchestratorConfig.ExtraTags)
+	})
+
+	t.Run("with an unmarked infrastructure mode", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTaggerWithOverrides(t, map[string]interface{}{
+			"infrastructure_mode": "full",
+		})
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
+		assert.Empty(t, orchCheck.orchestratorConfig.ExtraTags)
+	})
 }
 
 func TestOrchestratorCheckConfigure(t *testing.T) {
