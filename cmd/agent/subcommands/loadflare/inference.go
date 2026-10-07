@@ -628,7 +628,27 @@ func inferFamilySizeStreams(family string, aggregate characterization.Aggregate,
 
 func inferBimodalJSONStreams(families map[string]characterization.Aggregate, aggregateRate, sourceCount uint64) []inferredPayloadStream {
 	aggregate, found := families["json"]
-	if !found || len(families) != 1 || sourceCount < 2 || aggregate.Events == 0 {
+	if !found || sourceCount < 2 || aggregate.Events == 0 {
+		return nil
+	}
+	var total uint64
+	for _, family := range families {
+		total += family.RawBytes
+	}
+	dominant := aggregate.RawBytes
+	if total == 0 {
+		for _, family := range families {
+			total += family.ContentBytes
+		}
+		dominant = aggregate.ContentBytes
+	}
+	if total == 0 {
+		for _, family := range families {
+			total += family.Events
+		}
+		dominant = aggregate.Events
+	}
+	if total == 0 || float64(dominant)/float64(total) < 0.99 {
 		return nil
 	}
 	var largeEvents uint64

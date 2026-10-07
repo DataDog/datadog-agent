@@ -271,6 +271,7 @@ func TestInferBimodalJSONStreams(t *testing.T) {
 				Count:  1000,
 			},
 		},
+		"plain": {Events: 1, ContentBytes: 10, RawBytes: 10},
 	}
 	streams := inferBimodalJSONStreams(families, 262144, 4)
 	require.Len(t, streams, 2)
