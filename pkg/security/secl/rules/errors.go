@@ -102,6 +102,20 @@ func (e *ErrRuleLoad) Unwrap() error {
 	return e.Err
 }
 
+// ErrActionLoad is on action definition error, the action is skipped but the rule can still be loaded
+type ErrActionLoad struct {
+	Action *ActionDefinition
+	Err    error
+}
+
+func (e *ErrActionLoad) Error() string {
+	return e.Err.Error()
+}
+
+func (e *ErrActionLoad) Unwrap() error {
+	return e.Err
+}
+
 // RuleLoadErrType defines an rule error type
 type RuleLoadErrType string
 

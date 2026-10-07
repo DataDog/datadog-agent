@@ -155,6 +155,7 @@ qa_*_oci                               @DataDog/agent-delivery
 qa_installer_script*                   @DataDog/agent-delivery
 generate_config_templates              @DataDog/fleet-automation
 generate_config_json_schema            @DataDog/fleet-automation
+lint_config_schema                     @DataDog/fleet-automation
 
 # Deploy containers and tags
 deploy_containers*                     @Datadog/agent-delivery
