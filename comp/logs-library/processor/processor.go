@@ -28,8 +28,8 @@ const (
 	// MRF logs settings
 	configMRFFailoverLogs     = "multi_region_failover.failover_logs"
 	configMRFServiceAllowlist = "multi_region_failover.logs_service_allowlist"
-	// ExperimentalCharacterizationEnabled enables aggregate-only pipeline ingress observation.
-	ExperimentalCharacterizationEnabled = characterization.EnabledConfigKey
+	// ExperimentalCharacterizationAllowed permits bounded aggregate-only pipeline ingress observation sessions.
+	ExperimentalCharacterizationAllowed = characterization.AllowedConfigKey
 )
 
 type failoverConfig struct {
@@ -79,8 +79,8 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		instanceID:                instanceID,
 	}
 
-	if config != nil && config.GetBool(ExperimentalCharacterizationEnabled) {
-		p.characterizer = newCharacterizationObserver(instanceID)
+	if config != nil && config.GetBool(ExperimentalCharacterizationAllowed) {
+		p.characterizer = newCharacterizationObserver(instanceID, characterization.Default)
 	}
 
 	// Initialize cached failover config

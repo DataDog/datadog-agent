@@ -67,4 +67,5 @@ func TestLoadCharacterizationRequiresFeatureFlag(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	loadCharacterizationHandler(characterization.NewManager(), false)(recorder, httptest.NewRequest(http.MethodGet, loadCharacterizationRoute, nil))
 	require.Equal(t, http.StatusNotFound, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "not allowed")
 }

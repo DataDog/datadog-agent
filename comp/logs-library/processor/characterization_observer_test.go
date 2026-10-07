@@ -6,6 +6,7 @@
 package processor
 
 import (
+	"github.com/DataDog/datadog-agent/comp/logs-library/characterization"
 	"testing"
 	"time"
 
@@ -27,7 +28,7 @@ func TestMakeCharacterizationObservation(t *testing.T) {
 	msg.RawDataLen = 7
 	msg.ParsingExtra.Tags = []string{"parser:tag"}
 
-	observer := newCharacterizationObserver("2")
+	observer := newCharacterizationObserver("2", characterization.NewManager())
 	observation := makeCharacterizationObservation(msg, "2", observer.sourceSeed)
 	require.Equal(t, 5, observation.contentBytes)
 	require.Equal(t, 7, observation.rawBytes)
@@ -42,7 +43,10 @@ func TestMakeCharacterizationObservation(t *testing.T) {
 }
 
 func TestCharacterizationObserverQueueIsBoundedAndNonBlocking(t *testing.T) {
-	observer := newCharacterizationObserver("0")
+	manager := characterization.NewManager()
+	_, err := manager.Start(time.Minute)
+	require.NoError(t, err)
+	observer := newCharacterizationObserver("0", manager)
 	msg := message.NewMessage([]byte("hello"), nil, "info", 0)
 
 	for range characterizationQueueSize + 1 {
@@ -51,9 +55,20 @@ func TestCharacterizationObserverQueueIsBoundedAndNonBlocking(t *testing.T) {
 
 	require.Len(t, observer.queue, characterizationQueueSize)
 }
+func TestCharacterizationObserverDoesNoWorkOutsideSession(t *testing.T) {
+	manager := characterization.NewManager()
+	observer := newCharacterizationObserver("0", manager)
+	msg := message.NewMessage([]byte(`{"message":"value"}`), nil, "info", 0)
+
+	observer.observe(msg, "0")
+
+	require.Empty(t, observer.queue)
+	_, err := manager.Status()
+	require.ErrorIs(t, err, characterization.ErrSessionNotFound)
+}
 
 func TestCharacterizationInterarrivalUsesObservationTime(t *testing.T) {
-	observer := newCharacterizationObserver("0")
+	observer := newCharacterizationObserver("0", characterization.NewManager())
 	start := time.Unix(100, 0)
 	stream := characterizationObservation{
 		sourceType: config.FileType,
@@ -87,7 +102,7 @@ func TestCharacterizationSourceTypeIsAllowlisted(t *testing.T) {
 
 func TestCharacterizationSourceCardinalityIsBoundedAndDoesNotRetainIdentifiers(t *testing.T) {
 	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.FileType})
-	observer := newCharacterizationObserver("1")
+	observer := newCharacterizationObserver("1", characterization.NewManager())
 	first := message.NewMessageWithSource([]byte("first"), "info", source, 0)
 	first.Origin.Identifier = "/private/first.log"
 	second := message.NewMessageWithSource([]byte("second"), "info", source, 0)

@@ -178,7 +178,7 @@ func NewComponent(deps Requires) Provides {
 				"POST",
 			),
 			APILoadCharacterization: api.NewAgentEndpointProvider(
-				loadCharacterizationHandler(characterization.Default, deps.Config.GetBool(characterization.EnabledConfigKey)),
+				loadCharacterizationHandler(characterization.Default, deps.Config.GetBool(characterization.AllowedConfigKey)),
 				loadCharacterizationRoute,
 				"POST", "GET", "DELETE",
 			),

@@ -59,6 +59,7 @@ type characterizationStream struct {
 type characterizationObserver struct {
 	queue        chan characterizationObservation
 	done         chan struct{}
+	manager      *characterization.Manager
 	once         sync.Once
 	pipeline     string
 	sourceSeed   maphash.Seed
@@ -67,9 +68,10 @@ type characterizationObserver struct {
 	lastIngress  map[characterizationStream]time.Time
 }
 
-func newCharacterizationObserver(pipeline string) *characterizationObserver {
+func newCharacterizationObserver(pipeline string, manager *characterization.Manager) *characterizationObserver {
 	return &characterizationObserver{
 		queue:        make(chan characterizationObservation, characterizationQueueSize),
+		manager:      manager,
 		done:         make(chan struct{}),
 		pipeline:     pipeline,
 		sourceSeed:   maphash.MakeSeed(),
@@ -95,8 +97,11 @@ func (o *characterizationObserver) stop() {
 }
 
 func (o *characterizationObserver) observe(msg *message.Message, pipeline string) {
+	if !o.manager.Active() {
+		return
+	}
 	observation := makeCharacterizationObservation(msg, pipeline, o.sourceSeed)
-	characterization.Default.Record(characterization.MessageObservation{
+	o.manager.Record(characterization.MessageObservation{
 		ObservedAt:    observation.observedAt,
 		ContentBytes:  observation.contentBytes,
 		RawBytes:      observation.rawBytes,

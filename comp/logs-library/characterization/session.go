@@ -21,7 +21,7 @@ const (
 	Kind             = "datadog-agent-logs-characterization"
 	MaxSources       = 4096
 	maxGroups        = 64
-	EnabledConfigKey = "logs_config.experimental_characterization.enabled"
+	AllowedConfigKey = "logs_config.experimental_characterization.allowed"
 )
 
 var (
@@ -154,6 +154,17 @@ type Manager struct {
 
 // NewManager creates an empty session manager.
 func NewManager() *Manager { return &Manager{now: time.Now} }
+
+// Active reports whether observations should currently perform characterization
+// work. It deliberately treats an expired session as inactive even before a
+// control-plane request finalizes the session.
+func (m *Manager) Active() bool {
+	s := m.active.Load()
+	if s == nil {
+		return false
+	}
+	return m.now().Before(s.snapshot.EndsAt)
+}
 
 // Start opens a bounded observation window.
 func (m *Manager) Start(duration time.Duration) (Snapshot, error) {

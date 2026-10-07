@@ -41,7 +41,7 @@ import (
 // profile. It is long enough to ride out short pipeline stalls, which also stop reads.
 const handoffQuietPeriod = 30 * time.Second
 
-const experimentalCharacterizationEnabled = "logs_config.experimental_characterization.enabled"
+const experimentalCharacterizationAllowed = characterization.AllowedConfigKey
 
 // Tailer tails a file, decodes the messages it contains, and passes them to a
 // supplied output channel for further processing.
@@ -300,9 +300,9 @@ func (t *Tailer) NewRotatedTailer(
 }
 
 // RecordCharacterizationRotation emits only an aggregate interval when the
-// experimental characterizer is enabled. It never exports the file identity.
+// experimental characterizer is allowed and a session is active. It never exports the file identity.
 func (t *Tailer) RecordCharacterizationRotation(now time.Time) {
-	if !pkgconfigsetup.Datadog().GetBool(experimentalCharacterizationEnabled) {
+	if !pkgconfigsetup.Datadog().GetBool(experimentalCharacterizationAllowed) || !characterization.Default.Active() {
 		return
 	}
 	if seconds, ok := t.characterizationRotationInterval(now); ok {

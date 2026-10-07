@@ -21,10 +21,10 @@ type startCharacterizationRequest struct {
 	DurationSeconds float64 `json:"duration_seconds"`
 }
 
-func loadCharacterizationHandler(manager *characterization.Manager, enabled bool) http.HandlerFunc {
+func loadCharacterizationHandler(manager *characterization.Manager, allowed bool) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-		if !enabled {
-			writeCharacterizationError(writer, http.StatusNotFound, "logs characterization is not enabled")
+		if !allowed {
+			writeCharacterizationError(writer, http.StatusNotFound, "logs characterization is not allowed")
 			return
 		}
 		switch request.Method {
