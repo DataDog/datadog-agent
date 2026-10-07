@@ -21,6 +21,7 @@ import (
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/skydive-project/go-debouncer"
+	"github.com/twmb/murmur3"
 	"go.uber.org/atomic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -70,8 +71,8 @@ func TestRefreshScanResetsStateForRescan(t *testing.T) {
 	}
 }
 
-func newPendingFileEvents(t *testing.T) *simplelru.LRU[containerutils.ContainerID, map[string]pendingFileEvent] {
-	events, err := simplelru.NewLRU[containerutils.ContainerID, map[string]pendingFileEvent](maxSBOMEntries, nil)
+func newPendingFileEvents(t *testing.T) *simplelru.LRU[containerutils.ContainerID, map[uint64]pendingFileEvent] {
+	events, err := simplelru.NewLRU[containerutils.ContainerID, map[uint64]pendingFileEvent](maxSBOMEntries, nil)
 	if err != nil {
 		t.Fatalf("NewLRU: %v", err)
 	}
@@ -296,10 +297,10 @@ func TestPendingFileEventsAreDeduplicatedPerPath(t *testing.T) {
 	if len(events) != 2 {
 		t.Fatalf("queued %d distinct events, want 2", len(events))
 	}
-	if event := events["/usr/lib/libc.so.6"]; event.suidBit || event.accessedByRoot {
+	if event := events[murmur3.StringSum64("/usr/lib/libc.so.6")]; event.suidBit || event.accessedByRoot {
 		t.Errorf("libc event = %+v, want no sticky property set", event)
 	}
-	if event := events["/usr/bin/su"]; !event.suidBit || !event.accessedByRoot {
+	if event := events[murmur3.StringSum64("/usr/bin/su")]; !event.suidBit || !event.accessedByRoot {
 		t.Errorf("su event = %+v, want both sticky properties merged", event)
 	}
 }
@@ -320,11 +321,48 @@ func TestPendingFileEventsBoundDistinctPathsPerContainer(t *testing.T) {
 	if len(events) != maxPendingFileEvents {
 		t.Fatalf("queued %d distinct events, want %d", len(events), maxPendingFileEvents)
 	}
-	if _, ok := events["/usr/lib/overflow.so"]; ok {
+	if _, ok := events[murmur3.StringSum64("/usr/lib/overflow.so")]; ok {
 		t.Errorf("path queued past the maximum number of pending events")
 	}
-	if !events["/usr/lib/lib0.so"].accessedByRoot {
+	if !events[murmur3.StringSum64("/usr/lib/lib0.so")].accessedByRoot {
 		t.Errorf("access to an already queued path was not merged")
+	}
+}
+
+// TestPendingFileEventsHoldAReplayedProcess checks that a container queues the
+// executable mappings the replay reports for one process, up to 1024 files.
+func TestPendingFileEventsHoldAReplayedProcess(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+
+	for i := range 1024 {
+		r.queuePendingFileEvent("container-id", fmt.Sprintf("/usr/lib/python3/dist-packages/ext%d.so", i), 0755, 1000)
+	}
+
+	if events, _ := r.pendingFileEvents.Get("container-id"); len(events) != 1024 {
+		t.Errorf("queued %d distinct events, want 1024", len(events))
+	}
+}
+
+// TestProcessPendingFileEventsUsrMergeAlias checks that a queued access to /bin/bash
+// credits the package listing /usr/bin/bash on a usr-merged layout.
+func TestProcessPendingFileEventsUsrMergeAlias(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	r.cfg = &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour}
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	t.Cleanup(sbom.stop)
+	sbom.data = newData([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "bash"},
+		InstalledFiles: []string{"/usr/bin/bash"},
+	}}, true)
+
+	r.queuePendingFileEvent("container-id", "/bin/bash", 0755, 1000)
+	sbom.Lock()
+	r.processPendingFileEvents(sbom)
+	sbom.Unlock()
+
+	if sbom.data.packages[0].LastAccess.IsZero() {
+		t.Errorf("the access to /bin/bash was not recorded on bash")
 	}
 }
 

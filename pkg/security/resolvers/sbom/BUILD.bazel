@@ -79,6 +79,7 @@ dd_agent_go_test(
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@com_github_hashicorp_golang_lru_v2//simplelru",
             "@com_github_skydive_project_go_debouncer//:go-debouncer",
+            "@com_github_twmb_murmur3//:murmur3",
             "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:linux": [
@@ -92,6 +93,7 @@ dd_agent_go_test(
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@com_github_hashicorp_golang_lru_v2//simplelru",
             "@com_github_skydive_project_go_debouncer//:go-debouncer",
+            "@com_github_twmb_murmur3//:murmur3",
             "@org_uber_go_atomic//:atomic",
         ],
         "//conditions:default": [],
