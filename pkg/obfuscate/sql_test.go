@@ -1771,7 +1771,7 @@ func TestLiteralEscapesUpdates(t *testing.T) {
 			o.setSQLLiteralEscapes(c.initial)
 			_, err := o.ObfuscateSQLString(c.query)
 			if c.err != nil {
-				assert.Equal(t, c.err, err)
+				assert.EqualError(t, err, c.err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
