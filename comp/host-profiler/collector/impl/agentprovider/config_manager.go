@@ -96,6 +96,7 @@ func newConfigManager(config config.Component) configManager {
 	// Read hostprofiler fields from leaf keys directly. GetStringMap on the parent
 	// key ("hostprofiler") returns defaults instead of env var overrides, so
 	// mapstructure.Decode on the parent map silently drops env-var-set values.
+
 	healthMetricsEnabled := config.GetBool("hostprofiler.health_metrics.enabled") &&
 		config.GetString("infrastructure_mode") != "none"
 	hostProfilerConfig := hostProfilerConfig{
