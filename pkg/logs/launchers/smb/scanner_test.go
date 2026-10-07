@@ -630,6 +630,104 @@ func TestRotationChainMatchedByThePatternIsNotReadTwice(t *testing.T) {
 	assert.ElementsMatch(t, want(1, 4), h.finish(), "each line is sent once")
 }
 
+// TestDrainedFileRenamedAgainBeforeItsPathIsTailed rolls a fixed window over
+// (app.log -> app.log.1 -> app.log.2) faster than the scanner hands a drained
+// file over: the drain of the first file ends at app.log.1, and the file is
+// renamed to app.log.2 before the scan that would start app.log.1's tailer.
+// The tailer of app.log.2 resumes where the drain ended.
+func TestDrainedFileRenamedAgainBeforeItsPathIsTailed(t *testing.T) {
+	h := newHarness(t, withPath("app/app.log*"))
+	first := h.share.Write("app/app.log", []byte(lines(1, 2)))
+	h.scan()
+	h.out.waitLines(t, 2)
+
+	h.share.Append("app/app.log", []byte(lines(3, 3)))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	second := h.share.Write("app/app.log", []byte(lines(4, 4)))
+	for range 3 {
+		h.scan() // the drain reads line 3, then ends after two polls without new data
+	}
+	require.Empty(t, h.scanner.draining)
+	require.Nil(t, h.scanner.active["app/app.log.1"], "the drain ended after this scan started its tailers")
+
+	require.NoError(t, h.share.Rename("app/app.log.1", "app/app.log.2"))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", []byte(lines(5, 5)))
+	for range 4 {
+		h.scan()
+	}
+	require.Empty(t, h.scanner.draining)
+	assert.Equal(t, first, h.activeTailer("app/app.log.2").FileID())
+	assert.Equal(t, second, h.activeTailer("app/app.log.1").FileID())
+	assert.Empty(t, h.scanner.resume, "every resume point was used")
+
+	h.share.Append("app/app.log.2", []byte(lines(6, 6)))
+	h.scan()
+	assert.ElementsMatch(t, want(1, 6), h.out.waitLines(t, 6))
+	assert.ElementsMatch(t, want(1, 6), h.finish(), "each line is sent once")
+}
+
+// TestResumePointOfADeletedFileIsForgotten checks that the scanner does not
+// keep where a drain ended once the file is gone.
+func TestResumePointOfADeletedFileIsForgotten(t *testing.T) {
+	h := newHarness(t, withPath("app/app.log*"))
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", []byte(lines(2, 2)))
+	h.scan() // the drain of app.log.1 starts
+	h.scan() // and ends: app.log.1 resumes at the next scan
+	require.Len(t, h.scanner.resume, 1)
+
+	require.NoError(t, h.share.Delete("app/app.log.1"))
+	h.scan()
+	assert.Empty(t, h.scanner.resume)
+	assert.Equal(t, want(1, 2), h.finish())
+}
+
+// TestDrainEndedAtAnUnmatchedNameResumesAtAMatchedNameLater ends a drain while
+// its file has a name the pattern does not match and holds a line the drain
+// could not read: that line is reported missed. When the file is renamed to a
+// matched name later, its tailer resumes after that line instead of reading
+// the file again from the beginning.
+func TestDrainEndedAtAnUnmatchedNameResumesAtAMatchedNameLater(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t)
+	id := h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	h.out.waitLines(t, 1)
+	h.share.Append("app/app.log", []byte(lines(2, 2)))
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
+	h.share.Write("app/app.log", nil)
+	// The rotated file stays locked by its writer for the whole drain.
+	locked := make([]error, 30)
+	for i := range locked {
+		locked[i] = fake.ErrSharing
+	}
+	h.share.FailNextPath(fake.OpReadAt, "app/app.log.1", locked...)
+	h.scan()
+	require.Len(t, h.scanner.draining, 1)
+	for i := 0; len(h.scanner.draining) > 0 && i < 20; i++ {
+		h.clock.Add(closeTimeout)
+		h.scan()
+	}
+	require.Empty(t, h.scanner.draining)
+	snapshot := metrics.MissedBytesSnapshot()
+	require.Len(t, snapshot, 1)
+	require.Equal(t, int64(len(lines(2, 2))), snapshot[0].Bytes, "the line the drain could not read")
+
+	h.share.Append("app/app.log.1", []byte(lines(3, 3)))
+	require.NoError(t, h.share.Rename("app/app.log.1", "app/old.log"))
+	h.scan()
+	assert.Equal(t, id, h.activeTailer("app/old.log").FileID())
+	assert.Equal(t, []string{"line 1", "line 3"}, h.out.waitLines(t, 2))
+	assert.Equal(t, []string{"line 1", "line 3"}, h.finish(), "line 1 is not sent again, nor line 2, which was reported missed")
+	snapshot = metrics.MissedBytesSnapshot()
+	require.Len(t, snapshot, 1)
+	assert.Equal(t, int64(len(lines(2, 2))), snapshot[0].Bytes, "nothing more is reported missed")
+}
+
 func TestFileRenamedAwayAndBackIsNotReadTwice(t *testing.T) {
 	h := newHarness(t)
 	id := h.share.Write("app/app.log", []byte(lines(1, 1)))

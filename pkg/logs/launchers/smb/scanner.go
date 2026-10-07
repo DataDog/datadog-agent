@@ -44,8 +44,10 @@ import (
 //
 // A drain ends when two consecutive polls find no new data in the file, when
 // closeTimeout elapses, or when its file is no longer listed; bytes known to
-// exist but not read are then reported as missed. While it lasts, agent status
-// lists the drain next to the path's new tailer.
+// exist but not read are then reported as missed, unless the file sits at a
+// path the pattern matches: the file's next tailer then resumes where the
+// drain ended, whatever name the file has by the time it starts. While a
+// drain lasts, agent status lists it next to the path's new tailer.
 //
 // start_position applies to the files that were there when the source
 // started, i.e. the files matched until the first scan that lists every
@@ -72,7 +74,8 @@ type scanner struct {
 	draining  []*drain
 	stopping  sync.WaitGroup            // drains being stopped
 	fromStart map[string]bool           // paths whose next tailer reads from offset 0
-	handoffs  map[string]handoff        // paths whose next tailer resumes a drain
+	resume    map[uint64]handoff        // files a drain finished reading, by FileId: the file's next tailer resumes there, whatever its path
+	inherited map[string]handoff        // where the tailers of the scanner this one replaces stopped, by path (see resumeFrom)
 	patterns  map[string]*regexp.Regexp // multiline patterns of the paths' previous tailers
 	conflicts map[string]bool           // paths tailed by another source, already logged
 	mismatch  map[string]int            // consecutive identity changes the listing does not show
@@ -93,8 +96,8 @@ type drain struct {
 	caughtUp int // consecutive polls that found no new data
 }
 
-// handoff is where a drained file was left, when it sits at a path matched by
-// the pattern: the path's next tailer resumes there instead of re-reading it.
+// handoff is where the scanner stopped reading a file: the file's next tailer
+// resumes there instead of reading it again.
 type handoff struct {
 	file   client.Identity
 	offset int64
@@ -115,7 +118,8 @@ func newScanner(l *Launcher, source *sources.LogSource, c client.Client, key cli
 		interval:  defaultPollInterval,
 		active:    make(map[string]*tailer.Tailer),
 		fromStart: make(map[string]bool),
-		handoffs:  make(map[string]handoff),
+		resume:    make(map[uint64]handoff),
+		inherited: make(map[string]handoff),
 		patterns:  make(map[string]*regexp.Regexp),
 		conflicts: make(map[string]bool),
 		mismatch:  make(map[string]int),
@@ -154,7 +158,7 @@ func newScanner(l *Launcher, source *sources.LogSource, c client.Client, key cli
 // start_position does not apply again to files prev found after it started.
 func (s *scanner) resumeFrom(prev *scanner) {
 	for p, h := range prev.stoppedAt {
-		s.handoffs[p] = h
+		s.inherited[p] = h
 	}
 	for p, pattern := range prev.patterns {
 		s.patterns[p] = pattern
@@ -268,8 +272,18 @@ func (s *scanner) scan(ctx context.Context) {
 }
 
 // forgetUnlisted forgets the per-path state of the paths the listing v shows
-// are gone.
+// are gone, and where the drains of the files no longer listed ended.
 func (s *scanner) forgetUnlisted(v *view) {
+	if !v.failed && len(s.resume) > 0 {
+		// One lookup per resume point, of which there is one per drained
+		// file still listed.
+		listed := v.filesByID()
+		for id, h := range s.resume {
+			if !slices.ContainsFunc(listed[id], h.file.Matches) {
+				delete(s.resume, id)
+			}
+		}
+	}
 	gone := func(p string) bool {
 		_, listed, known := v.lookup(p)
 		return known && !listed
@@ -389,8 +403,9 @@ func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry,
 }
 
 // startPosition returns the offset a new tailer of p starts at:
-//   - where a drain of the same file ended, for a drained file now at p, or
-//     where the scanner this one replaces stopped reading it;
+//   - where a drain of the same file ended, whatever the file's name was then;
+//   - where the scanner this one replaces stopped reading p, when p still
+//     holds the same file;
 //   - 0 for a path whose previous file was replaced while being tailed;
 //   - the registry offset, when it was recorded for the same file identity
 //     and is not past the end of the file;
@@ -404,14 +419,21 @@ func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry,
 //
 // The drain's offset comes first: a path whose previous file rotated away can
 // receive a file that was already drained, the previous file of another
-// matched path (app.log.1 renamed to app.log.2 and app.log to app.log.1).
+// matched path (app.log.1 renamed to app.log.2 and app.log to app.log.1). The
+// drained file may also have been renamed again since its drain ended, before
+// any tailer of its previous path started: drains are found by file identity,
+// not by path.
 //
 // The size and identity come from opening the file, since listing sizes can
 // be stale.
 func (s *scanner) startPosition(ctx context.Context, p, identifier string, entry client.Entry, errs *scanErrors) (offset int64, file client.Identity, ok bool) {
 	file = entry.Identity()
-	if h, found := s.handoffs[p]; found {
-		delete(s.handoffs, p)
+	if h, found := s.resumePoint(file); found {
+		delete(s.resume, file.FileID)
+		return h.offset, h.file, true
+	}
+	if h, found := s.inherited[p]; found {
+		delete(s.inherited, p)
 		if sameFile(h.file, file) {
 			return h.offset, h.file, true
 		}
@@ -454,6 +476,19 @@ func (s *scanner) startPosition(ctx context.Context, p, identifier string, entry
 		return 0, file, true
 	}
 	return res.Size, file, true
+}
+
+// resumePoint returns where a drain of file ended, if one did.
+func (s *scanner) resumePoint(file client.Identity) (handoff, bool) {
+	if file.FileID == 0 {
+		return handoff{}, false
+	}
+	h, found := s.resume[file.FileID]
+	if !found || !h.file.Matches(file) {
+		// Another file, which reused the FileId of the drained one.
+		return handoff{}, false
+	}
+	return h, true
 }
 
 // sameFile reports whether a and b identify the same file, as far as they
@@ -547,16 +582,25 @@ func (s *scanner) pollDrain(ctx context.Context, d *drain, v *view, errs *scanEr
 	}
 }
 
-// endDrain stops the drained tailer t. If its file sits at a path the pattern
-// matches (another one, or its own path again after a rename back), that
-// path's next tailer resumes at offset, so nothing is lost or read twice.
-// Otherwise the bytes t did not read are reported as missed, with reason.
+// endDrain stops the drained tailer t. While its file is listed, the file's
+// next tailer resumes it at offset, whatever name the file has by the time
+// that tailer starts, so nothing is read twice: the tailer of the path the
+// file sits at when the pattern matches it (another one, or its own path again
+// after a rename back), or of a matched path the file is renamed to later.
+//
+// Unless the pattern matches the path the file sits at, whose tailer reads
+// them, the bytes t did not read are reported as missed, with reason. The
+// file's next tailer, if it gets one, then starts after them, so that no byte
+// is both reported missed and sent.
 func (s *scanner) endDrain(t *tailer.Tailer, v *view, offset int64, reason string) {
-	at := t.ReadPath()
-	if e, ok := v.matches[at]; ok && sameFile(e.Identity(), t.Identity()) && s.active[at] == nil {
-		s.handoffs[at] = handoff{file: t.Identity(), offset: offset}
-	} else if reason != "" {
-		t.RecordMissedBytes(reason)
+	at, _, found := v.findFile(t.Identity())
+	if _, matched := v.matches[at]; !matched && reason != "" {
+		if missed := t.RecordMissedBytes(reason); missed > 0 {
+			offset = t.Offset() + missed
+		}
+	}
+	if found {
+		s.resume[t.FileID()] = handoff{file: t.Identity(), offset: offset}
 	}
 	s.l.tailers.Remove(t)
 	s.stopAsync(t)
@@ -675,6 +719,21 @@ func (v *view) findFile(file client.Identity) (string, client.Entry, bool) {
 		}
 	}
 	return "", client.Entry{}, false
+}
+
+// filesByID returns the identities of the files in the listed directories, by
+// FileId, to look many files up in one listing. Files without a FileId are
+// left out, as findFile does.
+func (v *view) filesByID() map[uint64][]client.Identity {
+	files := make(map[uint64][]client.Identity)
+	for _, entries := range v.dirs {
+		for _, e := range entries {
+			if !e.IsDir && e.FileID != 0 {
+				files[e.FileID] = append(files[e.FileID], e.Identity())
+			}
+		}
+	}
+	return files
 }
 
 // list lists the directories the pattern can match, one ListDir call per

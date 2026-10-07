@@ -166,13 +166,12 @@ func testRenameRotation(t *testing.T, env *sambaEnv, report *itReport) {
 // again under its next name. Each rollover comes right after a burst of
 // writes, so the rotated file holds lines not read yet. The writer then waits
 // until the source tails every file of the window again under its new name,
-// from where its drain ended, as with rollovers minutes or hours apart:
-// until then, where a drain ended is only kept by path, and another rollover
-// loses it (see testFastFixedWindowRotation). That takes up to about 4s after
-// a rollover: up to a poll interval to see it, the drain's polls until two in
-// a row find nothing new, and one more scan to start the tailer that resumes
-// the drained file. Samba can give the next app.log the inode, and so the
-// FileId, of the app.log.3 it just deleted.
+// from where its drain ended, as with rollovers minutes or hours apart
+// (testFastFixedWindowRotation does not wait). That takes up to about 4s
+// after a rollover: up to a poll interval to see it, the drain's polls until
+// two in a row find nothing new, and one more scan to start the tailer that
+// resumes the drained file. Samba can give the next app.log the inode, and so
+// the FileId, of the app.log.3 it just deleted.
 func testFixedWindowRotation(t *testing.T, env *sambaEnv, report *itReport) {
 	s := newITScenario(t, env, report, "window")
 	file := s.dir + "/app.log"
@@ -188,10 +187,9 @@ func testFixedWindowRotation(t *testing.T, env *sambaEnv, report *itReport) {
 
 // testFastFixedWindowRotation rolls the same window over every 1.2 seconds,
 // faster than a rotated file's drain, as a size-based policy does under heavy
-// logging. It checks that nothing is lost and reports the duplicates: where a
-// drain ended is kept by path (scanner.handoffs) and is lost when the file is
-// renamed again before that path's tailer starts, so the file's next path
-// reads it again from offset 0.
+// logging: a file is often renamed again while it is drained, or after its
+// drain ended but before the tailer of its path started. Wherever the file is
+// by then, its next tailer resumes where the drain ended.
 func testFastFixedWindowRotation(t *testing.T, env *sambaEnv, report *itReport) {
 	s := newITScenario(t, env, report, "window-fast")
 	file := s.dir + "/app.log"
@@ -199,10 +197,10 @@ func testFastFixedWindowRotation(t *testing.T, env *sambaEnv, report *itReport) 
 	s.startFile(file)
 	s.rollFixedWindow(file, 5, false)
 
-	_, dups := s.verify(nil, func(*itLine) bool { return true })
-	s.reportf("%d lines over 5 rollovers 1.2s apart of a 3-file window matched by %s*: no loss, %d lines delivered twice (%s)%s",
-		s.writtenCount(), file, len(dups), seqRanges(dups),
-		knownIssue(len(dups) > 0, "a drained file renamed again before its path's tailer starts is read again from offset 0"))
+	s.verify(nil, nil)
+	assert.Zero(t, s.missedBytes(), "no bytes are reported missed")
+	s.reportf("%d lines over 5 rollovers 1.2s apart of a 3-file window matched by %s*: each delivered once",
+		s.writtenCount(), file)
 }
 
 // rollFixedWindow writes 200 lines to file and rolls the window over,
@@ -278,14 +276,6 @@ func durationRange(ds []time.Duration) string {
 	}
 	lo, hi := slices.Min(ds), slices.Max(ds)
 	return lo.Round(100*time.Millisecond).String() + "-" + hi.Round(100*time.Millisecond).String()
-}
-
-// knownIssue flags a reported outcome that a product change should fix.
-func knownIssue(happened bool, issue string) string {
-	if !happened {
-		return ""
-	}
-	return " [KNOWN ISSUE: " + issue + "]"
 }
 
 // testCopyTruncate rotates like logrotate's copytruncate. The writer keeps
