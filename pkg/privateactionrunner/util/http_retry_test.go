@@ -76,7 +76,7 @@ func TestRetryHTTPRequest_NoRetryOn4xx(t *testing.T) {
 	}, fastTestOpts(0))
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, originalErr)
+	assert.Same(t, originalErr, err, "permanent errors should be returned without backoff's wrapper")
 	assert.EqualValues(t, 1, atomic.LoadInt32(&calls), "4xx should not retry")
 }
 

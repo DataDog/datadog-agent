@@ -137,12 +137,14 @@ func processMemoryUsage(device ddnvml.Device, usage []processMemoryUsageData, pr
 
 	// Add device memory limit
 	devInfo := device.GetDeviceInfo()
-	processSamples = append(processSamples, &Metric{
-		baseSample: baseSample{priority: metricLimitPriority, associatedWorkloads: allWorkloadIDs},
-		Name:       "memory.limit",
-		Value:      float64(devInfo.Memory),
-		Type:       metrics.GaugeType,
-	})
+	if devInfo.Memory > 0 {
+		processSamples = append(processSamples, &Metric{
+			baseSample: baseSample{priority: metricLimitPriority, associatedWorkloads: allWorkloadIDs},
+			Name:       "memory.limit",
+			Value:      float64(devInfo.Memory),
+			Type:       metrics.GaugeType,
+		})
+	}
 
 	return processSamples
 }
@@ -547,16 +549,14 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				if err != nil {
 					return nil, 0, err
 				}
-				// Prevent division by zero if the total is zero.
-				memoryUtilization := 0.0
-				if memInfo.Total > 0 {
-					memoryUtilization = float64(memInfo.Used) / float64(memInfo.Total)
-				}
-				return []Sample{
+				samples := []Sample{
 					&Metric{baseSample: baseSample{priority: Medium}, Name: "memory.free", Value: float64(memInfo.Free), Type: metrics.GaugeType},
 					&Metric{Name: "memory.reserved", Value: float64(memInfo.Reserved), Type: metrics.GaugeType},
-					&Metric{Name: "memory.utilization", Value: memoryUtilization, Type: metrics.GaugeType},
-				}, 0, nil
+				}
+				if memInfo.Total > 0 {
+					samples = append(samples, &Metric{Name: "memory.utilization", Value: float64(memInfo.Used) / float64(memInfo.Total), Type: metrics.GaugeType})
+				}
+				return samples, 0, nil
 			},
 		},
 		{
@@ -899,6 +899,30 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			}
 		}
 	}
+
+	apis = append(apis, apiCallInfo{
+		Name: "device_unavailable",
+		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+			physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
+			if !ok || physicalDevice.HasMIGFeatureEnabled {
+				return nil, 0, errUnsupportedDevice
+			}
+
+			value := 0.0
+			if _, err := device.GetIndex(); err != nil {
+				if !ddnvml.IsGPULost(err) {
+					return nil, 0, err
+				}
+				value = 1
+			}
+			return []Sample{&Metric{
+				baseSample: baseSample{tags: []string{"unavailable_reason:lost"}},
+				Name:       "device.unavailable",
+				Value:      value,
+				Type:       metrics.GaugeType,
+			}}, 0, nil
+		},
+	})
 
 	// Create APIs for retired memory pages, one per retirement cause.
 	for cause, causeName := range pageRetirementCauseToName {

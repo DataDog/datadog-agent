@@ -102,6 +102,18 @@ lint_releasenotes_unique_ids:
   script:
     - dda inv -- -e linter.releasenote-unique-ids
 
+lint_config_schema:
+  extends: .lint
+  rules:
+    - !reference [.on_main]
+    - changes:
+        paths:
+          - pkg/config/schema/**/*
+          - tasks/schema/**/*
+        compare_to: $COMPARE_TO_BRANCH
+  script:
+    - dda inv -- -e schema.lint
+
 lint_rtloader:
   extends: .lint
   rules: !reference [.on_rtloader_changes]

@@ -87,6 +87,7 @@
     - .new-e2e_windows_msi
     - .new-e2e_agent_a7
   needs:
+    - setup_agent_version
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
 
@@ -110,6 +111,7 @@ new-e2e-windows-agent-domain-tests-a7-x86_64:
     - .new-e2e_windows_domain_test
     - .new-e2e_agent_a7
   needs:
+    - setup_agent_version
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
   rules:
@@ -126,6 +128,7 @@ new-e2e-windows-agent-rodc-tests-a7-x86_64:
     - .new-e2e_windows_domain_test
     - .new-e2e_agent_a7
   needs:
+    - setup_agent_version
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
   rules:
@@ -142,6 +145,7 @@ new-e2e-windows-agent-a7-x86_64-fips:
     - .new-e2e_with_version
     - .new-e2e_agent_a7
   needs:
+    - setup_agent_version
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
     - deploy_windows_testing-a7-fips
@@ -168,6 +172,7 @@ new-e2e-windows-ddot-package-a7-x86_64:
     EXTRA_PARAMS: --run "TestDDOTInstalls|TestAgentMSIInstallsDDOTPackage"
     TEAM: windows-products
   needs:
+    - setup_agent_version
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
     - deploy_installer_oci
@@ -199,6 +204,7 @@ new-e2e-windows-eudm-package-a7-x86_64:
     EXTRA_PARAMS: --run "TestEUDMExtensionViaMSI"
     TEAM: windows-products
   needs:
+    - setup_agent_version
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
     - deploy_installer_oci
@@ -224,6 +230,7 @@ new-e2e-installer-windows:
     - !reference [.on_installer_or_e2e_changes]
     - !reference [.manual]
   needs:
+    - setup_agent_version
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
     - deploy_installer_oci

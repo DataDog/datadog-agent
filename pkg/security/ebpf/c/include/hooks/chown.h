@@ -8,7 +8,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
-int __attribute__((always_inline)) trace__sys_chown(void *ctx, const char *filename, uid_t user, gid_t group) {
+static __always_inline int trace__sys_chown(void *ctx, const char *filename, uid_t user, gid_t group) {
     if (is_discarded_by_pid() || is_auid_discarder(EVENT_CHOWN)) {
         return 0;
     }
@@ -55,7 +55,7 @@ HOOK_SYSCALL_ENTRY4(fchownat, int, dirfd, const char *, filename, uid_t, user, g
     return trace__sys_chown(ctx, filename, user, group);
 }
 
-int __attribute__((always_inline)) sys_chown_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_chown_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_CHOWN);
     if (!syscall) {
         return 0;
@@ -91,7 +91,7 @@ pop_and_exit:
     return 0;
 }
 
-int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
+static __always_inline int sys_chown_ret(void *ctx, int retval) {
     return sys_chown_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
