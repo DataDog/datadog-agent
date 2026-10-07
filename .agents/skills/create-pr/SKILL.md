@@ -34,12 +34,12 @@ Create a pull request for the current branch following the Datadog Agent contrib
    - `fix(e2e): Fix flaky diagnose test`
    - `feat(logs): Add new log pipeline`
    - `refactor(config): Simplify endpoint resolution`
-7. **Draft a concise PR description** from the commits and diff, then show it to the user for confirmation before opening the PR. See "PR Description Guidelines" below — keep the draft short and plain, like a human wrote it in two minutes, not AI-generated prose. Present the draft body (What does this PR do? / Motivation, at minimum) directly in your reply and ask the user to either confirm it as-is or give corrections/missing context (e.g. the real motivation, an issue link, a tradeoff worth mentioning) — don't ask an open-ended "what does this PR do?" question that puts the writing burden back on them. Fold any corrections in before proceeding. **Do not open the PR until this confirmation is done.**
+7. **Draft a concise PR description** from the commits and diff. See "PR Description Guidelines" below — keep the draft short and plain, like a human wrote it in two minutes, not AI-generated prose. Present the draft body (What does this PR do? / Motivation, at minimum) directly in your reply so the user can review it — but don't block on confirmation: since PRs open as drafts by default (step 12), the user can review and edit the description directly from the GitHub UI, which is usually faster than relaying corrections through the agent. If the user has given corrections or missing context during the session (e.g. the real motivation, an issue link, a tradeoff worth mentioning), fold it in. The one exception is a non-draft PR (`--real`): a PR marked ready for review implies its description is final, so get explicit confirmation on the draft before opening it.
 8. **Check for a needed backport** (see "Backport Detection" below) and note the matching `backport/<branch>` label(s) if applicable.
 9. **Labels**: Choose appropriate labels (plus any additional labels passed as $ARGUMENTS):
    - If the PR only changes tests, docs, CI config, or developer tooling (no Agent binary code changes), use `changelog/no-changelog` and `qa/no-code-change`
    - If the PR changes Agent binary code and QA was done, use `qa/done`
-   - If the PR changes Agent binary code, a reno release note is expected (remind the user)
+   - A reno release note is only expected for **customer-facing changes** — not for every PR that touches Agent binary code. See "Release Notes" below for what qualifies; if the change isn't customer-facing, use `changelog/no-changelog`
    - Add any `backport/<branch-name>` labels identified in step 8, or if the user explicitly asks for a specific backport
 10. **PR body**: Fill in the PR template sections:
    - **What does this PR do?**: A clear description of what is changed, based on the user's concise description from step 7. Must be readable independently, tying back to the changed code.
@@ -47,7 +47,7 @@ Create a pull request for the current branch following the Datadog Agent contrib
    - **Describe how you validated your changes**: How you validated the change (tests added/run, benchmarks, manual testing). Only needed when testing included work not covered by test suites.
    - **Additional Notes**: Any extra context, links to predecessor PRs if part of a chain, notes that make code understanding easier. **Only include this section if there is genuinely useful context to add** — omit it entirely rather than filling it with filler.
 11. **Push the branch** to origin if needed
-12. **Open the PR**: Now that the title, body, and labels are finalized and confirmed, open the PR. By default, open as **Draft** using `gh pr create --draft`. If `$ARGUMENTS` contains `--real`, open as a regular (non-draft) PR instead (omit the `--draft` flag). Remove `--real` from `$ARGUMENTS` before processing remaining arguments as labels.
+12. **Open the PR**: Now that the title, body, and labels are finalized, open the PR. By default, open as **Draft** using `gh pr create --draft`. If `$ARGUMENTS` contains `--real`, open as a regular (non-draft) PR instead (omit the `--draft` flag). Remove `--real` from `$ARGUMENTS` before processing remaining arguments as labels.
 13. Once the PR is pushed, ask the user if they want to follow CI status for this PR. If yes, invoke the `/follow-pr` skill.
 
 ## PR Description Guidelines (from CONTRIBUTING.md)
@@ -62,10 +62,26 @@ The PR description should incorporate everything reviewers and future maintainer
 - If there are drawbacks or tradeoffs, raise them
 
 **Avoid AI slop.** Reviewers can tell when a PR description was auto-generated from a diff — padded, generic, restating the code instead of explaining intent. To avoid this:
-- Draft the description yourself (step 7), but always show it to the user and let them correct or add context before it's final — don't ship your first draft unchecked, and don't outsource the writing to the user either.
+- Draft the description yourself (step 7) and show it to the user, but don't gate the PR on their sign-off — for draft PRs they can edit the description in the GitHub UI faster than explaining what to fix. Don't outsource the writing to the user either.
 - Keep it short. A few sentences beat a bulleted essay. Don't restate every changed file — the diff already shows that.
 - Don't pad sections with filler when there's nothing to say (e.g. an empty-but-present "Additional Notes" section, or a "Describe how you validated" filled with "N/A" — omit instead).
 - Write plainly, the way the user would describe it in Slack to a teammate, not like a press release ("This PR introduces a robust, comprehensive solution to...").
+
+## Release Notes
+
+Only **customer-facing changes** need a reno release note — something a Datadog customer could notice in the shipped agent. Most PRs, including most that touch Agent binary code, don't need one. When unsure whether a change is customer-facing, mention it to the user rather than defaulting either way.
+
+**Needs a release note:**
+- New customer-facing functionality (e.g. "Add support for collecting X on Y")
+- Bug fixes customers can hit (e.g. "Fix panic in the log agent when a tailed file is deleted")
+- Visible behavior changes: new/renamed/removed metrics or tags, changed default values, log format changes
+- Deprecations, breaking changes requiring user action, security fixes
+
+**No release note** (use `changelog/no-changelog`):
+- Internal refactors, dead-code removal, internal APIs and telemetry
+- Test-only, docs-only, CI/CD, invoke tasks, bazel/build, and other developer tooling
+- Dependency bumps and code cleanups with no customer-visible impact
+- Comments, formatting, and other cosmetic changes
 
 ## Backport Detection
 
