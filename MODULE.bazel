@@ -458,6 +458,11 @@ register_toolchains(
     "@llvm_toolchain//:all",  # last to avoid taking precedence over GCC toolchains
 )
 
+# mingw-w64 headers for llvm-windres in the hermetic-llvm MinGW builds
+# (see //bazel/toolchains/hermetic_llvm).
+mingw = use_extension("@llvm//runtimes/mingw/extension:mingw.bzl", "mingw")
+use_repo(mingw, "mingw")
+
 # =========================================
 # Python dependencies
 # =========================================
