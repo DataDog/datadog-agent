@@ -594,8 +594,6 @@ func TestCheckSenderEventInfraMode(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.Set("infrastructure_mode", tt.mode, pkgconfigmodel.SourceFile)
 
-			// The mark is resolved when the sender is built, so the config has
-			// to be set first.
 			s := initSender(checkID1, "")
 			s.sender.Event(event.Event{Title: "Something happened", Tags: []string{"env:prod"}})
 
@@ -604,9 +602,6 @@ func TestCheckSenderEventInfraMode(t *testing.T) {
 	}
 }
 
-// The event mark is resolved from the config rather than from infraTagger, and
-// it must not reach the planes that infraTagger governs or that the deferred
-// service-check decision covers.
 func TestCheckSenderEventInfraModeStaysOffMetricsAndServiceChecks(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
@@ -616,8 +611,6 @@ func TestCheckSenderEventInfraModeStaysOffMetricsAndServiceChecks(t *testing.T) 
 	s.sender.Event(event.Event{Title: "Something happened", Tags: []string{"env:prod"}})
 	assert.Contains(t, (<-s.eventChan).Tags, "infra_mode:cloud_cost_only")
 
-	// No infraTagger is set, so the metric planes stay unmarked even though the
-	// mode carries a mark.
 	s.sender.Gauge("my.metric", 1.0, "my-hostname", []string{"env:prod"})
 	assert.NotContains(t, (<-s.itemChan).(*senderMetricSample).metricSample.Tags, "infra_mode:cloud_cost_only")
 
@@ -628,8 +621,6 @@ func TestCheckSenderEventInfraModeStaysOffMetricsAndServiceChecks(t *testing.T) 
 	assert.NotContains(t, (<-s.serviceCheckChan).Tags, "infra_mode:cloud_cost_only")
 }
 
-// A check configuration is free to carry the mark in its custom tags, and an
-// event is not deduplicated downstream.
 func TestCheckSenderEventInfraModeNotDuplicated(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)

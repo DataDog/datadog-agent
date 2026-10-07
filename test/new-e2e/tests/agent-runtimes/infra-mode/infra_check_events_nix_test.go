@@ -19,9 +19,6 @@ type checkEventsFullLinuxSuite struct {
 	checkEventsSuite
 }
 
-// TestCheckEventsInfraModeCloudCostOnlyLinux asserts that a check-submitted
-// event reaches fakeintake tagged infra_mode:cloud_cost_only when the Agent
-// runs in that mode.
 func TestCheckEventsInfraModeCloudCostOnlyLinux(t *testing.T) {
 	t.Parallel()
 
@@ -35,8 +32,6 @@ func TestCheckEventsInfraModeCloudCostOnlyLinux(t *testing.T) {
 	e2e.Run(t, suite, suite.getSuiteOptions("check-events-ccm")...)
 }
 
-// TestCheckEventsInfraModeFullLinux asserts that the same check event stays
-// unmarked under infrastructure_mode: full.
 func TestCheckEventsInfraModeFullLinux(t *testing.T) {
 	t.Parallel()
 

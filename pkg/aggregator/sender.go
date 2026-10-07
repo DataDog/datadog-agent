@@ -49,12 +49,10 @@ type checkSender struct {
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
 	infraTagger             *infratags.Tagger // nil = no infra mode tagging
-	// infraModeEventTags holds `infra_mode:<mode>` when the Agent runs in a mode
-	// that carries a mark, and nil otherwise. It is resolved once at construction
-	// and appended to events only, so that Event Management can hide cost-only
-	// events. It is deliberately not infraTagger: that one is the metrics-plane
-	// allowlist, and this one must never reach a metric sample, where the intake
-	// renames series tagged `infra_mode:cloud_cost_only` into `dd.cloud_cost`.
+	// infraModeEventTags is `infra_mode:<mode>` for marked modes, else nil.
+	// Resolved at construction and appended on Event only. Not infraTagger:
+	// that allowlist is metrics-only, and the mark must never reach a metric
+	// sample (intake renames infra_mode:cloud_cost_only into dd.cloud_cost).
 	infraModeEventTags []string
 	service            string
 	noIndex            bool
@@ -133,12 +131,9 @@ func newCheckSender(
 	}
 }
 
-// resolveInfraModeEventTags returns the `infra_mode` tagset for events the Agent
-// produces, or nil when the resolved mode carries no mark.
-//
-// A check runs in the process that holds the local `infrastructure_mode`, so the
-// mode is read from the config here rather than streamed through the Tagger the
-// way the Kubernetes event paths do it.
+// resolveInfraModeEventTags returns the event mark from local config, or nil.
+// Checks run in the process that holds infrastructure_mode, so this does not
+// use the Tagger the way CLC-dispatched Kubernetes event paths do.
 func resolveInfraModeEventTags(cfg pkgconfigmodel.Reader) []string {
 	mode := configutils.MarkedInfraMode(cfg)
 	if mode == "" {
@@ -434,8 +429,7 @@ func (s *checkSender) ServiceCheck(checkName string, status servicecheck.Service
 // Event submits an event
 func (s *checkSender) Event(e event.Event) {
 	e.Tags = append(e.Tags, s.checkTags...)
-	// Append uniquely: a check configuration is free to carry the mark in its
-	// custom tags, and an event is not deduplicated downstream.
+	// Unique: check custom tags may already include the mark.
 	e.Tags = taggerutils.AppendUniqueTags(e.Tags, s.infraModeEventTags...)
 
 	if log.ShouldLog(log.TraceLvl) {

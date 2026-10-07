@@ -12,8 +12,7 @@ __version__ = "1.0.0"
 
 class CustomInfraModeEventsCheck(AgentCheck):
     def check(self, instance):
-        # A gauge lets the suite prove the mark stays off custom_* metrics while
-        # the event from the same check carries it under cloud_cost_only.
+        # Gauge is only here so the suite can assert custom_* metrics stay unmarked.
         self.gauge(
             "custom_infra_mode_events.metric",
             1,
