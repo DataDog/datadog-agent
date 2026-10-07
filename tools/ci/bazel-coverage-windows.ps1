@@ -65,8 +65,8 @@ $bazelExitCode = 0
 $global:LASTEXITCODE = 0
 try {
     & bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only `
-      --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BepFile //...`
-      -- -//pkg/process/checks/...
+      --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BepFile `
+      -- //cmd/... //comp/... //pkg/... //test/... -//pkg/process/checks/...
     if ($LASTEXITCODE -ne 0) {
         $bazelExitCode = $LASTEXITCODE
         Write-Host -ForegroundColor Red "bazel coverage failed with exit code $bazelExitCode"
