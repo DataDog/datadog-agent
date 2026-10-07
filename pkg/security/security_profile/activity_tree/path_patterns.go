@@ -770,7 +770,7 @@ func collapseBucket(children map[string]*FileNode, template string, members []st
 	if head == nil {
 		return false
 	}
-	var sizeBefore int64
+	sizeBefore := stringMapBytes(children)
 	for _, name := range members {
 		if c := children[name]; c != nil {
 			sizeBefore += fileSubtreeSizeBytes(c)
@@ -813,7 +813,7 @@ func collapseBucket(children map[string]*FileNode, template string, members []st
 	}
 	children[template] = owner
 	if stats != nil {
-		stats.SizeBytes += fileSubtreeSizeBytes(owner) - sizeBefore
+		stats.SizeBytes += stringMapBytes(children) + fileSubtreeSizeBytes(owner) - sizeBefore
 	}
 	return true
 }
