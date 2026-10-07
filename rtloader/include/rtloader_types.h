@@ -102,7 +102,8 @@ typedef void (*cb_submit_histogram_bucket_t)(char *, char *, long long, float, f
 // (id, metric_name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value)
 // for buckets that share their context with other buckets. The bounds are doubles because they are
 // what tells those buckets apart, and a float can round adjacent bounds to the same value.
-typedef void (*cb_submit_histogram_bucket_multi_t)(char *, char *, long long, double, double, int, char *, char **, bool);
+typedef void (*cb_submit_histogram_bucket_multi_t)(char *, char *, long long, double, double, int, char *, char **,
+                                                   bool);
 // (id, event, event_type)
 typedef void (*cb_submit_event_platform_event_t)(char *, char *, int, char *);
 
