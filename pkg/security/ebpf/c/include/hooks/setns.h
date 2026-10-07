@@ -8,8 +8,9 @@
 
 // setns accepts a nstype of 0, in which case the kernel resolves the type from the file
 // descriptor (`flags = ns->ops->type`). The syscall arguments alone therefore don't tell us which
-// namespace was joined, so the type is recovered from the per-namespace install callbacks below.
-// These values are uapi and can never change; guarded because linux/sched.h may also define them.
+// namespace was joined, so the type is recovered from the per-namespace install callbacks below
+// and merged into the reported nstype. These values are uapi and can never change; guarded
+// because linux/sched.h may also define them.
 #ifndef CLONE_NEWTIME
 #define CLONE_NEWTIME 0x00000080
 #endif
@@ -46,13 +47,21 @@ static int __attribute__((always_inline)) sys_setns_ret(void *ctx, int retval) {
         return 0;
     }
 
+    // report the types the kernel installed rather than what the caller asked for: the two only
+    // differ when the caller passed 0, since a non-zero nstype has to match the namespace the file
+    // descriptor refers to or the syscall fails with EINVAL. Fall back to the requested value if
+    // no install callback was seen, which is all we know in that case.
+    u32 nstype = syscall->setns.effective_nstype;
+    if (nstype == 0) {
+        nstype = (u32)syscall->setns.nstype;
+    }
+
     struct setns_event_t event = {
         .syscall.retval = retval,
         .fd = syscall->setns.fd,
-        .nstype = syscall->setns.nstype,
+        .nstype = nstype,
         .mntns_id = syscall->setns.mntns_id,
         .netns_id = syscall->setns.netns_id,
-        .effective_nstype = syscall->setns.effective_nstype,
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
