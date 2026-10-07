@@ -398,6 +398,7 @@ func (b *Builder) configToDictionary(source *sourcesPkg.LogSource, verbose bool)
 	dictionary := make(map[string]interface{})
 	dictionary["Service"] = c.Service
 	dictionary["Source"] = c.Source
+	dictionary["Bytes Read"] = source.BytesRead.Load()
 	switch c.Type {
 	case config.TCPType:
 		dictionary["Port"] = c.Port

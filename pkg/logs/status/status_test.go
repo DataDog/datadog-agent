@@ -75,9 +75,10 @@ func TestIntegrationsRespectVerbose(t *testing.T) {
 	require.Len(t, status.Integrations[0].Sources, 1)
 	sourceStatus := status.Integrations[0].Sources[0]
 	assert.Equal(t, map[string]interface{}{
-		"Path":    "/var/log/foo.log",
-		"Service": "foo-service",
-		"Source":  "foo-source",
+		"Bytes Read": int64(42),
+		"Path":       "/var/log/foo.log",
+		"Service":    "foo-service",
+		"Source":     "foo-source",
 	}, sourceStatus.Configuration)
 	assert.Equal(t, "OK", sourceStatus.Status)
 	assert.Equal(t, []string{"source warning"}, sourceStatus.Messages)
@@ -89,6 +90,7 @@ func TestIntegrationsRespectVerbose(t *testing.T) {
 	require.Len(t, verboseStatus.Integrations[0].Sources, 1)
 	verboseSourceStatus := verboseStatus.Integrations[0].Sources[0]
 	assert.Equal(t, map[string]interface{}{
+		"Bytes Read":  int64(42),
 		"Format":      "json",
 		"Identifier":  "foo-id",
 		"Path":        "/var/log/foo.log",
@@ -97,7 +99,8 @@ func TestIntegrationsRespectVerbose(t *testing.T) {
 		"TailingMode": "beginning",
 	}, verboseSourceStatus.Configuration)
 	assert.Equal(t, []string{"/var/log/foo.log"}, verboseSourceStatus.Inputs)
-	assert.Contains(t, verboseSourceStatus.Info, "Bytes Read")
+	assert.NotContains(t, verboseSourceStatus.Info, "Bytes Read")
+	assert.Contains(t, verboseSourceStatus.Info, "Processing Rules")
 }
 
 func TestNonFileConfigurationIsAvailableWithoutVerbose(t *testing.T) {
@@ -114,6 +117,7 @@ func TestNonFileConfigurationIsAvailableWithoutVerbose(t *testing.T) {
 	builder := &Builder{}
 	assert.Equal(t, map[string]interface{}{
 		"AllowedIPs": "10.0.0.0/8",
+		"Bytes Read": int64(0),
 		"DeniedIPs":  "10.0.0.1",
 		"Format":     "syslog",
 		"Port":       10518,
