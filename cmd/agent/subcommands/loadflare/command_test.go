@@ -200,3 +200,12 @@ func TestWriteArchivePackagesDatadogJSONTemplate(t *testing.T) {
 	}
 	require.Contains(t, names, "load-flare-assets/datadog-json-template.yaml")
 }
+
+func TestDatadogJSONMappingUsesExplicitLadingGenerator(t *testing.T) {
+	variant, approximate := payloadVariant("datadog_json")
+	require.Equal(t, "templated_json", variant)
+	require.True(t, approximate)
+	require.Equal(t, map[string]any{
+		"kind": "templated_json", "template_asset": "load-flare-assets/datadog-json-template.yaml",
+	}, ladingGeneratorReport(variant))
+}

@@ -149,9 +149,10 @@ func inferLading(snapshot characterization.Snapshot) ([]byte, map[string]any) {
 	streamReport := make([]map[string]any, 0, len(streams))
 	for _, stream := range streams {
 		streamReport = append(streamReport, map[string]any{
-			"family": stream.Family, "variant": stream.Variant,
+			"family":       stream.Family,
 			"source_count": stream.Sources, "bytes_per_second_per_source": stream.Rate,
 			"byte_fraction": stream.Fraction, "approximate": stream.Approximate,
+			"lading_generator": ladingGeneratorReport(stream.Variant),
 		})
 	}
 	report := map[string]any{
@@ -240,7 +241,7 @@ func dominantVariant(families map[string]characterization.Aggregate) (string, st
 		if warning == "" {
 			warning = "Datadog JSON field shape cannot be recovered from aggregate telemetry; the candidate uses an allowlisted representative template."
 		}
-		return "datadog_json_lines", "partial", warning
+		return "templated_json", "partial", warning
 	default:
 		return "", "unsupported", "The dominant payload family has no safe Lading generator mapping."
 	}
@@ -332,7 +333,7 @@ func payloadVariant(family string) (string, bool) {
 	case "apache_common", "syslog5424", "json":
 		return family, false
 	case "datadog_json":
-		return "datadog_json_lines", true
+		return "templated_json", true
 	case "plain", "empty":
 		return "ascii", true
 	default:
@@ -341,10 +342,19 @@ func payloadVariant(family string) (string, bool) {
 }
 
 func renderedVariant(variant, indent string) string {
-	if variant == "datadog_json_lines" {
+	if variant == "templated_json" {
 		return fmt.Sprintf("%svariant:\n%s  templated_json:\n%s    template_path: \"%s\"\n", indent, indent, indent, datadogJSONTemplatePath)
 	}
 	return fmt.Sprintf("%svariant: \"%s\"\n", indent, variant)
+}
+
+func ladingGeneratorReport(variant string) map[string]any {
+	if variant == "templated_json" {
+		return map[string]any{
+			"kind": "templated_json", "template_asset": strings.TrimPrefix(datadogJSONTemplatePath, "./"),
+		}
+	}
+	return map[string]any{"kind": "builtin", "variant": variant}
 }
 
 func inferPayloadStreams(families map[string]characterization.Aggregate, aggregateRate, sourceCount uint64) ([]inferredPayloadStream, []string) {
@@ -407,7 +417,7 @@ func inferPayloadStreams(families map[string]characterization.Aggregate, aggrega
 	for _, family := range names {
 		variant, approximate := payloadVariant(family)
 		if approximate {
-			warnings = append(warnings, fmt.Sprintf("Payload family %q is represented approximately by Lading variant %q.", family, variant))
+			warnings = append(warnings, fmt.Sprintf("Payload family %q is represented approximately by Lading generator %q.", family, variant))
 		}
 		sources := allocations[family]
 		rate := uint64(math.Round(float64(aggregateRate) * fractions[family] / float64(sources)))
