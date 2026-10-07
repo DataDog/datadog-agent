@@ -38,12 +38,7 @@ type PrivateCredentialResolver interface {
 	ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error)
 }
 type privateCredentialResolver struct {
-	scriptCredentialFileRoots []scriptCredentialFileRoot
-}
-
-type scriptCredentialFileRoot struct {
-	path string
-	root *os.Root
+	scriptCredentialFileRoots []string
 }
 
 type credentialFile interface {
@@ -65,38 +60,45 @@ type Credential struct {
 }
 
 func NewPrivateCredentialResolver(scriptCredentialFileAllowedRoots []string) PrivateCredentialResolver {
-	roots := make([]scriptCredentialFileRoot, 0, len(scriptCredentialFileAllowedRoots))
-	for _, path := range scriptCredentialFileAllowedRoots {
-		root, err := openScriptCredentialRoot(filepath.Clean(path))
-		if err != nil {
-			log.Warn("Skipping Script credential file root", log.String("root", path), log.ErrorField(err))
+	roots := make([]string, 0, len(scriptCredentialFileAllowedRoots))
+	seen := make(map[string]struct{}, len(scriptCredentialFileAllowedRoots))
+	for _, configuredRoot := range scriptCredentialFileAllowedRoots {
+		path := filepath.Clean(configuredRoot)
+		if _, ok := seen[path]; ok {
 			continue
 		}
-		roots = append(roots, root)
+		root, err := openScriptCredentialRoot(path)
+		if err != nil {
+			log.Warn("Skipping Script credential file root", log.String("root", configuredRoot), log.ErrorField(err))
+			continue
+		}
+		_ = root.Close()
+		seen[path] = struct{}{}
+		roots = append(roots, path)
 	}
 	return &privateCredentialResolver{scriptCredentialFileRoots: roots}
 }
 
-func openScriptCredentialRoot(path string) (scriptCredentialFileRoot, error) {
+func openScriptCredentialRoot(path string) (*os.Root, error) {
 	if !filepath.IsAbs(path) {
-		return scriptCredentialFileRoot{}, errScriptCredentialRootNotAbsolute
+		return nil, errScriptCredentialRootNotAbsolute
 	}
 	resolvedPath, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		return scriptCredentialFileRoot{}, err
+		return nil, err
 	}
 	root, err := os.OpenRoot(path)
 	if err != nil {
-		return scriptCredentialFileRoot{}, err
+		return nil, err
 	}
 	openedInfo, openedErr := root.Stat(".")
 	resolvedInfo, resolvedErr := os.Stat(resolvedPath)
 	filesystemRootInfo, filesystemRootErr := os.Stat(filesystemRootPath(resolvedPath))
 	if openedErr != nil || resolvedErr != nil || filesystemRootErr != nil || !os.SameFile(openedInfo, resolvedInfo) || os.SameFile(openedInfo, filesystemRootInfo) {
 		_ = root.Close()
-		return scriptCredentialFileRoot{}, errCouldNotOpenScriptCredentialRoots
+		return nil, errCouldNotOpenScriptCredentialRoots
 	}
-	return scriptCredentialFileRoot{path: path, root: root}, nil
+	return root, nil
 }
 
 func filesystemRootPath(path string) string {
@@ -183,13 +185,18 @@ func (p *privateCredentialResolver) openScriptCredentialFile(path string) (crede
 	}
 	path = filepath.Clean(path)
 
-	for _, allowedRoot := range p.scriptCredentialFileRoots {
-		relativePath, err := filepath.Rel(allowedRoot.path, path)
+	for _, rootPath := range p.scriptCredentialFileRoots {
+		relativePath, err := filepath.Rel(rootPath, path)
 		if err != nil || !filepath.IsLocal(relativePath) {
 			continue
 		}
 
-		file, err := allowedRoot.root.Open(relativePath)
+		root, err := openScriptCredentialRoot(rootPath)
+		if err != nil {
+			continue
+		}
+		file, err := root.Open(relativePath)
+		_ = root.Close()
 		if err != nil {
 			continue
 		}

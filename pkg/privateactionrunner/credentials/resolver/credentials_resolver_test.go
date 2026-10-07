@@ -122,6 +122,33 @@ func TestNewPrivateCredentialResolverSkipsInvalidRoots(t *testing.T) {
 	}
 }
 
+func TestNewPrivateCredentialResolverDeduplicatesRoots(t *testing.T) {
+	first := t.TempDir()
+	second := t.TempDir()
+
+	resolver := newTestResolver(t, []string{filepath.Join(second, "."), first + string(filepath.Separator), first})
+
+	assert.Equal(t, []string{second, first}, resolver.(*privateCredentialResolver).scriptCredentialFileRoots)
+}
+
+func TestScriptCredentialFileResolutionFollowsReplacedAllowedRoot(t *testing.T) {
+	parent := t.TempDir()
+	allowedRoot := filepath.Join(parent, "allowed")
+	require.NoError(t, os.Mkdir(allowedRoot, 0o700))
+	path := filepath.Join(allowedRoot, "credentials.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("original"), 0o600))
+	resolver := newTestResolver(t, []string{allowedRoot})
+
+	require.NoError(t, os.Rename(allowedRoot, filepath.Join(parent, "moved")))
+	require.NoError(t, os.Mkdir(allowedRoot, 0o700))
+	require.NoError(t, os.WriteFile(path, []byte("replacement"), 0o600))
+
+	credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(path), nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, "replacement", credentials.AsTokenMap()["configFileLocation"])
+}
+
 func TestScriptCredentialFileResolutionRejectsAuthTokenPoC(t *testing.T) {
 	path := "/etc/datadog-agent/auth_token"
 	resolver := newTestResolver(t, []string{t.TempDir()})
@@ -209,13 +236,7 @@ func scriptConnectionInfo(path string) *privateactionspb.ConnectionInfo {
 
 func newTestResolver(t *testing.T, roots []string) PrivateCredentialResolver {
 	t.Helper()
-	resolver := NewPrivateCredentialResolver(roots)
-	t.Cleanup(func() {
-		for _, root := range resolver.(*privateCredentialResolver).scriptCredentialFileRoots {
-			assert.NoError(t, root.root.Close())
-		}
-	})
-	return resolver
+	return NewPrivateCredentialResolver(roots)
 }
 
 type countingCredentialFile struct {

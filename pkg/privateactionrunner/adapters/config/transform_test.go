@@ -309,20 +309,15 @@ private_action_runner:
 		assert.Empty(t, cfg.ScriptCredentialFileAllowedRoots)
 	})
 
-	t.Run("configured roots replace the default and are normalized", func(t *testing.T) {
-		first := t.TempDir()
-		second := t.TempDir()
+	t.Run("configured roots replace the default", func(t *testing.T) {
+		roots := []string{t.TempDir(), t.TempDir() + string(filepath.Separator)}
 		mockConfig := configmock.New(t)
-		mockConfig.SetInTest(par.ScriptCredentialFileAllowedRoots, []string{
-			filepath.Join(second, "."),
-			first + string(filepath.Separator),
-			first,
-		})
+		mockConfig.SetInTest(par.ScriptCredentialFileAllowedRoots, roots)
 
 		cfg, err := FromDDConfig(mockConfig, nil)
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{filepath.Clean(first), filepath.Clean(second)}, cfg.ScriptCredentialFileAllowedRoots)
+		assert.Equal(t, roots, cfg.ScriptCredentialFileAllowedRoots)
 	})
 }
 

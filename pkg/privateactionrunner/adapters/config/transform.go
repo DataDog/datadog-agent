@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -130,19 +128,10 @@ func scriptCredentialFileAllowedRoots(config config.Component) []string {
 	if !config.IsConfigured(par.ScriptCredentialFileAllowedRoots) {
 		return []string{DefaultScriptCredentialFileRoot()}
 	}
-
-	configuredRoots := config.GetStringSlice(par.ScriptCredentialFileAllowedRoots)
-	uniqueRoots := make(map[string]struct{}, len(configuredRoots))
-	for _, configuredRoot := range configuredRoots {
-		uniqueRoots[filepath.Clean(configuredRoot)] = struct{}{}
+	if roots := config.GetStringSlice(par.ScriptCredentialFileAllowedRoots); len(roots) > 0 {
+		return roots
 	}
-
-	roots := make([]string, 0, len(uniqueRoots))
-	for root := range uniqueRoots {
-		roots = append(roots, root)
-	}
-	sort.Strings(roots)
-	return roots
+	return []string{}
 }
 
 // kubernetesAllowedCustomResources preserves nil for an unset allowlist so custom
