@@ -34,7 +34,10 @@ func hooksCommand() *cobra.Command {
 		DisableFlagParsing: true,
 		Args:               cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newCmd("hooks")
+			i, err := newCmd("hooks")
+			if err != nil {
+				return err
+			}
 			defer i.stop(err)
 			var hookContext packages.HookContext
 			err = json.Unmarshal([]byte(args[0]), &hookContext)
@@ -55,7 +58,10 @@ func postinstCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.MinimumNArgs(2),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newCmd("postinst")
+			i, err := newCmd("postinst")
+			if err != nil {
+				return err
+			}
 			defer i.stop(err)
 			pkg := args[0]
 			rawPackageType := args[1]
@@ -86,7 +92,10 @@ func prermCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.MinimumNArgs(2),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newCmd("prerm")
+			i, err := newCmd("prerm")
+			if err != nil {
+				return err
+			}
 			defer i.stop(err)
 			pkg := args[0]
 			rawPackageType := args[1]
