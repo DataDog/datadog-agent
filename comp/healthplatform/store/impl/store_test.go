@@ -20,6 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
@@ -564,4 +566,224 @@ func TestResourceIdentityHost(t *testing.T) {
 	resourceType, resourceID := h.ResourceIdentity("test-host")
 	assert.Equal(t, "host", resourceType)
 	assert.Equal(t, "test-host", resourceID)
+}
+
+func fullTestIssue(t *testing.T, id string) *healthplatformpayload.Issue {
+	t.Helper()
+	extra, err := structpb.NewStruct(map[string]interface{}{"check": "mysql", "attempts": 3})
+	require.NoError(t, err)
+	return &healthplatformpayload.Issue{
+		Id:          id,
+		IssueName:   "check-failure",
+		IssueType:   "check_failure",
+		Title:       "Check 'mysql' Failed",
+		Description: "connection refused",
+		Category:    "check-execution",
+		Location:    "collector",
+		Severity:    healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH,
+		Source:      "mysql",
+		Tags:        []string{"env:prod", "check:mysql"},
+		Extra:       extra,
+		Remediation: &healthplatformpayload.Remediation{
+			Summary: "fix it",
+			Steps:   []*healthplatformpayload.RemediationStep{{Order: 1, Text: "run agent status"}},
+		},
+	}
+}
+
+func requireFullResolved(t *testing.T, want, got *healthplatformpayload.Issue) {
+	t.Helper()
+	require.NotNil(t, got)
+	assert.NotEmpty(t, got.Title)
+	assert.NotEmpty(t, got.Description)
+	assert.NotEmpty(t, got.Category)
+	assert.NotEqual(t, healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_UNSPECIFIED, got.Severity)
+	assert.Equal(t, want.Title, got.Title)
+	assert.Equal(t, want.Description, got.Description)
+	assert.Equal(t, want.Category, got.Category)
+	assert.Equal(t, want.Severity, got.Severity)
+	assert.Equal(t, want.Tags, got.Tags)
+	require.NotNil(t, got.PersistedIssue)
+	assert.Equal(t, IssueStateResolved, got.PersistedIssue.State)
+	assert.NotEmpty(t, got.PersistedIssue.GetResolvedAt())
+
+	wantCmp := proto.Clone(want).(*healthplatformpayload.Issue)
+	gotCmp := proto.Clone(got).(*healthplatformpayload.Issue)
+	wantCmp.PersistedIssue, gotCmp.PersistedIssue = nil, nil
+	assert.True(t, proto.Equal(wantCmp, gotCmp), "resolved issue must match the original apart from PersistedIssue\nwant: %v\ngot:  %v", wantCmp, gotCmp)
+}
+
+func TestResolveIssueCarriesFullIssue(t *testing.T) {
+	h := newTestStore(t)
+	ch := make(chan *healthplatformpayload.Issue, 1)
+	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
+
+	require.NoError(t, h.ReportIssue(fullTestIssue(t, "t:id")))
+	open := h.GetIssue("t:id")
+	require.NotNil(t, open)
+
+	h.ResolveIssue("t:id")
+
+	require.Len(t, ch, 1)
+	got := <-ch
+	requireFullResolved(t, open, got)
+
+	got.Title = "mutated"
+	got.Tags[0] = "mutated"
+	assert.Equal(t, IssueStateActive, open.PersistedIssue.State)
+	assert.Equal(t, "Check 'mysql' Failed", open.Title)
+	assert.Equal(t, []string{"env:prod", "check:mysql"}, open.Tags)
+}
+
+func TestResolveIssueDoesNotMutateStoredOpenIssue(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(fullTestIssue(t, "t:id")))
+	before := h.issues["t:id"].issue
+	beforeClone := proto.Clone(before).(*healthplatformpayload.Issue)
+
+	h.ResolveIssue("t:id")
+
+	assert.True(t, proto.Equal(beforeClone, before), "stored open issue must not be mutated by resolution")
+	assert.Equal(t, IssueStateActive, before.PersistedIssue.State)
+}
+
+func TestResolveAllIssuesCarriesFullIssue(t *testing.T) {
+	h := newTestStore(t)
+	ch := make(chan *healthplatformpayload.Issue, 2)
+	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
+
+	require.NoError(t, h.ReportIssue(fullTestIssue(t, "t:1")))
+	require.NoError(t, h.ReportIssue(fullTestIssue(t, "t:2")))
+	open := map[string]*healthplatformpayload.Issue{"t:1": h.GetIssue("t:1"), "t:2": h.GetIssue("t:2")}
+
+	h.ResolveAllIssues()
+
+	require.Len(t, ch, 2)
+	for i := 0; i < 2; i++ {
+		got := <-ch
+		requireFullResolved(t, open[got.Id], got)
+	}
+	for id, o := range open {
+		assert.Equal(t, IssueStateActive, o.PersistedIssue.State, id)
+	}
+}
+
+func TestLoadFromDiskResolvedTombstoneCarriesFullIssue(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "issues.json")
+	logger := logmock.New(t)
+
+	h1 := newTestStore(t)
+	h1.persistence = newDiskPersistence(path, logger)
+	require.NoError(t, h1.ReportIssue(fullTestIssue(t, "t:id")))
+	open := h1.GetIssue("t:id")
+	h1.ResolveIssue("t:id")
+
+	h2 := newTestStore(t)
+	h2.persistence = newDiskPersistence(path, logger)
+	ch := make(chan *healthplatformpayload.Issue, 1)
+	h2.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
+	require.NoError(t, h2.loadFromDisk())
+
+	require.Len(t, ch, 1)
+	requireFullResolved(t, open, <-ch)
+}
+
+func TestResolveAfterRestartCarriesFullIssue(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "issues.json")
+	logger := logmock.New(t)
+
+	h1 := newTestStore(t)
+	h1.persistence = newDiskPersistence(path, logger)
+	require.NoError(t, h1.ReportIssue(fullTestIssue(t, "t:id")))
+	open := h1.GetIssue("t:id")
+
+	h2 := newTestStore(t)
+	h2.persistence = newDiskPersistence(path, logger)
+	ch := make(chan *healthplatformpayload.Issue, 1)
+	h2.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
+	require.NoError(t, h2.loadFromDisk())
+	require.Empty(t, ch)
+
+	h2.ResolveIssue("t:id")
+
+	require.Len(t, ch, 1)
+	requireFullResolved(t, open, <-ch)
+}
+
+func TestLoadFromDiskLegacyFileWithoutIssueFallsBackToMinimal(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "issues.json")
+	now := time.Now().Format(time.RFC3339)
+	legacy := map[string]interface{}{
+		"version":    persistedStateVersion,
+		"updated_at": now,
+		"issues": map[string]interface{}{
+			"t:resolved": map[string]interface{}{
+				"issue_type": "t", "proto_issue_type": "custom_type", "state": "resolved",
+				"first_seen": now, "last_seen": now, "resolved_at": now,
+			},
+			"t:active": map[string]interface{}{
+				"issue_type": "t", "proto_issue_type": "custom_type", "state": "active",
+				"first_seen": now, "last_seen": now,
+			},
+		},
+	}
+	data, err := json.Marshal(legacy)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, data, 0644))
+
+	h := newTestStore(t)
+	h.persistence = newDiskPersistence(path, logmock.New(t))
+	ch := make(chan *healthplatformpayload.Issue, 2)
+	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
+	require.NoError(t, h.loadFromDisk())
+
+	require.Len(t, ch, 1)
+	got := <-ch
+	assert.Equal(t, "t:resolved", got.Id)
+	assert.Equal(t, "t", got.IssueName)
+	assert.Equal(t, "custom_type", got.IssueType)
+	assert.Empty(t, got.Title)
+	assert.Equal(t, IssueStateResolved, got.PersistedIssue.State)
+
+	h.ResolveIssue("t:active")
+	require.Len(t, ch, 1)
+	got = <-ch
+	assert.Equal(t, "t:active", got.Id)
+	assert.Equal(t, "custom_type", got.IssueType)
+	assert.Empty(t, got.Title)
+	assert.Equal(t, IssueStateResolved, got.PersistedIssue.State)
+}
+
+func TestLoadFromDiskCorruptIssueFallsBackToMinimal(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "issues.json")
+	now := time.Now().Format(time.RFC3339)
+	state := map[string]interface{}{
+		"version":    persistedStateVersion,
+		"updated_at": now,
+		"issues": map[string]interface{}{
+			"t:id": map[string]interface{}{
+				"issue_type": "t", "state": "resolved", "first_seen": now, "last_seen": now,
+				"resolved_at": now, "issue": map[string]interface{}{"title": 42},
+			},
+		},
+	}
+	data, err := json.Marshal(state)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, data, 0644))
+
+	h := newTestStore(t)
+	h.persistence = newDiskPersistence(path, logmock.New(t))
+	ch := make(chan *healthplatformpayload.Issue, 1)
+	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
+	require.NoError(t, h.loadFromDisk())
+
+	require.Len(t, ch, 1)
+	got := <-ch
+	assert.Equal(t, "t:id", got.Id)
+	assert.Empty(t, got.Title)
+	assert.Equal(t, IssueStateResolved, got.PersistedIssue.State)
 }
