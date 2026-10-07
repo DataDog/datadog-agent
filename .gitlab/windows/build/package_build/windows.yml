@@ -1,5 +1,5 @@
 ---
-.windows_msi_base:
+.windows_agent_build_base:
   stage: package_build
   extends: [.windows_docker_default, .bazel:defs:cache:windows]
   needs: ["setup_agent_version", "go_deps"]
@@ -55,7 +55,7 @@
       -e CI_JOB_TOKEN
       -e CI_IDENTITIES_GITLAB_ID_TOKEN
       ${WINBUILDIMAGE}
-      powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1 -BuildUpgrade 1"
+      powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1 -BuildMsi 0"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - get-childitem omnibus\pkg\pipeline-$CI_PIPELINE_ID
     - !reference [.upload_sbom_artifacts_windows]
@@ -63,13 +63,14 @@
     expire_in: 2 weeks
     paths:
       - omnibus/pkg/pipeline-$CI_PIPELINE_ID
+      - omnibus/msi-payload
 
 .windows_main_agent_base:
-  extends: .windows_msi_base
+  extends: .windows_agent_build_base
   variables:
     OMNIBUS_TARGET: main
 
-windows_msi_and_bosh_zip_x64-a7:
+windows_agent_build_x64-a7:
   extends: .windows_main_agent_base
   rules:
     - when: on_success
@@ -77,7 +78,7 @@ windows_msi_and_bosh_zip_x64-a7:
     ARCH: "x64"
   timeout: 2h
 
-windows_msi_and_bosh_zip_x64-a7-fips:
+windows_agent_build_x64-a7-fips:
   extends: .windows_main_agent_base
   rules:
     - !reference [.except_light_pipeline]
@@ -160,7 +161,7 @@ windows_zip_ddot_x64:
     OMNIBUS_TARGET: ddot
 
 # Like .windows_zip_base, but for omnibus targets whose build invokes Bazel (e.g. the eudm
-# extension's ai-usage Rust native host). Uses the Bazel-cache docker wrapper (as .windows_msi_base does) instead of a
+# extension's ai-usage Rust native host). Uses the Bazel-cache docker wrapper (as .windows_agent_build_base does) instead of a
 # plain `docker run`, so `bazel run` has the cache/toolchain available inside the container.
 .windows_zip_bazel_base:
   stage: package_build

@@ -19,6 +19,8 @@ OUTPUT_PATH = os.path.join(os.getcwd(), "omnibus", "pkg")
 OPT_SOURCE_DIR = os.path.join("C:\\", "opt")
 # Subdirectory of OUTPUT_PATH that holds the generated symbol-server layout
 SYMBOL_STORE_DIR_NAME = "symbols"
+MSI_PAYLOAD_PATH = os.path.join(os.getcwd(), "omnibus", "msi-payload", "msi-payload.zip")
+MSI_PAYLOAD_DIRS = ["datadog-agent", "datadog-installer"]
 
 
 @task
@@ -28,6 +30,43 @@ def agent_package(
     skip_deps=False,
     build_upgrade=False,
 ):
+    _build_agent(ctx, flavor=flavor, skip_deps=skip_deps)
+    build_agent_msi(ctx, build_upgrade=build_upgrade)
+
+
+@task
+def agent_build(
+    ctx,
+    flavor=AgentFlavor.base.name,
+    skip_deps=False,
+    payload=MSI_PAYLOAD_PATH,
+):
+    _build_agent(ctx, flavor=flavor, skip_deps=skip_deps)
+
+    os.makedirs(os.path.dirname(payload), exist_ok=True)
+    with zipfile.ZipFile(payload, "w", zipfile.ZIP_DEFLATED, compresslevel=1) as archive:
+        for name in MSI_PAYLOAD_DIRS:
+            root = os.path.join(OPT_SOURCE_DIR, name)
+            for dirpath, _, filenames in os.walk(root):
+                archive.write(dirpath, os.path.relpath(dirpath, OPT_SOURCE_DIR))
+                for filename in filenames:
+                    path = os.path.join(dirpath, filename)
+                    archive.write(path, os.path.relpath(path, OPT_SOURCE_DIR))
+
+
+@task
+def agent_msi(
+    ctx,
+    build_upgrade=False,
+    payload=MSI_PAYLOAD_PATH,
+):
+    with zipfile.ZipFile(payload, "r") as archive:
+        archive.extractall(OPT_SOURCE_DIR)
+
+    build_agent_msi(ctx, build_upgrade=build_upgrade)
+
+
+def _build_agent(ctx, flavor, skip_deps):
     # Build agent
     omnibus_build(
         ctx,
@@ -41,9 +80,6 @@ def agent_package(
         os.path.join(OPT_SOURCE_DIR, "datadog-agent", "datadog-installer.exe"),
         os.path.join(OPT_SOURCE_DIR, "datadog-installer"),
     )
-
-    # Package Agent into MSI
-    build_agent_msi(ctx, build_upgrade=build_upgrade)
 
     # Copy installer.exe to the output dir so it can be deployed as the bootstrapper
     agent_version = get_version(
