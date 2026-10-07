@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe leaves the configuration files of rpm and
+    apk packages, the files rpm packages create at runtime, and rpm
+    documentation out of the index of their package, as dpkg leaves out its
+    conffiles. Reading ``/etc/passwd`` or ``/etc/hosts`` marked their package in
+    use. The CWS package fields of these files resolve to no package, as those
+    of dpkg conffiles do.
