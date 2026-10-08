@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+use crate::services::{MAX_TAG_LEN, truncated};
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -18,9 +19,9 @@ impl UST {
     /// Extracts DD_SERVICE, DD_ENV, and DD_VERSION from the provided environment map.
     pub fn from_envs(envs: &HashMap<String, String>) -> Self {
         UST {
-            service: envs.get("DD_SERVICE").cloned(),
-            env: envs.get("DD_ENV").cloned(),
-            version: envs.get("DD_VERSION").cloned(),
+            service: envs.get("DD_SERVICE").map(|v| truncated(v, MAX_TAG_LEN)),
+            env: envs.get("DD_ENV").map(|v| truncated(v, MAX_TAG_LEN)),
+            version: envs.get("DD_VERSION").map(|v| truncated(v, MAX_TAG_LEN)),
         }
     }
 }

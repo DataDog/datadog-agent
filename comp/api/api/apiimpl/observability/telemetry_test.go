@@ -161,3 +161,57 @@ func TestTelemetryMiddlewareTwice(t *testing.T) {
 func NoopAuthTagGetter(_ *http.Request) string {
 	return "none"
 }
+
+// TestTelemetryMiddlewareServeMuxPatternFallback checks that when the telemetry
+// middleware is registered per-route on a stdlib http.ServeMux without a
+// WrapWithRouteTemplate wrapper (e.g. the trace agent debug server), the path
+// tag falls back to the pattern matched by the mux instead of "unknown".
+func TestTelemetryMiddlewareServeMuxPatternFallback(t *testing.T) {
+	telemetry := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
+	tm := newTelemetryMiddlewareFactory(telemetry, clock.NewMock(), NoopAuthTagGetter)
+
+	// The telemetry middleware wraps the handler inside the mux registration:
+	// the stdlib mux sets r.Pattern before the chain runs.
+	mux := http.NewServeMux()
+	mux.Handle("GET /route/{id}", tm.Middleware("test")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})))
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	resp, err := server.Client().Get(server.URL + "/route/42")
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	observabilityMetric, err := telemetry.GetHistogramMetric(MetricSubsystem, MetricName)
+	require.NoError(t, err)
+	require.Len(t, observabilityMetric, 1)
+	assert.Equal(t, "/route/{id}", observabilityMetric[0].Tags()["path"])
+}
+
+// TestTelemetryMiddlewareWithRouteTemplate checks that a handler wrapped with
+// WithRouteTemplate (used where the registration site is not an http.ServeMux,
+// e.g. the trace agent debug server's AddRoute) reports the route template in
+// the path tag.
+func TestTelemetryMiddlewareWithRouteTemplate(t *testing.T) {
+	telemetry := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
+	tm := newTelemetryMiddlewareFactory(telemetry, clock.NewMock(), NoopAuthTagGetter)
+
+	// The telemetry middleware sits above a handler wrapped with
+	// WithRouteTemplate, itself registered on the mux.
+	mux := http.NewServeMux()
+	mux.Handle("GET /config", tm.Middleware("test")(WithRouteTemplate("/config", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))))
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	resp, err := server.Client().Get(server.URL + "/config")
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	observabilityMetric, err := telemetry.GetHistogramMetric(MetricSubsystem, MetricName)
+	require.NoError(t, err)
+	require.Len(t, observabilityMetric, 1)
+	assert.Equal(t, "/config", observabilityMetric[0].Tags()["path"])
+}

@@ -171,7 +171,7 @@ func NewHttpbinServiceInstallation(e config.Env, opts ...pulumi.ResourceOption) 
 					ImagePullSecrets:   imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
-							Image: pulumi.String("ghcr.io/datadog/apps-go-httpbin:" + apps.Version),
+							Image: pulumi.String(apps.Image(e, "apps-go-httpbin")),
 							Name:  pulumi.String("httpbin"),
 							Ports: corev1.ContainerPortArray{
 								&corev1.ContainerPortArgs{

@@ -40,6 +40,8 @@ type deviceOptions struct {
 	nvlinkStates            []nvml.EnableState
 	nvlinkStateErrors       map[int]nvml.Return
 	migChildUUIDs           map[int]string
+	gridFeatures            *nvml.GridLicensableFeatures
+	gridFeaturesReturn      *nvml.Return
 
 	fieldValuesReturn  *nvml.Return
 	samplesUnsupported bool
@@ -49,6 +51,15 @@ type deviceOptions struct {
 type processDetailListResponse struct {
 	processes []nvml.ProcessDetail_v1
 	ret       nvml.Return
+}
+
+// GridProductName returns name as a NUL-padded NVML product name buffer.
+func GridProductName(name string) [128]int8 {
+	var buf [128]int8
+	for i := 0; i < len(name) && i < len(buf)-1; i++ {
+		buf[i] = int8(name[i])
+	}
+	return buf
 }
 
 func (o deviceOptions) isMIGChild() bool {
@@ -214,7 +225,7 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
 		},
 		GetMemoryInfo_v2Func: func() (nvml.Memory_v2, nvml.Return) {
-			return nvml.Memory_v2{}, nvml.SUCCESS
+			return nvml.Memory_v2{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
 		},
 		GetMemoryBusWidthFunc: func() (uint32, nvml.Return) {
 			return DefaultMemoryBusWidth, nvml.SUCCESS
@@ -332,11 +343,22 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			}
 			return 0, 0, false, false, nvml.SUCCESS
 		},
+		GetRetiredPages_v2Func: func(_ nvml.PageRetirementCause) ([]uint64, []uint64, nvml.Return) {
+			if isMIGOrVGPUUnsupported {
+				return nil, nil, nvml.ERROR_NOT_SUPPORTED
+			}
+			// Dynamic page retirement is supported from Kepler to Turing; Ampere and
+			// newer replace it with row remapping (see GetRemappedRows)
+			if arch < nvml.DEVICE_ARCH_KEPLER || arch >= nvml.DEVICE_ARCH_AMPERE {
+				return nil, nil, nvml.ERROR_NOT_SUPPORTED
+			}
+			return nil, nil, nvml.SUCCESS
+		},
 		GetRepairStatusFunc: func() (nvml.RepairStatus, nvml.Return) {
 			if isMIGOrVGPUUnsupported {
 				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED
 			}
-			if arch < nvml.DEVICE_ARCH_AMPERE {
+			if arch < nvml.DEVICE_ARCH_TURING {
 				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED
 			}
 			return nvml.RepairStatus{}, nvml.SUCCESS
@@ -518,6 +540,31 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 				return nvml.GPU_VIRTUALIZATION_MODE_VGPU, nvml.SUCCESS
 			}
 			return nvml.GPU_VIRTUALIZATION_MODE_NONE, nvml.SUCCESS
+		},
+		GetGridLicensableFeaturesFunc: func() (nvml.GridLicensableFeatures, nvml.Return) {
+			if opts.gridFeatures != nil {
+				ret := nvml.SUCCESS
+				if opts.gridFeaturesReturn != nil {
+					ret = *opts.gridFeaturesReturn
+				}
+				return *opts.gridFeatures, ret
+			}
+			if !opts.isVGPU() {
+				// Non-GRID drivers report that licensing is not supported
+				return nvml.GridLicensableFeatures{}, nvml.SUCCESS
+			}
+			// vGPU devices default to one enabled, licensed product
+			features := nvml.GridLicensableFeatures{
+				IsGridLicenseSupported:  1,
+				LicensableFeaturesCount: 1,
+			}
+			features.GridLicensableFeatures[0] = nvml.GridLicensableFeature{
+				FeatureCode:    uint32(nvml.GRID_LICENSE_FEATURE_CODE_NVIDIA_RTX),
+				FeatureState:   1,
+				FeatureEnabled: 1,
+				ProductName:    GridProductName("NVIDIA RTX Virtual Workstation"),
+			}
+			return features, nvml.SUCCESS
 		},
 		GetSupportedEventTypesFunc: func() (uint64, nvml.Return) {
 			return nvml.EventTypeAll, nvml.SUCCESS
