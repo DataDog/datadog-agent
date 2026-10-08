@@ -901,28 +901,48 @@ func TestUnbundledEventsTransformFiltering(t *testing.T) {
 }
 
 func TestGetTagsFromTagger(t *testing.T) {
-	taggerInstance := taggerfxmock.SetupFakeTagger(t)
-	taggerInstance.SetGlobalTags([]string{"global:here"}, nil, nil, nil)
-
 	tests := []struct {
 		name         string
-		obj          v1.ObjectReference
+		infraMode    string
 		expectedTags *tagset.HashlessTagsAccumulator
 	}{
 		{
-			name: "accumulates global tags",
-			obj: v1.ObjectReference{
-				UID:       "redis",
-				Kind:      "Pod",
-				Namespace: "default",
-				Name:      "redis",
-			},
+			name:         "accumulates global tags",
+			expectedTags: tagset.NewHashlessTagsAccumulatorFromSlice([]string{"global:here"}),
+		},
+		{
+			name:         "accumulates the mark of a marked mode",
+			infraMode:    "cloud_cost_only",
+			expectedTags: tagset.NewHashlessTagsAccumulatorFromSlice([]string{"global:here", "infra_mode:cloud_cost_only"}),
+		},
+		{
+			name:         "accumulates the mark of end_user_device",
+			infraMode:    "end_user_device",
+			expectedTags: tagset.NewHashlessTagsAccumulatorFromSlice([]string{"global:here", "infra_mode:end_user_device"}),
+		},
+		{
+			name:         "accumulates no mark under full",
+			infraMode:    "full",
+			expectedTags: tagset.NewHashlessTagsAccumulatorFromSlice([]string{"global:here"}),
+		},
+		{
+			name:         "accumulates no mark for an unknown mode",
+			infraMode:    "cloud_cost",
 			expectedTags: tagset.NewHashlessTagsAccumulatorFromSlice([]string{"global:here"}),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			overrides := map[string]interface{}{}
+			if tt.infraMode != "" {
+				overrides["infrastructure_mode"] = tt.infraMode
+			}
+			// The mode is read when the Tagger is built, so it has to be set
+			// through overrides rather than on the config afterwards.
+			taggerInstance := taggerfxmock.SetupFakeTaggerWithOverrides(t, overrides)
+			taggerInstance.SetGlobalTags([]string{"global:here"}, nil, nil, nil)
+
 			collectedTypes := []collectedEventType{
 				{Kind: "Pod", Reasons: []string{}},
 			}

@@ -183,6 +183,7 @@ func TestFormatTrace(t *testing.T) {
 		&pb.Span{
 			Resource: resource,
 			Type:     "sql",
+			Meta:     map[string]string{"db.statement": resource},
 		},
 	}
 	result := formatTrace(testTrace)[0]
@@ -192,10 +193,11 @@ func TestFormatTrace(t *testing.T) {
 	assert.NotContains(result.Resource, "42")
 	assert.Contains(result.Resource, "SELECT name FROM people WHERE age = ?")
 
-	assert.Equal(25003, len(result.Meta["sql.query"])) // Ellipsis added in quantizer
-	assert.NotEqual("Non-parsable SQL query", result.Meta["sql.query"])
-	assert.NotContains(result.Meta["sql.query"], "42")
-	assert.Contains(result.Meta["sql.query"], "SELECT name FROM people WHERE age = ?")
+	assert.NotContains(result.Meta, "sql.query")
+	assert.Equal(25003, len(result.Meta["db.statement"])) // Ellipsis added in quantizer
+	assert.NotEqual("Non-parsable SQL query", result.Meta["db.statement"])
+	assert.NotContains(result.Meta["db.statement"], "42")
+	assert.Contains(result.Meta["db.statement"], "SELECT name FROM people WHERE age = ?")
 }
 
 func TestStopWaits(t *testing.T) {
@@ -257,16 +259,19 @@ func TestStopWaits(t *testing.T) {
 
 	assert := assert.New(t)
 	assert.Len(mtw.payloads, 1)
-	assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", mtw.payloads[0].TracerPayload.Chunks[0].Spans[0].Meta["sql.query"])
+	outSpan := mtw.payloads[0].TracerPayload.Chunks[0].Spans[0]
+	assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", outSpan.Resource)
+	assert.NotContains(outSpan.Meta, "sql.query")
 }
 
 func TestProcess(t *testing.T) {
 	t.Run("Replacer", func(t *testing.T) {
 		// Ensures that for "sql" type spans:
 		// • obfuscator runs before replacer
-		// • obfuscator obfuscates both resource and "sql.query" tag
+		// • obfuscator obfuscates both resource and "db.statement" tag
 		// • resulting resource is obfuscated with replacements applied
-		// • resulting "sql.query" tag is obfuscated with no replacements applied
+		// • resulting "db.statement" tag is obfuscated with no replacements applied
+		// • no "sql.query" tag is added
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.ReplaceTags = []*config.ReplaceRule{{
@@ -286,6 +291,7 @@ func TestProcess(t *testing.T) {
 			Type:     "sql",
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Meta:     map[string]string{"db.statement": "SELECT name FROM people WHERE age = 42 AND extra = 55"},
 		}
 
 		agnt.Process(&api.Payload{
@@ -295,7 +301,8 @@ func TestProcess(t *testing.T) {
 
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
-		assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", span.Meta["sql.query"])
+		assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", span.Meta["db.statement"])
+		assert.NotContains(span.Meta, "sql.query")
 	})
 
 	t.Run("TracerPayloadModifier", func(t *testing.T) {

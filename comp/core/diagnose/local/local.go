@@ -15,7 +15,6 @@ import (
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -37,7 +36,6 @@ func Run(
 	filterStore workloadfilter.Component,
 	ac autodiscovery.Component,
 	tagger tagger.Component,
-	config config.Component,
 ) (*diagnose.Result, error) {
 
 	localSuite := diagnose.Suites{
@@ -55,7 +53,7 @@ func Run(
 		},
 	}
 
-	integrationConfigs, err := getLocalIntegrationConfigs(filterStore, ac, tagger, config)
+	integrationConfigs, err := getLocalIntegrationConfigs(filterStore, ac, tagger)
 
 	if err != nil {
 		localSuite[diagnose.CheckDatadog] = func(_ diagnose.Config) []diagnose.Diagnosis {
@@ -95,10 +93,10 @@ func Run(
 func getLocalIntegrationConfigs(
 	filterStore workloadfilter.Component,
 	ac autodiscovery.Component,
-	tagger tagger.Component,
-	config config.Component) ([]integration.Config, error) {
-	common.LoadComponents(ac, config)
-	ac.LoadAndRun(context.Background())
+	tagger tagger.Component) ([]integration.Config, error) {
+	if err := ac.LoadAndRun(context.Background()); err != nil {
+		return nil, err
+	}
 
 	// Create the CheckScheduler, but do not attach it to AutoDiscovery.
 	pkgcollector.InitCheckScheduler(option.None[collector.Component](), aggregator.NewNoOpSenderManager(), option.None[integrations.Component](), tagger, filterStore)

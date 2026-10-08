@@ -9,7 +9,7 @@ use crate::command::Command;
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::grpc::caller_auth::require_mutating_pipe_client;
 use crate::grpc::proto;
-use crate::manager::ProcessManager;
+use crate::manager::{InvalidProcess, ProcessManager};
 use crate::platform;
 use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::state::ProcessState;
@@ -40,7 +40,9 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         _request: Request<proto::ListRequest>,
     ) -> Result<Response<proto::ListResponse>, Status> {
         let procs = self.mgr.processes().await;
-        let processes = procs.iter().map(process_to_proto).collect();
+        let invalid = self.mgr.invalid_configs().await;
+        let mut processes: Vec<proto::Process> = procs.iter().map(process_to_proto).collect();
+        processes.extend(invalid.iter().map(invalid_to_proto));
         Ok(Response::new(proto::ListResponse { processes }))
     }
 
@@ -49,9 +51,19 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         request: Request<proto::DescribeRequest>,
     ) -> Result<Response<proto::DescribeResponse>, Status> {
         let name_or_uuid = request.into_inner().name_or_uuid;
+        // Both collections come from one snapshot. A reload swapping a name
+        // between them commits under both write locks, so resolving them one
+        // after the other could miss the name in each and report NotFound for
+        // a process that never left the catalog.
         let (mut detail, pid) = {
             let procs = self.mgr.processes().await;
-            let proc = resolve_process(&procs, &name_or_uuid)?;
+            let invalid = self.mgr.invalid_configs().await;
+            if let Some(inv) = crate::manager::find_invalid(&invalid, &procs, &name_or_uuid)? {
+                return Ok(Response::new(proto::DescribeResponse {
+                    detail: Some(invalid_detail_fields(inv)),
+                }));
+            }
+            let proc = resolve_process(&procs, &invalid, &name_or_uuid)?;
             (process_detail_fields(proc), proc.pid())
         };
         detail.runtime_user = if let Some(pid) = pid.filter(|&p| p > 0) {
@@ -73,7 +85,8 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         _request: Request<proto::GetStatusRequest>,
     ) -> Result<Response<proto::GetStatusResponse>, Status> {
         let procs = self.mgr.processes().await;
-        let total = procs.len() as u32;
+        let invalid = self.mgr.invalid_configs().await;
+        let total = (procs.len() + invalid.len()) as u32;
         let counts = StateCounts::tally(&procs);
 
         Ok(Response::new(proto::GetStatusResponse {
@@ -89,6 +102,8 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             starting_processes: counts.starting,
             stopping_processes: counts.stopping,
             crashed_processes: counts.crashed,
+            invalid_config_processes: invalid.len() as u32,
+            skipped_processes: counts.skipped,
         }))
     }
 
@@ -201,6 +216,8 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             .iter()
             .filter(|p| p.origin() == ProcessOrigin::Runtime)
             .count() as u32;
+        // InvalidConfig rows are catalogued but never successfully loaded; they
+        // show up on GetStatus.invalid_config_processes instead.
         let loaded = procs.len() as u32 - runtime;
         Ok(Response::new(proto::GetConfigResponse {
             source: self.mgr.config_source().to_string(),
@@ -223,6 +240,7 @@ struct StateCounts {
     crashed: u32,
     failed: u32,
     exited: u32,
+    skipped: u32,
 }
 
 impl StateCounts {
@@ -241,6 +259,7 @@ impl StateCounts {
                 ProcessState::Crashed => &mut counts.crashed,
                 ProcessState::Failed => &mut counts.failed,
                 ProcessState::Exited => &mut counts.exited,
+                ProcessState::Skipped => &mut counts.skipped,
             };
             *slot += 1;
         }
@@ -259,6 +278,7 @@ impl From<ProcessState> for proto::ProcessState {
             ProcessState::Crashed => Self::Crashed,
             ProcessState::Failed => Self::Failed,
             ProcessState::Stopped => Self::Stopped,
+            ProcessState::Skipped => Self::Skipped,
         }
     }
 }
@@ -277,6 +297,29 @@ fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
         last_signal: proc.last_signal(),
         profile: proc.profile().to_string(),
         user: proc.user().to_owned(),
+        config_error: String::new(),
+        skip_reasons: proc.skip_reasons().to_vec(),
+    }
+}
+
+fn invalid_to_proto(inv: &InvalidProcess) -> proto::Process {
+    proto::Process {
+        uuid: inv.uuid.clone(),
+        name: inv.name.clone(),
+        pid: 0,
+        command: String::new(),
+        args: Vec::new(),
+        state: proto::ProcessState::InvalidConfig.into(),
+        restart_count: 0,
+        last_exit_code: None,
+        last_signal: None,
+        profile: String::new(),
+        user: String::new(),
+        config_error: crate::config::truncate_config_error(
+            &inv.error,
+            crate::config::LIST_CONFIG_ERROR_MAX_CHARS,
+        ),
+        skip_reasons: Vec::new(),
     }
 }
 
@@ -335,6 +378,7 @@ fn create_request_to_config(req: &proto::CreateRequest) -> Result<ProcessConfig,
 
 fn resolve_process<'a>(
     procs: &'a [ManagedProcess],
+    invalid: &[InvalidProcess],
     name_or_uuid: &str,
 ) -> Result<&'a ManagedProcess, Status> {
     if crate::manager::looks_like_uuid_prefix(name_or_uuid) {
@@ -342,14 +386,18 @@ fn resolve_process<'a>(
             .iter()
             .filter(|p| p.uuid().starts_with(name_or_uuid))
             .collect();
+        let invalid_hits = invalid
+            .iter()
+            .filter(|p| p.uuid.starts_with(name_or_uuid))
+            .count();
+        let total = matches.len() + invalid_hits;
+        if total > 1 {
+            return Err(Status::invalid_argument(format!(
+                "UUID prefix '{name_or_uuid}' is ambiguous ({total} matches)"
+            )));
+        }
         if matches.len() == 1 {
             return Ok(matches[0]);
-        }
-        if matches.len() > 1 {
-            return Err(Status::invalid_argument(format!(
-                "UUID prefix '{name_or_uuid}' is ambiguous ({} matches)",
-                matches.len()
-            )));
         }
     }
     procs
@@ -383,6 +431,37 @@ fn process_detail_fields(proc: &ManagedProcess) -> proto::ProcessDetail {
         profile: proc.profile().to_string(),
         user: proc.user().to_owned(),
         runtime_user: String::new(),
+        config_error: String::new(),
+        skip_reasons: proc.skip_reasons().to_vec(),
+    }
+}
+
+fn invalid_detail_fields(inv: &InvalidProcess) -> proto::ProcessDetail {
+    proto::ProcessDetail {
+        uuid: inv.uuid.clone(),
+        name: inv.name.clone(),
+        description: String::new(),
+        pid: 0,
+        state: proto::ProcessState::InvalidConfig.into(),
+        command: String::new(),
+        args: Vec::new(),
+        working_dir: String::new(),
+        env: Default::default(),
+        restart_policy: String::new(),
+        stdout: String::new(),
+        stderr: String::new(),
+        auto_start: false,
+        condition_path_exists: String::new(),
+        after: Vec::new(),
+        before: Vec::new(),
+        restart_count: 0,
+        last_exit_code: None,
+        last_signal: None,
+        profile: String::new(),
+        user: String::new(),
+        runtime_user: String::new(),
+        config_error: inv.error.clone(),
+        skip_reasons: Vec::new(),
     }
 }
 
@@ -426,6 +505,10 @@ mod tests {
         assert_eq!(
             proto::ProcessState::from(ProcessState::Stopped),
             proto::ProcessState::Stopped,
+        );
+        assert_eq!(
+            proto::ProcessState::from(ProcessState::Skipped),
+            proto::ProcessState::Skipped,
         );
     }
 
@@ -474,6 +557,51 @@ mod tests {
         assert_eq!(proto.state, proto::ProcessState::Created as i32);
         assert_eq!(proto.profile, "agent");
         assert_eq!(proto.user, proc.user());
+    }
+
+    #[test]
+    fn test_invalid_to_proto() {
+        let inv = InvalidProcess {
+            uuid: test_helpers::test_uuid(),
+            name: "broken".to_string(),
+            path: std::path::PathBuf::from("/tmp/broken.yaml"),
+            error: "parsing /tmp/broken.yaml: missing field".to_string(),
+        };
+        let proto = invalid_to_proto(&inv);
+        assert_eq!(proto.name, "broken");
+        assert_eq!(proto.pid, 0);
+        assert_eq!(proto.state, proto::ProcessState::InvalidConfig as i32);
+        assert_eq!(proto.command, "");
+        assert_eq!(proto.config_error, inv.error);
+        let detail = invalid_detail_fields(&inv);
+        assert_eq!(detail.config_error, inv.error);
+        assert_eq!(detail.state, proto::ProcessState::InvalidConfig as i32);
+    }
+
+    #[test]
+    fn test_invalid_to_proto_shortens_list_config_error() {
+        let long = "x".repeat(crate::config::LIST_CONFIG_ERROR_MAX_CHARS + 200);
+        let inv = InvalidProcess {
+            uuid: test_helpers::test_uuid(),
+            name: "broken".to_string(),
+            path: std::path::PathBuf::from("/tmp/broken.yaml"),
+            error: long.clone(),
+        };
+        let proto = invalid_to_proto(&inv);
+        assert!(
+            proto.config_error.chars().count() <= crate::config::LIST_CONFIG_ERROR_MAX_CHARS,
+            "list config_error must stay within the list budget"
+        );
+        assert!(
+            proto.config_error.contains("truncated"),
+            "oversized list diagnostics must mark the cut: {}",
+            proto.config_error
+        );
+        let detail = invalid_detail_fields(&inv);
+        assert_eq!(
+            detail.config_error, long,
+            "describe keeps the stored error; list is the only shortened view"
+        );
     }
 
     #[test]
