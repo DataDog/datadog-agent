@@ -23,7 +23,7 @@ func (r *RemoteWindowsNamedPipeAssertions) WithSecurity(expected common.ObjectSe
 	r.require.NoError(err)
 	common.AssertEqualAccessSecurity(r.context.T(), r.pipename, expected, actual)
 	if r.context.T().Failed() {
-		r.context.T().FailNow()
+		r.require.FailNow("stopping chained assertions after a required assertion failed")
 	}
 	return r
 }
