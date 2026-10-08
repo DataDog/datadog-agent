@@ -52,13 +52,16 @@ func TestSessionRecordsLifecycleInsideWindow(t *testing.T) {
 	manager.now = func() time.Time { return now }
 	started, err := manager.Start(10 * time.Second)
 	require.NoError(t, err)
-	manager.RecordRotation(now.Add(time.Second), 5)
+	manager.RecordRotation(now.Add(time.Second), 0)
+	manager.RecordRotation(now.Add(3*time.Second), 12)
+	manager.RecordRotation(now.Add(5*time.Second), 4)
 	manager.RecordRotation(now.Add(11*time.Second), 6)
 	result, err := manager.Stop(started.SessionID)
 	require.NoError(t, err)
 	require.NotNil(t, result.Lifecycle)
-	require.Equal(t, uint64(1), result.Lifecycle.Rotations)
+	require.Equal(t, uint64(3), result.Lifecycle.Rotations)
 	require.Equal(t, uint64(1), result.Lifecycle.RotationIntervals.Count)
+	require.Equal(t, 4.0, result.Lifecycle.RotationIntervals.Sum)
 }
 
 func TestSessionAutomaticallyCompletesAndAllowsNext(t *testing.T) {
@@ -141,4 +144,24 @@ func TestDurationIsBounded(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidDuration)
 	_, err = manager.Start(24*time.Hour + time.Second)
 	require.ErrorIs(t, err, ErrInvalidDuration)
+}
+
+func TestEarlyStopClipsMaterializedRateWindow(t *testing.T) {
+	now := time.Unix(100, 0).UTC()
+	manager := NewManager()
+	manager.now = func() time.Time { return now }
+	started, err := manager.Start(time.Minute)
+	require.NoError(t, err)
+	manager.Record(MessageObservation{
+		ObservedAt: now.Add(time.Second), RawBytes: 100, SourceType: "file",
+		Pipeline: "0", PayloadFamily: "plain", HasSourceID: true, SourceHash: 1,
+	})
+
+	now = now.Add(5 * time.Second)
+	result, err := manager.Stop(started.SessionID)
+	require.NoError(t, err)
+	require.Equal(t, started.EndsAt, result.EndsAt, "the requested bound remains available")
+	require.Equal(t, now, result.EndedAt)
+	require.Len(t, result.RateWindows, 1)
+	require.Equal(t, now, result.RateWindows[0].EndsAt)
 }

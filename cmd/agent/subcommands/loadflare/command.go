@@ -183,7 +183,7 @@ func writeArchive(output string, snapshot characterization.Snapshot, config arch
 	if err != nil {
 		return fmt.Errorf("could not encode Agent configuration: %w", err)
 	}
-	settings, err = scrubber.ScrubBytes(settings)
+	settings, err = scrubber.ScrubJSON(settings)
 	if err != nil {
 		return fmt.Errorf("could not scrub Agent configuration: %w", err)
 	}

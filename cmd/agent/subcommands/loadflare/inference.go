@@ -321,7 +321,10 @@ func dominantVariant(families map[string]characterization.Aggregate) (string, st
 
 func lifecycleRepresentation(lifecycle *characterization.Lifecycle) map[string]any {
 	if lifecycle == nil || lifecycle.Rotations == 0 {
-		return map[string]any{"status": "partial", "warnings": []string{"No rotation occurred inside the bounded window; a longer lifecycle cadence may be present."}}
+		return map[string]any{"status": "not_observed", "warnings": []string{"No rotation occurred inside the bounded window; lifecycle behavior outside the window was not inferred."}}
+	}
+	if lifecycle.RotationIntervals.Count == 0 {
+		return map[string]any{"status": "partial", "warnings": []string{"A rotation occurred, but two in-session rotation boundaries are required to infer its cadence."}}
 	}
 	if lifecycleCadencesAreHeterogeneous(lifecycle.RotationIntervals) {
 		return map[string]any{"status": "partial", "warnings": []string{"Multiple material rotation cadences were observed; the current candidate uses one effective cadence and does not reproduce the lifecycle mixture."}}

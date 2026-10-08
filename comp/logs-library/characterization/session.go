@@ -268,10 +268,11 @@ func (m *Manager) Record(observation MessageObservation) {
 	s.snapshot.Totals.SourceCount++
 }
 
-// RecordRotation adds one aggregate-only file lifecycle observation.
+// RecordRotation adds one aggregate-only file lifecycle event. An interval is
+// retained only when both of its rotation boundaries fall inside this session.
 func (m *Manager) RecordRotation(observedAt time.Time, intervalSeconds float64) {
 	s := m.active.Load()
-	if s == nil || observedAt.Before(s.snapshot.StartedAt) || !observedAt.Before(s.snapshot.EndsAt) || intervalSeconds <= 0 {
+	if s == nil || observedAt.Before(s.snapshot.StartedAt) || !observedAt.Before(s.snapshot.EndsAt) {
 		return
 	}
 	s.mu.Lock()
@@ -283,6 +284,10 @@ func (m *Manager) RecordRotation(observedAt time.Time, intervalSeconds float64) 
 		s.snapshot.Lifecycle = &Lifecycle{RotationIntervals: newHistogram(interarrivalBounds[:])}
 	}
 	s.snapshot.Lifecycle.Rotations++
+	elapsed := observedAt.Sub(s.snapshot.StartedAt).Seconds()
+	if intervalSeconds <= 0 || intervalSeconds > elapsed {
+		return
+	}
 	observeHistogram(&s.snapshot.Lifecycle.RotationIntervals, intervalSeconds)
 }
 
@@ -387,7 +392,11 @@ func (s *session) materializeGroups() {
 	})
 	s.snapshot.RateWindows = s.snapshot.RateWindows[:0]
 	for _, window := range s.rateWindows {
-		s.snapshot.RateWindows = append(s.snapshot.RateWindows, *window)
+		value := *window
+		if !s.snapshot.EndedAt.IsZero() && value.EndsAt.After(s.snapshot.EndedAt) {
+			value.EndsAt = s.snapshot.EndedAt
+		}
+		s.snapshot.RateWindows = append(s.snapshot.RateWindows, value)
 	}
 	sort.Slice(s.snapshot.RateWindows, func(i, j int) bool {
 		return s.snapshot.RateWindows[i].StartedAt.Before(s.snapshot.RateWindows[j].StartedAt)

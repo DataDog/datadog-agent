@@ -43,8 +43,18 @@ func TestWriteArchive(t *testing.T) {
 	require.Contains(t, names, "observation.json")
 	require.Contains(t, names, "inference-report.json")
 	require.NotContains(t, names, "lading.yaml")
+	var checkedConfig bool
 
 	for _, file := range reader.File {
+		if file.Name == "agent-config.json" {
+			stream, err := file.Open()
+			require.NoError(t, err)
+			content, err := io.ReadAll(stream)
+			require.NoError(t, err)
+			require.NotContains(t, string(content), "secret")
+			require.NoError(t, stream.Close())
+			checkedConfig = true
+		}
 		if file.Name != "manifest.json" {
 			continue
 		}
@@ -56,6 +66,7 @@ func TestWriteArchive(t *testing.T) {
 		require.NotEmpty(t, value.Artifacts)
 		require.NoError(t, stream.Close())
 	}
+	require.True(t, checkedConfig)
 }
 
 func TestInferLadingForSupportedFileLoad(t *testing.T) {
@@ -69,7 +80,7 @@ func TestInferLadingForSupportedFileLoad(t *testing.T) {
 	require.Contains(t, string(lading), "traditional:")
 	require.Contains(t, string(lading), "duplicates: 2")
 	require.Contains(t, string(lading), `variant: "apache_common"`)
-	require.Equal(t, "partial", report["candidate"].(map[string]any)["status"])
+	require.Equal(t, "ready", report["candidate"].(map[string]any)["status"])
 }
 
 func TestInferLadingAccountsForRotatedSourceIdentities(t *testing.T) {
@@ -156,6 +167,16 @@ func TestLifecycleRepresentationDetectsHeterogeneousCadences(t *testing.T) {
 		},
 	}
 	require.Equal(t, "partial", lifecycleRepresentation(lifecycle)["status"])
+}
+
+func TestLifecycleRepresentationSeparatesUnobservedAndInsufficientEvidence(t *testing.T) {
+	unobserved := lifecycleRepresentation(nil)
+	require.Equal(t, "not_observed", unobserved["status"])
+	require.Contains(t, fmt.Sprint(unobserved["warnings"]), "outside the window")
+
+	insufficient := lifecycleRepresentation(&characterization.Lifecycle{Rotations: 1})
+	require.Equal(t, "partial", insufficient["status"])
+	require.Contains(t, fmt.Sprint(insufficient["warnings"]), "two in-session")
 }
 
 func TestBurstDetectionPrefersRawIngressBytes(t *testing.T) {

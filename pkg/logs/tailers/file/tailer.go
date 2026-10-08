@@ -250,9 +250,6 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		fileOpener:                   opener.ForSource(opts.FileOpener, opts.File.Source),
 		baseFileOpener:               opts.FileOpener,
 	}
-	if t.lastCharacterizationRotation.IsZero() {
-		t.lastCharacterizationRotation = time.Now()
-	}
 
 	if fileRotated {
 		addToTailerInfo("Last Rotation Date", getFormattedTime(), t.info)
@@ -305,14 +302,19 @@ func (t *Tailer) RecordCharacterizationRotation(now time.Time) {
 	if !pkgconfigsetup.Datadog().GetBool(experimentalCharacterizationAllowed) || !characterization.Default.Active() {
 		return
 	}
-	if seconds, ok := t.characterizationRotationInterval(now); ok {
+	seconds, ok := t.characterizationRotationInterval(now)
+	if ok {
 		metrics.TlmCharacterizationRotationIntervalSeconds.Observe(seconds)
-		characterization.Default.RecordRotation(now, seconds)
 	}
+	characterization.Default.RecordRotation(now, seconds)
 }
 
 func (t *Tailer) characterizationRotationInterval(now time.Time) (float64, bool) {
-	if t.lastCharacterizationRotation.IsZero() || !now.After(t.lastCharacterizationRotation) {
+	if t.lastCharacterizationRotation.IsZero() {
+		t.lastCharacterizationRotation = now
+		return 0, false
+	}
+	if !now.After(t.lastCharacterizationRotation) {
 		return 0, false
 	}
 	seconds := now.Sub(t.lastCharacterizationRotation).Seconds()

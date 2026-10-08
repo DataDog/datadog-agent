@@ -893,7 +893,11 @@ func TestWaitForRotationDrain(t *testing.T) {
 }
 
 func TestCharacterizationRotationInterval(t *testing.T) {
-	tailer := &Tailer{lastCharacterizationRotation: time.Unix(100, 0)}
+	tailer := &Tailer{}
+
+	_, ok := tailer.characterizationRotationInterval(time.Unix(100, 0))
+	require.False(t, ok)
+	require.Equal(t, time.Unix(100, 0), tailer.LastCharacterizationRotation())
 
 	seconds, ok := tailer.characterizationRotationInterval(time.Unix(115, 0))
 	require.True(t, ok)
