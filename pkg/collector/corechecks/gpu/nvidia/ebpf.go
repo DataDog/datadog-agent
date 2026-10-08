@@ -222,7 +222,7 @@ func (c *ebpfCollector) Collect() ([]Sample, error) {
 		}
 	}
 
-	// Emit limit metrics with aggregated PID tags
+	// Emit core limit metric with aggregated PID tags
 	deviceSamples = append(deviceSamples,
 		&Metric{
 			baseSample: baseSample{priority: Medium, associatedWorkloads: allWorkloadIDs},
@@ -230,13 +230,15 @@ func (c *ebpfCollector) Collect() ([]Sample, error) {
 			Value:      float64(devInfo.CoreCount),
 			Type:       ddmetrics.GaugeType,
 		},
-		&Metric{
+	)
+	if devInfo.Memory > 0 {
+		deviceSamples = append(deviceSamples, &Metric{
 			baseSample: baseSample{associatedWorkloads: allWorkloadIDs},
 			Name:       "memory.limit",
 			Value:      float64(devInfo.Memory),
 			Type:       ddmetrics.GaugeType,
-		},
-	)
+		})
+	}
 
 	// Emit device-level utilization metrics as a fallback when no other
 	// sources are available (mainly Ampere MIG devices)

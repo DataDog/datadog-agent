@@ -1058,7 +1058,6 @@ go_binary(
     embed = [":serverless-init_lib"],
     gotags = SERVERLESS_TAGS.union(set([
         "zlib",
-        "zstd",
     ])),
     visibility = ["//visibility:public"],
 )

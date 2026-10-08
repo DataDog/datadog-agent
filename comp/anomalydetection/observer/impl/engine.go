@@ -24,11 +24,8 @@ import (
 type anomalyDedupKey struct {
 	sourceRef       observerdef.SeriesRef
 	sourceAggregate observerdef.Aggregate
-	sourceKey       string // SeriesDescriptor.Key(), only for anomalies without a storage ref
-	hasSourceRef    bool
 	detectorName    string
 	timestamp       int64
-	title           string
 }
 
 const (
@@ -70,20 +67,14 @@ func anomalyDedupCapacity(trackHistory bool) int {
 	return maxLiveAnomalyDedupEntries
 }
 
+// Detector outputs always carry a storage series reference.
 func anomalyDedupKeyFor(anomaly observerdef.Anomaly) anomalyDedupKey {
-	key := anomalyDedupKey{
-		detectorName: anomaly.DetectorName,
-		timestamp:    anomaly.Timestamp,
-		title:        anomaly.Title,
+	return anomalyDedupKey{
+		sourceRef:       anomaly.SourceRef.Ref,
+		sourceAggregate: anomaly.SourceRef.Aggregate,
+		detectorName:    anomaly.DetectorName,
+		timestamp:       anomaly.Timestamp,
 	}
-	if anomaly.SourceRef != nil {
-		key.sourceRef = anomaly.SourceRef.Ref
-		key.sourceAggregate = anomaly.SourceRef.Aggregate
-		key.hasSourceRef = true
-	} else {
-		key.sourceKey = anomaly.Source.Key()
-	}
-	return key
 }
 
 func (d *anomalyDeduper) accept(key anomalyDedupKey, expiresAt int64) (accepted bool, capacityEvicted int) {
@@ -145,7 +136,7 @@ func (d *anomalyDeduper) removeSourceRefs(refs []observerdef.SeriesRef) int {
 	}
 	removed := 0
 	for _, key := range d.live.Keys() {
-		if _, exists := removedRefs[key.sourceRef]; key.hasSourceRef && exists {
+		if _, exists := removedRefs[key.sourceRef]; exists {
 			if d.live.Remove(key) {
 				removed++
 			}
@@ -488,7 +479,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				continue
 			}
 			res := e.storage.AddWithKeyAndHostComposite(extractor.Name(), m.Name, host, m.Value, timestamp, tags, seriesKey)
-			if m.Context != nil && res.Ref >= 0 {
+			if m.HasContext && res.Ref >= 0 {
 				e.storage.SetContext(res.Ref, m.Context)
 			}
 		}
@@ -776,15 +767,15 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		}
 
 		for _, anomaly := range result.Anomalies {
+			if anomaly.SourceRef == nil {
+				continue // invalid detector output: no storage series to identify it
+			}
 			e.enrichAnomaly(&anomaly)
 			// Baseline gate must precede acceptAnomaly: scan detectors re-emit
-			// the same anomaly (same {source,detector,ts,title}) on consecutive advances,
+			// the same anomaly (same {source ref,aggregate,detector,ts}) on consecutive advances,
 			// so acceptAnomaly would return false (duplicate) before we could mark it.
-			// anomaly.Source.Tags are sorted (copied from storage's intern pool by seriesDetectorAdapter).
 			if e.baseline != nil && e.baseline.isAnalyzingAt(detector.Name(), upTo) {
-				if anomaly.SourceRef != nil {
-					e.baseline.mark(detector.Name(), e.anomalyStorageKey(anomaly))
-				}
+				e.baseline.mark(detector.Name(), e.anomalyStorageKey(anomaly))
 				continue
 			}
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
@@ -867,14 +858,9 @@ func (e *engine) anomalyStorageKey(anomaly observerdef.Anomaly) uint64 {
 // Context is written at ingest time via storage.SetContext when an extractor
 // emits a MetricOutput.Context; here we read it back in O(1).
 func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
-	if a.SourceRef == nil {
-		return
+	if ctx, ok := e.storage.GetContext(a.SourceRef.Ref); ok {
+		a.Context = &ctx
 	}
-	ctx := e.storage.GetContext(a.SourceRef.Ref)
-	if ctx == nil {
-		return
-	}
-	a.Context = ctx
 }
 
 // processAnomaly sends an anomaly to all registered correlators.
@@ -884,9 +870,9 @@ func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
 	}
 }
 
-// acceptAnomaly deduplicates by Source+DetectorName+Timestamp+Title and,
-// when testbench history is enabled, stores the accepted anomaly for display.
-// Returns true if the anomaly was new, false if it was a duplicate.
+// acceptAnomaly deduplicates by SourceRef+Aggregate+DetectorName+Timestamp.
+// When testbench history is enabled, it stores the accepted anomaly for display.
+// The anomaly must have a SourceRef. Returns true if new, false if a duplicate.
 func (e *engine) acceptAnomaly(anomaly observerdef.Anomaly) bool {
 	expiresAt := e.anomalyDedupExpiry(anomaly)
 	e.rawAnomalyMu.Lock()
@@ -910,11 +896,7 @@ func (e *engine) acceptAnomaly(anomaly observerdef.Anomaly) bool {
 }
 
 func (e *engine) anomalyDedupExpiry(anomaly observerdef.Anomaly) int64 {
-	ref := observerdef.SeriesRef(-1)
-	if anomaly.SourceRef != nil {
-		ref = anomaly.SourceRef.Ref
-	}
-	retentionSecs := e.storage.pointRetentionForSeries(ref)
+	retentionSecs := e.storage.pointRetentionForSeries(anomaly.SourceRef.Ref)
 	if retentionSecs <= 0 {
 		return 0
 	}
