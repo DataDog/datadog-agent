@@ -10,6 +10,7 @@ import (
 	"errors"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -53,6 +54,12 @@ func (r *recordingReporter) ReportDevices(_ string, d []metadata.DiscoveredDevic
 	r.batches++
 	r.devices = append(r.devices, d...)
 	return nil
+}
+
+func (r *recordingReporter) recordedRuns() []metadata.AutodiscoveryRunMetadata {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]metadata.AutodiscoveryRunMetadata(nil), r.runs...)
 }
 
 func (r *recordingReporter) ReportRun(_ string, run metadata.AutodiscoveryRunMetadata) error {
@@ -230,27 +237,43 @@ func TestSweepReportsPerChunkNotAtTheEnd(t *testing.T) {
 	assert.Len(t, scanner.recorded(), 4)
 }
 
-func TestSweepReportsProgressOnTheInterval(t *testing.T) {
+func TestSweepReportsProgressWhileAChunkIsStillRunning(t *testing.T) {
+	ticks := make(chan time.Time)
+	entered := make(chan struct{})
+	release := make(chan struct{})
+
+	calls := &atomic.Int32{}
+	scanner := &recordingScanner{respond: func(scanCall) ([]probe.Result, error) {
+		if calls.Add(1) == 2 {
+			close(entered)
+			<-release
+		}
+		return nil, nil
+	}}
+
 	reporter := &recordingReporter{}
-	s := newTestSweeper(t, answerAll(), reporter, newMemCursorStore(), 10)
-	clock := int64(1700000000000)
-	s.now = func() int64 {
-		clock += s.progressEvery.Milliseconds()
-		return clock
-	}
+	s := newTestSweeper(t, scanner, reporter, newMemCursorStore(), 10)
+	s.newProgressTicker = func(time.Duration) (<-chan time.Time, func()) { return ticks, func() {} }
 
-	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", nil)))
+	swept := make(chan error, 1)
+	go func() { swept <- s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", nil)) }()
 
-	require.Len(t, reporter.runs, 5)
-	scanned := []int64{}
-	for _, run := range reporter.runs[1:4] {
-		assert.Equal(t, metadata.AutodiscoveryRunInProgress, run.Status)
-		assert.Equal(t, "run-fixed", run.RunID)
-		scanned = append(scanned, run.AddressesScanned)
-	}
-	assert.Equal(t, []int64{64, 128, 192}, scanned)
-	assert.Equal(t, metadata.AutodiscoveryRunCompleted, reporter.runs[4].Status)
-	assert.Equal(t, int64(256), reporter.runs[4].AddressesScanned)
+	<-entered
+	ticks <- time.Time{}
+	// The second send lands only once the first tick has been reported.
+	ticks <- time.Time{}
+	close(release)
+	require.NoError(t, <-swept)
+
+	runs := reporter.recordedRuns()
+	require.GreaterOrEqual(t, len(runs), 3)
+	assert.Equal(t, metadata.AutodiscoveryRunInProgress, runs[1].Status)
+	assert.Equal(t, "run-fixed", runs[1].RunID)
+	assert.Equal(t, int64(64), runs[1].AddressesScanned)
+
+	last := runs[len(runs)-1]
+	assert.Equal(t, metadata.AutodiscoveryRunCompleted, last.Status)
+	assert.Equal(t, int64(256), last.AddressesScanned)
 }
 
 func TestSweepReportsNoProgressWithinTheInterval(t *testing.T) {
