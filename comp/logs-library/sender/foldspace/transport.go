@@ -19,6 +19,8 @@ type Transport interface {
 
 // Stream is one bidirectional batch/ack connection.
 type Stream interface {
+	// Send must return once ctx is done, even while blocked on flow control.
+	// The stream is unusable afterwards.
 	Send(ctx context.Context, batchID uint32, data []byte) error
 	Recv(ctx context.Context) (batchID uint32, status int32, err error)
 	Close() error
@@ -31,6 +33,10 @@ type FakeTransport struct {
 	openErr   []error
 	ackOK     bool
 	blockRecv bool
+	// stallStreams is how many streams, in open order, block every Send until
+	// its ctx ends.
+	stallStreams int
+	opens        int
 }
 
 // NewFakeTransport returns a transport with n senders that acks OK.
@@ -65,7 +71,21 @@ func (t *FakeTransport) OpenStream(_ context.Context, sender SenderID, _ StreamI
 		t.openErr[sender] = nil
 		return nil, err
 	}
-	return &FakeStream{transport: t, sender: sender, acks: make(chan ack, 64), blockRecv: t.blockRecv}, nil
+	t.opens++
+	return &FakeStream{
+		transport: t,
+		sender:    sender,
+		acks:      make(chan ack, 64),
+		blockRecv: t.blockRecv,
+		stallSend: t.opens <= t.stallStreams,
+	}, nil
+}
+
+// Opens returns how many streams have been opened across all senders.
+func (t *FakeTransport) Opens() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.opens
 }
 
 type ack struct {
@@ -79,10 +99,16 @@ type FakeStream struct {
 	sender    SenderID
 	acks      chan ack
 	blockRecv bool
+	stallSend bool
 }
 
-// Send records the bytes and queues an OK ack.
-func (s *FakeStream) Send(_ context.Context, batchID uint32, data []byte) error {
+// Send records the bytes and queues an OK ack. When stallSend is set it waits
+// until ctx ends, as a send blocked on flow control does.
+func (s *FakeStream) Send(ctx context.Context, batchID uint32, data []byte) error {
+	if s.stallSend {
+		<-ctx.Done()
+		return ctx.Err()
+	}
 	s.transport.mu.Lock()
 	s.transport.sent[s.sender] = append(s.transport.sent[s.sender], append([]byte(nil), data...))
 	s.transport.mu.Unlock()

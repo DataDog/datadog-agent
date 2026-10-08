@@ -525,6 +525,35 @@ func TestStopDeliversEverythingAccepted(t *testing.T) {
 	assert.Len(t, transport.Sent(0), payloads, "Stop must not discard accepted records")
 }
 
+// An intake that stops granting flow-control window blocks Send, and with it
+// the only goroutine that sends for and takes acks for that sender. The send
+// deadline must fail the stream so the core opens a fresh one and the sender
+// keeps delivering.
+func TestSendDeadlineFailsStalledStream(t *testing.T) {
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})
+	transport := NewFakeTransport(1)
+	transport.stallStreams = 1
+	sink := newChannelSink()
+	d := NewDriver(DriverOptions{
+		Core:            core,
+		Transport:       transport,
+		Sink:            sink,
+		PipelineMonitor: metrics.NewNoopPipelineMonitor("test"),
+		SendTimeout:     50 * time.Millisecond,
+		ShutdownTimeout: 200 * time.Millisecond,
+	})
+	d.Start()
+	t.Cleanup(d.Stop)
+
+	d.Offer(testMessage("stalled"))
+	require.Eventually(t, func() bool { return transport.Opens() >= 2 }, 2*time.Second, 5*time.Millisecond,
+		"a send past its deadline must fail the stream")
+
+	d.Offer(testMessage("after"))
+	waitPayloads(t, sink, 1)
+	assert.Equal(t, [][]byte{[]byte("after")}, transport.Sent(0))
+}
+
 // MRF routing follows destination_sender.go's canSend() gate for the primary
 // HTTP path: an MRF sender is reached only when the record is itself
 // MRF-allowed and multi_region_failover.enabled/failover_logs are both true.
