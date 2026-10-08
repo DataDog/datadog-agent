@@ -56,7 +56,7 @@ func commandRuntime(wrappedCommand []string) string {
 func executableRuntime(executable string) string {
 	executable = filepath.Base(executable)
 	switch executable {
-	case "node", "nodejs":
+	case "node", "nodejs", "npm":
 		return "Node.js"
 	case "java":
 		return "Java"

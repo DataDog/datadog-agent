@@ -22,6 +22,9 @@ func TestResolveRuntimePrecedence(t *testing.T) {
 		want     string
 	}{
 		{name: "override wins", override: "Ruby", metadata: []string{"Java", "Python"}, command: []string{"node"}, want: "Ruby"},
+		{name: "override beats npm", override: "MyRuntime", metadata: []string{"Java"}, command: []string{"npm", "start"}, want: "MyRuntime"},
+		{name: "metadata beats npm", metadata: []string{"Java"}, command: []string{"npm", "start"}, want: "Java"},
+		{name: "invalid candidates fall back to npm", override: " UnKnOwN ", metadata: []string{" CONTAINER ", " NuLl "}, command: []string{"npm", "start"}, want: "Node.js"},
 		{name: "custom override trimmed with case preserved", override: " \tMyCustomRuntime\n", metadata: []string{"Python"}, want: "MyCustomRuntime"},
 		{name: "override without detection", override: "Go", want: "Go"},
 		{name: "override beats Python launcher", override: "MyPython", metadata: []string{"Java"}, command: []string{"ddtrace-run", "python", "app.py"}, want: "MyPython"},
@@ -59,6 +62,9 @@ func TestResolveRuntimeLauncher(t *testing.T) {
 		command []string
 		want    string
 	}{
+		{name: "npm start", command: []string{"npm", "start"}, want: "Node.js"},
+		{name: "npm run script", command: []string{"/usr/local/bin/npm", "run", "start"}, want: "Node.js"},
+		{name: "npm shell expression not parsed", command: []string{"sh", "-c", "npm start"}},
 		{name: "Python launcher", command: []string{"ddtrace-run", "python", "app.py"}, want: "Python"},
 		{name: "Python launcher paths", command: []string{"/opt/venv/bin/ddtrace-run", "/opt/venv/bin/python3.12", "app.py"}, want: "Python"},
 		{name: "Python version suffix", command: []string{"ddtrace-run", "python3", "-m", "app"}, want: "Python"},
@@ -77,6 +83,7 @@ func TestResolveRuntimeLauncher(t *testing.T) {
 		{name: "Python launcher diagnostic only", command: []string{"ddtrace-run", "--info"}},
 		{name: "Python launcher requires Python command", command: []string{"ddtrace-run", "puma"}},
 		{name: "Python launcher arbitrary executable", command: []string{"ddtrace-run", "node", "app.py"}},
+		{name: "Python launcher rejects npm", command: []string{"ddtrace-run", "npm", "start"}},
 		{name: "Python launcher script not inferred", command: []string{"ddtrace-run", "./app.py"}},
 		{name: "Python launcher command prefix not inferred", command: []string{"ddtrace-run", "gunicorn-custom", "app:app"}},
 		{name: "Python launcher invalid version", command: []string{"ddtrace-run", "python3.", "app.py"}},
@@ -88,6 +95,7 @@ func TestResolveRuntimeLauncher(t *testing.T) {
 		{name: "Ruby launcher requires exec", command: []string{"bundle", "ruby", "app.rb"}},
 		{name: "Ruby launcher requires Ruby command", command: []string{"bundle", "exec", "gunicorn", "app:app"}},
 		{name: "Ruby launcher arbitrary executable", command: []string{"bundle", "exec", "node", "app.rb"}},
+		{name: "Ruby launcher rejects npm", command: []string{"bundle", "exec", "npm", "start"}},
 		{name: "Ruby launcher script not inferred", command: []string{"bundle", "exec", "./app.rb"}},
 		{name: "Ruby launcher command prefix not inferred", command: []string{"bundle", "exec", "puma-custom"}},
 		{name: "Ruby launcher options not parsed", command: []string{"bundle", "--verbose", "exec", "ruby", "app.rb"}},
@@ -109,6 +117,9 @@ func TestResolveRuntimeWrappedExecutable(t *testing.T) {
 	}{
 		{"node", "Node.js"},
 		{"/usr/local/bin/nodejs", "Node.js"},
+		{"npm", "Node.js"},
+		{"/usr/local/bin/npm", "Node.js"},
+		{"./node_modules/.bin/npm", "Node.js"},
 		{"python", "Python"},
 		{"/opt/venv/bin/python3", "Python"},
 		{"python2.7", "Python"},
@@ -130,7 +141,9 @@ func TestResolveRuntimeWrappedExecutable(t *testing.T) {
 		{"sh", ""},
 		{"/bin/bash", ""},
 		{"/usr/bin/env", ""},
-		{"npm", ""},
+		{"npm-custom", ""},
+		{"/npm/custom-app", ""},
+		{"npm start", ""},
 		{"bundle", ""},
 		{"ddtrace-run", ""},
 		{"gunicorn-custom", ""},
