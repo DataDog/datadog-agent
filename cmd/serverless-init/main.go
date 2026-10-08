@@ -557,7 +557,7 @@ func setup(
 	// this publication. UUID, generic fields, and instance resource ID are all
 	// updated while closed; missing identity cannot open the image-build gate.
 	inventorySubmitter := lifecycle.InventorySubmitterFunc(func(microVMID string) {
-		serverlessInitInventory.PublishInstance(inventoryAgent, instanceUUID, microVMID, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
+		serverlessInitInventory.UpdateInstanceAndSubmit(inventoryAgent, instanceUUID, microVMID, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
 	})
 
 	// Note: we do not modify tags for the LogsAgent.

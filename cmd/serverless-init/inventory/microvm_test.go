@@ -53,7 +53,7 @@ func TestSetResourceIDGatedOff(t *testing.T) {
 	assert.Empty(t, ia.fields, "resource_id must not be set when the ramp gate is off")
 }
 
-// Defensive narrowing ignores empty IDs; PublishInstance must reject them
+// Defensive narrowing ignores empty IDs; UpdateInstanceAndSubmit must reject them
 // before any injection or readiness change.
 func TestSetResourceIDIgnoresEmptyID(t *testing.T) {
 	conf := configmock.New(t)
@@ -162,7 +162,7 @@ func TestNewInstanceCapabilitiesResolvesPerPayload(t *testing.T) {
 		"the uuid must resolve per payload, not be captured once")
 }
 
-func TestPublishInstanceRejectsMissingIdentityAndDisabledRamp(t *testing.T) {
+func TestUpdateInstanceAndSubmitRejectsMissingIdentityAndDisabledRamp(t *testing.T) {
 	for _, scenario := range []string{"missing identity", "default off", "disabled"} {
 		t.Run(scenario, func(t *testing.T) {
 			t.Setenv("DD_SERVERLESS_INIT_INVENTORY_ENABLED", "")
@@ -180,7 +180,7 @@ func TestPublishInstanceRejectsMissingIdentityAndDisabledRamp(t *testing.T) {
 			u := NewInstanceUUID()
 			before := u.Resolve()
 
-			PublishInstance(ia, u, id, &cloudservice.MicroVM{}, mode.Conf{}, conf, nil)
+			UpdateInstanceAndSubmit(ia, u, id, &cloudservice.MicroVM{}, mode.Conf{}, conf, nil)
 
 			assert.Empty(t, ia.calls, "must not inject, open readiness, or submit")
 			assert.Equal(t, before, u.Resolve(), "must not change identity")
