@@ -149,6 +149,14 @@ class TestGetBuildbarnToken(unittest.TestCase):
         self.assertEqual(compiler.get_buildbarn_token(self.ctx), "minted")
         self.assertIn("vault login", self.ctx.run.call_args_list[1].args[0])
 
+    def test_vault_addr_is_quoted(self):
+        os.environ["VAULT_ADDR"] = "https://proxy/vault?a=1&b=$HOME"
+        self.isatty.return_value = True
+        self.ctx.run.side_effect = [_result(False), _result(True), _result(True, "minted")]
+        compiler.get_buildbarn_token(self.ctx)
+        for call in self.ctx.run.call_args_list:
+            self.assertIn("'-address=https://proxy/vault?a=1&b=$HOME'", call.args[0])
+
 
 class TestHostWantsRemoteCache(unittest.TestCase):
     def test_true_when_selector_emits_config_cache(self):

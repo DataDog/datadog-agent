@@ -19,7 +19,7 @@ from invoke.runners import Result
 from tasks.kernel_matrix_testing.tool import Exit, info, warn
 from tasks.libs.build.bazel import bazel
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
-from tasks.libs.common.utils import get_repo_root
+from tasks.libs.common.utils import get_repo_root, join_command
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
 
 if TYPE_CHECKING:
@@ -43,7 +43,7 @@ def _host_wants_remote_cache(ctx: Context) -> bool:
     res = cast(
         'Result',
         ctx.run(
-            f". {shlex.quote(str(select_sh))}; _remote_cache_config",
+            f"{join_command(['.', str(select_sh)])}; _remote_cache_config",
             hide=True,
             warn=True,
             env={"BUILDBARN_ID_TOKEN": "probe"},
@@ -70,11 +70,11 @@ def get_buildbarn_token(ctx: Context) -> str | None:
         return None
 
     addr = os.environ.get("VAULT_ADDR", "https://vault.us1.ddbuild.io")
-    read_cmd = f"vault read -address={addr} -field=token identity/oidc/token/buildbarn"
+    read_cmd = join_command(["vault", "read", f"-address={addr}", "-field=token", "identity/oidc/token/buildbarn"])
     res = cast('Result', ctx.run(read_cmd, hide=True, warn=True))
     if not res.ok and sys.stdin.isatty():
         info("[*] Logging in to Vault to enable the Bazel remote cache in the compiler container")
-        ctx.run(f"vault login -address={addr} -method=oidc -no-print", warn=True)
+        ctx.run(join_command(["vault", "login", f"-address={addr}", "-method=oidc", "-no-print"]), warn=True)
         res = cast('Result', ctx.run(read_cmd, hide=True, warn=True))
     if res.ok and (token := res.stdout.strip()):
         return token
