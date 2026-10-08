@@ -205,6 +205,49 @@ func TestSourceFromAttrs(t *testing.T) {
 			},
 		},
 		{
+			name: "Azure App Service identity from cloud.resource_id fallback",
+			attrs: testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudPlatformKey):  cloudPlatformAzureAppService,
+				string(semconv143.CloudResourceIDKey): "/subscriptions/example-subscription/resourceGroups/example-resource-group/providers/Microsoft.Web/sites/example-app",
+				string(conventions.HostIDKey):         testHostID,
+			}),
+			ok: true,
+			src: source.Source{
+				Kind:       source.AzureAppServiceKind,
+				Identifier: testAzureAppServiceName, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: testAzureAppServiceName,
+					Dimensions: map[string]string{
+						"name":            testAzureAppServiceName,
+						"subscription_id": testAzureSubscriptionID,
+						"resource_group":  testAzureResourceGroup,
+					},
+				},
+			},
+		},
+		{
+			name: "Azure App Service explicit name takes precedence over cloud.resource_id",
+			attrs: testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudPlatformKey):  cloudPlatformAzureAppService,
+				string(conventions.ServiceNameKey):    testAzureAppServiceName,
+				string(semconv143.CloudResourceIDKey): "/subscriptions/example-subscription/resourceGroups/example-resource-group/providers/Microsoft.Web/sites/different-app",
+				string(conventions.HostIDKey):         testHostID,
+			}),
+			ok: true,
+			src: source.Source{
+				Kind:       source.AzureAppServiceKind,
+				Identifier: testAzureAppServiceName, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: testAzureAppServiceName,
+					Dimensions: map[string]string{
+						"name":            testAzureAppServiceName,
+						"subscription_id": testAzureSubscriptionID,
+						"resource_group":  testAzureResourceGroup,
+					},
+				},
+			},
+		},
+		{
 			name: "Azure Container Apps (semconv v1.35.0 or later)",
 			attrs: testutils.NewAttributeMap(map[string]string{
 				string(conventions.CloudProviderKey):         conventions.CloudProviderAzure.Value.AsString(),
@@ -663,7 +706,7 @@ func TestAzureContainerAppsSourceRequiresBillingIdentity(t *testing.T) {
 	}
 }
 
-func TestAzureAppServiceSourceRequiresBillingIdentity(t *testing.T) {
+func TestAzureAppServiceSourceRequiresBillingIdentityWithoutResourceID(t *testing.T) {
 	requiredAttributes := []string{
 		string(conventions.ServiceNameKey),
 		string(conventions.CloudAccountIDKey),

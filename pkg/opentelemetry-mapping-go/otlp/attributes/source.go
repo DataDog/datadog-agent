@@ -99,6 +99,22 @@ func azureAppServiceResourceFromAttributes(attrs pcommon.Map) (azureAppServiceRe
 	name, nameOK := attrs.Get(string(conventions.ServiceNameKey))
 	subscriptionID, subscriptionIDOK := attrs.Get(string(conventions.CloudAccountIDKey))
 	resourceGroup, resourceGroupOK := attrs.Get(attributeAzureResourceGroupName)
+	// Fallback: derive name, subscription_id, and resource_group from cloud.resource_id.
+	// Azure App Service resource detectors do not consistently emit the individual
+	// identity attributes, while cloud.resource_id is the documented reliable path.
+	if resourceID, ok := attrs.Get(string(semconv143.CloudResourceIDKey)); ok && resourceID.Str() != "" {
+		if parsed, err := parseAzureResourceID(resourceID.Str()); err == nil {
+			if !nameOK || name.Str() == "" {
+				name, nameOK = pcommon.NewValueStr(parsed.ResourceName), true
+			}
+			if !subscriptionIDOK || subscriptionID.Str() == "" {
+				subscriptionID, subscriptionIDOK = pcommon.NewValueStr(parsed.SubscriptionID), true
+			}
+			if !resourceGroupOK || resourceGroup.Str() == "" {
+				resourceGroup, resourceGroupOK = pcommon.NewValueStr(parsed.ResourceGroup), true
+			}
+		}
+	}
 	if !nameOK || name.Str() == "" ||
 		!subscriptionIDOK || subscriptionID.Str() == "" ||
 		!resourceGroupOK || resourceGroup.Str() == "" {
