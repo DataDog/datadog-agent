@@ -12,7 +12,7 @@
 #include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) sys_splice(void *ctx, u64 pid_tgid) {
+static __always_inline int sys_splice(void *ctx, u64 pid_tgid) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -101,15 +101,15 @@ int rethook_get_pipe_info(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_splice_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_SPLICE);
+static __always_inline int sys_splice_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_SPLICE);
     if (!syscall) {
         return 0;
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_SPLICE);
     if (syscall->state == DISCARDED) {
-        return 0;
+        goto pop_and_exit;
     }
 
     if (syscall->splice.pipe_info != NULL && syscall->splice.bufs != NULL) {
@@ -118,12 +118,12 @@ int __attribute__((always_inline)) sys_splice_ret_impl(void *ctx, int retval, en
     }
 
     if (approve_syscall(syscall, splice_approvers) == DISCARDED) {
-        return 0;
+        goto pop_and_exit;
     }
 
     struct splice_event_t *event = SPAN_FILL_EVENT(struct splice_event_t, EVENT_SPLICE);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
@@ -138,14 +138,18 @@ int __attribute__((always_inline)) sys_splice_ret_impl(void *ctx, int retval, en
     } else {
         entry = fill_process_context(&event->process);
     }
+
+    pop_syscall(EVENT_SPLICE);
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
 
+pop_and_exit:
+    pop_syscall(EVENT_SPLICE);
     return 0;
 }
 
-int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
+static __always_inline int sys_splice_ret(void *ctx, int retval) {
     return sys_splice_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

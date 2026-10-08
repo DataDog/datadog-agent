@@ -178,6 +178,10 @@ default:
   retry:
     max: 1 # Retry everything once on failure
     when: always
+  # Used by `dda self feature` to fetch its client token. Not merged into jobs that define their own `id_tokens`.
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
 
 # Full git history. Override the default shallow clone.
 .needs_full_git_history:
@@ -303,25 +307,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v141140507-248a7145
+  CI_IMAGE_BTF_GEN: v141311605-333887d1
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v141140507-248a7145
+  CI_IMAGE_DOCKER_X64: v141311605-333887d1
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v141140507-248a7145
+  CI_IMAGE_DOCKER_ARM64: v141311605-333887d1
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v141140507-248a7145
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v141311605-333887d1
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v141140507-248a7145
+  CI_IMAGE_LINUX: v141311605-333887d1
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v141140507-248a7145
+  CI_IMAGE_RPM_X64: v141311605-333887d1
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v141140507-248a7145
+  CI_IMAGE_RPM_ARM64: v141311605-333887d1
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v141140507-248a7145
+  CI_IMAGE_RPM_ARMHF: v141311605-333887d1
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v141140507-248a7145
+  CI_IMAGE_WIN_LTSC2022_X64: v141311605-333887d1
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v141140507-248a7145
+  CI_IMAGE_WIN_LTSC2025_X64: v141311605-333887d1
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -372,13 +376,8 @@ variables:
   WINGET_PAT: winget-pat # windows-products
   # End vault variables
 
-  # dda configuration variables
-  DDA_CLIENT_TOKEN: dda-feature-flags-client-token # agent-devx
-  DDA_FEATURE_FLAGS_CI_VAULT_KEY_MACOS: token
-  DDA_FEATURE_FLAGS_CI_VAULT_PATH_MACOS: aws/arn:aws:iam::486234852809:role/ci-datadog-agent/$DDA_CLIENT_TOKEN
-  DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS: ci.datadog-agent.dda-feature-flags-client-token
-  DDA_FEATURE_FLAGS_CI_VAULT_KEY: token
-  DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
+  # POSIX only (Linux and macOS): Windows jobs override this in .windows_docker_default
+  DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND: ci-identities-gitlab-job-client secrets read feature-flags-client token
 
   DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
@@ -403,6 +402,7 @@ variables:
   CACHE_COMPRESSION_LEVEL: slowest
   # Force python to print to stdout immediately, otherwise gitlab sections might not be displayed properly and we can miss some logs
   PYTHONUNBUFFERED: 1
+  PYTHONDONTWRITEBYTECODE: 1 # Avoid __pycache__ races when uv removes packages daemons use (e.g. dda.telemetry.daemon)
 
   SKIP_WINDOWS: "false"
 
@@ -1067,6 +1067,7 @@ workflow:
       paths:
         - test/new-e2e/tests/process/**/*
         - cmd/process-agent/**/*
+        - comp/core/tagger/**/*
         - comp/core/workloadmeta/collectors/internal/process/**/*
         - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
         - comp/process/**/*
@@ -1121,7 +1122,10 @@ workflow:
         - pkg/collector/corechecks/networkpath/**/*
         - pkg/networkpath/**/*
         - pkg/network/sender/sender_linux.go
+        - pkg/network/sender/sender.go
+        - pkg/system-probe/config/config.go
         - pkg/process/checks/net.go
+        - comp/rdnsquerier/impl/config.go
         - comp/networkpath/**/*
         - test/new-e2e/tests/netpath/**/*
         - test/new-e2e/go.mod
@@ -1164,6 +1168,7 @@ workflow:
         - cmd/security-agent/**/*
         - cmd/system-probe/**/*
         - cmd/trace-agent/**/*
+        - pkg/procmgr/**/*
         - pkg/util/winutil/servicemain/**/*
         - pkg/util/winutil/messagestrings/**/*
         - tasks/windows_resources.py
@@ -1381,6 +1386,7 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_gpu_integration_tests:
+  - !reference [.except_mergequeue]
   - !reference [.on_scheduled_main]
   # Run on GPU-related changes
   - changes:
@@ -1406,10 +1412,9 @@ workflow:
 
 .on_rtloader_changes:
   - <<: *if_main_branch
-  - !reference [.except_light_pipeline]
   - changes:
       paths:
-        - rtloader/**
+        - rtloader/**/*
         - tasks/rtloader.py
       compare_to: $COMPARE_TO_BRANCH
   - when: manual

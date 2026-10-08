@@ -1,0 +1,6 @@
+---
+security:
+  - |
+    Patch the embedded MIT krb5 library so NegoEx GSS token parsing rejects
+    truncated headers and missing extension vectors instead of reading past the
+    buffer.
