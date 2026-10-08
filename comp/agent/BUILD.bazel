@@ -29,7 +29,9 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/fx-mock",
         "//comp/forwarder/defaultforwarder/mock",
         "//comp/forwarder/eventplatform/mock",
+        "//comp/forwarder/orchestrator/def",
         "//comp/forwarder/orchestrator/mock",
         "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
     ],
 )

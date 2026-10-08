@@ -761,7 +761,7 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 		defaultforwardermock.MockModule(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
-		orchestratormock.MockModule(),
+		fx.Provide(func() orchestratorforwarder.Component { return orchestratormock.New(t) }),
 		eventplatformmock.MockModule(),
 		metricscompression.MockModule(),
 		haagentmock.Module(),

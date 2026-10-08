@@ -9,21 +9,26 @@
 package orchestratormock
 
 import (
+	"testing"
+
 	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	defaultforwardernoop "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl"
 	orchestrator "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// MockModule defines the fx options for this mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(NewMockOrchestratorForwarder))
+// Mock implements the orchestrator forwarder component.
+type Mock struct {
+	forwarder option.Option[defaultforwarderdef.Forwarder]
 }
 
-// NewMockOrchestratorForwarder returns a mock orchestratorForwarder.
-func NewMockOrchestratorForwarder() orchestrator.Component {
+// New returns a mock orchestrator forwarder.
+func New(_ testing.TB) orchestrator.Component {
 	forwarder := option.New[defaultforwarderdef.Forwarder](defaultforwardernoop.NewComponent())
-	return &forwarder
+	return &Mock{forwarder: forwarder}
+}
+
+// Get returns the mock forwarder.
+func (m *Mock) Get() (defaultforwarderdef.Forwarder, bool) {
+	return m.forwarder.Get()
 }
