@@ -120,6 +120,7 @@ func NewProvider(
 					InputSize:         config.FoldspaceTapChannelSize(cfg),
 					PipelineDepth:     dest.PipelineDepth,
 					ConnectTimeout:    dest.ConnectTimeout,
+					SendTimeout:       dest.SendTimeout,
 					ShutdownTimeout:   dest.ShutdownTimeout,
 					StateRequestBytes: dest.StateRequestBytes,
 					BatchWait:         dest.BatchWait,

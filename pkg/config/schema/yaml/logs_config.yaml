@@ -156,6 +156,25 @@ properties:
         format: duration
         tags:
         - golang_type:duration
+      keepalive_time:
+        node_type: setting
+        type: string
+        default: 5m
+        format: duration
+        comment: |
+          How long a connection may go without reading anything before it pings
+          the intake. Below the intake's minimum ping interval, the intake closes
+          the connection; grpc-go and Netty servers default that minimum to 5m.
+        tags:
+        - golang_type:duration
+      keepalive_timeout:
+        node_type: setting
+        type: string
+        default: 20s
+        format: duration
+        comment: How long to wait for a keepalive ping ack before closing the connection.
+        tags:
+        - golang_type:duration
   use_compression:
     node_type: setting
     type: boolean
