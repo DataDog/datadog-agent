@@ -173,6 +173,9 @@ class DynTestEvaluator(ABC):
         self.telemetry_handler = telemetry_handler or DatadogTelemetryHandler(
             default_tags=[f"pipeline_id:{pipeline_id}", f"index_kind:{kind.value}", "service:dynamic_test_evaluator"]
         )
+        # The exception that made initialize() fail, if any: lets callers
+        # distinguish error types (the console only shows a summary line).
+        self.initialization_error: Exception | None = None
 
     @abstractmethod
     def list_tests_for_job(self, job_name: str) -> list[ExecutedTest]:
@@ -213,6 +216,7 @@ class DynTestEvaluator(ABC):
             self._send_initialization_success_event()
             return True
         except RuntimeError as e:
+            self.initialization_error = e
             error_message = str(e)
             if "No ancestor commit found" in error_message:
                 self._send_error_event(
@@ -226,6 +230,7 @@ class DynTestEvaluator(ABC):
                 )
             return False
         except Exception as e:
+            self.initialization_error = e
             self._send_error_event(
                 error_type="unexpected_error",
                 error_message=f"Unexpected error initializing index: {str(e)}",
@@ -394,6 +399,36 @@ This indicates an issue with the dynamic test system that may affect CI performa
         return EvaluationResult(job, actual_executed_tests, predicted_executed_tests, not_executed_failing_tests)
 
 
+def executed_tests_from_events(events: list) -> list[ExecutedTest]:
+    """Executed tests from CI Visibility events: root tests, pass/fail only.
+
+    Flaky failures are marked unreliable (from the event itself). The job
+    comes from the event, so this works for per-job queries and a
+    pipeline-wide bulk query alike.
+    """
+    tests: list[ExecutedTest] = []
+    for item in events:
+        attrs = item.get("attributes", {}).get("attributes", {})
+        test_attrs = attrs.get("test", {})
+        ci_attrs = attrs.get("ci", {})
+        job_attrs = ci_attrs.get("job", {})
+        # Only consider root tests, not sub-tests
+        if not test_attrs.get("name") or "/" in test_attrs["name"] or test_attrs.get("status") not in {"pass", "fail"}:
+            continue
+
+        tests.append(
+            ExecutedTest(
+                name=test_attrs["name"],
+                status=test_attrs["status"],
+                pipeline_id=ci_attrs.get("pipeline", {}).get("id"),
+                job_id=job_attrs.get("id"),
+                job_name=job_attrs.get("name"),
+                unreliable_status=(str(test_attrs.get("agent_is_flaky_failure", False)).lower() == "true"),
+            )
+        )
+    return tests
+
+
 class DatadogDynTestEvaluator(DynTestEvaluator):
     """Datadog API-based implementation of DynTestEvaluator.
 
@@ -426,35 +461,14 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
 
         Note:
             - Only returns root-level tests (filters out sub-tests with '/' in name)
+            - Excludes skipped tests (they did not execute)
             - Sets unreliable_status=True for tests marked as flaky by Datadog
             - Queries up to 3 days of historical data
         """
         escaped_job_name = job_name.replace('"', '\\"')
-        events = get_ci_test_events(
-            f'env:prod @ci.pipeline.name:DataDog/datadog-agent @ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}"',
-            3,
+        query = (
+            f'@ci.pipeline.name:DataDog/datadog-agent '
+            f'@ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}" '
+            f'-@test.status:skip'
         )
-
-        tests: list[ExecutedTest] = []
-        for item in events:
-            attrs = item.get("attributes", {})
-            attrs = attrs.get("attributes", {})
-            test_attrs = attrs.get("test", {})
-            ci_attrs = attrs.get("ci", {})
-            job_attrs = ci_attrs.get("job", {})
-            pipeline_attrs = ci_attrs.get("pipeline", {})
-            # Only consider root tests, not sub-tests
-            if not test_attrs.get("name") or len(test_attrs.get("name").split("/")) > 1:
-                continue
-
-            tests.append(
-                ExecutedTest(
-                    name=test_attrs.get("name"),
-                    status=test_attrs.get("status"),
-                    pipeline_id=pipeline_attrs.get("id"),
-                    job_id=job_attrs.get("id"),
-                    job_name=job_attrs.get("name"),
-                    unreliable_status=test_attrs.get("agent_is_flaky_failure", "false") == "true",
-                )
-            )
-        return tests
+        return executed_tests_from_events(get_ci_test_events(query, 3))

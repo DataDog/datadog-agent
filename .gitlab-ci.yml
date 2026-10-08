@@ -402,6 +402,7 @@ variables:
   CACHE_COMPRESSION_LEVEL: slowest
   # Force python to print to stdout immediately, otherwise gitlab sections might not be displayed properly and we can miss some logs
   PYTHONUNBUFFERED: 1
+  PYTHONDONTWRITEBYTECODE: 1 # Avoid __pycache__ races when uv removes packages daemons use (e.g. dda.telemetry.daemon)
 
   SKIP_WINDOWS: "false"
 
@@ -1384,6 +1385,7 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_gpu_integration_tests:
+  - !reference [.except_mergequeue]
   - !reference [.on_scheduled_main]
   # Run on GPU-related changes
   - changes:
@@ -1409,10 +1411,9 @@ workflow:
 
 .on_rtloader_changes:
   - <<: *if_main_branch
-  - !reference [.except_light_pipeline]
   - changes:
       paths:
-        - rtloader/**
+        - rtloader/**/*
         - tasks/rtloader.py
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
