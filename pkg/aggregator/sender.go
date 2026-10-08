@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -126,19 +125,8 @@ func newCheckSender(
 		orchestratorMetadataOut: orchestratorMetadataOut,
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
-		infraModeEventTags:      resolveInfraModeEventTags(pkgconfigsetup.Datadog()),
+		infraModeEventTags:      configutils.MarkedInfraModeTags(pkgconfigsetup.Datadog()),
 	}
-}
-
-// resolveInfraModeEventTags returns the event mark from local config, or nil.
-// Checks run in the process that holds infrastructure_mode, so this does not
-// use the Tagger the way CLC-dispatched Kubernetes event paths do.
-func resolveInfraModeEventTags(cfg pkgconfigmodel.Reader) []string {
-	mode := configutils.MarkedInfraMode(cfg)
-	if mode == "" {
-		return nil
-	}
-	return []string{configutils.InfraModeTagKey + ":" + mode}
 }
 
 // DisableDefaultHostname allows check to override the default hostname that will be injected
