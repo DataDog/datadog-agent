@@ -41,9 +41,9 @@ const reportReasonPeriodic = "periodic"
 // it process-wide would break agent-host identification and existing monitors.
 const serverlessInitFlavor = "serverless-init"
 
-// NewCapabilities builds the inventoryagent Capabilities for serverless-init,
-// reporting one uuid for the process lifetime since serverless containers do not
-// share a host GUID.
+// NewCapabilities builds initially-not-ready inventoryagent Capabilities for
+// serverless-init, reporting one uuid for the process lifetime since serverless
+// containers do not share a host GUID.
 func NewCapabilities() *inventoryagent.Capabilities {
 	id := uuid.New().String()
 	return inventoryagent.NewServerlessCapabilities(func() string { return id })
@@ -100,11 +100,25 @@ func NewInstanceCapabilities(u *InstanceUUID) *inventoryagent.Capabilities {
 	return inventoryagent.NewServerlessCapabilities(u.Resolve)
 }
 
+// Publish initializes all serverless metadata before opening readiness and
+// synchronously enqueuing the startup payload. The caller must be the sole
+// publisher; readiness does not serialize concurrent writers.
+func Publish(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
+	if !conf.GetBool("serverless.inventory_enabled") {
+		return
+	}
+	ia.SetReady(false)
+	Inject(ia, cs, modeConf, conf, tags)
+	ia.SetReady(true)
+	Submit(ia, conf)
+}
+
 // Inject layers the serverless-specific fields and the serverless-init flavor
 // onto the shared inventoryagent component via its public Set API. The
 // component's initData() has already populated the core fields at construction.
+// The caller must keep readiness closed throughout injection.
 //
-// Inject, Submit, and SetResourceID are all no-ops while the
+// Publish, Inject, Submit, and SetResourceID are no-ops while the
 // serverless.inventory_enabled ramp gate is off, so a gated-off run emits no
 // serverless payload at all rather than one carrying only core fields.
 func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
