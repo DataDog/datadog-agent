@@ -72,7 +72,36 @@ message ActionResult {
   }
 }
 
+// Local policy substitutes for the signed remote-action policy only on the agent-authored path.
+message RemediationAllowlist {
+  repeated string allowed_paths = 1;
+  repeated string allowed_commands = 2;
+  map<string, RemediationServiceActions> allowed_services = 3;
+}
+
+message RemediationServiceActions {
+  repeated string actions = 1;
+}
+
+message RunLocalRemediationRequest {
+  repeated string commands = 1;
+  RemediationAllowlist allowlist = 2;
+}
+
+message RemediationStepResult {
+  int32 exit_code = 1;
+  string stdout = 2;
+  string stderr = 3;
+  string error = 4;
+}
+
+message RunLocalRemediationResponse {
+  repeated RemediationStepResult steps = 1;
+}
+
 service Executor {
+  // RunLocalRemediation trusts the shared IPC identity and never permits privilege escalation.
+  rpc RunLocalRemediation(RunLocalRemediationRequest) returns (RunLocalRemediationResponse);
   rpc GetControlPlaneConfig(GetControlPlaneConfigRequest) returns (GetControlPlaneConfigResponse);
   // RunAction runs a single action and streams updates ending in a final ActionResult.
   rpc RunAction(RunActionRequest) returns (stream RunActionResponse);

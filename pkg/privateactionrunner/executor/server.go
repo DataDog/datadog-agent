@@ -48,6 +48,7 @@ type Server struct {
 	pb.UnimplementedExecutorServer
 
 	executor      actionExecutor
+	localExecutor actionExecutor
 	version       string
 	controlConfig *pb.GetControlPlaneConfigResponse
 	controlCert   []byte
@@ -77,22 +78,34 @@ func (s *Server) SetControlPlaneConfig(config *pb.GetControlPlaneConfigResponse,
 }
 
 func (s *Server) GetControlPlaneConfig(ctx context.Context, _ *pb.GetControlPlaneConfigRequest) (*pb.GetControlPlaneConfigResponse, error) {
-	p, ok := peer.FromContext(ctx)
-	if !ok {
-		return nil, status.Error(codes.Unauthenticated, "IPC client certificate required")
-	}
-	tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
-	if !ok || len(tlsInfo.State.VerifiedChains) == 0 || len(tlsInfo.State.PeerCertificates) == 0 {
-		return nil, status.Error(codes.Unauthenticated, "verified IPC client certificate required")
-	}
-	if len(s.controlCert) == 0 || !bytes.Equal(tlsInfo.State.PeerCertificates[0].Raw, s.controlCert) {
-		return nil, status.Error(codes.PermissionDenied, "shared IPC certificate required")
+	if err := s.authorizeSharedIPC(ctx); err != nil {
+		return nil, err
 	}
 	if s.controlConfig == nil {
 		return nil, status.Error(codes.Unavailable, "control configuration is not ready")
 	}
 	s.touch()
 	return s.controlConfig, nil
+}
+
+func (s *Server) authorizeSharedIPC(ctx context.Context) error {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return status.Error(codes.Unauthenticated, "IPC client certificate required")
+	}
+	tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
+	if !ok || len(tlsInfo.State.VerifiedChains) == 0 || len(tlsInfo.State.PeerCertificates) == 0 {
+		return status.Error(codes.Unauthenticated, "verified IPC client certificate required")
+	}
+	if len(s.controlCert) == 0 || !bytes.Equal(tlsInfo.State.PeerCertificates[0].Raw, s.controlCert) {
+		return status.Error(codes.PermissionDenied, "shared IPC certificate required")
+	}
+	return nil
+}
+
+// SetLocalRemediationExecutor opts into agent-authored tasks before serving; action-platform review is required.
+func (s *Server) SetLocalRemediationExecutor(executor actionExecutor) {
+	s.localExecutor = executor
 }
 
 func (s *Server) touch() {

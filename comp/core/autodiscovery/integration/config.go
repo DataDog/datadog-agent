@@ -9,6 +9,7 @@
 package integration
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"sort"
@@ -127,6 +128,30 @@ type Config struct {
 	// instance is meant to discover its own config at runtime. A non-nil
 	// pointer means discovery is requested. (optional)
 	Discovery *DiscoveryConfig `json:"discovery,omitempty"` // (include in digest: true)
+
+	// HealthCheck declares health monitoring and remediation for file-based check configurations.
+	HealthCheck *HealthCheckConfig `json:"health_check,omitempty"` // (include in digest: true)
+}
+
+// HealthCheckConfig declares the service check that triggers remediation.
+type HealthCheckConfig struct {
+	Enabled      bool              `yaml:"enabled"`
+	ServiceCheck string            `yaml:"service_check"`
+	Remediation  RemediationConfig `yaml:"remediation"`
+}
+
+// RemediationConfig describes remediation steps and their rate limits.
+type RemediationConfig struct {
+	Steps           []RemediationStep   `yaml:"steps"`
+	Cooldown        string              `yaml:"cooldown"`
+	MaxAttempts     int                 `yaml:"max_attempts"`
+	AllowedPaths    []string            `yaml:"allowed_paths"`
+	AllowedServices map[string][]string `yaml:"allowed_services"`
+}
+
+// RemediationStep describes a command for a remediation dispatcher.
+type RemediationStep struct {
+	Command string `yaml:"command"`
 }
 
 // DiscoveryConfig holds per-template configuration-discovery options.
@@ -490,6 +515,11 @@ func (c *Config) IntDigest() uint64 {
 	if c.Discovery != nil {
 		_, _ = h.Write([]byte("discovery:" + c.Discovery.MetricsPrefix))
 	}
+	if c.HealthCheck != nil {
+		data, _ := json.Marshal(c.HealthCheck)
+		_, _ = h.Write([]byte("health_check:"))
+		_, _ = h.Write(data)
+	}
 
 	return h.Sum64()
 }
@@ -516,6 +546,11 @@ func (c *Config) FastDigest() uint64 {
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
 	if c.Discovery != nil {
 		_, _ = h.Write([]byte("discovery:" + c.Discovery.MetricsPrefix))
+	}
+	if c.HealthCheck != nil {
+		data, _ := json.Marshal(c.HealthCheck)
+		_, _ = h.Write([]byte("health_check:"))
+		_, _ = h.Write(data)
 	}
 
 	return h.Sum64()

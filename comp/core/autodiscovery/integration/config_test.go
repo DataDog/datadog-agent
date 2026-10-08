@@ -285,6 +285,30 @@ func TestDigestIncludesDiscovery(t *testing.T) {
 		"a change to Discovery.MetricsPrefix alone must change FastDigest as well")
 }
 
+func TestDigestIncludesHealthCheck(t *testing.T) {
+	baseline := Config{Name: "test"}
+	withHealthCheck := Config{Name: "test", HealthCheck: &HealthCheckConfig{}}
+	assert.NotEqual(t, baseline.Digest(), withHealthCheck.Digest())
+	assert.NotEqual(t, baseline.FastDigest(), withHealthCheck.FastDigest())
+
+	tests := map[string]func(*HealthCheckConfig){
+		"enabled":       func(c *HealthCheckConfig) { c.Enabled = true },
+		"service check": func(c *HealthCheckConfig) { c.ServiceCheck = "test.can_connect" },
+		"steps":         func(c *HealthCheckConfig) { c.Remediation.Steps = []RemediationStep{{Command: "/usr/bin/true"}} },
+		"cooldown":      func(c *HealthCheckConfig) { c.Remediation.Cooldown = "10m" },
+		"max attempts":  func(c *HealthCheckConfig) { c.Remediation.MaxAttempts = 2 },
+		"allowed paths": func(c *HealthCheckConfig) { c.Remediation.AllowedPaths = []string{"/usr/bin"} },
+	}
+	for name, change := range tests {
+		t.Run(name, func(t *testing.T) {
+			changed := Config{Name: "test", HealthCheck: &HealthCheckConfig{}}
+			change(changed.HealthCheck)
+			assert.NotEqual(t, withHealthCheck.Digest(), changed.Digest())
+			assert.NotEqual(t, withHealthCheck.FastDigest(), changed.FastDigest())
+		})
+	}
+}
+
 func TestDigestIncludesCELSelector(t *testing.T) {
 	withoutSelector := &Config{
 		Name:       "foo",

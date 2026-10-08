@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-// TaskVerifier unwraps and validates a task received from the OPMS dequeue endpoint.
+// TaskVerifier unwraps and validates a task according to its explicitly selected trust boundary.
 type TaskVerifier interface {
 	UnwrapTask(task *types.Task) (*types.Task, error)
 }
