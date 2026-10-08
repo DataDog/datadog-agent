@@ -657,7 +657,7 @@
     },
     "@@rules_pkg+//toolchains/rpm:rpmbuild_configure.bzl%find_system_rpmbuild_bzlmod": {
       "general": {
-        "bzlTransitiveDigest": "9HVW2/lqcIJQiRN0QXRBEEEu4X5577GLCxN3ifPnx1I=",
+        "bzlTransitiveDigest": "9i8d6YWW9vv8HwpV05xhHVyBSc1zAHOxu1/S88axbug=",
         "usagesDigest": "/KxCvOG4ymMxLBcldn54pcMSEjOygkYUMlHj/fabSNE=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
