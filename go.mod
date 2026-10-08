@@ -509,7 +509,7 @@ require (
 	k8s.io/cri-client v0.35.5
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/kube-aggregator v0.35.5
-	k8s.io/kube-state-metrics/v2 v2.18.0
+	k8s.io/kube-state-metrics/v2 v2.19.1
 	k8s.io/kubectl v0.35.5
 	k8s.io/kubelet v0.35.5
 	k8s.io/metrics v0.35.5
@@ -1235,7 +1235,7 @@ replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0
 // Remove once
 // https://github.com/kubernetes/kube-state-metrics/pull/2928
 // is merged
-replace k8s.io/kube-state-metrics/v2 v2.18.0 => github.com/DataDog/kube-state-metrics/v2 v2.19.2-dd.1
+replace k8s.io/kube-state-metrics/v2 v2.19.1 => github.com/DataDog/kube-state-metrics/v2 v2.19.2-dd.1
 
 // kube-state-metrics v2.18 transitively pulls ugorji/go/codec v1.3.0 via its
 // gomplate doc-generation tool. The new version ships ~4x more generated code
