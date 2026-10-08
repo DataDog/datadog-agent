@@ -23,6 +23,21 @@ The hidden `hooks` CLI command remains the internal compiled-recipe protocol,
 not the entry point for testing package-owned hooks. Use the install/remove and
 experiment/extension commands to exercise the full lifecycle.
 
+### Legacy Linux injector recipe retirement
+
+The Agent-owned Linux APM injector recipe (`apm_inject_linux.go` and `apminject/`)
+is deprecated in favor of the package-owned hooks shipped by `auto_inject`.
+New injector lifecycle behavior belongs in those hooks. The legacy implementation
+remains supported for compatibility; security and compatibility fixes may still
+need to be backported while it is in use.
+
+Retirement is gradual, with no removal release set. Do not remove the recipe
+until supported hookless injector packages, including upgrade/downgrade and
+removal paths, and the legacy APM commands, helper scripts and systemd units no
+longer require it. An absent `hooks/` directory must continue to use the legacy
+recipe during this transition. This deprecation does not apply to other packages'
+compiled recipes or Windows injector behavior.
+
 ### Executables and input
 
 On Linux/macOS, use an executable regular file with the exact event name, either

@@ -14,6 +14,11 @@ import (
 )
 
 var (
+	// apmInjectPackage is the deprecated Agent-owned Linux injector recipe.
+	// Package-owned OCI hooks supersede it when present. Retain this fallback
+	// until supported hookless packages no longer need it for install, upgrade,
+	// downgrade or removal. New injector behavior belongs in auto_inject's hooks;
+	// security and compatibility fixes may still need to be backported here.
 	apmInjectPackage = hooks{
 		preInstall:  preInstallAPMInjector,
 		postInstall: postInstallAPMInjector,
