@@ -130,7 +130,7 @@ def main(argv: list = None) -> int:
         results = runner.run_parallel(actions)
     sys.stdout.flush()
     render.render(results, args.show_errors_last, sys.stdout.buffer)
-    cmd = ["datadog-ci", "tag", "--level", "job"] 
+    cmd = ["datadog-ci", "tag", "--level", "job"]
     overall_return = 0
     for result in results:
         if not result.passed():
@@ -139,7 +139,9 @@ def main(argv: list = None) -> int:
         cmd.append("%s:%s" % (result.action.name, "passed" if result.passed() else "failed"))
     if args.ddci:
         print(cmd)
-        subprocess.run(cmd)
+        result = subprocess.run(cmd, capture_output=True)
+        if result.returncode:
+            print("datadog-ci upload failed")
     return overall_return
 
 

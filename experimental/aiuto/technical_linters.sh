@@ -38,11 +38,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# bazel build "$runner_target" --build_python_zip
 bazel build "$runner_target"
 runner=$(bazel info bazel-bin)/external/+http_archive+better_gitlab/run_actions/run_actions.pyz
-ls -l $(bazel info bazel-bin)/external/+http_archive+better_gitlab/run_actions
-echo info=$(bazel info bazel-bin)
+# ls -l $(bazel info bazel-bin)/external/+http_archive+better_gitlab/run_actions
+# echo info=$(bazel info bazel-bin)
 echo runner=$runner
 
 # Action names are the GitLab job names. validate_modules had two script
