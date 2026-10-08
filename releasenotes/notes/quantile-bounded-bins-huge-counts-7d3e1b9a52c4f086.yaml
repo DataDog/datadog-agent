@@ -9,12 +9,16 @@
 fixes:
   - |
     Distribution sketches no longer take memory in proportion to their number
-    of observations. A sketch given more than 268,431,360 observations in one
-    flush interval, for instance by a check histogram bucket with a very large
-    count or a very low DogStatsD sample rate, used to take a bin for every
-    65535 of them: a single bucket of 1.42e12 observations allocated over
-    1 GiB. Past that count, the sketch now scales its bins down by powers of
-    two instead. The observations of each value that fall short of a scaled
-    bin unit are kept aside rather than rounded away, so that the sketch ends
-    up the same however its observations were batched. Its count, sum,
-    minimum, maximum and average stay exact.
+    of observations. A sketch bin now counts up to 4,294,967,295 observations
+    instead of 65,535, and takes 8 bytes instead of 4. A sketch past its
+    4,096-bin limit now collapses its lowest bins into the lowest bin it keeps,
+    as the reference DDSketch implementation does, instead of keeping extra
+    bins. A single histogram bucket of 1.42e12 observations used to allocate
+    over 1 GiB; it now takes 331 bins.
+  - |
+    Distributions with more than 268,431,360 observations in a flush interval
+    no longer have their lower percentiles skewed. For example, 500 values sent
+    with a DogStatsD sample rate of ``@1e-6`` reported a 1st percentile 25%
+    too high. The count, sum, minimum, maximum and average of a sketch stay
+    exact; only observations past what a single bin can count are dropped from
+    its bins.
