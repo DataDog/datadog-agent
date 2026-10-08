@@ -25,7 +25,7 @@ var (
 	delaFallbackValueRe = regexp.MustCompile(`^[A-Za-z0-9_=-]+$`)
 )
 
-// delaDirective is a parsed DELA(...) directive found in an `additional_endpoints` value.
+// delaDirective is a parsed DELA[...] directive found in an `additional_endpoints` value.
 type delaDirective struct {
 	orgUUID  string
 	provider string
@@ -33,14 +33,14 @@ type delaDirective struct {
 	params map[string]string
 }
 
-// parseDelaDirective parses DELA(<org_uuid>, <provider>[, <name>=<value>]...).
+// parseDelaDirective parses DELA[<org_uuid>, <provider>[, <name>=<value>]...].
 // Whitespace is allowed around separators. Supported parameters are region and fallback.
 func parseDelaDirective(value string) (delaDirective, bool) {
 	if strings.ContainsAny(value, "\r\n") {
 		return delaDirective{}, false
 	}
 	value = strings.TrimSpace(value)
-	if !strings.HasPrefix(value, pkgconfigmodel.DelaDirectivePrefix) || !strings.HasSuffix(value, ")") {
+	if !strings.HasPrefix(value, pkgconfigmodel.DelaDirectivePrefix) || !strings.HasSuffix(value, "]") {
 		return delaDirective{}, false
 	}
 
@@ -85,13 +85,13 @@ func parseDelaDirective(value string) (delaDirective, bool) {
 	return delaDirective{orgUUID: orgUUID, provider: strings.ToLower(provider), params: params}, true
 }
 
-// providerConfigForDirective builds a ProviderConfig for a DELA(...) directive, falling back to
+// providerConfigForDirective builds a ProviderConfig for a DELA[...] directive, falling back to
 // the process-wide default when the directive omits provider-specific overrides.
 //
 // Returns nil when neither the directive nor the default supplies provider-specific config (e.g.
 // an AWS directive with no region and no process-wide delegated_auth.aws.region). A nil config
 // tells the component to auto-detect, which is the right behavior for a directive that says only
-// "DELA(org, aws)" — the region should come from the runtime environment, not default to empty.
+// "DELA[org, aws]" — the region should come from the runtime environment, not default to empty.
 func providerConfigForDirective(directive delaDirective, defaultProviderConfig common.ProviderConfig) (common.ProviderConfig, error) {
 	switch directive.provider {
 	case cloudauthconfig.ProviderAWS:
@@ -107,12 +107,12 @@ func providerConfigForDirective(directive delaDirective, defaultProviderConfig c
 		}
 		return &cloudauthconfig.AWSProviderConfig{Region: region}, nil
 	default:
-		return nil, fmt.Errorf("unsupported provider %q in DELA(...) directive", directive.provider)
+		return nil, fmt.Errorf("unsupported provider %q in DELA[...] directive", directive.provider)
 	}
 }
 
 // mapShapeDelegatedAuthEndpointKeys lists the map-shaped settings enabled for delegated-auth
-// write-back. Keep this list small: each consumer must ignore DELA(...) until the key is written.
+// write-back. Keep this list small: each consumer must ignore DELA[...] until the key is written.
 //
 // Settings reached through pkg/config/utils.MakeEndpoints satisfy (a) already, because
 // PartitionRealAndPendingKeys strips directives while keeping the domain alive.
@@ -129,7 +129,7 @@ var listShapeDelegatedAuthEndpointKeys = []string{
 }
 
 // configureListShapeAdditionalEndpointsDelegatedAuth scans the list-shape additional_endpoints
-// settings for DELA(...) directives in each entry's api_key and registers an instance per match.
+// settings for DELA[...] directives in each entry's api_key and registers an instance per match.
 func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, defaultProviderConfig common.ProviderConfig) {
 	for _, configKey := range listShapeDelegatedAuthEndpointKeys {
 		entries, _ := common.NormalizeListShapeEntries(config.Get(configKey))
@@ -179,7 +179,7 @@ func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, con
 }
 
 // configureAdditionalEndpointsDelegatedAuth scans the supported additional_endpoints settings for
-// DELA(...) directives and registers a delegated-auth instance for each one.
+// DELA[...] directives and registers a delegated-auth instance for each one.
 //
 // The resolved key is written into the exact slot that held the directive. Existing config update
 // callbacks then deliver it through the normal static-key path.

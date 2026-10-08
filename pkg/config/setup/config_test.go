@@ -67,12 +67,12 @@ delegated_auth:
   startup_timeout_secs: 5
 additional_endpoints:
   https://metrics.datadoghq.com:
-    - DELA(map-org, aws)
+    - DELA[map-org, aws]
 logs_config:
   force_use_http: true
   additional_endpoints:
     - host: logs.datadoghq.com
-      api_key: DELA(list-org, aws)
+      api_key: DELA[list-org, aws]
 `)
 	startedAt := time.Now()
 	require.ErrorIs(t, configureDelegatedAuth(startupCtx, config, comp), context.DeadlineExceeded)

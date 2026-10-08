@@ -140,7 +140,7 @@ func checkDelegatedAuthRedirect(req *http.Request, via []*http.Request) error {
 // The delegatedAuthProof contains the signed AWS request which includes the org id.
 //
 // targetSite, if non-empty, is the site/domain to exchange the proof against (e.g. an
-// `additional_endpoints` domain for a dual-shipping DELA(...) instance targeting a different
+// `additional_endpoints` domain for a dual-shipping DELA[...] instance targeting a different
 // site than the agent's primary `dd_url`/`site`). If empty, falls back to the agent's configured
 // primary site - the original, single-org behavior.
 func GetAPIKey(ctx context.Context, cfg pkgconfigmodel.Reader, delegatedAuthProof string, targetSite string) (*string, error) {

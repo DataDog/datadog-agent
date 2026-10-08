@@ -100,7 +100,7 @@ logs_config:
   use_http: true
   force_use_http: true
   additional_endpoints:
-    - api_key: "DELA(00000000-0000-0000-0000-000000000001, aws, region=us-east-1)"
+    - api_key: "DELA[00000000-0000-0000-0000-000000000001, aws, region=us-east-1]"
       host: %s
       port: %s
       use_ssl: %t

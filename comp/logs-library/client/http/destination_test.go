@@ -565,7 +565,7 @@ func TestPendingDelegatedAuthDoesNotSend(t *testing.T) {
 	defer server.Stop()
 
 	server.Destination.endpoint = config.NewEndpoint(
-		"DELA(some-org-uuid, aws)",
+		"DELA[some-org-uuid, aws]",
 		"logs_config.additional_endpoints",
 		server.Endpoint.Host,
 		server.Endpoint.Port,
@@ -588,7 +588,7 @@ func TestPendingDelegatedAuthDoesNotBlockReliableDestination(t *testing.T) {
 	defer server.Stop()
 
 	server.Destination.endpoint = config.NewEndpoint(
-		"DELA(some-org-uuid, aws)",
+		"DELA[some-org-uuid, aws]",
 		"logs_config.additional_endpoints",
 		server.Endpoint.Host,
 		server.Endpoint.Port,

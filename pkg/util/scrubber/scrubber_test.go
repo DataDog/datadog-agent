@@ -113,32 +113,32 @@ func TestScrubLineDelaFallback(t *testing.T) {
 		want  string
 	}{
 		"basic": {
-			input: "DELA(org-uuid, aws, fallback=supersecret)",
-			want:  "DELA(org-uuid, aws, fallback=********)",
+			input: "DELA[org-uuid, aws, fallback=supersecret]",
+			want:  "DELA[org-uuid, aws, fallback=********]",
 		},
 		"case and spacing": {
-			input: "DELA(org-uuid, aws, FALLBACK = supersecret )",
-			want:  "DELA(org-uuid, aws, FALLBACK = ********)",
+			input: "DELA[org-uuid, aws, FALLBACK = supersecret ]",
+			want:  "DELA[org-uuid, aws, FALLBACK = ********]",
 		},
 		"before region": {
-			input: "DELA(org-uuid, aws, fallback=supersecret, region=us-east-1)",
-			want:  "DELA(org-uuid, aws, fallback=********, region=us-east-1)",
+			input: "DELA[org-uuid, aws, fallback=supersecret, region=us-east-1]",
+			want:  "DELA[org-uuid, aws, fallback=********, region=us-east-1]",
 		},
 		"malformed": {
-			input: "DELA(org-uuid, aws, fallback=supersecret",
-			want:  "DELA(org-uuid, aws, fallback=********",
+			input: "DELA[org-uuid, aws, fallback=supersecret",
+			want:  "DELA[org-uuid, aws, fallback=********",
 		},
 		"punctuation": {
-			input: "DELA(org-uuid, aws, fallback=s3cr.et/with:punctuation)",
-			want:  "DELA(org-uuid, aws, fallback=********)",
+			input: "DELA[org-uuid, aws, fallback=s3cr.et/with:punctuation]",
+			want:  "DELA[org-uuid, aws, fallback=********]",
 		},
 		"duplicate fallback": {
-			input: "DELA(org-uuid, aws, fallback=firstsecret, fallback=secondsecret)",
-			want:  "DELA(org-uuid, aws, fallback=********, fallback=********)",
+			input: "DELA[org-uuid, aws, fallback=firstsecret, fallback=secondsecret]",
+			want:  "DELA[org-uuid, aws, fallback=********, fallback=********]",
 		},
 		"padded fallback": {
-			input: "DELA(org-uuid, aws, fallback=c2VjcmV0==)",
-			want:  "DELA(org-uuid, aws, fallback=********)",
+			input: "DELA[org-uuid, aws, fallback=c2VjcmV0==]",
+			want:  "DELA[org-uuid, aws, fallback=********]",
 		},
 		"unrelated fallback": {
 			input: "fallback=not-a-dela-secret",

@@ -6,4 +6,4 @@
 package model
 
 // DelaDirectivePrefix marks delegated-auth values in additional endpoint API key slots.
-const DelaDirectivePrefix = "DELA("
+const DelaDirectivePrefix = "DELA["

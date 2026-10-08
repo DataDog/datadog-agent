@@ -40,7 +40,7 @@ type InstanceParams struct {
 
 	// AdditionalEndpointDomain, if set, routes the fetched key into the map-shape
 	// config at AdditionalEndpointsConfigKey under this domain, replacing the
-	// DELA(...) directive. Mutually exclusive with AdditionalEndpointsListConfigKey.
+	// DELA[...] directive. Mutually exclusive with AdditionalEndpointsListConfigKey.
 	// Requires AdditionalEndpointsConfigKey and AdditionalEndpointDirective.
 	AdditionalEndpointDomain string
 
@@ -59,7 +59,7 @@ type InstanceParams struct {
 
 	// AdditionalEndpointsListConfigKey, if set, routes the fetched key into the
 	// list-shape config at this path, replacing the entry whose api_key holds the
-	// DELA(...) directive. Mutually exclusive with AdditionalEndpointDomain.
+	// DELA[...] directive. Mutually exclusive with AdditionalEndpointDomain.
 	// Requires AdditionalEndpointDirective and ListEntryIndex.
 	AdditionalEndpointsListConfigKey string
 
@@ -71,7 +71,7 @@ type InstanceParams struct {
 	// Writeback is refused if the endpoint route changes.
 	AdditionalEndpointIdentity string
 
-	// AdditionalEndpointDirective is the literal DELA(...) directive text to
+	// AdditionalEndpointDirective is the literal DELA[...] directive text to
 	// replace with the real key once fetched. Used only when
 	// AdditionalEndpointDomain or AdditionalEndpointsListConfigKey is set.
 	AdditionalEndpointDirective string
@@ -82,7 +82,7 @@ type InstanceParams struct {
 
 	// FallbackAPIKey, if set, is written when no delegated-auth key can be
 	// obtained so dual-shipping still works. A later successful fetch replaces it.
-	// Current DELA(...) discovery does not populate this field.
+	// Current DELA[...] discovery does not populate this field.
 	FallbackAPIKey string
 
 	// ProviderConfig contains provider-specific configuration.

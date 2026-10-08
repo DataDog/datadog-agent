@@ -80,7 +80,7 @@ func TestScrubJSON(t *testing.T) {
 }
 
 func TestScrubJSONDelaFallback(t *testing.T) {
-	input := `{"logs_config":{"additional_endpoints":[{"api_key":"DELA(org-uuid, aws, fallback=supersecretXYZ)","host":"logs.datadoghq.com"}]}}`
+	input := `{"logs_config":{"additional_endpoints":[{"api_key":"DELA[org-uuid, aws, fallback=supersecretXYZ]","host":"logs.datadoghq.com"}]}}`
 
 	scrubbed, err := ScrubJSONString(input)
 	require.NoError(t, err)

@@ -173,7 +173,7 @@ func NewEndpoint(apiKey string, apiKeyConfigPath string, host string, port int, 
 	}
 }
 
-// delaAwareAPIKey replaces a DELA(...) placeholder with an empty key until write-back resolves it.
+// delaAwareAPIKey replaces a DELA[...] placeholder with an empty key until write-back resolves it.
 func delaAwareAPIKey(apiKey string) (string, bool) {
 	if pkgconfigutils.IsDelaDirective(apiKey) {
 		return "", true

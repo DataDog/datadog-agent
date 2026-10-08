@@ -44,7 +44,7 @@ func TestSingleDomainResolverDedupedKey(t *testing.T) {
 }
 
 // TestIsUsableKeepsPendingDelegatedAuthDomain is a regression test: a domain whose only entry is
-// a pending DELA(...) directive has zero real API keys, but must still be usable. Otherwise
+// a pending DELA[...] directive has zero real API keys, but must still be usable. Otherwise
 // default_forwarder.go drops it from the forwarder entirely at startup (see IsUsable's callers),
 // and once delegatedauth resolves the directive and writes the real key back into config, there is
 // no registered resolver left to receive that update - the key is silently lost until restart.

@@ -666,7 +666,7 @@ func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
 func (suite *EndpointsTestSuite) TestHTTPAdditionalEndpointWaitsForDelegatedAuthWriteback() {
 	logsConfig := defaultLogsConfigKeys(suite.config)
 	suite.config.SetInTest("logs_config.additional_endpoints", `[{
-		"api_key": "DELA(some-org-uuid, aws)",
+		"api_key": "DELA[some-org-uuid, aws]",
 		"host": "localhost1",
 		"port": 1234
 	}]`)
@@ -691,7 +691,7 @@ func (suite *EndpointsTestSuite) TestHTTPAdditionalEndpointWaitsForDelegatedAuth
 func (suite *EndpointsTestSuite) TestHTTPAdditionalEndpointReconcilesWritebackBeforeSubscription() {
 	logsConfig := defaultLogsConfigKeys(suite.config)
 	suite.config.SetInTest("logs_config.additional_endpoints", `[{
-		"api_key": "DELA(some-org-uuid, aws)",
+		"api_key": "DELA[some-org-uuid, aws]",
 		"host": "localhost1",
 		"port": 1234
 	}]`)
@@ -728,7 +728,7 @@ func (suite *EndpointsTestSuite) TestInvalidAdditionalEndpointCredentialCannotBe
 func (suite *EndpointsTestSuite) TestTCPAdditionalEndpointRejectsDelegatedAuth() {
 	logsConfig := defaultLogsConfigKeys(suite.config)
 	suite.config.SetInTest("logs_config.additional_endpoints", `[{
-		"api_key": "DELA(some-org-uuid, aws)",
+		"api_key": "DELA[some-org-uuid, aws]",
 		"host": "localhost1",
 		"port": 1234
 	}]`)
@@ -748,7 +748,7 @@ func (suite *EndpointsTestSuite) TestRuntimeDelegatedAuthModeChangeFailsClosed()
 	suite.Require().Len(endpoints, 1)
 
 	suite.config.SetInTest("logs_config.additional_endpoints", `[{
-		"api_key": "DELA(some-org-uuid, aws)",
+		"api_key": "DELA[some-org-uuid, aws]",
 		"host": "localhost1",
 		"port": 1234
 	}]`)
@@ -784,7 +784,7 @@ func (suite *EndpointsTestSuite) TestDelegatedAuthRouteChangeFailsClosed() {
 		suite.Run(test.name, func() {
 			logsConfig := defaultLogsConfigKeys(suite.config)
 			suite.config.SetInTest("logs_config.additional_endpoints", `[
-				{"api_key":"DELA(org-a, aws)","host":"logs.datadoghq.com","port":443,"use_ssl":true,"ProxyAddress":"proxy-a","path_prefix":"/a"}
+				{"api_key":"DELA[org-a, aws]","host":"logs.datadoghq.com","port":443,"use_ssl":true,"ProxyAddress":"proxy-a","path_prefix":"/a"}
 			]`)
 			endpoints := loadHTTPAdditionalEndpoints(Endpoint{}, logsConfig, "", "", "", true)
 			suite.Require().Len(endpoints, 1)
@@ -800,15 +800,15 @@ func (suite *EndpointsTestSuite) TestDelegatedAuthRouteChangeFailsClosed() {
 func (suite *EndpointsTestSuite) TestDelegatedAuthReorderFailsClosedForSharedHost() {
 	logsConfig := defaultLogsConfigKeys(suite.config)
 	suite.config.SetInTest("logs_config.additional_endpoints", `[
-		{"api_key":"DELA(org-a, aws)","host":"shared.datadoghq.com","port":443},
-		{"api_key":"DELA(org-b, aws)","host":"shared.datadoghq.com","port":443}
+		{"api_key":"DELA[org-a, aws]","host":"shared.datadoghq.com","port":443},
+		{"api_key":"DELA[org-b, aws]","host":"shared.datadoghq.com","port":443}
 	]`)
 	endpoints := loadHTTPAdditionalEndpoints(Endpoint{}, logsConfig, "", "", "", true)
 	suite.Require().Len(endpoints, 2)
 
 	suite.config.SetInTest("logs_config.additional_endpoints", `[
-		{"api_key":"DELA(org-b, aws)","host":"shared.datadoghq.com","port":443},
-		{"api_key":"DELA(org-a, aws)","host":"shared.datadoghq.com","port":443}
+		{"api_key":"DELA[org-b, aws]","host":"shared.datadoghq.com","port":443},
+		{"api_key":"DELA[org-a, aws]","host":"shared.datadoghq.com","port":443}
 	]`)
 	suite.config.SetInTest("logs_config.additional_endpoints", `[
 		{"api_key":"resolved-b","host":"shared.datadoghq.com","port":443},
@@ -824,8 +824,8 @@ func (suite *EndpointsTestSuite) TestDelegatedAuthReorderFailsClosedForSharedHos
 func (suite *EndpointsTestSuite) TestResolvedDelegatedAuthReorderFailsClosedForSharedRoute() {
 	logsConfig := defaultLogsConfigKeys(suite.config)
 	suite.config.SetInTest("logs_config.additional_endpoints", `[
-		{"api_key":"DELA(org-a, aws)","host":"shared.datadoghq.com","port":443},
-		{"api_key":"DELA(org-b, aws)","host":"shared.datadoghq.com","port":443}
+		{"api_key":"DELA[org-a, aws]","host":"shared.datadoghq.com","port":443},
+		{"api_key":"DELA[org-b, aws]","host":"shared.datadoghq.com","port":443}
 	]`)
 	endpoints := loadHTTPAdditionalEndpoints(Endpoint{}, logsConfig, "", "", "", true)
 	suite.Require().Len(endpoints, 2)
@@ -871,15 +871,15 @@ func (suite *EndpointsTestSuite) TestPreResolvedEndpointReorderFailsClosedForSha
 func (suite *EndpointsTestSuite) TestDuplicateHostAndDirectiveWithDifferentRoutesRemainIndependent() {
 	logsConfig := defaultLogsConfigKeys(suite.config)
 	suite.config.SetInTest("logs_config.additional_endpoints", `[
-		{"api_key":"DELA(org-a, aws)","host":"shared.datadoghq.com","port":443},
-		{"api_key":"DELA(org-a, aws)","host":"shared.datadoghq.com","port":8443}
+		{"api_key":"DELA[org-a, aws]","host":"shared.datadoghq.com","port":443},
+		{"api_key":"DELA[org-a, aws]","host":"shared.datadoghq.com","port":8443}
 	]`)
 	endpoints := loadHTTPAdditionalEndpoints(Endpoint{}, logsConfig, "", "", "", true)
 	suite.Require().Len(endpoints, 2)
 
 	suite.config.SetInTest("logs_config.additional_endpoints", `[
 		{"api_key":"resolved-a","host":"shared.datadoghq.com","port":443},
-		{"api_key":"DELA(org-a, aws)","host":"shared.datadoghq.com","port":8443}
+		{"api_key":"DELA[org-a, aws]","host":"shared.datadoghq.com","port":8443}
 	]`)
 
 	key, ready := endpoints[0].GetAPIKeyIfReady()
@@ -891,7 +891,7 @@ func (suite *EndpointsTestSuite) TestDuplicateHostAndDirectiveWithDifferentRoute
 func (suite *EndpointsTestSuite) TestRemovedDelegatedAuthEndpointFailsClosed() {
 	logsConfig := defaultLogsConfigKeys(suite.config)
 	suite.config.SetInTest("logs_config.additional_endpoints", `[
-		{"api_key":"DELA(org-a, aws)","host":"logs.datadoghq.com","port":443}
+		{"api_key":"DELA[org-a, aws]","host":"logs.datadoghq.com","port":443}
 	]`)
 	endpoints := loadHTTPAdditionalEndpoints(Endpoint{}, logsConfig, "", "", "", true)
 	suite.Require().Len(endpoints, 1)

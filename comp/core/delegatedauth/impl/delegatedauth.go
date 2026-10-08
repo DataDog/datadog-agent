@@ -99,9 +99,9 @@ type authInstance struct {
 	// additionalEndpointIdentity binds list writeback to the original route.
 	additionalEndpointIdentity string
 	// lastWrittenValue is the value most recently written to the target, starting with the
-	// DELA(...) directive text. Used to find-and-replace this instance's own entry on each refresh.
+	// DELA[...] directive text. Used to find-and-replace this instance's own entry on each refresh.
 	lastWrittenValue string
-	// originalDirective is the literal DELA(...) text, never changes. Used as a fallback match
+	// originalDirective is the literal DELA[...] text, never changes. Used as a fallback match
 	// in case a racing write reverted the entry back to the raw directive.
 	originalDirective string
 

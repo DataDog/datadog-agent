@@ -47,8 +47,8 @@ func init() {
 // the default replacers.
 func AddDefaultReplacers(scrubber *Scrubber) {
 	delaFallbackReplacer := Replacer{
-		Regex:       regexp.MustCompile(`(?i)(\bfallback\s*=\s*)[^,)]*`),
-		Hints:       []string{"DELA("},
+		Regex:       regexp.MustCompile(`(?i)(\bfallback\s*=\s*)[^,\]]*`),
+		Hints:       []string{"DELA["},
 		Repl:        []byte(`${1}********`),
 		LastUpdated: parseVersion("7.84.0"),
 	}

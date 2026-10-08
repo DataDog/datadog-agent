@@ -57,7 +57,7 @@ func discoverEndpoints(t *testing.T, additionalEndpoints map[string][]string) *r
 func TestMapDirectiveUsesIdentityCheckedWriteback(t *testing.T) {
 	const domain = "https://app.datadoghq.com"
 	rec := discoverEndpoints(t, map[string][]string{
-		domain: {"DELA(org-uuid-1, aws)"},
+		domain: {"DELA[org-uuid-1, aws]"},
 	})
 
 	require.Len(t, rec.recorded, 1)
@@ -72,7 +72,7 @@ func TestMapShapeEntryWithoutADomainRegistersNothing(t *testing.T) {
 	for _, domain := range []string{"", "   "} {
 		t.Run(fmt.Sprintf("domain_%q", domain), func(t *testing.T) {
 			rec := discoverEndpoints(t, map[string][]string{
-				domain: {"DELA(org-uuid-1, aws)"},
+				domain: {"DELA[org-uuid-1, aws]"},
 			})
 			assert.Empty(t, rec.recorded)
 		})
@@ -81,17 +81,17 @@ func TestMapShapeEntryWithoutADomainRegistersNothing(t *testing.T) {
 
 func TestDirectiveKeepsOriginalValueForWritebackTracking(t *testing.T) {
 	rec := discoverEndpoints(t, map[string][]string{
-		"https://app.datadoghq.com": {"DELA(org-uuid-1, aws)"},
+		"https://app.datadoghq.com": {"DELA[org-uuid-1, aws]"},
 	})
 
 	require.Len(t, rec.recorded, 1)
-	assert.Equal(t, "DELA(org-uuid-1, aws)", rec.recorded[0].AdditionalEndpointDirective)
+	assert.Equal(t, "DELA[org-uuid-1, aws]", rec.recorded[0].AdditionalEndpointDirective)
 }
 
 // A directive registers an instance; a plain API key alongside it does not.
 func TestOnlyDirectivesRegisterInstances(t *testing.T) {
 	rec := discoverEndpoints(t, map[string][]string{
-		"https://app.datadoghq.com":  {"a-real-api-key", "DELA(org-uuid-1, aws)"},
+		"https://app.datadoghq.com":  {"a-real-api-key", "DELA[org-uuid-1, aws]"},
 		"https://other.datadoghq.eu": {"another-real-key"},
 	})
 
@@ -105,7 +105,7 @@ func TestAPMAdditionalEndpointsAreOutsideTheInitialScope(t *testing.T) {
 apm_config:
   additional_endpoints:
     "https://trace.agent.second-org.datadoghq.com":
-      - "DELA(org-uuid-1, aws)"
+      - "DELA[org-uuid-1, aws]"
 `)
 
 	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
@@ -118,8 +118,8 @@ apm_config:
 func TestTwoDirectivesForOneOrgGetDistinctInstanceKeys(t *testing.T) {
 	rec := discoverEndpoints(t, map[string][]string{
 		"https://app.datadoghq.com": {
-			"DELA(org-uuid-1, aws, region=us-east-1)",
-			"DELA(org-uuid-1, aws, region=eu-west-1)",
+			"DELA[org-uuid-1, aws, region=us-east-1]",
+			"DELA[org-uuid-1, aws, region=eu-west-1]",
 		},
 	})
 
@@ -134,7 +134,7 @@ func TestTwoDirectivesForOneOrgGetDistinctInstanceKeys(t *testing.T) {
 // leave an endpoint buffering against a provider that can never resolve.
 func TestUnsupportedProviderRegistersNothing(t *testing.T) {
 	rec := discoverEndpoints(t, map[string][]string{
-		"https://app.datadoghq.com": {"DELA(org-uuid-1, definitely-not-a-cloud)"},
+		"https://app.datadoghq.com": {"DELA[org-uuid-1, definitely-not-a-cloud]"},
 	})
 
 	assert.Empty(t, rec.recorded)
@@ -144,12 +144,12 @@ func TestUnsupportedProviderRegistersNothing(t *testing.T) {
 // keys by PartitionRealAndPendingKeys, so the endpoint stays inert rather than shipping the text.
 func TestMalformedDirectiveRegistersNothing(t *testing.T) {
 	for _, directive := range []string{
-		"DELA()",
-		"DELA(org-uuid-1)",
-		"DELA(, aws)",
-		"DELA(org-uuid-1, )",
-		"DELA(org-uuid-1, aws, region)",
-		"DELA(org-uuid-1, aws, =us-east-1)",
+		"DELA[]",
+		"DELA[org-uuid-1]",
+		"DELA[, aws]",
+		"DELA[org-uuid-1, ]",
+		"DELA[org-uuid-1, aws, region]",
+		"DELA[org-uuid-1, aws, =us-east-1]",
 	} {
 		t.Run(directive, func(t *testing.T) {
 			rec := discoverEndpoints(t, map[string][]string{
@@ -168,17 +168,17 @@ func TestParseDelaDirective(t *testing.T) {
 	}{
 		{
 			name:  "without parameters",
-			value: "DELA(org-uuid-1, aws)",
+			value: "DELA[org-uuid-1, aws]",
 			want:  delaDirective{orgUUID: "org-uuid-1", provider: "aws", params: map[string]string{}},
 		},
 		{
 			name:  "whitespace and case",
-			value: "  DELA( org-uuid-1 , AWS , Region = us-east-1 )  ",
+			value: "  DELA[ org-uuid-1 , AWS , Region = us-east-1 ]  ",
 			want:  delaDirective{orgUUID: "org-uuid-1", provider: "aws", params: map[string]string{"region": "us-east-1"}},
 		},
 		{
 			name:  "fallback before region",
-			value: "DELA(org-uuid-1, aws, fallback=static_key, region=us-gov-east-1)",
+			value: "DELA[org-uuid-1, aws, fallback=static_key, region=us-gov-east-1]",
 			want: delaDirective{orgUUID: "org-uuid-1", provider: "aws", params: map[string]string{
 				"fallback": "static_key",
 				"region":   "us-gov-east-1",
@@ -186,7 +186,7 @@ func TestParseDelaDirective(t *testing.T) {
 		},
 		{
 			name:  "region before padded fallback",
-			value: "DELA(org-uuid-1, aws, region=us-east-1, fallback=static_key==)",
+			value: "DELA[org-uuid-1, aws, region=us-east-1, fallback=static_key==]",
 			want: delaDirective{orgUUID: "org-uuid-1", provider: "aws", params: map[string]string{
 				"fallback": "static_key==",
 				"region":   "us-east-1",
@@ -205,22 +205,22 @@ func TestParseDelaDirective(t *testing.T) {
 
 func TestParseDelaDirectiveRejectsInvalidInput(t *testing.T) {
 	tests := map[string]string{
-		"missing closing parenthesis": "DELA(org-uuid-1, aws",
-		"missing org":                 "DELA(, aws)",
-		"missing provider":            "DELA(org-uuid-1, )",
-		"invalid org character":       "DELA(org.uuid.1, aws)",
-		"invalid provider character":  "DELA(org-uuid-1, aw$s)",
-		"empty parameter":             "DELA(org-uuid-1, aws,)",
-		"missing parameter separator": "DELA(org-uuid-1, aws, region)",
-		"missing parameter name":      "DELA(org-uuid-1, aws, =us-east-1)",
-		"missing parameter value":     "DELA(org-uuid-1, aws, region=)",
-		"invalid parameter value":     "DELA(org-uuid-1, aws, region=us/east/1)",
-		"invalid region separator":    "DELA(org-uuid-1, aws, region=us-east-1=extra)",
-		"unknown parameter":           "DELA(org-uuid-1, aws, role=example)",
-		"duplicate parameter":         "DELA(org-uuid-1, aws, region=us-east-1, REGION=us-west-1)",
-		"embedded parenthesis":        "DELA(org-uuid-1, aw)s)",
-		"embedded newline":            "DELA(org-uuid-1,\naws)",
-		"trailing input":              "DELA(org-uuid-1, aws) trailing",
+		"missing closing bracket":     "DELA[org-uuid-1, aws",
+		"missing org":                 "DELA[, aws]",
+		"missing provider":            "DELA[org-uuid-1, ]",
+		"invalid org character":       "DELA[org.uuid.1, aws]",
+		"invalid provider character":  "DELA[org-uuid-1, aw$s]",
+		"empty parameter":             "DELA[org-uuid-1, aws,]",
+		"missing parameter separator": "DELA[org-uuid-1, aws, region]",
+		"missing parameter name":      "DELA[org-uuid-1, aws, =us-east-1]",
+		"missing parameter value":     "DELA[org-uuid-1, aws, region=]",
+		"invalid parameter value":     "DELA[org-uuid-1, aws, region=us/east/1]",
+		"invalid region separator":    "DELA[org-uuid-1, aws, region=us-east-1=extra]",
+		"unknown parameter":           "DELA[org-uuid-1, aws, role=example]",
+		"duplicate parameter":         "DELA[org-uuid-1, aws, region=us-east-1, REGION=us-west-1]",
+		"embedded parenthesis":        "DELA[org-uuid-1, aw]s)",
+		"embedded newline":            "DELA[org-uuid-1,\naws]",
+		"trailing input":              "DELA[org-uuid-1, aws] trailing",
 	}
 
 	for name, value := range tests {
@@ -234,7 +234,7 @@ func TestParseDelaDirectiveRejectsInvalidInput(t *testing.T) {
 // The directive's region must win over the agent-wide default, otherwise a per-endpoint override
 // is silently ignored and the auth proof is exchanged in the wrong region.
 func TestDirectiveRegionOverridesTheAgentDefault(t *testing.T) {
-	directive, ok := parseDelaDirective("DELA(org-uuid-1, aws, region=eu-west-1)")
+	directive, ok := parseDelaDirective("DELA[org-uuid-1, aws, region=eu-west-1]")
 	require.True(t, ok)
 
 	cfg, err := providerConfigForDirective(directive, &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"})
@@ -243,7 +243,7 @@ func TestDirectiveRegionOverridesTheAgentDefault(t *testing.T) {
 }
 
 func TestDirectiveInheritsTheAgentRegionWhenItOmitsOne(t *testing.T) {
-	directive, ok := parseDelaDirective("DELA(org-uuid-1, aws)")
+	directive, ok := parseDelaDirective("DELA[org-uuid-1, aws]")
 	require.True(t, ok)
 
 	cfg, err := providerConfigForDirective(directive, &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"})
@@ -255,7 +255,7 @@ func TestDirectiveInheritsTheAgentRegionWhenItOmitsOne(t *testing.T) {
 // auto-detects the region from the environment. A non-nil config with an empty region would
 // skip auto-detection and exchange the auth proof against the wrong (or no) region.
 func TestDirectiveWithNoRegionAndNoDefaultReturnsNilForAutoDetection(t *testing.T) {
-	directive, ok := parseDelaDirective("DELA(org-uuid-1, aws)")
+	directive, ok := parseDelaDirective("DELA[org-uuid-1, aws]")
 	require.True(t, ok)
 
 	cfg, err := providerConfigForDirective(directive, nil)
@@ -268,9 +268,9 @@ func TestDirectiveWithNoRegionAndNoDefaultReturnsNilForAutoDetection(t *testing.
 // regex was case-insensitive - so a "Fallback=" spelling parsed as a real key and logged in clear.
 func TestFallbackIsRedactedForEverySpellingThatParses(t *testing.T) {
 	for _, directive := range []string{
-		"DELA(org-uuid-1, aws, fallback=supersecret)",
-		"DELA(org-uuid-1, aws, FALLBACK=supersecret)",
-		"DELA(org-uuid-1, aws, Fallback = supersecret)",
+		"DELA[org-uuid-1, aws, fallback=supersecret]",
+		"DELA[org-uuid-1, aws, FALLBACK=supersecret]",
+		"DELA[org-uuid-1, aws, Fallback = supersecret]",
 	} {
 		t.Run(directive, func(t *testing.T) {
 			parsed, ok := parseDelaDirective(directive)
@@ -285,7 +285,7 @@ func TestFallbackIsRedactedForEverySpellingThatParses(t *testing.T) {
 
 func TestFallbackParameterIsIgnored(t *testing.T) {
 	rec := discoverEndpoints(t, map[string][]string{
-		"https://app.datadoghq.com": {"DELA(org-uuid-1, aws, fallback=static-key)"},
+		"https://app.datadoghq.com": {"DELA[org-uuid-1, aws, fallback=static-key]"},
 	})
 
 	require.Len(t, rec.recorded, 1)
@@ -319,14 +319,14 @@ func discoverListShape(t *testing.T, entries []map[string]any) *recordingCompone
 
 func TestListShapeDirectiveUsesIdentityCheckedWriteback(t *testing.T) {
 	rec := discoverListShape(t, []map[string]any{
-		{"host": "org2.datadoghq.com", "api_key": "DELA(org-uuid-2, aws)"},
+		{"host": "org2.datadoghq.com", "api_key": "DELA[org-uuid-2, aws]"},
 	})
 
 	require.Len(t, rec.recorded, 1)
 	assert.Equal(t, "logs_config.additional_endpoints", rec.recorded[0].AdditionalEndpointsListConfigKey)
 	assert.Equal(t, 0, rec.recorded[0].ListEntryIndex)
 	assert.Equal(t, "org2.datadoghq.com", rec.recorded[0].TargetSite)
-	assert.Equal(t, "DELA(org-uuid-2, aws)", rec.recorded[0].AdditionalEndpointDirective)
+	assert.Equal(t, "DELA[org-uuid-2, aws]", rec.recorded[0].AdditionalEndpointDirective)
 	assert.NotEmpty(t, rec.recorded[0].AdditionalEndpointIdentity)
 	assert.True(t, rec.recorded[0].AllowAsyncStartup)
 }
@@ -337,7 +337,7 @@ func TestListShapeDirectiveRequiresForcedHTTP(t *testing.T) {
 logs_config:
   additional_endpoints:
     - host: org2.datadoghq.com
-      api_key: DELA(org-uuid-2, aws)
+      api_key: DELA[org-uuid-2, aws]
 `)
 
 	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
@@ -351,7 +351,7 @@ logs_config:
   force_use_http: true
   additional_endpoints:
     - host: org2.datadoghq.com
-      API_KEY: DELA(org-uuid-2, aws)
+      API_KEY: DELA[org-uuid-2, aws]
 `)
 
 	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
@@ -372,7 +372,7 @@ func TestListShapePlainKeyRegistersNothing(t *testing.T) {
 // credential for the wrong org, so the entry is skipped instead.
 func TestListShapeEntryWithoutAHostRegistersNothing(t *testing.T) {
 	rec := discoverListShape(t, []map[string]any{
-		{"api_key": "DELA(org-uuid-2, aws)"},
+		{"api_key": "DELA[org-uuid-2, aws]"},
 	})
 	assert.Empty(t, rec.recorded)
 }
@@ -381,7 +381,7 @@ func TestListShapeEntryWithBlankHostRegistersNothing(t *testing.T) {
 	for _, host := range []string{"", "   "} {
 		t.Run(fmt.Sprintf("host_%q", host), func(t *testing.T) {
 			rec := discoverListShape(t, []map[string]any{
-				{"host": host, "api_key": "DELA(org-uuid-2, aws)"},
+				{"host": host, "api_key": "DELA[org-uuid-2, aws]"},
 			})
 			assert.Empty(t, rec.recorded)
 		})
@@ -392,8 +392,8 @@ func TestListShapeEntryWithBlankHostRegistersNothing(t *testing.T) {
 func TestListShapeTwoOrgsOnOneHostStayDistinct(t *testing.T) {
 	const host = "shared.datadoghq.com"
 	rec := discoverListShape(t, []map[string]any{
-		{"host": host, "api_key": "DELA(org-a, aws)"},
-		{"host": host, "api_key": "DELA(org-b, aws)"},
+		{"host": host, "api_key": "DELA[org-a, aws]"},
+		{"host": host, "api_key": "DELA[org-b, aws]"},
 	})
 
 	require.Len(t, rec.recorded, 2)
