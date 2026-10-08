@@ -36,7 +36,7 @@ func NewComponent(deps dependencies) (hostinfoComp.Component, error) {
 	hinfo, err := checks.CollectHostInfo(deps.Config, deps.Hostname, deps.IPC)
 	if err != nil {
 		_ = deps.Logger.Critical("Error collecting host details:", err)
-		return nil, fmt.Errorf("error collecting host details: %v", err)
+		return nil, fmt.Errorf("error collecting host details: %w", err)
 	}
 	return &hostinfo{hostinfo: hinfo}, nil
 }

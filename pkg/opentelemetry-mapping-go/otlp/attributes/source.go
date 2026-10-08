@@ -16,7 +16,6 @@ package attributes
 
 import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	semconv1_27 "go.opentelemetry.io/otel/semconv/v1.27.0"
 	semconv143 "go.opentelemetry.io/otel/semconv/v1.43.0"
 	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 
@@ -39,23 +38,25 @@ const (
 	// getting added to OTel semconv. Replace with the real semconv constant once released.
 	AttributeAzureContainerAppInstanceID = "azure.container_app.instance.id"
 
-	attributeAzureResourceGroupName    = string(semconv143.AzureResourceGroupNameKey)
-	attributeAzureAppServiceInstanceID = "azure.app_service.instance.id"
-	attributeServiceInstanceID         = string(conventions.ServiceInstanceIDKey)
+	attributeAzureResourceGroupName = string(semconv143.AzureResourceGroupNameKey)
 )
 
 var (
-	cloudPlatformAzureAppService       = semconv143.CloudPlatformAzureAppService.Value.AsString()
-	cloudPlatformAzureAppServiceLegacy = conventions.CloudPlatformAzureAppService.Value.AsString()
-	cloudPlatformAzureFunctions        = semconv143.CloudPlatformAzureFunctions.Value.AsString()
-	cloudPlatformAzureFunctionsLegacy  = conventions.CloudPlatformAzureFunctions.Value.AsString()
+	cloudPlatformAzureAppService          = semconv143.CloudPlatformAzureAppService.Value.AsString()
+	cloudPlatformAzureAppServiceLegacy    = conventions.CloudPlatformAzureAppService.Value.AsString()
+	cloudPlatformAzureFunctions           = semconv143.CloudPlatformAzureFunctions.Value.AsString()
+	cloudPlatformAzureFunctionsLegacy     = conventions.CloudPlatformAzureFunctions.Value.AsString()
+	cloudPlatformAzureContainerApps       = semconv143.CloudPlatformAzureContainerApps.Value.AsString()
+	cloudPlatformAzureContainerAppsLegacy = "azure_container_apps"
 )
 
+// azureFunctionsResource is an Azure Functions app identity. It has no
+// instance: the platform value that matches existing Functions billing is not
+// emitted by OTel detectors yet, so the identity stays at the app level.
 type azureFunctionsResource struct {
 	name           string
 	subscriptionID string
 	resourceGroup  string
-	instanceID     string
 }
 
 func azureFunctionsResourceFromAttributes(attrs pcommon.Map) (azureFunctionsResource, bool) {
@@ -67,11 +68,9 @@ func azureFunctionsResourceFromAttributes(attrs pcommon.Map) (azureFunctionsReso
 	name, nameOK := attrs.Get(string(conventions.ServiceNameKey))
 	subscriptionID, subscriptionIDOK := attrs.Get(string(conventions.CloudAccountIDKey))
 	resourceGroup, resourceGroupOK := attrs.Get(attributeAzureResourceGroupName)
-	instanceID, instanceIDOK := attrs.Get(string(semconv143.FaaSInstanceKey))
 	if !nameOK || name.Str() == "" ||
 		!subscriptionIDOK || subscriptionID.Str() == "" ||
-		!resourceGroupOK || resourceGroup.Str() == "" ||
-		!instanceIDOK || instanceID.Str() == "" {
+		!resourceGroupOK || resourceGroup.Str() == "" {
 		return azureFunctionsResource{}, false
 	}
 
@@ -79,15 +78,16 @@ func azureFunctionsResourceFromAttributes(attrs pcommon.Map) (azureFunctionsReso
 		name:           name.Str(),
 		subscriptionID: subscriptionID.Str(),
 		resourceGroup:  resourceGroup.Str(),
-		instanceID:     instanceID.Str(),
 	}, true
 }
 
+// azureAppServiceResource is an Azure App Service app identity. It has no
+// instance: the platform value that matches existing App Service billing is not
+// emitted by OTel detectors yet, so the identity stays at the app level.
 type azureAppServiceResource struct {
 	name           string
 	subscriptionID string
 	resourceGroup  string
-	instanceID     string
 }
 
 func azureAppServiceResourceFromAttributes(attrs pcommon.Map) (azureAppServiceResource, bool) {
@@ -99,14 +99,9 @@ func azureAppServiceResourceFromAttributes(attrs pcommon.Map) (azureAppServiceRe
 	name, nameOK := attrs.Get(string(conventions.ServiceNameKey))
 	subscriptionID, subscriptionIDOK := attrs.Get(string(conventions.CloudAccountIDKey))
 	resourceGroup, resourceGroupOK := attrs.Get(attributeAzureResourceGroupName)
-	instanceID, instanceIDOK := attrs.Get(attributeAzureAppServiceInstanceID)
-	if !instanceIDOK || instanceID.Str() == "" {
-		instanceID, instanceIDOK = attrs.Get(attributeServiceInstanceID)
-	}
 	if !nameOK || name.Str() == "" ||
 		!subscriptionIDOK || subscriptionID.Str() == "" ||
-		!resourceGroupOK || resourceGroup.Str() == "" ||
-		!instanceIDOK || instanceID.Str() == "" {
+		!resourceGroupOK || resourceGroup.Str() == "" {
 		return azureAppServiceResource{}, false
 	}
 
@@ -114,7 +109,58 @@ func azureAppServiceResourceFromAttributes(attrs pcommon.Map) (azureAppServiceRe
 		name:           name.Str(),
 		subscriptionID: subscriptionID.Str(),
 		resourceGroup:  resourceGroup.Str(),
-		instanceID:     instanceID.Str(),
+	}, true
+}
+
+type azureContainerAppsResource struct {
+	name           string
+	subscriptionID string
+	resourceGroup  string
+	replica        string
+}
+
+func azureContainerAppsResourceFromAttributes(attrs pcommon.Map) (azureContainerAppsResource, bool) {
+	platform, ok := attrs.Get(string(conventions.CloudPlatformKey))
+	if !ok || (platform.Str() != cloudPlatformAzureContainerApps && platform.Str() != cloudPlatformAzureContainerAppsLegacy) {
+		return azureContainerAppsResource{}, false
+	}
+
+	name, nameOK := attrs.Get(string(conventions.ServiceNameKey))
+	subscriptionID, subscriptionIDOK := attrs.Get(string(conventions.CloudAccountIDKey))
+	resourceGroup, resourceGroupOK := attrs.Get(attributeAzureResourceGroupName)
+	replica, replicaOK := attrs.Get(AttributeAzureContainerAppInstanceID)
+	// Fallback: some SDKs put the ACA replica identifier in service.instance.id
+	// instead of azure.container_app.instance.id. The latter stays authoritative
+	// since it's what the RDP detector currently emits.
+	if !replicaOK || replica.Str() == "" {
+		replica, replicaOK = attrs.Get(string(conventions.ServiceInstanceIDKey))
+	}
+	// Fallback: derive name, subscription_id, and resource_group from cloud.resource_id
+	if resourceID, ok := attrs.Get(string(semconv143.CloudResourceIDKey)); ok && resourceID.Str() != "" {
+		if parsed, err := parseAzureResourceID(resourceID.Str()); err == nil {
+			if !nameOK || name.Str() == "" {
+				name, nameOK = pcommon.NewValueStr(parsed.ResourceName), true
+			}
+			if !subscriptionIDOK || subscriptionID.Str() == "" {
+				subscriptionID, subscriptionIDOK = pcommon.NewValueStr(parsed.SubscriptionID), true
+			}
+			if !resourceGroupOK || resourceGroup.Str() == "" {
+				resourceGroup, resourceGroupOK = pcommon.NewValueStr(parsed.ResourceGroup), true
+			}
+		}
+	}
+	if !nameOK || name.Str() == "" ||
+		!subscriptionIDOK || subscriptionID.Str() == "" ||
+		!resourceGroupOK || resourceGroup.Str() == "" ||
+		!replicaOK || replica.Str() == "" {
+		return azureContainerAppsResource{}, false
+	}
+
+	return azureContainerAppsResource{
+		name:           name.Str(),
+		subscriptionID: subscriptionID.Str(),
+		resourceGroup:  resourceGroup.Str(),
+		replica:        replica.Str(),
 	}, true
 }
 
@@ -295,14 +341,13 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 	if function, ok := azureFunctionsResourceFromAttributes(attrs); ok {
 		return source.Source{
 			Kind:       source.AzureFunctionsKind,
-			Identifier: function.instanceID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			Identifier: function.name, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			SourceIdentifier: source.SourceIdentifier{
-				Primary: function.instanceID,
+				Primary: function.name,
 				Dimensions: map[string]string{
 					"name":            function.name,
 					"subscription_id": function.subscriptionID,
 					"resource_group":  function.resourceGroup,
-					"instance":        function.instanceID,
 				},
 			},
 		}, true
@@ -315,64 +360,32 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 	if appService, ok := azureAppServiceResourceFromAttributes(attrs); ok {
 		return source.Source{
 			Kind:       source.AzureAppServiceKind,
-			Identifier: appService.instanceID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			Identifier: appService.name, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			SourceIdentifier: source.SourceIdentifier{
-				Primary: appService.instanceID,
+				Primary: appService.name,
 				Dimensions: map[string]string{
 					"name":            appService.name,
 					"subscription_id": appService.subscriptionID,
 					"resource_group":  appService.resourceGroup,
-					"instance":        appService.instanceID,
 				},
 			},
 		}, true
 	}
 
-	if cloudPlatform, ok := attrs.Get(string(conventions.CloudPlatformKey)); ok {
-		p := cloudPlatform.Str()
-		if p == semconv143.CloudPlatformAzureContainerApps.Value.AsString() || p == "azure_container_apps" {
-			dims := map[string]string{}
-			for otelKey, ddKey := range AzureContainerAppsMappings {
-				if v, ok := attrs.Get(otelKey); ok && v.Str() != "" {
-					dims[ddKey] = v.Str()
-				}
-			}
-			// Fallback: some SDKs put the ACA replica identifier in service.instance.id
-			// instead of azure.container_app.instance.id. The latter stays authoritative
-			// since it's what the RDP detector currently emits.
-			if _, ok := dims["replica"]; !ok {
-				if v, ok := attrs.Get(string(semconv1_27.ServiceInstanceIDKey)); ok && v.Str() != "" {
-					dims["replica"] = v.Str()
-				}
-			}
-			// Fallback: derive subscription_id, resource_group, and name from cloud.resource_id
-			if v, ok := attrs.Get(string(semconv1_27.CloudResourceIDKey)); ok && v.Str() != "" {
-				if parsed, err := parseAzureResourceID(v.Str()); err == nil {
-					if _, ok := dims["subscription_id"]; !ok && parsed.SubscriptionID != "" {
-						dims["subscription_id"] = parsed.SubscriptionID
-					}
-					if _, ok := dims["resource_group"]; !ok && parsed.ResourceGroup != "" {
-						dims["resource_group"] = parsed.ResourceGroup
-					}
-					if _, ok := dims["name"]; !ok && parsed.ResourceName != "" {
-						dims["name"] = parsed.ResourceName
-					}
-				}
-			}
-
-			primary := dims["replica"]
-			if primary == "" {
-				primary = dims["name"]
-			}
-			return source.Source{
-				Kind:       source.AzureContainerAppsKind,
-				Identifier: primary, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
-				SourceIdentifier: source.SourceIdentifier{
-					Primary:    primary,
-					Dimensions: dims,
+	if containerApp, ok := azureContainerAppsResourceFromAttributes(attrs); ok {
+		return source.Source{
+			Kind:       source.AzureContainerAppsKind,
+			Identifier: containerApp.replica, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			SourceIdentifier: source.SourceIdentifier{
+				Primary: containerApp.replica,
+				Dimensions: map[string]string{
+					"name":            containerApp.name,
+					"subscription_id": containerApp.subscriptionID,
+					"resource_group":  containerApp.resourceGroup,
+					"replica":         containerApp.replica,
 				},
-			}, true
-		}
+			},
+		}, true
 	}
 
 	if launchType, ok := attrs.Get(string(conventions.AWSECSLaunchtypeKey)); ok && launchType.Str() == conventions.AWSECSLaunchtypeFargate.Value.AsString() {
@@ -397,9 +410,4 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 	}
 
 	return source.Source{}, false
-}
-
-// The unique identifier for an Azure Container App is its subscription id, resource group, and name combination
-func IsAzureContainerAppsIdentified(dims map[string]string) bool {
-	return dims["name"] != "" && dims["resource_group"] != "" && dims["subscription_id"] != ""
 }

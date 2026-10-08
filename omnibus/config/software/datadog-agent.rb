@@ -24,8 +24,9 @@ unless do_repackage?
       host_distribution = "--//packages/agent:host_distribution=#{Omnibus::Config.host_distribution()}"
   end
 
+  dependencies_install_target = heroku_target? ? "//packages/heroku:install_dependencies" : "//packages/agent/dependencies:install"
   build do
-      command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:install --destdir=#{install_dir}",
+      command "bazel run #{omnibazel_flags} -- #{dependencies_install_target} --destdir=#{install_dir}",
           :live_stream => Omnibus.logger.live_stream(:info)
   end
   build do
@@ -105,7 +106,8 @@ build do
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
-  command "bazel run #{omnibazel_flags} -- //packages/agent/product:post_build_install --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
+  post_build_install_target = heroku_target? ? "//packages/heroku:post_build_install" : "//packages/agent/product:post_build_install"
+  command "bazel run #{omnibazel_flags} -- #{post_build_install_target} --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
 
   # TODO: dda inv agent.build also builds datadog.yaml. We need to work with the
   # config team to find out if removing that will break their workflow.  If not,
@@ -158,6 +160,15 @@ build do
   # We do this in the same software definition to avoid redundant copying, as it's based on the same source
   if linux_target? and !heroku_target?
     command "dda inv -- -e installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    move 'bin/installer/installer', "#{install_dir}/embedded/bin"
+  elsif osx_target?
+    # macOS has a single install root, so there is no --run-path to give: the daemon resolves its
+    # run directory from pkg/fleet/installer/paths, which names the run directory inside it.
+    #
+    # cgo stays enabled, as it is for the Windows installer below. pkg/inventory/systeminfo reaches
+    # IOKit through Objective-C on darwin and has no pure-Go fallback there, so a --no-cgo build
+    # drops its collect() and fails to link.
+    command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer', "#{install_dir}/embedded/bin"
   elsif windows_target?
     command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
@@ -251,7 +262,6 @@ build do
     copy "pkg/ebpf/bytecode/build/#{arch}/co-re/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/"
     copy "pkg/ebpf/bytecode/build/runtime/*.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/clang-bpf", "#{install_dir}/embedded/bin/clang-bpf"
-    copy "#{ENV['SYSTEM_PROBE_BIN']}/llc-bpf", "#{install_dir}/embedded/bin/llc-bpf"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/minimized-btfs.tar.xz", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf/minimized-btfs.tar.xz"
 
     copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"

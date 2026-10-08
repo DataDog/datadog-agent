@@ -8,6 +8,12 @@ args:
   - '__ADP_ETC_ROOT__/run/agent-data-plane.pid'
 auto_start: true
 condition_path_exists: '__ADP_INSTALL_ROOT__/bin/agent/agent-data-plane.exe'
+# Start ADP only when data_plane.enabled is true. Without this gate procmgr would
+# spawn ADP on every host just to watch it exit when disabled.
+condition_config_any:
+  - path: '__ADP_ETC_ROOT__/datadog.yaml'
+    keys:
+      - data_plane.enabled
 restart: on-failure
 restart_sec: 2
 start_limit_interval_sec: 10

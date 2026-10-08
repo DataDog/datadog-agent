@@ -7,7 +7,9 @@
 
 package lsof
 
+import "context"
+
 // ListLoadedModulesReportJSON is only meaningful on Windows; on other platforms it returns nil content.
-func ListLoadedModulesReportJSON() ([]byte, error) {
+func ListLoadedModulesReportJSON(_ context.Context) ([]byte, error) {
 	return nil, nil
 }

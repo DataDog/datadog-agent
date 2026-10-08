@@ -20,8 +20,6 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel := newObserverTelemetry(noopsimpl.NewComponent())
 	tel.recordObservationAccepted("logs", "containers")
 	tel.recordObservationDropped("logs", "containers")
-	tel.recordRRCFScore("rrcf", 0.7)
-	tel.recordRRCFThreshold("rrcf", 0.9)
 	tel.setLogPatternCount(1)
 	tel.recordLogAccepted("internal", 256)
 	tel.recordMetricAccepted("dogstatsd")

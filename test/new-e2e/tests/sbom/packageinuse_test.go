@@ -214,26 +214,12 @@ func (s *packageInUseSuite) SetupSuite() {
 // pods - including the security-agent and system-probe containers enabled here -
 // to be ready before the package-in-use assertions run.
 func (s *packageInUseSuite) Test00UpAndRunning() {
-	ctx := context.Background()
-	s.EventuallyWithTf(func(c *assert.CollectT) {
-		nodes, err := s.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "linux").String(),
-		})
-		require.NoErrorf(c, err, "Failed to list Linux nodes")
-
-		pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
-		})
-		require.NoErrorf(c, err, "Failed to list Linux datadog agent pods")
-
-		assert.Len(c, pods.Items, len(nodes.Items))
-		for _, pod := range pods.Items {
-			for _, cs := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
-				assert.Truef(c, cs.Ready, "Container %s of pod %s isn't ready", cs.Name, pod.Name)
-				assert.Zerof(c, cs.RestartCount, "Container %s of pod %s has restarted", cs.Name, pod.Name)
-			}
-		}
-	}, 10*time.Minute, 10*time.Second, "Not all agents eventually became ready in time.")
+	err := s.Env().WaitForAgentReady(
+		s.T().Context(),
+		environments.WithLinuxNodeAgentReady(),
+		environments.WithAgentReadinessTimeout(10*time.Minute),
+	)
+	s.Require().NoError(err, "Not all agents eventually became ready in time.")
 }
 
 // TestPackageInUse drives the full not-in-use -> in-use -> stale -> security ->

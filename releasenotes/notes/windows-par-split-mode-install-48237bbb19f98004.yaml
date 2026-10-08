@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Allow enabling Private Action Runner split mode during a Windows Agent
+    installation with the ``DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED`` MSI
+    property.

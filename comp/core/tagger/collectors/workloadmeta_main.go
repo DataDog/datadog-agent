@@ -31,6 +31,7 @@ const (
 	workloadmetaCollectorName = "workloadmeta"
 
 	staticSource              = workloadmetaCollectorName + "-static"
+	infraTagsSource           = workloadmetaCollectorName + "-infra-tags"
 	podSource                 = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
 	taskSource                = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
 	containerSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
@@ -159,6 +160,33 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, dat
 	})
 }
 
+// InfraTagInfo returns the tag info holding the infrastructure mode mark of
+// the Agent, which is empty when the mode carries no mark.
+//
+// It is published once at construction rather than refreshed: `infrastructure_mode`
+// is applied through an override func when the configuration loads and is not a
+// runtime setting, so it cannot change without an Agent restart.
+//
+// It is exported so the mock Tagger, which runs no collector, can seed the same
+// entity from the same source.
+func InfraTagInfo(datadogConfig config.Component) *types.TagInfo {
+	tagList := taglist.NewTagList()
+	if mode := configutils.MarkedInfraMode(datadogConfig); mode != "" {
+		tagList.AddLow(configutils.InfraModeTagKey, mode)
+	}
+
+	low, orch, high, standard := tagList.Compute()
+	return &types.TagInfo{
+		Source:               infraTagsSource,
+		EntityID:             types.GetInfraTagsEntityID(),
+		HighCardTags:         high,
+		OrchestratorCardTags: orch,
+		LowCardTags:          low,
+		StandardTags:         standard,
+		IsComplete:           true,
+	}
+}
+
 // RefreshGlobalTags recomputes and republishes global static tags on the stream goroutine, blocking until done or ctx is done.
 func (c *WorkloadMetaCollector) RefreshGlobalTags(ctx context.Context) {
 	done := make(chan struct{})
@@ -247,6 +275,7 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 	// initialize static global tags
 	if p != nil {
 		c.collectStaticGlobalTags(ctx, cfg)
+		c.tagProcessor.ProcessTagInfo([]*types.TagInfo{InfraTagInfo(cfg)})
 	}
 
 	return c

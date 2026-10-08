@@ -14,10 +14,10 @@ go_library(
     cgo = True,
     clinkopts = select({
         "@rules_go//go/platform:darwin": [
-            "-framework Foundation -framework IOKit",
+            "-framework Foundation -framework IOKit -framework SystemConfiguration",
         ],
         "@rules_go//go/platform:ios": [
-            "-framework Foundation -framework IOKit",
+            "-framework Foundation -framework IOKit -framework SystemConfiguration",
         ],
         "//conditions:default": [],
     }),
