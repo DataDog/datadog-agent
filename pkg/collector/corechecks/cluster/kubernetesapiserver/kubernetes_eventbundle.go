@@ -18,6 +18,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerutils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
@@ -111,6 +112,8 @@ func (b *kubernetesEventBundle) formatEvents(taggerInstance tagger.Component) (e
 	if b.hostInfo.providerID != "" {
 		tags = append(tags, "host_provider_id:"+b.hostInfo.providerID)
 	}
+
+	tags = taggerutils.AppendUniqueTags(tags, taggerInstance.GetInfraTags()...)
 
 	// If hostname was not defined, the aggregator will then set the local hostname
 	output := event.Event{

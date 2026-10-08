@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    gpu: add ``gpu.vgpu.license_status`` metric, reporting whether the vGPU
+    software license is active (``1``) or inactive (``0``) on vGPU devices,
+    tagged by licensed product (``vgpu_product``).

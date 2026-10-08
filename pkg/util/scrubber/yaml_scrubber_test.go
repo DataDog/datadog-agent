@@ -55,13 +55,27 @@ func TestScrubDataObj(t *testing.T) {
 			name: "DataSecurityScanningRules",
 			input: map[string]interface{}{
 				"scanning_rules": []interface{}{
-					map[string]interface{}{"id": "rule-1", "license": "proprietary", "pattern": `\d+`},
+					map[string]interface{}{
+						"id":                     "rule-1",
+						"license":                "proprietary",
+						"pattern":                `(\d+)`,
+						"pattern_capture_groups": []interface{}{"1"},
+						"proximity_keywords":     map[string]interface{}{"included_keywords": []interface{}{"card"}},
+						"validator":              map[string]interface{}{"type": "LuhnChecksum"},
+					},
 				},
 				"task_id": "task-1",
 			},
 			expected: map[string]interface{}{
 				"scanning_rules": []interface{}{
-					map[string]interface{}{"id": "rule-1", "license": "proprietary", "pattern": "********"},
+					map[string]interface{}{
+						"id":                     "rule-1",
+						"license":                "proprietary",
+						"pattern":                "********",
+						"pattern_capture_groups": "********",
+						"proximity_keywords":     "********",
+						"validator":              "********",
+					},
 				},
 				"task_id": "task-1",
 			},

@@ -51,11 +51,13 @@ dd_agent_go_test(
             "//pkg/security/secl/model/usersession",
             "@com_github_hashicorp_golang_lru_v2//:golang-lru",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/secl/model/usersession",
             "@com_github_hashicorp_golang_lru_v2//:golang-lru",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

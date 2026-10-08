@@ -292,6 +292,12 @@ func createSSHSessionPatcher(ev *model.Event, p *probe.Probe) sshSessionPatcher 
 	if ev.ProcessContext.UserSession.SSHSessionID != 0 {
 		// Access the EBPFProbe to get the UserSessionsResolver
 		if ebpfProbe, ok := p.PlatformProbe.(*probe.EBPFProbe); ok {
+			// without the auth log tailer nothing will ever resolve the session, don't make the
+			// event wait for it
+			if !ebpfProbe.Resolvers.UserSessionsResolver.SSHSessionsResolvable() {
+				return nil
+			}
+
 			// Create the user session context serializer
 			userSessionCtx := &serializers.SSHSessionContextSerializer{
 				SSHSessionID:  strconv.FormatUint(uint64(ev.ProcessContext.UserSession.SSHSessionID), 16),

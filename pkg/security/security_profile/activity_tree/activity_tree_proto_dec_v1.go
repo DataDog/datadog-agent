@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"net"
+	"slices"
 	"time"
 
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
@@ -43,7 +44,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 		DNSNames:       make(map[string]*DNSNode, len(pan.DnsNames)),
 		IMDSEvents:     make(map[IMDSInfo]*IMDSNode, len(pan.ImdsEvents)),
 		Sockets:        make([]*SocketNode, 0, len(pan.Sockets)),
-		Syscalls:       make([]*SyscallNode, 0, len(pan.SyscallNodes)),
+		Syscalls:       make(map[int]*SyscallNode, len(pan.SyscallNodes)),
 		NodeBase:       NewNodeBase(),
 		NetworkDevices: make(map[model.NetworkDeviceContext]*NetworkDeviceNode, len(pan.NetworkDevices)),
 		Capabilities:   make([]*CapabilityNode, 0, len(pan.CapabilityNodes)),
@@ -73,7 +74,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 	for _, dns := range pan.DnsNames {
 		protoDecodedDNS := protoDecodeDNSNode(dns, getIDFromImageTag)
 		if len(protoDecodedDNS.Requests) != 0 {
-			name := protoDecodedDNS.Requests[0].Name
+			name := protoDecodedDNS.Requests[0].Question.Name
 			ppan.DNSNames[name] = protoDecodedDNS
 		}
 	}
@@ -88,7 +89,8 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 	}
 
 	for _, sysc := range pan.SyscallNodes {
-		ppan.Syscalls = append(ppan.Syscalls, protoDecodeSyscallNode(sysc, getIDFromImageTag))
+		syscallNode := protoDecodeSyscallNode(sysc, getIDFromImageTag)
+		ppan.Syscalls[syscallNode.Syscall] = syscallNode
 	}
 
 	for _, networkDevice := range pan.NetworkDevices {
@@ -243,7 +245,6 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode, getIDFromImageTa
 		File:           newFileInfo(protoDecodeFileEvent(fan.File)),
 		GenerationType: NodeGenerationType(fan.GenerationType),
 		Open:           protoDecodeOpenNode(fan.Open),
-		Children:       make(map[string]*FileNode, len(fan.Children)),
 		NodeBase:       NewNodeBase(),
 	}
 
@@ -259,9 +260,12 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode, getIDFromImageTa
 		pfan.MatchedRules = append(pfan.MatchedRules, protoDecodeProtoMatchedRule(rule))
 	}
 
-	for _, child := range fan.Children {
-		node := protoDecodeFileActivityNode(child, getIDFromImageTag)
-		pfan.Children[node.Name] = node
+	if len(fan.Children) > 0 {
+		pfan.Children = make(map[string]*FileNode, len(fan.Children))
+		for _, child := range fan.Children {
+			node := protoDecodeFileActivityNode(child, getIDFromImageTag)
+			pfan.Children[node.Name] = node
+		}
 	}
 
 	return pfan
@@ -290,7 +294,7 @@ func protoDecodeDNSNode(dn *adproto.DNSNode, getIDFromImageTag func(string) uint
 
 	pdn := &DNSNode{
 		MatchedRules: make([]*model.MatchedRule, 0, len(dn.MatchedRules)),
-		Requests:     make([]model.DNSQuestion, 0, len(dn.Requests)),
+		Requests:     make([]DNSRequestNode, 0, len(dn.Requests)),
 		NodeBase:     NewNodeBase(),
 	}
 
@@ -407,18 +411,46 @@ func protoDecodeIMDSNode(in *adproto.IMDSNode, getIDFromImageTag func(string) ui
 	return node
 }
 
-func protoDecodeDNSInfo(ev *adproto.DNSInfo) model.DNSQuestion {
+func protoDecodeDNSInfo(ev *adproto.DNSInfo) DNSRequestNode {
 	if ev == nil {
-		return model.DNSQuestion{}
+		return DNSRequestNode{}
 	}
 
-	return model.DNSQuestion{
-		Name:  ev.Name,
-		Type:  uint16(ev.Type),
-		Class: uint16(ev.Class),
-		Size:  uint16(ev.Size),
-		Count: uint16(ev.Count),
+	return DNSRequestNode{
+		Question: model.DNSQuestion{
+			Name:  ev.Name,
+			Type:  uint16(ev.Type),
+			Class: uint16(ev.Class),
+			Size:  uint16(ev.Size),
+			Count: uint16(ev.Count),
+		},
+		Response: protoDecodeDNSResponse(ev.Response),
 	}
+}
+
+func protoDecodeDNSResponse(resp *adproto.DNSResponseInfo) *DNSResponseAggregate {
+	if resp == nil {
+		return nil
+	}
+
+	dresp := &DNSResponseAggregate{
+		CNames: slices.Clone(resp.Cnames),
+	}
+
+	for _, raw := range resp.Ips {
+		ip := net.ParseIP(raw)
+		if ip == nil {
+			// skip malformed entries rather than failing the whole dump
+			continue
+		}
+		if ipv4 := ip.To4(); ipv4 != nil {
+			dresp.IPs = append(dresp.IPs, net.IPNet{IP: ipv4, Mask: net.CIDRMask(32, 32)})
+		} else {
+			dresp.IPs = append(dresp.IPs, net.IPNet{IP: ip, Mask: net.CIDRMask(128, 128)})
+		}
+	}
+
+	return dresp
 }
 
 func protoDecodeIMDSEvent(ie *adproto.IMDSEvent) IMDSInfo {
@@ -496,6 +528,30 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode, getIDFromImageTag func(strin
 		socketNode.Bind = append(socketNode.Bind, psn)
 	}
 
+	for _, connectNode := range sn.GetConnect() {
+		cn := &ConnectNode{
+			MatchedRules: make([]*model.MatchedRule, 0, len(connectNode.MatchedRules)),
+			Port:         uint16(connectNode.Port),
+			IP:           connectNode.Ip,
+			Protocol:     uint16(connectNode.Protocol),
+			NodeBase:     NewNodeBase(),
+		}
+
+		if connectNode.NodeBase != nil {
+			for tag, imageTagTimes := range connectNode.NodeBase.Seen {
+				firstSeen := ProtoDecodeTimestamp(imageTagTimes.FirstSeen)
+				lastSeen := ProtoDecodeTimestamp(imageTagTimes.LastSeen)
+				cn.RecordWithTimestamps(getIDFromImageTag(tag), firstSeen, lastSeen)
+			}
+		}
+
+		for _, rule := range connectNode.MatchedRules {
+			cn.MatchedRules = append(cn.MatchedRules, protoDecodeProtoMatchedRule(rule))
+		}
+
+		socketNode.Connect = append(socketNode.Connect, cn)
+	}
+
 	return socketNode
 }
 
@@ -526,10 +582,12 @@ func decodeProtoCapabilityNode(pan *adproto.CapabilityNode, getIDFromImageTag fu
 	}
 
 	capNode := &CapabilityNode{
-		NodeBase:       NewNodeBase(),
-		GenerationType: Runtime,
-		Capability:     pan.Capability,
-		Capable:        pan.IsCapable,
+		NodeBase:            NewNodeBase(),
+		GenerationType:      Runtime,
+		Capability:          pan.Capability,
+		Capable:             pan.IsCapable,
+		AttemptedHostUserNS: pan.IsAttemptedHostUserns,
+		CapableHostUserNS:   pan.IsCapableHostUserns,
 	}
 
 	if pan.NodeBase != nil {

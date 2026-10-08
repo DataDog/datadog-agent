@@ -9,6 +9,9 @@ network_devices:
         port: 2056
 
 network_path:
+  connections_monitoring:
+    # Isolate this suite from connection-based Dynamic Tests (default-on when CNM is enabled).
+    basic_tests_enabled: false
   netflow_monitoring:
     enabled: false
   collector:

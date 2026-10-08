@@ -41,14 +41,15 @@ fn config_gate_open_auto_starts_process() {
 }
 
 #[test]
-fn config_gate_closed_stays_created() {
+fn config_gate_closed_is_skipped() {
     let env = TestEnv::new();
     write_agent_yaml(&env, false);
     let procmgr = env.with_process("config_gate").start();
 
     let list = procmgr.require_list();
     list.assert_len(1);
-    list.assert_process_state("config_gate", ProcessExpect::Created);
+    list.assert_process_state("config_gate", ProcessExpect::Skipped);
+    list.assert_skip_reasons("config_gate", &["config_gate"]);
     procmgr.assert_config_gate_not_met_logged("config_gate", &agent_yaml_path(&procmgr));
 }
 
@@ -73,7 +74,7 @@ fn reload_starts_created_process_when_gate_opens() {
     let procmgr = env.with_process("config_gate").start();
     procmgr
         .require_list()
-        .assert_process_state("config_gate", ProcessExpect::Created);
+        .assert_process_state("config_gate", ProcessExpect::Skipped);
 
     write_agent_yaml(&procmgr, true);
     procmgr.assert_reload_matches(ReloadExpect {
@@ -98,7 +99,7 @@ fn reload_does_not_start_no_auto_start_process_with_open_gate() {
     let procmgr = env.with_process("config_gate_no_auto_start").start();
     procmgr
         .require_list()
-        .assert_process_state("config_gate_no_auto_start", ProcessExpect::Created);
+        .assert_process_state("config_gate_no_auto_start", ProcessExpect::Skipped);
 
     procmgr.assert_reload_matches(ReloadExpect {
         unchanged: Some(vec!["config_gate_no_auto_start".into()]),
@@ -110,7 +111,7 @@ fn reload_does_not_start_no_auto_start_process_with_open_gate() {
 
     procmgr
         .require_list()
-        .assert_process_state("config_gate_no_auto_start", ProcessExpect::Created);
+        .assert_process_state("config_gate_no_auto_start", ProcessExpect::Skipped);
 }
 
 /// Blast radius of the gate feature on an ordinary process: reload must not resurrect a
@@ -179,15 +180,20 @@ fn reload_restarts_process_stranded_by_gate_closing_during_restart() {
         .pid;
 
     // The gate closes first, so the crash finds no open condition to restart into.
+    // `kill_pid_force` is a SIGKILL here (this suite is Linux-only), so the child
+    // returns no value and lands in `Crashed` rather than `Failed`.
     write_agent_yaml(&procmgr, false);
     kill_pid_force(pid as u32);
     procmgr
         .wait_for_process_state(
             "config_gate_on_failure",
-            ProcessExpect::Failed,
+            ProcessExpect::Crashed,
             Duration::from_secs(10),
         )
-        .expect("expected the killed process to stay Failed behind the closed gate");
+        .expect("expected the killed process to stay Crashed behind the closed gate");
+    procmgr
+        .require_list()
+        .assert_skip_reasons("config_gate_on_failure", &["config_gate"]);
 
     write_agent_yaml(&procmgr, true);
     procmgr.assert_reload_matches(ReloadExpect {

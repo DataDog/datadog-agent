@@ -609,30 +609,34 @@ func parseWheelPackageName(wheelPath string) (string, error) {
 
 	for _, file := range reader.File {
 		if strings.HasSuffix(file.Name, "METADATA") {
-			fileReader, err := file.Open()
+			name, found, err := readWheelPackageName(file)
 			if err != nil {
 				return "", err
 			}
-			defer fileReader.Close()
-
-			scanner := bufio.NewScanner(fileReader)
-			for scanner.Scan() {
-				line := scanner.Text()
-
-				matches := wheelPackageNameRe.FindStringSubmatch(line)
-				if matches == nil {
-					continue
-				}
-
-				return matches[1], nil
-			}
-			if err := scanner.Err(); err != nil {
-				return "", err
+			if found {
+				return name, nil
 			}
 		}
 	}
 
 	return "", fmt.Errorf("package name not found in wheel: %s", wheelPath)
+}
+
+func readWheelPackageName(f *zip.File) (string, bool, error) {
+	fileReader, err := f.Open()
+	if err != nil {
+		return "", false, err
+	}
+	defer fileReader.Close()
+	scanner := bufio.NewScanner(fileReader)
+	for scanner.Scan() {
+		matches := wheelPackageNameRe.FindStringSubmatch(scanner.Text())
+		if matches == nil {
+			continue
+		}
+		return matches[1], true, nil
+	}
+	return "", false, scanner.Err()
 }
 
 func validateBaseDependency(wheelPath string, baseVersion *semver.Version) (bool, error) {
