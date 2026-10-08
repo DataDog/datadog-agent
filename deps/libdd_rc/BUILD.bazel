@@ -4,6 +4,7 @@ exports_files(
         "Cargo.toml",
         "aws-lc-sys-nasm-command.patch",
         "aws-lc-fips-sys-macos-linker.patch",
+        "rc-x509-proto-protobuf-include.patch",
         "lib.rs",
         "libdd_rc.BUILD.bazel",
     ],

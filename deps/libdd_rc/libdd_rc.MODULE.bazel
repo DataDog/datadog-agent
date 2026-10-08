@@ -17,9 +17,15 @@ crate.from_cargo(
 crate.annotation(
     build_script_env = {
         "PROTOC": "$(execpath @@//bazel/toolchains/protoc:protoc)",
+        "PROTOBUF_WELL_KNOWN_PROTOS": "$(execpaths @protobuf//:well_known_type_protos)",
     },
-    build_script_tools = ["@@//bazel/toolchains/protoc:protoc"],
+    build_script_tools = [
+        "@@//bazel/toolchains/protoc:protoc",
+        "@protobuf//:well_known_type_protos",
+    ],
     crate = "rc-x509-proto",
+    patch_args = ["-p1"],
+    patches = ["//deps/libdd_rc:rc-x509-proto-protobuf-include.patch"],
 )
 
 # libdd-rc enables this cfg for its workspace in .cargo/config.toml. The
@@ -100,7 +106,7 @@ alias(
     ],
 )
 
-inject_repo(crate, "go_work_sdk", "nasm_windows")
+inject_repo(crate, "go_work_sdk", "nasm_windows", "protobuf")
 
 use_repo(crate, "libdd_rc_crates")
 
