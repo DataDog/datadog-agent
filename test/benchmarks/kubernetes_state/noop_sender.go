@@ -51,7 +51,7 @@ func (*noopSender) EventPlatformEvent([]byte, string)                           
 func (*noopSender) GetSenderStats() stats.SenderStats                                               { return stats.SenderStats{} }
 func (*noopSender) DisableDefaultHostname(bool)                                                     {}
 func (*noopSender) SetCheckCustomTags([]string)                                                     {}
-func (*noopSender) SetInfraTagger(*infratags.MetricTagger)                                                {}
+func (*noopSender) SetInfraTagger(*infratags.MetricTagger)                                          {}
 func (*noopSender) SetCheckService(string)                                                          {}
 func (*noopSender) SetNoIndex(bool)                                                                 {}
 func (*noopSender) FinalizeCheckServiceTag()                                                        {}
