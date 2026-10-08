@@ -15,7 +15,7 @@ from tasks.build_tags import (
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, join_command
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 DIR_BIN = path.join(".", "bin", "installer")
@@ -23,6 +23,28 @@ INSTALLER_BIN = path.join(DIR_BIN, bin_name("installer"))
 INSTALL_SCRIPT_TEMPLATE = path.join("pkg", "fleet", "installer", "setup", "install.sh")
 
 BAZEL_TARGET = "//cmd/installer:installer"
+
+
+@task
+def test_package_hooks(ctx, installer, baseline_installer, image, output, docker_host=None, scenario=None):
+    """Run built-installer OCI package-hook E2E checks in disposable local containers."""
+    command = [
+        sys.executable,
+        'test/integration/installer/package_hooks.py',
+        '--installer',
+        installer,
+        '--baseline-installer',
+        baseline_installer,
+        '--image',
+        image,
+        '--output',
+        output,
+    ]
+    if docker_host:
+        command.extend(['--docker-host', docker_host])
+    if scenario:
+        command.extend(['--scenario', scenario])
+    ctx.run(join_command(command), encoding='utf-8')
 
 
 @task

@@ -49,7 +49,7 @@ type hooks struct {
 
 // Hooks is the interface for the hooks.
 type Hooks interface {
-	PreInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error
+	PreInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool, packagePath string) error
 	PreRemove(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error
 	PostInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool, winArgs []string) error
 
@@ -83,9 +83,10 @@ type hooksCLI struct {
 	packages *repository.Repositories
 }
 
-// PreInstall calls the pre-install hook for the package.
-func (h *hooksCLI) PreInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error {
-	return h.callHook(ctx, false, pkg, "preInstall", pkgType, upgrade, nil, "")
+// PreInstall discovers package-owned hooks in the incoming, staged package.
+// Compiled recipes continue to receive their original stable-path context.
+func (h *hooksCLI) PreInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool, packagePath string) error {
+	return h.callHookWithPackagePath(ctx, false, pkg, "preInstall", pkgType, upgrade, nil, "", packagePath)
 }
 
 // PreRemove calls the pre-remove hook for the package.
@@ -281,12 +282,39 @@ func ensureAgentFIPSProvider(ctx context.Context, pkgPath string) (err error) {
 }
 
 func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, name string, packageType PackageType, upgrade bool, windowsArgs []string, extension string) error {
+	return h.callHookWithPackagePath(ctx, experiment, pkg, name, packageType, upgrade, windowsArgs, extension, "")
+}
+
+func (h *hooksCLI) callHookWithPackagePath(ctx context.Context, experiment bool, pkg string, name string, packageType PackageType, upgrade bool, windowsArgs []string, extension string, packageHookPath string) error {
+	pkgPath := h.getPath(pkg, packageType, experiment)
+	hookCtx := HookContext{
+		Context:     ctx,
+		Hook:        name,
+		Package:     pkg,
+		PackagePath: pkgPath,
+		PackageType: packageType,
+		Upgrade:     upgrade,
+		WindowsArgs: windowsArgs,
+		Extension:   extension,
+	}
+	if packageHookPath != "" {
+		hookCtx.PackagePath = packageHookPath
+	}
+	// Decide ownership before selecting a potentially older bundled installer.
+	// RunHook is the compiled-recipe subprocess protocol; an old bundled binary
+	// cannot be relied on to implement package-owned hooks.
+	owned, err := runPackageHook(hookCtx, h.env)
+	if err != nil {
+		return fmt.Errorf("failed to run hook (%s): %w", name, err)
+	}
+	if owned {
+		return nil
+	}
+	hookCtx.PackagePath = pkgPath
 	hooksCLIPath, err := exec.GetExecutable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
-	pkgPath := h.getPath(pkg, packageType, experiment)
-
 	hooksWithoutReExec := []string{
 		"preInstall",
 		"preInstallExtension",
@@ -308,16 +336,6 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 			}
 		}
 	}
-	hookCtx := HookContext{
-		Context:     ctx,
-		Hook:        name,
-		Package:     pkg,
-		PackagePath: pkgPath,
-		PackageType: packageType,
-		Upgrade:     upgrade,
-		WindowsArgs: windowsArgs,
-		Extension:   extension,
-	}
 	serializedHookCtx, err := json.Marshal(hookCtx)
 	if err != nil {
 		return fmt.Errorf("failed to serialize hook context: %w", err)
@@ -330,7 +348,9 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 	return nil
 }
 
-// RunHook executes a hook for a package
+// RunHook executes a compiled recipe for the internal hooks CLI protocol.
+// OCI package-owned hooks are dispatched by hooksCLI before re-executing an
+// installer, which may be an older binary bundled with the package.
 func RunHook(ctx HookContext) (err error) {
 	hook := getHook(ctx.Package, ctx.Hook)
 	if hook == nil {

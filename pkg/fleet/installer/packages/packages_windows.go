@@ -28,6 +28,6 @@ var (
 	// the rest of the uninstall or upgrade process.
 	// Today this is only useful for the dotnet tracer on windows and generally *SHOULD BE AVOIDED*.
 	AsyncPreRemoveHooks = map[string]repository.PreRemoveHook{
-		"datadog-apm-library-dotnet": asyncPreRemoveHookAPMLibraryDotnet,
+		"datadog-apm-library-dotnet": legacyOnlyAsyncPreRemove(asyncPreRemoveHookAPMLibraryDotnet),
 	}
 )

@@ -14,10 +14,14 @@ go_library(
 
 dd_agent_go_test(
     name = "env_test",
-    srcs = ["env_test.go"],
+    srcs = [
+        "env_test.go",
+        "package_hooks_test.go",
+    ],
     embed = [":env"],
     deps = [
         "//pkg/fips",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -7,6 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29
 	github.com/DataDog/datadog-agent/pkg/template v0.73.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.2
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.68.3
 	github.com/DataDog/datadog-agent/pkg/version v0.73.2
 	github.com/Microsoft/go-winio v0.6.3-0.20260925173824-7e8af9b09c4b
@@ -30,7 +31,6 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.2 // indirect
 	github.com/docker/cli v29.8.2+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
