@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
+import shutil
 import sys
 import tempfile
 from contextlib import chdir
@@ -28,6 +30,37 @@ CONTAINER_AGENT_PATH = "/tmp/datadog-agent"
 MARKER_IMAGE_PREPARED = "/tmp/kmt-image-prepared"
 
 APT_URIS = {"amd64": "http://archive.ubuntu.com/ubuntu/", "arm64": "http://ports.ubuntu.com/ubuntu-ports/"}
+
+
+def get_buildbarn_token(ctx: Context) -> str | None:
+    """Mint a Buildbarn OIDC token on the host, or return None when unavailable.
+
+    The compiler container cannot complete the browser-based Vault login, so the token is minted
+    here right before each build: it expires after about an hour, and Bazel caches it for 55m.
+    """
+    if token := os.environ.get("BUILDBARN_ID_TOKEN"):
+        return token
+    if not shutil.which("vault"):
+        warn("[!] vault CLI not found, the compiler container will build without the Bazel remote cache")
+        return None
+
+    addr = os.environ.get("VAULT_ADDR", "https://vault.us1.ddbuild.io")
+    read_cmd = f"vault read -address={addr} -field=token identity/oidc/token/buildbarn"
+    res = cast('Result', ctx.run(read_cmd, hide=True, warn=True))
+    if not res.ok and sys.stdin.isatty():
+        info("[*] Logging in to Vault to enable the Bazel remote cache in the compiler container")
+        ctx.run(f"vault login -address={addr} -method=oidc -no-print", warn=True)
+        res = cast('Result', ctx.run(read_cmd, hide=True, warn=True))
+    if res.ok and (token := res.stdout.strip()):
+        return token
+
+    errors = res.stderr.strip().splitlines()
+    reason = errors[-1].strip() if errors else "empty token"
+    warn(
+        f"[!] Could not mint a Buildbarn token ({reason}), the compiler container will build without the "
+        f"Bazel remote cache. Run `vault login -address={addr} -method=oidc` on the host to enable it."
+    )
+    return None
 
 
 def get_build_image_suffix_and_version() -> tuple[str, str]:
@@ -188,6 +221,7 @@ class CompilerImage:
         run_dir: PathOrStr | None = None,
         allow_fail=False,
         force_color=True,
+        buildbarn_token=False,
     ) -> Result:
         if run_dir:
             cmd = f"cd {run_dir} && {cmd}"
@@ -203,13 +237,18 @@ class CompilerImage:
         if not force_color:
             color_env = ""
 
+        # Only the variable name goes on the command line, the value comes from the docker CLI env.
+        token = get_buildbarn_token(self.ctx) if buildbarn_token else None
+        token_env = "-e BUILDBARN_ID_TOKEN" if token else ""
+
         # Set FORCE_COLOR=1 so that termcolor works in the container
         return cast(
             Result,
             self.ctx.run(
-                f"docker exec -u {user} -i {color_env} {self.name} bash -l -c \"{cmd}\"",
+                f"docker exec -u {user} -i {color_env} {token_env} {self.name} bash -l -c \"{cmd}\"",
                 hide=not self.ctx.config.run["echo"],
                 warn=allow_fail,
+                env={"BUILDBARN_ID_TOKEN": token} if token else {},
             ),
         )
 

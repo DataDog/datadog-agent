@@ -87,3 +87,6 @@ credential helper, after which the `vault read` above succeeds without an extra
 login step.
 
 The OIDC token TTL is ~1h; re-mint it for long-lived shells.
+
+`dda inv kmt.*` tasks do this automatically for the KMT compiler container: they
+mint a token on the host right before each build and forward it to that `docker exec`.

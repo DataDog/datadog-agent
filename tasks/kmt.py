@@ -908,6 +908,7 @@ def _prepare(
             cc.exec(
                 f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
+                buildbarn_token=True,
             )
     elif component == "system-probe":
         if ci:
@@ -916,6 +917,7 @@ def _prepare(
             cc.exec(
                 f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
+                buildbarn_token=True,
             )
     else:
         raise Exit(f"Component can only be 'system-probe' or 'security-agent'. {component} not supported.")
@@ -1491,6 +1493,7 @@ def build(
     inv_echo = "-e" if ctx.config.run["echo"] else ""
     cc.exec(
         f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} {component}.build --arch={arch_obj.name}",
+        buildbarn_token=True,
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")

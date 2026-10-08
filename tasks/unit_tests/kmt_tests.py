@@ -1,7 +1,9 @@
+import os
 import unittest
 from typing import TYPE_CHECKING, cast
+from unittest.mock import MagicMock, patch
 
-from tasks.kernel_matrix_testing import platforms, vmconfig
+from tasks.kernel_matrix_testing import compiler, platforms, vmconfig
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS
 from tasks.libs.types.arch import Arch
 
@@ -90,3 +92,72 @@ class TestFilterByCIComponent(unittest.TestCase):
                         f"{component}: job {job.name} is missing microVMs for "
                         f"{job.kernels - set(by_set[test_set][job.arch].keys())}",
                     )
+
+
+def _result(ok: bool, stdout: str = "", stderr: str = "") -> MagicMock:
+    return MagicMock(ok=ok, stdout=stdout, stderr=stderr)
+
+
+class TestGetBuildbarnToken(unittest.TestCase):
+    def setUp(self):
+        env = {k: v for k, v in os.environ.items() if k != "BUILDBARN_ID_TOKEN"}
+        self.enterContext(patch.dict(os.environ, env, clear=True))
+        self.which = self.enterContext(patch.object(compiler.shutil, "which", return_value="/usr/bin/vault"))
+        self.isatty = self.enterContext(patch.object(compiler.sys.stdin, "isatty", return_value=False))
+        self.warn = self.enterContext(patch.object(compiler, "warn"))
+        self.ctx = MagicMock()
+
+    def test_env_token_is_used_without_vault(self):
+        os.environ["BUILDBARN_ID_TOKEN"] = "from-env"
+        self.assertEqual(compiler.get_buildbarn_token(self.ctx), "from-env")
+        self.ctx.run.assert_not_called()
+
+    def test_vault_read(self):
+        self.ctx.run.return_value = _result(True, "minted\n")
+        self.assertEqual(compiler.get_buildbarn_token(self.ctx), "minted")
+        self.assertEqual(self.ctx.run.call_count, 1)
+
+    def test_missing_vault_cli(self):
+        self.which.return_value = None
+        self.assertIsNone(compiler.get_buildbarn_token(self.ctx))
+        self.ctx.run.assert_not_called()
+
+    def test_read_failure_without_tty_does_not_login(self):
+        self.ctx.run.return_value = _result(False, stderr="Code: 403. Errors:\n\t* invalid token\n")
+        self.assertIsNone(compiler.get_buildbarn_token(self.ctx))
+        self.assertEqual(self.ctx.run.call_count, 1)
+        self.assertIn("(* invalid token)", self.warn.call_args.args[0])
+
+    def test_read_failure_with_tty_logs_in_on_host(self):
+        self.isatty.return_value = True
+        self.ctx.run.side_effect = [_result(False), _result(True), _result(True, "minted")]
+        self.assertEqual(compiler.get_buildbarn_token(self.ctx), "minted")
+        self.assertIn("vault login", self.ctx.run.call_args_list[1].args[0])
+
+
+class TestCompilerExecBuildbarnToken(unittest.TestCase):
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.cc = compiler.CompilerImage(self.ctx, Arch.local())
+        self.enterContext(patch.object(compiler.CompilerImage, "ensure_running"))
+        self.enterContext(patch.object(compiler.CompilerImage, "ensure_in_git_repo"))
+        self.get_token = self.enterContext(patch.object(compiler, "get_buildbarn_token", return_value="secret"))
+
+    def test_token_is_forwarded_by_name_only(self):
+        self.cc.exec("bazel build //...", user="dev", buildbarn_token=True)
+        cmd = self.ctx.run.call_args.args[0]
+        self.assertIn("-e BUILDBARN_ID_TOKEN ", cmd)
+        self.assertNotIn("secret", cmd)
+        self.assertEqual(self.ctx.run.call_args.kwargs["env"], {"BUILDBARN_ID_TOKEN": "secret"})
+
+    def test_no_token_unless_requested(self):
+        self.cc.exec("true", user="dev")
+        self.get_token.assert_not_called()
+        self.assertNotIn("BUILDBARN_ID_TOKEN", self.ctx.run.call_args.args[0])
+        self.assertEqual(self.ctx.run.call_args.kwargs["env"], {})
+
+    def test_unavailable_token_is_not_forwarded(self):
+        self.get_token.return_value = None
+        self.cc.exec("bazel build //...", user="dev", buildbarn_token=True)
+        self.assertNotIn("BUILDBARN_ID_TOKEN", self.ctx.run.call_args.args[0])
+        self.assertEqual(self.ctx.run.call_args.kwargs["env"], {})
