@@ -15,9 +15,11 @@
 #![allow(non_camel_case_types)] // C ABI types use C naming conventions
 
 use std::any::Any;
-use std::ffi::c_char;
+use std::ffi::{OsStr, c_char};
 use std::os::fd::{IntoRawFd, OwnedFd};
+use std::os::unix::ffi::OsStrExt;
 use std::panic::{self, AssertUnwindSafe};
+use std::path::Path;
 use std::ptr;
 
 use log::error;
@@ -568,13 +570,13 @@ pub unsafe extern "C" fn dd_discovery_free(result: *mut dd_discovery_result) {
 /// `privileged_logs::open_log_file`).
 ///
 /// # Returns
-/// A file descriptor owned by the caller, or -1 on error. On error, the error
-/// message is written to `err` (UTF-8, not NUL-terminated, truncated to
-/// `err_cap` bytes) and its length to `*err_len`.
+/// A file descriptor owned by the caller, or -1 on error, with the error
+/// message written to `err` as a NUL-terminated string, truncated to fit in
+/// `err_cap` bytes.
 ///
 /// # Safety
 /// - If `path` is non-NULL, it must point to `path_len` readable bytes.
-/// - `err` must point to `err_cap` writable bytes, and `err_len` to a writable `size_t`.
+/// - `err` must point to `err_cap` writable bytes.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn dd_privileged_logs_open(
     path: *const c_char,
@@ -582,7 +584,6 @@ pub unsafe extern "C" fn dd_privileged_logs_open(
     no_follow: bool,
     err: *mut c_char,
     err_cap: usize,
-    err_len: *mut usize,
 ) -> i32 {
     // SAFETY: Wrapping in catch_unwind prevents a Rust panic from unwinding across
     // the C ABI boundary, which would be undefined behaviour.
@@ -593,7 +594,7 @@ pub unsafe extern "C" fn dd_privileged_logs_open(
             // SAFETY: caller guarantees path points to path_len readable bytes.
             unsafe { std::slice::from_raw_parts(path.cast::<u8>(), path_len) }
         };
-        privileged_logs::open_log_file(&String::from_utf8_lossy(path), no_follow)
+        privileged_logs::open_log_file(Path::new(OsStr::from_bytes(path)), no_follow)
     }));
     let message = match result {
         Ok(Ok(file)) => return OwnedFd::from(file).into_raw_fd(),
@@ -604,11 +605,14 @@ pub unsafe extern "C" fn dd_privileged_logs_open(
             format!("internal error: {msg}")
         }
     };
-    let len = message.len().min(err_cap);
-    // SAFETY: caller guarantees err points to err_cap writable bytes, and len <= err_cap.
-    unsafe { ptr::copy_nonoverlapping(message.as_ptr(), err.cast::<u8>(), len) };
-    // SAFETY: caller guarantees err_len points to a writable size_t.
-    unsafe { *err_len = len };
+    if let Some(len) = err_cap.checked_sub(1) {
+        let len = len.min(message.len());
+        // SAFETY: caller guarantees err points to err_cap writable bytes, and len < err_cap.
+        unsafe {
+            ptr::copy_nonoverlapping(message.as_ptr(), err.cast::<u8>(), len);
+            *err.add(len) = 0;
+        }
+    }
     -1
 }
 

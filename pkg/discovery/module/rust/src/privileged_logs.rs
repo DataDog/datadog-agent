@@ -18,25 +18,28 @@ use std::io;
 use std::os::fd::{AsFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::FileExt;
-use std::path::{Component, Path, PathBuf};
+use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use nix::fcntl::{AT_FDCWD, FcntlArg, OFlag, fcntl, openat};
 use nix::sys::stat::Mode;
+use normalize_path::NormalizePath;
 
 /// Opens `path` if it is an allowed log file. With `no_follow`, symlinks in
 /// `path` are refused rather than resolved.
-pub fn open_log_file(path: &str, no_follow: bool) -> Result<File> {
-    if path.is_empty() {
+pub fn open_log_file(path: &Path, no_follow: bool) -> Result<File> {
+    if path.as_os_str().is_empty() {
         bail!("empty file path provided");
     }
-    if !path.starts_with('/') {
-        bail!("relative path not allowed: {path}");
+    if !path.is_absolute() {
+        bail!("relative path not allowed: {}", path.display());
     }
+    // Without symlinks, resolving `..` lexically gives the kernel's result.
     let path = if no_follow {
-        clean(Path::new(path))
+        path.normalize()
     } else {
-        fs::canonicalize(path).with_context(|| format!("failed to resolve path {path}"))?
+        fs::canonicalize(path)
+            .with_context(|| format!("failed to resolve path {}", path.display()))?
     };
     if !is_allowed(&path) {
         bail!("non-log file not allowed: {}", path.display());
@@ -65,24 +68,7 @@ fn is_allowed(path: &Path) -> bool {
             .is_some_and(|dir| dir.iter().any(|name| name.eq_ignore_ascii_case("logs")))
 }
 
-/// Resolves `.`, `..` and repeated separators in an absolute path, without
-/// looking at the filesystem. When no symlinks are followed, this names the
-/// same file as the kernel's own resolution.
-fn clean(path: &Path) -> PathBuf {
-    let mut clean = PathBuf::from("/");
-    for component in path.components() {
-        match component {
-            Component::Normal(name) => clean.push(name),
-            Component::ParentDir => {
-                clean.pop();
-            }
-            Component::RootDir | Component::CurDir | Component::Prefix(_) => {}
-        }
-    }
-    clean
-}
-
-/// Opens a clean absolute path for reading, one component at a time with
+/// Opens a normalized absolute path for reading, one component at a time with
 /// O_NOFOLLOW, so a symlink swapped in after the path was checked is refused.
 /// Directories are opened with O_PATH, which only needs search permission,
 /// like a regular open of the whole path. The file is opened with O_NONBLOCK,
@@ -112,7 +98,7 @@ fn open_at(dir: impl AsFd, name: &OsStr, flags: OFlag) -> io::Result<OwnedFd> {
 }
 
 /// Whether the file starts with UTF-8 text. An empty file counts as text, and
-/// so does a multi-byte character cut by the end of the sample.
+/// so does a full sample that ends partway through a multi-byte character.
 fn starts_with_text(file: &File) -> bool {
     let mut sample = [0u8; 128];
     let Ok(len) = file.read_at(&mut sample, 0) else {
@@ -120,7 +106,7 @@ fn starts_with_text(file: &File) -> bool {
     };
     match std::str::from_utf8(sample.get(..len).unwrap_or_default()) {
         Ok(_) => true,
-        Err(e) => e.error_len().is_none(),
+        Err(e) => len == sample.len() && e.error_len().is_none(),
     }
 }
 
@@ -130,7 +116,9 @@ mod tests {
     use super::*;
     use nix::sys::signal::{SigHandler, Signal, signal};
     use std::os::fd::AsRawFd;
+    use std::os::unix::fs::PermissionsExt;
     use std::os::unix::fs::symlink;
+    use std::path::PathBuf;
     use std::time::{Duration, Instant};
 
     /// A temporary directory to lay out files in.
@@ -168,7 +156,7 @@ mod tests {
     }
 
     fn open(path: &Path, no_follow: bool) -> Result<File> {
-        open_log_file(&path.to_string_lossy(), no_follow)
+        open_log_file(path, no_follow)
     }
 
     fn error(path: &Path, no_follow: bool) -> String {
@@ -238,8 +226,8 @@ mod tests {
     #[test]
     fn test_content() {
         let fx = Fixture::new();
-        let mut cut_character = "é".repeat(64).into_bytes();
-        cut_character.pop();
+        // The 128-byte sample ends with the first byte of the last "é".
+        let cut_character = format!("a{}", "é".repeat(64)).into_bytes();
         for no_follow in [false, true] {
             assert!(open(&fx.file("text.log", b"text\n"), no_follow).is_ok());
             assert!(open(&fx.file("empty.log", b""), no_follow).is_ok());
@@ -248,6 +236,8 @@ mod tests {
             assert!(error(&binary, no_follow).contains("not a text file"));
             let mixed = fx.file("mixed.log", b"text\xFF\xFE");
             assert!(error(&mixed, no_follow).contains("not a text file"));
+            let truncated = fx.file("truncated.log", b"text\xC3");
+            assert!(error(&truncated, no_follow).contains("not a text file"));
             let dir = fx.dir("dir.log");
             assert!(error(&dir, no_follow).contains("not a regular file"));
         }
@@ -283,6 +273,23 @@ mod tests {
         assert!(start.elapsed() < Duration::from_secs(5));
         drop(holder);
         assert!(open(&leased, false).is_ok());
+    }
+
+    #[test]
+    fn test_search_only_directory() {
+        // Root would bypass the read permission check that this test is about.
+        if uzers::get_effective_uid() == 0 {
+            return;
+        }
+        let fx = Fixture::new();
+        let file = fx.file("searchonly/app.log", b"text");
+        let dir = fx.path("searchonly");
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o111))
+            .unwrap_or_else(|e| panic!("chmod: {e}"));
+        let opened = open(&file, true);
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o755))
+            .unwrap_or_else(|e| panic!("chmod: {e}"));
+        assert!(opened.is_ok(), "{:?}", opened.err());
     }
 
     #[test]

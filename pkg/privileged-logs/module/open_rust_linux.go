@@ -24,11 +24,10 @@ import (
 // system-probe-lite also serves this endpoint with.
 func openLogFile(path string, noFollow bool) (*os.File, error) {
 	var errBuf [1024]C.char
-	var errLen C.size_t
 	pathPtr := (*C.char)(unsafe.Pointer(unsafe.StringData(path)))
-	fd := C.dd_privileged_logs_open(pathPtr, C.size_t(len(path)), C.bool(noFollow), &errBuf[0], C.size_t(len(errBuf)), &errLen)
+	fd := C.dd_privileged_logs_open(pathPtr, C.size_t(len(path)), C.bool(noFollow), &errBuf[0], C.size_t(len(errBuf)))
 	if fd < 0 {
-		return nil, errors.New(C.GoStringN(&errBuf[0], C.int(errLen)))
+		return nil, errors.New(C.GoString(&errBuf[0]))
 	}
 	return os.NewFile(uintptr(fd), path), nil
 }
