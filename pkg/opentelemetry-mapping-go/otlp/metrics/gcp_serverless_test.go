@@ -108,6 +108,28 @@ func TestGCPServerlessTranslation(t *testing.T) {
 			wantSuffix: "cloudrunfunctions",
 		},
 		{
+			name: "Cloud Run service resource name fallback",
+			attributes: map[string]any{
+				"cloud.provider":    "gcp",
+				"cloud.platform":    "gcp_cloud_run",
+				"cloud.resource_id": "//run.googleapis.com/projects/project-1/locations/us-central1/services/my-service",
+				"faas.instance":     "instance-1",
+				"faas.version":      "revision-1",
+			},
+			wantSuffix: "cloudrun",
+		},
+		{
+			name: "Cloud Functions resource name fallback",
+			attributes: map[string]any{
+				"cloud.provider":    "gcp",
+				"cloud.platform":    "gcp_cloud_functions",
+				"cloud.resource_id": "//cloudfunctions.googleapis.com/projects/project-1/locations/us-central1/functions/my-service",
+				"faas.instance":     "instance-1",
+				"faas.version":      "revision-1",
+			},
+			wantSuffix: "cloudrunfunctions",
+		},
+		{
 			name: "incomplete identity",
 			attributes: func() map[string]any {
 				attrs := completeGCPServerlessAttributes("gcp_cloud_run")
@@ -163,6 +185,65 @@ func TestGCPServerlessTranslation(t *testing.T) {
 						"location:us-central1",
 					}, consumer.tagSetCalls[0].tags)
 					assert.Contains(t, consumer.metrics[0].tags, "revision_name:revision-1")
+				})
+			}
+		})
+	}
+}
+
+func TestCompleteServerlessSourcesWithoutRunningMetricsDoNotFallbackToHost(t *testing.T) {
+	tests := []struct {
+		name       string
+		attributes map[string]any
+	}{
+		{
+			name: "AWS Lambda",
+			attributes: map[string]any{
+				"cloud.provider": "aws",
+				"cloud.platform": "aws_lambda",
+				"faas.id":        "arn:aws:lambda:us-east-1:123456789012:function:orders",
+			},
+		},
+		{
+			name: "Cloud Run Jobs",
+			attributes: map[string]any{
+				"cloud.provider":              "gcp",
+				"cloud.platform":              "gcp_cloud_run",
+				"cloud.resource_id":           "//run.googleapis.com/projects/project-1/locations/us-central1/jobs/daily-job",
+				"faas.instance":               "instance-1",
+				"gcp.cloud_run.job.execution": "daily-job-abc",
+			},
+		},
+		{
+			name: "GKE Autopilot",
+			attributes: map[string]any{
+				"cloud.provider":   "gcp",
+				"cloud.platform":   "gcp_kubernetes_engine",
+				"cloud.account.id": "project-1",
+				"k8s.cluster.name": "autopilot-cluster",
+				"host.name":        "gk3-autopilot-cluster-pool-abc",
+			},
+		},
+	}
+
+	for _, minimal := range []bool{false, true} {
+		translatorName := "default"
+		if minimal {
+			translatorName = "minimal"
+		}
+		t.Run(translatorName, func(t *testing.T) {
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					consumer := &mockGCPServerlessConsumer{}
+					_, err := newGCPServerlessTranslator(t, minimal).MapMetrics(
+						context.Background(), gcpServerlessMetrics(t, tt.attributes, false), consumer, nil,
+					)
+					require.NoError(t, err)
+
+					require.Len(t, consumer.metrics, 1)
+					assert.Empty(t, consumer.metrics[0].host)
+					assert.Empty(t, consumer.hostCalls)
+					assert.Empty(t, consumer.tagSetCalls)
 				})
 			}
 		})
