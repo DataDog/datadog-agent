@@ -1283,9 +1283,9 @@ func checkNetworkCompatibility(tb testing.TB) {
 }
 
 // DecodeSecurityProfile decode a security profile
-func DecodeSecurityProfile(path string, eventTypes []model.EventType) (*profile.Profile, error) {
+func DecodeSecurityProfile(path string) (*profile.Profile, error) {
 	newProfile := profile.New(
-		profile.WithEventTypes(eventTypes),
+		profile.WithEventTypes([]model.EventType{model.ExecEventType, model.DNSEventType}),
 	)
 
 	if err := newProfile.Decode(path); err != nil {
