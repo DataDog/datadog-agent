@@ -38,10 +38,15 @@ pub struct DaemonStatus {
     pub running_processes: u32,
     pub created_processes: u32,
     pub stopped_processes: u32,
+    pub crashed_processes: u32,
     pub failed_processes: u32,
     pub exited_processes: u32,
     pub starting_processes: u32,
     pub stopping_processes: u32,
+    #[serde(default)]
+    pub invalid_config_processes: u32,
+    #[serde(default)]
+    pub skipped_processes: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -59,6 +64,10 @@ pub struct ProcessSnapshot {
     pub restart_count: u64,
     pub last_exit_code: Option<i32>,
     pub last_signal: Option<i32>,
+    #[serde(default)]
+    pub config_error: String,
+    #[serde(default)]
+    pub skip_reasons: Vec<String>,
 }
 
 /// Parsed output from `list --json`.
@@ -184,6 +193,8 @@ struct DescribeSnapshot {
     pub before: Vec<String>,
     #[serde(default)]
     pub runtime_user: String,
+    #[serde(default)]
+    pub config_error: String,
 }
 
 /// Unset fields are not checked (same pattern as ReloadExpect / StatusProcessesCount).
@@ -212,6 +223,8 @@ pub struct DescribeExpect {
     pub profile: Option<String>,
     pub user: Option<String>,
     pub runtime_user: Option<String>,
+    pub config_error: Option<String>,
+    pub has_config_error: Option<bool>,
 }
 
 impl DescribeSnapshot {
@@ -302,6 +315,18 @@ impl DescribeSnapshot {
             &expected.runtime_user,
             self,
         );
+        assert_describe_field(
+            "config_error",
+            &self.config_error,
+            &expected.config_error,
+            self,
+        );
+        assert_describe_present(
+            "config_error",
+            &self.config_error,
+            expected.has_config_error,
+            self,
+        );
         if let Some(expected_alive) = expected.pid_alive {
             let alive = self.pid > 0 && pid_is_alive(self.pid as u32);
             assert_eq!(
@@ -350,21 +375,29 @@ fn assert_describe_present(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessExpect {
+    /// Queue window before the start pass. After ready, holds rest in `Skipped`.
+    #[allow(dead_code)]
     Created,
+    Skipped,
     Running,
     Stopped,
+    Crashed,
     Failed,
     Exited,
+    InvalidConfig,
 }
 
 impl ProcessExpect {
     fn as_str(self) -> &'static str {
         match self {
             Self::Created => "Created",
+            Self::Skipped => "Skipped",
             Self::Running => "Running",
             Self::Stopped => "Stopped",
+            Self::Crashed => "Crashed",
             Self::Failed => "Failed",
             Self::Exited => "Exited",
+            Self::InvalidConfig => "InvalidConfig",
         }
     }
 }
@@ -415,6 +448,22 @@ impl ProcessList {
         );
     }
 
+    pub fn assert_skip_reasons(&self, name: &str, expected: &[&str]) {
+        let process = self.require_process(name);
+        let actual: Vec<&str> = process.skip_reasons.iter().map(String::as_str).collect();
+        for reason in expected {
+            assert!(
+                actual.contains(reason),
+                "process '{name}' skip_reasons missing {reason}, got {actual:?}"
+            );
+        }
+        assert_eq!(
+            actual.len(),
+            expected.len(),
+            "process '{name}' skip_reasons extra labels: expected {expected:?}, got {actual:?}"
+        );
+    }
+
     pub fn assert_last_exit_code(&self, name: &str, code: i32) {
         let process = self.require_process(name);
         assert_eq!(
@@ -436,10 +485,13 @@ pub struct StatusProcessesCount {
     pub running: Option<u32>,
     pub created: Option<u32>,
     pub stopped: Option<u32>,
+    pub crashed: Option<u32>,
     pub failed: Option<u32>,
     pub exited: Option<u32>,
     pub starting: Option<u32>,
     pub stopping: Option<u32>,
+    pub invalid_config: Option<u32>,
+    pub skipped: Option<u32>,
 }
 
 impl StatusProcessesCount {
@@ -449,10 +501,13 @@ impl StatusProcessesCount {
             running: Some(0),
             created: Some(0),
             stopped: Some(0),
+            crashed: Some(0),
             failed: Some(0),
             exited: Some(0),
             starting: Some(0),
             stopping: Some(0),
+            invalid_config: Some(0),
+            skipped: Some(0),
         }
     }
 }
@@ -487,6 +542,11 @@ impl DaemonStatus {
                 self.stopped_processes,
                 expected.stopped,
             ),
+            (
+                "crashed_processes",
+                self.crashed_processes,
+                expected.crashed,
+            ),
             ("failed_processes", self.failed_processes, expected.failed),
             ("exited_processes", self.exited_processes, expected.exited),
             (
@@ -498,6 +558,16 @@ impl DaemonStatus {
                 "stopping_processes",
                 self.stopping_processes,
                 expected.stopping,
+            ),
+            (
+                "invalid_config_processes",
+                self.invalid_config_processes,
+                expected.invalid_config,
+            ),
+            (
+                "skipped_processes",
+                self.skipped_processes,
+                expected.skipped,
             ),
         ];
         for (field, actual, exp) in fields {
@@ -1676,9 +1746,12 @@ fn assert_status_field(field: &str, actual: u32, expected: Option<u32>, status: 
 fn process_matches_expect(process: &ProcessSnapshot, expected: ProcessExpect) -> bool {
     match expected {
         ProcessExpect::Created
+        | ProcessExpect::Skipped
         | ProcessExpect::Stopped
+        | ProcessExpect::Crashed
         | ProcessExpect::Failed
-        | ProcessExpect::Exited => process.pid == 0,
+        | ProcessExpect::Exited
+        | ProcessExpect::InvalidConfig => process.pid == 0,
         ProcessExpect::Running => {
             let pid = process.pid as u32;
             pid > 0 && pid_is_alive(pid)

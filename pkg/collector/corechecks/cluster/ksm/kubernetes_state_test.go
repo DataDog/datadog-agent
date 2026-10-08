@@ -2026,6 +2026,55 @@ func TestCreationMetricsFiltering(t *testing.T) {
 	}
 }
 
+func TestCronJobStartTimeMetricsNotDenied(t *testing.T) {
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(defaultCollectors()))
+	assert.NoError(t, err)
+
+	err = allowDenyList.Parse()
+	assert.NoError(t, err)
+
+	// The kubernetes_state.cronjob.complete service check needs these families
+	for _, metric := range []string{"kube_job_complete_start_time", "kube_job_failed_start_time"} {
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isExcluded, metric)
+	}
+}
+
+func TestResourceClaimCreatedMetricNotDenied(t *testing.T) {
+	// Regression test: buildDeniedMetricsSet runs on the raw collector names
+	// (before splitDRACollectors), so resourceclaims used to hit the
+	// generic kube_<resource>_created deny rule and drop the family that the
+	// resourceclaim.pending.age transformer consumes.
+	collectors := append(defaultCollectors(), draResourceClaims, draResourceSlices, draDeviceTaintRules)
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
+	require.NoError(t, err)
+
+	err = allowDenyList.Parse()
+	require.NoError(t, err)
+
+	// The transformer input must survive when the DRA collector is enabled.
+	isExcluded, err := allowDenyList.IsExcluded("kube_resourceclaim_created")
+	require.NoError(t, err)
+	assert.False(t, isExcluded)
+	isIncluded, err := allowDenyList.IsIncluded("kube_resourceclaim_created")
+	require.NoError(t, err)
+	assert.True(t, isIncluded)
+
+	// Slices and taint rules keep their generic deny entries: they publish
+	// no *_created family at all, so the entries are inert but harmless.
+	for _, metric := range []string{"kube_resourceslice_created", "kube_devicetaintrule_created"} {
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		require.NoError(t, err)
+		assert.True(t, isExcluded, metric)
+	}
+
+	// The exemption must not leak into non-DRA resources.
+	isExcluded, err = allowDenyList.IsExcluded("kube_deployment_created")
+	require.NoError(t, err)
+	assert.True(t, isExcluded)
+}
+
 func TestKSMCheckInitTags(t *testing.T) {
 	type fields struct {
 		instance    *KSMConfig
@@ -2573,4 +2622,52 @@ func TestDRACollectorsUseTheNegotiatedTaintRuleVersion(t *testing.T) {
 			assert.Equal(t, tt.expected, draCollectors(all, tt.apiVersion, tt.taintVersion))
 		})
 	}
+}
+
+func TestApiResourceAvailable(t *testing.T) {
+	resources := []*apiv1.APIResourceList{
+		{
+			GroupVersion: "autoscaling/v2",
+			APIResources: []apiv1.APIResource{
+				{Kind: "HorizontalPodAutoscaler"},
+			},
+		},
+		{
+			GroupVersion: "apps/v1",
+			APIResources: []apiv1.APIResource{
+				{Kind: "Deployment"},
+			},
+		},
+	}
+
+	assert.True(t, apiResourceAvailable(resources, "autoscaling/v2", "HorizontalPodAutoscaler"))
+	assert.False(t, apiResourceAvailable(resources, "autoscaling/v2beta2", "HorizontalPodAutoscaler"),
+		"a different group/version for the same kind must not match")
+	assert.False(t, apiResourceAvailable(resources, "autoscaling/v2", "Deployment"),
+		"a different kind under the same group/version must not match")
+	assert.False(t, apiResourceAvailable(nil, "autoscaling/v2", "HorizontalPodAutoscaler"))
+}
+
+// TestDiscoverCustomResources_ExtendedHPACollector pins that the extended HPA
+// factory and its collector key are registered together when autoscaling/v2 is
+// served: BuildStores only builds stores for keys listed in collectors.
+func TestDiscoverCustomResources_ExtendedHPACollector(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+	resources := []*apiv1.APIResourceList{{
+		GroupVersion: "autoscaling/v2",
+		APIResources: []apiv1.APIResource{{Name: "horizontalpodautoscalers", Kind: "HorizontalPodAutoscaler", Namespaced: true}},
+	}}
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, resources)
+
+	assert.Contains(t, cr.collectors, "autoscaling/v2, Resource=horizontalpodautoscalers_extended")
+	var found bool
+	for _, f := range cr.factories {
+		found = found || f.Name() == "horizontalpodautoscalers_extended"
+	}
+	assert.True(t, found)
+
+	cr = k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, nil)
+	assert.NotContains(t, cr.collectors, "autoscaling/v2, Resource=horizontalpodautoscalers_extended")
 }
