@@ -132,6 +132,8 @@ func TestInventoryIdentityGate(t *testing.T) {
 }
 
 func TestInventorySerializesMissingValues(t *testing.T) {
+	t.Setenv("DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED", "")
+	require.NoError(t, os.Unsetenv("DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED"))
 	originalCommit := version.Commit
 	originalArgs := os.Args
 	t.Cleanup(func() {
@@ -159,14 +161,17 @@ func TestInventorySerializesMissingValues(t *testing.T) {
 		"dd_env":       "test-env", "dd_service": "test-service", "dd_version": "test-version", "dd_site": "datadoghq.eu",
 	}
 	var previousTimestamp int64
+	var commandPreviouslyPopulated bool
 	for _, stage := range []struct {
-		name        string
-		populated   bool
-		sidecar     bool
-		override    string
-		metadata    []string
-		command     []string
-		wantRuntime interface{}
+		name                  string
+		populated             bool
+		sidecar               bool
+		override              string
+		metadata              []string
+		command               []string
+		wantRuntime           interface{}
+		wrappedCommandEnabled string
+		wantWrappedCommand    string
 	}{
 		{name: "initially missing", sidecar: true},
 		{name: "populated", sidecar: true, populated: true, metadata: []string{"python"}, wantRuntime: "python"},
@@ -198,9 +203,20 @@ func TestInventorySerializesMissingValues(t *testing.T) {
 		{name: "incomplete Ruby launcher clears runtime", command: []string{"bundle", "exec"}},
 		{name: "ambiguous command clears detection", metadata: []string{"unknown"}, command: []string{"sh", "-c", "node app.js"}},
 		{name: "blank override and null metadata remain missing", override: " \t", metadata: []string{"null"}, command: []string{"./custom-app"}},
+		{name: "command omitted by default", populated: true, command: []string{"python", "app.py", "--token=secret", "--password", "secret"}, wantRuntime: "Python"},
+		{name: "command explicitly disabled", populated: true, wrappedCommandEnabled: "false", command: []string{"python", "app.py", "--token=secret", "--password", "secret"}, wantRuntime: "Python"},
+		{name: "command opted in", populated: true, wrappedCommandEnabled: "true", command: []string{"python", "app.py", "--password=secret"}, wantRuntime: "Python", wantWrappedCommand: "python app.py --password=********"},
+		{name: "command opt-out clears cache", populated: true, wrappedCommandEnabled: "false", command: []string{"python", "app.py", "--token=secret", "--password", "secret"}, wantRuntime: "Python"},
+		{name: "command opted in again", wrappedCommandEnabled: "true", command: []string{"python", "app.py"}, wantRuntime: "Python", wantWrappedCommand: "python app.py"},
+		{name: "sidecar clears command", sidecar: true, wrappedCommandEnabled: "true", command: []string{"python", "app.py"}},
+		{name: "command repopulated", wrappedCommandEnabled: "true", command: []string{"python", "app.py"}, wantRuntime: "Python", wantWrappedCommand: "python app.py"},
+		{name: "no command clears cache", wrappedCommandEnabled: "true"},
 	} {
 		t.Run(stage.name, func(t *testing.T) {
 			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", stage.override)
+			if stage.wrappedCommandEnabled != "" {
+				conf.Set("serverless.inventory_wrapped_command_enabled", stage.wrappedCommandEnabled == "true", configmodel.SourceAgentRuntime)
+			}
 			os.Args = append([]string{"serverless-init"}, stage.command...)
 			service := inventoryTestCloudService{data: cloudservice.InventoryData{
 				ResourceID: "test-resource", ResourceName: "test-app", WorkloadType: "azure_app_service", RuntimeCandidates: stage.metadata,
@@ -257,12 +273,19 @@ func TestInventorySerializesMissingValues(t *testing.T) {
 				assert.NotContains(t, payload.Metadata, "runtime_candidates")
 				if stage.sidecar {
 					assert.Equal(t, "sidecar", payload.Metadata["deployment_model"])
-					assert.NotContains(t, payload.Metadata, "wrapped_command")
 				} else {
 					assert.Equal(t, "in-container", payload.Metadata["deployment_model"])
-					assert.Contains(t, payload.Metadata["wrapped_command"], stage.command[0])
-					assert.NotContains(t, payload.Metadata["wrapped_command"], "secret")
 				}
+				if stage.wantWrappedCommand != "" {
+					assert.Equal(t, stage.wantWrappedCommand, payload.Metadata["wrapped_command"])
+					commandPreviouslyPopulated = true
+				} else if commandPreviouslyPopulated {
+					assert.Contains(t, payload.Metadata, "wrapped_command")
+					assert.Nil(t, payload.Metadata["wrapped_command"], "cleared cached commands serialize as JSON null")
+				} else {
+					assert.NotContains(t, payload.Metadata, "wrapped_command", "never-collected commands must be omitted")
+				}
+				assert.NotContains(t, string(serial.payloads[payloadCount]), "secret")
 				assert.Contains(t, payload.Metadata, "install_method_tool_version")
 				assert.Equal(t, "", payload.Metadata["install_method_tool_version"], "core metadata is not normalized")
 				assert.NotContains(t, payload.Metadata, "deployment_id")
