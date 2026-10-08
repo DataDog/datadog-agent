@@ -844,20 +844,21 @@ func (r *Resolver) removeSBOMData(key workloadKey) {
 	r.dataCacheLock.Unlock()
 }
 
-func (r *Resolver) addPendingScan(containerID containerutils.ContainerID) bool {
+// addPendingScan records that the workload of containerID waits for a scan. It
+// reports whether the workload waited already, and false for ok on a full queue.
+func (r *Resolver) addPendingScan(containerID containerutils.ContainerID) (waiting, ok bool) {
 	r.pendingScanLock.Lock()
 	defer r.pendingScanLock.Unlock()
 
-	if len(r.pendingScan) >= scanQueueSize {
-		return false
-	}
-
 	if slices.Contains(r.pendingScan, containerID) {
-		return false
+		return true, true
+	}
+	if len(r.pendingScan) >= scanQueueSize {
+		return false, false
 	}
 	r.pendingScan = append(r.pendingScan, containerID)
 
-	return true
+	return false, true
 }
 
 func (r *Resolver) removePendingScan(containerID containerutils.ContainerID) {
@@ -1154,8 +1155,13 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 }
 
 func (r *Resolver) triggerScan(sbom *SBOM) {
-	if !r.addPendingScan(sbom.ContainerID) {
+	waiting, ok := r.addPendingScan(sbom.ContainerID)
+	if !ok {
 		r.deleteSBOM(sbom)
+		return
+	}
+	// the scan of a waiting workload reads its package databases when it runs
+	if waiting {
 		return
 	}
 
