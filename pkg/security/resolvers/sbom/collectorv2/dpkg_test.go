@@ -121,3 +121,43 @@ func TestDpkgInstalledFiles(t *testing.T) {
 		})
 	}
 }
+
+// TestDpkgListsPackagesByStatus checks which dpkg statuses list their package,
+// at the version of the record, the one being installed during an upgrade.
+func TestDpkgListsPackagesByStatus(t *testing.T) {
+	for status, listed := range map[string]bool{
+		"install ok installed":             true,
+		"hold ok installed":                true,
+		"install reinstreq half-installed": true,
+		"install ok unpacked":              true,
+		"install ok half-configured":       true,
+		"install ok triggers-awaited":      true,
+		"install ok triggers-pending":      true,
+		"install ok config-files":          true,
+		"install ok not-installed":         true,
+		"deinstall ok installed":           false,
+		"deinstall ok config-files":        false,
+		"purge ok not-installed":           false,
+	} {
+		t.Run(status, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, statusPath)
+			require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+			require.NoError(t, os.WriteFile(path, []byte("Package: gzip\nStatus: "+status+"\nVersion: 1.13-1\nConfig-Version: 1.12-1\n"), 0o644))
+			root, err := os.OpenRoot(dir)
+			require.NoError(t, err)
+			defer root.Close()
+
+			pkgs, err := (&dpkgScanner{}).parseStatusFile(root, statusPath)
+			require.NoError(t, err)
+			if !listed {
+				assert.Empty(t, pkgs)
+				return
+			}
+			require.Len(t, pkgs, 1)
+			assert.Equal(t, "gzip", pkgs[0].Name)
+			assert.Equal(t, "1.13", pkgs[0].Version)
+			assert.Equal(t, "1", pkgs[0].Release)
+		})
+	}
+}
