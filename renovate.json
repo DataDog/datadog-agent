@@ -78,6 +78,11 @@
         "groupName": "prost/tonic protobuf stack"
       },
       {
+        "matchManagers": ["cargo"],
+        "matchDepNames": ["datadog-agent-commons", "saluki-tls"],
+        "groupName": "saluki"
+      },
+      {
         "matchManagers": ["npm"],
         "enabled": false
       },

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build orchestrator
+//go:build kubeapiserver
 
 //nolint:revive
 package processorstest
@@ -22,6 +22,8 @@ import (
 //nolint:revive
 type FakeTagger struct {
 	TagsByEntityID map[types.EntityID][]string
+	// InfraTags is the tagset returned by GetInfraTags.
+	InfraTags []string
 }
 
 // NewEmptyFakeTagger creates a FakeTagger with no configured tags.
@@ -76,6 +78,13 @@ func (f *FakeTagger) GetEntityHash(entityID types.EntityID, cardinality types.Ta
 //nolint:revive
 func (f *FakeTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
 	return nil, nil
+}
+
+// GetInfraTags returns the configured infrastructure mode tags.
+//
+//nolint:revive
+func (f *FakeTagger) GetInfraTags() []string {
+	return f.InfraTags
 }
 
 // List returns an empty response.

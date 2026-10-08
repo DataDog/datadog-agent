@@ -40,6 +40,8 @@ type deviceOptions struct {
 	nvlinkStates            []nvml.EnableState
 	nvlinkStateErrors       map[int]nvml.Return
 	migChildUUIDs           map[int]string
+	gridFeatures            *nvml.GridLicensableFeatures
+	gridFeaturesReturn      *nvml.Return
 
 	fieldValuesReturn  *nvml.Return
 	samplesUnsupported bool
@@ -49,6 +51,15 @@ type deviceOptions struct {
 type processDetailListResponse struct {
 	processes []nvml.ProcessDetail_v1
 	ret       nvml.Return
+}
+
+// GridProductName returns name as a NUL-padded NVML product name buffer.
+func GridProductName(name string) [128]int8 {
+	var buf [128]int8
+	for i := 0; i < len(name) && i < len(buf)-1; i++ {
+		buf[i] = int8(name[i])
+	}
+	return buf
 }
 
 func (o deviceOptions) isMIGChild() bool {
@@ -529,6 +540,31 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 				return nvml.GPU_VIRTUALIZATION_MODE_VGPU, nvml.SUCCESS
 			}
 			return nvml.GPU_VIRTUALIZATION_MODE_NONE, nvml.SUCCESS
+		},
+		GetGridLicensableFeaturesFunc: func() (nvml.GridLicensableFeatures, nvml.Return) {
+			if opts.gridFeatures != nil {
+				ret := nvml.SUCCESS
+				if opts.gridFeaturesReturn != nil {
+					ret = *opts.gridFeaturesReturn
+				}
+				return *opts.gridFeatures, ret
+			}
+			if !opts.isVGPU() {
+				// Non-GRID drivers report that licensing is not supported
+				return nvml.GridLicensableFeatures{}, nvml.SUCCESS
+			}
+			// vGPU devices default to one enabled, licensed product
+			features := nvml.GridLicensableFeatures{
+				IsGridLicenseSupported:  1,
+				LicensableFeaturesCount: 1,
+			}
+			features.GridLicensableFeatures[0] = nvml.GridLicensableFeature{
+				FeatureCode:    uint32(nvml.GRID_LICENSE_FEATURE_CODE_NVIDIA_RTX),
+				FeatureState:   1,
+				FeatureEnabled: 1,
+				ProductName:    GridProductName("NVIDIA RTX Virtual Workstation"),
+			}
+			return features, nvml.SUCCESS
 		},
 		GetSupportedEventTypesFunc: func() (uint64, nvml.Return) {
 			return nvml.EventTypeAll, nvml.SUCCESS

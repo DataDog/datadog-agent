@@ -12,9 +12,6 @@ from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.utils import environ, get_gobin, gitlab_section, link_or_copy
 
 TOOL_LIST = [
-    'github.com/frapposelli/wwhrd',
-    'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
-    'github.com/goware/modvendor',
     'github.com/wadey/gocovmerge',
     'github.com/uber-go/gopatch',
     'github.com/aarzilli/whydeadcode',
