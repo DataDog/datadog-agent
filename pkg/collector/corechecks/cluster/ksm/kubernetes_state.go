@@ -766,6 +766,16 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 
 	factories = manageResourcesReplacement(c, factories, resources)
 
+	// hpav2Factory (registered above via manageResourcesReplacement) only
+	// runs when autoscaling/v2 isn't served by the cluster. On clusters that
+	// do serve it, the upstream KSM generator handles HPAs directly and
+	// never gets the ownerRef enrichment, so add it here as an always-on
+	// extended collector, mirroring NewExtendedPodFactory.
+	if apiResourceAvailable(resources, "autoscaling/v2", "HorizontalPodAutoscaler") {
+		factories = append(factories, customresources.NewExtendedHorizontalPodAutoscalerFactory(c))
+		collectors = lo.Uniq(append(collectors, "autoscaling/v2, Resource=horizontalpodautoscalers_extended"))
+	}
+
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
 		client, _ := f.CreateClient(nil)
@@ -827,6 +837,22 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 	}
 
 	return factories
+}
+
+// apiResourceAvailable reports whether the given kind is served under the
+// given group/version, per cluster discovery.
+func apiResourceAvailable(resources []*v1.APIResourceList, groupVersion, kind string) bool {
+	for _, resource := range resources {
+		if resource.GroupVersion != groupVersion {
+			continue
+		}
+		for _, apiResource := range resource.APIResources {
+			if apiResource.Kind == kind {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // shouldDropForMetadata reports whether name is a metadata-only metric.
@@ -1564,8 +1590,9 @@ func defaultCollectors() []string {
 }
 
 // buildDeniedMetricsSet adds *_created metrics to the default denied metric rules.
-// It allows us to get kube_node_created and kube_pod_created and deny
-// the rest of *_created metrics without relying on a unmaintainable and unreadable regex.
+// It allows us to get kube_node_created, kube_pod_created and
+// kube_resourceclaim_created and deny the rest of *_created metrics without
+// relying on a unmaintainable and unreadable regex.
 func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 	deniedMetrics := options.MetricSet{
 		".*_generation":                                    {},
@@ -1591,7 +1618,14 @@ func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 	}
 	for _, resource := range collectors {
 		// resource format: pods, nodes, jobs, deployments...
-		if resource == "pods" || resource == "nodes" {
+		// pods, nodes and resourceclaims keep their *_created metrics:
+		// kube_pod_created / kube_node_created feed pod.age / node.age,
+		// and kube_resourceclaim_created is the timestamp the
+		// resourceclaim.pending.age transformer turns into a wait time.
+		// This runs on the raw collector names, before splitDRACollectors
+		// extracts the DRA names, so the exemption must be here rather than
+		// at the split call site.
+		if resource == "pods" || resource == "nodes" || resource == draResourceClaims {
 			continue
 		}
 		deniedMetrics["kube_"+strings.TrimRight(resource, "s")+"_created"] = struct{}{}
@@ -1662,6 +1696,13 @@ func labelsMapperOverride(metricName string) map[string]string {
 
 	if strings.HasPrefix(metricName, "kube_service") {
 		return serviceLabelsMapperOverride
+	}
+
+	if strings.HasPrefix(metricName, "kube_horizontalpodautoscaler") {
+		return map[string]string{
+			"ownerref_kind": tags.KubeOwnerRefKind,
+			"ownerref_name": tags.KubeOwnerRefName,
+		}
 	}
 	return nil
 }

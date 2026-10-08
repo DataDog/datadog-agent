@@ -380,10 +380,13 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 }
 
 func TestCustomBoltCache_CloseStopsTelemetry(t *testing.T) {
-	deps := createCacheDeps(t)
+	// This test only exercises the cache telemetry loop, so it skips the
+	// workloadmeta fixture: its mock registers health checks from background
+	// goroutines that would otherwise race with IgnoreCurrent and be misreported
+	// as leaks. The cache never uses wmeta outside its cleaner.
 	ignoreExisting := goleak.IgnoreCurrent()
 
-	cache, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
+	cache, err := NewCustomBoltCache(option.None[workloadmeta.Component](), t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	require.NoError(t, cache.Close())
 

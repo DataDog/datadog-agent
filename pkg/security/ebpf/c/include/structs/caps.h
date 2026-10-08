@@ -4,11 +4,15 @@
 struct capabilities_context_t {
     u64 cap_as_mask; // bitmask of capabilities that are being checked in the current task context
     u64 override_creds_depth; // depth of override_creds calls; used on kernels where override_creds/revert_creds are still hookable (< 6.13)
+    u64 host_userns_cap_as_mask; // bitmask of capability checked against the initial user namespace
+    u64 host_userns_check; // set when the security_capable hook was reached through one of the collect_host_userns_cap callers
 };
 
 struct capabilities_usage_t {
     u64 attempted; // bitmask of the capabilities that a process attempted to use
     u64 used; // bitmask of the capabilities that a process successfully used
+    u64 attempted_host_userns; // bitmask of the capabilities that were checked against the host/initial user namespace (init_user_ns)
+    u64 used_host_userns; // bitmask of the capabilities that were obtained from the host/initial user namespace (init_user_ns)
 };
 
 struct capabilities_usage_key_t {
@@ -24,25 +28,25 @@ struct capabilities_usage_entry_t {
     u64 data; // data is representing both the `dirty` flag and the `last_sent_ns` timestamp
 };
 
-__attribute__((always_inline)) bool is_dirty(struct capabilities_usage_entry_t *entry) {
+static __always_inline bool is_dirty(struct capabilities_usage_entry_t *entry) {
     return (entry->data & CAPABILITIES_USAGE_ENTRY_DIRTY_MASK) != 0;
 }
 
-__attribute__((always_inline)) void update_dirty(struct capabilities_usage_entry_t *entry, bool dirty) {
+static __always_inline void update_dirty(struct capabilities_usage_entry_t *entry, bool dirty) {
     entry->data |= (dirty ? CAPABILITIES_USAGE_ENTRY_DIRTY_MASK : 0);
 }
 
-__attribute__((always_inline)) bool period_reached_or_new_entry(struct capabilities_usage_entry_t *entry, u64 now) {
+static __always_inline bool period_reached_or_new_entry(struct capabilities_usage_entry_t *entry, u64 now) {
     now = now & CAPABILITIES_USAGE_ENTRY_LAST_SENT_MASK; // Clear the dirty flag
     u64 last_sent_ns = entry->data & CAPABILITIES_USAGE_ENTRY_LAST_SENT_MASK;
     return last_sent_ns == 0 || ((now - last_sent_ns) >= get_capabilities_monitoring_period());
 }
 
-__attribute__((always_inline)) void reset_dirty(struct capabilities_usage_entry_t *entry) {
+static __always_inline void reset_dirty(struct capabilities_usage_entry_t *entry) {
     entry->data &= ~CAPABILITIES_USAGE_ENTRY_DIRTY_MASK;
 }
 
-__attribute__((always_inline)) void set_last_sent_ns(struct capabilities_usage_entry_t *entry, u64 ts) {
+static __always_inline void set_last_sent_ns(struct capabilities_usage_entry_t *entry, u64 ts) {
     entry->data = (entry->data & CAPABILITIES_USAGE_ENTRY_DIRTY_MASK) | (ts & CAPABILITIES_USAGE_ENTRY_LAST_SENT_MASK);
 }
 

@@ -65,6 +65,22 @@ func (h *Host) GetFilePermissions(filePath string) (*FilePermissions, error) {
 			Owner: parts[1],
 			Group: parts[2],
 		}, nil
+	case e2eos.MacOSFamily:
+		// BSD stat's format verbs differ from GNU coreutils': %OLp is the octal mode, %Su/%Sg
+		// are the symbolic owner/group names.
+		output, err := h.RemoteHost.Execute("stat -f '%OLp %Su %Sg' " + filePath)
+		if err != nil {
+			return nil, err
+		}
+		parts := strings.Fields(strings.TrimSpace(output))
+		if len(parts) != 3 {
+			return nil, fmt.Errorf("unexpected stat output: %s", output)
+		}
+		return &FilePermissions{
+			Mode:  parts[0],
+			Owner: parts[1],
+			Group: parts[2],
+		}, nil
 	case e2eos.WindowsFamily:
 		// Windows doesn't use POSIX permissions
 		return nil, errors.New("file permissions check not supported on Windows")
@@ -265,11 +281,15 @@ func (h *Host) AssertWindowsServiceNotRunning(t *testing.T, serviceName string) 
 const (
 	metricProcmgrDaemonReachable        = "runtime__procmgr_daemon_reachable"
 	metricProcmgrDaemonReady            = "runtime__procmgr_daemon_ready"
+	metricProcmgrDaemonServiceState     = "runtime__procmgr_daemon_service_state"
 	metricProcmgrProcessRunning         = "runtime__procmgr_process_running"
+	metricProcmgrProcessState           = "runtime__procmgr_process_state"
 	metricAgentServiceInstalled         = "runtime__agent_service_installed"
 	metricAgentServiceProcmgrConfigured = "runtime__agent_service_procmgr_configured"
 	metricAgentServiceManagementMode    = "runtime__agent_service_management_mode"
+	metricAgentServiceRunning           = "runtime__agent_service_running"
 	procmgrManagementModeProcmgr        = "procmgr"
+	procmgrProcessStateRunning          = "running"
 )
 
 // AssertProcmgrTelemetry verifies the agent's COAT gauges report serviceID/processName as managed
@@ -286,8 +306,17 @@ func (h *Host) AssertProcmgrTelemetry(t *testing.T, serviceID, processName strin
 
 		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonReachable, nil)
 		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonReady, nil)
+		// Reachable and ready come from the gRPC socket. This one comes from the systemd unit, so
+		// it stays reported when the daemon stops answering.
+		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonServiceState, map[string]string{
+			"state": procmgrProcessStateRunning,
+		})
 		assertTelemetryGaugeTrue(c, out, metricProcmgrProcessRunning, map[string]string{
 			"process": processName,
+		})
+		assertTelemetryGaugeTrue(c, out, metricProcmgrProcessState, map[string]string{
+			"process": processName,
+			"state":   procmgrProcessStateRunning,
 		})
 		assertTelemetryGaugeTrue(c, out, metricAgentServiceInstalled, map[string]string{
 			"service": serviceID,
@@ -298,6 +327,10 @@ func (h *Host) AssertProcmgrTelemetry(t *testing.T, serviceID, processName strin
 		assertTelemetryGaugeTrue(c, out, metricAgentServiceManagementMode, map[string]string{
 			"service": serviceID,
 			"mode":    procmgrManagementModeProcmgr,
+		})
+		assertTelemetryGaugeTrue(c, out, metricAgentServiceRunning, map[string]string{
+			"service":    serviceID,
+			"supervisor": procmgrManagementModeProcmgr,
 		})
 	}, 7*time.Minute, 10*time.Second, "procmgr telemetry gauges should be emitted")
 }

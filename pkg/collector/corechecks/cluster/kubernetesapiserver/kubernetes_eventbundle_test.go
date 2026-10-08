@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
@@ -60,6 +61,7 @@ func TestFormatEvent(t *testing.T) {
 		name           string
 		clusterName    string
 		hostProviderID string
+		infraMode      string
 		events         []*v1.Event
 		expected       event.Event
 	}{
@@ -172,6 +174,65 @@ func TestFormatEvent(t *testing.T) {
 				) + "\n %%%",
 			},
 		},
+		{
+			name:      "marked mode adds the infra mode tag",
+			infraMode: "cloud_cost_only",
+			events: []*v1.Event{
+				createEvent(2, "default", podName, "Pod", objUID, "default-scheduler", "default-scheduler", nodeName, "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", timestamp),
+			},
+			expected: event.Event{
+				Host: nodeName,
+				Tags: []string{
+					"kube_namespace:default",
+					"kube_kind:Pod",
+					"kubernetes_kind:Pod",
+					"namespace:default",
+					"source_component:default-scheduler",
+					"orchestrator:kubernetes",
+					"reporting_controller:default-scheduler",
+					"kube_name:" + podName,
+					"name:" + podName,
+					"pod_name:" + podName,
+					"infra_mode:cloud_cost_only",
+				},
+				Text: "%%% \n" + fmt.Sprintf(
+					"%s \n _Events emitted by the %s seen at %s since %s_ \n",
+					"2 **Scheduled**: Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54\n",
+					"default-scheduler",
+					time.Unix(timestamp, 0),
+					time.Unix(timestamp, 0),
+				) + "\n %%%",
+			},
+		},
+		{
+			name:      "full mode adds no infra mode tag",
+			infraMode: "full",
+			events: []*v1.Event{
+				createEvent(2, "default", podName, "Pod", objUID, "default-scheduler", "default-scheduler", nodeName, "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", timestamp),
+			},
+			expected: event.Event{
+				Host: nodeName,
+				Tags: []string{
+					"kube_namespace:default",
+					"kube_kind:Pod",
+					"kubernetes_kind:Pod",
+					"namespace:default",
+					"source_component:default-scheduler",
+					"orchestrator:kubernetes",
+					"reporting_controller:default-scheduler",
+					"kube_name:" + podName,
+					"name:" + podName,
+					"pod_name:" + podName,
+				},
+				Text: "%%% \n" + fmt.Sprintf(
+					"%s \n _Events emitted by the %s seen at %s since %s_ \n",
+					"2 **Scheduled**: Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54\n",
+					"default-scheduler",
+					time.Unix(timestamp, 0),
+					time.Unix(timestamp, 0),
+				) + "\n %%%",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -187,7 +248,11 @@ func TestFormatEvent(t *testing.T) {
 				b.addEvent(ev)
 			}
 
-			output, err := b.formatEvents(taggerfxmock.SetupFakeTagger(t))
+			overrides := map[string]interface{}{}
+			if tt.infraMode != "" {
+				overrides["infrastructure_mode"] = tt.infraMode
+			}
+			output, err := b.formatEvents(taggerfxmock.SetupFakeTaggerWithOverrides(t, overrides))
 
 			assert.Nil(t, err)
 			assert.Equal(t, tt.expected.Text, output.Text)
@@ -201,6 +266,7 @@ func TestFormatEvent(t *testing.T) {
 func TestEventsTagging(t *testing.T) {
 	tests := []struct {
 		name         string
+		infraMode    string
 		k8sEvent     *v1.Event
 		expectedTags []string
 	}{
@@ -244,16 +310,68 @@ func TestEventsTagging(t *testing.T) {
 			k8sEvent:     createEvent(1, "default", "stateful", "StatefulSet", "493fc503-1264-418c-9af5-b8a961779194", "statefulset-controller", "statefulset-controller", "", "FailedCreate", "create Pod stateful-0 in StatefulSet stateful failed", "Warning", 709662600),
 			expectedTags: []string{"source_component:statefulset-controller", "kube_kind:StatefulSet", "kubernetes_kind:StatefulSet", "kube_name:stateful", "name:stateful", "kube_stateful_set:stateful", "namespace:default", "kube_namespace:default", "reporting_controller:statefulset-controller", "orchestrator:kubernetes"},
 		},
+		{
+			name:         "pod under a marked mode",
+			infraMode:    "cloud_cost_only",
+			k8sEvent:     createEvent(1, "default", "nginx-2d9jp-cmssw", "Pod", "c9f47d37-68d1-46a4-9295-419b054cb351", "kubelet", "kubelet", "xx-xx-default-pool-xxx-xxx", "Killing", "Stopping container daemon", "Normal", 709662600),
+			expectedTags: []string{"source_component:kubelet", "kube_kind:Pod", "kubernetes_kind:Pod", "kube_name:nginx-2d9jp-cmssw", "name:nginx-2d9jp-cmssw", "pod_name:nginx-2d9jp-cmssw", "namespace:default", "kube_namespace:default", "reporting_controller:kubelet", "orchestrator:kubernetes", "infra_mode:cloud_cost_only"},
+		},
+		{
+			name:         "pod under end_user_device",
+			infraMode:    "end_user_device",
+			k8sEvent:     createEvent(1, "default", "nginx-2d9jp-cmssw", "Pod", "c9f47d37-68d1-46a4-9295-419b054cb351", "kubelet", "kubelet", "xx-xx-default-pool-xxx-xxx", "Killing", "Stopping container daemon", "Normal", 709662600),
+			expectedTags: []string{"source_component:kubelet", "kube_kind:Pod", "kubernetes_kind:Pod", "kube_name:nginx-2d9jp-cmssw", "name:nginx-2d9jp-cmssw", "pod_name:nginx-2d9jp-cmssw", "namespace:default", "kube_namespace:default", "reporting_controller:kubelet", "orchestrator:kubernetes", "infra_mode:end_user_device"},
+		},
+		{
+			name:         "pod under full",
+			infraMode:    "full",
+			k8sEvent:     createEvent(1, "default", "nginx-2d9jp-cmssw", "Pod", "c9f47d37-68d1-46a4-9295-419b054cb351", "kubelet", "kubelet", "xx-xx-default-pool-xxx-xxx", "Killing", "Stopping container daemon", "Normal", 709662600),
+			expectedTags: []string{"source_component:kubelet", "kube_kind:Pod", "kubernetes_kind:Pod", "kube_name:nginx-2d9jp-cmssw", "name:nginx-2d9jp-cmssw", "pod_name:nginx-2d9jp-cmssw", "namespace:default", "kube_namespace:default", "reporting_controller:kubelet", "orchestrator:kubernetes"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bundle := newKubernetesEventBundler("", tt.k8sEvent)
 			bundle.addEvent(tt.k8sEvent)
-			got, err := bundle.formatEvents(taggerfxmock.SetupFakeTagger(t))
+
+			overrides := map[string]interface{}{}
+			if tt.infraMode != "" {
+				overrides["infrastructure_mode"] = tt.infraMode
+			}
+			got, err := bundle.formatEvents(taggerfxmock.SetupFakeTaggerWithOverrides(t, overrides))
 			assert.NoError(t, err)
 			assert.ElementsMatch(t, tt.expectedTags, got.Tags)
 		})
 	}
+}
+
+func TestEventsTaggingInfraModeNotDuplicated(t *testing.T) {
+	const podUID = "c9f47d37-68d1-46a4-9295-419b054cb351"
+
+	taggerInstance := taggerfxmock.SetupFakeTaggerWithOverrides(t, map[string]interface{}{
+		"infrastructure_mode": "cloud_cost_only",
+	})
+	taggerInstance.SetTags(
+		taggertypes.NewEntityID(taggertypes.KubernetesPodUID, podUID),
+		"fooSource",
+		[]string{"infra_mode:cloud_cost_only"},
+		nil, nil, nil,
+	)
+
+	k8sEvent := createEvent(1, "default", "nginx-2d9jp-cmssw", "Pod", podUID, "kubelet", "kubelet", "xx-xx-default-pool-xxx-xxx", "Killing", "Stopping container daemon", "Normal", 709662600)
+	bundle := newKubernetesEventBundler("", k8sEvent)
+	bundle.addEvent(k8sEvent)
+
+	got, err := bundle.formatEvents(taggerInstance)
+	assert.NoError(t, err)
+
+	var marks int
+	for _, tag := range got.Tags {
+		if tag == "infra_mode:cloud_cost_only" {
+			marks++
+		}
+	}
+	assert.Equal(t, 1, marks, "expected exactly one infra mode mark, got tags %v", got.Tags)
 }
 
 func TestKubernetesEventBundle_fitsEvent(t *testing.T) {

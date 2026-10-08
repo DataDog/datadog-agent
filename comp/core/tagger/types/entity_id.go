@@ -16,6 +16,8 @@ const separatorLength = len(separator)
 
 var globalEntityID = NewEntityID(InternalID, "global-entity-id")
 
+var infraTagsEntityID = NewEntityID(InternalID, "infra-tags-entity-id")
+
 // GetSeparatorLength returns the length of the entityID separator
 func GetSeparatorLength() int {
 	return separatorLength
@@ -123,6 +125,18 @@ func AllPrefixesSet() map[EntityIDPrefix]struct{} {
 // GetGlobalEntityID returns the entity ID that holds global tags
 func GetGlobalEntityID() EntityID {
 	return globalEntityID
+}
+
+// GetInfraTagsEntityID returns the entity ID that holds the infrastructure mode
+// mark of the Agent.
+//
+// It is deliberately separate from the global entity. GlobalTags and EnrichTags
+// read only GetGlobalEntityID and both reach metric samples, where the metrics
+// intake renames series tagged `infra_mode:cloud_cost_only` into the
+// `dd.cloud_cost` namespace. Keeping the mark on its own entity means no caller
+// can pick it up without naming this entity.
+func GetInfraTagsEntityID() EntityID {
+	return infraTagsEntityID
 }
 
 // ExtractPrefixAndID extracts prefix and id from tagger entity id and returns an error if the received entityID is not valid

@@ -623,19 +623,32 @@ log_level: info`)
 }
 
 func TestDataSecurityScanningRulePatterns(t *testing.T) {
-	t.Run("YAML object: only patterns under scanning_rules are scrubbed", func(t *testing.T) {
+	t.Run("YAML object: only id and license under scanning_rules are kept", func(t *testing.T) {
 		input := `scanning_rules:
   - id: rule-1
-    pattern: '\d+'
+    license: proprietary
+    pattern: '(\d+)'
+    pattern_capture_groups: ['1']
+    proximity_keywords:
+      look_ahead_character_count: 30
+      included_keywords: ['card']
+    validator:
+      type: LuhnChecksum
 log_processing_rules:
   - pattern: 'keep\s+me'
+    validator: keep-me
 task_id: task-1
 `
 		expected := `scanning_rules:
   - id: rule-1
+    license: proprietary
     pattern: "********"
+    pattern_capture_groups: "********"
+    proximity_keywords: "********"
+    validator: "********"
 log_processing_rules:
   - pattern: 'keep\s+me'
+    validator: keep-me
 task_id: task-1
 `
 		scrubbed, err := ScrubYamlString(input)

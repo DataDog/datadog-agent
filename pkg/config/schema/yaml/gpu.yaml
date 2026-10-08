@@ -107,6 +107,70 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  jobs:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Identify the training job a GPU workload belongs to. The Agent reads the
+      configured pod label, pod annotation, or environment variable and attaches
+      its value as a tag on GPU metrics.
+    properties:
+      run:
+        node_type: section
+        type: object
+        visibility: public
+        description: |-
+          Where to find the unique ID of a single training run.
+        properties:
+          key:
+            node_type: setting
+            type: string
+            default: ''
+            visibility: public
+            description: |-
+              Name of the pod label, pod annotation, or environment variable holding
+              the run ID, for example _RAY_SUBMISSION_ID. Leave empty to disable run tagging.
+          type:
+            node_type: setting
+            type: string
+            default: label
+            enum:
+            - label
+            - annotation
+            - env
+            visibility: public
+            description: |-
+              Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+              (environment variable of the process using the GPU).
+      group:
+        node_type: section
+        type: object
+        visibility: public
+        description: |-
+          Where to find the ID of the group of related training runs.
+        properties:
+          key:
+            node_type: setting
+            type: string
+            default: ''
+            visibility: public
+            description: |-
+              Name of the pod label, pod annotation, or environment variable holding
+              the group ID, for example example/job-group-annotation. Leave empty to
+              disable group tagging.
+          type:
+            node_type: setting
+            type: string
+            default: label
+            enum:
+            - label
+            - annotation
+            - env
+            visibility: public
+            description: |-
+              Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+              (environment variable of the process using the GPU).
   nvlink:
     node_type: section
     type: object
@@ -130,6 +194,36 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+  tracing:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Configure the tracers injected into GPU workloads. The fields match an
+      apm_config.instrumentation.targets entry of Single Step Instrumentation.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Set to true to inject tracers into GPU workloads.
+      tracer_versions:
+        node_type: setting
+        type: object
+        default:
+          c: '0'
+        additionalProperties:
+          type: string
+        env_parser: json
+        visibility: public
+        description: |-
+          Map of tracer language to the tracer version to inject, for example c: "0.24.0".
+          Defaults to the latest major version 0 of the C tracer.
+        example: |2-
+
+            c: "0.24.0"
   use_sp_process_metrics:
     node_type: setting
     type: boolean
