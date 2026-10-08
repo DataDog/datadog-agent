@@ -933,6 +933,7 @@
 /comp/core/workloadmeta/collectors/internal/kubelet                   @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/kubemetadata              @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/nvml                      @DataDog/accelerator-telemetry
+/comp/core/workloadmeta/collectors/internal/nodefilter                @DataDog/opentelemetry-agent
 /comp/core/workloadmeta/collectors/internal/podman                    @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/process                   @DataDog/container-experiences
 /comp/core/workloadmeta/collectors/internal/remote/sbomcollector      @DataDog/agent-security

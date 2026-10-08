@@ -12,6 +12,7 @@ go_library(
     visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
     deps = [
         "//comp/core/config",
+        "//comp/core/workloadmeta/collectors/internal/nodefilter",
         "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/def",
         "//pkg/config/env",
