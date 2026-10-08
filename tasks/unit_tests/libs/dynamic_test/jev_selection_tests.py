@@ -110,8 +110,6 @@ class TestJevDynTestExecutor(unittest.TestCase):
         self.assertNotIn("new-e2e-missing", executor.index().get_jobs())  # ran but absent from the file: reported
         # The GitLab facts still recorded: latest job ids
         self.assertEqual(executor.job_ids, {"new-e2e-job-a": "7", "new-e2e-job-b": "8", "new-e2e-missing": "9"})
-        # and the jobs the pipeline allows to fail (never a critical miss)
-        self.assertEqual(executor.unreliable_jobs, {"new-e2e-job-b"})
 
     @patch(f"{MODULE}._job_candidates", return_value={"new-e2e-other": ["TestX"]})
     @patch(f"{MODULE}.get_pipeline")
@@ -196,6 +194,7 @@ class TestSharedEvaluator(unittest.TestCase):
         executor._index.add_tests("job", "candidates", {"TestPass", "TestFail", "TestFlaky", "TestSkipKeep"})
         evaluator = DatadogDynTestEvaluator(MagicMock(), IndexKind.JEV, executor, "42", telemetry_handler=MagicMock())
         evaluator.index = executor.index()  # normally set by initialize()
+        evaluator._unreliable_jobs = set()  # skip the (networked) allow-failure fetch
         results = evaluator.evaluate([])  # DatadogDynTestEvaluator.evaluate, no subclass
         self.assertEqual(len(results), 1)
         result = results[0]

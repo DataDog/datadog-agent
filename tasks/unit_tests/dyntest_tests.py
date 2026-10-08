@@ -27,11 +27,11 @@ class TestEvaluateIndex(unittest.TestCase):
         self.assertTrue(executor.call_args.kwargs["require_pipeline_commit"])
         evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False, ignore_sha_mismatch=True)
         self.assertFalse(executor.call_args.kwargs["require_pipeline_commit"])
-        # The shared evaluator plugs in through the standard interface; the
-        # jev path additionally passes the executor's live allow-failure set
-        # so tests in those jobs are never critical misses
+        # The shared evaluator is constructed exactly like for coverage: the
+        # Jev executor plugs in through the standard interface only (the
+        # allow-failure job filtering is the evaluator's own, not wired here)
         options = evaluator.call_args.kwargs
-        self.assertIs(options["unreliable_jobs"], executor.return_value.unreliable_jobs)
+        self.assertNotIn("unreliable_jobs", options)
         self.assertNotIn("test_env", options)
         self.assertNotIn("lookback_days", options)
         self.assertIsInstance(options["telemetry_handler"], ConsoleTelemetryHandler)
@@ -57,8 +57,6 @@ class TestEvaluateIndex(unittest.TestCase):
         self.assertEqual(evaluator.call_count, 3)
         self.assertEqual(sleep.call_count, 2)
         self.assertNotIn("test_env", evaluator.call_args.kwargs)
-        # The allow-failure filter is jev-only: coverage is unchanged
-        self.assertEqual(evaluator.call_args.kwargs["unreliable_jobs"], set())
         self.assertEqual(set(evaluator.return_value.evaluate.call_args.args[0]), {"pkg", "pkg/file.go"})
 
     def test_invalid_arguments(self):

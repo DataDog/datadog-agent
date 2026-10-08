@@ -17,6 +17,7 @@ from dataclasses import dataclass
 
 from invoke import Context
 
+from tasks.libs.ciproviders.gitlab_api import get_pipeline
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import get_ci_test_events
 from tasks.libs.dynamic_test.executor import DynTestExecutor
@@ -153,7 +154,6 @@ class DynTestEvaluator(ABC):
         executor: DynTestExecutor,
         pipeline_id: str,
         telemetry_handler: TelemetryHandler | None = None,
-        unreliable_jobs: set[str] | None = None,
     ):
         """Initialize the evaluator.
 
@@ -166,9 +166,6 @@ class DynTestEvaluator(ABC):
             executor: Executor with lazy index loading capability
             pipeline_id: CI pipeline ID to evaluate against
             telemetry_handler: Optional telemetry handler for sending events and metrics
-            unreliable_jobs: Optional set of job names the pipeline allows to fail; failing tests
-                in them are not critical misses. May be filled after construction (the Jev executor
-                learns its jobs in init_index) - pass the executor's live set
         """
         self.ctx = ctx
         self.executor = executor
@@ -180,11 +177,25 @@ class DynTestEvaluator(ABC):
         # The exception that made initialize() fail, if any: lets callers
         # distinguish error types (the console only shows a summary line).
         self.initialization_error: Exception | None = None
-        # Failing tests in jobs the pipeline allows to fail are not critical
-        # misses: GitLab ignores those jobs' result. The set may be filled
-        # lazily (the Jev executor learns them in init_index, after the
-        # evaluator's construction) - pass the executor's live set.
-        self.unreliable_jobs = unreliable_jobs if unreliable_jobs is not None else set()
+        # Cache of the pipeline's allow-failure jobs (see the unreliable_jobs
+        # property); None = not fetched yet
+        self._unreliable_jobs: set[str] | None = None
+
+    @property
+    def unreliable_jobs(self) -> set[str]:
+        """Jobs of the evaluated pipeline GitLab allows to fail (cached).
+
+        Failing tests in those jobs are not critical misses. Fetched lazily
+        so evaluations whose jobs all pass never pay the pipeline jobs walk;
+        a fetch failure fails open to an empty set (nothing is filtered).
+        """
+        if self._unreliable_jobs is None:
+            try:
+                self._unreliable_jobs = pipeline_jobs_allowed_to_fail(self.pipeline_id)
+            except Exception as e:
+                print(f"[flaky-filter] could not fetch the pipeline's allow-failure jobs, not filtering: {e}")
+                self._unreliable_jobs = set()
+        return self._unreliable_jobs
 
     @abstractmethod
     def list_tests_for_job(self, job_name: str) -> list[ExecutedTest]:
@@ -423,6 +434,21 @@ This indicates an issue with the dynamic test system that may affect CI performa
             )
 
         return EvaluationResult(job, actual_executed_tests, predicted_executed_tests, not_executed_failing_tests)
+
+
+def pipeline_jobs_allowed_to_fail(pipeline_id: str) -> set[str]:
+    """Names of the pipeline's completed jobs that GitLab allows to fail.
+
+    GitLab ignores the result of an allow-failure job, so tests failing there
+    are known-unreliable. python-gitlab collapses list-valued query params
+    (scope=["success", "failed"] reaches the API as one scope), so each
+    status is queried separately; iterator=True walks every page.
+    """
+    pipeline = get_pipeline("DataDog/datadog-agent", pipeline_id)
+    jobs = []
+    for scope in ("success", "failed"):
+        jobs.extend(pipeline.jobs.list(scope=scope, iterator=True))
+    return {job.name for job in jobs if getattr(job, "allow_failure", False)}
 
 
 def executed_tests_from_events(events: list) -> list[ExecutedTest]:

@@ -1,7 +1,13 @@
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from tasks.libs.dynamic_test.evaluator import DatadogDynTestEvaluator, DynTestEvaluator, ExecutedTest
+from tasks.libs.dynamic_test.evaluator import (
+    DatadogDynTestEvaluator,
+    DynTestEvaluator,
+    ExecutedTest,
+    pipeline_jobs_allowed_to_fail,
+)
 from tasks.libs.dynamic_test.index import DynamicTestIndex, IndexKind
 from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler
 
@@ -26,6 +32,9 @@ class TestDynTestEvaluator(unittest.TestCase):
         self.evaluator = _FakeEvaluator(
             MagicMock(), IndexKind.PACKAGE, self.executor, "42", telemetry_handler=self.telemetry
         )
+        # the allow-failure fetch is networked; the evaluator tests are not
+        # about it (see test_unreliable_jobs_fetch_fails_open)
+        self.evaluator._unreliable_jobs = set()
 
     def test_initialize_success(self):
         self.assertTrue(self.evaluator.initialize())
@@ -68,13 +77,45 @@ class TestDynTestEvaluator(unittest.TestCase):
         misses: GitLab ignores those jobs' result, so a failure there is
         known-unreliable."""
         self.executor.tests_to_run_per_job.return_value = {"job": set()}
-        # passed by reference, as the Jev executor's live set: filled in
-        # init_index, which runs during initialize(), after construction
-        self.evaluator.unreliable_jobs.add("job")
+        # the cached allow-failure set, as a fetch from GitLab would fill it
+        self.evaluator._unreliable_jobs = {"job"}
         self.assertTrue(self.evaluator.initialize())
         result = self.evaluator.evaluate([])[0]
         self.assertEqual(result.not_executed_failing_tests, set())
         self.assertEqual(result.actual_executed_tests, {"TestPass", "TestFail", "TestFlaky"})
+
+    @patch("tasks.libs.dynamic_test.evaluator.pipeline_jobs_allowed_to_fail")
+    def test_unreliable_jobs_fetch_fails_open(self, allowed):
+        """If the pipeline jobs cannot be fetched, nothing is filtered (the
+        misses stay visible) instead of hiding them all."""
+        evaluator = _FakeEvaluator(MagicMock(), IndexKind.PACKAGE, self.executor, "42", telemetry_handler=MagicMock())
+        evaluator._unreliable_jobs = None  # not fetched yet
+        allowed.side_effect = RuntimeError("gitlab down")
+        self.assertEqual(evaluator.unreliable_jobs, set())
+        # and the failure is cached, not retried per job
+        allowed.side_effect = None
+        self.assertEqual(evaluator.unreliable_jobs, set())
+
+    @patch("tasks.libs.dynamic_test.evaluator.get_pipeline")
+    def test_pipeline_jobs_allowed_to_fail(self, get_pipeline):
+        """Allow-failure job names across the success and failed scopes."""
+        pipeline = get_pipeline.return_value
+        pipeline.jobs.list.side_effect = [
+            iter(
+                [
+                    SimpleNamespace(name="new-e2e-ok", allow_failure=False),
+                    SimpleNamespace(name="new-e2e-allowed", allow_failure=True),
+                ]
+            ),
+            iter(
+                [
+                    SimpleNamespace(name="new-e2e-failed-allowed", allow_failure=True),
+                    SimpleNamespace(name="new-e2e-failed", allow_failure=False),
+                ]
+            ),
+        ]
+        self.assertEqual(pipeline_jobs_allowed_to_fail("42"), {"new-e2e-allowed", "new-e2e-failed-allowed"})
+        self.assertEqual([c.kwargs["scope"] for c in pipeline.jobs.list.call_args_list], ["success", "failed"])
 
     def test_summary_lists_the_missed_failing_tests(self):
         """The global summary warning names the skipped failing tests and their
