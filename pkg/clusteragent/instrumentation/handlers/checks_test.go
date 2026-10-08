@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -315,12 +316,28 @@ func TestHandle_Update(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h, cs, ts := newHandler()
 			cr := newCR("test", "default", tt.targetKind, tt.targetName, []datadoghq.DatadogInstrumentationCheckConfig{
-				{Integration: "redisdb", Instances: []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})}},
+				{
+					Integration:             "redisdb",
+					Instances:               []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					IgnoreAutodiscoveryTags: true,
+					CheckTagCardinality:     "high",
+					JMXMetrics:              []runtime.RawExtension{rawJSON(t, map[string]interface{}{"include": map[string]string{"domain": "java.lang"}})},
+				},
 			})
 
 			_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
 			require.NoError(t, err)
-			assert.Len(t, configsForCR(cr, cs, ts), 1)
+			configs := configsForCR(cr, cs, ts)
+			require.Len(t, configs, 1)
+			assert.True(t, configs[0].IgnoreAutodiscoveryTags)
+			assert.Equal(t, "high", configs[0].CheckTagCardinality)
+			assert.NotEmpty(t, configs[0].MetricConfig)
+
+			// Removing options restores the inherited Agent settings.
+			cr.Spec.Config.Checks[0].IgnoreAutodiscoveryTags = false
+			cr.Spec.Config.Checks[0].CheckTagCardinality = ""
+			cr.Spec.Config.Checks[0].JMXMetrics = nil
+			cr.Generation++
 
 			cr.Spec.Config.Checks = append(cr.Spec.Config.Checks, datadoghq.DatadogInstrumentationCheckConfig{
 				Integration: "nginx",
@@ -330,7 +347,13 @@ func TestHandle_Update(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, metav1.ConditionTrue, status.Status)
 			assert.Contains(t, status.Message, "2 check(s) configured")
-			assert.Len(t, configsForCR(cr, cs, ts), 2)
+			configs = configsForCR(cr, cs, ts)
+			require.Len(t, configs, 2)
+			for _, cfg := range configs {
+				assert.False(t, cfg.IgnoreAutodiscoveryTags)
+				assert.Empty(t, cfg.CheckTagCardinality)
+				assert.Nil(t, cfg.MetricConfig)
+			}
 		})
 	}
 }
@@ -405,13 +428,20 @@ func TestServiceCheckTemplateStore_NotifyOnChange(t *testing.T) {
 }
 
 func TestTranslateCheck(t *testing.T) {
+	const metrics = `[{"include":{"domain":"java.lang","attribute":{"ThreadCount":{"alias":"jvm.thread_count","metric_type":"gauge"}}}},{"exclude":{"bean":"java.lang:type=Memory"}}]`
+	var rawMetrics []runtime.RawExtension
+	require.NoError(t, json.Unmarshal([]byte(metrics), &rawMetrics))
 	tests := []struct {
-		name             string
-		check            datadoghq.DatadogInstrumentationCheckConfig
-		expectedInit     string
-		expectedInstLen  int
-		expectedADIDs    []string
-		instanceContains []string
+		name                string
+		check               datadoghq.DatadogInstrumentationCheckConfig
+		expectedInit        string
+		expectedInstLen     int
+		expectedADIDs       []string
+		instanceContains    []string
+		expectedIgnoreTags  bool
+		expectedCardinality string
+		expectedMetrics     string
+		expectedError       string
 	}{
 		{
 			name: "empty init config defaults to {}",
@@ -451,22 +481,125 @@ func TestTranslateCheck(t *testing.T) {
 			expectedADIDs:    []string{adtypes.KubeContainerNameIdentifier("app")},
 			instanceContains: []string{"host1", "host2"},
 		},
+		{
+			name: "low cardinality with JMX metrics",
+			check: datadoghq.DatadogInstrumentationCheckConfig{
+				Integration:             "jmx",
+				ContainerName:           "app",
+				Instances:               []runtime.RawExtension{{Raw: []byte(`{"host":"%%host%%","port":9999}`)}},
+				IgnoreAutodiscoveryTags: false,
+				CheckTagCardinality:     "low",
+				JMXMetrics:              rawMetrics,
+			},
+			expectedInit:        "{}",
+			expectedInstLen:     1,
+			expectedADIDs:       []string{adtypes.KubeContainerNameIdentifier("app")},
+			expectedIgnoreTags:  false,
+			expectedCardinality: "low",
+			expectedMetrics:     metrics,
+		},
+		{
+			name: "orchestrator cardinality with JMX metrics",
+			check: datadoghq.DatadogInstrumentationCheckConfig{
+				Integration:             "jmx",
+				ContainerName:           "app",
+				Instances:               []runtime.RawExtension{{Raw: []byte(`{"host":"%%host%%","port":9999}`)}},
+				IgnoreAutodiscoveryTags: true,
+				CheckTagCardinality:     "orchestrator",
+				JMXMetrics:              rawMetrics,
+			},
+			expectedInit:        "{}",
+			expectedInstLen:     1,
+			expectedADIDs:       []string{adtypes.KubeContainerNameIdentifier("app")},
+			expectedIgnoreTags:  true,
+			expectedCardinality: "orchestrator",
+			expectedMetrics:     metrics,
+		},
+		{
+			name: "high cardinality with JMX metrics",
+			check: datadoghq.DatadogInstrumentationCheckConfig{
+				Integration:             "jmx",
+				ContainerName:           "app",
+				Instances:               []runtime.RawExtension{{Raw: []byte(`{"host":"%%host%%","port":9999}`)}},
+				IgnoreAutodiscoveryTags: true,
+				CheckTagCardinality:     "high",
+				JMXMetrics:              rawMetrics,
+			},
+			expectedInit:        "{}",
+			expectedInstLen:     1,
+			expectedADIDs:       []string{adtypes.KubeContainerNameIdentifier("app")},
+			expectedIgnoreTags:  true,
+			expectedCardinality: "high",
+			expectedMetrics:     metrics,
+		},
+		{
+			name: "empty JMX metrics",
+			check: datadoghq.DatadogInstrumentationCheckConfig{
+				Integration: "jmx",
+				JMXMetrics:  []runtime.RawExtension{},
+			},
+			expectedInit: "{}",
+		},
+		{
+			name: "JMX metrics from runtime object",
+			check: datadoghq.DatadogInstrumentationCheckConfig{
+				Integration: "jmx",
+				JMXMetrics: []runtime.RawExtension{{Object: &unstructured.Unstructured{
+					Object: map[string]interface{}{"include": map[string]interface{}{"domain": "java.lang"}},
+				}}},
+			},
+			expectedInit:    "{}",
+			expectedMetrics: `[{"include":{"domain":"java.lang"}}]`,
+		},
+		{
+			name: "invalid JMX metrics",
+			check: datadoghq.DatadogInstrumentationCheckConfig{
+				Integration: "jmx",
+				JMXMetrics:  []runtime.RawExtension{{Raw: []byte(`{"include":`)}},
+			},
+			expectedError: "jmx_metrics:",
+		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cr := newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{tt.check})
-			h, cs, _ := newHandler()
-			_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
-			require.NoError(t, err)
-
-			configs, _ := cs.ListConfigs()
-			require.Len(t, configs, 1)
-			assert.Equal(t, tt.expectedInit, string(configs[0].InitConfig))
-			require.Len(t, configs[0].Instances, tt.expectedInstLen)
-			require.ElementsMatch(t, tt.expectedADIDs, configs[0].ADIdentifiers)
-
-			for i, substr := range tt.instanceContains {
-				assert.Contains(t, string(configs[0].Instances[i]), substr)
+	for _, targetKind := range []string{"Deployment", "Service"} {
+		t.Run(targetKind, func(t *testing.T) {
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					cr := newCR("test", "default", targetKind, "app", []datadoghq.DatadogInstrumentationCheckConfig{tt.check})
+					h, cs, ts := newHandler()
+					status, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
+					require.NoError(t, err)
+					configs := configsForCR(cr, cs, ts)
+					if tt.expectedError != "" {
+						assert.Equal(t, metav1.ConditionFalse, status.Status)
+						assert.Equal(t, "TranslationFailed", status.Reason)
+						assert.Contains(t, status.Message, tt.expectedError)
+						assert.Empty(t, configs)
+						return
+					}
+					require.Equal(t, metav1.ConditionTrue, status.Status)
+					require.Len(t, configs, 1)
+					cfg := configs[0]
+					assert.Equal(t, tt.expectedInit, string(cfg.InitConfig))
+					require.Len(t, cfg.Instances, tt.expectedInstLen)
+					if targetKind == "Service" {
+						assert.Empty(t, cfg.ADIdentifiers)
+					} else {
+						require.ElementsMatch(t, tt.expectedADIDs, cfg.ADIdentifiers)
+					}
+					for i, substr := range tt.instanceContains {
+						assert.Contains(t, string(cfg.Instances[i]), substr)
+					}
+					assert.Equal(t, tt.expectedIgnoreTags, cfg.IgnoreAutodiscoveryTags)
+					assert.Equal(t, tt.expectedCardinality, cfg.CheckTagCardinality)
+					if tt.expectedMetrics == "" {
+						assert.Nil(t, cfg.MetricConfig)
+					} else {
+						assert.JSONEq(t, tt.expectedMetrics, string(cfg.MetricConfig))
+						// The translated list must be consumable by the JMX config merger.
+						require.NoError(t, cfg.AddMetrics(cfg.MetricConfig))
+						assert.Contains(t, string(cfg.InitConfig), "java.lang")
+					}
+				})
 			}
 		})
 	}

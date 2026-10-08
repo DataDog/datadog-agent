@@ -173,7 +173,7 @@ func (h *ChecksHandler) Handle(_ context.Context, event instrumentation.EventTyp
 }
 
 func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {
-	initConfig, instances, err := translateCheckFields(check)
+	initConfig, instances, metricConfig, err := translateCheckFields(check)
 	if err != nil {
 		return integration.Config{}, err
 	}
@@ -184,32 +184,38 @@ func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadogh
 	}
 
 	return integration.Config{
-		Name:          check.Integration,
-		ADIdentifiers: adIdentifiers,
-		InitConfig:    initConfig,
-		Instances:     instances,
-		CELSelector:   rootOwnerCELFilter(cr.Spec.TargetRef, cr.Namespace),
-		Source:        fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
+		Name:                    check.Integration,
+		ADIdentifiers:           adIdentifiers,
+		InitConfig:              initConfig,
+		Instances:               instances,
+		MetricConfig:            metricConfig,
+		IgnoreAutodiscoveryTags: check.IgnoreAutodiscoveryTags,
+		CheckTagCardinality:     check.CheckTagCardinality,
+		CELSelector:             rootOwnerCELFilter(cr.Spec.TargetRef, cr.Namespace),
+		Source:                  fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
 }
 
 func translateServiceCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {
-	initConfig, instances, err := translateCheckFields(check)
+	initConfig, instances, metricConfig, err := translateCheckFields(check)
 	if err != nil {
 		return integration.Config{}, err
 	}
 	return integration.Config{
-		Name:       check.Integration,
-		InitConfig: initConfig,
-		Instances:  instances,
-		Source:     fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
+		Name:                    check.Integration,
+		InitConfig:              initConfig,
+		Instances:               instances,
+		MetricConfig:            metricConfig,
+		IgnoreAutodiscoveryTags: check.IgnoreAutodiscoveryTags,
+		CheckTagCardinality:     check.CheckTagCardinality,
+		Source:                  fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
 }
 
-func translateCheckFields(check datadoghq.DatadogInstrumentationCheckConfig) (integration.Data, []integration.Data, error) {
+func translateCheckFields(check datadoghq.DatadogInstrumentationCheckConfig) (integration.Data, []integration.Data, integration.Data, error) {
 	initConfig, err := rawExtensionToData(check.InitConfig)
 	if err != nil {
-		return nil, nil, fmt.Errorf("init_config: %w", err)
+		return nil, nil, nil, fmt.Errorf("init_config: %w", err)
 	}
 	if len(initConfig) == 0 {
 		initConfig = integration.Data("{}")
@@ -219,12 +225,20 @@ func translateCheckFields(check datadoghq.DatadogInstrumentationCheckConfig) (in
 	for j, raw := range check.Instances {
 		data, err := rawExtensionToData(raw)
 		if err != nil {
-			return nil, nil, fmt.Errorf("instances[%d]: %w", j, err)
+			return nil, nil, nil, fmt.Errorf("instances[%d]: %w", j, err)
 		}
 		instances = append(instances, data)
 	}
 
-	return initConfig, instances, nil
+	var metricConfig integration.Data
+	if len(check.JMXMetrics) > 0 {
+		metricConfig, err = json.Marshal(check.JMXMetrics)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("jmx_metrics: %w", err)
+		}
+	}
+
+	return initConfig, instances, metricConfig, nil
 }
 
 func rawExtensionToData(raw runtime.RawExtension) (integration.Data, error) {
