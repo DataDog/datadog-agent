@@ -33,6 +33,29 @@ var managementModes = []ManagementMode{
 	ManagementModeWindowsService,
 }
 
+// serviceSupervisors are the tags emitted on agent_service_running. ManagementModeNone is
+// excluded: "not up under anyone" is absence after zero-drop, not a supervisor:none series.
+var serviceSupervisors = []string{
+	string(ManagementModeProcmgr),
+	string(ManagementModeSystemd),
+	string(ManagementModeWindowsService),
+}
+
+// serviceRunningUnder reports whether agent_service_running for supervisor should be set for
+// service. Unlike management_mode (ownership: procmgr = listed in any state), this is up-only:
+// procmgr requires ProcessStateRunning; legacy modes already imply the unit/service is active.
+func serviceRunningUnder(service ServiceSnapshot, supervisor string) bool {
+	switch ManagementMode(supervisor) {
+	case ManagementModeProcmgr:
+		return service.ManagementMode == ManagementModeProcmgr &&
+			service.ProcmgrState == ProcessStateRunning
+	case ManagementModeSystemd, ManagementModeWindowsService:
+		return service.ManagementMode == ManagementMode(supervisor)
+	default:
+		return false
+	}
+}
+
 // ManagementMode describes how an agent service process is supervised on the host.
 type ManagementMode string
 
