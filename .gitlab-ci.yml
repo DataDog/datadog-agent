@@ -1168,8 +1168,6 @@ workflow:
         - cmd/security-agent/**/*
         - cmd/system-probe/**/*
         - cmd/trace-agent/**/*
-        # dd-procmgr owns start/stop of Agent child processes on Windows; state and
-        # config-gate changes show up in service-test (e.g. disabled process/trace).
         - pkg/procmgr/**/*
         - pkg/util/winutil/servicemain/**/*
         - pkg/util/winutil/messagestrings/**/*
