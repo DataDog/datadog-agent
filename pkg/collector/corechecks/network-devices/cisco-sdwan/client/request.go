@@ -6,6 +6,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/cenkalti/backoff/v7"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client/middleware"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -47,8 +49,8 @@ func (b *cappedBackOff) NextBackOff() time.Duration {
 }
 
 // newRequest creates a new request for this client.
-func (client *Client) newRequest(method, uri string, body io.Reader) (*http.Request, error) {
-	return http.NewRequestWithContext(client.ctx, method, client.endpoint+uri, body)
+func (client *Client) newRequest(ctx context.Context, method, uri string, body io.Reader) (*http.Request, error) {
+	return http.NewRequestWithContext(ctx, method, client.endpoint+uri, body)
 }
 
 // do exec a request with authentication
@@ -84,8 +86,8 @@ func (client *Client) do(req *http.Request) ([]byte, int, http.Header, error) {
 }
 
 // get executes a GET request to the given endpoint with the given query params
-func (client *Client) get(endpoint string, params map[string]string) ([]byte, error) {
-	req, err := client.newRequest("GET", endpoint, nil)
+func (client *Client) get(ctx context.Context, endpoint string, params map[string]string) ([]byte, error) {
+	req, err := client.newRequest(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -99,21 +101,19 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 	var statusCode int
 
 	operation := func() ([]byte, error) {
-		err := client.authenticate()
+		err := client.authenticate(ctx)
 		if err != nil {
-			return nil, client.authRetryError(err)
-		}
-
-		err = client.waitForRateLimit()
-		if err != nil {
-			return nil, backoff.Permanent(err)
+			return nil, client.authRetryError(ctx, err)
 		}
 
 		var bytes []byte
 		var header http.Header
 		bytes, statusCode, header, err = client.do(req)
-		if client.ctx.Err() != nil {
-			return nil, backoff.Permanent(client.ctx.Err())
+		if err != nil && ctx.Err() != nil {
+			return nil, backoff.Permanent(ctx.Err())
+		}
+		if errors.Is(err, middleware.ErrRateLimitTimeout) {
+			return nil, backoff.Permanent(err)
 		}
 
 		if err == nil && isValidStatusCode(statusCode) {
@@ -123,7 +123,7 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 		return nil, client.retryError(statusCode, header, err)
 	}
 
-	bytes, err := backoff.Retry(client.ctx, operation,
+	bytes, err := backoff.Retry(ctx, operation,
 		backoff.WithBackOff(client.retryBackOff()),
 		backoff.WithMaxTries(uint(max(client.maxAttempts, 1))),
 		backoff.WithMaxElapsedTime(client.maxRetryDuration),
@@ -136,8 +136,8 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 	if err == nil {
 		return bytes, nil
 	}
-	if client.ctx.Err() != nil {
-		return nil, client.ctx.Err()
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 	var authErr *authError
 	if errors.Is(err, backoff.ErrPermanent) || errors.As(err, &authErr) {
@@ -159,9 +159,9 @@ func (client *Client) retryBackOff() backoff.BackOff {
 // transient failures of the authentication requests are retried like API requests, honoring
 // Retry-After. Everything else, including invalid credentials, rate limiter and cancellation
 // errors, stops retrying.
-func (client *Client) authRetryError(err error) error {
+func (client *Client) authRetryError(ctx context.Context, err error) error {
 	var authErr *authError
-	if client.ctx.Err() == nil && client.backoffEnabled && errors.As(err, &authErr) && authErr.transient() {
+	if ctx.Err() == nil && client.backoffEnabled && errors.As(err, &authErr) && authErr.transient() {
 		return client.retryError(authErr.statusCode, authErr.header, err)
 	}
 	return backoff.Permanent(err)
@@ -211,8 +211,8 @@ func parseRetryAfter(header http.Header) time.Duration {
 }
 
 // get wraps client.get with generic type content and unmarshalling (methods can't use generics)
-func get[T Content](client *Client, endpoint string, params map[string]string) (*Response[T], error) {
-	bytes, err := client.get(endpoint, params)
+func get[T Content](ctx context.Context, client *Client, endpoint string, params map[string]string) (*Response[T], error) {
+	bytes, err := client.get(ctx, endpoint, params)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +232,7 @@ func isValidStatusCode(code int) bool {
 }
 
 // getMoreEntries gets all results from paginated endpoints
-func getMoreEntries[T Content](client *Client, endpoint string, pageInfo PageInfo) ([]T, error) {
+func getMoreEntries[T Content](ctx context.Context, client *Client, endpoint string, pageInfo PageInfo) ([]T, error) {
 	var responses []T
 	currentPageInfo := pageInfo
 
@@ -252,7 +252,7 @@ func getMoreEntries[T Content](client *Client, endpoint string, pageInfo PageInf
 		log.Tracef("Pagination params for page %d from endpoint %s : %v", page+1+1, endpoint, nextParams)
 
 		// Call the endpoint with the new params
-		data, err := get[T](client, endpoint, nextParams)
+		data, err := get[T](ctx, client, endpoint, nextParams)
 		if err != nil {
 			return nil, err
 		}
@@ -281,14 +281,14 @@ func getNextPaginationParams(info PageInfo, count string) (map[string]string, er
 }
 
 // getAllEntries gets all entries from paginated endpoints
-func getAllEntries[T Content](client *Client, endpoint string, params map[string]string) (*Response[T], error) {
-	data, err := get[T](client, endpoint, params)
+func getAllEntries[T Content](ctx context.Context, client *Client, endpoint string, params map[string]string) (*Response[T], error) {
+	data, err := get[T](ctx, client, endpoint, params)
 	if err != nil {
 		return nil, err
 	}
 
 	// If API response is paginated, get the rest
-	entries, err := getMoreEntries[T](client, endpoint, data.PageInfo)
+	entries, err := getMoreEntries[T](ctx, client, endpoint, data.PageInfo)
 	if err != nil {
 		return nil, err
 	}
