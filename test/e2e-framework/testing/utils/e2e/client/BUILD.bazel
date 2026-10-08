@@ -63,6 +63,7 @@ dd_agent_go_test(
         "k8s_test.go",
     ],
     embed = [":client"],
+    exec_properties = {"go_link.resources:memory": "6144"},
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

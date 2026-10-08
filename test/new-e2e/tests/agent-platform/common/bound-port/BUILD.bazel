@@ -21,6 +21,7 @@ dd_agent_go_test(
     name = "bound-port_test",
     srcs = ["boundport_test.go"],
     embed = [":bound-port"],
+    exec_properties = {"go_link.resources:memory": "6144"},
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

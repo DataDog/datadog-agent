@@ -20,6 +20,7 @@ dd_agent_go_test(
     name = "installscript_test",
     srcs = ["installscript_test.go"],
     embed = [":installscript"],
+    exec_properties = {"go_link.resources:memory": "6144"},
     deps = [
         "//test/e2e-framework/components/datadog/fakeintake",
         "//test/e2e-framework/testing/components",
