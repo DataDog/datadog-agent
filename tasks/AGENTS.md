@@ -21,6 +21,10 @@ tasks/
 └── BUILD.bazel         — Bazel targets for task code that has been migrated
 ```
 
+Unit-test files must end in `_tests.py`; nested test directories need an
+`__init__.py` for unittest discovery. Verify the reported test count: a successful
+command reporting `Ran 0 tests` has not validated the code.
+
 ## Task Categories
 
 ### Build and Test
@@ -51,6 +55,11 @@ Supporting library code:
 
 These tasks are typically CI-only and depend on GitLab/GitHub tokens available in CI
 environment variables.
+
+Reuse `libs/ciproviders/gitlab_api.py` for GitLab authentication and clients.
+For a pipeline's jobs, use `pipeline.jobs.list(iterator=True)` (or `get_all=True`),
+not `project.jobs.list(pipeline_id=...)`: the project endpoint does not filter by
+pipeline, and list calls do not fetch every page unless explicitly requested.
 
 ### Everything Else
 

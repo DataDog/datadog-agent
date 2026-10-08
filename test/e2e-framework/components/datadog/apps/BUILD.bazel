@@ -1,8 +1,19 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "apps",
     srcs = ["version.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps",
     visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+    ],
+)
+
+dd_agent_go_test(
+    name = "apps_test",
+    srcs = ["version_test.go"],
+    embed = [":apps"],
+    deps = ["//test/e2e-framework/common/config"],
 )

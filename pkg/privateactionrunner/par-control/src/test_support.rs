@@ -14,6 +14,7 @@ use tonic::{Request, Response, Status};
 pub struct FakeProcmgr {
     state: Mutex<Option<i32>>,
     start_result: Mutex<Option<Status>>,
+    describe_result: Mutex<Option<Status>>,
     starts: Mutex<Vec<String>>,
     describes: Mutex<usize>,
     hang: bool,
@@ -46,6 +47,16 @@ impl FakeProcmgr {
         })
     }
 
+    /// A failed start whose follow-up describe fails too, as a daemon that went
+    /// away between the two calls would.
+    pub fn failing_start_and_describe(start: Status, describe: Status) -> Arc<Self> {
+        Arc::new(Self {
+            start_result: Mutex::new(Some(start)),
+            describe_result: Mutex::new(Some(describe)),
+            ..Default::default()
+        })
+    }
+
     pub fn started(&self) -> Vec<String> {
         self.starts.lock().unwrap().clone()
     }
@@ -69,6 +80,9 @@ impl ProcessManager for FakeService {
             std::future::pending::<()>().await;
         }
         *self.0.describes.lock().unwrap() += 1;
+        if let Some(status) = self.0.describe_result.lock().unwrap().take() {
+            return Err(status);
+        }
         let state = self
             .0
             .state

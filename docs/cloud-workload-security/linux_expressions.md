@@ -201,7 +201,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`process.ancestors.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`process.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`process.ancestors.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`process.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`process.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -210,6 +212,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`process.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -317,7 +320,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`process.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`process.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`process.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`process.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`process.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -326,6 +331,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`process.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -410,7 +416,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`process.parent.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`process.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`process.parent.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`process.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`process.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -419,6 +427,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`process.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -585,7 +594,9 @@ A process used some capabilities
 | Property | Definition |
 | -------- | ------------- |
 | [`capabilities.attempted`](#capabilities-attempted-doc) | Bitmask of the capabilities that the process attempted to use since it started running |
+| [`capabilities.attempted_host_userns`](#capabilities-attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace |
 | [`capabilities.used`](#capabilities-used-doc) | Bitmask of the capabilities that the process successfully used since it started running |
+| [`capabilities.used_host_userns`](#capabilities-used_host_userns-doc) | Bitmask of the capabilities that the process successfully used since it started running, through checks that always target the initial user namespace |
 
 ### Event `capset`
 
@@ -816,7 +827,9 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exec.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`exec.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`exec.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`exec.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`exec.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`exec.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exec.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -825,6 +838,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exec.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`exec.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`exec.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`exec.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exec.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -947,7 +961,9 @@ A process was terminated
 | [`exit.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exit.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exit.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`exit.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`exit.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`exit.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`exit.cause`](#exit-cause-doc) | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
 | [`exit.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`exit.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
@@ -958,6 +974,7 @@ A process was terminated
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exit.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`exit.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`exit.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`exit.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`exit.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exit.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -1417,7 +1434,9 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`ptrace.tracee.ancestors.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`ptrace.tracee.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`ptrace.tracee.ancestors.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`ptrace.tracee.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`ptrace.tracee.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -1426,6 +1445,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`ptrace.tracee.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`ptrace.tracee.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`ptrace.tracee.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`ptrace.tracee.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -1533,7 +1553,9 @@ A ptrace command was executed
 | [`ptrace.tracee.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`ptrace.tracee.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`ptrace.tracee.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`ptrace.tracee.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`ptrace.tracee.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`ptrace.tracee.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -1542,6 +1564,7 @@ A ptrace command was executed
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`ptrace.tracee.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`ptrace.tracee.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`ptrace.tracee.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`ptrace.tracee.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -1626,7 +1649,9 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`ptrace.tracee.parent.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`ptrace.tracee.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`ptrace.tracee.parent.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`ptrace.tracee.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`ptrace.tracee.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -1635,6 +1660,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`ptrace.tracee.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`ptrace.tracee.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`ptrace.tracee.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`ptrace.tracee.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -1929,7 +1955,9 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`setrlimit.target.ancestors.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`setrlimit.target.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`setrlimit.target.ancestors.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`setrlimit.target.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`setrlimit.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -1938,6 +1966,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`setrlimit.target.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`setrlimit.target.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`setrlimit.target.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`setrlimit.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`setrlimit.target.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2045,7 +2074,9 @@ A setrlimit command was executed
 | [`setrlimit.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`setrlimit.target.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`setrlimit.target.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`setrlimit.target.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`setrlimit.target.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`setrlimit.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2054,6 +2085,7 @@ A setrlimit command was executed
 | [`setrlimit.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`setrlimit.target.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`setrlimit.target.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`setrlimit.target.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`setrlimit.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`setrlimit.target.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2138,7 +2170,9 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`setrlimit.target.parent.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`setrlimit.target.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`setrlimit.target.parent.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`setrlimit.target.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`setrlimit.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2147,6 +2181,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`setrlimit.target.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`setrlimit.target.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`setrlimit.target.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`setrlimit.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`setrlimit.target.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2346,7 +2381,9 @@ A signal was sent
 | [`signal.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`signal.target.ancestors.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`signal.target.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`signal.target.ancestors.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`signal.target.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`signal.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2355,6 +2392,7 @@ A signal was sent
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`signal.target.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`signal.target.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`signal.target.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`signal.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2462,7 +2500,9 @@ A signal was sent
 | [`signal.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`signal.target.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`signal.target.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`signal.target.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`signal.target.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`signal.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2471,6 +2511,7 @@ A signal was sent
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`signal.target.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`signal.target.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`signal.target.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`signal.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2555,7 +2596,9 @@ A signal was sent
 | [`signal.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`signal.target.parent.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`signal.target.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`signal.target.parent.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`signal.target.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`signal.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2564,6 +2607,7 @@ A signal was sent
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`signal.target.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`signal.target.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`signal.target.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`signal.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2990,12 +3034,36 @@ Constants: [Kernel Capability constants](#kernel-capability-constants)
 
 
 
+### `*.caps_attempted_host_userns` {#common-process-caps_attempted_host_userns-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace
+
+`*.caps_attempted_host_userns` has 14 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
 ### `*.caps_used` {#common-process-caps_used-doc}
 Type: int
 
 Definition: Bitmask of the capabilities that the process successfully used
 
 `*.caps_used` has 14 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `*.caps_used_host_userns` {#common-process-caps_used_host_userns-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace
+
+`*.caps_used_host_userns` has 14 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 Constants: [Kernel Capability constants](#kernel-capability-constants)
@@ -3625,6 +3693,15 @@ Definition: Process ID of the process (also called thread group ID)
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.pod_uid` {#common-containercontext-pod_uid-doc}
+Type: string
+
+Definition: Kubernetes pod UID
+
+`*.pod_uid` has 14 possible prefixes:
+`exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container` `ptrace.tracee.ancestors.container` `ptrace.tracee.container` `ptrace.tracee.parent.container` `setrlimit.target.ancestors.container` `setrlimit.target.container` `setrlimit.target.parent.container` `signal.target.ancestors.container` `signal.target.container` `signal.target.parent.container`
+
+
 ### `*.port` {#common-ipportcontext-port-doc}
 Type: int
 
@@ -3962,10 +4039,30 @@ Constants: [Kernel Capability constants](#kernel-capability-constants)
 
 
 
+### `capabilities.attempted_host_userns` {#capabilities-attempted_host_userns-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace
+
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
 ### `capabilities.used` {#capabilities-used-doc}
 Type: int
 
 Definition: Bitmask of the capabilities that the process successfully used since it started running
+
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `capabilities.used_host_userns` {#capabilities-used_host_userns-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process successfully used since it started running, through checks that always target the initial user namespace
 
 
 Constants: [Kernel Capability constants](#kernel-capability-constants)

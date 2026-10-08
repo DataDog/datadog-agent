@@ -71,7 +71,7 @@ int hook_mnt_want_write(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) trace__mnt_want_write_file(ctx_t *ctx) {
+static __always_inline int trace__mnt_want_write_file(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(mnt_want_write_file_predicate);
     if (!syscall) {
         return 0;
@@ -150,18 +150,20 @@ HOOK_SYSCALL_ENTRY1(unshare, unsigned long, flags) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_unshare_ret(void *ctx, int retval) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_UNSHARE);
+static int __attribute__((always_inline)) sys_unshare_ret(void *ctx, int retval) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE);
     if (!syscall) {
         return 0;
     }
 
     // the CLONE_NEWNS entry above is cached even with no rule loaded
     if (!is_event_enabled(EVENT_UNSHARE)) {
+        pop_syscall(EVENT_UNSHARE);
         return 0;
     }
 
     if (approve_syscall(syscall, unshare_approvers) == DISCARDED) {
+        pop_syscall(EVENT_UNSHARE);
         return 0;
     }
 
@@ -169,6 +171,8 @@ int __attribute__((always_inline)) sys_unshare_ret(void *ctx, int retval) {
         .syscall.retval = retval,
         .flags = syscall->mount.unshare_flags,
     };
+
+    pop_syscall(EVENT_UNSHARE);
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_cgroup_context(entry, &event.cgroup);
@@ -186,7 +190,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_unshare_exit, struct tracepoint_raw_syscalls
     return sys_unshare_ret(args, args->ret);
 }
 
-void __attribute__((always_inline)) fill_mount_fields(struct syscall_cache_t *syscall, struct mount_fields_t *mfields) {
+static __always_inline void fill_mount_fields(struct syscall_cache_t *syscall, struct mount_fields_t *mfields) {
     mfields->root_key = syscall->mount.root_key;
     mfields->mountpoint_key = syscall->mount.mountpoint_key;
     mfields->device = syscall->mount.device;
@@ -198,7 +202,7 @@ void __attribute__((always_inline)) fill_mount_fields(struct syscall_cache_t *sy
     bpf_probe_read_str(&mfields->fstype, sizeof(mfields->fstype), (void *)syscall->mount.fstype);
 }
 
-int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int send_detached_event(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct mount_event_t *event = SPAN_FILL_EVENT(struct mount_event_t, EVENT_MOUNT);
     if (!event) {
         return 0;
@@ -213,6 +217,10 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
     }
 
     fill_mount_fields(syscall, &event->mountfields);
+
+    // only pop EVENT_FSMOUNT, the other mount types are released by another exit hook
+    pop_syscall(EVENT_FSMOUNT);
+
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
 
@@ -221,7 +229,7 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
     return 0;
 }
 
-void __attribute__((always_inline)) handle_new_mount_impl(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type, bool detached) {
+static __always_inline void handle_new_mount_impl(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type, bool detached) {
     // populate the root dentry key
     struct dentry *root_dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.newmnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.newmnt);
@@ -268,11 +276,11 @@ void __attribute__((always_inline)) handle_new_mount_impl(void *ctx, struct sysc
     }
 }
 
-void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_cache_t *syscall, bool detached) {
+static __always_inline void handle_new_mount(void *ctx, struct syscall_cache_t *syscall, bool detached) {
     handle_new_mount_impl(ctx, syscall, KPROBE_OR_FENTRY_TYPE, detached);
 }
 
-int __attribute__((always_inline)) dr_mount_stage_one_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int dr_mount_stage_one_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall_with(mountpoint_predicate);
     if (!syscall) {
         return 0;
@@ -301,7 +309,7 @@ TAIL_CALL_TRACEPOINT_FNC(dr_mount_stage_one_callback, struct tracepoint_syscalls
     return dr_mount_stage_one_callback(args, TRACEPOINT_TYPE);
 }
 
-int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int dr_mount_stage_two_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall_with(mountpoint_predicate);
     if (!syscall) {
         return 0;
@@ -596,7 +604,7 @@ int hook_propagate_mnt(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_mount_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (retval) {
         pop_syscall(EVENT_MOUNT);
         return 0;
@@ -664,7 +672,7 @@ HOOK_SYSCALL_ENTRY3(fsmount, int, fs_fd, unsigned int, flags, unsigned int, attr
 }
 
 HOOK_SYSCALL_EXIT(fsmount) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_FSMOUNT);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_FSMOUNT);
     if (!syscall) {
         // should never happen
         return 0;
@@ -673,6 +681,8 @@ HOOK_SYSCALL_EXIT(fsmount) {
     if(syscall->retval >= 0) {
         handle_new_mount(ctx, syscall, true);
     }
+
+    pop_syscall(EVENT_FSMOUNT);
 
     return 0;
 }
@@ -690,11 +700,12 @@ HOOK_SYSCALL_ENTRY4(move_mount, int, from_dfd, const char *, from_pathname, int,
 
 
 HOOK_SYSCALL_EXIT(move_mount) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_MOVE_MOUNT);
-    if (!syscall) {
+    if (peek_syscall(EVENT_MOVE_MOUNT) == NULL) {
         // should never happen
         return 0;
     }
+
+    pop_syscall(EVENT_MOVE_MOUNT);
 
     return 0;
 }

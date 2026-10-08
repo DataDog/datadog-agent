@@ -122,6 +122,7 @@ func (s ContainerSource) String() string {
 type ContainerContext struct {
 	*Releasable
 	ContainerID     containerutils.ContainerID `field:"id,opts:gen_getters"`                                        // SECLDoc[id] Definition:`ID of the container`
+	PodUID          string                     `field:"pod_uid,opts:gen_getters"`                                   // SECLDoc[pod_uid] Definition:`Kubernetes pod UID`
 	CreatedAt       uint64                     `field:"created_at,opts:gen_getters"`                                // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
 	Tags            []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 	ContainerSource ContainerSource            `field:"-"`

@@ -62,7 +62,7 @@ func (v *baseDogstatsdReplaySuite) TestReplayWithTagEnrichment() {
 		}
 
 		tagString := strings.Join(metrics[0].Tags, ",")
-		assert.Contains(t, tagString, "image_name:ghcr.io/datadog/apps-dogstatsd",
+		assert.Contains(t, tagString, "image_name:ghcr.io/datadog/apps-dogstatsd", // the image name is baked in the capture file
 			"Expected image_name tag from replay state")
 		assert.Contains(t, tagString, "pod_name:statsd-metrics-5d5c7bdc4d-rk88h",
 			"Expected pod_name tag from replay state")
