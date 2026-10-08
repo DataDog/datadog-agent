@@ -19,7 +19,7 @@ use log::{debug, info, warn};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{RwLock, mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, RwLock};
 use tonic::Status;
 
 /// Catalog stub for a `processes.d` file that did not produce a `ProcessConfig`.
@@ -733,11 +733,15 @@ fn ambiguous_uuid_prefix(prefix: &str, matches: usize) -> Status {
     ))
 }
 
+/// Indices into the valid and invalid halves for a unique UUID prefix match.
+type UuidCatalogIndices = (Option<usize>, Option<usize>);
+type UuidCatalogPrefixResolve = Option<Result<UuidCatalogIndices, Status>>;
+
 fn resolve_uuid_prefix_across_catalog(
     procs: &[ManagedProcess],
     invalid: &[InvalidProcess],
     prefix: &str,
-) -> Option<Result<(Option<usize>, Option<usize>), Status>> {
+) -> UuidCatalogPrefixResolve {
     let proc_matches: Vec<usize> = procs
         .iter()
         .enumerate()
@@ -1745,12 +1749,10 @@ mod tests {
             "process with auto_start=false should not be running after create"
         );
         assert_eq!(procs[0].state(), ProcessState::Skipped);
-        assert!(
-            procs[0]
-                .skip_reasons()
-                .iter()
-                .any(|r| r == ManagedProcess::SKIP_REASON_AUTO_START_FALSE)
-        );
+        assert!(procs[0]
+            .skip_reasons()
+            .iter()
+            .any(|r| r == ManagedProcess::SKIP_REASON_AUTO_START_FALSE));
         Ok(())
     }
 
@@ -2108,7 +2110,7 @@ mod tests {
     mod config_gate {
         use super::*;
         use crate::config::RestartPolicy;
-        use crate::config_gate::{ConditionConfigFile, TestEnvGuard, test_env_guard};
+        use crate::config_gate::{test_env_guard, ConditionConfigFile, TestEnvGuard};
         use std::io::Write;
 
         /// Every test in this module evaluates gates, which read the live process
@@ -2252,12 +2254,10 @@ mod tests {
                 ProcessState::Skipped,
                 "a gated process that never started is Skipped"
             );
-            assert!(
-                procs[0]
-                    .skip_reasons()
-                    .iter()
-                    .any(|r| r == ManagedProcess::SKIP_REASON_CONFIG_GATE)
-            );
+            assert!(procs[0]
+                .skip_reasons()
+                .iter()
+                .any(|r| r == ManagedProcess::SKIP_REASON_CONFIG_GATE));
             Ok(())
         }
 
@@ -2642,8 +2642,8 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_gate_flap_recovers_manually_started_no_auto_start_process()
-        -> anyhow::Result<()> {
+        async fn test_gate_flap_recovers_manually_started_no_auto_start_process(
+        ) -> anyhow::Result<()> {
             let (_env, dir) = gate_env();
             let yaml = write_agent_yaml(dir.path(), true);
             let mut def = gated_on_failure_sleep_def("manual-svc", &yaml);
