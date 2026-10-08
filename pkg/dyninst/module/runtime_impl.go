@@ -95,6 +95,8 @@ type irIssueError ir.Issue
 
 func (e *irIssueError) Error() string { return e.Message }
 
+var errProbeLoadFailed = errors.New("failed to install probe")
+
 func (rt *runtimeImpl) Load(
 	programID ir.ProgramID,
 	executable actuator.Executable,
@@ -157,8 +159,12 @@ func (rt *runtimeImpl) Load(
 				rt.diagnostics.reportError(runtimeID, probe, irGenFailed.err, "IRGenFailed")
 			}
 		default:
+			log.Debugf(
+				"failed to load program %v for runtime %v: %v",
+				programID, runtimeID.runtimeID, retErr,
+			)
 			for _, probe := range probes {
-				rt.diagnostics.reportError(runtimeID, probe, retErr, "LoadingFailed")
+				rt.diagnostics.reportError(runtimeID, probe, errProbeLoadFailed, "LoadingFailed")
 			}
 		}
 	}()

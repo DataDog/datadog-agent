@@ -76,10 +76,17 @@ cc_shared_library(
     deps = [":rtloader"],
 )
 
+pkg_files(
+    name = "rtloader_header_embedded_files",
+    srcs = [":rtloader_header_files"],
+    prefix = "embedded/include",
+)
+
 dd_cc_packaged(
     name = "rtloader_pkg",
+    dest_dir = "embedded/lib",
     input = ":datadog-agent-rtloader",
-    installed_files = [":rtloader_header_pkg_files"],
+    installed_files = [":rtloader_header_embedded_files"],
     version = VERSION,
     visibility = ["//visibility:public"],
 )
@@ -98,6 +105,10 @@ cc_import(
 # Use in go_library cdeps instead of //rtloader:rtloader to avoid static linking.
 cc_library(
     name = "rtloader_dynamic",
+    # rtloader doesn't link with the python runtime directly but loads it at
+    # runtime. We explicit it here so that dd_collect_dependencies can collect
+    # the needed files during packaging
+    data = [":three_pkg"],
     visibility = ["//visibility:public"],
     deps = [
         ":_rtloader_shared",
@@ -228,14 +239,9 @@ cc_shared_library(
 
 dd_cc_packaged(
     name = "three_pkg",
+    dest_dir = "embedded/lib",
     input = ":datadog-agent-three",
     visibility = ["//visibility:public"],
-)
-
-pkg_files(
-    name = "rtloader_header_pkg_files",
-    srcs = [":rtloader_header_files"],
-    prefix = "include",
 )
 
 pkg_files(
@@ -252,14 +258,10 @@ pkg_filegroup(
     srcs = select({
         "@platforms//os:windows": [":rtloader_three_pkg_files"],
         "//conditions:default": [
-            ":rtloader_header_pkg_files",
+            ":rtloader_header_embedded_files",
             ":rtloader_pkg_packaged",
             ":three_pkg_packaged",
         ],
-    }),
-    prefix = select({
-        "@platforms//os:windows": "",
-        "//conditions:default": "embedded",
     }),
     visibility = ["//packages:__subpackages__"],
 )
@@ -295,7 +297,6 @@ dd_collect_dependencies(
 pkg_filegroup(
     name = "python_env_transitive",
     srcs = [":_python_env_transitive"],
-    prefix = "embedded",
 )
 
 pkg_filegroup(

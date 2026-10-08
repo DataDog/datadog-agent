@@ -63,9 +63,16 @@ go_library(
 
 dd_agent_go_test(
     name = "oracle_test",
-    srcs = ["custom_query_schedule_test.go"],
+    srcs = [
+        "custom_query_schedule_test.go",
+        "testsetup_helpers_test.go",
+        "testsetup_test.go",
+    ],
     embed = [":oracle"],
     gotags_sets = [["oracle"]],
-    include_default = False,
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "@com_github_data_dog_go_sqlmock//:go-sqlmock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

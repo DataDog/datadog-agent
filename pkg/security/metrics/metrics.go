@@ -102,6 +102,12 @@ var (
 	MetricDNSSameIDDifferentSize = newRuntimeMetric(".dns_response_collector.dns_same_id_different_size")
 	// MetricDiscardedDNSPackets DNS responses that were discarded because of not matching a rule
 	MetricDiscardedDNSPackets = newRuntimeMetric(".dns_response_collector.dns_discarded_packets")
+	// MetricDNSADCorrelationHits DNS responses attributed back to the process that asked the question
+	MetricDNSADCorrelationHits = newRuntimeMetric(".dns_response_collector.ad_correlation_hits")
+	// MetricDNSADCorrelationMisses DNS responses whose question was unknown, stale, or ambiguous
+	MetricDNSADCorrelationMisses = newRuntimeMetric(".dns_response_collector.ad_correlation_misses")
+	// MetricDNSADCorrelationCollisions DNS questions dropped because two processes were in flight on the same key
+	MetricDNSADCorrelationCollisions = newRuntimeMetric(".dns_response_collector.ad_correlation_collisions")
 
 	// filtering metrics
 
@@ -370,6 +376,12 @@ var (
 	// MetricSBOMResolverSBOMCacheMiss is the name of the metric used to report the number of SBOMs that weren't in cache
 	// Tags: -
 	MetricSBOMResolverSBOMCacheMiss = newRuntimeMetric(".sbom_resolver.sbom_cache.miss")
+	// MetricSBOMResolverEnrichedSBOMForwarded is the name of the metric used to report the number of enriched SBOMs forwarded to the core agent
+	// Tags: -
+	MetricSBOMResolverEnrichedSBOMForwarded = newRuntimeMetric(".sbom_resolver.enriched_sbom_forwarded")
+	// MetricSBOMResolverEnrichedSBOMForwardDropped is the name of the metric used to report the number of enriched SBOMs dropped instead of being forwarded to the core agent
+	// Tags: -
+	MetricSBOMResolverEnrichedSBOMForwardDropped = newRuntimeMetric(".sbom_resolver.enriched_sbom_forward_dropped")
 
 	// CGroup resolver metrics
 

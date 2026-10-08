@@ -10,6 +10,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/patterns"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // LogPatternExtractorName is the canonical name for the log pattern extractor.
@@ -26,6 +27,9 @@ const defaultGarbageCollectionInterval = 1 * time.Hour
 
 // LogPatternExtractorConfig holds hyperparameters for the log pattern extractor.
 type LogPatternExtractorConfig struct {
+	// MaxPatterns caps live patterns across all tag groups, including patterns
+	// below the emission threshold. Non-positive values use the default.
+	MaxPatterns int `json:"max_patterns,omitempty"`
 	// This will disable all optimizations like MinClusterSizeBeforeEmit, ClusterTimeToLiveSec, etc.
 	DisableOptimizations bool `json:"disable_optimizations,omitempty"`
 	// MinClusterSizeBeforeEmit is the minimum number of logs matching a pattern
@@ -65,6 +69,7 @@ func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
 	parseHexDump := true
 
 	return LogPatternExtractorConfig{
+		MaxPatterns:                  3000,
 		MinClusterSizeBeforeEmit:     5,
 		ClusterTimeToLiveSec:         int64(defaultClusterTimeToLive.Seconds()),
 		GarbageCollectionIntervalSec: int64(defaultGarbageCollectionInterval.Seconds()),
@@ -120,6 +125,9 @@ var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
 func NewLogPatternExtractor(cfg LogPatternExtractorConfig) *LogPatternExtractor {
 	// Apply defaults first and then refresh config to finalize it
 	defaults := DefaultLogPatternExtractorConfig()
+	if cfg.MaxPatterns <= 0 {
+		cfg.MaxPatterns = defaults.MaxPatterns
+	}
 	if cfg.MinClusterSizeBeforeEmit <= 0 {
 		cfg.MinClusterSizeBeforeEmit = defaults.MinClusterSizeBeforeEmit
 	}
@@ -145,6 +153,7 @@ func NewLogPatternExtractor(cfg LogPatternExtractorConfig) *LogPatternExtractor 
 		return patterns.NewPatternClustererWithTokenizer(tok, cfg.MinTokenMatchRatio)
 	}
 	tc := NewTaggedPatternClustererWithFactory(registry, newSub)
+	tc.MaxPatterns = cfg.MaxPatterns
 	if cfg.MaxPatternsPerGroup > 0 {
 		tc.MaxClustersPerGroup = cfg.MaxPatternsPerGroup
 	}
@@ -174,8 +183,7 @@ func (e *LogPatternExtractor) Reset() {
 	}
 }
 
-// SetObserverTelemetry allows wiring direct telemetry emission without
-// transporting telemetry through extractor outputs.
+// SetObserverTelemetry wires direct telemetry emission.
 func (e *LogPatternExtractor) SetObserverTelemetry(t *observerTelemetry) {
 	e.telemetry = t
 	if t != nil {
@@ -233,10 +241,11 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 
 	group, _ := e.registry.Lookup(groupHash)
 	result.Metrics = []observerdef.MetricOutput{{
-		Name:  metricName,
-		Value: 1,
-		Tags:  log.Tags(),
-		Context: &observerdef.MetricContext{
+		Name:       metricName,
+		Value:      1,
+		Tags:       tagset.CompositeTagsFromSlice(log.Tags()),
+		HasContext: true,
+		Context: observerdef.MetricContext{
 			Pattern:   cluster.PatternString(),
 			Example:   truncate(message, 160),
 			Source:    e.Name(),

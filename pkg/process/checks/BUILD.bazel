@@ -12,6 +12,7 @@ go_library(
         "exports.go",
         "format.go",
         "host_info.go",
+        "host_passwd_nix.go",
         "interval.go",
         "net.go",
         "net_linux.go",
@@ -212,6 +213,7 @@ dd_agent_go_test(
         "container_check_test.go",
         "format_test.go",
         "host_info_test.go",
+        "host_passwd_nix_test.go",
         "interval_test.go",
         "net_darwin_test.go",
         "net_linux_test.go",
@@ -229,13 +231,18 @@ dd_agent_go_test(
         "process_test.go",
         "process_windows_test.go",
         "runner_test.go",
+        "sysprobe_stats_linux_test.go",
         "sysprobe_stats_test.go",
         "system_info_darwin_test.go",
         "system_info_test.go",
+        "system_info_windows_test.go",
         "user_nix_test.go",
     ],
     embed = [":checks"],
-    env_inherit = ["PATH"],  # CollectSystemInfo invokes system utilities (e.g. ioreg on macOS)
+    env_inherit = select({
+        "@platforms//os:macos": ["PATH"],  # hostinfo collection invokes ioreg on macOS
+        "//conditions:default": [],
+    }),
     gotags_sets = [["systemprobechecks"]],
     deps = [
         "//comp/core",
@@ -281,60 +288,27 @@ dd_agent_go_test(
         "@org_uber_go_fx//:fx",
         "@org_uber_go_mock//gomock",
     ] + select({
-        "@rules_go//go/platform:aix": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
         "@rules_go//go/platform:android": [
             "//pkg/discovery/tracermetadata/model",
             "//pkg/discovery/usm",
             "//pkg/languagedetection/languagemodels",
-            "@com_github_patrickmn_go_cache//:go-cache",
+            "//pkg/proto/pbgo/process",
+            "@org_golang_google_protobuf//proto",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/system-probe/config",
             "//pkg/system-probe/config/types",
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:dragonfly": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:freebsd": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:illumos": [
-            "@com_github_patrickmn_go_cache//:go-cache",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/system-probe/config",
             "//pkg/system-probe/config/types",
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:js": [
-            "@com_github_patrickmn_go_cache//:go-cache",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/discovery/tracermetadata/model",
             "//pkg/discovery/usm",
             "//pkg/languagedetection/languagemodels",
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:netbsd": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:openbsd": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:osx": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:plan9": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:qnx": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:solaris": [
-            "@com_github_patrickmn_go_cache//:go-cache",
+            "//pkg/proto/pbgo/process",
+            "@org_golang_google_protobuf//proto",
         ],
         "//conditions:default": [],
     }),

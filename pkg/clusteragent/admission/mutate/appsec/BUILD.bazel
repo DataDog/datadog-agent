@@ -42,11 +42,11 @@ dd_agent_go_test(
         "clusterchecks",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     include_default = False,
     deps = [
         "//cmd/cluster-agent/admission",
+        "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//pkg/clusteragent/admission/common",
         "//pkg/clusteragent/admission/mutate/common",

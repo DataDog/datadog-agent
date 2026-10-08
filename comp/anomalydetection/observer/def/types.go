@@ -11,7 +11,6 @@
 package observer
 
 import (
-	"sort"
 	"strconv"
 	"strings"
 
@@ -21,8 +20,11 @@ import (
 
 // Handle is the lightweight observation interface passed to other components.
 type Handle interface {
-	// ObserveMetric observes a DogStatsD metric sample.
-	ObserveMetric(sample MetricView)
+	// ObserveMetric observes a metric with the metrics pipeline's resolved
+	// aggregation identity. A zero contextKey asks the observer to derive it
+	// from the resolved name, host, and tags after tag-dependent rules and
+	// before key-dependent filtering and storage.
+	ObserveMetric(sample MetricView, contextKey uint64)
 
 	// ObserveLog observes a log message.
 	ObserveLog(msg LogView)
@@ -33,13 +35,14 @@ type HandleFunc func(name string) Handle
 
 // MetricView provides read-only access to a metric sample.
 //
-// This interface exists to prevent data races. The underlying metric data may be
-// reused immediately after ObserveMetric returns, so implementations must not
-// store the MetricView itself. Copy any needed values synchronously.
+// MetricView is valid only for the duration of ObserveMetric. Implementations
+// must copy values they need before returning, except for GetTags, whose
+// backing-storage lifetime is documented below.
 type MetricView interface {
 	GetName() string
 	GetValue() float64
 	// GetTags returns the final tags used by the metrics pipeline for this sample.
+	// Its backing slices must remain immutable and valid after ObserveMetric returns.
 	GetTags() tagset.CompositeTags
 	// GetHost returns the host dimension carried separately from metric tags.
 	GetHost() string
@@ -86,17 +89,18 @@ type LogObserver interface {
 // The storage keeps sum/count summaries so aggregation is specified at read
 // time, not write time.
 type MetricOutput struct {
-	Name    string
-	Value   float64
-	Host    string
-	Tags    []string
-	Context *MetricContext // optional; stored on the series for anomaly enrichment
+	Name  string
+	Value float64
+	Host  string
+	// Tags is an immutable view retained by the observer storage.
+	Tags       tagset.CompositeTags
+	Context    MetricContext // stored on the series when HasContext is true
+	HasContext bool
 }
 
 // LogMetricsExtractorOutput is what we obtain when we process a log with a log metrics extractor.
 type LogMetricsExtractorOutput struct {
-	Metrics   []MetricOutput
-	Telemetry []ObserverTelemetry
+	Metrics []MetricOutput
 	// EvictedMetricNames lists metric names whose series should be removed from
 	// storage (e.g. after extractor LRU eviction or garbage collection).
 	EvictedMetricNames []string
@@ -113,8 +117,8 @@ type SeriesDescriptor struct {
 	Name string
 	// Host is the host dimension carried separately from Tags.
 	Host string
-	// Tags are the series-level tags (e.g. ["host:web-1", "env:prod"]).
-	Tags []string
+	// Tags are immutable, unordered series-level tags.
+	Tags tagset.CompositeTags
 	// Aggregate is the aggregation applied when reading the series.
 	Aggregate Aggregate
 }
@@ -134,37 +138,60 @@ func (sd SeriesDescriptor) String() string {
 // DisplayName returns a display string with tags (e.g. "cpu.user:avg{host:web-1}").
 func (sd SeriesDescriptor) DisplayName() string {
 	base := sd.String()
-	tags := sd.Tags
-	if sd.Host != "" && !containsTag(tags, "host:"+sd.Host) {
-		tags = append([]string{"host:" + sd.Host}, tags...)
-	}
-	if len(tags) == 0 {
+	if sd.Tags.Len() == 0 && sd.Host == "" {
 		return base
 	}
-	return base + "{" + strings.Join(tags, ",") + "}"
-}
-
-// Key returns a stable string suitable for use as a map key.
-// Format: "namespace|name:agg|host|tag1,tag2,...".
-func (sd SeriesDescriptor) Key() string {
-	aggStr := AggregateString(sd.Aggregate)
-	var tagStr string
-	if len(sd.Tags) > 0 {
-		sorted := make([]string, len(sd.Tags))
-		copy(sorted, sd.Tags)
-		sort.Strings(sorted)
-		tagStr = strings.Join(sorted, ",")
-	}
-	return sd.Namespace + "|" + sd.Name + ":" + aggStr + "|" + sd.Host + "|" + tagStr
-}
-
-func containsTag(tags []string, tag string) bool {
-	for _, candidate := range tags {
-		if candidate == tag {
-			return true
+	var b strings.Builder
+	b.WriteString(base)
+	b.WriteByte('{')
+	if sd.Host != "" && !sd.Tags.Find(func(tag string) bool { return tag == "host:"+sd.Host }) {
+		b.WriteString("host:")
+		b.WriteString(sd.Host)
+		if sd.Tags.Len() > 0 {
+			b.WriteByte(',')
 		}
 	}
-	return false
+	b.WriteString(sd.Tags.Join(","))
+	b.WriteByte('}')
+	return b.String()
+}
+
+// Key returns a stable string suitable for use as a map key. Tags are
+// unordered, so visit them in lexical order without flattening or copying the
+// read-only CompositeTags view. Duplicate tags do not change identity.
+// Format: "namespace|name:agg|host|tag1,tag2,...".
+func (sd SeriesDescriptor) Key() string {
+	var b strings.Builder
+	b.WriteString(sd.Namespace)
+	b.WriteByte('|')
+	b.WriteString(sd.Name)
+	b.WriteByte(':')
+	b.WriteString(AggregateString(sd.Aggregate))
+	b.WriteByte('|')
+	b.WriteString(sd.Host)
+	b.WriteByte('|')
+	var previous string
+	havePrevious := false
+	for {
+		var next string
+		found := false
+		sd.Tags.ForEach(func(tag string) {
+			if (!havePrevious || tag > previous) && (!found || tag < next) {
+				next = tag
+				found = true
+			}
+		})
+		if !found {
+			break
+		}
+		if havePrevious {
+			b.WriteByte(',')
+		}
+		b.WriteString(next)
+		previous = next
+		havePrevious = true
+	}
+	return b.String()
 }
 
 // SeriesRef is a compact numeric handle for a stored time series.
@@ -216,12 +243,10 @@ type Anomaly struct {
 	Source SeriesDescriptor
 	// SourceRef is the storage handle for this anomaly's series, enabling
 	// direct compact ID lookups without string-key reconstruction. Nil for
-	// anomalies without a storage-backed series (e.g. log anomalies, RRCF).
+	// standalone scorer inputs without storage. Detector outputs must set it.
 	SourceRef *QueryHandle
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
-	Title        string
-	Description  string
 	// Context carries optional enrichment about the originating signal, such as
 	// a synthesized pattern and example source data.
 	Context   *MetricContext
@@ -252,7 +277,41 @@ type AnomalyDebugInfo struct {
 	Threshold      float64 // threshold that was crossed
 	CurrentValue   float64 // value at detection time
 	DeviationSigma float64 // how many sigmas from baseline
+
+	// Change-point test details. ScanMW and ScanWelch retain these values so
+	// output formatters can explain a detected change without detector state.
+	PValue        float64 `json:"-"`
+	EffectSize    float64 `json:"-"`
+	TestStatistic float64 `json:"-"` // ScanWelch's absolute Welch t statistic
+
+	// BOCPD retains both trigger measurements because either one can open an
+	// alert. BOCPDTrigger identifies which threshold caused this anomaly.
+	BOCPDTrigger         BOCPDTrigger `json:"-"`
+	BOCPDChangePointProb float64      `json:"-"`
+	BOCPDShortRunMass    float64      `json:"-"`
+	BOCPDShortRunLength  int          `json:"-"`
+
+	// Holt residual model values captured before detector state is updated.
+	Forecast  float64 `json:"-"`
+	Residual  float64 `json:"-"`
+	HoltLevel float64 `json:"-"`
+	HoltTrend float64 `json:"-"`
+	ValueMADs float64 `json:"-"`
+
+	// TukeyBiweightSampleCount is the baseline window size used by the Tukey
+	// biweight detector.
+	TukeyBiweightSampleCount int     `json:"-"`
+	TukeyBiweightZScore      float64 `json:"-"`
 }
+
+// BOCPDTrigger identifies the BOCPD condition that opened an anomaly.
+type BOCPDTrigger uint8
+
+const (
+	BOCPDTriggerUnknown BOCPDTrigger = iota
+	BOCPDTriggerChangePointProbability
+	BOCPDTriggerShortRunMass
+)
 
 // ReportOutput is the output model passed to reporters after each advance cycle.
 // It carries enough data for reporters to act without reaching back into engine internals.
@@ -271,7 +330,7 @@ type Series struct {
 	Namespace string
 	Name      string
 	Host      string
-	Tags      []string
+	Tags      tagset.CompositeTags
 	Points    []Point
 }
 
@@ -281,31 +340,9 @@ type Point struct {
 	Value     float64
 }
 
-// MetricKind distinguishes gauge (absolute level) from counter (increment) telemetry.
-// Gauge samples are exported with Set; counter samples with Add(value) on the backend counter.
-type MetricKind int
-
-const (
-	// MetricKindGauge is the default: the metric value is an absolute level.
-	MetricKindGauge MetricKind = iota
-	// MetricKindCounter indicates the value is a delta added to the named counter.
-	MetricKindCounter
-)
-
-// ObserverTelemetry describes a telemetry event emitted by the observer.
-type ObserverTelemetry struct {
-	DetectorName string
-	Metric       MetricView
-	Log          LogView
-	// Kind is telemetry metric kind; zero means gauge (backward compatible).
-	Kind MetricKind
-}
-
 // DetectionResult contains outputs from anomaly detection.
 type DetectionResult struct {
 	Anomalies []Anomaly
-	// Used to debug anomaly detectors
-	Telemetry []ObserverTelemetry
 }
 
 // SeriesDetector analyzes a time series for anomalies.
@@ -495,7 +532,7 @@ type SeriesMeta struct {
 	Namespace string
 	Name      string
 	Host      string
-	Tags      []string
+	Tags      tagset.CompositeTags
 }
 
 // Aggregate specifies which statistic to extract from summary stats.
@@ -566,9 +603,9 @@ type StorageReader interface {
 	// has been evicted.
 	GetSeriesMeta(ref SeriesRef) *SeriesMeta
 
-	// GetContext returns the optional context associated with a series, or nil
-	// if the series has been evicted or has no context.
-	GetContext(ref SeriesRef) *MetricContext
+	// GetContext returns a value snapshot of the series context. The boolean is
+	// false if the series has been evicted or has no context.
+	GetContext(ref SeriesRef) (MetricContext, bool)
 
 	// GetSeriesRange returns points within a time range (start, end].
 	// Start is exclusive, end is inclusive. Use start=0 to read from the beginning.
@@ -580,10 +617,6 @@ type StorageReader interface {
 	// the callback. Uses a pooled buffer internally so steady-state calls
 	// do not allocate. Returns false if the series was not found.
 	ForEachPoint(handle SeriesRef, start, end int64, agg Aggregate, fn func(*Series, Point)) bool
-
-	// PointCount returns the number of raw data points for a series without
-	// loading or converting them. Returns 0 if the series is not found.
-	PointCount(handle SeriesRef) int
 
 	// PointCountUpTo returns the number of raw data points with timestamp <= endTime.
 	// Uses binary search for efficiency. Returns 0 if the series is not found.
@@ -608,8 +641,7 @@ type StorageReader interface {
 	SeriesGeneration() uint64
 }
 
-// Detector is the flexible detection interface where detectors pull data from storage.
-// This supports multivariate detection across multiple series.
+// Detector analyzes stored series for anomalies.
 type Detector interface {
 	Name() string
 
@@ -618,7 +650,8 @@ type Detector interface {
 	Ready() bool
 
 	// Detect is called periodically by the scheduler.
-	// The detector queries storage for whatever data it needs.
+	// The detector queries storage for whatever data it needs. Each returned
+	// anomaly must identify its source series and aggregate with SourceRef.
 	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).
 	Detect(storage StorageReader, dataTime int64) DetectionResult
 }

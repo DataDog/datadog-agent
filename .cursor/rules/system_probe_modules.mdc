@@ -124,12 +124,26 @@ struct stats_value {
 
 **Important**: Always use `__u32`, `__u64`, etc. (double underscore) and include `ktypes.h`.
 
-### Go Generate Directives
+### Runtime Compilation Bundle
 
-```go
-//go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/<check>-kern.c pkg/ebpf/bytecode/build/runtime/<check>.c pkg/ebpf/c
-//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/<check>.c pkg/ebpf/bytecode/runtime/<check>.go runtime
+Runtime compilation bundles are Bazel targets in `pkg/ebpf/bytecode/BUILD.bazel`,
+not `//go:generate` directives. Add a `runtime_compilation_bundle` and wire it
+through `tasks/system_probe.py` / `pkg/ebpf/BUILD.bazel` as described in
+`pkg/collector/corechecks/ebpf/AGENTS.md` § “Register eBPF Programs in Build System”.
+
+```python
+runtime_compilation_bundle(
+    name = "<check-name>",
+    header_deps = _CORECHECK_HEADERS,  # or _NETWORK_HEADERS / custom
+    include_dirs = ["pkg/ebpf/c"],
+    out_go_file = "//pkg/ebpf/bytecode/runtime:<check-name>.go",
+    out_name = "<check-name>",
+    src_c = "//pkg/collector/corechecks/ebpf/c/runtime:<check-name>-kern.c",
+)
 ```
+
+Update the committed integrity hash with
+`bazel run //pkg/ebpf/bytecode:<check-name>_verify`.
 
 ### Tracer Pattern
 
@@ -265,26 +279,14 @@ ninja_gpu_ebpf_programs(nw, co_re_build_dir)
 
 ### Runtime Compiler Files (Optional)
 
-**Runtime compilation is optional** if your check can rely entirely on CO-RE programs (kernels 5.4+ with BTF). For broader kernel compatibility, provide a runtime compilation fallback:
-
-```python
-runtime_compiler_files = {
-    "pkg/path/to/your_check.go": "output-name",
-}
-```
+**Runtime compilation is optional** if your check can rely entirely on CO-RE programs (kernels 5.4+ with BTF). For broader kernel compatibility, provide a runtime compilation fallback via a `runtime_compilation_bundle` in `pkg/ebpf/bytecode/BUILD.bazel` (see above and `pkg/collector/corechecks/ebpf/AGENTS.md`).
 
 **Note**: Most production checks include runtime compilation for older kernel support, but CO-RE-only is acceptable if your use case targets modern kernels.
 
-**Examples**:
+**Examples** (existing targets in `pkg/ebpf/bytecode/BUILD.bazel`):
 
-```python
-# Simple checks
-"pkg/collector/corechecks/ebpf/probe/oomkill/oom_kill.go": "oom-kill",
-"pkg/collector/corechecks/ebpf/probe/seccomptracer/seccomp_tracer.go": "seccomp-tracer",
-
-# Complex/standalone
-"pkg/gpu/compile.go": "gpu",
-```
+- Simple checks: `oom-kill`, `tcp-queue-length`
+- Complex/standalone: `gpu`, `usm`, `tracer`, `runtime-security`
 
 ### CGO Type Files (Optional)
 
@@ -406,8 +408,8 @@ dda inv system-probe.build
 # Run tests (handles privileges internally, no sudo needed)
 dda inv system-probe.test -p <path>
 
-# Generate runtime compilation files
-go generate ./pkg/collector/corechecks/ebpf/probe/<check>/<check>.go
+# Update a runtime compilation integrity hash
+bazel run //pkg/ebpf/bytecode:<check-name>_verify
 
 # Generate CGO types
 cd pkg/collector/corechecks/ebpf/probe/<check> && \

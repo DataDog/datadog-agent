@@ -23,6 +23,7 @@ import (
 	filestorage "github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage"
 	attributesprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	cumulativetodeltaprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
+	deltatorateprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatorateprocessor"
 	filterprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
 	groupbyattrsprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor"
 	k8sattributesprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
@@ -35,9 +36,12 @@ import (
 	filelogreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver"
 	fluentforwardreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver"
 	hostmetricsreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver"
+	httpcheckreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/httpcheckreceiver"
 	jaegerreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 	k8sclusterreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver"
+	k8seventsreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8seventsreceiver"
 	k8sobjectsreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver"
+	kafkareceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 	kubeletstatsreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver"
 	podmanreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/podmanreceiver"
 	prometheusreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver"
@@ -117,9 +121,12 @@ func components() (otelcol.Factories, error) {
 		filelogreceiver.NewFactory(),
 		fluentforwardreceiver.NewFactory(),
 		hostmetricsreceiver.NewFactory(),
+		httpcheckreceiver.NewFactory(),
 		jaegerreceiver.NewFactory(),
 		k8sclusterreceiver.NewFactory(),
+		k8seventsreceiver.NewFactory(),
 		k8sobjectsreceiver.NewFactory(),
+		kafkareceiver.NewFactory(),
 		kubeletstatsreceiver.NewFactory(),
 		podmanreceiver.NewFactory(),
 		prometheusreceiver.NewFactory(),
@@ -136,9 +143,12 @@ func components() (otelcol.Factories, error) {
 		filelogreceiver.NewFactory().Type():       "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.159.0",
 		fluentforwardreceiver.NewFactory().Type(): "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.159.0",
 		hostmetricsreceiver.NewFactory().Type():   "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.159.0",
+		httpcheckreceiver.NewFactory().Type():     "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/httpcheckreceiver v0.159.0",
 		jaegerreceiver.NewFactory().Type():        "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.159.0",
 		k8sclusterreceiver.NewFactory().Type():    "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver v0.159.0",
+		k8seventsreceiver.NewFactory().Type():     "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8seventsreceiver v0.159.0",
 		k8sobjectsreceiver.NewFactory().Type():    "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver v0.159.0",
+		kafkareceiver.NewFactory().Type():         "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.159.0",
 		kubeletstatsreceiver.NewFactory().Type():  "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver v0.159.0",
 		podmanreceiver.NewFactory().Type():        "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/podmanreceiver v0.159.0",
 		prometheusreceiver.NewFactory().Type():    "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.159.0",
@@ -169,6 +179,7 @@ func components() (otelcol.Factories, error) {
 		memorylimiterprocessor.NewFactory(),
 		attributesprocessor.NewFactory(),
 		cumulativetodeltaprocessor.NewFactory(),
+		deltatorateprocessor.NewFactory(),
 		filterprocessor.NewFactory(),
 		groupbyattrsprocessor.NewFactory(),
 		k8sattributesprocessor.NewFactory(),
@@ -186,6 +197,7 @@ func components() (otelcol.Factories, error) {
 		memorylimiterprocessor.NewFactory().Type():        "go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.159.0",
 		attributesprocessor.NewFactory().Type():           "github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.159.0",
 		cumulativetodeltaprocessor.NewFactory().Type():    "github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor v0.159.0",
+		deltatorateprocessor.NewFactory().Type():          "github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatorateprocessor v0.159.0",
 		filterprocessor.NewFactory().Type():               "github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.159.0",
 		groupbyattrsprocessor.NewFactory().Type():         "github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor v0.159.0",
 		k8sattributesprocessor.NewFactory().Type():        "github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.159.0",

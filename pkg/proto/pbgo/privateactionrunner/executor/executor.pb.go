@@ -22,6 +22,262 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type GetControlPlaneConfigRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetControlPlaneConfigRequest) Reset() {
+	*x = GetControlPlaneConfigRequest{}
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetControlPlaneConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetControlPlaneConfigRequest) ProtoMessage() {}
+
+func (x *GetControlPlaneConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetControlPlaneConfigRequest.ProtoReflect.Descriptor instead.
+func (*GetControlPlaneConfigRequest) Descriptor() ([]byte, []int) {
+	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{0}
+}
+
+type GetControlPlaneConfigResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SplitMode     bool                   `protobuf:"varint,1,opt,name=split_mode,json=splitMode,proto3" json:"split_mode,omitempty"`
+	LogLevel      string                 `protobuf:"bytes,2,opt,name=log_level,json=logLevel,proto3" json:"log_level,omitempty"`
+	Identity      *ControlPlaneIdentity  `protobuf:"bytes,3,opt,name=identity,proto3" json:"identity,omitempty"`
+	Runtime       *ControlPlaneRuntime   `protobuf:"bytes,4,opt,name=runtime,proto3" json:"runtime,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetControlPlaneConfigResponse) Reset() {
+	*x = GetControlPlaneConfigResponse{}
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetControlPlaneConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetControlPlaneConfigResponse) ProtoMessage() {}
+
+func (x *GetControlPlaneConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetControlPlaneConfigResponse.ProtoReflect.Descriptor instead.
+func (*GetControlPlaneConfigResponse) Descriptor() ([]byte, []int) {
+	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *GetControlPlaneConfigResponse) GetSplitMode() bool {
+	if x != nil {
+		return x.SplitMode
+	}
+	return false
+}
+
+func (x *GetControlPlaneConfigResponse) GetLogLevel() string {
+	if x != nil {
+		return x.LogLevel
+	}
+	return ""
+}
+
+func (x *GetControlPlaneConfigResponse) GetIdentity() *ControlPlaneIdentity {
+	if x != nil {
+		return x.Identity
+	}
+	return nil
+}
+
+func (x *GetControlPlaneConfigResponse) GetRuntime() *ControlPlaneRuntime {
+	if x != nil {
+		return x.Runtime
+	}
+	return nil
+}
+
+type ControlPlaneIdentity struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Urn           string                 `protobuf:"bytes,1,opt,name=urn,proto3" json:"urn,omitempty"`
+	PrivateKey    string                 `protobuf:"bytes,2,opt,name=private_key,json=privateKey,proto3" json:"private_key,omitempty"`
+	OrgId         int64                  `protobuf:"varint,3,opt,name=org_id,json=orgId,proto3" json:"org_id,omitempty"`
+	RunnerId      string                 `protobuf:"bytes,4,opt,name=runner_id,json=runnerId,proto3" json:"runner_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ControlPlaneIdentity) Reset() {
+	*x = ControlPlaneIdentity{}
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ControlPlaneIdentity) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ControlPlaneIdentity) ProtoMessage() {}
+
+func (x *ControlPlaneIdentity) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ControlPlaneIdentity.ProtoReflect.Descriptor instead.
+func (*ControlPlaneIdentity) Descriptor() ([]byte, []int) {
+	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ControlPlaneIdentity) GetUrn() string {
+	if x != nil {
+		return x.Urn
+	}
+	return ""
+}
+
+func (x *ControlPlaneIdentity) GetPrivateKey() string {
+	if x != nil {
+		return x.PrivateKey
+	}
+	return ""
+}
+
+func (x *ControlPlaneIdentity) GetOrgId() int64 {
+	if x != nil {
+		return x.OrgId
+	}
+	return 0
+}
+
+func (x *ControlPlaneIdentity) GetRunnerId() string {
+	if x != nil {
+		return x.RunnerId
+	}
+	return ""
+}
+
+type ControlPlaneRuntime struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	OpmsBaseUrl       string                 `protobuf:"bytes,1,opt,name=opms_base_url,json=opmsBaseUrl,proto3" json:"opms_base_url,omitempty"`
+	TaskConcurrency   int32                  `protobuf:"varint,2,opt,name=task_concurrency,json=taskConcurrency,proto3" json:"task_concurrency,omitempty"`
+	OpmsExtraHeaders  map[string]string      `protobuf:"bytes,3,rep,name=opms_extra_headers,json=opmsExtraHeaders,proto3" json:"opms_extra_headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	OpmsProxyUrl      string                 `protobuf:"bytes,4,opt,name=opms_proxy_url,json=opmsProxyUrl,proto3" json:"opms_proxy_url,omitempty"`
+	SkipSslValidation bool                   `protobuf:"varint,5,opt,name=skip_ssl_validation,json=skipSslValidation,proto3" json:"skip_ssl_validation,omitempty"`
+	MinTlsVersion     string                 `protobuf:"bytes,6,opt,name=min_tls_version,json=minTlsVersion,proto3" json:"min_tls_version,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ControlPlaneRuntime) Reset() {
+	*x = ControlPlaneRuntime{}
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ControlPlaneRuntime) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ControlPlaneRuntime) ProtoMessage() {}
+
+func (x *ControlPlaneRuntime) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ControlPlaneRuntime.ProtoReflect.Descriptor instead.
+func (*ControlPlaneRuntime) Descriptor() ([]byte, []int) {
+	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ControlPlaneRuntime) GetOpmsBaseUrl() string {
+	if x != nil {
+		return x.OpmsBaseUrl
+	}
+	return ""
+}
+
+func (x *ControlPlaneRuntime) GetTaskConcurrency() int32 {
+	if x != nil {
+		return x.TaskConcurrency
+	}
+	return 0
+}
+
+func (x *ControlPlaneRuntime) GetOpmsExtraHeaders() map[string]string {
+	if x != nil {
+		return x.OpmsExtraHeaders
+	}
+	return nil
+}
+
+func (x *ControlPlaneRuntime) GetOpmsProxyUrl() string {
+	if x != nil {
+		return x.OpmsProxyUrl
+	}
+	return ""
+}
+
+func (x *ControlPlaneRuntime) GetSkipSslValidation() bool {
+	if x != nil {
+		return x.SkipSslValidation
+	}
+	return false
+}
+
+func (x *ControlPlaneRuntime) GetMinTlsVersion() string {
+	if x != nil {
+		return x.MinTlsVersion
+	}
+	return ""
+}
+
 type HealthRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -30,7 +286,7 @@ type HealthRequest struct {
 
 func (x *HealthRequest) Reset() {
 	*x = HealthRequest{}
-	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[0]
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -42,7 +298,7 @@ func (x *HealthRequest) String() string {
 func (*HealthRequest) ProtoMessage() {}
 
 func (x *HealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[0]
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55,7 +311,7 @@ func (x *HealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthRequest.ProtoReflect.Descriptor instead.
 func (*HealthRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{0}
+	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{4}
 }
 
 // HealthResponse reports whether the executor can accept actions.
@@ -70,7 +326,7 @@ type HealthResponse struct {
 
 func (x *HealthResponse) Reset() {
 	*x = HealthResponse{}
-	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[1]
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -82,7 +338,7 @@ func (x *HealthResponse) String() string {
 func (*HealthResponse) ProtoMessage() {}
 
 func (x *HealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[1]
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -95,7 +351,7 @@ func (x *HealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthResponse.ProtoReflect.Descriptor instead.
 func (*HealthResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{1}
+	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *HealthResponse) GetReady() bool {
@@ -130,7 +386,7 @@ type RunActionRequest struct {
 
 func (x *RunActionRequest) Reset() {
 	*x = RunActionRequest{}
-	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[2]
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -142,7 +398,7 @@ func (x *RunActionRequest) String() string {
 func (*RunActionRequest) ProtoMessage() {}
 
 func (x *RunActionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[2]
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -155,7 +411,7 @@ func (x *RunActionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunActionRequest.ProtoReflect.Descriptor instead.
 func (*RunActionRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{2}
+	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *RunActionRequest) GetTask() []byte {
@@ -180,7 +436,7 @@ type RunActionResponse struct {
 
 func (x *RunActionResponse) Reset() {
 	*x = RunActionResponse{}
-	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[3]
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -192,7 +448,7 @@ func (x *RunActionResponse) String() string {
 func (*RunActionResponse) ProtoMessage() {}
 
 func (x *RunActionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[3]
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -205,7 +461,7 @@ func (x *RunActionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunActionResponse.ProtoReflect.Descriptor instead.
 func (*RunActionResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{3}
+	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RunActionResponse) GetEvent() isRunActionResponse_Event {
@@ -259,7 +515,7 @@ type ActionStatus struct {
 
 func (x *ActionStatus) Reset() {
 	*x = ActionStatus{}
-	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[4]
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -271,7 +527,7 @@ func (x *ActionStatus) String() string {
 func (*ActionStatus) ProtoMessage() {}
 
 func (x *ActionStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[4]
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -284,7 +540,7 @@ func (x *ActionStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionStatus.ProtoReflect.Descriptor instead.
 func (*ActionStatus) Descriptor() ([]byte, []int) {
-	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{4}
+	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ActionStatus) GetMessage() string {
@@ -308,7 +564,7 @@ type ActionResult struct {
 
 func (x *ActionResult) Reset() {
 	*x = ActionResult{}
-	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[5]
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -320,7 +576,7 @@ func (x *ActionResult) String() string {
 func (*ActionResult) ProtoMessage() {}
 
 func (x *ActionResult) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[5]
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -333,7 +589,7 @@ func (x *ActionResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionResult.ProtoReflect.Descriptor instead.
 func (*ActionResult) Descriptor() ([]byte, []int) {
-	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{5}
+	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ActionResult) GetOutcome() isActionResult_Outcome {
@@ -381,7 +637,30 @@ var File_datadog_privateactionrunner_executor_proto protoreflect.FileDescriptor
 
 const file_datadog_privateactionrunner_executor_proto_rawDesc = "" +
 	"\n" +
-	"*datadog/privateactionrunner/executor.proto\x12$datadog.privateactionrunner.executor\x1a,datadog/privateactionrunner/error_code.proto\"\x0f\n" +
+	"*datadog/privateactionrunner/executor.proto\x12$datadog.privateactionrunner.executor\x1a,datadog/privateactionrunner/error_code.proto\"\x1e\n" +
+	"\x1cGetControlPlaneConfigRequest\"\x88\x02\n" +
+	"\x1dGetControlPlaneConfigResponse\x12\x1d\n" +
+	"\n" +
+	"split_mode\x18\x01 \x01(\bR\tsplitMode\x12\x1b\n" +
+	"\tlog_level\x18\x02 \x01(\tR\blogLevel\x12V\n" +
+	"\bidentity\x18\x03 \x01(\v2:.datadog.privateactionrunner.executor.ControlPlaneIdentityR\bidentity\x12S\n" +
+	"\aruntime\x18\x04 \x01(\v29.datadog.privateactionrunner.executor.ControlPlaneRuntimeR\aruntime\"}\n" +
+	"\x14ControlPlaneIdentity\x12\x10\n" +
+	"\x03urn\x18\x01 \x01(\tR\x03urn\x12\x1f\n" +
+	"\vprivate_key\x18\x02 \x01(\tR\n" +
+	"privateKey\x12\x15\n" +
+	"\x06org_id\x18\x03 \x01(\x03R\x05orgId\x12\x1b\n" +
+	"\trunner_id\x18\x04 \x01(\tR\brunnerId\"\xa6\x03\n" +
+	"\x13ControlPlaneRuntime\x12\"\n" +
+	"\ropms_base_url\x18\x01 \x01(\tR\vopmsBaseUrl\x12)\n" +
+	"\x10task_concurrency\x18\x02 \x01(\x05R\x0ftaskConcurrency\x12}\n" +
+	"\x12opms_extra_headers\x18\x03 \x03(\v2O.datadog.privateactionrunner.executor.ControlPlaneRuntime.OpmsExtraHeadersEntryR\x10opmsExtraHeaders\x12$\n" +
+	"\x0eopms_proxy_url\x18\x04 \x01(\tR\fopmsProxyUrl\x12.\n" +
+	"\x13skip_ssl_validation\x18\x05 \x01(\bR\x11skipSslValidation\x12&\n" +
+	"\x0fmin_tls_version\x18\x06 \x01(\tR\rminTlsVersion\x1aC\n" +
+	"\x15OpmsExtraHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x0f\n" +
 	"\rHealthRequest\"g\n" +
 	"\x0eHealthResponse\x12\x14\n" +
 	"\x05ready\x18\x01 \x01(\bR\x05ready\x12%\n" +
@@ -398,8 +677,9 @@ const file_datadog_privateactionrunner_executor_proto_rawDesc = "" +
 	"\fActionResult\x12\x18\n" +
 	"\x06output\x18\x01 \x01(\fH\x00R\x06output\x12R\n" +
 	"\x05error\x18\x02 \x01(\v2:.datadog.privateactionrunner.errorcode.ActionPlatformErrorH\x00R\x05errorB\t\n" +
-	"\aoutcome2\xff\x01\n" +
-	"\bExecutor\x12~\n" +
+	"\aoutcome2\xa2\x03\n" +
+	"\bExecutor\x12\xa0\x01\n" +
+	"\x15GetControlPlaneConfig\x12B.datadog.privateactionrunner.executor.GetControlPlaneConfigRequest\x1aC.datadog.privateactionrunner.executor.GetControlPlaneConfigResponse\x12~\n" +
 	"\tRunAction\x126.datadog.privateactionrunner.executor.RunActionRequest\x1a7.datadog.privateactionrunner.executor.RunActionResponse0\x01\x12s\n" +
 	"\x06Health\x123.datadog.privateactionrunner.executor.HealthRequest\x1a4.datadog.privateactionrunner.executor.HealthResponseBNZLgithub.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executorb\x06proto3"
 
@@ -415,29 +695,39 @@ func file_datadog_privateactionrunner_executor_proto_rawDescGZIP() []byte {
 	return file_datadog_privateactionrunner_executor_proto_rawDescData
 }
 
-var file_datadog_privateactionrunner_executor_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_datadog_privateactionrunner_executor_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_datadog_privateactionrunner_executor_proto_goTypes = []any{
-	(*HealthRequest)(nil),                 // 0: datadog.privateactionrunner.executor.HealthRequest
-	(*HealthResponse)(nil),                // 1: datadog.privateactionrunner.executor.HealthResponse
-	(*RunActionRequest)(nil),              // 2: datadog.privateactionrunner.executor.RunActionRequest
-	(*RunActionResponse)(nil),             // 3: datadog.privateactionrunner.executor.RunActionResponse
-	(*ActionStatus)(nil),                  // 4: datadog.privateactionrunner.executor.ActionStatus
-	(*ActionResult)(nil),                  // 5: datadog.privateactionrunner.executor.ActionResult
-	(*errorcode.ActionPlatformError)(nil), // 6: datadog.privateactionrunner.errorcode.ActionPlatformError
+	(*GetControlPlaneConfigRequest)(nil),  // 0: datadog.privateactionrunner.executor.GetControlPlaneConfigRequest
+	(*GetControlPlaneConfigResponse)(nil), // 1: datadog.privateactionrunner.executor.GetControlPlaneConfigResponse
+	(*ControlPlaneIdentity)(nil),          // 2: datadog.privateactionrunner.executor.ControlPlaneIdentity
+	(*ControlPlaneRuntime)(nil),           // 3: datadog.privateactionrunner.executor.ControlPlaneRuntime
+	(*HealthRequest)(nil),                 // 4: datadog.privateactionrunner.executor.HealthRequest
+	(*HealthResponse)(nil),                // 5: datadog.privateactionrunner.executor.HealthResponse
+	(*RunActionRequest)(nil),              // 6: datadog.privateactionrunner.executor.RunActionRequest
+	(*RunActionResponse)(nil),             // 7: datadog.privateactionrunner.executor.RunActionResponse
+	(*ActionStatus)(nil),                  // 8: datadog.privateactionrunner.executor.ActionStatus
+	(*ActionResult)(nil),                  // 9: datadog.privateactionrunner.executor.ActionResult
+	nil,                                   // 10: datadog.privateactionrunner.executor.ControlPlaneRuntime.OpmsExtraHeadersEntry
+	(*errorcode.ActionPlatformError)(nil), // 11: datadog.privateactionrunner.errorcode.ActionPlatformError
 }
 var file_datadog_privateactionrunner_executor_proto_depIdxs = []int32{
-	4, // 0: datadog.privateactionrunner.executor.RunActionResponse.status:type_name -> datadog.privateactionrunner.executor.ActionStatus
-	5, // 1: datadog.privateactionrunner.executor.RunActionResponse.result:type_name -> datadog.privateactionrunner.executor.ActionResult
-	6, // 2: datadog.privateactionrunner.executor.ActionResult.error:type_name -> datadog.privateactionrunner.errorcode.ActionPlatformError
-	2, // 3: datadog.privateactionrunner.executor.Executor.RunAction:input_type -> datadog.privateactionrunner.executor.RunActionRequest
-	0, // 4: datadog.privateactionrunner.executor.Executor.Health:input_type -> datadog.privateactionrunner.executor.HealthRequest
-	3, // 5: datadog.privateactionrunner.executor.Executor.RunAction:output_type -> datadog.privateactionrunner.executor.RunActionResponse
-	1, // 6: datadog.privateactionrunner.executor.Executor.Health:output_type -> datadog.privateactionrunner.executor.HealthResponse
-	5, // [5:7] is the sub-list for method output_type
-	3, // [3:5] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	2,  // 0: datadog.privateactionrunner.executor.GetControlPlaneConfigResponse.identity:type_name -> datadog.privateactionrunner.executor.ControlPlaneIdentity
+	3,  // 1: datadog.privateactionrunner.executor.GetControlPlaneConfigResponse.runtime:type_name -> datadog.privateactionrunner.executor.ControlPlaneRuntime
+	10, // 2: datadog.privateactionrunner.executor.ControlPlaneRuntime.opms_extra_headers:type_name -> datadog.privateactionrunner.executor.ControlPlaneRuntime.OpmsExtraHeadersEntry
+	8,  // 3: datadog.privateactionrunner.executor.RunActionResponse.status:type_name -> datadog.privateactionrunner.executor.ActionStatus
+	9,  // 4: datadog.privateactionrunner.executor.RunActionResponse.result:type_name -> datadog.privateactionrunner.executor.ActionResult
+	11, // 5: datadog.privateactionrunner.executor.ActionResult.error:type_name -> datadog.privateactionrunner.errorcode.ActionPlatformError
+	0,  // 6: datadog.privateactionrunner.executor.Executor.GetControlPlaneConfig:input_type -> datadog.privateactionrunner.executor.GetControlPlaneConfigRequest
+	6,  // 7: datadog.privateactionrunner.executor.Executor.RunAction:input_type -> datadog.privateactionrunner.executor.RunActionRequest
+	4,  // 8: datadog.privateactionrunner.executor.Executor.Health:input_type -> datadog.privateactionrunner.executor.HealthRequest
+	1,  // 9: datadog.privateactionrunner.executor.Executor.GetControlPlaneConfig:output_type -> datadog.privateactionrunner.executor.GetControlPlaneConfigResponse
+	7,  // 10: datadog.privateactionrunner.executor.Executor.RunAction:output_type -> datadog.privateactionrunner.executor.RunActionResponse
+	5,  // 11: datadog.privateactionrunner.executor.Executor.Health:output_type -> datadog.privateactionrunner.executor.HealthResponse
+	9,  // [9:12] is the sub-list for method output_type
+	6,  // [6:9] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_datadog_privateactionrunner_executor_proto_init() }
@@ -445,11 +735,11 @@ func file_datadog_privateactionrunner_executor_proto_init() {
 	if File_datadog_privateactionrunner_executor_proto != nil {
 		return
 	}
-	file_datadog_privateactionrunner_executor_proto_msgTypes[3].OneofWrappers = []any{
+	file_datadog_privateactionrunner_executor_proto_msgTypes[7].OneofWrappers = []any{
 		(*RunActionResponse_Status)(nil),
 		(*RunActionResponse_Result)(nil),
 	}
-	file_datadog_privateactionrunner_executor_proto_msgTypes[5].OneofWrappers = []any{
+	file_datadog_privateactionrunner_executor_proto_msgTypes[9].OneofWrappers = []any{
 		(*ActionResult_Output)(nil),
 		(*ActionResult_Error)(nil),
 	}
@@ -459,7 +749,7 @@ func file_datadog_privateactionrunner_executor_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_privateactionrunner_executor_proto_rawDesc), len(file_datadog_privateactionrunner_executor_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

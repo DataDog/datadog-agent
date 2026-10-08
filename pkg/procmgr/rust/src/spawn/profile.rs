@@ -4,6 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 pub const DATADOG_AGENT_PROCESS: &str = "datadog-agent-process";
+pub const DATADOG_AGENT_SYSPROBE: &str = "datadog-agent-sysprobe";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpawnProfile {
@@ -23,7 +24,7 @@ impl std::fmt::Display for SpawnProfile {
 impl SpawnProfile {
     pub fn profile_for(process_name: &str) -> Self {
         match process_name {
-            DATADOG_AGENT_PROCESS if cfg!(windows) => Self::Privileged,
+            DATADOG_AGENT_PROCESS | DATADOG_AGENT_SYSPROBE if cfg!(windows) => Self::Privileged,
             _ => Self::Agent,
         }
     }
@@ -42,11 +43,29 @@ mod tests {
         );
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn datadog_agent_sysprobe_uses_privileged_profile_on_windows() {
+        assert_eq!(
+            SpawnProfile::profile_for("datadog-agent-sysprobe"),
+            SpawnProfile::Privileged
+        );
+    }
+
     #[cfg(not(windows))]
     #[test]
     fn datadog_agent_process_uses_agent_profile_on_unix() {
         assert_eq!(
             SpawnProfile::profile_for("datadog-agent-process"),
+            SpawnProfile::Agent
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn datadog_agent_sysprobe_uses_agent_profile_on_unix() {
+        assert_eq!(
+            SpawnProfile::profile_for("datadog-agent-sysprobe"),
             SpawnProfile::Agent
         );
     }

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -2366,6 +2367,51 @@ func TestKueuePodLabelTagsPropagateWhenQueueEntityIsMissing(t *testing.T) {
 	t.Fatal("container tag info not found")
 }
 
+func TestDynamoGraphDeploymentTagPropagatesToPodAndContainer(t *testing.T) {
+	const containerID = "dynamo-worker-container"
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+	})
+
+	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+	tagInfos := collector.handleKubePod(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   "dynamo-worker-pod",
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "dynamo-worker",
+				Namespace: "inference",
+				Labels: map[string]string{
+					kubernetes.DynamoGraphDeploymentNameLabelKey: "my-model",
+				},
+			},
+			Containers: []workloadmeta.OrchestratorContainer{
+				{ID: containerID, Name: "worker"},
+			},
+		},
+		IsComplete: true,
+	})
+
+	require.Len(t, tagInfos, 2)
+	for _, tagInfo := range tagInfos {
+		assert.Contains(t, tagInfo.LowCardTags, "dynamo_graph_deployment:my-model")
+		assert.NotContains(t, tagInfo.HighCardTags, "dynamo_graph_deployment:my-model")
+	}
+}
+
 func TestHandleKubeCRD(t *testing.T) {
 	const (
 		crdNamespace = "datadog"
@@ -4249,6 +4295,41 @@ func TestHandleContainerImage(t *testing.T) {
 	}
 }
 
+func TestExtractGPUMIGProfileTag(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		deviceType workloadmeta.GPUDeviceType
+		profile    string
+		want       string
+	}{
+		{name: "plain", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1g.35gb", want: "1g.35gb"},
+		{name: "media extension", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1g.24gb+me", want: "1g.24gb_me"},
+		// Must stay distinct from "+me": the two are different profiles on the
+		// same card.
+		{name: "media engines excluded", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1g.24gb-me", want: "1g.24gb-me"},
+		{name: "all media engines", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1g.24gb+me.all", want: "1g.24gb_me.all"},
+		{name: "graphics", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1g.24gb+gfx", want: "1g.24gb_gfx"},
+		{name: "case normalization", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1G.35GB+ME", want: "1g.35gb_me"},
+		{name: "MIG instance with unresolved profile", deviceType: workloadmeta.GPUDeviceTypeMIG, want: "unknown"},
+		// Physical cards, MIG parents included, still carry the tag so a
+		// group-by never has an untagged bucket.
+		{name: "physical device", deviceType: workloadmeta.GPUDeviceTypePhysical, want: "none"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tagList := taglist.NewTagList()
+			ExtractGPUTags(&workloadmeta.GPU{DeviceType: tt.deviceType, MIGProfile: tt.profile}, tagList)
+			low, _, _, _ := tagList.Compute()
+			var profileTags []string
+			for _, tag := range low {
+				if strings.HasPrefix(tag, tags.GPUMIGProfile+":") {
+					profileTags = append(profileTags, tag)
+				}
+			}
+			require.Equal(t, []string{tags.GPUMIGProfile + ":" + tt.want}, profileTags)
+		})
+	}
+}
+
 func TestHandleGPU(t *testing.T) {
 	entityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindGPU,
@@ -4289,6 +4370,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
+						"gpu_mig_profile:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
 						"gpu_nvlink_version:3.0",
@@ -4328,6 +4410,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
+						"gpu_mig_profile:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
 						"gpu_nvlink_version:not_nvlink_capable",
@@ -4352,6 +4435,7 @@ func TestHandleGPU(t *testing.T) {
 				GPUType:            "a100",
 				DriverVersion:      "525.60.13",
 				DeviceType:         workloadmeta.GPUDeviceTypeMIG,
+				MIGProfile:         "3g.20gb",
 				ParentGPUUUID:      "GPU-1234",
 				VirtualizationMode: "none",
 				Architecture:       "ampere",
@@ -4368,6 +4452,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_architecture:ampere",
 						"gpu_device:a100-sxm4-40gb_mig_3g.20gb",
 						"gpu_driver_version:525.60.13",
+						"gpu_mig_profile:3g.20gb",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig",
 						"gpu_type:a100",
@@ -4416,6 +4501,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_driver_version:525.60.13",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig-parent",
+						"gpu_mig_profile:none",
 						"gpu_type:a100",
 						"gpu_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
@@ -4849,16 +4935,86 @@ func TestCollectStaticGlobalTags_SetsIsComplete(t *testing.T) {
 	assert.True(t, actualStaticSourceEvent.IsComplete)
 }
 
-// findStaticSourceEvent returns the staticSource TagInfo out of a batch, failing the test if absent.
-func findStaticSourceEvent(t *testing.T, tagInfos []*types.TagInfo) *types.TagInfo {
+// nextStaticSourceEvent returns the next staticSource TagInfo published to the
+// channel, failing the test if none arrives. It skips batches carrying other
+// sources, because the collector publishes more than static tags.
+func nextStaticSourceEvent(t *testing.T, collectorCh <-chan []*types.TagInfo) *types.TagInfo {
 	t.Helper()
-	for _, event := range tagInfos {
-		if event.Source == staticSource {
-			return event
+	for {
+		select {
+		case tagInfos := <-collectorCh:
+			for _, event := range tagInfos {
+				if event.Source == staticSource {
+					return event
+				}
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("no staticSource event found")
+			return nil
 		}
 	}
-	t.Fatal("no staticSource event found")
-	return nil
+}
+
+// The mark lives on its own entity so that it cannot be picked up by GlobalTags
+// or EnrichTags, which reach metric samples.
+func TestInfraTagInfo(t *testing.T) {
+	tests := []struct {
+		name     string
+		mode     string
+		expected []string
+	}{
+		{"cloud_cost_only is marked", "cloud_cost_only", []string{"infra_mode:cloud_cost_only"}},
+		{"end_user_device is marked", "end_user_device", []string{"infra_mode:end_user_device"}},
+		{"full is not marked", "full", nil},
+		{"unset is not marked", "", nil},
+		{"an unknown mode is not marked", "cloud_cost", nil},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("infrastructure_mode", tc.mode)
+
+			tagInfo := InfraTagInfo(mockConfig)
+
+			assert.Equal(t, types.GetInfraTagsEntityID(), tagInfo.EntityID)
+			assert.NotEqual(t, types.GetGlobalEntityID(), tagInfo.EntityID)
+			assert.True(t, tagInfo.IsComplete)
+			if tc.expected == nil {
+				// An unmarked mode still publishes the entity, so the Tagger can
+				// tell a resolved mode carrying no mark from one not yet seen.
+				assert.Empty(t, tagInfo.LowCardTags)
+			} else {
+				assert.Equal(t, tc.expected, tagInfo.LowCardTags)
+			}
+			assert.Empty(t, tagInfo.OrchestratorCardTags)
+			assert.Empty(t, tagInfo.HighCardTags)
+			assert.Empty(t, tagInfo.StandardTags)
+		})
+	}
+}
+
+// The collector publishes the mark at construction, so it is in the store before
+// any check is configured and before the stream goroutine starts.
+func TestNewWorkloadMetaCollectorPublishesInfraTags(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("infrastructure_mode", "cloud_cost_only")
+	collectorCh := make(chan []*types.TagInfo, 10)
+
+	NewWorkloadMetaCollector(context.Background(), mockConfig, nil, &fakeProcessor{collectorCh})
+
+	var infraTagsEvent *types.TagInfo
+	for len(collectorCh) > 0 {
+		for _, event := range <-collectorCh {
+			if event.Source == infraTagsSource {
+				infraTagsEvent = event
+			}
+		}
+	}
+
+	require.NotNil(t, infraTagsEvent, "no infraTagsSource event found")
+	assert.Equal(t, types.GetInfraTagsEntityID(), infraTagsEvent.EntityID)
+	assert.Equal(t, []string{"infra_mode:cloud_cost_only"}, infraTagsEvent.LowCardTags)
 }
 
 func hasOrchClusterIDTag(tagInfo *types.TagInfo, value string) bool {
@@ -4880,7 +5036,6 @@ func TestRefreshGlobalTags(t *testing.T) {
 	clusterIDCacheKey := cache.BuildAgentKey("orchestratorClusterID")
 	cache.Cache.Delete(clusterIDCacheKey)
 	t.Cleanup(func() { cache.Cache.Delete(clusterIDCacheKey) })
-	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "")
 
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("tags", []string{"some:tag"})
@@ -4888,16 +5043,15 @@ func TestRefreshGlobalTags(t *testing.T) {
 
 	collector := NewWorkloadMetaCollector(context.Background(), mockConfig, nil, &fakeProcessor{collectorCh})
 
-	firstTagInfos := <-collectorCh
-	firstEvent := findStaticSourceEvent(t, firstTagInfos)
+	firstEvent := nextStaticSourceEvent(t, collectorCh)
 	assert.False(t, hasOrchClusterIDTag(firstEvent, "87654321-4321-4321-4321-210987654321"))
 	assert.Contains(t, firstEvent.LowCardTags, "some:tag")
 
-	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "87654321-4321-4321-4321-210987654321")
+	// The Cluster Agent gets the cluster ID from Kubernetes, which is not available here.
+	cache.Cache.Set(clusterIDCacheKey, "87654321-4321-4321-4321-210987654321", cache.NoExpiration)
 	collector.collectStaticGlobalTags(context.Background(), mockConfig)
 
-	secondTagInfos := <-collectorCh
-	secondEvent := findStaticSourceEvent(t, secondTagInfos)
+	secondEvent := nextStaticSourceEvent(t, collectorCh)
 	assert.True(t, hasOrchClusterIDTag(secondEvent, "87654321-4321-4321-4321-210987654321"))
 	assert.Contains(t, secondEvent.LowCardTags, "some:tag", "previously collected static tags must not be lost on refresh")
 }
@@ -5471,6 +5625,7 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_virtualization_mode:" + gpuVirtMode,
 					"gpu_pci_bus_id:0000:00:1e.0",
 					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_mig_profile:none",
 					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
 				OrchestratorCardTags: []string{},
@@ -5515,6 +5670,7 @@ func TestHandleProcess(t *testing.T) {
 					"service:" + serviceNameFromDD,
 					"version:" + versionFromDD,
 					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_mig_profile:none",
 					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
 				OrchestratorCardTags: []string{},

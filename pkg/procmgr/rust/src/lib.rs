@@ -3,9 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+pub mod agent_yaml;
 pub mod command;
 pub mod config;
+pub mod config_gate;
 pub mod env;
+#[cfg(all(test, windows))]
+mod fleet_data_plane_template;
+#[cfg(all(test, windows))]
+mod fleet_process_template;
+#[cfg(all(test, windows))]
+mod fleet_sysprobe_template;
+#[cfg(all(test, windows))]
+mod fleet_template_support;
+#[cfg(all(test, windows))]
+mod fleet_trace_template;
 pub mod grpc;
 mod handle;
 pub mod manager;

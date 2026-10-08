@@ -18,7 +18,7 @@ def _dd_packaged_files_impl(ctx):
     for src, prefix in ctx.attr.srcs.items():
         inputs = [struct(
             target = file,
-            destination = paths.join(install_dir, "embedded", prefix, file.basename),
+            destination = paths.join(install_dir, prefix, file.basename),
         ) for file in src.files.to_list()]
 
         outputs = rewrite_rpaths(
@@ -108,7 +108,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], instal
     rewrite_rpath(
         name = patched_name,
         inputs = [input],
-        destination = "{install_dir}/embedded/" + package_dest_dir,
+        destination = "{install_dir}/" + package_dest_dir,
         use_relative_rpaths = use_relative_rpaths,
         package_metadata = [],
     )

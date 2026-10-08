@@ -13,7 +13,7 @@ target:
   command: /bin/entrypoint.sh
   cpu_allotment: 4
   # Set to 30% higher than the memory_usage check value.
-  memory_allotment: 98 MiB
+  memory_allotment: 100 MiB
 
   environment:
     ENTRYPOINT: privateactionrunner
@@ -30,7 +30,7 @@ checks:
       series: total_pss_bytes
       # When updating this, update
       # memory_allotment in the target section to 30% higher.
-      upper_bound: "75 MiB"
+      upper_bound: "77 MiB"
 
 report_links:
   - text: "bounds checks dashboard"

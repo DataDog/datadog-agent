@@ -7,6 +7,18 @@
 
 package common
 
+import "github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
+
+// CheckAgentFlavor validates compatibility when setup will install the Agent.
+func (s *Setup) CheckAgentFlavor() error {
+	for _, pkg := range resolvePackages(s.Env, s.Packages) {
+		if pkg.name == DatadogAgentPackage {
+			return msi.CheckAgentFlavor(s.Env.FIPSMode)
+		}
+	}
+	return nil
+}
+
 func (s *Setup) postInstallPackages() (err error) {
 	// nothing to do on windows
 	return nil

@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Report enhanced CPU usage and CPU limit metrics for AWS Lambda MicroVMs
+    even when cgroup CPU statistics are unavailable.

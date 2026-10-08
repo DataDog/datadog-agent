@@ -25,10 +25,6 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/deps-tidy-setup
         id: setup
-      - name: Install go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: ".go-version"
       - name: Install dda
         uses: ./.github/actions/install-dda
         with:
@@ -51,9 +47,7 @@ jobs:
           fi
       - name: Update LICENSE-3rdparty.csv
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
-        run: |
-          dda inv -- -e install-tools
-          dda inv -- -e generate-licenses
+        run: dda inv -- -e generate-licenses
       - name: Update mocks
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
         run: dda inv -- -e security-agent.gen-mocks
@@ -77,7 +71,7 @@ jobs:
       - uses: ./.github/actions/deps-tidy-setup
         id: setup
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
           toolchain: stable
       - name: Repin Bazel Rust lockfile
