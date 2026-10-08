@@ -347,9 +347,11 @@ class CompilerImage:
         # Uncompress the package in the root directory, so that we have access to the headers
         # We cannot install because the architecture will not match
         # Extract into a .tar file and then use tar to extract the contents to avoid issues
-        # with dpkg-deb not respecting symlinks.
+        # with dpkg-deb not respecting symlinks. -P is needed because the headers are extracted through
+        # symlinks pointing outside their parent (arch/x86 -> ../../linux-headers-<ver>/arch/x86),
+        # which tar refuses to follow by default.
         self.exec(f"dpkg-deb --fsys-tarfile {headers_package_filename} > {headers_package_filename}.tar", user="root")
-        self.exec(f"tar --skip-old-files -xf {headers_package_filename}.tar -C /", user="root")
+        self.exec(f"tar -P --skip-old-files -xf {headers_package_filename}.tar -C /", user="root")
         self.exec(
             f"mv /usr/src/{headers_package}/include/generated/*.h /usr/src/{headers_package}/arch/{cross_arch.kernel_arch}/include/generated/",
             user="root",
