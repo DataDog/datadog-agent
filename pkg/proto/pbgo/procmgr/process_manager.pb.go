@@ -29,16 +29,17 @@ const (
 type ProcessState int32
 
 const (
-	ProcessState_UNKNOWN  ProcessState = 0
-	ProcessState_CREATED  ProcessState = 1
-	ProcessState_STARTING ProcessState = 2
-	ProcessState_RUNNING  ProcessState = 3
-	ProcessState_STOPPING ProcessState = 4
-	ProcessState_STOPPED  ProcessState = 5
-	ProcessState_CRASHED  ProcessState = 6
-	ProcessState_EXITED   ProcessState = 7
-	ProcessState_FAILED   ProcessState = 8
-	ProcessState_SKIPPED  ProcessState = 10
+	ProcessState_UNKNOWN        ProcessState = 0
+	ProcessState_CREATED        ProcessState = 1
+	ProcessState_STARTING       ProcessState = 2
+	ProcessState_RUNNING        ProcessState = 3
+	ProcessState_STOPPING       ProcessState = 4
+	ProcessState_STOPPED        ProcessState = 5
+	ProcessState_CRASHED        ProcessState = 6
+	ProcessState_EXITED         ProcessState = 7
+	ProcessState_FAILED         ProcessState = 8
+	ProcessState_INVALID_CONFIG ProcessState = 9
+	ProcessState_SKIPPED        ProcessState = 10
 )
 
 // Enum value maps for ProcessState.
@@ -53,19 +54,21 @@ var (
 		6:  "CRASHED",
 		7:  "EXITED",
 		8:  "FAILED",
+		9:  "INVALID_CONFIG",
 		10: "SKIPPED",
 	}
 	ProcessState_value = map[string]int32{
-		"UNKNOWN":  0,
-		"CREATED":  1,
-		"STARTING": 2,
-		"RUNNING":  3,
-		"STOPPING": 4,
-		"STOPPED":  5,
-		"CRASHED":  6,
-		"EXITED":   7,
-		"FAILED":   8,
-		"SKIPPED":  10,
+		"UNKNOWN":        0,
+		"CREATED":        1,
+		"STARTING":       2,
+		"RUNNING":        3,
+		"STOPPING":       4,
+		"STOPPED":        5,
+		"CRASHED":        6,
+		"EXITED":         7,
+		"FAILED":         8,
+		"INVALID_CONFIG": 9,
+		"SKIPPED":        10,
 	}
 )
 
@@ -145,6 +148,7 @@ type Process struct {
 	LastSignal    *int32                 `protobuf:"varint,9,opt,name=last_signal,json=lastSignal,proto3,oneof" json:"last_signal,omitempty"`
 	Profile       string                 `protobuf:"bytes,10,opt,name=profile,proto3" json:"profile,omitempty"`
 	User          string                 `protobuf:"bytes,11,opt,name=user,proto3" json:"user,omitempty"`
+	ConfigError   string                 `protobuf:"bytes,12,opt,name=config_error,json=configError,proto3" json:"config_error,omitempty"` // empty unless state is INVALID_CONFIG
 	SkipReasons   []string               `protobuf:"bytes,13,rep,name=skip_reasons,json=skipReasons,proto3" json:"skip_reasons,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -253,6 +257,13 @@ func (x *Process) GetProfile() string {
 func (x *Process) GetUser() string {
 	if x != nil {
 		return x.User
+	}
+	return ""
+}
+
+func (x *Process) GetConfigError() string {
+	if x != nil {
+		return x.ConfigError
 	}
 	return ""
 }
@@ -376,6 +387,7 @@ type ProcessDetail struct {
 	Profile             string                 `protobuf:"bytes,20,opt,name=profile,proto3" json:"profile,omitempty"`
 	User                string                 `protobuf:"bytes,21,opt,name=user,proto3" json:"user,omitempty"`
 	RuntimeUser         string                 `protobuf:"bytes,22,opt,name=runtime_user,json=runtimeUser,proto3" json:"runtime_user,omitempty"`
+	ConfigError         string                 `protobuf:"bytes,23,opt,name=config_error,json=configError,proto3" json:"config_error,omitempty"`
 	SkipReasons         []string               `protobuf:"bytes,24,rep,name=skip_reasons,json=skipReasons,proto3" json:"skip_reasons,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
@@ -561,6 +573,13 @@ func (x *ProcessDetail) GetUser() string {
 func (x *ProcessDetail) GetRuntimeUser() string {
 	if x != nil {
 		return x.RuntimeUser
+	}
+	return ""
+}
+
+func (x *ProcessDetail) GetConfigError() string {
+	if x != nil {
+		return x.ConfigError
 	}
 	return ""
 }
@@ -1149,22 +1168,23 @@ func (*GetStatusRequest) Descriptor() ([]byte, []int) {
 }
 
 type GetStatusResponse struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Ready             bool                   `protobuf:"varint,1,opt,name=ready,proto3" json:"ready,omitempty"`
-	Version           string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
-	UptimeSeconds     uint64                 `protobuf:"varint,3,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
-	TotalProcesses    uint32                 `protobuf:"varint,4,opt,name=total_processes,json=totalProcesses,proto3" json:"total_processes,omitempty"`
-	RunningProcesses  uint32                 `protobuf:"varint,5,opt,name=running_processes,json=runningProcesses,proto3" json:"running_processes,omitempty"`
-	StoppedProcesses  uint32                 `protobuf:"varint,6,opt,name=stopped_processes,json=stoppedProcesses,proto3" json:"stopped_processes,omitempty"`
-	FailedProcesses   uint32                 `protobuf:"varint,7,opt,name=failed_processes,json=failedProcesses,proto3" json:"failed_processes,omitempty"`
-	CreatedProcesses  uint32                 `protobuf:"varint,8,opt,name=created_processes,json=createdProcesses,proto3" json:"created_processes,omitempty"`
-	ExitedProcesses   uint32                 `protobuf:"varint,9,opt,name=exited_processes,json=exitedProcesses,proto3" json:"exited_processes,omitempty"`
-	StartingProcesses uint32                 `protobuf:"varint,10,opt,name=starting_processes,json=startingProcesses,proto3" json:"starting_processes,omitempty"`
-	StoppingProcesses uint32                 `protobuf:"varint,11,opt,name=stopping_processes,json=stoppingProcesses,proto3" json:"stopping_processes,omitempty"`
-	CrashedProcesses  uint32                 `protobuf:"varint,12,opt,name=crashed_processes,json=crashedProcesses,proto3" json:"crashed_processes,omitempty"`
-	SkippedProcesses  uint32                 `protobuf:"varint,14,opt,name=skipped_processes,json=skippedProcesses,proto3" json:"skipped_processes,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Ready                  bool                   `protobuf:"varint,1,opt,name=ready,proto3" json:"ready,omitempty"`
+	Version                string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	UptimeSeconds          uint64                 `protobuf:"varint,3,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
+	TotalProcesses         uint32                 `protobuf:"varint,4,opt,name=total_processes,json=totalProcesses,proto3" json:"total_processes,omitempty"`
+	RunningProcesses       uint32                 `protobuf:"varint,5,opt,name=running_processes,json=runningProcesses,proto3" json:"running_processes,omitempty"`
+	StoppedProcesses       uint32                 `protobuf:"varint,6,opt,name=stopped_processes,json=stoppedProcesses,proto3" json:"stopped_processes,omitempty"`
+	FailedProcesses        uint32                 `protobuf:"varint,7,opt,name=failed_processes,json=failedProcesses,proto3" json:"failed_processes,omitempty"`
+	CreatedProcesses       uint32                 `protobuf:"varint,8,opt,name=created_processes,json=createdProcesses,proto3" json:"created_processes,omitempty"`
+	ExitedProcesses        uint32                 `protobuf:"varint,9,opt,name=exited_processes,json=exitedProcesses,proto3" json:"exited_processes,omitempty"`
+	StartingProcesses      uint32                 `protobuf:"varint,10,opt,name=starting_processes,json=startingProcesses,proto3" json:"starting_processes,omitempty"`
+	StoppingProcesses      uint32                 `protobuf:"varint,11,opt,name=stopping_processes,json=stoppingProcesses,proto3" json:"stopping_processes,omitempty"`
+	CrashedProcesses       uint32                 `protobuf:"varint,12,opt,name=crashed_processes,json=crashedProcesses,proto3" json:"crashed_processes,omitempty"`
+	InvalidConfigProcesses uint32                 `protobuf:"varint,13,opt,name=invalid_config_processes,json=invalidConfigProcesses,proto3" json:"invalid_config_processes,omitempty"`
+	SkippedProcesses       uint32                 `protobuf:"varint,14,opt,name=skipped_processes,json=skippedProcesses,proto3" json:"skipped_processes,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *GetStatusResponse) Reset() {
@@ -1277,6 +1297,13 @@ func (x *GetStatusResponse) GetStoppingProcesses() uint32 {
 func (x *GetStatusResponse) GetCrashedProcesses() uint32 {
 	if x != nil {
 		return x.CrashedProcesses
+	}
+	return 0
+}
+
+func (x *GetStatusResponse) GetInvalidConfigProcesses() uint32 {
+	if x != nil {
+		return x.InvalidConfigProcesses
 	}
 	return 0
 }
@@ -1397,7 +1424,7 @@ var File_datadog_procmgr_process_manager_proto protoreflect.FileDescriptor
 const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\n" +
 	"%datadog/procmgr/process_manager.proto\x12\x0fdatadog.procmgr\"\r\n" +
-	"\vListRequest\"\x90\x03\n" +
+	"\vListRequest\"\xb3\x03\n" +
 	"\aProcess\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
@@ -1412,6 +1439,7 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\aprofile\x18\n" +
 	" \x01(\tR\aprofile\x12\x12\n" +
 	"\x04user\x18\v \x01(\tR\x04user\x12!\n" +
+	"\fconfig_error\x18\f \x01(\tR\vconfigError\x12!\n" +
 	"\fskip_reasons\x18\r \x03(\tR\vskipReasonsB\x11\n" +
 	"\x0f_last_exit_codeB\x0e\n" +
 	"\f_last_signal\"F\n" +
@@ -1419,7 +1447,7 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\tprocesses\x18\x01 \x03(\v2\x18.datadog.procmgr.ProcessR\tprocesses\"3\n" +
 	"\x0fDescribeRequest\x12 \n" +
 	"\fname_or_uuid\x18\x01 \x01(\tR\n" +
-	"nameOrUuid\"\xc7\x06\n" +
+	"nameOrUuid\"\xea\x06\n" +
 	"\rProcessDetail\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -1447,6 +1475,7 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\aprofile\x18\x14 \x01(\tR\aprofile\x12\x12\n" +
 	"\x04user\x18\x15 \x01(\tR\x04user\x12!\n" +
 	"\fruntime_user\x18\x16 \x01(\tR\vruntimeUser\x12!\n" +
+	"\fconfig_error\x18\x17 \x01(\tR\vconfigError\x12!\n" +
 	"\fskip_reasons\x18\x18 \x03(\tR\vskipReasons\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
@@ -1498,7 +1527,7 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\aremoved\x18\x02 \x03(\tR\aremoved\x12\x1a\n" +
 	"\bmodified\x18\x03 \x03(\tR\bmodified\x12\x1c\n" +
 	"\tunchanged\x18\x04 \x03(\tR\tunchanged\"\x12\n" +
-	"\x10GetStatusRequest\"\xa8\x04\n" +
+	"\x10GetStatusRequest\"\xe2\x04\n" +
 	"\x11GetStatusResponse\x12\x14\n" +
 	"\x05ready\x18\x01 \x01(\bR\x05ready\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12%\n" +
@@ -1512,14 +1541,15 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\x12starting_processes\x18\n" +
 	" \x01(\rR\x11startingProcesses\x12-\n" +
 	"\x12stopping_processes\x18\v \x01(\rR\x11stoppingProcesses\x12+\n" +
-	"\x11crashed_processes\x18\f \x01(\rR\x10crashedProcesses\x12+\n" +
+	"\x11crashed_processes\x18\f \x01(\rR\x10crashedProcesses\x128\n" +
+	"\x18invalid_config_processes\x18\r \x01(\rR\x16invalidConfigProcesses\x12+\n" +
 	"\x11skipped_processes\x18\x0e \x01(\rR\x10skippedProcesses\"\x12\n" +
 	"\x10GetConfigRequest\"\x9f\x01\n" +
 	"\x11GetConfigResponse\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1a\n" +
 	"\blocation\x18\x02 \x01(\tR\blocation\x12)\n" +
 	"\x10loaded_processes\x18\x03 \x01(\rR\x0floadedProcesses\x12+\n" +
-	"\x11runtime_processes\x18\x04 \x01(\rR\x10runtimeProcesses*\x90\x01\n" +
+	"\x11runtime_processes\x18\x04 \x01(\rR\x10runtimeProcesses*\xa4\x01\n" +
 	"\fProcessState\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\v\n" +
 	"\aCREATED\x10\x01\x12\f\n" +
@@ -1531,7 +1561,8 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\n" +
 	"\x06EXITED\x10\a\x12\n" +
 	"\n" +
-	"\x06FAILED\x10\b\x12\v\n" +
+	"\x06FAILED\x10\b\x12\x12\n" +
+	"\x0eINVALID_CONFIG\x10\t\x12\v\n" +
 	"\aSKIPPED\x10\n" +
 	"2\x83\x05\n" +
 	"\x0eProcessManager\x12C\n" +
