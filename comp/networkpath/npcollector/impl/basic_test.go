@@ -51,6 +51,11 @@ func pathHosts(paths []common.Pathtest) []string {
 	return hosts
 }
 
+func flushSelected(selector *basicSelector, now time.Time) []common.Pathtest {
+	paths, _ := selector.flush(now)
+	return paths
+}
+
 func scheduledBasicHosts(t *testing.T, collector *npCollectorImpl) []string {
 	t.Helper()
 	hosts := make([]string, 0, len(collector.pathtestInputChan))
@@ -74,8 +79,8 @@ func TestBasicSelectorAccumulatesTrafficAcrossBootstrapWindow(t *testing.T) {
 	selector.add(basicPath("five"), 60, now.Add(4*time.Minute))
 	selector.add(basicPath("six"), 50, now.Add(4*time.Minute))
 
-	assert.Nil(t, selector.flush(now.Add(basicBootstrapWindow-time.Second)))
-	selected := selector.flush(now.Add(basicBootstrapWindow))
+	assert.Nil(t, flushSelected(selector, now.Add(basicBootstrapWindow-time.Second)))
+	selected := flushSelected(selector, now.Add(basicBootstrapWindow))
 
 	assert.Equal(t, []string{"one", "two", "three", "four", "five"}, pathHosts(selected))
 	for _, path := range selected {
@@ -88,11 +93,11 @@ func TestBasicSelectorUsesHourlyWindowsAfterBootstrap(t *testing.T) {
 	now := MockTimeNow()
 	selector := newBasicSelector(basicCandidateLimit, basicSelectionsPerWindow)
 	selector.add(basicPath("bootstrap"), 1, now)
-	require.Len(t, selector.flush(now.Add(5*time.Minute)), 1)
+	require.Len(t, flushSelected(selector, now.Add(5*time.Minute)), 1)
 
 	selector.add(basicPath("regular"), 1, now.Add(6*time.Minute))
-	assert.Nil(t, selector.flush(now.Add(64*time.Minute)))
-	selected := selector.flush(now.Add(65 * time.Minute))
+	assert.Nil(t, flushSelected(selector, now.Add(64*time.Minute)))
+	selected := flushSelected(selector, now.Add(65*time.Minute))
 
 	require.Len(t, selected, 1)
 	assert.Equal(t, "regular", selected[0].Hostname)
@@ -107,7 +112,7 @@ func TestBasicSelectorBoundsHeavyHitterCandidates(t *testing.T) {
 	}
 
 	assert.Len(t, selector.candidates, basicCandidateLimit)
-	selected := selector.flush(now.Add(basicBootstrapWindow))
+	selected := flushSelected(selector, now.Add(basicBootstrapWindow))
 	require.NotEmpty(t, selected)
 	assert.Equal(t, "heavy", selected[0].Hostname)
 }
@@ -150,7 +155,7 @@ func TestBasicSelectorBreaksTiesByPathHash(t *testing.T) {
 		return 0
 	})
 
-	assert.Equal(t, pathHosts(paths), pathHosts(selector.flush(now.Add(basicBootstrapWindow))))
+	assert.Equal(t, pathHosts(paths), pathHosts(flushSelected(selector, now.Add(basicBootstrapWindow))))
 }
 
 func TestSaturatingAdd(t *testing.T) {
@@ -336,7 +341,80 @@ func TestStandardModeTakesPrecedenceOverBasic(t *testing.T) {
 func TestBasicEmptyWindowSelectsNothing(t *testing.T) {
 	selector := newBasicSelector(basicCandidateLimit, basicSelectionsPerWindow)
 	selector.start(MockTimeNow())
-	assert.Empty(t, selector.flush(MockTimeNow().Add(basicBootstrapWindow)))
+	paths, closed := selector.flush(MockTimeNow().Add(basicBootstrapWindow))
+	assert.Empty(t, paths)
+	assert.True(t, closed)
+}
+
+func TestBasicEmptyBootstrapWindowRetriesSoon(t *testing.T) {
+	now := MockTimeNow()
+	selector := newBasicSelector(basicCandidateLimit, basicSelectionsPerWindow)
+	selector.start(now)
+	require.Empty(t, flushSelected(selector, now.Add(basicBootstrapWindow)))
+
+	selector.add(basicPath("late"), 1, now.Add(8*time.Minute))
+	assert.Nil(t, flushSelected(selector, now.Add(2*basicBootstrapWindow-time.Second)))
+	assert.Equal(t, []string{"late"}, pathHosts(flushSelected(selector, now.Add(2*basicBootstrapWindow))))
+}
+
+func TestBasicEmptyHourlyWindowRetriesSoon(t *testing.T) {
+	now := MockTimeNow()
+	selector := newBasicSelector(basicCandidateLimit, basicSelectionsPerWindow)
+	selector.add(basicPath("bootstrap"), 1, now)
+	require.Len(t, flushSelected(selector, now.Add(basicBootstrapWindow)), 1)
+
+	hourlyClose := now.Add(basicBootstrapWindow + basicSelectionInterval)
+	require.Empty(t, flushSelected(selector, hourlyClose))
+
+	selector.add(basicPath("late"), 1, hourlyClose.Add(time.Minute))
+	assert.Nil(t, flushSelected(selector, hourlyClose.Add(basicBootstrapWindow-time.Second)))
+	assert.Equal(t, []string{"late"}, pathHosts(flushSelected(selector, hourlyClose.Add(basicBootstrapWindow))))
+}
+
+func TestBasicNonEmptyWindowWaitsFullInterval(t *testing.T) {
+	now := MockTimeNow()
+	selector := newBasicSelector(basicCandidateLimit, basicSelectionsPerWindow)
+	for i := 1; i <= basicSelectionsPerWindow*2; i++ {
+		selector.add(basicPath(netip.AddrFrom4([4]byte{10, 0, 0, byte(i)}).String()), uint64(i), now)
+	}
+	bootstrapClose := now.Add(basicBootstrapWindow)
+	assert.Len(t, flushSelected(selector, bootstrapClose), basicSelectionsPerWindow)
+
+	for i := 1; i <= basicSelectionsPerWindow*2; i++ {
+		selector.add(basicPath(netip.AddrFrom4([4]byte{10, 0, 1, byte(i)}).String()), uint64(i), bootstrapClose.Add(time.Minute))
+	}
+	assert.Nil(t, flushSelected(selector, bootstrapClose.Add(basicBootstrapWindow)))
+	assert.Nil(t, flushSelected(selector, bootstrapClose.Add(basicSelectionInterval-time.Second)))
+	assert.Len(t, flushSelected(selector, bootstrapClose.Add(basicSelectionInterval)), basicSelectionsPerWindow)
+}
+
+func TestBasicCollectorCountsClosedWindows(t *testing.T) {
+	stats := &teststatsd.Client{}
+	_, collector := newTestNpCollector(t, map[string]any{
+		"network_path.connections_monitoring.basic_tests_enabled": true,
+		"network_path.collector.monitor_ip_without_domain":        true,
+	}, stats, nil)
+	now := MockTimeNow()
+	collector.TimeNowFn = func() time.Time { return now }
+	collector.basicSelector.start(now)
+
+	collector.flushBasicPaths(now.Add(time.Minute))
+	collector.flushBasicPaths(now.Add(basicBootstrapWindow))
+	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.1", 1)}))
+	collector.flushBasicPaths(now.Add(2 * basicBootstrapWindow))
+
+	assert.Equal(t, []string{"10.0.0.1"}, scheduledBasicHosts(t, collector))
+	var empty, selected int
+	for _, call := range stats.GetCountSummaries()["datadog.network_path.collector.basic.window_closed"].Calls {
+		switch {
+		case slices.Contains(call.Tags, "result:empty"):
+			empty++
+		case slices.Contains(call.Tags, "result:selected"):
+			selected++
+		}
+	}
+	assert.Equal(t, 1, empty)
+	assert.Equal(t, 1, selected)
 }
 
 func TestBasicDisabledCreatesNoCollectorMachinery(t *testing.T) {

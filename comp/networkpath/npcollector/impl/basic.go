@@ -18,7 +18,9 @@ import (
 // Basic selection accumulates admitted network path byte volume over a
 // five-minute bootstrap window and subsequent hourly intervals. It uses
 // bounded weighted Space-Saving to emit a configured number of one-shot paths.
-// Windows restart when flushed, and missed windows are not replayed.
+// Windows restart when flushed, and missed windows are not replayed. A window
+// that closes without candidates is retried after another bootstrap window so
+// sparse eligible traffic does not wait a full hour.
 const (
 	basicSelectionsPerWindow       = 5
 	basicCandidateLimit            = 32
@@ -119,14 +121,20 @@ func (selector *basicSelector) worstCandidateLocked() basicCandidate {
 	return worst
 }
 
-// flush returns the current winners only after the active window has closed.
-func (selector *basicSelector) flush(now time.Time) []common.Pathtest {
+// flush returns the current winners only after the active window has closed,
+// and reports whether a window closed.
+func (selector *basicSelector) flush(now time.Time) ([]common.Pathtest, bool) {
 	selector.mu.Lock()
 	defer selector.mu.Unlock()
 
 	selector.startLocked(now)
 	if now.Before(selector.deadline) {
-		return nil
+		return nil, false
+	}
+	if len(selector.candidates) == 0 {
+		// Don't consume the hourly interval on an empty window: retry soon.
+		selector.deadline = now.Add(basicBootstrapWindow)
+		return nil, true
 	}
 
 	candidates := make([]basicCandidate, 0, len(selector.candidates))
@@ -148,7 +156,7 @@ func (selector *basicSelector) flush(now time.Time) []common.Pathtest {
 	clear(selector.candidates)
 	// Start a fresh window from this flush; missed windows are not replayed.
 	selector.deadline = now.Add(basicSelectionInterval)
-	return paths
+	return paths, true
 }
 
 func saturatingAdd(left, right uint64) uint64 {
