@@ -601,8 +601,9 @@ WINDOWS_SHARED_MODULES = {
             "Modules/_ctypes/malloc_closure.c",
             "Modules/_ctypes/stgdict.c",
         ],
-        "defines": ["USING_MALLOC_CLOSURE_DOT_C=1", "FFI_STATIC_BUILD"],
+        "defines": ["USING_MALLOC_CLOSURE_DOT_C=1"],
         "deps": ["@libffi//:ffi"],
+        "dynamic_deps": ["@libffi//:libffi-8"],
     },
     "_elementtree": {
         "srcs": ["Modules/_elementtree.c"] + LIBEXPAT_SRCS,
@@ -634,6 +635,7 @@ WINDOWS_SHARED_MODULES = {
         ],
         "defines": ["PY_SQLITE_ENABLE_LOAD_EXTENSION", "PY_SQLITE_HAVE_SERIALIZE"],
         "deps": ["@sqlite3//:libsqlite3"],
+        "dynamic_deps": ["@sqlite3"],
     },
     "_bz2": {
         "srcs": ["Modules/_bz2module.c"],
