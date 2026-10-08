@@ -151,7 +151,7 @@ func TestNewInstanceCapabilitiesResolvesPerPayload(t *testing.T) {
 	u := NewInstanceUUID()
 	caps := NewInstanceCapabilities(u)
 
-	assert.True(t, caps.SkipCrossProcessEnrichment)
+	assert.True(t, caps.SkipFullAgentMetadataRefresh)
 	assert.Equal(t, u.Resolve(), caps.PayloadUUID())
 
 	u.SetInstance("vm-abc123")
