@@ -331,6 +331,16 @@ func (d *daemonImpl) SetConfigCatalog(configs map[string]installerConfig) {
 
 // Start starts remote config and the garbage collector.
 func (d *daemonImpl) Start(_ context.Context) error {
+	// Recover any configuration experiment left running unsupervised by a prior process of
+	// this daemon that did not shut down cleanly (crash, kill, reboot), before anything else
+	// runs. Only macOS has such experiments to recover. It runs before the first state refresh
+	// because it may resume or revert the experiment, and until it does, the configuration on
+	// disk is not the one the Agent is running.
+	if runtime.GOOS == "darwin" {
+		if err := d.installer(d.env).ResumeConfigExperiments(d.ctx); err != nil {
+			log.Errorf("Daemon: could not resume configuration experiments: %v", err)
+		}
+	}
 	d.refreshState(d.ctx)
 
 	d.m.Lock()
@@ -822,6 +832,21 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	}
 	var packages []*pbgo.PackageState
 	for pkg, s := range configAndPackageStates.States {
+		runningConfigVersion := runningConfigVersions[pkg]
+		// d.env.ConfigID is read once at daemon startup. Linux and Windows restart the daemon
+		// with the experiment's configuration, so it stays accurate there. The macOS daemon has
+		// no experiment variant and keeps running across a config experiment, so there the
+		// running version is whatever is active on disk (experiment over stable).
+		if runtime.GOOS == "darwin" {
+			configState := configAndPackageStates.ConfigStates[pkg]
+			runningConfigVersion = configState.Stable
+			if configState.HasExperiment() {
+				runningConfigVersion = configState.Experiment
+			}
+			if runningConfigVersion == "" {
+				runningConfigVersion = d.env.ConfigID
+			}
+		}
 		p := &pbgo.PackageState{
 			Package:                 pkg,
 			StableVersion:           s.Stable,
@@ -829,7 +854,7 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			StableConfigVersion:     configAndPackageStates.ConfigStates[pkg].Stable,
 			ExperimentConfigVersion: configAndPackageStates.ConfigStates[pkg].Experiment,
 			RunningVersion:          runningVersions[pkg],
-			RunningConfigVersion:    runningConfigVersions[pkg],
+			RunningConfigVersion:    runningConfigVersion,
 			HeartbeatTimestamp:      uint64(time.Now().Unix()),
 		}
 		if pkg == "datadog-agent" {

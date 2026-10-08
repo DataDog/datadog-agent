@@ -19,7 +19,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from subprocess import check_output, list2cmdline
 from types import SimpleNamespace
 
@@ -510,7 +510,28 @@ def get_version_ldflags(ctx, install_path=None):
             # TODO: what if we want a -2 ? Where does that value even come from in the pipeline?
             #       it's also hardcoded in Generate-OCIPackage.ps1
             package_version = f"{package_version}-1"
+        elif sys.platform == 'darwin':
+            # Restricted to macOS: this PR only implements macOS Fleet config, and must not
+            # change version-stamping behavior on any other platform, so the fix below is
+            # scoped to darwin rather than applied to the shared branch below.
+            if PurePosixPath(install_path).parent.parent.name == "datadog-packages":
+                # Only the OCI/fleet-managed layout encodes the package version in the install
+                # path, as <root>/datadog-packages/<product>/<version>. Every other layout has
+                # no version to recover there, so taking the last component would stamp a
+                # directory name: a build-time staging directory such as the macOS DMG's
+                # $TMPDIR/datadog-agent-build/bin yields "bin".
+                # Fleet Automation health-checks the host against this value, so a wrong one
+                # makes every config deployment to that host fail before any config is pushed.
+                package_version = PurePosixPath(install_path).name
+            # else: not an OCI-shaped path (e.g. the DMG staging directory above), so leave
+            # package_version at its PACKAGE_VERSION/version default instead of stamping it.
         else:
+            # Pre-existing behavior, unchanged by this PR: stamps the install path's last
+            # component whenever it isn't "datadog-agent", which mis-stamps a product name for
+            # non-agent deb/rpm installs (e.g. /opt/datadog-installer, /opt/datadog-dogstatsd)
+            # instead of leaving package_version at its PACKAGE_VERSION/version default. This
+            # is the same bug the darwin branch above fixes; left alone here because fixing
+            # Linux/Windows version-stamping is out of scope for a macOS-only change.
             install_dir = os.path.basename(install_path)
             if install_dir != "datadog-agent":
                 package_version = install_dir
