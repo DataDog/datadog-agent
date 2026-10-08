@@ -30,6 +30,7 @@ enum ProcessState {
   CRASHED = 6;
   EXITED = 7;
   FAILED = 8;
+  SKIPPED = 10;
 }
 
 message ListRequest {}
@@ -46,6 +47,7 @@ message Process {
   optional int32 last_signal = 9;
   string profile = 10;
   string user = 11;
+  repeated string skip_reasons = 13;
 }
 
 message ListResponse {
@@ -79,6 +81,7 @@ message ProcessDetail {
   string profile = 20;
   string user = 21;
   string runtime_user = 22;
+  repeated string skip_reasons = 24;
 }
 
 message DescribeResponse {
@@ -148,6 +151,8 @@ message GetStatusResponse {
   uint32 exited_processes = 9;
   uint32 starting_processes = 10;
   uint32 stopping_processes = 11;
+  uint32 crashed_processes = 12;
+  uint32 skipped_processes = 14;
 }
 
 message GetConfigRequest {}

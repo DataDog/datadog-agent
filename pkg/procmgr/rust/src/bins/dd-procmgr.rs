@@ -200,6 +200,7 @@ fn state_name(val: i32) -> &'static str {
         Ok(proto::ProcessState::Crashed) => "Crashed",
         Ok(proto::ProcessState::Exited) => "Exited",
         Ok(proto::ProcessState::Failed) => "Failed",
+        Ok(proto::ProcessState::Skipped) => "Skipped",
         Err(_) => "Unknown",
     }
 }
@@ -208,11 +209,30 @@ fn short_uuid(uuid: &str) -> &str {
     if uuid.len() >= 8 { &uuid[..8] } else { uuid }
 }
 
+/// Same rule as `platform::is_crash_exit` on Windows: `STATUS_SEVERITY_ERROR`,
+/// plus the terminating codes below that severity (`STATUS_BREAKPOINT`,
+/// `STATUS_SINGLE_STEP`, `STATUS_FATAL_APP_EXIT`). Repeated here because the CLI
+/// binary does not link the daemon library, and because it must label a retained
+/// exit code once the process has restarted out of `Crashed`. Change both together.
+fn is_windows_crash_exit_code(code: i32) -> bool {
+    let code = code as u32;
+    code >> 30 == 0b11 || matches!(code, 0x8000_0003 | 0x8000_0004 | 0x4000_0015)
+}
+
+/// Classifies from the stored exit, not the current state: `spawn()` keeps the
+/// last exit while moving back to `Starting` and `Running`, so a Windows crash
+/// followed by a restart must still render as `exception 0xC0000005` rather
+/// than `exit -1073741819`. Unix crashes carry a signal and render as
+/// `signal 11`.
 fn format_last_exit(exit_code: Option<i32>, signal: Option<i32>) -> String {
     if let Some(sig) = signal {
         format!("signal {sig}")
     } else if let Some(code) = exit_code {
-        format!("exit {code}")
+        if cfg!(windows) && is_windows_crash_exit_code(code) {
+            format!("exception {:#010X}", code as u32)
+        } else {
+            format!("exit {code}")
+        }
     } else {
         "-".to_string()
     }
@@ -270,6 +290,7 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                     "restart_count": p.restart_count,
                     "last_exit_code": p.last_exit_code,
                     "last_signal": p.last_signal,
+                    "skip_reasons": p.skip_reasons,
                 })
             })
             .collect();
@@ -292,6 +313,7 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
         "RESTARTS",
         "LAST EXIT",
         "COMMAND",
+        "SKIP REASONS",
     ];
 
     let rows: Vec<Vec<String>> = resp
@@ -312,6 +334,11 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                 p.restart_count.to_string(),
                 format_last_exit(p.last_exit_code, p.last_signal),
                 p.command.clone(),
+                if p.skip_reasons.is_empty() {
+                    "-".to_string()
+                } else {
+                    p.skip_reasons.join(",")
+                },
             ]
         })
         .collect();
@@ -358,6 +385,7 @@ async fn cmd_describe(
             "condition_path_exists": detail.condition_path_exists,
             "after": detail.after,
             "before": detail.before,
+            "skip_reasons": detail.skip_reasons,
             "runtime_user": detail.runtime_user,
         });
         println!("{}", serde_json::to_string_pretty(&val).unwrap());
@@ -410,6 +438,9 @@ async fn cmd_describe(
     if !detail.before.is_empty() {
         println!("Before:              [{}]", detail.before.join(", "));
     }
+    if !detail.skip_reasons.is_empty() {
+        println!("Skip Reasons:        {}", detail.skip_reasons.join(", "));
+    }
     if !detail.env.is_empty() {
         let mut keys: Vec<&String> = detail.env.keys().collect();
         keys.sort();
@@ -437,10 +468,12 @@ async fn cmd_status(client: &mut ProcessManagerClient<Channel>, json: bool) -> R
             "running_processes": resp.running_processes,
             "stopped_processes": resp.stopped_processes,
             "created_processes": resp.created_processes,
+            "crashed_processes": resp.crashed_processes,
             "failed_processes": resp.failed_processes,
             "exited_processes": resp.exited_processes,
             "starting_processes": resp.starting_processes,
             "stopping_processes": resp.stopping_processes,
+            "skipped_processes": resp.skipped_processes,
         });
         println!("{}", serde_json::to_string_pretty(&val).unwrap());
         return Ok(());
@@ -454,7 +487,9 @@ async fn cmd_status(client: &mut ProcessManagerClient<Channel>, json: bool) -> R
     println!("  Running:           {}", resp.running_processes);
     println!("  Stopped:           {}", resp.stopped_processes);
     println!("  Created:           {}", resp.created_processes);
+    println!("  Skipped:           {}", resp.skipped_processes);
     println!("  Failed:            {}", resp.failed_processes);
+    println!("  Crashed:           {}", resp.crashed_processes);
     println!("  Exited:            {}", resp.exited_processes);
     if resp.starting_processes > 0 {
         println!("  Starting:          {}", resp.starting_processes);
@@ -674,12 +709,45 @@ mod tests {
         assert_eq!(state_name(proto::ProcessState::Crashed as i32), "Crashed");
         assert_eq!(state_name(proto::ProcessState::Exited as i32), "Exited");
         assert_eq!(state_name(proto::ProcessState::Failed as i32), "Failed");
+        assert_eq!(state_name(proto::ProcessState::Skipped as i32), "Skipped");
     }
 
     #[test]
     fn test_state_name_invalid() {
         assert_eq!(state_name(9999), "Unknown");
         assert_eq!(state_name(-1), "Unknown");
+    }
+
+    #[test]
+    fn test_format_last_exit_signal() {
+        assert_eq!(format_last_exit(None, Some(11)), "signal 11");
+    }
+
+    /// A Windows crash has no signal and reports the fatal exception code as
+    /// the exit code, which `exit -1073741819` renders unreadably. No state is
+    /// passed, so this also holds once the process has restarted.
+    #[cfg(windows)]
+    #[test]
+    fn test_format_last_exit_crash_exit_code_is_hex() {
+        assert_eq!(
+            format_last_exit(Some(0xC0000005u32 as i32), None),
+            "exception 0xC0000005"
+        );
+        assert_eq!(
+            format_last_exit(Some(0x80000003u32 as i32), None),
+            "exception 0x80000003"
+        );
+    }
+
+    #[test]
+    fn test_format_last_exit_failed_stays_decimal() {
+        assert_eq!(format_last_exit(Some(1), None), "exit 1");
+        assert_eq!(format_last_exit(Some(0), None), "exit 0");
+    }
+
+    #[test]
+    fn test_format_last_exit_never_ran() {
+        assert_eq!(format_last_exit(None, None), "-");
     }
 
     #[test]

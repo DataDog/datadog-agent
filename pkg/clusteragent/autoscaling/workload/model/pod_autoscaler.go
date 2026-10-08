@@ -94,6 +94,12 @@ type PodAutoscalerInternal struct {
 	// annotation is absent or its value is not a positive integer.
 	forcedReplicas *int32
 
+	// forcedResources is set from the force-resources annotation on the DPA object: nil when the
+	// annotation is absent or invalid. The vertical controller and the pod patcher overlay it on the
+	// recommendation; it is not a source of its own. It is never mutated once parsed, so it can be
+	// shared between copies of the autoscaler.
+	forcedResources []datadoghqcommon.DatadogPodAutoscalerContainerResources
+
 	// scalingValues represents the active scaling values that should be used
 	scalingValues ScalingValues
 
@@ -323,13 +329,14 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 }
 
 // UpdateFromOpsAnnotations updates the PodAutoscalerInternal from the operational annotations
-// (pause, force-fallback, force-replicas). They are set by the user on the Kubernetes object
-// whatever the owner, so they are read separately from UpdateFromPodAutoscaler, which the leader
-// only calls for local owners once the object exists.
+// (pause, force-fallback, force-replicas, force-resources). They are set by the user on the
+// Kubernetes object whatever the owner, so they are read separately from UpdateFromPodAutoscaler,
+// which the leader only calls for local owners once the object exists.
 func (p *PodAutoscalerInternal) UpdateFromOpsAnnotations(annotations map[string]string) {
 	p.paused = parseOpsBoolAnnotation(annotations, PauseAnnotationKey)
 	p.fallbackForced = parseOpsBoolAnnotation(annotations, ForceFallbackAnnotationKey)
 	p.forcedReplicas = parseForceReplicasAnnotation(annotations[ForceReplicasAnnotationKey])
+	p.forcedResources = parseForceResourcesAnnotation(annotations[ForceResourcesAnnotationKey])
 }
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
@@ -743,6 +750,11 @@ func (p *PodAutoscalerInternal) ForcedReplicas() (int32, bool) {
 	}
 
 	return *p.forcedReplicas, true
+}
+
+// ForcedResources returns the container resources overridden by annotation, nil if none.
+func (p *PodAutoscalerInternal) ForcedResources() []datadoghqcommon.DatadogPodAutoscalerContainerResources {
+	return p.forcedResources
 }
 
 // IsLocalFallbackEnabled returns true unless the spec disables the horizontal local fallback.
@@ -1505,4 +1517,16 @@ func parseForceReplicasAnnotation(value string) *int32 {
 	}
 
 	return pointer.Ptr(int32(replicas))
+}
+
+// parseForceResourcesAnnotation parses the force-resources annotation value, a JSON list of container
+// resources as in the DPA. A value that is not such a list is ignored. The values are checked when
+// they are merged on the recommendation.
+func parseForceResourcesAnnotation(value string) []datadoghqcommon.DatadogPodAutoscalerContainerResources {
+	var forced []datadoghqcommon.DatadogPodAutoscalerContainerResources
+	if err := json.Unmarshal([]byte(value), &forced); err != nil || len(forced) == 0 {
+		return nil
+	}
+
+	return forced
 }

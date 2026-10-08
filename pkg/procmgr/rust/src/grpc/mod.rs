@@ -521,6 +521,10 @@ mod tests {
         assert_eq!(resp.total_processes, 5);
         assert_eq!(resp.running_processes, 1);
         assert_eq!(resp.failed_processes, 1);
+        assert_eq!(
+            resp.crashed_processes, 0,
+            "a non-zero exit returned a value, so nothing here crashed"
+        );
         assert_eq!(resp.stopped_processes, 1);
         assert_eq!(resp.exited_processes, 1);
         assert_eq!(resp.created_processes, 1);
@@ -783,7 +787,8 @@ mod tests {
             .unwrap()
             .into_inner();
         assert_eq!(resp.total_processes, 1);
-        assert_eq!(resp.created_processes, 1);
+        assert_eq!(resp.skipped_processes, 1);
+        assert_eq!(resp.created_processes, 0);
 
         client
             .start(proto::StartRequest {
@@ -837,7 +842,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_create_auto_start_false_stays_created() {
+    async fn test_create_auto_start_false_is_skipped() {
         let (mut client, _shutdown) = start_test_server(vec![]).await;
 
         client
@@ -858,9 +863,10 @@ mod tests {
             .into_inner();
         assert_eq!(resp.total_processes, 1);
         assert_eq!(
-            resp.created_processes, 1,
-            "auto_start=false should leave process in created state"
+            resp.skipped_processes, 1,
+            "auto_start=false should leave process in skipped state"
         );
+        assert_eq!(resp.created_processes, 0);
         assert_eq!(resp.running_processes, 0);
     }
 

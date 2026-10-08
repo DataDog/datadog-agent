@@ -605,13 +605,7 @@ func visibleKeyChars(keyLen int) int {
 	}
 	// bits.Len(n) == floor(log2(n)) + 1 for n > 0
 	n := bits.Len(uint(keyLen)) - 2
-	if n < 1 {
-		return 1
-	}
-	if n > 4 {
-		return 4
-	}
-	return n
+	return min(max(n, 1), 4)
 }
 
 // AddStrippedKeys adds to the set of YAML keys that will be recognized and have their values stripped. This modifies

@@ -573,6 +573,37 @@ func validateSyscallContext(tb testing.TB, event *model.Event, jsonPath string) 
 	}
 }
 
+// assertSerializedFieldEqual checks the value of a field of the serialized event
+func assertSerializedFieldEqual(tb testing.TB, event *model.Event, jsonPath string, expected interface{}) {
+	tb.Helper()
+
+	scrubber, err := utils.NewScrubber(nil, nil)
+	if err != nil {
+		tb.Errorf("failed to create scrubber: %v", err)
+		return
+	}
+
+	eventJSON, err := serializers.MarshalEvent(event, nil, scrubber)
+	if err != nil {
+		tb.Errorf("failed to marshal event: %v", err)
+		return
+	}
+
+	var data interface{}
+	if err := json.Unmarshal(eventJSON, &data); err != nil {
+		tb.Error(err)
+		tb.Error(string(eventJSON))
+		return
+	}
+
+	value, err := jsonpath.JsonPathLookup(data, jsonPath)
+	if err != nil {
+		tb.Errorf("failed to lookup `%s`: %v (%s)", jsonPath, err, string(eventJSON))
+		return
+	}
+	assert.Equal(tb, expected, value, "wrong value for `%s`: %s", jsonPath, string(eventJSON))
+}
+
 //nolint:unused
 func validateProcessContext(tb testing.TB, event *model.Event) {
 	if event.ProcessContext.IsKworker {

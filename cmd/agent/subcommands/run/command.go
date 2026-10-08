@@ -31,7 +31,7 @@ import (
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
 	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
-	recordernoopfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
+	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx"
 	reporterfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
@@ -169,6 +169,7 @@ import (
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	processagentstatusfx "github.com/DataDog/datadog-agent/comp/process/status/fx"
 	procmgrFlareFx "github.com/DataDog/datadog-agent/comp/procmgr/flare/fx"
+	procmgrStatusFx "github.com/DataDog/datadog-agent/comp/procmgr/status/fx"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
@@ -490,6 +491,7 @@ func getSharedFxOption() fx.Option {
 		otelcol.Bundle(),
 		hostProfilerFlareFx.Module(),
 		procmgrFlareFx.Module(),
+		procmgrStatusFx.Module(),
 		rctelemetryreporterfx.Module(),
 		rcprotocoltestfx.Module(),
 		rcservicefx.Module(),
@@ -527,7 +529,7 @@ func getSharedFxOption() fx.Option {
 		logs.Bundle(),
 		observerfx.Module(),
 		logssourcefx.Module(),
-		recordernoopfx.Module(),
+		recorderfx.Module(),
 		reporterfx.Module(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
