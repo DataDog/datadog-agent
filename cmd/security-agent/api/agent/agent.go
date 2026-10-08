@@ -13,6 +13,7 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -45,23 +46,26 @@ func NewAgent(statusComponent status.Component, settings settings.Component, wme
 
 // SetupHandlers adds the specific handlers for /agent endpoints
 func (a *Agent) SetupHandlers(r *http.ServeMux) {
-	r.HandleFunc("GET /version", version.Get)
-	r.HandleFunc("POST /flare", a.makeFlare)
-	r.HandleFunc("POST /stop", a.stopAgent)
-	r.HandleFunc("GET /status", a.getStatus)
-	r.HandleFunc("GET /status/health", a.getHealth)
-	r.HandleFunc("GET /config", a.settings.GetFullConfig(""))
-	r.HandleFunc("GET /config/without-defaults", a.settings.GetFullConfigWithoutDefaults(""))
+	// Routes are registered through observability.WrapWithRouteTemplate so the
+	// api_server request telemetry reports the route template in the path tag
+	// rather than "unknown".
+	observability.WrapWithRouteTemplate(r, "GET", "/version", http.HandlerFunc(version.Get))
+	observability.WrapWithRouteTemplate(r, "POST", "/flare", http.HandlerFunc(a.makeFlare))
+	observability.WrapWithRouteTemplate(r, "POST", "/stop", http.HandlerFunc(a.stopAgent))
+	observability.WrapWithRouteTemplate(r, "GET", "/status", http.HandlerFunc(a.getStatus))
+	observability.WrapWithRouteTemplate(r, "GET", "/status/health", http.HandlerFunc(a.getHealth))
+	observability.WrapWithRouteTemplate(r, "GET", "/config", http.HandlerFunc(a.settings.GetFullConfig("")))
+	observability.WrapWithRouteTemplate(r, "GET", "/config/without-defaults", http.HandlerFunc(a.settings.GetFullConfigWithoutDefaults("")))
 	// FIXME: this returns the entire datadog.yaml and not just security-agent.yaml config
-	r.HandleFunc("GET /config/by-source", a.settings.GetFullConfigBySource())
-	r.HandleFunc("GET /config/list-runtime", a.settings.ListConfigurable)
-	r.HandleFunc("GET /config/{setting}", a.settings.GetValue)
-	r.HandleFunc("POST /config/{setting}", a.settings.SetValue)
-	r.HandleFunc("GET /workload-list", func(w http.ResponseWriter, r *http.Request) {
+	observability.WrapWithRouteTemplate(r, "GET", "/config/by-source", http.HandlerFunc(a.settings.GetFullConfigBySource()))
+	observability.WrapWithRouteTemplate(r, "GET", "/config/list-runtime", http.HandlerFunc(a.settings.ListConfigurable))
+	observability.WrapWithRouteTemplate(r, "GET", "/config/{setting}", http.HandlerFunc(a.settings.GetValue))
+	observability.WrapWithRouteTemplate(r, "POST", "/config/{setting}", http.HandlerFunc(a.settings.SetValue))
+	observability.WrapWithRouteTemplate(r, "GET", "/workload-list", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		verbose := r.URL.Query().Get("verbose") == "true"
 		workloadList(w, verbose, a.wmeta)
-	})
-	r.HandleFunc("GET /secret/refresh", a.refreshSecrets)
+	}))
+	observability.WrapWithRouteTemplate(r, "GET", "/secret/refresh", http.HandlerFunc(a.refreshSecrets))
 
 	// Special handler to compute running agent Code coverage
 	coverage.SetupCoverageHandler(r)

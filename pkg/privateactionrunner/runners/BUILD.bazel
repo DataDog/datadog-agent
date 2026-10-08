@@ -21,6 +21,7 @@ go_library(
         "//pkg/privateactionrunner/adapters/actions",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/adapters/rcclient",
         "//pkg/privateactionrunner/bundles",
         "//pkg/privateactionrunner/credentials/resolver",
         "//pkg/privateactionrunner/libs/encryptioncontext",
@@ -45,6 +46,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/bundles",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/opms",
@@ -57,5 +59,6 @@ dd_agent_go_test(
         "@com_github_google_uuid//:uuid",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/util/sets",
     ],
 )
