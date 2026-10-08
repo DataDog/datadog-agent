@@ -88,18 +88,18 @@ func TestRunCapture_RealEndToEnd(t *testing.T) {
 		capture: &socketCaptureTrigger{},
 	}
 
-	packetCount, fileSizeBytes, actualDuration, pcapPath, err := handler.capture.Capture(context.Background(), RunCaptureInputs{
+	out, err := handler.capture.Capture(context.Background(), RunCaptureInputs{
 		BPFFilter:    "icmp",
 		DurationSecs: 3,
 		Interface:    iface,
 	})
 	require.NoError(t, err)
-	defer os.Remove(pcapPath)
-	t.Logf("captured %d packets (%d bytes) in %s -> %s", packetCount, fileSizeBytes, actualDuration, pcapPath)
-	require.Greater(t, packetCount, 0, "expected at least one ICMP packet — is traffic being generated on %s during the capture window?", iface)
+	defer os.Remove(out.PcapPath)
+	t.Logf("captured %d packets (%d bytes) in %s -> %s", out.PacketCount, out.FileSizeBytes, out.Duration, out.PcapPath)
+	require.Greater(t, out.PacketCount, 0, "expected at least one ICMP packet — is traffic being generated on %s during the capture window?", iface)
 
 	captureID := "e2e-test-" + uuid.New().String()
-	pcapBytes, err := os.ReadFile(pcapPath)
+	pcapBytes, err := os.ReadFile(out.PcapPath)
 	require.NoError(t, err)
 
 	err = handler.uploader.Upload(context.Background(), pcapBytes, captureID)
