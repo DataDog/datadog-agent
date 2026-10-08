@@ -399,9 +399,9 @@ require (
 	github.com/twmb/franz-go/pkg/kadm v1.19.0
 	github.com/twmb/franz-go/pkg/kmsg v1.14.0
 	github.com/twmb/murmur3 v1.2.0
-	github.com/uptrace/bun v1.2.18
-	github.com/uptrace/bun/dialect/pgdialect v1.2.18
-	github.com/uptrace/bun/driver/pgdriver v1.2.18
+	github.com/uptrace/bun v1.3.0
+	github.com/uptrace/bun/dialect/pgdialect v1.3.0
+	github.com/uptrace/bun/driver/pgdriver v1.3.0
 	github.com/urfave/negroni/v3 v3.1.1
 	github.com/vibrantbyte/go-antpath v1.1.1
 	github.com/vishvananda/netlink v1.3.1
