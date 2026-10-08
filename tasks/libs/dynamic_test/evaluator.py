@@ -505,7 +505,7 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
         """
         escaped_job_name = job_name.replace('"', '\\"')
         query = (
-            'env:prod'
+            'env:prod '
             f'@ci.pipeline.name:DataDog/datadog-agent '
             f'@ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}" '
             f'-@test.status:skip'
