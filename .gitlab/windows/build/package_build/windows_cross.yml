@@ -1,0 +1,16 @@
+---
+windows_agent_cross_build_x64-a7:
+  stage: package_build
+  extends: .bazel:runner:linux-amd64
+  rules:
+    - when: on_success
+  script:
+    - >
+      bazel build
+      --platforms=//bazel/toolchains/hermetic_llvm:windows_x86_64_gnu
+      --extra_toolchains=@llvm//toolchain:linux_x86_64_to_windows_x86_64,//bazel/toolchains/hermetic_llvm:linux_make_toolchain
+      //deps/cpython:python_win_install_windows
+      //bazel/toolchains/hermetic_llvm:openssl_windows
+      //cmd/agent
+      //cmd/dogstatsd
+      //deps/agent_integrations:integrations

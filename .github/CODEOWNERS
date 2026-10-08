@@ -230,6 +230,7 @@
 /.gitlab/build/source_test/go_generate_check.yml                          @DataDog/agent-security
 /.gitlab/build/package_build/                                             @DataDog/agent-build
 /.gitlab/windows/build/package_build/windows.yml                          @DataDog/agent-build @DataDog/windows-products
+/.gitlab/windows/build/package_build/windows_cross.yml                    @DataDog/agent-build
 /.gitlab/build/package_build/installer.yml                                @DataDog/agent-build @DataDog/fleet
 /.gitlab/build/packaging/                                                 @DataDog/agent-build
 /.gitlab/windows/build/packaging/                                         @DataDog/fleet-automation @DataDog/windows-products
