@@ -81,8 +81,7 @@ func TestInventorySerializesAppServiceIdentity(t *testing.T) {
 					provides := inventoryagentimpl.NewComponent(inventoryagentimpl.Requires{
 						Config: conf, Log: logmock.New(t), Hostname: hostname, Serializer: serial, Capabilities: serverlessInitInventory.NewCapabilities(),
 					})
-					serverlessInitInventory.Inject(provides.Comp, service, mode.Conf{SidecarMode: true}, conf, map[string]string{"service": "custom-dd-service"})
-					serverlessInitInventory.Submit(provides.Comp, conf)
+					serverlessInitInventory.Publish(provides.Comp, service, mode.Conf{SidecarMode: true}, conf, map[string]string{"service": "custom-dd-service"})
 					if scenario != "valid" {
 						assert.Empty(t, serial.payloads)
 						assert.Nil(t, provides.Provider.Callback, "ineligible inventory must not register periodic collection")
