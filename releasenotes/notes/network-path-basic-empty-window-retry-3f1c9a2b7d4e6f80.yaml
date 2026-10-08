@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    Basic Network Path Dynamic Tests no longer wait a full hour after a
-    selection window closes without eligible paths. The Agent now retries
-    after five minutes, so hosts whose first eligible connection arrives late
-    are tested soon after instead of an hour later.
