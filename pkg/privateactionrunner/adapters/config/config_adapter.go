@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -67,7 +68,7 @@ type Config struct {
 	HeartbeatInterval          time.Duration
 	EnableProfiling            bool
 	DisableCredentialTemplates bool
-	CredentialValues           map[string]string
+	CredentialValues           map[string]par.CredentialConfig
 
 	Version string
 

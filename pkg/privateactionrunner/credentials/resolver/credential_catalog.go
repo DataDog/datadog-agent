@@ -8,11 +8,13 @@ package resolver
 import (
 	"errors"
 	"sort"
+
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 )
 
 // CredentialCatalog contains credentials configured for the Private Action Runner.
 type CredentialCatalog struct {
-	configured map[string]string
+	configured map[string]par.CredentialConfig
 }
 
 // CredentialDescriptor describes a credential in the catalog.
@@ -22,8 +24,8 @@ type CredentialDescriptor struct {
 }
 
 // NewCredentialCatalog builds a catalog from configured credentials.
-func NewCredentialCatalog(configured map[string]string) *CredentialCatalog {
-	values := make(map[string]string, len(configured))
+func NewCredentialCatalog(configured map[string]par.CredentialConfig) *CredentialCatalog {
+	values := make(map[string]par.CredentialConfig, len(configured))
 	for key, value := range configured {
 		values[key] = value
 	}
@@ -39,11 +41,11 @@ func (c *CredentialCatalog) Resolve(key string) (string, error) {
 	if !found {
 		return "", errors.New("requested runner credential is not available")
 	}
-	return value, nil
+	return value.Value, nil
 }
 
-func (c *CredentialCatalog) snapshot() map[string]string {
-	values := make(map[string]string, len(c.configured))
+func (c *CredentialCatalog) snapshot() map[string]par.CredentialConfig {
+	values := make(map[string]par.CredentialConfig, len(c.configured))
 	for key, value := range c.configured {
 		values[key] = value
 	}

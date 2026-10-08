@@ -388,7 +388,8 @@ func TestPrivateActionRunnerCredentialValuesScrub(t *testing.T) {
   enabled: true
   credentials:
     values:
-      production: sensitive-value
+      production:
+        value: sensitive-value
 unrelated:
   values:
     production: visible-value
@@ -397,7 +398,8 @@ unrelated:
   enabled: true
   credentials:
     values:
-      production: "********"
+      production:
+        value: "********"
 unrelated:
   values:
     production: visible-value

@@ -12,11 +12,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
 
 func TestCredentialCatalogConfiguredValues(t *testing.T) {
-	catalog := NewCredentialCatalog(map[string]string{"api_token": "secret-value"})
+	catalog := NewCredentialCatalog(map[string]par.CredentialConfig{"api_token": {Value: "secret-value"}})
 
 	value, err := catalog.Resolve("api_token")
 	require.NoError(t, err)
@@ -27,7 +28,7 @@ func TestCredentialCatalogConfiguredValues(t *testing.T) {
 }
 
 func TestResolveConnectionTokensV2FromRunnerCatalog(t *testing.T) {
-	catalog := NewCredentialCatalog(map[string]string{"api_token": "secret-value"})
+	catalog := NewCredentialCatalog(map[string]par.CredentialConfig{"api_token": {Value: "secret-value"}})
 	resolver := NewPrivateCredentialResolver(catalog)
 	conn := &privateactionspb.ConnectionInfo{
 		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
