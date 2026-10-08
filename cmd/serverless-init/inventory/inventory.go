@@ -68,12 +68,12 @@ func NewInstanceUUID() *InstanceUUID {
 }
 
 // SetInstance rotates the uuid when id names an instance other than the current
-// one. The lifecycle server reports the running instance id on every transition,
-// so a restored instance rotates the snapshot's uuid on its first transition
-// while later transitions of that same instance keep one uuid. No-op on a nil
-// receiver, so callers can invoke unconditionally.
+// one. Same-instance resumes retain the uuid. This relies on the platform
+// assumption that snapshot reuse for another instance supplies a new identity;
+// it does not detect arbitrary clones. No-op on a nil receiver.
 //
-// Safe to call concurrently with Resolve; visible to the next payload built.
+// Safe to call concurrently with Resolve. Publication must keep readiness closed
+// until this update and all matching metadata updates have finished.
 func (u *InstanceUUID) SetInstance(id string) {
 	if u == nil || id == "" {
 		return
@@ -94,10 +94,27 @@ func (u *InstanceUUID) Resolve() string {
 	return u.uuid
 }
 
-// NewInstanceCapabilities builds Capabilities that re-resolve the uuid per
-// payload, for a platform whose instance identity arrives after construction.
+// NewInstanceCapabilities keeps inventory closed during image construction and
+// re-resolves the uuid per payload once a lifecycle hook publishes an instance.
 func NewInstanceCapabilities(u *InstanceUUID) *inventoryagent.Capabilities {
 	return inventoryagent.NewServerlessCapabilities(u.Resolve)
+}
+
+// PublishInstance publishes one MicroVM identity and all matching metadata before
+// reopening readiness and immediately submitting. The lifecycle server must
+// serialize the instance ID store/load together with this entire call; the gate
+// serializes readers, not competing publishers. No metadata or UUID lock is held
+// while calling SetReady or Submit.
+func PublishInstance(ia inventoryagent.Component, u *InstanceUUID, id string, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
+	if id == "" || !conf.GetBool("serverless.inventory_enabled") {
+		return
+	}
+	ia.SetReady(false)
+	u.SetInstance(id)
+	Inject(ia, cs, modeConf, conf, tags)
+	SetResourceID(ia, conf, id)
+	ia.SetReady(true)
+	Submit(ia, conf)
 }
 
 // Publish initializes all serverless metadata before opening readiness and
@@ -147,10 +164,8 @@ func Submit(ia inventoryagent.Component, conf configmodel.Reader) {
 // environment).
 //
 // An empty id is ignored so it cannot displace the identifier the platform's
-// GetInventoryData already derived: the MicroVM lifecycle server reports the
-// stored instance id on /resume, which is empty when no /run delivered one. The
-// payload then keeps reporting the parent, which is indistinguishable from one
-// built before the first /run, so the discarded narrowing is logged.
+// GetInventoryData already derived. PublishInstance rejects empty identities
+// before injection; image-only metadata must never open readiness.
 func SetResourceID(ia inventoryagent.Component, conf configmodel.Reader, id string) {
 	if !conf.GetBool("serverless.inventory_enabled") {
 		return

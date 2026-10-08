@@ -8,10 +8,12 @@
 package inventory
 
 import (
+	"os"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
@@ -51,9 +53,8 @@ func TestSetResourceIDGatedOff(t *testing.T) {
 	assert.Empty(t, ia.fields, "resource_id must not be set when the ramp gate is off")
 }
 
-// The MicroVM lifecycle server reports the stored instance id on /resume, which
-// is empty when no /run delivered one; the image ARN that Inject derived must
-// survive that.
+// Defensive narrowing ignores empty IDs; PublishInstance must reject them
+// before any injection or readiness change.
 func TestSetResourceIDIgnoresEmptyID(t *testing.T) {
 	conf := configmock.New(t)
 	conf.Set("serverless.inventory_enabled", true, model.SourceAgentRuntime)
@@ -68,7 +69,7 @@ func TestSetResourceIDIgnoresEmptyID(t *testing.T) {
 func TestNewInstanceUUIDResolvesBeforeAnyInstance(t *testing.T) {
 	u := NewInstanceUUID()
 
-	assert.NotEmpty(t, u.Resolve(), "a payload built before the first transition still needs a uuid")
+	assert.NotEmpty(t, u.Resolve(), "construction initializes a uuid, but readiness blocks image-only payloads")
 }
 
 func TestSetInstanceRotatesUUIDForNewInstance(t *testing.T) {
@@ -151,6 +152,7 @@ func TestNewInstanceCapabilitiesResolvesPerPayload(t *testing.T) {
 	u := NewInstanceUUID()
 	caps := NewInstanceCapabilities(u)
 
+	assert.True(t, caps.DeferUntilReady)
 	assert.True(t, caps.SkipFullAgentMetadataRefresh)
 	assert.Equal(t, u.Resolve(), caps.PayloadUUID())
 
@@ -158,4 +160,30 @@ func TestNewInstanceCapabilitiesResolvesPerPayload(t *testing.T) {
 
 	assert.Equal(t, u.Resolve(), caps.PayloadUUID(),
 		"the uuid must resolve per payload, not be captured once")
+}
+
+func TestPublishInstanceRejectsMissingIdentityAndDisabledRamp(t *testing.T) {
+	for _, scenario := range []string{"missing identity", "default off", "disabled"} {
+		t.Run(scenario, func(t *testing.T) {
+			t.Setenv("DD_SERVERLESS_INIT_INVENTORY_ENABLED", "")
+			require.NoError(t, os.Unsetenv("DD_SERVERLESS_INIT_INVENTORY_ENABLED"))
+			conf := configmock.New(t)
+			id := "vm-A"
+			switch scenario {
+			case "missing identity":
+				conf.Set("serverless.inventory_enabled", true, model.SourceAgentRuntime)
+				id = ""
+			case "disabled":
+				conf.Set("serverless.inventory_enabled", false, model.SourceAgentRuntime)
+			}
+			ia := newFakeComponent()
+			u := NewInstanceUUID()
+			before := u.Resolve()
+
+			PublishInstance(ia, u, id, &cloudservice.MicroVM{}, mode.Conf{}, conf, nil)
+
+			assert.Empty(t, ia.calls, "must not inject, open readiness, or submit")
+			assert.Equal(t, before, u.Resolve(), "must not change identity")
+		})
+	}
 }

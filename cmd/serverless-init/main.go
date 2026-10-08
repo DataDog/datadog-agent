@@ -553,18 +553,11 @@ func setup(
 		serverlessInitInventory.Publish(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
 	}
 
-	// MicroVM submits from the lifecycle server instead of at setup: the
-	// lifecycle server hands over the per-instance id (from the /run body, or the
-	// stored id on /resume), which narrows resource_id from the image ARN that
-	// Inject derives to the instance, then a fresh payload is injected and
-	// submitted. Wired into LifecycleContext below; only invoked for MicroVM. The
-	// id also re-identifies the payload uuid, which every instance restored from
-	// the same snapshot otherwise shares.
+	// The lifecycle server serializes /run's ID store and /resume's ID load with
+	// this publication. UUID, generic fields, and instance resource ID are all
+	// updated while closed; missing identity cannot open the image-build gate.
 	inventorySubmitter := lifecycle.InventorySubmitterFunc(func(microVMID string) {
-		instanceUUID.SetInstance(microVMID)
-		serverlessInitInventory.Inject(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
-		serverlessInitInventory.SetResourceID(inventoryAgent, pkgconfigsetup.Datadog(), microVMID)
-		serverlessInitInventory.Submit(inventoryAgent, pkgconfigsetup.Datadog())
+		serverlessInitInventory.PublishInstance(inventoryAgent, instanceUUID, microVMID, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
 	})
 
 	// Note: we do not modify tags for the LogsAgent.

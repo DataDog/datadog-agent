@@ -182,7 +182,8 @@ func (f MetricTagSetterFunc) SetMetricTags(tags []string) { f(tags) }
 // InventorySubmitter enqueues a serverless inventory metadata payload for the
 // current MicroVM instance. The server owns the instance id (from the /run
 // body or the stored value at /resume) and hands it to the callback, mirroring
-// the tag-setter trio; the callback consumes it.
+// the tag-setter trio; the callback consumes it. Calls are serialized with the
+// instance ID store/load, so a resume cannot replay a stale captured identity.
 type InventorySubmitter interface {
 	SubmitInventory(microVMID string)
 }
@@ -205,7 +206,7 @@ type Server struct {
 	logsFlusher   LogsFlusher
 	metricEmitter MetricEmitter
 	sampleDrainer SampleDrainer
-	instanceID    *atomic.String // set once from /run body
+	instanceID    *atomic.String // updated from valid /run bodies; read by telemetry
 	metricSource  metrics.MetricSource
 	flushTimeout  time.Duration
 
@@ -222,6 +223,7 @@ type Server struct {
 	metricTagSetter     MetricTagSetter    // nil-safe; set via SetMetricTagSetter after construction
 	baseUsageMetricTags []string           // startup enhanced usage metric tag snapshot; instance:<id> is appended at /run
 	inventorySubmitter  InventorySubmitter // nil-safe; set via SetInventorySubmitter after construction
+	inventoryMu         sync.Mutex         // serializes instance ID store/load and the complete inventory callback
 
 	httpServer *http.Server
 	listener   net.Listener // set once ListenAndServe binds successfully
@@ -337,6 +339,7 @@ func (s *Server) SetMetricTagSetter(setter MetricTagSetter, baseUsageMetricTags 
 // their own InventorySubmitter is nil. If called, it must happen before the
 // first /run request. The server passes the per-instance MicroVM id to the
 // submitter on /run (from the request body) and /resume (from the stored id).
+// No submission is made without an established identity.
 func (s *Server) SetInventorySubmitter(setter InventorySubmitter) {
 	s.inventorySubmitter = setter
 }
@@ -702,9 +705,11 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	var body runBody
 	if err := json.Unmarshal(bodyBytes, &body); err != nil {
 		log.Debugf("MicroVM lifecycle: could not parse run body: %v", err)
+		body.MicroVMID = "" // Unmarshal may have partially populated an invalid body.
 	}
 	if body.MicroVMID != "" {
 		log.Infof("MicroVM lifecycle: run (microvm_id=%s)", body.MicroVMID)
+		s.inventoryMu.Lock()
 		s.instanceID.Store(body.MicroVMID)
 		s.heartbeat.SetMicroVMID(body.MicroVMID)
 		if s.logsTagSetter != nil {
@@ -724,6 +729,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		if s.inventorySubmitter != nil {
 			s.inventorySubmitter.SubmitInventory(body.MicroVMID)
 		}
+		s.inventoryMu.Unlock()
 	} else {
 		log.Info("MicroVM lifecycle: run")
 	}
@@ -744,9 +750,13 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: resume")
 	s.heartbeat.Start()
-	if s.inventorySubmitter != nil {
-		s.inventorySubmitter.SubmitInventory(s.instanceID.Load())
+	// Same-instance resume keeps its identity. Snapshot reuse for another
+	// instance is assumed to supply a new ID via /run, not the /resume body.
+	s.inventoryMu.Lock()
+	if id := s.instanceID.Load(); id != "" && s.inventorySubmitter != nil {
+		s.inventorySubmitter.SubmitInventory(id)
 	}
+	s.inventoryMu.Unlock()
 	s.dispatchHook(resumeMetricName, pathResume, noFlush, s.enabledHooks.Resume, w, r)
 }
 

@@ -145,7 +145,7 @@ func TestMicroVMGetEnhancedMetricTagsMissingARN(t *testing.T) {
 
 // TestMicroVMGetInventoryData pins the image ARN as both the parent and the
 // resource id: the instance id that narrows resource_id only arrives with the
-// /run lifecycle hook, and a payload built before it still needs a resource id.
+// /run lifecycle hook. Readiness suppresses image-only payloads until then.
 func TestMicroVMGetInventoryData(t *testing.T) {
 	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, testImageARN)
 	m := &MicroVM{}
