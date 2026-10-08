@@ -8,6 +8,8 @@ package ndmdiscoveryimpl
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,7 +26,7 @@ const (
 	statusUnreachable = "unreachable"
 )
 
-// progressInterval is the shortest delay between two progress reports of a run.
+// progressInterval is how often a running sweep reports its progress.
 const progressInterval = 30 * time.Second
 
 // scanFunc probes a batch of addresses. It is satisfied by probe.Scan.
@@ -51,8 +53,10 @@ type sweeper struct {
 	// budget is the size of sem.
 	budget int64
 	log    log.Component
-	// progressEvery rate-limits the in_progress reports, and disables them at zero.
+	// progressEvery paces the in_progress reports, and disables them at zero.
 	progressEvery time.Duration
+	// newProgressTicker is injectable so tests can drive time.
+	newProgressTicker func(d time.Duration) (<-chan time.Time, func())
 
 	now      func() int64
 	newRunID func() string
@@ -70,8 +74,12 @@ func newSweeper(scan scanFunc, reporter discoveryReporter, cursors cursorStore, 
 		budget:        budget,
 		log:           logger,
 		progressEvery: progressInterval,
-		now:           func() int64 { return time.Now().UnixMilli() },
-		newRunID:      func() string { return uuid.New().String() },
+		newProgressTicker: func(d time.Duration) (<-chan time.Time, func()) {
+			t := time.NewTicker(d)
+			return t.C, t.Stop
+		},
+		now:      func() int64 { return time.Now().UnixMilli() },
+		newRunID: func() string { return uuid.New().String() },
 	}
 }
 
@@ -96,9 +104,13 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 			id, r.Config.NetworkAddress, state.NextChunk, total, state.RunID)
 	}
 
+	scanned := &atomic.Int64{}
+	scanned.Store(state.Scanned)
+	stopProgress := s.startProgress(ctx, r, state, scanned)
+	defer stopProgress()
+
 	// reported is a lower bound after a restart: a resumed run inherits no count.
 	reported := 0
-	lastProgressMs := s.now()
 	for state.NextChunk < total {
 		chunk := r.Plan.chunk(state.NextChunk)
 
@@ -113,6 +125,7 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 			// that the resume opens a new run.
 			state.Failed = true
 			s.saveCursor(id, state)
+			stopProgress()
 			s.reportRun(r, metadata.AutodiscoveryRunMetadata{
 				AutodiscoveryID:  id,
 				RunID:            state.RunID,
@@ -136,12 +149,11 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 
 		state.NextChunk++
 		state.Scanned += int64(len(chunk.Targets))
+		scanned.Store(state.Scanned)
 		s.saveCursor(id, state)
-
-		if state.NextChunk < total {
-			lastProgressMs = s.reportProgress(r, state, lastProgressMs)
-		}
 	}
+
+	stopProgress()
 
 	s.log.Infof("ndmdiscovery: completed the scan of range %s (%s): %d addresses scanned, %d devices reported, run %s",
 		id, r.Config.NetworkAddress, state.Scanned, reported, state.RunID)
@@ -253,22 +265,46 @@ func (s *sweeper) saveCursor(id string, state cursorState) {
 	}
 }
 
-// reportProgress reports how far the run has got, no more than once per
-// progressEvery, and returns when it last did so.
-func (s *sweeper) reportProgress(r sweepRequest, state cursorState, lastMs int64) int64 {
-	now := s.now()
-	if s.progressEvery <= 0 || now-lastMs < s.progressEvery.Milliseconds() {
-		return lastMs
+// startProgress reports how far the run has got, every progressEvery, until
+// the returned stop is called. Stop waits for the reporter to go quiet, so no
+// progress report can land after a terminal one, and is safe to call twice.
+func (s *sweeper) startProgress(ctx context.Context, r sweepRequest, state cursorState, scanned *atomic.Int64) func() {
+	if s.progressEvery <= 0 {
+		return func() {}
 	}
 
-	s.reportRun(r, metadata.AutodiscoveryRunMetadata{
-		AutodiscoveryID:  r.Config.AutodiscoveryID,
-		RunID:            state.RunID,
-		Status:           metadata.AutodiscoveryRunInProgress,
-		AddressesScanned: state.Scanned,
-		StartedAtMs:      state.StartedAtMs,
-	})
-	return now
+	tick, stopTicker := s.newProgressTicker(s.progressEvery)
+	done := make(chan struct{})
+	finished := make(chan struct{})
+
+	go func() {
+		defer close(finished)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-done:
+				return
+			case <-tick:
+				s.reportRun(r, metadata.AutodiscoveryRunMetadata{
+					AutodiscoveryID:  r.Config.AutodiscoveryID,
+					RunID:            state.RunID,
+					Status:           metadata.AutodiscoveryRunInProgress,
+					AddressesScanned: scanned.Load(),
+					StartedAtMs:      state.StartedAtMs,
+				})
+			}
+		}
+	}()
+
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			close(done)
+			stopTicker()
+		})
+		<-finished
+	}
 }
 
 func (s *sweeper) reportRun(r sweepRequest, run metadata.AutodiscoveryRunMetadata) {
