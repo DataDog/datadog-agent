@@ -43,8 +43,8 @@ const modulePrefix = "github.com/DataDog/datadog-agent"
 // if a non empty logFile is provided, it will also log to the file
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
-func SetupLogger(loggerName LoggerName, strLogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
-	levelRules, err := types.ParseLevelRules(strLogLevel, modulePrefix)
+func SetupLogger(loggerName LoggerName, logLevelSpec, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
+	levelRules, err := types.ParseLevelRules(logLevelSpec, modulePrefix)
 	if err != nil {
 		return err
 	}
@@ -61,9 +61,9 @@ func SetupLogger(loggerName LoggerName, strLogLevel, logFile, syslogURI string, 
 		if setting != "log_level" || oldValue == newValue {
 			return
 		}
-		level := newValue.(string)
+		logLevelSpec := newValue.(string)
 
-		newLevelRules, err := types.ParseLevelRules(level, modulePrefix)
+		newLevelRules, err := types.ParseLevelRules(logLevelSpec, modulePrefix)
 		if err != nil {
 			log.Warnf("Unable to set new log level: %v", err)
 			return

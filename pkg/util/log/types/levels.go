@@ -52,11 +52,7 @@ type LevelRules struct {
 	// rules with an equally long prefix, a non-recursive (exact) rule before
 	// a recursive one, so the first matching rule is always the correct one.
 	rules []rule
-	// spec is the raw specification string this config was parsed from, if
-	// any. It lets callers that only ever deal in strings (e.g. config files,
-	// remote-config, HTTP endpoints) round-trip the exact value that was set,
-	// including any per-package overrides that DefaultLevel/String() alone
-	// cannot represent.
+	// spec is the raw specification string this config was parsed from.
 	spec string
 }
 
@@ -121,10 +117,7 @@ func (c *LevelRules) MinLevel() LogLevel {
 	return c.minLevel
 }
 
-// Spec returns the specification string this configuration corresponds to,
-// e.g. "error,some/pkg/...=debug" for a parsed specification or "info" for
-// one built directly from a single level. The returned string is always a
-// valid input to ParseLevelRules describing the current configuration.
+// Spec returns the specification string this configuration corresponds to.
 func (c *LevelRules) Spec() string {
 	return c.spec
 }
@@ -163,43 +156,30 @@ func NewRulesSync(levelRules *LevelRules) *RulesSync {
 }
 
 // NewRulesSyncFromLevel returns a RulesSync initialized with a single
-// level applying to all packages. It is a convenience for
-// NewRulesSync(NewLevelRules(level)); the returned holder remains
-// updatable via Store.
+// level applying to all packages.
 func NewRulesSyncFromLevel(level LogLevel) *RulesSync {
 	return NewRulesSync(NewLevelRules(level))
 }
 
 // Store atomically replaces the current LevelRules.
 func (s *RulesSync) Store(levelRules *LevelRules) {
-	if levelRules == nil {
-		panic("types.RulesSync.Store: nil LevelRules")
-	}
 	s.rules.Store(levelRules)
 }
 
 // Load returns the current LevelRules.
 func (s *RulesSync) Load() *LevelRules {
-	return s.mustLoad()
-}
-
-func (s *RulesSync) mustLoad() *LevelRules {
-	levelRules := s.rules.Load()
-	if levelRules == nil {
-		panic("types.RulesSync: uninitialized")
-	}
-	return levelRules
+	return s.rules.Load()
 }
 
 // Level implements slog.Leveler.
 func (s *RulesSync) Level() slog.Level {
-	return ToSlogLevel(s.mustLoad().MinLevel())
+	return ToSlogLevel(s.Load().MinLevel())
 }
 
 // EnabledForPC reports whether level is enabled for the call site identified
 // by pc, as captured by runtime.Callers.
 func (s *RulesSync) EnabledForPC(pc uintptr, level slog.Level) bool {
-	return ToSlogLevel(s.mustLoad().LevelForPC(pc)) <= level
+	return ToSlogLevel(s.Load().LevelForPC(pc)) <= level
 }
 
 // packageFromPC resolves the Go import path of the package containing the

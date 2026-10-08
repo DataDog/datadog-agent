@@ -162,7 +162,7 @@ func TestRulesSync(t *testing.T) {
 	fromLevel := NewRulesSyncFromLevel(WarnLvl)
 	assert.Equal(t, WarnLvl, fromLevel.Load().DefaultLevel())
 	assert.Equal(t, WarnLvl, fromLevel.Load().MinLevel())
-	assert.Equal(t, "", fromLevel.Load().Spec())
+	assert.Equal(t, "warn", fromLevel.Load().Spec())
 
 	rules, err := ParseLevelRules("error,some/pkg=debug", "github.com/DataDog/datadog-agent")
 	require.NoError(t, err)

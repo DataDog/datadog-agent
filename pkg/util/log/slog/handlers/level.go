@@ -14,7 +14,7 @@ import (
 
 var _ slog.Handler = (*level)(nil)
 
-// level is a slog handler that filters logs based on a level.
+// level is a slog handler that filters logs based on level rules.
 type level struct {
 	levelRules   *types.RulesSync
 	innerHandler slog.Handler

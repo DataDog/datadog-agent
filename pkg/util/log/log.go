@@ -53,7 +53,7 @@ var (
 // DatadogLogger wrapper structure for seelog
 type DatadogLogger struct {
 	inner LoggerInterface
-	level *types.RulesSync
+	rules *types.RulesSync
 	l     sync.RWMutex
 }
 
@@ -89,7 +89,7 @@ func SetupLoggerWithLevelRules(i LoggerInterface, levelRules *types.RulesSync) {
 func setupCommonLogger(i LoggerInterface, levelRules *types.RulesSync) {
 	l := &DatadogLogger{
 		inner: i,
-		level: levelRules,
+		rules: levelRules,
 	}
 
 	// We're not going to call DatadogLogger directly, but using the
@@ -162,7 +162,7 @@ func (sw *loggerPointer) changeLogLevelRules(levelRules *types.LevelRules) error
 		return errors.New("cannot change loglevel: logger is initialized however logger.inner is nil")
 	}
 
-	l.level.Store(levelRules)
+	l.rules.Store(levelRules)
 
 	return nil
 }
@@ -184,7 +184,7 @@ func (sw *loggerPointer) getLogLevel() (LogLevel, error) {
 		return InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 	}
 
-	return l.level.Load().DefaultLevel(), nil
+	return l.rules.Load().DefaultLevel(), nil
 }
 
 // ShouldLog returns whether a given log level should be logged by the default logger
@@ -201,7 +201,7 @@ func ShouldLog(lvl LogLevel) bool {
 
 // This function should be called with `sw.l` held
 func (sw *DatadogLogger) shouldLog(level LogLevel) bool {
-	return level >= sw.level.Load().MinLevel()
+	return level >= sw.rules.Load().MinLevel()
 }
 
 // ValidateLogLevel validates the given log level and returns the
