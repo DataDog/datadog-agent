@@ -18,7 +18,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
-	github.com/tinylib/msgp v1.6.4 // indirect
+	github.com/tinylib/msgp v1.6.5 // indirect
 	go.opentelemetry.io/collector/component v1.65.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.66.0 // indirect
 	go.opentelemetry.io/otel v1.46.0 // indirect
