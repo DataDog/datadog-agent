@@ -4,7 +4,7 @@ from unittest.mock import ANY, MagicMock, patch
 from invoke import Context
 from invoke.exceptions import Exit
 
-from tasks.dyntest import evaluate_index
+from tasks.dyntest import evaluate_index, generate_jev_pr_summary
 from tasks.libs.dynamic_test.index import IndexKind
 from tasks.libs.dynamic_test.jev_selection import NothingToEvaluateError
 from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler
@@ -57,15 +57,31 @@ class TestEvaluateIndex(unittest.TestCase):
         evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=True)
         # Summary disabled: the executor disables it for the selector
         self.assertEqual(executor.call_args.kwargs["summary_model"], "")
+        self.assertIsNone(executor.call_args.kwargs["summary_file"])
         # The flag value is a tag on the reported metrics
         tags = telemetry.call_args.kwargs["default_tags"]
         self.assertIn("jev_llm_summary:false", tags)
         enabled.assert_any_call(ANY, "datadog-agent-jev-llm-summary")
-        # Flag on: the summary uses the default model and the tag flips
+        # Flag on: the summary uses the default model and loads the file
         enabled.side_effect = [True, True]
         evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=True)
         self.assertIsNone(executor.call_args.kwargs["summary_model"])
+        self.assertTrue(executor.call_args.kwargs["summary_file"])
         self.assertIn("jev_llm_summary:true", telemetry.call_args.kwargs["default_tags"])
+
+    @patch("tasks.dyntest.is_enabled", return_value=False)
+    @patch("tasks.dyntest.generate_pr_summary")
+    def test_generate_jev_pr_summary_respects_the_feature_flag(self, generate, enabled):
+        """The generate task (the separate task call computing the summary
+        for the evaluation) is a no-op when the flag is off."""
+        generate_jev_pr_summary.body(Context())
+        generate.assert_not_called()
+        enabled.side_effect = None
+        enabled.return_value = True
+        generate_jev_pr_summary.body(Context(), output="s.json", base="main", model="gpt-4o-mini")
+        self.assertEqual(generate.call_args.kwargs["output"], "s.json")
+        self.assertEqual(generate.call_args.kwargs["base"], "main")
+        self.assertEqual(generate.call_args.kwargs["model"], "gpt-4o-mini")
 
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
     @patch("tasks.dyntest.get_modified_files", return_value=["pkg/file.go"])
