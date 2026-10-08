@@ -200,6 +200,7 @@ fn state_name(val: i32) -> &'static str {
         Ok(proto::ProcessState::Crashed) => "Crashed",
         Ok(proto::ProcessState::Exited) => "Exited",
         Ok(proto::ProcessState::Failed) => "Failed",
+        Ok(proto::ProcessState::InvalidConfig) => "InvalidConfig",
         Ok(proto::ProcessState::Skipped) => "Skipped",
         Err(_) => "Unknown",
     }
@@ -290,6 +291,7 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                     "restart_count": p.restart_count,
                     "last_exit_code": p.last_exit_code,
                     "last_signal": p.last_signal,
+                    "config_error": p.config_error,
                     "skip_reasons": p.skip_reasons,
                 })
             })
@@ -387,6 +389,7 @@ async fn cmd_describe(
             "before": detail.before,
             "skip_reasons": detail.skip_reasons,
             "runtime_user": detail.runtime_user,
+            "config_error": detail.config_error,
         });
         println!("{}", serde_json::to_string_pretty(&val).unwrap());
         return Ok(());
@@ -449,6 +452,9 @@ async fn cmd_describe(
             println!("  {}={}", k, detail.env[k]);
         }
     }
+    if !detail.config_error.is_empty() {
+        println!("Config Error:        {}", detail.config_error);
+    }
     Ok(())
 }
 
@@ -473,6 +479,7 @@ async fn cmd_status(client: &mut ProcessManagerClient<Channel>, json: bool) -> R
             "exited_processes": resp.exited_processes,
             "starting_processes": resp.starting_processes,
             "stopping_processes": resp.stopping_processes,
+            "invalid_config_processes": resp.invalid_config_processes,
             "skipped_processes": resp.skipped_processes,
         });
         println!("{}", serde_json::to_string_pretty(&val).unwrap());
@@ -491,6 +498,7 @@ async fn cmd_status(client: &mut ProcessManagerClient<Channel>, json: bool) -> R
     println!("  Failed:            {}", resp.failed_processes);
     println!("  Crashed:           {}", resp.crashed_processes);
     println!("  Exited:            {}", resp.exited_processes);
+    println!("  Invalid Config:    {}", resp.invalid_config_processes);
     if resp.starting_processes > 0 {
         println!("  Starting:          {}", resp.starting_processes);
     }
@@ -709,6 +717,10 @@ mod tests {
         assert_eq!(state_name(proto::ProcessState::Crashed as i32), "Crashed");
         assert_eq!(state_name(proto::ProcessState::Exited as i32), "Exited");
         assert_eq!(state_name(proto::ProcessState::Failed as i32), "Failed");
+        assert_eq!(
+            state_name(proto::ProcessState::InvalidConfig as i32),
+            "InvalidConfig"
+        );
         assert_eq!(state_name(proto::ProcessState::Skipped as i32), "Skipped");
     }
 
