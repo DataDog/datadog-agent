@@ -289,8 +289,9 @@ class CompilerImage:
             mounts.append(f"--mount {shlex.quote(f'type=bind,source={repo_cache},target={repo_cache}')}")
             info(f"[*] Mounting host Bazel repository_cache at {repo_cache}")
 
+        # --init reaps orphans such as crashed Bazel servers; a zombie one blocks every later bazel client.
         res = self.ctx.run(
-            f"docker run {platform} -d --restart always --name {self.name} "
+            f"docker run {platform} -d --init --restart always --name {self.name} "
             f"{' '.join(mounts)} "
             f"{self.expected_image_name} sleep \"infinity\"",
             warn=True,
