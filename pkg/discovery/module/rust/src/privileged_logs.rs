@@ -3,17 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//! Port of pkg/privileged-logs/module/validate.go, which full system-probe still uses.
+//! Port of pkg/privileged-logs/module/validate.go. The tests in
+//! pkg/privileged-logs/test run against both implementations.
 
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, IoSlice};
-use std::os::{fd::AsRawFd, unix::fs::FileExt};
-use std::path::{Component, Path};
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::{FileExt, OpenOptionsExt};
+use std::path::Path;
 
 use anyhow::{Context, Result, bail};
-use nix::fcntl::{OFlag, open, openat};
+use nix::libc::O_PATH;
 use nix::sys::socket::{ControlMessage::ScmRights, MsgFlags, sendmsg};
-use nix::sys::stat::Mode;
 use tokio::{io::Interest, net::UnixStream};
 
 fn is_allowed(path: &str) -> bool {
@@ -23,48 +24,34 @@ fn is_allowed(path: &str) -> bool {
         || dir.split('/').any(|part| part.eq_ignore_ascii_case("logs"))
 }
 
-/// Opens the path without following symlinks. Rejects `..`, which would escape
-/// the directory checked by `is_allowed`.
-fn open_no_symlinks(path: &Path) -> Result<File> {
-    let mut parts = Vec::new();
-    for component in path.components() {
-        match component {
-            Component::RootDir => {}
-            Component::Normal(part) => parts.push(part),
-            _ => bail!("invalid path component"),
-        }
-    }
-    let Some((name, dirs)) = parts.split_last() else {
-        bail!("no file name");
-    };
-    // O_PATH only needs search permission on directories, like a plain open.
-    let dir_flags = OFlag::O_PATH | OFlag::O_NOFOLLOW | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC;
-    let mut dir = open("/", dir_flags, Mode::empty())?;
-    for part in dirs {
-        dir = openat(&dir, *part, dir_flags, Mode::empty())?;
-    }
-    let file_flags = OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
-    Ok(openat(&dir, *name, file_flags, Mode::empty())?.into())
-}
-
 /// Opens the path if it is an allowed log file.
 pub fn validate_and_open(path: &str, no_follow: bool) -> Result<File> {
     if !path.starts_with('/') {
         bail!("relative path not allowed: {path}");
     }
-    let resolved = match no_follow {
-        true => path.into(),
-        false => fs::canonicalize(path).with_context(|| format!("failed to resolve {path}"))?,
-    };
-    let resolved = resolved.to_string_lossy();
+    // O_PATH resolves the path without opening the file, so devices and FIFOs
+    // aren't touched. The checks apply to the path the kernel reports for this
+    // fd, and the file is then reopened through the same fd: swapping a symlink
+    // in afterwards changes nothing.
+    let mut options = OpenOptions::new();
+    options.read(true).custom_flags(O_PATH);
+    let handle = options
+        .open(path)
+        .with_context(|| format!("failed to resolve path {path}"))?;
+    let fd_path = format!("/proc/self/fd/{}", handle.as_raw_fd());
+    let resolved = fs::read_link(&fd_path)?.to_string_lossy().into_owned();
+    if no_follow && Path::new(&resolved) != Path::new(path) {
+        bail!(
+            "failed to open path {path}: resolves to {resolved}: too many levels of symbolic links"
+        );
+    }
     if !is_allowed(&resolved) {
         bail!("non-log file not allowed: {resolved}");
     }
-    let file = open_no_symlinks(Path::new(resolved.as_ref()))
-        .with_context(|| format!("failed to open path {resolved}"))?;
-    if !file.metadata()?.is_file() {
+    if !handle.metadata()?.is_file() {
         bail!("not a regular file: {resolved}");
     }
+    let file = File::open(&fd_path)?;
     let mut buf = [0u8; 128]; // Zero-padded, like Go's utf8.Valid(buf).
     if file.read_at(&mut buf, 0).is_err() || std::str::from_utf8(&buf).is_err() {
         bail!("not a text file: {resolved}");
@@ -80,36 +67,4 @@ pub async fn send_fd(stream: &UnixStream, file: &File) -> io::Result<usize> {
     let (fd, flags) = (stream.as_raw_fd(), MsgFlags::MSG_NOSIGNAL);
     let send = || Ok(sendmsg::<()>(fd, &iov, &cmsgs, flags, None)?);
     stream.async_io(Interest::WRITABLE, send).await
-}
-
-#[cfg(test)]
-#[allow(clippy::panic)] // Tests are allowed to use panic for test failures
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_is_allowed() {
-        for (path, allowed) in [
-            ("/opt/APP.LOG", true),
-            ("/var/log/syslog", true),
-            ("/opt/Logs/sub/out.txt", true),
-            ("/var/log", false),
-            ("/opt/logs", false),
-            ("/etc/shadow", false),
-        ] {
-            assert_eq!(is_allowed(path), allowed, "{path}");
-        }
-    }
-
-    #[test]
-    fn test_rejects_symlink_and_parent_dir() {
-        let dir = tempfile::tempdir().unwrap_or_else(|e| panic!("{e}"));
-        let path = |p: &str| format!("{}/{p}", dir.path().display());
-        std::fs::create_dir(path("real")).unwrap_or_else(|e| panic!("{e}"));
-        std::fs::write(path("real/a.log"), "ok").unwrap_or_else(|e| panic!("{e}"));
-        std::os::unix::fs::symlink(path("real"), path("link")).unwrap_or_else(|e| panic!("{e}"));
-        assert!(validate_and_open(&path("real/a.log"), true).is_ok());
-        assert!(validate_and_open(&path("link/a.log"), true).is_err());
-        assert!(validate_and_open(&path("real/../real/a.log"), true).is_err());
-    }
 }

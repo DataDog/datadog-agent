@@ -70,16 +70,6 @@ func TestMaybeSPLite(t *testing.T) {
 			expectNil:  false,
 		},
 		{
-			name: "discovery and privileged logs modules",
-			overrides: map[string]interface{}{
-				"discovery.use_system_probe_lite": true,
-				"discovery.enabled":               true,
-				"privileged_logs.enabled":         true,
-			},
-			fakeBinary: true,
-			expectNil:  false,
-		},
-		{
 			name: "multiple modules",
 			overrides: map[string]interface{}{
 				"discovery.use_system_probe_lite": true,
@@ -151,7 +141,6 @@ func TestMaybeSPLite(t *testing.T) {
 				LogLevel: sysprobeConfig.GetString("log_level"),
 				LogFile:  sysprobeConfig.GetString("log_file"),
 				PIDFile:  "/test/sp.pid",
-				PrivLogs: sysprobeConfig.GetBool("privileged_logs.enabled"),
 			}).Args()
 			assert.Equal(t, expectedArgs, cmd.Args[1:])
 			assert.NotEmpty(t, cmd.Env)

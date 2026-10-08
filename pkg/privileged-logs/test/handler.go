@@ -14,10 +14,12 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -27,9 +29,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
+	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -88,6 +93,46 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // changing it back to root in the privileged logs test server, and by creating
 // all log files with 000 permissions which only EUID root can override.
 func Setup(t *testing.T, callback func()) *Handler {
+	return setup(t, callback, setupTestServer)
+}
+
+// SetupSPLite is like Setup, but serves the privileged logs module from the
+// system-probe-lite binary.
+func SetupSPLite(t *testing.T, callback func()) *Handler {
+	// Same skip and path as setupRustDiscoveryModule in pkg/discovery/module.
+	if runtime.GOARCH == "arm64" {
+		platform, _ := kernel.Platform()
+		if version, _ := kernel.PlatformVersion(); platform == "centos" && strings.HasPrefix(version, "7") {
+			t.Skip("system-probe-lite requires GLIBC_2.18, which CentOS 7 lacks on arm64")
+		}
+	}
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+	binaryPath := filepath.Join(curDir, "../../discovery/module/rust/embedded/bin/system-probe-lite")
+	require.FileExists(t, binaryPath, "system-probe-lite binary should be built")
+	socketDir, err := os.MkdirTemp("/tmp", "spltest") // Short socket path
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(socketDir) })
+	require.NoError(t, os.Chmod(socketDir, 0755))
+	socketPath := filepath.Join(socketDir, "sysprobe.sock")
+
+	// Started as root, like system-probe does in production.
+	cmd := exec.Command(binaryPath, (&splite.Config{Socket: socketPath, PrivLogs: true}).Args()...)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
+
+	// Once system-probe-lite has set the socket mode (0720), open it to the
+	// unprivileged test user.
+	require.Eventually(t, func() bool {
+		info, err := os.Stat(socketPath)
+		return err == nil && info.Mode().Perm() == 0720 && os.Chmod(socketPath, 0777) == nil
+	}, 10*time.Second, 10*time.Millisecond)
+
+	return setup(t, callback, func(*testing.T) *Handler { return &Handler{SocketPath: socketPath} })
+}
+
+func setup(t *testing.T, callback func(), startServer func(*testing.T) *Handler) *Handler {
 	unprivilegedUID := 0
 	sudoUID := os.Getenv("SUDO_UID")
 	if sudoUID != "" {
@@ -111,7 +156,7 @@ func Setup(t *testing.T, callback func()) *Handler {
 	})
 
 	// Set up privileged-logs server
-	handler := setupTestServer(t)
+	handler := startServer(t)
 
 	// Operations such as creating temp directories need to be done after the
 	// user change but before the umask change.
