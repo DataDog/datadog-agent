@@ -633,6 +633,275 @@ func (*ActionResult_Output) isActionResult_Outcome() {}
 
 func (*ActionResult_Error) isActionResult_Outcome() {}
 
+// Local policy substitutes for the signed remote-action policy only on the agent-authored path.
+type RemediationAllowlist struct {
+	state           protoimpl.MessageState                `protogen:"open.v1"`
+	AllowedPaths    []string                              `protobuf:"bytes,1,rep,name=allowed_paths,json=allowedPaths,proto3" json:"allowed_paths,omitempty"`
+	AllowedCommands []string                              `protobuf:"bytes,2,rep,name=allowed_commands,json=allowedCommands,proto3" json:"allowed_commands,omitempty"`
+	AllowedServices map[string]*RemediationServiceActions `protobuf:"bytes,3,rep,name=allowed_services,json=allowedServices,proto3" json:"allowed_services,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *RemediationAllowlist) Reset() {
+	*x = RemediationAllowlist{}
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemediationAllowlist) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemediationAllowlist) ProtoMessage() {}
+
+func (x *RemediationAllowlist) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemediationAllowlist.ProtoReflect.Descriptor instead.
+func (*RemediationAllowlist) Descriptor() ([]byte, []int) {
+	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *RemediationAllowlist) GetAllowedPaths() []string {
+	if x != nil {
+		return x.AllowedPaths
+	}
+	return nil
+}
+
+func (x *RemediationAllowlist) GetAllowedCommands() []string {
+	if x != nil {
+		return x.AllowedCommands
+	}
+	return nil
+}
+
+func (x *RemediationAllowlist) GetAllowedServices() map[string]*RemediationServiceActions {
+	if x != nil {
+		return x.AllowedServices
+	}
+	return nil
+}
+
+type RemediationServiceActions struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Actions       []string               `protobuf:"bytes,1,rep,name=actions,proto3" json:"actions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemediationServiceActions) Reset() {
+	*x = RemediationServiceActions{}
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemediationServiceActions) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemediationServiceActions) ProtoMessage() {}
+
+func (x *RemediationServiceActions) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemediationServiceActions.ProtoReflect.Descriptor instead.
+func (*RemediationServiceActions) Descriptor() ([]byte, []int) {
+	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *RemediationServiceActions) GetActions() []string {
+	if x != nil {
+		return x.Actions
+	}
+	return nil
+}
+
+type RunLocalRemediationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Commands      []string               `protobuf:"bytes,1,rep,name=commands,proto3" json:"commands,omitempty"`
+	Allowlist     *RemediationAllowlist  `protobuf:"bytes,2,opt,name=allowlist,proto3" json:"allowlist,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunLocalRemediationRequest) Reset() {
+	*x = RunLocalRemediationRequest{}
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunLocalRemediationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunLocalRemediationRequest) ProtoMessage() {}
+
+func (x *RunLocalRemediationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunLocalRemediationRequest.ProtoReflect.Descriptor instead.
+func (*RunLocalRemediationRequest) Descriptor() ([]byte, []int) {
+	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *RunLocalRemediationRequest) GetCommands() []string {
+	if x != nil {
+		return x.Commands
+	}
+	return nil
+}
+
+func (x *RunLocalRemediationRequest) GetAllowlist() *RemediationAllowlist {
+	if x != nil {
+		return x.Allowlist
+	}
+	return nil
+}
+
+type RemediationStepResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ExitCode      int32                  `protobuf:"varint,1,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	Stdout        string                 `protobuf:"bytes,2,opt,name=stdout,proto3" json:"stdout,omitempty"`
+	Stderr        string                 `protobuf:"bytes,3,opt,name=stderr,proto3" json:"stderr,omitempty"`
+	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemediationStepResult) Reset() {
+	*x = RemediationStepResult{}
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemediationStepResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemediationStepResult) ProtoMessage() {}
+
+func (x *RemediationStepResult) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemediationStepResult.ProtoReflect.Descriptor instead.
+func (*RemediationStepResult) Descriptor() ([]byte, []int) {
+	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *RemediationStepResult) GetExitCode() int32 {
+	if x != nil {
+		return x.ExitCode
+	}
+	return 0
+}
+
+func (x *RemediationStepResult) GetStdout() string {
+	if x != nil {
+		return x.Stdout
+	}
+	return ""
+}
+
+func (x *RemediationStepResult) GetStderr() string {
+	if x != nil {
+		return x.Stderr
+	}
+	return ""
+}
+
+func (x *RemediationStepResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type RunLocalRemediationResponse struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Steps         []*RemediationStepResult `protobuf:"bytes,1,rep,name=steps,proto3" json:"steps,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunLocalRemediationResponse) Reset() {
+	*x = RunLocalRemediationResponse{}
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunLocalRemediationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunLocalRemediationResponse) ProtoMessage() {}
+
+func (x *RunLocalRemediationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_privateactionrunner_executor_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunLocalRemediationResponse.ProtoReflect.Descriptor instead.
+func (*RunLocalRemediationResponse) Descriptor() ([]byte, []int) {
+	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *RunLocalRemediationResponse) GetSteps() []*RemediationStepResult {
+	if x != nil {
+		return x.Steps
+	}
+	return nil
+}
+
 var File_datadog_privateactionrunner_executor_proto protoreflect.FileDescriptor
 
 const file_datadog_privateactionrunner_executor_proto_rawDesc = "" +
@@ -677,8 +946,28 @@ const file_datadog_privateactionrunner_executor_proto_rawDesc = "" +
 	"\fActionResult\x12\x18\n" +
 	"\x06output\x18\x01 \x01(\fH\x00R\x06output\x12R\n" +
 	"\x05error\x18\x02 \x01(\v2:.datadog.privateactionrunner.errorcode.ActionPlatformErrorH\x00R\x05errorB\t\n" +
-	"\aoutcome2\xa2\x03\n" +
-	"\bExecutor\x12\xa0\x01\n" +
+	"\aoutcome\"\xe8\x02\n" +
+	"\x14RemediationAllowlist\x12#\n" +
+	"\rallowed_paths\x18\x01 \x03(\tR\fallowedPaths\x12)\n" +
+	"\x10allowed_commands\x18\x02 \x03(\tR\x0fallowedCommands\x12z\n" +
+	"\x10allowed_services\x18\x03 \x03(\v2O.datadog.privateactionrunner.executor.RemediationAllowlist.AllowedServicesEntryR\x0fallowedServices\x1a\x83\x01\n" +
+	"\x14AllowedServicesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12U\n" +
+	"\x05value\x18\x02 \x01(\v2?.datadog.privateactionrunner.executor.RemediationServiceActionsR\x05value:\x028\x01\"5\n" +
+	"\x19RemediationServiceActions\x12\x18\n" +
+	"\aactions\x18\x01 \x03(\tR\aactions\"\x92\x01\n" +
+	"\x1aRunLocalRemediationRequest\x12\x1a\n" +
+	"\bcommands\x18\x01 \x03(\tR\bcommands\x12X\n" +
+	"\tallowlist\x18\x02 \x01(\v2:.datadog.privateactionrunner.executor.RemediationAllowlistR\tallowlist\"z\n" +
+	"\x15RemediationStepResult\x12\x1b\n" +
+	"\texit_code\x18\x01 \x01(\x05R\bexitCode\x12\x16\n" +
+	"\x06stdout\x18\x02 \x01(\tR\x06stdout\x12\x16\n" +
+	"\x06stderr\x18\x03 \x01(\tR\x06stderr\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"p\n" +
+	"\x1bRunLocalRemediationResponse\x12Q\n" +
+	"\x05steps\x18\x01 \x03(\v2;.datadog.privateactionrunner.executor.RemediationStepResultR\x05steps2\xbf\x04\n" +
+	"\bExecutor\x12\x9a\x01\n" +
+	"\x13RunLocalRemediation\x12@.datadog.privateactionrunner.executor.RunLocalRemediationRequest\x1aA.datadog.privateactionrunner.executor.RunLocalRemediationResponse\x12\xa0\x01\n" +
 	"\x15GetControlPlaneConfig\x12B.datadog.privateactionrunner.executor.GetControlPlaneConfigRequest\x1aC.datadog.privateactionrunner.executor.GetControlPlaneConfigResponse\x12~\n" +
 	"\tRunAction\x126.datadog.privateactionrunner.executor.RunActionRequest\x1a7.datadog.privateactionrunner.executor.RunActionResponse0\x01\x12s\n" +
 	"\x06Health\x123.datadog.privateactionrunner.executor.HealthRequest\x1a4.datadog.privateactionrunner.executor.HealthResponseBNZLgithub.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executorb\x06proto3"
@@ -695,7 +984,7 @@ func file_datadog_privateactionrunner_executor_proto_rawDescGZIP() []byte {
 	return file_datadog_privateactionrunner_executor_proto_rawDescData
 }
 
-var file_datadog_privateactionrunner_executor_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_datadog_privateactionrunner_executor_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_datadog_privateactionrunner_executor_proto_goTypes = []any{
 	(*GetControlPlaneConfigRequest)(nil),  // 0: datadog.privateactionrunner.executor.GetControlPlaneConfigRequest
 	(*GetControlPlaneConfigResponse)(nil), // 1: datadog.privateactionrunner.executor.GetControlPlaneConfigResponse
@@ -707,27 +996,39 @@ var file_datadog_privateactionrunner_executor_proto_goTypes = []any{
 	(*RunActionResponse)(nil),             // 7: datadog.privateactionrunner.executor.RunActionResponse
 	(*ActionStatus)(nil),                  // 8: datadog.privateactionrunner.executor.ActionStatus
 	(*ActionResult)(nil),                  // 9: datadog.privateactionrunner.executor.ActionResult
-	nil,                                   // 10: datadog.privateactionrunner.executor.ControlPlaneRuntime.OpmsExtraHeadersEntry
-	(*errorcode.ActionPlatformError)(nil), // 11: datadog.privateactionrunner.errorcode.ActionPlatformError
+	(*RemediationAllowlist)(nil),          // 10: datadog.privateactionrunner.executor.RemediationAllowlist
+	(*RemediationServiceActions)(nil),     // 11: datadog.privateactionrunner.executor.RemediationServiceActions
+	(*RunLocalRemediationRequest)(nil),    // 12: datadog.privateactionrunner.executor.RunLocalRemediationRequest
+	(*RemediationStepResult)(nil),         // 13: datadog.privateactionrunner.executor.RemediationStepResult
+	(*RunLocalRemediationResponse)(nil),   // 14: datadog.privateactionrunner.executor.RunLocalRemediationResponse
+	nil,                                   // 15: datadog.privateactionrunner.executor.ControlPlaneRuntime.OpmsExtraHeadersEntry
+	nil,                                   // 16: datadog.privateactionrunner.executor.RemediationAllowlist.AllowedServicesEntry
+	(*errorcode.ActionPlatformError)(nil), // 17: datadog.privateactionrunner.errorcode.ActionPlatformError
 }
 var file_datadog_privateactionrunner_executor_proto_depIdxs = []int32{
 	2,  // 0: datadog.privateactionrunner.executor.GetControlPlaneConfigResponse.identity:type_name -> datadog.privateactionrunner.executor.ControlPlaneIdentity
 	3,  // 1: datadog.privateactionrunner.executor.GetControlPlaneConfigResponse.runtime:type_name -> datadog.privateactionrunner.executor.ControlPlaneRuntime
-	10, // 2: datadog.privateactionrunner.executor.ControlPlaneRuntime.opms_extra_headers:type_name -> datadog.privateactionrunner.executor.ControlPlaneRuntime.OpmsExtraHeadersEntry
+	15, // 2: datadog.privateactionrunner.executor.ControlPlaneRuntime.opms_extra_headers:type_name -> datadog.privateactionrunner.executor.ControlPlaneRuntime.OpmsExtraHeadersEntry
 	8,  // 3: datadog.privateactionrunner.executor.RunActionResponse.status:type_name -> datadog.privateactionrunner.executor.ActionStatus
 	9,  // 4: datadog.privateactionrunner.executor.RunActionResponse.result:type_name -> datadog.privateactionrunner.executor.ActionResult
-	11, // 5: datadog.privateactionrunner.executor.ActionResult.error:type_name -> datadog.privateactionrunner.errorcode.ActionPlatformError
-	0,  // 6: datadog.privateactionrunner.executor.Executor.GetControlPlaneConfig:input_type -> datadog.privateactionrunner.executor.GetControlPlaneConfigRequest
-	6,  // 7: datadog.privateactionrunner.executor.Executor.RunAction:input_type -> datadog.privateactionrunner.executor.RunActionRequest
-	4,  // 8: datadog.privateactionrunner.executor.Executor.Health:input_type -> datadog.privateactionrunner.executor.HealthRequest
-	1,  // 9: datadog.privateactionrunner.executor.Executor.GetControlPlaneConfig:output_type -> datadog.privateactionrunner.executor.GetControlPlaneConfigResponse
-	7,  // 10: datadog.privateactionrunner.executor.Executor.RunAction:output_type -> datadog.privateactionrunner.executor.RunActionResponse
-	5,  // 11: datadog.privateactionrunner.executor.Executor.Health:output_type -> datadog.privateactionrunner.executor.HealthResponse
-	9,  // [9:12] is the sub-list for method output_type
-	6,  // [6:9] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	17, // 5: datadog.privateactionrunner.executor.ActionResult.error:type_name -> datadog.privateactionrunner.errorcode.ActionPlatformError
+	16, // 6: datadog.privateactionrunner.executor.RemediationAllowlist.allowed_services:type_name -> datadog.privateactionrunner.executor.RemediationAllowlist.AllowedServicesEntry
+	10, // 7: datadog.privateactionrunner.executor.RunLocalRemediationRequest.allowlist:type_name -> datadog.privateactionrunner.executor.RemediationAllowlist
+	13, // 8: datadog.privateactionrunner.executor.RunLocalRemediationResponse.steps:type_name -> datadog.privateactionrunner.executor.RemediationStepResult
+	11, // 9: datadog.privateactionrunner.executor.RemediationAllowlist.AllowedServicesEntry.value:type_name -> datadog.privateactionrunner.executor.RemediationServiceActions
+	12, // 10: datadog.privateactionrunner.executor.Executor.RunLocalRemediation:input_type -> datadog.privateactionrunner.executor.RunLocalRemediationRequest
+	0,  // 11: datadog.privateactionrunner.executor.Executor.GetControlPlaneConfig:input_type -> datadog.privateactionrunner.executor.GetControlPlaneConfigRequest
+	6,  // 12: datadog.privateactionrunner.executor.Executor.RunAction:input_type -> datadog.privateactionrunner.executor.RunActionRequest
+	4,  // 13: datadog.privateactionrunner.executor.Executor.Health:input_type -> datadog.privateactionrunner.executor.HealthRequest
+	14, // 14: datadog.privateactionrunner.executor.Executor.RunLocalRemediation:output_type -> datadog.privateactionrunner.executor.RunLocalRemediationResponse
+	1,  // 15: datadog.privateactionrunner.executor.Executor.GetControlPlaneConfig:output_type -> datadog.privateactionrunner.executor.GetControlPlaneConfigResponse
+	7,  // 16: datadog.privateactionrunner.executor.Executor.RunAction:output_type -> datadog.privateactionrunner.executor.RunActionResponse
+	5,  // 17: datadog.privateactionrunner.executor.Executor.Health:output_type -> datadog.privateactionrunner.executor.HealthResponse
+	14, // [14:18] is the sub-list for method output_type
+	10, // [10:14] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_datadog_privateactionrunner_executor_proto_init() }
@@ -749,7 +1050,7 @@ func file_datadog_privateactionrunner_executor_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_privateactionrunner_executor_proto_rawDesc), len(file_datadog_privateactionrunner_executor_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

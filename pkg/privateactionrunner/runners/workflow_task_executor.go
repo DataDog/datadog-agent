@@ -66,6 +66,29 @@ func NewWorkflowTaskExecutor(
 	}, nil
 }
 
+// ForLocalRemediation isolates the agent-authorized trust model without changing the signed executor.
+func (e *WorkflowTaskExecutor) ForLocalRemediation() *localRemediationExecutor {
+	local := *e
+	local.taskVerifier = taskverifier.NewLocalTrustVerifier(e.config)
+	return &localRemediationExecutor{WorkflowTaskExecutor: &local}
+}
+
+type localRemediationExecutor struct {
+	*WorkflowTaskExecutor
+}
+
+// PrepareTask uses only local policy and identity, without resolving backend credentials.
+func (e *localRemediationExecutor) PrepareTask(_ context.Context, task *types.Task) (*PreparedWorkflowTask, *types.Task, error) {
+	if err := task.Validate(); err != nil {
+		return nil, task, err
+	}
+	verified, err := e.taskVerifier.UnwrapTask(task)
+	if err != nil {
+		return nil, task, err
+	}
+	return &PreparedWorkflowTask{Task: verified}, nil, nil
+}
+
 func (e *WorkflowTaskExecutor) PrepareTask(
 	ctx context.Context,
 	task *types.Task,

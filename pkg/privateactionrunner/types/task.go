@@ -36,8 +36,7 @@ type Attributes struct {
 	ConnectionInfo        *privateactionspb.ConnectionInfo                `json:"connection_info"`
 	TraceId               uint64                                          `json:"trace_id,omitempty"`
 	SpanId                uint64                                          `json:"span_id,omitempty"`
-	// SystemInputs carries backend-resolved policy and other backend-provided
-	// inputs, separate from user-provided action inputs.
+	// SystemInputs carries verified policy, including agent-authored policy on the explicit local remediation path.
 	SystemInputs    *privateactionspb.SystemInputs `json:"system_inputs,omitempty"`
 	VerificationKey *TaskVerificationKey           `json:"-"`
 }

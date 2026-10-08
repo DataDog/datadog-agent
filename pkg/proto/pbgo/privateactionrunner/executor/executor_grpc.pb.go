@@ -19,6 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	Executor_RunLocalRemediation_FullMethodName   = "/datadog.privateactionrunner.executor.Executor/RunLocalRemediation"
 	Executor_GetControlPlaneConfig_FullMethodName = "/datadog.privateactionrunner.executor.Executor/GetControlPlaneConfig"
 	Executor_RunAction_FullMethodName             = "/datadog.privateactionrunner.executor.Executor/RunAction"
 	Executor_Health_FullMethodName                = "/datadog.privateactionrunner.executor.Executor/Health"
@@ -28,6 +29,8 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ExecutorClient interface {
+	// RunLocalRemediation trusts the shared IPC identity and never permits privilege escalation.
+	RunLocalRemediation(ctx context.Context, in *RunLocalRemediationRequest, opts ...grpc.CallOption) (*RunLocalRemediationResponse, error)
 	GetControlPlaneConfig(ctx context.Context, in *GetControlPlaneConfigRequest, opts ...grpc.CallOption) (*GetControlPlaneConfigResponse, error)
 	// RunAction runs a single action and streams updates ending in a final ActionResult.
 	RunAction(ctx context.Context, in *RunActionRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RunActionResponse], error)
@@ -41,6 +44,16 @@ type executorClient struct {
 
 func NewExecutorClient(cc grpc.ClientConnInterface) ExecutorClient {
 	return &executorClient{cc}
+}
+
+func (c *executorClient) RunLocalRemediation(ctx context.Context, in *RunLocalRemediationRequest, opts ...grpc.CallOption) (*RunLocalRemediationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RunLocalRemediationResponse)
+	err := c.cc.Invoke(ctx, Executor_RunLocalRemediation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *executorClient) GetControlPlaneConfig(ctx context.Context, in *GetControlPlaneConfigRequest, opts ...grpc.CallOption) (*GetControlPlaneConfigResponse, error) {
@@ -86,6 +99,8 @@ func (c *executorClient) Health(ctx context.Context, in *HealthRequest, opts ...
 // All implementations must embed UnimplementedExecutorServer
 // for forward compatibility.
 type ExecutorServer interface {
+	// RunLocalRemediation trusts the shared IPC identity and never permits privilege escalation.
+	RunLocalRemediation(context.Context, *RunLocalRemediationRequest) (*RunLocalRemediationResponse, error)
 	GetControlPlaneConfig(context.Context, *GetControlPlaneConfigRequest) (*GetControlPlaneConfigResponse, error)
 	// RunAction runs a single action and streams updates ending in a final ActionResult.
 	RunAction(*RunActionRequest, grpc.ServerStreamingServer[RunActionResponse]) error
@@ -101,6 +116,9 @@ type ExecutorServer interface {
 // pointer dereference when methods are called.
 type UnimplementedExecutorServer struct{}
 
+func (UnimplementedExecutorServer) RunLocalRemediation(context.Context, *RunLocalRemediationRequest) (*RunLocalRemediationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RunLocalRemediation not implemented")
+}
 func (UnimplementedExecutorServer) GetControlPlaneConfig(context.Context, *GetControlPlaneConfigRequest) (*GetControlPlaneConfigResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetControlPlaneConfig not implemented")
 }
@@ -129,6 +147,24 @@ func RegisterExecutorServer(s grpc.ServiceRegistrar, srv ExecutorServer) {
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&Executor_ServiceDesc, srv)
+}
+
+func _Executor_RunLocalRemediation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RunLocalRemediationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExecutorServer).RunLocalRemediation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Executor_RunLocalRemediation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExecutorServer).RunLocalRemediation(ctx, req.(*RunLocalRemediationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Executor_GetControlPlaneConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -185,6 +221,10 @@ var Executor_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "datadog.privateactionrunner.executor.Executor",
 	HandlerType: (*ExecutorServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "RunLocalRemediation",
+			Handler:    _Executor_RunLocalRemediation_Handler,
+		},
 		{
 			MethodName: "GetControlPlaneConfig",
 			Handler:    _Executor_GetControlPlaneConfig_Handler,

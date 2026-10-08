@@ -23,6 +23,7 @@ import (
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/healthcheck"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -308,7 +309,9 @@ type BufferedAggregator struct {
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 
 	// observerHandle is set at startup and copied into newly created CheckSamplers.
-	observerHandle observer.Handle
+	observerHandle       observer.Handle
+	serviceCheckObserver healthcheck.ServiceCheckObserver
+	remediationObserver  *healthcheck.Observer
 
 	// use this chan to trigger a filterList reconfiguration
 	filterListChan  chan metricname.Matcher
@@ -392,7 +395,18 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tagFilterList:     filterList.GetTagFilterList(),
 	}
 
+	aggregator.remediationObserver = healthcheck.NewObserver(healthcheck.NewRemediationDispatcher(pkgconfigsetup.Datadog(), aggregator.eventIn, hostname))
+	if aggregator.remediationObserver != nil {
+		aggregator.SetServiceCheckObserver(aggregator.remediationObserver)
+	}
 	return aggregator
+}
+
+// SetServiceCheckObserver installs the handle once at startup, before creating check senders.
+func (agg *BufferedAggregator) SetServiceCheckObserver(h healthcheck.ServiceCheckObserver) {
+	if agg.serviceCheckObserver == nil {
+		agg.serviceCheckObserver = h
+	}
 }
 
 func (agg *BufferedAggregator) addOrchestratorManifest(manifests *senderOrchestratorManifest) {
@@ -814,6 +828,7 @@ func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 
 // Stop stops the aggregator, blocking until the run() goroutine exits.
 func (agg *BufferedAggregator) Stop() {
+	agg.remediationObserver.Stop()
 	stop := make(chan struct{})
 	agg.stopChan <- stop
 	<-stop

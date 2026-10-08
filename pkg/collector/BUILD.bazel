@@ -23,6 +23,7 @@ go_library(
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/collector/corechecks",
+        "//pkg/collector/healthcheck",
         "//pkg/collector/loaders",
         "//pkg/collector/metriclookback",
         "//pkg/config/model",
@@ -39,6 +40,7 @@ go_library(
 dd_agent_go_test(
     name = "collector_test",
     srcs = [
+        "healthcheck_scheduler_test.go",
         "infra_mode_test.go",
         "scheduler_test.go",
         "stats_test.go",
@@ -55,6 +57,7 @@ dd_agent_go_test(
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/collector/corechecks",
+        "//pkg/collector/healthcheck",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/util/infratags",

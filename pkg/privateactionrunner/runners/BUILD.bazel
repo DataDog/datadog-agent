@@ -40,6 +40,7 @@ dd_agent_go_test(
     name = "runners_test",
     srcs = [
         "common_runner_test.go",
+        "local_remediation_test.go",
         "workflow_task_executor_test.go",
     ],
     embed = [":runners"],
@@ -60,5 +61,27 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_apimachinery//pkg/util/sets",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/privateactionrunner/bundles/remoteaction/rshell",
+            "//pkg/privateactionrunner/task-verifier",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/privateactionrunner/bundles/remoteaction/rshell",
+            "//pkg/privateactionrunner/task-verifier",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/privateactionrunner/bundles/remoteaction/rshell",
+            "//pkg/privateactionrunner/task-verifier",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/privateactionrunner/bundles/remoteaction/rshell",
+            "//pkg/privateactionrunner/task-verifier",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/privateactionrunner/bundles/remoteaction/rshell",
+            "//pkg/privateactionrunner/task-verifier",
+        ],
+        "//conditions:default": [],
+    }),
 )

@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/healthcheck"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -31,6 +32,7 @@ type RawSender interface {
 // checkSender implements Sender
 type checkSender struct {
 	id                      checkid.ID
+	serviceCheckObserver    healthcheck.ServiceCheckObserver
 	metricSource            metrics.MetricSource
 	defaultHostname         string
 	defaultHostnameDisabled bool
@@ -398,6 +400,9 @@ func (s *checkSender) ServiceCheck(checkName string, status servicecheck.Service
 		serviceCheck.Host = s.defaultHostname
 	}
 
+	if s.id != "" && s.serviceCheckObserver != nil {
+		s.serviceCheckObserver.ObserveServiceCheck(s.id, checkName, status, message, serviceCheck.Host, serviceCheck.Tags)
+	}
 	s.serviceCheckOut <- serviceCheck
 
 	s.statsLock.Lock()
@@ -479,6 +484,7 @@ func (sp *checkSenderPool) mkSender(id checkid.ID) (sender.Sender, error) {
 		sp.agg.orchestratorManifestIn,
 		sp.agg.eventPlatformIn,
 	)
+	sender.serviceCheckObserver = sp.agg.serviceCheckObserver
 	sp.senders[id] = sender
 	return sender, err
 }

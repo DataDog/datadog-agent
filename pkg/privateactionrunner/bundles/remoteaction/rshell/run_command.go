@@ -269,9 +269,7 @@ func cloneSystemServiceAllowlist(services map[string][]string) map[string][]stri
 	return cloned
 }
 
-// RunCommandInputs defines the user-supplied inputs for the runCommand action.
-// Command and path allowlists are accepted only from the signed
-// system_inputs.remote_action policy.
+// RunCommandInputs defines action inputs; allowlists come exclusively from verified system_inputs.remote_action policy.
 type RunCommandInputs struct {
 	Command              string   `json:"command"`
 	EffectivePermissions string   `json:"effectivePermissions"`
