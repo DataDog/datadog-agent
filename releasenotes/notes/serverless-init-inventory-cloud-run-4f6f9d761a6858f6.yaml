@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    When ``DD_SERVERLESS_INIT_INVENTORY_ENABLED`` is set, serverless-init
+    reports inventory metadata for Cloud Run services and Cloud Run (gen2)
+    functions, identified by their regional revision with the owning service as
+    the parent resource.
