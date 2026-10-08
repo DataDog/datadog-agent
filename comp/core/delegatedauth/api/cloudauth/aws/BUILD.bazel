@@ -3,10 +3,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "aws",
-    srcs = [
-        "aws.go",
-        "resolve_credentials.go",
-    ],
+    srcs = ["aws.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws",
     visibility = ["//visibility:public"],
     deps = [
@@ -14,7 +11,6 @@ go_library(
         "//comp/core/delegatedauth/common",
         "//pkg/config/model",
         "//pkg/util/aws/creds",
-        "//pkg/util/http",
         "//pkg/util/log",
         "//pkg/version",
         "@com_github_aws_aws_sdk_go_v2//aws",
@@ -26,13 +22,13 @@ dd_agent_go_test(
     name = "aws_test",
     srcs = [
         "aws_test.go",
-        "resolve_credentials_providers_test.go",
         "resolve_credentials_test.go",
     ],
     embed = [":aws"],
     deps = [
         "//pkg/config/mock",
         "//pkg/util/aws/creds",
+        "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
