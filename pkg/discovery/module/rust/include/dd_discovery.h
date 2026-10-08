@@ -163,19 +163,18 @@ void dd_discovery_free(struct dd_discovery_result *result);
  * `privileged_logs::open_log_file`).
  *
  * # Returns
- * A file descriptor owned by the caller, or -1 on error. On error, the error
- * message is written to `err` (UTF-8, not NUL-terminated, truncated to
- * `err_cap` bytes) and its length to `*err_len`.
+ * A file descriptor owned by the caller, or -1 on error, with the error
+ * message written to `err` as a NUL-terminated string, truncated to fit in
+ * `err_cap` bytes.
  *
  * # Safety
  * - If `path` is non-NULL, it must point to `path_len` readable bytes.
- * - `err` must point to `err_cap` writable bytes, and `err_len` to a writable `size_t`.
+ * - `err` must point to `err_cap` writable bytes.
  */
 int32_t dd_privileged_logs_open(const char *path,
                                 size_t path_len,
                                 bool no_follow,
                                 char *err,
-                                size_t err_cap,
-                                size_t *err_len);
+                                size_t err_cap);
 
 #endif  /* DD_DISCOVERY_H */

@@ -68,7 +68,7 @@ func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Re
 }
 
 // sendFile switches the connection to common.UpgradeProtocol, sends the file
-// descriptor as SCM_RIGHTS on a message of its own, and closes the connection.
+// descriptor as SCM_RIGHTS in a message of its own, and closes the connection.
 func sendFile(w http.ResponseWriter, file *os.File) error {
 	conn, _, err := http.NewResponseController(w).Hijack()
 	if err != nil {
@@ -84,6 +84,7 @@ func sendFile(w http.ResponseWriter, file *os.File) error {
 	if _, err := unixConn.Write([]byte(header)); err != nil {
 		return err
 	}
-	_, _, err = unixConn.WriteMsgUnix([]byte(`{"success":true}`), syscall.UnixRights(int(file.Fd())), nil)
+	// SCM_RIGHTS needs at least one byte of data to travel with.
+	_, _, err = unixConn.WriteMsgUnix([]byte{0}, syscall.UnixRights(int(file.Fd())), nil)
 	return err
 }
