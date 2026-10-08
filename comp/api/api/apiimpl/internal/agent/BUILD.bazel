@@ -14,13 +14,73 @@ go_library(
         "//comp/api/api/apiimpl/observability",
         "//comp/api/api/def",
         "//pkg/api/coverage",
-        "//pkg/jmxfetch",
         "//pkg/status/health",
-        "//pkg/status/jmx",
         "//pkg/util/http",
         "//pkg/util/installinfo",
         "//pkg/util/log",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/jmxfetch",
+            "//pkg/status/jmx",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/jmxfetch",
+            "//pkg/status/jmx",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/jmxfetch",
+            "//pkg/status/jmx",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/jmxfetch",
+            "//pkg/status/jmx",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/jmxfetch",
+            "//pkg/status/jmx",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/jmxfetch",
+            "//pkg/status/jmx",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/jmxfetch",
+            "//pkg/status/jmx",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/jmxfetch",
+            "//pkg/status/jmx",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/jmxfetch",
+            "//pkg/status/jmx",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/jmxfetch",
+            "//pkg/status/jmx",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/jmxfetch",
+            "//pkg/status/jmx",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/jmxfetch",
+            "//pkg/status/jmx",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/jmxfetch",
+            "//pkg/status/jmx",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/jmxfetch",
+            "//pkg/status/jmx",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/jmxfetch",
+            "//pkg/status/jmx",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(

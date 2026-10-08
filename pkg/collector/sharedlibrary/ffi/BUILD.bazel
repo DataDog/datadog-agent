@@ -12,27 +12,195 @@ go_library(
     ],
     cdeps = ["//rtloader:rtloader_dynamic"],
     cgo = True,
-    copts = ["-I pkg/collector/sharedlibrary/ffi/rtloader/include"],
+    copts = select({
+        "@rules_go//go/platform:aix": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "@rules_go//go/platform:android": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "@rules_go//go/platform:ios": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "@rules_go//go/platform:js": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "@rules_go//go/platform:linux": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "@rules_go//go/platform:osx": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "@rules_go//go/platform:windows": [
+            "-I pkg/collector/sharedlibrary/ffi/rtloader/include",
+        ],
+        "//conditions:default": [],
+    }),
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi",
     # Sources require sharedlibrarycheck; without it no Go files are active and
     # compilation fails. Mark manual so //... expansion skips this target; tests
     # embedding this library supply the right gotags via their flavor tags.
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/collector/aggregator",
-        "//pkg/util/filesystem",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/collector/aggregator",
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/collector/aggregator",
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/collector/aggregator",
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/collector/aggregator",
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/collector/aggregator",
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/collector/aggregator",
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/collector/aggregator",
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/collector/aggregator",
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/collector/aggregator",
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/collector/aggregator",
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/collector/aggregator",
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/collector/aggregator",
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/collector/aggregator",
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/collector/aggregator",
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/collector/aggregator",
+            "//pkg/util/filesystem",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
     name = "ffi_test",
     srcs = ["library_loader_test.go"],
     embed = [":ffi"],
-    gotags_sets = [["sharedlibrarycheck"]],
+    gotags_sets = [["main_agent"]],
     include_default = False,
-    deps = [
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

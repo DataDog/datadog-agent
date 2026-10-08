@@ -182,7 +182,7 @@ dd_agent_go_test(
             "docker",
             "kubelet",
         ],
-        ["kvstore"],
+        ["main_agent"],
     ],
     deps = [
         "//comp/core/autodiscovery/common/types",
