@@ -6,12 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from tasks.libs.dynamic_test.jev.jev_client import (
-    build_context_state,
-    decide,
-    get_ai_gateway_token,
-    load_agent_primer,
-)
+from tasks.libs.dynamic_test.jev.jev_client import build_context_state, decide, get_ai_gateway_token
 from tasks.libs.dynamic_test.jev.jev_e2e_selector import select_suite
 from tasks.libs.dynamic_test.jev.pr_context import changed_files, fetch_pr_info
 from tasks.libs.dynamic_test.jev.pr_summary import summarize_pr
@@ -269,7 +264,6 @@ class TestJevTools(unittest.TestCase):
                         self.assertIn("The PR adds a new config field.", state)
                         self.assertIn("LLM summary of the changes in this PR", state)
                         self.assertNotIn("```diff", state)  # the raw diff is replaced
-                        self.assertIn("# Background: the Datadog Agent", state)  # the primer is always included
                 else:
                     for state in states:  # failed generation: the raw diff is sent
                         self.assertIn("```diff\n+ a change\n```", state)
@@ -290,24 +284,6 @@ class TestJevTools(unittest.TestCase):
         self.assertIn("## LLM summary of the changes in this PR", summarized)
         self.assertIn("summary text", summarized)
         self.assertNotIn("## Full PR diff", summarized)
-
-    def test_agent_primer(self):
-        """The committed architecture primer loads non-empty, is capped and
-        is embedded in the shared context of every Jev state."""
-        primer = load_agent_primer()
-        self.assertGreater(len(primer), 1_000)
-        self.assertLessEqual(len(primer.encode()), 6_500)
-        self.assertIn("Datadog Agent", primer)
-        state = build_context_state("fleet", "fleet", {"title": "t"}, [], "base", "", primer=primer)
-        self.assertIn("# Background: the Datadog Agent", state)
-        # Missing or unreadable file: an empty primer, not a failure
-        import tasks.libs.dynamic_test.jev.jev_client as client
-
-        with patch.object(client, "PRIMER_PATH", Path("/nonexistent/agent_primer.md")):
-            client._primer_cache = None
-            self.assertEqual(load_agent_primer(), "")
-        client._primer_cache = None  # restore for the other tests
-        self.assertTrue(load_agent_primer())
 
     @patch("tasks.libs.dynamic_test.jev.pr_summary.urllib.request.urlopen")
     def test_summarize_pr_calls_the_ai_gateway_chat_completions(self, urlopen):

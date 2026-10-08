@@ -42,7 +42,6 @@ from tasks.libs.dynamic_test.jev.jev_client import (
     decide,
     fail_open,
     get_ai_gateway_token,
-    load_agent_primer,
 )
 from tasks.libs.dynamic_test.jev.pr_context import changed_files, fetch_ddci_metadata, fetch_pr_info
 from tasks.libs.dynamic_test.jev.pr_summary import CHAT_COMPLETIONS_PATH, summarize_pr
@@ -171,12 +170,6 @@ def select_suite(
     if suite_def_code:
         print(f"[info] suite definition included: {suite_def_path} ({len(suite_def_code)} chars)")
 
-    # The committed agent architecture primer (see jev_client.load_agent_primer)
-    # is included in every Jev state of the run
-    primer = load_agent_primer()
-    if primer:
-        print(f"[info] agent primer included ({len(primer)} chars)")
-
     # The context shared by every Jev call of this suite (everything but the
     # per-test code) is printed once - to see what diff will be passed. The
     # per-test states (with the test code) are not printed: use --dry-run to
@@ -184,16 +177,7 @@ def select_suite(
     if not dry_run and (base, str(merge_base)) not in _printed_contexts:
         _printed_contexts.add((base, str(merge_base)))
         context = build_context_state(
-            suite,
-            team,
-            pr,
-            files,
-            merge_base,
-            diff,
-            ddci=ddci,
-            suite_def_code=suite_def_code,
-            pr_summary=pr_summary,
-            primer=primer,
+            suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code, pr_summary=pr_summary
         )
         with gitlab_section(f"Jev input context (suite {suite})", collapsed=True, echo=True):
             print(
@@ -222,7 +206,6 @@ def select_suite(
             ddci=ddci,
             suite_def_code=suite_def_code,
             pr_summary=pr_summary,
-            primer=primer,
         )
         if dry_run:
             print(f"--- state for {name} (dry run, not sent) ---\n{state}\n")
