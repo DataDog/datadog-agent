@@ -119,7 +119,7 @@ func TestInventorySerializesCloudRunIdentity(t *testing.T) {
 					provides := inventoryagentimpl.NewComponent(inventoryagentimpl.Requires{
 						Config: conf, Log: logmock.New(t), Hostname: hostname, Serializer: serial, Capabilities: serverlessInitInventory.NewCapabilities(),
 					})
-					serverlessInitInventory.Publish(provides.Comp, service, mode.Conf{SidecarMode: true}, conf, map[string]string{"service": "custom-dd-service"})
+					serverlessInitInventory.UpdateAndSubmit(provides.Comp, service, mode.Conf{SidecarMode: true}, conf, map[string]string{"service": "custom-dd-service"})
 					if missing {
 						assert.Empty(t, serial.payloads)
 						assert.Nil(t, provides.Provider.Callback, "missing identity must suppress the periodic provider too")
