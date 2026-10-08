@@ -26,11 +26,13 @@ type BlockingDestination struct {
 }
 
 // NewBlockingDestination returns a BlockingDestination that sends payloads of contentType to endpoint.
-func NewBlockingDestination(endpoint config.Endpoint, contentType string, cfg pkgconfigmodel.Reader) *BlockingDestination {
+// destMeta names the destination in telemetry, like for Destination: the byte counters are tagged
+// with source logs when that name contains logs.
+func NewBlockingDestination(endpoint config.Endpoint, contentType string, destMeta *client.DestinationMetadata, cfg pkgconfigmodel.Reader) *BlockingDestination {
 	return &BlockingDestination{
 		// Send passes its own context, so the destinations context is never started.
 		destination: newDestination(endpoint, contentType, client.NewDestinationsContext(), NoTimeoutOverride, false,
-			client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "", secretsnoopimpl.NewComponent().Comp),
+			destMeta, cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "", secretsnoopimpl.NewComponent().Comp),
 	}
 }
 
