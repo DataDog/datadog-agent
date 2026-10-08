@@ -88,7 +88,7 @@ func TestBuildIssue(t *testing.T) {
 		issueType string
 		severity  healthplatform.IssueSeverity
 	}{
-		{"recommended", RecommendedIssue{}, IssueName, IssueType, healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH},
+		{"recommended", RecommendedIssue{}, IssueName, IssueType, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM},
 		{"suggested", SuggestedIssue{}, SuggestedIssueName, SuggestedIssueType, healthplatform.IssueSeverity_ISSUE_SEVERITY_LOW},
 	}
 	for _, tt := range tests {
@@ -118,16 +118,20 @@ func TestBuildIssue(t *testing.T) {
 	}
 }
 
-func TestBuildIssue_DescriptionDistinguishesLoss(t *testing.T) {
+func TestBuildIssue_LeavesLossToMissedBytes(t *testing.T) {
 	w := sampleWire()
-	high, err := RecommendedIssue{}.BuildIssue(encode(t, w))
+	w.MissedRecently = true
+	issue, err := RecommendedIssue{}.BuildIssue(encode(t, w))
 	require.NoError(t, err)
-	assert.Contains(t, high.Description, "Logs are being lost")
 
-	w.Reason = "No logs are being lost right now. The logs pipeline is bottlenecked at the network send stage."
-	low, err := SuggestedIssue{}.BuildIssue(encode(t, w))
-	require.NoError(t, err)
-	assert.Contains(t, low.Description, "No logs are being lost")
+	assert.Equal(t, "Recommended: apply the high-concurrency logs performance profile", issue.Title)
+	assert.Equal(t, "The network send stage of the logs pipeline was saturated for 27m of the last 30 minutes. Intake latency is 420 ms. "+
+		"The high-concurrency profile keeps more payloads in flight to the intake at once, so slow round trips hold up less of the pipeline.",
+		issue.Description)
+	for _, text := range append(extraStrings(t, issue, "evidence"), issue.Title, issue.Description) {
+		assert.NotContains(t, text, "lost")
+		assert.NotContains(t, text, "dropped")
+	}
 }
 
 func TestBuildIssue_ExtraContract(t *testing.T) {
@@ -149,10 +153,9 @@ func TestBuildIssue_ExtraContract(t *testing.T) {
 	assert.Equal(t, map[string]any{"key": "logs_config.batch_max_concurrent_send", "from": float64(0), "to": float64(10)}, changes[0])
 
 	assert.Equal(t, []string{
-		"Network send stage (destination_reliable_0) saturated for 27m in the last 30m",
-		"Intake latency 420 ms",
-		"Logs dropped in the last 5 minutes",
-		"Logs pipeline backpressure state: SATURATED",
+		"Network send stage saturated for 27m of the last 30 minutes",
+		"Intake latency: 420 ms",
+		"Pipeline backpressure: saturated",
 	}, extraStrings(t, issue, "evidence"))
 	assert.Equal(t, []string{"More payloads in flight at once; higher memory use under load."}, extraStrings(t, issue, "tradeoffs"))
 
@@ -183,7 +186,7 @@ func TestBuildIssue_BlockedKeysAndTradeoffs(t *testing.T) {
 
 	assert.Equal(t, []string{
 		"More payloads in flight at once; higher memory use under load.",
-		"2 setting(s) are set explicitly on this host and will not change: logs_config.pipelines, logs_config.payload_channel_size.",
+		"`logs_config.pipelines` and `logs_config.payload_channel_size` are set explicitly on this host and keep their current values.",
 	}, extraStrings(t, issue, "tradeoffs"))
 	blocked, ok := extraRecommendation(t, issue)["blocked_keys"].([]any)
 	require.True(t, ok)
@@ -199,7 +202,7 @@ func TestBuildIssue_HighThroughputTradeoff(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"One pipeline per CPU core, up to 16; more CPU and memory under load."}, extraStrings(t, issue, "tradeoffs"))
-	assert.NotContains(t, extraStrings(t, issue, "evidence"), "Intake latency 420 ms")
+	assert.NotContains(t, extraStrings(t, issue, "evidence"), "Intake latency: 420 ms")
 }
 
 func TestBuildIssue_EnvVarProfileKeyChangesRemediation(t *testing.T) {
@@ -211,16 +214,6 @@ func TestBuildIssue_EnvVarProfileKeyChangesRemediation(t *testing.T) {
 
 	assert.Contains(t, issue.Remediation.Steps[1].Text, "DD_LOGS_CONFIG_PROFILE=high-concurrency")
 	assert.Equal(t, "environment-variable", extraRecommendation(t, issue)["profile_key_source"])
-}
-
-func TestBuildIssue_MissedBytesEvidence(t *testing.T) {
-	w := sampleWire()
-	w.DroppedRecently, w.MissedRecently = false, true
-
-	issue, err := RecommendedIssue{}.BuildIssue(encode(t, w))
-	require.NoError(t, err)
-
-	assert.Contains(t, extraStrings(t, issue, "evidence"), "Log data lost to file rotation in the last 5 minutes")
 }
 
 func TestBuildIssue_WithoutRecommendationOffersNoDeploy(t *testing.T) {

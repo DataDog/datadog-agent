@@ -166,8 +166,8 @@ func TestRun_LossReportsHigh(t *testing.T) {
 
 	issue, err := RecommendedIssue{}.BuildIssue(r.Context)
 	require.NoError(t, err)
-	assert.Contains(t, extraStrings(t, issue, "evidence"), "Intake latency 420 ms")
-	assert.Contains(t, extraStrings(t, issue, "evidence"), "Network send stage (destination_reliable_0) saturated for 27m in the last 30m")
+	assert.Contains(t, extraStrings(t, issue, "evidence"), "Intake latency: 420 ms")
+	assert.Contains(t, extraStrings(t, issue, "evidence"), "Network send stage saturated for 27m of the last 30 minutes")
 }
 
 func TestRun_SustainedSaturationWithoutLossReportsLow(t *testing.T) {

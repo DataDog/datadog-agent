@@ -179,7 +179,7 @@ func (c *checker) condition(obs observation) *held {
 	if profile == obs.activeProfile || profilerec.Covers(obs.activeProfile, profile) {
 		return nil
 	}
-	return c.build(suggested, profile, code, "No logs are being lost right now. "+reason, bottleneck, obs)
+	return c.build(suggested, profile, code, reason, bottleneck, obs)
 }
 
 func saturated30mSeconds(stages []profilerec.Stage, name string) int64 {

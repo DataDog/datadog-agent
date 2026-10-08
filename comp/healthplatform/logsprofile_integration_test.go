@@ -126,7 +126,7 @@ func TestLogsProfileRecommendationSurvivesFullPipeline(t *testing.T) {
 	}, 10*time.Second, tickInterval, "logs-performance-profile-recommended issue never reached fakeintake")
 
 	assert.Equal(t, logsprofile.IssueType, received.GetIssueType())
-	assert.Equal(t, healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH, received.GetSeverity())
+	assert.Equal(t, healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_MEDIUM, received.GetSeverity())
 
 	rec := received.GetExtra().GetFields()["recommendation"].GetStructValue().GetFields()
 	require.NotEmpty(t, rec, "recommendation must arrive as an object, not a string")

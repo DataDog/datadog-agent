@@ -47,17 +47,22 @@ var (
 		name:     IssueName,
 		typ:      IssueType,
 		idPrefix: IssueID,
-		severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH,
-		title:    "Logs are being lost: apply the %s logs performance profile",
+		severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
+		title:    "Recommended: apply the %s logs performance profile",
 	}
 	suggested = kind{
 		name:     SuggestedIssueName,
 		typ:      SuggestedIssueType,
 		idPrefix: SuggestedIssueID,
 		severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_LOW,
-		title:    "Logs pipeline is backing up: apply the %s logs performance profile",
+		title:    "Suggested: apply the %s logs performance profile",
 	}
 )
+
+var profileBenefits = map[string]string{
+	profilerec.ProfileHighConcurrency: "keeps more payloads in flight to the intake at once, so slow round trips hold up less of the pipeline",
+	profilerec.ProfileHighThroughput:  "runs one pipeline per CPU core, up to 16, so more logs are processed in parallel",
+}
 
 var profileTradeoffs = map[string]string{
 	profilerec.ProfileHighConcurrency: "More payloads in flight at once; higher memory use under load.",
@@ -155,12 +160,27 @@ func buildIssue(k kind, ctx map[string]string) (*healthplatform.Issue, error) {
 	}, nil
 }
 
+// describe stays one plain-text block: `agent diagnose` prints it verbatim.
 func describe(w recommendation, name string) string {
-	reason := w.Reason
-	if reason == "" {
-		reason = "The logs pipeline is saturated."
+	var sentences []string
+	switch {
+	case w.Bottleneck == "":
+		sentences = append(sentences, "The logs pipeline is saturated.")
+	case w.Saturated30mSeconds > 0:
+		sentences = append(sentences, fmt.Sprintf("The %s of the logs pipeline was saturated for %s of the last 30 minutes.",
+			strings.ToLower(stageLabel(w.Bottleneck)), fmtSeconds(w.Saturated30mSeconds)))
+	default:
+		sentences = append(sentences, fmt.Sprintf("The %s of the logs pipeline is saturated.", strings.ToLower(stageLabel(w.Bottleneck))))
 	}
-	return fmt.Sprintf("%s Applying the %s logs performance profile should relieve it.", reason, name)
+	if w.SenderLatencyMs > 0 && profilerec.IsSendStage(w.Bottleneck) {
+		sentences = append(sentences, fmt.Sprintf("Intake latency is %d ms.", w.SenderLatencyMs))
+	}
+	if benefit, ok := profileBenefits[w.Profile]; ok {
+		sentences = append(sentences, fmt.Sprintf("The %s profile %s.", name, benefit))
+	} else {
+		sentences = append(sentences, fmt.Sprintf("Applying the %s logs performance profile should relieve it.", name))
+	}
+	return strings.Join(sentences, " ")
 }
 
 func remediationSteps(w recommendation) []*healthplatform.RemediationStep {
@@ -235,25 +255,17 @@ func recommendationExtra(w recommendation) map[string]any {
 func evidence(w recommendation) []any {
 	var out []any
 	if w.Bottleneck != "" {
-		stage := fmt.Sprintf("%s (%s)", stageLabel(w.Bottleneck), w.Bottleneck)
 		if w.Saturated30mSeconds > 0 {
-			out = append(out, fmt.Sprintf("%s saturated for %s in the last 30m", stage, fmtSeconds(w.Saturated30mSeconds)))
+			out = append(out, fmt.Sprintf("%s saturated for %s of the last 30 minutes", stageLabel(w.Bottleneck), fmtSeconds(w.Saturated30mSeconds)))
 		} else {
-			out = append(out, stage+" currently saturated")
+			out = append(out, stageLabel(w.Bottleneck)+" saturated right now")
 		}
 	}
 	if w.SenderLatencyMs > 0 && profilerec.IsSendStage(w.Bottleneck) {
-		out = append(out, fmt.Sprintf("Intake latency %d ms", w.SenderLatencyMs))
-	}
-	window := int(profilerec.LossRecencyWindow / time.Minute)
-	if w.DroppedRecently {
-		out = append(out, fmt.Sprintf("Logs dropped in the last %d minutes", window))
-	}
-	if w.MissedRecently {
-		out = append(out, fmt.Sprintf("Log data lost to file rotation in the last %d minutes", window))
+		out = append(out, fmt.Sprintf("Intake latency: %d ms", w.SenderLatencyMs))
 	}
 	if w.BackpressureState != "" {
-		out = append(out, "Logs pipeline backpressure state: "+w.BackpressureState)
+		out = append(out, "Pipeline backpressure: "+strings.ToLower(w.BackpressureState))
 	}
 	if out == nil {
 		out = []any{}
@@ -271,13 +283,23 @@ func tradeoffs(w recommendation) []any {
 		for _, b := range w.Blocked {
 			keys = append(keys, b.Key)
 		}
-		out = append(out, fmt.Sprintf("%d setting(s) are set explicitly on this host and will not change: %s.",
-			len(keys), strings.Join(keys, ", ")))
+		out = append(out, blockedTradeoff(keys))
 	}
 	if out == nil {
 		out = []any{}
 	}
 	return out
+}
+
+func blockedTradeoff(keys []string) string {
+	for i, k := range keys {
+		keys[i] = "`" + k + "`"
+	}
+	if len(keys) == 1 {
+		return keys[0] + " is set explicitly on this host and keeps its current value."
+	}
+	list := strings.Join(keys[:len(keys)-1], ", ") + " and " + keys[len(keys)-1]
+	return list + " are set explicitly on this host and keep their current values."
 }
 
 func stageLabel(name string) string {

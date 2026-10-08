@@ -2,7 +2,7 @@
 features:
   - |
     Agent Health now reports a ``logs_performance_profile_recommended`` issue
-    (high severity) when logs are being lost at a pipeline stage that a logs
+    (medium severity) when logs are being lost at a pipeline stage that a logs
     performance profile can relieve, and a ``logs_performance_profile_suggested``
     issue (low severity) when a stage stays saturated without losing logs. Each
     issue carries the recommended ``logs_config.profile``, the settings it would
