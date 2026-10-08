@@ -31,7 +31,9 @@ var (
 		"password", "passwd", "mysql_pwd",
 		"access_token", "auth_token",
 		"api_key", "apikey", "pwd",
-		"secret", "credentials", "stripetoken"}
+		"secret", "credentials", "stripetoken",
+		// SNMP credentials\
+		"community_string", "authkey", "auth_key", "privkey", "priv_key", "authentication_key", "privacy_key"}
 
 	knownSafeEnvVars = map[string]struct{}{
 		"DD_AUTH_TOKEN_FILE_PATH": {},
