@@ -318,8 +318,9 @@ func run(
 	//  so the subcommand can't read the RC database if the agent is also running.
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, option.None[networkconfigmanagement.Component]())
 
-	common.LoadComponents(ac, config)
-	ac.LoadAndRun(context.Background())
+	if err := ac.LoadAndRun(context.Background()); err != nil {
+		return err
+	}
 
 	// Checks here are run directly, not through the autodiscovery scheduler that would otherwise
 	// hold them back until workloadmeta is ready. Wait before resolving configs too, as

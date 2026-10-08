@@ -8,7 +8,7 @@ use crate::platform;
 use anyhow::{Context, Result};
 use log::{debug, info, warn};
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -18,32 +18,82 @@ pub struct ProcessDefinition {
     pub config: ProcessConfig,
 }
 
+/// A `processes.d` file that could not be turned into a `ProcessConfig`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvalidConfigEntry {
+    pub name: String,
+    pub path: PathBuf,
+    pub error: String,
+}
+
+const CONFIG_ERROR_TRUNCATED_SUFFIX: &str = "… (truncated)";
+
+pub const STORED_CONFIG_ERROR_MAX_CHARS: usize = 4096;
+pub const LIST_CONFIG_ERROR_MAX_CHARS: usize = 256;
+
+pub fn truncate_config_error(error: &str, max_chars: usize) -> String {
+    let mut iter = error.chars();
+    let head: String = iter.by_ref().take(max_chars).collect();
+    if iter.next().is_none() {
+        return head;
+    }
+    let suffix_len = CONFIG_ERROR_TRUNCATED_SUFFIX.chars().count();
+    let keep = max_chars.saturating_sub(suffix_len);
+    let trimmed: String = head.chars().take(keep).collect();
+    format!("{trimmed}{CONFIG_ERROR_TRUNCATED_SUFFIX}")
+}
+
+/// Result of one catalog load: valid process configs plus named parse failures.
+#[derive(Default)]
+pub struct LoadedCatalog {
+    pub processes: Vec<ProcessDefinition>,
+    pub invalid: Vec<InvalidConfigEntry>,
+}
+
+impl LoadedCatalog {
+    pub fn valid(processes: Vec<ProcessDefinition>) -> Self {
+        Self {
+            processes,
+            invalid: Vec::new(),
+        }
+    }
+}
+
 pub trait ConfigLoader: Send + Sync {
-    fn load(&self) -> Vec<ProcessDefinition>;
+    fn load(&self) -> LoadedCatalog;
     fn source(&self) -> &str;
     fn location(&self) -> String;
 }
 
 #[cfg(test)]
-pub struct StaticConfigLoader(Vec<ProcessDefinition>);
+pub struct StaticConfigLoader(LoadedCatalog);
 
 #[cfg(test)]
 impl StaticConfigLoader {
     pub fn new(configs: Vec<ProcessDefinition>) -> Self {
-        Self(configs)
+        Self(LoadedCatalog::valid(configs))
+    }
+
+    pub fn with_catalog(catalog: LoadedCatalog) -> Self {
+        Self(catalog)
     }
 }
 
 #[cfg(test)]
 impl ConfigLoader for StaticConfigLoader {
-    fn load(&self) -> Vec<ProcessDefinition> {
-        self.0
-            .iter()
-            .map(|pd| ProcessDefinition {
-                name: pd.name.clone(),
-                config: pd.config.clone(),
-            })
-            .collect()
+    fn load(&self) -> LoadedCatalog {
+        LoadedCatalog {
+            processes: self
+                .0
+                .processes
+                .iter()
+                .map(|pd| ProcessDefinition {
+                    name: pd.name.clone(),
+                    config: pd.config.clone(),
+                })
+                .collect(),
+            invalid: self.0.invalid.clone(),
+        }
     }
 
     fn source(&self) -> &str {
@@ -57,34 +107,41 @@ impl ConfigLoader for StaticConfigLoader {
 
 #[cfg(test)]
 pub struct MutableConfigLoader {
-    configs: std::sync::RwLock<Vec<ProcessDefinition>>,
+    catalog: std::sync::RwLock<LoadedCatalog>,
 }
 
 #[cfg(test)]
 impl MutableConfigLoader {
     pub fn new(configs: Vec<ProcessDefinition>) -> Self {
         Self {
-            configs: std::sync::RwLock::new(configs),
+            catalog: std::sync::RwLock::new(LoadedCatalog::valid(configs)),
         }
     }
 
     pub fn set(&self, configs: Vec<ProcessDefinition>) {
-        *self.configs.write().unwrap() = configs;
+        self.set_catalog(LoadedCatalog::valid(configs));
+    }
+
+    pub fn set_catalog(&self, catalog: LoadedCatalog) {
+        *self.catalog.write().unwrap() = catalog;
     }
 }
 
 #[cfg(test)]
 impl ConfigLoader for MutableConfigLoader {
-    fn load(&self) -> Vec<ProcessDefinition> {
-        self.configs
-            .read()
-            .unwrap()
-            .iter()
-            .map(|pd| ProcessDefinition {
-                name: pd.name.clone(),
-                config: pd.config.clone(),
-            })
-            .collect()
+    fn load(&self) -> LoadedCatalog {
+        let catalog = self.catalog.read().unwrap();
+        LoadedCatalog {
+            processes: catalog
+                .processes
+                .iter()
+                .map(|pd| ProcessDefinition {
+                    name: pd.name.clone(),
+                    config: pd.config.clone(),
+                })
+                .collect(),
+            invalid: catalog.invalid.clone(),
+        }
     }
 
     fn source(&self) -> &str {
@@ -115,28 +172,29 @@ impl ConfigLoader for YamlConfigLoader {
         self.dir.display().to_string()
     }
 
-    fn load(&self) -> Vec<ProcessDefinition> {
+    fn load(&self) -> LoadedCatalog {
         if !self.dir.is_dir() {
             info!(
                 "config directory {} does not exist, no processes to manage",
                 self.dir.display()
             );
-            return Vec::new();
+            return LoadedCatalog::default();
         }
 
-        let configs = match load_configs(&self.dir) {
+        let catalog = match load_configs(&self.dir) {
             Ok(c) => c,
             Err(e) => {
                 warn!("cannot read config directory {}: {e:#}", self.dir.display());
-                return Vec::new();
+                return LoadedCatalog::default();
             }
         };
         info!(
-            "loaded {} process config(s) from {}",
-            configs.len(),
+            "loaded {} process config(s) ({} invalid) from {}",
+            catalog.processes.len(),
+            catalog.invalid.len(),
             self.dir.display()
         );
-        configs
+        catalog
     }
 }
 
@@ -290,8 +348,8 @@ pub fn config_dir() -> PathBuf {
 
 /// Scan a directory for `*.yaml` files and parse each into a ProcessConfig.
 /// The process name is derived from the filename (without extension).
-/// Files that fail to parse are logged and skipped.
-pub fn load_configs(dir: &Path) -> Result<Vec<ProcessDefinition>> {
+/// Files that fail to parse are logged and returned as invalid catalog entries.
+pub fn load_configs(dir: &Path) -> Result<LoadedCatalog> {
     let entries = std::fs::read_dir(dir)
         .with_context(|| format!("failed to read config directory: {}", dir.display()))?;
 
@@ -317,7 +375,8 @@ pub fn load_configs(dir: &Path) -> Result<Vec<ProcessDefinition>> {
 
     yaml_files.sort_by_key(|e| e.file_name());
 
-    let mut configs = Vec::new();
+    let mut processes = Vec::new();
+    let mut invalid = Vec::new();
     for entry in yaml_files {
         let path = entry.path();
         let name = path
@@ -327,12 +386,33 @@ pub fn load_configs(dir: &Path) -> Result<Vec<ProcessDefinition>> {
             .to_string();
 
         match parse_config(&path) {
-            Ok(config) => configs.push(ProcessDefinition { name, config }),
-            Err(e) => warn!("[{name}] skipping config: {e:#}"),
+            Ok(config) => processes.push(ProcessDefinition { name, config }),
+            Err(e) => {
+                let error = truncate_config_error(&format!("{e:#}"), STORED_CONFIG_ERROR_MAX_CHARS);
+                warn!("[{name}] skipping config: {error}");
+                invalid.push(InvalidConfigEntry { name, path, error });
+            }
         }
     }
 
-    Ok(configs)
+    // `.yaml` and `.yml` share a file stem, so sibling files claim one catalog name. A valid file
+    // wins because it is spawnable and a stub of its name would shadow it in describe and start.
+    // Between two broken siblings the first of the sorted scan wins, which keeps one row per name
+    // instead of two that only one of them can ever be reached through.
+    let mut claimed: HashSet<String> = processes.iter().map(|p| p.name.clone()).collect();
+    invalid.retain(|entry| {
+        if claimed.insert(entry.name.clone()) {
+            return true;
+        }
+        warn!(
+            "[{}] ignoring {}: another config of the same name was loaded",
+            entry.name,
+            entry.path.display()
+        );
+        false
+    });
+
+    Ok(LoadedCatalog { processes, invalid })
 }
 
 fn parse_config(path: &Path) -> Result<ProcessConfig> {
@@ -368,7 +448,7 @@ condition_path_exists: /usr/bin/sleep
 "#;
         fs::write(dir.path().join("test-proc.yaml"), yaml).unwrap();
 
-        let configs = load_configs(dir.path()).unwrap();
+        let configs = load_configs(dir.path()).unwrap().processes;
         assert_eq!(configs.len(), 1);
 
         let np = &configs[0];
@@ -391,7 +471,7 @@ condition_path_exists: /usr/bin/sleep
         let yaml = "command: /usr/bin/true\n";
         fs::write(dir.path().join("minimal.yaml"), yaml).unwrap();
 
-        let configs = load_configs(dir.path()).unwrap();
+        let configs = load_configs(dir.path()).unwrap().processes;
         assert_eq!(configs.len(), 1);
 
         let np = &configs[0];
@@ -406,14 +486,148 @@ condition_path_exists: /usr/bin/sleep
     }
 
     #[test]
-    fn test_skips_invalid_files() {
+    fn test_records_invalid_files() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("good.yaml"), "command: /usr/bin/true\n").unwrap();
         fs::write(dir.path().join("bad.yaml"), "not: valid: yaml: [").unwrap();
+        fs::write(
+            dir.path().join("no-command.yaml"),
+            "description: missing command\n",
+        )
+        .unwrap();
 
-        let configs = load_configs(dir.path()).unwrap();
-        assert_eq!(configs.len(), 1);
-        assert_eq!(configs[0].name, "good");
+        let catalog = load_configs(dir.path()).unwrap();
+        assert_eq!(catalog.processes.len(), 1);
+        assert_eq!(catalog.processes[0].name, "good");
+        assert_eq!(catalog.invalid.len(), 2);
+        let names: Vec<&str> = catalog.invalid.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, vec!["bad", "no-command"]);
+        for entry in &catalog.invalid {
+            assert!(
+                !entry.error.is_empty(),
+                "invalid entry {} should carry a parse error",
+                entry.name
+            );
+            assert_eq!(entry.path, dir.path().join(format!("{}.yaml", entry.name)));
+        }
+    }
+
+    #[test]
+    fn test_invalid_sibling_does_not_shadow_a_valid_config() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("svc.yaml"), "command: /usr/bin/true\n").unwrap();
+        fs::write(dir.path().join("svc.yml"), "not: valid: yaml: [").unwrap();
+
+        let catalog = load_configs(dir.path()).unwrap();
+        assert_eq!(catalog.processes.len(), 1);
+        assert_eq!(catalog.processes[0].name, "svc");
+        assert!(
+            catalog.invalid.is_empty(),
+            "a spawnable config must win over a broken file sharing its name"
+        );
+    }
+
+    #[test]
+    fn test_truncate_config_error_keeps_short_text() {
+        let err = "missing field `command`";
+        assert_eq!(truncate_config_error(err, LIST_CONFIG_ERROR_MAX_CHARS), err);
+    }
+
+    #[test]
+    fn test_truncate_config_error_respects_budget() {
+        let err = "a".repeat(LIST_CONFIG_ERROR_MAX_CHARS + 50);
+        let out = truncate_config_error(&err, LIST_CONFIG_ERROR_MAX_CHARS);
+        assert_eq!(out.chars().count(), LIST_CONFIG_ERROR_MAX_CHARS);
+        assert!(out.ends_with(CONFIG_ERROR_TRUNCATED_SUFFIX));
+    }
+
+    #[test]
+    fn test_load_configs_caps_stored_parse_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let huge = "z".repeat(STORED_CONFIG_ERROR_MAX_CHARS + 8_000);
+        fs::write(
+            dir.path().join("huge.yaml"),
+            format!("command: /a\nargs: \"{huge}\"\n"),
+        )
+        .unwrap();
+
+        let catalog = load_configs(dir.path()).unwrap();
+        assert_eq!(catalog.invalid.len(), 1);
+        let error = &catalog.invalid[0].error;
+        assert!(
+            error.chars().count() <= STORED_CONFIG_ERROR_MAX_CHARS,
+            "stored parse error must be capped, got {} chars",
+            error.chars().count()
+        );
+        assert!(
+            error.contains("truncated"),
+            "capped diagnostics must mark the cut: {error}"
+        );
+    }
+
+    /// The flare scrubber in pkg/procmgr/coat strips these echoed values when an operator asks for
+    /// arguments to be stripped, and it recognizes them by the way serde quotes them. The spelling
+    /// is therefore a contract between the two, not an implementation detail of this crate.
+    #[test]
+    fn test_rejected_scalars_are_echoed_in_the_parse_error() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("text.yaml"),
+            "command: /a\nargs: \"--token abc123\"\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("number.yaml"),
+            "command: /a\nargs: 1234567\n",
+        )
+        .unwrap();
+
+        let errors: Vec<String> = load_configs(dir.path())
+            .unwrap()
+            .invalid
+            .into_iter()
+            .map(|e| e.error)
+            .collect();
+
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.contains("invalid type: string \"--token abc123\"")),
+            "{errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.contains("invalid type: integer `1234567`")),
+            "{errors:?}"
+        );
+    }
+
+    /// Two broken siblings claim the same catalog name, and only the first of them could ever be
+    /// described or counted as itself, so the second is not a row worth having.
+    #[test]
+    fn test_invalid_siblings_collapse_to_one_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("svc.yaml"), "not: valid: yaml: [").unwrap();
+        fs::write(dir.path().join("svc.yml"), "description: no command\n").unwrap();
+
+        let catalog = load_configs(dir.path()).unwrap();
+        assert!(catalog.processes.is_empty());
+        assert_eq!(catalog.invalid.len(), 1);
+        assert_eq!(catalog.invalid[0].name, "svc");
+        assert_eq!(
+            catalog.invalid[0].path,
+            dir.path().join("svc.yaml"),
+            "the winner should follow the sorted scan rather than readdir order"
+        );
+    }
+
+    #[test]
+    fn test_empty_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let catalog = load_configs(dir.path()).unwrap();
+        assert!(catalog.processes.is_empty());
+        assert!(catalog.invalid.is_empty());
     }
 
     #[test]
@@ -423,7 +637,7 @@ condition_path_exists: /usr/bin/sleep
         fs::write(dir.path().join("alpha.yaml"), "command: /a\n").unwrap();
         fs::write(dir.path().join("bravo.yaml"), "command: /b\n").unwrap();
 
-        let configs = load_configs(dir.path()).unwrap();
+        let configs = load_configs(dir.path()).unwrap().processes;
         let names: Vec<&str> = configs.iter().map(|np| np.name.as_str()).collect();
         assert_eq!(names, vec!["alpha", "bravo", "charlie"]);
     }
@@ -435,22 +649,15 @@ condition_path_exists: /usr/bin/sleep
         fs::write(dir.path().join("readme.txt"), "not a config").unwrap();
         fs::write(dir.path().join("notes.md"), "also not").unwrap();
 
-        let configs = load_configs(dir.path()).unwrap();
+        let configs = load_configs(dir.path()).unwrap().processes;
         assert_eq!(configs.len(), 1);
-    }
-
-    #[test]
-    fn test_empty_directory() {
-        let dir = tempfile::tempdir().unwrap();
-        let configs = load_configs(dir.path()).unwrap();
-        assert!(configs.is_empty());
     }
 
     #[test]
     fn test_auto_start_defaults_true() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("p.yaml"), "command: /a\n").unwrap();
-        let configs = load_configs(dir.path()).unwrap();
+        let configs = load_configs(dir.path()).unwrap().processes;
         assert!(configs[0].config.auto_start);
     }
 
@@ -462,7 +669,7 @@ condition_path_exists: /usr/bin/sleep
             "command: /a\nauto_start: false\n",
         )
         .unwrap();
-        let configs = load_configs(dir.path()).unwrap();
+        let configs = load_configs(dir.path()).unwrap().processes;
         assert!(!configs[0].config.auto_start);
     }
 
@@ -508,7 +715,7 @@ condition_config_any:
       - network_config.enabled
 "#;
         fs::write(dir.path().join("proc.yaml"), yaml).unwrap();
-        let configs = load_configs(dir.path()).unwrap();
+        let configs = load_configs(dir.path()).unwrap().processes;
         assert_eq!(configs.len(), 1);
         assert_eq!(configs[0].config.condition_config_any.len(), 2);
         assert_eq!(
@@ -528,7 +735,7 @@ condition_config_any:
     fn test_config_gate_defaults_to_empty() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("p.yaml"), "command: /a\n").unwrap();
-        let configs = load_configs(dir.path()).unwrap();
+        let configs = load_configs(dir.path()).unwrap().processes;
         assert!(
             configs[0].config.condition_config_any.is_empty(),
             "a yaml without condition_config_any should leave the gate open"
@@ -558,7 +765,7 @@ stderr: inherit
 "#;
         fs::write(dir.path().join("datadog-agent-ddot.yaml"), yaml).unwrap();
 
-        let configs = load_configs(dir.path()).unwrap();
+        let configs = load_configs(dir.path()).unwrap().processes;
         assert_eq!(configs.len(), 1);
         let np = &configs[0];
         assert_eq!(np.name, "datadog-agent-ddot");
