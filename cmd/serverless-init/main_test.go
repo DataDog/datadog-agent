@@ -196,12 +196,16 @@ func TestPreloadEarlyPreservesInventoryFirstRunDelay(t *testing.T) {
 }
 
 func TestInventoryIdentityGate(t *testing.T) {
+	originalConfig := pkgconfigsetup.Datadog()
+	originalConfigPath := originalConfig.ConfigFileUsed()
 	for _, scenario := range []string{"valid", "missing", "serverless.inventory_enabled", "inventories_enabled", "enable_metadata_collection"} {
 		t.Run(scenario, func(t *testing.T) {
 			conf := coreconfig.NewMock(t)
+			require.NotSame(t, originalConfig, pkgconfigsetup.Datadog())
 			configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 			require.NoError(t, os.WriteFile(configPath, []byte("inventories_enabled: true\n"), 0600))
 			pkgconfigsetup.Datadog().(configmodel.BuildableConfig).SetConfigFile(configPath)
+			require.Equal(t, configPath, conf.ConfigFileUsed())
 			for _, key := range []string{"serverless.inventory_enabled", "inventories_enabled", "enable_metadata_collection"} {
 				conf.Set(key, true, configmodel.SourceAgentRuntime)
 			}
@@ -274,6 +278,10 @@ func TestInventoryIdentityGate(t *testing.T) {
 				}
 			}
 		})
+		// NewMock's cleanup restores the original config, including its path,
+		// after the subtest's temporary configuration file has been removed.
+		require.Same(t, originalConfig, pkgconfigsetup.Datadog())
+		assert.Equal(t, originalConfigPath, pkgconfigsetup.Datadog().ConfigFileUsed())
 	}
 }
 
