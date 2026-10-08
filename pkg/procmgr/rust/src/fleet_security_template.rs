@@ -10,7 +10,7 @@
 
 use crate::config::ProcessConfig;
 use crate::config_gate::{condition_config_any_met, gated_key_names, test_env_guard};
-use crate::fleet_template_support::{scm_service_keys, sorted, write_gated_files, INSTALL_DIR};
+use crate::fleet_template_support::{INSTALL_DIR, scm_service_keys, sorted, write_gated_files};
 use std::path::Path;
 
 /// Catalog name of the shipped entry, from `datadog-agent-security.yaml` in `processes.d`.
