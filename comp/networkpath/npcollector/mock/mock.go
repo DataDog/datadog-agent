@@ -9,13 +9,23 @@
 package mock
 
 import (
-	npcollectorimpl "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"iter"
+	"testing"
+
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 )
 
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(npcollectorimpl.NewMock),
-	)
+// Mock implements the npcollector component with no-op methods.
+type Mock struct{}
+
+// ScheduleNetworkPathTests implements npcollector.Component.
+func (*Mock) ScheduleNetworkPathTests(_ iter.Seq[npmodel.NetworkPathConnection]) {}
+
+// ScheduleNetflowPathTests implements npcollector.Component.
+func (*Mock) ScheduleNetflowPathTests(_ iter.Seq[npmodel.NetworkPathConnection]) {}
+
+// New creates a mock npcollector component.
+func New(_ testing.TB) npcollector.Component {
+	return &Mock{}
 }

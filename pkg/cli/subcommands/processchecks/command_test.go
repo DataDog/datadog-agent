@@ -29,6 +29,7 @@ import (
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	npcollectormock "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/mock"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	rdnsquerierfxmock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
@@ -68,7 +69,7 @@ func TestCommand(t *testing.T) {
 			workloadfilterfxmock.MockModule(),
 			fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 			rdnsquerierfxmock.MockModule(),
-			npcollectormock.MockModule(),
+			fx.Provide(func() npcollector.Component { return npcollectormock.New(t) }),
 			processComponent.Bundle(),
 
 			// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initialized correctly.
