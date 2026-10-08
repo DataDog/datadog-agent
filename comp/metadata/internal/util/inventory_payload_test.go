@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -283,6 +284,8 @@ func TestSubmitSkippedWithoutCollectionOrSerializer(t *testing.T) {
 			lastCollect := time.Now().Add(-time.Hour)
 			i.LastCollect = lastCollect
 			i.forceRefresh.Store(true)
+			i.SetReady(false)
+			i.SetReady(true)
 			i.Submit()
 			assert.Equal(t, lastCollect, i.LastCollect)
 			assert.True(t, i.forceRefresh.Load())
@@ -370,6 +373,159 @@ func TestSubmitEmptyPayloadAndSerializerError(t *testing.T) {
 			assert.False(t, i.RefreshTriggered())
 			serializerMock.AssertExpectations(t)
 		})
+	}
+}
+
+func TestReadinessGatesPayloadGeneration(t *testing.T) {
+	for _, firstRunDelay := range []int{0, 3600} {
+		t.Run((time.Duration(firstRunDelay) * time.Second).String(), func(t *testing.T) {
+			i := getTestInventoryPayload(t, map[string]any{"inventories_first_run_delay": firstRunDelay})
+			serializerMock := i.serializer.(*serializermock.MetricSerializer)
+			serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Times(3)
+			builds := 0
+			i.getPayload = func() marshaler.JSONMarshaler {
+				builds++
+				return &testPayload{}
+			}
+
+			// Reclosing after publication protects subsequent updates as well as startup.
+			for cycle := range 2 {
+				i.SetReady(false)
+				require.NotNil(t, i.MetadataProvider().Callback, "readiness must not unregister the provider")
+				lastCollect := i.LastCollect
+				for _, pendingRefresh := range []bool{false, true} {
+					i.forceRefresh.Store(pendingRefresh)
+					assert.Equal(t, i.MinInterval, i.collect(context.Background()))
+					i.Submit()
+					data, err := i.GetAsJSON()
+					assert.EqualError(t, err, "inventory metadata is not ready")
+					assert.Nil(t, data)
+					assert.Equal(t, pendingRefresh, i.RefreshTriggered())
+					assert.Equal(t, lastCollect, i.LastCollect)
+					assert.Equal(t, 2*cycle, builds)
+					serializerMock.AssertNumberOfCalls(t, "SendMetadata", cycle)
+				}
+
+				i.SetReady(true)
+				assert.Equal(t, lastCollect, i.LastCollect, "opening does not collect")
+				assert.True(t, i.RefreshTriggered(), "opening does not consume refresh")
+				i.Submit() // Immediate even with a large first-run delay or a recent collection.
+				assert.False(t, i.RefreshTriggered())
+				assert.False(t, i.LastCollect.IsZero())
+				data, err := i.GetAsJSON()
+				require.NoError(t, err)
+				assert.JSONEq(t, `{"test": true}`, string(data))
+				serializerMock.AssertNumberOfCalls(t, "SendMetadata", cycle+1)
+			}
+
+			// A reopened provider can also consume the pending refresh on its next poll.
+			i.firstRunDelay = 0
+			i.SetReady(false)
+			i.Refresh()
+			i.SetReady(true)
+			assert.Equal(t, i.MinInterval, i.collect(context.Background()))
+			assert.False(t, i.RefreshTriggered())
+			assert.Equal(t, 5, builds)
+			serializerMock.AssertNumberOfCalls(t, "SendMetadata", 3)
+		})
+	}
+}
+
+func TestSetReadyClosingBarrier(t *testing.T) {
+	for _, operation := range []string{"collect", "Submit", "GetAsJSON"} {
+		for _, stage := range []string{"generation", "enqueue"} {
+			if operation == "GetAsJSON" && stage == "enqueue" {
+				continue
+			}
+			t.Run(operation+"/"+stage, func(t *testing.T) {
+				i := getTestInventoryPayload(t, map[string]any{"inventories_first_run_delay": 0})
+				entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
+				block := func() {
+					close(entered)
+					select {
+					case <-release:
+					case <-time.After(5 * time.Second):
+						t.Error("timed out waiting to release in-flight payload")
+					}
+					close(finished)
+				}
+				i.getPayload = func() marshaler.JSONMarshaler {
+					if stage == "generation" {
+						block()
+					}
+					return &testPayload{}
+				}
+				serializerMock := i.serializer.(*serializermock.MetricSerializer)
+				if operation != "GetAsJSON" {
+					serializerMock.On("SendMetadata", &testPayload{}).Run(func(mock.Arguments) {
+						if stage == "enqueue" {
+							block()
+						}
+					}).Return(nil).Once()
+				}
+				operationDone := make(chan struct{})
+				go func() {
+					defer close(operationDone)
+					switch operation {
+					case "collect":
+						i.collect(context.Background())
+					case "Submit":
+						i.Submit()
+					case "GetAsJSON":
+						_, err := i.GetAsJSON()
+						assert.NoError(t, err)
+					}
+				}()
+				waitForInventorySignal(t, entered)
+				// Check the shared mutex is held throughout generation AND enqueue,
+				// without relying on how soon the closing goroutine is scheduled.
+				locked := i.m.TryLock()
+				if locked {
+					i.m.Unlock()
+				}
+				assert.False(t, locked, "payload work must hold the readiness mutex")
+
+				closing, closed := make(chan struct{}), make(chan struct{})
+				go func() {
+					close(closing)
+					i.SetReady(false)
+					select {
+					case <-finished:
+					default:
+						t.Error("closing returned before in-flight payload work finished")
+					}
+					close(closed)
+				}()
+				waitForInventorySignal(t, closing)
+				select {
+				case <-closed:
+					t.Error("closing completed while payload work was blocked")
+				default:
+				}
+				close(release)
+				waitForInventorySignal(t, operationDone)
+				waitForInventorySignal(t, closed)
+
+				i.getPayload = func() marshaler.JSONMarshaler {
+					t.Fatal("closed gate must not generate a payload")
+					return nil
+				}
+				i.Refresh()
+				i.collect(context.Background())
+				i.Submit()
+				_, err := i.GetAsJSON()
+				assert.EqualError(t, err, "inventory metadata is not ready")
+			})
+		}
+	}
+}
+
+func waitForInventorySignal(t *testing.T, signal <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for inventory operation")
 	}
 }
 

@@ -10,16 +10,19 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	serverlessInitInventory "github.com/DataDog/datadog-agent/cmd/serverless-init/inventory"
@@ -29,11 +32,15 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	agentmock "github.com/DataDog/datadog-agent/comp/logs/agent/mock"
+	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	inventoryagentimpl "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/impl"
+	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -49,15 +56,24 @@ import (
 
 type inventoryRecordingSerializer struct {
 	serializer.MetricSerializer
+	mu       sync.Mutex
 	payloads [][]byte
 }
 
 func (s *inventoryRecordingSerializer) SendMetadata(payload marshaler.JSONMarshaler) error {
 	data, err := payload.MarshalJSON()
 	if err == nil {
+		s.mu.Lock()
 		s.payloads = append(s.payloads, data)
+		s.mu.Unlock()
 	}
 	return err
+}
+
+func (s *inventoryRecordingSerializer) Payloads() [][]byte {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.payloads)
 }
 
 type inventoryTestCloudService struct {
@@ -68,6 +84,115 @@ type inventoryTestCloudService struct {
 func (s inventoryTestCloudService) CanCollectInventory() bool { return s.data.ResourceID != "" }
 func (s inventoryTestCloudService) GetInventoryData() cloudservice.InventoryData {
 	return s.data
+}
+
+func TestInventoryOneShotReadiness(t *testing.T) {
+	for _, firstRunDelay := range []int{0, 3600} {
+		t.Run(fmt.Sprint(firstRunDelay), func(t *testing.T) {
+			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
+			conf := coreconfig.NewMock(t)
+			for _, key := range []string{"serverless.inventory_enabled", "inventories_enabled", "enable_metadata_collection"} {
+				conf.Set(key, true, configmodel.SourceAgentRuntime)
+			}
+			conf.Set("inventories_first_run_delay", firstRunDelay, configmodel.SourceAgentRuntime)
+			conf.Set("inventories_configuration_enabled", false, configmodel.SourceAgentRuntime)
+			conf.Set("site", "datadoghq.eu", configmodel.SourceAgentRuntime)
+			service := inventoryTestCloudService{data: cloudservice.InventoryData{
+				ResourceID: "test-resource", ResourceName: "test-app", WorkloadType: "test-workload",
+				ParentResourceID: "test-parent", Region: "test-region", RuntimeCandidates: []string{"python"},
+			}}
+			configureInventory(service)
+			serial := &inventoryRecordingSerializer{}
+			hostname, _ := hostnamemock.NewMock("inventory-test")
+			logger := logmock.New(t)
+			collected := make(chan struct{})
+			var firstCollection sync.Once
+
+			// Unlike TestOneShot (graph validation), OneShot actually starts Fx and
+			// the real runner. Wait for its first provider callback to finish before
+			// doing the same publication as setup. No scheduler timing is assumed.
+			err := fxutil.OneShot(func(ia inventoryagent.Component, _ runner.Component) error {
+				select {
+				case <-collected:
+				case <-time.After(5 * time.Second):
+					return fmt.Errorf("runner did not collect before initialization")
+				}
+				ia.Submit()
+				if len(serial.Payloads()) != 0 {
+					return fmt.Errorf("inventory emitted before initialization")
+				}
+				serverlessInitInventory.Publish(ia, service, mode.Conf{SidecarMode: true}, conf, map[string]string{
+					"env": "test-env", "service": "test-service", "version": "test-version",
+				})
+				if len(serial.Payloads()) == 0 {
+					return fmt.Errorf("publication did not synchronously enqueue inventory")
+				}
+				return nil
+			},
+				fx.Provide(serverlessInitInventory.NewCapabilities),
+				fx.Provide(func(caps *inventoryagent.Capabilities) (inventoryagent.Component, runner.Provider) {
+					p := inventoryagentimpl.NewComponent(inventoryagentimpl.Requires{
+						Config: conf, Log: logger, Hostname: hostname, Serializer: serial, Capabilities: caps,
+					})
+					callback := p.Provider.Callback
+					require.NotNil(t, callback, "readiness must not unregister an enabled provider")
+					return p.Comp, runner.NewProvider(func(ctx context.Context) time.Duration {
+						interval := callback(ctx)
+						firstCollection.Do(func() { close(collected) })
+						return interval
+					})
+				}),
+				fx.Provide(func() coreconfig.Component { return conf }),
+				fx.Provide(func() logdef.Component { return logger }),
+				runnerfx.Module(),
+				fx.StartTimeout(5*time.Second),
+				fx.StopTimeout(5*time.Second),
+			)
+			require.NoError(t, err)
+			payloads := serial.Payloads()
+			require.NotEmpty(t, payloads)
+			var startupUUID string
+			for index, data := range payloads {
+				var payload struct {
+					UUID     string                 `json:"uuid"`
+					Metadata map[string]interface{} `json:"agent_metadata"`
+				}
+				require.NoError(t, json.Unmarshal(data, &payload))
+				require.NotEmpty(t, payload.UUID)
+				if index == 0 {
+					startupUUID = payload.UUID
+					assert.Equal(t, "startup", payload.Metadata["report_reason"])
+				}
+				assert.Equal(t, startupUUID, payload.UUID)
+				for key, expected := range map[string]string{
+					"resource_id": "test-resource", "resource_name": "test-app", "workload_type": "test-workload",
+					"parent_resource_id": "test-parent", "region": "test-region", "runtime": "python",
+					"deployment_model": "sidecar", "flavor": "serverless-init",
+					"dd_site": "datadoghq.eu", "dd_env": "test-env", "dd_service": "test-service", "dd_version": "test-version",
+					"agent_version_base": version.AgentVersion, "serverless_init_version": serverlessTag.GetExtensionVersion(),
+				} {
+					assert.Equal(t, expected, payload.Metadata[key], key)
+				}
+				assert.Equal(t, float64(conf.StartTime().UnixMilli()), payload.Metadata["agent_startup_time_ms"])
+			}
+		})
+	}
+}
+
+func TestPreloadEarlyPreservesInventoryFirstRunDelay(t *testing.T) {
+	for _, delay := range []string{"", "3600"} {
+		t.Run("delay="+delay, func(t *testing.T) {
+			t.Setenv("DD_INVENTORIES_FIRST_RUN_DELAY", delay)
+			if delay == "" {
+				require.NoError(t, os.Unsetenv("DD_INVENTORIES_FIRST_RUN_DELAY"))
+			}
+			conf := configmock.New(t)
+			before := conf.GetInt("inventories_first_run_delay")
+			require.Positive(t, before)
+			preloadEarly()
+			assert.Equal(t, before, conf.GetInt("inventories_first_run_delay"))
+		})
+	}
 }
 
 func TestInventoryIdentityGate(t *testing.T) {
@@ -102,21 +227,20 @@ func TestInventoryIdentityGate(t *testing.T) {
 			provides := inventoryagentimpl.NewComponent(inventoryagentimpl.Requires{
 				Config: conf, Log: logmock.New(t), Hostname: hostname, Serializer: serial, Capabilities: serverlessInitInventory.NewCapabilities(),
 			})
-			serverlessInitInventory.Inject(provides.Comp, service, mode.Conf{}, conf, map[string]string{
+			serverlessInitInventory.Publish(provides.Comp, service, mode.Conf{}, conf, map[string]string{
 				"env": "test-env", "service": "test-service", "version": "test-version",
 			})
-			serverlessInitInventory.Submit(provides.Comp, conf)
 			if scenario != "valid" {
-				assert.Empty(t, serial.payloads)
+				assert.Empty(t, serial.Payloads())
 				assert.Nil(t, provides.Provider.Callback, "no periodic or in-flight collection may be registered")
 				return
 			}
-			require.Len(t, serial.payloads, 1, "startup submission is synchronous")
+			require.Len(t, serial.Payloads(), 1, "startup submission is synchronous")
 			require.NotNil(t, provides.Provider.Callback)
 			provides.Provider.Callback(context.Background())
-			require.Len(t, serial.payloads, 2)
+			require.Len(t, serial.Payloads(), 2)
 			var startupUUID string
-			for index, data := range serial.payloads {
+			for index, data := range serial.Payloads() {
 				var payload struct {
 					UUID     string                 `json:"uuid"`
 					Metadata map[string]interface{} `json:"agent_metadata"`
@@ -259,23 +383,21 @@ func TestInventorySerializesMissingValues(t *testing.T) {
 					"env": populatedValues["dd_env"], "service": populatedValues["dd_service"], "version": populatedValues["dd_version"],
 				}
 			}
-			serverlessInitInventory.Inject(provides.Comp, service, mode.Conf{SidecarMode: stage.sidecar}, conf, tags)
-
 			for _, reason := range []string{"startup", "periodic"} {
-				payloadCount := len(serial.payloads)
+				payloadCount := len(serial.Payloads())
 				before := time.Now().UnixNano()
 				if reason == "startup" {
-					serverlessInitInventory.Submit(provides.Comp, conf)
+					serverlessInitInventory.Publish(provides.Comp, service, mode.Conf{SidecarMode: stage.sidecar}, conf, tags)
 				} else {
 					provides.Provider.Callback(context.Background())
 				}
 				after := time.Now().UnixNano()
-				require.Len(t, serial.payloads, payloadCount+1)
+				require.Len(t, serial.Payloads(), payloadCount+1)
 				var payload struct {
 					Timestamp int64                  `json:"timestamp"`
 					Metadata  map[string]interface{} `json:"agent_metadata"`
 				}
-				require.NoError(t, json.Unmarshal(serial.payloads[payloadCount], &payload))
+				require.NoError(t, json.Unmarshal(serial.Payloads()[payloadCount], &payload))
 				assert.GreaterOrEqual(t, payload.Timestamp, before)
 				assert.LessOrEqual(t, payload.Timestamp, after)
 				assert.Greater(t, payload.Timestamp, previousTimestamp)
@@ -307,7 +429,7 @@ func TestInventorySerializesMissingValues(t *testing.T) {
 				} else {
 					assert.NotContains(t, payload.Metadata, "wrapped_command", "never-collected commands must be omitted")
 				}
-				assert.NotContains(t, string(serial.payloads[payloadCount]), "secret")
+				assert.NotContains(t, string(serial.Payloads()[payloadCount]), "secret")
 				assert.Contains(t, payload.Metadata, "install_method_tool_version")
 				assert.Equal(t, "", payload.Metadata["install_method_tool_version"], "core metadata is not normalized")
 				assert.NotContains(t, payload.Metadata, "deployment_id")

@@ -105,7 +105,7 @@ type Requires struct {
 	Hostname       hostnameinterface.Component
 	// Capabilities is optional. When absent the component uses standard
 	// full-agent behavior; an embedder (serverless-init) supplies it to adapt
-	// full-agent metadata refresh and the payload uuid to a divergent environment.
+	// readiness, full-agent metadata refresh, and the payload uuid to a divergent environment.
 	// See iainterface.Capabilities.
 	Capabilities *iainterface.Capabilities `optional:"true"`
 }
@@ -134,6 +134,7 @@ func NewComponent(deps Requires) Provides {
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
 	if deps.Capabilities != nil {
+		ia.SetReady(!deps.Capabilities.DeferUntilReady)
 		ia.skipFullAgentMetadataRefresh = deps.Capabilities.SkipFullAgentMetadataRefresh
 		ia.payloadUUID = deps.Capabilities.PayloadUUID
 	}
