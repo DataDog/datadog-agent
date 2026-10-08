@@ -121,42 +121,63 @@ class CompilerImage:
         return self._check_container_exists(allow_stopped=True)
 
     @cached_property
-    def compiler_user(self):
-        # Get the user name from the uid in the container
-        result = self.exec(f"getent passwd {self.host_uid}", user="root")
-        if result is not None and result.ok:
-            return result.stdout.rstrip().split(":")[0]
-
-        raise ValueError(f"Failed to get compiler user for uid {self.host_uid}")
+    def is_rootless(self) -> bool:
+        res = self.ctx.run("docker info --format '{{json .SecurityOptions}}'", hide=True, warn=True)
+        return res is not None and res.ok and "name=rootless" in res.stdout
 
     @cached_property
-    def host_uid(self):
+    def _compiler_passwd(self) -> list[str]:
+        # Get the user entry from the uid in the container, the user might be named differently
+        result = self.exec(f"getent passwd {self.compiler_uid}", user="root")
+        if result is not None and result.ok:
+            return result.stdout.rstrip().split(":")
+
+        raise ValueError(f"Failed to get compiler user for uid {self.compiler_uid}")
+
+    @property
+    def compiler_user(self) -> str:
+        return self._compiler_passwd[0]
+
+    @property
+    def compiler_home(self) -> str:
+        return self._compiler_passwd[5]
+
+    # Rootless engines map container root to the host user and the host uid to an unprivileged
+    # subordinate one, so only root can write to the bind mounts there.
+    @cached_property
+    def compiler_uid(self) -> str:
+        if self.is_rootless:
+            return "0"
         return cast('Result', self.ctx.run("id -u")).stdout.rstrip()
 
     @cached_property
-    def host_gid(self):
+    def compiler_gid(self) -> str:
+        if self.is_rootless:
+            return "0"
         return cast('Result', self.ctx.run("id -g")).stdout.rstrip()
 
     def ensure_compiler_user_created(self):
         # If the compiler user already exists, we don't need to do anything. Note that this might
         # happen even if we have just booted the container, if the UID of the host user is
         # the same as the UID for an already existing user in the container
-        uid_exists = self.exec(f"getent passwd {self.host_uid}", user="root", allow_fail=True)
+        uid_exists = self.exec(f"getent passwd {self.compiler_uid}", user="root", allow_fail=True)
         if uid_exists is not None and uid_exists.ok:
             info(f"[*] Compiler user {self.compiler_user} already created")
             return
 
         compiler_username = "compiler"
 
-        if self.host_uid == "0":
+        if self.compiler_uid == "0":
             # If we're starting the compiler as root, we won't be able to create the compiler user
             # and we will get weird failures later on, as the user 'compiler' won't exist in the container
             raise ValueError("Cannot start compiler as root, we need to run as a non-root user")
 
         # Now create the compiler user with same UID and GID as the current user
-        self.exec(f"getent group {self.host_gid} || groupadd -f -g {self.host_gid} {compiler_username}", user="root")
         self.exec(
-            f"getent passwd {self.host_uid} || useradd -m -u {self.host_uid} -g {self.host_gid} {compiler_username}",
+            f"getent group {self.compiler_gid} || groupadd -f -g {self.compiler_gid} {compiler_username}", user="root"
+        )
+        self.exec(
+            f"getent passwd {self.compiler_uid} || useradd -m -u {self.compiler_uid} -g {self.compiler_gid} {compiler_username}",
             user="root",
         )
 
@@ -305,16 +326,16 @@ class CompilerImage:
 
         if repo_cache is not None:
             # Host default/home-rc cache paths differ from the container user's; force the mounted path.
-            bazelrc = f"/home/{self.compiler_user}/.bazelrc"
+            bazelrc = f"{self.compiler_home}/.bazelrc"
             with tempfile.NamedTemporaryFile(mode='w') as rc:
                 rc.write(f"common --repository_cache={shlex.quote(str(repo_cache))}\n")
                 rc.flush()
                 self.ctx.run(f"docker cp {rc.name} {self.name}:{bazelrc}")
-            self.exec(f"chown {self.host_uid}:{self.host_gid} {bazelrc}", user="root")
+            self.exec(f"chown {self.compiler_uid}:{self.compiler_gid} {bazelrc}", user="root")
 
         if sys.platform != "darwin":  # No need to change permissions in MacOS
             self.exec(
-                f"chown {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH} && chown -R {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH}",
+                f"chown {self.compiler_uid}:{self.compiler_gid} {CONTAINER_AGENT_PATH} && chown -R {self.compiler_uid}:{self.compiler_gid} {CONTAINER_AGENT_PATH}",
                 user="root",
             )
 
@@ -363,26 +384,27 @@ class CompilerImage:
             f"usermod -aG sudo {self.compiler_user} && echo '{self.compiler_user} ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers",
             user="root",
         )
-        self.exec(
-            f"cp /root/.bashrc /home/{self.compiler_user}/.bashrc && chown {self.host_uid}:{self.host_gid} /home/{self.compiler_user}/.bashrc",
-            user="root",
-        )
+        if self.compiler_home != "/root":
+            self.exec(
+                f"cp /root/.bashrc {self.compiler_home}/.bashrc && chown {self.compiler_uid}:{self.compiler_gid} {self.compiler_home}/.bashrc",
+                user="root",
+            )
         self.exec("mkdir ~/.cargo && touch ~/.cargo/env", user=self.compiler_user)
-        self.exec(f"install -d -m 0777 -o {self.host_uid} -g {self.host_gid} /go", user="root")
+        self.exec(f"install -d -m 0777 -o {self.compiler_uid} -g {self.compiler_gid} /go", user="root")
         self.exec(
-            f"echo export DD_CC=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-linux-gnu-gcc >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CC=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-linux-gnu-gcc >> {self.compiler_home}/.bashrc",
             user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CXX=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-linux-gnu-g++ >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CXX=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-linux-gnu-g++ >> {self.compiler_home}/.bashrc",
             user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CC_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-linux-gnu-gcc >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CC_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-linux-gnu-gcc >> {self.compiler_home}/.bashrc",
             user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CXX_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-linux-gnu-g++ >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CXX_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-linux-gnu-g++ >> {self.compiler_home}/.bashrc",
             user=self.compiler_user,
         )
 

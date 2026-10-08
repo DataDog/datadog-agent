@@ -161,3 +161,34 @@ class TestCompilerExecBuildbarnToken(unittest.TestCase):
         self.cc.exec("bazel build //...", user="dev", buildbarn_token=True)
         self.assertNotIn("BUILDBARN_ID_TOKEN", self.ctx.run.call_args.args[0])
         self.assertEqual(self.ctx.run.call_args.kwargs["env"], {})
+
+
+class TestCompilerUser(unittest.TestCase):
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.cc = compiler.CompilerImage(self.ctx, Arch.local())
+
+    def _security_options(self, options: str):
+        self.ctx.run.side_effect = lambda cmd, **_: (
+            _result(True, options) if cmd.startswith("docker info") else _result(True, "502\n")
+        )
+
+    def test_rootless_engine_builds_as_root(self):
+        self._security_options('["name=seccomp,profile=default","name=rootless"]')
+        self.assertTrue(self.cc.is_rootless)
+        self.assertEqual((self.cc.compiler_uid, self.cc.compiler_gid), ("0", "0"))
+
+    def test_rootful_engine_builds_as_host_user(self):
+        self._security_options('["name=seccomp,profile=default"]')
+        self.assertFalse(self.cc.is_rootless)
+        self.assertEqual((self.cc.compiler_uid, self.cc.compiler_gid), ("502", "502"))
+
+    def test_user_and_home_come_from_container_passwd(self):
+        self.enterContext(patch.object(compiler.CompilerImage, "compiler_uid", "0"))
+        exec_ = self.enterContext(
+            patch.object(
+                compiler.CompilerImage, "exec", return_value=_result(True, "root:x:0:0:root:/root:/bin/bash\n")
+            )
+        )
+        self.assertEqual((self.cc.compiler_user, self.cc.compiler_home), ("root", "/root"))
+        exec_.assert_called_once_with("getent passwd 0", user="root")
