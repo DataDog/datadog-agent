@@ -130,6 +130,33 @@ func TestConfigFileErrorScrubsSecretsOnDuplicateKeys(t *testing.T) {
 	assert.NotContains(t, strings.Join(conf.Warnings(), "\n"), apiKey)
 }
 
+// TestConfigFileErrorScrubsAnchoredSecrets covers the scrubber families whose
+// regexes are anchored to ^\s* (matchYAMLKeyEnding: *_token, *_secret,
+// *access_key, private_key). Prefixing a line with "  3 | " before scrubbing
+// defeats them, so the context must be scrubbed while still raw YAML.
+func TestConfigFileErrorScrubsAnchoredSecrets(t *testing.T) {
+	// The syntax error is on line 3, so lines 1-5 land in the quoted context.
+	conf, _ := newFileConfig(t, ""+
+		"auth_token: plaintexttokenvalue\n"+
+		"client_secret: supersecretvalue\n"+
+		"foo: bar: baz\n"+
+		"aws_access_key: accesskeyvalue\n"+
+		"private_key: privatekeyvalue\n")
+
+	require.Error(t, conf.ReadInConfig())
+
+	got := conf.ConfigFileError()
+	assert.NotContains(t, got, "plaintexttokenvalue", "auth_token must be redacted")
+	assert.NotContains(t, got, "supersecretvalue", "client_secret must be redacted")
+	assert.NotContains(t, got, "accesskeyvalue", "aws_access_key must be redacted")
+	assert.NotContains(t, got, "privatekeyvalue", "private_key must be redacted")
+
+	assert.NotContains(t, strings.Join(conf.Warnings(), "\n"), "plaintexttokenvalue")
+
+	// Scrubbing must not shift the line numbering the marker depends on.
+	assert.Contains(t, got, "> 3 | foo: bar: baz")
+}
+
 func TestValidConfigFileRecordsNoParseWarning(t *testing.T) {
 	conf, _ := newFileConfig(t, "api_key: abc123\nsite: datadoghq.eu\n")
 

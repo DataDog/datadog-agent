@@ -46,6 +46,16 @@ func describeConfigSource(filePath string) string {
 	return filePath
 }
 
+// splitYAMLLines splits on newlines, dropping the empty element a trailing
+// newline leaves behind.
+func splitYAMLLines(s string) []string {
+	lines := strings.Split(s, "\n")
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return lines
+}
+
 // formatYAMLErrorContext quotes the offending line and its neighbours, marking the
 // offender with '>'. Returns an empty string if the error carries no usable line.
 func formatYAMLErrorContext(content []byte, err error) string {
@@ -58,10 +68,21 @@ func formatYAMLErrorContext(content []byte, err error) string {
 		return ""
 	}
 
-	lines := strings.Split(strings.ReplaceAll(string(content), "\r\n", "\n"), "\n")
-	// A trailing newline leaves a final empty element that is not a real line.
-	if len(lines) > 0 && lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
+	normalized := strings.ReplaceAll(string(content), "\r\n", "\n")
+
+	// Scrub while this is still raw YAML. Several scrubber patterns are anchored to
+	// ^\s* (matchYAMLKeyEnding: *_token, *_secret, *access_key, private_key), so a
+	// "  3 | " prefix would defeat them, and multiline replacers need the whole doc.
+	scrubbed, scrubErr := scrubber.ScrubString(normalized)
+	if scrubErr != nil {
+		return ""
+	}
+
+	lines := splitYAMLLines(scrubbed)
+	// A multiline replacer can collapse lines, which would put the marker on the
+	// wrong line. Drop the context rather than point somewhere misleading.
+	if len(lines) != len(splitYAMLLines(normalized)) {
+		return ""
 	}
 	if target > len(lines) {
 		return ""
