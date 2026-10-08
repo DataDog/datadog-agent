@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "downsampler",
+    srcs = ["sdc.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/internal/downsampler",
+    visibility = ["//pkg/aggregator:__subpackages__"],
+)
+
+dd_agent_go_test(
+    name = "downsampler_test",
+    srcs = ["sdc_test.go"],
+    embed = [":downsampler"],
+    deps = ["@com_github_stretchr_testify//require"],
+)
