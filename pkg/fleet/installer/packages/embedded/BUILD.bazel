@@ -80,6 +80,7 @@ go_library(
         "tmpl/datadog-agent-sysprobe-windows.yaml.tmpl",
         "tmpl/datadog-agent-trace.service.tmpl",
         "tmpl/datadog-agent-trace-windows.yaml.tmpl",
+        "tmpl/datadog-agent-security-windows.yaml.tmpl",
         "tmpl/datadog-agent.service.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded/tmpl",

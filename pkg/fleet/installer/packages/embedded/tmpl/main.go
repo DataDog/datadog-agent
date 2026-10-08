@@ -242,6 +242,13 @@ var (
 		PIDDir:           "__TRACE_INSTALL_ROOT__",
 		Stable:           true,
 	}
+	windowsSecurityCodegenData = installerTemplateData{
+		InstallDir:       "__SECURITY_INSTALL_ROOT__",
+		EtcDir:           "__SECURITY_ETC_ROOT__",
+		FleetPoliciesDir: "__SECURITY_FLEET_POLICIES_DIR__",
+		PIDDir:           "__SECURITY_INSTALL_ROOT__",
+		Stable:           true,
+	}
 
 	// Ideally the folder names would be systemd and procmgr (instead of sd and pm)
 	// and -nocap (instead of -nc)
@@ -272,6 +279,7 @@ var (
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-process.yaml", "datadog-agent-process-windows.yaml", windowsProcessCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-sysprobe.yaml", "datadog-agent-sysprobe-windows.yaml", windowsSysprobeCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-trace.yaml", "datadog-agent-trace-windows.yaml", windowsTraceCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-security.yaml", "datadog-agent-security-windows.yaml", windowsSecurityCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action-executor.yaml", "datadog-agent-action-executor-windows.yaml", windowsPARCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-par-control.yaml", "datadog-agent-par-control-windows.yaml", windowsPARCodegenData)},
 	}
