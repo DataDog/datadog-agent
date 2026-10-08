@@ -12,6 +12,8 @@ import (
 
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/startup"
 )
 
 // DefaultFxLoggingOption creates an fx.Option to configure the Fx logger, either to do nothing
@@ -19,13 +21,16 @@ import (
 func DefaultFxLoggingOption() fx.Option {
 	starttime := time.Now()
 	return fx.Options(
+		fx.Provide(func() *startup.Recorder {
+			return startup.NewRecorder(os.Getenv("DD_FX_TRACING_ENABLED") == "true")
+		}),
 		fx.WithLogger(
-			func() fxevent.Logger {
+			func(phases *startup.Recorder) fxevent.Logger {
 				var logger fxevent.Logger = fxevent.NopLogger
 				if os.Getenv("TRACE_FX") == "1" {
 					logger = &fxevent.ConsoleLogger{W: os.Stderr}
 				}
-				return withFxTracer(logger, starttime, os.Stderr)
+				return withFxTracer(logger, starttime, os.Stderr, phases)
 			},
 		),
 	)

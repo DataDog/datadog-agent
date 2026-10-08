@@ -8,6 +8,7 @@ package logging
 import (
 	"fmt"
 	"io"
+	"maps"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -16,6 +17,8 @@ import (
 	"time"
 
 	"go.uber.org/fx/fxevent"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/startup"
 )
 
 const (
@@ -39,18 +42,23 @@ type Span struct {
 	Duration int64  `json:"duration"`
 	Error    int32  `json:"error"`
 	// Meta     map[string]string  `json:"meta,omitempty"`
-	// Metrics  map[string]float64 `json:"metrics,omitempty"`
-	Type string `json:"type,omitempty"`
+	Metrics map[string]float64 `json:"metrics,omitempty"`
+	Type    string             `json:"type,omitempty"`
 }
 
 // FxTracingLogger implements fxevent.Logger interface to capture Fx lifecycle events
 // and send them as traces to Datadog.
 type FxTracingLogger struct {
-	flavor     string     // The Agent process name (e.g. "agent", "trace-agent", "process-agent", "system-probe"), this is used as the service name for the spans.
-	mu         sync.Mutex // Mutex to protect concurrent access to the fields below
-	traceID    uint64     // The trace ID for the spans
-	rootSpanID uint64     // The root span ID for the spans
-	startTime  time.Time  // Fx startup time
+	flavor       string     // The Agent process name (e.g. "agent", "trace-agent", "process-agent", "system-probe"), this is used as the service name for the spans.
+	mu           sync.Mutex // Mutex to protect concurrent access to the fields below
+	traceID      uint64     // The trace ID for the spans
+	rootSpanID   uint64     // The root span ID for the spans
+	startTime    time.Time  // Fx startup time
+	phases       *startup.Recorder
+	sendSpans    func(io.Writer, []*Span, string)
+	hookSpanID   uint64 // Parent reserved by OnStartExecuting for synchronous phases.
+	hookResource string
+	hookStart    time.Time
 
 	// The following fields are subject to concurrent access.
 	fxLogger       fxevent.Logger // The underlying fxlogger, fxevent are forwarded to this logger.
@@ -63,7 +71,7 @@ type FxTracingLogger struct {
 // Tracing is enabled when DD_FX_TRACING_ENABLED is set to true.
 // When enabled, it instruments Fx lifecycle events including component construction
 // and OnStart hooks, sending traces to the configured trace agent.
-func withFxTracer(fxlogger fxevent.Logger, startTime time.Time, agentLogger io.Writer) fxevent.Logger {
+func withFxTracer(fxlogger fxevent.Logger, startTime time.Time, agentLogger io.Writer, phases *startup.Recorder) fxevent.Logger {
 	if os.Getenv("DD_FX_TRACING_ENABLED") != "true" {
 		return fxlogger
 	}
@@ -75,17 +83,25 @@ func withFxTracer(fxlogger fxevent.Logger, startTime time.Time, agentLogger io.W
 		traceID:     rand.Uint64(),
 		spans:       make([]*Span, 0),
 		startTime:   startTime,
+		phases:      phases,
+		sendSpans:   sendSpansToDatadog,
 	}
 }
 
 // LogEvent implements the fxevent.Logger interface.
 func (l *FxTracingLogger) LogEvent(event fxevent.Event) {
 	// Forward the event to the original fxlogger first to keep the original behavior.
-	go l.fxLogger.LogEvent(event)
+	l.mu.Lock()
+	innerLogger := l.fxLogger
+	l.mu.Unlock()
+	go innerLogger.LogEvent(event)
 
 	switch e := event.(type) {
 	case *fxevent.Run:
 		l.handleRun(e)
+
+	case *fxevent.OnStartExecuting:
+		l.handleOnStartExecuting(e)
 
 	case *fxevent.OnStartExecuted:
 		l.handleOnStartExecuted(e)
@@ -134,12 +150,26 @@ func (l *FxTracingLogger) handleRun(e *fxevent.Run) {
 	}
 
 	l.mu.Lock()
+	defer l.mu.Unlock()
 	// drop the span if the Fx initialization is complete
 	if l.spans == nil {
 		return
 	}
 	l.spans = append(l.spans, span)
-	l.mu.Unlock()
+}
+
+// Reserve the hook's identity before it runs so nested measurements can refer to
+// the same span later emitted by OnStartExecuted. Fx starts hooks serially.
+func (l *FxTracingLogger) handleOnStartExecuting(e *fxevent.OnStartExecuting) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.spans == nil {
+		return
+	}
+	l.hookSpanID = rand.Uint64() | 1
+	l.hookResource = extractShortPathFromFullPath(e.FunctionName)
+	l.hookStart = time.Now()
+	l.phases.BeginHook(l.hookSpanID)
 }
 
 // handleOnStartExecuted captures OnStart hook execution time.
@@ -162,12 +192,17 @@ func (l *FxTracingLogger) handleOnStartExecuted(e *fxevent.OnStartExecuted) {
 	}
 
 	l.mu.Lock()
+	defer l.mu.Unlock()
 	// drop the span if the Fx initialization is complete
 	if l.spans == nil {
 		return
 	}
+	if l.hookSpanID != 0 {
+		span.SpanID = l.hookSpanID
+	}
+	l.hookSpanID = 0
+	l.phases.EndHook()
 	l.spans = append(l.spans, span)
-	l.mu.Unlock()
 }
 
 // handleStarted is called when Fx startup completes.
@@ -181,6 +216,8 @@ func (l *FxTracingLogger) handleStarted(e *fxevent.Started) {
 	if l.spans == nil {
 		return
 	}
+
+	phases, dropped := l.phases.Drain()
 
 	// Check if traceSending has been enabled during the Fx initialization
 	// If not cleanup the memory and return
@@ -203,10 +240,44 @@ func (l *FxTracingLogger) handleStarted(e *fxevent.Started) {
 		Type:     "custom",
 	}
 
+	if dropped > 0 {
+		rootSpan.Metrics = map[string]float64{"startup.phase_spans_dropped": float64(dropped)}
+	}
+	// Fx can time out while a hook that ignores cancellation is still running.
+	// Preserve its identity so phase spans do not reference a missing parent.
+	if l.hookSpanID != 0 {
+		l.spans = append(l.spans, &Span{
+			Service: serviceName, Name: onStartHookName, Resource: l.hookResource,
+			TraceID: l.traceID, SpanID: l.hookSpanID, ParentID: l.rootSpanID,
+			Start: l.hookStart.UnixNano(), Duration: endTime.Sub(l.hookStart).Nanoseconds(),
+			Error: errToCode(e.Err), Type: "custom",
+			Metrics: map[string]float64{"startup.incomplete": 1},
+		})
+		l.hookSpanID = 0
+	}
+	for _, phase := range phases {
+		var failed int32
+		if phase.Failed {
+			failed = 1
+		}
+		metrics := maps.Clone(phase.Metrics)
+		if phase.Incomplete {
+			if metrics == nil {
+				metrics = make(map[string]float64)
+			}
+			metrics["startup.incomplete"] = 1
+		}
+		l.spans = append(l.spans, &Span{
+			Service: serviceName, Name: phase.Name, Resource: phase.Resource,
+			TraceID: l.traceID, SpanID: phase.SpanID, ParentID: phase.ParentID,
+			Start: phase.Start.UnixNano(), Duration: int64(phase.Duration),
+			Error: failed, Type: "custom", Metrics: metrics,
+		})
+	}
 	l.spans = append(l.spans, rootSpan)
 
 	// Send spans asynchronously (trace-agent might not be ready immediately)
-	go sendSpansToDatadog(l.debugLogger, l.spans, l.traceAgentPort)
+	go l.sendSpans(l.debugLogger, l.spans, l.traceAgentPort)
 	// reset the spans buffer
 	l.spans = nil
 }

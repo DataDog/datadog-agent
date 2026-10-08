@@ -213,6 +213,7 @@ go_library(
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/util/fxutil/logging",
+        "//pkg/util/fxutil/startup",
         "//pkg/util/installinfo",
         "//pkg/util/kubernetes/apiserver/leaderelection",
         "//pkg/util/log",

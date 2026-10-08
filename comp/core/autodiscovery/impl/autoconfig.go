@@ -53,6 +53,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/startup"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -74,6 +75,7 @@ type Requires struct {
 	Telemetry      telemetry.Component
 	HealthPlatform healthplatformdef.Component
 	ServiceTracker adtypes.ServiceTracker `optional:"true"`
+	StartupTracing *startup.Recorder      `optional:"true"`
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -106,6 +108,7 @@ type AutoConfig struct {
 	healthPlatform           healthplatformdef.Component
 	staticConfigIndex        *listeners.StaticConfigIndex
 	serviceTracker           adtypes.ServiceTracker
+	startupTracing           *startup.Recorder
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -184,6 +187,7 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 	}()
 
 	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceTracker)
+	ac.startupTracing = deps.StartupTracing
 	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.start()
@@ -537,7 +541,9 @@ func (ac *AutoConfig) AddConfigProviderFromCatalog(cp constants.ConfigurationPro
 
 	wmeta, _ := ac.wmeta.Get()
 
+	phase := ac.startupTracing.Start("autodiscovery.provider.initialize", cp.Name)
 	configProvider, err := factory(&cp, wmeta, ac.taggerComp, ac.filterStore, ac.healthPlatform, ac.telemetryStore)
+	phase.Finish(err)
 	if err != nil {
 		return fmt.Errorf("error while adding config provider %v: %w", cp.Name, err)
 	}
@@ -597,8 +603,12 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) integration.Co
 // try is done synchronously. If a listener fails with a ErrWillRetry, the initialization
 // will be re-triggered later until success or ErrPermaFail.
 func (ac *AutoConfig) AddListeners(listenerConfigs []pkgconfigsetup.Listeners) {
+	phase := ac.startupTracing.Start("autodiscovery.listeners.initialize", "listeners")
+	defer phase.Finish(nil)
+	registration := phase.Start("autodiscovery.listeners.register", "listeners")
 	ac.addListenerCandidates(listenerConfigs)
-	remaining := ac.initListenerCandidates()
+	registration.Finish(nil)
+	remaining := ac.initListenerCandidatesWithTracing(phase)
 	if !remaining {
 		return
 	}
@@ -639,17 +649,28 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []pkgconfigsetup.Lis
 }
 
 func (ac *AutoConfig) initListenerCandidates() bool {
+	// Retries are not synchronous startup work, even if another Fx hook is running.
+	return ac.initListenerCandidatesWithTracing(nil)
+}
+
+func (ac *AutoConfig) initListenerCandidatesWithTracing(phase *startup.Phase) bool {
+	lock := phase.Start("autodiscovery.listeners.lock", "listeners")
 	ac.m.Lock()
+	lock.Finish(nil)
 	defer ac.m.Unlock()
 
 	for name, candidate := range ac.listenerCandidates {
+		initialization := phase.Start("autodiscovery.listener.initialize", name)
 		listener, err := candidate.try()
+		initialization.Finish(err)
 		switch {
 		case err == nil:
 			// Init successful, let's start listening
 			log.Infof("%s listener successfully started", name)
 			ac.listeners = append(ac.listeners, listener)
+			listening := phase.Start("autodiscovery.listener.listen", name)
 			listener.Listen(ac.newService, ac.delService)
+			listening.Finish(nil)
 			delete(ac.listenerCandidates, name)
 		case retry.IsErrWillRetry(err):
 			// Log an info and keep in candidates

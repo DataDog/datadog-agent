@@ -11,11 +11,17 @@ import (
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/startup"
 )
 
-// LoadComponents configures several common Agent components:
-// tagger, collector, scheduler and autodiscovery
+// LoadComponents configures autodiscovery providers and listeners synchronously.
 func LoadComponents(ac autodiscovery.Component, config config.Component) {
+	LoadComponentsWithTracing(ac, config, nil)
+}
+
+// LoadComponentsWithTracing additionally measures setup phases within the current
+// Fx startup hook. A nil or disabled recorder leaves setup uninstrumented.
+func LoadComponentsWithTracing(ac autodiscovery.Component, config config.Component, recorder *startup.Recorder) {
 	confdPath := config.GetString("confd_path")
 
 	confSearchPaths := []string{
@@ -24,5 +30,5 @@ func LoadComponents(ac autodiscovery.Component, config config.Component) {
 		"",
 	}
 
-	setupAutoDiscovery(confSearchPaths, ac, config)
+	setupAutoDiscovery(confSearchPaths, ac, config, recorder)
 }
