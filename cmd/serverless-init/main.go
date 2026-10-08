@@ -360,7 +360,7 @@ func main() {
 		// optional configuration payloads, and scheduling. Serverless fields (including
 		// dd_site) and flavor are injected via Set in run(); capabilities also override
 		// the payload UUID and close readiness before Fx starts the runner. Once all
-		// fields are injected, Publish opens readiness and explicitly calls Submit.
+		// fields are injected, UpdateAndSubmit opens readiness and explicitly calls Submit.
 		fx.Provide(func(d aggregator.Demultiplexer) serializer.MetricSerializer { return d.Serializer() }),
 		ipcfx.Module(),
 		fx.Provide(func(c ipc.Component) ipc.HTTPClient { return c.GetClient() }),
@@ -527,12 +527,12 @@ func setup(
 
 	origin := cloudService.GetOrigin()
 
-	// Publish all serverless fields before opening readiness, then enqueue the
+	// Update all serverless fields before opening readiness, then enqueue the
 	// first payload synchronously without waiting for the runner's first-run
 	// delay. Capabilities keep the provider closed during Fx startup. This is a
 	// no-op while the feature is gated off; unsupported workloads are disabled
 	// before component construction.
-	serverlessInitInventory.Publish(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
+	serverlessInitInventory.UpdateAndSubmit(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
 
 	// Note: we do not modify tags for the LogsAgent.
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tagConfig.Tags, tagger, compression, hostname, origin)
