@@ -172,7 +172,7 @@ func (e *etwSession) StopTracing() error {
 	ptp := (C.PEVENT_TRACE_PROPERTIES)(unsafe.Pointer(&e.propertiesBuf[0]))
 	var ret windows.Errno
 	if e.wellKnown {
-		if e.hTraceHandle == C.DDInvalidProcessTraceHandle() {
+		if e.hTraceHandle == ^C.TRACEHANDLE(0) {
 			return windows.ERROR_INVALID_HANDLE
 		}
 		ret = windows.Errno(C.CloseTrace(e.hTraceHandle))
