@@ -270,7 +270,6 @@ func TestGetRequestBacksOffExponentially(t *testing.T) {
 	require.NoError(t, err)
 
 	client.maxAttempts = 5
-	client.backoffEnabled = true
 
 	resp, err := client.get(context.Background(), "/test", nil)
 	require.NoError(t, err)
@@ -279,32 +278,6 @@ func TestGetRequestBacksOffExponentially(t *testing.T) {
 	require.Equal(t, 2, policy.calls)            // 2 backoff calls were made
 }
 
-func TestGetRequestBackoffDisabledByDefault(t *testing.T) {
-	policy := &countingBackOff{}
-	originalBackOff := newRetryBackOff
-	newRetryBackOff = func() backoff.BackOff { return policy }
-	defer func() { newRetryBackOff = originalBackOff }()
-
-	mux := setupCommonServerMux()
-	handler := rateLimitedHandler(2) // mock "server" returns 2 failures, then success
-	mux.HandleFunc("/test", handler.Func)
-
-	server := httptest.NewServer(mux)
-	defer server.Close()
-
-	client, err := testClient(server)
-	require.NoError(t, err)
-
-	client.maxAttempts = 5
-
-	resp, err := client.get(context.Background(), "/test", nil)
-	require.NoError(t, err)
-	require.Equal(t, []byte("ok"), resp)
-	require.Equal(t, 3, handler.numberOfCalls()) // 3 total calls made
-	require.Equal(t, 0, policy.calls)            // no exponential backoff was used
-}
-
-// loginFailingMux serves the API with a login endpoint that answers with failure for its first calls
 func loginFailingMux(failures int32, failure func(w http.ResponseWriter)) (*http.ServeMux, handler, handler) {
 	login := newHandler(func(w http.ResponseWriter, _ *http.Request, calls int32) {
 		if calls <= failures {
@@ -339,17 +312,15 @@ func TestGetRequestAuthFailureBackoff(t *testing.T) {
 
 	tests := []struct {
 		name               string
-		backoffEnabled     bool
 		failure            func(w http.ResponseWriter)
 		expectedError      string
 		expectedLoginCalls int
 		expectedBackoffs   int
 	}{
-		{name: "rate limited login backs off", backoffEnabled: true, failure: status(http.StatusTooManyRequests), expectedLoginCalls: 3, expectedBackoffs: 2},
-		{name: "server error on login backs off", backoffEnabled: true, failure: status(http.StatusServiceUnavailable), expectedLoginCalls: 3, expectedBackoffs: 2},
-		{name: "invalid credentials stop retrying", backoffEnabled: true, failure: invalidCredentials, expectedError: "invalid credentials", expectedLoginCalls: 1},
-		{name: "forbidden login stops retrying", backoffEnabled: true, failure: status(http.StatusForbidden), expectedError: "authentication failed, status code: 403", expectedLoginCalls: 1},
-		{name: "backoff disabled stops retrying", backoffEnabled: false, failure: status(http.StatusServiceUnavailable), expectedError: "authentication failed, status code: 503", expectedLoginCalls: 1},
+		{name: "rate limited login backs off", failure: status(http.StatusTooManyRequests), expectedLoginCalls: 3, expectedBackoffs: 2},
+		{name: "server error on login backs off", failure: status(http.StatusServiceUnavailable), expectedLoginCalls: 3, expectedBackoffs: 2},
+		{name: "invalid credentials stop retrying", failure: invalidCredentials, expectedError: "invalid credentials", expectedLoginCalls: 1},
+		{name: "forbidden login stops retrying", failure: status(http.StatusForbidden), expectedError: "authentication failed, status code: 403", expectedLoginCalls: 1},
 	}
 
 	for _, tt := range tests {
@@ -363,7 +334,7 @@ func TestGetRequestAuthFailureBackoff(t *testing.T) {
 			server := httptest.NewServer(mux)
 			defer server.Close()
 
-			client, err := testClient(server, WithMaxAttempts(5), WithBackoff(tt.backoffEnabled))
+			client, err := testClient(server, WithMaxAttempts(5))
 			require.NoError(t, err)
 
 			resp, err := client.get(context.Background(), "/test", nil)
@@ -391,7 +362,7 @@ func TestGetRequestAuthFailureExhaustsAttempts(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := testClient(server, WithMaxAttempts(3), WithBackoff(true))
+	client, err := testClient(server, WithMaxAttempts(3))
 	require.NoError(t, err)
 
 	_, err = client.get(context.Background(), "/test", nil)
@@ -408,7 +379,7 @@ func TestGetRequestAuthFailureHonorsRetryAfter(t *testing.T) {
 			w.WriteHeader(http.StatusTooManyRequests)
 		})
 
-		client, err := NewClient("sdwan.test", "testuser", "testpass", true, WithBackoff(true))
+		client, err := NewClient("sdwan.test", "testuser", "testpass", true)
 		require.NoError(t, err)
 		transport := &recordingTransport{mux: mux, start: time.Now()}
 		client.httpClient.Transport = transport
@@ -484,7 +455,6 @@ func TestGetRequestRateLimitMaxWait(t *testing.T) {
 	tests := []struct {
 		name         string
 		burst        int
-		backoff      bool
 		expectedSent []time.Duration
 	}{
 		{
@@ -493,15 +463,8 @@ func TestGetRequestRateLimitMaxWait(t *testing.T) {
 			expectedSent: []time.Duration{0},
 		},
 		{
-			name:         "login request refused with backoff",
-			burst:        1,
-			backoff:      true,
-			expectedSent: []time.Duration{0},
-		},
-		{
-			name:         "API request refused with backoff",
+			name:         "API request refused",
 			burst:        2,
-			backoff:      true,
 			expectedSent: []time.Duration{0, 0},
 		},
 	}
@@ -509,7 +472,7 @@ func TestGetRequestRateLimitMaxWait(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				// Once the burst is used, the next request would wait ~1000s for a token
-				client, transport, handler := rateLimitedTestClient(t, WithBackoff(tt.backoff), WithRateLimit(0.001, tt.burst, 100*time.Millisecond))
+				client, transport, handler := rateLimitedTestClient(t, WithRateLimit(0.001, tt.burst, 100*time.Millisecond))
 
 				_, err := client.get(context.Background(), "/test", nil)
 				require.ErrorIs(t, err, middleware.ErrRateLimitTimeout)
@@ -561,7 +524,7 @@ func TestGetRequestBackoffCancelled(t *testing.T) {
 		})
 		mux.HandleFunc("/test", handler.Func)
 
-		client, err := NewClient("sdwan.test", "testuser", "testpass", true, WithBackoff(true), WithMaxAttempts(3))
+		client, err := NewClient("sdwan.test", "testuser", "testpass", true, WithMaxAttempts(3))
 		require.NoError(t, err)
 		transport := &recordingTransport{mux: mux, start: time.Now()}
 		client.httpClient.Transport = transport
@@ -585,7 +548,7 @@ func TestGetRequestMaxRetryDuration(t *testing.T) {
 		})
 		mux.HandleFunc("/test", handler.Func)
 
-		client, err := NewClient("sdwan.test", "testuser", "testpass", true, WithBackoff(true), WithMaxAttempts(10), WithMaxRetryDuration(time.Minute))
+		client, err := NewClient("sdwan.test", "testuser", "testpass", true, WithMaxAttempts(10), WithMaxRetryDuration(time.Minute))
 		require.NoError(t, err)
 		transport := &recordingTransport{mux: mux, start: time.Now()}
 		client.httpClient.Transport = transport
@@ -909,27 +872,25 @@ func TestRetryError(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		backoffEnabled bool
-		statusCode     int
-		header         http.Header
-		err            error
+		name       string
+		statusCode int
+		header     http.Header
+		err        error
 		// expectedWait is the forced wait, or -1 when the backoff policy decides
 		expectedWait time.Duration
 	}{
-		{name: "disabled retries immediately", backoffEnabled: false, statusCode: http.StatusTooManyRequests, header: retryAfter("2"), expectedWait: 0},
-		{name: "honors Retry-After", backoffEnabled: true, statusCode: http.StatusTooManyRequests, header: retryAfter("2"), expectedWait: 2 * time.Second},
-		{name: "caps Retry-After", backoffEnabled: true, statusCode: http.StatusTooManyRequests, header: retryAfter("3600"), expectedWait: maxRetryBackoff},
-		{name: "invalid Retry-After uses policy", backoffEnabled: true, statusCode: http.StatusTooManyRequests, header: retryAfter("soon"), expectedWait: -1},
-		{name: "server error uses policy", backoffEnabled: true, statusCode: http.StatusServiceUnavailable, header: http.Header{}, expectedWait: -1},
-		{name: "network error uses policy", backoffEnabled: true, err: errors.New("connection reset"), expectedWait: -1},
-		{name: "auth failure retries immediately", backoffEnabled: true, statusCode: http.StatusUnauthorized, expectedWait: 0},
-		{name: "bad request retries immediately", backoffEnabled: true, statusCode: http.StatusBadRequest, expectedWait: 0},
+		{name: "honors Retry-After", statusCode: http.StatusTooManyRequests, header: retryAfter("2"), expectedWait: 2 * time.Second},
+		{name: "caps Retry-After", statusCode: http.StatusTooManyRequests, header: retryAfter("3600"), expectedWait: maxRetryBackoff},
+		{name: "invalid Retry-After uses policy", statusCode: http.StatusTooManyRequests, header: retryAfter("soon"), expectedWait: -1},
+		{name: "server error uses policy", statusCode: http.StatusServiceUnavailable, header: http.Header{}, expectedWait: -1},
+		{name: "network error uses policy", err: errors.New("connection reset"), expectedWait: -1},
+		{name: "auth failure retries immediately", statusCode: http.StatusUnauthorized, expectedWait: 0},
+		{name: "bad request retries immediately", statusCode: http.StatusBadRequest, expectedWait: 0},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := &Client{backoffEnabled: tt.backoffEnabled}
+			client := &Client{}
 			err := client.retryError(tt.statusCode, tt.header, tt.err)
 			require.Error(t, err)
 

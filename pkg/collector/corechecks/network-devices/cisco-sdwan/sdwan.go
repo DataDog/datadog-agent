@@ -38,7 +38,6 @@ type checkCfg struct {
 	Password                        string  `yaml:"password"`
 	Namespace                       string  `yaml:"namespace"`
 	MaxAttempts                     int     `yaml:"max_attempts"`
-	Backoff                         bool    `yaml:"backoff"`
 	MaxPages                        int     `yaml:"max_pages"`
 	MaxCount                        int     `yaml:"max_count"`
 	LookbackTimeWindowMinutes       int     `yaml:"lookback_time_window_minutes"`
@@ -289,10 +288,8 @@ func (c *CiscoSdwanCheck) buildClientOptions() ([]client.ClientOptions, error) {
 		clientOptions = append(clientOptions, client.WithMaxAttempts(c.config.MaxAttempts))
 	}
 
-	if c.config.Backoff {
-		// Retrying a request must not outlast a check run
-		clientOptions = append(clientOptions, client.WithBackoff(true), client.WithMaxRetryDuration(c.interval))
-	}
+	// Retrying a request must not outlast a check run
+	clientOptions = append(clientOptions, client.WithMaxRetryDuration(c.interval))
 
 	if c.config.MaxPages > 0 {
 		clientOptions = append(clientOptions, client.WithMaxPages(c.config.MaxPages))

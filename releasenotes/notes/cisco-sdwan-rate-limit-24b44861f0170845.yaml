@@ -11,6 +11,7 @@ enhancements:
     [NDM] Adds the ``max_requests_per_second`` and ``rate_limit_burst`` options to the
     Cisco SD-WAN check to rate limit requests sent to the Cisco Manager API.
   - |
-    [NDM] Adds the ``backoff`` option to the Cisco SD-WAN check. When enabled, the check
-    waits with exponential backoff before retrying network errors, HTTP 429 and 5xx
-    responses from the Cisco Manager API, honoring the ``Retry-After`` header.
+    [NDM] The Cisco SD-WAN check now waits with exponential backoff before retrying
+    network errors, HTTP 429 and 5xx responses from the Cisco Manager API, including
+    authentication requests, honoring the ``Retry-After`` header. Previously, failed
+    requests were retried immediately.

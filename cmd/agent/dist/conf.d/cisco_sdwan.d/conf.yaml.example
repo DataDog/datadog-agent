@@ -30,17 +30,11 @@ instances:
 
     ## @param max_attempts - integer - optional - default: 3
     ## Max number of retries to apply when polling Cisco Manager API.
+    ## Transient failures (network errors, HTTP 429 and 5xx) are retried with exponential backoff,
+    ## honoring the Retry-After header when present. Waits are capped at 30 seconds, and
+    ## no new wait is started once retrying a request would exceed the check interval.
     #
     # max_attempts: 3
-
-    ## @param backoff - boolean - optional - default: false
-    ## Wait with exponential backoff between retries of transient failures
-    ## (network errors, HTTP 429 and 5xx) when polling Cisco Manager API.
-    ## The Retry-After header is honored when present. Waits are capped at 30 seconds, and
-    ## no new wait is started once retrying a request would exceed the check interval.
-    ## When disabled, failed requests are retried immediately.
-    #
-    # backoff: false
 
     ## @param max_pages - integer - optional - default: 100
     ## Max number of page to request when polling Cisco Manager API.

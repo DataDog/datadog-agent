@@ -51,7 +51,6 @@ type Client struct {
 	maxPages            int
 	maxCount            string // Stored as string to be passed as an HTTP param
 	lookback            time.Duration
-	backoffEnabled      bool
 	maxRetryDuration    time.Duration // 0 means retries are only bounded by maxAttempts
 	rateLimiter         *rate.Limiter // nil means requests are not rate limited, applied by the transport
 	rateLimitMaxWait    time.Duration
@@ -160,12 +159,6 @@ func WithTLSConfig(insecure bool, CAFile string) (ClientOptions, error) {
 func WithMaxAttempts(maxAttempts int) ClientOptions {
 	return func(c *Client) {
 		c.maxAttempts = maxAttempts
-	}
-}
-
-func WithBackoff(enabled bool) ClientOptions {
-	return func(c *Client) {
-		c.backoffEnabled = enabled
 	}
 }
 

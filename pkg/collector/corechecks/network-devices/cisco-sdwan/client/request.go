@@ -124,7 +124,7 @@ func (client *Client) get(ctx context.Context, endpoint string, params map[strin
 	}
 
 	bytes, err := backoff.Retry(ctx, operation,
-		backoff.WithBackOff(client.retryBackOff()),
+		backoff.WithBackOff(newRetryBackOff()),
 		backoff.WithMaxTries(uint(max(client.maxAttempts, 1))),
 		backoff.WithMaxElapsedTime(client.maxRetryDuration),
 		backoff.WithNotify(func(err error, wait time.Duration) {
@@ -148,30 +148,22 @@ func (client *Client) get(ctx context.Context, endpoint string, params map[strin
 	return nil, fmt.Errorf("%s http responded with %d code", endpoint, statusCode)
 }
 
-func (client *Client) retryBackOff() backoff.BackOff {
-	if !client.backoffEnabled {
-		return &backoff.ZeroBackOff{}
-	}
-	return newRetryBackOff()
-}
-
-// authRetryError builds the error returned when authentication fails. When backoff is enabled,
-// transient failures of the authentication requests are retried like API requests, honoring
-// Retry-After. Everything else, including invalid credentials, rate limiter and cancellation
+// authRetryError builds the error returned when authentication fails. Transient failures of
+// the authentication requests are retried like API requests, honoring Retry-After. Everything else, including invalid credentials, rate limiter and cancellation
 // errors, stops retrying.
 func (client *Client) authRetryError(ctx context.Context, err error) error {
 	var authErr *authError
-	if ctx.Err() == nil && client.backoffEnabled && errors.As(err, &authErr) && authErr.transient() {
+	if ctx.Err() == nil && errors.As(err, &authErr) && authErr.transient() {
 		return client.retryError(authErr.statusCode, authErr.header, err)
 	}
 	return backoff.Permanent(err)
 }
 
-// retryError builds the error returned for a failed attempt. When backoff is enabled,
-// transient failures wait for the backoff policy (or the server-provided Retry-After);
+// retryError builds the error returned for a failed attempt. Transient failures wait for
+// the backoff policy (or the server-provided Retry-After);
 // every other failure, including 401 which triggers re-authentication, is retried immediately.
 func (client *Client) retryError(statusCode int, header http.Header, err error) error {
-	retryable := client.backoffEnabled && isRetryable(statusCode, err)
+	retryable := isRetryable(statusCode, err)
 	if err == nil {
 		err = fmt.Errorf("http responded with %d code", statusCode)
 	}
