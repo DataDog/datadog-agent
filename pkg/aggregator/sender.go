@@ -50,8 +50,8 @@ type checkSender struct {
 	noIndex                 bool
 	infraTagger             *infratags.Tagger // nil = no infra mode tagging
 	// infraModeEventTags is `infra_mode:<mode>` for marked modes, else nil.
-	// Resolved at construction and appended on Event only. Separate from
-	// infraTagger (metrics-only allowlist).
+	// Resolved at construction and appended on Event only. Kept separate from
+	// infraTagger so event marking does not use the metrics allowlist.
 	infraModeEventTags []string
 }
 
